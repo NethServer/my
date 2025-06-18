@@ -72,10 +72,3 @@ Coming soon:
 
 - Based on [Logto](https://github.com/logto-io/logto)  
 - Inspired by modern authentication best practices  
-
-
----
-
-## 📝 License
-
-MIT
