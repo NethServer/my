@@ -1,11 +1,15 @@
 # Binaries
 backend/backend
+logto-sync/build/logto-sync
 *.exe
 
 # Environment files
 .env
 .env.local
 .env.production
+
+# Config files
+logto-sync/configs/hierarchy.yml
 
 # IDE
 .vscode/
