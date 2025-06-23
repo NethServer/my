@@ -25,3 +25,9 @@ hierarchy:
   resources:
     - name: "systems"
       actions: ["create", "read", "update", "delete", "admin"]
+
+# Logto customizations configuration
+customizations:
+  custom_jwt_claims:
+    enabled: true
+    script_path: "logto-customizations/custom-jwt-claims.js"

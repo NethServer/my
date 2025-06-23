@@ -148,6 +148,11 @@ func (e *Engine) Sync(cfg *config.Config) (*Result, error) {
 		}
 	}
 
+	// Sync customizations
+	if err := e.syncCustomizations(cfg, result); err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("Customizations sync failed: %v", err))
+	}
+
 	result.EndTime = time.Now()
 	result.Duration = result.EndTime.Sub(result.StartTime)
 	result.Success = len(result.Errors) == 0
@@ -180,6 +185,11 @@ func (e *Engine) addOperation(result *Result, opType, action, resource, descript
 	}
 
 	result.Operations = append(result.Operations, op)
+}
+
+// syncCustomizations synchronizes Logto customizations
+func (e *Engine) syncCustomizations(cfg *config.Config, result *Result) error {
+	return SyncCustomizations(e.client, cfg, e.options.DryRun)
 }
 
 // OutputText outputs the result in text format

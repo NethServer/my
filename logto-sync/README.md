@@ -194,7 +194,99 @@ hierarchy:
   resources:
     - name: "systems"
       actions: ["create", "read", "update", "delete", "admin"]
+
+# Logto customizations
+customizations:
+  custom_jwt_claims:
+    enabled: true
+    script_path: "logto-customizations/custom-jwt-claims.js"
 ```
+
+## Logto Customizations
+
+This tool also manages Logto customizations, including custom JWT claims that extend the default JWT tokens with additional user information from your RBAC configuration.
+
+### Custom JWT Claims
+
+The `logto-customizations/custom-jwt-claims.js` file contains JavaScript code that defines additional claims to be included in JWT tokens. This script is automatically uploaded to your Logto instance when running the sync command.
+
+#### Custom Claims Structure
+
+The function adds the following claims to JWT tokens:
+
+- `roles`: Array of user role names (e.g., ["Admin", "Support"])
+- `scopes`: Array of user permission scopes (e.g., ["admin:systems", "manage:billing"])
+- `organization_roles`: Array of organization role names (e.g., ["God", "Distributor"])
+- `organization_scopes`: Array of organization-specific scopes
+
+#### Example Custom JWT Claims Script
+
+```javascript
+// logto-customizations/custom-jwt-claims.js
+const getCustomJwtClaims = async (token, context) => {
+  const { user } = context;
+
+  return {
+    // Add user roles
+    roles: user.customData?.roles || [],
+
+    // Add organization information
+    organization_roles: user.customData?.organization_roles || [],
+
+    // Add additional scopes
+    scopes: user.customData?.scopes || [],
+    organization_scopes: user.customData?.organization_scopes || [],
+
+    // Add custom fields
+    department: user.customData?.department || null,
+    permissions: user.customData?.permissions || []
+  };
+};
+```
+
+#### Configuration
+
+To enable custom JWT claims synchronization, add the customizations section to your `hierarchy.yml`:
+
+```yaml
+customizations:
+  custom_jwt_claims:
+    enabled: true
+    script_path: "logto-customizations/custom-jwt-claims.js"
+```
+
+#### Key Features
+
+- **Automatic Sync**: Custom JWT claims are automatically synchronized when running `logto-sync sync`
+- **Validation**: The script is validated before upload to ensure it's valid JavaScript
+- **Rollback Support**: Previous versions are preserved in case rollback is needed
+- **Testing**: Use `--dry-run` to preview changes without applying them
+
+#### Backend Integration
+
+The backend Go API automatically validates and uses these custom claims through the Logto JWT middleware. The claims are mapped to the user context:
+
+- `ctx.user.roles` - User roles from JWT
+- `ctx.user.scopes` - User scopes from JWT
+- `ctx.user.organization_roles` - Organization roles from JWT
+- `ctx.user.organization_scopes` - Organization scopes from JWT
+
+#### Script Modification Workflow
+
+When modifying the custom JWT claims script:
+
+1. Edit the `logto-customizations/custom-jwt-claims.js` file
+2. Test locally if possible
+3. Run a dry-run to preview changes: `logto-sync sync --dry-run --verbose`
+4. Apply changes: `logto-sync sync`
+
+#### Security Considerations
+
+- The custom JWT claims script is executed on Logto's servers
+- Keep the script minimal and focused on claim extraction
+- Avoid making external API calls within the script
+- Test thoroughly before deploying to production
+- Always use the dry-run option first when making changes
 
 ## Development
 
@@ -213,7 +305,7 @@ make dev-setup
 ### Available Make Targets
 
 ```bash
-make help                 # Show all available targets
+make help                # Show all available targets
 make build               # Build the binary
 make test                # Run tests
 make test-coverage       # Run tests with coverage
@@ -227,7 +319,7 @@ make run-example         # Run with example config
 ### Project Structure
 
 ```
-├── cmd/logto-sync/        # CLI entry point
+├── cmd/logto-sync/       # CLI entry point
 ├── internal/
 │   ├── cli/              # CLI commands and flags
 │   ├── client/           # Logto API client
@@ -236,7 +328,7 @@ make run-example         # Run with example config
 │   └── logger/           # Logging utilities
 ├── pkg/version/          # Version information
 ├── configs/              # Example configurations
-└── Makefile             # Build automation
+└── Makefile              # Build automation
 ```
 
 ## Examples
