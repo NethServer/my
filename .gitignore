@@ -1,15 +1,31 @@
 # Binaries
 backend/backend
-logto-sync/build/logto-sync
+backend/*.exe
+logto-sync/build/
+logto-sync/logto-sync
 *.exe
+*.bin
+
+# Go build artifacts
+go.work
+go.work.sum
+*.so
+*.dylib
+*.dll
 
 # Environment files
 .env
 .env.local
 .env.production
+.env.*
+!.env.example
 
-# Config files
-logto-sync/configs/hierarchy.yml
+# Config files - exclude actual configs, keep examples
+logto-sync/configs/*.yml
+!logto-sync/configs/*.example.yml
+*.config
+config.json
+config.yaml
 
 # IDE
 .vscode/
