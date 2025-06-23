@@ -16,8 +16,9 @@ import (
 
 // Config represents the complete configuration structure
 type Config struct {
-	Metadata  Metadata  `yaml:"metadata" json:"metadata"`
-	Hierarchy Hierarchy `yaml:"hierarchy" json:"hierarchy"`
+	Metadata        Metadata        `yaml:"metadata" json:"metadata"`
+	Hierarchy       Hierarchy       `yaml:"hierarchy" json:"hierarchy"`
+	Customizations  Customizations  `yaml:"customizations,omitempty" json:"customizations,omitempty"`
 }
 
 // Metadata contains configuration metadata
@@ -53,6 +54,17 @@ type Permission struct {
 type Resource struct {
 	Name    string   `yaml:"name" json:"name"`
 	Actions []string `yaml:"actions" json:"actions"`
+}
+
+// Customizations represents Logto customizations configuration
+type Customizations struct {
+	CustomJwtClaims *CustomJwtClaims `yaml:"custom_jwt_claims,omitempty" json:"custom_jwt_claims,omitempty"`
+}
+
+// CustomJwtClaims represents custom JWT claims configuration
+type CustomJwtClaims struct {
+	Enabled    bool   `yaml:"enabled" json:"enabled"`
+	ScriptPath string `yaml:"script_path" json:"script_path"`
 }
 
 // Validate validates the configuration
@@ -107,6 +119,11 @@ func (c *Config) Validate() error {
 	// Validate permission references
 	if err := c.validatePermissionReferences(); err != nil {
 		return fmt.Errorf("permission reference validation failed: %w", err)
+	}
+
+	// Validate customizations
+	if err := c.validateCustomizations(); err != nil {
+		return fmt.Errorf("customizations validation failed: %w", err)
 	}
 
 	return nil
@@ -224,6 +241,19 @@ func (c *Config) isSystemPermission(permissionID string) bool {
 	}
 
 	return false
+}
+
+func (c *Config) validateCustomizations() error {
+	if c.Customizations.CustomJwtClaims == nil {
+		return nil // Optional section
+	}
+
+	claims := c.Customizations.CustomJwtClaims
+	if claims.Enabled && claims.ScriptPath == "" {
+		return fmt.Errorf("script_path is required when custom JWT claims are enabled")
+	}
+
+	return nil
 }
 
 // GetUserTypeRoles returns only roles with type "user" or empty type
