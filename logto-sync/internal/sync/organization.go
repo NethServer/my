@@ -18,6 +18,65 @@ import (
 	"github.com/nethesis/my/logto-sync/internal/logger"
 )
 
+// isSystemOrganizationRole checks if an organization role is a system role that shouldn't be deleted
+func isSystemOrganizationRole(role client.LogtoOrganizationRole) bool {
+	// Preserve Logto system roles and any role that looks like a system role
+	systemRoleNames := []string{
+		"logto",
+		"admin",
+		"system",
+		"default",
+		"owner",
+		"member",
+	}
+	
+	roleName := strings.ToLower(role.Name)
+	for _, systemName := range systemRoleNames {
+		if strings.Contains(roleName, systemName) {
+			return true
+		}
+	}
+	
+	// Preserve roles with system-like descriptions
+	description := strings.ToLower(role.Description)
+	if strings.Contains(description, "system") || 
+	   strings.Contains(description, "default") ||
+	   strings.Contains(description, "logto") {
+		return true
+	}
+	
+	return false
+}
+
+// isSystemOrganizationScope checks if an organization scope is a system scope that shouldn't be deleted
+func isSystemOrganizationScope(scope client.LogtoOrganizationScope) bool {
+	// Preserve Logto system scopes and any scope that looks like a system scope
+	systemScopeNames := []string{
+		"logto",
+		"system",
+		"default",
+		"management",
+		"api",
+	}
+	
+	scopeName := strings.ToLower(scope.Name)
+	for _, systemName := range systemScopeNames {
+		if strings.Contains(scopeName, systemName) {
+			return true
+		}
+	}
+	
+	// Preserve scopes with system-like descriptions but be more specific
+	description := strings.ToLower(scope.Description)
+	if strings.Contains(description, "logto") ||
+	   strings.Contains(description, "management") ||
+	   (strings.Contains(description, "system") && !strings.HasPrefix(description, "organization scope:")) {
+		return true
+	}
+	
+	return false
+}
+
 // syncOrganizationScopes synchronizes organization scopes
 func (e *Engine) syncOrganizationScopes(cfg *config.Config, result *Result) error {
 	logger.Info("Syncing organization scopes...")
@@ -40,6 +99,12 @@ func (e *Engine) syncOrganizationScopes(cfg *config.Config, result *Result) erro
 	existingScopeMap := make(map[string]client.LogtoOrganizationScope)
 	for _, scope := range existingScopes {
 		existingScopeMap[scope.Name] = scope
+	}
+
+	// Create map for quick lookup of config scopes BY NAME
+	configScopeMap := make(map[string]bool)
+	for permissionID := range allPermissions {
+		configScopeMap[permissionID] = true
 	}
 
 	// Create or update organization scopes
@@ -85,6 +150,31 @@ func (e *Engine) syncOrganizationScopes(cfg *config.Config, result *Result) erro
 		}
 	}
 
+	// Cleanup phase: remove organization scopes not in config (only if --cleanup flag is set)
+	if e.options.Cleanup {
+		for _, existingScope := range existingScopes {
+			// Skip scopes that are defined in config
+			if configScopeMap[existingScope.Name] {
+				logger.Debug("Skipping organization scope defined in config: %s", existingScope.Name)
+				continue
+			}
+			// Skip system/default scopes that shouldn't be deleted
+			if isSystemOrganizationScope(existingScope) {
+				logger.Debug("Skipping system organization scope: %s (description: %s)", existingScope.Name, existingScope.Description)
+				continue
+			}
+			// Delete scope not in config
+			logger.Info("Removing organization scope not in config: %s", existingScope.Name)
+			err := e.client.DeleteOrganizationScope(existingScope.ID)
+			e.addOperation(result, "organization-scope", "delete", existingScope.Name, "Removed organization scope not in config", err)
+			if err != nil {
+				logger.Warn("Failed to delete organization scope %s: %v", existingScope.Name, err)
+			} else {
+				result.Summary.ScopesDeleted++
+			}
+		}
+	}
+
 	logger.Info("Organization scopes sync completed")
 	return nil
 }
@@ -111,6 +201,12 @@ func (e *Engine) syncOrganizationRoles(cfg *config.Config, result *Result) error
 	existingRoleMap := make(map[string]client.LogtoOrganizationRole)
 	for _, role := range existingRoles {
 		existingRoleMap[strings.ToLower(role.Name)] = role
+	}
+
+	// Create map for quick lookup of config roles BY NAME (case-insensitive)
+	configRoleMap := make(map[string]bool)
+	for _, configRole := range userRoles {
+		configRoleMap[strings.ToLower(configRole.Name)] = true
 	}
 
 	// Create or update organization roles
@@ -150,6 +246,30 @@ func (e *Engine) syncOrganizationRoles(cfg *config.Config, result *Result) error
 				return fmt.Errorf("failed to create organization role %s: %w", roleName, err)
 			}
 			result.Summary.RolesCreated++
+		}
+	}
+
+	// Cleanup phase: remove organization roles not in config (only if --cleanup flag is set)
+	if e.options.Cleanup {
+		for _, existingRole := range existingRoles {
+			roleNameLower := strings.ToLower(existingRole.Name)
+			// Skip roles that are defined in config
+			if configRoleMap[roleNameLower] {
+				continue
+			}
+			// Skip system/default roles that shouldn't be deleted
+			if isSystemOrganizationRole(existingRole) {
+				continue
+			}
+			// Delete role not in config
+			logger.Info("Removing organization role not in config: %s", existingRole.Name)
+			err := e.client.DeleteOrganizationRole(existingRole.ID)
+			e.addOperation(result, "organization-role", "delete", existingRole.Name, "Removed organization role not in config", err)
+			if err != nil {
+				logger.Warn("Failed to delete organization role %s: %v", existingRole.Name, err)
+			} else {
+				result.Summary.RolesDeleted++
+			}
 		}
 	}
 
