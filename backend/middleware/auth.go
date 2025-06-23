@@ -1,3 +1,12 @@
+/*
+ * Copyright (C) 2025 Nethesis S.r.l.
+ * http://www.nethesis.it - info@nethesis.it
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ *
+ * author: Edoardo Spadoni <edoardo.spadoni@nethesis.it>
+ */
+
 package middleware
 
 import (
@@ -148,9 +157,27 @@ func validateLogtoToken(tokenString string) (*models.User, error) {
 		}
 	}
 
-	// Extract scopes
+	// Extract organization roles from custom claims
+	if orgRoles, ok := claims["organization_roles"].([]interface{}); ok {
+		for _, role := range orgRoles {
+			if roleStr, ok := role.(string); ok {
+				user.OrganizationRoles = append(user.OrganizationRoles, roleStr)
+			}
+		}
+	}
+
+	// Extract scopes (user scopes)
 	if scope, ok := claims["scope"].(string); ok {
 		user.Scopes = strings.Split(scope, " ")
+	}
+
+	// Extract organization scopes from custom claims
+	if orgScopes, ok := claims["organization_scopes"].([]interface{}); ok {
+		for _, scope := range orgScopes {
+			if scopeStr, ok := scope.(string); ok {
+				user.OrganizationScopes = append(user.OrganizationScopes, scopeStr)
+			}
+		}
 	}
 
 	return user, nil

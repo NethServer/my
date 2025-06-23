@@ -1,3 +1,12 @@
+/*
+ * Copyright (C) 2025 Nethesis S.r.l.
+ * http://www.nethesis.it - info@nethesis.it
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ *
+ * author: Edoardo Spadoni <edoardo.spadoni@nethesis.it>
+ */
+
 package main
 
 import (
@@ -25,6 +34,12 @@ func main() {
 
 	// Init configuration
 	configuration.Init()
+
+	// Initialize demo data for all entities
+	methods.InitSystemsStorage()
+	methods.InitDistributorsStorage()
+	methods.InitResellersStorage()
+	methods.InitCustomersStorage()
 
 	// Init router
 	router := gin.Default()
@@ -61,29 +76,85 @@ func main() {
 		// Protected resource
 		protected.GET("/protected", methods.GetProtectedResource)
 
-		// Admin only endpoints
-		admin := protected.Group("/admin", middleware.RequireRole("admin"))
+		// ===========================================
+		// SYSTEMS - Hybrid approach
+		// ===========================================
+
+		// Standard CRUD operations - role-based (clean & simple)
+		systemsGroup := protected.Group("/systems", middleware.AutoRoleRBAC("Support"))
 		{
-			admin.GET("/users", func(c *gin.Context) {
-				c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-					Code:    200,
-					Message: "admin users list",
-					Data:    []string{"user1", "user2"},
-				}))
-			})
+			systemsGroup.POST("", methods.CreateSystem)
+			systemsGroup.GET("", methods.GetSystems)
+			systemsGroup.PUT("/:id", methods.UpdateSystem)
+			systemsGroup.DELETE("/:id", methods.DeleteSystem)
+			systemsGroup.GET("/subscriptions", methods.GetSystemSubscriptions)
 		}
 
-		// Endpoints that require specific scopes
-		scoped := protected.Group("/data", middleware.RequireScope("read:data"))
+		// Special/Sensitive operations - scope-based (granular control)
+		systemsSpecial := protected.Group("/systems")
 		{
-			scoped.GET("/sensitive", func(c *gin.Context) {
-				c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-					Code:    200,
-					Message: "sensitive data accessed",
-					Data:    gin.H{"data": "very sensitive information"},
-				}))
-			})
+			// System management operations - require specific permissions
+			systemsSpecial.POST("/:id/restart", middleware.RequireScope("manage:systems"), methods.RestartSystem)
+			systemsSpecial.PUT("/:id/enable", middleware.RequireScope("manage:systems"), methods.EnableSystem)
+
+			// Dangerous operations - require admin permissions
+			systemsSpecial.POST("/:id/factory-reset", middleware.RequireScope("admin:systems"), methods.FactoryResetSystem)
+			systemsSpecial.DELETE("/:id/destroy", middleware.RequireScope("destroy:systems"), methods.DestroySystem)
+
+			// Audit operations - require audit permissions
+			systemsSpecial.GET("/:id/logs", middleware.RequireScope("audit:systems"), methods.GetSystemLogs)
+			systemsSpecial.GET("/audit", middleware.RequireScope("audit:systems"), methods.GetSystemsAudit)
+
+			// Backup operations - require backup permissions
+			systemsSpecial.POST("/:id/backup", middleware.RequireScope("backup:systems"), methods.BackupSystem)
+			systemsSpecial.POST("/:id/restore", middleware.RequireScope("backup:systems"), methods.RestoreSystem)
 		}
+
+		// ===========================================
+		// HIERARCHY - Organization role-based
+		// ===========================================
+
+		// Distributors - only God can manage
+		distributorsGroup := protected.Group("/distributors", middleware.AutoOrganizationRoleRBAC("God"))
+		{
+			distributorsGroup.POST("", methods.CreateDistributor)
+			distributorsGroup.GET("", methods.GetDistributors)
+			distributorsGroup.PUT("/:id", methods.UpdateDistributor)
+			distributorsGroup.DELETE("/:id", methods.DeleteDistributor)
+		}
+
+		// Resellers - God and Distributors can manage
+		resellersGroup := protected.Group("/resellers", middleware.RequireAnyOrganizationRole("God", "Distributor"))
+		{
+			resellersGroup.POST("", methods.CreateReseller)
+			resellersGroup.GET("", methods.GetResellers)
+			resellersGroup.PUT("/:id", methods.UpdateReseller)
+			resellersGroup.DELETE("/:id", methods.DeleteReseller)
+		}
+
+		// Customers - God, Distributors, and Resellers can manage
+		customersGroup := protected.Group("/customers", middleware.RequireAnyOrganizationRole("God", "Distributor", "Reseller"))
+		{
+			customersGroup.POST("", methods.CreateCustomer)
+			customersGroup.GET("", methods.GetCustomers)
+			customersGroup.PUT("/:id", methods.UpdateCustomer)
+			customersGroup.DELETE("/:id", methods.DeleteCustomer)
+		}
+
+		// Quick stats endpoint - management roles only
+		protected.GET("/stats", middleware.RequireAnyOrganizationRole("God", "Distributor"), func(c *gin.Context) {
+			c.JSON(http.StatusOK, structs.Map(response.StatusOK{
+				Code:    200,
+				Message: "system statistics",
+				Data: gin.H{
+					"distributors": 1,
+					"resellers":    2,
+					"customers":    2,
+					"systems":      2,
+					"timestamp":    "2025-01-20T10:30:00Z",
+				},
+			}))
+		})
 	}
 
 	// Handle missing endpoints
@@ -96,5 +167,6 @@ func main() {
 	})
 
 	// Run server
+	logs.Logs.Printf("[INFO][MAIN] Starting server on %s", configuration.Config.ListenAddress)
 	router.Run(configuration.Config.ListenAddress)
 }
