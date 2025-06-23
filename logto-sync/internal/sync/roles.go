@@ -18,6 +18,35 @@ import (
 	"github.com/nethesis/my/logto-sync/internal/logger"
 )
 
+// isSystemUserRole checks if a role is a system role that shouldn't be deleted
+func isSystemUserRole(role client.LogtoRole) bool {
+	// Preserve Logto system roles and any role that looks like a system role
+	systemRoleNames := []string{
+		"logto",
+		"admin",
+		"machine-to-machine",
+		"system",
+		"default",
+	}
+	
+	roleName := strings.ToLower(role.Name)
+	for _, systemName := range systemRoleNames {
+		if strings.Contains(roleName, systemName) {
+			return true
+		}
+	}
+	
+	// Preserve roles with system-like descriptions
+	description := strings.ToLower(role.Description)
+	if strings.Contains(description, "system") || 
+	   strings.Contains(description, "default") ||
+	   strings.Contains(description, "logto") {
+		return true
+	}
+	
+	return false
+}
+
 // syncUserRoles synchronizes user roles
 func (e *Engine) syncUserRoles(cfg *config.Config, result *Result) error {
 	logger.Info("Syncing user roles...")
@@ -40,6 +69,12 @@ func (e *Engine) syncUserRoles(cfg *config.Config, result *Result) error {
 	existingRoleMap := make(map[string]client.LogtoRole)
 	for _, role := range existingRoles {
 		existingRoleMap[strings.ToLower(role.Name)] = role
+	}
+
+	// Create map for quick lookup of config roles BY NAME (case-insensitive)
+	configRoleMap := make(map[string]bool)
+	for _, configRole := range userRoles {
+		configRoleMap[strings.ToLower(configRole.Name)] = true
 	}
 
 	// Create or update user roles
@@ -79,6 +114,30 @@ func (e *Engine) syncUserRoles(cfg *config.Config, result *Result) error {
 				return fmt.Errorf("failed to create user role %s: %w", roleName, err)
 			}
 			result.Summary.RolesCreated++
+		}
+	}
+
+	// Cleanup phase: remove user roles not in config (only if --cleanup flag is set)
+	if e.options.Cleanup {
+		for _, existingRole := range existingRoles {
+			roleNameLower := strings.ToLower(existingRole.Name)
+			// Skip roles that are defined in config
+			if configRoleMap[roleNameLower] {
+				continue
+			}
+			// Skip system/default roles that shouldn't be deleted
+			if isSystemUserRole(existingRole) {
+				continue
+			}
+			// Delete role not in config
+			logger.Info("Removing user role not in config: %s", existingRole.Name)
+			err := e.client.DeleteRole(existingRole.ID)
+			e.addOperation(result, "user-role", "delete", existingRole.Name, "Removed user role not in config", err)
+			if err != nil {
+				logger.Warn("Failed to delete user role %s: %v", existingRole.Name, err)
+			} else {
+				result.Summary.RolesDeleted++
+			}
 		}
 	}
 
