@@ -20,6 +20,14 @@ type Configuration struct {
 	LogtoIssuer   string `json:"logto_issuer"`
 	LogtoAudience string `json:"logto_audience"`
 	JWKSEndpoint  string `json:"jwks_endpoint"`
+	// JWT Custom token configuration
+	JWTSecret     string `json:"jwt_secret"`
+	JWTIssuer     string `json:"jwt_issuer"`
+	JWTExpiration string `json:"jwt_expiration"`
+	// Logto Management API configuration
+	LogtoManagementClientID     string `json:"logto_management_client_id"`
+	LogtoManagementClientSecret string `json:"logto_management_client_secret"`
+	LogtoManagementBaseURL      string `json:"logto_management_base_url"`
 }
 
 var Config = Configuration{}
@@ -49,5 +57,46 @@ func Init() {
 		Config.JWKSEndpoint = os.Getenv("JWKS_ENDPOINT")
 	} else {
 		Config.JWKSEndpoint = Config.LogtoIssuer + "/oidc/jwks"
+	}
+
+	// JWT custom token configuration
+	if os.Getenv("JWT_SECRET") != "" {
+		Config.JWTSecret = os.Getenv("JWT_SECRET")
+	} else {
+		logs.Logs.Println("[CRITICAL][ENV] JWT_SECRET variable is empty")
+		os.Exit(1)
+	}
+
+	if os.Getenv("JWT_ISSUER") != "" {
+		Config.JWTIssuer = os.Getenv("JWT_ISSUER")
+	} else {
+		Config.JWTIssuer = "my.nethesis.it"
+	}
+
+	if os.Getenv("JWT_EXPIRATION") != "" {
+		Config.JWTExpiration = os.Getenv("JWT_EXPIRATION")
+	} else {
+		Config.JWTExpiration = "24h" // Default: 24 hours
+	}
+
+	// Logto Management API configuration
+	if os.Getenv("LOGTO_MANAGEMENT_CLIENT_ID") != "" {
+		Config.LogtoManagementClientID = os.Getenv("LOGTO_MANAGEMENT_CLIENT_ID")
+	} else {
+		logs.Logs.Println("[CRITICAL][ENV] LOGTO_MANAGEMENT_CLIENT_ID variable is empty")
+		os.Exit(1)
+	}
+
+	if os.Getenv("LOGTO_MANAGEMENT_CLIENT_SECRET") != "" {
+		Config.LogtoManagementClientSecret = os.Getenv("LOGTO_MANAGEMENT_CLIENT_SECRET")
+	} else {
+		logs.Logs.Println("[CRITICAL][ENV] LOGTO_MANAGEMENT_CLIENT_SECRET variable is empty")
+		os.Exit(1)
+	}
+
+	if os.Getenv("LOGTO_MANAGEMENT_BASE_URL") != "" {
+		Config.LogtoManagementBaseURL = os.Getenv("LOGTO_MANAGEMENT_BASE_URL")
+	} else {
+		Config.LogtoManagementBaseURL = Config.LogtoIssuer + "/api"
 	}
 }

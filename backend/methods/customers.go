@@ -17,6 +17,7 @@ import (
 	"github.com/nethesis/my/backend/logs"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
+	"github.com/nethesis/my/backend/services"
 )
 
 // In-memory storage for demo purposes
@@ -68,13 +69,53 @@ func CreateCustomer(c *gin.Context) {
 
 // GetCustomers handles GET /api/customers - retrieves all customers
 func GetCustomers(c *gin.Context) {
-	customers := make([]*models.Customer, 0, len(customersStorage))
-	for _, customer := range customersStorage {
+	userID, _ := c.Get("user_id")
+	userOrgRole, _ := c.Get("org_role")
+	userOrgID, _ := c.Get("organization_id")
+	
+	logs.Logs.Printf("[INFO][CUSTOMERS] Customers list requested by user %s (role: %s, org: %s)", userID, userOrgRole, userOrgID)
+
+	// Get organizations with Customer role from Logto
+	orgs, err := services.GetOrganizationsByRole("Customer")
+	if err != nil {
+		logs.Logs.Printf("[ERROR][CUSTOMERS] Failed to fetch customers from Logto: %v", err)
+		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
+			Code:    500,
+			Message: "failed to fetch customers",
+			Data:    nil,
+		}))
+		return
+	}
+
+	// Apply visibility filtering
+	filteredOrgs := services.FilterOrganizationsByVisibility(orgs, userOrgRole.(string), userOrgID.(string), "Customer")
+
+	// Convert Logto organizations to customer format
+	customers := make([]gin.H, 0, len(filteredOrgs))
+	for _, org := range filteredOrgs {
+		customer := gin.H{
+			"id":           org.ID,
+			"name":         org.Name,
+			"description":  org.Description,
+			"customData":   org.CustomData,
+			"isMfaRequired": org.IsMfaRequired,
+			"type":         "customer",
+		}
+		
+		// Add branding if available
+		if org.Branding != nil {
+			customer["branding"] = gin.H{
+				"logoUrl":     org.Branding.LogoUrl,
+				"darkLogoUrl": org.Branding.DarkLogoUrl,
+				"favicon":     org.Branding.Favicon,
+				"darkFavicon": org.Branding.DarkFavicon,
+			}
+		}
+		
 		customers = append(customers, customer)
 	}
 
-	userID, _ := c.Get("user_id")
-	logs.Logs.Printf("[INFO][CUSTOMERS] Customers list requested by user %s", userID)
+	logs.Logs.Printf("[INFO][CUSTOMERS] Retrieved %d customers from Logto", len(customers))
 
 	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
 		Code:    200,

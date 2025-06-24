@@ -10,11 +10,11 @@
 package models
 
 type User struct {
-	ID                 string   `json:"id" structs:"id"`
-	Username           string   `json:"username" structs:"username"`
-	Email              string   `json:"email" structs:"email"`
-	Roles              []string `json:"roles" structs:"roles"`                             // User roles (Support, Sales, etc.)
-	Scopes             []string `json:"scopes" structs:"scopes"`                           // User scopes (create:systems, etc.)
-	OrganizationRoles  []string `json:"organization_roles" structs:"organization_roles"`   // Organization roles (God, Distributor, Reseller, Customer)
-	OrganizationScopes []string `json:"organization_scopes" structs:"organization_scopes"` // Organization scopes (create:reseller, manage:customer, etc.)
+	ID               string   `json:"id" structs:"id"`
+	UserRoles        []string `json:"user_roles" structs:"user_roles"`                   // Technical capabilities (Admin, Support)
+	UserPermissions  []string `json:"user_permissions" structs:"user_permissions"`       // Permissions derived from user roles
+	OrgRole          string   `json:"org_role" structs:"org_role"`                       // Business hierarchy role (God, Distributor, Reseller, Customer)
+	OrgPermissions   []string `json:"org_permissions" structs:"org_permissions"`         // Permissions derived from organization role
+	OrganizationID   string   `json:"organization_id" structs:"organization_id"`         // Which organization the user belongs to
+	OrganizationName string   `json:"organization_name" structs:"organization_name"`     // Organization name for display
 }
