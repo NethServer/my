@@ -1,5 +1,5 @@
-# 🔐 Nethesis Hierarchical RBAC System
-*Role-Based Access Control for the Nethesis Ecosystem*
+# 🔐 Nethesis Simplified RBAC System
+*Clean Role-Based Access Control with Business Logic Separation*
 
 ---
 
@@ -9,26 +9,35 @@
 ```mermaid
 graph TB
     A[Vue Frontend] --> B[Logto IdP]
-    B --> C[JWT Tokens]
-    C --> D[Go Backend API]
-    D --> E[RBAC Middleware]
-    E --> F[Protected Resources]
+    B --> C[Access Token]
+    A --> D[POST /auth/exchange]
+    D --> E[Go Backend API]
+    E --> F[Logto Management API]
+    F --> G[Real User Data]
+    E --> H[Custom JWT Generation]
+    H --> A
+    A --> I[API Calls with Custom JWT]
+    I --> E
+    E --> J[RBAC Middleware]
+    J --> K[Protected Resources]
 
-    G[hierarchy.yml] --> H[logto-sync Tool]
-    H --> B
+    L[hierarchy.yml] --> M[sync Tool]
+    M --> B
 ```
 
 ### **🎯 Objectives**
-- **Hierarchical access control** for multi-level organizations
-- **Automated permission management** based on roles
-- **Granular security** for critical operations
-- **Scalability** for ecosystem growth
+- **Clear separation** between business hierarchy and technical capabilities
+- **Real-time data integration** via Logto Management API
+- **Performance optimization** through token exchange and JWT embedding
+- **Simplified permission model** with direct role-to-permission mapping
+- **Intuitive authorization** combining organization and user roles
+- **Scalable architecture** for ecosystem growth
 
 ---
 
-## 🏢 **Organization Hierarchy**
+## 🏢 **Business Hierarchy (Organization Roles)**
 
-### **Pyramid Structure**
+### **Commercial Chain Structure**
 ```
                     🔱 GOD (Nethesis)
                           |
@@ -39,318 +48,422 @@ graph TB
               👥 CUSTOMERS    👥 CUSTOMERS
 ```
 
-### **Permissions by Level**
-| Role | Can Create | Can Manage | Can View |
-|------|------------|------------|----------|
-| **God** | Distributors | Everything | Everything |
-| **Distributor** | Resellers, Customers | Sub-levels | Own hierarchy |
-| **Reseller** | Customers | Own clients | Own clients |
-| **Customer** | - | Own systems | Own data |
+### **Organization Roles & Business Logic**
+| Role | Can Create | Can Manage | Inherited From |
+|------|------------|------------|----------------|
+| **God** | Distributors, Resellers, Customers | Everything | Direct assignment |
+| **Distributor** | Resellers, Customers | Sub-levels | Organization membership |
+| **Reseller** | Customers | Own clients | Organization membership |
+| **Customer** | - | Own data | Organization membership |
+
+**Key Principle**: Users **inherit** their organization's business role and permissions automatically.
 
 ---
 
-## 👥 **User Role System**
+## 👥 **Technical Capabilities (User Roles)**
 
-### **📊 Business Roles**
-- **Sales**: Invoicing, renewals, self-service purchases, CRM
-- **Marketing**: Campaigns, analytics, news
-- **Operations**: Monitoring, training/courses, warehouse, shop
+### **Role Categories**
 
-### **🔧 Technical Roles**
-- **Admin**: Complete platform administration
-- **Support**: System management, customer troubleshooting
-- **Auditor**: Compliance, logs, security
-- **Viewer**: Read-only access to systems
+#### **🔧 Technical Operations**
+- **Admin**: Complete platform administration, dangerous operations
+- **Support**: System management, customer troubleshooting, standard operations
 
-### **Permission Matrix by Domain**
 
-#### **💻 Technical Systems**
-| Role | Create | Read | Update | Delete | Manage | Destroy | Backup |
-|------|:------:|:----:|:------:|:------:|:------:|:-------:|:------:|
-| **Admin** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Support** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
-| **Operations** | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ✅ |
-| **Auditor** | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **Viewer** | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+### **Permission Matrix**
 
-#### **💰 Business & Finance**
-| Role | Invoicing | Renewals | Self-Service | Reports | Analytics | CRM |
-|------|:---------:|:--------:|:------------:|:-------:|:---------:|:---:|
-| **Sales** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Accounting** | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ |
-| **Marketing** | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ |
-| **Admin** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+#### **Technical Systems (MVP)**
+| Role | Systems Read | Systems Manage | Systems Admin | Systems Destroy |
+|------|:------------:|:--------------:|:-------------:|:---------------:|
+| **Admin** | ✅ | ✅ | ✅ | ✅ |
+| **Support** | ✅ | ✅ | ❌ | ❌ |
 
 ---
 
-## 🌐 **Third-Party Integrations**
+## 🎯 **Simplified Architecture**
 
-### **Business Systems**
+### **Permission Logic**
+```
+Final User Permissions = Organization Role Permissions + User Role Permissions
+```
+
+### **Real-World Examples**
+
+#### **Example 1: Marco (ACME Reseller + Admin)**
 ```yaml
-Sales:
-  - Stripe/PayPal      → Self-service payments
-  - HubSpot/Salesforce → CRM and lead management
+Organization: "ACME" (type: Reseller)
+Organization Role: "Reseller"
+User Roles: ["Admin"]
 
-Operations:
-  - Moodle/Canvas      → Training platform, webinars
-  - Wordpress/Woocommerce        → Shop
-  - Stock        → Warehouse
-  - Freshdesk/Helpdesk  → Knowledge base, FAQ
-
-Accounting:
-  - Webcontract/Business   → Accounting management
-  - Stripe Billing     → Subscription management
+Resulting Permissions:
+  # From Organization Role (Business Logic)
+  - create:customers
+  - manage:customers
+  - read:own-customers
+  
+  # From User Role (Technical Capabilities)  
+  - admin:systems
+  - destroy:systems
+  - manage:systems
+  - read:systems
 ```
 
----
+### **Data Visibility & Isolation**
 
-## 🔧 **Hybrid Approach: Roles + Scopes**
+The system implements hierarchical data visibility based on organization roles and creation relationships:
 
-### **🎯 Design Philosophy**
-```
-📱 Standard Operations → ROLES (Simple, Clean)
-⚠️  Critical Operations → SCOPES (Granular, Secure)
-```
+#### **Visibility Rules**
+- **God**: Can see all distributors, resellers, and customers regardless of who created them
+- **Distributors**: Can see only:
+  - Resellers they created (`customData.createdBy = distributor.organizationId`)
+  - Customers created by their resellers (transitively)
+- **Resellers**: Can see only:
+  - Customers they created (`customData.createdBy = reseller.organizationId`)
+- **Customers**: Cannot access organization management endpoints
 
-### **Implementation**
-```go
-// ✅ Standard CRUD - Role-based (elegant)
-systemsGroup := protected.Group("/systems", middleware.AutoRoleRBAC("Support"))
-{
-    systemsGroup.POST("", methods.CreateSystem)     // Support role
-    systemsGroup.GET("", methods.GetSystems)        // Support role
-    systemsGroup.PUT("/:id", methods.UpdateSystem)  // Support role
-    systemsGroup.DELETE("/:id", methods.DeleteSystem) // Support role
-}
-
-// ⚠️ Critical Operations - Scope-based (granular)
-systemsSpecial := protected.Group("/systems")
-{
-    systemsSpecial.POST("/:id/factory-reset",
-        middleware.RequireScope("admin:systems"), methods.FactoryResetSystem)
-    systemsSpecial.DELETE("/:id/destroy",
-        middleware.RequireScope("destroy:systems"), methods.DestroySystem)
-    systemsSpecial.POST("/:id/restart",
-        middleware.RequireScope("manage:systems"), methods.RestartSystem)
-}
-
-// 🏢 Organization Hierarchy - Organization role-based
-distributorsGroup := protected.Group("/distributors", middleware.AutoOrganizationRoleRBAC("God"))
-{
-    distributorsGroup.POST("", methods.CreateDistributor)
-    distributorsGroup.GET("", methods.GetDistributors)
-}
-
-// Mixed hierarchy access
-resellersGroup := protected.Group("/resellers", middleware.RequireAnyOrganizationRole("God", "Distributor"))
-{
-    resellersGroup.POST("", methods.CreateReseller)
-    resellersGroup.GET("", methods.GetResellers)
-}
-```
-
----
-
-## 🔄 **Authentication Flow**
-
-### **Step by Step**
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant F as Frontend
-    participant L as Logto
-    participant B as Backend
-    participant M as Middleware
-
-    U->>F: Login
-    F->>L: Authenticate
-    L->>L: Check roles & scopes
-    L->>F: JWT Token
-    F->>B: API Request + JWT
-    B->>M: Validate Token
-    M->>M: Check Role/Scope
-    M->>B: Allow/Deny
-    B->>F: Response
-```
-
-### **JWT Token Content**
+#### **CustomData Structure**
+When organizations are created, they include visibility metadata:
 ```json
 {
-  "sub": "user123",
-  "username": "mario.rossi",
-  "roles": ["Support"],                    // User roles
-  "scopes": ["create:systems", "read:systems"], // User scopes (array)
-  "organization_roles": ["Distributor"],   // Org roles
-  "organization_scopes": ["create:resellers"] // Org scopes
+  "customData": {
+    "createdBy": "creating-organization-id",
+    "createdByRole": "Distributor"
+  }
 }
+```
+
+#### **Visibility Examples**
+```yaml
+# Distributor "Nethesis" creates Reseller "ACME"
+ACME Reseller:
+  customData:
+    createdBy: "nethesis-org-id"
+    createdByRole: "Distributor"
+
+# Reseller "ACME" creates Customer "TechCorp"  
+TechCorp Customer:
+  customData:
+    createdBy: "acme-org-id"
+    createdByRole: "Reseller"
+
+# Visibility Results:
+# God: Sees Nethesis, ACME, TechCorp
+# Nethesis Distributor: Sees ACME (created by them), TechCorp (created by their reseller)
+# ACME Reseller: Sees only TechCorp (created by them)
+# TechCorp Customer: Cannot access organization endpoints
+```
+
+#### **Example 2: Edoardo (Nethesis Distributor + Support)**
+```yaml
+Organization: "Nethesis" (type: Distributor)  
+Organization Role: "Distributor"
+User Roles: ["Support"]
+
+Resulting Permissions:
+  # From Organization Role (Business Logic)
+  - create:resellers
+  - manage:resellers
+  - create:customers
+  - manage:customers
+  
+  # From User Role (Technical Capabilities)
+  - manage:systems
+  - read:systems
 ```
 
 ---
 
-## 📊 **Practical Examples**
+## 🔧 **Implementation**
+
+### **User Model Structure**
+```go
+type User struct {
+    ID               string   `json:"id"`
+    Username         string   `json:"username"`
+    Email            string   `json:"email"`
+    
+    // Technical capabilities (what the user can DO)
+    UserRoles        []string `json:"user_roles"`        // ["Admin", "Support"]
+    UserPermissions  []string `json:"user_permissions"`  // Derived from roles
+    
+    // Business hierarchy (what the organization allows)
+    OrgRole          string   `json:"org_role"`          // "Distributor"
+    OrgPermissions   []string `json:"org_permissions"`   // Derived from org role
+    OrganizationID   string   `json:"organization_id"`   // "nethesis-001"
+    OrganizationName string   `json:"organization_name"` // "Nethesis S.r.l."
+}
+```
+
+### **Middleware Usage**
+```go
+// ✅ Technical capability groups - role-based
+systemsGroup := protected.Group("/systems",
+    middleware.RequireUserRole("Support"))
+
+// ✅ Business hierarchy groups - organization role-based
+distributorsGroup := protected.Group("/distributors", 
+    middleware.RequireOrgRole("God")) // Only God can manage distributors
+
+resellersGroup := protected.Group("/resellers", 
+    middleware.RequireAnyOrgRole("God", "Distributor")) // God + Distributors manage resellers
+
+customersGroup := protected.Group("/customers", 
+    middleware.RequireAnyOrgRole("God", "Distributor", "Reseller")) // All levels manage customers
+
+// ✅ Specific operations - explicit permissions
+systemsGroup.POST("/:id/restart", 
+    middleware.RequirePermission("manage:systems"), methods.RestartSystem)
+
+// ✅ Admin-only operations - explicit admin permissions
+systemsGroup.DELETE("/:id", 
+    middleware.RequirePermission("admin:systems"), methods.DeleteSystem)
+```
+
+### **Permission Flow**
+```mermaid
+sequenceDiagram
+    participant U as User Request
+    participant M as Middleware
+    participant L as Permission Logic
+    
+    U->>M: API Request + JWT
+    M->>L: Check Required Permission
+    L->>L: Has User Permission?
+    L->>L: Has Org Permission?
+    L->>M: Allow if Either = True
+    M->>U: Response (200/403)
+```
+
+---
+
+## 📊 **Practical Scenarios**
 
 ### **Scenario 1: System Management**
 ```bash
-# ✅ Support can manage systems
-curl -X POST /api/systems \
-  -H "Authorization: Bearer <support-token>" \
-  -d '{"name":"server-prod","type":"linux"}'
-
-# ❌ Support CANNOT perform factory reset
-curl -X POST /api/systems/123/factory-reset \
+# ✅ Support can manage systems (User Role permission)
+curl -X POST /api/systems/123/restart \
   -H "Authorization: Bearer <support-token>"
-# → 403 Forbidden: insufficient scope permissions (admin:systems required)
+# → 200 OK (has manage:systems from Support role)
 
-# ✅ Admin can perform factory reset
-curl -X POST /api/systems/123/factory-reset \
-  -H "Authorization: Bearer <admin-token>"
-# → 200 OK: factory reset initiated
-```
-
-### **Scenario 2: Commercial Hierarchy**
-```bash
-# ✅ Distributor can create reseller
+# ✅ Distributor can create resellers (Organization Role permission)  
 curl -X POST /api/resellers \
   -H "Authorization: Bearer <distributor-token>"
+# → 200 OK (has create:resellers from Distributor org role)
 
-# ❌ Reseller CANNOT create other resellers
-curl -X POST /api/resellers \
-  -H "Authorization: Bearer <reseller-token>"
-# → 403 Forbidden: insufficient organization role
-
-# ✅ Reseller can create customer
-curl -X POST /api/customers \
-  -H "Authorization: Bearer <reseller-token>"
+# ❌ Customer cannot create distributors (lacks both permissions)
+curl -X POST /api/distributors \
+  -H "Authorization: Bearer <customer-token>"
+# → 403 Forbidden (no create:distributors permission)
 ```
 
-### **Scenario 3: Business Operations**
+### **Scenario 2: Combined Permissions**
 ```bash
-# ✅ Sales can create renewal invoice
-curl -X POST /api/invoices \
-  -H "Authorization: Bearer <sales-token>" \
-  -d '{"customer_id":"123","type":"renewal","amount":1200}'
+# ✅ Reseller + Admin can manage customer systems
+curl -X POST /api/customers/123/systems/restart \
+  -H "Authorization: Bearer <reseller-admin-token>"
+# → 200 OK (create:customers from org + admin:systems from user role)
 
-# ✅ Sales can enable self-service for product
-curl -X POST /api/products/firewall/enable-selfservice \
-  -H "Authorization: Bearer <sales-token>"
-
-# ✅ Operations can create training course
-curl -X POST /api/training/courses \
-  -H "Authorization: Bearer <operations-token>" \
-  -d '{"title":"NethSecurity Advanced","duration":"4h"}'
-
-# ❌ Support CANNOT view financial reports
-curl -X GET /api/reports/revenue \
-  -H "Authorization: Bearer <support-token>"
-# → 403 Forbidden: insufficient scope permissions (read:financials required)
-```
-
-### **Scenario 4: Granular Controls**
-```bash
-# ✅ Auditor can view system logs
-curl -X GET /api/systems/123/logs \
-  -H "Authorization: Bearer <auditor-token>"
-
-# ❌ Marketing CANNOT view sensitive customer data
-curl -X GET /api/customers/123/systems \
-  -H "Authorization: Bearer <marketing-token>"
-# → 403 Forbidden: insufficient scope permissions (read:systems required)
-
-# ✅ Accounting can generate billing reports
-curl -X GET /api/reports/billing/Q1-2025 \
-  -H "Authorization: Bearer <accounting-token>"
+# ❌ Customer + Support cannot destroy systems
+curl -X DELETE /api/systems/123/destroy \
+  -H "Authorization: Bearer <customer-support-token>"  
+# → 403 Forbidden (has read:systems but NOT destroy:systems)
 ```
 
 ---
 
-## ⚙️ **Configuration and Sync**
+## ⚙️ **Configuration**
 
-### **hierarchy.yml → Logto**
+### **hierarchy.yml Structure**
 ```yaml
 metadata:
-  name: "nethesis-hierarchy-clean"
+  name: "nethesis-simplified-rbac"
   version: "2.0.0"
-  description: "Clean hierarchy configuration for Nethesis ecosystem"
 
 hierarchy:
+  # BUSINESS HIERARCHY (Organization Types)
   organization_roles:
     - id: god
-      name: "God"
-      priority: 1
       permissions:
-        - id: create:distributors
-        - id: manage:distributors
-        - id: destroy:distributors
-        - id: admin:financials
-
+        - create:distributors
+        - manage:distributors
+        - create:resellers
+        - manage:resellers
+        - create:customers
+        - manage:customers
+        
     - id: distributor
-      name: "Distributor"
-      priority: 2
       permissions:
-        - id: create:resellers
-        - id: manage:resellers
-        - id: create:customers
-        - id: read:financials
+        - create:resellers
+        - manage:resellers
+        - create:customers
+        - manage:customers
+        
+    - id: reseller
+      permissions:
+        - create:customers
+        - manage:customers
+        
+    - id: customer
+      permissions:
+        - read:own-data
 
+  # TECHNICAL CAPABILITIES (User Skills)
   user_roles:
     - id: admin
-      name: "Admin"
-      priority: 1
       permissions:
-        - id: admin:systems
-        - id: destroy:systems
-        - id: admin:financials
-
-    - id: sales
-      name: "Sales"
-      priority: 3
+        - admin:systems
+        - manage:systems
+        - destroy:systems
+        - read:systems
+        
+    - id: support
       permissions:
-        - id: create:invoices
-        - id: manage:renewals
-        - id: enable:selfservice
-        - id: manage:crm
-
-  resources:
-    - name: "systems"
-      actions: ["create", "read", "update", "delete", "manage", "admin", "destroy", "backup", "audit"]
-
-    - name: "distributors"
-      actions: ["create", "read", "update", "delete", "manage", "destroy"]
+        - manage:systems
+        - read:systems
+        
 ```
 
-### **Synchronization Tool**
+### **Synchronization**
 ```bash
-# Automatic sync with Logto
-logto-sync sync -c hierarchy.yml
+# Deploy new configuration
+sync sync -c hierarchy.yml
+
+# Preview changes  
+sync sync -c hierarchy.yml --dry-run --verbose
 
 # Output:
-✅ Creating user role: Sales
-✅ Assigning scope: create:invoices to Sales
-✅ Creating user role: Operations
-✅ Assigning scope: create:training to Operations
-✅ Creating user role: Marketing
-✅ Assigning scope: manage:campaigns to Marketing
 ✅ Creating organization role: Distributor
+✅ Creating user role: Admin  
+✅ Assigning permission: admin:systems to Admin
+✅ Creating user role: Support
 ✅ Sync completed successfully!
-
-# Dry run to preview changes
-logto-sync sync -c hierarchy.yml --dry-run --verbose
-
-# Cleanup unused roles/scopes
-logto-sync sync -c hierarchy.yml --cleanup
 ```
+
+---
+
+## 🔄 **Token Exchange System**
+
+### **Architecture Overview**
+
+The system implements a sophisticated **token exchange pattern** that combines Logto authentication with real-time Management API data fetching for optimal performance and security.
+
+### **Authentication Flow**
+
+```mermaid
+sequenceDiagram
+    participant F as Frontend
+    participant L as Logto IdP
+    participant B as Backend API
+    participant M as Management API
+    participant J as JWT Service
+
+    F->>L: 1. User Login
+    L->>F: 2. access_token
+    F->>B: 3. POST /auth/exchange {access_token}
+    B->>L: 4. Validate token (/userinfo)
+    L->>B: 5. User basic info
+    B->>M: 6. Fetch user roles
+    M->>B: 7. User roles + permissions
+    B->>M: 8. Fetch organization data
+    M->>B: 9. Org roles + permissions
+    B->>J: 10. Generate custom JWT
+    J->>B: 11. Signed JWT with full context
+    B->>F: 12. {custom_jwt, user_data}
+    F->>B: 13. API calls with custom JWT
+    B->>F: 14. Responses (no external calls)
+```
+
+### **Management API Integration**
+
+#### **Data Fetching Process**
+1. **User Roles (Technical Capabilities)**
+   - `GET /users/{id}/roles` → Fetch assigned user roles
+   - `GET /roles/{id}/scopes` → Fetch permissions for each role
+   - Result: `["Admin"]` → `["admin:systems", "destroy:systems", "manage:systems", "read:systems"]`
+
+2. **Organization Data (Business Hierarchy)**
+   - `GET /users/{id}/organizations` → Fetch user's organizations
+   - `GET /organizations/{orgId}/users/{userId}/roles` → Fetch org roles
+   - `GET /organization-roles/{roleId}/scopes` → Fetch org permissions
+   - Result: `"Distributor"` → `["create:resellers", "manage:resellers", "create:customers", "manage:customers"]`
+
+#### **Real Data in JWT**
+```json
+{
+  "user": {
+    "id": "real-user-id",
+    "username": "marco.rossi",
+    "email": "marco@acme.com",
+    "user_roles": ["Admin"],
+    "user_permissions": ["admin:systems", "destroy:systems", "manage:systems", "read:systems"],
+    "org_role": "Distributor",
+    "org_permissions": ["create:resellers", "manage:resellers", "create:customers", "manage:customers"],
+    "organization_id": "acme-distributor-123",
+    "organization_name": "ACME Distribution"
+  }
+}
+```
+
+### **Performance Benefits**
+
+| Aspect | Before (Direct Logto) | After (Token Exchange) |
+|--------|----------------------|----------------------|
+| **API Calls per Request** | 1-3 (JWKS + custom script) | 0 (local JWT validation) |
+| **Permission Resolution** | Real-time script execution | Pre-computed in JWT |
+| **Network Latency** | Every request | Only during exchange |
+| **Scalability** | Limited by Logto performance | Limited by backend only |
+| **Caching** | Logto-dependent | Full control |
+
+### **Security Model**
+
+1. **Logto Access Token**: Used only for initial validation and data fetching
+2. **Custom JWT**: Contains complete user context, signed with backend secret
+3. **Permission Embedding**: All permissions pre-computed and embedded
+4. **Token Expiration**: Configurable (24h default) for permission refresh
+5. **Management API**: Secured with machine-to-machine credentials
+
+---
+
+## 🔄 **Migration Benefits**
+
+### **Before (Complex)**
+- 4 separate permission arrays per user
+- Multiple middleware types (user_rbac, org_rbac, etc.)
+- Confusing scope/role duplication
+- Hard to understand permission logic
+
+### **After (Simplified)**
+- 2 clear permission sources (User + Organization)
+- Single unified middleware
+- Clear separation: Business vs Technical
+- Intuitive permission inheritance
+
+### **Backward Compatibility**
+- All existing middleware functions maintained as aliases
+- Gradual migration path available
+- No breaking changes to API endpoints
 
 ---
 
 ## ❓ **Q&A**
 
-### **Technical FAQ**
-**Q: How do we handle hierarchy changes?**
-A: Automatic sync with Logto, real-time permission propagation
+**Q: How does a user get Organization Role permissions?**
+A: Automatically fetched from Logto Management API based on their organization membership and role assignment in that organization.
 
-**Q: What happens if Logto is offline?**
-A: JWT tokens continue to work with our server, only new logins won't work
+**Q: Can a user have multiple User Roles?**  
+A: Yes! A user can be both "Support" and "Admin", getting permissions from both roles. The system fetches all assigned roles and combines their permissions.
+
+**Q: When are permissions updated?**
+A: Permissions are fetched fresh from Logto during token exchange and embedded in the JWT. They update when the JWT expires (24h default) and user does a new token exchange.
+
+**Q: What if Management API is unavailable?**
+A: The system gracefully handles failures - token exchange will still work with basic user info, but may have limited permissions until Management API is available again.
+
+**Q: How are permissions synchronized between sync and the backend?**
+A: `sync` manages the RBAC structure in Logto, while the backend fetches the current state via Management API. This ensures permissions are always current and reflect any changes made in Logto admin console.
+
+**Q: What if I need very specific permission combinations?**
+A: Use `RequirePermission("specific:permission")` - it checks both User and Organization permissions that were fetched from Logto.
 
 ---
 
-*🔐 **Nethesis RBAC System** - Enterprise Security, Developer Simplicity*
+*🔐 **Nethesis Simplified RBAC** - Business Logic Clarity, Technical Flexibility*
