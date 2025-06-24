@@ -16,10 +16,10 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/nethesis/my/logto-sync/internal/client"
-	"github.com/nethesis/my/logto-sync/internal/config"
-	"github.com/nethesis/my/logto-sync/internal/logger"
-	"github.com/nethesis/my/logto-sync/internal/sync"
+	"github.com/nethesis/my/sync/internal/client"
+	"github.com/nethesis/my/sync/internal/config"
+	"github.com/nethesis/my/sync/internal/logger"
+	"github.com/nethesis/my/sync/internal/sync"
 )
 
 var syncCmd = &cobra.Command{
@@ -34,9 +34,9 @@ This command will:
 4. Report any changes made
 
 Examples:
-  logto-sync sync -c hierarchy.yml
-  logto-sync sync --dry-run --verbose
-  logto-sync sync --output json`,
+  sync sync -c hierarchy.yml
+  sync sync --dry-run --verbose
+  sync sync --output json`,
 	RunE: runSync,
 }
 

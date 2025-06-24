@@ -12,7 +12,7 @@ package main
 import (
 	"os"
 
-	"github.com/nethesis/my/logto-sync/internal/cli"
+	"github.com/nethesis/my/sync/internal/cli"
 )
 
 func main() {

@@ -1,0 +1,92 @@
+metadata:
+  name: "nethesis-simplified-rbac"
+  version: "2.0.0"
+  description: "Simplified RBAC with clear separation between business hierarchy and technical capabilities"
+
+hierarchy:
+  # Organization roles define BUSINESS HIERARCHY permissions
+  # Users inherit these based on their organization's role in the commercial chain
+  organization_roles:
+    - id: god
+      name: "God"
+      priority: 1
+      type: user
+      permissions:
+        # Complete control over commercial hierarchy
+        - id: create:distributors
+        - id: manage:distributors
+        - id: create:resellers
+        - id: manage:resellers
+        - id: create:customers
+        - id: manage:customers
+
+    - id: distributor
+      name: "Distributor"
+      priority: 2
+      type: user
+      permissions:
+        # Can manage downstream in hierarchy: resellers and customers
+        - id: create:resellers
+        - id: manage:resellers
+        - id: create:customers
+        - id: manage:customers
+        - id: read:own-resellers
+        - id: read:own-customers
+
+    - id: reseller
+      name: "Reseller"
+      priority: 3
+      type: user
+      permissions:
+        # Can only manage customers
+        - id: create:customers
+        - id: manage:customers
+        - id: read:own-customers
+
+    - id: customer
+      name: "Customer"
+      priority: 4
+      type: user
+      permissions:
+        # Read-only access to own organization data and systems
+        - id: read:own-data
+        - id: read:systems          # Can view their own systems
+
+  # User roles define TECHNICAL CAPABILITIES
+  # Independent of business hierarchy - define what technical operations a user can perform
+  user_roles:
+    - id: admin
+      name: "Admin"
+      priority: 1
+      type: user
+      permissions:
+        # Full technical control including dangerous operations
+        - id: admin:systems          # Includes all system operations + dangerous ones
+        - id: destroy:systems        # Explicit dangerous operation
+        - id: manage:systems         # Standard system management
+        - id: read:systems           # Can read systems
+
+    - id: support
+      name: "Support"
+      priority: 2
+      type: user
+      permissions:
+        # Standard technical operations (no dangerous operations)
+        - id: manage:systems         # Standard system management
+        - id: read:systems           # Can read systems
+
+
+  # Resources and their available actions
+  resources:
+    - name: "systems"
+      actions: ["read", "manage", "admin", "destroy"]
+
+    - name: "distributors"
+      actions: ["create", "manage"]
+
+    - name: "resellers"
+      actions: ["create", "manage"]
+
+    - name: "customers"
+      actions: ["create", "manage"]
+

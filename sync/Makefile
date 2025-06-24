@@ -1,15 +1,15 @@
 # Variables
-BINARY_NAME=logto-sync
+BINARY_NAME=sync
 BUILD_DIR=build
-CMD_DIR=cmd/logto-sync
+CMD_DIR=cmd/sync
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # Go build flags
-LDFLAGS=-ldflags "-X github.com/nethesis/my/logto-sync/pkg/version.Version=$(VERSION) \
-                  -X github.com/nethesis/my/logto-sync/pkg/version.Commit=$(COMMIT) \
-                  -X github.com/nethesis/my/logto-sync/pkg/version.BuildTime=$(BUILD_TIME)"
+LDFLAGS=-ldflags "-X github.com/nethesis/my/sync/pkg/version.Version=$(VERSION) \
+                  -X github.com/nethesis/my/sync/pkg/version.Commit=$(COMMIT) \
+                  -X github.com/nethesis/my/sync/pkg/version.BuildTime=$(BUILD_TIME)"
 
 # Default target
 .PHONY: all

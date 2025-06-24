@@ -12,9 +12,9 @@ package sync
 import (
 	"fmt"
 
-	"github.com/nethesis/my/logto-sync/internal/client"
-	"github.com/nethesis/my/logto-sync/internal/config"
-	"github.com/nethesis/my/logto-sync/internal/logger"
+	"github.com/nethesis/my/sync/internal/client"
+	"github.com/nethesis/my/sync/internal/config"
+	"github.com/nethesis/my/sync/internal/logger"
 )
 
 // syncResources synchronizes resources and their scopes

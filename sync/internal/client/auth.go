@@ -16,7 +16,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/nethesis/my/logto-sync/internal/logger"
+	"github.com/nethesis/my/sync/internal/logger"
 )
 
 // getAccessToken obtains an access token from Logto

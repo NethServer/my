@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/nethesis/my/logto-sync/internal/logger"
+	"github.com/nethesis/my/sync/internal/logger"
 )
 
 // LogtoOrganizationRole represents an organization role in Logto

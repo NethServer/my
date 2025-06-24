@@ -13,9 +13,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/nethesis/my/logto-sync/internal/client"
-	"github.com/nethesis/my/logto-sync/internal/config"
-	"github.com/nethesis/my/logto-sync/internal/logger"
+	"github.com/nethesis/my/sync/internal/client"
+	"github.com/nethesis/my/sync/internal/config"
+	"github.com/nethesis/my/sync/internal/logger"
 )
 
 // isSystemUserRole checks if a role is a system role that shouldn't be deleted

@@ -1,4 +1,4 @@
-module github.com/nethesis/my/logto-sync
+module github.com/nethesis/my/sync
 
 go 1.21
 

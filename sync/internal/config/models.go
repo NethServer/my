@@ -18,7 +18,6 @@ import (
 type Config struct {
 	Metadata        Metadata        `yaml:"metadata" json:"metadata"`
 	Hierarchy       Hierarchy       `yaml:"hierarchy" json:"hierarchy"`
-	Customizations  Customizations  `yaml:"customizations,omitempty" json:"customizations,omitempty"`
 }
 
 // Metadata contains configuration metadata
@@ -56,16 +55,6 @@ type Resource struct {
 	Actions []string `yaml:"actions" json:"actions"`
 }
 
-// Customizations represents Logto customizations configuration
-type Customizations struct {
-	CustomJwtClaims *CustomJwtClaims `yaml:"custom_jwt_claims,omitempty" json:"custom_jwt_claims,omitempty"`
-}
-
-// CustomJwtClaims represents custom JWT claims configuration
-type CustomJwtClaims struct {
-	Enabled    bool   `yaml:"enabled" json:"enabled"`
-	ScriptPath string `yaml:"script_path" json:"script_path"`
-}
 
 // Validate validates the configuration
 func (c *Config) Validate() error {
@@ -121,10 +110,6 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("permission reference validation failed: %w", err)
 	}
 
-	// Validate customizations
-	if err := c.validateCustomizations(); err != nil {
-		return fmt.Errorf("customizations validation failed: %w", err)
-	}
 
 	return nil
 }
@@ -243,18 +228,6 @@ func (c *Config) isSystemPermission(permissionID string) bool {
 	return false
 }
 
-func (c *Config) validateCustomizations() error {
-	if c.Customizations.CustomJwtClaims == nil {
-		return nil // Optional section
-	}
-
-	claims := c.Customizations.CustomJwtClaims
-	if claims.Enabled && claims.ScriptPath == "" {
-		return fmt.Errorf("script_path is required when custom JWT claims are enabled")
-	}
-
-	return nil
-}
 
 // GetUserTypeRoles returns only roles with type "user" or empty type
 func (c *Config) GetUserTypeRoles(roles []Role) []Role {
@@ -267,11 +240,22 @@ func (c *Config) GetUserTypeRoles(roles []Role) []Role {
 	return userRoles
 }
 
-// GetAllPermissions returns all unique permissions from user roles
+// GetAllPermissions returns all unique permissions from both organization roles and user roles
 func (c *Config) GetAllPermissions() map[string]Permission {
 	allPermissions := make(map[string]Permission)
-	userRoles := c.GetUserTypeRoles(c.Hierarchy.OrganizationRoles)
-
+	
+	// Get permissions from organization roles
+	organizationRoles := c.GetUserTypeRoles(c.Hierarchy.OrganizationRoles)
+	for _, role := range organizationRoles {
+		for _, permission := range role.Permissions {
+			if permission.ID != "" {
+				allPermissions[permission.ID] = permission
+			}
+		}
+	}
+	
+	// Get permissions from user roles
+	userRoles := c.GetUserTypeRoles(c.Hierarchy.UserRoles)
 	for _, role := range userRoles {
 		for _, permission := range role.Permissions {
 			if permission.ID != "" {

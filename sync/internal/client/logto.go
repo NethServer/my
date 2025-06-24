@@ -17,7 +17,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/nethesis/my/logto-sync/internal/logger"
+	"github.com/nethesis/my/sync/internal/logger"
 )
 
 // LogtoClient handles communication with Logto API

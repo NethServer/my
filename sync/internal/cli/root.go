@@ -17,8 +17,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/nethesis/my/logto-sync/internal/logger"
-	"github.com/nethesis/my/logto-sync/pkg/version"
+	"github.com/nethesis/my/sync/internal/logger"
+	"github.com/nethesis/my/sync/pkg/version"
 )
 
 var (
@@ -30,9 +30,9 @@ var (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "logto-sync",
+	Use:   "sync",
 	Short: "Synchronize RBAC configuration with Logto",
-	Long: `logto-sync is a CLI tool that synchronizes role-based access control (RBAC)
+	Long: `sync is a CLI tool that synchronizes role-based access control (RBAC)
 configuration from YAML files to Logto identity provider.
 
 It supports:

@@ -1,31 +1,33 @@
-# logto-sync
+# sync
 
-A robust CLI tool for synchronizing Role-Based Access Control (RBAC) configuration with Logto identity provider.
+A robust CLI tool for synchronizing simplified Role-Based Access Control (RBAC) configuration with Logto identity provider. Works in conjunction with the backend's Management API integration to provide real-time permission synchronization.
 
 ## Features
 
-- 🔄 **Complete RBAC Synchronization**: Resources, roles, permissions, and scopes
-- 🏢 **Hierarchical Organizations**: Support for organization roles and user roles
+- 🔄 **Simplified RBAC Synchronization**: Clear separation between business hierarchy and technical capabilities
+- 🏢 **Business Hierarchy**: Organization roles (God, Distributor, Reseller, Customer) for commercial logic
+- 👥 **Technical Capabilities**: User roles (Admin, Support) for skills
+- 🔗 **Backend Integration**: Powers real-time Management API data fetching in backend
 - 🔍 **Dry Run Mode**: Preview changes before applying them with detailed analysis
-- 🧹 **Cleanup Mode**: Remove resources/roles/scopes not defined in config (opt-in)
+- 🧹 **Cleanup Mode**: Remove resources/roles/permissions not defined in config (opt-in)
 - 📊 **Multiple Output Formats**: Text, JSON, and YAML
 - 🛡️ **Safe Operations**: Preserves system entities and validates configurations
-- 🔧 **Flexible Configuration**: YAML-based configuration with validation
+- 🔧 **Simplified Configuration**: YAML-based with clear business vs technical separation
 
 ## Installation
 
 ### From Source
 
 ```bash
-git clone https://github.com/nethesis/logto-sync.git
-cd logto-sync
+git clone https://github.com/nethesis/sync.git
+cd sync
 make build
 ```
 
 ### Using Go Install
 
 ```bash
-go install github.com/nethesis/logto-sync/cmd/logto-sync@latest
+go install github.com/nethesis/sync/cmd/sync@latest
 ```
 
 ## Quick Start
@@ -53,13 +55,13 @@ cp configs/hierarchy.yml my-config.yml
 3. **Test Configuration (Dry Run)**
 
 ```bash
-logto-sync sync -c my-config.yml --dry-run --verbose
+sync sync -c my-config.yml --dry-run --verbose
 ```
 
 4. **Apply Configuration**
 
 ```bash
-logto-sync sync -c my-config.yml
+sync sync -c my-config.yml
 ```
 
 ## Usage
@@ -68,25 +70,25 @@ logto-sync sync -c my-config.yml
 
 ```bash
 # Show help
-logto-sync --help
+sync --help
 
 # Show version
-logto-sync --version
+sync --version
 
 # Sync with default config
-logto-sync sync
+sync sync
 
 # Sync with specific config file
-logto-sync sync -c configs/hierarchy.yml
+sync sync -c configs/hierarchy.yml
 
 # Dry run to preview changes
-logto-sync sync --dry-run --verbose
+sync sync --dry-run --verbose
 
 # Output results in JSON format
-logto-sync sync --output json
+sync sync --output json
 
 # Skip specific sync phases
-logto-sync sync --skip-resources --skip-roles
+sync sync --skip-resources --skip-roles
 ```
 
 ### Advanced Operations
@@ -97,16 +99,16 @@ Preview what would be changed without making any modifications:
 
 ```bash
 # Basic dry run
-logto-sync sync -c hierarchy.yml --dry-run
+sync sync -c hierarchy.yml --dry-run
 
 # Verbose dry run with detailed logs
-logto-sync sync -c hierarchy.yml --dry-run --verbose
+sync sync -c hierarchy.yml --dry-run --verbose
 
 # Dry run with JSON output for analysis
-logto-sync sync -c hierarchy.yml --dry-run --output json | jq .
+sync sync -c hierarchy.yml --dry-run --output json | jq .
 
 # Preview cleanup operations
-logto-sync sync -c hierarchy.yml --cleanup --dry-run --verbose
+sync sync -c hierarchy.yml --cleanup --dry-run --verbose
 ```
 
 **Dry run shows you:**
@@ -121,13 +123,13 @@ Remove resources, roles, and scopes that are no longer defined in your configura
 
 ```bash
 # Preview what would be cleaned up
-logto-sync sync -c hierarchy.yml --cleanup --dry-run
+sync sync -c hierarchy.yml --cleanup --dry-run
 
 # Perform cleanup (removes items not in config)
-logto-sync sync -c hierarchy.yml --cleanup
+sync sync -c hierarchy.yml --cleanup
 
 # Cleanup with verbose logging
-logto-sync sync -c hierarchy.yml --cleanup --verbose
+sync sync -c hierarchy.yml --cleanup --verbose
 ```
 
 **⚠️ Cleanup Safety Features:**
@@ -164,129 +166,73 @@ logto-sync sync -c hierarchy.yml --cleanup --verbose
 
 ## Configuration Format
 
-The configuration file uses YAML format with the following structure:
+The configuration file uses simplified YAML format with clear separation between business and technical roles:
 
 ```yaml
 metadata:
-  name: "my-rbac-config"
-  version: "1.0.0"
-  description: "RBAC configuration for my application"
+  name: "nethesis-simplified-rbac"
+  version: "2.0.0"
+  description: "Simplified RBAC with business logic separation"
 
 hierarchy:
+  # BUSINESS HIERARCHY (Organization Types)
+  # Users inherit these based on their organization's role in the commercial chain
   organization_roles:
-    - id: admin
-      name: "Administrator"
+    - id: god
+      name: "God"
+      priority: 1
       type: user
-      priority: 0
       permissions:
-        - id: "admin:systems"
-          name: "Administer systems"
+        - id: create:distributors
+        - id: manage:distributors
+        - id: create:resellers
+        - id: manage:resellers
+        - id: create:customers
+        - id: manage:customers
 
+    - id: distributor
+      name: "Distributor"
+      priority: 2
+      type: user
+      permissions:
+        - id: create:resellers
+        - id: manage:resellers
+        - id: create:customers
+        - id: manage:customers
+
+  # TECHNICAL CAPABILITIES (User Skills)
+  # Independent of business hierarchy - define technical operations
   user_roles:
+    - id: admin
+      name: "Admin"
+      priority: 1
+      type: user
+      permissions:
+        - id: admin:systems
+        - id: manage:systems
+        - id: destroy:systems
+        - id: destroy:systems
+
     - id: support
       name: "Support"
+      priority: 2
       type: user
-      priority: 1
       permissions:
-        - id: "read:systems"
-          name: "Read systems"
+        - id: manage:systems
+        - id: read:systems
 
+  # Resources and their available actions
   resources:
     - name: "systems"
-      actions: ["create", "read", "update", "delete", "admin"]
+      actions: ["read", "manage", "admin", "destroy"]
+    - name: "distributors"
+      actions: ["create", "manage"]
+    - name: "resellers"
+      actions: ["create", "manage"]
+    - name: "customers"
+      actions: ["create", "manage"]
 
-# Logto customizations
-customizations:
-  custom_jwt_claims:
-    enabled: true
-    script_path: "logto-customizations/custom-jwt-claims.js"
 ```
-
-## Logto Customizations
-
-This tool also manages Logto customizations, including custom JWT claims that extend the default JWT tokens with additional user information from your RBAC configuration.
-
-### Custom JWT Claims
-
-The `logto-customizations/custom-jwt-claims.js` file contains JavaScript code that defines additional claims to be included in JWT tokens. This script is automatically uploaded to your Logto instance when running the sync command.
-
-#### Custom Claims Structure
-
-The function adds the following claims to JWT tokens:
-
-- `roles`: Array of user role names (e.g., ["Admin", "Support"])
-- `scopes`: Array of user permission scopes (e.g., ["admin:systems", "manage:billing"])
-- `organization_roles`: Array of organization role names (e.g., ["God", "Distributor"])
-- `organization_scopes`: Array of organization-specific scopes
-
-#### Example Custom JWT Claims Script
-
-```javascript
-// logto-customizations/custom-jwt-claims.js
-const getCustomJwtClaims = async (token, context) => {
-  const { user } = context;
-
-  return {
-    // Add user roles
-    roles: user.customData?.roles || [],
-
-    // Add organization information
-    organization_roles: user.customData?.organization_roles || [],
-
-    // Add additional scopes
-    scopes: user.customData?.scopes || [],
-    organization_scopes: user.customData?.organization_scopes || [],
-
-    // Add custom fields
-    department: user.customData?.department || null,
-    permissions: user.customData?.permissions || []
-  };
-};
-```
-
-#### Configuration
-
-To enable custom JWT claims synchronization, add the customizations section to your `hierarchy.yml`:
-
-```yaml
-customizations:
-  custom_jwt_claims:
-    enabled: true
-    script_path: "logto-customizations/custom-jwt-claims.js"
-```
-
-#### Key Features
-
-- **Automatic Sync**: Custom JWT claims are automatically synchronized when running `logto-sync sync`
-- **Validation**: The script is validated before upload to ensure it's valid JavaScript
-- **Rollback Support**: Previous versions are preserved in case rollback is needed
-- **Testing**: Use `--dry-run` to preview changes without applying them
-
-#### Backend Integration
-
-The backend Go API automatically validates and uses these custom claims through the Logto JWT middleware. The claims are mapped to the user context:
-
-- `ctx.user.roles` - User roles from JWT
-- `ctx.user.scopes` - User scopes from JWT
-- `ctx.user.organization_roles` - Organization roles from JWT
-- `ctx.user.organization_scopes` - Organization scopes from JWT
-
-#### Script Modification Workflow
-
-When modifying the custom JWT claims script:
-
-1. Edit the `logto-customizations/custom-jwt-claims.js` file
-2. Test locally if possible
-3. Run a dry-run to preview changes: `logto-sync sync --dry-run --verbose`
-4. Apply changes: `logto-sync sync`
-
-#### Security Considerations
-
-- The custom JWT claims script is executed on Logto's servers
-- Keep the script minimal and focused on claim extraction
-- Avoid making external API calls within the script
-- Test thoroughly before deploying to production
-- Always use the dry-run option first when making changes
 
 ## Development
 
@@ -319,7 +265,7 @@ make run-example         # Run with example config
 ### Project Structure
 
 ```
-├── cmd/logto-sync/       # CLI entry point
+├── cmd/sync/       # CLI entry point
 ├── internal/
 │   ├── cli/              # CLI commands and flags
 │   ├── client/           # Logto API client
@@ -340,71 +286,71 @@ make run-example         # Run with example config
 vim hierarchy.yml
 
 # 2. Preview changes
-logto-sync sync -c hierarchy.yml --dry-run --verbose
+sync sync -c hierarchy.yml --dry-run --verbose
 
 # 3. Apply changes
-logto-sync sync -c hierarchy.yml --verbose
+sync sync -c hierarchy.yml --verbose
 
 # 4. Monitor results
-logto-sync sync -c hierarchy.yml --output json | jq .summary
+sync sync -c hierarchy.yml --output json | jq .summary
 ```
 
 ### Resource Management
 
 ```bash
 # Add new resources to hierarchy.yml, then:
-logto-sync sync -c hierarchy.yml --dry-run  # Preview
-logto-sync sync -c hierarchy.yml            # Apply
+sync sync -c hierarchy.yml --dry-run  # Preview
+sync sync -c hierarchy.yml            # Apply
 
 # Remove resources from hierarchy.yml, then:
-logto-sync sync -c hierarchy.yml --cleanup --dry-run  # Preview cleanup
-logto-sync sync -c hierarchy.yml --cleanup            # Apply cleanup
+sync sync -c hierarchy.yml --cleanup --dry-run  # Preview cleanup
+sync sync -c hierarchy.yml --cleanup            # Apply cleanup
 ```
 
 ### Troubleshooting Workflow
 
 ```bash
 # Test connection
-logto-sync sync --dry-run --verbose
+sync sync --dry-run --verbose
 
 # Check configuration validity
-logto-sync sync -c hierarchy.yml --dry-run
+sync sync -c hierarchy.yml --dry-run
 
 # Force sync past validation errors
-logto-sync sync -c hierarchy.yml --force
+sync sync -c hierarchy.yml --force
 
 # Detailed JSON output for debugging
-logto-sync sync --output json | jq .operations
+sync sync --output json | jq .operations
 ```
 
 ### Selective Synchronization
 
 ```bash
 # Only sync roles and permissions, skip resources
-logto-sync sync --skip-resources
+sync sync --skip-resources
 
 # Only sync resources, skip everything else
-logto-sync sync --skip-roles --skip-permissions
+sync sync --skip-roles --skip-permissions
 
 # Sync everything except permissions
-logto-sync sync --skip-permissions
+sync sync --skip-permissions
 ```
 
 ### Output Formats
 
 ```bash
 # Human-readable text output (default)
-logto-sync sync
+sync sync
 
 # JSON output for programmatic use
-logto-sync sync --output json
+sync sync --output json
 
 # YAML output
-logto-sync sync --output yaml
+sync sync --output yaml
 
 # Pipe JSON to jq for analysis
-logto-sync sync --output json | jq '.summary'
-logto-sync sync --output json | jq '.operations[] | select(.success == false)'
+sync sync --output json | jq '.summary'
+sync sync --output json | jq '.operations[] | select(.success == false)'
 ```
 
 ## Error Handling
@@ -444,13 +390,13 @@ Error: cleanup would remove 5 resources - use --cleanup flag to confirm
 ### 📊 **Monitoring & Integration**
 ```bash
 # CI/CD integration
-logto-sync sync -c production.yml --output json > sync-results.json
+sync sync -c production.yml --output json > sync-results.json
 
 # Monitor for failures
-logto-sync sync --output json | jq '.success'
+sync sync --output json | jq '.success'
 
 # Count changes
-logto-sync sync --dry-run --output json | jq '.summary'
+sync sync --dry-run --output json | jq '.summary'
 ```
 
 ## Contributing
