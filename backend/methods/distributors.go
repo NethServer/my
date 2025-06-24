@@ -17,6 +17,7 @@ import (
 	"github.com/nethesis/my/backend/logs"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
+	"github.com/nethesis/my/backend/services"
 )
 
 // In-memory storage for demo purposes
@@ -66,15 +67,55 @@ func CreateDistributor(c *gin.Context) {
 	}))
 }
 
-// GetDistributors handles GET /api/distributors - retrieves all distributors
+// GetDistributors handles GET /api/distributors - retrieves organizations with Distributor role from Logto
 func GetDistributors(c *gin.Context) {
-	distributors := make([]*models.Distributor, 0, len(distributorsStorage))
-	for _, distributor := range distributorsStorage {
+	userID, _ := c.Get("user_id")
+	userOrgRole, _ := c.Get("org_role")
+	userOrgID, _ := c.Get("organization_id")
+	
+	logs.Logs.Printf("[INFO][DISTRIBUTORS] Distributors list requested by user %s (role: %s, org: %s)", userID, userOrgRole, userOrgID)
+
+	// Get organizations with Distributor role from Logto
+	orgs, err := services.GetOrganizationsByRole("Distributor")
+	if err != nil {
+		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to fetch distributors from Logto: %v", err)
+		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
+			Code:    500,
+			Message: "failed to fetch distributors",
+			Data:    nil,
+		}))
+		return
+	}
+
+	// Apply visibility filtering
+	filteredOrgs := services.FilterOrganizationsByVisibility(orgs, userOrgRole.(string), userOrgID.(string), "Distributor")
+
+	// Convert Logto organizations to distributor format
+	distributors := make([]gin.H, 0, len(filteredOrgs))
+	for _, org := range filteredOrgs {
+		distributor := gin.H{
+			"id":           org.ID,
+			"name":         org.Name,
+			"description":  org.Description,
+			"customData":   org.CustomData,
+			"isMfaRequired": org.IsMfaRequired,
+			"type":         "distributor",
+		}
+		
+		// Add branding if available
+		if org.Branding != nil {
+			distributor["branding"] = gin.H{
+				"logoUrl":     org.Branding.LogoUrl,
+				"darkLogoUrl": org.Branding.DarkLogoUrl,
+				"favicon":     org.Branding.Favicon,
+				"darkFavicon": org.Branding.DarkFavicon,
+			}
+		}
+		
 		distributors = append(distributors, distributor)
 	}
 
-	userID, _ := c.Get("user_id")
-	logs.Logs.Printf("[INFO][DISTRIBUTORS] Distributors list requested by user %s", userID)
+	logs.Logs.Printf("[INFO][DISTRIBUTORS] Retrieved %d distributors from Logto", len(distributors))
 
 	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
 		Code:    200,

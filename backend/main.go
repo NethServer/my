@@ -67,8 +67,19 @@ func main() {
 		}))
 	})
 
-	// Protected routes
-	protected := api.Group("/", middleware.LogtoAuthMiddleware())
+	// ===========================================
+	// AUTH ENDPOINTS (public)
+	// ===========================================
+	auth := api.Group("/auth")
+	{
+		// Token exchange endpoint - converts Logto access_token to our custom JWT
+		auth.POST("/exchange", methods.ExchangeToken)
+	}
+
+	// ===========================================
+	// PROTECTED ROUTES (Custom JWT)
+	// ===========================================
+	protected := api.Group("/", middleware.CustomAuthMiddleware())
 	{
 		// User profile
 		protected.GET("/profile", methods.GetProfile)
@@ -80,69 +91,70 @@ func main() {
 		// SYSTEMS - Hybrid approach
 		// ===========================================
 
-		// Standard CRUD operations - role-based (clean & simple)
-		systemsGroup := protected.Group("/systems", middleware.AutoRoleRBAC("Support"))
+		// Standard CRUD operations - role-based (Support can manage systems)
+		systemsGroup := protected.Group("/systems", middleware.RequireUserRole("Support"))
 		{
-			systemsGroup.POST("", methods.CreateSystem)
 			systemsGroup.GET("", methods.GetSystems)
+			systemsGroup.POST("", methods.CreateSystem)
 			systemsGroup.PUT("/:id", methods.UpdateSystem)
-			systemsGroup.DELETE("/:id", methods.DeleteSystem)
+			systemsGroup.DELETE("/:id", middleware.RequirePermission("admin:systems"), methods.DeleteSystem) // Admin-only
 			systemsGroup.GET("/subscriptions", methods.GetSystemSubscriptions)
 		}
 
-		// Special/Sensitive operations - scope-based (granular control)
+		// Special/Sensitive operations - permission-based
 		systemsSpecial := protected.Group("/systems")
 		{
-			// System management operations - require specific permissions
-			systemsSpecial.POST("/:id/restart", middleware.RequireScope("manage:systems"), methods.RestartSystem)
-			systemsSpecial.PUT("/:id/enable", middleware.RequireScope("manage:systems"), methods.EnableSystem)
+			// System management operations
+			systemsSpecial.POST("/:id/restart", middleware.RequirePermission("manage:systems"), methods.RestartSystem)
+			systemsSpecial.PUT("/:id/enable", middleware.RequirePermission("manage:systems"), methods.EnableSystem)
 
 			// Dangerous operations - require admin permissions
-			systemsSpecial.POST("/:id/factory-reset", middleware.RequireScope("admin:systems"), methods.FactoryResetSystem)
-			systemsSpecial.DELETE("/:id/destroy", middleware.RequireScope("destroy:systems"), methods.DestroySystem)
+			systemsSpecial.POST("/:id/factory-reset", middleware.RequirePermission("admin:systems"), methods.FactoryResetSystem)
+			systemsSpecial.DELETE("/:id/destroy", middleware.RequirePermission("destroy:systems"), methods.DestroySystem)
 
-			// Audit operations - require audit permissions
-			systemsSpecial.GET("/:id/logs", middleware.RequireScope("audit:systems"), methods.GetSystemLogs)
-			systemsSpecial.GET("/audit", middleware.RequireScope("audit:systems"), methods.GetSystemsAudit)
+			// Log viewing operations
+			systemsSpecial.GET("/:id/logs", middleware.RequirePermission("manage:systems"), methods.GetSystemLogs)
+			systemsSpecial.GET("/audit", middleware.RequirePermission("manage:systems"), methods.GetSystemsAudit)
 
-			// Backup operations - require backup permissions
-			systemsSpecial.POST("/:id/backup", middleware.RequireScope("backup:systems"), methods.BackupSystem)
-			systemsSpecial.POST("/:id/restore", middleware.RequireScope("backup:systems"), methods.RestoreSystem)
+			// System backup operations - require admin permissions
+			systemsSpecial.POST("/:id/backup", middleware.RequirePermission("admin:systems"), methods.BackupSystem)
+			systemsSpecial.POST("/:id/restore", middleware.RequirePermission("admin:systems"), methods.RestoreSystem)
 		}
 
 		// ===========================================
-		// HIERARCHY - Organization role-based
+		// BUSINESS HIERARCHY - Organization role-based
+		// God > Distributor > Reseller > Customer
 		// ===========================================
 
-		// Distributors - only God can manage
-		distributorsGroup := protected.Group("/distributors", middleware.AutoOrganizationRoleRBAC("God"))
+		// Distributors - only God can manage distributors
+		distributorsGroup := protected.Group("/distributors", middleware.RequireOrgRole("God"))
 		{
-			distributorsGroup.POST("", methods.CreateDistributor)
 			distributorsGroup.GET("", methods.GetDistributors)
+			distributorsGroup.POST("", methods.CreateDistributor)
 			distributorsGroup.PUT("/:id", methods.UpdateDistributor)
 			distributorsGroup.DELETE("/:id", methods.DeleteDistributor)
 		}
 
-		// Resellers - God and Distributors can manage
-		resellersGroup := protected.Group("/resellers", middleware.RequireAnyOrganizationRole("God", "Distributor"))
+		// Resellers - God and Distributors can manage resellers
+		resellersGroup := protected.Group("/resellers", middleware.RequireAnyOrgRole("God", "Distributor"))
 		{
-			resellersGroup.POST("", methods.CreateReseller)
 			resellersGroup.GET("", methods.GetResellers)
+			resellersGroup.POST("", methods.CreateReseller)
 			resellersGroup.PUT("/:id", methods.UpdateReseller)
 			resellersGroup.DELETE("/:id", methods.DeleteReseller)
 		}
 
-		// Customers - God, Distributors, and Resellers can manage
-		customersGroup := protected.Group("/customers", middleware.RequireAnyOrganizationRole("God", "Distributor", "Reseller"))
+		// Customers - God, Distributors and Resellers can manage customers
+		customersGroup := protected.Group("/customers", middleware.RequireAnyOrgRole("God", "Distributor", "Reseller"))
 		{
-			customersGroup.POST("", methods.CreateCustomer)
 			customersGroup.GET("", methods.GetCustomers)
+			customersGroup.POST("", methods.CreateCustomer)
 			customersGroup.PUT("/:id", methods.UpdateCustomer)
 			customersGroup.DELETE("/:id", methods.DeleteCustomer)
 		}
 
-		// Quick stats endpoint - management roles only
-		protected.GET("/stats", middleware.RequireAnyOrganizationRole("God", "Distributor"), func(c *gin.Context) {
+		// Quick stats endpoint - require management permissions
+		protected.GET("/stats", middleware.RequirePermission("manage:distributors"), func(c *gin.Context) {
 			c.JSON(http.StatusOK, structs.Map(response.StatusOK{
 				Code:    200,
 				Message: "system statistics",

@@ -15,6 +15,12 @@ type StatusOK struct {
 	Data    interface{} `json:"data" structs:"data"`
 }
 
+type StatusBadRequest struct {
+	Code    int         `json:"code" example:"400" structs:"code"`
+	Message string      `json:"message" example:"Bad Request" structs:"message"`
+	Data    interface{} `json:"data" structs:"data"`
+}
+
 type StatusUnauthorized struct {
 	Code    int         `json:"code" example:"401" structs:"code"`
 	Message string      `json:"message" example:"Unauthorized" structs:"message"`

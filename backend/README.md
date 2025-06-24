@@ -1,6 +1,6 @@
 # Backend API
 
-Go REST API server for the Nethesis Operation Center, providing secure authentication via Logto JWT tokens and a sophisticated Role-Based Access Control (RBAC) system.
+Go REST API server for the Nethesis Operation Center, providing secure authentication via Logto JWT tokens and a simplified Role-Based Access Control (RBAC) system with clear separation between business hierarchy and technical capabilities.
 
 ## 🏗️ Architecture
 
@@ -14,22 +14,20 @@ Go REST API server for the Nethesis Operation Center, providing secure authentic
 ### Project Structure
 ```
 backend/
-├── main.go             # Server setup and route definitions
-├── configuration/      # Environment configuration loading
-├── middleware/         # Authentication and RBAC middleware
-│   ├── auth.go         # Logto JWT authentication
-│   ├── rbac.go         # Role-based access control
-│   ├── org_rbac.go     # Organization-level RBAC
-│   └── user_rbac.go    # User-specific RBAC
-├── methods/            # HTTP request handlers
-├── models/             # Data structures and business entities
-├── logs/               # Logging utilities
-└── response/           # HTTP response helpers
+├── main.go                    # Server setup and route definitions
+├── configuration/             # Environment configuration loading
+├── middleware/                # Authentication and simplified RBAC middleware
+│   ├── auth.go                # Logto JWT authentication with simplified claims
+│   └── simplified_rbac.go     # Unified RBAC with business + technical separation
+├── methods/                   # HTTP request handlers
+├── models/                    # Data structures with simplified User model
+├── logs/                      # Logging utilities
+└── response/                  # HTTP response helpers
 ```
 
-## 🔐 Authorization System
+## 🔐 Simplified Authorization System
 
-The API implements a multi-layered authorization approach:
+The API implements a clean two-layer authorization approach with clear separation:
 
 ### 1. Base Authentication
 All protected routes require valid Logto JWT tokens:
@@ -37,30 +35,46 @@ All protected routes require valid Logto JWT tokens:
 protected := api.Group("/", middleware.LogtoAuthMiddleware())
 ```
 
-### 2. Role-Based Access Control
-Routes can be protected by user roles (Support, Admin, Sales):
+### 2. Permission-Based Access Control
+Routes check for specific permissions from either user roles OR organization roles:
 ```go
-adminGroup := protected.Group("/admin", middleware.AutoRoleRBAC("Admin"))
+// Checks both user and organization permissions
+systemsGroup.POST("/:id/restart",
+    middleware.RequirePermission("manage:systems"), methods.RestartSystem)
 ```
 
-### 3. Organization Hierarchy
-Business logic roles following organizational hierarchy:
+### 3. User Role-Based (Technical Capabilities)
+Routes can be protected by technical capability roles:
+```go
+adminGroup := protected.Group("/admin", middleware.RequireUserRole("Admin"))
+```
+
+### 4. Organization Role-Based (Business Hierarchy)
+Routes can be protected by business hierarchy roles:
 ```go
 distributorGroup := protected.Group("/distributors",
-    middleware.RequireAnyOrganizationRole("God", "Distributor"))
+    middleware.RequireAnyOrgRole("God", "Distributor"))
 ```
 
-### 4. Fine-Grained Scopes
-Specific permissions for sensitive operations:
-```go
-systemsGroup.POST("/:id/restart",
-    middleware.RequireScope("manage:systems"), methods.RestartSystem)
+### Authorization Model
+**Two Clear Sources of Permissions:**
+
+#### **User Roles** (Technical Capabilities)
+- **Admin**: Complete platform administration, dangerous operations
+- **Support**: System management, customer troubleshooting, standard operations
+
+#### **Organization Roles** (Business Hierarchy)  
+- **God**: Complete control over commercial hierarchy (Nethesis level)
+- **Distributor**: Can manage resellers and customers  
+- **Reseller**: Can manage customers only
+- **Customer**: Read-only access to own data
+
+#### **Permission Logic**
+```
+Final User Permissions = User Role Permissions + Organization Role Permissions
 ```
 
-### Authorization Levels
-- **User Roles**: Support, Admin, Sales (general application permissions)
-- **Organization Roles**: God, Distributor, Reseller, Customer (business hierarchy)
-- **Scopes**: Fine-grained permissions (e.g., `admin:systems`, `manage:billing`)
+Users get permissions from BOTH their technical capabilities AND their organization's business role.
 
 ## 🚀 Quick Start
 
@@ -68,6 +82,14 @@ systemsGroup.POST("/:id/restart",
 - Go 1.23+
 - Access to a Logto instance
 - Logto API resource configured
+
+### Token Exchange System
+This API now supports a **token exchange pattern** for enhanced security and performance:
+
+1. **Frontend** authenticates with Logto → gets `access_token`
+2. **Frontend** calls `POST /api/auth/exchange` with `access_token`
+3. **Backend** validates token, enriches with roles/permissions → returns custom JWT
+4. **Frontend** uses custom JWT for all subsequent API calls
 
 ### Setup
 ```bash
@@ -110,42 +132,99 @@ go build -o backend main.go
 #### Required
 - `LOGTO_ISSUER`: Your Logto instance URL (e.g., `https://your-logto.logto.app`)
 - `LOGTO_AUDIENCE`: API resource identifier configured in Logto
+- `JWT_SECRET`: Secret key for signing custom JWT tokens (required for token exchange)
+- `LOGTO_MANAGEMENT_CLIENT_ID`: Management API machine-to-machine app client ID
+- `LOGTO_MANAGEMENT_CLIENT_SECRET`: Management API machine-to-machine app secret
 
 #### Optional
 - `JWKS_ENDPOINT`: JWT verification endpoint (auto-derived from issuer if not set)
 - `LISTEN_ADDRESS`: Server bind address (default: `127.0.0.1:8080`)
+- `JWT_ISSUER`: Custom JWT issuer (default: `my.nethesis.it`)
+- `JWT_EXPIRATION`: Custom JWT expiration time (default: `24h`)
+- `LOGTO_MANAGEMENT_BASE_URL`: Management API base URL (auto-derived from issuer if not set)
 - `GIN_MODE`: Gin framework mode (`debug`, `release`, `test`)
 
 ### Logto Setup
+
+#### 1. API Resource Setup
 1. Create an API resource in your Logto instance
 2. Configure the resource identifier as `LOGTO_AUDIENCE`
 3. Ensure JWKS endpoint is accessible for token validation
-4. Configure user roles and organization roles in Logto admin console
+
+#### 2. Management API Setup
+1. Create a **Machine-to-Machine** application in Logto admin console
+2. Configure API scopes: **Grant all Management API permissions**
+3. Copy the Client ID and Client Secret to your environment variables
+4. This enables the backend to fetch real user roles and permissions
+
+#### 3. RBAC Configuration
+1. Configure user roles and organization roles in Logto admin console
+2. Assign permissions to roles using the simplified RBAC structure
+3. Use `sync` tool to synchronize your RBAC configuration
+4. Users will automatically get the correct permissions in their custom JWT tokens
 
 ## 🛠️ API Endpoints
 
 ### Public Endpoints
-- `GET /ping` - Health check endpoint
+- `GET /api/health` - Health check endpoint
+- `POST /api/auth/exchange` - Exchange Logto access_token for custom JWT
 
-### Protected Endpoints (require authentication)
-- `GET /user` - Current user information
-- `GET /systems` - Systems management (requires Support+ role)
-- `GET /distributors` - Distributor management (requires God/Distributor role)
-- `GET /resellers` - Reseller management (requires God/Distributor role)
-- `GET /customers` - Customer management (requires appropriate organization role)
+### Protected Endpoints (Custom JWT Required)
+- `GET /api/profile` - User profile with full context
+- `GET /api/protected` - Protected resource example
 
-### RBAC Examples
+#### Systems Management
+- `GET /api/systems` - List systems (requires `read:systems`)
+- `POST /api/systems` - Create system (requires `manage:systems`)
+- `PUT /api/systems/:id` - Update system (requires `manage:systems`)
+- `DELETE /api/systems/:id` - Delete system (requires `admin:systems`)
+- `POST /api/systems/:id/restart` - Restart system (requires `manage:systems`)
+- `DELETE /api/systems/:id/destroy` - Destroy system (requires `destroy:systems`)
+
+#### Business Hierarchy Management
+- `GET /api/distributors` - List distributors (requires `create:distributors`)
+- `POST /api/distributors` - Create distributor (requires `create:distributors`)
+- `PUT /api/distributors/:id` - Update distributor (requires `manage:distributors`)
+
+- `GET /api/resellers` - List resellers (requires `create:resellers`)
+- `POST /api/resellers` - Create reseller (requires `create:resellers`)
+- `PUT /api/resellers/:id` - Update reseller (requires `manage:resellers`)
+
+- `GET /api/customers` - List customers (requires `create:customers`)
+- `POST /api/customers` - Create customer (requires `create:customers`)
+- `PUT /api/customers/:id` - Update customer (requires `manage:customers`)
+
+#### Statistics
+- `GET /api/stats` - System statistics (requires `create:distributors`)
+
+### Simplified RBAC Examples
+
 ```go
-// Route accessible to Support, Admin, or Sales roles
-systemsGroup := protected.Group("/systems", middleware.AutoRoleRBAC("Support"))
-
-// Route accessible to God or Distributor organization roles
-distributorsGroup := protected.Group("/distributors",
-    middleware.RequireAnyOrganizationRole("God", "Distributor"))
-
-// Route requiring specific scope
+// ✅ Unified permission checking (checks both user AND org permissions)
 systemsGroup.POST("/:id/restart",
-    middleware.RequireScope("manage:systems"), methods.RestartSystem)
+    middleware.RequirePermission("manage:systems"), methods.RestartSystem)
+
+// ✅ Permission-based authorization for business hierarchy
+distributorsGroup := protected.Group("/distributors",
+    middleware.RequirePermission("create:distributors"))
+
+// ✅ Granular permissions for different operations
+systemsGroup.GET("", methods.GetSystems) // Base permission from group
+systemsGroup.POST("", middleware.RequirePermission("manage:systems"), methods.CreateSystem)
+systemsGroup.DELETE("/:id", middleware.RequirePermission("admin:systems"), methods.DeleteSystem)
+```
+
+### Real-World Use Cases
+
+```go
+// Marco (ACME Reseller + Admin) can:
+// ✅ admin:systems, destroy:systems (from Admin user role)
+// ✅ create:customers (from Reseller org role)
+
+// Edoardo (Nethesis Distributor + Support) can:  
+// ✅ manage:systems (from Support user role)
+// ✅ create:resellers (from Distributor org role)
+// ✅ create:customers (from Distributor org role)
 ```
 
 ## 🧪 Testing
@@ -206,4 +285,4 @@ CORS is configured for development with permissive settings. For production, con
 
 - [Project Overview](../README.md) - Main project documentation
 - [CLAUDE.md](../CLAUDE.md) - Development guidance
-- [logto-sync](../logto-sync/README.md) - RBAC configuration management tool
+- [sync](../sync/README.md) - RBAC configuration management tool

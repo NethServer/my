@@ -17,6 +17,7 @@ import (
 	"github.com/nethesis/my/backend/logs"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
+	"github.com/nethesis/my/backend/services"
 )
 
 // In-memory storage for demo purposes
@@ -67,13 +68,53 @@ func CreateReseller(c *gin.Context) {
 
 // GetResellers handles GET /api/resellers - retrieves all resellers
 func GetResellers(c *gin.Context) {
-	resellers := make([]*models.Reseller, 0, len(resellersStorage))
-	for _, reseller := range resellersStorage {
+	userID, _ := c.Get("user_id")
+	userOrgRole, _ := c.Get("org_role")
+	userOrgID, _ := c.Get("organization_id")
+	
+	logs.Logs.Printf("[INFO][RESELLERS] Resellers list requested by user %s (role: %s, org: %s)", userID, userOrgRole, userOrgID)
+
+	// Get organizations with Reseller role from Logto
+	orgs, err := services.GetOrganizationsByRole("Reseller")
+	if err != nil {
+		logs.Logs.Printf("[ERROR][RESELLERS] Failed to fetch resellers from Logto: %v", err)
+		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
+			Code:    500,
+			Message: "failed to fetch resellers",
+			Data:    nil,
+		}))
+		return
+	}
+
+	// Apply visibility filtering
+	filteredOrgs := services.FilterOrganizationsByVisibility(orgs, userOrgRole.(string), userOrgID.(string), "Reseller")
+
+	// Convert Logto organizations to reseller format
+	resellers := make([]gin.H, 0, len(filteredOrgs))
+	for _, org := range filteredOrgs {
+		reseller := gin.H{
+			"id":           org.ID,
+			"name":         org.Name,
+			"description":  org.Description,
+			"customData":   org.CustomData,
+			"isMfaRequired": org.IsMfaRequired,
+			"type":         "reseller",
+		}
+		
+		// Add branding if available
+		if org.Branding != nil {
+			reseller["branding"] = gin.H{
+				"logoUrl":     org.Branding.LogoUrl,
+				"darkLogoUrl": org.Branding.DarkLogoUrl,
+				"favicon":     org.Branding.Favicon,
+				"darkFavicon": org.Branding.DarkFavicon,
+			}
+		}
+		
 		resellers = append(resellers, reseller)
 	}
 
-	userID, _ := c.Get("user_id")
-	logs.Logs.Printf("[INFO][RESELLERS] Resellers list requested by user %s", userID)
+	logs.Logs.Printf("[INFO][RESELLERS] Retrieved %d resellers from Logto", len(resellers))
 
 	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
 		Code:    200,

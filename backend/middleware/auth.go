@@ -83,9 +83,9 @@ func LogtoAuthMiddleware() gin.HandlerFunc {
 		// Store user info in context
 		c.Set("user", user)
 		c.Set("user_id", user.ID)
-		c.Set("username", user.Username)
+		// Username field removed from User model
 
-		logs.Logs.Println("[INFO][AUTH] authentication success for user " + user.Username + " from " + c.ClientIP())
+		logs.Logs.Println("[INFO][AUTH] authentication success for user " + user.ID + " from " + c.ClientIP())
 		c.Next()
 	}
 }
@@ -140,44 +140,49 @@ func validateLogtoToken(tokenString string) (*models.User, error) {
 		user.ID = sub
 	}
 
-	if username, ok := claims["username"].(string); ok {
-		user.Username = username
-	}
+	// Username field removed from User model
 
-	if email, ok := claims["email"].(string); ok {
-		user.Email = email
-	}
+	// Email field removed from User model
 
-	// Extract roles from custom claims
-	if roles, ok := claims["roles"].([]interface{}); ok {
-		for _, role := range roles {
+	// Extract user roles (technical capabilities) from custom claims
+	if userRoles, ok := claims["user_roles"].([]interface{}); ok {
+		for _, role := range userRoles {
 			if roleStr, ok := role.(string); ok {
-				user.Roles = append(user.Roles, roleStr)
+				user.UserRoles = append(user.UserRoles, roleStr)
 			}
 		}
 	}
 
-	// Extract organization roles from custom claims
-	if orgRoles, ok := claims["organization_roles"].([]interface{}); ok {
-		for _, role := range orgRoles {
-			if roleStr, ok := role.(string); ok {
-				user.OrganizationRoles = append(user.OrganizationRoles, roleStr)
+	// Extract user permissions from custom claims
+	if userPerms, ok := claims["user_permissions"].([]interface{}); ok {
+		for _, perm := range userPerms {
+			if permStr, ok := perm.(string); ok {
+				user.UserPermissions = append(user.UserPermissions, permStr)
 			}
 		}
 	}
 
-	// Extract scopes (user scopes)
-	if scope, ok := claims["scope"].(string); ok {
-		user.Scopes = strings.Split(scope, " ")
+	// Extract organization role (business hierarchy) from custom claims
+	if orgRole, ok := claims["org_role"].(string); ok {
+		user.OrgRole = orgRole
 	}
 
-	// Extract organization scopes from custom claims
-	if orgScopes, ok := claims["organization_scopes"].([]interface{}); ok {
-		for _, scope := range orgScopes {
-			if scopeStr, ok := scope.(string); ok {
-				user.OrganizationScopes = append(user.OrganizationScopes, scopeStr)
+	// Extract organization permissions from custom claims
+	if orgPerms, ok := claims["org_permissions"].([]interface{}); ok {
+		for _, perm := range orgPerms {
+			if permStr, ok := perm.(string); ok {
+				user.OrgPermissions = append(user.OrgPermissions, permStr)
 			}
 		}
+	}
+
+	// Extract organization info from custom claims
+	if orgId, ok := claims["organization_id"].(string); ok {
+		user.OrganizationID = orgId
+	}
+
+	if orgName, ok := claims["organization_name"].(string); ok {
+		user.OrganizationName = orgName
 	}
 
 	return user, nil
