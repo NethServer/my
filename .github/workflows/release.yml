@@ -125,6 +125,14 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
     
+    # Generate SBOM for backend
+    - name: Generate backend SBOM
+      uses: anchore/sbom-action@v0
+      with:
+        image: ${{ steps.backend_meta.outputs.tags }}
+        format: cyclonedx-json
+        output-file: backend-sbom.cdx.json
+    
     - name: Extract sync metadata
       id: sync_meta
       uses: docker/metadata-action@v5
@@ -150,6 +158,14 @@ jobs:
           org.opencontainers.image.revision=${{ github.sha }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
+    
+    # Generate SBOM for sync
+    - name: Generate sync SBOM
+      uses: anchore/sbom-action@v0
+      with:
+        image: ${{ steps.sync_meta.outputs.tags }}
+        format: cyclonedx-json
+        output-file: sync-sbom.cdx.json
     
     # Generate release notes
     - name: Generate changelog
@@ -185,4 +201,6 @@ jobs:
         files: |
           backend/dist/*.tar.gz
           sync/dist/*.tar.gz
+          backend-sbom.cdx.json
+          sync-sbom.cdx.json
         generate_release_notes: true
