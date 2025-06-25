@@ -35,11 +35,8 @@ func main() {
 	// Init configuration
 	configuration.Init()
 
-	// Initialize demo data for all entities
+	// Initialize demo data for systems (still using in-memory storage)
 	methods.InitSystemsStorage()
-	methods.InitDistributorsStorage()
-	methods.InitResellersStorage()
-	methods.InitCustomersStorage()
 
 	// Init router
 	router := gin.Default()
@@ -151,6 +148,19 @@ func main() {
 			customersGroup.POST("", methods.CreateCustomer)
 			customersGroup.PUT("/:id", methods.UpdateCustomer)
 			customersGroup.DELETE("/:id", methods.DeleteCustomer)
+		}
+
+		// ===========================================
+		// ACCOUNTS MANAGEMENT - Permission-based
+		// ===========================================
+
+		// Accounts - Basic authentication required, hierarchical validation in handlers
+		accountsGroup := protected.Group("/accounts")
+		{
+			accountsGroup.GET("", methods.GetAccounts)           // List accounts with organization filtering
+			accountsGroup.POST("", methods.CreateAccount)       // Create new account with hierarchical validation
+			accountsGroup.PUT("/:id", methods.UpdateAccount)    // Update existing account
+			accountsGroup.DELETE("/:id", methods.DeleteAccount) // Delete account
 		}
 
 		// Quick stats endpoint - require management permissions

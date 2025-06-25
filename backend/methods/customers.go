@@ -6,13 +6,13 @@ SPDX-License-Identifier: GPL-2.0-only
 package methods
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/fatih/structs"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
-	"github.com/google/uuid"
 
 	"github.com/nethesis/my/backend/logs"
 	"github.com/nethesis/my/backend/models"
@@ -20,10 +20,8 @@ import (
 	"github.com/nethesis/my/backend/services"
 )
 
-// In-memory storage for demo purposes
-var customersStorage = make(map[string]*models.Customer)
 
-// CreateCustomer handles POST /api/customers - creates a new customer
+// CreateCustomer handles POST /api/customers - creates a new customer organization in Logto
 func CreateCustomer(c *gin.Context) {
 	var request models.CreateCustomerRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
@@ -39,31 +37,87 @@ func CreateCustomer(c *gin.Context) {
 	if !exists {
 		userID = "unknown"
 	}
+	userOrgID, _ := c.Get("organization_id")
 
-	customerID := uuid.New().String()
-
-	customer := &models.Customer{
-		ID:          customerID,
-		Name:        request.Name,
-		Email:       request.Email,
-		CompanyName: request.CompanyName,
-		Status:      "active",
-		Tier:        request.Tier,
-		ResellerID:  request.ResellerID,
-		Metadata:    request.Metadata,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-		CreatedBy:   userID.(string),
+	// Create organization in Logto
+	client := services.NewLogtoManagementClient()
+	
+	// Prepare custom data with hierarchy info
+	customData := map[string]interface{}{
+		"type":        "customer",
+		"email":       request.Email,
+		"companyName": request.CompanyName,
+		"tier":        request.Tier,
+		"resellerID":  request.ResellerID,
+		"createdBy":   userOrgID,
+		"createdAt":   time.Now().Format(time.RFC3339),
+	}
+	
+	// Add request metadata to custom data
+	if request.Metadata != nil {
+		for k, v := range request.Metadata {
+			customData[k] = v
+		}
 	}
 
-	customersStorage[customerID] = customer
+	orgRequest := services.CreateOrganizationRequest{
+		Name:        request.Name,
+		Description: fmt.Sprintf("Customer organization for %s (%s tier)", request.CompanyName, request.Tier),
+		CustomData:  customData,
+		IsMfaRequired: false,
+	}
 
-	logs.Logs.Printf("[INFO][CUSTOMERS] Customer created: %s by user %s", customer.Name, userID)
+	// Create the organization in Logto
+	org, err := client.CreateOrganization(orgRequest)
+	if err != nil {
+		logs.Logs.Printf("[ERROR][CUSTOMERS] Failed to create customer organization in Logto: %v", err)
+		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
+			Code:    500,
+			Message: "failed to create customer organization",
+			Data:    err.Error(),
+		}))
+		return
+	}
+
+	// Assign Customer role as default JIT role
+	customerRole, err := client.GetOrganizationRoleByName("Customer")
+	if err != nil {
+		logs.Logs.Printf("[ERROR][CUSTOMERS] Failed to find Customer role: %v", err)
+		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
+			Code:    500,
+			Message: "failed to configure customer role",
+			Data:    err.Error(),
+		}))
+		return
+	}
+
+	if err := client.AssignOrganizationJitRoles(org.ID, []string{customerRole.ID}); err != nil {
+		logs.Logs.Printf("[ERROR][CUSTOMERS] Failed to assign Customer JIT role: %v", err)
+		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
+			Code:    500,
+			Message: "failed to configure customer permissions",
+			Data:    err.Error(),
+		}))
+		return
+	}
+
+	logs.Logs.Printf("[INFO][CUSTOMERS] Customer organization created in Logto: %s (ID: %s) by user %s", org.Name, org.ID, userID)
+
+	// Return the created organization data
+	customerResponse := gin.H{
+		"id":           org.ID,
+		"name":         org.Name,
+		"description":  org.Description,
+		"customData":   org.CustomData,
+		"isMfaRequired": org.IsMfaRequired,
+		"type":         "customer",
+		"createdAt":    time.Now(),
+	}
 
 	c.JSON(http.StatusCreated, structs.Map(response.StatusOK{
 		Code:    201,
 		Message: "customer created successfully",
-		Data:    customer,
+		Data:    customerResponse,
 	}))
 }
 
@@ -124,23 +178,13 @@ func GetCustomers(c *gin.Context) {
 	}))
 }
 
-// UpdateCustomer handles PUT /api/customers/:id - updates an existing customer
+// UpdateCustomer handles PUT /api/customers/:id - updates an existing customer organization in Logto
 func UpdateCustomer(c *gin.Context) {
 	customerID := c.Param("id")
 	if customerID == "" {
 		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
 			Code:    400,
 			Message: "customer ID required",
-			Data:    nil,
-		}))
-		return
-	}
-
-	customer, exists := customersStorage[customerID]
-	if !exists {
-		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
-			Code:    404,
-			Message: "customer not found",
 			Data:    nil,
 		}))
 		return
@@ -156,42 +200,118 @@ func UpdateCustomer(c *gin.Context) {
 		return
 	}
 
-	// Update fields if provided
-	if request.Name != "" {
-		customer.Name = request.Name
-	}
-	if request.Email != "" {
-		customer.Email = request.Email
-	}
-	if request.CompanyName != "" {
-		customer.CompanyName = request.CompanyName
-	}
-	if request.Status != "" {
-		customer.Status = request.Status
-	}
-	if request.Tier != "" {
-		customer.Tier = request.Tier
-	}
-	if request.ResellerID != "" {
-		customer.ResellerID = request.ResellerID
-	}
-	if request.Metadata != nil {
-		customer.Metadata = request.Metadata
-	}
-
-	customer.UpdatedAt = time.Now()
-
 	userID, _ := c.Get("user_id")
-	logs.Logs.Printf("[INFO][CUSTOMERS] Customer updated: %s by user %s", customer.Name, userID)
+	userOrgID, _ := c.Get("organization_id")
+
+	// Connect to Logto Management API
+	client := services.NewLogtoManagementClient()
+
+	// First, verify the organization exists and get current data
+	currentOrg, err := client.GetOrganizationByID(customerID)
+	if err != nil {
+		logs.Logs.Printf("[ERROR][CUSTOMERS] Failed to fetch customer organization: %v", err)
+		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
+			Code:    404,
+			Message: "customer not found",
+			Data:    nil,
+		}))
+		return
+	}
+
+	// Prepare update request with only changed fields
+	updateRequest := services.UpdateOrganizationRequest{}
+	
+	// Update name if provided
+	if request.Name != "" {
+		updateRequest.Name = &request.Name
+	}
+	
+	// Update description based on company name and tier if provided
+	if request.CompanyName != "" || request.Tier != "" {
+		companyName := request.CompanyName
+		tier := request.Tier
+		
+		// Use current values if not provided
+		if companyName == "" && currentOrg.CustomData != nil {
+			if cn, ok := currentOrg.CustomData["companyName"].(string); ok {
+				companyName = cn
+			}
+		}
+		if tier == "" && currentOrg.CustomData != nil {
+			if t, ok := currentOrg.CustomData["tier"].(string); ok {
+				tier = t
+			}
+		}
+		
+		description := fmt.Sprintf("Customer organization for %s (%s tier)", companyName, tier)
+		updateRequest.Description = &description
+	}
+
+	// Merge custom data with existing data
+	if currentOrg.CustomData != nil {
+		updateRequest.CustomData = make(map[string]interface{})
+		// Copy existing custom data
+		for k, v := range currentOrg.CustomData {
+			updateRequest.CustomData[k] = v
+		}
+		
+		// Update with new values
+		if request.Email != "" {
+			updateRequest.CustomData["email"] = request.Email
+		}
+		if request.CompanyName != "" {
+			updateRequest.CustomData["companyName"] = request.CompanyName
+		}
+		if request.Tier != "" {
+			updateRequest.CustomData["tier"] = request.Tier
+		}
+		if request.ResellerID != "" {
+			updateRequest.CustomData["resellerID"] = request.ResellerID
+		}
+		if request.Metadata != nil {
+			for k, v := range request.Metadata {
+				updateRequest.CustomData[k] = v
+			}
+		}
+		
+		// Update modification tracking
+		updateRequest.CustomData["updatedBy"] = userOrgID
+		updateRequest.CustomData["updatedAt"] = time.Now().Format(time.RFC3339)
+	}
+
+	// Update the organization in Logto
+	updatedOrg, err := client.UpdateOrganization(customerID, updateRequest)
+	if err != nil {
+		logs.Logs.Printf("[ERROR][CUSTOMERS] Failed to update customer organization in Logto: %v", err)
+		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
+			Code:    500,
+			Message: "failed to update customer organization",
+			Data:    err.Error(),
+		}))
+		return
+	}
+
+	logs.Logs.Printf("[INFO][CUSTOMERS] Customer organization updated in Logto: %s (ID: %s) by user %s", updatedOrg.Name, updatedOrg.ID, userID)
+
+	// Return the updated organization data
+	customerResponse := gin.H{
+		"id":           updatedOrg.ID,
+		"name":         updatedOrg.Name,
+		"description":  updatedOrg.Description,
+		"customData":   updatedOrg.CustomData,
+		"isMfaRequired": updatedOrg.IsMfaRequired,
+		"type":         "customer",
+		"updatedAt":    time.Now(),
+	}
 
 	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
 		Code:    200,
 		Message: "customer updated successfully",
-		Data:    customer,
+		Data:    customerResponse,
 	}))
 }
 
-// DeleteCustomer handles DELETE /api/customers/:id - deletes a customer
+// DeleteCustomer handles DELETE /api/customers/:id - deletes a customer organization from Logto
 func DeleteCustomer(c *gin.Context) {
 	customerID := c.Param("id")
 	if customerID == "" {
@@ -203,8 +323,15 @@ func DeleteCustomer(c *gin.Context) {
 		return
 	}
 
-	customer, exists := customersStorage[customerID]
-	if !exists {
+	userID, _ := c.Get("user_id")
+
+	// Connect to Logto Management API
+	client := services.NewLogtoManagementClient()
+
+	// First, verify the organization exists and get its data for logging
+	currentOrg, err := client.GetOrganizationByID(customerID)
+	if err != nil {
+		logs.Logs.Printf("[ERROR][CUSTOMERS] Failed to fetch customer organization for deletion: %v", err)
 		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
 			Code:    404,
 			Message: "customer not found",
@@ -213,49 +340,27 @@ func DeleteCustomer(c *gin.Context) {
 		return
 	}
 
-	delete(customersStorage, customerID)
+	// Delete the organization from Logto
+	if err := client.DeleteOrganization(customerID); err != nil {
+		logs.Logs.Printf("[ERROR][CUSTOMERS] Failed to delete customer organization from Logto: %v", err)
+		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
+			Code:    500,
+			Message: "failed to delete customer organization",
+			Data:    err.Error(),
+		}))
+		return
+	}
 
-	userID, _ := c.Get("user_id")
-	logs.Logs.Printf("[INFO][CUSTOMERS] Customer deleted: %s by user %s", customer.Name, userID)
+	logs.Logs.Printf("[INFO][CUSTOMERS] Customer organization deleted from Logto: %s (ID: %s) by user %s", currentOrg.Name, customerID, userID)
 
 	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
 		Code:    200,
 		Message: "customer deleted successfully",
-		Data:    nil,
+		Data:    gin.H{
+			"id":        customerID,
+			"name":      currentOrg.Name,
+			"deletedAt": time.Now(),
+		},
 	}))
 }
 
-// InitCustomersStorage initializes demo data
-func InitCustomersStorage() {
-	customer1 := &models.Customer{
-		ID:          "cust-001",
-		Name:        "Acme Corporation",
-		Email:       "admin@acmecorp.com",
-		CompanyName: "Acme Corporation Ltd",
-		Status:      "active",
-		Tier:        "premium",
-		ResellerID:  "res-001",
-		Metadata:    map[string]string{"industry": "manufacturing", "employees": "500"},
-		CreatedAt:   time.Now().Add(-15 * 24 * time.Hour),
-		UpdatedAt:   time.Now(),
-		CreatedBy:   "res-001",
-	}
-
-	customer2 := &models.Customer{
-		ID:          "cust-002",
-		Name:        "StartupTech Inc",
-		Email:       "contact@startuptech.io",
-		CompanyName: "StartupTech Inc",
-		Status:      "active",
-		Tier:        "basic",
-		ResellerID:  "res-002",
-		Metadata:    map[string]string{"industry": "technology", "employees": "25"},
-		CreatedAt:   time.Now().Add(-7 * 24 * time.Hour),
-		UpdatedAt:   time.Now(),
-		CreatedBy:   "res-002",
-	}
-
-	customersStorage["cust-001"] = customer1
-	customersStorage["cust-002"] = customer2
-	logs.Logs.Println("[INFO][CUSTOMERS] Demo customers storage initialized")
-}

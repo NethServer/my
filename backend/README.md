@@ -181,6 +181,12 @@ go build -o backend main.go
 - `POST /api/systems/:id/restart` - Restart system (requires `manage:systems`)
 - `DELETE /api/systems/:id/destroy` - Destroy system (requires `destroy:systems`)
 
+#### Account Management
+- `GET /api/accounts` - List accounts with hierarchical filtering (requires custom auth)
+- `POST /api/accounts` - Create account with hierarchical validation (requires custom auth)
+- `PUT /api/accounts/:id` - Update account (requires custom auth)
+- `DELETE /api/accounts/:id` - Delete account (requires custom auth)
+
 #### Business Hierarchy Management
 - `GET /api/distributors` - List distributors (requires `create:distributors`)
 - `POST /api/distributors` - Create distributor (requires `create:distributors`)
@@ -227,6 +233,114 @@ systemsGroup.DELETE("/:id", middleware.RequirePermission("admin:systems"), metho
 // ✅ create:customers (from Distributor org role)
 ```
 
+## 👥 Hierarchical Account Management
+
+The API implements sophisticated hierarchical account management that follows business rules and organizational hierarchy:
+
+### Authorization Rules
+
+#### **Hierarchical Account Creation**
+- **God (Nethesis)**: Can create accounts for any organization type
+- **Distributor**: Can create accounts for Reseller and Customer organizations + own organization (if Admin)
+- **Reseller**: Can create accounts for Customer organizations + own organization (if Admin)
+- **Customer**: Can create accounts only for own organization (if Admin)
+
+#### **Same-Organization Rule**
+Only Admin users can create accounts for colleagues within the same organization.
+
+### Account Management Endpoints
+
+#### **POST /api/accounts**
+Creates a new account with hierarchical validation:
+
+```json
+{
+  "username": "mario.rossi",
+  "email": "mario@acme.com",
+  "name": "Mario Rossi",
+  "phone": "+393334455667",
+  "password": "SecurePassword123!",
+  "userRole": "Admin",
+  "organizationId": "org_acme_12345",
+  "organizationRole": "Reseller",
+  "avatar": "https://example.com/avatar.jpg",
+  "metadata": {
+    "department": "IT",
+    "location": "Milan"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "code": 201,
+  "message": "account created successfully",
+  "data": {
+    "id": "user_generated_id",
+    "username": "mario.rossi",
+    "email": "mario@acme.com",
+    "name": "Mario Rossi",
+    "phone": "+393334455667",
+    "userRole": "Admin",
+    "organizationId": "org_acme_12345",
+    "organizationName": "ACME S.r.l.",
+    "organizationRole": "Reseller",
+    "isSuspended": false,
+    "createdAt": "2025-01-15T10:30:00Z",
+    "updatedAt": "2025-01-15T10:30:00Z",
+    "metadata": {
+      "department": "IT",
+      "location": "Milan"
+    }
+  }
+}
+```
+
+#### **GET /api/accounts**
+Retrieves accounts with hierarchical filtering:
+
+- **God**: Sees all accounts across all organizations
+- **Distributor**: Sees accounts from organizations they created + sub-organizations
+- **Reseller**: Sees accounts from Customer organizations they created
+- **Customer**: Cannot access this endpoint
+
+**Query Parameters:**
+- `organizationId`: Filter accounts by specific organization
+
+#### **PUT /api/accounts/:id**
+Updates account information with role and organization changes.
+
+#### **DELETE /api/accounts/:id**
+Deletes an account from the system.
+
+### Hierarchical Data Visibility
+
+The system implements data visibility based on organizational hierarchy and creation relationships:
+
+#### **Visibility Rules**
+- **God**: Can see all organizations and their accounts
+- **Distributors**: Can see:
+  - Resellers they created (`customData.createdBy = distributor.organizationId`)
+  - Customers created by their resellers (transitively)
+- **Resellers**: Can see:
+  - Customers they created (`customData.createdBy = reseller.organizationId`)
+- **Customers**: Cannot access organization management endpoints
+
+#### **Creation Tracking**
+When accounts are created, they include visibility metadata:
+```json
+{
+  "customData": {
+    "createdBy": "creating-organization-id",
+    "createdAt": "2025-01-15T10:30:00Z",
+    "userRole": "Admin",
+    "organizationId": "target-org-id",
+    "organizationRole": "Reseller"
+  }
+}
+```
+
 ## 🧪 Testing
 
 ```bash
@@ -267,11 +381,63 @@ The application uses structured logging via the `logs` package:
 - Authentication and authorization events
 - Error tracking and debugging information
 
+**Key Log Messages:**
+```
+[INFO][LOGTO] Management API token obtained, expires at ...
+[INFO][LOGTO] Enriched user user-123 with 1 user roles, 4 user permissions, org role 'Distributor', 4 org permissions
+[INFO][ACCOUNTS] Account created in Logto: Mario Rossi (ID: user_123) by user user_456
+```
+
 ### Health Check
 - `GET /ping` returns server status and can be used for health monitoring
 
 ### CORS
 CORS is configured for development with permissive settings. For production, configure appropriate origins.
+
+### Troubleshooting
+
+#### **Token Exchange Issues**
+1. **Management API Connection Fails**
+   - Check `LOGTO_MANAGEMENT_CLIENT_ID` and `LOGTO_MANAGEMENT_CLIENT_SECRET`
+   - Verify Machine-to-Machine app has all Management API permissions
+   - Check network connectivity to Logto instance
+
+2. **Empty Permissions in JWT**
+   - Verify user has roles assigned in Logto admin console
+   - Check role permissions configuration in Logto
+   - Ensure user has organization membership
+
+3. **403 Forbidden on API Calls**
+   - Verify JWT contains expected permissions (decode at jwt.io)
+   - Check middleware permission requirements in source code
+   - Confirm RBAC configuration matches API expectations
+
+#### **Account Management Issues**
+1. **Account Creation Denied**
+   - Check hierarchical authorization rules
+   - Verify user has Admin role for same-organization creation
+   - Confirm target organization exists and is valid
+
+2. **Visibility Issues**
+   - Check organization creation relationships in Logto
+   - Verify `customData.createdBy` tracking
+   - Confirm user's organization role permissions
+
+#### **Debugging Tools**
+```bash
+# Test token exchange
+curl -X POST http://localhost:8080/api/auth/exchange \
+  -H "Content-Type: application/json" \
+  -d '{"access_token": "YOUR_LOGTO_TOKEN"}'
+
+# Check user profile with custom JWT
+curl -X GET http://localhost:8080/api/profile \
+  -H "Authorization: Bearer YOUR_CUSTOM_JWT"
+
+# Test specific permissions
+curl -X GET http://localhost:8080/api/systems \
+  -H "Authorization: Bearer YOUR_CUSTOM_JWT"
+```
 
 ## 🤝 Contributing
 

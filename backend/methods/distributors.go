@@ -6,13 +6,13 @@ SPDX-License-Identifier: GPL-2.0-only
 package methods
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/fatih/structs"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
-	"github.com/google/uuid"
 
 	"github.com/nethesis/my/backend/logs"
 	"github.com/nethesis/my/backend/models"
@@ -20,10 +20,8 @@ import (
 	"github.com/nethesis/my/backend/services"
 )
 
-// In-memory storage for demo purposes
-var distributorsStorage = make(map[string]*models.Distributor)
 
-// CreateDistributor handles POST /api/distributors - creates a new distributor
+// CreateDistributor handles POST /api/distributors - creates a new distributor organization in Logto
 func CreateDistributor(c *gin.Context) {
 	var request models.CreateDistributorRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
@@ -39,31 +37,87 @@ func CreateDistributor(c *gin.Context) {
 	if !exists {
 		userID = "unknown"
 	}
+	userOrgID, _ := c.Get("organization_id")
 
-	distributorID := uuid.New().String()
-
-	distributor := &models.Distributor{
-		ID:          distributorID,
-		Name:        request.Name,
-		Email:       request.Email,
-		CompanyName: request.CompanyName,
-		Status:      "active",
-		Region:      request.Region,
-		Territory:   request.Territory,
-		Metadata:    request.Metadata,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-		CreatedBy:   userID.(string),
+	// Create organization in Logto
+	client := services.NewLogtoManagementClient()
+	
+	// Prepare custom data with hierarchy info
+	customData := map[string]interface{}{
+		"type":        "distributor",
+		"email":       request.Email,
+		"companyName": request.CompanyName,
+		"region":      request.Region,
+		"territory":   request.Territory,
+		"createdBy":   userOrgID,
+		"createdAt":   time.Now().Format(time.RFC3339),
+	}
+	
+	// Add request metadata to custom data
+	if request.Metadata != nil {
+		for k, v := range request.Metadata {
+			customData[k] = v
+		}
 	}
 
-	distributorsStorage[distributorID] = distributor
+	orgRequest := services.CreateOrganizationRequest{
+		Name:        request.Name,
+		Description: fmt.Sprintf("Distributor organization for %s (%s)", request.CompanyName, request.Region),
+		CustomData:  customData,
+		IsMfaRequired: false,
+	}
 
-	logs.Logs.Printf("[INFO][DISTRIBUTORS] Distributor created: %s by user %s", distributor.Name, userID)
+	// Create the organization in Logto
+	org, err := client.CreateOrganization(orgRequest)
+	if err != nil {
+		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to create distributor organization in Logto: %v", err)
+		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
+			Code:    500,
+			Message: "failed to create distributor organization",
+			Data:    err.Error(),
+		}))
+		return
+	}
+
+	// Assign Distributor role as default JIT role
+	distributorRole, err := client.GetOrganizationRoleByName("Distributor")
+	if err != nil {
+		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to find Distributor role: %v", err)
+		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
+			Code:    500,
+			Message: "failed to configure distributor role",
+			Data:    err.Error(),
+		}))
+		return
+	}
+
+	if err := client.AssignOrganizationJitRoles(org.ID, []string{distributorRole.ID}); err != nil {
+		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to assign Distributor JIT role: %v", err)
+		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
+			Code:    500,
+			Message: "failed to configure distributor permissions",
+			Data:    err.Error(),
+		}))
+		return
+	}
+
+	logs.Logs.Printf("[INFO][DISTRIBUTORS] Distributor organization created in Logto: %s (ID: %s) by user %s", org.Name, org.ID, userID)
+
+	// Return the created organization data
+	distributorResponse := gin.H{
+		"id":           org.ID,
+		"name":         org.Name,
+		"description":  org.Description,
+		"customData":   org.CustomData,
+		"isMfaRequired": org.IsMfaRequired,
+		"type":         "distributor",
+		"createdAt":    time.Now(),
+	}
 
 	c.JSON(http.StatusCreated, structs.Map(response.StatusOK{
 		Code:    201,
 		Message: "distributor created successfully",
-		Data:    distributor,
+		Data:    distributorResponse,
 	}))
 }
 
@@ -124,23 +178,13 @@ func GetDistributors(c *gin.Context) {
 	}))
 }
 
-// UpdateDistributor handles PUT /api/distributors/:id - updates an existing distributor
+// UpdateDistributor handles PUT /api/distributors/:id - updates an existing distributor organization in Logto
 func UpdateDistributor(c *gin.Context) {
 	distributorID := c.Param("id")
 	if distributorID == "" {
 		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
 			Code:    400,
 			Message: "distributor ID required",
-			Data:    nil,
-		}))
-		return
-	}
-
-	distributor, exists := distributorsStorage[distributorID]
-	if !exists {
-		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
-			Code:    404,
-			Message: "distributor not found",
 			Data:    nil,
 		}))
 		return
@@ -156,42 +200,108 @@ func UpdateDistributor(c *gin.Context) {
 		return
 	}
 
-	// Update fields if provided
-	if request.Name != "" {
-		distributor.Name = request.Name
-	}
-	if request.Email != "" {
-		distributor.Email = request.Email
-	}
-	if request.CompanyName != "" {
-		distributor.CompanyName = request.CompanyName
-	}
-	if request.Status != "" {
-		distributor.Status = request.Status
-	}
-	if request.Region != "" {
-		distributor.Region = request.Region
-	}
-	if request.Territory != nil {
-		distributor.Territory = request.Territory
-	}
-	if request.Metadata != nil {
-		distributor.Metadata = request.Metadata
-	}
-
-	distributor.UpdatedAt = time.Now()
-
 	userID, _ := c.Get("user_id")
-	logs.Logs.Printf("[INFO][DISTRIBUTORS] Distributor updated: %s by user %s", distributor.Name, userID)
+	userOrgID, _ := c.Get("organization_id")
+
+	// Connect to Logto Management API
+	client := services.NewLogtoManagementClient()
+
+	// First, verify the organization exists and get current data
+	currentOrg, err := client.GetOrganizationByID(distributorID)
+	if err != nil {
+		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to fetch distributor organization: %v", err)
+		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
+			Code:    404,
+			Message: "distributor not found",
+			Data:    nil,
+		}))
+		return
+	}
+
+	// Prepare update request with only changed fields
+	updateRequest := services.UpdateOrganizationRequest{}
+	
+	// Update name if provided
+	if request.Name != "" {
+		updateRequest.Name = &request.Name
+	}
+	
+	// Update description based on company name if provided
+	if request.CompanyName != "" {
+		description := fmt.Sprintf("Distributor organization for %s (%s)", request.CompanyName, request.Region)
+		if request.Region == "" && currentOrg.CustomData != nil {
+			if region, ok := currentOrg.CustomData["region"].(string); ok {
+				description = fmt.Sprintf("Distributor organization for %s (%s)", request.CompanyName, region)
+			}
+		}
+		updateRequest.Description = &description
+	}
+
+	// Merge custom data with existing data
+	if currentOrg.CustomData != nil {
+		updateRequest.CustomData = make(map[string]interface{})
+		// Copy existing custom data
+		for k, v := range currentOrg.CustomData {
+			updateRequest.CustomData[k] = v
+		}
+		
+		// Update with new values
+		if request.Email != "" {
+			updateRequest.CustomData["email"] = request.Email
+		}
+		if request.CompanyName != "" {
+			updateRequest.CustomData["companyName"] = request.CompanyName
+		}
+		if request.Region != "" {
+			updateRequest.CustomData["region"] = request.Region
+		}
+		if request.Territory != nil {
+			updateRequest.CustomData["territory"] = request.Territory
+		}
+		if request.Metadata != nil {
+			for k, v := range request.Metadata {
+				updateRequest.CustomData[k] = v
+			}
+		}
+		
+		// Update modification tracking
+		updateRequest.CustomData["updatedBy"] = userOrgID
+		updateRequest.CustomData["updatedAt"] = time.Now().Format(time.RFC3339)
+	}
+
+	// Update the organization in Logto
+	updatedOrg, err := client.UpdateOrganization(distributorID, updateRequest)
+	if err != nil {
+		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to update distributor organization in Logto: %v", err)
+		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
+			Code:    500,
+			Message: "failed to update distributor organization",
+			Data:    err.Error(),
+		}))
+		return
+	}
+
+	logs.Logs.Printf("[INFO][DISTRIBUTORS] Distributor organization updated in Logto: %s (ID: %s) by user %s", updatedOrg.Name, updatedOrg.ID, userID)
+
+	// Return the updated organization data
+	distributorResponse := gin.H{
+		"id":           updatedOrg.ID,
+		"name":         updatedOrg.Name,
+		"description":  updatedOrg.Description,
+		"customData":   updatedOrg.CustomData,
+		"isMfaRequired": updatedOrg.IsMfaRequired,
+		"type":         "distributor",
+		"updatedAt":    time.Now(),
+	}
 
 	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
 		Code:    200,
 		Message: "distributor updated successfully",
-		Data:    distributor,
+		Data:    distributorResponse,
 	}))
 }
 
-// DeleteDistributor handles DELETE /api/distributors/:id - deletes a distributor
+// DeleteDistributor handles DELETE /api/distributors/:id - deletes a distributor organization from Logto
 func DeleteDistributor(c *gin.Context) {
 	distributorID := c.Param("id")
 	if distributorID == "" {
@@ -203,8 +313,15 @@ func DeleteDistributor(c *gin.Context) {
 		return
 	}
 
-	distributor, exists := distributorsStorage[distributorID]
-	if !exists {
+	userID, _ := c.Get("user_id")
+
+	// Connect to Logto Management API
+	client := services.NewLogtoManagementClient()
+
+	// First, verify the organization exists and get its data for logging
+	currentOrg, err := client.GetOrganizationByID(distributorID)
+	if err != nil {
+		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to fetch distributor organization for deletion: %v", err)
 		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
 			Code:    404,
 			Message: "distributor not found",
@@ -213,34 +330,27 @@ func DeleteDistributor(c *gin.Context) {
 		return
 	}
 
-	delete(distributorsStorage, distributorID)
+	// Delete the organization from Logto
+	if err := client.DeleteOrganization(distributorID); err != nil {
+		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to delete distributor organization from Logto: %v", err)
+		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
+			Code:    500,
+			Message: "failed to delete distributor organization",
+			Data:    err.Error(),
+		}))
+		return
+	}
 
-	userID, _ := c.Get("user_id")
-	logs.Logs.Printf("[INFO][DISTRIBUTORS] Distributor deleted: %s by user %s", distributor.Name, userID)
+	logs.Logs.Printf("[INFO][DISTRIBUTORS] Distributor organization deleted from Logto: %s (ID: %s) by user %s", currentOrg.Name, distributorID, userID)
 
 	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
 		Code:    200,
 		Message: "distributor deleted successfully",
-		Data:    nil,
+		Data:    gin.H{
+			"id":        distributorID,
+			"name":      currentOrg.Name,
+			"deletedAt": time.Now(),
+		},
 	}))
 }
 
-// InitDistributorsStorage initializes demo data
-func InitDistributorsStorage() {
-	distributor1 := &models.Distributor{
-		ID:          "dist-001",
-		Name:        "Global Tech Distribution",
-		Email:       "contact@globaltechdist.com",
-		CompanyName: "Global Tech Distribution Ltd",
-		Status:      "active",
-		Region:      "EMEA",
-		Territory:   []string{"Italy", "Germany", "France", "Spain"},
-		Metadata:    map[string]string{"tier": "platinum", "contract_type": "exclusive"},
-		CreatedAt:   time.Now().Add(-90 * 24 * time.Hour),
-		UpdatedAt:   time.Now(),
-		CreatedBy:   "god-user",
-	}
-
-	distributorsStorage["dist-001"] = distributor1
-	logs.Logs.Println("[INFO][DISTRIBUTORS] Demo distributors storage initialized")
-}

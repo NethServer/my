@@ -1,0 +1,607 @@
+/*
+Copyright (C) 2025 Nethesis S.r.l.
+SPDX-License-Identifier: GPL-2.0-only
+*/
+
+package methods
+
+import (
+	"encoding/json"
+	"net/http"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/fatih/structs"
+	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
+
+	"github.com/nethesis/my/backend/logs"
+	"github.com/nethesis/my/backend/models"
+	"github.com/nethesis/my/backend/response"
+	"github.com/nethesis/my/backend/services"
+)
+
+// sanitizeUsernameForLogto sanitizes username to match Logto's regex: /^[A-Z_a-z]\w*$/
+func sanitizeUsernameForLogto(username string) string {
+	// Replace dots and other special characters with underscores
+	sanitized := regexp.MustCompile(`[^A-Za-z0-9_]`).ReplaceAllString(username, "_")
+	
+	// Ensure it starts with a letter or underscore
+	if len(sanitized) > 0 && !regexp.MustCompile(`^[A-Za-z_]`).MatchString(sanitized) {
+		sanitized = "user_" + sanitized
+	}
+	
+	return sanitized
+}
+
+
+// CanCreateAccountForOrganization validates if a user can create accounts for a target organization
+func CanCreateAccountForOrganization(userOrgRole, userOrgID, userRole, targetOrgID, targetOrgRole string) (bool, string) {
+	// Only Admin users can create accounts for colleagues in the same organization
+	if userOrgID == targetOrgID && userRole != "Admin" {
+		return false, "only Admin users can create accounts for colleagues in the same organization"
+	}
+
+	switch userOrgRole {
+	case "God":
+		// God can create accounts for any organization
+		return true, ""
+	case "Distributor":
+		// Distributors can create accounts for:
+		// - Their own organization (if Admin)
+		// - Reseller organizations
+		// - Customer organizations
+		if userOrgID == targetOrgID {
+			return userRole == "Admin", "only Admin users can create accounts for colleagues in the same organization"
+		}
+		if targetOrgRole == "Reseller" || targetOrgRole == "Customer" {
+			return true, ""
+		}
+		return false, "distributors can only create accounts for reseller or customer organizations"
+	case "Reseller":
+		// Resellers can create accounts for:
+		// - Their own organization (if Admin)
+		// - Customer organizations
+		if userOrgID == targetOrgID {
+			return userRole == "Admin", "only Admin users can create accounts for colleagues in the same organization"
+		}
+		if targetOrgRole == "Customer" {
+			return true, ""
+		}
+		return false, "resellers can only create accounts for customer organizations"
+	case "Customer":
+		// Customers can only create accounts for their own organization (if Admin)
+		if userOrgID == targetOrgID && userRole == "Admin" {
+			return true, ""
+		}
+		return false, "customers can only create accounts for their own organization and must be Admin"
+	default:
+		return false, "unknown organization role"
+	}
+}
+
+// CreateAccount handles POST /api/accounts - creates a new account in Logto with role and organization assignment
+func CreateAccount(c *gin.Context) {
+	var request models.CreateAccountRequest
+	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
+		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
+			Code:    400,
+			Message: "request fields malformed",
+			Data:    err.Error(),
+		}))
+		return
+	}
+
+	currentUserID, _ := c.Get("user_id")
+	currentUserOrgID, _ := c.Get("organization_id")
+	currentUserOrgRole, _ := c.Get("org_role")
+	currentUserRole, _ := c.Get("user_role")
+
+	// Validate required user context
+	if currentUserOrgRole == nil || currentUserOrgID == nil || currentUserRole == nil {
+		logs.Logs.Printf("[ERROR][ACCOUNTS] Missing required user context in JWT token")
+		c.JSON(http.StatusUnauthorized, structs.Map(response.StatusUnauthorized{
+			Code:    401,
+			Message: "incomplete user context in token",
+			Data:    nil,
+		}))
+		return
+	}
+
+	// Connect to Logto Management API
+	client := services.NewLogtoManagementClient()
+
+	// Verify the target organization exists
+	targetOrg, err := client.GetOrganizationByID(request.OrganizationID)
+	if err != nil {
+		logs.Logs.Printf("[ERROR][ACCOUNTS] Target organization not found: %v", err)
+		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
+			Code:    400,
+			Message: "target organization not found",
+			Data:    err.Error(),
+		}))
+		return
+	}
+
+	// Get target organization role from custom data or assume from request
+	targetOrgRole := request.OrganizationRole
+	if targetOrgRole == "" {
+		// If not provided in request, try to get from organization's custom data
+		// For now, we'll require it to be explicitly provided
+		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
+			Code:    400,
+			Message: "organization role must be specified",
+			Data:    nil,
+		}))
+		return
+	}
+
+	// Validate hierarchical permissions
+	canCreate, reason := CanCreateAccountForOrganization(
+		currentUserOrgRole.(string),
+		currentUserOrgID.(string),
+		currentUserRole.(string),
+		request.OrganizationID,
+		targetOrgRole,
+	)
+
+	if !canCreate {
+		logs.Logs.Printf("[WARN][ACCOUNTS] User %s (role: %s, org: %s) denied creating account for org %s (role: %s): %s", 
+			currentUserID, currentUserOrgRole, currentUserOrgID, request.OrganizationID, targetOrgRole, reason)
+		c.JSON(http.StatusForbidden, structs.Map(response.StatusNotFound{
+			Code:    403,
+			Message: "insufficient permissions to create account for this organization",
+			Data:    reason,
+		}))
+		return
+	}
+
+	// Prepare custom data for the account
+	customData := map[string]interface{}{
+		"userRole":         request.UserRole,
+		"organizationId":   request.OrganizationID,
+		"organizationRole": request.OrganizationRole,
+		"createdBy":        currentUserOrgID,
+		"createdAt":        time.Now().Format(time.RFC3339),
+	}
+
+	// Add phone to custom data if provided
+	if request.Phone != "" {
+		customData["phone"] = request.Phone
+	}
+
+	// Add metadata if provided
+	if request.Metadata != nil {
+		for k, v := range request.Metadata {
+			customData[k] = v
+		}
+	}
+
+	// Sanitize fields for Logto compliance
+	sanitizedUsername := sanitizeUsernameForLogto(request.Username)
+	
+	// Create account request for Logto
+	accountRequest := services.CreateUserRequest{
+		Username:     sanitizedUsername,
+		PrimaryEmail: request.Email,
+		Name:         request.Name,
+		Password:     request.Password,
+		CustomData:   customData,
+	}
+
+	// Phone is stored in customData, not as primaryPhone
+
+	// Only set avatar if it's not empty
+	if request.Avatar != "" {
+		accountRequest.Avatar = &request.Avatar
+	}
+
+	// Debug: log the request being sent to Logto
+	if reqJSON, err := json.Marshal(accountRequest); err == nil {
+		logs.Logs.Printf("[DEBUG][ACCOUNTS] Sending to Logto: %s", string(reqJSON))
+	}
+
+	// Create the account in Logto
+	account, err := client.CreateUser(accountRequest)
+	if err != nil {
+		logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to create account in Logto: %v", err)
+		
+		// Try to parse and format the error message better
+		errorMsg := err.Error()
+		var detailedError interface{}
+		
+		// Check for different status codes and extract JSON
+		statusPrefixes := []string{"status 400: ", "status 422: ", "status 409: ", "status 500: "}
+		for _, prefix := range statusPrefixes {
+			if strings.Contains(errorMsg, prefix) {
+				parts := strings.Split(errorMsg, prefix)
+				if len(parts) > 1 {
+					// Try to parse the JSON error for better formatting
+					var logtoError map[string]interface{}
+					if json.Unmarshal([]byte(parts[1]), &logtoError) == nil {
+						detailedError = logtoError
+					} else {
+						detailedError = parts[1]
+					}
+				}
+				break
+			}
+		}
+		
+		// If no status prefix found, use original error
+		if detailedError == nil {
+			detailedError = errorMsg
+		}
+		
+		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
+			Code:    400,
+			Message: "failed to create account",
+			Data:    detailedError,
+		}))
+		return
+	}
+
+	// Assign user role (Admin/Support)
+	if request.UserRole != "" {
+		userRole, err := client.GetRoleByName(request.UserRole)
+		if err != nil {
+			logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to find user role %s: %v", request.UserRole, err)
+		} else {
+			if err := client.AssignUserRoles(account.ID, []string{userRole.ID}); err != nil {
+				logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to assign user role: %v", err)
+			}
+		}
+	}
+
+	// Assign account to organization with organization role
+	if request.OrganizationRole != "" {
+		orgRole, err := client.GetOrganizationRoleByName(request.OrganizationRole)
+		if err != nil {
+			logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to find organization role %s: %v", request.OrganizationRole, err)
+		} else {
+			if err := client.AssignUserToOrganization(request.OrganizationID, account.ID, []string{orgRole.ID}); err != nil {
+				logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to assign account to organization: %v", err)
+			}
+		}
+	}
+
+	logs.Logs.Printf("[INFO][ACCOUNTS] Account created in Logto: %s (ID: %s) by user %s", account.Name, account.ID, currentUserID)
+
+	// Convert to response format
+	var lastSignInAt *time.Time
+	if account.LastSignInAt != nil {
+		t := time.Unix(*account.LastSignInAt/1000, 0)
+		lastSignInAt = &t
+	}
+
+	accountResponse := models.AccountResponse{
+		ID:               account.ID,
+		Username:         account.Username,
+		Email:            account.PrimaryEmail,
+		Name:             account.Name,
+		Phone:            account.PrimaryPhone,
+		Avatar:           account.Avatar,
+		UserRole:         request.UserRole,
+		OrganizationID:   request.OrganizationID,
+		OrganizationName: targetOrg.Name,
+		OrganizationRole: request.OrganizationRole,
+		IsSuspended:      account.IsSuspended,
+		LastSignInAt:     lastSignInAt,
+		CreatedAt:        time.Unix(account.CreatedAt/1000, 0),
+		UpdatedAt:        time.Unix(account.UpdatedAt/1000, 0),
+		Metadata:         request.Metadata,
+	}
+
+	c.JSON(http.StatusCreated, structs.Map(response.StatusOK{
+		Code:    201,
+		Message: "account created successfully",
+		Data:    accountResponse,
+	}))
+}
+
+// GetAccounts handles GET /api/accounts - retrieves accounts with organization filtering
+func GetAccounts(c *gin.Context) {
+	currentUserID, _ := c.Get("user_id")
+	currentUserOrgRole, _ := c.Get("org_role")
+	currentUserOrgID, _ := c.Get("organization_id")
+
+	// Validate required user context
+	if currentUserOrgRole == nil || currentUserOrgID == nil {
+		logs.Logs.Printf("[ERROR][ACCOUNTS] Missing required user context in JWT token")
+		c.JSON(http.StatusUnauthorized, structs.Map(response.StatusUnauthorized{
+			Code:    401,
+			Message: "incomplete user context in token",
+			Data:    nil,
+		}))
+		return
+	}
+
+	logs.Logs.Printf("[INFO][ACCOUNTS] Accounts list requested by user %s (role: %s, org: %s)", currentUserID, currentUserOrgRole, currentUserOrgID)
+
+	client := services.NewLogtoManagementClient()
+
+	// Get organization filter from query parameter
+	orgFilter := c.Query("organizationId")
+
+	var accounts []models.AccountResponse
+
+	if orgFilter != "" {
+		// Get accounts from specific organization
+		orgAccounts, err := client.GetOrganizationUsers(orgFilter)
+		if err != nil {
+			logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to fetch organization accounts: %v", err)
+			c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
+				Code:    500,
+				Message: "failed to fetch organization accounts",
+				Data:    err.Error(),
+			}))
+			return
+		}
+
+		// Get organization details
+		org, err := client.GetOrganizationByID(orgFilter)
+		if err != nil {
+			logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to fetch organization details: %v", err)
+		}
+
+		// Convert to response format
+		for _, account := range orgAccounts {
+			accountResponse := convertLogtoUserToAccountResponse(account, org)
+			accounts = append(accounts, accountResponse)
+		}
+	} else {
+		// Get all organizations visible to current user and their accounts
+		allOrgs, err := services.GetAllVisibleOrganizations(currentUserOrgRole.(string), currentUserOrgID.(string))
+		if err != nil {
+			logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to fetch visible organizations: %v", err)
+			c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
+				Code:    500,
+				Message: "failed to fetch organizations",
+				Data:    err.Error(),
+			}))
+			return
+		}
+
+		// Get accounts from each visible organization
+		for _, org := range allOrgs {
+			orgAccounts, err := client.GetOrganizationUsers(org.ID)
+			if err != nil {
+				logs.Logs.Printf("[WARN][ACCOUNTS] Failed to fetch accounts for org %s: %v", org.ID, err)
+				continue
+			}
+
+			for _, account := range orgAccounts {
+				accountResponse := convertLogtoUserToAccountResponse(account, &org)
+				accounts = append(accounts, accountResponse)
+			}
+		}
+	}
+
+	logs.Logs.Printf("[INFO][ACCOUNTS] Retrieved %d accounts", len(accounts))
+
+	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
+		Code:    200,
+		Message: "accounts retrieved successfully",
+		Data:    gin.H{"accounts": accounts, "count": len(accounts)},
+	}))
+}
+
+// UpdateAccount handles PUT /api/accounts/:id - updates an existing account
+func UpdateAccount(c *gin.Context) {
+	accountID := c.Param("id")
+	if accountID == "" {
+		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
+			Code:    400,
+			Message: "account ID required",
+			Data:    nil,
+		}))
+		return
+	}
+
+	var request models.UpdateAccountRequest
+	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
+		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
+			Code:    400,
+			Message: "request fields malformed",
+			Data:    err.Error(),
+		}))
+		return
+	}
+
+	currentUserID, _ := c.Get("user_id")
+	currentUserOrgID, _ := c.Get("organization_id")
+
+	client := services.NewLogtoManagementClient()
+
+	// Get current account data
+	currentAccount, err := client.GetUserByID(accountID)
+	if err != nil {
+		logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to fetch account: %v", err)
+		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
+			Code:    404,
+			Message: "account not found",
+			Data:    nil,
+		}))
+		return
+	}
+
+	// Prepare update request
+	updateRequest := services.UpdateUserRequest{}
+
+	if request.Username != "" {
+		updateRequest.Username = &request.Username
+	}
+	if request.Email != "" {
+		updateRequest.PrimaryEmail = &request.Email
+	}
+	if request.Name != "" {
+		updateRequest.Name = &request.Name
+	}
+	if request.Phone != "" {
+		updateRequest.PrimaryPhone = &request.Phone
+	}
+	if request.Avatar != "" {
+		updateRequest.Avatar = &request.Avatar
+	}
+
+	// Merge custom data with existing data
+	if currentAccount.CustomData != nil {
+		updateRequest.CustomData = make(map[string]interface{})
+		// Copy existing custom data
+		for k, v := range currentAccount.CustomData {
+			updateRequest.CustomData[k] = v
+		}
+
+		// Update with new values
+		if request.UserRole != "" {
+			updateRequest.CustomData["userRole"] = request.UserRole
+		}
+		if request.OrganizationID != "" {
+			updateRequest.CustomData["organizationId"] = request.OrganizationID
+		}
+		if request.OrganizationRole != "" {
+			updateRequest.CustomData["organizationRole"] = request.OrganizationRole
+		}
+		if request.Metadata != nil {
+			for k, v := range request.Metadata {
+				updateRequest.CustomData[k] = v
+			}
+		}
+
+		// Update modification tracking
+		updateRequest.CustomData["updatedBy"] = currentUserOrgID
+		updateRequest.CustomData["updatedAt"] = time.Now().Format(time.RFC3339)
+	}
+
+	// Update the account in Logto
+	updatedAccount, err := client.UpdateUser(accountID, updateRequest)
+	if err != nil {
+		logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to update account in Logto: %v", err)
+		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
+			Code:    500,
+			Message: "failed to update account",
+			Data:    err.Error(),
+		}))
+		return
+	}
+
+	logs.Logs.Printf("[INFO][ACCOUNTS] Account updated in Logto: %s (ID: %s) by user %s", updatedAccount.Name, updatedAccount.ID, currentUserID)
+
+	// Convert to response format
+	accountResponse := convertLogtoUserToAccountResponse(*updatedAccount, nil)
+
+	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
+		Code:    200,
+		Message: "account updated successfully",
+		Data:    accountResponse,
+	}))
+}
+
+// DeleteAccount handles DELETE /api/accounts/:id - deletes an account
+func DeleteAccount(c *gin.Context) {
+	accountID := c.Param("id")
+	if accountID == "" {
+		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
+			Code:    400,
+			Message: "account ID required",
+			Data:    nil,
+		}))
+		return
+	}
+
+	currentUserID, _ := c.Get("user_id")
+
+	client := services.NewLogtoManagementClient()
+
+	// Get account data for logging before deletion
+	currentAccount, err := client.GetUserByID(accountID)
+	if err != nil {
+		logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to fetch account for deletion: %v", err)
+		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
+			Code:    404,
+			Message: "account not found",
+			Data:    nil,
+		}))
+		return
+	}
+
+	// Delete the account from Logto
+	if err := client.DeleteUser(accountID); err != nil {
+		logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to delete account from Logto: %v", err)
+		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
+			Code:    500,
+			Message: "failed to delete account",
+			Data:    err.Error(),
+		}))
+		return
+	}
+
+	logs.Logs.Printf("[INFO][ACCOUNTS] Account deleted from Logto: %s (ID: %s) by user %s", currentAccount.Name, accountID, currentUserID)
+
+	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
+		Code:    200,
+		Message: "account deleted successfully",
+		Data:    gin.H{
+			"id":        accountID,
+			"name":      currentAccount.Name,
+			"deletedAt": time.Now(),
+		},
+	}))
+}
+
+// Helper function to convert LogtoUser to AccountResponse
+func convertLogtoUserToAccountResponse(account services.LogtoUser, org *services.LogtoOrganization) models.AccountResponse {
+	var lastSignInAt *time.Time
+	if account.LastSignInAt != nil {
+		t := time.Unix(*account.LastSignInAt/1000, 0)
+		lastSignInAt = &t
+	}
+
+	accountResponse := models.AccountResponse{
+		ID:          account.ID,
+		Username:    account.Username,
+		Email:       account.PrimaryEmail,
+		Name:        account.Name,
+		Phone:       "", // Will be set from customData
+		Avatar:      account.Avatar,
+		IsSuspended: account.IsSuspended,
+		LastSignInAt: lastSignInAt,
+		CreatedAt:   time.Unix(account.CreatedAt/1000, 0),
+		UpdatedAt:   time.Unix(account.UpdatedAt/1000, 0),
+	}
+
+	// Extract data from custom data
+	if account.CustomData != nil {
+		if userRole, ok := account.CustomData["userRole"].(string); ok {
+			accountResponse.UserRole = userRole
+		}
+		if orgID, ok := account.CustomData["organizationId"].(string); ok {
+			accountResponse.OrganizationID = orgID
+		}
+		if orgRole, ok := account.CustomData["organizationRole"].(string); ok {
+			accountResponse.OrganizationRole = orgRole
+		}
+		if phone, ok := account.CustomData["phone"].(string); ok {
+			accountResponse.Phone = phone
+		}
+
+		// Extract metadata
+		metadata := make(map[string]string)
+		for k, v := range account.CustomData {
+			if k != "userRole" && k != "organizationId" && k != "organizationRole" && k != "phone" && k != "createdBy" && k != "createdAt" && k != "updatedBy" && k != "updatedAt" {
+				if str, ok := v.(string); ok {
+					metadata[k] = str
+				}
+			}
+		}
+		accountResponse.Metadata = metadata
+	}
+
+	// Set organization name if provided
+	if org != nil {
+		accountResponse.OrganizationName = org.Name
+	}
+
+	return accountResponse
+}
