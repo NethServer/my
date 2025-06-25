@@ -577,3 +577,475 @@ func FilterOrganizationsByVisibility(orgs []LogtoOrganization, userOrgRole, user
 
 	return filteredOrgs
 }
+
+// CreateOrganizationRequest represents the request to create a new organization in Logto
+type CreateOrganizationRequest struct {
+	Name         string                 `json:"name"`
+	Description  string                 `json:"description"`
+	CustomData   map[string]interface{} `json:"customData"`
+	IsMfaRequired bool                   `json:"isMfaRequired"`
+	Branding     *LogtoOrganizationBranding `json:"branding,omitempty"`
+}
+
+// CreateOrganization creates a new organization in Logto with customData
+func (c *LogtoManagementClient) CreateOrganization(request CreateOrganizationRequest) (*LogtoOrganization, error) {
+	reqBody, err := json.Marshal(request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	resp, err := c.makeRequest("POST", "/organizations", bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create organization: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to create organization, status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var org LogtoOrganization
+	if err := json.NewDecoder(resp.Body).Decode(&org); err != nil {
+		return nil, fmt.Errorf("failed to decode created organization: %w", err)
+	}
+
+	return &org, nil
+}
+
+// AssignOrganizationJitRoles assigns default organization roles to an organization
+func (c *LogtoManagementClient) AssignOrganizationJitRoles(orgID string, roleIDs []string) error {
+	requestBody := map[string]interface{}{
+		"organizationRoleIds": roleIDs,
+	}
+
+	reqBody, err := json.Marshal(requestBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal JIT roles request: %w", err)
+	}
+
+	resp, err := c.makeRequest("PUT", fmt.Sprintf("/organizations/%s/jit/roles", orgID), bytes.NewBuffer(reqBody))
+	if err != nil {
+		return fmt.Errorf("failed to assign JIT roles: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to assign JIT roles, status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// GetOrganizationRoleByName finds an organization role by name
+func (c *LogtoManagementClient) GetOrganizationRoleByName(roleName string) (*LogtoOrganizationRole, error) {
+	resp, err := c.makeRequest("GET", "/organization-roles", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch organization roles: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to fetch organization roles, status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var roles []LogtoOrganizationRole
+	if err := json.NewDecoder(resp.Body).Decode(&roles); err != nil {
+		return nil, fmt.Errorf("failed to decode organization roles: %w", err)
+	}
+
+	for _, role := range roles {
+		if role.Name == roleName {
+			return &role, nil
+		}
+	}
+
+	return nil, fmt.Errorf("organization role '%s' not found", roleName)
+}
+
+// UpdateOrganizationRequest represents the request to update an organization in Logto
+type UpdateOrganizationRequest struct {
+	Name         *string                `json:"name,omitempty"`
+	Description  *string                `json:"description,omitempty"`
+	CustomData   map[string]interface{} `json:"customData,omitempty"`
+	IsMfaRequired *bool                  `json:"isMfaRequired,omitempty"`
+	Branding     *LogtoOrganizationBranding `json:"branding,omitempty"`
+}
+
+// UpdateOrganization updates an existing organization in Logto
+func (c *LogtoManagementClient) UpdateOrganization(orgID string, request UpdateOrganizationRequest) (*LogtoOrganization, error) {
+	reqBody, err := json.Marshal(request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal update request: %w", err)
+	}
+
+	resp, err := c.makeRequest("PATCH", fmt.Sprintf("/organizations/%s", orgID), bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to update organization: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to update organization, status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var org LogtoOrganization
+	if err := json.NewDecoder(resp.Body).Decode(&org); err != nil {
+		return nil, fmt.Errorf("failed to decode updated organization: %w", err)
+	}
+
+	return &org, nil
+}
+
+// DeleteOrganization deletes an organization from Logto
+func (c *LogtoManagementClient) DeleteOrganization(orgID string) error {
+	resp, err := c.makeRequest("DELETE", fmt.Sprintf("/organizations/%s", orgID), nil)
+	if err != nil {
+		return fmt.Errorf("failed to delete organization: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to delete organization, status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// GetOrganizationByID fetches a specific organization by ID
+func (c *LogtoManagementClient) GetOrganizationByID(orgID string) (*LogtoOrganization, error) {
+	resp, err := c.makeRequest("GET", fmt.Sprintf("/organizations/%s", orgID), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch organization: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("organization not found")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to fetch organization, status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var org LogtoOrganization
+	if err := json.NewDecoder(resp.Body).Decode(&org); err != nil {
+		return nil, fmt.Errorf("failed to decode organization: %w", err)
+	}
+
+	return &org, nil
+}
+
+// LogtoUser represents a user/account from Logto Management API
+// Note: In our system these are called "accounts" to distinguish from the current logged-in user
+type LogtoUser struct {
+	ID               string                 `json:"id"`
+	Username         string                 `json:"username"`
+	PrimaryEmail     string                 `json:"primaryEmail"`
+	PrimaryPhone     string                 `json:"primaryPhone"`
+	Name             string                 `json:"name"`
+	Avatar           string                 `json:"avatar"`
+	CustomData       map[string]interface{} `json:"customData"`
+	Identities       map[string]interface{} `json:"identities"`
+	LastSignInAt     *int64                 `json:"lastSignInAt"`
+	IsSuspended      bool                   `json:"isSuspended"`
+	HasPassword      bool                   `json:"hasPassword"`
+	ApplicationId    string                 `json:"applicationId"`
+	CreatedAt        int64                  `json:"createdAt"`
+	UpdatedAt        int64                  `json:"updatedAt"`
+}
+
+// CreateUserRequest represents the request to create a new account in Logto
+type CreateUserRequest struct {
+	Username     string                 `json:"username,omitempty"`
+	PrimaryEmail string                 `json:"primaryEmail,omitempty"`
+	PrimaryPhone *string                `json:"primaryPhone,omitempty"`
+	Name         string                 `json:"name,omitempty"`
+	Avatar       *string                `json:"avatar,omitempty"`
+	CustomData   map[string]interface{} `json:"customData,omitempty"`
+	Password     string                 `json:"password,omitempty"`
+}
+
+// UpdateUserRequest represents the request to update an account in Logto
+type UpdateUserRequest struct {
+	Username     *string                `json:"username,omitempty"`
+	PrimaryEmail *string                `json:"primaryEmail,omitempty"`
+	PrimaryPhone *string                `json:"primaryPhone,omitempty"`
+	Name         *string                `json:"name,omitempty"`
+	Avatar       *string                `json:"avatar,omitempty"`
+	CustomData   map[string]interface{} `json:"customData,omitempty"`
+}
+
+// CreateUser creates a new account in Logto
+func (c *LogtoManagementClient) CreateUser(request CreateUserRequest) (*LogtoUser, error) {
+	reqBody, err := json.Marshal(request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal user request: %w", err)
+	}
+
+	resp, err := c.makeRequest("POST", "/users", bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to create user, status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var user LogtoUser
+	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
+		return nil, fmt.Errorf("failed to decode created user: %w", err)
+	}
+
+	return &user, nil
+}
+
+// GetUserByID fetches a specific user by ID
+func (c *LogtoManagementClient) GetUserByID(userID string) (*LogtoUser, error) {
+	resp, err := c.makeRequest("GET", fmt.Sprintf("/users/%s", userID), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch user: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to fetch user, status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var user LogtoUser
+	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
+		return nil, fmt.Errorf("failed to decode user: %w", err)
+	}
+
+	return &user, nil
+}
+
+// UpdateUser updates an existing user in Logto
+func (c *LogtoManagementClient) UpdateUser(userID string, request UpdateUserRequest) (*LogtoUser, error) {
+	reqBody, err := json.Marshal(request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal user update request: %w", err)
+	}
+
+	resp, err := c.makeRequest("PATCH", fmt.Sprintf("/users/%s", userID), bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to update user: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to update user, status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var user LogtoUser
+	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
+		return nil, fmt.Errorf("failed to decode updated user: %w", err)
+	}
+
+	return &user, nil
+}
+
+// DeleteUser deletes a user from Logto
+func (c *LogtoManagementClient) DeleteUser(userID string) error {
+	resp, err := c.makeRequest("DELETE", fmt.Sprintf("/users/%s", userID), nil)
+	if err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to delete user, status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// AssignUserRoles assigns roles to a user
+func (c *LogtoManagementClient) AssignUserRoles(userID string, roleIDs []string) error {
+	requestBody := map[string]interface{}{
+		"roleIds": roleIDs,
+	}
+
+	reqBody, err := json.Marshal(requestBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal role assignment request: %w", err)
+	}
+
+	resp, err := c.makeRequest("POST", fmt.Sprintf("/users/%s/roles", userID), bytes.NewBuffer(reqBody))
+	if err != nil {
+		return fmt.Errorf("failed to assign user roles: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to assign user roles, status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// AssignUserToOrganization assigns a user to an organization with specific roles
+func (c *LogtoManagementClient) AssignUserToOrganization(orgID, userID string, roleIDs []string) error {
+	requestBody := map[string]interface{}{
+		"userIds":              []string{userID},
+		"organizationRoleIds": roleIDs,
+	}
+
+	reqBody, err := json.Marshal(requestBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal organization assignment request: %w", err)
+	}
+
+	resp, err := c.makeRequest("POST", fmt.Sprintf("/organizations/%s/users", orgID), bytes.NewBuffer(reqBody))
+	if err != nil {
+		return fmt.Errorf("failed to assign user to organization: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to assign user to organization, status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// GetRoleByName finds a role by name
+func (c *LogtoManagementClient) GetRoleByName(roleName string) (*LogtoRole, error) {
+	resp, err := c.makeRequest("GET", "/roles", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch roles: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to fetch roles, status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var roles []LogtoRole
+	if err := json.NewDecoder(resp.Body).Decode(&roles); err != nil {
+		return nil, fmt.Errorf("failed to decode roles: %w", err)
+	}
+
+	for _, role := range roles {
+		if role.Name == roleName {
+			return &role, nil
+		}
+	}
+
+	return nil, fmt.Errorf("role '%s' not found", roleName)
+}
+
+// GetOrganizationUsers fetches users belonging to an organization
+func (c *LogtoManagementClient) GetOrganizationUsers(orgID string) ([]LogtoUser, error) {
+	resp, err := c.makeRequest("GET", fmt.Sprintf("/organizations/%s/users", orgID), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch organization users: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to fetch organization users, status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var users []LogtoUser
+	if err := json.NewDecoder(resp.Body).Decode(&users); err != nil {
+		return nil, fmt.Errorf("failed to decode organization users: %w", err)
+	}
+
+	return users, nil
+}
+
+// GetAllVisibleOrganizations gets all organizations visible to a user based on their role and organization
+func GetAllVisibleOrganizations(userOrgRole, userOrgID string) ([]LogtoOrganization, error) {
+	client := NewLogtoManagementClient()
+	
+	// Get all organizations first
+	allOrgs, err := client.GetAllOrganizations()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all organizations: %w", err)
+	}
+
+	var visibleOrgs []LogtoOrganization
+
+	// God can see everything
+	if userOrgRole == "God" {
+		return allOrgs, nil
+	}
+
+	// For other roles, filter based on hierarchy and creation relationships
+	for _, org := range allOrgs {
+		// Determine if this organization should be visible
+		shouldInclude := false
+
+		if org.CustomData != nil {
+			orgType, _ := org.CustomData["type"].(string)
+			createdBy, _ := org.CustomData["createdBy"].(string)
+
+			switch userOrgRole {
+			case "Distributor":
+				// Distributors can see:
+				// - Their own organization
+				// - Resellers they created
+				// - Customers created by their resellers
+				if org.ID == userOrgID {
+					shouldInclude = true
+				} else if orgType == "reseller" && createdBy == userOrgID {
+					shouldInclude = true
+				} else if orgType == "customer" {
+					// Check if customer was created by a reseller owned by this distributor
+					resellers, _ := GetOrganizationsByRole("Reseller")
+					for _, reseller := range resellers {
+						if reseller.CustomData != nil {
+							if resellerCreatedBy, ok := reseller.CustomData["createdBy"].(string); ok && resellerCreatedBy == userOrgID {
+								if createdBy == reseller.ID {
+									shouldInclude = true
+									break
+								}
+							}
+						}
+					}
+				}
+
+			case "Reseller":
+				// Resellers can see:
+				// - Their own organization
+				// - Customers they created
+				if org.ID == userOrgID {
+					shouldInclude = true
+				} else if orgType == "customer" && createdBy == userOrgID {
+					shouldInclude = true
+				}
+
+			case "Customer":
+				// Customers can only see their own organization
+				if org.ID == userOrgID {
+					shouldInclude = true
+				}
+			}
+		}
+
+		if shouldInclude {
+			visibleOrgs = append(visibleOrgs, org)
+		}
+	}
+
+	return visibleOrgs, nil
+}
