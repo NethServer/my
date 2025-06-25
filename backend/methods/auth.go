@@ -84,13 +84,13 @@ func ExchangeToken(c *gin.Context) {
 		user.Username = userProfile.Username
 		user.Email = userProfile.PrimaryEmail
 		user.Name = userProfile.Name
-		logs.Logs.Printf("[DEBUG][AUTH] Using Management API profile: username=%s, email=%s, name=%s", 
+		logs.Logs.Printf("[DEBUG][AUTH] Using Management API profile: username=%s, email=%s, name=%s",
 			user.Username, user.Email, user.Name)
 	} else {
 		user.Username = userInfo.Username
 		user.Email = userInfo.Email
 		user.Name = userInfo.Name
-		logs.Logs.Printf("[DEBUG][AUTH] Using basic userinfo: username=%s, email=%s, name=%s", 
+		logs.Logs.Printf("[DEBUG][AUTH] Using basic userinfo: username=%s, email=%s, name=%s",
 			user.Username, user.Email, user.Name)
 	}
 

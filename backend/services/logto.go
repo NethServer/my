@@ -51,12 +51,12 @@ type LogtoScope struct {
 }
 
 type LogtoOrganization struct {
-	ID           string                 `json:"id"`
-	Name         string                 `json:"name"`
-	Description  string                 `json:"description"`
-	CustomData   map[string]interface{} `json:"customData"`
-	IsMfaRequired bool                   `json:"isMfaRequired"`
-	Branding     *LogtoOrganizationBranding `json:"branding"`
+	ID            string                     `json:"id"`
+	Name          string                     `json:"name"`
+	Description   string                     `json:"description"`
+	CustomData    map[string]interface{}     `json:"customData"`
+	IsMfaRequired bool                       `json:"isMfaRequired"`
+	Branding      *LogtoOrganizationBranding `json:"branding"`
 }
 
 type LogtoOrganizationBranding struct {
@@ -91,7 +91,7 @@ type LogtoManagementClient struct {
 func GetUserInfoFromLogto(accessToken string) (*LogtoUserInfo, error) {
 	// Create request to Logto userinfo endpoint
 	userInfoURL := configuration.Config.LogtoIssuer + "/oidc/me"
-	
+
 	req, err := http.NewRequest("GET", userInfoURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -136,14 +136,14 @@ func GetUserInfoFromLogto(accessToken string) (*LogtoUserInfo, error) {
 // GetUserProfileFromLogto fetches complete user profile from Logto Management API
 func GetUserProfileFromLogto(userID string) (*LogtoUser, error) {
 	client := NewLogtoManagementClient()
-	
+
 	// Use the GetUserByID method we already have
 	user, err := client.GetUserByID(userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user profile: %w", err)
 	}
 
-	logs.Logs.Printf("[DEBUG][LOGTO] Profile API response: username=%s, email=%s, name=%s", 
+	logs.Logs.Printf("[DEBUG][LOGTO] Profile API response: username=%s, email=%s, name=%s",
 		user.Username, user.PrimaryEmail, user.Name)
 
 	return user, nil
@@ -167,10 +167,10 @@ func (c *LogtoManagementClient) getAccessToken() error {
 
 	// Request new token
 	tokenURL := strings.TrimSuffix(configuration.Config.LogtoIssuer, "/") + "/oidc/token"
-	
+
 	// Management API resource indicator
 	managementAPIResource := strings.TrimSuffix(configuration.Config.LogtoIssuer, "/") + "/api"
-	
+
 	payload := fmt.Sprintf("grant_type=client_credentials&client_id=%s&client_secret=%s&resource=%s&scope=all",
 		c.clientID, c.clientSecret, managementAPIResource)
 
@@ -477,7 +477,7 @@ func (c *LogtoManagementClient) GetOrganizationJitRoles(orgID string) ([]LogtoOr
 // This is used to filter distributors, resellers, customers based on their JIT role configuration
 func GetOrganizationsByRole(roleType string) ([]LogtoOrganization, error) {
 	client := NewLogtoManagementClient()
-	
+
 	// Get all organizations
 	allOrgs, err := client.GetAllOrganizations()
 	if err != nil {
@@ -485,7 +485,7 @@ func GetOrganizationsByRole(roleType string) ([]LogtoOrganization, error) {
 	}
 
 	var filteredOrgs []LogtoOrganization
-	
+
 	// For each organization, check if it has the specified default role (JIT)
 	for _, org := range allOrgs {
 		jitRoles, err := client.GetOrganizationJitRoles(org.ID)
@@ -493,7 +493,7 @@ func GetOrganizationsByRole(roleType string) ([]LogtoOrganization, error) {
 			logs.Logs.Printf("[WARN][LOGTO] Failed to get JIT roles for org %s: %v", org.ID, err)
 			continue
 		}
-		
+
 		// Check if this organization has the target role as default
 		hasRole := false
 		for _, role := range jitRoles {
@@ -503,13 +503,13 @@ func GetOrganizationsByRole(roleType string) ([]LogtoOrganization, error) {
 				break
 			}
 		}
-		
+
 		if hasRole {
 			logs.Logs.Printf("[INFO][LOGTO] Org %s (%s) matches role %s", org.ID, org.Name, roleType)
 			filteredOrgs = append(filteredOrgs, org)
 		}
 	}
-	
+
 	logs.Logs.Printf("[INFO][LOGTO] Found %d organizations with JIT role '%s'", len(filteredOrgs), roleType)
 	return filteredOrgs, nil
 }
@@ -596,11 +596,11 @@ func FilterOrganizationsByVisibility(orgs []LogtoOrganization, userOrgRole, user
 
 // CreateOrganizationRequest represents the request to create a new organization in Logto
 type CreateOrganizationRequest struct {
-	Name         string                 `json:"name"`
-	Description  string                 `json:"description"`
-	CustomData   map[string]interface{} `json:"customData"`
-	IsMfaRequired bool                   `json:"isMfaRequired"`
-	Branding     *LogtoOrganizationBranding `json:"branding,omitempty"`
+	Name          string                     `json:"name"`
+	Description   string                     `json:"description"`
+	CustomData    map[string]interface{}     `json:"customData"`
+	IsMfaRequired bool                       `json:"isMfaRequired"`
+	Branding      *LogtoOrganizationBranding `json:"branding,omitempty"`
 }
 
 // CreateOrganization creates a new organization in Logto with customData
@@ -683,11 +683,11 @@ func (c *LogtoManagementClient) GetOrganizationRoleByName(roleName string) (*Log
 
 // UpdateOrganizationRequest represents the request to update an organization in Logto
 type UpdateOrganizationRequest struct {
-	Name         *string                `json:"name,omitempty"`
-	Description  *string                `json:"description,omitempty"`
-	CustomData   map[string]interface{} `json:"customData,omitempty"`
-	IsMfaRequired *bool                  `json:"isMfaRequired,omitempty"`
-	Branding     *LogtoOrganizationBranding `json:"branding,omitempty"`
+	Name          *string                    `json:"name,omitempty"`
+	Description   *string                    `json:"description,omitempty"`
+	CustomData    map[string]interface{}     `json:"customData,omitempty"`
+	IsMfaRequired *bool                      `json:"isMfaRequired,omitempty"`
+	Branding      *LogtoOrganizationBranding `json:"branding,omitempty"`
 }
 
 // UpdateOrganization updates an existing organization in Logto
@@ -760,20 +760,20 @@ func (c *LogtoManagementClient) GetOrganizationByID(orgID string) (*LogtoOrganiz
 // LogtoUser represents a user/account from Logto Management API
 // Note: In our system these are called "accounts" to distinguish from the current logged-in user
 type LogtoUser struct {
-	ID               string                 `json:"id"`
-	Username         string                 `json:"username"`
-	PrimaryEmail     string                 `json:"primaryEmail"`
-	PrimaryPhone     string                 `json:"primaryPhone"`
-	Name             string                 `json:"name"`
-	Avatar           string                 `json:"avatar"`
-	CustomData       map[string]interface{} `json:"customData"`
-	Identities       map[string]interface{} `json:"identities"`
-	LastSignInAt     *int64                 `json:"lastSignInAt"`
-	IsSuspended      bool                   `json:"isSuspended"`
-	HasPassword      bool                   `json:"hasPassword"`
-	ApplicationId    string                 `json:"applicationId"`
-	CreatedAt        int64                  `json:"createdAt"`
-	UpdatedAt        int64                  `json:"updatedAt"`
+	ID            string                 `json:"id"`
+	Username      string                 `json:"username"`
+	PrimaryEmail  string                 `json:"primaryEmail"`
+	PrimaryPhone  string                 `json:"primaryPhone"`
+	Name          string                 `json:"name"`
+	Avatar        string                 `json:"avatar"`
+	CustomData    map[string]interface{} `json:"customData"`
+	Identities    map[string]interface{} `json:"identities"`
+	LastSignInAt  *int64                 `json:"lastSignInAt"`
+	IsSuspended   bool                   `json:"isSuspended"`
+	HasPassword   bool                   `json:"hasPassword"`
+	ApplicationId string                 `json:"applicationId"`
+	CreatedAt     int64                  `json:"createdAt"`
+	UpdatedAt     int64                  `json:"updatedAt"`
 }
 
 // CreateUserRequest represents the request to create a new account in Logto
@@ -946,12 +946,12 @@ func (c *LogtoManagementClient) AssignUserToOrganization(orgID, userID string) e
 // This is the correct API endpoint: POST /organizations/{orgId}/users/{userId}/roles
 func (c *LogtoManagementClient) AssignOrganizationRolesToUser(orgID, userID string, roleIDs []string, roleNames []string) error {
 	requestBody := map[string]interface{}{}
-	
+
 	// Add role IDs if provided
 	if len(roleIDs) > 0 {
 		requestBody["organizationRoleIds"] = roleIDs
 	}
-	
+
 	// Add role names if provided
 	if len(roleNames) > 0 {
 		requestBody["organizationRoleNames"] = roleNames
@@ -1027,7 +1027,7 @@ func (c *LogtoManagementClient) GetOrganizationUsers(orgID string) ([]LogtoUser,
 // GetAllVisibleOrganizations gets all organizations visible to a user based on their role and organization
 func GetAllVisibleOrganizations(userOrgRole, userOrgID string) ([]LogtoOrganization, error) {
 	client := NewLogtoManagementClient()
-	
+
 	// Get all organizations first
 	allOrgs, err := client.GetAllOrganizations()
 	if err != nil {
@@ -1054,7 +1054,7 @@ func GetAllVisibleOrganizations(userOrgRole, userOrgID string) ([]LogtoOrganizat
 			case "Distributor":
 				// Distributors can see:
 				// - Their own organization
-				// - Resellers they created  
+				// - Resellers they created
 				// - Customers created by their resellers
 				// BUT NEVER God organizations (higher in hierarchy)
 				if orgType == "god" {

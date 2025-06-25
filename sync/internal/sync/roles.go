@@ -28,22 +28,22 @@ func isSystemUserRole(role client.LogtoRole) bool {
 		"system",
 		"default",
 	}
-	
+
 	roleName := strings.ToLower(role.Name)
 	for _, systemName := range systemRoleNames {
 		if strings.Contains(roleName, systemName) {
 			return true
 		}
 	}
-	
+
 	// Preserve roles with system-like descriptions
 	description := strings.ToLower(role.Description)
-	if strings.Contains(description, "system") || 
-	   strings.Contains(description, "default") ||
-	   strings.Contains(description, "logto") {
+	if strings.Contains(description, "system") ||
+		strings.Contains(description, "default") ||
+		strings.Contains(description, "logto") {
 		return true
 	}
-	
+
 	return false
 }
 

@@ -16,8 +16,8 @@ import (
 
 // Config represents the complete configuration structure
 type Config struct {
-	Metadata        Metadata        `yaml:"metadata" json:"metadata"`
-	Hierarchy       Hierarchy       `yaml:"hierarchy" json:"hierarchy"`
+	Metadata  Metadata  `yaml:"metadata" json:"metadata"`
+	Hierarchy Hierarchy `yaml:"hierarchy" json:"hierarchy"`
 }
 
 // Metadata contains configuration metadata
@@ -54,7 +54,6 @@ type Resource struct {
 	Name    string   `yaml:"name" json:"name"`
 	Actions []string `yaml:"actions" json:"actions"`
 }
-
 
 // Validate validates the configuration
 func (c *Config) Validate() error {
@@ -109,7 +108,6 @@ func (c *Config) Validate() error {
 	if err := c.validatePermissionReferences(); err != nil {
 		return fmt.Errorf("permission reference validation failed: %w", err)
 	}
-
 
 	return nil
 }
@@ -228,7 +226,6 @@ func (c *Config) isSystemPermission(permissionID string) bool {
 	return false
 }
 
-
 // GetUserTypeRoles returns only roles with type "user" or empty type
 func (c *Config) GetUserTypeRoles(roles []Role) []Role {
 	var userRoles []Role
@@ -243,7 +240,7 @@ func (c *Config) GetUserTypeRoles(roles []Role) []Role {
 // GetAllPermissions returns all unique permissions from both organization roles and user roles
 func (c *Config) GetAllPermissions() map[string]Permission {
 	allPermissions := make(map[string]Permission)
-	
+
 	// Get permissions from organization roles
 	organizationRoles := c.GetUserTypeRoles(c.Hierarchy.OrganizationRoles)
 	for _, role := range organizationRoles {
@@ -253,7 +250,7 @@ func (c *Config) GetAllPermissions() map[string]Permission {
 			}
 		}
 	}
-	
+
 	// Get permissions from user roles
 	userRoles := c.GetUserTypeRoles(c.Hierarchy.UserRoles)
 	for _, role := range userRoles {
