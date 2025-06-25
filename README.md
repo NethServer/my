@@ -7,7 +7,7 @@ A web application providing centralized authentication and management using Logt
 ```
 my/
 ├── backend/            # Go REST API with Logto JWT authentication
-├── logto-sync/         # CLI tool for RBAC configuration synchronization
+├── sync/              # CLI tool for RBAC configuration synchronization
 ├── DESIGN.md           # Project design documentation
 └── LICENSE             # Project license
 ```
@@ -16,12 +16,14 @@ my/
 
 ### Backend API
 Go-based REST API featuring:
-- **Authentication**: Logto JWT token validation via JWKS
-- **Authorization**: Hybrid RBAC system with multiple permission layers
+- **Authentication**: Token exchange system with custom JWT generation
+- **Data Integration**: Real-time Management API integration for roles/permissions
+- **Authorization**: Simplified RBAC system with embedded permissions
+- **Account Management**: Hierarchical account creation and management with business rule enforcement
 - **Framework**: Gin web framework with middleware architecture
-- **Roles**: Support, Admin, Sales (user roles) + God, Distributor, Reseller, Customer (organization hierarchy)
+- **Roles**: Admin, Support (user roles) + God, Distributor, Reseller, Customer (organization hierarchy)
 
-### logto-sync CLI
+### sync CLI
 Management tool for synchronizing RBAC configuration:
 - **Configuration Management**: YAML-based role and permission definitions
 - **Custom JWT Claims**: JavaScript-based claim customization
@@ -39,30 +41,42 @@ Management tool for synchronizing RBAC configuration:
 Each component has its own setup instructions:
 
 - **Backend API**: See [backend/README.md](./backend/README.md) for API server setup
-- **logto-sync CLI**: See [logto-sync/README.md](./logto-sync/README.md) for RBAC management
+- **sync CLI**: See [sync/README.md](./sync/README.md) for RBAC management
 
 ## 🔐 Authorization Architecture
 
-The system implements a sophisticated three-tier authorization model:
+The system implements a **token exchange pattern** with real-time Management API integration:
 
-1. **Base Authentication**: JWT validation via Logto
-2. **Role-Based Access**: General user roles (Support, Admin, Sales)
-3. **Organization Hierarchy**: Business roles (God → Distributor → Reseller → Customer)
-4. **Fine-Grained Scopes**: Specific permissions (e.g., `admin:systems`, `manage:billing`)
+1. **Token Exchange**: Frontend exchanges Logto access_token for custom JWT with embedded permissions
+2. **Management API Integration**: Real-time fetching of user roles and organization memberships from Logto
+3. **Permission Embedding**: All permissions pre-computed and embedded in custom JWT
+4. **Unified Authorization**: Single middleware checks both user and organization permissions
 
 ### Example Authorization Flow
 ```go
-// Route with multiple authorization layers
-protected := api.Group("/", middleware.LogtoAuthMiddleware())
-systemsGroup := protected.Group("/systems", middleware.AutoRoleRBAC("Support"))
-systemsGroup.POST("/:id/restart", middleware.RequireScope("manage:systems"), methods.RestartSystem)
+// Token exchange endpoint (public)
+auth.POST("/exchange", methods.ExchangeToken)
+
+// Protected routes with custom JWT
+protected := api.Group("/", middleware.CustomAuthMiddleware())
+systemsGroup := protected.Group("/systems", middleware.RequirePermission("read:systems"))
+systemsGroup.POST("/:id/restart", middleware.RequirePermission("manage:systems"), methods.RestartSystem)
+
+// Account management with hierarchical validation
+accountsGroup := protected.Group("/accounts")
+accountsGroup.POST("", methods.CreateAccount) // Business rule validation in handler
 ```
 
 ## 📝 Configuration
 
 Configuration details are specific to each component:
-- **Backend**: Environment variables for Logto JWT validation
-- **logto-sync**: Management API credentials and RBAC configuration files
+- **Backend**: Environment variables for Logto integration and Management API credentials
+- **sync**: Management API credentials and RBAC configuration files
+
+### Key Requirements
+- **Logto Instance**: Identity provider with RBAC configuration
+- **Management API**: Machine-to-Machine app with full API permissions
+- **Custom JWT**: Backend secret for signing custom tokens
 
 See individual README files for detailed configuration instructions.
 
@@ -70,7 +84,7 @@ See individual README files for detailed configuration instructions.
 
 ### Component Documentation
 - **[Backend API](./backend/README.md)** - Go REST API server setup, RBAC system, and development guide
-- **[logto-sync CLI](./logto-sync/README.md)** - RBAC configuration management tool and usage instructions
+- **[sync CLI](./sync/README.md)** - RBAC configuration management tool and usage instructions
 
 ### Project Documentation
 - **[CLAUDE.md](./CLAUDE.md)** - Comprehensive development guidance for AI assistance

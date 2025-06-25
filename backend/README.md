@@ -63,9 +63,9 @@ distributorGroup := protected.Group("/distributors",
 - **Admin**: Complete platform administration, dangerous operations
 - **Support**: System management, customer troubleshooting, standard operations
 
-#### **Organization Roles** (Business Hierarchy)  
+#### **Organization Roles** (Business Hierarchy)
 - **God**: Complete control over commercial hierarchy (Nethesis level)
-- **Distributor**: Can manage resellers and customers  
+- **Distributor**: Can manage resellers and customers
 - **Reseller**: Can manage customers only
 - **Customer**: Read-only access to own data
 
@@ -227,7 +227,7 @@ systemsGroup.DELETE("/:id", middleware.RequirePermission("admin:systems"), metho
 // ✅ admin:systems, destroy:systems (from Admin user role)
 // ✅ create:customers (from Reseller org role)
 
-// Edoardo (Nethesis Distributor + Support) can:  
+// Edoardo (Nethesis Distributor + Support) can:
 // ✅ manage:systems (from Support user role)
 // ✅ create:resellers (from Distributor org role)
 // ✅ create:customers (from Distributor org role)
