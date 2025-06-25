@@ -133,6 +133,22 @@ func GetUserInfoFromLogto(accessToken string) (*LogtoUserInfo, error) {
 	return &userInfo, nil
 }
 
+// GetUserProfileFromLogto fetches complete user profile from Logto Management API
+func GetUserProfileFromLogto(userID string) (*LogtoUser, error) {
+	client := NewLogtoManagementClient()
+	
+	// Use the GetUserByID method we already have
+	user, err := client.GetUserByID(userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user profile: %w", err)
+	}
+
+	logs.Logs.Printf("[DEBUG][LOGTO] Profile API response: username=%s, email=%s, name=%s", 
+		user.Username, user.PrimaryEmail, user.Name)
+
+	return user, nil
+}
+
 // NewLogtoManagementClient creates a new Logto Management API client
 func NewLogtoManagementClient() *LogtoManagementClient {
 	return &LogtoManagementClient{
@@ -630,7 +646,7 @@ func (c *LogtoManagementClient) AssignOrganizationJitRoles(orgID string, roleIDs
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusNoContent {
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("failed to assign JIT roles, status %d: %s", resp.StatusCode, string(body))
 	}
@@ -899,11 +915,12 @@ func (c *LogtoManagementClient) AssignUserRoles(userID string, roleIDs []string)
 	return nil
 }
 
-// AssignUserToOrganization assigns a user to an organization with specific roles
-func (c *LogtoManagementClient) AssignUserToOrganization(orgID, userID string, roleIDs []string) error {
+// AssignUserToOrganization assigns a user to an organization without any roles
+// Roles should be assigned separately using AssignOrganizationRolesToUser
+func (c *LogtoManagementClient) AssignUserToOrganization(orgID, userID string) error {
 	requestBody := map[string]interface{}{
-		"userIds":              []string{userID},
-		"organizationRoleIds": roleIDs,
+		"userIds": []string{userID},
+		// No organizationRoleIds - roles assigned separately
 	}
 
 	reqBody, err := json.Marshal(requestBody)
@@ -920,6 +937,40 @@ func (c *LogtoManagementClient) AssignUserToOrganization(orgID, userID string, r
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("failed to assign user to organization, status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// AssignOrganizationRolesToUser assigns specific organization roles to a user
+// This is the correct API endpoint: POST /organizations/{orgId}/users/{userId}/roles
+func (c *LogtoManagementClient) AssignOrganizationRolesToUser(orgID, userID string, roleIDs []string, roleNames []string) error {
+	requestBody := map[string]interface{}{}
+	
+	// Add role IDs if provided
+	if len(roleIDs) > 0 {
+		requestBody["organizationRoleIds"] = roleIDs
+	}
+	
+	// Add role names if provided
+	if len(roleNames) > 0 {
+		requestBody["organizationRoleNames"] = roleNames
+	}
+
+	reqBody, err := json.Marshal(requestBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal organization role assignment request: %w", err)
+	}
+
+	resp, err := c.makeRequest("POST", fmt.Sprintf("/organizations/%s/users/%s/roles", orgID, userID), bytes.NewBuffer(reqBody))
+	if err != nil {
+		return fmt.Errorf("failed to assign organization roles to user: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to assign organization roles to user, status %d: %s", resp.StatusCode, string(body))
 	}
 
 	return nil
@@ -1003,9 +1054,12 @@ func GetAllVisibleOrganizations(userOrgRole, userOrgID string) ([]LogtoOrganizat
 			case "Distributor":
 				// Distributors can see:
 				// - Their own organization
-				// - Resellers they created
+				// - Resellers they created  
 				// - Customers created by their resellers
-				if org.ID == userOrgID {
+				// BUT NEVER God organizations (higher in hierarchy)
+				if orgType == "god" {
+					shouldInclude = false // Explicitly exclude God organizations
+				} else if org.ID == userOrgID {
 					shouldInclude = true
 				} else if orgType == "reseller" && createdBy == userOrgID {
 					shouldInclude = true
@@ -1028,7 +1082,10 @@ func GetAllVisibleOrganizations(userOrgRole, userOrgID string) ([]LogtoOrganizat
 				// Resellers can see:
 				// - Their own organization
 				// - Customers they created
-				if org.ID == userOrgID {
+				// BUT NEVER God or Distributor organizations (higher in hierarchy)
+				if orgType == "god" || orgType == "distributor" {
+					shouldInclude = false // Explicitly exclude higher hierarchy organizations
+				} else if org.ID == userOrgID {
 					shouldInclude = true
 				} else if orgType == "customer" && createdBy == userOrgID {
 					shouldInclude = true
@@ -1036,7 +1093,10 @@ func GetAllVisibleOrganizations(userOrgRole, userOrgID string) ([]LogtoOrganizat
 
 			case "Customer":
 				// Customers can only see their own organization
-				if org.ID == userOrgID {
+				// NEVER God, Distributor, or Reseller organizations (higher in hierarchy)
+				if orgType == "god" || orgType == "distributor" || orgType == "reseller" {
+					shouldInclude = false // Explicitly exclude higher hierarchy organizations
+				} else if org.ID == userOrgID {
 					shouldInclude = true
 				}
 			}

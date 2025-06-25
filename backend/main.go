@@ -71,6 +71,15 @@ func main() {
 	{
 		// Token exchange endpoint - converts Logto access_token to our custom JWT
 		auth.POST("/exchange", methods.ExchangeToken)
+		// Token refresh endpoint - refreshes access token using refresh token
+		auth.POST("/refresh", methods.RefreshToken)
+	}
+
+	// Protected auth endpoints (require custom JWT)
+	authProtected := api.Group("/auth", middleware.CustomAuthMiddleware())
+	{
+		// Current user information from JWT token
+		authProtected.GET("/me", methods.GetCurrentUser)
 	}
 
 	// ===========================================

@@ -24,6 +24,12 @@ type CustomClaims struct {
 	jwt.RegisteredClaims
 }
 
+// RefreshTokenClaims represents the claims for refresh tokens
+type RefreshTokenClaims struct {
+	UserID string `json:"user_id"`
+	jwt.RegisteredClaims
+}
+
 // GenerateCustomToken creates a JWT token with user information and permissions
 func GenerateCustomToken(user models.User) (string, error) {
 	// Parse expiration duration
@@ -78,4 +84,57 @@ func ValidateCustomToken(tokenString string) (*CustomClaims, error) {
 	}
 
 	return nil, fmt.Errorf("invalid token claims")
+}
+
+// GenerateRefreshToken creates a refresh token for the given user
+func GenerateRefreshToken(userID string) (string, error) {
+	// Refresh tokens have longer expiration (e.g., 7 days)
+	expDuration := 7 * 24 * time.Hour
+
+	// Create refresh token claims
+	claims := RefreshTokenClaims{
+		UserID: userID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    configuration.Config.JWTIssuer,
+			Subject:   userID,
+			Audience:  jwt.ClaimStrings{configuration.Config.LogtoAudience},
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expDuration)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	// Create token with claims
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	// Sign token with secret (could use a different secret for refresh tokens for extra security)
+	tokenString, err := token.SignedString([]byte(configuration.Config.JWTSecret))
+	if err != nil {
+		return "", fmt.Errorf("failed to sign refresh token: %w", err)
+	}
+
+	return tokenString, nil
+}
+
+// ValidateRefreshToken parses and validates a refresh token
+func ValidateRefreshToken(tokenString string) (*RefreshTokenClaims, error) {
+	// Parse token
+	token, err := jwt.ParseWithClaims(tokenString, &RefreshTokenClaims{}, func(token *jwt.Token) (interface{}, error) {
+		// Verify signing method
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(configuration.Config.JWTSecret), nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse refresh token: %w", err)
+	}
+
+	// Extract and validate claims
+	if claims, ok := token.Claims.(*RefreshTokenClaims); ok && token.Valid {
+		return claims, nil
+	}
+
+	return nil, fmt.Errorf("invalid refresh token claims")
 }

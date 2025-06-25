@@ -36,8 +36,98 @@ func sanitizeUsernameForLogto(username string) string {
 }
 
 
+// CanOperateOnAccount validates if a user can operate (read/update/delete) on a specific account
+func CanOperateOnAccount(currentUserOrgRole, currentUserOrgID, currentUserRole string, targetAccount *services.LogtoUser, targetOrg *services.LogtoOrganization) (bool, string) {
+	// Extract target account's organization data
+	var targetAccountOrgID, targetAccountOrgRole string
+	
+	if targetAccount.CustomData != nil {
+		if orgID, ok := targetAccount.CustomData["organizationId"].(string); ok {
+			targetAccountOrgID = orgID
+		}
+		if orgRole, ok := targetAccount.CustomData["organizationRole"].(string); ok {
+			targetAccountOrgRole = orgRole
+		}
+	}
+	
+	// If we couldn't get the org data from customData, try to get it from the organization parameter
+	if targetOrg != nil {
+		if targetAccountOrgID == "" {
+			targetAccountOrgID = targetOrg.ID
+		}
+		if targetAccountOrgRole == "" && targetOrg.CustomData != nil {
+			if orgType, ok := targetOrg.CustomData["type"].(string); ok {
+				switch orgType {
+				case "distributor":
+					targetAccountOrgRole = "Distributor"
+				case "reseller":
+					targetAccountOrgRole = "Reseller"
+				case "customer":
+					targetAccountOrgRole = "Customer"
+				}
+			}
+		}
+	}
+	
+	switch currentUserOrgRole {
+	case "God":
+		// God can operate on any account
+		return true, ""
+		
+	case "Distributor":
+		// Distributors can operate on accounts in:
+		// - Their own organization
+		// - Reseller/Customer organizations they created
+		if currentUserOrgID == targetAccountOrgID {
+			return true, ""
+		}
+		if targetAccountOrgRole == "Reseller" || targetAccountOrgRole == "Customer" {
+			// Check if the target organization was created by this distributor
+			if targetOrg != nil && targetOrg.CustomData != nil {
+				if createdBy, ok := targetOrg.CustomData["createdBy"].(string); ok {
+					if createdBy == currentUserOrgID {
+						return true, ""
+					}
+				}
+			}
+			return false, "distributors can only operate on accounts in organizations they created"
+		}
+		return false, "distributors cannot operate on accounts in this organization"
+		
+	case "Reseller":
+		// Resellers can operate on accounts in:
+		// - Their own organization
+		// - Customer organizations they created
+		if currentUserOrgID == targetAccountOrgID {
+			return true, ""
+		}
+		if targetAccountOrgRole == "Customer" {
+			// Check if the target organization was created by this reseller
+			if targetOrg != nil && targetOrg.CustomData != nil {
+				if createdBy, ok := targetOrg.CustomData["createdBy"].(string); ok {
+					if createdBy == currentUserOrgID {
+						return true, ""
+					}
+				}
+			}
+			return false, "resellers can only operate on accounts in customer organizations they created"
+		}
+		return false, "resellers cannot operate on accounts in this organization"
+		
+	case "Customer":
+		// Customers can only operate on accounts in their own organization
+		if currentUserOrgID == targetAccountOrgID && currentUserRole == "Admin" {
+			return true, ""
+		}
+		return false, "customers can only operate on accounts in their own organization and must be Admin"
+		
+	default:
+		return false, "unknown organization role"
+	}
+}
+
 // CanCreateAccountForOrganization validates if a user can create accounts for a target organization
-func CanCreateAccountForOrganization(userOrgRole, userOrgID, userRole, targetOrgID, targetOrgRole string) (bool, string) {
+func CanCreateAccountForOrganization(userOrgRole, userOrgID, userRole, targetOrgID, targetOrgRole string, targetOrg *services.LogtoOrganization) (bool, string) {
 	// Only Admin users can create accounts for colleagues in the same organization
 	if userOrgID == targetOrgID && userRole != "Admin" {
 		return false, "only Admin users can create accounts for colleagues in the same organization"
@@ -50,24 +140,39 @@ func CanCreateAccountForOrganization(userOrgRole, userOrgID, userRole, targetOrg
 	case "Distributor":
 		// Distributors can create accounts for:
 		// - Their own organization (if Admin)
-		// - Reseller organizations
-		// - Customer organizations
+		// - Reseller/Customer organizations that they created or are under their hierarchy
 		if userOrgID == targetOrgID {
 			return userRole == "Admin", "only Admin users can create accounts for colleagues in the same organization"
 		}
 		if targetOrgRole == "Reseller" || targetOrgRole == "Customer" {
-			return true, ""
+			// Check if the target organization was created by this distributor or is under their hierarchy
+			if targetOrg != nil && targetOrg.CustomData != nil {
+				if createdBy, ok := targetOrg.CustomData["createdBy"].(string); ok {
+					if createdBy == userOrgID {
+						return true, ""
+					}
+				}
+			}
+			return false, "distributors can only create accounts for reseller or customer organizations they created"
 		}
 		return false, "distributors can only create accounts for reseller or customer organizations"
 	case "Reseller":
 		// Resellers can create accounts for:
 		// - Their own organization (if Admin)
-		// - Customer organizations
+		// - Customer organizations that they created
 		if userOrgID == targetOrgID {
 			return userRole == "Admin", "only Admin users can create accounts for colleagues in the same organization"
 		}
 		if targetOrgRole == "Customer" {
-			return true, ""
+			// Check if the target organization was created by this reseller
+			if targetOrg != nil && targetOrg.CustomData != nil {
+				if createdBy, ok := targetOrg.CustomData["createdBy"].(string); ok {
+					if createdBy == userOrgID {
+						return true, ""
+					}
+				}
+			}
+			return false, "resellers can only create accounts for customer organizations they created"
 		}
 		return false, "resellers can only create accounts for customer organizations"
 	case "Customer":
@@ -124,14 +229,28 @@ func CreateAccount(c *gin.Context) {
 		return
 	}
 
-	// Get target organization role from custom data or assume from request
-	targetOrgRole := request.OrganizationRole
-	if targetOrgRole == "" {
-		// If not provided in request, try to get from organization's custom data
-		// For now, we'll require it to be explicitly provided
+	// Get target organization's JIT roles to determine the default organization role
+	jitRoles, err := client.GetOrganizationJitRoles(request.OrganizationID)
+	if err != nil {
+		logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to get JIT roles for organization %s: %v", request.OrganizationID, err)
 		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
 			Code:    400,
-			Message: "organization role must be specified",
+			Message: "failed to get organization JIT roles",
+			Data:    err.Error(),
+		}))
+		return
+	}
+
+	// Determine target organization role from JIT configuration
+	var targetOrgRole string
+	if len(jitRoles) > 0 {
+		// Use the first JIT role as the default organization role
+		targetOrgRole = jitRoles[0].Name
+		logs.Logs.Printf("[INFO][ACCOUNTS] Using JIT role '%s' for organization %s", targetOrgRole, request.OrganizationID)
+	} else {
+		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
+			Code:    400,
+			Message: "target organization has no JIT roles configured",
 			Data:    nil,
 		}))
 		return
@@ -144,6 +263,7 @@ func CreateAccount(c *gin.Context) {
 		currentUserRole.(string),
 		request.OrganizationID,
 		targetOrgRole,
+		targetOrg,
 	)
 
 	if !canCreate {
@@ -159,9 +279,9 @@ func CreateAccount(c *gin.Context) {
 
 	// Prepare custom data for the account
 	customData := map[string]interface{}{
-		"userRole":         request.UserRole,
+		"userRoleId":       request.UserRoleID,
 		"organizationId":   request.OrganizationID,
-		"organizationRole": request.OrganizationRole,
+		"organizationRole": targetOrgRole, // Derived from JIT configuration
 		"createdBy":        currentUserOrgID,
 		"createdAt":        time.Now().Format(time.RFC3339),
 	}
@@ -242,27 +362,37 @@ func CreateAccount(c *gin.Context) {
 		return
 	}
 
-	// Assign user role (Admin/Support)
-	if request.UserRole != "" {
-		userRole, err := client.GetRoleByName(request.UserRole)
-		if err != nil {
-			logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to find user role %s: %v", request.UserRole, err)
-		} else {
-			if err := client.AssignUserRoles(account.ID, []string{userRole.ID}); err != nil {
-				logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to assign user role: %v", err)
-			}
+	// Assign user role using ID directly (more secure)
+	if request.UserRoleID != "" {
+		if err := client.AssignUserRoles(account.ID, []string{request.UserRoleID}); err != nil {
+			logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to assign user role %s: %v", request.UserRoleID, err)
 		}
 	}
 
-	// Assign account to organization with organization role
-	if request.OrganizationRole != "" {
-		orgRole, err := client.GetOrganizationRoleByName(request.OrganizationRole)
-		if err != nil {
-			logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to find organization role %s: %v", request.OrganizationRole, err)
+	// Step 1: Assign user to organization (without roles)
+	if err := client.AssignUserToOrganization(request.OrganizationID, account.ID); err != nil {
+		logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to assign account to organization: %v", err)
+		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
+			Code:    500,
+			Message: "failed to assign account to organization",
+			Data:    err.Error(),
+		}))
+		return
+	}
+
+	// Step 2: Assign organization role using the specific API endpoint
+	if len(jitRoles) > 0 {
+		// Use the first JIT role for the organization
+		roleIDs := []string{jitRoles[0].ID}
+		roleNames := []string{jitRoles[0].Name}
+		
+		logs.Logs.Printf("[INFO][ACCOUNTS] Assigning organization role '%s' (ID: %s) to user %s in organization %s", 
+			jitRoles[0].Name, jitRoles[0].ID, account.ID, request.OrganizationID)
+		
+		if err := client.AssignOrganizationRolesToUser(request.OrganizationID, account.ID, roleIDs, roleNames); err != nil {
+			logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to assign organization role to user: %v", err)
 		} else {
-			if err := client.AssignUserToOrganization(request.OrganizationID, account.ID, []string{orgRole.ID}); err != nil {
-				logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to assign account to organization: %v", err)
-			}
+			logs.Logs.Printf("[SUCCESS][ACCOUNTS] Successfully assigned organization role '%s' to user %s", jitRoles[0].Name, account.ID)
 		}
 	}
 
@@ -282,10 +412,10 @@ func CreateAccount(c *gin.Context) {
 		Name:             account.Name,
 		Phone:            account.PrimaryPhone,
 		Avatar:           account.Avatar,
-		UserRole:         request.UserRole,
+		UserRole:         request.UserRoleID, // Note: This should be resolved to name in response
 		OrganizationID:   request.OrganizationID,
 		OrganizationName: targetOrg.Name,
-		OrganizationRole: request.OrganizationRole,
+		OrganizationRole: targetOrgRole, // Derived from JIT configuration
 		IsSuspended:      account.IsSuspended,
 		LastSignInAt:     lastSignInAt,
 		CreatedAt:        time.Unix(account.CreatedAt/1000, 0),
@@ -411,6 +541,19 @@ func UpdateAccount(c *gin.Context) {
 
 	currentUserID, _ := c.Get("user_id")
 	currentUserOrgID, _ := c.Get("organization_id")
+	currentUserOrgRole, _ := c.Get("org_role")
+	currentUserRole, _ := c.Get("user_role")
+
+	// Validate required user context
+	if currentUserOrgRole == nil || currentUserOrgID == nil || currentUserRole == nil {
+		logs.Logs.Printf("[ERROR][ACCOUNTS] Missing required user context in JWT token")
+		c.JSON(http.StatusUnauthorized, structs.Map(response.StatusUnauthorized{
+			Code:    401,
+			Message: "incomplete user context in token",
+			Data:    nil,
+		}))
+		return
+	}
 
 	client := services.NewLogtoManagementClient()
 
@@ -422,6 +565,37 @@ func UpdateAccount(c *gin.Context) {
 			Code:    404,
 			Message: "account not found",
 			Data:    nil,
+		}))
+		return
+	}
+
+	// Get target account's organization to validate permissions
+	var targetOrg *services.LogtoOrganization
+	if currentAccount.CustomData != nil {
+		if orgID, ok := currentAccount.CustomData["organizationId"].(string); ok {
+			targetOrg, err = client.GetOrganizationByID(orgID)
+			if err != nil {
+				logs.Logs.Printf("[WARN][ACCOUNTS] Failed to fetch target organization: %v", err)
+			}
+		}
+	}
+
+	// Validate hierarchical permissions
+	canOperate, reason := CanOperateOnAccount(
+		currentUserOrgRole.(string),
+		currentUserOrgID.(string),
+		currentUserRole.(string),
+		currentAccount,
+		targetOrg,
+	)
+
+	if !canOperate {
+		logs.Logs.Printf("[WARN][ACCOUNTS] User %s (role: %s, org: %s) denied updating account %s: %s", 
+			currentUserID, currentUserOrgRole, currentUserOrgID, accountID, reason)
+		c.JSON(http.StatusForbidden, structs.Map(response.StatusNotFound{
+			Code:    403,
+			Message: "insufficient permissions to update this account",
+			Data:    reason,
 		}))
 		return
 	}
@@ -454,15 +628,13 @@ func UpdateAccount(c *gin.Context) {
 		}
 
 		// Update with new values
-		if request.UserRole != "" {
-			updateRequest.CustomData["userRole"] = request.UserRole
+		if request.UserRoleID != "" {
+			updateRequest.CustomData["userRoleId"] = request.UserRoleID
 		}
 		if request.OrganizationID != "" {
 			updateRequest.CustomData["organizationId"] = request.OrganizationID
 		}
-		if request.OrganizationRole != "" {
-			updateRequest.CustomData["organizationRole"] = request.OrganizationRole
-		}
+		// OrganizationRole is now managed via JIT provisioning
 		if request.Metadata != nil {
 			for k, v := range request.Metadata {
 				updateRequest.CustomData[k] = v
@@ -511,6 +683,20 @@ func DeleteAccount(c *gin.Context) {
 	}
 
 	currentUserID, _ := c.Get("user_id")
+	currentUserOrgID, _ := c.Get("organization_id")
+	currentUserOrgRole, _ := c.Get("org_role")
+	currentUserRole, _ := c.Get("user_role")
+
+	// Validate required user context
+	if currentUserOrgRole == nil || currentUserOrgID == nil || currentUserRole == nil {
+		logs.Logs.Printf("[ERROR][ACCOUNTS] Missing required user context in JWT token")
+		c.JSON(http.StatusUnauthorized, structs.Map(response.StatusUnauthorized{
+			Code:    401,
+			Message: "incomplete user context in token",
+			Data:    nil,
+		}))
+		return
+	}
 
 	client := services.NewLogtoManagementClient()
 
@@ -522,6 +708,37 @@ func DeleteAccount(c *gin.Context) {
 			Code:    404,
 			Message: "account not found",
 			Data:    nil,
+		}))
+		return
+	}
+
+	// Get target account's organization to validate permissions
+	var targetOrg *services.LogtoOrganization
+	if currentAccount.CustomData != nil {
+		if orgID, ok := currentAccount.CustomData["organizationId"].(string); ok {
+			targetOrg, err = client.GetOrganizationByID(orgID)
+			if err != nil {
+				logs.Logs.Printf("[WARN][ACCOUNTS] Failed to fetch target organization: %v", err)
+			}
+		}
+	}
+
+	// Validate hierarchical permissions
+	canOperate, reason := CanOperateOnAccount(
+		currentUserOrgRole.(string),
+		currentUserOrgID.(string),
+		currentUserRole.(string),
+		currentAccount,
+		targetOrg,
+	)
+
+	if !canOperate {
+		logs.Logs.Printf("[WARN][ACCOUNTS] User %s (role: %s, org: %s) denied deleting account %s: %s", 
+			currentUserID, currentUserOrgRole, currentUserOrgID, accountID, reason)
+		c.JSON(http.StatusForbidden, structs.Map(response.StatusNotFound{
+			Code:    403,
+			Message: "insufficient permissions to delete this account",
+			Data:    reason,
 		}))
 		return
 	}
@@ -573,8 +790,8 @@ func convertLogtoUserToAccountResponse(account services.LogtoUser, org *services
 
 	// Extract data from custom data
 	if account.CustomData != nil {
-		if userRole, ok := account.CustomData["userRole"].(string); ok {
-			accountResponse.UserRole = userRole
+		if userRoleId, ok := account.CustomData["userRoleId"].(string); ok {
+			accountResponse.UserRole = userRoleId // Note: Should resolve to role name for display
 		}
 		if orgID, ok := account.CustomData["organizationId"].(string); ok {
 			accountResponse.OrganizationID = orgID
@@ -589,7 +806,7 @@ func convertLogtoUserToAccountResponse(account services.LogtoUser, org *services
 		// Extract metadata
 		metadata := make(map[string]string)
 		for k, v := range account.CustomData {
-			if k != "userRole" && k != "organizationId" && k != "organizationRole" && k != "phone" && k != "createdBy" && k != "createdAt" && k != "updatedBy" && k != "updatedAt" {
+			if k != "userRoleId" && k != "organizationId" && k != "organizationRole" && k != "phone" && k != "createdBy" && k != "createdAt" && k != "updatedBy" && k != "updatedAt" {
 				if str, ok := v.(string); ok {
 					metadata[k] = str
 				}
@@ -605,3 +822,4 @@ func convertLogtoUserToAccountResponse(account services.LogtoUser, org *services
 
 	return accountResponse
 }
+

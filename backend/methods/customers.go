@@ -42,29 +42,31 @@ func CreateCustomer(c *gin.Context) {
 	// Create organization in Logto
 	client := services.NewLogtoManagementClient()
 	
-	// Prepare custom data with hierarchy info
+	// Prepare custom data with hierarchy info and system metadata
 	customData := map[string]interface{}{
-		"type":        "customer",
-		"email":       request.Email,
-		"companyName": request.CompanyName,
-		"tier":        request.Tier,
-		"resellerID":  request.ResellerID,
-		"createdBy":   userOrgID,
-		"createdAt":   time.Now().Format(time.RFC3339),
+		"type":      "customer",
+		"createdBy": userOrgID,
+		"createdAt": time.Now().Format(time.RFC3339),
 	}
 	
-	// Add request metadata to custom data
-	if request.Metadata != nil {
-		for k, v := range request.Metadata {
+	// Add user's custom data to system custom data
+	if request.CustomData != nil {
+		for k, v := range request.CustomData {
 			customData[k] = v
 		}
 	}
 
+	// Use description from request or generate default
+	description := request.Description
+	if description == "" {
+		description = fmt.Sprintf("Customer organization: %s", request.Name)
+	}
+
 	orgRequest := services.CreateOrganizationRequest{
-		Name:        request.Name,
-		Description: fmt.Sprintf("Customer organization for %s (%s tier)", request.CompanyName, request.Tier),
-		CustomData:  customData,
-		IsMfaRequired: false,
+		Name:          request.Name,
+		Description:   description,
+		CustomData:    customData,
+		IsMfaRequired: request.IsMfaRequired,
 	}
 
 	// Create the organization in Logto
@@ -226,50 +228,30 @@ func UpdateCustomer(c *gin.Context) {
 		updateRequest.Name = &request.Name
 	}
 	
-	// Update description based on company name and tier if provided
-	if request.CompanyName != "" || request.Tier != "" {
-		companyName := request.CompanyName
-		tier := request.Tier
-		
-		// Use current values if not provided
-		if companyName == "" && currentOrg.CustomData != nil {
-			if cn, ok := currentOrg.CustomData["companyName"].(string); ok {
-				companyName = cn
-			}
-		}
-		if tier == "" && currentOrg.CustomData != nil {
-			if t, ok := currentOrg.CustomData["tier"].(string); ok {
-				tier = t
-			}
-		}
-		
-		description := fmt.Sprintf("Customer organization for %s (%s tier)", companyName, tier)
-		updateRequest.Description = &description
+	// Update description if provided
+	if request.Description != "" {
+		updateRequest.Description = &request.Description
+	}
+
+	// Update MFA requirement if provided
+	if request.IsMfaRequired != nil {
+		updateRequest.IsMfaRequired = request.IsMfaRequired
 	}
 
 	// Merge custom data with existing data
-	if currentOrg.CustomData != nil {
+	if currentOrg.CustomData != nil || request.CustomData != nil {
 		updateRequest.CustomData = make(map[string]interface{})
+		
 		// Copy existing custom data
-		for k, v := range currentOrg.CustomData {
-			updateRequest.CustomData[k] = v
+		if currentOrg.CustomData != nil {
+			for k, v := range currentOrg.CustomData {
+				updateRequest.CustomData[k] = v
+			}
 		}
 		
-		// Update with new values
-		if request.Email != "" {
-			updateRequest.CustomData["email"] = request.Email
-		}
-		if request.CompanyName != "" {
-			updateRequest.CustomData["companyName"] = request.CompanyName
-		}
-		if request.Tier != "" {
-			updateRequest.CustomData["tier"] = request.Tier
-		}
-		if request.ResellerID != "" {
-			updateRequest.CustomData["resellerID"] = request.ResellerID
-		}
-		if request.Metadata != nil {
-			for k, v := range request.Metadata {
+		// Update with new custom data values
+		if request.CustomData != nil {
+			for k, v := range request.CustomData {
 				updateRequest.CustomData[k] = v
 			}
 		}
