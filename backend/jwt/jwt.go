@@ -88,8 +88,11 @@ func ValidateCustomToken(tokenString string) (*CustomClaims, error) {
 
 // GenerateRefreshToken creates a refresh token for the given user
 func GenerateRefreshToken(userID string) (string, error) {
-	// Refresh tokens have longer expiration (e.g., 7 days)
-	expDuration := 7 * 24 * time.Hour
+	// Parse expiration duration from config
+	expDuration, err := time.ParseDuration(configuration.Config.JWTRefreshExpiration)
+	if err != nil {
+		expDuration = 7 * 24 * time.Hour // Default fallback: 7 days
+	}
 
 	// Create refresh token claims
 	claims := RefreshTokenClaims{

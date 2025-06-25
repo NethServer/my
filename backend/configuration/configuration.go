@@ -21,9 +21,10 @@ type Configuration struct {
 	LogtoAudience string `json:"logto_audience"`
 	JWKSEndpoint  string `json:"jwks_endpoint"`
 	// JWT Custom token configuration
-	JWTSecret     string `json:"jwt_secret"`
-	JWTIssuer     string `json:"jwt_issuer"`
-	JWTExpiration string `json:"jwt_expiration"`
+	JWTSecret            string `json:"jwt_secret"`
+	JWTIssuer            string `json:"jwt_issuer"`
+	JWTExpiration        string `json:"jwt_expiration"`
+	JWTRefreshExpiration string `json:"jwt_refresh_expiration"`
 	// Logto Management API configuration
 	LogtoManagementClientID     string `json:"logto_management_client_id"`
 	LogtoManagementClientSecret string `json:"logto_management_client_secret"`
@@ -77,6 +78,12 @@ func Init() {
 		Config.JWTExpiration = os.Getenv("JWT_EXPIRATION")
 	} else {
 		Config.JWTExpiration = "24h" // Default: 24 hours
+	}
+
+	if os.Getenv("JWT_REFRESH_EXPIRATION") != "" {
+		Config.JWTRefreshExpiration = os.Getenv("JWT_REFRESH_EXPIRATION")
+	} else {
+		Config.JWTRefreshExpiration = "168h" // Default: 7 days
 	}
 
 	// Logto Management API configuration
