@@ -20,7 +20,6 @@ import (
 	"github.com/nethesis/my/backend/services"
 )
 
-
 // CreateReseller handles POST /api/resellers - creates a new reseller organization in Logto
 func CreateReseller(c *gin.Context) {
 	var request models.CreateResellerRequest
@@ -41,14 +40,14 @@ func CreateReseller(c *gin.Context) {
 
 	// Create organization in Logto
 	client := services.NewLogtoManagementClient()
-	
+
 	// Prepare custom data with hierarchy info and system metadata
 	customData := map[string]interface{}{
 		"type":      "reseller",
 		"createdBy": userOrgID,
 		"createdAt": time.Now().Format(time.RFC3339),
 	}
-	
+
 	// Add user's custom data to system custom data
 	if request.CustomData != nil {
 		for k, v := range request.CustomData {
@@ -107,13 +106,13 @@ func CreateReseller(c *gin.Context) {
 
 	// Return the created organization data
 	resellerResponse := gin.H{
-		"id":           org.ID,
-		"name":         org.Name,
-		"description":  org.Description,
-		"customData":   org.CustomData,
+		"id":            org.ID,
+		"name":          org.Name,
+		"description":   org.Description,
+		"customData":    org.CustomData,
 		"isMfaRequired": org.IsMfaRequired,
-		"type":         "reseller",
-		"createdAt":    time.Now(),
+		"type":          "reseller",
+		"createdAt":     time.Now(),
 	}
 
 	c.JSON(http.StatusCreated, structs.Map(response.StatusOK{
@@ -128,7 +127,7 @@ func GetResellers(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	userOrgRole, _ := c.Get("org_role")
 	userOrgID, _ := c.Get("organization_id")
-	
+
 	logs.Logs.Printf("[INFO][RESELLERS] Resellers list requested by user %s (role: %s, org: %s)", userID, userOrgRole, userOrgID)
 
 	// Get organizations with Reseller role from Logto
@@ -150,14 +149,14 @@ func GetResellers(c *gin.Context) {
 	resellers := make([]gin.H, 0, len(filteredOrgs))
 	for _, org := range filteredOrgs {
 		reseller := gin.H{
-			"id":           org.ID,
-			"name":         org.Name,
-			"description":  org.Description,
-			"customData":   org.CustomData,
+			"id":            org.ID,
+			"name":          org.Name,
+			"description":   org.Description,
+			"customData":    org.CustomData,
 			"isMfaRequired": org.IsMfaRequired,
-			"type":         "reseller",
+			"type":          "reseller",
 		}
-		
+
 		// Add branding if available
 		if org.Branding != nil {
 			reseller["branding"] = gin.H{
@@ -167,7 +166,7 @@ func GetResellers(c *gin.Context) {
 				"darkFavicon": org.Branding.DarkFavicon,
 			}
 		}
-		
+
 		resellers = append(resellers, reseller)
 	}
 
@@ -222,12 +221,12 @@ func UpdateReseller(c *gin.Context) {
 
 	// Prepare update request with only changed fields
 	updateRequest := services.UpdateOrganizationRequest{}
-	
+
 	// Update name if provided
 	if request.Name != "" {
 		updateRequest.Name = &request.Name
 	}
-	
+
 	// Update description if provided
 	if request.Description != "" {
 		updateRequest.Description = &request.Description
@@ -241,21 +240,21 @@ func UpdateReseller(c *gin.Context) {
 	// Merge custom data with existing data
 	if currentOrg.CustomData != nil || request.CustomData != nil {
 		updateRequest.CustomData = make(map[string]interface{})
-		
+
 		// Copy existing custom data
 		if currentOrg.CustomData != nil {
 			for k, v := range currentOrg.CustomData {
 				updateRequest.CustomData[k] = v
 			}
 		}
-		
+
 		// Update with new custom data values
 		if request.CustomData != nil {
 			for k, v := range request.CustomData {
 				updateRequest.CustomData[k] = v
 			}
 		}
-		
+
 		// Update modification tracking
 		updateRequest.CustomData["updatedBy"] = userOrgID
 		updateRequest.CustomData["updatedAt"] = time.Now().Format(time.RFC3339)
@@ -277,13 +276,13 @@ func UpdateReseller(c *gin.Context) {
 
 	// Return the updated organization data
 	resellerResponse := gin.H{
-		"id":           updatedOrg.ID,
-		"name":         updatedOrg.Name,
-		"description":  updatedOrg.Description,
-		"customData":   updatedOrg.CustomData,
+		"id":            updatedOrg.ID,
+		"name":          updatedOrg.Name,
+		"description":   updatedOrg.Description,
+		"customData":    updatedOrg.CustomData,
 		"isMfaRequired": updatedOrg.IsMfaRequired,
-		"type":         "reseller",
-		"updatedAt":    time.Now(),
+		"type":          "reseller",
+		"updatedAt":     time.Now(),
 	}
 
 	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
@@ -338,11 +337,10 @@ func DeleteReseller(c *gin.Context) {
 	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
 		Code:    200,
 		Message: "reseller deleted successfully",
-		Data:    gin.H{
+		Data: gin.H{
 			"id":        resellerID,
 			"name":      currentOrg.Name,
 			"deletedAt": time.Now(),
 		},
 	}))
 }
-

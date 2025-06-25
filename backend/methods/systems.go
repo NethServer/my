@@ -381,4 +381,3 @@ func InitSystemsStorage() {
 
 	logs.Logs.Println("[INFO][SYSTEMS] Demo systems storage initialized")
 }
-

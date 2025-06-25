@@ -148,7 +148,6 @@ func (e *Engine) Sync(cfg *config.Config) (*Result, error) {
 		}
 	}
 
-
 	result.EndTime = time.Now()
 	result.Duration = result.EndTime.Sub(result.StartTime)
 	result.Success = len(result.Errors) == 0
@@ -182,7 +181,6 @@ func (e *Engine) addOperation(result *Result, opType, action, resource, descript
 
 	result.Operations = append(result.Operations, op)
 }
-
 
 // OutputText outputs the result in text format
 func (r *Result) OutputText(w io.Writer) error {

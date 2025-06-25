@@ -70,14 +70,14 @@ func CustomAuthMiddleware() gin.HandlerFunc {
 		c.Set("email", claims.User.Email)
 		c.Set("name", claims.User.Name)
 		c.Set("user_roles", claims.User.UserRoles)
-		
+
 		// Set primary user role (first role in array) for backward compatibility
 		var userRole string
 		if len(claims.User.UserRoles) > 0 {
 			userRole = claims.User.UserRoles[0]
 		}
 		c.Set("user_role", userRole)
-		
+
 		c.Set("user_permissions", claims.User.UserPermissions)
 		c.Set("org_role", claims.User.OrgRole)
 		c.Set("org_permissions", claims.User.OrgPermissions)

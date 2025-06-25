@@ -26,21 +26,20 @@ import (
 func sanitizeUsernameForLogto(username string) string {
 	// Replace dots and other special characters with underscores
 	sanitized := regexp.MustCompile(`[^A-Za-z0-9_]`).ReplaceAllString(username, "_")
-	
+
 	// Ensure it starts with a letter or underscore
 	if len(sanitized) > 0 && !regexp.MustCompile(`^[A-Za-z_]`).MatchString(sanitized) {
 		sanitized = "user_" + sanitized
 	}
-	
+
 	return sanitized
 }
-
 
 // CanOperateOnAccount validates if a user can operate (read/update/delete) on a specific account
 func CanOperateOnAccount(currentUserOrgRole, currentUserOrgID, currentUserRole string, targetAccount *services.LogtoUser, targetOrg *services.LogtoOrganization) (bool, string) {
 	// Extract target account's organization data
 	var targetAccountOrgID, targetAccountOrgRole string
-	
+
 	if targetAccount.CustomData != nil {
 		if orgID, ok := targetAccount.CustomData["organizationId"].(string); ok {
 			targetAccountOrgID = orgID
@@ -49,7 +48,7 @@ func CanOperateOnAccount(currentUserOrgRole, currentUserOrgID, currentUserRole s
 			targetAccountOrgRole = orgRole
 		}
 	}
-	
+
 	// If we couldn't get the org data from customData, try to get it from the organization parameter
 	if targetOrg != nil {
 		if targetAccountOrgID == "" {
@@ -68,12 +67,12 @@ func CanOperateOnAccount(currentUserOrgRole, currentUserOrgID, currentUserRole s
 			}
 		}
 	}
-	
+
 	switch currentUserOrgRole {
 	case "God":
 		// God can operate on any account
 		return true, ""
-		
+
 	case "Distributor":
 		// Distributors can operate on accounts in:
 		// - Their own organization
@@ -93,7 +92,7 @@ func CanOperateOnAccount(currentUserOrgRole, currentUserOrgID, currentUserRole s
 			return false, "distributors can only operate on accounts in organizations they created"
 		}
 		return false, "distributors cannot operate on accounts in this organization"
-		
+
 	case "Reseller":
 		// Resellers can operate on accounts in:
 		// - Their own organization
@@ -113,14 +112,14 @@ func CanOperateOnAccount(currentUserOrgRole, currentUserOrgID, currentUserRole s
 			return false, "resellers can only operate on accounts in customer organizations they created"
 		}
 		return false, "resellers cannot operate on accounts in this organization"
-		
+
 	case "Customer":
 		// Customers can only operate on accounts in their own organization
 		if currentUserOrgID == targetAccountOrgID && currentUserRole == "Admin" {
 			return true, ""
 		}
 		return false, "customers can only operate on accounts in their own organization and must be Admin"
-		
+
 	default:
 		return false, "unknown organization role"
 	}
@@ -267,7 +266,7 @@ func CreateAccount(c *gin.Context) {
 	)
 
 	if !canCreate {
-		logs.Logs.Printf("[WARN][ACCOUNTS] User %s (role: %s, org: %s) denied creating account for org %s (role: %s): %s", 
+		logs.Logs.Printf("[WARN][ACCOUNTS] User %s (role: %s, org: %s) denied creating account for org %s (role: %s): %s",
 			currentUserID, currentUserOrgRole, currentUserOrgID, request.OrganizationID, targetOrgRole, reason)
 		c.JSON(http.StatusForbidden, structs.Map(response.StatusNotFound{
 			Code:    403,
@@ -300,7 +299,7 @@ func CreateAccount(c *gin.Context) {
 
 	// Sanitize fields for Logto compliance
 	sanitizedUsername := sanitizeUsernameForLogto(request.Username)
-	
+
 	// Create account request for Logto
 	accountRequest := services.CreateUserRequest{
 		Username:     sanitizedUsername,
@@ -326,11 +325,11 @@ func CreateAccount(c *gin.Context) {
 	account, err := client.CreateUser(accountRequest)
 	if err != nil {
 		logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to create account in Logto: %v", err)
-		
+
 		// Try to parse and format the error message better
 		errorMsg := err.Error()
 		var detailedError interface{}
-		
+
 		// Check for different status codes and extract JSON
 		statusPrefixes := []string{"status 400: ", "status 422: ", "status 409: ", "status 500: "}
 		for _, prefix := range statusPrefixes {
@@ -348,12 +347,12 @@ func CreateAccount(c *gin.Context) {
 				break
 			}
 		}
-		
+
 		// If no status prefix found, use original error
 		if detailedError == nil {
 			detailedError = errorMsg
 		}
-		
+
 		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
 			Code:    400,
 			Message: "failed to create account",
@@ -385,10 +384,10 @@ func CreateAccount(c *gin.Context) {
 		// Use the first JIT role for the organization
 		roleIDs := []string{jitRoles[0].ID}
 		roleNames := []string{jitRoles[0].Name}
-		
-		logs.Logs.Printf("[INFO][ACCOUNTS] Assigning organization role '%s' (ID: %s) to user %s in organization %s", 
+
+		logs.Logs.Printf("[INFO][ACCOUNTS] Assigning organization role '%s' (ID: %s) to user %s in organization %s",
 			jitRoles[0].Name, jitRoles[0].ID, account.ID, request.OrganizationID)
-		
+
 		if err := client.AssignOrganizationRolesToUser(request.OrganizationID, account.ID, roleIDs, roleNames); err != nil {
 			logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to assign organization role to user: %v", err)
 		} else {
@@ -590,7 +589,7 @@ func UpdateAccount(c *gin.Context) {
 	)
 
 	if !canOperate {
-		logs.Logs.Printf("[WARN][ACCOUNTS] User %s (role: %s, org: %s) denied updating account %s: %s", 
+		logs.Logs.Printf("[WARN][ACCOUNTS] User %s (role: %s, org: %s) denied updating account %s: %s",
 			currentUserID, currentUserOrgRole, currentUserOrgID, accountID, reason)
 		c.JSON(http.StatusForbidden, structs.Map(response.StatusNotFound{
 			Code:    403,
@@ -733,7 +732,7 @@ func DeleteAccount(c *gin.Context) {
 	)
 
 	if !canOperate {
-		logs.Logs.Printf("[WARN][ACCOUNTS] User %s (role: %s, org: %s) denied deleting account %s: %s", 
+		logs.Logs.Printf("[WARN][ACCOUNTS] User %s (role: %s, org: %s) denied deleting account %s: %s",
 			currentUserID, currentUserOrgRole, currentUserOrgID, accountID, reason)
 		c.JSON(http.StatusForbidden, structs.Map(response.StatusNotFound{
 			Code:    403,
@@ -759,7 +758,7 @@ func DeleteAccount(c *gin.Context) {
 	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
 		Code:    200,
 		Message: "account deleted successfully",
-		Data:    gin.H{
+		Data: gin.H{
 			"id":        accountID,
 			"name":      currentAccount.Name,
 			"deletedAt": time.Now(),
@@ -776,16 +775,16 @@ func convertLogtoUserToAccountResponse(account services.LogtoUser, org *services
 	}
 
 	accountResponse := models.AccountResponse{
-		ID:          account.ID,
-		Username:    account.Username,
-		Email:       account.PrimaryEmail,
-		Name:        account.Name,
-		Phone:       "", // Will be set from customData
-		Avatar:      account.Avatar,
-		IsSuspended: account.IsSuspended,
+		ID:           account.ID,
+		Username:     account.Username,
+		Email:        account.PrimaryEmail,
+		Name:         account.Name,
+		Phone:        "", // Will be set from customData
+		Avatar:       account.Avatar,
+		IsSuspended:  account.IsSuspended,
 		LastSignInAt: lastSignInAt,
-		CreatedAt:   time.Unix(account.CreatedAt/1000, 0),
-		UpdatedAt:   time.Unix(account.UpdatedAt/1000, 0),
+		CreatedAt:    time.Unix(account.CreatedAt/1000, 0),
+		UpdatedAt:    time.Unix(account.UpdatedAt/1000, 0),
 	}
 
 	// Extract data from custom data
@@ -822,4 +821,3 @@ func convertLogtoUserToAccountResponse(account services.LogtoUser, org *services
 
 	return accountResponse
 }
-

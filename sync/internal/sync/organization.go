@@ -29,22 +29,22 @@ func isSystemOrganizationRole(role client.LogtoOrganizationRole) bool {
 		"owner",
 		"member",
 	}
-	
+
 	roleName := strings.ToLower(role.Name)
 	for _, systemName := range systemRoleNames {
 		if strings.Contains(roleName, systemName) {
 			return true
 		}
 	}
-	
+
 	// Preserve roles with system-like descriptions
 	description := strings.ToLower(role.Description)
-	if strings.Contains(description, "system") || 
-	   strings.Contains(description, "default") ||
-	   strings.Contains(description, "logto") {
+	if strings.Contains(description, "system") ||
+		strings.Contains(description, "default") ||
+		strings.Contains(description, "logto") {
 		return true
 	}
-	
+
 	return false
 }
 
@@ -58,22 +58,22 @@ func isSystemOrganizationScope(scope client.LogtoOrganizationScope) bool {
 		"management",
 		"api",
 	}
-	
+
 	scopeName := strings.ToLower(scope.Name)
 	for _, systemName := range systemScopeNames {
 		if strings.Contains(scopeName, systemName) {
 			return true
 		}
 	}
-	
+
 	// Preserve scopes with system-like descriptions but be more specific
 	description := strings.ToLower(scope.Description)
 	if strings.Contains(description, "logto") ||
-	   strings.Contains(description, "management") ||
-	   (strings.Contains(description, "system") && !strings.HasPrefix(description, "organization scope:")) {
+		strings.Contains(description, "management") ||
+		(strings.Contains(description, "system") && !strings.HasPrefix(description, "organization scope:")) {
 		return true
 	}
-	
+
 	return false
 }
 

@@ -32,7 +32,7 @@ func RequirePermission(permission string) gin.HandlerFunc {
 
 		// Check if user has permission via User Roles (technical capabilities)
 		hasUserPermission := hasPermissionInList(user.UserPermissions, permission)
-		
+
 		// Check if user has permission via Organization Role (business hierarchy)
 		hasOrgPermission := hasPermissionInList(user.OrgPermissions, permission)
 
@@ -46,12 +46,12 @@ func RequirePermission(permission string) gin.HandlerFunc {
 			Code:    403,
 			Message: "insufficient permissions",
 			Data: gin.H{
-				"required_permission":    permission,
-				"user_permissions":       user.UserPermissions,
-				"org_permissions":        user.OrgPermissions,
-				"user_roles":            user.UserRoles,
-				"org_role":              user.OrgRole,
-				"organization":          user.OrganizationName,
+				"required_permission": permission,
+				"user_permissions":    user.UserPermissions,
+				"org_permissions":     user.OrgPermissions,
+				"user_roles":          user.UserRoles,
+				"org_role":            user.OrgRole,
+				"organization":        user.OrganizationName,
 			},
 		}))
 		c.Abort()
@@ -73,7 +73,7 @@ func RequireUserRole(role string) gin.HandlerFunc {
 				Message: "insufficient user role",
 				Data: gin.H{
 					"required_user_role": role,
-					"user_roles":        user.UserRoles,
+					"user_roles":         user.UserRoles,
 				},
 			}))
 			c.Abort()
@@ -172,8 +172,8 @@ func AutoPermissionRBAC(resource string) gin.HandlerFunc {
 					"required_permission": requiredPermission,
 					"user_permissions":    user.UserPermissions,
 					"org_permissions":     user.OrgPermissions,
-					"user_roles":         user.UserRoles,
-					"org_role":           user.OrgRole,
+					"user_roles":          user.UserRoles,
+					"org_role":            user.OrgRole,
 				},
 			}))
 			c.Abort()
@@ -234,7 +234,7 @@ func hasRoleInList(roles []string, role string) bool {
 func buildPermissionFromMethod(method, resource string) string {
 	methodToAction := map[string]string{
 		"GET":    "read",
-		"POST":   "create", 
+		"POST":   "create",
 		"PUT":    "manage",
 		"PATCH":  "manage",
 		"DELETE": "manage",
@@ -296,8 +296,8 @@ func RequireRoleOrScope(role, permission string) gin.HandlerFunc {
 		}
 
 		hasRole := hasRoleInList(user.UserRoles, role)
-		hasPermission := hasPermissionInList(user.UserPermissions, permission) || 
-		                hasPermissionInList(user.OrgPermissions, permission)
+		hasPermission := hasPermissionInList(user.UserPermissions, permission) ||
+			hasPermissionInList(user.OrgPermissions, permission)
 
 		if !hasRole && !hasPermission {
 			c.JSON(http.StatusForbidden, structs.Map(response.StatusForbidden{
@@ -306,9 +306,9 @@ func RequireRoleOrScope(role, permission string) gin.HandlerFunc {
 				Data: gin.H{
 					"required_role":       role,
 					"required_permission": permission,
-					"user_roles":         user.UserRoles,
-					"user_permissions":   user.UserPermissions,
-					"org_permissions":    user.OrgPermissions,
+					"user_roles":          user.UserRoles,
+					"user_permissions":    user.UserPermissions,
+					"org_permissions":     user.OrgPermissions,
 				},
 			}))
 			c.Abort()
@@ -327,8 +327,8 @@ func RequireOrganizationRoleOrScope(role, permission string) gin.HandlerFunc {
 		}
 
 		hasRole := user.OrgRole == role
-		hasPermission := hasPermissionInList(user.UserPermissions, permission) || 
-		                hasPermissionInList(user.OrgPermissions, permission)
+		hasPermission := hasPermissionInList(user.UserPermissions, permission) ||
+			hasPermissionInList(user.OrgPermissions, permission)
 
 		if !hasRole && !hasPermission {
 			c.JSON(http.StatusForbidden, structs.Map(response.StatusForbidden{
@@ -337,9 +337,9 @@ func RequireOrganizationRoleOrScope(role, permission string) gin.HandlerFunc {
 				Data: gin.H{
 					"required_org_role":   role,
 					"required_permission": permission,
-					"user_org_role":      user.OrgRole,
-					"user_permissions":   user.UserPermissions,
-					"org_permissions":    user.OrgPermissions,
+					"user_org_role":       user.OrgRole,
+					"user_permissions":    user.UserPermissions,
+					"org_permissions":     user.OrgPermissions,
 				},
 			}))
 			c.Abort()

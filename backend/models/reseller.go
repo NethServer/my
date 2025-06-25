@@ -24,17 +24,17 @@ type Reseller struct {
 // CreateResellerRequest represents the request payload for creating a new reseller
 // Aligned with Logto's CreateOrganization API: https://openapi.logto.io/dev/operation/operation-createorganization
 type CreateResellerRequest struct {
-	Name          string                 `json:"name" binding:"required" structs:"name"`                   // Organization name (required by Logto)
-	Description   string                 `json:"description" structs:"description"`                        // Organization description (optional)
-	CustomData    map[string]interface{} `json:"customData" structs:"customData"`                         // Business metadata (email, region, etc.)
-	IsMfaRequired bool                   `json:"isMfaRequired" structs:"isMfaRequired"`                   // MFA requirement (optional, defaults to false)
+	Name          string                 `json:"name" binding:"required" structs:"name"` // Organization name (required by Logto)
+	Description   string                 `json:"description" structs:"description"`      // Organization description (optional)
+	CustomData    map[string]interface{} `json:"customData" structs:"customData"`        // Business metadata (email, region, etc.)
+	IsMfaRequired bool                   `json:"isMfaRequired" structs:"isMfaRequired"`  // MFA requirement (optional, defaults to false)
 }
 
 // UpdateResellerRequest represents the request payload for updating an existing reseller
 // Aligned with Logto's UpdateOrganization API
 type UpdateResellerRequest struct {
-	Name          string                 `json:"name" structs:"name"`                       // Organization name
-	Description   string                 `json:"description" structs:"description"`         // Organization description
-	CustomData    map[string]interface{} `json:"customData" structs:"customData"`           // Business metadata
-	IsMfaRequired *bool                  `json:"isMfaRequired" structs:"isMfaRequired"`     // MFA requirement (pointer for optional update)
+	Name          string                 `json:"name" structs:"name"`                   // Organization name
+	Description   string                 `json:"description" structs:"description"`     // Organization description
+	CustomData    map[string]interface{} `json:"customData" structs:"customData"`       // Business metadata
+	IsMfaRequired *bool                  `json:"isMfaRequired" structs:"isMfaRequired"` // MFA requirement (pointer for optional update)
 }

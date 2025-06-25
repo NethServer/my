@@ -50,7 +50,7 @@ curl -X POST "http://localhost:8080/api/auth/exchange" \
     "name": "John Doe",
     "user_roles": ["Admin"],
     "user_permissions": ["manage:systems"],
-    "org_role": "Distributor", 
+    "org_role": "Distributor",
     "org_permissions": ["manage:resellers"],
     "organization_id": "org_123",
     "organization_name": "ACME Distribution"
@@ -115,7 +115,7 @@ curl -s -X GET "http://localhost:8080/api/auth/me" \
   "message": "user information retrieved successfully",
   "data": {
     "id": "user_id",
-    "username": "john.doe", 
+    "username": "john.doe",
     "email": "john@example.com",
     "name": "John Doe",
     "userRoles": ["Admin"],
@@ -393,7 +393,7 @@ curl -s -X POST "http://localhost:8080/api/accounts" \
   }' | jq
 ```
 
-**Note:** 
+**Note:**
 - `userRoleId` must be a valid role ID from Logto (more secure than role names)
 - `organizationRole` is automatically derived from the organization's JIT provisioning configuration
 - **Hierarchical authorization**: Users can only create accounts in organizations they control or created
@@ -501,11 +501,11 @@ All API responses follow this structure:
 ### Business Hierarchy
 
 ```
-God (Nethesis) 
+God (Nethesis)
   ↓
-Distributor 
+Distributor
   ↓
-Reseller 
+Reseller
   ↓
 Customer
 ```
@@ -607,7 +607,7 @@ localStorage.setItem('refresh_token', refresh_token);
 // 3. API request with automatic refresh
 async function apiRequest(url, options = {}) {
   let token = localStorage.getItem('access_token');
-  
+
   try {
     const response = await fetch(url, {
       ...options,
@@ -617,7 +617,7 @@ async function apiRequest(url, options = {}) {
         ...options.headers
       }
     });
-    
+
     if (response.status === 401) {
       // Token expired, try refresh
       const refreshToken = localStorage.getItem('refresh_token');
@@ -626,12 +626,12 @@ async function apiRequest(url, options = {}) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: refreshToken })
       });
-      
+
       if (refreshResponse.ok) {
         const { token: newToken, refresh_token: newRefreshToken } = await refreshResponse.json();
         localStorage.setItem('access_token', newToken);
         localStorage.setItem('refresh_token', newRefreshToken);
-        
+
         // Retry original request with new token
         return fetch(url, {
           ...options,
@@ -646,7 +646,7 @@ async function apiRequest(url, options = {}) {
         window.location.href = '/login';
       }
     }
-    
+
     return response;
   } catch (error) {
     console.error('API request failed:', error);

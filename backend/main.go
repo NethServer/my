@@ -166,7 +166,7 @@ func main() {
 		// Accounts - Basic authentication required, hierarchical validation in handlers
 		accountsGroup := protected.Group("/accounts")
 		{
-			accountsGroup.GET("", methods.GetAccounts)           // List accounts with organization filtering
+			accountsGroup.GET("", methods.GetAccounts)          // List accounts with organization filtering
 			accountsGroup.POST("", methods.CreateAccount)       // Create new account with hierarchical validation
 			accountsGroup.PUT("/:id", methods.UpdateAccount)    // Update existing account
 			accountsGroup.DELETE("/:id", methods.DeleteAccount) // Delete account
