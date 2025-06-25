@@ -99,6 +99,15 @@ jobs:
         done
     
     # Docker Images with multi-platform support
+    - name: Extract backend metadata
+      id: backend_meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}
+        tags: |
+          type=semver,pattern={{version}},value=${{ steps.version.outputs.VERSION }}
+          type=raw,value=latest
+    
     - name: Build and push backend Docker image
       uses: docker/build-push-action@v5
       with:
@@ -106,9 +115,7 @@ jobs:
         file: backend/Containerfile
         platforms: linux/amd64,linux/arm64
         push: true
-        tags: |
-          ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
-          ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}:latest
+        tags: ${{ steps.backend_meta.outputs.tags }}
         labels: |
           org.opencontainers.image.title=Nethesis Operation Center Backend
           org.opencontainers.image.description=Backend API for Nethesis Operation Center
@@ -118,6 +125,15 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
     
+    - name: Extract sync metadata
+      id: sync_meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.SYNC_IMAGE_NAME }}
+        tags: |
+          type=semver,pattern={{version}},value=${{ steps.version.outputs.VERSION }}
+          type=raw,value=latest
+    
     - name: Build and push sync Docker image
       uses: docker/build-push-action@v5
       with:
@@ -125,9 +141,7 @@ jobs:
         file: sync/Containerfile
         platforms: linux/amd64,linux/arm64
         push: true
-        tags: |
-          ${{ env.REGISTRY }}/${{ env.SYNC_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
-          ${{ env.REGISTRY }}/${{ env.SYNC_IMAGE_NAME }}:latest
+        tags: ${{ steps.sync_meta.outputs.tags }}
         labels: |
           org.opencontainers.image.title=Nethesis Operation Center Sync
           org.opencontainers.image.description=CLI tool for syncing RBAC configuration with Logto
