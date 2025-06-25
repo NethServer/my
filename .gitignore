@@ -1,6 +1,7 @@
 # Binaries
 backend/backend
 backend/main
+backend/build/
 backend/*.exe
 logto-sync/build/
 logto-sync/logto-sync
@@ -15,6 +16,10 @@ go.work.sum
 *.so
 *.dylib
 *.dll
+
+# Test coverage reports
+coverage.out
+coverage.html
 
 # Environment files
 .env
