@@ -99,8 +99,8 @@ Resulting Permissions:
   - create:customers
   - manage:customers
   - read:own-customers
-  
-  # From User Role (Technical Capabilities)  
+
+  # From User Role (Technical Capabilities)
   - admin:systems
   - destroy:systems
   - manage:systems
@@ -139,7 +139,7 @@ ACME Reseller:
     createdBy: "nethesis-org-id"
     createdByRole: "Distributor"
 
-# Reseller "ACME" creates Customer "TechCorp"  
+# Reseller "ACME" creates Customer "TechCorp"
 TechCorp Customer:
   customData:
     createdBy: "acme-org-id"
@@ -154,7 +154,7 @@ TechCorp Customer:
 
 #### **Example 2: Edoardo (Nethesis Distributor + Support)**
 ```yaml
-Organization: "Nethesis" (type: Distributor)  
+Organization: "Nethesis" (type: Distributor)
 Organization Role: "Distributor"
 User Roles: ["Support"]
 
@@ -164,7 +164,7 @@ Resulting Permissions:
   - manage:resellers
   - create:customers
   - manage:customers
-  
+
   # From User Role (Technical Capabilities)
   - manage:systems
   - read:systems
@@ -180,11 +180,11 @@ type User struct {
     ID               string   `json:"id"`
     Username         string   `json:"username"`
     Email            string   `json:"email"`
-    
+
     // Technical capabilities (what the user can DO)
     UserRoles        []string `json:"user_roles"`        // ["Admin", "Support"]
     UserPermissions  []string `json:"user_permissions"`  // Derived from roles
-    
+
     // Business hierarchy (what the organization allows)
     OrgRole          string   `json:"org_role"`          // "Distributor"
     OrgPermissions   []string `json:"org_permissions"`   // Derived from org role
@@ -200,21 +200,21 @@ systemsGroup := protected.Group("/systems",
     middleware.RequireUserRole("Support"))
 
 // ✅ Business hierarchy groups - organization role-based
-distributorsGroup := protected.Group("/distributors", 
+distributorsGroup := protected.Group("/distributors",
     middleware.RequireOrgRole("God")) // Only God can manage distributors
 
-resellersGroup := protected.Group("/resellers", 
+resellersGroup := protected.Group("/resellers",
     middleware.RequireAnyOrgRole("God", "Distributor")) // God + Distributors manage resellers
 
-customersGroup := protected.Group("/customers", 
+customersGroup := protected.Group("/customers",
     middleware.RequireAnyOrgRole("God", "Distributor", "Reseller")) // All levels manage customers
 
 // ✅ Specific operations - explicit permissions
-systemsGroup.POST("/:id/restart", 
+systemsGroup.POST("/:id/restart",
     middleware.RequirePermission("manage:systems"), methods.RestartSystem)
 
 // ✅ Admin-only operations - explicit admin permissions
-systemsGroup.DELETE("/:id", 
+systemsGroup.DELETE("/:id",
     middleware.RequirePermission("admin:systems"), methods.DeleteSystem)
 ```
 
@@ -224,7 +224,7 @@ sequenceDiagram
     participant U as User Request
     participant M as Middleware
     participant L as Permission Logic
-    
+
     U->>M: API Request + JWT
     M->>L: Check Required Permission
     L->>L: Has User Permission?
@@ -244,7 +244,7 @@ curl -X POST /api/systems/123/restart \
   -H "Authorization: Bearer <support-token>"
 # → 200 OK (has manage:systems from Support role)
 
-# ✅ Distributor can create resellers (Organization Role permission)  
+# ✅ Distributor can create resellers (Organization Role permission)
 curl -X POST /api/resellers \
   -H "Authorization: Bearer <distributor-token>"
 # → 200 OK (has create:resellers from Distributor org role)
@@ -264,7 +264,7 @@ curl -X POST /api/customers/123/systems/restart \
 
 # ❌ Customer + Support cannot destroy systems
 curl -X DELETE /api/systems/123/destroy \
-  -H "Authorization: Bearer <customer-support-token>"  
+  -H "Authorization: Bearer <customer-support-token>"
 # → 403 Forbidden (has read:systems but NOT destroy:systems)
 ```
 
@@ -289,19 +289,19 @@ hierarchy:
         - manage:resellers
         - create:customers
         - manage:customers
-        
+
     - id: distributor
       permissions:
         - create:resellers
         - manage:resellers
         - create:customers
         - manage:customers
-        
+
     - id: reseller
       permissions:
         - create:customers
         - manage:customers
-        
+
     - id: customer
       permissions:
         - read:own-data
@@ -314,12 +314,12 @@ hierarchy:
         - manage:systems
         - destroy:systems
         - read:systems
-        
+
     - id: support
       permissions:
         - manage:systems
         - read:systems
-        
+
 ```
 
 ### **Synchronization**
@@ -327,12 +327,12 @@ hierarchy:
 # Deploy new configuration
 sync sync -c hierarchy.yml
 
-# Preview changes  
+# Preview changes
 sync sync -c hierarchy.yml --dry-run --verbose
 
 # Output:
 ✅ Creating organization role: Distributor
-✅ Creating user role: Admin  
+✅ Creating user role: Admin
 ✅ Assigning permission: admin:systems to Admin
 ✅ Creating user role: Support
 ✅ Sync completed successfully!
@@ -403,53 +403,12 @@ sequenceDiagram
 }
 ```
 
-### **Performance Benefits**
-
-| Aspect | Before (Direct Logto) | After (Token Exchange) |
-|--------|----------------------|----------------------|
-| **API Calls per Request** | 1-3 (JWKS + custom script) | 0 (local JWT validation) |
-| **Permission Resolution** | Real-time script execution | Pre-computed in JWT |
-| **Network Latency** | Every request | Only during exchange |
-| **Scalability** | Limited by Logto performance | Limited by backend only |
-| **Caching** | Logto-dependent | Full control |
-
-### **Security Model**
-
-1. **Logto Access Token**: Used only for initial validation and data fetching
-2. **Custom JWT**: Contains complete user context, signed with backend secret
-3. **Permission Embedding**: All permissions pre-computed and embedded
-4. **Token Expiration**: Configurable (24h default) for permission refresh
-5. **Management API**: Secured with machine-to-machine credentials
-
----
-
-## 🔄 **Migration Benefits**
-
-### **Before (Complex)**
-- 4 separate permission arrays per user
-- Multiple middleware types (user_rbac, org_rbac, etc.)
-- Confusing scope/role duplication
-- Hard to understand permission logic
-
-### **After (Simplified)**
-- 2 clear permission sources (User + Organization)
-- Single unified middleware
-- Clear separation: Business vs Technical
-- Intuitive permission inheritance
-
-### **Backward Compatibility**
-- All existing middleware functions maintained as aliases
-- Gradual migration path available
-- No breaking changes to API endpoints
-
----
-
 ## ❓ **Q&A**
 
 **Q: How does a user get Organization Role permissions?**
 A: Automatically fetched from Logto Management API based on their organization membership and role assignment in that organization.
 
-**Q: Can a user have multiple User Roles?**  
+**Q: Can a user have multiple User Roles?**
 A: Yes! A user can be both "Support" and "Admin", getting permissions from both roles. The system fetches all assigned roles and combines their permissions.
 
 **Q: When are permissions updated?**
@@ -463,6 +422,178 @@ A: `sync` manages the RBAC structure in Logto, while the backend fetches the cur
 
 **Q: What if I need very specific permission combinations?**
 A: Use `RequirePermission("specific:permission")` - it checks both User and Organization permissions that were fetched from Logto.
+
+---
+
+## 👥 **Account Management Implementation**
+
+### **Hierarchical Account Creation**
+
+The system implements sophisticated account creation rules that follow business hierarchy and organizational boundaries:
+
+#### **Authorization Rules**
+```yaml
+God (Nethesis):
+  - Can create accounts for: Distributors, Resellers, Customers
+  - Limitations: None
+
+Distributor:
+  - Can create accounts for: Resellers, Customers, own organization (if Admin)
+  - Limitations: Cannot create God-level accounts
+
+Reseller:
+  - Can create accounts for: Customers, own organization (if Admin)
+  - Limitations: Cannot create Distributors or God-level accounts
+
+Customer:
+  - Can create accounts for: Own organization only (if Admin)
+  - Limitations: Cannot create accounts for other organizations
+```
+
+#### **Same-Organization Rule**
+```go
+// Only Admin users can create accounts for colleagues within same organization
+if userOrgID == targetOrgID && userRole != "Admin" {
+    return false, "only Admin users can create accounts for colleagues"
+}
+```
+
+### **Account Management API**
+
+#### **Account Creation Flow**
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant A as API
+    participant V as Validation
+    participant L as Logto
+
+    C->>A: POST /api/accounts {account_data}
+    A->>V: Validate hierarchical permissions
+    V->>V: Check organization roles & user role
+    V->>A: Permission granted/denied
+    A->>L: Create user with custom data
+    L->>A: User created + assigned roles
+    A->>C: Account response with full context
+```
+
+#### **Visibility & Data Filtering**
+The system implements **creation-based visibility** where users can only see accounts/organizations they have a relationship with:
+
+```yaml
+Visibility Rules:
+  God: "All organizations and accounts"
+  Distributor: "Resellers + Customers they created (directly or transitively)"
+  Reseller: "Customers they created"
+  Customer: "No access to organization management"
+
+Creation Tracking:
+  customData:
+    createdBy: "creator-organization-id"
+    createdByRole: "Distributor"
+    createdAt: "2025-01-15T10:30:00Z"
+```
+
+#### **Account Data Structure**
+```json
+{
+  "id": "user_generated_id",
+  "username": "mario.rossi",
+  "email": "mario@acme.com",
+  "name": "Mario Rossi",
+  "userRole": "Admin",
+  "organizationId": "org_acme_12345",
+  "organizationName": "ACME S.r.l.",
+  "organizationRole": "Reseller",
+  "metadata": {
+    "department": "IT",
+    "location": "Milan"
+  }
+}
+```
+
+### **Real-World Account Management Scenarios**
+
+#### **Scenario 1: Distributor Creating Reseller Account**
+```bash
+# Nethesis Distributor (Admin) creates ACME Reseller account
+POST /api/accounts
+Authorization: Bearer <distributor-admin-token>
+
+{
+  "username": "admin.acme",
+  "email": "admin@acme.com",
+  "name": "ACME Administrator",
+  "userRole": "Admin",
+  "organizationId": "org_acme_12345",
+  "organizationRole": "Reseller"
+}
+
+# ✅ Allowed: Distributors can create Reseller accounts
+```
+
+#### **Scenario 2: Reseller Creating Customer Account**
+```bash
+# ACME Reseller (Admin) creates TechCorp Customer account
+POST /api/accounts
+Authorization: Bearer <reseller-admin-token>
+
+{
+  "username": "support.techcorp",
+  "email": "support@techcorp.com",
+  "name": "TechCorp Support",
+  "userRole": "Support",
+  "organizationId": "org_techcorp_67890",
+  "organizationRole": "Customer"
+}
+
+# ✅ Allowed: Resellers can create Customer accounts
+```
+
+#### **Scenario 3: Customer Creating Colleague Account**
+```bash
+# TechCorp Customer (Admin) creates colleague account
+POST /api/accounts
+Authorization: Bearer <customer-admin-token>
+
+{
+  "username": "manager.techcorp",
+  "email": "manager@techcorp.com",
+  "name": "TechCorp Manager",
+  "userRole": "Support",
+  "organizationId": "org_techcorp_67890", # Same organization
+  "organizationRole": "Customer"
+}
+
+# ✅ Allowed: Admin can create accounts within same organization
+```
+
+#### **Scenario 4: Support User Denied**
+```bash
+# TechCorp Customer (Support) tries to create colleague account
+POST /api/accounts
+Authorization: Bearer <customer-support-token>
+
+{
+  "username": "new.user",
+  "organizationId": "org_techcorp_67890"
+}
+
+# ❌ Denied: Only Admin users can create accounts for colleagues
+# Response: 403 "only Admin users can create accounts for colleagues"
+```
+
+### **Implementation Benefits**
+
+#### **Business Logic Enforcement**
+- **Hierarchy Respect**: Cannot create accounts "above" your level
+- **Organization Boundaries**: Cannot create accounts for unrelated organizations
+- **Admin Requirements**: Internal account creation requires Admin privileges
+
+#### **Data Security**
+- **Visibility Control**: Users only see accounts they have authority over
+- **Creation Tracking**: All account creation is logged with creator context
+- **Permission Validation**: Each action validated against real organizational structure
 
 ---
 
