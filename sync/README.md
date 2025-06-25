@@ -14,6 +14,24 @@ A robust CLI tool for synchronizing simplified Role-Based Access Control (RBAC) 
 - 🛡️ **Safe Operations**: Preserves system entities and validates configurations
 - 🔧 **Simplified Configuration**: YAML-based with clear business vs technical separation
 
+## System Requirements
+
+### Runtime (Binary Execution)
+- **Any 64-bit OS**: Linux, macOS, Windows
+- **No dependencies** - Statically compiled Go binary
+
+### Development & Building
+- **Go 1.21+** - [Download from golang.org](https://golang.org/download/)
+- **Make** (for build automation):
+  - **macOS**: Preinstalled with Xcode Command Line Tools (`xcode-select --install`)
+  - **Linux**: Usually preinstalled, or install with package manager (`apt install build-essential`)
+  - **Windows**: Install via [Git Bash](https://git-scm.com/download/win), [WSL2](https://docs.microsoft.com/en-us/windows/wsl/install), or [Chocolatey](https://chocolatey.org/) (`choco install make`)
+- **golangci-lint** (optional, for linting): [Installation guide](https://golangci-lint.run/usage/install/)
+
+### External Dependencies
+- **Logto instance** - Identity provider with Management API access
+- **Management API credentials** - Machine-to-Machine app with full Management API permissions
+
 ## Installation
 
 ### From Source
@@ -28,6 +46,19 @@ make build
 
 ```bash
 go install github.com/nethesis/sync/cmd/sync@latest
+```
+
+### Alternative Build Methods
+If Make is not available, you can use Go commands directly:
+```bash
+# Development
+go run ./cmd/sync
+
+# Build
+mkdir -p build && go build -o build/sync ./cmd/sync
+
+# Test
+go test ./...
 ```
 
 ## Quick Start
@@ -238,9 +269,10 @@ hierarchy:
 
 ### Prerequisites
 
-- Go 1.21+
-- Make
-- golangci-lint (for linting)
+See [System Requirements](#system-requirements) section above for detailed information about:
+- Go 1.21+ installation
+- Make setup per operating system  
+- Optional golangci-lint for code quality
 
 ### Setup Development Environment
 
