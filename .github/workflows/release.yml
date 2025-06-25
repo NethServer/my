@@ -105,7 +105,7 @@ jobs:
       with:
         images: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}
         tags: |
-          type=semver,pattern={{version}},value=${{ steps.version.outputs.VERSION }}
+          type=semver,pattern=v{{version}},value=${{ steps.version.outputs.VERSION }}
           type=raw,value=latest
     
     - name: Build and push backend Docker image
@@ -131,7 +131,7 @@ jobs:
       with:
         images: ${{ env.REGISTRY }}/${{ env.SYNC_IMAGE_NAME }}
         tags: |
-          type=semver,pattern={{version}},value=${{ steps.version.outputs.VERSION }}
+          type=semver,pattern=v{{version}},value=${{ steps.version.outputs.VERSION }}
           type=raw,value=latest
     
     - name: Build and push sync Docker image
