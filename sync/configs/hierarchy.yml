@@ -30,8 +30,6 @@ hierarchy:
         - id: manage:resellers
         - id: create:customers
         - id: manage:customers
-        - id: read:own-resellers
-        - id: read:own-customers
 
     - id: reseller
       name: "Reseller"
@@ -41,16 +39,13 @@ hierarchy:
         # Can only manage customers
         - id: create:customers
         - id: manage:customers
-        - id: read:own-customers
 
     - id: customer
       name: "Customer"
       priority: 4
       type: user
       permissions:
-        # Read-only access to own organization data and systems
-        - id: read:own-data
-        - id: read:systems          # Can view their own systems
+        # Read-only access to own organization data
 
   # User roles define TECHNICAL CAPABILITIES
   # Independent of business hierarchy - define what technical operations a user can perform

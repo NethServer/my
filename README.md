@@ -32,15 +32,39 @@ Management tool for synchronizing RBAC configuration:
 
 ## 🛠️ Quick Start
 
-### Prerequisites
-- Go 1.23+
-- Logto instance configured
-- Valid Logto Management API credentials
+### System Requirements
+
+#### Runtime (Binary Execution)
+- **Any 64-bit OS**: Linux, macOS, Windows
+- **No dependencies** - Both components compile to statically linked binaries
+
+#### Development & Building
+- **Go 1.21+** (backend requires 1.23+) - [Download from golang.org](https://golang.org/download/)
+- **Make** (for build automation):
+  - **macOS**: Preinstalled with Xcode Command Line Tools (`xcode-select --install`)
+  - **Linux**: Usually preinstalled, or install with package manager (`apt install build-essential`)
+  - **Windows**: Install via [Git Bash](https://git-scm.com/download/win), [WSL2](https://docs.microsoft.com/en-us/windows/wsl/install), or [Chocolatey](https://chocolatey.org/) (`choco install make`)
+- **golangci-lint** (optional, for linting): [Installation guide](https://golangci-lint.run/usage/install/)
+
+#### External Dependencies
+- **Logto instance** - Identity provider with RBAC configuration
+- **Logto Management API** - Machine-to-Machine app with full Management API permissions
+- **Custom JWT secret** - For backend token signing
+
+### Alternative Build Methods
+If Make is not available, both projects support direct Go commands:
+```bash
+# Backend
+cd backend && go run main.go
+
+# sync
+cd sync && go run ./cmd/sync
+```
 
 ### Getting Started
 Each component has its own setup instructions:
 
-- **Backend API**: See [backend/README.md](./backend/README.md) for API server setup
+- **Backend API**: See [backend/API.md](./backend/API.md) for API server setup
 - **sync CLI**: See [sync/README.md](./sync/README.md) for RBAC management
 
 ## 🔐 Authorization Architecture
@@ -83,7 +107,7 @@ See individual README files for detailed configuration instructions.
 ## 📚 Documentation
 
 ### Component Documentation
-- **[Backend API](./backend/README.md)** - Go REST API server setup, RBAC system, and development guide
+- **[Backend API](./backend/API.md)** - Go REST API server setup, RBAC system, and development guide
 - **[sync CLI](./sync/README.md)** - RBAC configuration management tool and usage instructions
 
 ### Project Documentation

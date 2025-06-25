@@ -78,10 +78,37 @@ Users get permissions from BOTH their technical capabilities AND their organizat
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- Go 1.23+
-- Access to a Logto instance
-- Logto API resource configured
+### System Requirements
+
+#### Runtime (Binary Execution)
+- **Any 64-bit OS**: Linux, macOS, Windows
+- **No dependencies** - Statically compiled Go binary
+
+#### Development & Building
+- **Go 1.23+** - [Download from golang.org](https://golang.org/download/)
+- **Make** (for build automation):
+  - **macOS**: Preinstalled with Xcode Command Line Tools (`xcode-select --install`)
+  - **Linux**: Usually preinstalled, or install with package manager (`apt install build-essential`)
+  - **Windows**: Install via [Git Bash](https://git-scm.com/download/win), [WSL2](https://docs.microsoft.com/en-us/windows/wsl/install), or [Chocolatey](https://chocolatey.org/) (`choco install make`)
+- **golangci-lint** (optional, for linting): [Installation guide](https://golangci-lint.run/usage/install/)
+
+#### External Dependencies
+- **Logto instance** - Identity provider
+- **Logto API resource** - Configured in your Logto admin console
+- **Logto Management API** - Machine-to-Machine app for RBAC synchronization
+
+### Alternative Build Methods
+If Make is not available, you can use Go commands directly:
+```bash
+# Development
+go run main.go
+
+# Build
+mkdir -p build && go build -o build/backend main.go
+
+# Test
+go test ./...
+```
 
 ### Token Exchange System
 This API now supports a **token exchange pattern** for enhanced security and performance:
@@ -96,8 +123,8 @@ This API now supports a **token exchange pattern** for enhanced security and per
 # Clone and navigate to backend directory
 cd backend
 
-# Copy environment template
-cp .env.example .env
+# Setup development environment (creates .env from template)
+make dev-setup
 
 # Edit .env with your Logto configuration
 # Required:
@@ -107,11 +134,8 @@ cp .env.example .env
 
 ### Development
 ```bash
-# Install dependencies
-go mod download
-
-# Run development server
-go run main.go
+# Install dependencies and start development server
+make dev
 
 # The server starts on http://127.0.0.1:8080 by default
 ```
@@ -119,10 +143,13 @@ go run main.go
 ### Building
 ```bash
 # Build for production
-go build -o backend main.go
+make build
 
 # Run the binary
-./backend
+./build/backend
+
+# Or build for multiple platforms
+make build-all
 ```
 
 ## 📝 Configuration
@@ -345,15 +372,16 @@ When accounts are created, they include visibility metadata:
 
 ```bash
 # Run all tests
-go test ./...
+make test
 
-# Run tests with verbose output
-go test -v ./...
+# Run tests with coverage report
+make test-coverage
 
 # Run tests for specific package
 go test ./middleware
 
-# Test coverage
+# Manual testing commands
+go test -v ./...
 go test -cover ./...
 ```
 
@@ -361,16 +389,22 @@ go test -cover ./...
 
 ```bash
 # Format code
-go fmt ./...
+make fmt
 
-# Vet code for common errors
-go vet ./...
+# Run linter (requires golangci-lint)
+make lint
 
-# Clean module dependencies
-go mod tidy
+# Clean dependencies
+make tidy
 
-# Update dependencies
-go get -u ./...
+# Clean build artifacts
+make clean
+
+# Install binary globally
+make install
+
+# Show all available commands
+make help
 ```
 
 ## 📊 Monitoring & Debugging
