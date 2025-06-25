@@ -17,15 +17,15 @@ jobs:
     defaults:
       run:
         working-directory: backend
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
         go-version: '1.23'
-        
+
     - name: Cache Go modules
       uses: actions/cache@v4
       with:
@@ -35,16 +35,16 @@ jobs:
         key: ${{ runner.os }}-go-backend-${{ hashFiles('backend/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-backend-
-    
+
     - name: Download dependencies
       run: go mod download
-    
+
     - name: Run tests
       run: go test ./...
-    
+
     - name: Run go vet
       run: go vet ./...
-    
+
     - name: Check formatting
       run: |
         if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
@@ -58,15 +58,15 @@ jobs:
     defaults:
       run:
         working-directory: sync
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
         go-version: '1.21'
-        
+
     - name: Cache Go modules
       uses: actions/cache@v4
       with:
@@ -76,16 +76,16 @@ jobs:
         key: ${{ runner.os }}-go-sync-${{ hashFiles('sync/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-sync-
-    
+
     - name: Download dependencies
       run: go mod download
-    
+
     - name: Run tests
       run: make test
-    
+
     - name: Run linting
       run: make lint || echo "Lint check completed"
-    
+
     - name: Check formatting
       run: make fmt
 
@@ -96,13 +96,14 @@ jobs:
       contents: read
       packages: write
       security-events: write
-    
+      actions: read
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
-    
+
     - name: Log in to Container Registry
       if: github.event_name != 'pull_request'
       uses: docker/login-action@v3
@@ -110,7 +111,7 @@ jobs:
         registry: ${{ env.REGISTRY }}
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-    
+
     - name: Extract metadata
       id: meta
       uses: docker/metadata-action@v5
@@ -120,7 +121,7 @@ jobs:
           type=ref,event=branch
           type=ref,event=pr
           type=raw,value=latest,enable={{is_default_branch}}
-    
+
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
@@ -132,33 +133,23 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-    
-    # Security scanning
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
+
+    # Security scanning (only on main)
+    - name: Generate Trivy SARIF report
+      uses: aquasecurity/trivy-action@0.28.0
+      if: github.ref == 'refs/heads/main'
       with:
-        image-ref: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}:${{ steps.meta.outputs.tags }}
+        scan-type: 'fs'
+        scan-ref: './backend'
         format: 'sarif'
         output: 'trivy-backend-results.sarif'
-    
-    - name: Upload Trivy scan results to GitHub Security tab
+        github-pat: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload SARIF
       uses: github/codeql-action/upload-sarif@v3
-      if: always()
+      if: github.ref == 'refs/heads/main'
       with:
         sarif_file: 'trivy-backend-results.sarif'
-    
-    # SBOM Generation
-    - name: Generate SBOM for backend
-      uses: anchore/sbom-action@v0
-      with:
-        image: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}:${{ steps.meta.outputs.tags }}
-        format: cyclonedx-json
-        output-file: backend-sbom.cdx.json
-    
-    - name: Upload backend SBOM to dependency graph
-      uses: advanced-security/spdx-dependency-submission-action@v0.0.1
-      with:
-        filePath: backend-sbom.cdx.json
 
   sync-build:
     runs-on: ubuntu-latest
@@ -167,13 +158,14 @@ jobs:
       contents: read
       packages: write
       security-events: write
-    
+      actions: read
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
-    
+
     - name: Log in to Container Registry
       if: github.event_name != 'pull_request'
       uses: docker/login-action@v3
@@ -181,7 +173,7 @@ jobs:
         registry: ${{ env.REGISTRY }}
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-    
+
     - name: Extract metadata
       id: meta
       uses: docker/metadata-action@v5
@@ -191,7 +183,7 @@ jobs:
           type=ref,event=branch
           type=ref,event=pr
           type=raw,value=latest,enable={{is_default_branch}}
-    
+
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
@@ -203,30 +195,20 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-    
-    # Security scanning
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
+
+    # Security scanning (only on main)
+    - name: Generate Trivy SARIF report
+      uses: aquasecurity/trivy-action@0.28.0
+      if: github.ref == 'refs/heads/main'
       with:
-        image-ref: ${{ env.REGISTRY }}/${{ env.SYNC_IMAGE_NAME }}:${{ steps.meta.outputs.tags }}
+        scan-type: 'fs'
+        scan-ref: './sync'
         format: 'sarif'
         output: 'trivy-sync-results.sarif'
-    
-    - name: Upload Trivy scan results to GitHub Security tab
+        github-pat: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload SARIF
       uses: github/codeql-action/upload-sarif@v3
-      if: always()
+      if: github.ref == 'refs/heads/main'
       with:
         sarif_file: 'trivy-sync-results.sarif'
-    
-    # SBOM Generation
-    - name: Generate SBOM for sync
-      uses: anchore/sbom-action@v0
-      with:
-        image: ${{ env.REGISTRY }}/${{ env.SYNC_IMAGE_NAME }}:${{ steps.meta.outputs.tags }}
-        format: cyclonedx-json
-        output-file: sync-sbom.cdx.json
-    
-    - name: Upload sync SBOM to dependency graph
-      uses: advanced-security/spdx-dependency-submission-action@v0.0.1
-      with:
-        filePath: sync-sbom.cdx.json
