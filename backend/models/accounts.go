@@ -14,9 +14,9 @@ type CreateAccountRequest struct {
 	Name             string            `json:"name" binding:"required" structs:"name"`
 	Phone            string            `json:"phone" structs:"phone"`
 	Password         string            `json:"password" binding:"required,min=8" structs:"password"`
-	UserRole         string            `json:"userRole" binding:"required" structs:"userRole"`             // Admin, Support
+	UserRoleID       string            `json:"userRoleId" binding:"required" structs:"userRoleId"`           // Role ID instead of name for security
 	OrganizationID   string            `json:"organizationId" binding:"required" structs:"organizationId"` // Which organization they belong to
-	OrganizationRole string            `json:"organizationRole" binding:"required" structs:"organizationRole"` // God, Distributor, Reseller, Customer
+	// OrganizationRole removed - will be derived from organization's JIT provisioning
 	Avatar           string            `json:"avatar" structs:"avatar"`
 	Metadata         map[string]string `json:"metadata" structs:"metadata"`
 }
@@ -27,9 +27,9 @@ type UpdateAccountRequest struct {
 	Email            string            `json:"email" structs:"email"`
 	Name             string            `json:"name" structs:"name"`
 	Phone            string            `json:"phone" structs:"phone"`
-	UserRole         string            `json:"userRole" structs:"userRole"`             // Admin, Support
+	UserRoleID       string            `json:"userRoleId" structs:"userRoleId"`           // Role ID instead of name for security
 	OrganizationID   string            `json:"organizationId" structs:"organizationId"` // Which organization they belong to
-	OrganizationRole string            `json:"organizationRole" structs:"organizationRole"` // God, Distributor, Reseller, Customer
+	// OrganizationRole removed - will be derived from organization's JIT provisioning
 	Avatar           string            `json:"avatar" structs:"avatar"`
 	Metadata         map[string]string `json:"metadata" structs:"metadata"`
 }

@@ -66,6 +66,9 @@ func CustomAuthMiddleware() gin.HandlerFunc {
 		// Set user in context for use by other handlers (must be pointer)
 		c.Set("user", &claims.User)
 		c.Set("user_id", claims.User.ID)
+		c.Set("username", claims.User.Username)
+		c.Set("email", claims.User.Email)
+		c.Set("name", claims.User.Name)
 		c.Set("user_roles", claims.User.UserRoles)
 		
 		// Set primary user role (first role in array) for backward compatibility
