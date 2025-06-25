@@ -1,8 +1,11 @@
 # Binaries
 backend/backend
+backend/main
 backend/*.exe
 logto-sync/build/
 logto-sync/logto-sync
+sync/build/
+sync/sync
 *.exe
 *.bin
 
