@@ -676,4 +676,4 @@ async function apiRequest(url, options = {}) {
 - **Fresh Permission Sync**: User roles and permissions refreshed from Logto during token refresh
 - **Audit Trail**: All operations logged with user context and organization hierarchy
 
-For additional support or questions, refer to the CLAUDE.md file in the repository root.
+For additional support or questions, refer to the project documentation in the README files.
