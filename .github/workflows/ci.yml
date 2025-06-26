@@ -39,8 +39,15 @@ jobs:
     - name: Download dependencies
       run: go mod download
 
-    - name: Run tests
-      run: go test ./...
+    - name: Run tests with coverage
+      run: go test -coverprofile=coverage.out -coverpkg=./... ./...
+
+    - name: Upload coverage artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: backend-coverage
+        path: coverage.out
+        retention-days: 30
 
     - name: Run go vet
       run: go vet ./...
@@ -80,8 +87,15 @@ jobs:
     - name: Download dependencies
       run: go mod download
 
-    - name: Run tests
-      run: make test
+    - name: Run tests with coverage
+      run: make test-coverage
+
+    - name: Upload coverage artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: sync-coverage
+        path: coverage.out
+        retention-days: 30
 
     - name: Run linting
       run: make lint || echo "Lint check completed"
