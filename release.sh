@@ -51,6 +51,39 @@ check_main_branch() {
     fi
 }
 
+# Check code formatting
+check_formatting() {
+    local component=$1
+    info "Checking code formatting for $component..."
+    
+    cd "$component"
+    local unformatted=$(gofmt -s -l . | wc -l)
+    if [ "$unformatted" -gt 0 ]; then
+        error "Code is not formatted properly in $component. Run 'make fmt' to fix it."
+    fi
+    cd ..
+    success "Code formatting OK for $component"
+}
+
+# Run tests
+run_tests() {
+    local component=$1
+    info "Running tests for $component..."
+    
+    cd "$component"
+    if [ "$component" = "backend" ]; then
+        if ! go test ./...; then
+            error "Tests failed for $component"
+        fi
+    else
+        if ! make test; then
+            error "Tests failed for $component"
+        fi
+    fi
+    cd ..
+    success "Tests passed for $component"
+}
+
 # Get current version from version.json
 get_current_version() {
     if [ ! -f "version.json" ]; then
@@ -147,6 +180,14 @@ main() {
     # Pre-flight checks
     check_git_status
     check_main_branch
+    
+    # Quality checks
+    info "Running quality checks..."
+    check_formatting "backend"
+    check_formatting "sync"
+    run_tests "backend"
+    run_tests "sync"
+    success "All quality checks passed!"
 
     # Get current version and calculate new version
     current_version=$(get_current_version)
