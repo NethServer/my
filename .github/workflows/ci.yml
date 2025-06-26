@@ -32,7 +32,7 @@ jobs:
         path: |
           ~/.cache/go-build
           ~/go/pkg/mod
-        key: ${{ runner.os }}-go-backend-${{ hashFiles('backend/go.sum') }}
+        key: ${{ runner.os }}-go-backend-${{ hashFiles('**/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-backend-
 
@@ -46,7 +46,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: backend-coverage
-        path: coverage.out
+        path: backend/coverage.out
         retention-days: 30
 
     - name: Run go vet
@@ -80,7 +80,7 @@ jobs:
         path: |
           ~/.cache/go-build
           ~/go/pkg/mod
-        key: ${{ runner.os }}-go-sync-${{ hashFiles('sync/go.sum') }}
+        key: ${{ runner.os }}-go-sync-${{ hashFiles('**/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-sync-
 
@@ -94,7 +94,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: sync-coverage
-        path: coverage.out
+        path: sync/coverage.out
         retention-days: 30
 
     - name: Run linting

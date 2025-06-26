@@ -116,7 +116,6 @@ See individual README files for detailed configuration instructions.
 - **[sync CLI](./sync/README.md)** - RBAC configuration management tool and usage instructions
 
 ### Project Documentation
-- **[CLAUDE.md](./CLAUDE.md)** - Comprehensive development guidance for AI assistance
 - **[DESIGN.md](./DESIGN.md)** - Project architecture and design decisions
 
 ## 🤝 Contributing

@@ -501,5 +501,4 @@ curl -X GET http://localhost:8080/api/systems \
 ## 🔗 Related Documentation
 
 - [Project Overview](../README.md) - Main project documentation
-- [CLAUDE.md](../CLAUDE.md) - Development guidance
 - [sync](../sync/README.md) - RBAC configuration management tool
