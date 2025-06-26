@@ -294,6 +294,22 @@ make run ARGS="--help"   # Run with arguments
 make run-example         # Run with example config
 ```
 
+### Testing
+
+```bash
+# Primary commands (recommended)
+make test                          # Run all tests
+make test-coverage                 # Run tests with coverage report
+
+# Direct Go commands for specific needs
+go test ./internal/config          # Test config package only
+go test ./internal/sync            # Test sync engine only
+go test -v ./...                   # Verbose test output
+go test -race ./...                # Race condition detection
+```
+
+Coverage reports are generated in `coverage.out` and uploaded as GitHub Actions artifacts for CI tracking.
+
 ### Project Structure
 
 ```

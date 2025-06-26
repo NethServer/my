@@ -371,19 +371,19 @@ When accounts are created, they include visibility metadata:
 ## 🧪 Testing
 
 ```bash
-# Run all tests
-make test
+# Primary commands (recommended)
+make test                          # Run all tests
+make test-coverage                 # Run tests with coverage report
 
-# Run tests with coverage report
-make test-coverage
-
-# Run tests for specific package
-go test ./middleware
-
-# Manual testing commands
-go test -v ./...
-go test -cover ./...
+# Direct Go commands for specific needs
+go test ./jwt                      # Test JWT package only  
+go test ./middleware               # Test middleware package only
+go test -v ./...                   # Verbose test output
+go test -race ./...                # Race condition detection
+go test -count=1 ./...             # Force test execution (disable cache)
 ```
+
+Coverage reports are generated in `coverage.out` and uploaded as GitHub Actions artifacts for CI tracking.
 
 ## 🔧 Development Commands
 
