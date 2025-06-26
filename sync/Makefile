@@ -59,7 +59,7 @@ lint:
 .PHONY: fmt
 fmt:
 	@echo "Formatting code..."
-	@go fmt ./...
+	@gofmt -s -w .
 
 # Tidy dependencies
 .PHONY: tidy

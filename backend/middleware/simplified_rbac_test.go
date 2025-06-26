@@ -18,11 +18,11 @@ func TestRequirePermission(t *testing.T) {
 	setupTestEnvironment()
 
 	tests := []struct {
-		name              string
-		user              *models.User
+		name               string
+		user               *models.User
 		requiredPermission string
-		expectedStatus    int
-		expectMessage     string
+		expectedStatus     int
+		expectMessage      string
 	}{
 		{
 			name: "user with required user permission passes",
@@ -87,10 +87,10 @@ func TestRequirePermission(t *testing.T) {
 
 			// Make request
 			w := testutils.MakeRequest(t, router, "GET", "/test", nil, nil)
-			
+
 			// Verify response
 			assert.Equal(t, tt.expectedStatus, w.Code)
-			
+
 			if tt.expectedStatus != http.StatusOK {
 				response := testutils.AssertJSONResponse(t, w, tt.expectedStatus)
 				assert.Contains(t, response["message"], tt.expectMessage)
@@ -168,10 +168,10 @@ func TestRequireUserRole(t *testing.T) {
 
 			// Make request
 			w := testutils.MakeRequest(t, router, "GET", "/test", nil, nil)
-			
+
 			// Verify response
 			assert.Equal(t, tt.expectedStatus, w.Code)
-			
+
 			if tt.expectedStatus != http.StatusOK {
 				response := testutils.AssertJSONResponse(t, w, tt.expectedStatus)
 				assert.Contains(t, response["message"], tt.expectMessage)
@@ -239,10 +239,10 @@ func TestRequireOrgRole(t *testing.T) {
 
 			// Make request
 			w := testutils.MakeRequest(t, router, "GET", "/test", nil, nil)
-			
+
 			// Verify response
 			assert.Equal(t, tt.expectedStatus, w.Code)
-			
+
 			if tt.expectedStatus != http.StatusOK {
 				response := testutils.AssertJSONResponse(t, w, tt.expectedStatus)
 				assert.Contains(t, response["message"], tt.expectMessage)
@@ -299,10 +299,10 @@ func TestRequireAnyOrgRole(t *testing.T) {
 
 			// Make request
 			w := testutils.MakeRequest(t, router, "GET", "/test", nil, nil)
-			
+
 			// Verify response
 			assert.Equal(t, tt.expectedStatus, w.Code)
-			
+
 			if tt.expectedStatus != http.StatusOK {
 				response := testutils.AssertJSONResponse(t, w, tt.expectedStatus)
 				assert.Contains(t, response["message"], tt.expectMessage)
@@ -347,9 +347,9 @@ func TestAutoPermissionRBAC(t *testing.T) {
 		{
 			name: "PUT request with manage permission passes",
 			user: &models.User{
-				ID:              "user-3",
-				Username:        "manager-user",
-				OrgPermissions:  []string{"manage:systems"},
+				ID:             "user-3",
+				Username:       "manager-user",
+				OrgPermissions: []string{"manage:systems"},
 			},
 			method:         "PUT",
 			resource:       "systems",
@@ -389,7 +389,7 @@ func TestAutoPermissionRBAC(t *testing.T) {
 				c.Next()
 			})
 			router.Use(AutoPermissionRBAC(tt.resource))
-			
+
 			// Add route for the specific method
 			switch tt.method {
 			case "GET":
@@ -416,10 +416,10 @@ func TestAutoPermissionRBAC(t *testing.T) {
 
 			// Make request
 			w := testutils.MakeRequest(t, router, tt.method, "/test", nil, nil)
-			
+
 			// Verify response
 			assert.Equal(t, tt.expectedStatus, w.Code)
-			
+
 			if tt.expectedStatus != http.StatusOK {
 				response := testutils.AssertJSONResponse(t, w, tt.expectedStatus)
 				assert.Contains(t, response["message"], tt.expectMessage)
@@ -482,10 +482,10 @@ func TestGetUserFromContext(t *testing.T) {
 
 			// Make request
 			w := testutils.MakeRequest(t, router, "GET", "/test", nil, nil)
-			
+
 			// Verify response
 			assert.Equal(t, tt.expectedStatus, w.Code)
-			
+
 			if tt.expectedStatus != http.StatusOK {
 				response := testutils.AssertJSONResponse(t, w, tt.expectedStatus)
 				assert.Contains(t, response["message"], tt.expectMessage)
@@ -497,7 +497,7 @@ func TestGetUserFromContext(t *testing.T) {
 func TestHelperFunctions(t *testing.T) {
 	t.Run("hasPermissionInList", func(t *testing.T) {
 		permissions := []string{"read:systems", "manage:accounts", "view:logs"}
-		
+
 		assert.True(t, hasPermissionInList(permissions, "read:systems"))
 		assert.True(t, hasPermissionInList(permissions, "manage:accounts"))
 		assert.False(t, hasPermissionInList(permissions, "delete:systems"))
@@ -506,7 +506,7 @@ func TestHelperFunctions(t *testing.T) {
 
 	t.Run("hasRoleInList", func(t *testing.T) {
 		roles := []string{"Admin", "Support", "Viewer"}
-		
+
 		assert.True(t, hasRoleInList(roles, "Admin"))
 		assert.True(t, hasRoleInList(roles, "Support"))
 		assert.False(t, hasRoleInList(roles, "SuperAdmin"))
@@ -526,7 +526,7 @@ func TestHelperFunctions(t *testing.T) {
 
 func TestLegacyAliases(t *testing.T) {
 	setupTestEnvironment()
-	
+
 	user := &models.User{
 		ID:              "test-user",
 		Username:        "testuser",
@@ -581,7 +581,7 @@ func setupTestEnvironment() {
 		gin.SetMode(gin.TestMode)
 		logs.Init("[TEST]")
 		configuration.Init()
-		
+
 		isTestEnvironmentSetup = true
 	}
 }

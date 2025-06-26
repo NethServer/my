@@ -21,7 +21,7 @@ func SetupTestGin() *gin.Engine {
 // MakeRequest performs an HTTP request for testing
 func MakeRequest(t *testing.T, router *gin.Engine, method, url string, body interface{}, headers map[string]string) *httptest.ResponseRecorder {
 	var reqBody io.Reader
-	
+
 	if body != nil {
 		jsonBody, err := json.Marshal(body)
 		assert.NoError(t, err)

@@ -6,9 +6,9 @@ import (
 
 // Test JWT tokens for different scenarios
 const (
-	ValidJWTToken    = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXIiLCJleHAiOjk5OTk5OTk5OTksInVzZXJfaWQiOiJ0ZXN0LXVzZXIiLCJvcmdhbml6YXRpb25faWQiOiJ0ZXN0LW9yZyJ9.test-signature"
-	ExpiredJWTToken  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXIiLCJleHAiOjEsInVzZXJfaWQiOiJ0ZXN0LXVzZXIifQ.test-signature"
-	InvalidJWTToken  = "invalid.jwt.token"
+	ValidJWTToken     = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXIiLCJleHAiOjk5OTk5OTk5OTksInVzZXJfaWQiOiJ0ZXN0LXVzZXIiLCJvcmdhbml6YXRpb25faWQiOiJ0ZXN0LW9yZyJ9.test-signature"
+	ExpiredJWTToken   = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXIiLCJleHAiOjEsInVzZXJfaWQiOiJ0ZXN0LXVzZXIifQ.test-signature"
+	InvalidJWTToken   = "invalid.jwt.token"
 	MalformedJWTToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.invalid-payload.signature"
 )
 
@@ -108,8 +108,8 @@ func MockCreateAccountRequest() map[string]interface{} {
 
 // LogtoMockResponses contains mock responses for Logto API
 var LogtoMockResponses = struct {
-	UserInfo string
-	Roles    string
+	UserInfo      string
+	Roles         string
 	Organizations string
 }{
 	UserInfo: `{

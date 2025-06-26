@@ -25,15 +25,15 @@ func TestMain(m *testing.M) {
 	os.Setenv("LOGTO_AUDIENCE", "test-api-resource")
 	os.Setenv("LOGTO_MANAGEMENT_CLIENT_ID", "test-client-id")
 	os.Setenv("LOGTO_MANAGEMENT_CLIENT_SECRET", "test-client-secret")
-	
+
 	gin.SetMode(gin.TestMode)
-	
+
 	// Initialize logs
 	logs.Init("[TEST]")
-	
+
 	// Initialize configuration
 	configuration.Init()
-	
+
 	code := m.Run()
 	os.Exit(code)
 }
@@ -57,10 +57,10 @@ func TestCustomAuthMiddleware(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name           string
-		authHeader     string
-		expectedStatus int
-		expectUser     bool
+		name             string
+		authHeader       string
+		expectedStatus   int
+		expectUser       bool
 		validateResponse func(t *testing.T, response map[string]interface{})
 	}{
 		{
@@ -117,15 +117,15 @@ func TestCustomAuthMiddleware(t *testing.T) {
 			// Setup router with middleware
 			router := testutils.SetupTestGin()
 			router.Use(CustomAuthMiddleware())
-			
+
 			// Add a protected endpoint that returns user info if authenticated
 			router.GET("/protected", func(c *gin.Context) {
 				user, exists := c.Get("user")
 				if exists {
 					userObj := user.(*models.User)
 					c.JSON(http.StatusOK, gin.H{
-						"status":  "authenticated",
-						"user_id": userObj.ID,
+						"status":   "authenticated",
+						"user_id":  userObj.ID,
 						"username": userObj.Username,
 					})
 				} else {
@@ -143,7 +143,7 @@ func TestCustomAuthMiddleware(t *testing.T) {
 
 			// Make request
 			w := testutils.MakeRequest(t, router, "GET", "/protected", nil, headers)
-			
+
 			// Validate response
 			response := testutils.AssertJSONResponse(t, w, tt.expectedStatus)
 			tt.validateResponse(t, response)
@@ -158,7 +158,7 @@ func TestCustomAuthMiddleware_UserInContext(t *testing.T) {
 		Username:         "testuser",
 		Email:            "test@example.com",
 		OrganizationID:   "test-org-456",
-		OrganizationName: "Test Organization", 
+		OrganizationName: "Test Organization",
 		UserRoles:        []string{"Admin"},
 		UserPermissions:  []string{"manage:systems"},
 		OrgRole:          "Customer",
@@ -171,12 +171,12 @@ func TestCustomAuthMiddleware_UserInContext(t *testing.T) {
 	// Setup router
 	router := testutils.SetupTestGin()
 	router.Use(CustomAuthMiddleware())
-	
+
 	// Add endpoint that checks user context
 	router.GET("/check-user", func(c *gin.Context) {
 		user, exists := c.Get("user")
 		assert.True(t, exists, "User should exist in context")
-		
+
 		userObj, ok := user.(*models.User)
 		assert.True(t, ok, "User should be of correct type")
 		assert.Equal(t, testUser.ID, userObj.ID)
@@ -187,7 +187,7 @@ func TestCustomAuthMiddleware_UserInContext(t *testing.T) {
 		assert.Equal(t, testUser.UserPermissions, userObj.UserPermissions)
 		assert.Equal(t, testUser.OrgRole, userObj.OrgRole)
 		assert.Equal(t, testUser.OrgPermissions, userObj.OrgPermissions)
-		
+
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
@@ -195,7 +195,7 @@ func TestCustomAuthMiddleware_UserInContext(t *testing.T) {
 	headers := map[string]string{
 		"Authorization": "Bearer " + validToken,
 	}
-	
+
 	w := testutils.MakeRequest(t, router, "GET", "/check-user", nil, headers)
 	assert.Equal(t, http.StatusOK, w.Code)
 }
@@ -247,10 +247,10 @@ func TestCustomAuthMiddleware_HandlesJWTErrors(t *testing.T) {
 			headers := map[string]string{
 				"Authorization": "Bearer " + tt.token,
 			}
-			
+
 			w := testutils.MakeRequest(t, router, "GET", "/test", nil, headers)
 			response := testutils.AssertJSONResponse(t, w, tt.expectedStatus)
-			
+
 			assert.Contains(t, response["message"], tt.expectError)
 		})
 	}
