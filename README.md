@@ -1,5 +1,10 @@
 # Nethesis Operation Center
 
+[![CI](https://github.com/NethServer/my/workflows/CI/badge.svg)](https://github.com/NethServer/my/actions/workflows/ci.yml)
+[![Backend Tests](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci.yml?job=backend-tests&label=Backend%20Tests)](https://github.com/NethServer/my/actions/workflows/ci.yml)
+[![sync Tests](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci.yml?job=sync-tests&label=sync%20Tests)](https://github.com/NethServer/my/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/NethServer/my?color=3a3c3f)](https://github.com/NethServer/my/releases)
+
 A web application providing centralized authentication and management using Logto as an Identity Provider, built with a sophisticated Role-Based Access Control (RBAC) system.
 
 ## 🏗️ Project Structure
