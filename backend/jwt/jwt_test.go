@@ -21,10 +21,10 @@ func TestMain(m *testing.M) {
 	os.Setenv("LOGTO_AUDIENCE", "test-api-resource")
 	os.Setenv("LOGTO_MANAGEMENT_CLIENT_ID", "test-client-id")
 	os.Setenv("LOGTO_MANAGEMENT_CLIENT_SECRET", "test-client-secret")
-	
+
 	// Initialize configuration
 	configuration.Init()
-	
+
 	code := m.Run()
 	os.Exit(code)
 }
@@ -96,14 +96,14 @@ func TestGenerateCustomToken(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			token, err := GenerateCustomToken(tt.user)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
 				assert.NotEmpty(t, token)
 			}
-			
+
 			tt.validate(t, token)
 		})
 	}
@@ -163,14 +163,14 @@ func TestValidateCustomToken(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			claims, err := ValidateCustomToken(tt.tokenString)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Nil(t, claims)
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, claims)
-				
+
 				// Compare user fields in claims
 				assert.Equal(t, tt.wantUser.ID, claims.User.ID)
 				assert.Equal(t, tt.wantUser.Username, claims.User.Username)
@@ -199,7 +199,7 @@ func TestRefreshToken(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "empty user ID still generates token", 
+			name:    "empty user ID still generates token",
 			userID:  "",
 			wantErr: false,
 		},
@@ -208,7 +208,7 @@ func TestRefreshToken(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			token, err := GenerateRefreshToken(tt.userID)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Empty(t, token)
@@ -245,7 +245,7 @@ func TestTokenExpiration(t *testing.T) {
 	// Token should expire in the future (within 24 hours)
 	now := time.Now()
 	expectedExpiry := now.Add(24 * time.Hour)
-	
+
 	assert.True(t, claims.ExpiresAt.After(now), "Token should not be expired")
 	assert.True(t, claims.ExpiresAt.Before(expectedExpiry.Add(time.Minute)), "Token should expire within 24 hours")
 }

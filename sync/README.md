@@ -300,6 +300,7 @@ make run-example         # Run with example config
 # Primary commands (recommended)
 make test                          # Run all tests
 make test-coverage                 # Run tests with coverage report
+make fmt                           # Format code (required for CI)
 
 # Direct Go commands for specific needs
 go test ./internal/config          # Test config package only
@@ -309,6 +310,22 @@ go test -race ./...                # Race condition detection
 ```
 
 Coverage reports are generated in `coverage.out` and uploaded as GitHub Actions artifacts for CI tracking.
+
+### Pre-commit Workflow
+
+Before committing changes, always run these commands to ensure CI passes:
+
+```bash
+make fmt                           # Format code (required for CI)
+make test                          # Run all tests
+make lint                          # Run linter (if golangci-lint installed)
+
+# Then commit your changes
+git add .
+git commit -m "your commit message"
+```
+
+**Note**: The CI pipeline will fail if code is not properly formatted with `gofmt -s`.
 
 ### Project Structure
 

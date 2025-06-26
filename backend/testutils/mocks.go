@@ -34,23 +34,23 @@ func (m *MockLogtoService) EnrichUserWithRolesAndPermissions(user *models.User) 
 func MockLogtoHTTPServer(t *testing.T) *httptest.Server {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		
+
 		switch {
 		case strings.Contains(r.URL.Path, "/oidc/userinfo"):
 			// Mock userinfo endpoint
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(LogtoMockResponses.UserInfo))
-			
+
 		case strings.Contains(r.URL.Path, "/api/users") && strings.Contains(r.URL.Path, "/roles"):
 			// Mock user roles endpoint
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(LogtoMockResponses.Roles))
-			
+
 		case strings.Contains(r.URL.Path, "/api/users") && strings.Contains(r.URL.Path, "/organizations"):
 			// Mock user organizations endpoint
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(LogtoMockResponses.Organizations))
-			
+
 		case strings.Contains(r.URL.Path, "/oidc/token"):
 			// Mock token endpoint for management API
 			w.WriteHeader(http.StatusOK)
@@ -59,14 +59,14 @@ func MockLogtoHTTPServer(t *testing.T) *httptest.Server {
 				"token_type": "Bearer",
 				"expires_in": 3600
 			}`))
-			
+
 		default:
 			// Default fallback
 			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte(`{"error": "endpoint not found"}`))
 		}
 	})
-	
+
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 	return server

@@ -60,7 +60,7 @@ func TestNewEngine(t *testing.T) {
 func TestEngineAddOperation(t *testing.T) {
 	// Initialize logger for testing
 	logger.Init(logger.InfoLevel)
-	
+
 	logtoClient := &client.LogtoClient{}
 	engine := NewEngine(logtoClient, &Options{})
 	result := &Result{

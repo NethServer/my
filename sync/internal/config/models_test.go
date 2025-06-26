@@ -41,7 +41,7 @@ func TestConfigValidate(t *testing.T) {
 					UserRoles: []Role{
 						{
 							ID:   "admin",
-							Name: "Admin", 
+							Name: "Admin",
 							Permissions: []Permission{
 								{ID: "read:systems"},
 							},
@@ -543,4 +543,3 @@ func TestGetAllPermissions(t *testing.T) {
 		t.Error("expected excluded:permission to not be included")
 	}
 }
-

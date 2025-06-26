@@ -278,7 +278,7 @@ func TestIsSystemUserRoleEdgeCases(t *testing.T) {
 func TestSystemRolePatterns(t *testing.T) {
 	systemPatterns := []string{
 		"logto",
-		"admin", 
+		"admin",
 		"machine-to-machine",
 		"system",
 		"default",

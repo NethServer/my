@@ -310,8 +310,8 @@ func createTempFile(t *testing.T, content string) string {
 }
 
 func contains(str, substr string) bool {
-	return len(str) >= len(substr) && str[:len(substr)] == substr || 
-		   len(str) > len(substr) && containsSubstring(str, substr)
+	return len(str) >= len(substr) && str[:len(substr)] == substr ||
+		len(str) > len(substr) && containsSubstring(str, substr)
 }
 
 func containsSubstring(str, substr string) bool {
