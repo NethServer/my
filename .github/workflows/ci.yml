@@ -33,8 +33,6 @@ jobs:
           ~/.cache/go-build
           ~/go/pkg/mod
         key: ${{ runner.os }}-go-backend-${{ hashFiles('backend/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-backend-
 
     - name: Download dependencies
       run: go mod download
@@ -81,8 +79,6 @@ jobs:
           ~/.cache/go-build
           ~/go/pkg/mod
         key: ${{ runner.os }}-go-sync-${{ hashFiles('sync/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-sync-
 
     - name: Download dependencies
       run: go mod download
