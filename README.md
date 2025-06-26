@@ -122,9 +122,10 @@ See individual README files for detailed configuration instructions.
 ## 🤝 Contributing
 
 1. Follow existing code patterns and conventions
-2. Use the provided development commands for formatting and testing
+2. **Pre-commit workflow**: Run `make fmt && make test` in both `backend/` and `sync/` directories
 3. Always test RBAC changes with `--dry-run` before applying
 4. Ensure environment variables are properly configured
+5. Check that CI tests pass before submitting PRs
 
 ## 📄 License
 
