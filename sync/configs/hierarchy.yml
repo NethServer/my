@@ -1,5 +1,5 @@
 metadata:
-  name: "nethesis-simplified-rbac"
+  name: "simplified-rbac"
   version: "2.0.0"
   description: "Simplified RBAC with clear separation between business hierarchy and technical capabilities"
 

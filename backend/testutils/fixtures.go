@@ -32,7 +32,7 @@ func MockUser(userID, orgID string, userRoles, orgRoles []string, userPerms, org
 func MockGodUser() *models.User {
 	return MockUser(
 		"god-user-id",
-		"nethesis-org",
+		"demo-org",
 		[]string{"Admin"},
 		[]string{"God"},
 		[]string{"manage:systems", "manage:accounts", "manage:organizations"},
@@ -129,7 +129,7 @@ var LogtoMockResponses = struct {
 				"description": "Administrator role"
 			},
 			{
-				"id": "support-role-id", 
+				"id": "support-role-id",
 				"name": "Support",
 				"description": "Support role"
 			}
