@@ -133,7 +133,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 func getAPIBaseURL() string {
 	apiBaseURL := os.Getenv("API_BASE_URL")
 	if apiBaseURL == "" {
-		apiBaseURL = "https://dev.my.nethesis.it"
+		apiBaseURL = "http://localhost:8080"
 	}
 	return apiBaseURL
 }
