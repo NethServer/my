@@ -33,7 +33,7 @@ check_git_status() {
     if [ -n "$(git status --porcelain | grep -E '^[MADR]')" ]; then
         error "Git working directory has uncommitted changes to tracked files. Please commit or stash your changes."
     fi
-    
+
     # Show untracked files as info (but don't block)
     untracked=$(git status --porcelain | grep '^??')
     if [ -n "$untracked" ]; then
@@ -55,7 +55,7 @@ check_main_branch() {
 check_formatting() {
     local component=$1
     info "Checking code formatting for $component..."
-    
+
     cd "$component"
     local unformatted=$(gofmt -s -l . | wc -l)
     if [ "$unformatted" -gt 0 ]; then
@@ -65,11 +65,36 @@ check_formatting() {
     success "Code formatting OK for $component"
 }
 
+# Run linting
+run_linting() {
+    local component=$1
+    info "Running linting for $component..."
+
+    cd "$component"
+    if [ "$component" = "backend" ]; then
+        # Check if golangci-lint is available
+        if command -v golangci-lint >/dev/null 2>&1; then
+            if ! golangci-lint run; then
+                error "Linting failed for $component"
+            fi
+        else
+            warning "golangci-lint not found, skipping linting for $component"
+            warning "Install with: https://golangci-lint.run/usage/install/"
+        fi
+    else
+        if ! make lint; then
+            error "Linting failed for $component"
+        fi
+    fi
+    cd ..
+    success "Linting passed for $component"
+}
+
 # Run tests
 run_tests() {
     local component=$1
     info "Running tests for $component..."
-    
+
     cd "$component"
     if [ "$component" = "backend" ]; then
         if ! go test ./...; then
@@ -180,11 +205,13 @@ main() {
     # Pre-flight checks
     check_git_status
     check_main_branch
-    
+
     # Quality checks
     info "Running quality checks..."
     check_formatting "backend"
     check_formatting "sync"
+    run_linting "backend"
+    run_linting "sync"
     run_tests "backend"
     run_tests "sync"
     success "All quality checks passed!"

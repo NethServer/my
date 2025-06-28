@@ -46,6 +46,20 @@ jobs:
           exit 1
         fi
 
+    - name: Run backend linting
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest
+        working-directory: backend
+        args: --timeout=10m
+
+    - name: Run sync linting
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest
+        working-directory: sync
+        args: --timeout=10m
+
     - name: Run backend tests
       working-directory: backend
       run: go test ./...
