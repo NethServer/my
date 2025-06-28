@@ -586,94 +586,351 @@ curl -s -X GET "http://localhost:8080/api/health" | jq
 
 ## 🚀 Getting Started
 
-1. **Obtain Logto Access Token** from your frontend application
-2. **Exchange for Custom JWT** using `/auth/exchange`
-3. **Store both tokens** securely (access + refresh)
-4. **Use JWT Token** in all subsequent API calls
-5. **Handle token expiration** with refresh mechanism
-6. **Check your permissions** with `/auth/me`
-7. **Start managing** organizations and accounts
+### Complete Setup from Zero to Working Example
 
-### Token Management Flow
+#### Step 1: Create Vue.js Project
+```bash
+# Create new Vue project
+npm create vue@latest logto-test
+cd logto-test
 
-```javascript
-// 1. Initial authentication
-const { token, refresh_token, user } = await exchangeLogtoToken(logtoAccessToken);
+# Select options (use defaults, just press Enter for all)
+# Install dependencies
+npm install
 
-// 2. Store tokens securely
-localStorage.setItem('access_token', token);
-localStorage.setItem('refresh_token', refresh_token);
+# Install Logto SDK
+npm install @logto/vue
+```
 
-// 3. API request with automatic refresh
-async function apiRequest(url, options = {}) {
-  let token = localStorage.getItem('access_token');
+#### Step 2: Configure Logto Settings
+Before running the code, you need these values from your Logto admin console:
+- `endpoint`: Your Logto instance URL (e.g., `https://y4uj0v.logto.app`)
+- `appId`: Your application ID from Logto admin console
+- `resources`: Your API resource identifier - **MUST be absolute URI** (e.g., `https://api.my.nethesis.it`)
 
+#### Step 3: Install Logto Plugin
+
+Edit `src/main.ts` to install the Logto plugin:
+
+```typescript
+import { createApp } from 'vue'
+import { createLogto, LogtoConfig } from '@logto/vue'
+import App from './App.vue'
+
+// Logto configuration - UPDATE THESE VALUES!
+const config: LogtoConfig = {
+  endpoint: 'https://your-logto-instance.logto.app',     // Your Logto URL
+  appId: 'your-app-id',                                  // Your App ID from Logto admin
+  resources: [],                                         // Must be ABSOLUTE URI (https://...), can be empty
+  scopes: ['openid', 'profile', 'email'],                // Required scopes
+}
+
+const app = createApp(App)
+
+// Install Logto plugin
+app.use(createLogto, config)
+
+app.mount('#app')
+```
+
+#### Step 4: Configure Redirect URI in Logto Admin
+
+⚠️ **IMPORTANT**: In your Logto admin console, add this redirect URI to your application:
+```
+http://localhost:5173/callback
+```
+
+**Steps in Logto Admin:**
+1. Go to **Applications** → Your App
+2. Find **Redirect URIs** section
+3. Add: `http://localhost:5173/callback`
+4. **Save** the configuration
+
+#### Step 5: Replace App.vue Content
+
+Replace the entire content of `src/App.vue` with:
+
+```vue
+<template>
+  <div style="padding: 20px; font-family: Arial;">
+    <!-- Callback Processing -->
+    <div v-if="isCallback" style="text-align: center;">
+      <h2>🔄 Processing login...</h2>
+      <p>Please wait while we complete your authentication.</p>
+    </div>
+
+    <!-- Main App -->
+    <div v-else>
+      <h1>Logto + Backend Token Exchange Test</h1>
+
+      <div v-if="!isAuthenticated">
+        <h2>👤 Login Required</h2>
+        <button @click="handleSignIn" style="padding: 10px; font-size: 16px;">
+          Sign In with Logto
+        </button>
+      </div>
+
+      <div v-else>
+        <h2>✅ Welcome, {{ user?.name }}!</h2>
+        <button @click="exchangeToken" style="padding: 10px; font-size: 16px; margin: 10px;">
+          🔄 Get Custom JWT
+        </button>
+        <button @click="signOut" style="padding: 10px; font-size: 16px;">
+          🚪 Sign Out
+        </button>
+
+        <div v-if="customJWT" style="margin-top: 20px;">
+          <h3>🎉 Custom JWT Response:</h3>
+          <pre style="background: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto;">{{ JSON.stringify(customJWT, null, 2) }}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { useLogto } from '@logto/vue';
+import { ref } from 'vue';
+
+// Logto composable (config is already set in main.ts)
+const { isAuthenticated, user, signIn, signOut, getAccessToken, error, handleSignInCallback } = useLogto();
+
+// Check if current page is callback
+const isCallback = ref(window.location.pathname === '/callback');
+
+// Debug errors
+if (error.value) {
+  console.error('🚨 Logto Error:', error.value);
+}
+
+// Debug configuration on mounted
+import { onMounted } from 'vue';
+onMounted(async () => {
+  console.log('🔧 Logto loaded, isAuthenticated:', isAuthenticated.value);
+  console.log('👤 Current user:', user?.value);
+  console.log('📍 Current path:', window.location.pathname);
+
+  // Handle callback if on callback page
+  if (isCallback.value) {
+    try {
+      console.log('🔄 Processing callback...');
+      await handleSignInCallback(window.location.href);
+      console.log('✅ Callback processed successfully');
+      // Redirect back to main app
+      window.history.replaceState({}, '', '/');
+      isCallback.value = false;
+    } catch (error) {
+      console.error('❌ Callback processing failed:', error);
+    }
+  }
+});
+
+// Custom JWT state
+const customJWT = ref(null);
+
+// Handle sign in with explicit redirect URI
+const handleSignIn = async () => {
   try {
-    const response = await fetch(url, {
-      ...options,
+    await signIn({
+      redirectUri: 'http://localhost:5173/callback'
+    });
+  } catch (error) {
+    console.error('🚨 Sign in failed:', error);
+  }
+};
+
+// Exchange Logto token for custom JWT
+const exchangeToken = async () => {
+  try {
+    console.log('🚀 Starting token exchange...');
+
+    // 1. Get Logto access token
+    const logtoToken = await getAccessToken(); // Same as resources[0]
+    console.log('✅ Logto Access Token obtained:', logtoToken);
+
+    // 2. Exchange for custom JWT
+    const response = await fetch('http://localhost:8080/api/auth/exchange', {
+      method: 'POST',
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        ...options.headers
-      }
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        access_token: logtoToken
+      })
     });
 
-    if (response.status === 401) {
-      // Token expired, try refresh
-      const refreshToken = localStorage.getItem('refresh_token');
-      const refreshResponse = await fetch('/api/auth/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refreshToken })
-      });
+    if (response.ok) {
+      const result = await response.json();
+      customJWT.value = result;
 
-      if (refreshResponse.ok) {
-        const { token: newToken, refresh_token: newRefreshToken } = await refreshResponse.json();
-        localStorage.setItem('access_token', newToken);
-        localStorage.setItem('refresh_token', newRefreshToken);
+      // 3. Log the enriched token data
+      console.log('🎉 SUCCESS! Custom JWT obtained:', result);
+      console.log('📋 User permissions:', result.user.user_permissions);
+      console.log('🏢 Organization role:', result.user.org_role);
+      console.log('🔑 Custom Access Token:', result.token);
+      console.log('🔄 Refresh Token:', result.refresh_token);
 
-        // Retry original request with new token
-        return fetch(url, {
-          ...options,
-          headers: {
-            'Authorization': `Bearer ${newToken}`,
-            'Content-Type': 'application/json',
-            ...options.headers
-          }
-        });
-      } else {
-        // Refresh failed, redirect to login
-        window.location.href = '/login';
-      }
+      // Store tokens for future API calls
+      localStorage.setItem('access_token', result.token);
+      localStorage.setItem('refresh_token', result.refresh_token);
+
+    } else {
+      const errorText = await response.text();
+      console.error('❌ Token exchange failed:', errorText);
+      console.error('Response status:', response.status);
     }
-
-    return response;
   } catch (error) {
-    console.error('API request failed:', error);
-    throw error;
+    console.error('💥 Error during token exchange:', error);
+  }
+};
+</script>
+```
+
+#### Step 6: Start Backend Server
+Make sure your backend is running:
+```bash
+# In your backend directory
+cd backend
+go run main.go
+# Should show: Server starting on 127.0.0.1:8080
+```
+
+#### Step 7: Start Vue App
+```bash
+# In your Vue project directory
+npm run dev
+# Should show: Local: http://localhost:5173/
+```
+
+#### Step 8: Test the Flow
+1. Open browser to `http://localhost:5173/`
+2. Click "Sign In with Logto" → Complete login
+3. Click "Get Custom JWT" → Check console
+
+### 🎯 Expected Console Output
+```
+🚀 Starting token exchange...
+✅ Logto Access Token obtained: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+🎉 SUCCESS! Custom JWT obtained: {
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expires_in": 86400,
+  "user": {
+    "id": "user_123",
+    "username": "john.doe",
+    "user_roles": ["Admin"],
+    "user_permissions": ["manage:systems"],
+    "org_role": "Distributor",
+    "org_permissions": ["create:resellers"]
   }
 }
+📋 User permissions: ["manage:systems"]
+🏢 Organization role: Distributor
+🔑 Custom Access Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+### ✅ Success!
+If you see this output, the token exchange is working perfectly!
+
+---
+
+## 🔧 Troubleshooting
+
+If you encounter errors during setup or testing, check these common issues:
+
+**1. Redirect URI Mismatch:**
+```
+🚨 Logto Error: redirect_uri_mismatch
+```
+Solution: Add `http://localhost:5173/callback` to Logto admin console
+
+**2. Invalid Client:**
+```
+🚨 Logto Error: invalid_client
+```
+Solution: Double-check your `appId` in main.js matches Logto admin console
+
+**3. Invalid Scope:**
+```
+🚨 Logto Error: invalid_scope
+```
+Solution: Check your API resource identifier and scopes
+
+**4. Cannot read properties of undefined (reading 'toString'):**
+```
+TypeError: Cannot read properties of undefined (reading 'toString')
+```
+Solutions:
+- Make sure your `endpoint` starts with `https://` (not `http://`)
+- Verify your `appId` is exactly copied from Logto admin console
+- Add explicit `redirectUri: 'http://localhost:5173/callback'` to config
+- Restart the dev server: `npm run dev`
+
+**5. Cannot destructure property 'redirectUri':**
+```
+Cannot destructure property 'redirectUri' of '(intermediate value)' as it is undefined
+```
+Solution: Use the `handleSignIn` function (already included in the code above) instead of calling `signIn` directly
+
+**6. invalid_target - resource indicator must be an absolute URI:**
+```
+?error=invalid_target&error_description=resource+indicator+must+be+an+absolute+URI
+```
+Solution: Make sure your `resources` array contains absolute URIs starting with `https://`
+```typescript
+// ❌ WRONG
+resources: ['your.api.domain']
+
+// ✅ CORRECT
+resources: ['https://your.api.domain']
+```
+
+**7. Invalid resource indicator / resource indicator is missing:**
+```
+oidc.invalid_target: Invalid resource indicator
+error_description: resource indicator is missing, or unknown
+```
+Solution: The API resource doesn't exist in Logto. You need to:
+1. Go to Logto Admin Console → **API Resources**
+2. Click **Create API Resource**
+3. Set identifier to `https://your.api.domain` (must match your config)
+4. Add the resource to your application scopes
+5. Update your configuration with the **exact** identifier from Logto
+
+---
+
+## 🔧 Additional Resources
+
+### Using Custom JWT for API Calls
+
+```javascript
+// Helper function for authenticated API requests
+const apiCall = async (endpoint, options = {}) => {
+  const token = localStorage.getItem('access_token');
+
+  const response = await fetch(`http://localhost:8080/api${endpoint}`, {
+    ...options,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      ...options.headers
+    }
+  });
+
+  return response.json();
+};
+
+// Example API calls
+const getMyProfile = () => apiCall('/auth/me');
+const listAccounts = () => apiCall('/accounts');
+const createAccount = (accountData) => apiCall('/accounts', {
+  method: 'POST',
+  body: JSON.stringify(accountData)
+});
 ```
 
 ---
 
-## 📝 Notes
-
-- All APIs are aligned with **Logto's Organization Management API**
-- **customData** field allows flexible metadata storage
-- **JIT (Just-In-Time) provisioning** automatically assigns organization roles
-- **Hierarchical validation** ensures proper business rules
-- **Security-first approach** with role IDs instead of names
-- **Refresh tokens** provide seamless session management with automatic token rotation
-- **Authorization controls** prevent cross-organization unauthorized access
-- **Real-time data refresh** ensures permissions are always up-to-date
-
-## 🔐 Security Features
-
-- **Token Expiration**: Access tokens (24h), Refresh tokens (7d)
-- **Token Rotation**: New tokens generated on each refresh
-- **Hierarchical Access Control**: Users can only access organizations they created or control
-- **Fresh Permission Sync**: User roles and permissions refreshed from Logto during token refresh
-- **Audit Trail**: All operations logged with user context and organization hierarchy
-
-For additional support or questions, refer to the project documentation in the README files.
+**🔗 Related Links**
+- [Project Overview](../README.md) - Main project documentation
+- [sync](../sync/README.md) - RBAC configuration management tool
