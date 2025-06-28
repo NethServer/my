@@ -20,20 +20,25 @@ my/
 ## 🚀 Components
 
 ### Backend API
-Go-based REST API featuring:
-- **Authentication**: Token exchange system with custom JWT generation
-- **Data Integration**: Real-time Management API integration for roles/permissions
-- **Authorization**: Simplified RBAC system with embedded permissions
-- **Account Management**: Hierarchical account creation and management with business rule enforcement
-- **Framework**: Gin web framework with middleware architecture
-- **Roles**: Admin, Support (user roles) + God, Distributor, Reseller, Customer (organization hierarchy)
+Professional Go-based REST API featuring:
+- **Authentication**: Logto JWT validation with JWKS caching and token exchange system
+- **Authorization**: Sophisticated RBAC with business hierarchy and technical capability separation
+- **Logging**: Structured zerolog-based system with security-first design and automatic sensitive data redaction
+- **Performance**: Thread-safe JWKS cache, optimized middleware chain, and embedded permissions
+- **Security**: Comprehensive audit trail, authentication event tracking, and pattern-based credential detection
+- **Account Management**: Hierarchical business rule enforcement with organizational role validation
+- **Framework**: Gin web framework with professional middleware architecture
+- **Integration**: Real-time Logto Management API data fetching for roles and permissions
 
 ### sync CLI
-Management tool for synchronizing RBAC configuration:
-- **Configuration Management**: YAML-based role and permission definitions
-- **Custom JWT Claims**: JavaScript-based claim customization
-- **Dry-run Support**: Safe configuration preview before applying changes
-- **Logto Integration**: Direct Management API synchronization
+Professional RBAC management tool featuring:
+- **Configuration Management**: Simplified YAML-based role and permission definitions with business/technical separation
+- **Logging**: Structured zerolog-based system with component isolation and security-first design
+- **Safety Features**: Comprehensive dry-run mode, system entity protection, and validation workflows
+- **Performance**: Optimized permission synchronization with deduplication and caching utilities
+- **Security**: Automatic sensitive data redaction in logs and pattern-based credential detection
+- **Monitoring**: Detailed operation tracking, API call timing, and configuration validation reporting
+- **Integration**: Direct Logto Management API synchronization with error handling and retry logic
 
 ## 🛠️ Quick Start
 
@@ -72,6 +77,34 @@ Each component has its own setup instructions:
 - **Backend API**: See [backend/API.md](./backend/API.md) for API server setup
 - **sync CLI**: See [sync/README.md](./sync/README.md) for RBAC management
 
+## 📝 Logging & Monitoring Architecture
+
+Both components feature professional-grade logging systems built on [zerolog](https://github.com/rs/zerolog):
+
+### Security-First Design
+- **Automatic Redaction**: Sensitive data (passwords, tokens, secrets) automatically sanitized from all logs
+- **Pattern Matching**: Advanced regex patterns detect and redact various credential formats in request bodies
+- **Audit Trail**: Complete authentication and authorization event tracking with user context
+- **Security Events**: Failed authentication attempts, invalid tokens, and authorization failures
+
+### Structured Observability
+- **Component Isolation**: Separate loggers for different system components (http, auth, rbac, api-client, sync, config)
+- **Performance Tracking**: HTTP request timing, API call duration, and system operation metrics  
+- **Operational Intelligence**: Configuration validation, sync operation status, and health monitoring
+- **Stream Separation**: Clean command output (stdout) separate from operational logs (stderr)
+
+### Production Integration
+```bash
+# Backend structured JSON logs
+GIN_MODE=release ./backend 2>&1 | jq 'select(.level == "error")'
+
+# sync tool component monitoring  
+LOG_LEVEL=debug ./sync sync 2>&1 | grep "component=api-client"
+
+# Security event monitoring
+./backend 2>&1 | jq 'select(.component == "auth" and .success == false)'
+```
+
 ## 🔐 Authorization Architecture
 
 The system implements a **token exchange pattern** with real-time Management API integration:
@@ -98,16 +131,43 @@ accountsGroup.POST("", methods.CreateAccount) // Business rule validation in han
 
 ## 📝 Configuration
 
-Configuration details are specific to each component:
-- **Backend**: Environment variables for Logto integration and Management API credentials
-- **sync**: Management API credentials and RBAC configuration files
+### Backend Configuration
+Environment variables for production deployment:
+```bash
+# Authentication (Required)
+LOGTO_ISSUER=https://your-logto-instance.logto.app
+LOGTO_AUDIENCE=your-api-resource-identifier
+JWT_SECRET=your-custom-jwt-secret
+
+# Management API (Required)
+LOGTO_MANAGEMENT_CLIENT_ID=your-m2m-client-id
+LOGTO_MANAGEMENT_CLIENT_SECRET=your-m2m-secret
+
+# Logging & Performance (Optional)
+GIN_MODE=release              # 'debug' for development
+LOG_LEVEL=info               # debug, info, warn, error
+LISTEN_ADDRESS=127.0.0.1:8080 # Server bind address
+```
+
+### sync Tool Configuration
+Environment variables and YAML configuration:
+```bash
+# Logto Management API (Required)
+LOGTO_BASE_URL=https://your-logto-instance.logto.app
+LOGTO_CLIENT_ID=your-m2m-client-id
+LOGTO_CLIENT_SECRET=your-m2m-secret
+
+# Logging (Optional)
+LOG_LEVEL=info               # debug, info, warn, error, fatal
+```
 
 ### Key Requirements
 - **Logto Instance**: Identity provider with RBAC configuration
-- **Management API**: Machine-to-Machine app with full API permissions
-- **Custom JWT**: Backend secret for signing custom tokens
+- **Management API**: Machine-to-Machine app with full API permissions for both components
+- **Custom JWT Secret**: Backend secret for signing custom tokens (backend only)
+- **RBAC Configuration**: YAML files defining roles and permissions (sync only)
 
-See individual README files for detailed configuration instructions.
+See individual README files for detailed configuration instructions and examples.
 
 ## 📚 Documentation
 

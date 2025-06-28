@@ -13,6 +13,9 @@ A robust CLI tool for synchronizing simplified Role-Based Access Control (RBAC) 
 - 📊 **Multiple Output Formats**: Text, JSON, and YAML
 - 🛡️ **Safe Operations**: Preserves system entities and validates configurations
 - 🔧 **Simplified Configuration**: YAML-based with clear business vs technical separation
+- 📝 **Structured Logging**: Professional zerolog-based logging with component isolation
+- 🔍 **Security Features**: Automatic sensitive data redaction in logs
+- 🎯 **Output Separation**: Clean command output (stdout) separate from logging (stderr)
 
 ## System Requirements
 
@@ -74,7 +77,10 @@ Required environment variables:
 - `LOGTO_BASE_URL`: Your Logto instance URL
 - `LOGTO_CLIENT_ID`: Management API client ID
 - `LOGTO_CLIENT_SECRET`: Management API client secret
-- `API_BASE_URL`: Your API base URL (optional, defaults to https://dev.my.nethesis.it)
+
+Optional environment variables:
+- `API_BASE_URL`: Your API base URL (defaults to https://dev.my.nethesis.it)
+- `LOG_LEVEL`: Logging level (debug, info, warn, error, fatal) - defaults to info
 
 2. **Create Configuration File**
 
@@ -183,9 +189,97 @@ sync sync -c hierarchy.yml --cleanup --verbose
 ### Global Flags
 
 - `-c, --config`: Configuration file path (default: ./hierarchy.yml)
-- `-v, --verbose`: Enable verbose output
+- `-v, --verbose`: Enable verbose output (equivalent to LOG_LEVEL=debug)
 - `--dry-run`: Show what would be done without making changes
 - `-o, --output`: Output format (text, json, yaml)
+
+## Logging & Output
+
+The sync tool features professional structured logging with clear separation between operational logs and command results.
+
+### Log Levels
+
+Configure logging verbosity using environment variables or command flags:
+
+```bash
+# Environment variable (recommended)
+export LOG_LEVEL=debug    # Maximum detail for debugging
+export LOG_LEVEL=info     # Standard information (default)
+export LOG_LEVEL=warn     # Only warnings and errors
+export LOG_LEVEL=error    # Only errors
+export LOG_LEVEL=fatal    # Only fatal errors
+
+# Command flag (sets LOG_LEVEL=debug)
+sync sync --verbose
+
+# Priority: LOG_LEVEL env var > --verbose flag > info (default)
+```
+
+### Output Streams
+
+The tool separates operational logs from command results:
+
+**📋 Logs (stderr) - Operational Information:**
+- Timestamped structured logs
+- Component-specific context
+- API call tracking with timing
+- Configuration loading status
+- Sync operation progress
+
+**📊 Results (stdout) - Command Output:**
+- Synchronization summary
+- Operation statistics
+- Formatted results (text/json/yaml)
+- Success/failure status
+
+### Practical Examples
+
+```bash
+# Only see results (hide logs)
+sync sync --dry-run 2>/dev/null
+
+# Only see logs (hide results)
+sync sync --dry-run >/dev/null
+
+# Save logs to file, show results on screen
+sync sync --dry-run 2>sync.log
+
+# Separate logs and results to different files
+sync sync --dry-run >results.txt 2>logs.txt
+
+# Debug mode with structured output
+LOG_LEVEL=debug sync sync --output json | jq '.summary'
+
+# Production monitoring (error logs only)
+LOG_LEVEL=error sync sync 2>>production.log
+```
+
+### Log Features
+
+**🔒 Security:**
+- Automatic redaction of sensitive data (tokens, passwords, secrets)
+- Safe logging of API endpoints and request bodies
+- Pattern-based detection of credentials
+
+**📊 Structured Data:**
+- Component isolation (api-client, sync, config)
+- API call tracking with HTTP status and timing
+- Sync operation results with success/failure status
+- Configuration validation with resource/role counts
+
+**🎯 Professional Output:**
+- RFC3339 timestamps
+- Consistent field naming
+- Machine-readable format
+- Human-friendly console display
+
+### Sample Structured Logs
+
+```
+2025-06-28T21:48:45+02:00 INF Configuration loaded component=config path=hierarchy.yml resources=4 roles=6 valid=true service=sync-tool
+2025-06-28T21:48:45+02:00 DBG API call completed component=api-client duration=156ms endpoint=/api/resources method=GET service=sync-tool status_code=200
+2025-06-28T21:48:46+02:00 INF Sync operation completed action=create entity=api-users operation=resource service=sync-tool success=true
+```
 
 ### Sync Command Flags
 
@@ -330,17 +424,24 @@ git commit -m "your commit message"
 ### Project Structure
 
 ```
-├── cmd/sync/       # CLI entry point
+├── cmd/sync/             # CLI entry point
 ├── internal/
 │   ├── cli/              # CLI commands and flags
-│   ├── client/           # Logto API client
+│   ├── client/           # Logto API client with structured logging
 │   ├── config/           # Configuration loading and validation
-│   ├── sync/             # Synchronization engine
-│   └── logger/           # Logging utilities
+│   ├── constants/        # Shared constants (timeouts, TTL values)
+│   ├── logger/           # Professional zerolog-based logging
+│   └── sync/             # Synchronization engine
+│       ├── engine.go     # Main sync orchestration
+│       ├── utils.go      # Common utilities (mappings, system detection)
+│       ├── roles.go      # User role permission synchronization
+│       ├── organization.go # Organization role synchronization
+│       └── resources.go  # Resource and scope synchronization
 ├── pkg/version/          # Version information
 ├── configs/              # Example configurations
 └── Makefile              # Build automation
 ```
+
 
 ## Examples
 
@@ -375,8 +476,8 @@ sync sync -c hierarchy.yml --cleanup            # Apply cleanup
 ### Troubleshooting Workflow
 
 ```bash
-# Test connection
-sync sync --dry-run --verbose
+# Test connection with detailed logs
+LOG_LEVEL=debug sync sync --dry-run
 
 # Check configuration validity
 sync sync -c hierarchy.yml --dry-run
@@ -386,6 +487,28 @@ sync sync -c hierarchy.yml --force
 
 # Detailed JSON output for debugging
 sync sync --output json | jq .operations
+
+# Debug API calls and performance
+LOG_LEVEL=debug sync sync --dry-run 2>debug.log
+grep "API call completed" debug.log  # Check API performance
+grep "component=config" debug.log    # Check config loading
+```
+
+### Advanced Logging Examples
+
+```bash
+# Production monitoring - only errors to syslog
+LOG_LEVEL=error sync sync 2>&1 | logger -t sync-tool
+
+# Development debugging with component isolation
+LOG_LEVEL=debug sync sync 2>&1 | grep "component=api-client"  # API calls only
+LOG_LEVEL=debug sync sync 2>&1 | grep "component=sync"       # Sync operations only
+
+# Performance analysis
+LOG_LEVEL=debug sync sync --dry-run 2>&1 | grep "duration=" | sort -k4 -nr
+
+# Separate monitoring streams
+sync sync --output json > results.json 2> >(LOG_LEVEL=warn cat > errors.log)
 ```
 
 ### Selective Synchronization

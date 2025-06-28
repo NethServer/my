@@ -5,10 +5,12 @@ Go REST API server for the Nethesis Operation Center, providing secure authentic
 ## 🏗️ Architecture
 
 ### Framework & Dependencies
-- **Framework**: [Gin](https://github.com/gin-gonic/gin) web framework
-- **Authentication**: Logto JWT token validation via JWKS endpoint
-- **JWT Handling**: [golang-jwt/jwt](https://github.com/golang-jwt/jwt)
+- **Framework**: [Gin](https://github.com/gin-gonic/gin) web framework with custom middleware
+- **Authentication**: Logto JWT token validation via JWKS endpoint with caching
+- **JWT Handling**: [golang-jwt/jwt](https://github.com/golang-jwt/jwt) for token validation
+- **Logging**: [zerolog](https://github.com/rs/zerolog) for structured, high-performance logging
 - **Configuration**: Environment variables with [godotenv](https://github.com/joho/godotenv)
+- **Security**: Built-in sensitive data redaction and audit logging
 - **CORS & Compression**: Built-in middleware support
 
 ### Project Structure
@@ -16,13 +18,19 @@ Go REST API server for the Nethesis Operation Center, providing secure authentic
 backend/
 ├── main.go                    # Server setup and route definitions
 ├── configuration/             # Environment configuration loading
-├── middleware/                # Authentication and simplified RBAC middleware
-│   ├── auth.go                # Logto JWT authentication with simplified claims
-│   └── simplified_rbac.go     # Unified RBAC with business + technical separation
-├── methods/                   # HTTP request handlers
+├── jwt/                       # Custom JWT utilities for legacy endpoints
+├── logger/                    # Professional zerolog-based logging system
+│   ├── logger.go              # Core logging with security features
+│   ├── helpers.go             # Logging helper functions
+│   └── middleware.go          # HTTP request logging middleware
+├── middleware/                # Authentication and RBAC middleware
+│   ├── jwt.go                 # Custom JWT middleware (legacy compatibility)
+│   ├── logto.go               # Logto JWT authentication with JWKS validation
+│   └── rbac.go                # Role-based access control with business/technical separation
+├── methods/                   # HTTP request handlers with structured logging
 ├── models/                    # Data structures with simplified User model
-├── logs/                      # Logging utilities
-└── response/                  # HTTP response helpers
+├── response/                  # Standardized HTTP response helpers
+└── services/                  # Business logic services (Logto client, etc.)
 ```
 
 ## 🔐 Simplified Authorization System
@@ -75,6 +83,105 @@ Final User Permissions = User Role Permissions + Organization Role Permissions
 ```
 
 Users get permissions from BOTH their technical capabilities AND their organization's business role.
+
+## 📝 Logging & Security
+
+The backend features a professional logging system built on [zerolog](https://github.com/rs/zerolog) with comprehensive security features and structured output.
+
+### Logging Features
+
+**🔒 Security-First Design:**
+- **Automatic Redaction**: Sensitive data (passwords, tokens, secrets) automatically sanitized from logs
+- **Pattern Matching**: Advanced regex patterns detect and redact various credential formats
+- **Request Sanitization**: HTTP request/response bodies cleaned before logging
+- **JWKS Protection**: JWT validation logs exclude sensitive key material
+
+**📊 Structured Logging:**
+- **Component Isolation**: Separate loggers for different system components (http, auth, rbac, logto-client)
+- **Request Tracking**: Complete HTTP request lifecycle with timing and context
+- **Authentication Events**: Detailed auth success/failure tracking with user context
+- **Performance Metrics**: Response times, database query timing, external API calls
+
+**🎯 Operational Intelligence:**
+- **Error Categorization**: Authentication, authorization, validation, and system errors
+- **User Context**: All operations linked to authenticated user and organization
+- **Audit Trail**: Security-relevant events with complete context
+- **Health Monitoring**: Service startup, configuration, and connectivity status
+
+### Log Configuration
+
+```bash
+# Environment Variables
+GIN_MODE=release          # Set to 'debug' for development
+LOG_LEVEL=info            # debug, info, warn, error (optional)
+
+# Development vs Production
+GIN_MODE=debug            # Colorized console output, verbose logging
+GIN_MODE=release          # JSON structured logs, optimized performance
+```
+
+### Sample Structured Logs
+
+**HTTP Request Logging:**
+```json
+{
+  "level": "info",
+  "component": "http",
+  "method": "POST",
+  "path": "/api/auth/exchange",
+  "status_code": 200,
+  "latency_ms": 45,
+  "client_ip": "192.168.1.100",
+  "user_agent": "Mozilla/5.0...",
+  "time": "2025-06-28T19:45:23Z",
+  "message": "HTTP request completed"
+}
+```
+
+**Authentication Events:**
+```json
+{
+  "level": "info",
+  "component": "auth",
+  "method": "logto_jwt",
+  "user_id": "user_abc123",
+  "organization_id": "org_def456",
+  "success": true,
+  "time": "2025-06-28T19:45:23Z",
+  "message": "Authentication successful"
+}
+```
+
+**Security Events:**
+```json
+{
+  "level": "warn",
+  "component": "auth",
+  "method": "logto_jwt", 
+  "reason": "token_expired",
+  "client_ip": "192.168.1.100",
+  "time": "2025-06-28T19:45:23Z",
+  "message": "Authentication failed"
+}
+```
+
+### Monitoring & Observability
+
+The structured logs integrate seamlessly with monitoring systems:
+
+```bash
+# Production log aggregation
+./backend 2>&1 | jq 'select(.level == "error")' | tee errors.log
+
+# Performance monitoring
+./backend 2>&1 | jq 'select(.component == "http" and .latency_ms > 1000)'
+
+# Security monitoring
+./backend 2>&1 | jq 'select(.component == "auth" and .success == false)'
+
+# Component-specific debugging
+./backend 2>&1 | jq 'select(.component == "logto-client")'
+```
 
 ## 🚀 Quick Start
 
