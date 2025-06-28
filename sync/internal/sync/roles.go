@@ -145,6 +145,44 @@ func (e *Engine) syncUserRoles(cfg *config.Config, result *Result) error {
 	return nil
 }
 
+// UserRolePermissionMappings holds all necessary mappings for user role permission sync
+type UserRolePermissionMappings struct {
+	RoleNameToID     map[string]string
+	ResourceNameToID map[string]string
+	ScopeMapping     *ScopeMapping
+}
+
+// buildUserRolePermissionMappings builds all necessary mappings for user role permission synchronization
+func (e *Engine) buildUserRolePermissionMappings(cfg *config.Config) (*UserRolePermissionMappings, error) {
+	// Get existing roles
+	existingRoles, err := e.client.GetRoles()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get existing user roles: %w", err)
+	}
+
+	// Get existing resources
+	existingResources, err := e.client.GetResources()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get existing resources: %w", err)
+	}
+
+	// Create mappings using utility functions
+	roleNameToID := CreateRoleNameToIDMapping(existingRoles)
+	resourceNameToID := CreateResourceNameToIDMapping(existingResources)
+
+	// Build global scope mapping
+	scopeMapping, err := BuildGlobalScopeMapping(e.client, cfg, resourceNameToID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &UserRolePermissionMappings{
+		RoleNameToID:     roleNameToID,
+		ResourceNameToID: resourceNameToID,
+		ScopeMapping:     scopeMapping,
+	}, nil
+}
+
 // syncUserRolePermissions synchronizes user role permissions
 func (e *Engine) syncUserRolePermissions(cfg *config.Config, result *Result) error {
 	logger.Info("Syncing user role permissions...")
@@ -157,137 +195,148 @@ func (e *Engine) syncUserRolePermissions(cfg *config.Config, result *Result) err
 	// Filter only user type roles
 	userRoles := cfg.GetUserTypeRoles(cfg.Hierarchy.UserRoles)
 
-	// Get existing roles to create name->ID mapping
-	existingRoles, err := e.client.GetRoles()
+	// Build necessary mappings
+	mappings, err := e.buildUserRolePermissionMappings(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to get existing user roles: %w", err)
-	}
-
-	roleNameToID := make(map[string]string)
-	for _, role := range existingRoles {
-		roleNameToID[strings.ToLower(role.Name)] = role.ID
-	}
-
-	// Get existing resources to create name->ID mapping
-	existingResources, err := e.client.GetResources()
-	if err != nil {
-		return fmt.Errorf("failed to get existing resources: %w", err)
-	}
-
-	resourceNameToID := make(map[string]string)
-	for _, resource := range existingResources {
-		resourceNameToID[resource.Name] = resource.ID
-	}
-
-	// Build global scope mapping from all resources
-	allScopeNameToID := make(map[string]string)
-	for _, configResource := range cfg.Hierarchy.Resources {
-		resourceID, exists := resourceNameToID[configResource.Name]
-		if !exists {
-			logger.Warn("Resource %s not found, skipping scope mappings", configResource.Name)
-			continue
-		}
-
-		scopes, err := e.client.GetScopes(resourceID)
-		if err != nil {
-			return fmt.Errorf("failed to get scopes for resource %s: %w", configResource.Name, err)
-		}
-
-		for _, scope := range scopes {
-			allScopeNameToID[scope.Name] = scope.ID
-		}
+		return err
 	}
 
 	// Process each user role
 	for _, configRole := range userRoles {
-		roleID, exists := roleNameToID[strings.ToLower(configRole.Name)]
-		if !exists {
-			logger.Warn("User role %s not found, skipping permission assignment", configRole.Name)
-			continue
-		}
-
-		// Get current permissions (scopes) for this role
-		currentPermissions, err := e.client.GetRolePermissions(roleID)
-		if err != nil {
-			return fmt.Errorf("failed to get permissions for role %s: %w", configRole.Name, err)
-		}
-
-		// Create map of current permission IDs
-		currentPermissionMap := make(map[string]bool)
-		for _, permission := range currentPermissions {
-			currentPermissionMap[permission.ID] = true
-		}
-
-		// Build expected permission IDs from config
-		expectedPermissionIDs := []string{}
-		expectedPermissionMap := make(map[string]bool)
-
-		for _, permission := range configRole.Permissions {
-			if permission.ID != "" {
-				if scopeID, exists := allScopeNameToID[permission.ID]; exists {
-					expectedPermissionIDs = append(expectedPermissionIDs, scopeID)
-					expectedPermissionMap[scopeID] = true
-				} else {
-					logger.Warn("Permission/scope %s not found for role %s", permission.ID, configRole.Name)
-				}
-			}
-		}
-
-		// Find permissions to add and remove
-		permissionsToAdd := []string{}
-		permissionsToRemove := []string{}
-
-		for scopeID := range expectedPermissionMap {
-			if !currentPermissionMap[scopeID] {
-				permissionsToAdd = append(permissionsToAdd, scopeID)
-			}
-		}
-
-		for scopeID := range currentPermissionMap {
-			if !expectedPermissionMap[scopeID] {
-				// Only remove permissions we manage (not system ones)
-				scopeName := ""
-				for name, id := range allScopeNameToID {
-					if id == scopeID {
-						scopeName = name
-						break
-					}
-				}
-				// Remove only if it's not a system permission
-				if scopeName != "" && !strings.Contains(strings.ToLower(scopeName), "management") {
-					permissionsToRemove = append(permissionsToRemove, scopeID)
-				}
-			}
-		}
-
-		// Add missing permissions
-		if len(permissionsToAdd) > 0 {
-			logger.Info("Assigning %d permissions to role %s", len(permissionsToAdd), configRole.Name)
-			err := e.client.AssignPermissionsToRole(roleID, permissionsToAdd)
-			e.addOperation(result, "user-role-permission", "assign",
-				fmt.Sprintf("%s (%d permissions)", configRole.Name, len(permissionsToAdd)),
-				"Assigned permissions to user role", err)
-			if err != nil {
-				return fmt.Errorf("failed to assign permissions to role %s: %w", configRole.Name, err)
-			}
-			result.Summary.PermissionsCreated += len(permissionsToAdd)
-		}
-
-		// Remove unwanted permissions
-		if len(permissionsToRemove) > 0 {
-			logger.Info("Removing %d permissions from role %s", len(permissionsToRemove), configRole.Name)
-			err := e.client.RemovePermissionsFromRole(roleID, permissionsToRemove)
-			e.addOperation(result, "user-role-permission", "remove",
-				fmt.Sprintf("%s (%d permissions)", configRole.Name, len(permissionsToRemove)),
-				"Removed permissions from user role", err)
-			if err != nil {
-				logger.Warn("Failed to remove permissions from role %s: %v", configRole.Name, err)
-			} else {
-				result.Summary.PermissionsDeleted += len(permissionsToRemove)
-			}
+		if err := e.syncSingleUserRolePermissions(configRole, mappings, result); err != nil {
+			return err
 		}
 	}
 
 	logger.Info("User role permissions sync completed")
+	return nil
+}
+
+// syncSingleUserRolePermissions synchronizes permissions for a single user role
+func (e *Engine) syncSingleUserRolePermissions(configRole config.Role, mappings *UserRolePermissionMappings, result *Result) error {
+	roleID, exists := mappings.RoleNameToID[strings.ToLower(configRole.Name)]
+	if !exists {
+		syncLogger := logger.ComponentLogger("sync")
+		syncLogger.Warn().
+			Str("role", configRole.Name).
+			Str("type", "user").
+			Msg("Role not found, skipping permission assignment")
+		return nil
+	}
+
+	// Get current permissions
+	currentPermissions, err := e.client.GetRolePermissions(roleID)
+	if err != nil {
+		return fmt.Errorf("failed to get permissions for role %s: %w", configRole.Name, err)
+	}
+
+	// Build current and expected permission sets
+	currentPermissionIDs := make([]string, 0, len(currentPermissions))
+	for _, permission := range currentPermissions {
+		currentPermissionIDs = append(currentPermissionIDs, permission.ID)
+	}
+
+	expectedPermissionIDs := e.buildExpectedPermissionIDs(configRole, mappings.ScopeMapping)
+
+	// Calculate differences using utility function
+	permissionNames := e.convertIDsToNames(currentPermissionIDs, expectedPermissionIDs, mappings.ScopeMapping)
+	diff := CalculatePermissionDiff(permissionNames.Current, permissionNames.Expected)
+
+	// Apply changes
+	return e.applyUserRolePermissionChanges(roleID, configRole.Name, diff, mappings.ScopeMapping, result)
+}
+
+// PermissionNameSets holds current and expected permission names
+type PermissionNameSets struct {
+	Current  []string
+	Expected []string
+}
+
+// convertIDsToNames converts permission IDs to names for easier comparison
+func (e *Engine) convertIDsToNames(currentIDs, expectedIDs []string, scopeMapping *ScopeMapping) *PermissionNameSets {
+	current := make([]string, 0, len(currentIDs))
+	for _, id := range currentIDs {
+		if name, exists := scopeMapping.IDToName[id]; exists {
+			current = append(current, name)
+		}
+	}
+
+	expected := make([]string, 0, len(expectedIDs))
+	for _, id := range expectedIDs {
+		if name, exists := scopeMapping.IDToName[id]; exists {
+			expected = append(expected, name)
+		}
+	}
+
+	return &PermissionNameSets{
+		Current:  current,
+		Expected: expected,
+	}
+}
+
+// buildExpectedPermissionIDs builds list of expected permission IDs from config
+func (e *Engine) buildExpectedPermissionIDs(configRole config.Role, scopeMapping *ScopeMapping) []string {
+	expectedIDs := make([]string, 0, len(configRole.Permissions))
+
+	for _, permission := range configRole.Permissions {
+		if permission.ID != "" {
+			if scopeID, exists := scopeMapping.NameToID[permission.ID]; exists {
+				expectedIDs = append(expectedIDs, scopeID)
+			} else {
+				logger.Warn("Permission/scope %s not found for role %s", permission.ID, configRole.Name)
+			}
+		}
+	}
+
+	return expectedIDs
+}
+
+// applyUserRolePermissionChanges applies permission changes to a user role
+func (e *Engine) applyUserRolePermissionChanges(roleID, roleName string, diff *PermissionDiff, scopeMapping *ScopeMapping, result *Result) error {
+	// Add missing permissions
+	if len(diff.ToAdd) > 0 {
+		permissionIDs := make([]string, 0, len(diff.ToAdd))
+		for _, permName := range diff.ToAdd {
+			if scopeID, exists := scopeMapping.NameToID[permName]; exists {
+				permissionIDs = append(permissionIDs, scopeID)
+			}
+		}
+
+		if len(permissionIDs) > 0 {
+			logger.Info("Assigning %d permissions to role %s", len(permissionIDs), roleName)
+			err := e.client.AssignPermissionsToRole(roleID, permissionIDs)
+			e.addOperation(result, "user-role-permission", "assign",
+				fmt.Sprintf("%s (%d permissions)", roleName, len(permissionIDs)),
+				"Assigned permissions to user role", err)
+			if err != nil {
+				return fmt.Errorf("failed to assign permissions to role %s: %w", roleName, err)
+			}
+			result.Summary.PermissionsCreated += len(permissionIDs)
+		}
+	}
+
+	// Remove unwanted permissions
+	if len(diff.ToRemove) > 0 {
+		permissionIDs := make([]string, 0, len(diff.ToRemove))
+		for _, permName := range diff.ToRemove {
+			if scopeID, exists := scopeMapping.NameToID[permName]; exists {
+				permissionIDs = append(permissionIDs, scopeID)
+			}
+		}
+
+		if len(permissionIDs) > 0 {
+			logger.Info("Removing %d permissions from role %s", len(permissionIDs), roleName)
+			err := e.client.RemovePermissionsFromRole(roleID, permissionIDs)
+			e.addOperation(result, "user-role-permission", "remove",
+				fmt.Sprintf("%s (%d permissions)", roleName, len(permissionIDs)),
+				"Removed permissions from user role", err)
+			if err != nil {
+				logger.Warn("Failed to remove permissions from role %s: %v", roleName, err)
+			} else {
+				result.Summary.PermissionsDeleted += len(permissionIDs)
+			}
+		}
+	}
+
 	return nil
 }

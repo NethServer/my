@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/nethesis/my/sync/internal/constants"
 	"github.com/nethesis/my/sync/internal/logger"
 )
 
@@ -36,7 +37,7 @@ func NewLogtoClient(baseURL, clientID, clientSecret string) *LogtoClient {
 		BaseURL:      baseURL,
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
-		HTTPClient:   &http.Client{Timeout: 30 * time.Second},
+		HTTPClient:   &http.Client{Timeout: constants.DefaultHTTPTimeout * time.Second},
 	}
 }
 
@@ -66,6 +67,8 @@ func (c *LogtoClient) TestConnection() error {
 
 // makeRequest makes an authenticated request to the Logto API
 func (c *LogtoClient) makeRequest(method, endpoint string, body interface{}) (*http.Response, error) {
+	start := time.Now()
+	
 	// Ensure we have a valid access token
 	if err := c.getAccessToken(); err != nil {
 		return nil, fmt.Errorf("failed to get access token: %w", err)
@@ -78,9 +81,18 @@ func (c *LogtoClient) makeRequest(method, endpoint string, body interface{}) (*h
 			return nil, fmt.Errorf("failed to marshal request body: %w", err)
 		}
 		reqBody = bytes.NewBuffer(jsonBody)
-		logger.Debug("%s %s with body: %s", method, endpoint, string(jsonBody))
+		apiLogger := logger.ComponentLogger("api-client")
+		apiLogger.Debug().
+			Str("method", method).
+			Str("endpoint", endpoint).
+			Str("body", logger.SanitizeMessage(string(jsonBody))).
+			Msg("Making API request with body")
 	} else {
-		logger.Debug("%s %s", method, endpoint)
+		apiLogger := logger.ComponentLogger("api-client")
+		apiLogger.Debug().
+			Str("method", method).
+			Str("endpoint", endpoint).
+			Msg("Making API request")
 	}
 
 	req, err := http.NewRequest(method, c.BaseURL+endpoint, reqBody)
@@ -92,11 +104,22 @@ func (c *LogtoClient) makeRequest(method, endpoint string, body interface{}) (*h
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.HTTPClient.Do(req)
+	duration := time.Since(start)
+	
 	if err != nil {
+		apiLogger := logger.ComponentLogger("api-client")
+		apiLogger.Error().
+			Str("method", method).
+			Str("endpoint", endpoint).
+			Dur("duration", duration).
+			Err(err).
+			Msg("API request failed")
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 
-	logger.Debug("Response status: %d", resp.StatusCode)
+	// Log the API call with structured logging
+	logger.LogAPICall(method, endpoint, resp.StatusCode, duration)
+	
 	return resp, nil
 }
 

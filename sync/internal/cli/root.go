@@ -14,6 +14,7 @@ import (
 	"os"
 
 	"github.com/joho/godotenv"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -83,11 +84,21 @@ func initConfig() {
 	viper.AutomaticEnv()
 
 	// Initialize logger
-	logLevel := logger.InfoLevel
-	if viper.GetBool("verbose") {
-		logLevel = logger.DebugLevel
+	err := logger.InitFromEnv("sync-tool")
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize logger")
 	}
-	logger.Init(logLevel)
+	
+	// Set log level based on flags and environment
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "" {
+		if viper.GetBool("verbose") {
+			logLevel = "debug"
+		} else {
+			logLevel = "info"
+		}
+	}
+	logger.SetLevel(logLevel)
 
 	// If a config file is found, read it in
 	if err := viper.ReadInConfig(); err == nil && verbose {

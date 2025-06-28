@@ -14,6 +14,7 @@ import (
 
 	"github.com/nethesis/my/sync/internal/client"
 	"github.com/nethesis/my/sync/internal/config"
+	"github.com/nethesis/my/sync/internal/constants"
 	"github.com/nethesis/my/sync/internal/logger"
 )
 
@@ -75,7 +76,7 @@ func (e *Engine) syncResources(cfg *config.Config, result *Result) error {
 						Name:           configResource.Name,
 						Indicator:      expectedIndicator,
 						IsDefault:      false,
-						AccessTokenTTL: 3600,
+						AccessTokenTTL: constants.DefaultTokenTTL,
 					}
 
 					err = e.client.CreateResource(logtoResource)
@@ -102,7 +103,7 @@ func (e *Engine) syncResources(cfg *config.Config, result *Result) error {
 					Name:           configResource.Name,
 					Indicator:      expectedIndicator,
 					IsDefault:      false,
-					AccessTokenTTL: 3600,
+					AccessTokenTTL: constants.DefaultTokenTTL,
 				}
 
 				err := e.client.CreateResource(logtoResource)

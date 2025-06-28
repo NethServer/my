@@ -174,9 +174,9 @@ func (e *Engine) addOperation(result *Result, opType, action, resource, descript
 
 	if err != nil {
 		op.Error = err.Error()
-		logger.Error("Operation failed: %s %s %s - %v", opType, action, resource, err)
+		logger.LogSyncOperation(opType, resource, action, false, err)
 	} else {
-		logger.Info("Operation successful: %s %s %s - %s", opType, action, resource, description)
+		logger.LogSyncOperation(opType, resource, action, true, nil)
 	}
 
 	result.Operations = append(result.Operations, op)
