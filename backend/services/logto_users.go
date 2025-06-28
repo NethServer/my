@@ -23,7 +23,7 @@ func (c *LogtoManagementClient) GetUserByID(userID string) (*LogtoUser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("user not found")
@@ -53,7 +53,7 @@ func (c *LogtoManagementClient) CreateUser(request CreateUserRequest) (*LogtoUse
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -79,7 +79,7 @@ func (c *LogtoManagementClient) UpdateUser(userID string, request UpdateUserRequ
 	if err != nil {
 		return nil, fmt.Errorf("failed to update user: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -100,7 +100,7 @@ func (c *LogtoManagementClient) DeleteUser(userID string) error {
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -127,7 +127,7 @@ func (c *LogtoManagementClient) AssignUserToOrganization(orgID, userID string) e
 	if err != nil {
 		return fmt.Errorf("failed to assign user to organization: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)

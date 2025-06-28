@@ -27,10 +27,7 @@ func CreateDistributor(c *gin.Context) {
 		return
 	}
 
-	_, exists := c.Get("user_id")
-	if !exists {
-		// user context missing - handled by middleware
-	}
+	_, _ = c.Get("user_id") // user context verified by middleware
 	userOrgID, _ := c.Get("organization_id")
 
 	// Create organization in Logto

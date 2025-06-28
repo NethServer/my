@@ -229,7 +229,7 @@ func getPublicKey(kid string) (*rsa.PublicKey, error) {
 			Msg("Failed to fetch JWKS")
 		return nil, fmt.Errorf("failed to fetch JWKS: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check HTTP status code
 	if resp.StatusCode != http.StatusOK {

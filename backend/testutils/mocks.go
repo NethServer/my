@@ -39,22 +39,22 @@ func MockLogtoHTTPServer(t *testing.T) *httptest.Server {
 		case strings.Contains(r.URL.Path, "/oidc/userinfo"):
 			// Mock userinfo endpoint
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(LogtoMockResponses.UserInfo))
+			_, _ = w.Write([]byte(LogtoMockResponses.UserInfo))
 
 		case strings.Contains(r.URL.Path, "/api/users") && strings.Contains(r.URL.Path, "/roles"):
 			// Mock user roles endpoint
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(LogtoMockResponses.Roles))
+			_, _ = w.Write([]byte(LogtoMockResponses.Roles))
 
 		case strings.Contains(r.URL.Path, "/api/users") && strings.Contains(r.URL.Path, "/organizations"):
 			// Mock user organizations endpoint
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(LogtoMockResponses.Organizations))
+			_, _ = w.Write([]byte(LogtoMockResponses.Organizations))
 
 		case strings.Contains(r.URL.Path, "/oidc/token"):
 			// Mock token endpoint for management API
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"access_token": "mock-management-token",
 				"token_type": "Bearer",
 				"expires_in": 3600
@@ -63,7 +63,7 @@ func MockLogtoHTTPServer(t *testing.T) *httptest.Server {
 		default:
 			// Default fallback
 			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte(`{"error": "endpoint not found"}`))
+			_, _ = w.Write([]byte(`{"error": "endpoint not found"}`))
 		}
 	})
 

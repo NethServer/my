@@ -195,5 +195,7 @@ func main() {
 
 	// Run server
 	logger.LogServiceStart("nethesis-backend", "1.0.0", configuration.Config.ListenAddress)
-	router.Run(configuration.Config.ListenAddress)
+	if err := router.Run(configuration.Config.ListenAddress); err != nil {
+		logger.Fatal().Err(err).Msg("Failed to start server")
+	}
 }

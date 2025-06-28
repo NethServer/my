@@ -39,7 +39,7 @@ func GetUserInfoFromLogto(accessToken string) (*LogtoUserInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user info: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check response status
 	if resp.StatusCode != http.StatusOK {

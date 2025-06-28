@@ -26,7 +26,7 @@ func (c *LogtoManagementClient) GetUserRoles(userID string) ([]LogtoRole, error)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user roles: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -47,7 +47,7 @@ func (c *LogtoManagementClient) GetRoleScopes(roleID string) ([]LogtoScope, erro
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch role scopes: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -68,7 +68,7 @@ func (c *LogtoManagementClient) GetUserOrganizationRoles(orgID, userID string) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user organization roles: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -89,7 +89,7 @@ func (c *LogtoManagementClient) GetOrganizationRoleScopes(roleID string) ([]Logt
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch organization role scopes: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -110,7 +110,7 @@ func (c *LogtoManagementClient) GetRoleByName(roleName string) (*LogtoRole, erro
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch roles: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -137,7 +137,7 @@ func (c *LogtoManagementClient) GetOrganizationRoleByName(roleName string) (*Log
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch organization roles: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -173,7 +173,7 @@ func (c *LogtoManagementClient) AssignUserRoles(userID string, roleIDs []string)
 	if err != nil {
 		return fmt.Errorf("failed to assign user roles: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -207,7 +207,7 @@ func (c *LogtoManagementClient) AssignOrganizationRolesToUser(orgID, userID stri
 	if err != nil {
 		return fmt.Errorf("failed to assign organization roles to user: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)

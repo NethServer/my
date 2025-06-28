@@ -25,7 +25,7 @@ func (c *LogtoManagementClient) GetUserOrganizations(userID string) ([]LogtoOrga
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user organizations: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -46,7 +46,7 @@ func (c *LogtoManagementClient) GetAllOrganizations() ([]LogtoOrganization, erro
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch organizations: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -67,7 +67,7 @@ func (c *LogtoManagementClient) GetOrganizationByID(orgID string) (*LogtoOrganiz
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch organization: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("organization not found")
@@ -97,7 +97,7 @@ func (c *LogtoManagementClient) CreateOrganization(request CreateOrganizationReq
 	if err != nil {
 		return nil, fmt.Errorf("failed to create organization: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(resp.Body)
@@ -123,7 +123,7 @@ func (c *LogtoManagementClient) UpdateOrganization(orgID string, request UpdateO
 	if err != nil {
 		return nil, fmt.Errorf("failed to update organization: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -144,7 +144,7 @@ func (c *LogtoManagementClient) DeleteOrganization(orgID string) error {
 	if err != nil {
 		return fmt.Errorf("failed to delete organization: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -160,7 +160,7 @@ func (c *LogtoManagementClient) GetOrganizationJitRoles(orgID string) ([]LogtoOr
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch organization JIT roles: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -190,7 +190,7 @@ func (c *LogtoManagementClient) AssignOrganizationJitRoles(orgID string, roleIDs
 	if err != nil {
 		return fmt.Errorf("failed to assign JIT roles: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusNoContent {
 		body, _ := io.ReadAll(resp.Body)
@@ -206,7 +206,7 @@ func (c *LogtoManagementClient) GetOrganizationUsers(orgID string) ([]LogtoUser,
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch organization users: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)

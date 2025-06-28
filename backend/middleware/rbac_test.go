@@ -402,14 +402,14 @@ func TestHelperFunctions(t *testing.T) {
 func setupTestEnvironment() {
 	if !isTestEnvironmentSetup {
 		// Set test environment variables
-		os.Setenv("JWT_SECRET", "test-secret-key-for-testing-only")
-		os.Setenv("JWT_ISSUER", "test-issuer")
-		os.Setenv("JWT_EXPIRATION", "24h")
-		os.Setenv("JWT_REFRESH_EXPIRATION", "168h")
-		os.Setenv("LOGTO_ISSUER", "https://test-logto.example.com")
-		os.Setenv("LOGTO_AUDIENCE", "test-api-resource")
-		os.Setenv("LOGTO_MANAGEMENT_CLIENT_ID", "test-client-id")
-		os.Setenv("LOGTO_MANAGEMENT_CLIENT_SECRET", "test-client-secret")
+		_ = os.Setenv("JWT_SECRET", "test-secret-key-for-testing-only")
+		_ = os.Setenv("JWT_ISSUER", "test-issuer")
+		_ = os.Setenv("JWT_EXPIRATION", "24h")
+		_ = os.Setenv("JWT_REFRESH_EXPIRATION", "168h")
+		_ = os.Setenv("LOGTO_ISSUER", "https://test-logto.example.com")
+		_ = os.Setenv("LOGTO_AUDIENCE", "test-api-resource")
+		_ = os.Setenv("LOGTO_MANAGEMENT_CLIENT_ID", "test-client-id")
+		_ = os.Setenv("LOGTO_MANAGEMENT_CLIENT_SECRET", "test-client-secret")
 
 		gin.SetMode(gin.TestMode)
 		logs.Init("[TEST]")
