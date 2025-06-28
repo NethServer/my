@@ -14,28 +14,13 @@ import (
 
 	"github.com/fatih/structs"
 	"github.com/gin-gonic/gin"
-	"github.com/nethesis/my/backend/models"
+	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/response"
 )
 
 func GetProfile(c *gin.Context) {
-	userInterface, exists := c.Get("user")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, structs.Map(response.StatusUnauthorized{
-			Code:    401,
-			Message: "user not found",
-			Data:    nil,
-		}))
-		return
-	}
-
-	user, ok := userInterface.(*models.User)
+	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "invalid user context",
-			Data:    nil,
-		}))
 		return
 	}
 
@@ -61,5 +46,42 @@ func GetProtectedResource(c *gin.Context) {
 		Code:    200,
 		Message: "protected resource accessed successfully",
 		Data:    gin.H{"user_id": userID, "resource": "sensitive data"},
+	}))
+}
+
+// GetUserPermissions returns user permissions and role information
+func GetUserPermissions(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	permissionsData := gin.H{
+		"user_roles":        user.UserRoles,
+		"user_permissions":  user.UserPermissions,
+		"org_role":          user.OrgRole,
+		"org_permissions":   user.OrgPermissions,
+		"organization_id":   user.OrganizationID,
+		"organization_name": user.OrganizationName,
+	}
+
+	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
+		Code:    200,
+		Message: "user permissions retrieved successfully",
+		Data:    permissionsData,
+	}))
+}
+
+// GetUserProfile returns complete user profile with business context
+func GetUserProfile(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
+		Code:    200,
+		Message: "user profile retrieved successfully",
+		Data:    user,
 	}))
 }

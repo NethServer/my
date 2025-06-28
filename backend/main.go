@@ -65,34 +65,34 @@ func main() {
 	})
 
 	// ===========================================
-	// AUTH ENDPOINTS (public)
+	// AUTH ENDPOINTS
 	// ===========================================
-	auth := api.Group("/auth")
+	// Public auth endpoints
+	api.POST("/auth/exchange", methods.ExchangeToken)
+	api.POST("/auth/refresh", methods.RefreshToken)
+	
+	// Protected auth endpoint
+	api.GET("/auth/me", middleware.JWTAuthMiddleware(), methods.GetCurrentUser)
+
+	// ===========================================
+	// PROTECTED ROUTES (Logto Authentication)
+	// ===========================================
+	protectedLogto := api.Group("/", middleware.LogtoAuthMiddleware())
+
+	// User endpoints (use Logto authentication)
+	userGroup := protectedLogto.Group("/user")
 	{
-		// Token exchange endpoint - converts Logto access_token to our custom JWT
-		auth.POST("/exchange", methods.ExchangeToken)
-		// Token refresh endpoint - refreshes access token using refresh token
-		auth.POST("/refresh", methods.RefreshToken)
+		userGroup.GET("/permissions", methods.GetUserPermissions)
+		userGroup.GET("/profile", methods.GetUserProfile)
 	}
 
-	// Protected auth endpoints (require custom JWT)
-	authProtected := api.Group("/auth", middleware.CustomAuthMiddleware())
-	{
-		// Current user information from JWT token
-		authProtected.GET("/me", methods.GetCurrentUser)
-	}
-
 	// ===========================================
-	// PROTECTED ROUTES (Custom JWT)
+	// PROTECTED ROUTES (Custom JWT - for compatibility)
 	// ===========================================
-	protected := api.Group("/", middleware.CustomAuthMiddleware())
+	protected := api.Group("/", middleware.JWTAuthMiddleware())
+
+	// Business operations
 	{
-		// User profile
-		protected.GET("/profile", methods.GetProfile)
-
-		// Protected resource
-		protected.GET("/protected", methods.GetProtectedResource)
-
 		// ===========================================
 		// SYSTEMS - Hybrid approach
 		// ===========================================

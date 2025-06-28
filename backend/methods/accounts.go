@@ -200,16 +200,27 @@ func CreateAccount(c *gin.Context) {
 	currentUserID, _ := c.Get("user_id")
 	currentUserOrgID, _ := c.Get("organization_id")
 	currentUserOrgRole, _ := c.Get("org_role")
-	currentUserRole, _ := c.Get("user_role")
+	currentUserRoles, _ := c.Get("user_roles")
 
 	// Validate required user context
-	if currentUserOrgRole == nil || currentUserOrgID == nil || currentUserRole == nil {
+	if currentUserOrgRole == nil || currentUserOrgID == nil || currentUserRoles == nil {
 		logs.Logs.Printf("[ERROR][ACCOUNTS] Missing required user context in JWT token")
-		c.JSON(http.StatusUnauthorized, structs.Map(response.StatusUnauthorized{
-			Code:    401,
-			Message: "incomplete user context in token",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("incomplete user context in token", nil))
+		return
+	}
+
+	// Extract user role from array (Admin role is required for account creation)
+	userRolesSlice := currentUserRoles.([]string)
+	var currentUserRole string
+	for _, role := range userRolesSlice {
+		if role == "Admin" {
+			currentUserRole = "Admin"
+			break
+		}
+	}
+	if currentUserRole == "" {
+		logs.Logs.Printf("[ERROR][ACCOUNTS] User does not have Admin role required for account creation")
+		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to create accounts", nil))
 		return
 	}
 
@@ -259,7 +270,7 @@ func CreateAccount(c *gin.Context) {
 	canCreate, reason := CanCreateAccountForOrganization(
 		currentUserOrgRole.(string),
 		currentUserOrgID.(string),
-		currentUserRole.(string),
+		currentUserRole,
 		request.OrganizationID,
 		targetOrgRole,
 		targetOrg,
@@ -541,16 +552,27 @@ func UpdateAccount(c *gin.Context) {
 	currentUserID, _ := c.Get("user_id")
 	currentUserOrgID, _ := c.Get("organization_id")
 	currentUserOrgRole, _ := c.Get("org_role")
-	currentUserRole, _ := c.Get("user_role")
+	currentUserRoles, _ := c.Get("user_roles")
 
 	// Validate required user context
-	if currentUserOrgRole == nil || currentUserOrgID == nil || currentUserRole == nil {
+	if currentUserOrgRole == nil || currentUserOrgID == nil || currentUserRoles == nil {
 		logs.Logs.Printf("[ERROR][ACCOUNTS] Missing required user context in JWT token")
-		c.JSON(http.StatusUnauthorized, structs.Map(response.StatusUnauthorized{
-			Code:    401,
-			Message: "incomplete user context in token",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("incomplete user context in token", nil))
+		return
+	}
+
+	// Extract user role from array (Admin role is required for account operations)
+	userRolesSlice := currentUserRoles.([]string)
+	var currentUserRole string
+	for _, role := range userRolesSlice {
+		if role == "Admin" {
+			currentUserRole = "Admin"
+			break
+		}
+	}
+	if currentUserRole == "" {
+		logs.Logs.Printf("[ERROR][ACCOUNTS] User does not have Admin role required for account operations")
+		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to modify accounts", nil))
 		return
 	}
 
@@ -583,7 +605,7 @@ func UpdateAccount(c *gin.Context) {
 	canOperate, reason := CanOperateOnAccount(
 		currentUserOrgRole.(string),
 		currentUserOrgID.(string),
-		currentUserRole.(string),
+		currentUserRole,
 		currentAccount,
 		targetOrg,
 	)
@@ -684,16 +706,27 @@ func DeleteAccount(c *gin.Context) {
 	currentUserID, _ := c.Get("user_id")
 	currentUserOrgID, _ := c.Get("organization_id")
 	currentUserOrgRole, _ := c.Get("org_role")
-	currentUserRole, _ := c.Get("user_role")
+	currentUserRoles, _ := c.Get("user_roles")
 
 	// Validate required user context
-	if currentUserOrgRole == nil || currentUserOrgID == nil || currentUserRole == nil {
+	if currentUserOrgRole == nil || currentUserOrgID == nil || currentUserRoles == nil {
 		logs.Logs.Printf("[ERROR][ACCOUNTS] Missing required user context in JWT token")
-		c.JSON(http.StatusUnauthorized, structs.Map(response.StatusUnauthorized{
-			Code:    401,
-			Message: "incomplete user context in token",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("incomplete user context in token", nil))
+		return
+	}
+
+	// Extract user role from array (Admin role is required for account operations)
+	userRolesSlice := currentUserRoles.([]string)
+	var currentUserRole string
+	for _, role := range userRolesSlice {
+		if role == "Admin" {
+			currentUserRole = "Admin"
+			break
+		}
+	}
+	if currentUserRole == "" {
+		logs.Logs.Printf("[ERROR][ACCOUNTS] User does not have Admin role required for account operations")
+		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to delete accounts", nil))
 		return
 	}
 
@@ -726,7 +759,7 @@ func DeleteAccount(c *gin.Context) {
 	canOperate, reason := CanOperateOnAccount(
 		currentUserOrgRole.(string),
 		currentUserOrgID.(string),
-		currentUserRole.(string),
+		currentUserRole,
 		currentAccount,
 		targetOrg,
 	)
