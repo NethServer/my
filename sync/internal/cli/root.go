@@ -88,7 +88,7 @@ func initConfig() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize logger")
 	}
-	
+
 	// Set log level based on flags and environment
 	logLevel := os.Getenv("LOG_LEVEL")
 	if logLevel == "" {

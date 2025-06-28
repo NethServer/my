@@ -83,13 +83,13 @@ func runSync(cmd *cobra.Command, args []string) error {
 	// Log configuration loading with structured data
 	resourceCount := len(cfg.Hierarchy.Resources)
 	roleCount := len(cfg.Hierarchy.UserRoles) + len(cfg.Hierarchy.OrganizationRoles)
-	
+
 	// Validate configuration
 	if err := cfg.Validate(); err != nil && !viper.GetBool("force") {
 		logger.LogConfigLoad(configFile, resourceCount, roleCount, false)
 		return fmt.Errorf("configuration validation failed: %w", err)
 	}
-	
+
 	logger.LogConfigLoad(configFile, resourceCount, roleCount, true)
 
 	// Create Logto client

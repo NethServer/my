@@ -68,7 +68,7 @@ func (c *LogtoClient) TestConnection() error {
 // makeRequest makes an authenticated request to the Logto API
 func (c *LogtoClient) makeRequest(method, endpoint string, body interface{}) (*http.Response, error) {
 	start := time.Now()
-	
+
 	// Ensure we have a valid access token
 	if err := c.getAccessToken(); err != nil {
 		return nil, fmt.Errorf("failed to get access token: %w", err)
@@ -105,7 +105,7 @@ func (c *LogtoClient) makeRequest(method, endpoint string, body interface{}) (*h
 
 	resp, err := c.HTTPClient.Do(req)
 	duration := time.Since(start)
-	
+
 	if err != nil {
 		apiLogger := logger.ComponentLogger("api-client")
 		apiLogger.Error().
@@ -119,7 +119,7 @@ func (c *LogtoClient) makeRequest(method, endpoint string, body interface{}) (*h
 
 	// Log the API call with structured logging
 	logger.LogAPICall(method, endpoint, resp.StatusCode, duration)
-	
+
 	return resp, nil
 }
 
