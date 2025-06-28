@@ -355,8 +355,8 @@ func CreateAccount(c *gin.Context) {
 		var logLevel string
 
 		// Check for different status codes and extract JSON
-		statusMappings := map[string]struct{
-			code int
+		statusMappings := map[string]struct {
+			code  int
 			level string
 		}{
 			"status 400: ": {http.StatusBadRequest, "warn"},
@@ -566,10 +566,10 @@ func GetAccounts(c *gin.Context) {
 			orgAccounts, err := client.GetOrganizationUsers(org.ID)
 			if err != nil {
 				logger.RequestLogger(c, "accounts").Warn().
-				Err(err).
-				Str("operation", "fetch_org_accounts").
-				Str("org_id", org.ID).
-				Msg("Failed to fetch accounts for organization")
+					Err(err).
+					Str("operation", "fetch_org_accounts").
+					Str("org_id", org.ID).
+					Msg("Failed to fetch accounts for organization")
 				continue
 			}
 
@@ -645,9 +645,9 @@ func UpdateAccount(c *gin.Context) {
 			targetOrg, err = client.GetOrganizationByID(orgID)
 			if err != nil {
 				logger.RequestLogger(c, "accounts").Warn().
-				Err(err).
-				Str("operation", "fetch_target_organization").
-				Msg("Failed to fetch target organization")
+					Err(err).
+					Str("operation", "fetch_target_organization").
+					Msg("Failed to fetch target organization")
 			}
 		}
 	}
@@ -781,9 +781,9 @@ func DeleteAccount(c *gin.Context) {
 			targetOrg, err = client.GetOrganizationByID(orgID)
 			if err != nil {
 				logger.RequestLogger(c, "accounts").Warn().
-				Err(err).
-				Str("operation", "fetch_target_organization").
-				Msg("Failed to fetch target organization")
+					Err(err).
+					Str("operation", "fetch_target_organization").
+					Msg("Failed to fetch target organization")
 			}
 		}
 	}

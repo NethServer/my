@@ -245,11 +245,11 @@ func LogConfigLoad(component, configType string, success bool, err error) {
 			Msg(fmt.Sprintf("%s configuration loaded", configType))
 	} else {
 		logger.Fatal(). // Configuration failures are fatal
-			Str("operation", "config_load").
-			Str("config_type", configType).
-			Bool("success", false).
-			Err(err).
-			Msg(fmt.Sprintf("Failed to load %s configuration", configType))
+				Str("operation", "config_load").
+				Str("config_type", configType).
+				Bool("success", false).
+				Err(err).
+				Msg(fmt.Sprintf("Failed to load %s configuration", configType))
 	}
 }
 

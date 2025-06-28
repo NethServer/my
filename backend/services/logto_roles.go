@@ -264,10 +264,10 @@ func EnrichUserWithRolesAndPermissions(userID string) (*models.User, error) {
 			scopes, err := client.GetRoleScopes(role.ID)
 			if err != nil {
 				logger.ComponentLogger("logto").Warn().
-				Err(err).
-				Str("operation", "fetch_role_scopes").
-				Str("role_id", role.ID).
-				Msg("Failed to fetch role scopes")
+					Err(err).
+					Str("operation", "fetch_role_scopes").
+					Str("role_id", role.ID).
+					Msg("Failed to fetch role scopes")
 				continue
 			}
 			for _, scope := range scopes {
@@ -304,11 +304,11 @@ func EnrichUserWithRolesAndPermissions(userID string) (*models.User, error) {
 			orgRoles, err := client.GetUserOrganizationRoles(primaryOrg.ID, userID)
 			if err != nil {
 				logger.ComponentLogger("logto").Warn().
-				Err(err).
-				Str("operation", "fetch_org_roles").
-				Str("user_id", userID).
-				Str("org_id", primaryOrg.ID).
-				Msg("Failed to fetch organization roles")
+					Err(err).
+					Str("operation", "fetch_org_roles").
+					Str("user_id", userID).
+					Str("org_id", primaryOrg.ID).
+					Msg("Failed to fetch organization roles")
 			} else if len(orgRoles) > 0 {
 				// Use first organization role as primary
 				primaryOrgRole := orgRoles[0]
@@ -318,10 +318,10 @@ func EnrichUserWithRolesAndPermissions(userID string) (*models.User, error) {
 				orgScopes, err := client.GetOrganizationRoleScopes(primaryOrgRole.ID)
 				if err != nil {
 					logger.ComponentLogger("logto").Warn().
-					Err(err).
-					Str("operation", "fetch_org_role_scopes").
-					Str("role_id", primaryOrgRole.ID).
-					Msg("Failed to fetch organization role scopes")
+						Err(err).
+						Str("operation", "fetch_org_role_scopes").
+						Str("role_id", primaryOrgRole.ID).
+						Msg("Failed to fetch organization role scopes")
 				} else {
 					for _, scope := range orgScopes {
 						user.OrgPermissions = append(user.OrgPermissions, scope.Name)

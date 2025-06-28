@@ -311,7 +311,6 @@ func TestRequireAnyOrgRole(t *testing.T) {
 	}
 }
 
-
 func TestGetUserFromContext(t *testing.T) {
 	setupTestEnvironment()
 
@@ -398,7 +397,6 @@ func TestHelperFunctions(t *testing.T) {
 	})
 
 }
-
 
 // Helper function to set up test environment
 func setupTestEnvironment() {

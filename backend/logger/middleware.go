@@ -196,21 +196,21 @@ func SecurityMiddleware() gin.HandlerFunc {
 // isLikelyAttack checks if a URL path contains common attack patterns
 func isLikelyAttack(path string) bool {
 	suspiciousPatterns := []string{
-		"../",           // Path traversal
-		"..\\",          // Windows path traversal
-		"<script",       // XSS attempt
-		"javascript:",   // JavaScript injection
-		"<iframe",       // Iframe injection
-		"union select",  // SQL injection
-		"drop table",    // SQL injection
-		"exec(",         // Command injection
-		"system(",       // Command injection
-		"passwd",        // File access attempt
-		"/etc/",         // Linux system files
-		"wp-admin",      // WordPress scanning
-		"phpmyadmin",    // Database admin scanning
-		".env",          // Environment file access
-		".git",          // Git repository access
+		"../",          // Path traversal
+		"..\\",         // Windows path traversal
+		"<script",      // XSS attempt
+		"javascript:",  // JavaScript injection
+		"<iframe",      // Iframe injection
+		"union select", // SQL injection
+		"drop table",   // SQL injection
+		"exec(",        // Command injection
+		"system(",      // Command injection
+		"passwd",       // File access attempt
+		"/etc/",        // Linux system files
+		"wp-admin",     // WordPress scanning
+		"phpmyadmin",   // Database admin scanning
+		".env",         // Environment file access
+		".git",         // Git repository access
 	}
 
 	pathLower := strings.ToLower(path)
