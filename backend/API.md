@@ -675,7 +675,7 @@ Replace the entire content of `src/App.vue` with:
         <button @click="exchangeToken" style="padding: 10px; font-size: 16px; margin: 10px;">
           🔄 Get Custom JWT
         </button>
-        <button @click="signOut" style="padding: 10px; font-size: 16px;">
+        <button @click="handleSignOut" style="padding: 10px; font-size: 16px;">
           🚪 Sign Out
         </button>
 
@@ -736,6 +736,15 @@ const handleSignIn = async () => {
     });
   } catch (error) {
     console.error('🚨 Sign in failed:', error);
+  }
+};
+
+// Handle sign in with explicit redirect URI
+const handleSignOut = async () => {
+  try {
+    await signOut('http://localhost:5173/');
+  } catch (error) {
+    console.error('🚨 Sign out failed:', error);
   }
 };
 
