@@ -764,15 +764,16 @@ const exchangeToken = async () => {
       customJWT.value = result;
 
       // 3. Log the enriched token data
-      console.log('🎉 SUCCESS! Custom JWT obtained:', result);
-      console.log('📋 User permissions:', result.user.user_permissions);
-      console.log('🏢 Organization role:', result.user.org_role);
-      console.log('🔑 Custom Access Token:', result.token);
-      console.log('🔄 Refresh Token:', result.refresh_token);
+      const data = result.data;
+      console.log('🎉 SUCCESS! Custom JWT obtained:', data);
+      console.log('📋 User permissions:', data.user.user_permissions);
+      console.log('🏢 Organization role:', data.user.org_role);
+      console.log('🔑 Custom Access Token:', data.token);
+      console.log('🔄 Refresh Token:', data.refresh_token);
 
       // Store tokens for future API calls
-      localStorage.setItem('access_token', result.token);
-      localStorage.setItem('refresh_token', result.refresh_token);
+      localStorage.setItem('access_token', data.token);
+      localStorage.setItem('refresh_token', data.refresh_token);
 
     } else {
       const errorText = await response.text();
