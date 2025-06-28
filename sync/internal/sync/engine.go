@@ -184,38 +184,38 @@ func (e *Engine) addOperation(result *Result, opType, action, resource, descript
 
 // OutputText outputs the result in text format
 func (r *Result) OutputText(w io.Writer) error {
-	fmt.Fprintf(w, "Synchronization Results\n")
-	fmt.Fprintf(w, "======================\n\n")
-	fmt.Fprintf(w, "Status: %s\n", map[bool]string{true: "SUCCESS", false: "FAILED"}[r.Success])
-	fmt.Fprintf(w, "Duration: %v\n", r.Duration)
-	fmt.Fprintf(w, "Dry Run: %v\n\n", r.DryRun)
+	_, _ = fmt.Fprintf(w, "Synchronization Results\n")
+	_, _ = fmt.Fprintf(w, "======================\n\n")
+	_, _ = fmt.Fprintf(w, "Status: %s\n", map[bool]string{true: "SUCCESS", false: "FAILED"}[r.Success])
+	_, _ = fmt.Fprintf(w, "Duration: %v\n", r.Duration)
+	_, _ = fmt.Fprintf(w, "Dry Run: %v\n\n", r.DryRun)
 
-	fmt.Fprintf(w, "Summary:\n")
-	fmt.Fprintf(w, "  Resources: %d created, %d updated, %d deleted\n",
+	_, _ = fmt.Fprintf(w, "Summary:\n")
+	_, _ = fmt.Fprintf(w, "  Resources: %d created, %d updated, %d deleted\n",
 		r.Summary.ResourcesCreated, r.Summary.ResourcesUpdated, r.Summary.ResourcesDeleted)
-	fmt.Fprintf(w, "  Roles: %d created, %d updated, %d deleted\n",
+	_, _ = fmt.Fprintf(w, "  Roles: %d created, %d updated, %d deleted\n",
 		r.Summary.RolesCreated, r.Summary.RolesUpdated, r.Summary.RolesDeleted)
-	fmt.Fprintf(w, "  Permissions: %d created, %d updated, %d deleted\n",
+	_, _ = fmt.Fprintf(w, "  Permissions: %d created, %d updated, %d deleted\n",
 		r.Summary.PermissionsCreated, r.Summary.PermissionsUpdated, r.Summary.PermissionsDeleted)
-	fmt.Fprintf(w, "  Scopes: %d created, %d updated, %d deleted\n\n",
+	_, _ = fmt.Fprintf(w, "  Scopes: %d created, %d updated, %d deleted\n\n",
 		r.Summary.ScopesCreated, r.Summary.ScopesUpdated, r.Summary.ScopesDeleted)
 
 	if len(r.Errors) > 0 {
-		fmt.Fprintf(w, "Errors:\n")
+		_, _ = fmt.Fprintf(w, "Errors:\n")
 		for _, err := range r.Errors {
-			fmt.Fprintf(w, "  - %s\n", err)
+			_, _ = fmt.Fprintf(w, "  - %s\n", err)
 		}
-		fmt.Fprintf(w, "\n")
+		_, _ = fmt.Fprintf(w, "\n")
 	}
 
 	if len(r.Operations) > 0 {
-		fmt.Fprintf(w, "Operations:\n")
+		_, _ = fmt.Fprintf(w, "Operations:\n")
 		for _, op := range r.Operations {
 			status := "✓"
 			if !op.Success {
 				status = "✗"
 			}
-			fmt.Fprintf(w, "  %s %s %s %s - %s\n", status, op.Type, op.Action, op.Resource, op.Description)
+			_, _ = fmt.Fprintf(w, "  %s %s %s %s - %s\n", status, op.Type, op.Action, op.Resource, op.Description)
 		}
 	}
 
@@ -232,6 +232,6 @@ func (r *Result) OutputJSON(w io.Writer) error {
 // OutputYAML outputs the result in YAML format
 func (r *Result) OutputYAML(w io.Writer) error {
 	encoder := yaml.NewEncoder(w)
-	defer encoder.Close()
+	defer func() { _ = encoder.Close() }()
 	return encoder.Encode(r)
 }

@@ -88,7 +88,7 @@ hierarchy:
 		t.Run(tt.name, func(t *testing.T) {
 			filename := tt.setupFile(t)
 			if filename != "" && filename != "/path/that/does/not/exist.yml" {
-				defer os.Remove(filename)
+				defer func() { _ = os.Remove(filename) }()
 			}
 
 			config, err := LoadFromFile(filename)

@@ -51,11 +51,11 @@ func init() {
 	syncCmd.Flags().Bool("cleanup", false, "remove resources/roles/scopes not defined in config (DANGEROUS)")
 
 	// Bind flags to viper
-	viper.BindPFlag("skip-resources", syncCmd.Flags().Lookup("skip-resources"))
-	viper.BindPFlag("skip-roles", syncCmd.Flags().Lookup("skip-roles"))
-	viper.BindPFlag("skip-permissions", syncCmd.Flags().Lookup("skip-permissions"))
-	viper.BindPFlag("force", syncCmd.Flags().Lookup("force"))
-	viper.BindPFlag("cleanup", syncCmd.Flags().Lookup("cleanup"))
+	_ = viper.BindPFlag("skip-resources", syncCmd.Flags().Lookup("skip-resources"))
+	_ = viper.BindPFlag("skip-roles", syncCmd.Flags().Lookup("skip-roles"))
+	_ = viper.BindPFlag("skip-permissions", syncCmd.Flags().Lookup("skip-permissions"))
+	_ = viper.BindPFlag("force", syncCmd.Flags().Lookup("force"))
+	_ = viper.BindPFlag("cleanup", syncCmd.Flags().Lookup("cleanup"))
 }
 
 func runSync(cmd *cobra.Command, args []string) error {

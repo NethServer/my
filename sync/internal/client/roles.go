@@ -62,7 +62,7 @@ func (c *LogtoClient) CreateRole(role LogtoRole) error {
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 		return c.handleResponse(resp, http.StatusCreated, nil)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	return nil
 }
 

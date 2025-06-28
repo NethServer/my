@@ -36,25 +36,6 @@ var (
 		// Base64 tokens (standalone)
 		regexp.MustCompile(`\b[a-zA-Z0-9+/]{40,}={0,2}\b`),
 	}
-
-	// Sensitive field names that should be redacted
-	sensitiveFields = map[string]bool{
-		"password":      true,
-		"secret":        true,
-		"token":         true,
-		"access_token":  true,
-		"refresh_token": true,
-		"id_token":      true,
-		"client_secret": true,
-		"client_id":     true,
-		"api_key":       true,
-		"apikey":        true,
-		"bearer":        true,
-		"authorization": true,
-		"auth":          true,
-		"pwd":           true,
-		"key":           true,
-	}
 )
 
 // InitFromEnv initializes the logger from environment variables
@@ -97,7 +78,7 @@ func SetLevel(level string) {
 	default:
 		zLevel = zerolog.InfoLevel
 	}
-	
+
 	Logger = Logger.Level(zLevel)
 	log.Logger = Logger
 }
@@ -168,7 +149,7 @@ func Init(level LogLevel) {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize logger")
 	}
-	
+
 	var levelStr string
 	switch level {
 	case DebugLevel:
@@ -182,7 +163,7 @@ func Init(level LogLevel) {
 	default:
 		levelStr = "info"
 	}
-	
+
 	SetLevel(levelStr)
 }
 
@@ -201,7 +182,7 @@ func SetLevelLegacy(level LogLevel) {
 	default:
 		levelStr = "info"
 	}
-	
+
 	SetLevel(levelStr)
 }
 
@@ -227,17 +208,17 @@ func LogSyncOperation(operation, entity, action string, success bool, err error)
 	if !success {
 		event = Logger.Error()
 	}
-	
+
 	event.
 		Str("operation", operation).
 		Str("entity", entity).
 		Str("action", action).
 		Bool("success", success)
-	
+
 	if err != nil {
 		event.Err(err)
 	}
-	
+
 	if success {
 		event.Msg("Sync operation completed")
 	} else {
@@ -254,7 +235,7 @@ func LogAPICall(method, endpoint string, statusCode int, duration time.Duration)
 	if statusCode >= 500 {
 		event = Logger.Error()
 	}
-	
+
 	event.
 		Str("component", "api-client").
 		Str("method", method).
@@ -270,7 +251,7 @@ func LogConfigLoad(configPath string, resourceCount, roleCount int, isValid bool
 	if !isValid {
 		event = Logger.Error()
 	}
-	
+
 	event.
 		Str("component", "config").
 		Str("path", configPath).

@@ -54,7 +54,7 @@ func (c *LogtoClient) TestConnection() error {
 	if err != nil {
 		return fmt.Errorf("failed to make test request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(resp.Body)
@@ -125,7 +125,7 @@ func (c *LogtoClient) makeRequest(method, endpoint string, body interface{}) (*h
 
 // handleResponse handles common response patterns
 func (c *LogtoClient) handleResponse(resp *http.Response, expectedStatus int, target interface{}) error {
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -147,7 +147,7 @@ func (c *LogtoClient) handleResponse(resp *http.Response, expectedStatus int, ta
 
 // handlePaginatedResponse handles paginated responses
 func (c *LogtoClient) handlePaginatedResponse(resp *http.Response, target interface{}) error {
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
