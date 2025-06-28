@@ -11,9 +11,10 @@ package methods
 
 import (
 	"net/http"
+	"time"
 
-	"github.com/fatih/structs"
 	"github.com/gin-gonic/gin"
+	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/jwt"
 	"github.com/nethesis/my/backend/logs"
@@ -47,11 +48,10 @@ func ExchangeToken(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logs.Logs.Println("[ERROR][AUTH] Invalid request body:", err.Error())
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusBadRequest{
-			Code:    400,
-			Message: "Invalid request body: " + err.Error(),
-			Data:    nil,
-		}))
+		c.JSON(http.StatusBadRequest, response.BadRequest(
+			"Invalid request body: "+err.Error(),
+			nil,
+		))
 		return
 	}
 
@@ -59,11 +59,10 @@ func ExchangeToken(c *gin.Context) {
 	userInfo, err := services.GetUserInfoFromLogto(req.AccessToken)
 	if err != nil {
 		logs.Logs.Println("[ERROR][AUTH] Failed to get user info from Logto:", err.Error())
-		c.JSON(http.StatusUnauthorized, structs.Map(response.StatusUnauthorized{
-			Code:    401,
-			Message: "Invalid access token: " + err.Error(),
-			Data:    nil,
-		}))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized(
+			"Invalid access token: "+err.Error(),
+			nil,
+		))
 		return
 	}
 
@@ -104,11 +103,10 @@ func ExchangeToken(c *gin.Context) {
 	customToken, err := jwt.GenerateCustomToken(user)
 	if err != nil {
 		logs.Logs.Println("[ERROR][AUTH] Failed to generate custom token:", err.Error())
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "Failed to generate token: " + err.Error(),
-			Data:    nil,
-		}))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError(
+			"Failed to generate token: "+err.Error(),
+			nil,
+		))
 		return
 	}
 
@@ -116,26 +114,31 @@ func ExchangeToken(c *gin.Context) {
 	refreshToken, err := jwt.GenerateRefreshToken(user.ID)
 	if err != nil {
 		logs.Logs.Println("[ERROR][AUTH] Failed to generate refresh token:", err.Error())
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "Failed to generate refresh token: " + err.Error(),
-			Data:    nil,
-		}))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError(
+			"Failed to generate refresh token: "+err.Error(),
+			nil,
+		))
 		return
 	}
 
+	// Calculate expiration in seconds
+	expDuration, err := time.ParseDuration(configuration.Config.JWTExpiration)
+	if err != nil {
+		expDuration = 24 * time.Hour // Default fallback
+	}
+	expiresIn := int64(expDuration.Seconds())
+
 	logs.Logs.Printf("[INFO][AUTH] Token exchange successful for user: %s", user.ID)
 
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "token exchange successful",
-		Data: TokenExchangeResponse{
-			Token:        customToken,
-			RefreshToken: refreshToken,
-			ExpiresIn:    86400, // 24 hours
-			User:         user,
+	c.JSON(http.StatusOK, response.OK(
+		"token exchange successful",
+		gin.H{
+			"token":         customToken,
+			"refresh_token": refreshToken,
+			"expires_in":    expiresIn,
+			"user":          user,
 		},
-	}))
+	))
 }
 
 // RefreshToken refreshes access token using refresh token
@@ -145,11 +148,10 @@ func RefreshToken(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logs.Logs.Println("[ERROR][AUTH] Invalid refresh request body:", err.Error())
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusBadRequest{
-			Code:    400,
-			Message: "Invalid request body: " + err.Error(),
-			Data:    nil,
-		}))
+		c.JSON(http.StatusBadRequest, response.BadRequest(
+			"Invalid request body: "+err.Error(),
+			nil,
+		))
 		return
 	}
 
@@ -157,11 +159,10 @@ func RefreshToken(c *gin.Context) {
 	refreshClaims, err := jwt.ValidateRefreshToken(req.RefreshToken)
 	if err != nil {
 		logs.Logs.Println("[ERROR][AUTH] Invalid refresh token:", err.Error())
-		c.JSON(http.StatusUnauthorized, structs.Map(response.StatusUnauthorized{
-			Code:    401,
-			Message: "Invalid refresh token: " + err.Error(),
-			Data:    nil,
-		}))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized(
+			"Invalid refresh token: "+err.Error(),
+			nil,
+		))
 		return
 	}
 
@@ -169,11 +170,10 @@ func RefreshToken(c *gin.Context) {
 	enrichedUser, err := services.EnrichUserWithRolesAndPermissions(refreshClaims.UserID)
 	if err != nil {
 		logs.Logs.Println("[ERROR][AUTH] Failed to enrich user during refresh:", err.Error())
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "Failed to retrieve user information: " + err.Error(),
-			Data:    nil,
-		}))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError(
+			"Failed to retrieve user information: "+err.Error(),
+			nil,
+		))
 		return
 	}
 
@@ -204,37 +204,41 @@ func RefreshToken(c *gin.Context) {
 	newAccessToken, err := jwt.GenerateCustomToken(user)
 	if err != nil {
 		logs.Logs.Println("[ERROR][AUTH] Failed to generate new access token:", err.Error())
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "Failed to generate new access token: " + err.Error(),
-			Data:    nil,
-		}))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError(
+			"Failed to generate new access token: "+err.Error(),
+			nil,
+		))
 		return
 	}
 
 	newRefreshToken, err := jwt.GenerateRefreshToken(user.ID)
 	if err != nil {
 		logs.Logs.Println("[ERROR][AUTH] Failed to generate new refresh token:", err.Error())
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "Failed to generate new refresh token: " + err.Error(),
-			Data:    nil,
-		}))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError(
+			"Failed to generate new refresh token: "+err.Error(),
+			nil,
+		))
 		return
 	}
 
+	// Calculate expiration in seconds
+	expDuration, err := time.ParseDuration(configuration.Config.JWTExpiration)
+	if err != nil {
+		expDuration = 24 * time.Hour // Default fallback
+	}
+	expiresIn := int64(expDuration.Seconds())
+
 	logs.Logs.Printf("[INFO][AUTH] Token refresh successful for user: %s", user.ID)
 
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "token refresh successful",
-		Data: TokenExchangeResponse{
-			Token:        newAccessToken,
-			RefreshToken: newRefreshToken,
-			ExpiresIn:    86400, // 24 hours
-			User:         user,
+	c.JSON(http.StatusOK, response.OK(
+		"token refresh successful",
+		gin.H{
+			"token":         newAccessToken,
+			"refresh_token": newRefreshToken,
+			"expires_in":    expiresIn,
+			"user":          user,
 		},
-	}))
+	))
 }
 
 // GetCurrentUser returns current user information from JWT token
@@ -246,23 +250,22 @@ func GetCurrentUser(c *gin.Context) {
 	}
 
 	userData := gin.H{
-		"id":                user.ID,
-		"username":          user.Username,
-		"email":             user.Email,
-		"name":              user.Name,
-		"userRoles":         user.UserRoles,
-		"userPermissions":   user.UserPermissions,
-		"orgRole":           user.OrgRole,
-		"orgPermissions":    user.OrgPermissions,
-		"organizationId":    user.OrganizationID,
-		"organizationName":  user.OrganizationName,
+		"id":               user.ID,
+		"username":         user.Username,
+		"email":            user.Email,
+		"name":             user.Name,
+		"userRoles":        user.UserRoles,
+		"userPermissions":  user.UserPermissions,
+		"orgRole":          user.OrgRole,
+		"orgPermissions":   user.OrgPermissions,
+		"organizationId":   user.OrganizationID,
+		"organizationName": user.OrganizationName,
 	}
 
 	logs.Logs.Printf("[INFO][AUTH] User info requested: %s (org: %s)", user.ID, user.OrganizationID)
 
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "user information retrieved successfully",
-		Data:    userData,
-	}))
+	c.JSON(http.StatusOK, response.OK(
+		"user information retrieved successfully",
+		userData,
+	))
 }

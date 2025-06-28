@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fatih/structs"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 
@@ -189,11 +188,7 @@ func CanCreateAccountForOrganization(userOrgRole, userOrgID, userRole, targetOrg
 func CreateAccount(c *gin.Context) {
 	var request models.CreateAccountRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "request fields malformed",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("request fields malformed", err.Error()))
 		return
 	}
 
@@ -231,11 +226,7 @@ func CreateAccount(c *gin.Context) {
 	targetOrg, err := client.GetOrganizationByID(request.OrganizationID)
 	if err != nil {
 		logs.Logs.Printf("[ERROR][ACCOUNTS] Target organization not found: %v", err)
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "target organization not found",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("target organization not found", err.Error()))
 		return
 	}
 
@@ -243,11 +234,7 @@ func CreateAccount(c *gin.Context) {
 	jitRoles, err := client.GetOrganizationJitRoles(request.OrganizationID)
 	if err != nil {
 		logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to get JIT roles for organization %s: %v", request.OrganizationID, err)
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "failed to get organization JIT roles",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("failed to get organization JIT roles", err.Error()))
 		return
 	}
 
@@ -258,11 +245,7 @@ func CreateAccount(c *gin.Context) {
 		targetOrgRole = jitRoles[0].Name
 		logs.Logs.Printf("[INFO][ACCOUNTS] Using JIT role '%s' for organization %s", targetOrgRole, request.OrganizationID)
 	} else {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "target organization has no JIT roles configured",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("target organization has no JIT roles configured", nil))
 		return
 	}
 
@@ -279,11 +262,7 @@ func CreateAccount(c *gin.Context) {
 	if !canCreate {
 		logs.Logs.Printf("[WARN][ACCOUNTS] User %s (role: %s, org: %s) denied creating account for org %s (role: %s): %s",
 			currentUserID, currentUserOrgRole, currentUserOrgID, request.OrganizationID, targetOrgRole, reason)
-		c.JSON(http.StatusForbidden, structs.Map(response.StatusNotFound{
-			Code:    403,
-			Message: "insufficient permissions to create account for this organization",
-			Data:    reason,
-		}))
+		c.JSON(http.StatusForbidden, response.NotFound("insufficient permissions to create account for this organization", reason))
 		return
 	}
 
@@ -364,11 +343,7 @@ func CreateAccount(c *gin.Context) {
 			detailedError = errorMsg
 		}
 
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "failed to create account",
-			Data:    detailedError,
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("failed to create account", detailedError))
 		return
 	}
 
@@ -382,11 +357,7 @@ func CreateAccount(c *gin.Context) {
 	// Step 1: Assign user to organization (without roles)
 	if err := client.AssignUserToOrganization(request.OrganizationID, account.ID); err != nil {
 		logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to assign account to organization: %v", err)
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "failed to assign account to organization",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to assign account to organization", err.Error()))
 		return
 	}
 
@@ -433,11 +404,7 @@ func CreateAccount(c *gin.Context) {
 		Metadata:         request.Metadata,
 	}
 
-	c.JSON(http.StatusCreated, structs.Map(response.StatusOK{
-		Code:    201,
-		Message: "account created successfully",
-		Data:    accountResponse,
-	}))
+	c.JSON(http.StatusCreated, response.Created("account created successfully", accountResponse))
 }
 
 // GetAccounts handles GET /api/accounts - retrieves accounts with organization filtering
@@ -449,11 +416,7 @@ func GetAccounts(c *gin.Context) {
 	// Validate required user context
 	if currentUserOrgRole == nil || currentUserOrgID == nil {
 		logs.Logs.Printf("[ERROR][ACCOUNTS] Missing required user context in JWT token")
-		c.JSON(http.StatusUnauthorized, structs.Map(response.StatusUnauthorized{
-			Code:    401,
-			Message: "incomplete user context in token",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("incomplete user context in token", nil))
 		return
 	}
 
@@ -471,11 +434,7 @@ func GetAccounts(c *gin.Context) {
 		orgAccounts, err := client.GetOrganizationUsers(orgFilter)
 		if err != nil {
 			logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to fetch organization accounts: %v", err)
-			c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-				Code:    500,
-				Message: "failed to fetch organization accounts",
-				Data:    err.Error(),
-			}))
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch organization accounts", err.Error()))
 			return
 		}
 
@@ -495,11 +454,7 @@ func GetAccounts(c *gin.Context) {
 		allOrgs, err := services.GetAllVisibleOrganizations(currentUserOrgRole.(string), currentUserOrgID.(string))
 		if err != nil {
 			logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to fetch visible organizations: %v", err)
-			c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-				Code:    500,
-				Message: "failed to fetch organizations",
-				Data:    err.Error(),
-			}))
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch organizations", err.Error()))
 			return
 		}
 
@@ -519,33 +474,20 @@ func GetAccounts(c *gin.Context) {
 	}
 
 	logs.Logs.Printf("[INFO][ACCOUNTS] Retrieved %d accounts", len(accounts))
-
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "accounts retrieved successfully",
-		Data:    gin.H{"accounts": accounts, "count": len(accounts)},
-	}))
+	c.JSON(http.StatusOK, response.OK("accounts retrieved successfully", gin.H{"accounts": accounts, "count": len(accounts)}))
 }
 
 // UpdateAccount handles PUT /api/accounts/:id - updates an existing account
 func UpdateAccount(c *gin.Context) {
 	accountID := c.Param("id")
 	if accountID == "" {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "account ID required",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("account ID required", nil))
 		return
 	}
 
 	var request models.UpdateAccountRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "request fields malformed",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("request fields malformed", err.Error()))
 		return
 	}
 
@@ -582,11 +524,7 @@ func UpdateAccount(c *gin.Context) {
 	currentAccount, err := client.GetUserByID(accountID)
 	if err != nil {
 		logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to fetch account: %v", err)
-		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
-			Code:    404,
-			Message: "account not found",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusNotFound, response.NotFound("account not found", nil))
 		return
 	}
 
@@ -613,11 +551,7 @@ func UpdateAccount(c *gin.Context) {
 	if !canOperate {
 		logs.Logs.Printf("[WARN][ACCOUNTS] User %s (role: %s, org: %s) denied updating account %s: %s",
 			currentUserID, currentUserOrgRole, currentUserOrgID, accountID, reason)
-		c.JSON(http.StatusForbidden, structs.Map(response.StatusNotFound{
-			Code:    403,
-			Message: "insufficient permissions to update this account",
-			Data:    reason,
-		}))
+		c.JSON(http.StatusForbidden, response.NotFound("insufficient permissions to update this account", reason))
 		return
 	}
 
@@ -671,11 +605,7 @@ func UpdateAccount(c *gin.Context) {
 	updatedAccount, err := client.UpdateUser(accountID, updateRequest)
 	if err != nil {
 		logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to update account in Logto: %v", err)
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "failed to update account",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to update account", err.Error()))
 		return
 	}
 
@@ -684,22 +614,14 @@ func UpdateAccount(c *gin.Context) {
 	// Convert to response format
 	accountResponse := convertLogtoUserToAccountResponse(*updatedAccount, nil)
 
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "account updated successfully",
-		Data:    accountResponse,
-	}))
+	c.JSON(http.StatusOK, response.OK("account updated successfully", accountResponse))
 }
 
 // DeleteAccount handles DELETE /api/accounts/:id - deletes an account
 func DeleteAccount(c *gin.Context) {
 	accountID := c.Param("id")
 	if accountID == "" {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "account ID required",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("account ID required", nil))
 		return
 	}
 
@@ -736,11 +658,7 @@ func DeleteAccount(c *gin.Context) {
 	currentAccount, err := client.GetUserByID(accountID)
 	if err != nil {
 		logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to fetch account for deletion: %v", err)
-		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
-			Code:    404,
-			Message: "account not found",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusNotFound, response.NotFound("account not found", nil))
 		return
 	}
 
@@ -767,35 +685,22 @@ func DeleteAccount(c *gin.Context) {
 	if !canOperate {
 		logs.Logs.Printf("[WARN][ACCOUNTS] User %s (role: %s, org: %s) denied deleting account %s: %s",
 			currentUserID, currentUserOrgRole, currentUserOrgID, accountID, reason)
-		c.JSON(http.StatusForbidden, structs.Map(response.StatusNotFound{
-			Code:    403,
-			Message: "insufficient permissions to delete this account",
-			Data:    reason,
-		}))
+		c.JSON(http.StatusForbidden, response.NotFound("insufficient permissions to delete this account", reason))
 		return
 	}
 
 	// Delete the account from Logto
 	if err := client.DeleteUser(accountID); err != nil {
 		logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to delete account from Logto: %v", err)
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "failed to delete account",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to delete account", err.Error()))
 		return
 	}
 
 	logs.Logs.Printf("[INFO][ACCOUNTS] Account deleted from Logto: %s (ID: %s) by user %s", currentAccount.Name, accountID, currentUserID)
-
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "account deleted successfully",
-		Data: gin.H{
-			"id":        accountID,
-			"name":      currentAccount.Name,
-			"deletedAt": time.Now(),
-		},
+	c.JSON(http.StatusOK, response.OK("account deleted successfully", gin.H{
+		"id":        accountID,
+		"name":      currentAccount.Name,
+		"deletedAt": time.Now(),
 	}))
 }
 

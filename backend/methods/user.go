@@ -12,7 +12,6 @@ package methods
 import (
 	"net/http"
 
-	"github.com/fatih/structs"
 	"github.com/gin-gonic/gin"
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/response"
@@ -24,29 +23,17 @@ func GetProfile(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "user profile retrieved successfully",
-		Data:    user,
-	}))
+	c.JSON(http.StatusOK, response.OK("user profile retrieved successfully", user))
 }
 
 func GetProtectedResource(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, structs.Map(response.StatusUnauthorized{
-			Code:    401,
-			Message: "user not authenticated",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user not authenticated", nil))
 		return
 	}
 
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "protected resource accessed successfully",
-		Data:    gin.H{"user_id": userID, "resource": "sensitive data"},
-	}))
+	c.JSON(http.StatusOK, response.OK("protected resource accessed successfully", gin.H{"user_id": userID, "resource": "sensitive data"}))
 }
 
 // GetUserPermissions returns user permissions and role information
@@ -65,11 +52,7 @@ func GetUserPermissions(c *gin.Context) {
 		"organization_name": user.OrganizationName,
 	}
 
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "user permissions retrieved successfully",
-		Data:    permissionsData,
-	}))
+	c.JSON(http.StatusOK, response.OK("user permissions retrieved successfully", permissionsData))
 }
 
 // GetUserProfile returns complete user profile with business context
@@ -79,9 +62,5 @@ func GetUserProfile(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "user profile retrieved successfully",
-		Data:    user,
-	}))
+	c.JSON(http.StatusOK, response.OK("user profile retrieved successfully", user))
 }

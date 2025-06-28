@@ -12,7 +12,6 @@ package helpers
 import (
 	"net/http"
 
-	"github.com/fatih/structs"
 	"github.com/gin-gonic/gin"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
@@ -23,22 +22,14 @@ import (
 func GetUserFromContext(c *gin.Context) (*models.User, bool) {
 	userInterface, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, structs.Map(response.StatusUnauthorized{
-			Code:    401,
-			Message: "user not authenticated",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user not authenticated", nil))
 		c.Abort()
 		return nil, false
 	}
 
 	user, ok := userInterface.(*models.User)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "invalid user context",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("invalid user context", nil))
 		c.Abort()
 		return nil, false
 	}

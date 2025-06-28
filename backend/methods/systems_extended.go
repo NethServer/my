@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fatih/structs"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 
@@ -21,21 +20,13 @@ import (
 func FactoryResetSystem(c *gin.Context) {
 	systemID := c.Param("id")
 	if systemID == "" {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "system ID required",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("system ID required", nil))
 		return
 	}
 
 	system, exists := systemsStorage[systemID]
 	if !exists {
-		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
-			Code:    404,
-			Message: "system not found",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
 		return
 	}
 
@@ -44,20 +35,12 @@ func FactoryResetSystem(c *gin.Context) {
 		Confirmation string `json:"confirmation" binding:"required"`
 	}
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "confirmation required",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("confirmation required", err.Error()))
 		return
 	}
 
 	if request.Confirmation != "FACTORY_RESET" {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "invalid confirmation",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("invalid confirmation", nil))
 		return
 	}
 
@@ -68,14 +51,10 @@ func FactoryResetSystem(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	logs.Logs.Printf("[CRITICAL][SYSTEMS] Factory reset initiated: %s by user %s", system.Name, userID)
 
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "factory reset initiated",
-		Data: gin.H{
-			"system_id": systemID,
-			"status":    "factory_resetting",
-			"warning":   "All data will be permanently lost",
-		},
+	c.JSON(http.StatusOK, response.OK("factory reset initiated", gin.H{
+		"system_id": systemID,
+		"status":    "factory_resetting",
+		"warning":   "All data will be permanently lost",
 	}))
 }
 
@@ -83,21 +62,13 @@ func FactoryResetSystem(c *gin.Context) {
 func DestroySystem(c *gin.Context) {
 	systemID := c.Param("id")
 	if systemID == "" {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "system ID required",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("system ID required", nil))
 		return
 	}
 
 	system, exists := systemsStorage[systemID]
 	if !exists {
-		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
-			Code:    404,
-			Message: "system not found",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
 		return
 	}
 
@@ -106,20 +77,12 @@ func DestroySystem(c *gin.Context) {
 		Confirmation string `json:"confirmation" binding:"required"`
 	}
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "confirmation required",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("confirmation required", err.Error()))
 		return
 	}
 
 	if request.Confirmation != system.Name {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "system name confirmation required",
-			Data:    gin.H{"expected": system.Name},
-		}))
+		c.JSON(http.StatusBadRequest, response.BadRequest("system name confirmation required", gin.H{"expected": system.Name}))
 		return
 	}
 
@@ -130,14 +93,10 @@ func DestroySystem(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	logs.Logs.Printf("[CRITICAL][SYSTEMS] System permanently destroyed: %s by user %s", system.Name, userID)
 
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "system permanently destroyed",
-		Data: gin.H{
-			"system_id":    systemID,
-			"system_name":  system.Name,
-			"destroyed_at": time.Now(),
-		},
+	c.JSON(http.StatusOK, response.OK("system permanently destroyed", gin.H{
+		"system_id":    systemID,
+		"system_name":  system.Name,
+		"destroyed_at": time.Now(),
 	}))
 }
 
@@ -145,21 +104,13 @@ func DestroySystem(c *gin.Context) {
 func GetSystemLogs(c *gin.Context) {
 	systemID := c.Param("id")
 	if systemID == "" {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "system ID required",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("system ID required", nil))
 		return
 	}
 
 	system, exists := systemsStorage[systemID]
 	if !exists {
-		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
-			Code:    404,
-			Message: "system not found",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
 		return
 	}
 
@@ -188,14 +139,10 @@ func GetSystemLogs(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	logs.Logs.Printf("[INFO][AUDIT] System logs accessed: %s by user %s", system.Name, userID)
 
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "system logs retrieved",
-		Data: gin.H{
-			"system_id": systemID,
-			"logs":      auditLogs,
-			"count":     len(auditLogs),
-		},
+	c.JSON(http.StatusOK, response.OK("system logs retrieved", gin.H{
+		"system_id": systemID,
+		"logs":      auditLogs,
+		"count":     len(auditLogs),
 	}))
 }
 
@@ -216,32 +163,20 @@ func GetSystemsAudit(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	logs.Logs.Printf("[INFO][AUDIT] Global systems audit accessed by user %s", userID)
 
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "systems audit data retrieved",
-		Data:    auditData,
-	}))
+	c.JSON(http.StatusOK, response.OK("systems audit data retrieved", auditData))
 }
 
 // BackupSystem handles POST /api/systems/:id/backup - backup operation
 func BackupSystem(c *gin.Context) {
 	systemID := c.Param("id")
 	if systemID == "" {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "system ID required",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("system ID required", nil))
 		return
 	}
 
 	system, exists := systemsStorage[systemID]
 	if !exists {
-		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
-			Code:    404,
-			Message: "system not found",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
 		return
 	}
 
@@ -252,11 +187,7 @@ func BackupSystem(c *gin.Context) {
 		Encryption  bool   `json:"encryption"`
 	}
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "backup options required",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("backup options required", err.Error()))
 		return
 	}
 
@@ -266,17 +197,13 @@ func BackupSystem(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	logs.Logs.Printf("[INFO][BACKUP] System backup initiated: %s (type: %s) by user %s", system.Name, request.Type, userID)
 
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "backup initiated",
-		Data: gin.H{
-			"backup_id":          backupID,
-			"system_id":          systemID,
-			"type":               request.Type,
-			"compression":        request.Compression,
-			"encryption":         request.Encryption,
-			"estimated_duration": "15-30 minutes",
-		},
+	c.JSON(http.StatusOK, response.OK("backup initiated", gin.H{
+		"backup_id":          backupID,
+		"system_id":          systemID,
+		"type":               request.Type,
+		"compression":        request.Compression,
+		"encryption":         request.Encryption,
+		"estimated_duration": "15-30 minutes",
 	}))
 }
 
@@ -284,21 +211,13 @@ func BackupSystem(c *gin.Context) {
 func RestoreSystem(c *gin.Context) {
 	systemID := c.Param("id")
 	if systemID == "" {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "system ID required",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("system ID required", nil))
 		return
 	}
 
 	system, exists := systemsStorage[systemID]
 	if !exists {
-		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
-			Code:    404,
-			Message: "system not found",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
 		return
 	}
 
@@ -308,11 +227,7 @@ func RestoreSystem(c *gin.Context) {
 		Force    bool   `json:"force"`
 	}
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "restore options required",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("restore options required", err.Error()))
 		return
 	}
 
@@ -323,15 +238,11 @@ func RestoreSystem(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	logs.Logs.Printf("[CRITICAL][BACKUP] System restore initiated: %s (backup: %s) by user %s", system.Name, request.BackupID, userID)
 
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "restore initiated",
-		Data: gin.H{
-			"system_id":          systemID,
-			"backup_id":          request.BackupID,
-			"status":             "restoring",
-			"estimated_duration": "30-60 minutes",
-			"warning":            "Current data will be overwritten",
-		},
+	c.JSON(http.StatusOK, response.OK("restore initiated", gin.H{
+		"system_id":          systemID,
+		"backup_id":          request.BackupID,
+		"status":             "restoring",
+		"estimated_duration": "30-60 minutes",
+		"warning":            "Current data will be overwritten",
 	}))
 }

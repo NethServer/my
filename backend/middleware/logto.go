@@ -19,7 +19,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fatih/structs"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 
@@ -48,22 +47,14 @@ func LogtoAuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, structs.Map(response.StatusUnauthorized{
-				Code:    401,
-				Message: "authorization header required",
-				Data:    nil,
-			}))
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("authorization header required", nil))
 			c.Abort()
 			return
 		}
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		if tokenString == authHeader {
-			c.JSON(http.StatusUnauthorized, structs.Map(response.StatusUnauthorized{
-				Code:    401,
-				Message: "bearer token required",
-				Data:    nil,
-			}))
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("bearer token required", nil))
 			c.Abort()
 			return
 		}
@@ -71,11 +62,7 @@ func LogtoAuthMiddleware() gin.HandlerFunc {
 		user, err := validateLogtoToken(tokenString)
 		if err != nil {
 			logs.Logs.Println("[ERROR][AUTH] token validation failed: " + err.Error())
-			c.JSON(http.StatusUnauthorized, structs.Map(response.StatusUnauthorized{
-				Code:    401,
-				Message: "invalid token",
-				Data:    err.Error(),
-			}))
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("invalid token", err.Error()))
 			c.Abort()
 			return
 		}

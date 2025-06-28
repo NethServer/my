@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fatih/structs"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 
@@ -24,11 +23,7 @@ import (
 func CreateReseller(c *gin.Context) {
 	var request models.CreateResellerRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "request fields malformed",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("request fields malformed", err.Error()))
 		return
 	}
 
@@ -72,11 +67,7 @@ func CreateReseller(c *gin.Context) {
 	org, err := client.CreateOrganization(orgRequest)
 	if err != nil {
 		logs.Logs.Printf("[ERROR][RESELLERS] Failed to create reseller organization in Logto: %v", err)
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "failed to create reseller organization",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to create reseller organization", err.Error()))
 		return
 	}
 
@@ -84,21 +75,13 @@ func CreateReseller(c *gin.Context) {
 	resellerRole, err := client.GetOrganizationRoleByName("Reseller")
 	if err != nil {
 		logs.Logs.Printf("[ERROR][RESELLERS] Failed to find Reseller role: %v", err)
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "failed to configure reseller role",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to configure reseller role", err.Error()))
 		return
 	}
 
 	if err := client.AssignOrganizationJitRoles(org.ID, []string{resellerRole.ID}); err != nil {
 		logs.Logs.Printf("[ERROR][RESELLERS] Failed to assign Reseller JIT role: %v", err)
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "failed to configure reseller permissions",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to configure reseller permissions", err.Error()))
 		return
 	}
 
@@ -115,11 +98,7 @@ func CreateReseller(c *gin.Context) {
 		"createdAt":     time.Now(),
 	}
 
-	c.JSON(http.StatusCreated, structs.Map(response.StatusOK{
-		Code:    201,
-		Message: "reseller created successfully",
-		Data:    resellerResponse,
-	}))
+	c.JSON(http.StatusCreated, response.Created("reseller created successfully", resellerResponse))
 }
 
 // GetResellers handles GET /api/resellers - retrieves all resellers
@@ -134,11 +113,7 @@ func GetResellers(c *gin.Context) {
 	orgs, err := services.GetOrganizationsByRole("Reseller")
 	if err != nil {
 		logs.Logs.Printf("[ERROR][RESELLERS] Failed to fetch resellers from Logto: %v", err)
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "failed to fetch resellers",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch resellers", nil))
 		return
 	}
 
@@ -172,32 +147,20 @@ func GetResellers(c *gin.Context) {
 
 	logs.Logs.Printf("[INFO][RESELLERS] Retrieved %d resellers from Logto", len(resellers))
 
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "resellers retrieved successfully",
-		Data:    gin.H{"resellers": resellers, "count": len(resellers)},
-	}))
+	c.JSON(http.StatusOK, response.OK("resellers retrieved successfully", gin.H{"resellers": resellers, "count": len(resellers)}))
 }
 
 // UpdateReseller handles PUT /api/resellers/:id - updates an existing reseller organization in Logto
 func UpdateReseller(c *gin.Context) {
 	resellerID := c.Param("id")
 	if resellerID == "" {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "reseller ID required",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("reseller ID required", nil))
 		return
 	}
 
 	var request models.UpdateResellerRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "request fields malformed",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("request fields malformed", err.Error()))
 		return
 	}
 
@@ -211,11 +174,7 @@ func UpdateReseller(c *gin.Context) {
 	currentOrg, err := client.GetOrganizationByID(resellerID)
 	if err != nil {
 		logs.Logs.Printf("[ERROR][RESELLERS] Failed to fetch reseller organization: %v", err)
-		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
-			Code:    404,
-			Message: "reseller not found",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusNotFound, response.NotFound("reseller not found", nil))
 		return
 	}
 
@@ -264,11 +223,7 @@ func UpdateReseller(c *gin.Context) {
 	updatedOrg, err := client.UpdateOrganization(resellerID, updateRequest)
 	if err != nil {
 		logs.Logs.Printf("[ERROR][RESELLERS] Failed to update reseller organization in Logto: %v", err)
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "failed to update reseller organization",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to update reseller organization", err.Error()))
 		return
 	}
 
@@ -285,22 +240,14 @@ func UpdateReseller(c *gin.Context) {
 		"updatedAt":     time.Now(),
 	}
 
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "reseller updated successfully",
-		Data:    resellerResponse,
-	}))
+	c.JSON(http.StatusOK, response.OK("reseller updated successfully", resellerResponse))
 }
 
 // DeleteReseller handles DELETE /api/resellers/:id - deletes a reseller organization from Logto
 func DeleteReseller(c *gin.Context) {
 	resellerID := c.Param("id")
 	if resellerID == "" {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "reseller ID required",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("reseller ID required", nil))
 		return
 	}
 
@@ -313,34 +260,22 @@ func DeleteReseller(c *gin.Context) {
 	currentOrg, err := client.GetOrganizationByID(resellerID)
 	if err != nil {
 		logs.Logs.Printf("[ERROR][RESELLERS] Failed to fetch reseller organization for deletion: %v", err)
-		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
-			Code:    404,
-			Message: "reseller not found",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusNotFound, response.NotFound("reseller not found", nil))
 		return
 	}
 
 	// Delete the organization from Logto
 	if err := client.DeleteOrganization(resellerID); err != nil {
 		logs.Logs.Printf("[ERROR][RESELLERS] Failed to delete reseller organization from Logto: %v", err)
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "failed to delete reseller organization",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to delete reseller organization", err.Error()))
 		return
 	}
 
 	logs.Logs.Printf("[INFO][RESELLERS] Reseller organization deleted from Logto: %s (ID: %s) by user %s", currentOrg.Name, resellerID, userID)
 
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "reseller deleted successfully",
-		Data: gin.H{
-			"id":        resellerID,
-			"name":      currentOrg.Name,
-			"deletedAt": time.Now(),
-		},
+	c.JSON(http.StatusOK, response.OK("reseller deleted successfully", gin.H{
+		"id":        resellerID,
+		"name":      currentOrg.Name,
+		"deletedAt": time.Now(),
 	}))
 }

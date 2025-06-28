@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fatih/structs"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 
@@ -24,11 +23,7 @@ import (
 func CreateDistributor(c *gin.Context) {
 	var request models.CreateDistributorRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "request fields malformed",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("request fields malformed", err.Error()))
 		return
 	}
 
@@ -72,11 +67,7 @@ func CreateDistributor(c *gin.Context) {
 	org, err := client.CreateOrganization(orgRequest)
 	if err != nil {
 		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to create distributor organization in Logto: %v", err)
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "failed to create distributor organization",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to create distributor organization", err.Error()))
 		return
 	}
 
@@ -84,21 +75,13 @@ func CreateDistributor(c *gin.Context) {
 	distributorRole, err := client.GetOrganizationRoleByName("Distributor")
 	if err != nil {
 		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to find Distributor role: %v", err)
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "failed to configure distributor role",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to configure distributor role", err.Error()))
 		return
 	}
 
 	if err := client.AssignOrganizationJitRoles(org.ID, []string{distributorRole.ID}); err != nil {
 		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to assign Distributor JIT role: %v", err)
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "failed to configure distributor permissions",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to configure distributor permissions", err.Error()))
 		return
 	}
 
@@ -115,11 +98,7 @@ func CreateDistributor(c *gin.Context) {
 		"createdAt":     time.Now(),
 	}
 
-	c.JSON(http.StatusCreated, structs.Map(response.StatusOK{
-		Code:    201,
-		Message: "distributor created successfully",
-		Data:    distributorResponse,
-	}))
+	c.JSON(http.StatusCreated, response.Created("distributor created successfully", distributorResponse))
 }
 
 // GetDistributors handles GET /api/distributors - retrieves organizations with Distributor role from Logto
@@ -134,11 +113,7 @@ func GetDistributors(c *gin.Context) {
 	orgs, err := services.GetOrganizationsByRole("Distributor")
 	if err != nil {
 		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to fetch distributors from Logto: %v", err)
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "failed to fetch distributors",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch distributors", nil))
 		return
 	}
 
@@ -172,32 +147,20 @@ func GetDistributors(c *gin.Context) {
 
 	logs.Logs.Printf("[INFO][DISTRIBUTORS] Retrieved %d distributors from Logto", len(distributors))
 
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "distributors retrieved successfully",
-		Data:    gin.H{"distributors": distributors, "count": len(distributors)},
-	}))
+	c.JSON(http.StatusOK, response.OK("distributors retrieved successfully", gin.H{"distributors": distributors, "count": len(distributors)}))
 }
 
 // UpdateDistributor handles PUT /api/distributors/:id - updates an existing distributor organization in Logto
 func UpdateDistributor(c *gin.Context) {
 	distributorID := c.Param("id")
 	if distributorID == "" {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "distributor ID required",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("distributor ID required", nil))
 		return
 	}
 
 	var request models.UpdateDistributorRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "request fields malformed",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("request fields malformed", err.Error()))
 		return
 	}
 
@@ -211,11 +174,7 @@ func UpdateDistributor(c *gin.Context) {
 	currentOrg, err := client.GetOrganizationByID(distributorID)
 	if err != nil {
 		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to fetch distributor organization: %v", err)
-		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
-			Code:    404,
-			Message: "distributor not found",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusNotFound, response.NotFound("distributor not found", nil))
 		return
 	}
 
@@ -264,11 +223,7 @@ func UpdateDistributor(c *gin.Context) {
 	updatedOrg, err := client.UpdateOrganization(distributorID, updateRequest)
 	if err != nil {
 		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to update distributor organization in Logto: %v", err)
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "failed to update distributor organization",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to update distributor organization", err.Error()))
 		return
 	}
 
@@ -285,22 +240,14 @@ func UpdateDistributor(c *gin.Context) {
 		"updatedAt":     time.Now(),
 	}
 
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "distributor updated successfully",
-		Data:    distributorResponse,
-	}))
+	c.JSON(http.StatusOK, response.OK("distributor updated successfully", distributorResponse))
 }
 
 // DeleteDistributor handles DELETE /api/distributors/:id - deletes a distributor organization from Logto
 func DeleteDistributor(c *gin.Context) {
 	distributorID := c.Param("id")
 	if distributorID == "" {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "distributor ID required",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("distributor ID required", nil))
 		return
 	}
 
@@ -313,34 +260,22 @@ func DeleteDistributor(c *gin.Context) {
 	currentOrg, err := client.GetOrganizationByID(distributorID)
 	if err != nil {
 		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to fetch distributor organization for deletion: %v", err)
-		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
-			Code:    404,
-			Message: "distributor not found",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusNotFound, response.NotFound("distributor not found", nil))
 		return
 	}
 
 	// Delete the organization from Logto
 	if err := client.DeleteOrganization(distributorID); err != nil {
 		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to delete distributor organization from Logto: %v", err)
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "failed to delete distributor organization",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to delete distributor organization", err.Error()))
 		return
 	}
 
 	logs.Logs.Printf("[INFO][DISTRIBUTORS] Distributor organization deleted from Logto: %s (ID: %s) by user %s", currentOrg.Name, distributorID, userID)
 
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "distributor deleted successfully",
-		Data: gin.H{
-			"id":        distributorID,
-			"name":      currentOrg.Name,
-			"deletedAt": time.Now(),
-		},
+	c.JSON(http.StatusOK, response.OK("distributor deleted successfully", gin.H{
+		"id":        distributorID,
+		"name":      currentOrg.Name,
+		"deletedAt": time.Now(),
 	}))
 }

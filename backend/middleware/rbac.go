@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/fatih/structs"
 	"github.com/gin-gonic/gin"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
@@ -42,17 +41,13 @@ func RequirePermission(permission string) gin.HandlerFunc {
 		}
 
 		// Permission denied
-		c.JSON(http.StatusForbidden, structs.Map(response.StatusForbidden{
-			Code:    403,
-			Message: "insufficient permissions",
-			Data: gin.H{
-				"required_permission": permission,
-				"user_permissions":    user.UserPermissions,
-				"org_permissions":     user.OrgPermissions,
-				"user_roles":          user.UserRoles,
-				"org_role":            user.OrgRole,
-				"organization":        user.OrganizationName,
-			},
+		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions", gin.H{
+			"required_permission": permission,
+			"user_permissions":    user.UserPermissions,
+			"org_permissions":     user.OrgPermissions,
+			"user_roles":          user.UserRoles,
+			"org_role":            user.OrgRole,
+			"organization":        user.OrganizationName,
 		}))
 		c.Abort()
 	}
@@ -68,13 +63,9 @@ func RequireUserRole(role string) gin.HandlerFunc {
 		}
 
 		if !hasRoleInList(user.UserRoles, role) {
-			c.JSON(http.StatusForbidden, structs.Map(response.StatusForbidden{
-				Code:    403,
-				Message: "insufficient user role",
-				Data: gin.H{
-					"required_user_role": role,
-					"user_roles":         user.UserRoles,
-				},
+			c.JSON(http.StatusForbidden, response.Forbidden("insufficient user role", gin.H{
+				"required_user_role": role,
+				"user_roles":         user.UserRoles,
 			}))
 			c.Abort()
 			return
@@ -94,14 +85,10 @@ func RequireOrgRole(role string) gin.HandlerFunc {
 		}
 
 		if user.OrgRole != role {
-			c.JSON(http.StatusForbidden, structs.Map(response.StatusForbidden{
-				Code:    403,
-				Message: "insufficient organization role",
-				Data: gin.H{
-					"required_org_role": role,
-					"user_org_role":     user.OrgRole,
-					"organization":      user.OrganizationName,
-				},
+			c.JSON(http.StatusForbidden, response.Forbidden("insufficient organization role", gin.H{
+				"required_org_role": role,
+				"user_org_role":     user.OrgRole,
+				"organization":      user.OrganizationName,
 			}))
 			c.Abort()
 			return
@@ -127,14 +114,10 @@ func RequireAnyOrgRole(roles ...string) gin.HandlerFunc {
 			}
 		}
 
-		c.JSON(http.StatusForbidden, structs.Map(response.StatusForbidden{
-			Code:    403,
-			Message: "insufficient organization role",
-			Data: gin.H{
-				"required_org_roles": roles,
-				"user_org_role":      user.OrgRole,
-				"organization":       user.OrganizationName,
-			},
+		c.JSON(http.StatusForbidden, response.Forbidden("insufficient organization role", gin.H{
+			"required_org_roles": roles,
+			"user_org_role":      user.OrgRole,
+			"organization":       user.OrganizationName,
 		}))
 		c.Abort()
 	}
@@ -146,22 +129,14 @@ func RequireAnyOrgRole(roles ...string) gin.HandlerFunc {
 func getUserFromContext(c *gin.Context) (*models.User, bool) {
 	userInterface, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, structs.Map(response.StatusUnauthorized{
-			Code:    401,
-			Message: "user not found in context",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user not found in context", nil))
 		c.Abort()
 		return nil, false
 	}
 
 	user, ok := userInterface.(*models.User)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, structs.Map(response.StatusInternalServerError{
-			Code:    500,
-			Message: "invalid user context",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("invalid user context", nil))
 		c.Abort()
 		return nil, false
 	}
@@ -203,4 +178,3 @@ func buildPermissionFromMethod(method, resource string) string {
 
 	return fmt.Sprintf("%s:%s", action, resource)
 }
-

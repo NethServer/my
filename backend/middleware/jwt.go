@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/fatih/structs"
 	"github.com/gin-gonic/gin"
 	"github.com/nethesis/my/backend/jwt"
 	"github.com/nethesis/my/backend/response"
@@ -25,11 +24,7 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 		// Get token from Authorization header
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, structs.Map(response.StatusUnauthorized{
-				Code:    401,
-				Message: "authorization header required",
-				Data:    nil,
-			}))
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("authorization header required", nil))
 			c.Abort()
 			return
 		}
@@ -37,11 +32,7 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 		// Check Bearer prefix
 		const bearerPrefix = "Bearer "
 		if !strings.HasPrefix(authHeader, bearerPrefix) {
-			c.JSON(http.StatusUnauthorized, structs.Map(response.StatusUnauthorized{
-				Code:    401,
-				Message: "invalid authorization header format",
-				Data:    nil,
-			}))
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("invalid authorization header format", nil))
 			c.Abort()
 			return
 		}
@@ -49,11 +40,7 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 		// Extract token
 		tokenString := authHeader[len(bearerPrefix):]
 		if tokenString == "" {
-			c.JSON(http.StatusUnauthorized, structs.Map(response.StatusUnauthorized{
-				Code:    401,
-				Message: "token not provided",
-				Data:    nil,
-			}))
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("token not provided", nil))
 			c.Abort()
 			return
 		}
@@ -61,11 +48,7 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 		// Validate token
 		claims, err := jwt.ValidateCustomToken(tokenString)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, structs.Map(response.StatusUnauthorized{
-				Code:    401,
-				Message: "invalid token: " + err.Error(),
-				Data:    nil,
-			}))
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("invalid token: "+err.Error(), nil))
 			c.Abort()
 			return
 		}

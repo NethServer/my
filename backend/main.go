@@ -12,7 +12,6 @@ package main
 import (
 	"net/http"
 
-	"github.com/fatih/structs"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
@@ -57,11 +56,7 @@ func main() {
 
 	// Health check endpoint
 	api.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-			Code:    200,
-			Message: "service healthy",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusOK, response.OK("service healthy", nil))
 	})
 
 	// ===========================================
@@ -70,7 +65,7 @@ func main() {
 	// Public auth endpoints
 	api.POST("/auth/exchange", methods.ExchangeToken)
 	api.POST("/auth/refresh", methods.RefreshToken)
-	
+
 	// Protected auth endpoint
 	api.GET("/auth/me", middleware.JWTAuthMiddleware(), methods.GetCurrentUser)
 
@@ -174,27 +169,19 @@ func main() {
 
 		// Quick stats endpoint - require management permissions
 		protected.GET("/stats", middleware.RequirePermission("manage:distributors"), func(c *gin.Context) {
-			c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-				Code:    200,
-				Message: "system statistics",
-				Data: gin.H{
-					"distributors": 1,
-					"resellers":    2,
-					"customers":    2,
-					"systems":      2,
-					"timestamp":    "2025-01-20T10:30:00Z",
-				},
+			c.JSON(http.StatusOK, response.OK("system statistics", gin.H{
+				"distributors": 1,
+				"resellers":    2,
+				"customers":    2,
+				"systems":      2,
+				"timestamp":    "2025-01-20T10:30:00Z",
 			}))
 		})
 	}
 
 	// Handle missing endpoints
 	router.NoRoute(func(c *gin.Context) {
-		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
-			Code:    404,
-			Message: "API not found",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusNotFound, response.NotFound("API not found", nil))
 	})
 
 	// Run server

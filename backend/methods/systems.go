@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fatih/structs"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/google/uuid"
@@ -29,11 +28,7 @@ func CreateSystem(c *gin.Context) {
 	// Parse request body
 	var request models.CreateSystemRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "request fields malformed",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("request fields malformed", err.Error()))
 		return
 	}
 
@@ -68,11 +63,7 @@ func CreateSystem(c *gin.Context) {
 	logs.Logs.Printf("[INFO][SYSTEMS] System created: %s by user %s", system.Name, userID)
 
 	// Return success response
-	c.JSON(http.StatusCreated, structs.Map(response.StatusOK{
-		Code:    201,
-		Message: "system created successfully",
-		Data:    system,
-	}))
+	c.JSON(http.StatusCreated, response.Created("system created successfully", system))
 }
 
 // GetSystems handles GET /api/systems - retrieves all systems
@@ -88,11 +79,7 @@ func GetSystems(c *gin.Context) {
 	logs.Logs.Printf("[INFO][SYSTEMS] Systems list requested by user %s", userID)
 
 	// Return systems list
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "systems retrieved successfully",
-		Data:    gin.H{"systems": systems, "count": len(systems)},
-	}))
+	c.JSON(http.StatusOK, response.OK("systems retrieved successfully", gin.H{"systems": systems, "count": len(systems)}))
 }
 
 // UpdateSystem handles PUT /api/systems/:id - updates an existing system
@@ -100,33 +87,21 @@ func UpdateSystem(c *gin.Context) {
 	// Get system ID from URL parameter
 	systemID := c.Param("id")
 	if systemID == "" {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "system ID required",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("system ID required", nil))
 		return
 	}
 
 	// Check if system exists
 	system, exists := systemsStorage[systemID]
 	if !exists {
-		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
-			Code:    404,
-			Message: "system not found",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
 		return
 	}
 
 	// Parse request body
 	var request models.UpdateSystemRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "request fields malformed",
-			Data:    err.Error(),
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("request fields malformed", err.Error()))
 		return
 	}
 
@@ -158,11 +133,7 @@ func UpdateSystem(c *gin.Context) {
 	logs.Logs.Printf("[INFO][SYSTEMS] System updated: %s by user %s", system.Name, userID)
 
 	// Return updated system
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "system updated successfully",
-		Data:    system,
-	}))
+	c.JSON(http.StatusOK, response.OK("system updated successfully", system))
 }
 
 // DeleteSystem handles DELETE /api/systems/:id - deletes a system
@@ -170,22 +141,14 @@ func DeleteSystem(c *gin.Context) {
 	// Get system ID from URL parameter
 	systemID := c.Param("id")
 	if systemID == "" {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "system ID required",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("system ID required", nil))
 		return
 	}
 
 	// Check if system exists
 	system, exists := systemsStorage[systemID]
 	if !exists {
-		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
-			Code:    404,
-			Message: "system not found",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
 		return
 	}
 
@@ -200,11 +163,7 @@ func DeleteSystem(c *gin.Context) {
 	logs.Logs.Printf("[INFO][SYSTEMS] System deleted: %s by user %s", system.Name, userID)
 
 	// Return success response
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "system deleted successfully",
-		Data:    nil,
-	}))
+	c.JSON(http.StatusOK, response.OK("system deleted successfully", nil))
 }
 
 // GetSystemSubscriptions handles GET /api/systems/subscriptions - retrieves subscription info for all systems
@@ -220,11 +179,7 @@ func GetSystemSubscriptions(c *gin.Context) {
 	logs.Logs.Printf("[INFO][SYSTEMS] Subscriptions list requested by user %s", userID)
 
 	// Return subscriptions list
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "system subscriptions retrieved successfully",
-		Data:    gin.H{"subscriptions": subscriptions, "count": len(subscriptions)},
-	}))
+	c.JSON(http.StatusOK, response.OK("system subscriptions retrieved successfully", gin.H{"subscriptions": subscriptions, "count": len(subscriptions)}))
 }
 
 // RestartSystem handles POST /api/systems/:id/restart - restarts a system
@@ -232,22 +187,14 @@ func RestartSystem(c *gin.Context) {
 	// Get system ID from URL parameter
 	systemID := c.Param("id")
 	if systemID == "" {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "system ID required",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("system ID required", nil))
 		return
 	}
 
 	// Check if system exists
 	system, exists := systemsStorage[systemID]
 	if !exists {
-		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
-			Code:    404,
-			Message: "system not found",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
 		return
 	}
 
@@ -267,14 +214,10 @@ func RestartSystem(c *gin.Context) {
 	logs.Logs.Printf("[INFO][SYSTEMS] System restart initiated: %s by user %s (force: %v)", system.Name, userID, request.Force)
 
 	// Return success response
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "system restart initiated",
-		Data: gin.H{
-			"system_id": systemID,
-			"status":    "restarting",
-			"force":     request.Force,
-		},
+	c.JSON(http.StatusOK, response.OK("system restart initiated", gin.H{
+		"system_id": systemID,
+		"status":    "restarting",
+		"force":     request.Force,
 	}))
 }
 
@@ -283,22 +226,14 @@ func EnableSystem(c *gin.Context) {
 	// Get system ID from URL parameter
 	systemID := c.Param("id")
 	if systemID == "" {
-		c.JSON(http.StatusBadRequest, structs.Map(response.StatusNotFound{
-			Code:    400,
-			Message: "system ID required",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusBadRequest, response.NotFound("system ID required", nil))
 		return
 	}
 
 	// Check if system exists
 	system, exists := systemsStorage[systemID]
 	if !exists {
-		c.JSON(http.StatusNotFound, structs.Map(response.StatusNotFound{
-			Code:    404,
-			Message: "system not found",
-			Data:    nil,
-		}))
+		c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
 		return
 	}
 
@@ -312,11 +247,7 @@ func EnableSystem(c *gin.Context) {
 	logs.Logs.Printf("[INFO][SYSTEMS] System enabled: %s by user %s", system.Name, userID)
 
 	// Return success response
-	c.JSON(http.StatusOK, structs.Map(response.StatusOK{
-		Code:    200,
-		Message: "system enabled successfully",
-		Data:    system,
-	}))
+	c.JSON(http.StatusOK, response.OK("system enabled successfully", system))
 }
 
 // InitSystemsStorage initializes some demo data for testing
