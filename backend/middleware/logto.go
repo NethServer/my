@@ -18,6 +18,7 @@ import (
 	"math/big"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -43,6 +44,7 @@ type JWKSet struct {
 
 var jwksCache map[string]*rsa.PublicKey
 var jwksCacheTime time.Time
+var jwksCacheMutex sync.RWMutex
 
 func LogtoAuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -120,6 +122,11 @@ func validateLogtoToken(tokenString string) (*models.User, error) {
 		return nil, fmt.Errorf("token expired")
 	}
 
+	// Validate not before (nbf) if present
+	if nbf, ok := claims["nbf"].(float64); ok && int64(nbf) > time.Now().Unix() {
+		return nil, fmt.Errorf("token not yet valid")
+	}
+
 	// Extract user information
 	user := &models.User{}
 
@@ -173,8 +180,10 @@ func validateLogtoToken(tokenString string) (*models.User, error) {
 
 func getPublicKey(kid string) (*rsa.PublicKey, error) {
 	// Check cache (5 minutes TTL)
+	jwksCacheMutex.RLock()
 	if jwksCache != nil && time.Since(jwksCacheTime) < 5*time.Minute {
 		if key, exists := jwksCache[kid]; exists {
+			jwksCacheMutex.RUnlock()
 			logger.ComponentLogger("auth").Debug().
 				Str("operation", "jwks_cache_hit").
 				Str("kid", kid).
@@ -189,7 +198,10 @@ func getPublicKey(kid string) (*rsa.PublicKey, error) {
 			Time("cache_time", jwksCacheTime).
 			Int("cached_keys", len(jwksCache)).
 			Msg("JWKS cache miss - key not found")
-	} else {
+	}
+	jwksCacheMutex.RUnlock()
+
+	if jwksCache == nil || time.Since(jwksCacheTime) >= 5*time.Minute {
 		logger.ComponentLogger("auth").Debug().
 			Str("operation", "jwks_cache_expired").
 			Str("kid", kid).
@@ -206,7 +218,8 @@ func getPublicKey(kid string) (*rsa.PublicKey, error) {
 		Msg("Fetching JWKS from endpoint")
 
 	start := time.Now()
-	resp, err := http.Get(configuration.Config.JWKSEndpoint)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(configuration.Config.JWKSEndpoint)
 	if err != nil {
 		logger.ComponentLogger("auth").Error().
 			Err(err).
@@ -220,7 +233,7 @@ func getPublicKey(kid string) (*rsa.PublicKey, error) {
 
 	// Check HTTP status code
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024*1024)) // 1MB max
 		logger.ComponentLogger("auth").Error().
 			Str("operation", "jwks_fetch_bad_status").
 			Int("status_code", resp.StatusCode).
@@ -232,7 +245,7 @@ func getPublicKey(kid string) (*rsa.PublicKey, error) {
 	}
 
 	var jwks JWKSet
-	if err := json.NewDecoder(resp.Body).Decode(&jwks); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1024*1024)).Decode(&jwks); err != nil {
 		logger.ComponentLogger("auth").Error().
 			Err(err).
 			Str("operation", "jwks_decode_failed").
@@ -243,6 +256,7 @@ func getPublicKey(kid string) (*rsa.PublicKey, error) {
 	}
 
 	// Update cache
+	jwksCacheMutex.Lock()
 	jwksCache = make(map[string]*rsa.PublicKey)
 	jwksCacheTime = time.Now()
 
@@ -275,7 +289,10 @@ func getPublicKey(kid string) (*rsa.PublicKey, error) {
 		Time("cache_time", jwksCacheTime).
 		Msg("JWKS cache updated successfully")
 
-	if key, exists := jwksCache[kid]; exists {
+	key, exists := jwksCache[kid]
+	jwksCacheMutex.Unlock()
+
+	if exists {
 		logger.ComponentLogger("auth").Debug().
 			Str("operation", "jwks_key_found").
 			Str("kid", kid).
