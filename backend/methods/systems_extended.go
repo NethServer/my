@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 
-	"github.com/nethesis/my/backend/logs"
+	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/response"
 )
 
@@ -20,7 +20,7 @@ import (
 func FactoryResetSystem(c *gin.Context) {
 	systemID := c.Param("id")
 	if systemID == "" {
-		c.JSON(http.StatusBadRequest, response.NotFound("system ID required", nil))
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
 		return
 	}
 
@@ -35,12 +35,12 @@ func FactoryResetSystem(c *gin.Context) {
 		Confirmation string `json:"confirmation" binding:"required"`
 	}
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.NotFound("confirmation required", err.Error()))
+		c.JSON(http.StatusBadRequest, response.BadRequest("confirmation required", err.Error()))
 		return
 	}
 
 	if request.Confirmation != "FACTORY_RESET" {
-		c.JSON(http.StatusBadRequest, response.NotFound("invalid confirmation", nil))
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid confirmation", nil))
 		return
 	}
 
@@ -48,8 +48,7 @@ func FactoryResetSystem(c *gin.Context) {
 	system.Status = "factory_resetting"
 	system.UpdatedAt = time.Now()
 
-	userID, _ := c.Get("user_id")
-	logs.Logs.Printf("[CRITICAL][SYSTEMS] Factory reset initiated: %s by user %s", system.Name, userID)
+	logger.LogSystemOperation(c, "factory_reset", systemID, true, nil)
 
 	c.JSON(http.StatusOK, response.OK("factory reset initiated", gin.H{
 		"system_id": systemID,
@@ -62,7 +61,7 @@ func FactoryResetSystem(c *gin.Context) {
 func DestroySystem(c *gin.Context) {
 	systemID := c.Param("id")
 	if systemID == "" {
-		c.JSON(http.StatusBadRequest, response.NotFound("system ID required", nil))
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
 		return
 	}
 
@@ -77,7 +76,7 @@ func DestroySystem(c *gin.Context) {
 		Confirmation string `json:"confirmation" binding:"required"`
 	}
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.NotFound("confirmation required", err.Error()))
+		c.JSON(http.StatusBadRequest, response.BadRequest("confirmation required", err.Error()))
 		return
 	}
 
@@ -90,8 +89,7 @@ func DestroySystem(c *gin.Context) {
 	delete(systemsStorage, systemID)
 	delete(subscriptionsStorage, systemID)
 
-	userID, _ := c.Get("user_id")
-	logs.Logs.Printf("[CRITICAL][SYSTEMS] System permanently destroyed: %s by user %s", system.Name, userID)
+	logger.LogSystemOperation(c, "destroy", systemID, true, nil)
 
 	c.JSON(http.StatusOK, response.OK("system permanently destroyed", gin.H{
 		"system_id":    systemID,
@@ -104,11 +102,11 @@ func DestroySystem(c *gin.Context) {
 func GetSystemLogs(c *gin.Context) {
 	systemID := c.Param("id")
 	if systemID == "" {
-		c.JSON(http.StatusBadRequest, response.NotFound("system ID required", nil))
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
 		return
 	}
 
-	system, exists := systemsStorage[systemID]
+	_, exists := systemsStorage[systemID]
 	if !exists {
 		c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
 		return
@@ -136,8 +134,10 @@ func GetSystemLogs(c *gin.Context) {
 		},
 	}
 
-	userID, _ := c.Get("user_id")
-	logs.Logs.Printf("[INFO][AUDIT] System logs accessed: %s by user %s", system.Name, userID)
+	logger.RequestLogger(c, "systems").Info().
+		Str("operation", "access_logs").
+		Str("system_id", systemID).
+		Msg("System logs accessed")
 
 	c.JSON(http.StatusOK, response.OK("system logs retrieved", gin.H{
 		"system_id": systemID,
@@ -160,8 +160,9 @@ func GetSystemsAudit(c *gin.Context) {
 		"warnings":            7,
 	}
 
-	userID, _ := c.Get("user_id")
-	logs.Logs.Printf("[INFO][AUDIT] Global systems audit accessed by user %s", userID)
+	logger.RequestLogger(c, "systems").Info().
+		Str("operation", "access_audit").
+		Msg("Global systems audit accessed")
 
 	c.JSON(http.StatusOK, response.OK("systems audit data retrieved", auditData))
 }
@@ -170,11 +171,11 @@ func GetSystemsAudit(c *gin.Context) {
 func BackupSystem(c *gin.Context) {
 	systemID := c.Param("id")
 	if systemID == "" {
-		c.JSON(http.StatusBadRequest, response.NotFound("system ID required", nil))
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
 		return
 	}
 
-	system, exists := systemsStorage[systemID]
+	_, exists := systemsStorage[systemID]
 	if !exists {
 		c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
 		return
@@ -187,15 +188,14 @@ func BackupSystem(c *gin.Context) {
 		Encryption  bool   `json:"encryption"`
 	}
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.NotFound("backup options required", err.Error()))
+		c.JSON(http.StatusBadRequest, response.BadRequest("backup options required", err.Error()))
 		return
 	}
 
 	// Simulate backup process
 	backupID := "backup-" + systemID + "-" + time.Now().Format("20060102-150405")
 
-	userID, _ := c.Get("user_id")
-	logs.Logs.Printf("[INFO][BACKUP] System backup initiated: %s (type: %s) by user %s", system.Name, request.Type, userID)
+	logger.LogSystemOperation(c, "backup", systemID, true, nil)
 
 	c.JSON(http.StatusOK, response.OK("backup initiated", gin.H{
 		"backup_id":          backupID,
@@ -211,7 +211,7 @@ func BackupSystem(c *gin.Context) {
 func RestoreSystem(c *gin.Context) {
 	systemID := c.Param("id")
 	if systemID == "" {
-		c.JSON(http.StatusBadRequest, response.NotFound("system ID required", nil))
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
 		return
 	}
 
@@ -227,7 +227,7 @@ func RestoreSystem(c *gin.Context) {
 		Force    bool   `json:"force"`
 	}
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.NotFound("restore options required", err.Error()))
+		c.JSON(http.StatusBadRequest, response.BadRequest("restore options required", err.Error()))
 		return
 	}
 
@@ -235,8 +235,7 @@ func RestoreSystem(c *gin.Context) {
 	system.Status = "restoring"
 	system.UpdatedAt = time.Now()
 
-	userID, _ := c.Get("user_id")
-	logs.Logs.Printf("[CRITICAL][BACKUP] System restore initiated: %s (backup: %s) by user %s", system.Name, request.BackupID, userID)
+	logger.LogSystemOperation(c, "restore", systemID, true, nil)
 
 	c.JSON(http.StatusOK, response.OK("restore initiated", gin.H{
 		"system_id":          systemID,

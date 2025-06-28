@@ -15,6 +15,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/nethesis/my/backend/configuration"
+	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 )
 
@@ -57,8 +58,25 @@ func GenerateCustomToken(user models.User) (string, error) {
 	// Sign token with secret
 	tokenString, err := token.SignedString([]byte(configuration.Config.JWTSecret))
 	if err != nil {
+		logger.ComponentLogger("jwt").Error().
+			Err(err).
+			Str("operation", "token_sign_failed").
+			Str("user_id", user.ID).
+			Str("username", user.Username).
+			Msg("Failed to sign custom JWT token")
 		return "", fmt.Errorf("failed to sign token: %w", err)
 	}
+
+	logger.ComponentLogger("jwt").Info().
+		Str("operation", "token_generated").
+		Str("user_id", user.ID).
+		Str("username", user.Username).
+		Str("organization_id", user.OrganizationID).
+		Str("org_role", user.OrgRole).
+		Strs("user_roles", user.UserRoles).
+		Time("expires_at", time.Now().Add(expDuration)).
+		Dur("duration", expDuration).
+		Msg("Custom JWT token generated successfully")
 
 	return tokenString, nil
 }
@@ -75,13 +93,32 @@ func ValidateCustomToken(tokenString string) (*CustomClaims, error) {
 	})
 
 	if err != nil {
+		logger.ComponentLogger("jwt").Warn().
+			Err(err).
+			Str("operation", "token_validation_failed").
+			Str("error_type", "parse_failed").
+			Msg("Failed to parse custom JWT token")
 		return nil, fmt.Errorf("failed to parse token: %w", err)
 	}
 
 	// Extract and validate claims
 	if claims, ok := token.Claims.(*CustomClaims); ok && token.Valid {
+		logger.ComponentLogger("jwt").Debug().
+			Str("operation", "token_validation_success").
+			Str("user_id", claims.User.ID).
+			Str("username", claims.User.Username).
+			Str("organization_id", claims.User.OrganizationID).
+			Str("org_role", claims.User.OrgRole).
+			Time("expires_at", claims.ExpiresAt.Time).
+			Msg("Custom JWT token validated successfully")
 		return claims, nil
 	}
+
+	logger.ComponentLogger("jwt").Warn().
+		Str("operation", "token_validation_failed").
+		Str("error_type", "invalid_claims").
+		Bool("token_valid", token.Valid).
+		Msg("Invalid custom JWT token claims")
 
 	return nil, fmt.Errorf("invalid token claims")
 }
@@ -110,11 +147,23 @@ func GenerateRefreshToken(userID string) (string, error) {
 	// Create token with claims
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
-	// Sign token with secret (could use a different secret for refresh tokens for extra security)
+	// Sign token with secret
 	tokenString, err := token.SignedString([]byte(configuration.Config.JWTSecret))
 	if err != nil {
+		logger.ComponentLogger("jwt").Error().
+			Err(err).
+			Str("operation", "refresh_token_sign_failed").
+			Str("user_id", userID).
+			Msg("Failed to sign refresh token")
 		return "", fmt.Errorf("failed to sign refresh token: %w", err)
 	}
+
+	logger.ComponentLogger("jwt").Info().
+		Str("operation", "refresh_token_generated").
+		Str("user_id", userID).
+		Time("expires_at", time.Now().Add(expDuration)).
+		Dur("duration", expDuration).
+		Msg("Refresh token generated successfully")
 
 	return tokenString, nil
 }
@@ -131,13 +180,29 @@ func ValidateRefreshToken(tokenString string) (*RefreshTokenClaims, error) {
 	})
 
 	if err != nil {
+		logger.ComponentLogger("jwt").Warn().
+			Err(err).
+			Str("operation", "refresh_token_validation_failed").
+			Str("error_type", "parse_failed").
+			Msg("Failed to parse refresh token")
 		return nil, fmt.Errorf("failed to parse refresh token: %w", err)
 	}
 
 	// Extract and validate claims
 	if claims, ok := token.Claims.(*RefreshTokenClaims); ok && token.Valid {
+		logger.ComponentLogger("jwt").Debug().
+			Str("operation", "refresh_token_validation_success").
+			Str("user_id", claims.UserID).
+			Time("expires_at", claims.ExpiresAt.Time).
+			Msg("Refresh token validated successfully")
 		return claims, nil
 	}
+
+	logger.ComponentLogger("jwt").Warn().
+		Str("operation", "refresh_token_validation_failed").
+		Str("error_type", "invalid_claims").
+		Bool("token_valid", token.Valid).
+		Msg("Invalid refresh token claims")
 
 	return nil, fmt.Errorf("invalid refresh token claims")
 }

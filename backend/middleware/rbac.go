@@ -10,10 +10,10 @@
 package middleware
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
 )
@@ -36,11 +36,37 @@ func RequirePermission(permission string) gin.HandlerFunc {
 		hasOrgPermission := hasPermissionInList(user.OrgPermissions, permission)
 
 		if hasUserPermission || hasOrgPermission {
+			logger.RequestLogger(c, "rbac").Info().
+				Str("operation", "permission_granted").
+				Str("required_permission", permission).
+				Str("user_id", user.ID).
+				Str("username", user.Username).
+				Str("organization_id", user.OrganizationID).
+				Str("org_role", user.OrgRole).
+				Strs("user_roles", user.UserRoles).
+				Bool("via_user_permission", hasUserPermission).
+				Bool("via_org_permission", hasOrgPermission).
+				Msg("Permission granted")
 			c.Next()
 			return
 		}
 
 		// Permission denied
+		logger.RequestLogger(c, "rbac").Warn().
+			Str("operation", "permission_denied").
+			Str("required_permission", permission).
+			Str("user_id", user.ID).
+			Str("username", user.Username).
+			Str("organization_id", user.OrganizationID).
+			Str("org_role", user.OrgRole).
+			Strs("user_roles", user.UserRoles).
+			Strs("user_permissions", user.UserPermissions).
+			Strs("org_permissions", user.OrgPermissions).
+			Str("client_ip", c.ClientIP()).
+			Str("path", c.Request.URL.Path).
+			Str("method", c.Request.Method).
+			Msg("Permission denied - insufficient permissions")
+
 		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions", gin.H{
 			"required_permission": permission,
 			"user_permissions":    user.UserPermissions,
@@ -63,6 +89,18 @@ func RequireUserRole(role string) gin.HandlerFunc {
 		}
 
 		if !hasRoleInList(user.UserRoles, role) {
+			logger.RequestLogger(c, "rbac").Warn().
+				Str("operation", "user_role_denied").
+				Str("required_user_role", role).
+				Str("user_id", user.ID).
+				Str("username", user.Username).
+				Str("organization_id", user.OrganizationID).
+				Strs("user_roles", user.UserRoles).
+				Str("client_ip", c.ClientIP()).
+				Str("path", c.Request.URL.Path).
+				Str("method", c.Request.Method).
+				Msg("User role denied - insufficient user role")
+
 			c.JSON(http.StatusForbidden, response.Forbidden("insufficient user role", gin.H{
 				"required_user_role": role,
 				"user_roles":         user.UserRoles,
@@ -70,6 +108,14 @@ func RequireUserRole(role string) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+
+		logger.RequestLogger(c, "rbac").Info().
+			Str("operation", "user_role_granted").
+			Str("required_user_role", role).
+			Str("user_id", user.ID).
+			Str("username", user.Username).
+			Strs("user_roles", user.UserRoles).
+			Msg("User role granted")
 
 		c.Next()
 	}
@@ -85,6 +131,19 @@ func RequireOrgRole(role string) gin.HandlerFunc {
 		}
 
 		if user.OrgRole != role {
+			logger.RequestLogger(c, "rbac").Warn().
+				Str("operation", "org_role_denied").
+				Str("required_org_role", role).
+				Str("user_org_role", user.OrgRole).
+				Str("user_id", user.ID).
+				Str("username", user.Username).
+				Str("organization_id", user.OrganizationID).
+				Str("organization", user.OrganizationName).
+				Str("client_ip", c.ClientIP()).
+				Str("path", c.Request.URL.Path).
+				Str("method", c.Request.Method).
+				Msg("Organization role denied - insufficient organization role")
+
 			c.JSON(http.StatusForbidden, response.Forbidden("insufficient organization role", gin.H{
 				"required_org_role": role,
 				"user_org_role":     user.OrgRole,
@@ -93,6 +152,16 @@ func RequireOrgRole(role string) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+
+		logger.RequestLogger(c, "rbac").Info().
+			Str("operation", "org_role_granted").
+			Str("required_org_role", role).
+			Str("user_org_role", user.OrgRole).
+			Str("user_id", user.ID).
+			Str("username", user.Username).
+			Str("organization_id", user.OrganizationID).
+			Str("organization", user.OrganizationName).
+			Msg("Organization role granted")
 
 		c.Next()
 	}
@@ -109,10 +178,33 @@ func RequireAnyOrgRole(roles ...string) gin.HandlerFunc {
 
 		for _, role := range roles {
 			if user.OrgRole == role {
+				logger.RequestLogger(c, "rbac").Info().
+					Str("operation", "any_org_role_granted").
+					Strs("required_org_roles", roles).
+					Str("matched_org_role", role).
+					Str("user_org_role", user.OrgRole).
+					Str("user_id", user.ID).
+					Str("username", user.Username).
+					Str("organization_id", user.OrganizationID).
+					Str("organization", user.OrganizationName).
+					Msg("Organization role granted (any)")
 				c.Next()
 				return
 			}
 		}
+
+		logger.RequestLogger(c, "rbac").Warn().
+			Str("operation", "any_org_role_denied").
+			Strs("required_org_roles", roles).
+			Str("user_org_role", user.OrgRole).
+			Str("user_id", user.ID).
+			Str("username", user.Username).
+			Str("organization_id", user.OrganizationID).
+			Str("organization", user.OrganizationName).
+			Str("client_ip", c.ClientIP()).
+			Str("path", c.Request.URL.Path).
+			Str("method", c.Request.Method).
+			Msg("Organization role denied - insufficient organization role (any)")
 
 		c.JSON(http.StatusForbidden, response.Forbidden("insufficient organization role", gin.H{
 			"required_org_roles": roles,
@@ -160,21 +252,4 @@ func hasRoleInList(roles []string, role string) bool {
 		}
 	}
 	return false
-}
-
-func buildPermissionFromMethod(method, resource string) string {
-	methodToAction := map[string]string{
-		"GET":    "read",
-		"POST":   "create",
-		"PUT":    "manage",
-		"PATCH":  "manage",
-		"DELETE": "manage",
-	}
-
-	action, exists := methodToAction[method]
-	if !exists {
-		return ""
-	}
-
-	return fmt.Sprintf("%s:%s", action, resource)
 }

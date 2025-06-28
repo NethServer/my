@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 
-	"github.com/nethesis/my/backend/logs"
+	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services"
@@ -23,13 +23,13 @@ import (
 func CreateDistributor(c *gin.Context) {
 	var request models.CreateDistributorRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.NotFound("request fields malformed", err.Error()))
+		c.JSON(http.StatusBadRequest, response.BadRequest("request fields malformed", err.Error()))
 		return
 	}
 
-	userID, exists := c.Get("user_id")
+	_, exists := c.Get("user_id")
 	if !exists {
-		userID = "unknown"
+		// user context missing - handled by middleware
 	}
 	userOrgID, _ := c.Get("organization_id")
 
@@ -66,7 +66,7 @@ func CreateDistributor(c *gin.Context) {
 	// Create the organization in Logto
 	org, err := client.CreateOrganization(orgRequest)
 	if err != nil {
-		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to create distributor organization in Logto: %v", err)
+		logger.NewHTTPErrorLogger(c, "distributors").LogError(err, "create_distributor_organization", http.StatusInternalServerError, "Failed to create distributor organization in Logto")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to create distributor organization", err.Error()))
 		return
 	}
@@ -74,18 +74,18 @@ func CreateDistributor(c *gin.Context) {
 	// Assign Distributor role as default JIT role
 	distributorRole, err := client.GetOrganizationRoleByName("Distributor")
 	if err != nil {
-		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to find Distributor role: %v", err)
+		logger.NewHTTPErrorLogger(c, "distributors").LogError(err, "find_distributor_role", http.StatusInternalServerError, "Failed to find Distributor role")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to configure distributor role", err.Error()))
 		return
 	}
 
 	if err := client.AssignOrganizationJitRoles(org.ID, []string{distributorRole.ID}); err != nil {
-		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to assign Distributor JIT role: %v", err)
+		logger.NewHTTPErrorLogger(c, "distributors").LogError(err, "assign_distributor_jit_role", http.StatusInternalServerError, "Failed to assign Distributor JIT role")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to configure distributor permissions", err.Error()))
 		return
 	}
 
-	logs.Logs.Printf("[INFO][DISTRIBUTORS] Distributor organization created in Logto: %s (ID: %s) by user %s", org.Name, org.ID, userID)
+	logger.LogBusinessOperation(c, "distributors", "create", "distributor", org.ID, true, nil)
 
 	// Return the created organization data
 	distributorResponse := gin.H{
@@ -103,16 +103,18 @@ func CreateDistributor(c *gin.Context) {
 
 // GetDistributors handles GET /api/distributors - retrieves organizations with Distributor role from Logto
 func GetDistributors(c *gin.Context) {
-	userID, _ := c.Get("user_id")
+	_, _ = c.Get("user_id")
 	userOrgRole, _ := c.Get("org_role")
 	userOrgID, _ := c.Get("organization_id")
 
-	logs.Logs.Printf("[INFO][DISTRIBUTORS] Distributors list requested by user %s (role: %s, org: %s)", userID, userOrgRole, userOrgID)
+	logger.RequestLogger(c, "distributors").Info().
+		Str("operation", "list_distributors").
+		Msg("Distributors list requested")
 
 	// Get organizations with Distributor role from Logto
 	orgs, err := services.GetOrganizationsByRole("Distributor")
 	if err != nil {
-		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to fetch distributors from Logto: %v", err)
+		logger.NewHTTPErrorLogger(c, "distributors").LogError(err, "fetch_distributors", http.StatusInternalServerError, "Failed to fetch distributors from Logto")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch distributors", nil))
 		return
 	}
@@ -145,7 +147,10 @@ func GetDistributors(c *gin.Context) {
 		distributors = append(distributors, distributor)
 	}
 
-	logs.Logs.Printf("[INFO][DISTRIBUTORS] Retrieved %d distributors from Logto", len(distributors))
+	logger.RequestLogger(c, "distributors").Info().
+		Int("distributor_count", len(distributors)).
+		Str("operation", "fetch_distributors_result").
+		Msg("Retrieved distributors from Logto")
 
 	c.JSON(http.StatusOK, response.OK("distributors retrieved successfully", gin.H{"distributors": distributors, "count": len(distributors)}))
 }
@@ -154,17 +159,17 @@ func GetDistributors(c *gin.Context) {
 func UpdateDistributor(c *gin.Context) {
 	distributorID := c.Param("id")
 	if distributorID == "" {
-		c.JSON(http.StatusBadRequest, response.NotFound("distributor ID required", nil))
+		c.JSON(http.StatusBadRequest, response.BadRequest("distributor ID required", nil))
 		return
 	}
 
 	var request models.UpdateDistributorRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.NotFound("request fields malformed", err.Error()))
+		c.JSON(http.StatusBadRequest, response.BadRequest("request fields malformed", err.Error()))
 		return
 	}
 
-	userID, _ := c.Get("user_id")
+	_, _ = c.Get("user_id")
 	userOrgID, _ := c.Get("organization_id")
 
 	// Connect to Logto Management API
@@ -173,7 +178,7 @@ func UpdateDistributor(c *gin.Context) {
 	// First, verify the organization exists and get current data
 	currentOrg, err := client.GetOrganizationByID(distributorID)
 	if err != nil {
-		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to fetch distributor organization: %v", err)
+		logger.NewHTTPErrorLogger(c, "distributors").LogError(err, "fetch_distributor_organization", http.StatusInternalServerError, "Failed to fetch distributor organization")
 		c.JSON(http.StatusNotFound, response.NotFound("distributor not found", nil))
 		return
 	}
@@ -222,12 +227,12 @@ func UpdateDistributor(c *gin.Context) {
 	// Update the organization in Logto
 	updatedOrg, err := client.UpdateOrganization(distributorID, updateRequest)
 	if err != nil {
-		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to update distributor organization in Logto: %v", err)
+		logger.NewHTTPErrorLogger(c, "distributors").LogError(err, "update_distributor_organization", http.StatusInternalServerError, "Failed to update distributor organization in Logto")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to update distributor organization", err.Error()))
 		return
 	}
 
-	logs.Logs.Printf("[INFO][DISTRIBUTORS] Distributor organization updated in Logto: %s (ID: %s) by user %s", updatedOrg.Name, updatedOrg.ID, userID)
+	logger.LogBusinessOperation(c, "distributors", "update", "distributor", distributorID, true, nil)
 
 	// Return the updated organization data
 	distributorResponse := gin.H{
@@ -247,11 +252,11 @@ func UpdateDistributor(c *gin.Context) {
 func DeleteDistributor(c *gin.Context) {
 	distributorID := c.Param("id")
 	if distributorID == "" {
-		c.JSON(http.StatusBadRequest, response.NotFound("distributor ID required", nil))
+		c.JSON(http.StatusBadRequest, response.BadRequest("distributor ID required", nil))
 		return
 	}
 
-	userID, _ := c.Get("user_id")
+	_, _ = c.Get("user_id")
 
 	// Connect to Logto Management API
 	client := services.NewLogtoManagementClient()
@@ -259,19 +264,19 @@ func DeleteDistributor(c *gin.Context) {
 	// First, verify the organization exists and get its data for logging
 	currentOrg, err := client.GetOrganizationByID(distributorID)
 	if err != nil {
-		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to fetch distributor organization for deletion: %v", err)
+		logger.NewHTTPErrorLogger(c, "distributors").LogError(err, "fetch_distributor_for_deletion", http.StatusInternalServerError, "Failed to fetch distributor organization for deletion")
 		c.JSON(http.StatusNotFound, response.NotFound("distributor not found", nil))
 		return
 	}
 
 	// Delete the organization from Logto
 	if err := client.DeleteOrganization(distributorID); err != nil {
-		logs.Logs.Printf("[ERROR][DISTRIBUTORS] Failed to delete distributor organization from Logto: %v", err)
+		logger.NewHTTPErrorLogger(c, "distributors").LogError(err, "delete_distributor_organization", http.StatusInternalServerError, "Failed to delete distributor organization from Logto")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to delete distributor organization", err.Error()))
 		return
 	}
 
-	logs.Logs.Printf("[INFO][DISTRIBUTORS] Distributor organization deleted from Logto: %s (ID: %s) by user %s", currentOrg.Name, distributorID, userID)
+	logger.LogBusinessOperation(c, "distributors", "delete", "distributor", distributorID, true, nil)
 
 	c.JSON(http.StatusOK, response.OK("distributor deleted successfully", gin.H{
 		"id":        distributorID,

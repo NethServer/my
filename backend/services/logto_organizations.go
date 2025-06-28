@@ -16,7 +16,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/nethesis/my/backend/logs"
+	"github.com/nethesis/my/backend/logger"
 )
 
 // GetUserOrganizations fetches organizations the user belongs to
@@ -238,14 +238,23 @@ func GetOrganizationsByRole(roleType string) ([]LogtoOrganization, error) {
 	for _, org := range allOrgs {
 		jitRoles, err := client.GetOrganizationJitRoles(org.ID)
 		if err != nil {
-			logs.Logs.Printf("[WARN][LOGTO] Failed to get JIT roles for org %s: %v", org.ID, err)
+			logger.ComponentLogger("logto").Warn().
+				Err(err).
+				Str("operation", "get_jit_roles").
+				Str("org_id", org.ID).
+				Msg("Failed to get JIT roles for organization")
 			continue
 		}
 
 		// Check if this organization has the target role as default
 		hasRole := false
 		for _, role := range jitRoles {
-			logs.Logs.Printf("[DEBUG][LOGTO] Org %s (%s) has JIT role: %s", org.ID, org.Name, role.Name)
+			logger.ComponentLogger("logto").Debug().
+				Str("operation", "check_jit_role").
+				Str("org_id", org.ID).
+				Str("org_name", org.Name).
+				Str("role_name", role.Name).
+				Msg("Organization has JIT role")
 			if role.Name == roleType {
 				hasRole = true
 				break
@@ -253,12 +262,21 @@ func GetOrganizationsByRole(roleType string) ([]LogtoOrganization, error) {
 		}
 
 		if hasRole {
-			logs.Logs.Printf("[INFO][LOGTO] Org %s (%s) matches role %s", org.ID, org.Name, roleType)
+			logger.ComponentLogger("logto").Info().
+				Str("operation", "role_match").
+				Str("org_id", org.ID).
+				Str("org_name", org.Name).
+				Str("role_type", roleType).
+				Msg("Organization matches role")
 			filteredOrgs = append(filteredOrgs, org)
 		}
 	}
 
-	logs.Logs.Printf("[INFO][LOGTO] Found %d organizations with JIT role '%s'", len(filteredOrgs), roleType)
+	logger.ComponentLogger("logto").Info().
+		Int("org_count", len(filteredOrgs)).
+		Str("operation", "filter_by_role").
+		Str("role_type", roleType).
+		Msg("Found organizations with JIT role")
 	return filteredOrgs, nil
 }
 
@@ -266,7 +284,12 @@ func GetOrganizationsByRole(roleType string) ([]LogtoOrganization, error) {
 func FilterOrganizationsByVisibility(orgs []LogtoOrganization, userOrgRole, userOrgID string, targetRole string) []LogtoOrganization {
 	// God can see everything
 	if userOrgRole == "God" {
-		logs.Logs.Printf("[INFO][LOGTO] God user - showing all %d %ss", len(orgs), targetRole)
+		logger.ComponentLogger("logto").Info().
+			Int("org_count", len(orgs)).
+			Str("operation", "filter_organizations").
+			Str("user_role", "God").
+			Str("target_role", targetRole).
+			Msg("God user - showing all organizations")
 		return orgs
 	}
 
@@ -275,7 +298,10 @@ func FilterOrganizationsByVisibility(orgs []LogtoOrganization, userOrgRole, user
 	switch targetRole {
 	case "Distributor":
 		// Only God should access distributors (already protected by middleware)
-		logs.Logs.Printf("[INFO][LOGTO] Non-God user accessing distributors - should be blocked by middleware")
+		logger.ComponentLogger("logto").Info().
+			Str("operation", "filter_organizations").
+			Str("target_role", "distributors").
+			Msg("Non-God user accessing distributors - should be blocked by middleware")
 		return filteredOrgs
 
 	case "Reseller":
@@ -288,7 +314,13 @@ func FilterOrganizationsByVisibility(orgs []LogtoOrganization, userOrgRole, user
 					}
 				}
 			}
-			logs.Logs.Printf("[INFO][LOGTO] Distributor %s can see %d/%d resellers", userOrgID, len(filteredOrgs), len(orgs))
+			logger.ComponentLogger("logto").Info().
+				Str("operation", "filter_organizations").
+				Str("user_org_id", userOrgID).
+				Int("visible_count", len(filteredOrgs)).
+				Int("total_count", len(orgs)).
+				Str("target_role", "resellers").
+				Msg("Distributor filtered resellers")
 		}
 
 	case "Customer":
@@ -297,7 +329,10 @@ func FilterOrganizationsByVisibility(orgs []LogtoOrganization, userOrgRole, user
 			// First, get all resellers created by this distributor
 			distributorResellers, err := GetOrganizationsByRole("Reseller")
 			if err != nil {
-				logs.Logs.Printf("[ERROR][LOGTO] Failed to get distributor's resellers: %v", err)
+				logger.ComponentLogger("logto").Error().
+					Err(err).
+					Str("operation", "get_distributor_resellers").
+					Msg("Failed to get distributor's resellers")
 				return filteredOrgs
 			}
 
@@ -324,7 +359,14 @@ func FilterOrganizationsByVisibility(orgs []LogtoOrganization, userOrgRole, user
 					}
 				}
 			}
-			logs.Logs.Printf("[INFO][LOGTO] Distributor %s can see %d/%d customers (via %d resellers)", userOrgID, len(filteredOrgs), len(orgs), len(resellerIDs))
+			logger.ComponentLogger("logto").Info().
+				Str("operation", "filter_organizations").
+				Str("user_org_id", userOrgID).
+				Int("visible_count", len(filteredOrgs)).
+				Int("total_count", len(orgs)).
+				Int("reseller_count", len(resellerIDs)).
+				Str("target_role", "customers").
+				Msg("Distributor filtered customers via resellers")
 
 		} else if userOrgRole == "Reseller" {
 			// Resellers see only customers they created
@@ -335,7 +377,13 @@ func FilterOrganizationsByVisibility(orgs []LogtoOrganization, userOrgRole, user
 					}
 				}
 			}
-			logs.Logs.Printf("[INFO][LOGTO] Reseller %s can see %d/%d customers", userOrgID, len(filteredOrgs), len(orgs))
+			logger.ComponentLogger("logto").Info().
+				Str("operation", "filter_organizations").
+				Str("user_org_id", userOrgID).
+				Int("visible_count", len(filteredOrgs)).
+				Int("total_count", len(orgs)).
+				Str("target_role", "customers").
+				Msg("Reseller filtered customers")
 		}
 	}
 

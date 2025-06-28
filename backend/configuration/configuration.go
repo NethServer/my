@@ -10,9 +10,10 @@
 package configuration
 
 import (
+	"fmt"
 	"os"
 
-	"github.com/nethesis/my/backend/logs"
+	"github.com/nethesis/my/backend/logger"
 )
 
 type Configuration struct {
@@ -43,15 +44,13 @@ func Init() {
 	if os.Getenv("LOGTO_ISSUER") != "" {
 		Config.LogtoIssuer = os.Getenv("LOGTO_ISSUER")
 	} else {
-		logs.Logs.Println("[CRITICAL][ENV] LOGTO_ISSUER variable is empty")
-		os.Exit(1)
+		logger.LogConfigLoad("env", "LOGTO_ISSUER", false, fmt.Errorf("LOGTO_ISSUER variable is empty"))
 	}
 
 	if os.Getenv("LOGTO_AUDIENCE") != "" {
 		Config.LogtoAudience = os.Getenv("LOGTO_AUDIENCE")
 	} else {
-		logs.Logs.Println("[CRITICAL][ENV] LOGTO_AUDIENCE variable is empty")
-		os.Exit(1)
+		logger.LogConfigLoad("env", "LOGTO_AUDIENCE", false, fmt.Errorf("LOGTO_AUDIENCE variable is empty"))
 	}
 
 	if os.Getenv("JWKS_ENDPOINT") != "" {
@@ -64,8 +63,7 @@ func Init() {
 	if os.Getenv("JWT_SECRET") != "" {
 		Config.JWTSecret = os.Getenv("JWT_SECRET")
 	} else {
-		logs.Logs.Println("[CRITICAL][ENV] JWT_SECRET variable is empty")
-		os.Exit(1)
+		logger.LogConfigLoad("env", "JWT_SECRET", false, fmt.Errorf("JWT_SECRET variable is empty"))
 	}
 
 	if os.Getenv("JWT_ISSUER") != "" {
@@ -90,15 +88,13 @@ func Init() {
 	if os.Getenv("LOGTO_MANAGEMENT_CLIENT_ID") != "" {
 		Config.LogtoManagementClientID = os.Getenv("LOGTO_MANAGEMENT_CLIENT_ID")
 	} else {
-		logs.Logs.Println("[CRITICAL][ENV] LOGTO_MANAGEMENT_CLIENT_ID variable is empty")
-		os.Exit(1)
+		logger.LogConfigLoad("env", "LOGTO_MANAGEMENT_CLIENT_ID", false, fmt.Errorf("LOGTO_MANAGEMENT_CLIENT_ID variable is empty"))
 	}
 
 	if os.Getenv("LOGTO_MANAGEMENT_CLIENT_SECRET") != "" {
 		Config.LogtoManagementClientSecret = os.Getenv("LOGTO_MANAGEMENT_CLIENT_SECRET")
 	} else {
-		logs.Logs.Println("[CRITICAL][ENV] LOGTO_MANAGEMENT_CLIENT_SECRET variable is empty")
-		os.Exit(1)
+		logger.LogConfigLoad("env", "LOGTO_MANAGEMENT_CLIENT_SECRET", false, fmt.Errorf("LOGTO_MANAGEMENT_CLIENT_SECRET variable is empty"))
 	}
 
 	if os.Getenv("LOGTO_MANAGEMENT_BASE_URL") != "" {
@@ -106,4 +102,7 @@ func Init() {
 	} else {
 		Config.LogtoManagementBaseURL = Config.LogtoIssuer + "/api"
 	}
+
+	// Log successful configuration load
+	logger.LogConfigLoad("env", "configuration", true, nil)
 }

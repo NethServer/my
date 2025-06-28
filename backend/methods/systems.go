@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin/binding"
 	"github.com/google/uuid"
 
-	"github.com/nethesis/my/backend/logs"
+	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
 )
@@ -28,7 +28,7 @@ func CreateSystem(c *gin.Context) {
 	// Parse request body
 	var request models.CreateSystemRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.NotFound("request fields malformed", err.Error()))
+		c.JSON(http.StatusBadRequest, response.BadRequest("request fields malformed", err.Error()))
 		return
 	}
 
@@ -60,7 +60,7 @@ func CreateSystem(c *gin.Context) {
 	systemsStorage[systemID] = system
 
 	// Log the action
-	logs.Logs.Printf("[INFO][SYSTEMS] System created: %s by user %s", system.Name, userID)
+	logger.LogBusinessOperation(c, "systems", "create", "system", system.ID, true, nil)
 
 	// Return success response
 	c.JSON(http.StatusCreated, response.Created("system created successfully", system))
@@ -75,8 +75,9 @@ func GetSystems(c *gin.Context) {
 	}
 
 	// Log the action
-	userID, _ := c.Get("user_id")
-	logs.Logs.Printf("[INFO][SYSTEMS] Systems list requested by user %s", userID)
+	logger.RequestLogger(c, "systems").Info().
+		Str("operation", "list_systems").
+		Msg("Systems list requested")
 
 	// Return systems list
 	c.JSON(http.StatusOK, response.OK("systems retrieved successfully", gin.H{"systems": systems, "count": len(systems)}))
@@ -87,7 +88,7 @@ func UpdateSystem(c *gin.Context) {
 	// Get system ID from URL parameter
 	systemID := c.Param("id")
 	if systemID == "" {
-		c.JSON(http.StatusBadRequest, response.NotFound("system ID required", nil))
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
 		return
 	}
 
@@ -101,7 +102,7 @@ func UpdateSystem(c *gin.Context) {
 	// Parse request body
 	var request models.UpdateSystemRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.NotFound("request fields malformed", err.Error()))
+		c.JSON(http.StatusBadRequest, response.BadRequest("request fields malformed", err.Error()))
 		return
 	}
 
@@ -129,8 +130,7 @@ func UpdateSystem(c *gin.Context) {
 	system.UpdatedAt = time.Now()
 
 	// Log the action
-	userID, _ := c.Get("user_id")
-	logs.Logs.Printf("[INFO][SYSTEMS] System updated: %s by user %s", system.Name, userID)
+	logger.LogBusinessOperation(c, "systems", "update", "system", systemID, true, nil)
 
 	// Return updated system
 	c.JSON(http.StatusOK, response.OK("system updated successfully", system))
@@ -141,12 +141,12 @@ func DeleteSystem(c *gin.Context) {
 	// Get system ID from URL parameter
 	systemID := c.Param("id")
 	if systemID == "" {
-		c.JSON(http.StatusBadRequest, response.NotFound("system ID required", nil))
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
 		return
 	}
 
 	// Check if system exists
-	system, exists := systemsStorage[systemID]
+	_, exists := systemsStorage[systemID]
 	if !exists {
 		c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
 		return
@@ -159,8 +159,7 @@ func DeleteSystem(c *gin.Context) {
 	delete(subscriptionsStorage, systemID)
 
 	// Log the action
-	userID, _ := c.Get("user_id")
-	logs.Logs.Printf("[INFO][SYSTEMS] System deleted: %s by user %s", system.Name, userID)
+	logger.LogBusinessOperation(c, "systems", "delete", "system", systemID, true, nil)
 
 	// Return success response
 	c.JSON(http.StatusOK, response.OK("system deleted successfully", nil))
@@ -175,8 +174,9 @@ func GetSystemSubscriptions(c *gin.Context) {
 	}
 
 	// Log the action
-	userID, _ := c.Get("user_id")
-	logs.Logs.Printf("[INFO][SYSTEMS] Subscriptions list requested by user %s", userID)
+	logger.RequestLogger(c, "systems").Info().
+		Str("operation", "list_subscriptions").
+		Msg("Subscriptions list requested")
 
 	// Return subscriptions list
 	c.JSON(http.StatusOK, response.OK("system subscriptions retrieved successfully", gin.H{"subscriptions": subscriptions, "count": len(subscriptions)}))
@@ -187,7 +187,7 @@ func RestartSystem(c *gin.Context) {
 	// Get system ID from URL parameter
 	systemID := c.Param("id")
 	if systemID == "" {
-		c.JSON(http.StatusBadRequest, response.NotFound("system ID required", nil))
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
 		return
 	}
 
@@ -210,8 +210,7 @@ func RestartSystem(c *gin.Context) {
 	system.UpdatedAt = time.Now()
 
 	// Log the action
-	userID, _ := c.Get("user_id")
-	logs.Logs.Printf("[INFO][SYSTEMS] System restart initiated: %s by user %s (force: %v)", system.Name, userID, request.Force)
+	logger.LogSystemOperation(c, "restart", systemID, true, nil)
 
 	// Return success response
 	c.JSON(http.StatusOK, response.OK("system restart initiated", gin.H{
@@ -226,7 +225,7 @@ func EnableSystem(c *gin.Context) {
 	// Get system ID from URL parameter
 	systemID := c.Param("id")
 	if systemID == "" {
-		c.JSON(http.StatusBadRequest, response.NotFound("system ID required", nil))
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
 		return
 	}
 
@@ -243,8 +242,7 @@ func EnableSystem(c *gin.Context) {
 	system.LastSeen = time.Now()
 
 	// Log the action
-	userID, _ := c.Get("user_id")
-	logs.Logs.Printf("[INFO][SYSTEMS] System enabled: %s by user %s", system.Name, userID)
+	logger.LogSystemOperation(c, "enable", systemID, true, nil)
 
 	// Return success response
 	c.JSON(http.StatusOK, response.OK("system enabled successfully", system))
@@ -310,5 +308,7 @@ func InitSystemsStorage() {
 	subscriptionsStorage["sys-001"] = subscription1
 	subscriptionsStorage["sys-002"] = subscription2
 
-	logs.Logs.Println("[INFO][SYSTEMS] Demo systems storage initialized")
+	logger.ComponentLogger("systems").Info().
+		Str("operation", "init_storage").
+		Msg("Demo systems storage initialized")
 }

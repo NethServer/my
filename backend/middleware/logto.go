@@ -14,6 +14,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/big"
 	"net/http"
 	"strings"
@@ -23,7 +24,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/nethesis/my/backend/configuration"
-	"github.com/nethesis/my/backend/logs"
+	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
 )
@@ -61,7 +62,7 @@ func LogtoAuthMiddleware() gin.HandlerFunc {
 
 		user, err := validateLogtoToken(tokenString)
 		if err != nil {
-			logs.Logs.Println("[ERROR][AUTH] token validation failed: " + err.Error())
+			logger.LogAuthFailure(c, "auth", "logto_jwt", "token_validation_failed", err)
 			c.JSON(http.StatusUnauthorized, response.Unauthorized("invalid token", err.Error()))
 			c.Abort()
 			return
@@ -70,9 +71,8 @@ func LogtoAuthMiddleware() gin.HandlerFunc {
 		// Store user info in context
 		c.Set("user", user)
 		c.Set("user_id", user.ID)
-		// Username field removed from User model
 
-		logs.Logs.Println("[INFO][AUTH] authentication success for user " + user.ID + " from " + c.ClientIP())
+		logger.LogAuthSuccess(c, "auth", "logto_jwt", user.ID, user.OrganizationID)
 		c.Next()
 	}
 }
@@ -127,10 +127,6 @@ func validateLogtoToken(tokenString string) (*models.User, error) {
 		user.ID = sub
 	}
 
-	// Username field removed from User model
-
-	// Email field removed from User model
-
 	// Extract user roles (technical capabilities) from custom claims
 	if userRoles, ok := claims["user_roles"].([]interface{}); ok {
 		for _, role := range userRoles {
@@ -179,19 +175,70 @@ func getPublicKey(kid string) (*rsa.PublicKey, error) {
 	// Check cache (5 minutes TTL)
 	if jwksCache != nil && time.Since(jwksCacheTime) < 5*time.Minute {
 		if key, exists := jwksCache[kid]; exists {
+			logger.ComponentLogger("auth").Debug().
+				Str("operation", "jwks_cache_hit").
+				Str("kid", kid).
+				Time("cache_time", jwksCacheTime).
+				Dur("cache_age", time.Since(jwksCacheTime)).
+				Msg("JWKS cache hit")
 			return key, nil
 		}
+		logger.ComponentLogger("auth").Debug().
+			Str("operation", "jwks_cache_miss").
+			Str("kid", kid).
+			Time("cache_time", jwksCacheTime).
+			Int("cached_keys", len(jwksCache)).
+			Msg("JWKS cache miss - key not found")
+	} else {
+		logger.ComponentLogger("auth").Debug().
+			Str("operation", "jwks_cache_expired").
+			Str("kid", kid).
+			Time("cache_time", jwksCacheTime).
+			Dur("cache_age", time.Since(jwksCacheTime)).
+			Msg("JWKS cache expired or empty")
 	}
 
 	// Fetch JWKS
+	logger.ComponentLogger("auth").Info().
+		Str("operation", "jwks_fetch_start").
+		Str("endpoint", configuration.Config.JWKSEndpoint).
+		Str("kid", kid).
+		Msg("Fetching JWKS from endpoint")
+
+	start := time.Now()
 	resp, err := http.Get(configuration.Config.JWKSEndpoint)
 	if err != nil {
+		logger.ComponentLogger("auth").Error().
+			Err(err).
+			Str("operation", "jwks_fetch_failed").
+			Str("endpoint", configuration.Config.JWKSEndpoint).
+			Dur("duration", time.Since(start)).
+			Msg("Failed to fetch JWKS")
 		return nil, fmt.Errorf("failed to fetch JWKS: %w", err)
 	}
 	defer resp.Body.Close()
 
+	// Check HTTP status code
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		logger.ComponentLogger("auth").Error().
+			Str("operation", "jwks_fetch_bad_status").
+			Int("status_code", resp.StatusCode).
+			Str("endpoint", configuration.Config.JWKSEndpoint).
+			Str("response_body", string(body)).
+			Dur("duration", time.Since(start)).
+			Msg("JWKS endpoint returned error status")
+		return nil, fmt.Errorf("JWKS endpoint returned status %d: %s", resp.StatusCode, string(body))
+	}
+
 	var jwks JWKSet
 	if err := json.NewDecoder(resp.Body).Decode(&jwks); err != nil {
+		logger.ComponentLogger("auth").Error().
+			Err(err).
+			Str("operation", "jwks_decode_failed").
+			Int("status_code", resp.StatusCode).
+			Dur("duration", time.Since(start)).
+			Msg("Failed to decode JWKS response")
 		return nil, fmt.Errorf("failed to decode JWKS: %w", err)
 	}
 
@@ -199,18 +246,40 @@ func getPublicKey(kid string) (*rsa.PublicKey, error) {
 	jwksCache = make(map[string]*rsa.PublicKey)
 	jwksCacheTime = time.Now()
 
+	keysProcessed := 0
+	keysSuccessful := 0
+
 	for _, jwk := range jwks.Keys {
+		keysProcessed++
 		if jwk.Kty == "RSA" && jwk.Use == "sig" {
 			key, err := jwkToRSAPublicKey(jwk)
 			if err != nil {
-				logs.Logs.Println("[WARN][AUTH] failed to convert JWK to RSA key: " + err.Error())
+				logger.ComponentLogger("auth").Warn().
+					Err(err).
+					Str("operation", "convert_jwk_to_rsa").
+					Str("kid", jwk.Kid).
+					Msg("Failed to convert JWK to RSA key")
 				continue
 			}
 			jwksCache[jwk.Kid] = key
+			keysSuccessful++
 		}
 	}
 
+	logger.ComponentLogger("auth").Info().
+		Str("operation", "jwks_cache_updated").
+		Int("keys_processed", keysProcessed).
+		Int("keys_successful", keysSuccessful).
+		Int("total_cached", len(jwksCache)).
+		Dur("fetch_duration", time.Since(start)).
+		Time("cache_time", jwksCacheTime).
+		Msg("JWKS cache updated successfully")
+
 	if key, exists := jwksCache[kid]; exists {
+		logger.ComponentLogger("auth").Debug().
+			Str("operation", "jwks_key_found").
+			Str("kid", kid).
+			Msg("Requested key found in updated cache")
 		return key, nil
 	}
 

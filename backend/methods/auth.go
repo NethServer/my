@@ -17,7 +17,7 @@ import (
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/jwt"
-	"github.com/nethesis/my/backend/logs"
+	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services"
@@ -47,7 +47,7 @@ func ExchangeToken(c *gin.Context) {
 	var req TokenExchangeRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		logs.Logs.Println("[ERROR][AUTH] Invalid request body:", err.Error())
+		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "parse_request", http.StatusBadRequest, "Invalid request body")
 		c.JSON(http.StatusBadRequest, response.BadRequest(
 			"Invalid request body: "+err.Error(),
 			nil,
@@ -58,7 +58,7 @@ func ExchangeToken(c *gin.Context) {
 	// Get user info from Logto
 	userInfo, err := services.GetUserInfoFromLogto(req.AccessToken)
 	if err != nil {
-		logs.Logs.Println("[ERROR][AUTH] Failed to get user info from Logto:", err.Error())
+		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "get_userinfo", http.StatusUnauthorized, "Failed to get user info from Logto")
 		c.JSON(http.StatusUnauthorized, response.Unauthorized(
 			"Invalid access token: "+err.Error(),
 			nil,
@@ -69,7 +69,10 @@ func ExchangeToken(c *gin.Context) {
 	// Get complete user profile from Management API
 	userProfile, err := services.GetUserProfileFromLogto(userInfo.Sub)
 	if err != nil {
-		logs.Logs.Printf("[WARN][AUTH] Failed to get user profile: %v", err)
+		logger.RequestLogger(c, "auth").Warn().
+			Err(err).
+			Str("operation", "get_profile").
+			Msg("Failed to get user profile")
 		userProfile = nil
 	}
 
@@ -89,7 +92,10 @@ func ExchangeToken(c *gin.Context) {
 	// Enrich user with roles and permissions
 	enrichedUser, err := services.EnrichUserWithRolesAndPermissions(userInfo.Sub)
 	if err != nil {
-		logs.Logs.Println("[WARN][AUTH] Failed to enrich user with roles:", err.Error())
+		logger.RequestLogger(c, "auth").Warn().
+			Err(err).
+			Str("operation", "enrich_user").
+			Msg("Failed to enrich user with roles")
 	} else {
 		user.UserRoles = enrichedUser.UserRoles
 		user.UserPermissions = enrichedUser.UserPermissions
@@ -102,7 +108,7 @@ func ExchangeToken(c *gin.Context) {
 	// Generate custom JWT token
 	customToken, err := jwt.GenerateCustomToken(user)
 	if err != nil {
-		logs.Logs.Println("[ERROR][AUTH] Failed to generate custom token:", err.Error())
+		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "generate_token", http.StatusInternalServerError, "Failed to generate custom token")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
 			"Failed to generate token: "+err.Error(),
 			nil,
@@ -113,7 +119,7 @@ func ExchangeToken(c *gin.Context) {
 	// Generate refresh token
 	refreshToken, err := jwt.GenerateRefreshToken(user.ID)
 	if err != nil {
-		logs.Logs.Println("[ERROR][AUTH] Failed to generate refresh token:", err.Error())
+		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "generate_refresh_token", http.StatusInternalServerError, "Failed to generate refresh token")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
 			"Failed to generate refresh token: "+err.Error(),
 			nil,
@@ -128,7 +134,7 @@ func ExchangeToken(c *gin.Context) {
 	}
 	expiresIn := int64(expDuration.Seconds())
 
-	logs.Logs.Printf("[INFO][AUTH] Token exchange successful for user: %s", user.ID)
+	logger.LogTokenExchange(c, "auth", "access_token", true, nil)
 
 	c.JSON(http.StatusOK, response.OK(
 		"token exchange successful",
@@ -147,7 +153,7 @@ func RefreshToken(c *gin.Context) {
 	var req RefreshTokenRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		logs.Logs.Println("[ERROR][AUTH] Invalid refresh request body:", err.Error())
+		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "parse_refresh_request", http.StatusBadRequest, "Invalid refresh request body")
 		c.JSON(http.StatusBadRequest, response.BadRequest(
 			"Invalid request body: "+err.Error(),
 			nil,
@@ -158,7 +164,7 @@ func RefreshToken(c *gin.Context) {
 	// Validate refresh token
 	refreshClaims, err := jwt.ValidateRefreshToken(req.RefreshToken)
 	if err != nil {
-		logs.Logs.Println("[ERROR][AUTH] Invalid refresh token:", err.Error())
+		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "validate_refresh_token", http.StatusUnauthorized, "Invalid refresh token")
 		c.JSON(http.StatusUnauthorized, response.Unauthorized(
 			"Invalid refresh token: "+err.Error(),
 			nil,
@@ -169,7 +175,10 @@ func RefreshToken(c *gin.Context) {
 	// Get fresh user information
 	enrichedUser, err := services.EnrichUserWithRolesAndPermissions(refreshClaims.UserID)
 	if err != nil {
-		logs.Logs.Println("[ERROR][AUTH] Failed to enrich user during refresh:", err.Error())
+		logger.RequestLogger(c, "auth").Error().
+			Err(err).
+			Str("operation", "enrich_user_refresh").
+			Msg("Failed to enrich user during refresh")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
 			"Failed to retrieve user information: "+err.Error(),
 			nil,
@@ -180,7 +189,10 @@ func RefreshToken(c *gin.Context) {
 	// Get complete user profile
 	userProfile, err := services.GetUserProfileFromLogto(refreshClaims.UserID)
 	if err != nil {
-		logs.Logs.Printf("[WARN][AUTH] Failed to get user profile during refresh: %v", err)
+		logger.RequestLogger(c, "auth").Warn().
+			Err(err).
+			Str("operation", "get_profile_refresh").
+			Msg("Failed to get user profile during refresh")
 		userProfile = nil
 	}
 
@@ -203,7 +215,7 @@ func RefreshToken(c *gin.Context) {
 	// Generate new tokens
 	newAccessToken, err := jwt.GenerateCustomToken(user)
 	if err != nil {
-		logs.Logs.Println("[ERROR][AUTH] Failed to generate new access token:", err.Error())
+		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "generate_new_token", http.StatusInternalServerError, "Failed to generate new access token")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
 			"Failed to generate new access token: "+err.Error(),
 			nil,
@@ -213,7 +225,7 @@ func RefreshToken(c *gin.Context) {
 
 	newRefreshToken, err := jwt.GenerateRefreshToken(user.ID)
 	if err != nil {
-		logs.Logs.Println("[ERROR][AUTH] Failed to generate new refresh token:", err.Error())
+		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "generate_new_refresh_token", http.StatusInternalServerError, "Failed to generate new refresh token")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
 			"Failed to generate new refresh token: "+err.Error(),
 			nil,
@@ -228,7 +240,7 @@ func RefreshToken(c *gin.Context) {
 	}
 	expiresIn := int64(expDuration.Seconds())
 
-	logs.Logs.Printf("[INFO][AUTH] Token refresh successful for user: %s", user.ID)
+	logger.LogTokenExchange(c, "auth", "refresh_token", true, nil)
 
 	c.JSON(http.StatusOK, response.OK(
 		"token refresh successful",
@@ -262,7 +274,11 @@ func GetCurrentUser(c *gin.Context) {
 		"organizationName": user.OrganizationName,
 	}
 
-	logs.Logs.Printf("[INFO][AUTH] User info requested: %s (org: %s)", user.ID, user.OrganizationID)
+	logger.RequestLogger(c, "auth").Info().
+		Str("operation", "get_current_user").
+		Str("user_id", user.ID).
+		Str("organization_id", user.OrganizationID).
+		Msg("User info requested")
 
 	c.JSON(http.StatusOK, response.OK(
 		"user information retrieved successfully",

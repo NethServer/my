@@ -18,7 +18,7 @@ import (
 	"github.com/joho/godotenv"
 
 	"github.com/nethesis/my/backend/configuration"
-	"github.com/nethesis/my/backend/logs"
+	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/methods"
 	"github.com/nethesis/my/backend/middleware"
 	"github.com/nethesis/my/backend/response"
@@ -28,8 +28,11 @@ func main() {
 	// Load .env file if exists (optional, won't fail if missing)
 	_ = godotenv.Load()
 
-	// Init logs
-	logs.Init("logto_backend")
+	// Init logger with zerolog
+	err := logger.InitFromEnv("nethesis-backend")
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to initialize logger")
+	}
 
 	// Init configuration
 	configuration.Init()
@@ -39,6 +42,12 @@ func main() {
 
 	// Init router
 	router := gin.Default()
+
+	// Add request logging middleware
+	router.Use(logger.GinLogger())
+
+	// Add security monitoring middleware
+	router.Use(logger.SecurityMiddleware())
 
 	// Add compression
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
@@ -185,6 +194,6 @@ func main() {
 	})
 
 	// Run server
-	logs.Logs.Printf("[INFO][MAIN] Starting server on %s", configuration.Config.ListenAddress)
+	logger.LogServiceStart("nethesis-backend", "1.0.0", configuration.Config.ListenAddress)
 	router.Run(configuration.Config.ListenAddress)
 }

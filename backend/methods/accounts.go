@@ -7,6 +7,7 @@ package methods
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -15,7 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 
-	"github.com/nethesis/my/backend/logs"
+	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services"
@@ -188,7 +189,7 @@ func CanCreateAccountForOrganization(userOrgRole, userOrgID, userRole, targetOrg
 func CreateAccount(c *gin.Context) {
 	var request models.CreateAccountRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.NotFound("request fields malformed", err.Error()))
+		c.JSON(http.StatusBadRequest, response.BadRequest("request fields malformed", err.Error()))
 		return
 	}
 
@@ -199,7 +200,7 @@ func CreateAccount(c *gin.Context) {
 
 	// Validate required user context
 	if currentUserOrgRole == nil || currentUserOrgID == nil || currentUserRoles == nil {
-		logs.Logs.Printf("[ERROR][ACCOUNTS] Missing required user context in JWT token")
+		logger.NewHTTPErrorLogger(c, "accounts").LogError(fmt.Errorf("missing user context"), "validate_user_context", http.StatusUnauthorized, "Missing required user context in JWT token")
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("incomplete user context in token", nil))
 		return
 	}
@@ -214,7 +215,7 @@ func CreateAccount(c *gin.Context) {
 		}
 	}
 	if currentUserRole == "" {
-		logs.Logs.Printf("[ERROR][ACCOUNTS] User does not have Admin role required for account creation")
+		logger.NewHTTPErrorLogger(c, "accounts").LogError(fmt.Errorf("insufficient permissions"), "check_admin_role", http.StatusForbidden, "User does not have Admin role required for account creation")
 		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to create accounts", nil))
 		return
 	}
@@ -225,17 +226,44 @@ func CreateAccount(c *gin.Context) {
 	// Verify the target organization exists
 	targetOrg, err := client.GetOrganizationByID(request.OrganizationID)
 	if err != nil {
-		logs.Logs.Printf("[ERROR][ACCOUNTS] Target organization not found: %v", err)
-		c.JSON(http.StatusBadRequest, response.NotFound("target organization not found", err.Error()))
+		logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "find_target_organization", http.StatusNotFound, "Target organization not found")
+		c.JSON(http.StatusNotFound, response.NotFound("target organization not found", err.Error()))
 		return
 	}
 
 	// Get target organization's JIT roles to determine the default organization role
 	jitRoles, err := client.GetOrganizationJitRoles(request.OrganizationID)
 	if err != nil {
-		logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to get JIT roles for organization %s: %v", request.OrganizationID, err)
-		c.JSON(http.StatusBadRequest, response.NotFound("failed to get organization JIT roles", err.Error()))
-		return
+		// Parse error to determine if this is a client or server error
+		errorMsg := err.Error()
+		if strings.Contains(errorMsg, "404") || strings.Contains(errorMsg, "not found") {
+			logger.RequestLogger(c, "accounts").Warn().
+				Err(err).
+				Str("operation", "get_organization_jit_roles").
+				Str("organization_id", request.OrganizationID).
+				Msg("Organization JIT roles not found")
+			c.JSON(http.StatusNotFound, response.NotFound("organization JIT roles not configured", err.Error()))
+			return
+		} else if strings.Contains(errorMsg, "403") || strings.Contains(errorMsg, "forbidden") {
+			logger.RequestLogger(c, "accounts").Warn().
+				Err(err).
+				Str("operation", "get_organization_jit_roles").
+				Msg("Insufficient permissions to access organization JIT roles")
+			c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to access organization configuration", nil))
+			return
+		} else if strings.Contains(errorMsg, "503") || strings.Contains(errorMsg, "502") || strings.Contains(errorMsg, "timeout") {
+			logger.RequestLogger(c, "accounts").Warn().
+				Err(err).
+				Str("operation", "get_organization_jit_roles").
+				Msg("Logto service temporarily unavailable")
+			c.JSON(http.StatusServiceUnavailable, response.Error(http.StatusServiceUnavailable, "identity provider temporarily unavailable", nil))
+			return
+		} else {
+			// For genuine server errors (500, database issues, etc.)
+			logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "get_organization_jit_roles", http.StatusInternalServerError, "Failed to get JIT roles for organization")
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get organization JIT roles", err.Error()))
+			return
+		}
 	}
 
 	// Determine target organization role from JIT configuration
@@ -243,9 +271,13 @@ func CreateAccount(c *gin.Context) {
 	if len(jitRoles) > 0 {
 		// Use the first JIT role as the default organization role
 		targetOrgRole = jitRoles[0].Name
-		logs.Logs.Printf("[INFO][ACCOUNTS] Using JIT role '%s' for organization %s", targetOrgRole, request.OrganizationID)
+		logger.RequestLogger(c, "accounts").Info().
+			Str("operation", "assign_jit_role").
+			Str("role", targetOrgRole).
+			Str("organization_id", request.OrganizationID).
+			Msg("Using JIT role for organization")
 	} else {
-		c.JSON(http.StatusBadRequest, response.NotFound("target organization has no JIT roles configured", nil))
+		c.JSON(http.StatusBadRequest, response.BadRequest("target organization has no JIT roles configured", nil))
 		return
 	}
 
@@ -260,9 +292,8 @@ func CreateAccount(c *gin.Context) {
 	)
 
 	if !canCreate {
-		logs.Logs.Printf("[WARN][ACCOUNTS] User %s (role: %s, org: %s) denied creating account for org %s (role: %s): %s",
-			currentUserID, currentUserOrgRole, currentUserOrgID, request.OrganizationID, targetOrgRole, reason)
-		c.JSON(http.StatusForbidden, response.NotFound("insufficient permissions to create account for this organization", reason))
+		logger.LogAccountOperation(c, "create_denied", request.OrganizationID, request.OrganizationID, currentUserID.(string), currentUserOrgID.(string), false, fmt.Errorf("insufficient permissions"))
+		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to create account for this organization", reason))
 		return
 	}
 
@@ -308,22 +339,36 @@ func CreateAccount(c *gin.Context) {
 
 	// Debug: log the request being sent to Logto
 	if reqJSON, err := json.Marshal(accountRequest); err == nil {
-		logs.Logs.Printf("[DEBUG][ACCOUNTS] Sending to Logto: %s", string(reqJSON))
+		logger.RequestLogger(c, "accounts").Debug().
+			Str("operation", "send_to_logto").
+			Str("payload", logger.SanitizeString(string(reqJSON))).
+			Msg("Sending account creation request to Logto")
 	}
 
 	// Create the account in Logto
 	account, err := client.CreateUser(accountRequest)
 	if err != nil {
-		logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to create account in Logto: %v", err)
-
-		// Try to parse and format the error message better
+		// Parse error to determine appropriate status code and logging level
 		errorMsg := err.Error()
 		var detailedError interface{}
+		var statusCode int
+		var logLevel string
 
 		// Check for different status codes and extract JSON
-		statusPrefixes := []string{"status 400: ", "status 422: ", "status 409: ", "status 500: "}
-		for _, prefix := range statusPrefixes {
+		statusMappings := map[string]struct{
+			code int
+			level string
+		}{
+			"status 400: ": {http.StatusBadRequest, "warn"},
+			"status 422: ": {http.StatusUnprocessableEntity, "warn"},
+			"status 409: ": {http.StatusConflict, "warn"},
+			"status 500: ": {http.StatusInternalServerError, "error"},
+		}
+
+		for prefix, mapping := range statusMappings {
 			if strings.Contains(errorMsg, prefix) {
+				statusCode = mapping.code
+				logLevel = mapping.level
 				parts := strings.Split(errorMsg, prefix)
 				if len(parts) > 1 {
 					// Try to parse the JSON error for better formatting
@@ -338,25 +383,60 @@ func CreateAccount(c *gin.Context) {
 			}
 		}
 
-		// If no status prefix found, use original error
-		if detailedError == nil {
+		// If no status prefix found, default to internal server error
+		if statusCode == 0 {
+			statusCode = http.StatusInternalServerError
+			logLevel = "error"
 			detailedError = errorMsg
 		}
 
-		c.JSON(http.StatusBadRequest, response.NotFound("failed to create account", detailedError))
+		// Log with appropriate level and status code
+		if logLevel == "error" {
+			logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "create_account_logto", statusCode, "Failed to create account in Logto")
+		} else {
+			logger.RequestLogger(c, "accounts").Warn().
+				Err(err).
+				Str("operation", "create_account_logto").
+				Int("logto_status_code", statusCode).
+				Str("user_message", "Failed to create account in Logto").
+				Msg("Logto API returned client error")
+		}
+
+		// Return appropriate status code to client with correct response function
+		switch statusCode {
+		case http.StatusBadRequest:
+			c.JSON(statusCode, response.BadRequest("failed to create account", detailedError))
+		case http.StatusConflict:
+			c.JSON(statusCode, response.Conflict("failed to create account", detailedError))
+		case http.StatusUnprocessableEntity:
+			c.JSON(statusCode, response.UnprocessableEntity("failed to create account", detailedError))
+		case http.StatusInternalServerError:
+			c.JSON(statusCode, response.InternalServerError("failed to create account", detailedError))
+		default:
+			// For any other 4xx or 5xx, use generic Error function
+			if statusCode >= 400 && statusCode < 500 {
+				c.JSON(statusCode, response.Error(statusCode, "failed to create account", detailedError))
+			} else {
+				c.JSON(statusCode, response.InternalServerError("failed to create account", detailedError))
+			}
+		}
 		return
 	}
 
 	// Assign user role using ID directly (more secure)
 	if request.UserRoleID != "" {
 		if err := client.AssignUserRoles(account.ID, []string{request.UserRoleID}); err != nil {
-			logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to assign user role %s: %v", request.UserRoleID, err)
+			logger.RequestLogger(c, "accounts").Error().
+				Err(err).
+				Str("operation", "assign_user_role").
+				Str("role_id", request.UserRoleID).
+				Msg("Failed to assign user role")
 		}
 	}
 
 	// Step 1: Assign user to organization (without roles)
 	if err := client.AssignUserToOrganization(request.OrganizationID, account.ID); err != nil {
-		logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to assign account to organization: %v", err)
+		logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "assign_to_organization", http.StatusInternalServerError, "Failed to assign account to organization")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to assign account to organization", err.Error()))
 		return
 	}
@@ -367,17 +447,29 @@ func CreateAccount(c *gin.Context) {
 		roleIDs := []string{jitRoles[0].ID}
 		roleNames := []string{jitRoles[0].Name}
 
-		logs.Logs.Printf("[INFO][ACCOUNTS] Assigning organization role '%s' (ID: %s) to user %s in organization %s",
-			jitRoles[0].Name, jitRoles[0].ID, account.ID, request.OrganizationID)
+		logger.RequestLogger(c, "accounts").Info().
+			Str("operation", "assign_organization_role").
+			Str("role_name", jitRoles[0].Name).
+			Str("role_id", jitRoles[0].ID).
+			Str("user_id", account.ID).
+			Str("organization_id", request.OrganizationID).
+			Msg("Assigning organization role to user")
 
 		if err := client.AssignOrganizationRolesToUser(request.OrganizationID, account.ID, roleIDs, roleNames); err != nil {
-			logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to assign organization role to user: %v", err)
+			logger.RequestLogger(c, "accounts").Error().
+				Err(err).
+				Str("operation", "assign_organization_role").
+				Msg("Failed to assign organization role to user")
 		} else {
-			logs.Logs.Printf("[SUCCESS][ACCOUNTS] Successfully assigned organization role '%s' to user %s", jitRoles[0].Name, account.ID)
+			logger.RequestLogger(c, "accounts").Info().
+				Str("operation", "assign_organization_role_success").
+				Str("role_name", jitRoles[0].Name).
+				Str("user_id", account.ID).
+				Msg("Successfully assigned organization role")
 		}
 	}
 
-	logs.Logs.Printf("[INFO][ACCOUNTS] Account created in Logto: %s (ID: %s) by user %s", account.Name, account.ID, currentUserID)
+	logger.LogAccountOperation(c, "create", account.ID, request.OrganizationID, currentUserID.(string), currentUserOrgID.(string), true, nil)
 
 	// Convert to response format
 	var lastSignInAt *time.Time
@@ -409,18 +501,20 @@ func CreateAccount(c *gin.Context) {
 
 // GetAccounts handles GET /api/accounts - retrieves accounts with organization filtering
 func GetAccounts(c *gin.Context) {
-	currentUserID, _ := c.Get("user_id")
+	_, _ = c.Get("user_id")
 	currentUserOrgRole, _ := c.Get("org_role")
 	currentUserOrgID, _ := c.Get("organization_id")
 
 	// Validate required user context
 	if currentUserOrgRole == nil || currentUserOrgID == nil {
-		logs.Logs.Printf("[ERROR][ACCOUNTS] Missing required user context in JWT token")
+		logger.NewHTTPErrorLogger(c, "accounts").LogError(fmt.Errorf("missing user context"), "validate_user_context", http.StatusUnauthorized, "Missing required user context in JWT token")
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("incomplete user context in token", nil))
 		return
 	}
 
-	logs.Logs.Printf("[INFO][ACCOUNTS] Accounts list requested by user %s (role: %s, org: %s)", currentUserID, currentUserOrgRole, currentUserOrgID)
+	logger.RequestLogger(c, "accounts").Info().
+		Str("operation", "list_accounts").
+		Msg("Accounts list requested")
 
 	client := services.NewLogtoManagementClient()
 
@@ -433,7 +527,10 @@ func GetAccounts(c *gin.Context) {
 		// Get accounts from specific organization
 		orgAccounts, err := client.GetOrganizationUsers(orgFilter)
 		if err != nil {
-			logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to fetch organization accounts: %v", err)
+			logger.RequestLogger(c, "accounts").Error().
+				Err(err).
+				Str("operation", "fetch_organization_accounts").
+				Msg("Failed to fetch organization accounts")
 			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch organization accounts", err.Error()))
 			return
 		}
@@ -441,7 +538,10 @@ func GetAccounts(c *gin.Context) {
 		// Get organization details
 		org, err := client.GetOrganizationByID(orgFilter)
 		if err != nil {
-			logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to fetch organization details: %v", err)
+			logger.RequestLogger(c, "accounts").Error().
+				Err(err).
+				Str("operation", "fetch_organization_details").
+				Msg("Failed to fetch organization details")
 		}
 
 		// Convert to response format
@@ -453,7 +553,10 @@ func GetAccounts(c *gin.Context) {
 		// Get all organizations visible to current user and their accounts
 		allOrgs, err := services.GetAllVisibleOrganizations(currentUserOrgRole.(string), currentUserOrgID.(string))
 		if err != nil {
-			logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to fetch visible organizations: %v", err)
+			logger.RequestLogger(c, "accounts").Error().
+				Err(err).
+				Str("operation", "fetch_visible_organizations").
+				Msg("Failed to fetch visible organizations")
 			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch organizations", err.Error()))
 			return
 		}
@@ -462,7 +565,11 @@ func GetAccounts(c *gin.Context) {
 		for _, org := range allOrgs {
 			orgAccounts, err := client.GetOrganizationUsers(org.ID)
 			if err != nil {
-				logs.Logs.Printf("[WARN][ACCOUNTS] Failed to fetch accounts for org %s: %v", org.ID, err)
+				logger.RequestLogger(c, "accounts").Warn().
+				Err(err).
+				Str("operation", "fetch_org_accounts").
+				Str("org_id", org.ID).
+				Msg("Failed to fetch accounts for organization")
 				continue
 			}
 
@@ -473,7 +580,10 @@ func GetAccounts(c *gin.Context) {
 		}
 	}
 
-	logs.Logs.Printf("[INFO][ACCOUNTS] Retrieved %d accounts", len(accounts))
+	logger.RequestLogger(c, "accounts").Info().
+		Int("account_count", len(accounts)).
+		Str("operation", "list_accounts_result").
+		Msg("Retrieved accounts")
 	c.JSON(http.StatusOK, response.OK("accounts retrieved successfully", gin.H{"accounts": accounts, "count": len(accounts)}))
 }
 
@@ -481,13 +591,13 @@ func GetAccounts(c *gin.Context) {
 func UpdateAccount(c *gin.Context) {
 	accountID := c.Param("id")
 	if accountID == "" {
-		c.JSON(http.StatusBadRequest, response.NotFound("account ID required", nil))
+		c.JSON(http.StatusBadRequest, response.BadRequest("account ID required", nil))
 		return
 	}
 
 	var request models.UpdateAccountRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.NotFound("request fields malformed", err.Error()))
+		c.JSON(http.StatusBadRequest, response.BadRequest("request fields malformed", err.Error()))
 		return
 	}
 
@@ -498,7 +608,7 @@ func UpdateAccount(c *gin.Context) {
 
 	// Validate required user context
 	if currentUserOrgRole == nil || currentUserOrgID == nil || currentUserRoles == nil {
-		logs.Logs.Printf("[ERROR][ACCOUNTS] Missing required user context in JWT token")
+		logger.NewHTTPErrorLogger(c, "accounts").LogError(fmt.Errorf("missing user context"), "validate_user_context", http.StatusUnauthorized, "Missing required user context in JWT token")
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("incomplete user context in token", nil))
 		return
 	}
@@ -513,7 +623,7 @@ func UpdateAccount(c *gin.Context) {
 		}
 	}
 	if currentUserRole == "" {
-		logs.Logs.Printf("[ERROR][ACCOUNTS] User does not have Admin role required for account operations")
+		logger.NewHTTPErrorLogger(c, "accounts").LogError(fmt.Errorf("insufficient permissions"), "check_admin_role", http.StatusForbidden, "User does not have Admin role required for account operations")
 		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to modify accounts", nil))
 		return
 	}
@@ -523,7 +633,7 @@ func UpdateAccount(c *gin.Context) {
 	// Get current account data
 	currentAccount, err := client.GetUserByID(accountID)
 	if err != nil {
-		logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to fetch account: %v", err)
+		logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "fetch_account", http.StatusInternalServerError, "Failed to fetch account")
 		c.JSON(http.StatusNotFound, response.NotFound("account not found", nil))
 		return
 	}
@@ -534,7 +644,10 @@ func UpdateAccount(c *gin.Context) {
 		if orgID, ok := currentAccount.CustomData["organizationId"].(string); ok {
 			targetOrg, err = client.GetOrganizationByID(orgID)
 			if err != nil {
-				logs.Logs.Printf("[WARN][ACCOUNTS] Failed to fetch target organization: %v", err)
+				logger.RequestLogger(c, "accounts").Warn().
+				Err(err).
+				Str("operation", "fetch_target_organization").
+				Msg("Failed to fetch target organization")
 			}
 		}
 	}
@@ -549,9 +662,8 @@ func UpdateAccount(c *gin.Context) {
 	)
 
 	if !canOperate {
-		logs.Logs.Printf("[WARN][ACCOUNTS] User %s (role: %s, org: %s) denied updating account %s: %s",
-			currentUserID, currentUserOrgRole, currentUserOrgID, accountID, reason)
-		c.JSON(http.StatusForbidden, response.NotFound("insufficient permissions to update this account", reason))
+		logger.LogAccountOperation(c, "update_denied", accountID, "", currentUserID.(string), currentUserOrgID.(string), false, fmt.Errorf("insufficient permissions: %s", reason))
+		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to update this account", reason))
 		return
 	}
 
@@ -604,12 +716,12 @@ func UpdateAccount(c *gin.Context) {
 	// Update the account in Logto
 	updatedAccount, err := client.UpdateUser(accountID, updateRequest)
 	if err != nil {
-		logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to update account in Logto: %v", err)
+		logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "update_account_logto", http.StatusInternalServerError, "Failed to update account in Logto")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to update account", err.Error()))
 		return
 	}
 
-	logs.Logs.Printf("[INFO][ACCOUNTS] Account updated in Logto: %s (ID: %s) by user %s", updatedAccount.Name, updatedAccount.ID, currentUserID)
+	logger.LogAccountOperation(c, "update", accountID, "", currentUserID.(string), currentUserOrgID.(string), true, nil)
 
 	// Convert to response format
 	accountResponse := convertLogtoUserToAccountResponse(*updatedAccount, nil)
@@ -621,7 +733,7 @@ func UpdateAccount(c *gin.Context) {
 func DeleteAccount(c *gin.Context) {
 	accountID := c.Param("id")
 	if accountID == "" {
-		c.JSON(http.StatusBadRequest, response.NotFound("account ID required", nil))
+		c.JSON(http.StatusBadRequest, response.BadRequest("account ID required", nil))
 		return
 	}
 
@@ -632,7 +744,7 @@ func DeleteAccount(c *gin.Context) {
 
 	// Validate required user context
 	if currentUserOrgRole == nil || currentUserOrgID == nil || currentUserRoles == nil {
-		logs.Logs.Printf("[ERROR][ACCOUNTS] Missing required user context in JWT token")
+		logger.NewHTTPErrorLogger(c, "accounts").LogError(fmt.Errorf("missing user context"), "validate_user_context", http.StatusUnauthorized, "Missing required user context in JWT token")
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("incomplete user context in token", nil))
 		return
 	}
@@ -647,7 +759,7 @@ func DeleteAccount(c *gin.Context) {
 		}
 	}
 	if currentUserRole == "" {
-		logs.Logs.Printf("[ERROR][ACCOUNTS] User does not have Admin role required for account operations")
+		logger.NewHTTPErrorLogger(c, "accounts").LogError(fmt.Errorf("insufficient permissions"), "check_admin_role", http.StatusForbidden, "User does not have Admin role required for account operations")
 		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to delete accounts", nil))
 		return
 	}
@@ -657,7 +769,7 @@ func DeleteAccount(c *gin.Context) {
 	// Get account data for logging before deletion
 	currentAccount, err := client.GetUserByID(accountID)
 	if err != nil {
-		logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to fetch account for deletion: %v", err)
+		logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "fetch_account_for_deletion", http.StatusInternalServerError, "Failed to fetch account for deletion")
 		c.JSON(http.StatusNotFound, response.NotFound("account not found", nil))
 		return
 	}
@@ -668,7 +780,10 @@ func DeleteAccount(c *gin.Context) {
 		if orgID, ok := currentAccount.CustomData["organizationId"].(string); ok {
 			targetOrg, err = client.GetOrganizationByID(orgID)
 			if err != nil {
-				logs.Logs.Printf("[WARN][ACCOUNTS] Failed to fetch target organization: %v", err)
+				logger.RequestLogger(c, "accounts").Warn().
+				Err(err).
+				Str("operation", "fetch_target_organization").
+				Msg("Failed to fetch target organization")
 			}
 		}
 	}
@@ -683,20 +798,19 @@ func DeleteAccount(c *gin.Context) {
 	)
 
 	if !canOperate {
-		logs.Logs.Printf("[WARN][ACCOUNTS] User %s (role: %s, org: %s) denied deleting account %s: %s",
-			currentUserID, currentUserOrgRole, currentUserOrgID, accountID, reason)
-		c.JSON(http.StatusForbidden, response.NotFound("insufficient permissions to delete this account", reason))
+		logger.LogAccountOperation(c, "delete_denied", accountID, "", currentUserID.(string), currentUserOrgID.(string), false, fmt.Errorf("insufficient permissions: %s", reason))
+		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to delete this account", reason))
 		return
 	}
 
 	// Delete the account from Logto
 	if err := client.DeleteUser(accountID); err != nil {
-		logs.Logs.Printf("[ERROR][ACCOUNTS] Failed to delete account from Logto: %v", err)
+		logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "delete_account_logto", http.StatusInternalServerError, "Failed to delete account from Logto")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to delete account", err.Error()))
 		return
 	}
 
-	logs.Logs.Printf("[INFO][ACCOUNTS] Account deleted from Logto: %s (ID: %s) by user %s", currentAccount.Name, accountID, currentUserID)
+	logger.LogAccountOperation(c, "delete", accountID, "", currentUserID.(string), currentUserOrgID.(string), true, nil)
 	c.JSON(http.StatusOK, response.OK("account deleted successfully", gin.H{
 		"id":        accountID,
 		"name":      currentAccount.Name,

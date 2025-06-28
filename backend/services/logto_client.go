@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/nethesis/my/backend/configuration"
-	"github.com/nethesis/my/backend/logs"
+	"github.com/nethesis/my/backend/logger"
 )
 
 // LogtoManagementClient handles Logto Management API calls
@@ -56,7 +56,10 @@ func (c *LogtoManagementClient) getAccessToken() error {
 	payload := fmt.Sprintf("grant_type=client_credentials&client_id=%s&client_secret=%s&resource=%s&scope=all",
 		c.clientID, c.clientSecret, managementAPIResource)
 
-	logs.Logs.Printf("[DEBUG][LOGTO] Requesting Management API token for resource: %s", managementAPIResource)
+	logger.ComponentLogger("logto").Debug().
+		Str("operation", "request_token").
+		Str("resource", managementAPIResource).
+		Msg("Requesting Management API token")
 
 	req, err := http.NewRequest("POST", tokenURL, bytes.NewBufferString(payload))
 	if err != nil {
@@ -85,26 +88,87 @@ func (c *LogtoManagementClient) getAccessToken() error {
 	c.accessToken = tokenResp.AccessToken
 	c.tokenExpiry = time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
 
-	logs.Logs.Printf("[INFO][LOGTO] Management API token obtained, expires at %v", c.tokenExpiry)
+	logger.ComponentLogger("logto").Info().
+		Str("operation", "token_obtained").
+		Time("expires_at", c.tokenExpiry).
+		Msg("Management API token obtained")
 	return nil
 }
 
 // makeRequest makes an authenticated request to the Management API
 func (c *LogtoManagementClient) makeRequest(method, endpoint string, body io.Reader) (*http.Response, error) {
+	start := time.Now()
+
 	// Ensure we have a valid token
 	if err := c.getAccessToken(); err != nil {
+		logger.ComponentLogger("logto").Error().
+			Err(err).
+			Str("operation", "api_call_token_failed").
+			Str("method", method).
+			Str("endpoint", endpoint).
+			Msg("Failed to get access token for Logto API call")
 		return nil, fmt.Errorf("failed to get access token: %w", err)
 	}
 
 	url := strings.TrimSuffix(c.baseURL, "/") + endpoint
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
+		logger.ComponentLogger("logto").Error().
+			Err(err).
+			Str("operation", "api_call_request_failed").
+			Str("method", method).
+			Str("endpoint", endpoint).
+			Str("url", url).
+			Msg("Failed to create HTTP request for Logto API")
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+c.accessToken)
 	req.Header.Set("Content-Type", "application/json")
 
+	logger.ComponentLogger("logto").Debug().
+		Str("operation", "api_call_start").
+		Str("method", method).
+		Str("endpoint", endpoint).
+		Str("url", url).
+		Msg("Starting Logto Management API call")
+
 	client := &http.Client{Timeout: 10 * time.Second}
-	return client.Do(req)
+	resp, err := client.Do(req)
+
+	duration := time.Since(start)
+
+	if err != nil {
+		logger.ComponentLogger("logto").Error().
+			Err(err).
+			Str("operation", "api_call_failed").
+			Str("method", method).
+			Str("endpoint", endpoint).
+			Str("url", url).
+			Dur("duration", duration).
+			Msg("Logto Management API call failed")
+		return nil, err
+	}
+
+	// Log successful API calls
+	logger.ComponentLogger("logto").Info().
+		Str("operation", "api_call_success").
+		Str("method", method).
+		Str("endpoint", endpoint).
+		Int("status_code", resp.StatusCode).
+		Dur("duration", duration).
+		Msg("Logto Management API call completed")
+
+	// Log non-2xx status codes as warnings
+	if resp.StatusCode >= 400 {
+		logger.ComponentLogger("logto").Warn().
+			Str("operation", "api_call_error_status").
+			Str("method", method).
+			Str("endpoint", endpoint).
+			Int("status_code", resp.StatusCode).
+			Dur("duration", duration).
+			Msg("Logto Management API returned error status")
+	}
+
+	return resp, nil
 }

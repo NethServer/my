@@ -16,7 +16,7 @@ import (
 	"net/http"
 
 	"github.com/nethesis/my/backend/configuration"
-	"github.com/nethesis/my/backend/logs"
+	"github.com/nethesis/my/backend/logger"
 )
 
 // GetUserInfoFromLogto fetches user information from Logto using access token
@@ -53,14 +53,22 @@ func GetUserInfoFromLogto(accessToken string) (*LogtoUserInfo, error) {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	logs.Logs.Printf("[DEBUG][LOGTO] Userinfo response: %s", string(body))
+	logger.ComponentLogger("logto").Debug().
+		Str("operation", "userinfo_response").
+		Str("response", logger.SanitizeString(string(body))).
+		Msg("Logto userinfo response")
 
 	var userInfo LogtoUserInfo
 	if err := json.Unmarshal(body, &userInfo); err != nil {
 		return nil, fmt.Errorf("failed to decode user info: %w", err)
 	}
 
-	logs.Logs.Printf("[DEBUG][LOGTO] Parsed userinfo: sub=%s, username=%s, email=%s", userInfo.Sub, userInfo.Username, userInfo.Email)
+	logger.ComponentLogger("logto").Debug().
+		Str("operation", "userinfo_parsed").
+		Str("sub", userInfo.Sub).
+		Str("username", userInfo.Username).
+		Str("email", logger.SanitizeString(userInfo.Email)).
+		Msg("Parsed Logto userinfo")
 
 	return &userInfo, nil
 }
@@ -75,8 +83,12 @@ func GetUserProfileFromLogto(userID string) (*LogtoUser, error) {
 		return nil, fmt.Errorf("failed to get user profile: %w", err)
 	}
 
-	logs.Logs.Printf("[DEBUG][LOGTO] Profile API response: username=%s, email=%s, name=%s",
-		user.Username, user.PrimaryEmail, user.Name)
+	logger.ComponentLogger("logto").Debug().
+		Str("operation", "profile_response").
+		Str("username", user.Username).
+		Str("email", logger.SanitizeString(user.PrimaryEmail)).
+		Str("name", user.Name).
+		Msg("Logto profile API response")
 
 	return user, nil
 }

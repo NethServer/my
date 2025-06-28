@@ -64,6 +64,16 @@ func NotFound(message string, data interface{}) Response {
 	return Error(404, message, data)
 }
 
+// Conflict creates a 409 Conflict response
+func Conflict(message string, data interface{}) Response {
+	return Error(409, message, data)
+}
+
+// UnprocessableEntity creates a 422 Unprocessable Entity response
+func UnprocessableEntity(message string, data interface{}) Response {
+	return Error(422, message, data)
+}
+
 // InternalServerError creates a 500 Internal Server Error response
 func InternalServerError(message string, data interface{}) Response {
 	return Error(500, message, data)

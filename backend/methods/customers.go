@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 
-	"github.com/nethesis/my/backend/logs"
+	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services"
@@ -23,13 +23,13 @@ import (
 func CreateCustomer(c *gin.Context) {
 	var request models.CreateCustomerRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.NotFound("request fields malformed", err.Error()))
+		c.JSON(http.StatusBadRequest, response.BadRequest("request fields malformed", err.Error()))
 		return
 	}
 
-	userID, exists := c.Get("user_id")
+	_, exists := c.Get("user_id")
 	if !exists {
-		userID = "unknown"
+		// user context missing - handled by middleware
 	}
 	userOrgID, _ := c.Get("organization_id")
 
@@ -66,7 +66,7 @@ func CreateCustomer(c *gin.Context) {
 	// Create the organization in Logto
 	org, err := client.CreateOrganization(orgRequest)
 	if err != nil {
-		logs.Logs.Printf("[ERROR][CUSTOMERS] Failed to create customer organization in Logto: %v", err)
+		logger.NewHTTPErrorLogger(c, "customers").LogError(err, "create_customer_organization", http.StatusInternalServerError, "Failed to create customer organization in Logto")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to create customer organization", err.Error()))
 		return
 	}
@@ -74,18 +74,18 @@ func CreateCustomer(c *gin.Context) {
 	// Assign Customer role as default JIT role
 	customerRole, err := client.GetOrganizationRoleByName("Customer")
 	if err != nil {
-		logs.Logs.Printf("[ERROR][CUSTOMERS] Failed to find Customer role: %v", err)
+		logger.NewHTTPErrorLogger(c, "customers").LogError(err, "find_customer_role", http.StatusInternalServerError, "Failed to find Customer role")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to configure customer role", err.Error()))
 		return
 	}
 
 	if err := client.AssignOrganizationJitRoles(org.ID, []string{customerRole.ID}); err != nil {
-		logs.Logs.Printf("[ERROR][CUSTOMERS] Failed to assign Customer JIT role: %v", err)
+		logger.NewHTTPErrorLogger(c, "customers").LogError(err, "assign_customer_jit_role", http.StatusInternalServerError, "Failed to assign Customer JIT role")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to configure customer permissions", err.Error()))
 		return
 	}
 
-	logs.Logs.Printf("[INFO][CUSTOMERS] Customer organization created in Logto: %s (ID: %s) by user %s", org.Name, org.ID, userID)
+	logger.LogBusinessOperation(c, "customers", "create", "customer", org.ID, true, nil)
 
 	// Return the created organization data
 	customerResponse := gin.H{
@@ -103,16 +103,18 @@ func CreateCustomer(c *gin.Context) {
 
 // GetCustomers handles GET /api/customers - retrieves all customers
 func GetCustomers(c *gin.Context) {
-	userID, _ := c.Get("user_id")
+	_, _ = c.Get("user_id")
 	userOrgRole, _ := c.Get("org_role")
 	userOrgID, _ := c.Get("organization_id")
 
-	logs.Logs.Printf("[INFO][CUSTOMERS] Customers list requested by user %s (role: %s, org: %s)", userID, userOrgRole, userOrgID)
+	logger.RequestLogger(c, "customers").Info().
+		Str("operation", "list_customers").
+		Msg("Customers list requested")
 
 	// Get organizations with Customer role from Logto
 	orgs, err := services.GetOrganizationsByRole("Customer")
 	if err != nil {
-		logs.Logs.Printf("[ERROR][CUSTOMERS] Failed to fetch customers from Logto: %v", err)
+		logger.NewHTTPErrorLogger(c, "customers").LogError(err, "fetch_customers", http.StatusInternalServerError, "Failed to fetch customers from Logto")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch customers", nil))
 		return
 	}
@@ -145,7 +147,10 @@ func GetCustomers(c *gin.Context) {
 		customers = append(customers, customer)
 	}
 
-	logs.Logs.Printf("[INFO][CUSTOMERS] Retrieved %d customers from Logto", len(customers))
+	logger.RequestLogger(c, "customers").Info().
+		Int("customer_count", len(customers)).
+		Str("operation", "fetch_customers_result").
+		Msg("Retrieved customers from Logto")
 
 	c.JSON(http.StatusOK, response.OK("customers retrieved successfully", gin.H{"customers": customers, "count": len(customers)}))
 }
@@ -154,17 +159,17 @@ func GetCustomers(c *gin.Context) {
 func UpdateCustomer(c *gin.Context) {
 	customerID := c.Param("id")
 	if customerID == "" {
-		c.JSON(http.StatusBadRequest, response.NotFound("customer ID required", nil))
+		c.JSON(http.StatusBadRequest, response.BadRequest("customer ID required", nil))
 		return
 	}
 
 	var request models.UpdateCustomerRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.NotFound("request fields malformed", err.Error()))
+		c.JSON(http.StatusBadRequest, response.BadRequest("request fields malformed", err.Error()))
 		return
 	}
 
-	userID, _ := c.Get("user_id")
+	_, _ = c.Get("user_id")
 	userOrgID, _ := c.Get("organization_id")
 
 	// Connect to Logto Management API
@@ -173,7 +178,7 @@ func UpdateCustomer(c *gin.Context) {
 	// First, verify the organization exists and get current data
 	currentOrg, err := client.GetOrganizationByID(customerID)
 	if err != nil {
-		logs.Logs.Printf("[ERROR][CUSTOMERS] Failed to fetch customer organization: %v", err)
+		logger.NewHTTPErrorLogger(c, "customers").LogError(err, "fetch_customer_organization", http.StatusInternalServerError, "Failed to fetch customer organization")
 		c.JSON(http.StatusNotFound, response.NotFound("customer not found", nil))
 		return
 	}
@@ -222,12 +227,12 @@ func UpdateCustomer(c *gin.Context) {
 	// Update the organization in Logto
 	updatedOrg, err := client.UpdateOrganization(customerID, updateRequest)
 	if err != nil {
-		logs.Logs.Printf("[ERROR][CUSTOMERS] Failed to update customer organization in Logto: %v", err)
+		logger.NewHTTPErrorLogger(c, "customers").LogError(err, "update_customer_organization", http.StatusInternalServerError, "Failed to update customer organization in Logto")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to update customer organization", err.Error()))
 		return
 	}
 
-	logs.Logs.Printf("[INFO][CUSTOMERS] Customer organization updated in Logto: %s (ID: %s) by user %s", updatedOrg.Name, updatedOrg.ID, userID)
+	logger.LogBusinessOperation(c, "customers", "update", "customer", customerID, true, nil)
 
 	// Return the updated organization data
 	customerResponse := gin.H{
@@ -247,11 +252,11 @@ func UpdateCustomer(c *gin.Context) {
 func DeleteCustomer(c *gin.Context) {
 	customerID := c.Param("id")
 	if customerID == "" {
-		c.JSON(http.StatusBadRequest, response.NotFound("customer ID required", nil))
+		c.JSON(http.StatusBadRequest, response.BadRequest("customer ID required", nil))
 		return
 	}
 
-	userID, _ := c.Get("user_id")
+	_, _ = c.Get("user_id")
 
 	// Connect to Logto Management API
 	client := services.NewLogtoManagementClient()
@@ -259,19 +264,19 @@ func DeleteCustomer(c *gin.Context) {
 	// First, verify the organization exists and get its data for logging
 	currentOrg, err := client.GetOrganizationByID(customerID)
 	if err != nil {
-		logs.Logs.Printf("[ERROR][CUSTOMERS] Failed to fetch customer organization for deletion: %v", err)
+		logger.NewHTTPErrorLogger(c, "customers").LogError(err, "fetch_customer_for_deletion", http.StatusInternalServerError, "Failed to fetch customer organization for deletion")
 		c.JSON(http.StatusNotFound, response.NotFound("customer not found", nil))
 		return
 	}
 
 	// Delete the organization from Logto
 	if err := client.DeleteOrganization(customerID); err != nil {
-		logs.Logs.Printf("[ERROR][CUSTOMERS] Failed to delete customer organization from Logto: %v", err)
+		logger.NewHTTPErrorLogger(c, "customers").LogError(err, "delete_customer_organization", http.StatusInternalServerError, "Failed to delete customer organization from Logto")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to delete customer organization", err.Error()))
 		return
 	}
 
-	logs.Logs.Printf("[INFO][CUSTOMERS] Customer organization deleted from Logto: %s (ID: %s) by user %s", currentOrg.Name, customerID, userID)
+	logger.LogBusinessOperation(c, "customers", "delete", "customer", customerID, true, nil)
 
 	c.JSON(http.StatusOK, response.OK("customer deleted successfully", gin.H{
 		"id":        customerID,
