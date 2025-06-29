@@ -788,6 +788,13 @@ func DeleteAccount(c *gin.Context) {
 		}
 	}
 
+	// Prevent self-deletion - critical security check
+	if currentUserID.(string) == accountID {
+		logger.LogAccountOperation(c, "delete_denied_self", accountID, "", currentUserID.(string), currentUserOrgID.(string), false, fmt.Errorf("attempted self-deletion"))
+		c.JSON(http.StatusForbidden, response.Forbidden("cannot delete your own account", "self-deletion is not allowed for security reasons"))
+		return
+	}
+
 	// Validate hierarchical permissions
 	canOperate, reason := CanOperateOnAccount(
 		currentUserOrgRole.(string),
