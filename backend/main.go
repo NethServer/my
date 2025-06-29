@@ -69,40 +69,41 @@ func main() {
 	})
 
 	// ===========================================
-	// AUTH ENDPOINTS
+	// PUBLIC AUTH ENDPOINTS
 	// ===========================================
-	// Public auth endpoints
 	api.POST("/auth/exchange", methods.ExchangeToken)
 	api.POST("/auth/refresh", methods.RefreshToken)
 
-	// Protected auth endpoint
-	api.GET("/auth/me", middleware.JWTAuthMiddleware(), methods.GetCurrentUser)
-
 	// ===========================================
-	// PROTECTED ROUTES (Logto Authentication)
+	// STANDARD OAUTH2/OIDC ROUTES (for third-party apps)
+	// Uses Logto tokens directly - standard compliance
 	// ===========================================
-	protectedLogto := api.Group("/", middleware.LogtoAuthMiddleware())
-
-	// User endpoints (use Logto authentication)
-	userGroup := protectedLogto.Group("/user")
+	standardAuth := api.Group("/", middleware.LogtoAuthMiddleware())
 	{
-		userGroup.GET("/permissions", methods.GetUserPermissions)
-		userGroup.GET("/profile", methods.GetUserProfile)
+		// User business data endpoints (OAuth2/OIDC standard flow)
+		userGroup := standardAuth.Group("/user")
+		{
+			userGroup.GET("/permissions", methods.GetUserPermissions)
+			userGroup.GET("/profile", methods.GetUserProfile)
+		}
 	}
 
 	// ===========================================
-	// PROTECTED ROUTES (Custom JWT - for compatibility)
+	// CUSTOM JWT ROUTES (for resilient apps)
+	// Uses our enriched JWT - works offline when Logto is down
 	// ===========================================
-	protected := api.Group("/", middleware.JWTAuthMiddleware())
-
-	// Business operations
+	customAuth := api.Group("/", middleware.JWTAuthMiddleware())
 	{
+		// Auth endpoint using custom JWT
+		customAuth.GET("/auth/me", methods.GetCurrentUser)
+
+		// Business operations
 		// ===========================================
 		// SYSTEMS - Hybrid approach
 		// ===========================================
 
 		// Standard CRUD operations - role-based (Support can manage systems)
-		systemsGroup := protected.Group("/systems", middleware.RequireUserRole("Support"))
+		systemsGroup := customAuth.Group("/systems", middleware.RequireUserRole("Support"))
 		{
 			systemsGroup.GET("", methods.GetSystems)
 			systemsGroup.POST("", methods.CreateSystem)
@@ -112,7 +113,7 @@ func main() {
 		}
 
 		// Special/Sensitive operations - permission-based
-		systemsSpecial := protected.Group("/systems")
+		systemsSpecial := customAuth.Group("/systems")
 		{
 			// System management operations
 			systemsSpecial.POST("/:id/restart", middleware.RequirePermission("manage:systems"), methods.RestartSystem)
@@ -137,7 +138,7 @@ func main() {
 		// ===========================================
 
 		// Distributors - only God can manage distributors
-		distributorsGroup := protected.Group("/distributors", middleware.RequireOrgRole("God"))
+		distributorsGroup := customAuth.Group("/distributors", middleware.RequireOrgRole("God"))
 		{
 			distributorsGroup.GET("", methods.GetDistributors)
 			distributorsGroup.POST("", methods.CreateDistributor)
@@ -146,7 +147,7 @@ func main() {
 		}
 
 		// Resellers - God and Distributors can manage resellers
-		resellersGroup := protected.Group("/resellers", middleware.RequireAnyOrgRole("God", "Distributor"))
+		resellersGroup := customAuth.Group("/resellers", middleware.RequireAnyOrgRole("God", "Distributor"))
 		{
 			resellersGroup.GET("", methods.GetResellers)
 			resellersGroup.POST("", methods.CreateReseller)
@@ -155,7 +156,7 @@ func main() {
 		}
 
 		// Customers - God, Distributors and Resellers can manage customers
-		customersGroup := protected.Group("/customers", middleware.RequireAnyOrgRole("God", "Distributor", "Reseller"))
+		customersGroup := customAuth.Group("/customers", middleware.RequireAnyOrgRole("God", "Distributor", "Reseller"))
 		{
 			customersGroup.GET("", methods.GetCustomers)
 			customersGroup.POST("", methods.CreateCustomer)
@@ -168,7 +169,7 @@ func main() {
 		// ===========================================
 
 		// Accounts - Basic authentication required, hierarchical validation in handlers
-		accountsGroup := protected.Group("/accounts")
+		accountsGroup := customAuth.Group("/accounts")
 		{
 			accountsGroup.GET("", methods.GetAccounts)          // List accounts with organization filtering
 			accountsGroup.POST("", methods.CreateAccount)       // Create new account with hierarchical validation
@@ -177,7 +178,7 @@ func main() {
 		}
 
 		// Quick stats endpoint - require management permissions
-		protected.GET("/stats", middleware.RequirePermission("manage:distributors"), func(c *gin.Context) {
+		customAuth.GET("/stats", middleware.RequirePermission("manage:distributors"), func(c *gin.Context) {
 			c.JSON(http.StatusOK, response.OK("system statistics", gin.H{
 				"distributors": 1,
 				"resellers":    2,
