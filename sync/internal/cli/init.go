@@ -241,7 +241,7 @@ func deriveEnvironmentVariables(client *client.LogtoClient, result *InitResult, 
 		// Auto-derived from base URL
 		LogtoIssuer:            baseURL,
 		LogtoJWKSEndpoint:      baseURL + "/oidc/jwks",
-		LogtoManagementBaseURL: baseURL,
+		LogtoManagementBaseURL: baseURL + "/api",
 		FrontendLogtoEndpoint:  baseURL,
 
 		// From configuration
@@ -553,17 +553,17 @@ func syncBasicConfiguration(client *client.LogtoClient) error {
 func createEssentialRoles(client *client.LogtoClient) error {
 	logger.Info("Creating essential roles...")
 
-	// Create organization scopes first (from hierarchy.yml)
+	// Create organization scopes first (from config.yml)
 	if err := createEssentialOrgScopes(client); err != nil {
 		return fmt.Errorf("failed to create essential organization scopes: %w", err)
 	}
 
-	// Create organization role "god" (from hierarchy.yml)
+	// Create organization role "god" (from config.yml)
 	if err := createOrgRoleIfNotExists(client, constants.GodRoleID, constants.GodRoleName, constants.GodOrgDescription); err != nil {
 		return fmt.Errorf("failed to create god organization role: %w", err)
 	}
 
-	// Create user role "admin" (from hierarchy.yml)
+	// Create user role "admin" (from config.yml)
 	if err := createUserRoleIfNotExists(client, constants.AdminRoleID, constants.AdminRoleName, "Admin user role - full technical control including dangerous operations"); err != nil {
 		return fmt.Errorf("failed to create admin user role: %w", err)
 	}
@@ -638,7 +638,7 @@ func createUserRoleIfNotExists(client *client.LogtoClient, roleID, roleName, des
 func createEssentialOrgScopes(client *client.LogtoClient) error {
 	logger.Info("Creating essential organization scopes...")
 
-	// Organization scopes from hierarchy.yml for god role
+	// Organization scopes from config.yml for god role
 	scopes := []struct {
 		name        string
 		description string
@@ -1077,8 +1077,11 @@ func outputText(result *InitResult) {
 	// Configuration sync reminder
 	fmt.Println("\n🔄 CONFIGURATION UPDATES")
 	fmt.Println("To update roles and permissions after this initial setup:")
-	fmt.Println("  sync sync -c configs/config.yml --dry-run  # Preview changes")
-	fmt.Println("  sync sync -c configs/config.yml            # Apply changes")
+
+	// Get the executable path used to run this command
+	execPath := os.Args[0]
+	fmt.Printf("  %s sync -c configs/config.yml --dry-run  # Preview changes\n", execPath)
+	fmt.Printf("  %s sync -c configs/config.yml            # Apply changes\n", execPath)
 
 	fmt.Println("\n" + strings.Repeat("=", 80))
 }

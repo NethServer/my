@@ -81,11 +81,6 @@ func isSystemOrganizationScope(scope client.LogtoOrganizationScope) bool {
 func (e *Engine) syncOrganizationScopes(cfg *config.Config, result *Result) error {
 	logger.Info("Syncing organization scopes...")
 
-	if e.options.DryRun {
-		logger.Info("DRY RUN: Would sync organization scopes")
-		return nil
-	}
-
 	// Get all unique permissions from user roles only
 	allPermissions := cfg.GetAllPermissions()
 
@@ -119,34 +114,46 @@ func (e *Engine) syncOrganizationScopes(cfg *config.Config, result *Result) erro
 			// Update existing scope if needed
 			newDescription := fmt.Sprintf("Organization scope: %s", name)
 			if existingScope.Description != newDescription {
-				logger.Info("Updating organization scope: %s", scopeName)
-				updateScope := client.LogtoOrganizationScope{
-					ID:          existingScope.ID,
-					Name:        scopeName,
-					Description: newDescription,
-				}
+				if e.options.DryRun {
+					logger.Info("DRY RUN: Would update organization scope: %s", scopeName)
+					e.addOperation(result, "organization-scope", "update", scopeName, "Would update organization scope", nil)
+					result.Summary.ScopesUpdated++
+				} else {
+					logger.Info("Updating organization scope: %s", scopeName)
+					updateScope := client.LogtoOrganizationScope{
+						ID:          existingScope.ID,
+						Name:        scopeName,
+						Description: newDescription,
+					}
 
-				err := e.client.UpdateOrganizationScope(existingScope.ID, updateScope)
-				e.addOperation(result, "organization-scope", "update", scopeName, "Updated organization scope", err)
-				if err != nil {
-					return fmt.Errorf("failed to update organization scope %s: %w", scopeName, err)
+					err := e.client.UpdateOrganizationScope(existingScope.ID, updateScope)
+					e.addOperation(result, "organization-scope", "update", scopeName, "Updated organization scope", err)
+					if err != nil {
+						return fmt.Errorf("failed to update organization scope %s: %w", scopeName, err)
+					}
+					result.Summary.ScopesUpdated++
 				}
-				result.Summary.ScopesUpdated++
 			}
 		} else {
 			// Create new organization scope
-			logger.Info("Creating organization scope: %s", scopeName)
-			newScope := client.LogtoOrganizationScope{
-				Name:        scopeName,
-				Description: fmt.Sprintf("Organization scope: %s", name),
-			}
+			if e.options.DryRun {
+				logger.Info("DRY RUN: Would create organization scope: %s", scopeName)
+				e.addOperation(result, "organization-scope", "create", scopeName, "Would create organization scope", nil)
+				result.Summary.ScopesCreated++
+			} else {
+				logger.Info("Creating organization scope: %s", scopeName)
+				newScope := client.LogtoOrganizationScope{
+					Name:        scopeName,
+					Description: fmt.Sprintf("Organization scope: %s", name),
+				}
 
-			err := e.client.CreateOrganizationScope(newScope)
-			e.addOperation(result, "organization-scope", "create", scopeName, "Created organization scope", err)
-			if err != nil {
-				return fmt.Errorf("failed to create organization scope %s: %w", scopeName, err)
+				err := e.client.CreateOrganizationScope(newScope)
+				e.addOperation(result, "organization-scope", "create", scopeName, "Created organization scope", err)
+				if err != nil {
+					return fmt.Errorf("failed to create organization scope %s: %w", scopeName, err)
+				}
+				result.Summary.ScopesCreated++
 			}
-			result.Summary.ScopesCreated++
 		}
 	}
 
@@ -164,13 +171,19 @@ func (e *Engine) syncOrganizationScopes(cfg *config.Config, result *Result) erro
 				continue
 			}
 			// Delete scope not in config
-			logger.Info("Removing organization scope not in config: %s", existingScope.Name)
-			err := e.client.DeleteOrganizationScope(existingScope.ID)
-			e.addOperation(result, "organization-scope", "delete", existingScope.Name, "Removed organization scope not in config", err)
-			if err != nil {
-				logger.Warn("Failed to delete organization scope %s: %v", existingScope.Name, err)
-			} else {
+			if e.options.DryRun {
+				logger.Info("DRY RUN: Would remove organization scope not in config: %s", existingScope.Name)
+				e.addOperation(result, "organization-scope", "delete", existingScope.Name, "Would remove organization scope not in config", nil)
 				result.Summary.ScopesDeleted++
+			} else {
+				logger.Info("Removing organization scope not in config: %s", existingScope.Name)
+				err := e.client.DeleteOrganizationScope(existingScope.ID)
+				e.addOperation(result, "organization-scope", "delete", existingScope.Name, "Removed organization scope not in config", err)
+				if err != nil {
+					logger.Warn("Failed to delete organization scope %s: %v", existingScope.Name, err)
+				} else {
+					result.Summary.ScopesDeleted++
+				}
 			}
 		}
 	}
@@ -182,11 +195,6 @@ func (e *Engine) syncOrganizationScopes(cfg *config.Config, result *Result) erro
 // syncOrganizationRoles synchronizes organization roles
 func (e *Engine) syncOrganizationRoles(cfg *config.Config, result *Result) error {
 	logger.Info("Syncing organization roles...")
-
-	if e.options.DryRun {
-		logger.Info("DRY RUN: Would sync organization roles")
-		return nil
-	}
 
 	// Filter only user type roles
 	userRoles := cfg.GetUserTypeRoles(cfg.Hierarchy.OrganizationRoles)
@@ -218,34 +226,46 @@ func (e *Engine) syncOrganizationRoles(cfg *config.Config, result *Result) error
 			// Update existing role if needed
 			newDescription := fmt.Sprintf("Organization role (Priority: %d)", configRole.Priority)
 			if existingRole.Description != newDescription {
-				logger.Info("Updating organization role: %s", roleName)
-				updateRole := client.LogtoOrganizationRole{
-					ID:          existingRole.ID,
-					Name:        existingRole.Name,
-					Description: newDescription,
-				}
+				if e.options.DryRun {
+					logger.Info("DRY RUN: Would update organization role: %s", roleName)
+					e.addOperation(result, "organization-role", "update", roleName, "Would update organization role", nil)
+					result.Summary.RolesUpdated++
+				} else {
+					logger.Info("Updating organization role: %s", roleName)
+					updateRole := client.LogtoOrganizationRole{
+						ID:          existingRole.ID,
+						Name:        existingRole.Name,
+						Description: newDescription,
+					}
 
-				err := e.client.UpdateOrganizationRole(existingRole.ID, updateRole)
-				e.addOperation(result, "organization-role", "update", roleName, "Updated organization role", err)
-				if err != nil {
-					return fmt.Errorf("failed to update organization role %s: %w", roleName, err)
+					err := e.client.UpdateOrganizationRole(existingRole.ID, updateRole)
+					e.addOperation(result, "organization-role", "update", roleName, "Updated organization role", err)
+					if err != nil {
+						return fmt.Errorf("failed to update organization role %s: %w", roleName, err)
+					}
+					result.Summary.RolesUpdated++
 				}
-				result.Summary.RolesUpdated++
 			}
 		} else {
 			// Create new organization role
-			logger.Info("Creating organization role: %s", roleName)
-			newRole := client.LogtoOrganizationRole{
-				Name:        roleName,
-				Description: fmt.Sprintf("Organization role (Priority: %d)", configRole.Priority),
-			}
+			if e.options.DryRun {
+				logger.Info("DRY RUN: Would create organization role: %s", roleName)
+				e.addOperation(result, "organization-role", "create", roleName, "Would create organization role", nil)
+				result.Summary.RolesCreated++
+			} else {
+				logger.Info("Creating organization role: %s", roleName)
+				newRole := client.LogtoOrganizationRole{
+					Name:        roleName,
+					Description: fmt.Sprintf("Organization role (Priority: %d)", configRole.Priority),
+				}
 
-			err := e.client.CreateOrganizationRole(newRole)
-			e.addOperation(result, "organization-role", "create", roleName, "Created organization role", err)
-			if err != nil {
-				return fmt.Errorf("failed to create organization role %s: %w", roleName, err)
+				err := e.client.CreateOrganizationRole(newRole)
+				e.addOperation(result, "organization-role", "create", roleName, "Created organization role", err)
+				if err != nil {
+					return fmt.Errorf("failed to create organization role %s: %w", roleName, err)
+				}
+				result.Summary.RolesCreated++
 			}
-			result.Summary.RolesCreated++
 		}
 	}
 
@@ -262,13 +282,19 @@ func (e *Engine) syncOrganizationRoles(cfg *config.Config, result *Result) error
 				continue
 			}
 			// Delete role not in config
-			logger.Info("Removing organization role not in config: %s", existingRole.Name)
-			err := e.client.DeleteOrganizationRole(existingRole.ID)
-			e.addOperation(result, "organization-role", "delete", existingRole.Name, "Removed organization role not in config", err)
-			if err != nil {
-				logger.Warn("Failed to delete organization role %s: %v", existingRole.Name, err)
-			} else {
+			if e.options.DryRun {
+				logger.Info("DRY RUN: Would remove organization role not in config: %s", existingRole.Name)
+				e.addOperation(result, "organization-role", "delete", existingRole.Name, "Would remove organization role not in config", nil)
 				result.Summary.RolesDeleted++
+			} else {
+				logger.Info("Removing organization role not in config: %s", existingRole.Name)
+				err := e.client.DeleteOrganizationRole(existingRole.ID)
+				e.addOperation(result, "organization-role", "delete", existingRole.Name, "Removed organization role not in config", err)
+				if err != nil {
+					logger.Warn("Failed to delete organization role %s: %v", existingRole.Name, err)
+				} else {
+					result.Summary.RolesDeleted++
+				}
 			}
 		}
 	}
@@ -280,11 +306,6 @@ func (e *Engine) syncOrganizationRoles(cfg *config.Config, result *Result) error
 // syncOrganizationRoleScopes synchronizes organization role scope assignments
 func (e *Engine) syncOrganizationRoleScopes(cfg *config.Config, result *Result) error {
 	logger.Info("Syncing organization role scopes...")
-
-	if e.options.DryRun {
-		logger.Info("DRY RUN: Would sync organization role scopes")
-		return nil
-	}
 
 	// Filter only user type roles
 	userRoles := cfg.GetUserTypeRoles(cfg.Hierarchy.OrganizationRoles)
@@ -315,14 +336,24 @@ func (e *Engine) syncOrganizationRoleScopes(cfg *config.Config, result *Result) 
 		// Find the actual role ID by name
 		roleID, exists := roleNameToID[strings.ToLower(configRole.Name)]
 		if !exists {
-			logger.Warn("Organization role %s not found, skipping scope assignment", configRole.Name)
-			continue
+			if e.options.DryRun {
+				// In dry-run mode, simulate with a dummy ID for roles being created
+				roleID = "dry-run-role-" + strings.ToLower(configRole.Name)
+			} else {
+				logger.Warn("Organization role %s not found, skipping scope assignment", configRole.Name)
+				continue
+			}
 		}
 
 		// Get current scopes for this role
 		currentScopes, err := e.client.GetOrganizationRoleScopes(roleID)
 		if err != nil {
-			return fmt.Errorf("failed to get scopes for organization role %s: %w", configRole.Name, err)
+			if e.options.DryRun && strings.Contains(roleID, "dry-run-role-") {
+				// In dry-run mode, for simulated roles, assume no current scopes
+				currentScopes = []client.LogtoOrganizationScope{}
+			} else {
+				return fmt.Errorf("failed to get scopes for organization role %s: %w", configRole.Name, err)
+			}
 		}
 
 		// Create map of current scope IDs
@@ -337,6 +368,12 @@ func (e *Engine) syncOrganizationRoleScopes(cfg *config.Config, result *Result) 
 			if permission.ID != "" {
 				if scopeID, exists := scopeNameToID[permission.ID]; exists {
 					expectedScopeMap[scopeID] = true
+				} else if e.options.DryRun {
+					// In dry-run mode, simulate scope ID for scopes being created
+					simulatedScopeID := "dry-run-scope-" + permission.ID
+					expectedScopeMap[simulatedScopeID] = true
+					// Also add to scopeNameToID mapping for reverse lookup
+					scopeNameToID[permission.ID] = simulatedScopeID
 				} else {
 					logger.Warn("Scope %s not found, skipping assignment to role %s", permission.ID, configRole.Name)
 				}
@@ -354,15 +391,23 @@ func (e *Engine) syncOrganizationRoleScopes(cfg *config.Config, result *Result) 
 					}
 				}
 
-				logger.Info("Assigning scope %s to organization role %s", scopeName, configRole.Name)
-				err := e.client.AssignScopeToOrganizationRole(roleID, scopeID)
-				e.addOperation(result, "organization-role-scope", "assign",
-					fmt.Sprintf("%s->%s", configRole.Name, scopeName),
-					"Assigned scope to organization role", err)
-				if err != nil {
-					return fmt.Errorf("failed to assign scope %s to organization role %s: %w", scopeID, configRole.Name, err)
+				if e.options.DryRun {
+					logger.Info("DRY RUN: Would assign scope %s to organization role %s", scopeName, configRole.Name)
+					e.addOperation(result, "organization-role-scope", "assign",
+						fmt.Sprintf("%s->%s", configRole.Name, scopeName),
+						"Would assign scope to organization role", nil)
+					result.Summary.PermissionsCreated++
+				} else {
+					logger.Info("Assigning scope %s to organization role %s", scopeName, configRole.Name)
+					err := e.client.AssignScopeToOrganizationRole(roleID, scopeID)
+					e.addOperation(result, "organization-role-scope", "assign",
+						fmt.Sprintf("%s->%s", configRole.Name, scopeName),
+						"Assigned scope to organization role", err)
+					if err != nil {
+						return fmt.Errorf("failed to assign scope %s to organization role %s: %w", scopeID, configRole.Name, err)
+					}
+					result.Summary.PermissionsCreated++
 				}
-				result.Summary.PermissionsCreated++
 			}
 		}
 
@@ -380,15 +425,23 @@ func (e *Engine) syncOrganizationRoleScopes(cfg *config.Config, result *Result) 
 
 				// Only remove if it's a scope we created (not system scopes)
 				if scopeName != "" && !strings.Contains(strings.ToLower(scopeName), "management") {
-					logger.Info("Removing scope %s from organization role %s", scopeName, configRole.Name)
-					err := e.client.RemoveScopeFromOrganizationRole(roleID, scopeID)
-					e.addOperation(result, "organization-role-scope", "remove",
-						fmt.Sprintf("%s->%s", configRole.Name, scopeName),
-						"Removed scope from organization role", err)
-					if err != nil {
-						logger.Warn("Failed to remove scope %s from organization role %s: %v", scopeID, configRole.Name, err)
-					} else {
+					if e.options.DryRun {
+						logger.Info("DRY RUN: Would remove scope %s from organization role %s", scopeName, configRole.Name)
+						e.addOperation(result, "organization-role-scope", "remove",
+							fmt.Sprintf("%s->%s", configRole.Name, scopeName),
+							"Would remove scope from organization role", nil)
 						result.Summary.PermissionsDeleted++
+					} else {
+						logger.Info("Removing scope %s from organization role %s", scopeName, configRole.Name)
+						err := e.client.RemoveScopeFromOrganizationRole(roleID, scopeID)
+						e.addOperation(result, "organization-role-scope", "remove",
+							fmt.Sprintf("%s->%s", configRole.Name, scopeName),
+							"Removed scope from organization role", err)
+						if err != nil {
+							logger.Warn("Failed to remove scope %s from organization role %s: %v", scopeID, configRole.Name, err)
+						} else {
+							result.Summary.PermissionsDeleted++
+						}
 					}
 				}
 			}

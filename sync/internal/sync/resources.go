@@ -231,8 +231,11 @@ func (e *Engine) syncScopes(resource config.Resource, result *Result) error {
 	}
 
 	// Create scopes for each action
+	configScopeMap := make(map[string]bool)
 	for _, action := range resource.Actions {
 		scopeName := fmt.Sprintf("%s:%s", action, resource.Name)
+		configScopeMap[scopeName] = true
+
 		if !existingScopeMap[scopeName] {
 			if e.options.DryRun {
 				logger.Info("DRY RUN: Would create scope: %s", scopeName)
@@ -257,6 +260,30 @@ func (e *Engine) syncScopes(resource config.Resource, result *Result) error {
 			}
 		} else {
 			logger.Debug("Scope %s already exists", scopeName)
+		}
+	}
+
+	// Cleanup phase: remove scopes not in config (only if --cleanup flag is set)
+	if e.options.Cleanup {
+		for _, existingScope := range existingScopes {
+			if !configScopeMap[existingScope.Name] {
+				if e.options.DryRun {
+					logger.Info("DRY RUN: Would remove scope not in config: %s", existingScope.Name)
+					e.addOperation(result, "scope", "cleanup", existingScope.Name,
+						fmt.Sprintf("Would remove scope not in config from %s", resource.Name), nil)
+					result.Summary.ScopesDeleted++
+				} else {
+					logger.Info("Removing scope not in config: %s", existingScope.Name)
+					err := e.client.DeleteScope(resourceID, existingScope.ID)
+					e.addOperation(result, "scope", "cleanup", existingScope.Name,
+						fmt.Sprintf("Removed scope not in config from %s", resource.Name), err)
+					if err != nil {
+						logger.Warn("Failed to remove scope %s: %v", existingScope.Name, err)
+					} else {
+						result.Summary.ScopesDeleted++
+					}
+				}
+			}
 		}
 	}
 
