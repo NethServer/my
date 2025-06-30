@@ -21,7 +21,7 @@ graph TB
     E --> J[RBAC Middleware]
     J --> K[Protected Resources]
 
-    L[hierarchy.yml] --> M[sync Tool]
+    L[config.yml] --> M[sync Tool]
     M --> B
     
     N[sync init] --> O[Complete Setup]
@@ -283,7 +283,7 @@ curl -X DELETE /api/systems/123/destroy \
 
 ## ⚙️ **Configuration**
 
-### **hierarchy.yml Structure**
+### **config.yml Structure**
 ```yaml
 metadata:
   name: "nethesis-simplified-rbac"
@@ -405,10 +405,10 @@ API_BASE_URL=https://dev.my.nethesis.it/api
 ### **RBAC Configuration Synchronization**
 ```bash
 # Deploy new configuration
-sync sync -c hierarchy.yml
+sync sync -c config.yml
 
 # Preview changes
-sync sync -c hierarchy.yml --dry-run --verbose
+sync sync -c config.yml --dry-run --verbose
 
 # Output:
 ✅ Creating organization role: Distributor
