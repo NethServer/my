@@ -610,11 +610,11 @@ func TestMiddlewareChaining(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name               string
-		setupMiddleware    func(*gin.RouterGroup)
-		authHeader         string
-		expectedStatus     int
-		expectMessage      string
+		name            string
+		setupMiddleware func(*gin.RouterGroup)
+		authHeader      string
+		expectedStatus  int
+		expectMessage   string
 	}{
 		{
 			name: "JWT + RequirePermission chain succeeds",

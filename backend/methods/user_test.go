@@ -75,7 +75,7 @@ func TestGetProfile(t *testing.T) {
 			if tt.expectedStatus == http.StatusOK {
 				assert.Contains(t, response["message"], "user profile retrieved successfully")
 				assert.NotNil(t, response["data"])
-				
+
 				// Check user data is present
 				userData, ok := response["data"].(map[string]interface{})
 				assert.True(t, ok)
@@ -129,7 +129,7 @@ func TestGetProtectedResource(t *testing.T) {
 
 			if tt.expectedStatus == http.StatusOK {
 				assert.Contains(t, response["message"], "protected resource accessed successfully")
-				
+
 				data, ok := response["data"].(map[string]interface{})
 				assert.True(t, ok)
 				assert.Equal(t, "test-user-123", data["user_id"])
@@ -227,14 +227,14 @@ func TestGetUserPermissions(t *testing.T) {
 
 			if tt.expectedStatus == http.StatusOK {
 				assert.Contains(t, response["message"], "user permissions retrieved successfully")
-				
+
 				data, ok := response["data"].(map[string]interface{})
 				assert.True(t, ok)
-				
+
 				// Check all expected data fields
 				for key, expectedValue := range tt.expectedData {
 					actualValue := data[key]
-					
+
 					// Handle slice type conversion for JSON serialization
 					if expectedSlice, ok := expectedValue.([]string); ok {
 						if actualSlice, ok := actualValue.([]interface{}); ok {
@@ -328,7 +328,7 @@ func TestGetUserProfile(t *testing.T) {
 			if tt.expectedStatus == http.StatusOK {
 				assert.Contains(t, response["message"], "user profile retrieved successfully")
 				assert.NotNil(t, response["data"])
-				
+
 				// Verify it's a user object with expected structure
 				userData, ok := response["data"].(map[string]interface{})
 				assert.True(t, ok)
@@ -357,7 +357,7 @@ func TestUserMethodsIntegration(t *testing.T) {
 	}
 
 	router := testutils.SetupTestGin()
-	
+
 	// Add middleware to set user context
 	router.Use(func(c *gin.Context) {
 		c.Set("user", user)

@@ -18,12 +18,12 @@ func TestGetUserFromContext(t *testing.T) {
 	setupHelpersTestEnvironment()
 
 	tests := []struct {
-		name          string
-		setupContext  func(*gin.Context)
-		expectUser    bool
-		expectAbort   bool
-		expectedCode  int
-		expectedUser  *models.User
+		name         string
+		setupContext func(*gin.Context)
+		expectUser   bool
+		expectAbort  bool
+		expectedCode int
+		expectedUser *models.User
 	}{
 		{
 			name: "valid user in context returns user",
@@ -42,8 +42,8 @@ func TestGetUserFromContext(t *testing.T) {
 				}
 				c.Set("user", user)
 			},
-			expectUser: true,
-			expectAbort: false,
+			expectUser:   true,
+			expectAbort:  false,
 			expectedCode: 0, // No HTTP response when successful
 			expectedUser: &models.User{
 				ID:               "test-user-123",
@@ -63,8 +63,8 @@ func TestGetUserFromContext(t *testing.T) {
 			setupContext: func(c *gin.Context) {
 				// Don't set user
 			},
-			expectUser: false,
-			expectAbort: true,
+			expectUser:   false,
+			expectAbort:  true,
 			expectedCode: http.StatusUnauthorized,
 			expectedUser: nil,
 		},
@@ -73,8 +73,8 @@ func TestGetUserFromContext(t *testing.T) {
 			setupContext: func(c *gin.Context) {
 				c.Set("user", "not-a-user-object")
 			},
-			expectUser: false,
-			expectAbort: true,
+			expectUser:   false,
+			expectAbort:  true,
 			expectedCode: http.StatusInternalServerError,
 			expectedUser: nil,
 		},
@@ -84,8 +84,8 @@ func TestGetUserFromContext(t *testing.T) {
 				var nilUser *models.User
 				c.Set("user", nilUser)
 			},
-			expectUser: true, // Nil pointer is still a valid *models.User type
-			expectAbort: false,
+			expectUser:   true, // Nil pointer is still a valid *models.User type
+			expectAbort:  false,
 			expectedCode: 0,
 			expectedUser: nil,
 		},
@@ -103,7 +103,7 @@ func TestGetUserFromContext(t *testing.T) {
 			user, ok := GetUserFromContext(c)
 
 			assert.Equal(t, tt.expectUser, ok)
-			
+
 			if tt.expectUser {
 				if tt.expectedUser != nil {
 					assert.NotNil(t, user)
@@ -220,7 +220,7 @@ func TestGetUserContextData(t *testing.T) {
 			contextData, ok := GetUserContextData(c)
 
 			assert.Equal(t, tt.expectSuccess, ok)
-			
+
 			if tt.expectSuccess {
 				assert.NotNil(t, contextData)
 				assert.Equal(t, tt.expectedData.UserID, contextData.UserID)
@@ -262,10 +262,10 @@ func TestGetUserFromContextEdgeCases(t *testing.T) {
 	setupHelpersTestEnvironment()
 
 	tests := []struct {
-		name          string
-		setupContext  func(*gin.Context)
-		expectUser    bool
-		description   string
+		name         string
+		setupContext func(*gin.Context)
+		expectUser   bool
+		description  string
 	}{
 		{
 			name: "user with empty fields succeeds",
@@ -291,10 +291,10 @@ func TestGetUserFromContextEdgeCases(t *testing.T) {
 			name: "user with nil slices succeeds",
 			setupContext: func(c *gin.Context) {
 				user := &models.User{
-					ID:               "nil-slices-user",
-					UserRoles:        nil,
-					UserPermissions:  nil,
-					OrgPermissions:   nil,
+					ID:              "nil-slices-user",
+					UserRoles:       nil,
+					UserPermissions: nil,
+					OrgPermissions:  nil,
 				}
 				c.Set("user", user)
 			},

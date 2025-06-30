@@ -190,20 +190,20 @@ func TestUserWithNilSlices(t *testing.T) {
 func TestUserBusinessRoleTypes(t *testing.T) {
 	// Test different business role types
 	businessRoles := []string{"God", "Distributor", "Reseller", "Customer"}
-	
+
 	for _, role := range businessRoles {
 		t.Run("org_role_"+role, func(t *testing.T) {
 			user := User{
 				ID:      "role-test-" + role,
 				OrgRole: role,
 			}
-			
+
 			assert.Equal(t, role, user.OrgRole)
-			
+
 			// Verify JSON serialization preserves role
 			jsonData, err := json.Marshal(user)
 			assert.NoError(t, err)
-			
+
 			var unmarshaledUser User
 			err = json.Unmarshal(jsonData, &unmarshaledUser)
 			assert.NoError(t, err)
@@ -221,20 +221,20 @@ func TestUserTechnicalRoleTypes(t *testing.T) {
 		{},
 		nil,
 	}
-	
+
 	for i, roles := range technicalRoleCombinations {
 		t.Run("user_roles_combination_"+string(rune(i+'A')), func(t *testing.T) {
 			user := User{
 				ID:        "tech-role-test-" + string(rune(i+'A')),
 				UserRoles: roles,
 			}
-			
+
 			assert.Equal(t, roles, user.UserRoles)
-			
+
 			// Verify JSON serialization preserves roles
 			jsonData, err := json.Marshal(user)
 			assert.NoError(t, err)
-			
+
 			var unmarshaledUser User
 			err = json.Unmarshal(jsonData, &unmarshaledUser)
 			assert.NoError(t, err)
@@ -254,7 +254,7 @@ func TestUserPermissionTypes(t *testing.T) {
 		{},
 		nil,
 	}
-	
+
 	for i, permissions := range permissionCombinations {
 		t.Run("permissions_combination_"+string(rune(i+'A')), func(t *testing.T) {
 			user := User{
@@ -262,14 +262,14 @@ func TestUserPermissionTypes(t *testing.T) {
 				UserPermissions: permissions,
 				OrgPermissions:  permissions, // Test both user and org permissions
 			}
-			
+
 			assert.Equal(t, permissions, user.UserPermissions)
 			assert.Equal(t, permissions, user.OrgPermissions)
-			
+
 			// Verify JSON serialization preserves permissions
 			jsonData, err := json.Marshal(user)
 			assert.NoError(t, err)
-			
+
 			var unmarshaledUser User
 			err = json.Unmarshal(jsonData, &unmarshaledUser)
 			assert.NoError(t, err)

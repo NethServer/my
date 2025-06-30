@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/nethesis/my/backend/configuration"
@@ -58,8 +57,8 @@ func TestExchangeToken(t *testing.T) {
 			expectMessage:  "Invalid request body",
 		},
 		{
-			name: "empty request body fails",
-			requestBody: map[string]string{},
+			name:           "empty request body fails",
+			requestBody:    map[string]string{},
 			expectedStatus: http.StatusBadRequest,
 			expectMessage:  "Invalid request body",
 		},
@@ -189,10 +188,10 @@ func TestGetCurrentUser(t *testing.T) {
 
 			if tt.expectedStatus == http.StatusOK {
 				assert.Contains(t, response["message"], "user information retrieved successfully")
-				
+
 				data, ok := response["data"].(map[string]interface{})
 				assert.True(t, ok)
-				
+
 				// Check expected fields are present
 				for _, field := range tt.expectedFields {
 					assert.Contains(t, data, field, "Expected field %s not found", field)
@@ -232,9 +231,9 @@ func TestAuthMethodsValidation(t *testing.T) {
 			expectMessage:  "Invalid request body",
 		},
 		{
-			name: "exchange with missing access_token fails",
+			name:   "exchange with missing access_token fails",
 			method: "POST",
-			path: "/auth/exchange",
+			path:   "/auth/exchange",
 			body: map[string]string{
 				"wrong_field": "value",
 			},
@@ -242,9 +241,9 @@ func TestAuthMethodsValidation(t *testing.T) {
 			expectMessage:  "Invalid request body",
 		},
 		{
-			name: "refresh with missing refresh_token fails",
+			name:   "refresh with missing refresh_token fails",
 			method: "POST",
-			path: "/auth/refresh",
+			path:   "/auth/refresh",
 			body: map[string]string{
 				"wrong_field": "value",
 			},
@@ -283,7 +282,7 @@ func TestAuthMethodsIntegration(t *testing.T) {
 	setupAuthTestEnvironment()
 
 	// Test complete flow: exchange -> use token -> refresh
-	
+
 	// 1. Generate a custom token to simulate successful exchange
 	user := models.User{
 		ID:               "integration-user-123",
@@ -305,7 +304,7 @@ func TestAuthMethodsIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	router := testutils.SetupTestGin()
-	
+
 	// Add JWT middleware for protected routes
 	authGroup := router.Group("/auth")
 	authGroup.Use(func(c *gin.Context) {
@@ -318,7 +317,7 @@ func TestAuthMethodsIntegration(t *testing.T) {
 		}
 		c.Next()
 	})
-	
+
 	authGroup.GET("/me", GetCurrentUser)
 	router.POST("/auth/refresh", RefreshToken)
 
@@ -332,7 +331,7 @@ func TestAuthMethodsIntegration(t *testing.T) {
 
 		response := testutils.AssertJSONResponse(t, w, http.StatusOK)
 		assert.Contains(t, response["message"], "user information retrieved successfully")
-		
+
 		data := response["data"].(map[string]interface{})
 		assert.Equal(t, "integration-user-123", data["id"])
 		assert.Equal(t, "integrationuser", data["username"])
@@ -343,7 +342,7 @@ func TestAuthMethodsIntegration(t *testing.T) {
 		refreshReq := RefreshTokenRequest{
 			RefreshToken: refreshToken,
 		}
-		
+
 		body, _ := json.Marshal(refreshReq)
 		w := testutils.MakeRequest(t, router, "POST", "/auth/refresh", bytes.NewReader(body), map[string]string{
 			"Content-Type": "application/json",
@@ -352,27 +351,9 @@ func TestAuthMethodsIntegration(t *testing.T) {
 		// Will fail due to missing services, but validates request structure
 		// Allow bad request due to validation as well
 		assert.True(t, w.Code == http.StatusInternalServerError || w.Code == http.StatusUnauthorized || w.Code == http.StatusBadRequest)
-		
+
 		response := testutils.AssertJSONResponse(t, w, w.Code)
 		// Just verify we get a structured error response
 		assert.Contains(t, response, "message")
 	})
-}
-
-// Helper function to generate an expired refresh token for testing
-func generateExpiredRefreshToken(t *testing.T) string {
-	// Temporarily set a very short expiration
-	originalExp := configuration.Config.JWTRefreshExpiration
-	configuration.Config.JWTRefreshExpiration = "1ns" // Very short duration
-	
-	token, err := jwt.GenerateRefreshToken("test-user")
-	require.NoError(t, err)
-	
-	// Restore original configuration
-	configuration.Config.JWTRefreshExpiration = originalExp
-	
-	// Wait a bit to ensure token is expired
-	time.Sleep(1 * time.Millisecond)
-	
-	return token
 }

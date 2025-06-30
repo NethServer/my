@@ -20,7 +20,7 @@ func setupServicesTestEnvironment() {
 	if !isServicesTestEnvironmentSetup {
 		gin.SetMode(gin.TestMode)
 		logs.Init("[SERVICES-TEST]")
-		
+
 		// Set test environment variables for configuration
 		_ = os.Setenv("LOGTO_ISSUER", "https://test-logto.example.com")
 		_ = os.Setenv("LOGTO_AUDIENCE", "test-api-resource")
@@ -28,7 +28,7 @@ func setupServicesTestEnvironment() {
 		_ = os.Setenv("LOGTO_MANAGEMENT_CLIENT_ID", "test-client-id")
 		_ = os.Setenv("LOGTO_MANAGEMENT_CLIENT_SECRET", "test-client-secret")
 		_ = os.Setenv("LOGTO_MANAGEMENT_BASE_URL", "https://test-logto.example.com/api")
-		
+
 		configuration.Init()
 		isServicesTestEnvironmentSetup = true
 	}
@@ -48,19 +48,19 @@ func TestLogtoModels(t *testing.T) {
 			OrganizationId:   "org-123",
 			OrganizationName: "Test Organization",
 		}
-		
+
 		// Test JSON serialization
 		jsonData, err := json.Marshal(userInfo)
 		assert.NoError(t, err)
 		assert.NotEmpty(t, jsonData)
-		
+
 		// Test JSON deserialization
 		var unmarshaled LogtoUserInfo
 		err = json.Unmarshal(jsonData, &unmarshaled)
 		assert.NoError(t, err)
 		assert.Equal(t, userInfo, unmarshaled)
 	})
-	
+
 	t.Run("LogtoRole", func(t *testing.T) {
 		role := LogtoRole{
 			ID:          "role-123",
@@ -68,16 +68,16 @@ func TestLogtoModels(t *testing.T) {
 			Description: "Administrator role",
 			Type:        "MachineToMachine",
 		}
-		
+
 		jsonData, err := json.Marshal(role)
 		assert.NoError(t, err)
-		
+
 		var unmarshaled LogtoRole
 		err = json.Unmarshal(jsonData, &unmarshaled)
 		assert.NoError(t, err)
 		assert.Equal(t, role, unmarshaled)
 	})
-	
+
 	t.Run("LogtoOrganization", func(t *testing.T) {
 		org := LogtoOrganization{
 			ID:            "org-123",
@@ -92,20 +92,20 @@ func TestLogtoModels(t *testing.T) {
 				DarkFavicon: "https://example.com/dark-favicon.ico",
 			},
 		}
-		
+
 		jsonData, err := json.Marshal(org)
 		assert.NoError(t, err)
-		
+
 		var unmarshaled LogtoOrganization
 		err = json.Unmarshal(jsonData, &unmarshaled)
 		assert.NoError(t, err)
 		assert.Equal(t, org, unmarshaled)
 	})
-	
+
 	t.Run("LogtoUser", func(t *testing.T) {
 		now := time.Now().Unix()
 		lastSignIn := now - 3600
-		
+
 		user := LogtoUser{
 			ID:            "user-123",
 			Username:      "testuser",
@@ -122,10 +122,10 @@ func TestLogtoModels(t *testing.T) {
 			CreatedAt:     now - 86400,
 			UpdatedAt:     now,
 		}
-		
+
 		jsonData, err := json.Marshal(user)
 		assert.NoError(t, err)
-		
+
 		var unmarshaled LogtoUser
 		err = json.Unmarshal(jsonData, &unmarshaled)
 		assert.NoError(t, err)
@@ -136,9 +136,9 @@ func TestLogtoModels(t *testing.T) {
 // Test LogtoManagementClient
 func TestNewLogtoManagementClient(t *testing.T) {
 	setupServicesTestEnvironment()
-	
+
 	client := NewLogtoManagementClient()
-	
+
 	assert.NotNil(t, client)
 	assert.Equal(t, configuration.Config.LogtoManagementBaseURL, client.baseURL)
 	assert.Equal(t, configuration.Config.LogtoManagementClientID, client.clientID)
@@ -149,7 +149,7 @@ func TestNewLogtoManagementClient(t *testing.T) {
 
 func TestLogtoManagementClient_getAccessToken(t *testing.T) {
 	setupServicesTestEnvironment()
-	
+
 	tests := []struct {
 		name           string
 		setupServer    func() *httptest.Server
@@ -167,7 +167,7 @@ func TestLogtoManagementClient_getAccessToken(t *testing.T) {
 						assert.Contains(t, string(body), "grant_type=client_credentials")
 						assert.Contains(t, string(body), "client_id=test-client-id")
 						assert.Contains(t, string(body), "client_secret=test-client-secret")
-						
+
 						// Return valid token response
 						response := LogtoManagementTokenResponse{
 							AccessToken: "test-access-token",
@@ -176,7 +176,7 @@ func TestLogtoManagementClient_getAccessToken(t *testing.T) {
 							Scope:       "all",
 						}
 						w.Header().Set("Content-Type", "application/json")
-						json.NewEncoder(w).Encode(response)
+						_ = json.NewEncoder(w).Encode(response)
 					} else {
 						w.WriteHeader(http.StatusNotFound)
 					}
@@ -194,7 +194,7 @@ func TestLogtoManagementClient_getAccessToken(t *testing.T) {
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(http.StatusUnauthorized)
-					w.Write([]byte(`{"error": "invalid_client"}`))
+					_, _ = w.Write([]byte(`{"error": "invalid_client"}`))
 				}))
 			},
 			expectError:   true,
@@ -208,7 +208,7 @@ func TestLogtoManagementClient_getAccessToken(t *testing.T) {
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.Header().Set("Content-Type", "application/json")
-					w.Write([]byte(`invalid json`))
+					_, _ = w.Write([]byte(`invalid json`))
 				}))
 			},
 			expectError:   true,
@@ -218,26 +218,26 @@ func TestLogtoManagementClient_getAccessToken(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			server := tt.setupServer()
 			defer server.Close()
-			
+
 			// Update configuration to use test server
 			originalIssuer := configuration.Config.LogtoIssuer
 			configuration.Config.LogtoIssuer = server.URL
 			defer func() { configuration.Config.LogtoIssuer = originalIssuer }()
-			
+
 			client := NewLogtoManagementClient()
 			err := client.getAccessToken()
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			tt.validateClient(t, client)
 		})
 	}
@@ -245,7 +245,7 @@ func TestLogtoManagementClient_getAccessToken(t *testing.T) {
 
 func TestLogtoManagementClient_TokenCaching(t *testing.T) {
 	setupServicesTestEnvironment()
-	
+
 	var requestCount int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCount++
@@ -256,31 +256,31 @@ func TestLogtoManagementClient_TokenCaching(t *testing.T) {
 			Scope:       "all",
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
-	
+
 	originalIssuer := configuration.Config.LogtoIssuer
 	configuration.Config.LogtoIssuer = server.URL
 	defer func() { configuration.Config.LogtoIssuer = originalIssuer }()
-	
+
 	client := NewLogtoManagementClient()
-	
+
 	// First request should hit the server
 	err := client.getAccessToken()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, requestCount)
 	assert.Equal(t, "cached-token", client.accessToken)
-	
+
 	// Second request should use cached token
 	err = client.getAccessToken()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, requestCount) // Should not increase
 	assert.Equal(t, "cached-token", client.accessToken)
-	
+
 	// Expire the token manually
 	client.tokenExpiry = time.Now().Add(-1 * time.Hour)
-	
+
 	// Third request should hit the server again
 	err = client.getAccessToken()
 	assert.NoError(t, err)
@@ -289,7 +289,7 @@ func TestLogtoManagementClient_TokenCaching(t *testing.T) {
 
 func TestLogtoManagementClient_makeRequest(t *testing.T) {
 	setupServicesTestEnvironment()
-	
+
 	tests := []struct {
 		name           string
 		method         string
@@ -306,7 +306,8 @@ func TestLogtoManagementClient_makeRequest(t *testing.T) {
 			body:     nil,
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					if r.URL.Path == "/oidc/token" {
+					switch r.URL.Path {
+					case "/oidc/token":
 						// Token request
 						response := LogtoManagementTokenResponse{
 							AccessToken: "test-token",
@@ -314,13 +315,13 @@ func TestLogtoManagementClient_makeRequest(t *testing.T) {
 							ExpiresIn:   3600,
 							Scope:       "all",
 						}
-						json.NewEncoder(w).Encode(response)
-					} else if r.URL.Path == "/api/test" {
+						_ = json.NewEncoder(w).Encode(response)
+					case "/api/test":
 						// API request
 						assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
 						assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 						w.WriteHeader(http.StatusOK)
-						w.Write([]byte(`{"success": true}`))
+						_, _ = w.Write([]byte(`{"success": true}`))
 					}
 				}))
 			},
@@ -334,19 +335,20 @@ func TestLogtoManagementClient_makeRequest(t *testing.T) {
 			body:     bytes.NewReader([]byte(`{"username": "test"}`)),
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					if r.URL.Path == "/oidc/token" {
+					switch r.URL.Path {
+					case "/oidc/token":
 						response := LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
 							Scope:       "all",
 						}
-						json.NewEncoder(w).Encode(response)
-					} else if r.URL.Path == "/api/users" {
+						_ = json.NewEncoder(w).Encode(response)
+					case "/api/users":
 						body, _ := io.ReadAll(r.Body)
 						assert.Equal(t, `{"username": "test"}`, string(body))
 						w.WriteHeader(http.StatusCreated)
-						w.Write([]byte(`{"id": "user-123"}`))
+						_, _ = w.Write([]byte(`{"id": "user-123"}`))
 					}
 				}))
 			},
@@ -360,17 +362,18 @@ func TestLogtoManagementClient_makeRequest(t *testing.T) {
 			body:     nil,
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					if r.URL.Path == "/oidc/token" {
+					switch r.URL.Path {
+					case "/oidc/token":
 						response := LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
 							Scope:       "all",
 						}
-						json.NewEncoder(w).Encode(response)
-					} else if r.URL.Path == "/api/nonexistent" {
+						_ = json.NewEncoder(w).Encode(response)
+					case "/api/nonexistent":
 						w.WriteHeader(http.StatusNotFound)
-						w.Write([]byte(`{"error": "not found"}`))
+						_, _ = w.Write([]byte(`{"error": "not found"}`))
 					}
 				}))
 			},
@@ -378,12 +381,12 @@ func TestLogtoManagementClient_makeRequest(t *testing.T) {
 			expectedStatus: http.StatusNotFound,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			server := tt.setupServer()
 			defer server.Close()
-			
+
 			// Update configuration to use test server
 			originalIssuer := configuration.Config.LogtoIssuer
 			originalBaseURL := configuration.Config.LogtoManagementBaseURL
@@ -393,10 +396,10 @@ func TestLogtoManagementClient_makeRequest(t *testing.T) {
 				configuration.Config.LogtoIssuer = originalIssuer
 				configuration.Config.LogtoManagementBaseURL = originalBaseURL
 			}()
-			
+
 			client := NewLogtoManagementClient()
 			resp, err := client.makeRequest(tt.method, tt.endpoint, tt.body)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Nil(t, resp)
@@ -404,7 +407,7 @@ func TestLogtoManagementClient_makeRequest(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, resp)
 				assert.Equal(t, tt.expectedStatus, resp.StatusCode)
-				resp.Body.Close()
+				_ = resp.Body.Close()
 			}
 		})
 	}
@@ -412,7 +415,7 @@ func TestLogtoManagementClient_makeRequest(t *testing.T) {
 
 func TestGetUserInfoFromLogto(t *testing.T) {
 	setupServicesTestEnvironment()
-	
+
 	tests := []struct {
 		name         string
 		accessToken  string
@@ -428,7 +431,7 @@ func TestGetUserInfoFromLogto(t *testing.T) {
 					if r.URL.Path == "/oidc/me" {
 						// Verify authorization header
 						assert.Equal(t, "Bearer valid-access-token", r.Header.Get("Authorization"))
-						
+
 						userInfo := LogtoUserInfo{
 							Sub:              "user-123",
 							Username:         "testuser",
@@ -438,9 +441,9 @@ func TestGetUserInfoFromLogto(t *testing.T) {
 							OrganizationId:   "org-123",
 							OrganizationName: "Test Organization",
 						}
-						
+
 						w.Header().Set("Content-Type", "application/json")
-						json.NewEncoder(w).Encode(userInfo)
+						_ = json.NewEncoder(w).Encode(userInfo)
 					} else {
 						w.WriteHeader(http.StatusNotFound)
 					}
@@ -463,7 +466,7 @@ func TestGetUserInfoFromLogto(t *testing.T) {
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(http.StatusUnauthorized)
-					w.Write([]byte(`{"error": "invalid_token"}`))
+					_, _ = w.Write([]byte(`{"error": "invalid_token"}`))
 				}))
 			},
 			expectError:  true,
@@ -475,7 +478,7 @@ func TestGetUserInfoFromLogto(t *testing.T) {
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(http.StatusUnauthorized)
-					w.Write([]byte(`{"error": "missing_token"}`))
+					_, _ = w.Write([]byte(`{"error": "missing_token"}`))
 				}))
 			},
 			expectError:  true,
@@ -487,26 +490,26 @@ func TestGetUserInfoFromLogto(t *testing.T) {
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.Header().Set("Content-Type", "application/json")
-					w.Write([]byte(`invalid json response`))
+					_, _ = w.Write([]byte(`invalid json response`))
 				}))
 			},
 			expectError:  true,
 			expectedUser: nil,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			server := tt.setupServer()
 			defer server.Close()
-			
+
 			// Update configuration to use test server
 			originalIssuer := configuration.Config.LogtoIssuer
 			configuration.Config.LogtoIssuer = server.URL
 			defer func() { configuration.Config.LogtoIssuer = originalIssuer }()
-			
+
 			userInfo, err := GetUserInfoFromLogto(tt.accessToken)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Nil(t, userInfo)
@@ -525,7 +528,7 @@ func TestCreateUserRequest(t *testing.T) {
 		"department": "IT",
 		"location":   "Milan",
 	}
-	
+
 	request := CreateUserRequest{
 		Username:     "newuser",
 		PrimaryEmail: "new@example.com",
@@ -533,12 +536,12 @@ func TestCreateUserRequest(t *testing.T) {
 		CustomData:   customData,
 		Password:     "SecurePassword123!",
 	}
-	
+
 	// Test JSON serialization
 	jsonData, err := json.Marshal(request)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, jsonData)
-	
+
 	// Verify JSON contains expected fields
 	var jsonMap map[string]interface{}
 	err = json.Unmarshal(jsonData, &jsonMap)
@@ -555,27 +558,27 @@ func TestUpdateUserRequest(t *testing.T) {
 	newUsername := "updateduser"
 	newEmail := "updated@example.com"
 	newName := "Updated User"
-	
+
 	request := UpdateUserRequest{
 		Username:     &newUsername,
 		PrimaryEmail: &newEmail,
 		Name:         &newName,
 		CustomData:   map[string]interface{}{"updated": true},
 	}
-	
+
 	// Test JSON serialization
 	jsonData, err := json.Marshal(request)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, jsonData)
-	
+
 	// Test with nil fields (should be omitted)
 	emptyRequest := UpdateUserRequest{
 		CustomData: map[string]interface{}{"key": "value"},
 	}
-	
+
 	jsonData, err = json.Marshal(emptyRequest)
 	assert.NoError(t, err)
-	
+
 	var jsonMap map[string]interface{}
 	err = json.Unmarshal(jsonData, &jsonMap)
 	assert.NoError(t, err)
@@ -587,18 +590,18 @@ func TestUpdateUserRequest(t *testing.T) {
 func TestCreateOrganizationRequest(t *testing.T) {
 	// Test CreateOrganizationRequest
 	customData := map[string]interface{}{
-		"type":     "enterprise",
-		"tier":     "premium",
-		"region":   "eu-west",
+		"type":   "enterprise",
+		"tier":   "premium",
+		"region": "eu-west",
 	}
-	
+
 	branding := &LogtoOrganizationBranding{
 		LogoUrl:     "https://example.com/logo.png",
 		DarkLogoUrl: "https://example.com/dark-logo.png",
 		Favicon:     "https://example.com/favicon.ico",
 		DarkFavicon: "https://example.com/dark-favicon.ico",
 	}
-	
+
 	request := CreateOrganizationRequest{
 		Name:          "New Organization",
 		Description:   "A new test organization",
@@ -606,12 +609,12 @@ func TestCreateOrganizationRequest(t *testing.T) {
 		IsMfaRequired: true,
 		Branding:      branding,
 	}
-	
+
 	// Test JSON serialization
 	jsonData, err := json.Marshal(request)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, jsonData)
-	
+
 	// Test deserialization
 	var unmarshaled CreateOrganizationRequest
 	err = json.Unmarshal(jsonData, &unmarshaled)
@@ -627,19 +630,19 @@ func TestCreateOrganizationRequest(t *testing.T) {
 // Test that the services properly handle network errors
 func TestServicesNetworkErrorHandling(t *testing.T) {
 	setupServicesTestEnvironment()
-	
+
 	// Test with non-existent server
 	originalIssuer := configuration.Config.LogtoIssuer
 	configuration.Config.LogtoIssuer = "http://non-existent-server.invalid"
 	defer func() { configuration.Config.LogtoIssuer = originalIssuer }()
-	
+
 	t.Run("GetUserInfoFromLogto with network error", func(t *testing.T) {
 		userInfo, err := GetUserInfoFromLogto("any-token")
 		assert.Error(t, err)
 		assert.Nil(t, userInfo)
 		assert.Contains(t, err.Error(), "failed to fetch user info")
 	})
-	
+
 	t.Run("LogtoManagementClient getAccessToken with network error", func(t *testing.T) {
 		client := NewLogtoManagementClient()
 		err := client.getAccessToken()

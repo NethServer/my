@@ -360,7 +360,7 @@ func TestRefreshTokenValidationEdgeCases(t *testing.T) {
 						IssuedAt:  jwt.NewNumericDate(time.Now()),
 					},
 				}
-				// Use RS256 instead of HS256  
+				// Use RS256 instead of HS256
 				token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 				tokenString, _ := token.SignedString([]byte("fake-key"))
 				return tokenString
@@ -487,7 +487,7 @@ func TestConfigurationFallbacks(t *testing.T) {
 	// Validate token to check it uses fallback expiration (24 hours)
 	claims, err := ValidateCustomToken(tokenString)
 	require.NoError(t, err)
-	
+
 	// Should expire approximately 24 hours from now (with some tolerance)
 	expectedExpiry := time.Now().Add(24 * time.Hour)
 	assert.True(t, claims.ExpiresAt.Before(expectedExpiry.Add(time.Minute)))
@@ -501,10 +501,10 @@ func TestConfigurationFallbacks(t *testing.T) {
 	// Validate refresh token to check it uses fallback expiration (7 days)
 	refreshClaims, err := ValidateRefreshToken(refreshToken)
 	require.NoError(t, err)
-	
+
 	// Should expire approximately 7 days from now (with some tolerance)
 	expectedRefreshExpiry := time.Now().Add(7 * 24 * time.Hour)
-	assert.True(t, refreshClaims.ExpiresAt.Before(expectedRefreshExpiry.Add(time.Minute))) 
+	assert.True(t, refreshClaims.ExpiresAt.Before(expectedRefreshExpiry.Add(time.Minute)))
 	assert.True(t, refreshClaims.ExpiresAt.After(expectedRefreshExpiry.Add(-time.Minute)))
 
 	// Restore original configuration

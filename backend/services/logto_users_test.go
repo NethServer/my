@@ -13,7 +13,7 @@ import (
 
 func TestLogtoManagementClient_GetUserByID(t *testing.T) {
 	setupServicesTestEnvironment()
-	
+
 	tests := []struct {
 		name         string
 		userID       string
@@ -26,15 +26,16 @@ func TestLogtoManagementClient_GetUserByID(t *testing.T) {
 			userID: "user-123",
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					if r.URL.Path == "/oidc/token" {
+					switch r.URL.Path {
+					case "/oidc/token":
 						response := LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
 							Scope:       "all",
 						}
-						json.NewEncoder(w).Encode(response)
-					} else if r.URL.Path == "/api/users/user-123" {
+						_ = json.NewEncoder(w).Encode(response)
+					case "/api/users/user-123":
 						user := LogtoUser{
 							ID:           "user-123",
 							Username:     "testuser",
@@ -47,7 +48,7 @@ func TestLogtoManagementClient_GetUserByID(t *testing.T) {
 							UpdatedAt:    1640995200,
 						}
 						w.Header().Set("Content-Type", "application/json")
-						json.NewEncoder(w).Encode(user)
+						_ = json.NewEncoder(w).Encode(user)
 					}
 				}))
 			},
@@ -69,17 +70,18 @@ func TestLogtoManagementClient_GetUserByID(t *testing.T) {
 			userID: "nonexistent-user",
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					if r.URL.Path == "/oidc/token" {
+					switch r.URL.Path {
+					case "/oidc/token":
 						response := LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
 							Scope:       "all",
 						}
-						json.NewEncoder(w).Encode(response)
-					} else if r.URL.Path == "/api/users/nonexistent-user" {
+						_ = json.NewEncoder(w).Encode(response)
+					case "/api/users/nonexistent-user":
 						w.WriteHeader(http.StatusNotFound)
-						w.Write([]byte(`{"error": "user not found"}`))
+						_, _ = w.Write([]byte(`{"error": "user not found"}`))
 					}
 				}))
 			},
@@ -91,17 +93,18 @@ func TestLogtoManagementClient_GetUserByID(t *testing.T) {
 			userID: "error-user",
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					if r.URL.Path == "/oidc/token" {
+					switch r.URL.Path {
+					case "/oidc/token":
 						response := LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
 							Scope:       "all",
 						}
-						json.NewEncoder(w).Encode(response)
-					} else if r.URL.Path == "/api/users/error-user" {
+						_ = json.NewEncoder(w).Encode(response)
+					case "/api/users/error-user":
 						w.WriteHeader(http.StatusInternalServerError)
-						w.Write([]byte(`{"error": "internal server error"}`))
+						_, _ = w.Write([]byte(`{"error": "internal server error"}`))
 					}
 				}))
 			},
@@ -109,12 +112,12 @@ func TestLogtoManagementClient_GetUserByID(t *testing.T) {
 			expectedUser: nil,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			server := tt.setupServer()
 			defer server.Close()
-			
+
 			originalIssuer := configuration.Config.LogtoIssuer
 			originalBaseURL := configuration.Config.LogtoManagementBaseURL
 			configuration.Config.LogtoIssuer = server.URL
@@ -123,10 +126,10 @@ func TestLogtoManagementClient_GetUserByID(t *testing.T) {
 				configuration.Config.LogtoIssuer = originalIssuer
 				configuration.Config.LogtoManagementBaseURL = originalBaseURL
 			}()
-			
+
 			client := NewLogtoManagementClient()
 			user, err := client.GetUserByID(tt.userID)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Nil(t, user)
@@ -143,7 +146,7 @@ func TestLogtoManagementClient_GetUserByID(t *testing.T) {
 
 func TestLogtoManagementClient_CreateUser(t *testing.T) {
 	setupServicesTestEnvironment()
-	
+
 	tests := []struct {
 		name         string
 		request      CreateUserRequest
@@ -169,19 +172,19 @@ func TestLogtoManagementClient_CreateUser(t *testing.T) {
 							ExpiresIn:   3600,
 							Scope:       "all",
 						}
-						json.NewEncoder(w).Encode(response)
+						_ = json.NewEncoder(w).Encode(response)
 					} else if r.URL.Path == "/api/users" && r.Method == "POST" {
 						// Verify request body
 						var requestBody CreateUserRequest
 						err := json.NewDecoder(r.Body).Decode(&requestBody)
 						require.NoError(t, err)
-						
+
 						assert.Equal(t, "newuser", requestBody.Username)
 						assert.Equal(t, "new@example.com", requestBody.PrimaryEmail)
 						assert.Equal(t, "New User", requestBody.Name)
 						assert.Equal(t, "SecurePassword123!", requestBody.Password)
 						assert.NotNil(t, requestBody.CustomData)
-						
+
 						// Return created user
 						user := LogtoUser{
 							ID:           "user-new-123",
@@ -193,10 +196,10 @@ func TestLogtoManagementClient_CreateUser(t *testing.T) {
 							CreatedAt:    1640995200,
 							UpdatedAt:    1640995200,
 						}
-						
+
 						w.WriteHeader(http.StatusCreated)
 						w.Header().Set("Content-Type", "application/json")
-						json.NewEncoder(w).Encode(user)
+						_ = json.NewEncoder(w).Encode(user)
 					}
 				}))
 			},
@@ -229,10 +232,10 @@ func TestLogtoManagementClient_CreateUser(t *testing.T) {
 							ExpiresIn:   3600,
 							Scope:       "all",
 						}
-						json.NewEncoder(w).Encode(response)
+						_ = json.NewEncoder(w).Encode(response)
 					} else if r.URL.Path == "/api/users" && r.Method == "POST" {
 						w.WriteHeader(http.StatusConflict)
-						w.Write([]byte(`{"error": "username already exists"}`))
+						_, _ = w.Write([]byte(`{"error": "username already exists"}`))
 					}
 				}))
 			},
@@ -253,11 +256,11 @@ func TestLogtoManagementClient_CreateUser(t *testing.T) {
 							ExpiresIn:   3600,
 							Scope:       "all",
 						}
-						json.NewEncoder(w).Encode(response)
+						_ = json.NewEncoder(w).Encode(response)
 					} else if r.URL.Path == "/api/users" && r.Method == "POST" {
 						var requestBody CreateUserRequest
-						json.NewDecoder(r.Body).Decode(&requestBody)
-						
+						_ = json.NewDecoder(r.Body).Decode(&requestBody)
+
 						user := LogtoUser{
 							ID:          "user-minimal-456",
 							Username:    requestBody.Username,
@@ -265,10 +268,10 @@ func TestLogtoManagementClient_CreateUser(t *testing.T) {
 							CreatedAt:   1640995200,
 							UpdatedAt:   1640995200,
 						}
-						
+
 						w.WriteHeader(http.StatusCreated)
 						w.Header().Set("Content-Type", "application/json")
-						json.NewEncoder(w).Encode(user)
+						_ = json.NewEncoder(w).Encode(user)
 					}
 				}))
 			},
@@ -282,12 +285,12 @@ func TestLogtoManagementClient_CreateUser(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			server := tt.setupServer()
 			defer server.Close()
-			
+
 			originalIssuer := configuration.Config.LogtoIssuer
 			originalBaseURL := configuration.Config.LogtoManagementBaseURL
 			configuration.Config.LogtoIssuer = server.URL
@@ -296,10 +299,10 @@ func TestLogtoManagementClient_CreateUser(t *testing.T) {
 				configuration.Config.LogtoIssuer = originalIssuer
 				configuration.Config.LogtoManagementBaseURL = originalBaseURL
 			}()
-			
+
 			client := NewLogtoManagementClient()
 			user, err := client.CreateUser(tt.request)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Nil(t, user)
@@ -313,7 +316,7 @@ func TestLogtoManagementClient_CreateUser(t *testing.T) {
 
 func TestLogtoManagementClient_UpdateUser(t *testing.T) {
 	setupServicesTestEnvironment()
-	
+
 	tests := []struct {
 		name         string
 		userID       string
@@ -343,17 +346,17 @@ func TestLogtoManagementClient_UpdateUser(t *testing.T) {
 							ExpiresIn:   3600,
 							Scope:       "all",
 						}
-						json.NewEncoder(w).Encode(response)
+						_ = json.NewEncoder(w).Encode(response)
 					} else if r.URL.Path == "/api/users/user-update-123" && r.Method == "PATCH" {
 						// Verify request body
 						var requestBody UpdateUserRequest
 						err := json.NewDecoder(r.Body).Decode(&requestBody)
 						require.NoError(t, err)
-						
+
 						assert.Equal(t, "updated@example.com", *requestBody.PrimaryEmail)
 						assert.Equal(t, "Updated User", *requestBody.Name)
 						assert.NotNil(t, requestBody.CustomData)
-						
+
 						// Return updated user
 						user := LogtoUser{
 							ID:           "user-update-123",
@@ -363,9 +366,9 @@ func TestLogtoManagementClient_UpdateUser(t *testing.T) {
 							CustomData:   requestBody.CustomData,
 							UpdatedAt:    1640995300,
 						}
-						
+
 						w.Header().Set("Content-Type", "application/json")
-						json.NewEncoder(w).Encode(user)
+						_ = json.NewEncoder(w).Encode(user)
 					}
 				}))
 			},
@@ -397,10 +400,10 @@ func TestLogtoManagementClient_UpdateUser(t *testing.T) {
 							ExpiresIn:   3600,
 							Scope:       "all",
 						}
-						json.NewEncoder(w).Encode(response)
+						_ = json.NewEncoder(w).Encode(response)
 					} else if r.URL.Path == "/api/users/nonexistent-user" && r.Method == "PATCH" {
 						w.WriteHeader(http.StatusNotFound)
-						w.Write([]byte(`{"error": "user not found"}`))
+						_, _ = w.Write([]byte(`{"error": "user not found"}`))
 					}
 				}))
 			},
@@ -422,25 +425,25 @@ func TestLogtoManagementClient_UpdateUser(t *testing.T) {
 							ExpiresIn:   3600,
 							Scope:       "all",
 						}
-						json.NewEncoder(w).Encode(response)
+						_ = json.NewEncoder(w).Encode(response)
 					} else if r.URL.Path == "/api/users/user-empty-update" && r.Method == "PATCH" {
 						var requestBody UpdateUserRequest
-						json.NewDecoder(r.Body).Decode(&requestBody)
-						
+						_ = json.NewDecoder(r.Body).Decode(&requestBody)
+
 						// Verify nil fields are not sent
 						assert.Nil(t, requestBody.Username)
 						assert.Nil(t, requestBody.PrimaryEmail)
 						assert.Nil(t, requestBody.Name)
 						assert.NotNil(t, requestBody.CustomData)
-						
+
 						user := LogtoUser{
 							ID:         "user-empty-update",
 							Username:   "unchanged",
 							CustomData: requestBody.CustomData,
 						}
-						
+
 						w.Header().Set("Content-Type", "application/json")
-						json.NewEncoder(w).Encode(user)
+						_ = json.NewEncoder(w).Encode(user)
 					}
 				}))
 			},
@@ -452,12 +455,12 @@ func TestLogtoManagementClient_UpdateUser(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			server := tt.setupServer()
 			defer server.Close()
-			
+
 			originalIssuer := configuration.Config.LogtoIssuer
 			originalBaseURL := configuration.Config.LogtoManagementBaseURL
 			configuration.Config.LogtoIssuer = server.URL
@@ -466,10 +469,10 @@ func TestLogtoManagementClient_UpdateUser(t *testing.T) {
 				configuration.Config.LogtoIssuer = originalIssuer
 				configuration.Config.LogtoManagementBaseURL = originalBaseURL
 			}()
-			
+
 			client := NewLogtoManagementClient()
 			user, err := client.UpdateUser(tt.userID, tt.request)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Nil(t, user)
@@ -483,7 +486,7 @@ func TestLogtoManagementClient_UpdateUser(t *testing.T) {
 
 func TestLogtoManagementClient_DeleteUser(t *testing.T) {
 	setupServicesTestEnvironment()
-	
+
 	tests := []struct {
 		name        string
 		userID      string
@@ -502,7 +505,7 @@ func TestLogtoManagementClient_DeleteUser(t *testing.T) {
 							ExpiresIn:   3600,
 							Scope:       "all",
 						}
-						json.NewEncoder(w).Encode(response)
+						_ = json.NewEncoder(w).Encode(response)
 					} else if r.URL.Path == "/api/users/user-delete-123" && r.Method == "DELETE" {
 						w.WriteHeader(http.StatusNoContent)
 					}
@@ -522,10 +525,10 @@ func TestLogtoManagementClient_DeleteUser(t *testing.T) {
 							ExpiresIn:   3600,
 							Scope:       "all",
 						}
-						json.NewEncoder(w).Encode(response)
+						_ = json.NewEncoder(w).Encode(response)
 					} else if r.URL.Path == "/api/users/nonexistent-user" && r.Method == "DELETE" {
 						w.WriteHeader(http.StatusNotFound)
-						w.Write([]byte(`{"error": "user not found"}`))
+						_, _ = w.Write([]byte(`{"error": "user not found"}`))
 					}
 				}))
 			},
@@ -543,22 +546,22 @@ func TestLogtoManagementClient_DeleteUser(t *testing.T) {
 							ExpiresIn:   3600,
 							Scope:       "all",
 						}
-						json.NewEncoder(w).Encode(response)
+						_ = json.NewEncoder(w).Encode(response)
 					} else if r.URL.Path == "/api/users/protected-user" && r.Method == "DELETE" {
 						w.WriteHeader(http.StatusForbidden)
-						w.Write([]byte(`{"error": "cannot delete protected user"}`))
+						_, _ = w.Write([]byte(`{"error": "cannot delete protected user"}`))
 					}
 				}))
 			},
 			expectError: true,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			server := tt.setupServer()
 			defer server.Close()
-			
+
 			originalIssuer := configuration.Config.LogtoIssuer
 			originalBaseURL := configuration.Config.LogtoManagementBaseURL
 			configuration.Config.LogtoIssuer = server.URL
@@ -567,10 +570,10 @@ func TestLogtoManagementClient_DeleteUser(t *testing.T) {
 				configuration.Config.LogtoIssuer = originalIssuer
 				configuration.Config.LogtoManagementBaseURL = originalBaseURL
 			}()
-			
+
 			client := NewLogtoManagementClient()
 			err := client.DeleteUser(tt.userID)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {
@@ -582,12 +585,12 @@ func TestLogtoManagementClient_DeleteUser(t *testing.T) {
 
 func TestGetUserProfileFromLogto(t *testing.T) {
 	setupServicesTestEnvironment()
-	
+
 	tests := []struct {
-		name           string
-		userID         string
-		setupServer    func() *httptest.Server
-		expectError    bool
+		name            string
+		userID          string
+		setupServer     func() *httptest.Server
+		expectError     bool
 		expectedProfile *LogtoUser
 	}{
 		{
@@ -595,15 +598,16 @@ func TestGetUserProfileFromLogto(t *testing.T) {
 			userID: "profile-user-123",
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					if r.URL.Path == "/oidc/token" {
+					switch r.URL.Path {
+					case "/oidc/token":
 						response := LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
 							Scope:       "all",
 						}
-						json.NewEncoder(w).Encode(response)
-					} else if r.URL.Path == "/api/users/profile-user-123" {
+						_ = json.NewEncoder(w).Encode(response)
+					case "/api/users/profile-user-123":
 						profile := LogtoUser{
 							ID:           "profile-user-123",
 							Username:     "profileuser",
@@ -614,7 +618,7 @@ func TestGetUserProfileFromLogto(t *testing.T) {
 							CreatedAt:    1640995200,
 						}
 						w.Header().Set("Content-Type", "application/json")
-						json.NewEncoder(w).Encode(profile)
+						_ = json.NewEncoder(w).Encode(profile)
 					}
 				}))
 			},
@@ -634,17 +638,18 @@ func TestGetUserProfileFromLogto(t *testing.T) {
 			userID: "nonexistent-profile-user",
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					if r.URL.Path == "/oidc/token" {
+					switch r.URL.Path {
+					case "/oidc/token":
 						response := LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
 							Scope:       "all",
 						}
-						json.NewEncoder(w).Encode(response)
-					} else if r.URL.Path == "/api/users/nonexistent-profile-user" {
+						_ = json.NewEncoder(w).Encode(response)
+					case "/api/users/nonexistent-profile-user":
 						w.WriteHeader(http.StatusNotFound)
-						w.Write([]byte(`{"error": "user not found"}`))
+						_, _ = w.Write([]byte(`{"error": "user not found"}`))
 					}
 				}))
 			},
@@ -652,12 +657,12 @@ func TestGetUserProfileFromLogto(t *testing.T) {
 			expectedProfile: nil,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			server := tt.setupServer()
 			defer server.Close()
-			
+
 			originalIssuer := configuration.Config.LogtoIssuer
 			originalBaseURL := configuration.Config.LogtoManagementBaseURL
 			configuration.Config.LogtoIssuer = server.URL
@@ -666,9 +671,9 @@ func TestGetUserProfileFromLogto(t *testing.T) {
 				configuration.Config.LogtoIssuer = originalIssuer
 				configuration.Config.LogtoManagementBaseURL = originalBaseURL
 			}()
-			
+
 			profile, err := GetUserProfileFromLogto(tt.userID)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Nil(t, profile)
