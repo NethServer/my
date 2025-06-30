@@ -1,19 +1,29 @@
 # sync
 
-A robust CLI tool for synchronizing simplified Role-Based Access Control (RBAC) configuration with Logto identity provider. Works in conjunction with the backend's Management API integration to provide real-time permission synchronization.
+A comprehensive CLI tool for **complete Logto setup** and **RBAC synchronization**. Provides zero-to-production deployment and ongoing management of simplified Role-Based Access Control (RBAC) configuration with Logto identity provider.
 
-## Features
+## 🚀 Key Features
 
-- 🔄 **Simplified RBAC Synchronization**: Clear separation between business hierarchy and technical capabilities
+### **Complete Zero-to-Production Setup**
+- 🚀 **`sync init`**: Complete Logto initialization from scratch
+- ⚡ **Auto-Configuration**: Generates all environment variables automatically  
+- 🏗️ **Full Setup**: Custom domains, applications, users, and complete RBAC
+- 🔐 **Security First**: Secure password generation and JIT provisioning
+- 📋 **Multiple Modes**: CLI flags, environment variables, or JSON output
+
+### **RBAC Synchronization**
+- 🔄 **Simplified RBAC Sync**: Clear separation between business hierarchy and technical capabilities
 - 🏢 **Business Hierarchy**: Organization roles (God, Distributor, Reseller, Customer) for commercial logic
 - 👥 **Technical Capabilities**: User roles (Admin, Support) for skills
 - 🔗 **Backend Integration**: Powers real-time Management API data fetching in backend
 - 🔍 **Dry Run Mode**: Preview changes before applying them with detailed analysis
 - 🧹 **Cleanup Mode**: Remove resources/roles/permissions not defined in config (opt-in)
+
+### **Enterprise Features**
 - 📊 **Multiple Output Formats**: Text, JSON, and YAML
 - 🛡️ **Safe Operations**: Preserves system entities and validates configurations
 - 🔧 **Simplified Configuration**: YAML-based with clear business vs technical separation
-- 📝 **Structured Logging**: Professional zerolog-based logging with component isolation
+- 📝 **Structured Logging**: Zerolog-based logging with component isolation
 - 🔍 **Security Features**: Automatic sensitive data redaction in logs
 - 🎯 **Output Separation**: Clean command output (stdout) separate from logging (stderr)
 
@@ -64,42 +74,69 @@ mkdir -p build && go build -o build/sync ./cmd/sync
 go test ./...
 ```
 
-## Quick Start
+## 🚀 Quick Start
+
+### **Complete Setup (Recommended)**
+
+**Zero to production in 3 steps:**
+
+1. **Create M2M Application in Logto**
+   - Go to Logto Admin Console → Applications → Machine-to-Machine
+   - Create app named `backend` with full Management API access
+   - Copy App ID and Secret
+
+2. **Run Complete Initialization**
+   ```bash
+   make build
+   
+   ./build/sync init \
+     --tenant-id y4uj0v \
+     --backend-client-id 11h51dxo64if0lsct1wos \
+     --backend-client-secret your-secret-here \
+     --domain dev.my.nethesis.it
+   ```
+
+3. **Copy Environment Variables**
+   - Copy the auto-generated environment variables to your backend `.env`
+   - Start your backend: `cd backend && go run main.go`
+   - Done! Your system is fully configured.
+
+### **Alternative: Environment Variables Mode**
+
+```bash
+export TENANT_ID=y4uj0v
+export BACKEND_CLIENT_ID=11h51dxo64if0lsct1wos
+export BACKEND_CLIENT_SECRET=your-secret-here
+export TENANT_DOMAIN=dev.my.nethesis.it
+
+./build/sync init
+```
+
+### **Manual RBAC Sync**
+
+If you already have a configured Logto instance:
 
 1. **Setup Environment Variables**
-
-```bash
-cp .env.example .env
-# Edit .env with your Logto configuration
-```
-
-Required environment variables:
-- `LOGTO_BASE_URL`: Your Logto instance URL
-- `LOGTO_CLIENT_ID`: Management API client ID
-- `LOGTO_CLIENT_SECRET`: Management API client secret
-
-Optional environment variables:
-- `API_BASE_URL`: Your API base URL (defaults to https://dev.my.nethesis.it)
-- `LOG_LEVEL`: Logging level (debug, info, warn, error, fatal) - defaults to info
+   ```bash
+   cp .env.example .env
+   # Edit .env with your Logto configuration
+   ```
 
 2. **Create Configuration File**
-
-```bash
-cp configs/hierarchy.yml my-config.yml
-# Edit my-config.yml with your RBAC configuration
-```
+   ```bash
+   cp configs/config.yml my-config.yml
+   # Edit my-config.yml with your RBAC configuration
+   ```
 
 3. **Test Configuration (Dry Run)**
-
-```bash
-sync sync -c my-config.yml --dry-run --verbose
-```
+   ```bash
+   sync sync -c my-config.yml --dry-run --verbose
+   ```
 
 4. **Apply Configuration**
-
-```bash
-sync sync -c my-config.yml
-```
+   ```bash
+   sync sync -c my-config.yml
+   ```
 
 ## Usage
 
@@ -112,11 +149,20 @@ sync --help
 # Show version
 sync --version
 
-# Sync with default config
+# Complete Logto initialization
+sync init --tenant-id y4uj0v --backend-client-id 11h51... --backend-client-secret secret... --domain dev.my.nethesis.it
+
+# Force re-initialization
+sync init --force
+
+# JSON output for automation
+sync init --output json
+
+# RBAC sync with default config
 sync sync
 
 # Sync with specific config file
-sync sync -c configs/hierarchy.yml
+sync sync -c configs/config.yml
 
 # Dry run to preview changes
 sync sync --dry-run --verbose
@@ -128,6 +174,92 @@ sync sync --output json
 sync sync --skip-resources --skip-roles
 ```
 
+### 🚀 Init Command (Zero-to-Production Setup)
+
+The `init` command provides complete Logto setup from scratch:
+
+#### **Basic Usage**
+
+```bash
+# CLI flags (recommended for CI/CD)
+sync init \
+  --tenant-id y4uj0v \
+  --backend-client-id 11h51dxo64if0lsct1wos \
+  --backend-client-secret your-secret-here \
+  --domain dev.my.nethesis.it
+
+# Environment variables
+export TENANT_ID=y4uj0v
+export BACKEND_CLIENT_ID=11h51dxo64if0lsct1wos  
+export BACKEND_CLIENT_SECRET=your-secret-here
+export TENANT_DOMAIN=dev.my.nethesis.it
+sync init
+
+# JSON output for automation
+sync init --output json > setup-result.json
+```
+
+#### **What Init Command Does**
+
+1. ✅ **Creates custom domain** in Logto (e.g., `dev.my.nethesis.it`)
+2. ✅ **Verifies backend M2M application** exists with correct permissions
+3. ✅ **Creates frontend SPA application** with correct redirect URIs:
+   - Development: `http://localhost:5173/callback`
+   - Production: `https://dev.my.nethesis.it/callback`
+4. ✅ **Creates god@nethesis.it user** with generated secure password
+5. ✅ **Sets up complete RBAC system**:
+   - Organization scopes (create:distributors, manage:resellers, etc.)
+   - Organization roles (God, Distributor, Reseller, Customer)  
+   - User roles (Admin, Support)
+   - JIT (Just-in-Time) provisioning
+6. ✅ **Assigns roles to god user**: Admin + God organization role
+7. ✅ **Generates all environment variables** automatically
+
+#### **Environment Variables Generated**
+
+The init command outputs all required environment variables:
+
+```bash
+# Backend configuration
+LOGTO_ISSUER=https://y4uj0v.logto.app
+LOGTO_AUDIENCE=https://dev.my.nethesis.it/api
+LOGTO_JWKS_ENDPOINT=https://y4uj0v.logto.app/oidc/jwks
+JWT_SECRET=generated-32-char-secret
+LOGTO_MANAGEMENT_CLIENT_ID=11h51dxo64if0lsct1wos
+LOGTO_MANAGEMENT_CLIENT_SECRET=your-secret-here
+LOGTO_MANAGEMENT_BASE_URL=https://y4uj0v.logto.app
+
+# Frontend configuration  
+FRONTEND_LOGTO_ENDPOINT=https://y4uj0v.logto.app
+FRONTEND_LOGTO_APP_ID=generated-app-id
+API_BASE_URL=https://dev.my.nethesis.it/api
+```
+
+#### **Init Command Flags**
+
+- `--tenant-id`: Logto tenant identifier (e.g., `y4uj0v`)
+- `--backend-client-id`: M2M application ID (e.g., `11h51dxo64if0lsct1wos`)
+- `--backend-client-secret`: M2M application secret
+- `--domain`: Your custom domain (e.g., `dev.my.nethesis.it`)
+- `--force`: Force re-initialization even if already done
+- `--output`: Output format (text, json) - default: text
+
+#### **Troubleshooting Init**
+
+```bash
+# Verbose output for debugging
+sync init --verbose
+
+# Check if already initialized
+sync init  # Will detect existing setup and suggest sync instead
+
+# Force complete re-initialization
+sync init --force
+
+# JSON output for analysis
+sync init --output json | jq .
+```
+
 ### Advanced Operations
 
 #### **🔍 Dry Run Mode**
@@ -136,16 +268,16 @@ Preview what would be changed without making any modifications:
 
 ```bash
 # Basic dry run
-sync sync -c hierarchy.yml --dry-run
+sync sync -c config.yml --dry-run
 
 # Verbose dry run with detailed logs
-sync sync -c hierarchy.yml --dry-run --verbose
+sync sync -c config.yml --dry-run --verbose
 
 # Dry run with JSON output for analysis
-sync sync -c hierarchy.yml --dry-run --output json | jq .
+sync sync -c config.yml --dry-run --output json | jq .
 
 # Preview cleanup operations
-sync sync -c hierarchy.yml --cleanup --dry-run --verbose
+sync sync -c config.yml --cleanup --dry-run --verbose
 ```
 
 **Dry run shows you:**
@@ -160,13 +292,13 @@ Remove resources, roles, and scopes that are no longer defined in your configura
 
 ```bash
 # Preview what would be cleaned up
-sync sync -c hierarchy.yml --cleanup --dry-run
+sync sync -c config.yml --cleanup --dry-run
 
 # Perform cleanup (removes items not in config)
-sync sync -c hierarchy.yml --cleanup
+sync sync -c config.yml --cleanup
 
 # Cleanup with verbose logging
-sync sync -c hierarchy.yml --cleanup --verbose
+sync sync -c config.yml --cleanup --verbose
 ```
 
 **⚠️ Cleanup Safety Features:**
@@ -188,14 +320,29 @@ sync sync -c hierarchy.yml --cleanup --verbose
 
 ### Global Flags
 
-- `-c, --config`: Configuration file path (default: ./hierarchy.yml)
+#### **Init Command Flags**
+- `--tenant-id`: Logto tenant identifier (required)
+- `--backend-client-id`: M2M application client ID (required)
+- `--backend-client-secret`: M2M application client secret (required)
+- `--domain`: Custom domain for your deployment (required)
+- `--force`: Force re-initialization even if already done
+- `-o, --output`: Output format (text, json) - default: text
+- `-v, --verbose`: Enable verbose output
+
+#### **Sync Command Flags**
+- `-c, --config`: Configuration file path (default: ./config.yml)
 - `-v, --verbose`: Enable verbose output (equivalent to LOG_LEVEL=debug)
 - `--dry-run`: Show what would be done without making changes
 - `-o, --output`: Output format (text, json, yaml)
+- `--skip-resources`: Skip synchronizing resources
+- `--skip-roles`: Skip synchronizing roles
+- `--skip-permissions`: Skip synchronizing permissions
+- `--cleanup`: Remove resources/roles/scopes not defined in config (**DANGEROUS**)
+- `--force`: Force synchronization even if validation fails
 
 ## Logging & Output
 
-The sync tool features professional structured logging with clear separation between operational logs and command results.
+The sync tool features structured logging with clear separation between operational logs and command results.
 
 ### Log Levels
 
@@ -267,7 +414,7 @@ LOG_LEVEL=error sync sync 2>>production.log
 - Sync operation results with success/failure status
 - Configuration validation with resource/role counts
 
-**🎯 Professional Output:**
+**🎯 Structured Output:**
 - RFC3339 timestamps
 - Consistent field naming
 - Machine-readable format
@@ -430,7 +577,7 @@ git commit -m "your commit message"
 │   ├── client/           # Logto API client with structured logging
 │   ├── config/           # Configuration loading and validation
 │   ├── constants/        # Shared constants (timeouts, TTL values)
-│   ├── logger/           # Professional zerolog-based logging
+│   ├── logger/           # Zerolog-based structured logging
 │   └── sync/             # Synchronization engine
 │       ├── engine.go     # Main sync orchestration
 │       ├── utils.go      # Common utilities (mappings, system detection)
@@ -445,32 +592,73 @@ git commit -m "your commit message"
 
 ## Examples
 
-### Basic Workflow
+### 🚀 Complete Setup Workflow (Recommended)
+
+```bash
+# 1. Complete zero-to-production setup
+sync init \
+  --tenant-id y4uj0v \
+  --backend-client-id 11h51dxo64if0lsct1wos \
+  --backend-client-secret your-secret-here \
+  --domain dev.my.nethesis.it
+
+# 2. Copy environment variables from output to backend/.env
+
+# 3. Start backend
+cd backend && go run main.go
+
+# 4. Optional: Make RBAC changes later
+vim config.yml
+sync sync -c config.yml --dry-run --verbose
+sync sync -c config.yml
+```
+
+### RBAC Workflow
 
 ```bash
 # 1. Edit your configuration
-vim hierarchy.yml
+vim config.yml
 
 # 2. Preview changes
-sync sync -c hierarchy.yml --dry-run --verbose
+sync sync -c config.yml --dry-run --verbose
 
 # 3. Apply changes
-sync sync -c hierarchy.yml --verbose
+sync sync -c config.yml --verbose
 
 # 4. Monitor results
-sync sync -c hierarchy.yml --output json | jq .summary
+sync sync -c config.yml --output json | jq .summary
+```
+
+### Init Command Examples
+
+```bash
+# Basic initialization
+sync init --tenant-id abc123 --backend-client-id xyz --backend-client-secret secret --domain my.domain.com
+
+# Environment variables mode
+TENANT_ID=abc123 BACKEND_CLIENT_ID=xyz BACKEND_CLIENT_SECRET=secret TENANT_DOMAIN=my.domain.com sync init
+
+# Force re-initialization
+sync init --force --tenant-id abc123 --backend-client-id xyz --backend-client-secret secret --domain my.domain.com
+
+# JSON output for automation
+sync init --output json --tenant-id abc123 --backend-client-id xyz --backend-client-secret secret --domain my.domain.com
+
+# Automation with jq
+sync init --output json | jq '.environment_vars'
+sync init --output json | jq '.god_user.password'
 ```
 
 ### Resource Management
 
 ```bash
-# Add new resources to hierarchy.yml, then:
-sync sync -c hierarchy.yml --dry-run  # Preview
-sync sync -c hierarchy.yml            # Apply
+# Add new resources to config.yml, then:
+sync sync -c config.yml --dry-run  # Preview
+sync sync -c config.yml            # Apply
 
-# Remove resources from hierarchy.yml, then:
-sync sync -c hierarchy.yml --cleanup --dry-run  # Preview cleanup
-sync sync -c hierarchy.yml --cleanup            # Apply cleanup
+# Remove resources from config.yml, then:
+sync sync -c config.yml --cleanup --dry-run  # Preview cleanup
+sync sync -c config.yml --cleanup            # Apply cleanup
 ```
 
 ### Troubleshooting Workflow
@@ -480,10 +668,10 @@ sync sync -c hierarchy.yml --cleanup            # Apply cleanup
 LOG_LEVEL=debug sync sync --dry-run
 
 # Check configuration validity
-sync sync -c hierarchy.yml --dry-run
+sync sync -c config.yml --dry-run
 
 # Force sync past validation errors
-sync sync -c hierarchy.yml --force
+sync sync -c config.yml --force
 
 # Detailed JSON output for debugging
 sync sync --output json | jq .operations

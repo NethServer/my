@@ -20,18 +20,18 @@ my/
 ## 🚀 Components
 
 ### Backend API
-Professional Go-based REST API featuring:
+Go-based REST API featuring:
 - **Authentication**: Logto JWT validation with JWKS caching and token exchange system
 - **Authorization**: Sophisticated RBAC with business hierarchy and technical capability separation
 - **Logging**: Structured zerolog-based system with security-first design and automatic sensitive data redaction
 - **Performance**: Thread-safe JWKS cache, optimized middleware chain, and embedded permissions
 - **Security**: Comprehensive audit trail, authentication event tracking, and pattern-based credential detection
 - **Account Management**: Hierarchical business rule enforcement with organizational role validation
-- **Framework**: Gin web framework with professional middleware architecture
+- **Framework**: Gin web framework with middleware architecture
 - **Integration**: Real-time Logto Management API data fetching for roles and permissions
 
 ### sync CLI
-Professional RBAC management tool featuring:
+RBAC management tool featuring:
 - **Configuration Management**: Simplified YAML-based role and permission definitions with business/technical separation
 - **Logging**: Structured zerolog-based system with component isolation and security-first design
 - **Safety Features**: Comprehensive dry-run mode, system entity protection, and validation workflows
@@ -79,7 +79,7 @@ Each component has its own setup instructions:
 
 ## 📝 Logging & Monitoring Architecture
 
-Both components feature professional-grade logging systems built on [zerolog](https://github.com/rs/zerolog):
+Both components feature structured logging systems built on [zerolog](https://github.com/rs/zerolog):
 
 ### Security-First Design
 - **Automatic Redaction**: Sensitive data (passwords, tokens, secrets) automatically sanitized from all logs

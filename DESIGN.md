@@ -23,6 +23,14 @@ graph TB
 
     L[hierarchy.yml] --> M[sync Tool]
     M --> B
+    
+    N[sync init] --> O[Complete Setup]
+    O --> P[Custom Domain]
+    O --> Q[Frontend SPA App]
+    O --> R[God User Creation]
+    O --> S[RBAC Sync]
+    O --> T[Environment Variables]
+    N --> F
 ```
 
 ### **🎯 Objectives**
@@ -32,6 +40,9 @@ graph TB
 - **Simplified permission model** with direct role-to-permission mapping
 - **Intuitive authorization** combining organization and user roles
 - **Scalable architecture** for ecosystem growth
+- **Zero-to-production deployment** via comprehensive init command
+- **Security-first logging** with automatic sensitive data redaction
+- **Code quality** with comprehensive refactoring and lint compliance
 
 ---
 
@@ -322,7 +333,76 @@ hierarchy:
 
 ```
 
-### **Synchronization**
+### **Complete Setup from Zero (sync init)**
+
+The sync tool now provides complete zero-to-production deployment via the `init` command:
+
+```bash
+# Complete Logto initialization from scratch
+sync init \
+  --tenant-id y4uj0v \
+  --backend-client-id 11h51dxo64if0lsct1wos \
+  --backend-client-secret your-secret-here \
+  --domain dev.my.nethesis.it
+
+# Alternative: Environment variables mode
+export TENANT_ID=y4uj0v
+export BACKEND_CLIENT_ID=11h51dxo64if0lsct1wos
+export BACKEND_CLIENT_SECRET=your-secret-here
+export TENANT_DOMAIN=dev.my.nethesis.it
+sync init
+
+# JSON output for automation
+sync init --output json
+```
+
+#### **Init Command Operations**
+
+The init command performs a comprehensive setup sequence:
+
+1. **Custom Domain Creation**: Creates and verifies custom domain in Logto
+2. **Application Management**: 
+   - Verifies backend M2M application exists with correct permissions
+   - Creates frontend SPA application with correct redirect URIs:
+     - Development: `http://localhost:5173/callback`
+     - Production: `https://domain/callback`
+3. **God User Creation**: Creates god@nethesis.it user with secure password generation
+4. **Complete RBAC Synchronization**:
+   - Organization scopes (create:distributors, manage:resellers, etc.)
+   - Organization roles (God, Distributor, Reseller, Customer)
+   - User roles (Admin, Support) with permissions
+   - JIT (Just-in-Time) provisioning configuration
+5. **Role Assignment**: Assigns Admin user role + God organization role to god user
+6. **Environment Variable Generation**: Auto-generates all required configuration
+
+#### **Auto-Generated Environment Variables**
+
+```bash
+# Backend Configuration
+LOGTO_ISSUER=https://y4uj0v.logto.app
+LOGTO_AUDIENCE=https://dev.my.nethesis.it/api
+LOGTO_JWKS_ENDPOINT=https://y4uj0v.logto.app/oidc/jwks
+JWT_SECRET=generated-32-char-secret
+LOGTO_MANAGEMENT_CLIENT_ID=11h51dxo64if0lsct1wos
+LOGTO_MANAGEMENT_CLIENT_SECRET=your-secret-here
+LOGTO_MANAGEMENT_BASE_URL=https://y4uj0v.logto.app
+
+# Frontend Configuration
+FRONTEND_LOGTO_ENDPOINT=https://y4uj0v.logto.app
+FRONTEND_LOGTO_APP_ID=generated-spa-app-id
+API_BASE_URL=https://dev.my.nethesis.it/api
+```
+
+#### **Init Command Features**
+
+- **Idempotent Operations**: Safely detects existing resources and prevents duplication
+- **Force Mode**: `--force` flag allows complete re-initialization
+- **Unified Configuration**: Prevents mixing CLI flags with environment variables
+- **Error Handling**: Graceful handling of existing domains, users, and applications
+- **JSON Output**: Structured output for CI/CD integration and automation
+- **Security**: Secure password generation for god user with entropy validation
+
+### **RBAC Configuration Synchronization**
 ```bash
 # Deploy new configuration
 sync sync -c hierarchy.yml
@@ -403,6 +483,26 @@ sequenceDiagram
 }
 ```
 
+### **Enhanced Token Exchange Features**
+
+#### **Refresh Token System**
+- **Refresh Tokens**: 7-day expiration with automatic renewal
+- **Token Rotation**: Each refresh generates new access and refresh tokens
+- **Real-time Data**: User data refreshed from Logto during token refresh
+- **Graceful Expiry**: Frontend can seamlessly handle token renewal
+
+#### **JWT Security Enhancements**
+- **Algorithm Validation**: RS256 for Logto tokens, HS256 for custom JWT
+- **Claim Validation**: Enhanced with `nbf` (not before) validation
+- **JWKS Caching**: Thread-safe cache with 5-minute TTL and automatic refresh
+- **Token Embedding**: All permissions pre-computed and embedded for offline operation
+
+#### **Management API Optimizations**
+- **Connection Pooling**: Efficient HTTP client with connection reuse
+- **Error Handling**: Comprehensive retry logic and fallback mechanisms
+- **Rate Limiting**: Respectful API usage with proper timeout handling
+- **Caching Strategy**: User roles and permissions cached in JWT to reduce API calls
+
 ## ❓ **Q&A**
 
 **Q: How does a user get Organization Role permissions?**
@@ -422,6 +522,78 @@ A: `sync` manages the RBAC structure in Logto, while the backend fetches the cur
 
 **Q: What if I need very specific permission combinations?**
 A: Use `RequirePermission("specific:permission")` - it checks both User and Organization permissions that were fetched from Logto.
+
+**Q: How do I deploy from scratch?**
+A: Use `sync init` command for complete zero-to-production setup. It creates domains, applications, users, RBAC, and generates all environment variables automatically.
+
+**Q: What about token refresh and expiration?**
+A: Access tokens expire after 24 hours, refresh tokens after 7 days. The `/auth/refresh` endpoint provides seamless token renewal with fresh user data from Logto.
+
+**Q: Is the system secure for production?**
+A: Yes. Features comprehensive security including automatic sensitive data redaction in logs, thread-safe JWKS caching, JWT validation with all claims, and structured audit trails.
+
+**Q: How do I handle frontend application management?**
+A: The init command automatically creates frontend SPA applications with correct redirect URIs for both development (`localhost:5173`) and production (`https://domain`) environments.
+
+---
+
+## 🔧 **Code Quality & Architecture**
+
+### **Recent Refactoring Improvements (2025-06-28)**
+
+Both sync and backend projects underwent comprehensive refactoring to improve maintainability and code quality:
+
+#### **sync Tool Refactoring**
+- **Unified HTTP Response Handling**: Created `handleCreationResponse()` and `handleSimpleResponse()` helper functions eliminating ~150 lines of duplicate code
+- **Entity Lookup Helpers**: Extracted `findEntityByField()` pattern reducing code duplication in client operations
+- **Constants Consolidation**: Created `internal/constants/constants.go` with all magic strings, endpoints, and configuration values
+- **Simple Creation Methods**: Unified `CreateEntitySimple()` pattern for organization roles, user roles, and scopes
+- **Error Handling Standardization**: Consistent HTTP response handling with proper defer cleanup and status code validation
+
+#### **Backend Code Quality**
+- **golangci-lint Compliance**: Resolved all 16 linting issues (10 errcheck + 6 staticcheck)
+- **Error Handling**: Proper `defer func() { _ = resp.Body.Close() }()` patterns for all HTTP responses
+- **JWKS Caching**: Thread-safe implementation with `sync.RWMutex` for concurrent access
+- **JWT Validation**: Enhanced with `nbf` (not before) claim validation and comprehensive error handling
+- **HTTP Security**: Added timeouts and response size limits for all external requests
+
+#### **Logging System Architecture**
+Both projects feature structured logging systems built on [zerolog](https://github.com/rs/zerolog):
+
+**🔒 Security Features:**
+- **Automatic Redaction**: Advanced regex patterns detect and sanitize credentials in logs
+- **Pattern Detection**: JSON format (`"password": "value"`), key-value pairs, Bearer tokens, and base64 strings
+- **Thread Safety**: All logging operations are thread-safe and concurrent-access optimized
+- **Audit Trail**: Complete authentication and authorization event tracking
+
+**📊 Structured Components:**
+- **Component Isolation**: Separate loggers (http, auth, rbac, api-client, sync, config)
+- **Performance Tracking**: HTTP request timing, API call duration, and operation metrics
+- **Stream Separation**: Clean command output (stdout) vs operational logs (stderr)
+- **JSON Structured Output**: Production-ready logging with consistent field naming
+
+#### **Performance Optimizations**
+- **Code Deduplication**: Extracted ~300-400 lines into reusable utility functions
+- **Function Decomposition**: Complex functions broken into focused, testable units
+- **Efficient Caching**: Optimized JWKS cache with 5-minute TTL and proper cleanup
+- **HTTP Optimization**: Connection pooling, timeout management, and response streaming
+
+### **CI/CD Quality Integration**
+
+**Release Process with Quality Gates:**
+```bash
+# All releases now require passing quality checks
+./release.sh patch   # Runs: formatting → linting → tests → release
+./release.sh minor   # Quality failure = release blocked
+./release.sh major   # Zero tolerance for code quality issues
+```
+
+**GitHub Actions CI Pipeline:**
+- **Format Validation**: `gofmt -s` for both projects with uniform standards
+- **Linting Enforcement**: `golangci-lint-action@v6` with 10-minute timeout
+- **Test Coverage**: Full test suite with coverage artifact generation
+- **Security Scanning**: Trivy vulnerability scanning for container images
+- **Cross-Platform Builds**: Docker images for linux/amd64 and linux/arm64
 
 ---
 

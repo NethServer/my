@@ -19,7 +19,7 @@ backend/
 ├── main.go                    # Server setup and route definitions
 ├── configuration/             # Environment configuration loading
 ├── jwt/                       # Custom JWT utilities for legacy endpoints
-├── logger/                    # Professional zerolog-based logging system
+├── logger/                    # Zerolog-based structured logging system
 │   ├── logger.go              # Core logging with security features
 │   ├── helpers.go             # Logging helper functions
 │   └── middleware.go          # HTTP request logging middleware
@@ -86,7 +86,7 @@ Users get permissions from BOTH their technical capabilities AND their organizat
 
 ## 📝 Logging & Security
 
-The backend features a professional logging system built on [zerolog](https://github.com/rs/zerolog) with comprehensive security features and structured output.
+The backend features a structured logging system built on [zerolog](https://github.com/rs/zerolog) with comprehensive security features and structured output.
 
 ### Logging Features
 
