@@ -183,3 +183,116 @@ func (c *LogtoClient) RemoveScopeFromOrganizationRole(roleID, scopeID string) er
 
 	return c.handleResponse(resp, http.StatusNoContent, nil)
 }
+
+// LogtoOrganization represents an organization in Logto
+type LogtoOrganization struct {
+	ID          string `json:"id,omitempty"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+}
+
+// GetOrganizations retrieves all organizations
+func (c *LogtoClient) GetOrganizations() ([]LogtoOrganization, error) {
+	logger.Debug("Fetching organizations")
+
+	resp, err := c.makeRequest("GET", "/api/organizations", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get organizations: %w", err)
+	}
+
+	var organizations []LogtoOrganization
+	if err := c.handlePaginatedResponse(resp, &organizations); err != nil {
+		return nil, fmt.Errorf("failed to parse organizations response: %w", err)
+	}
+
+	logger.Debug("Retrieved %d organizations", len(organizations))
+	return organizations, nil
+}
+
+// CreateOrganization creates a new organization
+func (c *LogtoClient) CreateOrganization(org LogtoOrganization) (*LogtoOrganization, error) {
+	logger.Debug("Creating organization: %s", org.Name)
+
+	resp, err := c.makeRequest("POST", "/api/organizations", org)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create organization: %w", err)
+	}
+
+	var result LogtoOrganization
+	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
+		if err := c.handleResponse(resp, resp.StatusCode, &result); err != nil {
+			return nil, fmt.Errorf("failed to parse organization creation response: %w", err)
+		}
+		return &result, nil
+	}
+
+	return nil, c.handleResponse(resp, http.StatusCreated, nil)
+}
+
+// AddUserToOrganization adds a user to an organization
+func (c *LogtoClient) AddUserToOrganization(organizationID, userID string) error {
+	logger.Debug("Adding user %s to organization %s", userID, organizationID)
+
+	data := map[string]interface{}{
+		"userIds": []string{userID},
+	}
+
+	resp, err := c.makeRequest("POST", "/api/organizations/"+organizationID+"/users", data)
+	if err != nil {
+		return fmt.Errorf("failed to add user to organization: %w", err)
+	}
+
+	return c.handleCreationResponse(resp, nil)
+}
+
+// AssignOrganizationRoleToUser assigns an organization role to a user in an organization
+func (c *LogtoClient) AssignOrganizationRoleToUser(organizationID, userID, organizationRoleID string) error {
+	logger.Debug("Assigning organization role %s to user %s in organization %s", organizationRoleID, userID, organizationID)
+
+	// Use the correct endpoint found through investigation
+	data := map[string]interface{}{
+		"organizationRoleIds": []string{organizationRoleID},
+	}
+
+	endpoint := "/api/organizations/" + organizationID + "/users/" + userID + "/roles"
+	logger.Debug("Using endpoint: %s", endpoint)
+	logger.Debug("Using payload: %+v", data)
+
+	resp, err := c.makeRequest("POST", endpoint, data)
+	if err != nil {
+		return fmt.Errorf("failed to assign organization role to user: %w", err)
+	}
+
+	return c.handleCreationResponse(resp, nil)
+}
+
+// SetOrganizationJITRole sets the Just-in-Time organization role for an organization
+func (c *LogtoClient) SetOrganizationJITRole(organizationID, organizationRoleID string) error {
+	logger.Debug("Setting JIT organization role %s for organization %s", organizationRoleID, organizationID)
+
+	data := map[string]interface{}{
+		"organizationRoleIds": []string{organizationRoleID},
+	}
+
+	resp, err := c.makeRequest("POST", "/api/organizations/"+organizationID+"/jit/roles", data)
+	if err != nil {
+		return fmt.Errorf("failed to set JIT organization role: %w", err)
+	}
+
+	return c.handleCreationResponse(resp, nil)
+}
+
+// CreateOrganizationRoleSimple creates an organization role using a simple map structure
+func (c *LogtoClient) CreateOrganizationRoleSimple(roleData map[string]interface{}) error {
+	return c.createEntitySimple("/api/organization-roles", roleData, "organization role")
+}
+
+// CreateOrganizationSimple creates an organization using a simple map structure
+func (c *LogtoClient) CreateOrganizationSimple(orgData map[string]interface{}) error {
+	return c.createEntitySimple("/api/organizations", orgData, "organization")
+}
+
+// CreateOrganizationScopeSimple creates an organization scope using a simple map structure
+func (c *LogtoClient) CreateOrganizationScopeSimple(scopeData map[string]interface{}) error {
+	return c.createEntitySimple("/api/organization-scopes", scopeData, "organization scope")
+}

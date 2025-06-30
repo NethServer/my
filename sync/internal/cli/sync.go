@@ -92,17 +92,29 @@ func runSync(cmd *cobra.Command, args []string) error {
 
 	logger.LogConfigLoad(configFile, resourceCount, roleCount, true)
 
-	// Create Logto client
+	// Create Logto client using derived base URL
+	tenantID := os.Getenv("TENANT_ID")
+	baseURL := fmt.Sprintf("https://%s.logto.app", tenantID)
+
 	logtoClient := client.NewLogtoClient(
-		os.Getenv("LOGTO_BASE_URL"),
-		os.Getenv("LOGTO_CLIENT_ID"),
-		os.Getenv("LOGTO_CLIENT_SECRET"),
+		baseURL,
+		os.Getenv("BACKEND_CLIENT_ID"),
+		os.Getenv("BACKEND_CLIENT_SECRET"),
 	)
 
 	// Test connection
 	logger.Info("Testing connection to Logto...")
 	if err := logtoClient.TestConnection(); err != nil {
 		return fmt.Errorf("failed to connect to Logto: %w", err)
+	}
+
+	// Check if Logto is properly initialized for Nethesis Operation Center
+	if initialized, err := checkLogtoInitialization(logtoClient); err != nil {
+		logger.Warn("Could not check initialization status: %v", err)
+	} else if !initialized {
+		logger.Warn("Logto does not appear to be initialized for Nethesis Operation Center")
+		logger.Info("Run 'sync init' first to set up applications and users")
+		return fmt.Errorf("initialization required - run 'sync init' first")
 	}
 
 	// Create sync engine
@@ -156,4 +168,42 @@ func outputResult(result *sync.Result) error {
 	default:
 		return result.OutputText(os.Stdout)
 	}
+}
+
+func checkLogtoInitialization(client *client.LogtoClient) (bool, error) {
+	// Check if backend and frontend applications exist
+	backendClientID := os.Getenv("BACKEND_CLIENT_ID")
+
+	apps, err := client.GetApplications()
+	if err != nil {
+		return false, err
+	}
+
+	backendExists := false
+	frontendExists := false
+
+	for _, app := range apps {
+		if appID, ok := app["id"].(string); ok && appID == backendClientID {
+			backendExists = true
+		}
+		if name, ok := app["name"].(string); ok && name == "frontend" {
+			frontendExists = true
+		}
+	}
+
+	// Check if god user exists
+	users, err := client.GetUsers()
+	if err != nil {
+		return false, err
+	}
+
+	godExists := false
+	for _, user := range users {
+		if username, ok := user["username"].(string); ok && username == "god" {
+			godExists = true
+			break
+		}
+	}
+
+	return backendExists && frontendExists && godExists, nil
 }

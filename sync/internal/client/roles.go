@@ -142,3 +142,25 @@ func (c *LogtoClient) RemovePermissionsFromRole(roleID string, scopeIDs []string
 
 	return nil
 }
+
+// AssignRoleToUser assigns a role to a user
+func (c *LogtoClient) AssignRoleToUser(userID, roleID string) error {
+	logger.Debug("Assigning role %s to user %s", roleID, userID)
+
+	data := map[string]interface{}{
+		"roleIds": []string{roleID},
+	}
+
+	resp, err := c.makeRequest("POST", "/api/users/"+userID+"/roles", data)
+	if err != nil {
+		return fmt.Errorf("failed to assign role to user: %w", err)
+	}
+
+	// Role assignment typically returns 201 or 200
+	return c.handleCreationResponse(resp, nil)
+}
+
+// CreateRoleSimple creates a role using a simple map structure
+func (c *LogtoClient) CreateRoleSimple(roleData map[string]interface{}) error {
+	return c.createEntitySimple("/api/roles", roleData, "role")
+}
