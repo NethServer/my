@@ -53,7 +53,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	// Global flags
-	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is ./hierarchy.yml)")
+	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is ./config.yml)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "show what would be done without making changes")
 	rootCmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "text", "output format (text, json, yaml)")
@@ -76,7 +76,7 @@ func initConfig() {
 		// Search for config in current directory
 		viper.AddConfigPath(".")
 		viper.AddConfigPath("./configs")
-		viper.SetConfigName("hierarchy")
+		viper.SetConfigName("config")
 		viper.SetConfigType("yaml")
 	}
 

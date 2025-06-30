@@ -88,7 +88,7 @@ run:
 # Run with example config
 .PHONY: run-example
 run-example:
-	@go run ./$(CMD_DIR) sync -c configs/hierarchy.yml --dry-run --verbose
+	@go run ./$(CMD_DIR) sync -c configs/config.yml --dry-run --verbose
 
 # Development setup
 .PHONY: dev-setup

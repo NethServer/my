@@ -1077,8 +1077,8 @@ func outputText(result *InitResult) {
 	// Configuration sync reminder
 	fmt.Println("\n🔄 CONFIGURATION UPDATES")
 	fmt.Println("To update roles and permissions after this initial setup:")
-	fmt.Println("  sync sync -c configs/hierarchy.yml --dry-run  # Preview changes")
-	fmt.Println("  sync sync -c configs/hierarchy.yml            # Apply changes")
+	fmt.Println("  sync sync -c configs/config.yml --dry-run  # Preview changes")
+	fmt.Println("  sync sync -c configs/config.yml            # Apply changes")
 
 	fmt.Println("\n" + strings.Repeat("=", 80))
 }

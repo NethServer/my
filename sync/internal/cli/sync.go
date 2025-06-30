@@ -34,7 +34,7 @@ This command will:
 4. Report any changes made
 
 Examples:
-  sync sync -c hierarchy.yml
+  sync sync -c config.yml
   sync sync --dry-run --verbose
   sync sync --output json`,
 	RunE: runSync,
