@@ -7,8 +7,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  BACKEND_IMAGE_NAME: ${{ github.repository }}/backend
-  SYNC_IMAGE_NAME: ${{ github.repository }}/sync
+  BACKEND_IMAGE_NAME: nethserver/my/backend
+  SYNC_IMAGE_NAME: nethserver/my/sync
 
 jobs:
   build-and-release:
@@ -166,11 +166,17 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
+    # Wait for image to be available in registry
+    - name: Wait for backend image availability
+      run: |
+        echo "Waiting for image to be available in registry..."
+        sleep 30
+
     # Generate SBOM for backend
     - name: Generate backend SBOM
       uses: anchore/sbom-action@v0
       with:
-        image: ${{ steps.backend_meta.outputs.tags }}
+        image: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
         format: cyclonedx-json
         output-file: backend-sbom.cdx.json
 
@@ -200,11 +206,17 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
+    # Wait for image to be available in registry
+    - name: Wait for sync image availability
+      run: |
+        echo "Waiting for image to be available in registry..."
+        sleep 30
+
     # Generate SBOM for sync
     - name: Generate sync SBOM
       uses: anchore/sbom-action@v0
       with:
-        image: ${{ steps.sync_meta.outputs.tags }}
+        image: ${{ env.REGISTRY }}/${{ env.SYNC_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
         format: cyclonedx-json
         output-file: sync-sbom.cdx.json
 
