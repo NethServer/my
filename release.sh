@@ -35,7 +35,7 @@ check_git_status() {
     fi
 
     # Show untracked files as info (but don't block)
-    untracked=$(git status --porcelain | grep '^??')
+    untracked=$(git status --porcelain | grep '^??' || true)
     if [ -n "$untracked" ]; then
         warning "Untracked files present (will be ignored):"
         echo "$untracked" | sed 's/^?? /  - /'
