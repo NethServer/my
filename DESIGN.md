@@ -286,51 +286,91 @@ curl -X DELETE /api/systems/123/destroy \
 ### **config.yml Structure**
 ```yaml
 metadata:
-  name: "nethesis-simplified-rbac"
-  version: "2.0.0"
+  name: "nethesis-rbac"
+  version: "1.0.0"
+  description: "Nethesis Role-Based Authentication with clear separation between business hierarchy and technical capabilities"
 
 hierarchy:
-  # BUSINESS HIERARCHY (Organization Types)
+  # Organization roles define BUSINESS HIERARCHY permissions
+  # Users inherit these based on their organization's role in the commercial chain
   organization_roles:
     - id: god
+      name: "God"
+      priority: 1
+      type: user
       permissions:
-        - create:distributors
-        - manage:distributors
-        - create:resellers
-        - manage:resellers
-        - create:customers
-        - manage:customers
+        # Complete control over commercial hierarchy
+        - id: create:distributors
+        - id: manage:distributors
+        - id: create:resellers
+        - id: manage:resellers
+        - id: create:customers
+        - id: manage:customers
 
     - id: distributor
+      name: "Distributor"
+      priority: 2
+      type: user
       permissions:
-        - create:resellers
-        - manage:resellers
-        - create:customers
-        - manage:customers
+        # Can manage downstream in hierarchy: resellers and customers
+        - id: create:resellers
+        - id: manage:resellers
+        - id: create:customers
+        - id: manage:customers
 
     - id: reseller
+      name: "Reseller"
+      priority: 3
+      type: user
       permissions:
-        - create:customers
-        - manage:customers
+        # Can only manage customers
+        - id: create:customers
+        - id: manage:customers
 
     - id: customer
+      name: "Customer"
+      priority: 4
+      type: user
       permissions:
-        - read:own-data
+        # Read-only access to own organization data
 
-  # TECHNICAL CAPABILITIES (User Skills)
+  # User roles define TECHNICAL CAPABILITIES
+  # Independent of business hierarchy - define what technical operations a user can perform
   user_roles:
     - id: admin
+      name: "Admin"
+      priority: 1
+      type: user
       permissions:
-        - admin:systems
-        - manage:systems
-        - destroy:systems
-        - read:systems
+        # Full technical control including dangerous operations
+        - id: admin:systems          # Includes all system operations + dangerous ones
+        - id: destroy:systems        # Explicit dangerous operation
+        - id: manage:systems         # Standard system management
+        - id: read:systems           # Can read systems
 
     - id: support
+      name: "Support"
+      priority: 2
+      type: user
       permissions:
-        - manage:systems
-        - read:systems
+        # Standard technical operations (no dangerous operations)
+        - id: manage:systems         # Standard system management
+        - id: read:systems           # Can read systems
 
+
+  # Resources and their available actions
+  resources:
+    - name: "systems"
+      actions: ["read", "manage", "admin", "destroy"]
+
+    - name: "distributors"
+      actions: ["create", "manage"]
+
+    - name: "resellers"
+      actions: ["create", "manage"]
+
+    - name: "customers"
+      actions: ["create", "manage"]
 ```
 
 ### **Complete Setup from Zero (sync init)**

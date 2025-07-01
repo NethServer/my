@@ -1,7 +1,7 @@
 metadata:
-  name: "simplified-rbac"
-  version: "2.0.0"
-  description: "Simplified RBAC with clear separation between business hierarchy and technical capabilities"
+  name: "nethesis-rbac"
+  version: "1.0.0"
+  description: "Nethesis Role-Based Authentication with clear separation between business hierarchy and technical capabilities"
 
 hierarchy:
   # Organization roles define BUSINESS HIERARCHY permissions
