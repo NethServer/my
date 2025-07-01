@@ -614,11 +614,11 @@ Edit `src/main.ts` to install the Logto plugin:
 
 ```typescript
 import { createApp } from 'vue'
-import { createLogto, LogtoConfig } from '@logto/vue'
+import { createLogto } from '@logto/vue'
 import App from './App.vue'
 
 // Logto configuration - UPDATE THESE VALUES!
-const config: LogtoConfig = {
+const config = {
   endpoint: 'https://your-logto-instance.logto.app',     // Your Logto URL
   appId: 'your-app-id',                                  // Your App ID from Logto admin
   resources: [],                                         // Must be ABSOLUTE URI (https://...), can be empty
