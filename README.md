@@ -76,8 +76,9 @@ cd sync && go run ./cmd/sync
 ### Getting Started
 Each component has its own setup instructions:
 
-- **Backend API**: See [backend/API.md](./backend/API.md) for API server setup
-- **sync CLI**: See [sync/README.md](./sync/README.md) for RBAC management
+- **Backend**: See [backend/README.md](./backend/README.md) for Backend server setup
+- **Backend API**: See [backend/API.md](./backend/API.md) for API references
+- **sync CLI**: See [sync/README.md](./sync/README.md) for sync and RBAC management
 
 ## 📝 Logging & Monitoring Architecture
 
