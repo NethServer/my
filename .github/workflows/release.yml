@@ -220,35 +220,12 @@ jobs:
         format: cyclonedx-json
         output-file: sync-sbom.cdx.json
 
-    # Generate release notes
-    - name: Generate changelog
-      id: changelog
-      run: |
-        # Get the previous tag
-        PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
-
-        if [ -n "$PREVIOUS_TAG" ]; then
-          echo "## Changes since $PREVIOUS_TAG" > CHANGELOG.md
-          echo "" >> CHANGELOG.md
-          git log --pretty=format:"- %s (%h)" $PREVIOUS_TAG..HEAD >> CHANGELOG.md
-        else
-          echo "## Initial Release" > CHANGELOG.md
-          echo "" >> CHANGELOG.md
-          echo "First release of Nethesis Operation Center" >> CHANGELOG.md
-        fi
-
-        echo "## Docker Images" >> CHANGELOG.md
-        echo "" >> CHANGELOG.md
-        echo "- \`ghcr.io/${{ github.repository }}/backend:${{ steps.version.outputs.VERSION }}\`" >> CHANGELOG.md
-        echo "- \`ghcr.io/${{ github.repository }}/sync:${{ steps.version.outputs.VERSION }}\`" >> CHANGELOG.md
-
     # Create GitHub Release
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ steps.version.outputs.VERSION }}
         name: ${{ steps.version.outputs.VERSION }}
-        body_path: CHANGELOG.md
         draft: false
         prerelease: ${{ contains(steps.version.outputs.VERSION, '-') }}
         files: |
