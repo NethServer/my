@@ -81,52 +81,52 @@ jobs:
     - name: Extract version
       id: version
       run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-    
+
     # Backend Release
     - name: Build backend binary
       working-directory: backend
       run: |
         # Build for multiple platforms
         mkdir -p dist
-        
+
         # Linux AMD64
         GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/backend-linux-amd64 main.go
-        
+
         # Linux ARM64
         GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/backend-linux-arm64 main.go
-        
+
         # macOS AMD64
         GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/backend-darwin-amd64 main.go
-        
+
         # macOS ARM64
         GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/backend-darwin-arm64 main.go
-        
+
         # Create archives
         cd dist
         tar -czf backend-linux-amd64.tar.gz backend-linux-amd64
         tar -czf backend-linux-arm64.tar.gz backend-linux-arm64
         tar -czf backend-darwin-amd64.tar.gz backend-darwin-amd64
         tar -czf backend-darwin-arm64.tar.gz backend-darwin-arm64
-    
+
     # Sync Release
     - name: Build sync binary
       working-directory: sync
       run: |
         # Build for multiple platforms
         mkdir -p dist
-        
+
         # Linux AMD64
         GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/sync-linux-amd64 ./cmd/sync/main.go
-        
+
         # Linux ARM64
         GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/sync-linux-arm64 ./cmd/sync/main.go
-        
+
         # macOS AMD64
         GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/sync-darwin-amd64 ./cmd/sync/main.go
-        
+
         # macOS ARM64
         GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/sync-darwin-arm64 ./cmd/sync/main.go
-        
+
         # Create archives with configs
         cd dist
         for binary in sync-*; do
@@ -138,7 +138,7 @@ jobs:
             rm -rf "${binary}-release"
           fi
         done
-    
+
     # Docker Images with multi-platform support
     - name: Extract backend metadata
       id: backend_meta
@@ -148,7 +148,7 @@ jobs:
         tags: |
           type=semver,pattern=v{{version}},value=${{ steps.version.outputs.VERSION }}
           type=raw,value=latest
-    
+
     - name: Build and push backend Docker image
       uses: docker/build-push-action@v5
       with:
@@ -165,7 +165,7 @@ jobs:
           org.opencontainers.image.revision=${{ github.sha }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-    
+
     # Generate SBOM for backend
     - name: Generate backend SBOM
       uses: anchore/sbom-action@v0
@@ -173,7 +173,7 @@ jobs:
         image: ${{ steps.backend_meta.outputs.tags }}
         format: cyclonedx-json
         output-file: backend-sbom.cdx.json
-    
+
     - name: Extract sync metadata
       id: sync_meta
       uses: docker/metadata-action@v5
@@ -182,7 +182,7 @@ jobs:
         tags: |
           type=semver,pattern=v{{version}},value=${{ steps.version.outputs.VERSION }}
           type=raw,value=latest
-    
+
     - name: Build and push sync Docker image
       uses: docker/build-push-action@v5
       with:
@@ -199,7 +199,7 @@ jobs:
           org.opencontainers.image.revision=${{ github.sha }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-    
+
     # Generate SBOM for sync
     - name: Generate sync SBOM
       uses: anchore/sbom-action@v0
@@ -207,14 +207,14 @@ jobs:
         image: ${{ steps.sync_meta.outputs.tags }}
         format: cyclonedx-json
         output-file: sync-sbom.cdx.json
-    
+
     # Generate release notes
     - name: Generate changelog
       id: changelog
       run: |
         # Get the previous tag
         PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
-        
+
         if [ -n "$PREVIOUS_TAG" ]; then
           echo "## Changes since $PREVIOUS_TAG" > CHANGELOG.md
           echo "" >> CHANGELOG.md
@@ -224,18 +224,18 @@ jobs:
           echo "" >> CHANGELOG.md
           echo "First release of Nethesis Operation Center" >> CHANGELOG.md
         fi
-        
+
         echo "## Docker Images" >> CHANGELOG.md
         echo "" >> CHANGELOG.md
         echo "- \`ghcr.io/${{ github.repository }}/backend:${{ steps.version.outputs.VERSION }}\`" >> CHANGELOG.md
         echo "- \`ghcr.io/${{ github.repository }}/sync:${{ steps.version.outputs.VERSION }}\`" >> CHANGELOG.md
-    
+
     # Create GitHub Release
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ steps.version.outputs.VERSION }}
-        name: Release ${{ steps.version.outputs.VERSION }}
+        name: ${{ steps.version.outputs.VERSION }}
         body_path: CHANGELOG.md
         draft: false
         prerelease: ${{ contains(steps.version.outputs.VERSION, '-') }}
