@@ -1,8 +1,8 @@
 {
-  "version": "0.0.1",
+  "version": "0.0.2",
   "name": "Nethesis Operation Center",
   "components": {
-    "backend": "0.0.1",
-    "sync": "0.0.1"
+    "backend": "0.0.2",
+    "sync": "0.0.2"
   }
 }
