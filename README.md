@@ -14,7 +14,7 @@ A web application providing centralized authentication and management using Logt
 ```
 my/
 ├── backend/            # Go REST API with Logto JWT authentication
-├── sync/              # CLI tool for RBAC configuration synchronization
+├── sync/               # CLI tool for RBAC configuration synchronization
 ├── DESIGN.md           # Project design documentation
 └── LICENSE             # Project license
 ```
@@ -147,7 +147,7 @@ LOGTO_MANAGEMENT_CLIENT_SECRET=your-m2m-secret
 
 # Logging & Performance (Optional)
 GIN_MODE=release              # 'debug' for development
-LOG_LEVEL=info               # debug, info, warn, error
+LOG_LEVEL=info                # debug, info, warn, error
 LISTEN_ADDRESS=127.0.0.1:8080 # Server bind address
 ```
 
