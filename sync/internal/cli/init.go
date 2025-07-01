@@ -20,6 +20,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"gopkg.in/yaml.v3"
 
 	"github.com/nethesis/my/sync/internal/client"
 	"github.com/nethesis/my/sync/internal/constants"
@@ -71,15 +72,14 @@ Note: CLI flags take precedence over environment variables. If any CLI flag is p
 }
 
 type InitResult struct {
-	BackendApp      Application     `json:"backend_app"`
-	FrontendApp     Application     `json:"frontend_app"`
-	GodUser         User            `json:"god_user"`
-	CustomDomain    string          `json:"custom_domain"`
-	GeneratedSecret string          `json:"generated_jwt_secret"`
-	AlreadyInit     bool            `json:"already_initialized"`
-	EnvironmentVars EnvironmentVars `json:"environment_vars"`
-	TenantInfo      TenantInfo      `json:"tenant_info"`
-	NextSteps       []string        `json:"next_steps"`
+	BackendApp      Application `json:"backend_app"`
+	FrontendApp     Application `json:"frontend_app"`
+	GodUser         User        `json:"god_user"`
+	CustomDomain    string      `json:"custom_domain"`
+	GeneratedSecret string      `json:"generated_jwt_secret"`
+	AlreadyInit     bool        `json:"already_initialized"`
+	TenantInfo      TenantInfo  `json:"tenant_info"`
+	NextSteps       []string    `json:"next_steps"`
 }
 
 type TenantInfo struct {
@@ -89,11 +89,12 @@ type TenantInfo struct {
 }
 
 type Application struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Type         string `json:"type"`
-	ClientID     string `json:"client_id"`
-	ClientSecret string `json:"client_secret,omitempty"`
+	ID              string                 `json:"id"`
+	Name            string                 `json:"name"`
+	Type            string                 `json:"type"`
+	ClientID        string                 `json:"client_id"`
+	ClientSecret    string                 `json:"client_secret,omitempty"`
+	EnvironmentVars map[string]interface{} `json:"environment_vars,omitempty"`
 }
 
 type User struct {
@@ -109,21 +110,6 @@ type InitConfig struct {
 	BackendClientID     string
 	BackendClientSecret string
 	Mode                string // "env" or "cli"
-}
-
-type EnvironmentVars struct {
-	LogtoIssuer                 string `json:"LOGTO_ISSUER"`
-	LogtoAudience               string `json:"LOGTO_AUDIENCE"`
-	LogtoJWKSEndpoint           string `json:"LOGTO_JWKS_ENDPOINT"`
-	JWTSecret                   string `json:"JWT_SECRET"`
-	JWTIssuer                   string `json:"JWT_ISSUER"`
-	LogtoManagementClientID     string `json:"LOGTO_MANAGEMENT_CLIENT_ID"`
-	LogtoManagementClientSecret string `json:"LOGTO_MANAGEMENT_CLIENT_SECRET"`
-	LogtoManagementBaseURL      string `json:"LOGTO_MANAGEMENT_BASE_URL"`
-	FrontendLogtoEndpoint       string `json:"FRONTEND_LOGTO_ENDPOINT"`
-	FrontendLogtoAppID          string `json:"FRONTEND_LOGTO_APP_ID"`
-	APIBaseURL                  string `json:"API_BASE_URL"`
-	TenantName                  string `json:"TENANT_NAME"`
 }
 
 func init() {
@@ -194,19 +180,19 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	logger.Info("Starting Logto initialization...")
 
-	// Step 1: Derive environment variables from tenant info
-	if err := deriveEnvironmentVariables(logtoClient, result, config); err != nil {
-		return fmt.Errorf("failed to derive environment variables: %w", err)
-	}
-
-	// Step 2: Create custom domain
+	// Step 1: Create custom domain
 	if err := createCustomDomain(logtoClient, config); err != nil {
 		return fmt.Errorf("failed to create custom domain: %w", err)
 	}
 
-	// Step 3: Create applications
+	// Step 2: Create applications
 	if err := createApplications(logtoClient, result, config); err != nil {
 		return fmt.Errorf("failed to create applications: %w", err)
+	}
+
+	// Step 3: Derive environment variables and populate applications
+	if err := deriveEnvironmentVariables(logtoClient, result, config); err != nil {
+		return fmt.Errorf("failed to derive environment variables: %w", err)
 	}
 
 	// Step 4: Create god user
@@ -216,7 +202,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// Step 5: Generate JWT secret
 	result.GeneratedSecret = generateJWTSecret()
-	result.EnvironmentVars.JWTSecret = result.GeneratedSecret
+	if result.BackendApp.EnvironmentVars != nil {
+		result.BackendApp.EnvironmentVars["JWT_SECRET"] = result.GeneratedSecret
+	}
 
 	// Step 6: Sync basic RBAC configuration
 	if err := syncBasicConfiguration(logtoClient); err != nil {
@@ -236,27 +224,48 @@ func deriveEnvironmentVariables(client *client.LogtoClient, result *InitResult, 
 	logger.Info("Deriving environment variables...")
 
 	baseURL := fmt.Sprintf("https://%s.logto.app", config.TenantID)
+	apiBaseURL := fmt.Sprintf("https://%s/api", config.TenantDomain)
 
-	result.EnvironmentVars = EnvironmentVars{
+	// Initialize empty backend app if not set yet
+	if result.BackendApp.EnvironmentVars == nil {
+		result.BackendApp.EnvironmentVars = make(map[string]interface{})
+	}
+
+	// Backend environment variables
+	result.BackendApp.EnvironmentVars = map[string]interface{}{
 		// Auto-derived from base URL
-		LogtoIssuer:            baseURL,
-		LogtoJWKSEndpoint:      baseURL + "/oidc/jwks",
-		LogtoManagementBaseURL: baseURL + "/api",
-		FrontendLogtoEndpoint:  baseURL,
+		"LOGTO_ISSUER":        baseURL,
+		"LOGTO_AUDIENCE":      apiBaseURL,
+		"LOGTO_JWKS_ENDPOINT": baseURL + "/oidc/jwks",
 
 		// From configuration
-		LogtoManagementClientID:     config.BackendClientID,
-		LogtoManagementClientSecret: config.BackendClientSecret,
+		"LOGTO_MANAGEMENT_CLIENT_ID":     config.BackendClientID,
+		"LOGTO_MANAGEMENT_CLIENT_SECRET": config.BackendClientSecret,
+		"LOGTO_MANAGEMENT_BASE_URL":      baseURL + "/api",
 
 		// From provided tenant domain
-		JWTIssuer:  config.TenantDomain + ".api",
-		APIBaseURL: fmt.Sprintf("https://%s/api", config.TenantDomain),
-		TenantName: config.TenantDomain,
+		"JWT_ISSUER":             config.TenantDomain + ".api",
+		"JWT_EXPIRATION":         "24h",
+		"JWT_REFRESH_EXPIRATION": "168h",
+		"LISTEN_ADDRESS":         "127.0.0.1:8080",
+	}
+
+	// Initialize empty frontend app if not set yet
+	if result.FrontendApp.EnvironmentVars == nil {
+		result.FrontendApp.EnvironmentVars = make(map[string]interface{})
+	}
+
+	// Frontend environment variables
+	result.FrontendApp.EnvironmentVars = map[string]interface{}{
+		"VITE_LOGTO_ENDPOINT":  baseURL,
+		"VITE_LOGTO_APP_ID":    result.FrontendApp.ClientID,
+		"VITE_LOGTO_RESOURCES": fmt.Sprintf("[\"%s\"]", apiBaseURL),
+		"VITE_API_BASE_URL":    apiBaseURL,
 	}
 
 	logger.Info("Using tenant domain: %s", config.TenantDomain)
-	logger.Info("Derived API base URL: %s", result.EnvironmentVars.APIBaseURL)
-	logger.Info("Derived JWT issuer: %s", result.EnvironmentVars.JWTIssuer)
+	logger.Info("Derived API base URL: %s", apiBaseURL)
+	logger.Info("Derived JWT issuer: %s", config.TenantDomain+".api")
 
 	return nil
 }
@@ -397,8 +406,7 @@ func createApplications(client *client.LogtoClient, result *InitResult, config *
 
 	result.BackendApp = *backendApp
 
-	// For JWT audience, we use the API base URL as resource identifier
-	result.EnvironmentVars.LogtoAudience = result.EnvironmentVars.APIBaseURL
+	// JWT audience is already set in deriveEnvironmentVariables
 
 	logger.Info("Backend M2M app ready: %s", result.BackendApp.Name)
 
@@ -452,9 +460,6 @@ func createApplications(client *client.LogtoClient, result *InitResult, config *
 	}
 
 	result.FrontendApp = *frontendApp
-
-	// Update environment variables with frontend app ID
-	result.EnvironmentVars.FrontendLogtoAppID = result.FrontendApp.ClientID
 	return nil
 }
 
@@ -996,12 +1001,17 @@ func outputJSON(result *InitResult) error {
 }
 
 func outputYAML(result *InitResult) error {
-	// For now, just output JSON - can implement YAML later if needed
-	return outputJSON(result)
+	yamlBytes, err := yaml.Marshal(result)
+	if err != nil {
+		return fmt.Errorf("failed to marshal YAML: %w", err)
+	}
+	fmt.Println(string(yamlBytes))
+	return nil
 }
 
 func outputText(result *InitResult) {
-	env := result.EnvironmentVars
+	backendEnv := result.BackendApp.EnvironmentVars
+	frontendEnv := result.FrontendApp.EnvironmentVars
 
 	fmt.Println("\n" + strings.Repeat("=", 80))
 	fmt.Println("🎉 LOGTO INITIALIZATION COMPLETED!")
@@ -1014,39 +1024,41 @@ func outputText(result *InitResult) {
 
 	fmt.Println("📋 SETUP INSTRUCTIONS")
 	fmt.Println(strings.Repeat("-", 40))
-	fmt.Printf("Tenant: %s\n", env.TenantName)
-	fmt.Printf("Base URL: %s\n", env.LogtoManagementBaseURL)
+	fmt.Printf("Tenant: %s\n", result.CustomDomain)
+	if mgmtURL, ok := backendEnv["LOGTO_MANAGEMENT_BASE_URL"].(string); ok {
+		fmt.Printf("Base URL: %s\n", mgmtURL)
+	}
 
 	// Backend environment variables
 	fmt.Println("\n🔧 BACKEND ENVIRONMENT VARIABLES")
 	fmt.Println("Copy and paste these to your backend/.env file:")
 	fmt.Println()
 	fmt.Printf("# Logto Authentication (auto-derived)\n")
-	fmt.Printf("LOGTO_ISSUER=%s\n", env.LogtoIssuer)
-	fmt.Printf("LOGTO_AUDIENCE=%s\n", env.LogtoAudience)
-	fmt.Printf("LOGTO_JWKS_ENDPOINT=%s\n", env.LogtoJWKSEndpoint)
+	fmt.Printf("LOGTO_ISSUER=%v\n", backendEnv["LOGTO_ISSUER"])
+	fmt.Printf("LOGTO_AUDIENCE=%v\n", backendEnv["LOGTO_AUDIENCE"])
+	fmt.Printf("LOGTO_JWKS_ENDPOINT=%v\n", backendEnv["LOGTO_JWKS_ENDPOINT"])
 	fmt.Printf("\n# Custom JWT Configuration (for legacy endpoints)\n")
-	fmt.Printf("JWT_SECRET=%s\n", env.JWTSecret)
-	fmt.Printf("JWT_ISSUER=%s\n", env.JWTIssuer)
-	fmt.Printf("JWT_EXPIRATION=24h\n")
-	fmt.Printf("JWT_REFRESH_EXPIRATION=168h\n")
+	fmt.Printf("JWT_SECRET=%v\n", backendEnv["JWT_SECRET"])
+	fmt.Printf("JWT_ISSUER=%v\n", backendEnv["JWT_ISSUER"])
+	fmt.Printf("JWT_EXPIRATION=%v\n", backendEnv["JWT_EXPIRATION"])
+	fmt.Printf("JWT_REFRESH_EXPIRATION=%v\n", backendEnv["JWT_REFRESH_EXPIRATION"])
 	fmt.Printf("\n# Logto Management API (from your M2M app)\n")
-	fmt.Printf("BACKEND_CLIENT_ID=%s\n", env.LogtoManagementClientID)
-	fmt.Printf("BACKEND_CLIENT_SECRET=%s\n", env.LogtoManagementClientSecret)
-	fmt.Printf("LOGTO_MANAGEMENT_BASE_URL=%s\n", env.LogtoManagementBaseURL)
+	fmt.Printf("LOGTO_MANAGEMENT_CLIENT_ID=%v\n", backendEnv["LOGTO_MANAGEMENT_CLIENT_ID"])
+	fmt.Printf("LOGTO_MANAGEMENT_CLIENT_SECRET=%v\n", backendEnv["LOGTO_MANAGEMENT_CLIENT_SECRET"])
+	fmt.Printf("LOGTO_MANAGEMENT_BASE_URL=%v\n", backendEnv["LOGTO_MANAGEMENT_BASE_URL"])
 	fmt.Printf("\n# Server Configuration\n")
-	fmt.Printf("LISTEN_ADDRESS=127.0.0.1:8080\n")
+	fmt.Printf("LISTEN_ADDRESS=%v\n", backendEnv["LISTEN_ADDRESS"])
 
 	// Frontend environment variables
 	fmt.Println("\n🌐 FRONTEND ENVIRONMENT VARIABLES")
 	fmt.Println("Copy and paste these to your frontend/.env file:")
 	fmt.Println()
 	fmt.Printf("# Logto Configuration (auto-derived)\n")
-	fmt.Printf("VITE_LOGTO_ENDPOINT=%s\n", env.FrontendLogtoEndpoint)
-	fmt.Printf("VITE_LOGTO_APP_ID=%s\n", env.FrontendLogtoAppID)
-	fmt.Printf("VITE_LOGTO_RESOURCES=[\"%s\"]\n", env.LogtoAudience)
+	fmt.Printf("VITE_LOGTO_ENDPOINT=%v\n", frontendEnv["VITE_LOGTO_ENDPOINT"])
+	fmt.Printf("VITE_LOGTO_APP_ID=%v\n", frontendEnv["VITE_LOGTO_APP_ID"])
+	fmt.Printf("VITE_LOGTO_RESOURCES=%v\n", frontendEnv["VITE_LOGTO_RESOURCES"])
 	fmt.Printf("\n# Backend API\n")
-	fmt.Printf("VITE_API_BASE_URL=%s\n", env.APIBaseURL)
+	fmt.Printf("VITE_API_BASE_URL=%v\n", frontendEnv["VITE_API_BASE_URL"])
 
 	// Login credentials
 	fmt.Println("\n👤 ADMIN CREDENTIALS")
@@ -1061,7 +1073,7 @@ func outputText(result *InitResult) {
 	// Resources created
 	fmt.Println("\n📱 RESOURCES CREATED")
 	fmt.Println(strings.Repeat("-", 25))
-	fmt.Printf("Custom Domain: %s\n", env.TenantName)
+	fmt.Printf("Custom Domain: %s\n", result.CustomDomain)
 	fmt.Printf("Backend M2M:   %s (ID: %s)\n", result.BackendApp.Name, result.BackendApp.ID)
 	fmt.Printf("Frontend SPA:  %s (ID: %s)\n", result.FrontendApp.Name, result.FrontendApp.ID)
 
