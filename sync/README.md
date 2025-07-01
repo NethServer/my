@@ -6,7 +6,7 @@ A comprehensive CLI tool for **complete Logto setup** and **RBAC synchronization
 
 ### **Complete Zero-to-Production Setup**
 - 🚀 **`sync init`**: Complete Logto initialization from scratch
-- ⚡ **Auto-Configuration**: Generates all environment variables automatically  
+- ⚡ **Auto-Configuration**: Generates all environment variables automatically
 - 🏗️ **Full Setup**: Custom domains, applications, users, and complete RBAC
 - 🔐 **Security First**: Secure password generation and JIT provisioning
 - 📋 **Multiple Modes**: CLI flags, environment variables, or JSON output
@@ -20,12 +20,13 @@ A comprehensive CLI tool for **complete Logto setup** and **RBAC synchronization
 - 🧹 **Cleanup Mode**: Remove resources/roles/permissions not defined in config (opt-in)
 
 ### **Enterprise Features**
-- 📊 **Multiple Output Formats**: Text, JSON, and YAML
+- 📊 **Multiple Output Formats**: Text, JSON, and YAML with structured environment variables
 - 🛡️ **Safe Operations**: Preserves system entities and validates configurations
 - 🔧 **Simplified Configuration**: YAML-based with clear business vs technical separation
 - 📝 **Structured Logging**: Zerolog-based logging with component isolation
 - 🔍 **Security Features**: Automatic sensitive data redaction in logs
 - 🎯 **Output Separation**: Clean command output (stdout) separate from logging (stderr)
+- 🏗️ **CI/CD Ready**: Structured JSON/YAML output with organized environment variables
 
 ## System Requirements
 
@@ -88,7 +89,7 @@ go test ./...
 2. **Run Complete Initialization**
    ```bash
    make build
-   
+
    ./build/sync init \
      --tenant-id y4uj0v \
      --backend-client-id 11h51dxo64if0lsct1wos \
@@ -155,8 +156,9 @@ sync init --tenant-id y4uj0v --backend-client-id 11h51... --backend-client-secre
 # Force re-initialization
 sync init --force
 
-# JSON output for automation
+# JSON/YAML output for automation
 sync init --output json
+sync init --output yaml
 
 # RBAC sync with default config
 sync sync
@@ -190,13 +192,16 @@ sync init \
 
 # Environment variables
 export TENANT_ID=y4uj0v
-export BACKEND_CLIENT_ID=11h51dxo64if0lsct1wos  
+export BACKEND_CLIENT_ID=11h51dxo64if0lsct1wos
 export BACKEND_CLIENT_SECRET=your-secret-here
 export TENANT_DOMAIN=dev.my.nethesis.it
 sync init
 
 # JSON output for automation
 sync init --output json > setup-result.json
+
+# YAML output for automation
+sync init --output yaml > setup-result.yaml
 ```
 
 #### **What Init Command Does**
@@ -209,13 +214,95 @@ sync init --output json > setup-result.json
 4. ✅ **Creates god@nethesis.it user** with generated secure password
 5. ✅ **Sets up complete RBAC system**:
    - Organization scopes (create:distributors, manage:resellers, etc.)
-   - Organization roles (God, Distributor, Reseller, Customer)  
+   - Organization roles (God, Distributor, Reseller, Customer)
    - User roles (Admin, Support)
    - JIT (Just-in-Time) provisioning
 6. ✅ **Assigns roles to god user**: Admin + God organization role
 7. ✅ **Generates all environment variables** automatically
 
-#### **Environment Variables Generated**
+#### **JSON/YAML Output Structure**
+
+The init command supports structured output perfect for automation and CI/CD:
+
+```json
+{
+  "backend_app": {
+    "id": "dvvq6bl1pldlvkv9o06yi",
+    "name": "backend",
+    "type": "MachineToMachine",
+    "client_id": "dvvq6bl1pldlvkv9o06yi",
+    "client_secret": "v3f5N7ghaB0p5oRy2FiSI3UGTv81nVEJ",
+    "environment_vars": {
+      "LOGTO_ISSUER": "https://a14cad.logto.app",
+      "LOGTO_AUDIENCE": "https://dev.my.nethesis.it/api",
+      "LOGTO_JWKS_ENDPOINT": "https://a14cad.logto.app/oidc/jwks",
+      "JWT_SECRET": "4wz_gelNSm8OV14vPR21ZRrf6Isey-5TrAlRNtblyfo=",
+      "JWT_ISSUER": "dev.my.nethesis.it.api",
+      "JWT_EXPIRATION": "24h",
+      "JWT_REFRESH_EXPIRATION": "168h",
+      "LOGTO_MANAGEMENT_CLIENT_ID": "dvvq6bl1pldlvkv9o06yi",
+      "LOGTO_MANAGEMENT_CLIENT_SECRET": "v3f5N7ghaB0p5oRy2FiSI3UGTv81nVEJ",
+      "LOGTO_MANAGEMENT_BASE_URL": "https://a14cad.logto.app/api",
+      "LISTEN_ADDRESS": "127.0.0.1:8080"
+    }
+  },
+  "frontend_app": {
+    "id": "k1sd72drny7ctmfrw81c8",
+    "name": "frontend",
+    "type": "SPA",
+    "client_id": "k1sd72drny7ctmfrw81c8",
+    "environment_vars": {
+      "VITE_LOGTO_ENDPOINT": "https://a14cad.logto.app",
+      "VITE_LOGTO_APP_ID": "k1sd72drny7ctmfrw81c8",
+      "VITE_LOGTO_RESOURCES": "[\"https://dev.my.nethesis.it/api\"]",
+      "VITE_API_BASE_URL": "https://dev.my.nethesis.it/api"
+    }
+  },
+  "god_user": {
+    "id": "plaq3d8el4ln",
+    "username": "god",
+    "email": "god@nethesis.it",
+    "password": "SecureGeneratedPassword123!"
+  },
+  "custom_domain": "dev.my.nethesis.it",
+  "generated_jwt_secret": "4wz_gelNSm8OV14vPR21ZRrf6Isey-5TrAlRNtblyfo=",
+  "already_initialized": false,
+  "tenant_info": {
+    "tenant_id": "a14cad",
+    "base_url": "https://a14cad.logto.app",
+    "mode": "env"
+  },
+  "next_steps": [
+    "Copy the environment variables to your .env files",
+    "Start your backend: cd backend && go run main.go",
+    "Start your frontend with the Logto configuration",
+    "Login with the admin credentials provided",
+    "Use 'sync sync' to update RBAC configuration when needed"
+  ]
+}
+```
+
+**🚀 Automation Examples:**
+
+```bash
+# Extract backend environment variables
+jq -r '.backend_app.environment_vars | to_entries[] | "\(.key)=\(.value)"' setup-result.json > backend/.env
+
+# Extract frontend environment variables
+jq -r '.frontend_app.environment_vars | to_entries[] | "\(.key)=\(.value)"' setup-result.json > frontend/.env
+
+# Get god user credentials
+jq -r '.god_user | "Username: \(.username)\nEmail: \(.email)\nPassword: \(.password)"' setup-result.json
+
+# Check if already initialized
+jq -r '.already_initialized' setup-result.json
+
+# Get application IDs for further configuration
+jq -r '.backend_app.client_id' setup-result.json
+jq -r '.frontend_app.client_id' setup-result.json
+```
+
+#### **Environment Variables Generated (Text Output)**
 
 The init command outputs all required environment variables:
 
@@ -229,7 +316,7 @@ LOGTO_MANAGEMENT_CLIENT_ID=11h51dxo64if0lsct1wos
 LOGTO_MANAGEMENT_CLIENT_SECRET=your-secret-here
 LOGTO_MANAGEMENT_BASE_URL=https://y4uj0v.logto.app
 
-# Frontend configuration  
+# Frontend configuration
 FRONTEND_LOGTO_ENDPOINT=https://y4uj0v.logto.app
 FRONTEND_LOGTO_APP_ID=generated-app-id
 API_BASE_URL=https://dev.my.nethesis.it/api
@@ -242,7 +329,7 @@ API_BASE_URL=https://dev.my.nethesis.it/api
 - `--backend-client-secret`: M2M application secret
 - `--domain`: Your custom domain (e.g., `dev.my.nethesis.it`)
 - `--force`: Force re-initialization even if already done
-- `--output`: Output format (text, json) - default: text
+- `--output`: Output format (text, json, yaml) - default: text
 
 #### **Troubleshooting Init**
 
@@ -258,6 +345,9 @@ sync init --force
 
 # JSON output for analysis
 sync init --output json | jq .
+
+# YAML output for analysis
+sync init --output yaml
 ```
 
 ### Advanced Operations
@@ -326,7 +416,7 @@ sync sync -c config.yml --cleanup --verbose
 - `--backend-client-secret`: M2M application client secret (required)
 - `--domain`: Custom domain for your deployment (required)
 - `--force`: Force re-initialization even if already done
-- `-o, --output`: Output format (text, json) - default: text
+- `-o, --output`: Output format (text, json, yaml) - default: text
 - `-v, --verbose`: Enable verbose output
 
 #### **Sync Command Flags**
@@ -512,7 +602,7 @@ hierarchy:
 
 See [System Requirements](#system-requirements) section above for detailed information about:
 - Go 1.21+ installation
-- Make setup per operating system  
+- Make setup per operating system
 - Optional golangci-lint for code quality
 
 ### Setup Development Environment
@@ -644,8 +734,12 @@ sync init --force --tenant-id abc123 --backend-client-id xyz --backend-client-se
 # JSON output for automation
 sync init --output json --tenant-id abc123 --backend-client-id xyz --backend-client-secret secret --domain my.domain.com
 
+# YAML output for automation
+sync init --output yaml --tenant-id abc123 --backend-client-id xyz --backend-client-secret secret --domain my.domain.com
+
 # Automation with jq
-sync init --output json | jq '.environment_vars'
+sync init --output json | jq '.backend_app.environment_vars'
+sync init --output json | jq '.frontend_app.environment_vars'
 sync init --output json | jq '.god_user.password'
 ```
 

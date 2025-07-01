@@ -1,9 +1,9 @@
 # Nethesis Operation Center
 
-[![CI](https://github.com/NethServer/my/workflows/CI/badge.svg)](https://github.com/NethServer/my/actions/workflows/ci.yml)
-[![Backend Tests](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci.yml?job=backend-tests&label=Backend%20Tests)](https://github.com/NethServer/my/actions/workflows/ci.yml)
-[![sync Tests](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci.yml?job=sync-tests&label=sync%20Tests)](https://github.com/NethServer/my/actions/workflows/ci.yml)
-[![release](https://img.shields.io/github/v/release/NethServer/my?color=3a3c3f)](https://github.com/NethServer/my/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci.yml?style=for-the-badge&label=CI)](https://github.com/NethServer/my/actions/workflows/ci.yml)
+[![Backend Tests](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci.yml?job=backend-tests&label=Backend%20Tests&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci.yml)
+[![sync Tests](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci.yml?job=sync-tests&label=sync%20Tests&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/NethServer/my?style=for-the-badge&color=3a3c3f&label=Release)](https://github.com/NethServer/my/releases)
 
 A web application providing centralized authentication and management using Logto as an Identity Provider, built with a sophisticated Role-Based Access Control (RBAC) system.
 
@@ -89,7 +89,7 @@ Both components feature structured logging systems built on [zerolog](https://gi
 
 ### Structured Observability
 - **Component Isolation**: Separate loggers for different system components (http, auth, rbac, api-client, sync, config)
-- **Performance Tracking**: HTTP request timing, API call duration, and system operation metrics  
+- **Performance Tracking**: HTTP request timing, API call duration, and system operation metrics
 - **Operational Intelligence**: Configuration validation, sync operation status, and health monitoring
 - **Stream Separation**: Clean command output (stdout) separate from operational logs (stderr)
 
@@ -98,7 +98,7 @@ Both components feature structured logging systems built on [zerolog](https://gi
 # Backend structured JSON logs
 GIN_MODE=release ./backend 2>&1 | jq 'select(.level == "error")'
 
-# sync tool component monitoring  
+# sync tool component monitoring
 LOG_LEVEL=debug ./sync sync 2>&1 | grep "component=api-client"
 
 # Security event monitoring

@@ -23,7 +23,7 @@ graph TB
 
     L[config.yml] --> M[sync Tool]
     M --> B
-    
+
     N[sync init] --> O[Complete Setup]
     O --> P[Custom Domain]
     O --> Q[Frontend SPA App]
@@ -352,8 +352,9 @@ export BACKEND_CLIENT_SECRET=your-secret-here
 export TENANT_DOMAIN=dev.my.nethesis.it
 sync init
 
-# JSON output for automation
+# JSON/YAML output for automation
 sync init --output json
+sync init --output yaml
 ```
 
 #### **Init Command Operations**
@@ -361,7 +362,7 @@ sync init --output json
 The init command performs a comprehensive setup sequence:
 
 1. **Custom Domain Creation**: Creates and verifies custom domain in Logto
-2. **Application Management**: 
+2. **Application Management**:
    - Verifies backend M2M application exists with correct permissions
    - Creates frontend SPA application with correct redirect URIs:
      - Development: `http://localhost:5173/callback`
@@ -399,7 +400,7 @@ API_BASE_URL=https://dev.my.nethesis.it/api
 - **Force Mode**: `--force` flag allows complete re-initialization
 - **Unified Configuration**: Prevents mixing CLI flags with environment variables
 - **Error Handling**: Graceful handling of existing domains, users, and applications
-- **JSON Output**: Structured output for CI/CD integration and automation
+- **Structured Output**: JSON/YAML formats with organized environment variables for CI/CD integration and automation
 - **Security**: Secure password generation for god user with entropy validation
 
 ### **RBAC Configuration Synchronization**

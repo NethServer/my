@@ -157,7 +157,7 @@ GIN_MODE=release          # JSON structured logs, optimized performance
 {
   "level": "warn",
   "component": "auth",
-  "method": "logto_jwt", 
+  "method": "logto_jwt",
   "reason": "token_expired",
   "client_ip": "192.168.1.100",
   "time": "2025-06-28T19:45:23Z",
@@ -484,7 +484,7 @@ make test-coverage                 # Run tests with coverage report
 make fmt                           # Format code (required for CI)
 
 # Direct Go commands for specific needs
-go test ./jwt                      # Test JWT package only  
+go test ./jwt                      # Test JWT package only
 go test ./middleware               # Test middleware package only
 go test -v ./...                   # Verbose test output
 go test -race ./...                # Race condition detection
