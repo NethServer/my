@@ -153,18 +153,18 @@ curl -s -X POST "http://localhost:8080/api/distributors" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "ACME Distribution SpA",
-    "description": "Distributore principale per il mercato italiano e svizzero",
+    "description": "Main distributor for Italian and Swiss markets",
     "customData": {
-      "email": "mario.rossi@acme-distribution.com",
-      "contactPerson": "Mario Rossi",
+      "email": "contact@acme-distribution.com",
+      "contactPerson": "John Smith",
       "region": "Italy",
       "territory": ["Italy", "Switzerland", "San Marino"],
       "phone": "+39 02 1234567",
       "website": "https://acme-distribution.com",
-      "city": "Milano",
-      "address": "Via Roma 123",
-      "partitaIva": "IT12345678901",
-      "codiceFiscale": "12345678901"
+      "city": "Milan",
+      "address": "123 Main Street",
+      "vatNumber": "IT12345678901",
+      "taxCode": "12345678901"
     },
     "isMfaRequired": false
   }' | jq
@@ -180,9 +180,9 @@ curl -s -X PUT "http://localhost:8080/api/distributors/$DISTRIBUTOR_ID" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "ACME Distribution SpA (Updated)",
-    "description": "Distributore principale aggiornato per mercato europeo",
+    "description": "Updated main distributor for European market",
     "customData": {
-      "email": "mario.rossi.new@acme-distribution.com",
+      "email": "contact.new@acme-distribution.com",
       "region": "Europe",
       "territory": ["Italy", "Switzerland", "Austria", "San Marino"],
       "phone": "+39 02 9876543",
@@ -226,17 +226,17 @@ curl -s -X POST "http://localhost:8080/api/resellers" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "TechSolutions SRL",
-    "description": "Reseller specializzato in soluzioni tecnologiche per PMI",
+    "description": "Reseller specialized in technology solutions for SMBs",
     "customData": {
       "email": "info@techsolutions.it",
-      "contactPerson": "Giulia Verdi",
-      "region": "Lombardia",
+      "contactPerson": "Jane Doe",
+      "region": "Northern Region",
       "city": "Bergamo",
-      "address": "Via Garibaldi 456",
+      "address": "456 Tech Avenue",
       "phone": "+39 035 123456",
       "website": "https://techsolutions.it",
-      "partitaIva": "IT09876543210",
-      "codiceFiscale": "09876543210",
+      "vatNumber": "IT09876543210",
+      "taxCode": "09876543210",
       "specialization": "Network & Security",
       "certifications": ["Cisco Partner", "Microsoft Silver"]
     },
@@ -254,12 +254,12 @@ curl -s -X PUT "http://localhost:8080/api/resellers/$RESELLER_ID" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "TechSolutions SRL (Expanded)",
-    "description": "Reseller con nuove competenze cloud",
+    "description": "Reseller with new cloud competencies",
     "customData": {
       "email": "info.updated@techsolutions.it",
-      "contactPerson": "Giulia Verdi",
-      "region": "Nord Italia",
-      "city": "Milano",
+      "contactPerson": "Jane Doe",
+      "region": "Northern Region",
+      "city": "Milan",
       "phone": "+39 02 555444",
       "certifications": ["Cisco Gold", "Microsoft Gold", "VMware Partner"],
       "newServices": ["Cloud Migration", "Cybersecurity"]
@@ -301,19 +301,19 @@ curl -s -X POST "http://localhost:8080/api/customers" \
   -H "Authorization: Bearer $JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Pizzeria Da Mario",
-    "description": "Ristorante tradizionale con esigenze IT moderne",
+    "name": "Modern Restaurant LLC",
+    "description": "Traditional restaurant with modern IT needs",
     "customData": {
-      "email": "mario@pizzeriadamario.it",
-      "contactPerson": "Mario Bianchi",
+      "email": "contact@modernrestaurant.com",
+      "contactPerson": "Michael Johnson"
       "tier": "basic",
       "industry": "Food & Beverage",
-      "city": "Roma",
-      "address": "Via del Corso 123",
+      "city": "Rome",
+      "address": "123 Business Street",
       "phone": "+39 06 12345678",
-      "website": "https://pizzeriadamario.it",
-      "partitaIva": "IT11223344556",
-      "codiceFiscale": "BNCMRA80A01H501Z",
+      "website": "https://modernrestaurant.com",
+      "vatNumber": "IT11223344556",
+      "taxCode": "BNCMRA80A01H501Z",
       "employees": 15,
       "resellerID": "org_reseller_xyz123",
       "requirements": ["WiFi Guest", "POS Integration", "Security Cameras"]
@@ -331,10 +331,10 @@ curl -s -X PUT "http://localhost:8080/api/customers/$CUSTOMER_ID" \
   -H "Authorization: Bearer $JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Pizzeria Da Mario (Franchise)",
-    "description": "Catena di ristoranti con 3 location",
+    "name": "Modern Restaurant (Franchise)",
+    "description": "Restaurant chain with 3 locations",
     "customData": {
-      "email": "mario.franchise@pizzeriadamario.it",
+      "email": "franchise@modernrestaurant.com",
       "tier": "enterprise",
       "locations": 3,
       "employees": 45,
@@ -383,9 +383,9 @@ curl -s -X POST "http://localhost:8080/api/accounts" \
   -H "Authorization: Bearer $JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "username": "mario.rossa",
-    "email": "mario.rossa@acme.com",
-    "name": "Mario Rossa",
+    "username": "john.doe",
+    "email": "john.doe@acme.com",
+    "name": "John Doe",
     "phone": "+39 333 445 5667",
     "password": "SecurePassword123!",
     "userRoleId": "rol_abc123def456",

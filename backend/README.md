@@ -302,18 +302,28 @@ make build-all
 ### Public Endpoints
 - `GET /api/health` - Health check endpoint
 - `POST /api/auth/exchange` - Exchange Logto access_token for custom JWT
+- `POST /api/auth/refresh` - Refresh expired tokens
 
 ### Protected Endpoints (Custom JWT Required)
-- `GET /api/profile` - User profile with full context
-- `GET /api/protected` - Protected resource example
+- `GET /api/auth/me` - Current user information with full context
+- `GET /api/user/profile` - User profile (OAuth2/OIDC standard)
+- `GET /api/user/permissions` - User permissions (OAuth2/OIDC standard)
+- `POST /api/auth/refresh` - Refresh expired tokens
 
 #### Systems Management
-- `GET /api/systems` - List systems (requires `read:systems`)
-- `POST /api/systems` - Create system (requires `manage:systems`)
-- `PUT /api/systems/:id` - Update system (requires `manage:systems`)
-- `DELETE /api/systems/:id` - Delete system (requires `admin:systems`)
-- `POST /api/systems/:id/restart` - Restart system (requires `manage:systems`)
-- `DELETE /api/systems/:id/destroy` - Destroy system (requires `destroy:systems`)
+- `GET /api/systems` - List systems (requires Support user role)
+- `POST /api/systems` - Create system (requires Support user role)
+- `PUT /api/systems/:id` - Update system (requires Support user role)
+- `DELETE /api/systems/:id` - Delete system (requires Support user role + `admin:systems` permission)
+- `GET /api/systems/subscriptions` - Get system subscriptions (requires Support user role)
+- `POST /api/systems/:id/restart` - Restart system (requires `manage:systems` permission)
+- `PUT /api/systems/:id/enable` - Enable system (requires `manage:systems` permission)
+- `POST /api/systems/:id/factory-reset` - Factory reset system (requires `admin:systems` permission)
+- `DELETE /api/systems/:id/destroy` - Destroy system (requires `destroy:systems` permission)
+- `GET /api/systems/:id/logs` - Get system logs (requires `manage:systems` permission)
+- `GET /api/systems/audit` - Get systems audit (requires `manage:systems` permission)
+- `POST /api/systems/:id/backup` - Backup system (requires `admin:systems` permission)
+- `POST /api/systems/:id/restore` - Restore system (requires `admin:systems` permission)
 
 #### Account Management
 - `GET /api/accounts` - List accounts with hierarchical filtering (requires custom auth)
@@ -322,20 +332,23 @@ make build-all
 - `DELETE /api/accounts/:id` - Delete account (requires custom auth)
 
 #### Business Hierarchy Management
-- `GET /api/distributors` - List distributors (requires `create:distributors`)
-- `POST /api/distributors` - Create distributor (requires `create:distributors`)
-- `PUT /api/distributors/:id` - Update distributor (requires `manage:distributors`)
+- `GET /api/distributors` - List distributors (requires God organization role)
+- `POST /api/distributors` - Create distributor (requires God organization role)
+- `PUT /api/distributors/:id` - Update distributor (requires God organization role)
+- `DELETE /api/distributors/:id` - Delete distributor (requires God organization role)
 
-- `GET /api/resellers` - List resellers (requires `create:resellers`)
-- `POST /api/resellers` - Create reseller (requires `create:resellers`)
-- `PUT /api/resellers/:id` - Update reseller (requires `manage:resellers`)
+- `GET /api/resellers` - List resellers (requires God or Distributor organization role)
+- `POST /api/resellers` - Create reseller (requires God or Distributor organization role)
+- `PUT /api/resellers/:id` - Update reseller (requires God or Distributor organization role)
+- `DELETE /api/resellers/:id` - Delete reseller (requires God or Distributor organization role)
 
-- `GET /api/customers` - List customers (requires `create:customers`)
-- `POST /api/customers` - Create customer (requires `create:customers`)
-- `PUT /api/customers/:id` - Update customer (requires `manage:customers`)
+- `GET /api/customers` - List customers (requires God, Distributor, or Reseller organization role)
+- `POST /api/customers` - Create customer (requires God, Distributor, or Reseller organization role)
+- `PUT /api/customers/:id` - Update customer (requires God, Distributor, or Reseller organization role)
+- `DELETE /api/customers/:id` - Delete customer (requires God, Distributor, or Reseller organization role)
 
 #### Statistics
-- `GET /api/stats` - System statistics (requires `create:distributors`)
+- `GET /api/stats` - System statistics (requires `manage:distributors` permission)
 
 ### Simplified RBAC Examples
 
@@ -344,9 +357,9 @@ make build-all
 systemsGroup.POST("/:id/restart",
     middleware.RequirePermission("manage:systems"), methods.RestartSystem)
 
-// ✅ Permission-based authorization for business hierarchy
-distributorsGroup := protected.Group("/distributors",
-    middleware.RequirePermission("create:distributors"))
+// ✅ Organization role-based authorization for business hierarchy
+distributorsGroup := customAuth.Group("/distributors",
+    middleware.RequireOrgRole("God"))
 
 // ✅ Granular permissions for different operations
 systemsGroup.GET("", methods.GetSystems) // Base permission from group
@@ -547,7 +560,7 @@ The application uses structured logging via the `logs` package:
 ```
 
 ### Health Check
-- `GET /ping` returns server status and can be used for health monitoring
+- `GET /api/health` returns server status and can be used for health monitoring
 
 ### CORS
 CORS is configured for development with permissive settings. For production, configure appropriate origins.
@@ -589,7 +602,7 @@ curl -X POST http://localhost:8080/api/auth/exchange \
   -d '{"access_token": "YOUR_LOGTO_TOKEN"}'
 
 # Check user profile with custom JWT
-curl -X GET http://localhost:8080/api/profile \
+curl -X GET http://localhost:8080/api/auth/me \
   -H "Authorization: Bearer YOUR_CUSTOM_JWT"
 
 # Test specific permissions
