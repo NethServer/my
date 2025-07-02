@@ -175,7 +175,8 @@ See individual README files for detailed configuration instructions and examples
 ## 📚 Documentation
 
 ### Component Documentation
-- **[Backend API](./backend/API.md)** - Go REST API server setup, RBAC system, and development guide
+- **[Backend](./backend/README.md)** - Go REST API server setup, RBAC system, and development guide
+- **[Backend API](./backend/API.md)** - Go REST APIs reference
 - **[sync CLI](./sync/README.md)** - RBAC configuration management tool and usage instructions
 
 ### Project Documentation
