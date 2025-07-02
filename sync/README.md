@@ -91,10 +91,10 @@ go test ./...
    make build
 
    ./build/sync init \
-     --tenant-id y4uj0v \
-     --backend-client-id 11h51dxo64if0lsct1wos \
+     --tenant-id your-tenant-id \
+     --backend-client-id your-backend-client-id \
      --backend-client-secret your-secret-here \
-     --domain dev.my.nethesis.it
+     --domain your-domain.com
    ```
 
 3. **Copy Environment Variables**
@@ -105,10 +105,10 @@ go test ./...
 ### **Alternative: Environment Variables Mode**
 
 ```bash
-export TENANT_ID=y4uj0v
-export BACKEND_CLIENT_ID=11h51dxo64if0lsct1wos
+export TENANT_ID=your-tenant-id
+export BACKEND_CLIENT_ID=your-backend-client-id
 export BACKEND_CLIENT_SECRET=your-secret-here
-export TENANT_DOMAIN=dev.my.nethesis.it
+export TENANT_DOMAIN=your-domain.com
 
 ./build/sync init
 ```
@@ -151,7 +151,7 @@ sync --help
 sync --version
 
 # Complete Logto initialization
-sync init --tenant-id y4uj0v --backend-client-id 11h51... --backend-client-secret secret... --domain dev.my.nethesis.it
+sync init --tenant-id your-tenant-id --backend-client-id your-backend-client-id --backend-client-secret your-secret --domain your-domain.com
 
 # Force re-initialization
 sync init --force
@@ -185,16 +185,16 @@ The `init` command provides complete Logto setup from scratch:
 ```bash
 # CLI flags (recommended for CI/CD)
 sync init \
-  --tenant-id y4uj0v \
-  --backend-client-id 11h51dxo64if0lsct1wos \
+  --tenant-id your-tenant-id \
+  --backend-client-id your-backend-client-id \
   --backend-client-secret your-secret-here \
-  --domain dev.my.nethesis.it
+  --domain your-domain.com
 
 # Environment variables
-export TENANT_ID=y4uj0v
-export BACKEND_CLIENT_ID=11h51dxo64if0lsct1wos
+export TENANT_ID=your-tenant-id
+export BACKEND_CLIENT_ID=your-backend-client-id
 export BACKEND_CLIENT_SECRET=your-secret-here
-export TENANT_DOMAIN=dev.my.nethesis.it
+export TENANT_DOMAIN=your-domain.com
 sync init
 
 # JSON output for automation
@@ -206,11 +206,11 @@ sync init --output yaml > setup-result.yaml
 
 #### **What Init Command Does**
 
-1. ✅ **Creates custom domain** in Logto (e.g., `dev.my.nethesis.it`)
+1. ✅ **Creates custom domain** in Logto (e.g., `your-domain.com`)
 2. ✅ **Verifies backend M2M application** exists with correct permissions
 3. ✅ **Creates frontend SPA application** with correct redirect URIs:
    - Development: `http://localhost:5173/callback`
-   - Production: `https://dev.my.nethesis.it/callback`
+   - Production: `https://your-domain.com/callback`
 4. ✅ **Creates god@nethesis.it user** with generated secure password
 5. ✅ **Sets up complete RBAC system**:
    - Organization scopes (create:distributors, manage:resellers, etc.)
@@ -227,49 +227,49 @@ The init command supports structured output perfect for automation and CI/CD:
 ```json
 {
   "backend_app": {
-    "id": "dvvq6bl1pldlvkv9o06yi",
+    "id": "your-backend-app-id",
     "name": "backend",
     "type": "MachineToMachine",
-    "client_id": "dvvq6bl1pldlvkv9o06yi",
-    "client_secret": "v3f5N7ghaB0p5oRy2FiSI3UGTv81nVEJ",
+    "client_id": "your-backend-app-id",
+    "client_secret": "your-generated-client-secret",
     "environment_vars": {
-      "LOGTO_ISSUER": "https://a14cad.logto.app",
-      "LOGTO_AUDIENCE": "https://dev.my.nethesis.it/api",
-      "LOGTO_JWKS_ENDPOINT": "https://a14cad.logto.app/oidc/jwks",
-      "JWT_SECRET": "4wz_gelNSm8OV14vPR21ZRrf6Isey-5TrAlRNtblyfo=",
-      "JWT_ISSUER": "dev.my.nethesis.it.api",
+      "LOGTO_ISSUER": "https://your-tenant-id.logto.app",
+      "LOGTO_AUDIENCE": "https://your-domain.com/api",
+      "LOGTO_JWKS_ENDPOINT": "https://your-tenant-id.logto.app/oidc/jwks",
+      "JWT_SECRET": "your-generated-jwt-secret",
+      "JWT_ISSUER": "your-domain.com.api",
       "JWT_EXPIRATION": "24h",
       "JWT_REFRESH_EXPIRATION": "168h",
-      "LOGTO_MANAGEMENT_CLIENT_ID": "dvvq6bl1pldlvkv9o06yi",
-      "LOGTO_MANAGEMENT_CLIENT_SECRET": "v3f5N7ghaB0p5oRy2FiSI3UGTv81nVEJ",
-      "LOGTO_MANAGEMENT_BASE_URL": "https://a14cad.logto.app/api",
+      "LOGTO_MANAGEMENT_CLIENT_ID": "your-backend-app-id",
+      "LOGTO_MANAGEMENT_CLIENT_SECRET": "your-generated-client-secret",
+      "LOGTO_MANAGEMENT_BASE_URL": "https://your-tenant-id.logto.app/api",
       "LISTEN_ADDRESS": "127.0.0.1:8080"
     }
   },
   "frontend_app": {
-    "id": "k1sd72drny7ctmfrw81c8",
+    "id": "your-frontend-app-id",
     "name": "frontend",
     "type": "SPA",
-    "client_id": "k1sd72drny7ctmfrw81c8",
+    "client_id": "your-frontend-app-id",
     "environment_vars": {
-      "VITE_LOGTO_ENDPOINT": "https://a14cad.logto.app",
-      "VITE_LOGTO_APP_ID": "k1sd72drny7ctmfrw81c8",
-      "VITE_LOGTO_RESOURCES": "[\"https://dev.my.nethesis.it/api\"]",
-      "VITE_API_BASE_URL": "https://dev.my.nethesis.it/api"
+      "VITE_LOGTO_ENDPOINT": "https://your-tenant-id.logto.app",
+      "VITE_LOGTO_APP_ID": "your-frontend-app-id",
+      "VITE_LOGTO_RESOURCES": "[\"https://your-domain.com/api\"]",
+      "VITE_API_BASE_URL": "https://your-domain.com/api"
     }
   },
   "god_user": {
-    "id": "plaq3d8el4ln",
+    "id": "your-god-user-id",
     "username": "god",
     "email": "god@nethesis.it",
-    "password": "SecureGeneratedPassword123!"
+    "password": "your-generated-password"
   },
-  "custom_domain": "dev.my.nethesis.it",
-  "generated_jwt_secret": "4wz_gelNSm8OV14vPR21ZRrf6Isey-5TrAlRNtblyfo=",
+  "custom_domain": "your-domain.com",
+  "generated_jwt_secret": "your-generated-jwt-secret",
   "already_initialized": false,
   "tenant_info": {
-    "tenant_id": "a14cad",
-    "base_url": "https://a14cad.logto.app",
+    "tenant_id": "your-tenant-id",
+    "base_url": "https://your-tenant-id.logto.app",
     "mode": "env"
   },
   "next_steps": [
@@ -308,26 +308,26 @@ The init command outputs all required environment variables:
 
 ```bash
 # Backend configuration
-LOGTO_ISSUER=https://y4uj0v.logto.app
-LOGTO_AUDIENCE=https://dev.my.nethesis.it/api
-LOGTO_JWKS_ENDPOINT=https://y4uj0v.logto.app/oidc/jwks
+LOGTO_ISSUER=https://your-tenant-id.logto.app
+LOGTO_AUDIENCE=https://your-domain.com/api
+LOGTO_JWKS_ENDPOINT=https://your-tenant-id.logto.app/oidc/jwks
 JWT_SECRET=generated-32-char-secret
-LOGTO_MANAGEMENT_CLIENT_ID=11h51dxo64if0lsct1wos
+LOGTO_MANAGEMENT_CLIENT_ID=your-backend-client-id
 LOGTO_MANAGEMENT_CLIENT_SECRET=your-secret-here
-LOGTO_MANAGEMENT_BASE_URL=https://y4uj0v.logto.app
+LOGTO_MANAGEMENT_BASE_URL=https://your-tenant-id.logto.app
 
 # Frontend configuration
-FRONTEND_LOGTO_ENDPOINT=https://y4uj0v.logto.app
+FRONTEND_LOGTO_ENDPOINT=https://your-tenant-id.logto.app
 FRONTEND_LOGTO_APP_ID=generated-app-id
-API_BASE_URL=https://dev.my.nethesis.it/api
+API_BASE_URL=https://your-domain.com/api
 ```
 
 #### **Init Command Flags**
 
-- `--tenant-id`: Logto tenant identifier (e.g., `y4uj0v`)
-- `--backend-client-id`: M2M application ID (e.g., `11h51dxo64if0lsct1wos`)
+- `--tenant-id`: Logto tenant identifier (e.g., `your-tenant-id`)
+- `--backend-client-id`: M2M application ID (e.g., `your-backend-client-id`)
 - `--backend-client-secret`: M2M application secret
-- `--domain`: Your custom domain (e.g., `dev.my.nethesis.it`)
+- `--domain`: Your custom domain (e.g., `your-domain.com`)
 - `--force`: Force re-initialization even if already done
 - `--output`: Output format (text, json, yaml) - default: text
 
@@ -532,9 +532,9 @@ The configuration file uses simplified YAML format with clear separation between
 
 ```yaml
 metadata:
-  name: "nethesis-simplified-rbac"
-  version: "2.0.0"
-  description: "Simplified RBAC with business logic separation"
+  name: "nethesis-rbac"
+  version: "1.0.0"
+  description: "Nethesis Role-Based Authentication with clear separation between business hierarchy and technical capabilities"
 
 hierarchy:
   # BUSINESS HIERARCHY (Organization Types)
@@ -687,10 +687,10 @@ git commit -m "your commit message"
 ```bash
 # 1. Complete zero-to-production setup
 sync init \
-  --tenant-id y4uj0v \
-  --backend-client-id 11h51dxo64if0lsct1wos \
+  --tenant-id your-tenant-id \
+  --backend-client-id your-backend-client-id \
   --backend-client-secret your-secret-here \
-  --domain dev.my.nethesis.it
+  --domain your-domain.com
 
 # 2. Copy environment variables from output to backend/.env
 

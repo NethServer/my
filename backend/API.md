@@ -604,7 +604,7 @@ npm install @logto/vue
 
 #### Step 2: Configure Logto Settings
 Before running the code, you need these values from your Logto admin console:
-- `endpoint`: Your Logto instance URL (e.g., `https://y4uj0v.logto.app`)
+- `endpoint`: Your Logto instance URL (e.g., `https://your-tenant-id.logto.app`)
 - `appId`: Your application ID from Logto admin console
 - `resources`: Your API resource identifier - **MUST be absolute URI** (e.g., `https://api.my.nethesis.it`)
 

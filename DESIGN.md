@@ -380,16 +380,16 @@ The sync tool now provides complete zero-to-production deployment via the `init`
 ```bash
 # Complete Logto initialization from scratch
 sync init \
-  --tenant-id y4uj0v \
-  --backend-client-id 11h51dxo64if0lsct1wos \
+  --tenant-id your-tenant-id \
+  --backend-client-id your-backend-client-id \
   --backend-client-secret your-secret-here \
-  --domain dev.my.nethesis.it
+  --domain your-domain.com
 
 # Alternative: Environment variables mode
-export TENANT_ID=y4uj0v
-export BACKEND_CLIENT_ID=11h51dxo64if0lsct1wos
+export TENANT_ID=your-tenant-id
+export BACKEND_CLIENT_ID=your-backend-client-id
 export BACKEND_CLIENT_SECRET=your-secret-here
-export TENANT_DOMAIN=dev.my.nethesis.it
+export TENANT_DOMAIN=your-domain.com
 sync init
 
 # JSON/YAML output for automation
@@ -420,18 +420,18 @@ The init command performs a comprehensive setup sequence:
 
 ```bash
 # Backend Configuration
-LOGTO_ISSUER=https://y4uj0v.logto.app
-LOGTO_AUDIENCE=https://dev.my.nethesis.it/api
-LOGTO_JWKS_ENDPOINT=https://y4uj0v.logto.app/oidc/jwks
+LOGTO_ISSUER=https://your-tenant-id.logto.app
+LOGTO_AUDIENCE=https://your-domain.com/api
+LOGTO_JWKS_ENDPOINT=https://your-tenant-id.logto.app/oidc/jwks
 JWT_SECRET=generated-32-char-secret
-LOGTO_MANAGEMENT_CLIENT_ID=11h51dxo64if0lsct1wos
+LOGTO_MANAGEMENT_CLIENT_ID=your-backend-client-id
 LOGTO_MANAGEMENT_CLIENT_SECRET=your-secret-here
-LOGTO_MANAGEMENT_BASE_URL=https://y4uj0v.logto.app
+LOGTO_MANAGEMENT_BASE_URL=https://your-tenant-id.logto.app
 
 # Frontend Configuration
-FRONTEND_LOGTO_ENDPOINT=https://y4uj0v.logto.app
+FRONTEND_LOGTO_ENDPOINT=https://your-tenant-id.logto.app
 FRONTEND_LOGTO_APP_ID=generated-spa-app-id
-API_BASE_URL=https://dev.my.nethesis.it/api
+API_BASE_URL=https://your-domain.com/api
 ```
 
 #### **Init Command Features**

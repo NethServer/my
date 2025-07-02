@@ -41,7 +41,7 @@ var initCmd = &cobra.Command{
 	Long: `Initialize Logto with basic configuration required for Nethesis Operation Center.
 
 This command will:
-1. Create custom domain in Logto (e.g., dev.my.nethesis.it)
+1. Create custom domain in Logto (e.g., your-domain.com)
 2. Create backend and frontend applications in Logto
 3. Create a god@nethesis.it account with generated password
 4. Synchronize basic RBAC configuration
@@ -53,15 +53,15 @@ Requirements:
 Two modes available:
 
 Mode 1 - Environment Variables:
-  TENANT_ID=y4uj0v
-  BACKEND_CLIENT_ID=11h51dxo64if0lsct1wos
+  TENANT_ID=your-tenant-id
+  BACKEND_CLIENT_ID=your-backend-client-id
   BACKEND_CLIENT_SECRET=your-secret
-  TENANT_DOMAIN=dev.my.nethesis.it
+  TENANT_DOMAIN=your-domain.com
 
   sync init
 
 Mode 2 - CLI Flags:
-  sync init --tenant-id y4uj0v --backend-client-id 11h51... --backend-client-secret secret... --domain dev.my.nethesis.it
+  sync init --tenant-id your-tenant-id --backend-client-id your-backend-client-id --backend-client-secret your-secret --domain your-domain.com
 
 Output formats:
   sync init --output json   # JSON output for automation/CI-CD
@@ -117,8 +117,8 @@ func init() {
 
 	// Init-specific flags
 	initCmd.Flags().BoolVar(&initForce, "force", false, "force re-initialization even if already done")
-	initCmd.Flags().StringVar(&initDomain, "domain", "", "tenant domain (e.g., dev.my.nethesis.it)")
-	initCmd.Flags().StringVar(&initTenantID, "tenant-id", "", "Logto tenant ID (e.g., y4uj0v)")
+	initCmd.Flags().StringVar(&initDomain, "domain", "", "tenant domain (e.g., your-domain.com)")
+	initCmd.Flags().StringVar(&initTenantID, "tenant-id", "", "Logto tenant ID (e.g., your-tenant-id)")
 	initCmd.Flags().StringVar(&initBackendClientID, "backend-client-id", "", "backend M2M application client ID")
 	initCmd.Flags().StringVar(&initBackendClientSecret, "backend-client-secret", "", "backend M2M application client secret")
 }
