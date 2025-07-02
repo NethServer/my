@@ -32,8 +32,8 @@ metadata:
   description: "Test configuration"
 hierarchy:
   organization_roles:
-    - id: "god"
-      name: "God"
+    - id: "owner"
+      name: "Owner"
       permissions:
         - id: "manage:systems"
   user_roles:
@@ -140,8 +140,8 @@ metadata:
   version: "1.0.0"
 hierarchy:
   organization_roles:
-    - id: "god"
-      name: "God"
+    - id: "owner"
+      name: "Owner"
       permissions:
         - id: "manage:systems"
   user_roles:
@@ -211,8 +211,8 @@ func TestConfigSaveToFile(t *testing.T) {
 		Hierarchy: Hierarchy{
 			OrganizationRoles: []Role{
 				{
-					ID:   "god",
-					Name: "God",
+					ID:   "owner",
+					Name: "Owner",
 					Permissions: []Permission{
 						{ID: "manage:systems"},
 					},
@@ -266,8 +266,8 @@ func TestConfigToYAML(t *testing.T) {
 		Hierarchy: Hierarchy{
 			OrganizationRoles: []Role{
 				{
-					ID:   "god",
-					Name: "God",
+					ID:   "owner",
+					Name: "Owner",
 				},
 			},
 		},

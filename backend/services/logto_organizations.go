@@ -282,14 +282,14 @@ func GetOrganizationsByRole(roleType string) ([]LogtoOrganization, error) {
 
 // FilterOrganizationsByVisibility filters organizations based on user's visibility permissions
 func FilterOrganizationsByVisibility(orgs []LogtoOrganization, userOrgRole, userOrgID string, targetRole string) []LogtoOrganization {
-	// God can see everything
-	if userOrgRole == "God" {
+	// Owner can see everything
+	if userOrgRole == "Owner" {
 		logger.ComponentLogger("logto").Info().
 			Int("org_count", len(orgs)).
 			Str("operation", "filter_organizations").
-			Str("user_role", "God").
+			Str("user_role", "Owner").
 			Str("target_role", targetRole).
-			Msg("God user - showing all organizations")
+			Msg("Owner user - showing all organizations")
 		return orgs
 	}
 
@@ -297,11 +297,11 @@ func FilterOrganizationsByVisibility(orgs []LogtoOrganization, userOrgRole, user
 
 	switch targetRole {
 	case "Distributor":
-		// Only God should access distributors (already protected by middleware)
+		// Only Owner should access distributors (already protected by middleware)
 		logger.ComponentLogger("logto").Info().
 			Str("operation", "filter_organizations").
 			Str("target_role", "distributors").
-			Msg("Non-God user accessing distributors - should be blocked by middleware")
+			Msg("Non-Owner user accessing distributors - should be blocked by middleware")
 		return filteredOrgs
 
 	case "Reseller":
@@ -402,8 +402,8 @@ func GetAllVisibleOrganizations(userOrgRole, userOrgID string) ([]LogtoOrganizat
 
 	var visibleOrgs []LogtoOrganization
 
-	// God can see everything
-	if userOrgRole == "God" {
+	// Owner can see everything
+	if userOrgRole == "Owner" {
 		return allOrgs, nil
 	}
 
@@ -422,9 +422,9 @@ func GetAllVisibleOrganizations(userOrgRole, userOrgID string) ([]LogtoOrganizat
 				// - Their own organization
 				// - Resellers they created
 				// - Customers created by their resellers
-				// BUT NEVER God organizations (higher in hierarchy)
-				if orgType == "god" {
-					shouldInclude = false // Explicitly exclude God organizations
+				// BUT NEVER Owner organizations (higher in hierarchy)
+				if orgType == "owner" {
+					shouldInclude = false // Explicitly exclude Owner organizations
 				} else if org.ID == userOrgID {
 					shouldInclude = true
 				} else if orgType == "reseller" && createdBy == userOrgID {
@@ -448,8 +448,8 @@ func GetAllVisibleOrganizations(userOrgRole, userOrgID string) ([]LogtoOrganizat
 				// Resellers can see:
 				// - Their own organization
 				// - Customers they created
-				// BUT NEVER God or Distributor organizations (higher in hierarchy)
-				if orgType == "god" || orgType == "distributor" {
+				// BUT NEVER Owner or Distributor organizations (higher in hierarchy)
+				if orgType == "owner" || orgType == "distributor" {
 					shouldInclude = false // Explicitly exclude higher hierarchy organizations
 				} else if org.ID == userOrgID {
 					shouldInclude = true
@@ -459,8 +459,8 @@ func GetAllVisibleOrganizations(userOrgRole, userOrgID string) ([]LogtoOrganizat
 
 			case "Customer":
 				// Customers can only see their own organization
-				// NEVER God, Distributor, or Reseller organizations (higher in hierarchy)
-				if orgType == "god" || orgType == "distributor" || orgType == "reseller" {
+				// NEVER Owner, Distributor, or Reseller organizations (higher in hierarchy)
+				if orgType == "owner" || orgType == "distributor" || orgType == "reseller" {
 					shouldInclude = false // Explicitly exclude higher hierarchy organizations
 				} else if org.ID == userOrgID {
 					shouldInclude = true

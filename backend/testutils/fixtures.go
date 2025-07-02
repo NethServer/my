@@ -28,13 +28,13 @@ func MockUser(userID, orgID string, userRoles, orgRoles []string, userPerms, org
 	}
 }
 
-// MockGodUser creates a user with God role and all permissions
-func MockGodUser() *models.User {
+// MockOwnerUser creates a user with Owner role and all permissions
+func MockOwnerUser() *models.User {
 	return MockUser(
-		"god-user-id",
+		"owner-user-id",
 		"demo-org",
 		[]string{"Admin"},
-		[]string{"God"},
+		[]string{"Owner"},
 		[]string{"manage:systems", "manage:accounts", "manage:organizations"},
 		[]string{"manage:all"},
 	)

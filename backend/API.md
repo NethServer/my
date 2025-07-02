@@ -132,7 +132,7 @@ curl -s -X GET "http://localhost:8080/api/auth/me" \
 
 ## 🏢 Distributor Management
 
-**Authorization:** Only **God** role can manage distributors.
+**Authorization:** Only **Owner** role can manage distributors.
 
 ### List Distributors
 
@@ -205,7 +205,7 @@ curl -s -X DELETE "http://localhost:8080/api/distributors/$DISTRIBUTOR_ID" \
 
 ## 🏪 Reseller Management
 
-**Authorization:** **God** and **Distributor** roles can manage resellers.
+**Authorization:** **Owner** and **Distributor** roles can manage resellers.
 
 ### List Resellers
 
@@ -281,7 +281,7 @@ curl -s -X DELETE "http://localhost:8080/api/resellers/$RESELLER_ID" \
 
 ## 🏢 Customer Management
 
-**Authorization:** **God**, **Distributor**, and **Reseller** roles can manage customers.
+**Authorization:** **Owner**, **Distributor**, and **Reseller** roles can manage customers.
 
 ### List Customers
 
@@ -501,7 +501,7 @@ All API responses follow this structure:
 ### Business Hierarchy
 
 ```
-God (Nethesis)
+Owner (Nethesis)
   ↓
 Distributor
   ↓
@@ -514,14 +514,14 @@ Customer
 
 | Role | Can Manage | Visibility |
 |------|------------|------------|
-| **God** | Everything | All organizations |
+| **Owner** | Everything | All organizations |
 | **Distributor** | Resellers, Customers | Own org + created resellers + their customers |
 | **Reseller** | Customers | Own org + created customers |
 | **Customer** | Own accounts only | Own organization only |
 
 ### Account Creation Rules
 
-- **God**: Can create accounts in any organization
+- **Owner**: Can create accounts in any organization
 - **Distributor**: Can create accounts in own org + subordinate orgs (Reseller, Customer) **they created**
 - **Reseller**: Can create accounts in own org + Customer orgs **they created**
 - **Customer**: Can create accounts only in own org (if Admin)

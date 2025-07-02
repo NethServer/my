@@ -134,11 +134,11 @@ func main() {
 
 		// ===========================================
 		// BUSINESS HIERARCHY - Organization role-based
-		// God > Distributor > Reseller > Customer
+		// Owner > Distributor > Reseller > Customer
 		// ===========================================
 
-		// Distributors - only God can manage distributors
-		distributorsGroup := customAuth.Group("/distributors", middleware.RequireOrgRole("God"))
+		// Distributors - only Owner can manage distributors
+		distributorsGroup := customAuth.Group("/distributors", middleware.RequireOrgRole("Owner"))
 		{
 			distributorsGroup.GET("", methods.GetDistributors)
 			distributorsGroup.POST("", methods.CreateDistributor)
@@ -146,8 +146,8 @@ func main() {
 			distributorsGroup.DELETE("/:id", methods.DeleteDistributor)
 		}
 
-		// Resellers - God and Distributors can manage resellers
-		resellersGroup := customAuth.Group("/resellers", middleware.RequireAnyOrgRole("God", "Distributor"))
+		// Resellers - Owner and Distributors can manage resellers
+		resellersGroup := customAuth.Group("/resellers", middleware.RequireAnyOrgRole("Owner", "Distributor"))
 		{
 			resellersGroup.GET("", methods.GetResellers)
 			resellersGroup.POST("", methods.CreateReseller)
@@ -155,8 +155,8 @@ func main() {
 			resellersGroup.DELETE("/:id", methods.DeleteReseller)
 		}
 
-		// Customers - God, Distributors and Resellers can manage customers
-		customersGroup := customAuth.Group("/customers", middleware.RequireAnyOrgRole("God", "Distributor", "Reseller"))
+		// Customers - Owner, Distributors and Resellers can manage customers
+		customersGroup := customAuth.Group("/customers", middleware.RequireAnyOrgRole("Owner", "Distributor", "Reseller"))
 		{
 			customersGroup.GET("", methods.GetCustomers)
 			customersGroup.POST("", methods.CreateCustomer)

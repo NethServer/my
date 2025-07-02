@@ -35,14 +35,14 @@ const (
 	FrontendAppName = "frontend"
 
 	// Organization Names
-	GodOrgName        = "God"
-	GodOrgDescription = "God organization - complete control over commercial hierarchy"
+	OwnerOrgName        = "Owner"
+	OwnerOrgDescription = "Owner organization - complete control over commercial hierarchy"
 
 	// Role Names
 	AdminRoleName = "Admin"
 	AdminRoleID   = "admin"
-	GodRoleName   = "God"
-	GodRoleID     = "god"
+	OwnerRoleName = "Owner"
+	OwnerRoleID   = "owner"
 
 	// Application Types
 	AppTypeSPA = "SPA"

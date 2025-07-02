@@ -31,8 +31,8 @@ func TestConfigValidate(t *testing.T) {
 				Hierarchy: Hierarchy{
 					OrganizationRoles: []Role{
 						{
-							ID:   "god",
-							Name: "God",
+							ID:   "owner",
+							Name: "Owner",
 							Permissions: []Permission{
 								{ID: "manage:systems"},
 							},
@@ -87,15 +87,15 @@ func TestConfigValidate(t *testing.T) {
 				Hierarchy: Hierarchy{
 					OrganizationRoles: []Role{
 						{
-							ID:   "god",
-							Name: "God",
+							ID:   "owner",
+							Name: "Owner",
 							Permissions: []Permission{
 								{ID: "manage:systems"},
 							},
 						},
 						{
-							ID:   "god",
-							Name: "God Duplicate",
+							ID:   "owner",
+							Name: "Owner Duplicate",
 							Permissions: []Permission{
 								{ID: "read:systems"},
 							},
@@ -180,8 +180,8 @@ func TestConfigValidate(t *testing.T) {
 				Hierarchy: Hierarchy{
 					OrganizationRoles: []Role{
 						{
-							ID:   "god",
-							Name: "God",
+							ID:   "owner",
+							Name: "Owner",
 							Permissions: []Permission{
 								{ID: "invalid:permission"},
 							},
@@ -449,7 +449,7 @@ func TestGetUserTypeRoles(t *testing.T) {
 
 	roles := []Role{
 		{ID: "admin", Name: "Admin", Type: "user"},
-		{ID: "god", Name: "God", Type: "organization"},
+		{ID: "owner", Name: "Owner", Type: "organization"},
 		{ID: "support", Name: "Support", Type: ""},
 		{ID: "system", Name: "System", Type: "system"},
 	}
@@ -473,8 +473,8 @@ func TestGetUserTypeRoles(t *testing.T) {
 	if !found["support"] {
 		t.Error("expected support role to be included")
 	}
-	if found["god"] {
-		t.Error("expected god role to be excluded")
+	if found["owner"] {
+		t.Error("expected owner role to be excluded")
 	}
 	if found["system"] {
 		t.Error("expected system role to be excluded")
@@ -486,8 +486,8 @@ func TestGetAllPermissions(t *testing.T) {
 		Hierarchy: Hierarchy{
 			OrganizationRoles: []Role{
 				{
-					ID:   "god",
-					Name: "God",
+					ID:   "owner",
+					Name: "Owner",
 					Type: "user",
 					Permissions: []Permission{
 						{ID: "manage:systems"},

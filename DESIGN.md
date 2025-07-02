@@ -27,7 +27,7 @@ graph TB
     N[sync init] --> O[Complete Setup]
     O --> P[Custom Domain]
     O --> Q[Frontend SPA App]
-    O --> R[God User Creation]
+    O --> R[Owner User Creation]
     O --> S[RBAC Sync]
     O --> T[Environment Variables]
     N --> F
@@ -50,7 +50,7 @@ graph TB
 
 ### **Commercial Chain Structure**
 ```
-                    🔱 GOD (Nethesis)
+                    🔱 OWNER (Nethesis)
                           |
                     🌍 DISTRIBUTORS
                        /        \
@@ -62,7 +62,7 @@ graph TB
 ### **Organization Roles & Business Logic**
 | Role | Can Create | Can Manage | Inherited From |
 |------|------------|------------|----------------|
-| **God** | Distributors, Resellers, Customers | Everything | Direct assignment |
+| **Owner** | Distributors, Resellers, Customers | Everything | Direct assignment |
 | **Distributor** | Resellers, Customers | Sub-levels | Organization membership |
 | **Reseller** | Customers | Own clients | Organization membership |
 | **Customer** | - | Own data | Organization membership |
@@ -123,7 +123,7 @@ Resulting Permissions:
 The system implements hierarchical data visibility based on organization roles and creation relationships:
 
 #### **Visibility Rules**
-- **God**: Can see all distributors, resellers, and customers regardless of who created them
+- **Owner**: Can see all distributors, resellers, and customers regardless of who created them
 - **Distributors**: Can see only:
   - Resellers they created (`customData.createdBy = distributor.organizationId`)
   - Customers created by their resellers (transitively)
@@ -157,7 +157,7 @@ TechCorp Customer:
     createdByRole: "Reseller"
 
 # Visibility Results:
-# God: Sees Nethesis, ACME, TechCorp
+# Owner: Sees Nethesis, ACME, TechCorp
 # Nethesis Distributor: Sees ACME (created by them), TechCorp (created by their reseller)
 # ACME Reseller: Sees only TechCorp (created by them)
 # TechCorp Customer: Cannot access organization endpoints
@@ -212,13 +212,13 @@ systemsGroup := protected.Group("/systems",
 
 // ✅ Business hierarchy groups - organization role-based
 distributorsGroup := protected.Group("/distributors",
-    middleware.RequireOrgRole("God")) // Only God can manage distributors
+    middleware.RequireOrgRole("Owner")) // Only Owner can manage distributors
 
 resellersGroup := protected.Group("/resellers",
-    middleware.RequireAnyOrgRole("God", "Distributor")) // God + Distributors manage resellers
+    middleware.RequireAnyOrgRole("Owner", "Distributor")) // Owner + Distributors manage resellers
 
 customersGroup := protected.Group("/customers",
-    middleware.RequireAnyOrgRole("God", "Distributor", "Reseller")) // All levels manage customers
+    middleware.RequireAnyOrgRole("Owner", "Distributor", "Reseller")) // All levels manage customers
 
 // ✅ Specific operations - explicit permissions
 systemsGroup.POST("/:id/restart",
@@ -294,8 +294,8 @@ hierarchy:
   # Organization roles define BUSINESS HIERARCHY permissions
   # Users inherit these based on their organization's role in the commercial chain
   organization_roles:
-    - id: god
-      name: "God"
+    - id: owner
+      name: "Owner"
       priority: 1
       type: user
       permissions:
@@ -410,10 +410,10 @@ The init command performs a comprehensive setup sequence:
 3. **Admin User Creation**: Creates configurable admin user with secure password generation
 4. **Complete RBAC Synchronization**:
    - Organization scopes (create:distributors, manage:resellers, etc.)
-   - Organization roles (God, Distributor, Reseller, Customer)
+   - Organization roles (Owner, Distributor, Reseller, Customer)
    - User roles (Admin, Support) with permissions
    - JIT (Just-in-Time) provisioning configuration
-5. **Role Assignment**: Assigns Admin user role + God organization role to god user
+5. **Role Assignment**: Assigns Admin user role + Owner organization role to owner user
 6. **Environment Variable Generation**: Auto-generates all required configuration
 
 #### **Auto-Generated Environment Variables**
@@ -441,7 +441,7 @@ API_BASE_URL=https://your-domain.com/api
 - **Unified Configuration**: Prevents mixing CLI flags with environment variables
 - **Error Handling**: Graceful handling of existing domains, users, and applications
 - **Structured Output**: JSON/YAML formats with organized environment variables for CI/CD integration and automation
-- **Security**: Secure password generation for god user with entropy validation
+- **Security**: Secure password generation for owner user with entropy validation
 
 ### **RBAC Configuration Synchronization**
 ```bash
@@ -646,17 +646,17 @@ The system implements sophisticated account creation rules that follow business 
 
 #### **Authorization Rules**
 ```yaml
-God (Nethesis):
+Owner (Nethesis):
   - Can create accounts for: Distributors, Resellers, Customers
   - Limitations: None
 
 Distributor:
   - Can create accounts for: Resellers, Customers, own organization (if Admin)
-  - Limitations: Cannot create God-level accounts
+  - Limitations: Cannot create Owner-level accounts
 
 Reseller:
   - Can create accounts for: Customers, own organization (if Admin)
-  - Limitations: Cannot create Distributors or God-level accounts
+  - Limitations: Cannot create Distributors or Owner-level accounts
 
 Customer:
   - Can create accounts for: Own organization only (if Admin)
@@ -695,7 +695,7 @@ The system implements **creation-based visibility** where users can only see acc
 
 ```yaml
 Visibility Rules:
-  God: "All organizations and accounts"
+  Owner: "All organizations and accounts"
   Distributor: "Resellers + Customers they created (directly or transitively)"
   Reseller: "Customers they created"
   Customer: "No access to organization management"

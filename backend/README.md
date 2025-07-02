@@ -61,7 +61,7 @@ adminGroup := protected.Group("/admin", middleware.RequireUserRole("Admin"))
 Routes can be protected by business hierarchy roles:
 ```go
 distributorGroup := protected.Group("/distributors",
-    middleware.RequireAnyOrgRole("God", "Distributor"))
+    middleware.RequireAnyOrgRole("Owner", "Distributor"))
 ```
 
 ### Authorization Model
@@ -72,7 +72,7 @@ distributorGroup := protected.Group("/distributors",
 - **Support**: System management, customer troubleshooting, standard operations
 
 #### **Organization Roles** (Business Hierarchy)
-- **God**: Complete control over commercial hierarchy (Nethesis level)
+- **Owner**: Complete control over commercial hierarchy (Nethesis level)
 - **Distributor**: Can manage resellers and customers
 - **Reseller**: Can manage customers only
 - **Customer**: Read-only access to own data
@@ -332,20 +332,20 @@ make build-all
 - `DELETE /api/accounts/:id` - Delete account (requires custom auth)
 
 #### Business Hierarchy Management
-- `GET /api/distributors` - List distributors (requires God organization role)
-- `POST /api/distributors` - Create distributor (requires God organization role)
-- `PUT /api/distributors/:id` - Update distributor (requires God organization role)
-- `DELETE /api/distributors/:id` - Delete distributor (requires God organization role)
+- `GET /api/distributors` - List distributors (requires Owner organization role)
+- `POST /api/distributors` - Create distributor (requires Owner organization role)
+- `PUT /api/distributors/:id` - Update distributor (requires Owner organization role)
+- `DELETE /api/distributors/:id` - Delete distributor (requires Owner organization role)
 
-- `GET /api/resellers` - List resellers (requires God or Distributor organization role)
-- `POST /api/resellers` - Create reseller (requires God or Distributor organization role)
-- `PUT /api/resellers/:id` - Update reseller (requires God or Distributor organization role)
-- `DELETE /api/resellers/:id` - Delete reseller (requires God or Distributor organization role)
+- `GET /api/resellers` - List resellers (requires Owner or Distributor organization role)
+- `POST /api/resellers` - Create reseller (requires Owner or Distributor organization role)
+- `PUT /api/resellers/:id` - Update reseller (requires Owner or Distributor organization role)
+- `DELETE /api/resellers/:id` - Delete reseller (requires Owner or Distributor organization role)
 
-- `GET /api/customers` - List customers (requires God, Distributor, or Reseller organization role)
-- `POST /api/customers` - Create customer (requires God, Distributor, or Reseller organization role)
-- `PUT /api/customers/:id` - Update customer (requires God, Distributor, or Reseller organization role)
-- `DELETE /api/customers/:id` - Delete customer (requires God, Distributor, or Reseller organization role)
+- `GET /api/customers` - List customers (requires Owner, Distributor, or Reseller organization role)
+- `POST /api/customers` - Create customer (requires Owner, Distributor, or Reseller organization role)
+- `PUT /api/customers/:id` - Update customer (requires Owner, Distributor, or Reseller organization role)
+- `DELETE /api/customers/:id` - Delete customer (requires Owner, Distributor, or Reseller organization role)
 
 #### Statistics
 - `GET /api/stats` - System statistics (requires `manage:distributors` permission)
@@ -359,7 +359,7 @@ systemsGroup.POST("/:id/restart",
 
 // ✅ Organization role-based authorization for business hierarchy
 distributorsGroup := customAuth.Group("/distributors",
-    middleware.RequireOrgRole("God"))
+    middleware.RequireOrgRole("Owner"))
 
 // ✅ Granular permissions for different operations
 systemsGroup.GET("", methods.GetSystems) // Base permission from group
@@ -387,7 +387,7 @@ The API implements sophisticated hierarchical account management that follows bu
 ### Authorization Rules
 
 #### **Hierarchical Account Creation**
-- **God (Nethesis)**: Can create accounts for any organization type
+- **Owner (Nethesis)**: Can create accounts for any organization type
 - **Distributor**: Can create accounts for Reseller and Customer organizations + own organization (if Admin)
 - **Reseller**: Can create accounts for Customer organizations + own organization (if Admin)
 - **Customer**: Can create accounts only for own organization (if Admin)
@@ -447,7 +447,7 @@ Creates a new account with hierarchical validation:
 #### **GET /api/accounts**
 Retrieves accounts with hierarchical filtering:
 
-- **God**: Sees all accounts across all organizations
+- **Owner**: Sees all accounts across all organizations
 - **Distributor**: Sees accounts from organizations they created + sub-organizations
 - **Reseller**: Sees accounts from Customer organizations they created
 - **Customer**: Cannot access this endpoint
@@ -466,7 +466,7 @@ Deletes an account from the system.
 The system implements data visibility based on organizational hierarchy and creation relationships:
 
 #### **Visibility Rules**
-- **God**: Can see all organizations and their accounts
+- **Owner**: Can see all organizations and their accounts
 - **Distributors**: Can see:
   - Resellers they created (`customData.createdBy = distributor.organizationId`)
   - Customers created by their resellers (transitively)

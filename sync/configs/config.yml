@@ -7,8 +7,8 @@ hierarchy:
   # Organization roles define BUSINESS HIERARCHY permissions
   # Users inherit these based on their organization's role in the commercial chain
   organization_roles:
-    - id: god
-      name: "God"
+    - id: owner
+      name: "Owner"
       priority: 1
       type: user
       permissions:

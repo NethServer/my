@@ -33,10 +33,10 @@ var (
 	initTenantID            string
 	initBackendClientID     string
 	initBackendClientSecret string
-	// God user configuration
-	initGodUsername    string
-	initGodEmail       string
-	initGodDisplayName string
+	// Owner user configuration
+	initOwnerUsername    string
+	initOwnerEmail       string
+	initOwnerDisplayName string
 )
 
 var initCmd = &cobra.Command{
@@ -47,7 +47,7 @@ var initCmd = &cobra.Command{
 This command will:
 1. Create custom domain in Logto (e.g., your-domain.com)
 2. Create backend and frontend applications in Logto
-3. Create a god account with specified credentials and generated password
+3. Create an owner account with specified credentials and generated password
 4. Synchronize basic RBAC configuration
 5. Output environment variables and setup instructions
 
@@ -65,7 +65,7 @@ Mode 1 - Environment Variables:
   sync init
 
 Mode 2 - CLI Flags:
-  sync init --tenant-id your-tenant-id --backend-client-id your-backend-client-id --backend-client-secret your-secret --domain your-domain.com --god-username god --god-email god@example.com --god-name "System Administrator"
+  sync init --tenant-id your-tenant-id --backend-client-id your-backend-client-id --backend-client-secret your-secret --domain your-domain.com --owner-username owner --owner-email owner@example.com --owner-name "Company Owner"
 
 Output formats:
   sync init --output json   # JSON output for automation/CI-CD
@@ -78,7 +78,7 @@ Note: CLI flags take precedence over environment variables. If any CLI flag is p
 type InitResult struct {
 	BackendApp      Application `json:"backend_app"`
 	FrontendApp     Application `json:"frontend_app"`
-	GodUser         User        `json:"god_user"`
+	OwnerUser       User        `json:"owner_user"`
 	CustomDomain    string      `json:"custom_domain"`
 	GeneratedSecret string      `json:"generated_jwt_secret"`
 	AlreadyInit     bool        `json:"already_initialized"`
@@ -125,10 +125,10 @@ func init() {
 	initCmd.Flags().StringVar(&initTenantID, "tenant-id", "", "Logto tenant ID (e.g., your-tenant-id)")
 	initCmd.Flags().StringVar(&initBackendClientID, "backend-client-id", "", "backend M2M application client ID")
 	initCmd.Flags().StringVar(&initBackendClientSecret, "backend-client-secret", "", "backend M2M application client secret")
-	// God user configuration flags
-	initCmd.Flags().StringVar(&initGodUsername, "god-username", "god", "God user username")
-	initCmd.Flags().StringVar(&initGodEmail, "god-email", "god@example.com", "God user email")
-	initCmd.Flags().StringVar(&initGodDisplayName, "god-name", "System Administrator", "God user display name")
+	// Owner user configuration flags
+	initCmd.Flags().StringVar(&initOwnerUsername, "owner-username", "owner", "Owner user username")
+	initCmd.Flags().StringVar(&initOwnerEmail, "owner-email", "owner@example.com", "Owner user email")
+	initCmd.Flags().StringVar(&initOwnerDisplayName, "owner-name", "Company Owner", "Owner user display name")
 }
 
 func runInit(cmd *cobra.Command, args []string) error {
@@ -203,9 +203,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to derive environment variables: %w", err)
 	}
 
-	// Step 4: Create god user
-	if err := createGodUser(logtoClient, result); err != nil {
-		return fmt.Errorf("failed to create god user: %w", err)
+	// Step 4: Create owner user
+	if err := createOwnerUser(logtoClient, result); err != nil {
+		return fmt.Errorf("failed to create owner user: %w", err)
 	}
 
 	// Step 5: Generate JWT secret
@@ -313,21 +313,21 @@ func checkIfAlreadyInitialized(client *client.LogtoClient, config *InitConfig) (
 		}
 	}
 
-	// Check if god user exists
+	// Check if owner user exists
 	users, err := client.GetUsers()
 	if err != nil {
 		return false, err
 	}
 
-	godExists := false
+	ownerExists := false
 	for _, user := range users {
-		if username, ok := user["username"].(string); ok && username == "god" {
-			godExists = true
+		if username, ok := user["username"].(string); ok && username == "owner" {
+			ownerExists = true
 			break
 		}
 	}
 
-	return domainExists && backendExists && frontendExists && godExists, nil
+	return domainExists && backendExists && frontendExists && ownerExists, nil
 }
 
 func createCustomDomain(client *client.LogtoClient, config *InitConfig) error {
@@ -471,16 +471,16 @@ func createApplications(client *client.LogtoClient, result *InitResult, config *
 	return nil
 }
 
-func createGodUser(client *client.LogtoClient, result *InitResult) error {
-	logger.Info("Creating God user...")
+func createOwnerUser(client *client.LogtoClient, result *InitResult) error {
+	logger.Info("Creating Owner user...")
 
 	password := generateSecurePassword()
 
 	// Create user
 	userData := map[string]interface{}{
-		"username":     initGodUsername,
-		"primaryEmail": initGodEmail,
-		"name":         initGodDisplayName,
+		"username":     initOwnerUsername,
+		"primaryEmail": initOwnerEmail,
+		"name":         initOwnerDisplayName,
 	}
 
 	createdUser, err := client.CreateUser(userData)
@@ -488,7 +488,7 @@ func createGodUser(client *client.LogtoClient, result *InitResult) error {
 		// Check if user already exists
 		errStr := err.Error()
 		if strings.Contains(errStr, "username_already_in_use") || strings.Contains(errStr, "already in use") {
-			logger.Warn("User 'god' already exists")
+			logger.Warn("User 'owner' already exists")
 			logger.Info("Using existing user for configuration (password not updated)")
 
 			// Find existing user
@@ -499,24 +499,24 @@ func createGodUser(client *client.LogtoClient, result *InitResult) error {
 
 			var existingUserID string
 			for _, user := range users {
-				if username, ok := user["username"].(string); ok && username == "god" {
+				if username, ok := user["username"].(string); ok && username == "owner" {
 					existingUserID = user["id"].(string)
 					break
 				}
 			}
 
 			if existingUserID == "" {
-				return fmt.Errorf("could not find existing god user")
+				return fmt.Errorf("could not find existing owner user")
 			}
 
-			result.GodUser = User{
+			result.OwnerUser = User{
 				ID:       existingUserID,
-				Username: initGodUsername,
-				Email:    initGodEmail,
+				Username: initOwnerUsername,
+				Email:    initOwnerEmail,
 				Password: "[EXISTING - NOT CHANGED]",
 			}
 
-			logger.Info("Using existing god user: %s", result.GodUser.ID)
+			logger.Info("Using existing owner user: %s", result.OwnerUser.ID)
 			return nil
 		}
 		return fmt.Errorf("failed to create user: %w", err)
@@ -529,36 +529,36 @@ func createGodUser(client *client.LogtoClient, result *InitResult) error {
 		return fmt.Errorf("failed to set user password: %w", err)
 	}
 
-	result.GodUser = User{
+	result.OwnerUser = User{
 		ID:       userID,
-		Username: initGodUsername,
-		Email:    initGodEmail,
+		Username: initOwnerUsername,
+		Email:    initOwnerEmail,
 		Password: password,
 	}
 
-	logger.Info("Created god user: %s", result.GodUser.ID)
+	logger.Info("Created owner user: %s", result.OwnerUser.ID)
 	return nil
 }
 
 func syncBasicConfiguration(client *client.LogtoClient) error {
 	logger.Info("Synchronizing basic RBAC configuration...")
 
-	// Create essential roles for god user to work immediately
+	// Create essential roles for owner user to work immediately
 	if err := createEssentialRoles(client); err != nil {
 		return fmt.Errorf("failed to create essential roles: %w", err)
 	}
 
-	// Create God organization
-	if err := createGodOrganization(client); err != nil {
-		return fmt.Errorf("failed to create God organization: %w", err)
+	// Create Owner organization
+	if err := createOwnerOrganization(client); err != nil {
+		return fmt.Errorf("failed to create Owner organization: %w", err)
 	}
 
-	// Assign roles and organization to god user
-	if err := assignRolesToGodUser(client); err != nil {
-		return fmt.Errorf("failed to assign roles to god user: %w", err)
+	// Assign roles and organization to owner user
+	if err := assignRolesToOwnerUser(client); err != nil {
+		return fmt.Errorf("failed to assign roles to owner user: %w", err)
 	}
 
-	logger.Info("Basic RBAC configuration synchronized - god user ready")
+	logger.Info("Basic RBAC configuration synchronized - owner user ready")
 	logger.Info("Run 'sync sync' later to create complete RBAC configuration")
 	return nil
 }
@@ -571,9 +571,9 @@ func createEssentialRoles(client *client.LogtoClient) error {
 		return fmt.Errorf("failed to create essential organization scopes: %w", err)
 	}
 
-	// Create organization role "god" (from config.yml)
-	if err := createOrgRoleIfNotExists(client, constants.GodRoleID, constants.GodRoleName, constants.GodOrgDescription); err != nil {
-		return fmt.Errorf("failed to create god organization role: %w", err)
+	// Create organization role "owner" (from config.yml)
+	if err := createOrgRoleIfNotExists(client, constants.OwnerRoleID, constants.OwnerRoleName, constants.OwnerOrgDescription); err != nil {
+		return fmt.Errorf("failed to create owner organization role: %w", err)
 	}
 
 	// Create user role "admin" (from config.yml)
@@ -581,9 +581,9 @@ func createEssentialRoles(client *client.LogtoClient) error {
 		return fmt.Errorf("failed to create admin user role: %w", err)
 	}
 
-	// Assign scopes to god organization role
-	if err := assignScopesToGodRole(client); err != nil {
-		return fmt.Errorf("failed to assign scopes to god role: %w", err)
+	// Assign scopes to owner organization role
+	if err := assignScopesToOwnerRole(client); err != nil {
+		return fmt.Errorf("failed to assign scopes to owner role: %w", err)
 	}
 
 	logger.Info("Essential roles created successfully")
@@ -651,7 +651,7 @@ func createUserRoleIfNotExists(client *client.LogtoClient, roleID, roleName, des
 func createEssentialOrgScopes(client *client.LogtoClient) error {
 	logger.Info("Creating essential organization scopes...")
 
-	// Organization scopes from config.yml for god role
+	// Organization scopes from config.yml for owner role
 	scopes := []struct {
 		name        string
 		description string
@@ -703,25 +703,25 @@ func createOrgScopeIfNotExists(client *client.LogtoClient, scopeName, descriptio
 	return nil
 }
 
-func assignScopesToGodRole(client *client.LogtoClient) error {
-	logger.Info("Assigning scopes to God organization role...")
+func assignScopesToOwnerRole(client *client.LogtoClient) error {
+	logger.Info("Assigning scopes to Owner organization role...")
 
-	// Get God organization role ID
+	// Get Owner organization role ID
 	orgRoles, err := client.GetOrganizationRoles()
 	if err != nil {
 		return fmt.Errorf("failed to get organization roles: %w", err)
 	}
 
-	var godRoleID string
+	var ownerRoleID string
 	for _, role := range orgRoles {
-		if role.Name == "God" {
-			godRoleID = role.ID
+		if role.Name == "Owner" {
+			ownerRoleID = role.ID
 			break
 		}
 	}
 
-	if godRoleID == "" {
-		return fmt.Errorf("god organization role not found")
+	if ownerRoleID == "" {
+		return fmt.Errorf("owner organization role not found")
 	}
 
 	// Get organization scopes to assign
@@ -730,10 +730,10 @@ func assignScopesToGodRole(client *client.LogtoClient) error {
 		return fmt.Errorf("failed to get organization scopes: %w", err)
 	}
 
-	// Assign all god-related scopes
-	godScopeNames := []string{"create:distributors", "manage:distributors", "create:resellers", "manage:resellers", "create:customers", "manage:customers"}
+	// Assign all owner-related scopes
+	ownerScopeNames := []string{"create:distributors", "manage:distributors", "create:resellers", "manage:resellers", "create:customers", "manage:customers"}
 
-	for _, scopeName := range godScopeNames {
+	for _, scopeName := range ownerScopeNames {
 		var scopeID string
 		for _, scope := range orgScopes {
 			if scope.Name == scopeName {
@@ -743,49 +743,49 @@ func assignScopesToGodRole(client *client.LogtoClient) error {
 		}
 
 		if scopeID != "" {
-			if err := client.AssignScopeToOrganizationRole(godRoleID, scopeID); err != nil {
-				logger.Warn("Failed to assign scope %s to God role (may already be assigned): %v", scopeName, err)
+			if err := client.AssignScopeToOrganizationRole(ownerRoleID, scopeID); err != nil {
+				logger.Warn("Failed to assign scope %s to Owner role (may already be assigned): %v", scopeName, err)
 			} else {
-				logger.Info("Assigned scope %s to God organization role", scopeName)
+				logger.Info("Assigned scope %s to Owner organization role", scopeName)
 			}
 		}
 	}
 
-	logger.Info("Scope assignment to God role completed")
+	logger.Info("Scope assignment to Owner role completed")
 	return nil
 }
 
-func createGodOrganization(client *client.LogtoClient) error {
-	logger.Info("Creating God organization...")
+func createOwnerOrganization(client *client.LogtoClient) error {
+	logger.Info("Creating Owner organization...")
 
-	// Check if God organization already exists
+	// Check if Owner organization already exists
 	organizations, err := client.GetOrganizations()
 	if err != nil {
 		return fmt.Errorf("failed to get existing organizations: %w", err)
 	}
 
-	var godOrgID string
+	var ownerOrgID string
 	var organizationExists bool
 	for _, org := range organizations {
-		if org.Name == "God" {
-			godOrgID = org.ID
+		if org.Name == "Owner" {
+			ownerOrgID = org.ID
 			organizationExists = true
-			logger.Info("Organization 'God' already exists, configuring default role")
+			logger.Info("Organization 'Owner' already exists, configuring default role")
 			break
 		}
 	}
 
 	// Create organization if it doesn't exist
 	if !organizationExists {
-		// Create the God organization using the simple method
-		godOrgMap := map[string]interface{}{
-			"name":        "God",
-			"description": "Nethesis God organization - complete control over commercial hierarchy",
+		// Create the Owner organization using the simple method
+		ownerOrgMap := map[string]interface{}{
+			"name":        "Owner",
+			"description": "Nethesis Owner organization - complete control over commercial hierarchy",
 		}
 
-		err = client.CreateOrganizationSimple(godOrgMap)
+		err = client.CreateOrganizationSimple(ownerOrgMap)
 		if err != nil {
-			return fmt.Errorf("failed to create God organization: %w", err)
+			return fmt.Errorf("failed to create Owner organization: %w", err)
 		}
 
 		// Get the created organization ID
@@ -795,84 +795,84 @@ func createGodOrganization(client *client.LogtoClient) error {
 		}
 
 		for _, org := range orgs {
-			if org.Name == "God" {
-				godOrgID = org.ID
+			if org.Name == "Owner" {
+				ownerOrgID = org.ID
 				break
 			}
 		}
 
-		logger.Info("Created God organization")
+		logger.Info("Created Owner organization")
 	}
 
-	// Set JIT organization role for the God organization
-	if err := setGodOrganizationDefaultRole(client, godOrgID); err != nil {
-		return fmt.Errorf("failed to set JIT role for God organization: %w", err)
+	// Set JIT organization role for the Owner organization
+	if err := setOwnerOrganizationDefaultRole(client, ownerOrgID); err != nil {
+		return fmt.Errorf("failed to set JIT role for Owner organization: %w", err)
 	}
 
 	return nil
 }
 
-func setGodOrganizationDefaultRole(client *client.LogtoClient, godOrgID string) error {
-	logger.Info("Setting JIT organization role for God organization...")
+func setOwnerOrganizationDefaultRole(client *client.LogtoClient, ownerOrgID string) error {
+	logger.Info("Setting JIT organization role for Owner organization...")
 
-	// Get God organization role ID
+	// Get Owner organization role ID
 	orgRoles, err := client.GetOrganizationRoles()
 	if err != nil {
 		return fmt.Errorf("failed to get organization roles: %w", err)
 	}
 
-	var godRoleID string
+	var ownerRoleID string
 	for _, role := range orgRoles {
-		if role.Name == "God" {
-			godRoleID = role.ID
+		if role.Name == "Owner" {
+			ownerRoleID = role.ID
 			break
 		}
 	}
 
-	if godRoleID == "" {
-		return fmt.Errorf("god organization role not found")
+	if ownerRoleID == "" {
+		return fmt.Errorf("owner organization role not found")
 	}
 
 	// Set the JIT organization role (Just-in-Time provisioning)
-	if err := client.SetOrganizationJITRole(godOrgID, godRoleID); err != nil {
+	if err := client.SetOrganizationJITRole(ownerOrgID, ownerRoleID); err != nil {
 		logger.Warn("Failed to set JIT organization role (may already be set): %v", err)
 	} else {
-		logger.Info("Set God as JIT organization role for God organization")
+		logger.Info("Set Owner as JIT organization role for Owner organization")
 	}
 
 	return nil
 }
 
-func assignRolesToGodUser(client *client.LogtoClient) error {
-	logger.Info("Assigning roles and organization to god user...")
+func assignRolesToOwnerUser(client *client.LogtoClient) error {
+	logger.Info("Assigning roles and organization to owner user...")
 
-	// Get god user ID
+	// Get owner user ID
 	users, err := client.GetUsers()
 	if err != nil {
 		return fmt.Errorf("failed to get users: %w", err)
 	}
 
-	godUserID, found := client.FindEntityID(users, "username", initGodUsername)
+	ownerUserID, found := client.FindEntityID(users, "username", initOwnerUsername)
 	if !found {
-		return fmt.Errorf("god user not found")
+		return fmt.Errorf("owner user not found")
 	}
 
-	// Get God organization ID
+	// Get Owner organization ID
 	organizations, err := client.GetOrganizations()
 	if err != nil {
 		return fmt.Errorf("failed to get organizations: %w", err)
 	}
 
-	var godOrgID string
+	var ownerOrgID string
 	for _, org := range organizations {
-		if org.Name == "God" {
-			godOrgID = org.ID
+		if org.Name == "Owner" {
+			ownerOrgID = org.ID
 			break
 		}
 	}
 
-	if godOrgID == "" {
-		return fmt.Errorf("god organization not found")
+	if ownerOrgID == "" {
+		return fmt.Errorf("owner organization not found")
 	}
 
 	// Get user roles to assign (admin)
@@ -889,46 +889,46 @@ func assignRolesToGodUser(client *client.LogtoClient) error {
 		}
 	}
 
-	// Get organization roles to assign (god)
+	// Get organization roles to assign (owner)
 	orgRoles, err := client.GetOrganizationRoles()
 	if err != nil {
 		return fmt.Errorf("failed to get organization roles: %w", err)
 	}
 
-	var godOrgRoleID string
+	var ownerOrgRoleID string
 	for _, role := range orgRoles {
-		if role.Name == "God" {
-			godOrgRoleID = role.ID
+		if role.Name == "Owner" {
+			ownerOrgRoleID = role.ID
 			break
 		}
 	}
 
 	// Assign Admin user role
 	if adminRoleID != "" {
-		if err := client.AssignRoleToUser(godUserID, adminRoleID); err != nil {
+		if err := client.AssignRoleToUser(ownerUserID, adminRoleID); err != nil {
 			logger.Warn("Failed to assign Admin user role (may already be assigned): %v", err)
 		} else {
-			logger.Info("Assigned Admin user role to god user")
+			logger.Info("Assigned Admin user role to owner user")
 		}
 	}
 
-	// Add user to God organization
-	if err := client.AddUserToOrganization(godOrgID, godUserID); err != nil {
-		logger.Warn("Failed to add user to God organization (may already be member): %v", err)
+	// Add user to Owner organization
+	if err := client.AddUserToOrganization(ownerOrgID, ownerUserID); err != nil {
+		logger.Warn("Failed to add user to Owner organization (may already be member): %v", err)
 	} else {
-		logger.Info("Added god user to God organization")
+		logger.Info("Added owner user to Owner organization")
 	}
 
-	// Assign God organization role to user in organization
-	if godOrgRoleID != "" {
-		logger.Info("Attempting to assign God organization role (ID: %s) to user (ID: %s) in organization (ID: %s)", godOrgRoleID, godUserID, godOrgID)
-		if err := client.AssignOrganizationRoleToUser(godOrgID, godUserID, godOrgRoleID); err != nil {
-			logger.Warn("Failed to assign God organization role (may already be assigned): %v", err)
+	// Assign Owner organization role to user in organization
+	if ownerOrgRoleID != "" {
+		logger.Info("Attempting to assign Owner organization role (ID: %s) to user (ID: %s) in organization (ID: %s)", ownerOrgRoleID, ownerUserID, ownerOrgID)
+		if err := client.AssignOrganizationRoleToUser(ownerOrgID, ownerUserID, ownerOrgRoleID); err != nil {
+			logger.Warn("Failed to assign Owner organization role (may already be assigned): %v", err)
 		} else {
-			logger.Info("Assigned God organization role to god user")
+			logger.Info("Assigned Owner organization role to owner user")
 		}
 	} else {
-		logger.Warn("God organization role ID not found - unable to assign role")
+		logger.Warn("Owner organization role ID not found - unable to assign role")
 	}
 
 	logger.Info("Role and organization assignment completed")
@@ -1072,9 +1072,9 @@ func outputText(result *InitResult) {
 	fmt.Println("\n👤 ADMIN CREDENTIALS")
 	fmt.Println("Use these credentials to login:")
 	fmt.Println()
-	fmt.Printf("Username: %s\n", result.GodUser.Username)
-	fmt.Printf("Email:    %s\n", result.GodUser.Email)
-	fmt.Printf("Password: %s\n", result.GodUser.Password)
+	fmt.Printf("Username: %s\n", result.OwnerUser.Username)
+	fmt.Printf("Email:    %s\n", result.OwnerUser.Email)
+	fmt.Printf("Password: %s\n", result.OwnerUser.Password)
 	fmt.Println()
 	fmt.Println("⚠️  IMPORTANT: Save these credentials securely and change the password after first login!")
 

@@ -189,7 +189,7 @@ func TestUserWithNilSlices(t *testing.T) {
 
 func TestUserBusinessRoleTypes(t *testing.T) {
 	// Test different business role types
-	businessRoles := []string{"God", "Distributor", "Reseller", "Customer"}
+	businessRoles := []string{"Owner", "Distributor", "Reseller", "Customer"}
 
 	for _, role := range businessRoles {
 		t.Run("org_role_"+role, func(t *testing.T) {
@@ -288,7 +288,7 @@ func TestUserCompleteProfile(t *testing.T) {
 		Name:             "Complete User Profile",
 		UserRoles:        []string{"Admin", "Support"},
 		UserPermissions:  []string{"manage:systems", "view:logs", "admin:accounts", "manage:users"},
-		OrgRole:          "God",
+		OrgRole:          "Owner",
 		OrgPermissions:   []string{"create:distributors", "manage:resellers", "admin:system", "global:access"},
 		OrganizationID:   "org-nethesis-complete",
 		OrganizationName: "Nethesis S.r.l. - Complete",

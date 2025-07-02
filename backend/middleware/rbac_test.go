@@ -197,10 +197,10 @@ func TestRequireOrgRole(t *testing.T) {
 			name: "user with required org role passes",
 			user: &models.User{
 				ID:       "user-1",
-				Username: "god-user",
-				OrgRole:  "God",
+				Username: "owner-user",
+				OrgRole:  "Owner",
 			},
-			requiredRole:   "God",
+			requiredRole:   "Owner",
 			expectedStatus: http.StatusOK,
 		},
 		{
@@ -271,7 +271,7 @@ func TestRequireAnyOrgRole(t *testing.T) {
 				Username: "distributor-user",
 				OrgRole:  "Distributor",
 			},
-			requiredRoles:  []string{"God", "Distributor", "Reseller"},
+			requiredRoles:  []string{"Owner", "Distributor", "Reseller"},
 			expectedStatus: http.StatusOK,
 		},
 		{
@@ -281,7 +281,7 @@ func TestRequireAnyOrgRole(t *testing.T) {
 				Username: "customer-user",
 				OrgRole:  "Customer",
 			},
-			requiredRoles:  []string{"God", "Distributor"},
+			requiredRoles:  []string{"Owner", "Distributor"},
 			expectedStatus: http.StatusForbidden,
 			expectMessage:  "insufficient organization role",
 		},

@@ -346,7 +346,7 @@ func TestGetUserContextDataIntegration(t *testing.T) {
 		Name:             "Integration Test User",
 		UserRoles:        []string{"Admin", "Support", "Manager"},
 		UserPermissions:  []string{"manage:systems", "view:logs", "admin:accounts"},
-		OrgRole:          "God",
+		OrgRole:          "Owner",
 		OrgPermissions:   []string{"create:distributors", "manage:all", "admin:system"},
 		OrganizationID:   "org-integration-test",
 		OrganizationName: "Integration Test Organization",

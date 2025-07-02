@@ -278,7 +278,7 @@ func TestGetUserProfile(t *testing.T) {
 					Name:             "Profile User",
 					UserRoles:        []string{"Admin"},
 					UserPermissions:  []string{"manage:systems", "admin:accounts"},
-					OrgRole:          "God",
+					OrgRole:          "Owner",
 					OrgPermissions:   []string{"create:distributors", "manage:all"},
 					OrganizationID:   "org-nethesis",
 					OrganizationName: "Nethesis",

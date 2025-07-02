@@ -13,7 +13,7 @@ A comprehensive CLI tool for **complete Logto setup** and **RBAC synchronization
 
 ### **RBAC Synchronization**
 - 🔄 **Simplified RBAC Sync**: Clear separation between business hierarchy and technical capabilities
-- 🏢 **Business Hierarchy**: Organization roles (God, Distributor, Reseller, Customer) for commercial logic
+- 🏢 **Business Hierarchy**: Organization roles (Owner, Distributor, Reseller, Customer) for commercial logic
 - 👥 **Technical Capabilities**: User roles (Admin, Support) for skills
 - 🔗 **Backend Integration**: Powers real-time Management API data fetching in backend
 - 🔍 **Dry Run Mode**: Preview changes before applying them with detailed analysis
@@ -217,10 +217,10 @@ sync init --output yaml > setup-result.yaml
 4. ✅ **Creates admin user** with configurable credentials and generated secure password
 5. ✅ **Sets up complete RBAC system**:
    - Organization scopes (create:distributors, manage:resellers, etc.)
-   - Organization roles (God, Distributor, Reseller, Customer)
+   - Organization roles (Owner, Distributor, Reseller, Customer)
    - User roles (Admin, Support)
    - JIT (Just-in-Time) provisioning
-6. ✅ **Assigns roles to admin user**: Admin + God organization role
+6. ✅ **Assigns roles to admin user**: Admin + Owner organization role
 7. ✅ **Generates all environment variables** automatically
 
 #### **JSON/YAML Output Structure**
@@ -294,8 +294,8 @@ jq -r '.backend_app.environment_vars | to_entries[] | "\(.key)=\(.value)"' setup
 # Extract frontend environment variables
 jq -r '.frontend_app.environment_vars | to_entries[] | "\(.key)=\(.value)"' setup-result.json > frontend/.env
 
-# Get god user credentials
-jq -r '.god_user | "Username: \(.username)\nEmail: \(.email)\nPassword: \(.password)"' setup-result.json
+# Get owner user credentials
+jq -r '.owner_user | "Username: \(.username)\nEmail: \(.email)\nPassword: \(.password)"' setup-result.json
 
 # Check if already initialized
 jq -r '.already_initialized' setup-result.json
@@ -546,8 +546,8 @@ hierarchy:
   # BUSINESS HIERARCHY (Organization Types)
   # Users inherit these based on their organization's role in the commercial chain
   organization_roles:
-    - id: god
-      name: "God"
+    - id: owner
+      name: "Owner"
       priority: 1
       type: user
       permissions:
@@ -746,7 +746,7 @@ sync init --output yaml --tenant-id abc123 --backend-client-id xyz --backend-cli
 # Automation with jq
 sync init --output json | jq '.backend_app.environment_vars'
 sync init --output json | jq '.frontend_app.environment_vars'
-sync init --output json | jq '.god_user.password'
+sync init --output json | jq '.owner_user.password'
 ```
 
 ### Resource Management

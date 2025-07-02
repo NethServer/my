@@ -69,8 +69,8 @@ func CanOperateOnAccount(currentUserOrgRole, currentUserOrgID, currentUserRole s
 	}
 
 	switch currentUserOrgRole {
-	case "God":
-		// God can operate on any account
+	case "Owner":
+		// Owner can operate on any account
 		return true, ""
 
 	case "Distributor":
@@ -133,8 +133,8 @@ func CanCreateAccountForOrganization(userOrgRole, userOrgID, userRole, targetOrg
 	}
 
 	switch userOrgRole {
-	case "God":
-		// God can create accounts for any organization
+	case "Owner":
+		// Owner can create accounts for any organization
 		return true, ""
 	case "Distributor":
 		// Distributors can create accounts for:

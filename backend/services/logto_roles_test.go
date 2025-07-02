@@ -251,7 +251,7 @@ func TestLogtoManagementClient_GetUserOrganizationRoles(t *testing.T) {
 						_ = json.NewEncoder(w).Encode(response)
 					case "/api/organizations/org-456/users/user-123/roles":
 						roles := []LogtoOrganizationRole{
-							{ID: "org-role-1", Name: "God"},
+							{ID: "org-role-1", Name: "Owner"},
 							{ID: "org-role-2", Name: "Distributor"},
 						}
 						w.Header().Set("Content-Type", "application/json")
@@ -261,7 +261,7 @@ func TestLogtoManagementClient_GetUserOrganizationRoles(t *testing.T) {
 			},
 			expectError: false,
 			expectedRoles: []LogtoOrganizationRole{
-				{ID: "org-role-1", Name: "God"},
+				{ID: "org-role-1", Name: "Owner"},
 				{ID: "org-role-2", Name: "Distributor"},
 			},
 		},

@@ -115,7 +115,7 @@ func TestIsSystemUserRole(t *testing.T) {
 			name: "organization role",
 			role: client.LogtoRole{
 				ID:          "role_203",
-				Name:        "God",
+				Name:        "Owner",
 				Description: "Highest level organization role",
 			},
 			expected: false,
@@ -314,8 +314,8 @@ func TestSystemRolePatterns(t *testing.T) {
 func TestNonSystemRoleExamples(t *testing.T) {
 	nonSystemRoles := []client.LogtoRole{
 		{
-			ID:          "role_god",
-			Name:        "God",
+			ID:          "role_owner",
+			Name:        "Owner",
 			Description: "Highest organization role",
 		},
 		{
