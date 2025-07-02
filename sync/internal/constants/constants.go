@@ -34,12 +34,9 @@ const (
 	BackendAppName  = "backend"
 	FrontendAppName = "frontend"
 
-	// User and Organization Names
-	GodUsername        = "god"
-	GodUserEmail       = "god@nethesis.it"
-	GodUserDisplayName = "God User"
-	GodOrgName         = "God"
-	GodOrgDescription  = "God organization - complete control over commercial hierarchy"
+	// Organization Names
+	GodOrgName        = "God"
+	GodOrgDescription = "God organization - complete control over commercial hierarchy"
 
 	// Role Names
 	AdminRoleName = "Admin"

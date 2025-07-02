@@ -33,6 +33,10 @@ var (
 	initTenantID            string
 	initBackendClientID     string
 	initBackendClientSecret string
+	// God user configuration
+	initGodUsername    string
+	initGodEmail       string
+	initGodDisplayName string
 )
 
 var initCmd = &cobra.Command{
@@ -43,7 +47,7 @@ var initCmd = &cobra.Command{
 This command will:
 1. Create custom domain in Logto (e.g., your-domain.com)
 2. Create backend and frontend applications in Logto
-3. Create a god@nethesis.it account with generated password
+3. Create a god account with specified credentials and generated password
 4. Synchronize basic RBAC configuration
 5. Output environment variables and setup instructions
 
@@ -61,7 +65,7 @@ Mode 1 - Environment Variables:
   sync init
 
 Mode 2 - CLI Flags:
-  sync init --tenant-id your-tenant-id --backend-client-id your-backend-client-id --backend-client-secret your-secret --domain your-domain.com
+  sync init --tenant-id your-tenant-id --backend-client-id your-backend-client-id --backend-client-secret your-secret --domain your-domain.com --god-username god --god-email god@example.com --god-name "System Administrator"
 
 Output formats:
   sync init --output json   # JSON output for automation/CI-CD
@@ -121,6 +125,10 @@ func init() {
 	initCmd.Flags().StringVar(&initTenantID, "tenant-id", "", "Logto tenant ID (e.g., your-tenant-id)")
 	initCmd.Flags().StringVar(&initBackendClientID, "backend-client-id", "", "backend M2M application client ID")
 	initCmd.Flags().StringVar(&initBackendClientSecret, "backend-client-secret", "", "backend M2M application client secret")
+	// God user configuration flags
+	initCmd.Flags().StringVar(&initGodUsername, "god-username", "god", "God user username")
+	initCmd.Flags().StringVar(&initGodEmail, "god-email", "god@example.com", "God user email")
+	initCmd.Flags().StringVar(&initGodDisplayName, "god-name", "System Administrator", "God user display name")
 }
 
 func runInit(cmd *cobra.Command, args []string) error {
@@ -464,15 +472,15 @@ func createApplications(client *client.LogtoClient, result *InitResult, config *
 }
 
 func createGodUser(client *client.LogtoClient, result *InitResult) error {
-	logger.Info("Creating god@nethesis.it user...")
+	logger.Info("Creating God user...")
 
 	password := generateSecurePassword()
 
 	// Create user
 	userData := map[string]interface{}{
-		"username":     constants.GodUsername,
-		"primaryEmail": constants.GodUserEmail,
-		"name":         constants.GodUserDisplayName,
+		"username":     initGodUsername,
+		"primaryEmail": initGodEmail,
+		"name":         initGodDisplayName,
 	}
 
 	createdUser, err := client.CreateUser(userData)
@@ -503,8 +511,8 @@ func createGodUser(client *client.LogtoClient, result *InitResult) error {
 
 			result.GodUser = User{
 				ID:       existingUserID,
-				Username: "god",
-				Email:    "god@nethesis.it",
+				Username: initGodUsername,
+				Email:    initGodEmail,
 				Password: "[EXISTING - NOT CHANGED]",
 			}
 
@@ -523,8 +531,8 @@ func createGodUser(client *client.LogtoClient, result *InitResult) error {
 
 	result.GodUser = User{
 		ID:       userID,
-		Username: "god",
-		Email:    "god@nethesis.it",
+		Username: initGodUsername,
+		Email:    initGodEmail,
 		Password: password,
 	}
 
@@ -844,7 +852,7 @@ func assignRolesToGodUser(client *client.LogtoClient) error {
 		return fmt.Errorf("failed to get users: %w", err)
 	}
 
-	godUserID, found := client.FindEntityID(users, "username", constants.GodUsername)
+	godUserID, found := client.FindEntityID(users, "username", initGodUsername)
 	if !found {
 		return fmt.Errorf("god user not found")
 	}
