@@ -273,7 +273,7 @@ make build-all
 #### Optional
 - `JWKS_ENDPOINT`: JWT verification endpoint (auto-derived from issuer if not set)
 - `LISTEN_ADDRESS`: Server bind address (default: `127.0.0.1:8080`)
-- `JWT_ISSUER`: Custom JWT issuer (default: `my.nethesis.it`)
+- `JWT_ISSUER`: Custom JWT issuer (default: `your-api.com`)
 - `JWT_EXPIRATION`: Custom JWT expiration time (default: `24h`)
 - `LOGTO_MANAGEMENT_BASE_URL`: Management API base URL (auto-derived from issuer if not set)
 - `GIN_MODE`: Gin framework mode (`debug`, `release`, `test`)

@@ -50,7 +50,7 @@ func TestConfigurationDefaults(t *testing.T) {
 	assert.Equal(t, "test-api-resource", Config.LogtoAudience)
 	assert.Equal(t, "https://test-logto.example.com/oidc/jwks", Config.JWKSEndpoint)
 	assert.Equal(t, "test-secret-key", Config.JWTSecret)
-	assert.Equal(t, "my.nethesis.it", Config.JWTIssuer)
+	assert.Equal(t, "your-api.com", Config.JWTIssuer)
 	assert.Equal(t, "24h", Config.JWTExpiration)
 	assert.Equal(t, "168h", Config.JWTRefreshExpiration)
 	assert.Equal(t, "test-client-id", Config.LogtoManagementClientID)

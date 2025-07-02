@@ -94,7 +94,10 @@ go test ./...
      --tenant-id your-tenant-id \
      --backend-client-id your-backend-client-id \
      --backend-client-secret your-secret-here \
-     --domain your-domain.com
+     --domain your-domain.com \
+     --admin-username admin \
+     --admin-email admin@example.com \
+     --admin-name "System Administrator"
    ```
 
 3. **Copy Environment Variables**
@@ -211,13 +214,13 @@ sync init --output yaml > setup-result.yaml
 3. ✅ **Creates frontend SPA application** with correct redirect URIs:
    - Development: `http://localhost:5173/callback`
    - Production: `https://your-domain.com/callback`
-4. ✅ **Creates god@nethesis.it user** with generated secure password
+4. ✅ **Creates admin user** with configurable credentials and generated secure password
 5. ✅ **Sets up complete RBAC system**:
    - Organization scopes (create:distributors, manage:resellers, etc.)
    - Organization roles (God, Distributor, Reseller, Customer)
    - User roles (Admin, Support)
    - JIT (Just-in-Time) provisioning
-6. ✅ **Assigns roles to god user**: Admin + God organization role
+6. ✅ **Assigns roles to admin user**: Admin + God organization role
 7. ✅ **Generates all environment variables** automatically
 
 #### **JSON/YAML Output Structure**
@@ -258,10 +261,10 @@ The init command supports structured output perfect for automation and CI/CD:
       "VITE_API_BASE_URL": "https://your-domain.com/api"
     }
   },
-  "god_user": {
-    "id": "your-god-user-id",
-    "username": "god",
-    "email": "god@nethesis.it",
+  "admin_user": {
+    "id": "your-admin-user-id",
+    "username": "admin",
+    "email": "admin@example.com",
     "password": "your-generated-password"
   },
   "custom_domain": "your-domain.com",
@@ -415,6 +418,9 @@ sync sync -c config.yml --cleanup --verbose
 - `--backend-client-id`: M2M application client ID (required)
 - `--backend-client-secret`: M2M application client secret (required)
 - `--domain`: Custom domain for your deployment (required)
+- `--admin-username`: Admin user username (default: "admin")
+- `--admin-email`: Admin user email (default: "admin@example.com")
+- `--admin-name`: Admin user display name (default: "System Administrator")
 - `--force`: Force re-initialization even if already done
 - `-o, --output`: Output format (text, json, yaml) - default: text
 - `-v, --verbose`: Enable verbose output

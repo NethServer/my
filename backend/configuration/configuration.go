@@ -69,7 +69,7 @@ func Init() {
 	if os.Getenv("JWT_ISSUER") != "" {
 		Config.JWTIssuer = os.Getenv("JWT_ISSUER")
 	} else {
-		Config.JWTIssuer = "my.nethesis.it"
+		Config.JWTIssuer = "your-api.com"
 	}
 
 	if os.Getenv("JWT_EXPIRATION") != "" {

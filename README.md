@@ -196,5 +196,4 @@ See [LICENSE](./LICENSE) file for details.
 ---
 
 **🔗 Related Links**
-- [my.nethesis.it](https://my.nethesis.it) - Production application
 - [Logto Documentation](https://docs.logto.io/) - Identity provider documentation

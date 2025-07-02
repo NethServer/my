@@ -407,7 +407,7 @@ The init command performs a comprehensive setup sequence:
    - Creates frontend SPA application with correct redirect URIs:
      - Development: `http://localhost:5173/callback`
      - Production: `https://domain/callback`
-3. **God User Creation**: Creates god@nethesis.it user with secure password generation
+3. **Admin User Creation**: Creates configurable admin user with secure password generation
 4. **Complete RBAC Synchronization**:
    - Organization scopes (create:distributors, manage:resellers, etc.)
    - Organization roles (God, Distributor, Reseller, Customer)
