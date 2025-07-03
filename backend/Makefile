@@ -14,9 +14,9 @@ LDFLAGS=-ldflags "-X main.Version=$(VERSION) \
 .PHONY: all
 all: clean test build
 
-# Development server
-.PHONY: dev
-dev:
+# Run the application
+.PHONY: run
+run:
 	@echo "Starting development server..."
 	@go run main.go
 
@@ -90,25 +90,30 @@ install: build
 dev-setup:
 	@echo "Setting up development environment..."
 	@go mod download
-	@cp .env.example .env || true
+	@if [ ! -f .env ]; then \
+		echo "Creating .env from .env.example..."; \
+		cp .env.example .env; \
+	else \
+		echo ".env already exists, skipping copy"; \
+	fi
 	@echo "Development environment ready!"
 
 # Show help
 .PHONY: help
 help:
 	@echo "Available targets:"
-	@echo "  dev           - Start development server"
 	@echo "  build         - Build the binary"
 	@echo "  build-all     - Build for multiple platforms"
+	@echo "  clean         - Clean build artifacts"
+	@echo "  dev-setup     - Setup development environment"
+	@echo "  fmt           - Format code"
+	@echo "  help          - Show this help"
+	@echo "  install       - Install the binary"
+	@echo "  lint          - Run linter"
+	@echo "  run           - Start development server"
 	@echo "  test          - Run tests"
 	@echo "  test-coverage - Run tests with coverage"
-	@echo "  lint          - Run linter"
-	@echo "  fmt           - Format code"
 	@echo "  tidy          - Tidy dependencies"
-	@echo "  clean         - Clean build artifacts"
-	@echo "  install       - Install the binary"
-	@echo "  dev-setup     - Setup development environment"
-	@echo "  help          - Show this help"
 
 # Default goal
 .DEFAULT_GOAL := help

@@ -85,17 +85,18 @@ install: build
 run:
 	@go run ./$(CMD_DIR) $(ARGS)
 
-# Run with example config
-.PHONY: run-example
-run-example:
-	@go run ./$(CMD_DIR) sync -c configs/config.yml --dry-run --verbose
 
 # Development setup
 .PHONY: dev-setup
 dev-setup:
 	@echo "Setting up development environment..."
 	@go mod download
-	@cp .env.example .env || true
+	@if [ ! -f .env ]; then \
+		echo "Creating .env from .env.example..."; \
+		cp .env.example .env; \
+	else \
+		echo ".env already exists, skipping copy"; \
+	fi
 	@echo "Development environment ready!"
 
 # Show help
@@ -104,17 +105,16 @@ help:
 	@echo "Available targets:"
 	@echo "  build         - Build the binary"
 	@echo "  build-all     - Build for multiple platforms"
+	@echo "  clean         - Clean build artifacts"
+	@echo "  dev-setup     - Setup development environment"
+	@echo "  fmt           - Format code"
+	@echo "  help          - Show this help"
+	@echo "  install       - Install the binary"
+	@echo "  lint          - Run linter"
+	@echo "  run           - Run the application (use ARGS=... for arguments)"
 	@echo "  test          - Run tests"
 	@echo "  test-coverage - Run tests with coverage"
-	@echo "  lint          - Run linter"
-	@echo "  fmt           - Format code"
 	@echo "  tidy          - Tidy dependencies"
-	@echo "  clean         - Clean build artifacts"
-	@echo "  install       - Install the binary"
-	@echo "  run           - Run the application (use ARGS=... for arguments)"
-	@echo "  run-example   - Run with example config"
-	@echo "  dev-setup     - Setup development environment"
-	@echo "  help          - Show this help"
 
 # Default goal
 .DEFAULT_GOAL := help
