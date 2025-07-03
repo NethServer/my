@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/jwt"
-	"github.com/nethesis/my/backend/logs"
+	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/testutils"
 	"github.com/stretchr/testify/assert"
@@ -715,7 +715,7 @@ func setupTestEnvironment() {
 		_ = os.Setenv("BACKEND_CLIENT_SECRET", "test-client-secret")
 
 		gin.SetMode(gin.TestMode)
-		logs.Init("[TEST]")
+		_ = logger.Init(&logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat, Output: logger.StdoutOutput, AppName: "[TEST]"})
 		configuration.Init()
 
 		isTestEnvironmentSetup = true

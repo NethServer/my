@@ -12,14 +12,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/nethesis/my/backend/configuration"
-	"github.com/nethesis/my/backend/logs"
+	"github.com/nethesis/my/backend/logger"
 	"github.com/stretchr/testify/assert"
 )
 
 func setupServicesTestEnvironment() {
 	if !isServicesTestEnvironmentSetup {
 		gin.SetMode(gin.TestMode)
-		logs.Init("[SERVICES-TEST]")
+		_ = logger.Init(&logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat, Output: logger.StdoutOutput, AppName: "[SERVICES-TEST]"})
 
 		// Set test environment variables for configuration
 		_ = os.Setenv("LOGTO_ISSUER", "https://test-logto.example.com")

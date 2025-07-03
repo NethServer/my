@@ -4,13 +4,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/nethesis/my/backend/logs"
+	"github.com/nethesis/my/backend/logger"
 	"github.com/stretchr/testify/assert"
 )
 
 func setupConfigTestEnvironment() {
 	// Set test mode
-	logs.Init("[CONFIG-TEST]")
+	_ = logger.Init(&logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat, Output: logger.StdoutOutput, AppName: "[CONFIG-TEST]"})
 
 	// Clear environment variables
 	envVars := []string{
