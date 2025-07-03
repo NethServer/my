@@ -418,13 +418,13 @@ func TestOutputFunctions(t *testing.T) {
 	t.Run("text output", func(t *testing.T) {
 		// Set up environment variables for the backend app
 		result.BackendApp.EnvironmentVars = map[string]interface{}{
-			"LOGTO_ISSUER":                   "https://example.logto.app",
-			"LOGTO_AUDIENCE":                 "https://api.example.com",
-			"JWT_SECRET":                     "test-secret",
-			"LOGTO_MANAGEMENT_CLIENT_ID":     "client-id",
-			"LOGTO_MANAGEMENT_CLIENT_SECRET": "client-secret",
-			"LOGTO_MANAGEMENT_BASE_URL":      "https://example.logto.app/api",
-			"LISTEN_ADDRESS":                 "127.0.0.1:8080",
+			"LOGTO_ISSUER":              "https://example.logto.app",
+			"LOGTO_AUDIENCE":            "https://api.example.com",
+			"JWT_SECRET":                "test-secret",
+			"BACKEND_CLIENT_ID":         "client-id",
+			"BACKEND_CLIENT_SECRET":     "client-secret",
+			"LOGTO_MANAGEMENT_BASE_URL": "https://example.logto.app/api",
+			"LISTEN_ADDRESS":            "127.0.0.1:8080",
 		}
 
 		result.FrontendApp.EnvironmentVars = map[string]interface{}{
@@ -483,8 +483,8 @@ func TestDeriveEnvironmentVariables(t *testing.T) {
 			"LOGTO_ISSUER",
 			"LOGTO_AUDIENCE",
 			"LOGTO_JWKS_ENDPOINT",
-			"LOGTO_MANAGEMENT_CLIENT_ID",
-			"LOGTO_MANAGEMENT_CLIENT_SECRET",
+			"BACKEND_CLIENT_ID",
+			"BACKEND_CLIENT_SECRET",
 			"LOGTO_MANAGEMENT_BASE_URL",
 			"JWT_ISSUER",
 			"JWT_EXPIRATION",

@@ -78,8 +78,8 @@ func MockEnvironment(t *testing.T) {
 	t.Setenv("JWT_SECRET", "test-secret-key-for-testing-only")
 	t.Setenv("LOGTO_ISSUER", "https://test-logto.example.com")
 	t.Setenv("LOGTO_AUDIENCE", "test-api-resource")
-	t.Setenv("LOGTO_MANAGEMENT_CLIENT_ID", "test-client-id")
-	t.Setenv("LOGTO_MANAGEMENT_CLIENT_SECRET", "test-client-secret")
+	t.Setenv("BACKEND_CLIENT_ID", "test-client-id")
+	t.Setenv("BACKEND_CLIENT_SECRET", "test-client-secret")
 	t.Setenv("LISTEN_ADDRESS", "127.0.0.1:0") // Random port for testing
 }
 

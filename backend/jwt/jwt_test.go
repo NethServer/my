@@ -20,8 +20,8 @@ func TestMain(m *testing.M) {
 	_ = os.Setenv("JWT_REFRESH_EXPIRATION", "168h")
 	_ = os.Setenv("LOGTO_ISSUER", "https://test-logto.example.com")
 	_ = os.Setenv("LOGTO_AUDIENCE", "test-api-resource")
-	_ = os.Setenv("LOGTO_MANAGEMENT_CLIENT_ID", "test-client-id")
-	_ = os.Setenv("LOGTO_MANAGEMENT_CLIENT_SECRET", "test-client-secret")
+	_ = os.Setenv("BACKEND_CLIENT_ID", "test-client-id")
+	_ = os.Setenv("BACKEND_CLIENT_SECRET", "test-client-secret")
 
 	// Initialize configuration
 	configuration.Init()

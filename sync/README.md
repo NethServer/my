@@ -243,8 +243,8 @@ The init command supports structured output perfect for automation and CI/CD:
       "JWT_ISSUER": "your-domain.com.api",
       "JWT_EXPIRATION": "24h",
       "JWT_REFRESH_EXPIRATION": "168h",
-      "LOGTO_MANAGEMENT_CLIENT_ID": "your-backend-app-id",
-      "LOGTO_MANAGEMENT_CLIENT_SECRET": "your-generated-client-secret",
+      "BACKEND_CLIENT_ID": "your-backend-app-id",
+      "BACKEND_CLIENT_SECRET": "your-generated-client-secret",
       "LOGTO_MANAGEMENT_BASE_URL": "https://your-tenant-id.logto.app/api",
       "LISTEN_ADDRESS": "127.0.0.1:8080"
     }
@@ -315,8 +315,8 @@ LOGTO_ISSUER=https://your-tenant-id.logto.app
 LOGTO_AUDIENCE=https://your-domain.com/api
 LOGTO_JWKS_ENDPOINT=https://your-tenant-id.logto.app/oidc/jwks
 JWT_SECRET=generated-32-char-secret
-LOGTO_MANAGEMENT_CLIENT_ID=your-backend-client-id
-LOGTO_MANAGEMENT_CLIENT_SECRET=your-secret-here
+BACKEND_CLIENT_ID=your-backend-client-id
+BACKEND_CLIENT_SECRET=your-secret-here
 LOGTO_MANAGEMENT_BASE_URL=https://your-tenant-id.logto.app
 
 # Frontend configuration

@@ -247,9 +247,9 @@ func deriveEnvironmentVariables(client *client.LogtoClient, result *InitResult, 
 		"LOGTO_JWKS_ENDPOINT": baseURL + "/oidc/jwks",
 
 		// From configuration
-		"LOGTO_MANAGEMENT_CLIENT_ID":     config.BackendClientID,
-		"LOGTO_MANAGEMENT_CLIENT_SECRET": config.BackendClientSecret,
-		"LOGTO_MANAGEMENT_BASE_URL":      baseURL + "/api",
+		"BACKEND_CLIENT_ID":         config.BackendClientID,
+		"BACKEND_CLIENT_SECRET":     config.BackendClientSecret,
+		"LOGTO_MANAGEMENT_BASE_URL": baseURL + "/api",
 
 		// From provided tenant domain
 		"JWT_ISSUER":             config.TenantDomain + ".api",
@@ -1051,8 +1051,8 @@ func outputText(result *InitResult) {
 	fmt.Printf("JWT_EXPIRATION=%v\n", backendEnv["JWT_EXPIRATION"])
 	fmt.Printf("JWT_REFRESH_EXPIRATION=%v\n", backendEnv["JWT_REFRESH_EXPIRATION"])
 	fmt.Printf("\n# Logto Management API (from your M2M app)\n")
-	fmt.Printf("LOGTO_MANAGEMENT_CLIENT_ID=%v\n", backendEnv["LOGTO_MANAGEMENT_CLIENT_ID"])
-	fmt.Printf("LOGTO_MANAGEMENT_CLIENT_SECRET=%v\n", backendEnv["LOGTO_MANAGEMENT_CLIENT_SECRET"])
+	fmt.Printf("BACKEND_CLIENT_ID=%v\n", backendEnv["BACKEND_CLIENT_ID"])
+	fmt.Printf("BACKEND_CLIENT_SECRET=%v\n", backendEnv["BACKEND_CLIENT_SECRET"])
 	fmt.Printf("LOGTO_MANAGEMENT_BASE_URL=%v\n", backendEnv["LOGTO_MANAGEMENT_BASE_URL"])
 	fmt.Printf("\n# Server Configuration\n")
 	fmt.Printf("LISTEN_ADDRESS=%v\n", backendEnv["LISTEN_ADDRESS"])

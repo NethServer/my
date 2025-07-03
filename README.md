@@ -143,8 +143,8 @@ LOGTO_AUDIENCE=your-api-resource-identifier
 JWT_SECRET=your-custom-jwt-secret
 
 # Management API (Required)
-LOGTO_MANAGEMENT_CLIENT_ID=your-m2m-client-id
-LOGTO_MANAGEMENT_CLIENT_SECRET=your-m2m-secret
+BACKEND_CLIENT_ID=your-m2m-client-id
+BACKEND_CLIENT_SECRET=your-m2m-secret
 
 # Logging & Performance (Optional)
 GIN_MODE=release              # 'debug' for development

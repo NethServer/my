@@ -22,8 +22,8 @@ func setupConfigTestEnvironment() {
 		"JWT_ISSUER",
 		"JWT_EXPIRATION",
 		"JWT_REFRESH_EXPIRATION",
-		"LOGTO_MANAGEMENT_CLIENT_ID",
-		"LOGTO_MANAGEMENT_CLIENT_SECRET",
+		"BACKEND_CLIENT_ID",
+		"BACKEND_CLIENT_SECRET",
 		"LOGTO_MANAGEMENT_BASE_URL",
 	}
 
@@ -39,8 +39,8 @@ func TestConfigurationDefaults(t *testing.T) {
 	_ = os.Setenv("LOGTO_ISSUER", "https://test-logto.example.com")
 	_ = os.Setenv("LOGTO_AUDIENCE", "test-api-resource")
 	_ = os.Setenv("JWT_SECRET", "test-secret-key")
-	_ = os.Setenv("LOGTO_MANAGEMENT_CLIENT_ID", "test-client-id")
-	_ = os.Setenv("LOGTO_MANAGEMENT_CLIENT_SECRET", "test-client-secret")
+	_ = os.Setenv("BACKEND_CLIENT_ID", "test-client-id")
+	_ = os.Setenv("BACKEND_CLIENT_SECRET", "test-client-secret")
 
 	Init()
 
@@ -70,8 +70,8 @@ func TestConfigurationCustomValues(t *testing.T) {
 	_ = os.Setenv("JWT_ISSUER", "custom.example.com")
 	_ = os.Setenv("JWT_EXPIRATION", "12h")
 	_ = os.Setenv("JWT_REFRESH_EXPIRATION", "72h")
-	_ = os.Setenv("LOGTO_MANAGEMENT_CLIENT_ID", "custom-client-id")
-	_ = os.Setenv("LOGTO_MANAGEMENT_CLIENT_SECRET", "custom-client-secret")
+	_ = os.Setenv("BACKEND_CLIENT_ID", "custom-client-id")
+	_ = os.Setenv("BACKEND_CLIENT_SECRET", "custom-client-secret")
 	_ = os.Setenv("LOGTO_MANAGEMENT_BASE_URL", "https://custom-management.example.com/api")
 
 	Init()
@@ -143,8 +143,8 @@ func TestConfigurationEdgeCases(t *testing.T) {
 				_ = os.Setenv("LOGTO_ISSUER", "https://test.example.com")
 				_ = os.Setenv("LOGTO_AUDIENCE", "test-audience")
 				_ = os.Setenv("JWT_SECRET", "test-secret")
-				_ = os.Setenv("LOGTO_MANAGEMENT_CLIENT_ID", "test-id")
-				_ = os.Setenv("LOGTO_MANAGEMENT_CLIENT_SECRET", "test-secret")
+				_ = os.Setenv("BACKEND_CLIENT_ID", "test-id")
+				_ = os.Setenv("BACKEND_CLIENT_SECRET", "test-secret")
 			},
 			checkField:  func() interface{} { return Config.ListenAddress },
 			expected:    "127.0.0.1:8080",
@@ -158,8 +158,8 @@ func TestConfigurationEdgeCases(t *testing.T) {
 				_ = os.Setenv("LOGTO_ISSUER", "https://test.example.com")
 				_ = os.Setenv("LOGTO_AUDIENCE", "test-audience")
 				_ = os.Setenv("JWT_SECRET", "test-secret")
-				_ = os.Setenv("LOGTO_MANAGEMENT_CLIENT_ID", "test-id")
-				_ = os.Setenv("LOGTO_MANAGEMENT_CLIENT_SECRET", "test-secret")
+				_ = os.Setenv("BACKEND_CLIENT_ID", "test-id")
+				_ = os.Setenv("BACKEND_CLIENT_SECRET", "test-secret")
 			},
 			checkField:  func() interface{} { return Config.ListenAddress },
 			expected:    "  0.0.0.0:8080  ", // Environment variables are used as-is
@@ -184,8 +184,8 @@ func TestConfigurationInitMultipleTimes(t *testing.T) {
 	_ = os.Setenv("LOGTO_ISSUER", "https://first.example.com")
 	_ = os.Setenv("LOGTO_AUDIENCE", "first-audience")
 	_ = os.Setenv("JWT_SECRET", "first-secret")
-	_ = os.Setenv("LOGTO_MANAGEMENT_CLIENT_ID", "first-id")
-	_ = os.Setenv("LOGTO_MANAGEMENT_CLIENT_SECRET", "first-secret")
+	_ = os.Setenv("BACKEND_CLIENT_ID", "first-id")
+	_ = os.Setenv("BACKEND_CLIENT_SECRET", "first-secret")
 
 	Init()
 	firstIssuer := Config.LogtoIssuer

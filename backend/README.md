@@ -267,8 +267,8 @@ make build-all
 - `LOGTO_ISSUER`: Your Logto instance URL (e.g., `https://your-logto.logto.app`)
 - `LOGTO_AUDIENCE`: API resource identifier configured in Logto
 - `JWT_SECRET`: Secret key for signing custom JWT tokens (required for token exchange)
-- `LOGTO_MANAGEMENT_CLIENT_ID`: Management API machine-to-machine app client ID
-- `LOGTO_MANAGEMENT_CLIENT_SECRET`: Management API machine-to-machine app secret
+- `BACKEND_CLIENT_ID`: Management API machine-to-machine app client ID
+- `BACKEND_CLIENT_SECRET`: Management API machine-to-machine app secret
 
 #### Optional
 - `JWKS_ENDPOINT`: JWT verification endpoint (auto-derived from issuer if not set)
@@ -569,7 +569,7 @@ CORS is configured for development with permissive settings. For production, con
 
 #### **Token Exchange Issues**
 1. **Management API Connection Fails**
-   - Check `LOGTO_MANAGEMENT_CLIENT_ID` and `LOGTO_MANAGEMENT_CLIENT_SECRET`
+   - Check `BACKEND_CLIENT_ID` and `BACKEND_CLIENT_SECRET`
    - Verify Machine-to-Machine app has all Management API permissions
    - Check network connectivity to Logto instance
 
