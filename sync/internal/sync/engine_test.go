@@ -58,8 +58,8 @@ func TestNewEngine(t *testing.T) {
 }
 
 func TestEngineAddOperation(t *testing.T) {
-	// Initialize logger for testing
-	logger.Init(logger.InfoLevel)
+	// Initialize logger for testing - suppress all logs during tests
+	logger.SetLevel("fatal")
 
 	logtoClient := &client.LogtoClient{}
 	engine := NewEngine(logtoClient, &Options{})
