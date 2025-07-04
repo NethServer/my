@@ -27,6 +27,7 @@ A comprehensive CLI tool for **complete Logto setup** and **RBAC synchronization
 - 🔍 **Security Features**: Automatic sensitive data redaction in logs
 - 🎯 **Output Separation**: Clean command output (stdout) separate from logging (stderr)
 - 🏗️ **CI/CD Ready**: Structured JSON/YAML output with organized environment variables
+- 🧩 **Modular Architecture**: Clean separation of concerns with comprehensive test coverage
 
 ## System Requirements
 
@@ -642,9 +643,24 @@ make fmt                           # Format code (required for CI)
 # Direct Go commands for specific needs
 go test ./internal/config          # Test config package only
 go test ./internal/sync            # Test sync engine only
+go test ./internal/cli             # Test all CLI commands
+go test ./internal/cli/initcmd     # Test init command modules only
+go test ./internal/cli/syncmd      # Test sync command modules only
 go test -v ./...                   # Verbose test output
 go test -race ./...                # Race condition detection
+
+# Test specific functionality
+go test ./internal/sync -run "TestUtils"              # Test utility functions
+go test ./internal/sync -run "TestEngine"             # Test engine functionality
+go test ./internal/cli/initcmd -run "TestRBAC"        # Test RBAC setup
+go test ./internal/cli/syncmd -run "TestValidation"   # Test sync validation
 ```
+
+**Test Structure:**
+- **Unit tests**: Each module has comprehensive test coverage
+- **Integration tests**: CLI commands tested end-to-end
+- **Mock testing**: External dependencies mocked for reliable testing
+- **Edge case testing**: Error conditions and boundary cases covered
 
 Coverage reports are generated in `coverage.out` and uploaded as GitHub Actions artifacts for CI tracking.
 
@@ -664,12 +680,59 @@ git commit -m "your commit message"
 
 **Note**: The CI pipeline will fail if code is not properly formatted with `gofmt -s`.
 
+### Modular Architecture
+
+The project follows a clean modular architecture with clear separation of concerns:
+
+#### **CLI Command Structure**
+- **Orchestrator files** (`init.go`, `sync.go`): Main command logic and flag definition
+- **Module directories** (`initcmd/`, `syncmd/`): Specialized functionality broken into logical modules
+- **Comprehensive testing**: Each module has dedicated test files with full coverage
+
+#### **Adding New Functionality**
+```bash
+# For init command enhancements
+vim internal/cli/initcmd/              # Add functionality to appropriate module
+vim internal/cli/initcmd/*_test.go     # Add comprehensive tests
+
+# For sync command enhancements
+vim internal/cli/syncmd/               # Add functionality to appropriate module
+vim internal/cli/syncmd/*_test.go      # Add comprehensive tests
+
+# Always run tests after changes
+make test fmt
+```
+
+#### **Module Responsibilities**
+- **`config.go`**: Configuration loading and validation
+- **`client.go`**: Logto client management and API calls
+- **`validation.go`**: Input validation and prerequisite checks
+- **`output.go`**: Output formatting (text, JSON, YAML)
+- **`utils.go`**: Utility functions and helpers
+- **`rbac.go`**: RBAC setup and role management (init only)
+- **`user.go`**: User creation and management (init only)
+
 ### Project Structure
 
 ```
 ├── cmd/sync/             # CLI entry point
 ├── internal/
 │   ├── cli/              # CLI commands and flags
+│   │   ├── initcmd/      # Init command modular implementation
+│   │   │   ├── config.go # Configuration validation and processing
+│   │   │   ├── client.go # Logto client creation and testing
+│   │   │   ├── rbac.go   # RBAC setup and organization management
+│   │   │   ├── user.go   # User creation and management
+│   │   │   └── utils.go  # Utility functions (password generation, etc.)
+│   │   ├── syncmd/       # Sync command modular implementation
+│   │   │   ├── config.go # Configuration loading and validation
+│   │   │   ├── client.go # Logto client management
+│   │   │   ├── validation.go # Initialization validation
+│   │   │   ├── output.go # Output formatting (text, JSON, YAML)
+│   │   │   └── utils.go  # Utility functions
+│   │   ├── init.go       # Init command orchestrator
+│   │   ├── sync.go       # Sync command orchestrator
+│   │   └── root.go       # Root command and global configuration
 │   ├── client/           # Logto API client with structured logging
 │   ├── config/           # Configuration loading and validation
 │   ├── constants/        # Shared constants (timeouts, TTL values)

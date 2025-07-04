@@ -35,6 +35,7 @@ Go-based REST API featuring:
 ### sync CLI
 RBAC management tool featuring:
 - **Configuration Management**: Simplified YAML-based role and permission definitions with business/technical separation
+- **Modular Architecture**: Clean separation of concerns with comprehensive test coverage and specialized command modules
 - **Logging**: Structured zerolog-based system with component isolation and security-first design
 - **Safety Features**: Comprehensive dry-run mode, system entity protection, and validation workflows
 - **Performance**: Optimized permission synchronization with deduplication and caching utilities
@@ -137,31 +138,40 @@ accountsGroup.POST("", methods.CreateAccount) // Business rule validation in han
 ### Backend Configuration
 Environment variables for production deployment:
 ```bash
-# Authentication (Required)
-LOGTO_ISSUER=https://your-logto-instance.logto.app
-LOGTO_AUDIENCE=your-api-resource-identifier
-JWT_SECRET=your-custom-jwt-secret
+# Logto Authentication (auto-derived)
+LOGTO_ISSUER=https://your-tenant-id.logto.app
+LOGTO_AUDIENCE=https://your-domain.com/api
+LOGTO_JWKS_ENDPOINT=https://your-tenant-id.logto.app/oidc/jwks
 
-# Management API (Required)
-BACKEND_CLIENT_ID=your-m2m-client-id
-BACKEND_CLIENT_SECRET=your-m2m-secret
+# Custom JWT Configuration (for legacy endpoints)
+JWT_SECRET=your-super-secret-jwt-signing-key
+JWT_ISSUER=your-domain.com.api
+JWT_EXPIRATION=24h
+JWT_REFRESH_EXPIRATION=168h
 
-# Logging & Performance (Optional)
-GIN_MODE=release              # 'debug' for development
-LOG_LEVEL=info                # debug, info, warn, error
-LISTEN_ADDRESS=127.0.0.1:8080 # Server bind address
+# Logto Management API (from your M2M app)
+BACKEND_CLIENT_ID=your-management-api-client-id
+BACKEND_CLIENT_SECRET=your-management-api-client-secret
+LOGTO_MANAGEMENT_BASE_URL=https://your-tenant-id.logto.app/api
+
+# Server Configuration
+LISTEN_ADDRESS=127.0.0.1:8080
 ```
 
 ### sync Tool Configuration
-Environment variables and YAML configuration:
+Environment variables for production deployment:
 ```bash
-# Logto Management API (Required)
-LOGTO_BASE_URL=https://your-logto-instance.logto.app
-LOGTO_CLIENT_ID=your-m2m-client-id
-LOGTO_CLIENT_SECRET=your-m2m-secret
+# Required for both 'sync init' and 'sync sync' commands
+TENANT_ID=your-tenant-id
+BACKEND_CLIENT_ID=your-backend-m2m-client-id
+BACKEND_CLIENT_SECRET=your-backend-m2m-client-secret
 
-# Logging (Optional)
-LOG_LEVEL=info               # debug, info, warn, error, fatal
+# Required for 'sync init' command only
+TENANT_DOMAIN=your-domain.com
+
+# Optional Configuration
+API_BASE_URL=http://localhost:8080
+LOG_LEVEL=info
 ```
 
 ### Key Requirements
