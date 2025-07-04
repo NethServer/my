@@ -11,32 +11,46 @@ package cli
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/nethesis/my/sync/internal/client"
-	"github.com/nethesis/my/sync/internal/config"
+	"github.com/nethesis/my/sync/internal/cli/syncmd"
 	"github.com/nethesis/my/sync/internal/logger"
 	"github.com/nethesis/my/sync/internal/sync"
 )
 
 var syncCmd = &cobra.Command{
 	Use:   "sync",
-	Short: "Synchronize configuration with Logto",
-	Long: `Synchronize RBAC configuration from YAML file to Logto.
+	Short: "🔄 Synchronize RBAC configuration with Logto",
+	Long: `🔄 Synchronize RBAC configuration from YAML file to Logto
 
-This command will:
-1. Load the configuration from the specified YAML file
-2. Connect to Logto using environment variables
-3. Synchronize resources, roles, and permissions
-4. Report any changes made
+📋 WHAT THIS COMMAND DOES:
+  📖 Load the configuration from the specified YAML file
+  🔗 Connect to Logto using environment variables
+  🔄 Synchronize resources, roles, and permissions
+  📊 Report any changes made
 
-Examples:
-  sync sync -c config.yml
-  sync sync --dry-run --verbose
-  sync sync --output json`,
+⚠️  REQUIREMENTS:
+  🔧 Properly initialized Logto instance (run 'sync init' first)
+  🔑 Valid environment variables (TENANT_ID, BACKEND_CLIENT_ID, etc.)
+
+📝 EXAMPLES:
+  sync sync -c config.yml                   # 🔄 Standard sync
+  sync sync --dry-run --verbose             # 👀 Preview changes
+  sync sync --output json                   # 🤖 JSON output
+  sync sync --force --cleanup               # ⚠️  Force sync with cleanup
+
+📤 OUTPUT FORMATS:
+  sync sync --output text   # 📖 Human-readable output (default)
+  sync sync --output json   # 🤖 JSON output for automation
+  sync sync --output yaml   # 📋 YAML output for configuration
+
+🚨 DANGEROUS OPTIONS:
+  --cleanup                 # 🗑️  Remove undefined resources (PERMANENT!)
+  --force                   # ⚡ Skip validation checks
+
+💡 TIP: Always use --dry-run first to preview changes before applying them.`,
 	RunE: runSync,
 }
 
@@ -64,57 +78,21 @@ func runSync(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("environment validation failed: %w", err)
 	}
 
-	// Load configuration
-	configFile := cfgFile
-	if configFile == "" {
-		configFile = viper.ConfigFileUsed()
-	}
-
-	if configFile == "" {
-		return fmt.Errorf("no configuration file specified or found")
-	}
-
-	logger.Info("Loading configuration from: %s", configFile)
-	cfg, err := config.LoadFromFile(configFile)
+	// Load and validate configuration
+	cfg, err := syncmd.LoadAndValidateConfig(cfgFile)
 	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
+		return err
 	}
 
-	// Log configuration loading with structured data
-	resourceCount := len(cfg.Hierarchy.Resources)
-	roleCount := len(cfg.Hierarchy.UserRoles) + len(cfg.Hierarchy.OrganizationRoles)
-
-	// Validate configuration
-	if err := cfg.Validate(); err != nil && !viper.GetBool("force") {
-		logger.LogConfigLoad(configFile, resourceCount, roleCount, false)
-		return fmt.Errorf("configuration validation failed: %w", err)
+	// Create and test Logto client
+	logtoClient, err := syncmd.CreateLogtoClient()
+	if err != nil {
+		return err
 	}
 
-	logger.LogConfigLoad(configFile, resourceCount, roleCount, true)
-
-	// Create Logto client using derived base URL
-	tenantID := os.Getenv("TENANT_ID")
-	baseURL := fmt.Sprintf("https://%s.logto.app", tenantID)
-
-	logtoClient := client.NewLogtoClient(
-		baseURL,
-		os.Getenv("BACKEND_CLIENT_ID"),
-		os.Getenv("BACKEND_CLIENT_SECRET"),
-	)
-
-	// Test connection
-	logger.Info("Testing connection to Logto...")
-	if err := logtoClient.TestConnection(); err != nil {
-		return fmt.Errorf("failed to connect to Logto: %w", err)
-	}
-
-	// Check if Logto is properly initialized for Nethesis Operation Center
-	if initialized, err := checkLogtoInitialization(logtoClient); err != nil {
-		logger.Warn("Could not check initialization status: %v", err)
-	} else if !initialized {
-		logger.Warn("Logto does not appear to be initialized for Nethesis Operation Center")
-		logger.Info("Run 'sync init' first to set up applications and users")
-		return fmt.Errorf("initialization required - run 'sync init' first")
+	// Validate Logto initialization
+	if err := syncmd.ValidateInitialization(logtoClient); err != nil {
+		return err
 	}
 
 	// Create sync engine
@@ -125,7 +103,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 		SkipRoles:       viper.GetBool("skip-roles"),
 		SkipPermissions: viper.GetBool("skip-permissions"),
 		Cleanup:         viper.GetBool("cleanup"),
-		APIBaseURL:      getAPIBaseURL(),
+		APIBaseURL:      syncmd.GetAPIBaseURL(),
 	})
 
 	// Run synchronization
@@ -136,7 +114,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 	}
 
 	// Output results
-	if err := outputResult(result); err != nil {
+	if err := syncmd.OutputResult(result); err != nil {
 		return fmt.Errorf("failed to output results: %w", err)
 	}
 
@@ -147,63 +125,4 @@ func runSync(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
-}
-
-func getAPIBaseURL() string {
-	apiBaseURL := os.Getenv("API_BASE_URL")
-	if apiBaseURL == "" {
-		apiBaseURL = "http://localhost:8080"
-	}
-	return apiBaseURL
-}
-
-func outputResult(result *sync.Result) error {
-	format := viper.GetString("output")
-
-	switch format {
-	case "json":
-		return result.OutputJSON(os.Stdout)
-	case "yaml":
-		return result.OutputYAML(os.Stdout)
-	default:
-		return result.OutputText(os.Stdout)
-	}
-}
-
-func checkLogtoInitialization(client *client.LogtoClient) (bool, error) {
-	// Check if backend and frontend applications exist
-	backendClientID := os.Getenv("BACKEND_CLIENT_ID")
-
-	apps, err := client.GetApplications()
-	if err != nil {
-		return false, err
-	}
-
-	backendExists := false
-	frontendExists := false
-
-	for _, app := range apps {
-		if appID, ok := app["id"].(string); ok && appID == backendClientID {
-			backendExists = true
-		}
-		if name, ok := app["name"].(string); ok && name == "frontend" {
-			frontendExists = true
-		}
-	}
-
-	// Check if owner user exists
-	users, err := client.GetUsers()
-	if err != nil {
-		return false, err
-	}
-
-	ownerExists := false
-	for _, user := range users {
-		if username, ok := user["username"].(string); ok && username == "owner" {
-			ownerExists = true
-			break
-		}
-	}
-
-	return backendExists && frontendExists && ownerExists, nil
 }

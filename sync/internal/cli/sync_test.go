@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nethesis/my/sync/internal/cli/syncmd"
 	"github.com/nethesis/my/sync/internal/client"
 	"github.com/nethesis/my/sync/internal/sync"
 )
@@ -24,8 +25,8 @@ import (
 func TestSyncCommand(t *testing.T) {
 	t.Run("command structure", func(t *testing.T) {
 		assert.Equal(t, "sync", syncCmd.Use)
-		assert.Equal(t, "Synchronize configuration with Logto", syncCmd.Short)
-		assert.Contains(t, syncCmd.Long, "Synchronize RBAC configuration")
+		assert.Equal(t, "🔄 Synchronize RBAC configuration with Logto", syncCmd.Short)
+		assert.Contains(t, syncCmd.Long, "Synchronize RBAC configuration from YAML file to Logto")
 		assert.NotNil(t, syncCmd.RunE)
 	})
 
@@ -77,7 +78,7 @@ func TestGetAPIBaseURL(t *testing.T) {
 	t.Run("default URL when env not set", func(t *testing.T) {
 		_ = os.Unsetenv("API_BASE_URL")
 
-		result := getAPIBaseURL()
+		result := syncmd.GetAPIBaseURL()
 		assert.Equal(t, "http://localhost:8080", result)
 	})
 
@@ -85,14 +86,14 @@ func TestGetAPIBaseURL(t *testing.T) {
 		customURL := "https://api.example.com"
 		_ = os.Setenv("API_BASE_URL", customURL)
 
-		result := getAPIBaseURL()
+		result := syncmd.GetAPIBaseURL()
 		assert.Equal(t, customURL, result)
 	})
 
 	t.Run("empty env variable uses default", func(t *testing.T) {
 		_ = os.Setenv("API_BASE_URL", "")
 
-		result := getAPIBaseURL()
+		result := syncmd.GetAPIBaseURL()
 		assert.Equal(t, "http://localhost:8080", result)
 	})
 }
@@ -341,7 +342,7 @@ func TestTenantURLConstruction(t *testing.T) {
 	})
 
 	t.Run("API base URL construction", func(t *testing.T) {
-		// Test the getAPIBaseURL function behavior
-		assert.Equal(t, "http://localhost:8080", getAPIBaseURL())
+		// Test the GetAPIBaseURL function behavior
+		assert.Equal(t, "http://localhost:8080", syncmd.GetAPIBaseURL())
 	})
 }
