@@ -53,18 +53,21 @@ type Result struct {
 
 // Summary contains a summary of changes
 type Summary struct {
-	ResourcesCreated   int `json:"resources_created" yaml:"resources_created"`
-	ResourcesUpdated   int `json:"resources_updated" yaml:"resources_updated"`
-	ResourcesDeleted   int `json:"resources_deleted" yaml:"resources_deleted"`
-	RolesCreated       int `json:"roles_created" yaml:"roles_created"`
-	RolesUpdated       int `json:"roles_updated" yaml:"roles_updated"`
-	RolesDeleted       int `json:"roles_deleted" yaml:"roles_deleted"`
-	PermissionsCreated int `json:"permissions_created" yaml:"permissions_created"`
-	PermissionsUpdated int `json:"permissions_updated" yaml:"permissions_updated"`
-	PermissionsDeleted int `json:"permissions_deleted" yaml:"permissions_deleted"`
-	ScopesCreated      int `json:"scopes_created" yaml:"scopes_created"`
-	ScopesUpdated      int `json:"scopes_updated" yaml:"scopes_updated"`
-	ScopesDeleted      int `json:"scopes_deleted" yaml:"scopes_deleted"`
+	ResourcesCreated    int `json:"resources_created" yaml:"resources_created"`
+	ResourcesUpdated    int `json:"resources_updated" yaml:"resources_updated"`
+	ResourcesDeleted    int `json:"resources_deleted" yaml:"resources_deleted"`
+	RolesCreated        int `json:"roles_created" yaml:"roles_created"`
+	RolesUpdated        int `json:"roles_updated" yaml:"roles_updated"`
+	RolesDeleted        int `json:"roles_deleted" yaml:"roles_deleted"`
+	PermissionsCreated  int `json:"permissions_created" yaml:"permissions_created"`
+	PermissionsUpdated  int `json:"permissions_updated" yaml:"permissions_updated"`
+	PermissionsDeleted  int `json:"permissions_deleted" yaml:"permissions_deleted"`
+	ScopesCreated       int `json:"scopes_created" yaml:"scopes_created"`
+	ScopesUpdated       int `json:"scopes_updated" yaml:"scopes_updated"`
+	ScopesDeleted       int `json:"scopes_deleted" yaml:"scopes_deleted"`
+	ApplicationsCreated int `json:"applications_created" yaml:"applications_created"`
+	ApplicationsUpdated int `json:"applications_updated" yaml:"applications_updated"`
+	ApplicationsDeleted int `json:"applications_deleted" yaml:"applications_deleted"`
 }
 
 // Operation represents a single operation performed
@@ -148,6 +151,13 @@ func (e *Engine) Sync(cfg *config.Config) (*Result, error) {
 		}
 	}
 
+	// Sync third-party applications
+	if len(cfg.Hierarchy.ThirdPartyApps) > 0 {
+		if err := e.syncThirdPartyApplications(cfg, result); err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("Third-party applications sync failed: %v", err))
+		}
+	}
+
 	result.EndTime = time.Now()
 	result.Duration = result.EndTime.Sub(result.StartTime)
 	result.Success = len(result.Errors) == 0
@@ -197,8 +207,10 @@ func (r *Result) OutputText(w io.Writer) error {
 		r.Summary.RolesCreated, r.Summary.RolesUpdated, r.Summary.RolesDeleted)
 	_, _ = fmt.Fprintf(w, "  Permissions: %d created, %d updated, %d deleted\n",
 		r.Summary.PermissionsCreated, r.Summary.PermissionsUpdated, r.Summary.PermissionsDeleted)
-	_, _ = fmt.Fprintf(w, "  Scopes: %d created, %d updated, %d deleted\n\n",
+	_, _ = fmt.Fprintf(w, "  Scopes: %d created, %d updated, %d deleted\n",
 		r.Summary.ScopesCreated, r.Summary.ScopesUpdated, r.Summary.ScopesDeleted)
+	_, _ = fmt.Fprintf(w, "  Applications: %d created, %d updated, %d deleted\n\n",
+		r.Summary.ApplicationsCreated, r.Summary.ApplicationsUpdated, r.Summary.ApplicationsDeleted)
 
 	if len(r.Errors) > 0 {
 		_, _ = fmt.Fprintf(w, "Errors:\n")

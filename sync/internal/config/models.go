@@ -29,9 +29,10 @@ type Metadata struct {
 
 // Hierarchy contains the RBAC hierarchy configuration
 type Hierarchy struct {
-	OrganizationRoles []Role     `yaml:"organization_roles" json:"organization_roles"`
-	UserRoles         []Role     `yaml:"user_roles" json:"user_roles"`
-	Resources         []Resource `yaml:"resources" json:"resources"`
+	OrganizationRoles []Role        `yaml:"organization_roles" json:"organization_roles"`
+	UserRoles         []Role        `yaml:"user_roles" json:"user_roles"`
+	Resources         []Resource    `yaml:"resources" json:"resources"`
+	ThirdPartyApps    []Application `yaml:"third_party_apps,omitempty" json:"third_party_apps,omitempty"`
 }
 
 // Role represents a role with permissions
@@ -53,6 +54,16 @@ type Permission struct {
 type Resource struct {
 	Name    string   `yaml:"name" json:"name"`
 	Actions []string `yaml:"actions" json:"actions"`
+}
+
+// Application represents a third-party application configuration
+type Application struct {
+	Name                   string   `yaml:"name" json:"name"`                                                               // FQDN of the application
+	Description            string   `yaml:"description" json:"description"`                                                 // Description of the application
+	DisplayName            string   `yaml:"display_name" json:"display_name"`                                               // Display name for branding
+	Scopes                 []string `yaml:"scopes,omitempty" json:"scopes,omitempty"`                                       // Custom scopes (optional)
+	RedirectUris           []string `yaml:"redirect_uris,omitempty" json:"redirect_uris,omitempty"`                         // Redirect URIs for OAuth flow
+	PostLogoutRedirectUris []string `yaml:"post_logout_redirect_uris,omitempty" json:"post_logout_redirect_uris,omitempty"` // Post logout redirect URIs
 }
 
 // Validate validates the configuration
@@ -107,6 +118,19 @@ func (c *Config) Validate() error {
 	// Validate permission references
 	if err := c.validatePermissionReferences(); err != nil {
 		return fmt.Errorf("permission reference validation failed: %w", err)
+	}
+
+	// Validate third-party apps
+	appNames := make(map[string]bool)
+	for _, app := range c.Hierarchy.ThirdPartyApps {
+		if err := c.validateApplication(app); err != nil {
+			return fmt.Errorf("third-party app validation failed: %w", err)
+		}
+
+		if appNames[app.Name] {
+			return fmt.Errorf("duplicate third-party app name: %s", app.Name)
+		}
+		appNames[app.Name] = true
 	}
 
 	return nil
@@ -224,6 +248,48 @@ func (c *Config) isSystemPermission(permissionID string) bool {
 	}
 
 	return false
+}
+
+func (c *Config) validateApplication(app Application) error {
+	if app.Name == "" {
+		return fmt.Errorf("application name is required")
+	}
+
+	if app.Description == "" {
+		return fmt.Errorf("application description is required for app %s", app.Name)
+	}
+
+	if app.DisplayName == "" {
+		return fmt.Errorf("application display_name is required for app %s", app.Name)
+	}
+
+	// Validate scopes if provided
+	if len(app.Scopes) > 0 {
+		scopeMap := make(map[string]bool)
+		for _, scope := range app.Scopes {
+			if scope == "" {
+				return fmt.Errorf("empty scope in application %s", app.Name)
+			}
+
+			if scopeMap[scope] {
+				return fmt.Errorf("duplicate scope %s in application %s", scope, app.Name)
+			}
+			scopeMap[scope] = true
+		}
+	}
+
+	return nil
+}
+
+// GetDefaultScopes returns the default scopes for third-party applications
+func (c *Config) GetDefaultScopes() []string {
+	return []string{
+		"profile",
+		"email",
+		"roles",
+		"urn:logto:scope:organizations",
+		"urn:logto:scope:organization_roles",
+	}
 }
 
 // GetUserTypeRoles returns only roles with type "user" or empty type

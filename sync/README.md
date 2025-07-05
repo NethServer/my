@@ -14,6 +14,7 @@ CLI tool for complete Logto setup and RBAC synchronization. Provides zero-to-pro
 - **Simplified RBAC Sync**: Clear separation between business hierarchy and technical capabilities
 - **Business Hierarchy**: Organization roles (Owner, Distributor, Reseller, Customer)
 - **Technical Capabilities**: User roles (Admin, Support)
+- **Third-Party Apps**: Automatic creation and management of external applications
 - **Dry Run Mode**: Preview changes before applying
 - **Cleanup Mode**: Remove resources/roles not in config
 
@@ -190,6 +191,28 @@ hierarchy:
   resources:
     - name: "systems"
       actions: ["read", "manage", "admin", "destroy"]
+  
+  # Third-party applications (optional)
+  third_party_apps:
+    - name: "example.company.com"
+      description: "Example third-party application"
+      display_name: "Example App"
+      # OAuth redirect URIs (required for authentication flow)
+      redirect_uris:
+        - "https://example.company.com/callback"
+        - "https://example.company.com/auth/callback"
+      # Post logout redirect URIs (optional)
+      post_logout_redirect_uris:
+        - "https://example.company.com"
+        - "https://example.company.com/logout"
+      # Optional custom scopes (default: profile, email, roles, urn:logto:scope:organizations, urn:logto:scope:organization_roles)
+      # scopes:
+      #   - "profile"
+      #   - "email"
+      #   - "roles"
+      #   - "urn:logto:scope:organizations"
+      #   - "urn:logto:scope:organization_roles"
+      #   - "custom:scope"
 ```
 
 ## Development

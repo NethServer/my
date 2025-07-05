@@ -319,3 +319,130 @@ func (c *LogtoClient) CreateDomain(domain map[string]interface{}) (map[string]in
 
 	return result, c.handleResponse(resp, http.StatusCreated, &result)
 }
+
+// ThirdPartyApplication represents a third-party application
+type ThirdPartyApplication struct {
+	ID                 string              `json:"id,omitempty"`
+	Name               string              `json:"name"`
+	Type               string              `json:"type"`
+	Description        string              `json:"description"`
+	IsThirdParty       bool                `json:"isThirdParty"`
+	OidcClientMetadata *OidcClientMetadata `json:"oidcClientMetadata,omitempty"`
+}
+
+// OidcClientMetadata represents OIDC client metadata
+type OidcClientMetadata struct {
+	RedirectUris           []string `json:"redirectUris,omitempty"`
+	PostLogoutRedirectUris []string `json:"postLogoutRedirectUris,omitempty"`
+}
+
+// ApplicationSignInExperience represents application sign-in experience settings
+type ApplicationSignInExperience struct {
+	DisplayName string `json:"displayName"`
+}
+
+// GetThirdPartyApplications retrieves only third-party applications (isThirdParty: true)
+func (c *LogtoClient) GetThirdPartyApplications() ([]ThirdPartyApplication, error) {
+	resp, err := c.makeRequest("GET", "/api/applications", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var allApps []ThirdPartyApplication
+	if err := c.handlePaginatedResponse(resp, &allApps); err != nil {
+		return nil, err
+	}
+
+	// Filter only third-party applications
+	var thirdPartyApps []ThirdPartyApplication
+	for _, app := range allApps {
+		if app.IsThirdParty {
+			thirdPartyApps = append(thirdPartyApps, app)
+		}
+	}
+
+	logger.Debug("Found %d third-party applications out of %d total applications", len(thirdPartyApps), len(allApps))
+	return thirdPartyApps, nil
+}
+
+// CreateThirdPartyApplication creates a new third-party application
+func (c *LogtoClient) CreateThirdPartyApplication(app ThirdPartyApplication) (ThirdPartyApplication, error) {
+	resp, err := c.makeRequest("POST", "/api/applications", app)
+	if err != nil {
+		return ThirdPartyApplication{}, err
+	}
+
+	var result ThirdPartyApplication
+	// Some Logto instances return 200 instead of 201 for creation
+	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
+		return result, c.handleResponse(resp, resp.StatusCode, &result)
+	}
+
+	return result, c.handleResponse(resp, http.StatusCreated, &result)
+}
+
+// UpdateThirdPartyApplication updates an existing third-party application
+func (c *LogtoClient) UpdateThirdPartyApplication(appID string, app ThirdPartyApplication) error {
+	resp, err := c.makeRequest("PATCH", "/api/applications/"+appID, app)
+	if err != nil {
+		return err
+	}
+
+	return c.handleResponse(resp, http.StatusOK, nil)
+}
+
+// UpdateThirdPartyApplicationScopes updates third-party application scopes
+func (c *LogtoClient) UpdateThirdPartyApplicationScopes(appID string, scopes []string) error {
+	if len(scopes) == 0 {
+		logger.Debug("No scopes provided for application %s, skipping", appID)
+		return nil
+	}
+
+	payload := map[string]interface{}{
+		"userScopes": scopes,
+	}
+
+	resp, err := c.makeRequest("POST", "/api/applications/"+appID+"/user-consent-scopes", payload)
+	if err != nil {
+		return err
+	}
+
+	// Check for various success codes and handle errors gracefully
+	if resp.StatusCode == 404 || resp.StatusCode == 405 || resp.StatusCode == 422 {
+		_ = resp.Body.Close()
+		logger.Debug("User consent scopes not supported for application %s (status: %d), skipping", appID, resp.StatusCode)
+		return nil
+	}
+
+	return c.handleResponse(resp, http.StatusCreated, nil)
+}
+
+// UpdateThirdPartyApplicationBranding updates third-party application branding
+func (c *LogtoClient) UpdateThirdPartyApplicationBranding(appID, displayName string) error {
+	payload := ApplicationSignInExperience{
+		DisplayName: displayName,
+	}
+
+	resp, err := c.makeRequest("PUT", "/api/applications/"+appID+"/sign-in-experience", payload)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode == 405 {
+		_ = resp.Body.Close()
+		logger.Debug("Branding not supported for application %s, skipping", appID)
+		return nil
+	}
+
+	return c.handleCreationResponse(resp, nil)
+}
+
+// DeleteThirdPartyApplication deletes a third-party application
+func (c *LogtoClient) DeleteThirdPartyApplication(appID string) error {
+	resp, err := c.makeRequest("DELETE", "/api/applications/"+appID, nil)
+	if err != nil {
+		return err
+	}
+
+	return c.handleResponse(resp, http.StatusNoContent, nil)
+}

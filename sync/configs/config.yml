@@ -85,3 +85,18 @@ hierarchy:
     - name: "customers"
       actions: ["create", "manage"]
 
+  # Third-party applications
+  third_party_apps:
+    - name: "example.company.com"
+      description: "Example third-party application"
+      display_name: "Example App"
+      redirect_uris:
+        - "https://example.company.com/callback"
+        - "https://example.company.com/auth/callback"
+      post_logout_redirect_uris:
+        - "https://example.company.com"
+        - "https://example.company.com/logout"
+      # scopes:
+      #   - "profile"
+      #   - "email"
+      #   - "custom:scope"
