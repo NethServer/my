@@ -6,7 +6,6 @@
 <script setup lang="ts">
 import { NeInlineNotification } from '@nethesis/vue-components'
 import { NeModal } from '@nethesis/vue-components'
-import { watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { deleteReseller, type Reseller } from '@/lib/resellers'
@@ -55,15 +54,10 @@ const {
   onSettled: () => queryCache.invalidateQueries({ key: ['resellers'] }),
 })
 
-watch(
-  () => visible,
-  () => {
-    if (visible) {
-      // clear error
-      deleteResellerReset()
-    }
-  },
-)
+function onShow() {
+  // clear error
+  deleteResellerReset()
+}
 </script>
 
 <template>
@@ -79,6 +73,7 @@ watch(
     :close-aria-label="$t('common.close')"
     @close="emit('close')"
     @primary-click="deleteResellerMutate(reseller!)"
+    @show="onShow"
   >
     <p>
       {{ t('resellers.delete_reseller_confirmation', { name: reseller?.name }) }}

@@ -6,7 +6,6 @@
 <script setup lang="ts">
 import { NeInlineNotification } from '@nethesis/vue-components'
 import { NeModal } from '@nethesis/vue-components'
-import { watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { deleteCustomer, type Customer } from '@/lib/customers'
@@ -55,15 +54,10 @@ const {
   onSettled: () => queryCache.invalidateQueries({ key: ['customers'] }),
 })
 
-watch(
-  () => visible,
-  () => {
-    if (visible) {
-      // clear error
-      deleteCustomerReset()
-    }
-  },
-)
+function onShow() {
+  // clear error
+  deleteCustomerReset()
+}
 </script>
 
 <template>
@@ -79,6 +73,7 @@ watch(
     :close-aria-label="$t('common.close')"
     @close="emit('close')"
     @primary-click="deleteCustomerMutate(customer!)"
+    @show="onShow"
   >
     <p>
       {{ t('customers.delete_customer_confirmation', { name: customer?.name }) }}
