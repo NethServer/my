@@ -711,8 +711,8 @@ func setupTestEnvironment() {
 		_ = os.Setenv("JWT_REFRESH_EXPIRATION", "168h")
 		_ = os.Setenv("LOGTO_ISSUER", "https://test-logto.example.com")
 		_ = os.Setenv("LOGTO_AUDIENCE", "test-api-resource")
-		_ = os.Setenv("BACKEND_CLIENT_ID", "test-client-id")
-		_ = os.Setenv("BACKEND_CLIENT_SECRET", "test-client-secret")
+		_ = os.Setenv("BACKEND_APP_ID", "test-client-id")
+		_ = os.Setenv("BACKEND_APP_SECRET", "test-client-secret")
 
 		gin.SetMode(gin.TestMode)
 		_ = logger.Init(&logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat, Output: logger.StdoutOutput, AppName: "[TEST]"})

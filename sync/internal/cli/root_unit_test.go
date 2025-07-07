@@ -79,7 +79,7 @@ func TestExecute(t *testing.T) {
 func TestInitConfig(t *testing.T) {
 	// Save original environment
 	originalEnvs := make(map[string]string)
-	envVars := []string{"LOG_LEVEL", "TENANT_ID", "BACKEND_CLIENT_ID", "BACKEND_CLIENT_SECRET"}
+	envVars := []string{"LOG_LEVEL", "TENANT_ID", "BACKEND_APP_ID", "BACKEND_APP_SECRET"}
 	for _, env := range envVars {
 		originalEnvs[env] = os.Getenv(env)
 	}
@@ -148,7 +148,7 @@ func TestInitConfig(t *testing.T) {
 func TestValidateEnvironment(t *testing.T) {
 	// Save original environment
 	originalEnvs := make(map[string]string)
-	requiredVars := []string{"TENANT_ID", "BACKEND_CLIENT_ID", "BACKEND_CLIENT_SECRET"}
+	requiredVars := []string{"TENANT_ID", "BACKEND_APP_ID", "BACKEND_APP_SECRET"}
 	for _, env := range requiredVars {
 		originalEnvs[env] = os.Getenv(env)
 	}
@@ -166,8 +166,8 @@ func TestValidateEnvironment(t *testing.T) {
 
 	t.Run("all environment variables set", func(t *testing.T) {
 		_ = os.Setenv("TENANT_ID", "test-tenant")
-		_ = os.Setenv("BACKEND_CLIENT_ID", "test-client")
-		_ = os.Setenv("BACKEND_CLIENT_SECRET", "test-secret")
+		_ = os.Setenv("BACKEND_APP_ID", "test-client")
+		_ = os.Setenv("BACKEND_APP_SECRET", "test-secret")
 
 		err := validateEnvironment()
 		assert.NoError(t, err)
@@ -175,8 +175,8 @@ func TestValidateEnvironment(t *testing.T) {
 
 	t.Run("missing TENANT_ID", func(t *testing.T) {
 		_ = os.Unsetenv("TENANT_ID")
-		_ = os.Setenv("BACKEND_CLIENT_ID", "test-client")
-		_ = os.Setenv("BACKEND_CLIENT_SECRET", "test-secret")
+		_ = os.Setenv("BACKEND_APP_ID", "test-client")
+		_ = os.Setenv("BACKEND_APP_SECRET", "test-secret")
 
 		err := validateEnvironment()
 		assert.Error(t, err)
@@ -184,24 +184,24 @@ func TestValidateEnvironment(t *testing.T) {
 		assert.Contains(t, err.Error(), "not set")
 	})
 
-	t.Run("missing BACKEND_CLIENT_ID", func(t *testing.T) {
+	t.Run("missing BACKEND_APP_ID", func(t *testing.T) {
 		_ = os.Setenv("TENANT_ID", "test-tenant")
-		_ = os.Unsetenv("BACKEND_CLIENT_ID")
-		_ = os.Setenv("BACKEND_CLIENT_SECRET", "test-secret")
+		_ = os.Unsetenv("BACKEND_APP_ID")
+		_ = os.Setenv("BACKEND_APP_SECRET", "test-secret")
 
 		err := validateEnvironment()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "BACKEND_CLIENT_ID")
+		assert.Contains(t, err.Error(), "BACKEND_APP_ID")
 	})
 
-	t.Run("missing BACKEND_CLIENT_SECRET", func(t *testing.T) {
+	t.Run("missing BACKEND_APP_SECRET", func(t *testing.T) {
 		_ = os.Setenv("TENANT_ID", "test-tenant")
-		_ = os.Setenv("BACKEND_CLIENT_ID", "test-client")
-		_ = os.Unsetenv("BACKEND_CLIENT_SECRET")
+		_ = os.Setenv("BACKEND_APP_ID", "test-client")
+		_ = os.Unsetenv("BACKEND_APP_SECRET")
 
 		err := validateEnvironment()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "BACKEND_CLIENT_SECRET")
+		assert.Contains(t, err.Error(), "BACKEND_APP_SECRET")
 	})
 
 	t.Run("all missing", func(t *testing.T) {
@@ -217,8 +217,8 @@ func TestValidateEnvironment(t *testing.T) {
 
 	t.Run("empty strings", func(t *testing.T) {
 		_ = os.Setenv("TENANT_ID", "")
-		_ = os.Setenv("BACKEND_CLIENT_ID", "test-client")
-		_ = os.Setenv("BACKEND_CLIENT_SECRET", "test-secret")
+		_ = os.Setenv("BACKEND_APP_ID", "test-client")
+		_ = os.Setenv("BACKEND_APP_SECRET", "test-secret")
 
 		err := validateEnvironment()
 		assert.Error(t, err)

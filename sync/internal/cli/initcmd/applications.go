@@ -82,8 +82,8 @@ func CreateApplications(client *client.LogtoClient, config *InitConfig) (*Applic
 	logger.Info("Creating Logto applications...")
 
 	// Verify backend M2M application exists (must be created manually first)
-	backendClientID := config.BackendClientID
-	backendClientSecret := config.BackendClientSecret
+	backendAppID := config.BackendAppID
+	backendAppSecret := config.BackendAppSecret
 
 	apps, err := client.GetApplications()
 	if err != nil {
@@ -92,14 +92,14 @@ func CreateApplications(client *client.LogtoClient, config *InitConfig) (*Applic
 
 	var backendApp *Application
 	for _, app := range apps {
-		if appID, ok := app["id"].(string); ok && appID == backendClientID {
+		if appID, ok := app["id"].(string); ok && appID == backendAppID {
 			if name, ok := app["name"].(string); ok {
 				backendApp = &Application{
 					ID:           appID,
 					Name:         name,
 					Type:         "MachineToMachine",
 					ClientID:     appID,
-					ClientSecret: backendClientSecret,
+					ClientSecret: backendAppSecret,
 				}
 				logger.Info("Verified backend M2M application: %s (%s)", name, appID)
 				break
@@ -109,7 +109,7 @@ func CreateApplications(client *client.LogtoClient, config *InitConfig) (*Applic
 
 	if backendApp == nil {
 		return nil, nil, fmt.Errorf("backend M2M application with ID '%s' not found in Logto.\n"+
-			"Please create a Machine-to-Machine application named 'backend' and update your .env file", backendClientID)
+			"Please create a Machine-to-Machine application named 'backend' and update your .env file", backendAppID)
 	}
 
 	logger.Info("Backend M2M app ready: %s", backendApp.Name)
@@ -186,8 +186,8 @@ func DeriveEnvironmentVariables(config *InitConfig, backendApp, frontendApp *App
 		"LOGTO_JWKS_ENDPOINT": baseURL + "/oidc/jwks",
 
 		// From configuration
-		"BACKEND_CLIENT_ID":         config.BackendClientID,
-		"BACKEND_CLIENT_SECRET":     config.BackendClientSecret,
+		"BACKEND_APP_ID":            config.BackendAppID,
+		"BACKEND_APP_SECRET":        config.BackendAppSecret,
 		"LOGTO_MANAGEMENT_BASE_URL": baseURL + "/api",
 
 		// From provided tenant domain
@@ -234,7 +234,7 @@ func CheckIfAlreadyInitialized(client *client.LogtoClient, config *InitConfig) (
 	}
 
 	// Check if backend M2M application exists (using credentials from config)
-	backendClientID := config.BackendClientID
+	backendAppID := config.BackendAppID
 
 	apps, err := client.GetApplications()
 	if err != nil {
@@ -245,7 +245,7 @@ func CheckIfAlreadyInitialized(client *client.LogtoClient, config *InitConfig) (
 	frontendExists := false
 
 	for _, app := range apps {
-		if appID, ok := app["id"].(string); ok && appID == backendClientID {
+		if appID, ok := app["id"].(string); ok && appID == backendAppID {
 			backendExists = true
 		}
 		if name, ok := app["name"].(string); ok && name == constants.FrontendAppName {

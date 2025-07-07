@@ -85,16 +85,16 @@ func Init() {
 	}
 
 	// Logto Management API configuration
-	if os.Getenv("BACKEND_CLIENT_ID") != "" {
-		Config.LogtoManagementClientID = os.Getenv("BACKEND_CLIENT_ID")
+	if os.Getenv("BACKEND_APP_ID") != "" {
+		Config.LogtoManagementClientID = os.Getenv("BACKEND_APP_ID")
 	} else {
-		logger.LogConfigLoad("env", "BACKEND_CLIENT_ID", false, fmt.Errorf("BACKEND_CLIENT_ID variable is empty"))
+		logger.LogConfigLoad("env", "BACKEND_APP_ID", false, fmt.Errorf("BACKEND_APP_ID variable is empty"))
 	}
 
-	if os.Getenv("BACKEND_CLIENT_SECRET") != "" {
-		Config.LogtoManagementClientSecret = os.Getenv("BACKEND_CLIENT_SECRET")
+	if os.Getenv("BACKEND_APP_SECRET") != "" {
+		Config.LogtoManagementClientSecret = os.Getenv("BACKEND_APP_SECRET")
 	} else {
-		logger.LogConfigLoad("env", "BACKEND_CLIENT_SECRET", false, fmt.Errorf("BACKEND_CLIENT_SECRET variable is empty"))
+		logger.LogConfigLoad("env", "BACKEND_APP_SECRET", false, fmt.Errorf("BACKEND_APP_SECRET variable is empty"))
 	}
 
 	if os.Getenv("LOGTO_MANAGEMENT_BASE_URL") != "" {

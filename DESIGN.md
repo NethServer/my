@@ -381,14 +381,14 @@ The sync tool now provides complete zero-to-production deployment via the `init`
 # Complete Logto initialization from scratch
 sync init \
   --tenant-id your-tenant-id \
-  --backend-client-id your-backend-client-id \
-  --backend-client-secret your-secret-here \
+  --backend-app-id your-backend-app-id \
+  --backend-app-secret your-secret-here \
   --domain your-domain.com
 
 # Alternative: Environment variables mode
 export TENANT_ID=your-tenant-id
-export BACKEND_CLIENT_ID=your-backend-client-id
-export BACKEND_CLIENT_SECRET=your-secret-here
+export BACKEND_APP_ID=your-backend-app-id
+export BACKEND_APP_SECRET=your-secret-here
 export TENANT_DOMAIN=your-domain.com
 sync init
 
@@ -424,8 +424,8 @@ LOGTO_ISSUER=https://your-tenant-id.logto.app
 LOGTO_AUDIENCE=https://your-domain.com/api
 LOGTO_JWKS_ENDPOINT=https://your-tenant-id.logto.app/oidc/jwks
 JWT_SECRET=generated-32-char-secret
-BACKEND_CLIENT_ID=your-backend-client-id
-BACKEND_CLIENT_SECRET=your-secret-here
+BACKEND_APP_ID=your-backend-app-id
+BACKEND_APP_SECRET=your-secret-here
 LOGTO_MANAGEMENT_BASE_URL=https://your-tenant-id.logto.app
 
 # Frontend Configuration

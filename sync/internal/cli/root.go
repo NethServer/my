@@ -109,8 +109,8 @@ func initConfig() {
 func validateEnvironment() error {
 	required := []string{
 		"TENANT_ID",
-		"BACKEND_CLIENT_ID",
-		"BACKEND_CLIENT_SECRET",
+		"BACKEND_APP_ID",
+		"BACKEND_APP_SECRET",
 	}
 
 	for _, env := range required {

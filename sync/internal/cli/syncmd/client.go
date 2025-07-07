@@ -25,8 +25,8 @@ func CreateLogtoClient() (*client.LogtoClient, error) {
 
 	logtoClient := client.NewLogtoClient(
 		baseURL,
-		os.Getenv("BACKEND_CLIENT_ID"),
-		os.Getenv("BACKEND_CLIENT_SECRET"),
+		os.Getenv("BACKEND_APP_ID"),
+		os.Getenv("BACKEND_APP_SECRET"),
 	)
 
 	// Test connection

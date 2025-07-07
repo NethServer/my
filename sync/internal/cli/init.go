@@ -20,11 +20,11 @@ import (
 )
 
 var (
-	initForce               bool
-	initDomain              string
-	initTenantID            string
-	initBackendClientID     string
-	initBackendClientSecret string
+	initForce            bool
+	initDomain           string
+	initTenantID         string
+	initBackendAppID     string
+	initBackendAppSecret string
 	// Owner user configuration
 	initOwnerUsername    string
 	initOwnerEmail       string
@@ -50,8 +50,8 @@ var initCmd = &cobra.Command{
 
 🔤 Mode 1 - Environment Variables:
   TENANT_ID=your-tenant-id
-  BACKEND_CLIENT_ID=your-backend-client-id
-  BACKEND_CLIENT_SECRET=your-secret
+  BACKEND_APP_ID=your-backend-app-id
+  BACKEND_APP_SECRET=your-secret
   TENANT_DOMAIN=your-domain.com
 
   sync init
@@ -59,8 +59,8 @@ var initCmd = &cobra.Command{
 🚩 Mode 2 - CLI Flags:
   sync init \
     --tenant-id your-tenant-id \
-    --backend-client-id your-backend-client-id \
-    --backend-client-secret your-secret \
+    --backend-app-id your-backend-app-id \
+    --backend-app-secret your-secret \
     --domain your-domain.com \
     --owner-username owner \
     --owner-email owner@example.com \
@@ -83,8 +83,8 @@ func init() {
 	initCmd.Flags().BoolVar(&initForce, "force", false, "force re-initialization even if already done")
 	initCmd.Flags().StringVar(&initDomain, "domain", "", "tenant domain (e.g., your-domain.com)")
 	initCmd.Flags().StringVar(&initTenantID, "tenant-id", "", "Logto tenant ID (e.g., your-tenant-id)")
-	initCmd.Flags().StringVar(&initBackendClientID, "backend-client-id", "", "backend M2M application client ID")
-	initCmd.Flags().StringVar(&initBackendClientSecret, "backend-client-secret", "", "backend M2M application client secret")
+	initCmd.Flags().StringVar(&initBackendAppID, "backend-app-id", "", "backend M2M application ID")
+	initCmd.Flags().StringVar(&initBackendAppSecret, "backend-app-secret", "", "backend M2M application secret")
 	// Owner user configuration flags
 	initCmd.Flags().StringVar(&initOwnerUsername, "owner-username", "owner", "Owner user username")
 	initCmd.Flags().StringVar(&initOwnerEmail, "owner-email", "owner@example.com", "Owner user email")
@@ -93,7 +93,7 @@ func init() {
 
 func runInit(cmd *cobra.Command, args []string) error {
 	// Determine configuration mode and validate parameters
-	config, err := initcmd.ValidateAndGetConfig(initTenantID, initBackendClientID, initBackendClientSecret, initDomain)
+	config, err := initcmd.ValidateAndGetConfig(initTenantID, initBackendAppID, initBackendAppSecret, initDomain)
 	if err != nil {
 		return err
 	}
@@ -106,8 +106,8 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	logtoClient := client.NewLogtoClient(
 		baseURL,
-		config.BackendClientID,
-		config.BackendClientSecret,
+		config.BackendAppID,
+		config.BackendAppSecret,
 	)
 
 	// Test connection
@@ -141,7 +141,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 			"Copy the environment variables to your .env files",
 			"Start your backend: cd backend && go run main.go",
 			"Start your frontend with the Logto configuration",
-			"Login with the admin credentials provided",
+			"Login with the owner credentials provided",
 			"Use 'sync sync' to update RBAC configuration when needed",
 		},
 	}

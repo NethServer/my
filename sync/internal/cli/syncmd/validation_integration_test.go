@@ -18,24 +18,24 @@ import (
 
 func TestCheckLogtoInitialization(t *testing.T) {
 	// Save original environment
-	originalClientID := os.Getenv("BACKEND_CLIENT_ID")
+	originalClientID := os.Getenv("BACKEND_APP_ID")
 	defer func() {
 		if originalClientID == "" {
-			_ = os.Unsetenv("BACKEND_CLIENT_ID")
+			_ = os.Unsetenv("BACKEND_APP_ID")
 		} else {
-			_ = os.Setenv("BACKEND_CLIENT_ID", originalClientID)
+			_ = os.Setenv("BACKEND_APP_ID", originalClientID)
 		}
 	}()
 
 	t.Run("initialization check logic", func(t *testing.T) {
 		// Set test environment
-		_ = os.Setenv("BACKEND_CLIENT_ID", "test-backend-client")
+		_ = os.Setenv("BACKEND_APP_ID", "test-backend-client")
 
 		// Note: We can't easily test this without a real or mocked Logto client
 		// since it makes actual API calls. For now we just verify the environment
 		// variable is set correctly for the validation logic.
 
-		backendClientID := os.Getenv("BACKEND_CLIENT_ID")
+		backendClientID := os.Getenv("BACKEND_APP_ID")
 		assert.Equal(t, "test-backend-client", backendClientID)
 
 		// The actual function call would require a real client
@@ -45,9 +45,9 @@ func TestCheckLogtoInitialization(t *testing.T) {
 
 	t.Run("validate initialization environment setup", func(t *testing.T) {
 		// Test the environment variable requirement
-		_ = os.Setenv("BACKEND_CLIENT_ID", "test-backend")
+		_ = os.Setenv("BACKEND_APP_ID", "test-backend")
 
-		backendClientID := os.Getenv("BACKEND_CLIENT_ID")
+		backendClientID := os.Getenv("BACKEND_APP_ID")
 		assert.NotEmpty(t, backendClientID)
 		assert.Equal(t, "test-backend", backendClientID)
 	})

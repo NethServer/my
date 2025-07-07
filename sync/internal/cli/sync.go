@@ -33,7 +33,7 @@ var syncCmd = &cobra.Command{
 
 ⚠️  REQUIREMENTS:
   🔧 Properly initialized Logto instance (run 'sync init' first)
-  🔑 Valid environment variables (TENANT_ID, BACKEND_CLIENT_ID, etc.)
+  🔑 Valid environment variables (TENANT_ID, BACKEND_APP_ID, etc.)
 
 📝 EXAMPLES:
   sync sync -c config.yml                   # 🔄 Standard sync

@@ -25,8 +25,8 @@ func setupServicesTestEnvironment() {
 		_ = os.Setenv("LOGTO_ISSUER", "https://test-logto.example.com")
 		_ = os.Setenv("LOGTO_AUDIENCE", "test-api-resource")
 		_ = os.Setenv("JWT_SECRET", "test-secret-key")
-		_ = os.Setenv("BACKEND_CLIENT_ID", "test-client-id")
-		_ = os.Setenv("BACKEND_CLIENT_SECRET", "test-client-secret")
+		_ = os.Setenv("BACKEND_APP_ID", "test-client-id")
+		_ = os.Setenv("BACKEND_APP_SECRET", "test-client-secret")
 		_ = os.Setenv("LOGTO_MANAGEMENT_BASE_URL", "https://test-logto.example.com/api")
 
 		configuration.Init()

@@ -19,7 +19,7 @@ import (
 func TestCreateLogtoClient(t *testing.T) {
 	// Save original environment variables
 	originalEnvs := make(map[string]string)
-	envVars := []string{"TENANT_ID", "BACKEND_CLIENT_ID", "BACKEND_CLIENT_SECRET"}
+	envVars := []string{"TENANT_ID", "BACKEND_APP_ID", "BACKEND_APP_SECRET"}
 	for _, env := range envVars {
 		originalEnvs[env] = os.Getenv(env)
 	}
@@ -38,8 +38,8 @@ func TestCreateLogtoClient(t *testing.T) {
 	t.Run("creates client with valid environment variables", func(t *testing.T) {
 		// Set test environment variables
 		_ = os.Setenv("TENANT_ID", "test-tenant")
-		_ = os.Setenv("BACKEND_CLIENT_ID", "test-client-id")
-		_ = os.Setenv("BACKEND_CLIENT_SECRET", "test-secret")
+		_ = os.Setenv("BACKEND_APP_ID", "test-client-id")
+		_ = os.Setenv("BACKEND_APP_SECRET", "test-secret")
 
 		// Note: This will fail with actual connection test, but we can test the client creation logic
 		client, err := CreateLogtoClient()
@@ -53,14 +53,14 @@ func TestCreateLogtoClient(t *testing.T) {
 	t.Run("client creation structure", func(t *testing.T) {
 		// Set test environment variables
 		_ = os.Setenv("TENANT_ID", "test-tenant")
-		_ = os.Setenv("BACKEND_CLIENT_ID", "test-client")
-		_ = os.Setenv("BACKEND_CLIENT_SECRET", "test-secret")
+		_ = os.Setenv("BACKEND_APP_ID", "test-client")
+		_ = os.Setenv("BACKEND_APP_SECRET", "test-secret")
 
 		// We can't easily test the actual client creation without mocking,
 		// but we can verify the environment variables are read correctly
 		tenantID := os.Getenv("TENANT_ID")
-		clientID := os.Getenv("BACKEND_CLIENT_ID")
-		secret := os.Getenv("BACKEND_CLIENT_SECRET")
+		clientID := os.Getenv("BACKEND_APP_ID")
+		secret := os.Getenv("BACKEND_APP_SECRET")
 
 		assert.Equal(t, "test-tenant", tenantID)
 		assert.Equal(t, "test-client", clientID)

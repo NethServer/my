@@ -17,10 +17,10 @@ import (
 
 func TestDeriveEnvironmentVariables(t *testing.T) {
 	config := &InitConfig{
-		TenantID:            "test-tenant",
-		TenantDomain:        "example.com",
-		BackendClientID:     "backend-client",
-		BackendClientSecret: "backend-secret",
+		TenantID:         "test-tenant",
+		TenantDomain:     "example.com",
+		BackendAppID:     "backend-client",
+		BackendAppSecret: "backend-secret",
 	}
 
 	backendApp := &Application{
@@ -49,8 +49,8 @@ func TestDeriveEnvironmentVariables(t *testing.T) {
 			"LOGTO_ISSUER",
 			"LOGTO_AUDIENCE",
 			"LOGTO_JWKS_ENDPOINT",
-			"BACKEND_CLIENT_ID",
-			"BACKEND_CLIENT_SECRET",
+			"BACKEND_APP_ID",
+			"BACKEND_APP_SECRET",
 			"LOGTO_MANAGEMENT_BASE_URL",
 			"JWT_ISSUER",
 			"JWT_EXPIRATION",

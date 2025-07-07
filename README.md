@@ -46,8 +46,8 @@ LOGTO_AUDIENCE=https://your-domain.com/api
 JWT_SECRET=your-super-secret-jwt-signing-key
 
 # Management API
-BACKEND_CLIENT_ID=your-management-api-client-id
-BACKEND_CLIENT_SECRET=your-management-api-client-secret
+BACKEND_APP_ID=your-management-api-app-id
+BACKEND_APP_SECRET=your-management-api-app-secret
 
 # Server
 LISTEN_ADDRESS=127.0.0.1:8080
@@ -57,8 +57,8 @@ LISTEN_ADDRESS=127.0.0.1:8080
 ```bash
 # Required
 TENANT_ID=your-tenant-id
-BACKEND_CLIENT_ID=your-backend-m2m-client-id
-BACKEND_CLIENT_SECRET=your-backend-m2m-client-secret
+BACKEND_APP_ID=your-backend-m2m-app-id
+BACKEND_APP_SECRET=your-backend-m2m-app-secret
 
 # For 'sync init' command only
 TENANT_DOMAIN=your-domain.com

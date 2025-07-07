@@ -20,7 +20,7 @@ import (
 func TestValidateAndGetConfig(t *testing.T) {
 	// Save original environment
 	originalEnvs := make(map[string]string)
-	envVars := []string{"TENANT_ID", "BACKEND_CLIENT_ID", "BACKEND_CLIENT_SECRET", "TENANT_DOMAIN"}
+	envVars := []string{"TENANT_ID", "BACKEND_APP_ID", "BACKEND_APP_SECRET", "TENANT_DOMAIN"}
 	for _, env := range envVars {
 		originalEnvs[env] = os.Getenv(env)
 	}
@@ -47,8 +47,8 @@ func TestValidateAndGetConfig(t *testing.T) {
 
 		assert.Equal(t, "cli-tenant", config.TenantID)
 		assert.Equal(t, "cli-domain.com", config.TenantDomain)
-		assert.Equal(t, "cli-client", config.BackendClientID)
-		assert.Equal(t, "cli-secret", config.BackendClientSecret)
+		assert.Equal(t, "cli-client", config.BackendAppID)
+		assert.Equal(t, "cli-secret", config.BackendAppSecret)
 		assert.Equal(t, "cli", config.Mode)
 	})
 
@@ -68,16 +68,16 @@ func TestValidateAndGetConfig(t *testing.T) {
 		// Set environment variables
 		_ = os.Setenv("TENANT_ID", "env-tenant")
 		_ = os.Setenv("TENANT_DOMAIN", "env-domain.com")
-		_ = os.Setenv("BACKEND_CLIENT_ID", "env-client")
-		_ = os.Setenv("BACKEND_CLIENT_SECRET", "env-secret")
+		_ = os.Setenv("BACKEND_APP_ID", "env-client")
+		_ = os.Setenv("BACKEND_APP_SECRET", "env-secret")
 
 		config, err := ValidateAndGetConfig("", "", "", "")
 		require.NoError(t, err)
 
 		assert.Equal(t, "env-tenant", config.TenantID)
 		assert.Equal(t, "env-domain.com", config.TenantDomain)
-		assert.Equal(t, "env-client", config.BackendClientID)
-		assert.Equal(t, "env-secret", config.BackendClientSecret)
+		assert.Equal(t, "env-client", config.BackendAppID)
+		assert.Equal(t, "env-secret", config.BackendAppSecret)
 		assert.Equal(t, "env", config.Mode)
 	})
 
@@ -97,8 +97,8 @@ func TestValidateAndGetConfig(t *testing.T) {
 		// Set environment variables
 		_ = os.Setenv("TENANT_ID", "env-tenant")
 		_ = os.Setenv("TENANT_DOMAIN", "env-domain.com")
-		_ = os.Setenv("BACKEND_CLIENT_ID", "env-client")
-		_ = os.Setenv("BACKEND_CLIENT_SECRET", "env-secret")
+		_ = os.Setenv("BACKEND_APP_ID", "env-client")
+		_ = os.Setenv("BACKEND_APP_SECRET", "env-secret")
 
 		// Override with CLI flags
 		config, err := ValidateAndGetConfig("cli-tenant", "cli-client", "cli-secret", "cli-domain.com")
@@ -107,8 +107,8 @@ func TestValidateAndGetConfig(t *testing.T) {
 		// Should use CLI values, not environment
 		assert.Equal(t, "cli-tenant", config.TenantID)
 		assert.Equal(t, "cli-domain.com", config.TenantDomain)
-		assert.Equal(t, "cli-client", config.BackendClientID)
-		assert.Equal(t, "cli-secret", config.BackendClientSecret)
+		assert.Equal(t, "cli-client", config.BackendAppID)
+		assert.Equal(t, "cli-secret", config.BackendAppSecret)
 		assert.Equal(t, "cli", config.Mode)
 	})
 }
@@ -116,17 +116,17 @@ func TestValidateAndGetConfig(t *testing.T) {
 func TestInitConfig(t *testing.T) {
 	t.Run("InitConfig structure", func(t *testing.T) {
 		config := InitConfig{
-			TenantID:            "test-tenant",
-			TenantDomain:        "test-domain.com",
-			BackendClientID:     "test-client",
-			BackendClientSecret: "test-secret",
-			Mode:                "cli",
+			TenantID:         "test-tenant",
+			TenantDomain:     "test-domain.com",
+			BackendAppID:     "test-client",
+			BackendAppSecret: "test-secret",
+			Mode:             "cli",
 		}
 
 		assert.Equal(t, "test-tenant", config.TenantID)
 		assert.Equal(t, "test-domain.com", config.TenantDomain)
-		assert.Equal(t, "test-client", config.BackendClientID)
-		assert.Equal(t, "test-secret", config.BackendClientSecret)
+		assert.Equal(t, "test-client", config.BackendAppID)
+		assert.Equal(t, "test-secret", config.BackendAppSecret)
 		assert.Equal(t, "cli", config.Mode)
 	})
 }

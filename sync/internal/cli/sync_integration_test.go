@@ -166,12 +166,12 @@ func TestOutputResult(t *testing.T) {
 
 func TestCheckLogtoInitialization(t *testing.T) {
 	// Save original environment
-	originalClientID := os.Getenv("BACKEND_CLIENT_ID")
+	originalClientID := os.Getenv("BACKEND_APP_ID")
 	defer func() {
 		if originalClientID == "" {
-			_ = os.Unsetenv("BACKEND_CLIENT_ID")
+			_ = os.Unsetenv("BACKEND_APP_ID")
 		} else {
-			_ = os.Setenv("BACKEND_CLIENT_ID", originalClientID)
+			_ = os.Setenv("BACKEND_APP_ID", originalClientID)
 		}
 	}()
 
@@ -179,20 +179,20 @@ func TestCheckLogtoInitialization(t *testing.T) {
 	_ = &client.LogtoClient{}
 
 	t.Run("missing backend client ID env var", func(t *testing.T) {
-		_ = os.Unsetenv("BACKEND_CLIENT_ID")
+		_ = os.Unsetenv("BACKEND_APP_ID")
 
 		// This test is complex because it requires a real client implementation
 		// We'll test the environment variable requirement
-		backendClientID := os.Getenv("BACKEND_CLIENT_ID")
+		backendClientID := os.Getenv("BACKEND_APP_ID")
 		assert.Empty(t, backendClientID)
 
 		// The function would fail because it can't find the backend client ID
 	})
 
 	t.Run("backend client ID set", func(t *testing.T) {
-		_ = os.Setenv("BACKEND_CLIENT_ID", "test-backend-client")
+		_ = os.Setenv("BACKEND_APP_ID", "test-backend-client")
 
-		backendClientID := os.Getenv("BACKEND_CLIENT_ID")
+		backendClientID := os.Getenv("BACKEND_APP_ID")
 		assert.Equal(t, "test-backend-client", backendClientID)
 
 		// The function would use this ID to check for the backend app
@@ -249,7 +249,7 @@ func TestSyncCommandFlags(t *testing.T) {
 func TestSyncCommandValidation(t *testing.T) {
 	// Save original environment
 	originalEnvs := make(map[string]string)
-	envVars := []string{"TENANT_ID", "BACKEND_CLIENT_ID", "BACKEND_CLIENT_SECRET"}
+	envVars := []string{"TENANT_ID", "BACKEND_APP_ID", "BACKEND_APP_SECRET"}
 	for _, env := range envVars {
 		originalEnvs[env] = os.Getenv(env)
 	}

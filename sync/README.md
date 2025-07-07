@@ -48,12 +48,12 @@ go install github.com/nethesis/sync/cmd/sync@latest
 
    ./build/sync init \
      --tenant-id your-tenant-id \
-     --backend-client-id your-backend-client-id \
-     --backend-client-secret your-secret-here \
+     --backend-app-id your-backend-app-id \
+     --backend-app-secret your-secret-here \
      --domain your-domain.com \
-     --admin-username admin \
-     --admin-email admin@example.com \
-     --admin-name "System Administrator"
+     --owner-username owner \
+     --owner-email owner@example.com \
+     --owner-name "System Owner"
    ```
 
 3. **Copy Environment Variables**
@@ -79,7 +79,7 @@ cp configs/config.yml my-config.yml
 
 ```bash
 # Complete Logto initialization
-sync init --tenant-id your-tenant-id --backend-client-id your-backend-client-id --backend-client-secret your-secret --domain your-domain.com --admin-username admin --admin-email admin@example.com
+sync init --tenant-id your-tenant-id --backend-app-id your-backend-app-id --backend-app-secret your-secret --domain your-domain.com --owner-username owner --owner-email owner@example.com
 
 # RBAC sync with default config
 sync sync
@@ -102,9 +102,9 @@ Zero-to-production setup:
 # CLI flags (recommended)
 sync init \
   --tenant-id your-tenant-id \
-  --backend-client-id your-backend-client-id \
-  --backend-client-secret your-secret-here \
-  --domain your-domain.com
+  --backend-app-id your-backend-app-id \
+  --backend-app-secret your-secret-here \
+  --domain your-domain.com  # Custom domain for Logto authentication
 
 # JSON output for automation
 sync init --output json > setup-result.json
@@ -117,7 +117,7 @@ sync init --force
 1. Creates custom domain in Logto
 2. Verifies backend M2M application
 3. Creates frontend SPA application
-4. Creates admin user with secure password
+4. Creates owner user with secure password
 5. Sets up complete RBAC system
 6. Generates all environment variables
 
@@ -144,12 +144,12 @@ sync sync --skip-resources --skip-roles
 
 **Init Command:**
 - `--tenant-id`: Logto tenant identifier (required)
-- `--backend-client-id`: M2M app client ID (required)
-- `--backend-client-secret`: M2M app secret (required)
-- `--domain`: Custom domain (required)
-- `--admin-username`: Admin user username (default: "admin")
-- `--admin-email`: Admin user email (default: "admin@example.com")
-- `--admin-name`: Admin user display name (default: "System Administrator")
+- `--backend-app-id`: M2M application ID (required)
+- `--backend-app-secret`: M2M application secret (required)
+- `--domain`: Custom domain for Logto authentication (required, e.g., auth.yourcompany.com)
+- `--owner-username`: Owner user username (default: "owner")
+- `--owner-email`: Owner user email (default: "owner@example.com")
+- `--owner-name`: Owner user display name (default: "System Owner")
 - `--force`: Force re-initialization
 - `-o, --output`: Output format (text, json, yaml)
 
@@ -257,12 +257,12 @@ go test ./internal/config
 # 1. Initialize everything
 sync init \
   --tenant-id your-tenant-id \
-  --backend-client-id your-backend-client-id \
-  --backend-client-secret your-secret-here \
+  --backend-app-id your-backend-app-id \
+  --backend-app-secret your-secret-here \
   --domain your-domain.com \
-  --admin-username admin \
-  --admin-email admin@example.com \
-  --admin-name "System Administrator"
+  --owner-username owner \
+  --owner-email owner@example.com \
+  --owner-name "System Owner"
 
 # 2. Copy environment variables to backend/.env
 # 3. Start backend: cd backend && make dev

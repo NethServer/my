@@ -26,8 +26,8 @@ LOGTO_AUDIENCE=your-api-resource-identifier
 JWT_SECRET=your-custom-jwt-secret
 
 # Management API
-BACKEND_CLIENT_ID=your-m2m-client-id
-BACKEND_CLIENT_SECRET=your-m2m-secret
+BACKEND_APP_ID=your-m2m-app-id
+BACKEND_APP_SECRET=your-m2m-secret
 ```
 
 ### Optional Environment Variables
