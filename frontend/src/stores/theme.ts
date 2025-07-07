@@ -1,14 +1,15 @@
 //  Copyright (C) 2025 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useLoginStore } from './login'
-import { getPreference, getStringFromStorage, savePreference } from '@nethesis/vue-components'
+import { getPreference, savePreference } from '@nethesis/vue-components'
 
 type Theme = 'light' | 'dark' | 'system'
 
 export const useThemeStore = defineStore('theme', () => {
+  const loginStore = useLoginStore()
   const theme = ref('system')
 
   // returns false if current theme is 'dark'; returns true if theme = 'light' or the system-preferred color scheme is light
@@ -28,11 +29,21 @@ export const useThemeStore = defineStore('theme', () => {
     }
   })
 
+  watch(
+    () => loginStore.userInfo?.username,
+    (username) => {
+      if (username) {
+        loadTheme()
+      }
+    },
+    { immediate: true },
+  )
+
   function setTheme(newTheme: Theme) {
     theme.value = newTheme
 
     // save preference
-    const username = getUsername()
+    const username = loginStore.userInfo?.username
 
     if (username) {
       savePreference('theme', newTheme, username)
@@ -84,23 +95,13 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   function loadTheme() {
-    const username = getUsername()
     let theme = 'system' as Theme
+    const username = loginStore.userInfo?.username
 
     if (username) {
       theme = getPreference('theme', username)
     }
     setTheme(theme)
-  }
-
-  function getUsername() {
-    let username = useLoginStore().username
-
-    if (!username) {
-      // user is not logged, try reading remembered username from local storage
-      username = getStringFromStorage('username') || ''
-    }
-    return username
   }
 
   return { theme, isLight, setTheme, toggleTheme, loadTheme }
