@@ -189,7 +189,7 @@ func CanCreateAccountForOrganization(userOrgRole, userOrgID, userRole, targetOrg
 func CreateAccount(c *gin.Context) {
 	var request models.CreateAccountRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.BadRequest("request fields malformed", err.Error()))
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequest(err))
 		return
 	}
 
@@ -597,7 +597,7 @@ func UpdateAccount(c *gin.Context) {
 
 	var request models.UpdateAccountRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.BadRequest("request fields malformed", err.Error()))
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequest(err))
 		return
 	}
 

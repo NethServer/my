@@ -23,7 +23,7 @@ import (
 func CreateReseller(c *gin.Context) {
 	var request models.CreateResellerRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.BadRequest("request fields malformed", err.Error()))
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequest(err))
 		return
 	}
 
@@ -162,7 +162,7 @@ func UpdateReseller(c *gin.Context) {
 
 	var request models.UpdateResellerRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.BadRequest("request fields malformed", err.Error()))
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequest(err))
 		return
 	}
 

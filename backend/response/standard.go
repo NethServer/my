@@ -9,11 +9,25 @@
 
 package response
 
+import (
+	"reflect"
+	"strings"
+
+	"github.com/go-playground/validator/v10"
+)
+
 // Response represents the standard API response format
 type Response struct {
 	Code    int         `json:"code"`
 	Message string      `json:"message"`
 	Data    interface{} `json:"data"`
+}
+
+// ValidationError represents a structured validation error
+type ValidationError struct {
+	Key     string `json:"key"`
+	Message string `json:"message"`
+	Input   string `json:"input,omitempty"`
 }
 
 // Success creates a success response
@@ -77,4 +91,44 @@ func UnprocessableEntity(message string, data interface{}) Response {
 // InternalServerError creates a 500 Internal Server Error response
 func InternalServerError(message string, data interface{}) Response {
 	return Error(500, message, data)
+}
+
+// ParseValidationError parses validation errors from Gin binding and returns a structured ValidationError
+func ParseValidationError(err error) ValidationError {
+	if validationErrors, ok := err.(validator.ValidationErrors); ok {
+		if len(validationErrors) > 0 {
+			ve := validationErrors[0]
+
+			// Extract field name from struct tag
+			fieldName := ve.Field()
+
+			// Get the validation tag that failed
+			tag := ve.Tag()
+
+			// Get the actual value that failed validation
+			value := ""
+			if ve.Value() != nil {
+				value = strings.TrimSpace(reflect.ValueOf(ve.Value()).String())
+			}
+
+			return ValidationError{
+				Key:     fieldName,
+				Message: tag,
+				Input:   value,
+			}
+		}
+	}
+
+	// Fallback for other error types
+	return ValidationError{
+		Key:     "unknown",
+		Message: err.Error(),
+		Input:   "",
+	}
+}
+
+// ValidationBadRequest creates a 400 Bad Request response with structured validation error
+func ValidationBadRequest(err error) Response {
+	validationError := ParseValidationError(err)
+	return BadRequest("validation failed", validationError)
 }

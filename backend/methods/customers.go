@@ -23,7 +23,7 @@ import (
 func CreateCustomer(c *gin.Context) {
 	var request models.CreateCustomerRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.BadRequest("request fields malformed", err.Error()))
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequest(err))
 		return
 	}
 
@@ -162,7 +162,7 @@ func UpdateCustomer(c *gin.Context) {
 
 	var request models.UpdateCustomerRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.BadRequest("request fields malformed", err.Error()))
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequest(err))
 		return
 	}
 
