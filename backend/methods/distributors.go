@@ -33,6 +33,18 @@ func CreateDistributor(c *gin.Context) {
 	// Create organization in Logto
 	client := services.NewLogtoManagementClient()
 
+	// Check if organization name is unique
+	isUnique, err := client.CheckOrganizationNameUniqueness(request.Name)
+	if err != nil {
+		logger.NewHTTPErrorLogger(c, "distributors").LogError(err, "check_name_uniqueness", http.StatusInternalServerError, "Failed to check organization name uniqueness")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to validate organization name", err.Error()))
+		return
+	}
+	if !isUnique {
+		c.JSON(http.StatusConflict, response.Conflict("organization name already exists", gin.H{"name": request.Name}))
+		return
+	}
+
 	// Prepare custom data with hierarchy info and system metadata
 	customData := map[string]interface{}{
 		"type":      "distributor",
@@ -185,6 +197,19 @@ func UpdateDistributor(c *gin.Context) {
 
 	// Update name if provided
 	if request.Name != "" {
+		// Check if new name is unique (if different from current)
+		if request.Name != currentOrg.Name {
+			isUnique, err := client.CheckOrganizationNameUniqueness(request.Name)
+			if err != nil {
+				logger.NewHTTPErrorLogger(c, "distributors").LogError(err, "check_name_uniqueness_update", http.StatusInternalServerError, "Failed to check organization name uniqueness for update")
+				c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to validate organization name", err.Error()))
+				return
+			}
+			if !isUnique {
+				c.JSON(http.StatusConflict, response.Conflict("organization name already exists", gin.H{"name": request.Name}))
+				return
+			}
+		}
 		updateRequest.Name = &request.Name
 	}
 

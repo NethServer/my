@@ -475,3 +475,19 @@ func GetAllVisibleOrganizations(userOrgRole, userOrgID string) ([]LogtoOrganizat
 
 	return visibleOrgs, nil
 }
+
+// CheckOrganizationNameUniqueness verifies if an organization name is already in use
+func (c *LogtoManagementClient) CheckOrganizationNameUniqueness(name string) (bool, error) {
+	allOrgs, err := c.GetAllOrganizations()
+	if err != nil {
+		return false, fmt.Errorf("failed to fetch organizations for name check: %w", err)
+	}
+
+	for _, org := range allOrgs {
+		if org.Name == name {
+			return false, nil // Name already exists
+		}
+	}
+
+	return true, nil // Name is unique
+}
