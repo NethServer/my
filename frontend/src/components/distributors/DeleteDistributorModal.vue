@@ -6,7 +6,6 @@
 <script setup lang="ts">
 import { NeInlineNotification } from '@nethesis/vue-components'
 import { NeModal } from '@nethesis/vue-components'
-import { watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { deleteDistributor, type Distributor } from '@/lib/distributors'
@@ -55,15 +54,10 @@ const {
   onSettled: () => queryCache.invalidateQueries({ key: ['distributors'] }),
 })
 
-watch(
-  () => visible,
-  () => {
-    if (visible) {
-      // clear error
-      deleteDistributorReset()
-    }
-  },
-)
+function onShow() {
+  // clear error
+  deleteDistributorReset()
+}
 </script>
 
 <template>
@@ -79,6 +73,7 @@ watch(
     :close-aria-label="$t('common.close')"
     @close="emit('close')"
     @primary-click="deleteDistributorMutate(distributor!)"
+    @show="onShow"
   >
     <p>
       {{ t('distributors.delete_distributor_confirmation', { name: distributor?.name }) }}
