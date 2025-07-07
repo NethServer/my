@@ -6,6 +6,7 @@ import { defineStore } from 'pinia'
 import { useLogto } from '@logto/vue'
 import { API_URL, LOGIN_REDIRECT_URI, SIGN_OUT_REDIRECT_URI } from '@/lib/config'
 import axios from 'axios'
+import { useThemeStore } from './theme'
 
 export type UserInfo = {
   id: string
@@ -22,12 +23,13 @@ export type UserInfo = {
 
 export const useLoginStore = defineStore('login', () => {
   const { signIn, signOut, isAuthenticated, getAccessToken } = useLogto()
+  const themeStore = useThemeStore()
 
   const accessToken = ref<string>('')
   const jwtToken = ref<string>('')
   const refreshToken = ref<string>('')
   const userInfo = ref<UserInfo | undefined>()
-  const loadingUserInfo = ref<boolean>(false)
+  const loadingUserInfo = ref<boolean>(true)
 
   const fetchTokenAndUserInfo = async () => {
     loadingUserInfo.value = true
@@ -78,6 +80,8 @@ export const useLoginStore = defineStore('login', () => {
       } as UserInfo
 
       console.log('[login store] user info', userInfo.value) ////
+
+      themeStore.loadTheme()
     } catch (error) {
       //// toast notification
       console.error('Cannot exchange token:', error) ////
