@@ -30,11 +30,12 @@ var (
 		// JSON format with quotes: "password": "any_value_including_special_chars_and_escaped_quotes"
 		regexp.MustCompile(`(?i)"(password|pwd|secret|token|key|auth|bearer|authorization)":\s*"(\\.|[^"\\])*"`),
 		regexp.MustCompile(`(?i)"(access_token|refresh_token|id_token|client_secret|client_id|api_key|apikey)":\s*"(\\.|[^"\\])*"`),
-		// Key-value without quotes - stop at whitespace, comma, brace, or newline
-		regexp.MustCompile(`(?i)(password|pwd|secret|token|key|auth|bearer|authorization)[:=]\s*\S+`),
-		regexp.MustCompile(`(?i)(access_token|refresh_token|id_token|client_secret|client_id|api_key|apikey)[:=]\s*\S+`),
-		// Bearer tokens
+		// Bearer tokens (more specific pattern to avoid conflicts)
+		regexp.MustCompile(`(?i)authorization:\s*bearer\s+[a-zA-Z0-9+/=_-]{20,}`),
 		regexp.MustCompile(`(?i)bearer\s+[a-zA-Z0-9+/=_-]{20,}`),
+		// Key-value without quotes - stop at whitespace, comma, brace, or newline (exclude authorization and bearer to avoid conflicts)
+		regexp.MustCompile(`(?i)(password|pwd|secret|token|key|auth)[:=]\s*\S+`),
+		regexp.MustCompile(`(?i)(access_token|refresh_token|id_token|client_secret|client_id|api_key|apikey)[:=]\s*\S+`),
 		// Base64 tokens (standalone)
 		regexp.MustCompile(`\b[a-zA-Z0-9+/]{40,}={0,2}\b`),
 	}

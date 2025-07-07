@@ -11,6 +11,7 @@ package logger
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -178,12 +179,16 @@ func SecurityMiddleware() gin.HandlerFunc {
 				Msg("Request with empty user agent")
 		}
 
-		// Check for common attack patterns in URL
-		if isLikelyAttack(c.Request.URL.Path) {
+		// Check for common attack patterns in URL path and query
+		fullURL := c.Request.URL.Path
+		if c.Request.URL.RawQuery != "" {
+			fullURL += "?" + c.Request.URL.RawQuery
+		}
+		if isLikelyAttack(fullURL) {
 			ComponentLogger("security").Warn().
 				Str("operation", "suspicious_request").
 				Str("method", c.Request.Method).
-				Str("path", SanitizeString(c.Request.URL.Path)).
+				Str("path", SanitizeString(fullURL)).
 				Str("client_ip", c.ClientIP()).
 				Str("user_agent", SanitizeString(userAgent)).
 				Msg("Potentially malicious request detected")
@@ -213,10 +218,21 @@ func isLikelyAttack(path string) bool {
 		".git",         // Git repository access
 	}
 
+	// Check original path
 	pathLower := strings.ToLower(path)
 	for _, pattern := range suspiciousPatterns {
 		if strings.Contains(pathLower, pattern) {
 			return true
+		}
+	}
+
+	// Also check URL-decoded version
+	if decoded, err := url.QueryUnescape(path); err == nil {
+		decodedLower := strings.ToLower(decoded)
+		for _, pattern := range suspiciousPatterns {
+			if strings.Contains(decodedLower, pattern) {
+				return true
+			}
 		}
 	}
 
