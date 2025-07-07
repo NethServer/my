@@ -1,0 +1,105 @@
+/*
+  Copyright (C) 2025 Nethesis S.r.l.
+  SPDX-License-Identifier: GPL-3.0-or-later
+*/
+
+/* fontawesome styles */
+@import '@fortawesome/fontawesome-svg-core/styles.css' layer(fontawesome);
+
+@import 'tailwindcss';
+
+/* Poppins font */
+@import '@fontsource/poppins';
+
+/* import theme from @nethesis/vue-components */
+@import '@nethesis/vue-components/theme.css';
+@source '../../node_modules/@nethesis/vue-components';
+
+/* dark theme */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* primary palette */
+  --color-transparent: transparent;
+  --color-primary-50: var(--color-sky-50);
+  --color-primary-100: var(--color-sky-100);
+  --color-primary-200: var(--color-sky-200);
+  --color-primary-300: var(--color-sky-300);
+  --color-primary-400: var(--color-sky-400);
+  --color-primary-500: var(--color-sky-500);
+  --color-primary-600: var(--color-sky-600);
+  --color-primary-700: var(--color-sky-700);
+  --color-primary-800: var(--color-sky-800);
+  --color-primary-900: var(--color-sky-900);
+  --color-primary-950: var(--color-sky-950);
+
+  /* breakpoints */
+  --breakpoint-3xl: 112rem;
+  --breakpoint-4xl: 128rem;
+  --breakpoint-5xl: 160rem;
+  --breakpoint-6xl: 192rem;
+  --breakpoint-7xl: 224rem;
+
+  /* animations */
+  --animate-spin-relaxed: spin 1.5s linear infinite;
+}
+
+@layer base {
+  /*
+    Use cursor-pointer for buttons (behavior changed from Tailwind CSS v3)
+    See: https://tailwindcss.com/docs/upgrade-guide#buttons-use-the-default-cursor
+  */
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+
+  html {
+    @apply h-full;
+  }
+
+  body {
+    @apply h-full bg-gray-50 text-sm text-gray-700 dark:bg-gray-900 dark:text-gray-100;
+  }
+
+  #app {
+    @apply h-full;
+  }
+
+  /* fade transition */
+  .fade-enter-active,
+  .fade-leave-active {
+    transition: all 0.3s ease;
+  }
+
+  .fade-enter-from,
+  .fade-leave-to {
+    opacity: 0;
+  }
+
+  /* slide-down transition */
+  .slide-down-enter-active,
+  .slide-down-leave-active {
+    transition: all 0.3s ease;
+  }
+
+  .slide-down-enter-from,
+  .slide-down-leave-to {
+    transform: translateY(-15px);
+    opacity: 0;
+  }
+
+  code {
+    @apply block rounded-sm bg-gray-500/20 px-1 font-mono dark:bg-gray-500/40;
+  }
+
+  hr {
+    @apply border-gray-200 dark:border-gray-700;
+  }
+}
+
+@layer fontawesome {
+  .svg-inline--fa {
+    @apply inline-block;
+  }
+}
