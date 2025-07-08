@@ -35,8 +35,7 @@ import { computed, ref, watch } from 'vue'
 import CreateOrEditDistributorDrawer from './CreateOrEditDistributorDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteDistributorModal from './DeleteDistributorModal.vue'
-
-//// review
+import { loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageSize'
 
 const { isShownCreateDistributorDrawer = false } = defineProps<{
   isShownCreateDistributorDrawer: boolean
@@ -56,6 +55,7 @@ const currentDistributor = ref<Distributor | undefined>()
 const textFilter = ref('')
 const isShownCreateOrEditDistributorDrawer = ref(false)
 const isShownDeleteDistributorDrawer = ref(false)
+const tableId = 'distributorsTable'
 const pageSize = ref(10)
 
 const filteredDistributors = computed(() => {
@@ -81,6 +81,16 @@ watch(
   () => {
     if (isShownCreateDistributorDrawer) {
       showCreateDistributorDrawer()
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  () => loginStore.userInfo?.username,
+  (username) => {
+    if (username) {
+      pageSize.value = loadPageSizeFromStorage(tableId)
     }
   },
   { immediate: true },
@@ -265,6 +275,7 @@ function getKebabMenuItems(distributor: Distributor) {
           @select-page-size="
             (size: number) => {
               pageSize = size
+              savePageSizeToStorage(tableId, size)
             }
           "
         />
