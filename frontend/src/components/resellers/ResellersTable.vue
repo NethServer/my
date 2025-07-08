@@ -35,8 +35,7 @@ import { computed, ref, watch } from 'vue'
 import CreateOrEditResellerDrawer from './CreateOrEditResellerDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteResellerModal from './DeleteResellerModal.vue'
-
-//// review
+import { loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageSize'
 
 const { isShownCreateResellerDrawer = false } = defineProps<{
   isShownCreateResellerDrawer: boolean
@@ -56,6 +55,7 @@ const currentReseller = ref<Reseller | undefined>()
 const textFilter = ref('')
 const isShownCreateOrEditResellerDrawer = ref(false)
 const isShownDeleteResellerDrawer = ref(false)
+const tableId = 'resellersTable'
 const pageSize = ref(10)
 
 const filteredResellers = computed(() => {
@@ -81,6 +81,16 @@ watch(
   () => {
     if (isShownCreateResellerDrawer) {
       showCreateResellerDrawer()
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  () => loginStore.userInfo?.username,
+  (username) => {
+    if (username) {
+      pageSize.value = loadPageSizeFromStorage(tableId)
     }
   },
   { immediate: true },
@@ -265,6 +275,7 @@ function getKebabMenuItems(reseller: Reseller) {
           @select-page-size="
             (size: number) => {
               pageSize = size
+              savePageSizeToStorage(tableId, size)
             }
           "
         />

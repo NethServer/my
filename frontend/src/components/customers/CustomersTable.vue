@@ -35,8 +35,7 @@ import { computed, ref, watch } from 'vue'
 import CreateOrEditCustomerDrawer from './CreateOrEditCustomerDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteCustomerModal from './DeleteCustomerModal.vue'
-
-//// review
+import { loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageSize'
 
 const { isShownCreateCustomerDrawer = false } = defineProps<{
   isShownCreateCustomerDrawer: boolean
@@ -56,6 +55,7 @@ const currentCustomer = ref<Customer | undefined>()
 const textFilter = ref('')
 const isShownCreateOrEditCustomerDrawer = ref(false)
 const isShownDeleteCustomerDrawer = ref(false)
+const tableId = 'customersTable'
 const pageSize = ref(10)
 
 const filteredCustomers = computed(() => {
@@ -81,6 +81,16 @@ watch(
   () => {
     if (isShownCreateCustomerDrawer) {
       showCreateCustomerDrawer()
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  () => loginStore.userInfo?.username,
+  (username) => {
+    if (username) {
+      pageSize.value = loadPageSizeFromStorage(tableId)
     }
   },
   { immediate: true },
@@ -265,6 +275,7 @@ function getKebabMenuItems(customer: Customer) {
           @select-page-size="
             (size: number) => {
               pageSize = size
+              savePageSizeToStorage(tableId, size)
             }
           "
         />
