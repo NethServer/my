@@ -325,7 +325,7 @@ func FilterOrganizationsByVisibility(orgs []LogtoOrganization, userOrgRole, user
 
 	case "Customer":
 		if userOrgRole == "Distributor" {
-			// Distributors see customers created by their resellers
+			// Distributors see customers created by themselves OR their resellers
 			// First, get all resellers created by this distributor
 			distributorResellers, err := GetOrganizationsByRole("Reseller")
 			if err != nil {
@@ -346,14 +346,20 @@ func FilterOrganizationsByVisibility(orgs []LogtoOrganization, userOrgRole, user
 				}
 			}
 
-			// Filter customers created by these resellers
+			// Filter customers created by this distributor OR their resellers
 			for _, org := range orgs {
 				if org.CustomData != nil {
 					if createdBy, ok := org.CustomData["createdBy"].(string); ok {
-						for _, resellerID := range resellerIDs {
-							if createdBy == resellerID {
-								filteredOrgs = append(filteredOrgs, org)
-								break
+						// Check if created directly by this distributor
+						if createdBy == userOrgID {
+							filteredOrgs = append(filteredOrgs, org)
+						} else {
+							// Check if created by one of this distributor's resellers
+							for _, resellerID := range resellerIDs {
+								if createdBy == resellerID {
+									filteredOrgs = append(filteredOrgs, org)
+									break
+								}
 							}
 						}
 					}
@@ -366,7 +372,7 @@ func FilterOrganizationsByVisibility(orgs []LogtoOrganization, userOrgRole, user
 				Int("total_count", len(orgs)).
 				Int("reseller_count", len(resellerIDs)).
 				Str("target_role", "customers").
-				Msg("Distributor filtered customers via resellers")
+				Msg("Distributor filtered customers (direct + via resellers)")
 
 		} else if userOrgRole == "Reseller" {
 			// Resellers see only customers they created
