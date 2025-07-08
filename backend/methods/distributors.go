@@ -111,6 +111,77 @@ func CreateDistributor(c *gin.Context) {
 	c.JSON(http.StatusCreated, response.Created("distributor created successfully", distributorResponse))
 }
 
+// GetDistributor handles GET /api/distributors/:id - retrieves a single distributor organization from Logto
+func GetDistributor(c *gin.Context) {
+	distributorID := c.Param("id")
+	if distributorID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("distributor ID required", nil))
+		return
+	}
+
+	_, _ = c.Get("user_id")
+	userOrgRole, _ := c.Get("org_role")
+	userOrgID, _ := c.Get("organization_id")
+
+	logger.RequestLogger(c, "distributors").Info().
+		Str("operation", "get_distributor").
+		Str("distributor_id", distributorID).
+		Msg("Single distributor requested")
+
+	// Connect to Logto Management API
+	client := services.NewLogtoManagementClient()
+
+	// Get the specific organization
+	org, err := client.GetOrganizationByID(distributorID)
+	if err != nil {
+		logger.NewHTTPErrorLogger(c, "distributors").LogError(err, "fetch_distributor", http.StatusInternalServerError, "Failed to fetch distributor from Logto")
+		c.JSON(http.StatusNotFound, response.NotFound("distributor not found", nil))
+		return
+	}
+
+	// Verify this is actually a distributor organization
+	if org.CustomData == nil || org.CustomData["type"] != "distributor" {
+		c.JSON(http.StatusNotFound, response.NotFound("distributor not found", nil))
+		return
+	}
+
+	// Apply visibility filtering - ensure user can see this distributor
+	orgs := []services.LogtoOrganization{*org}
+	filteredOrgs := services.FilterOrganizationsByVisibility(orgs, userOrgRole.(string), userOrgID.(string), "Distributor")
+
+	if len(filteredOrgs) == 0 {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied to this distributor", nil))
+		return
+	}
+
+	// Convert to distributor format
+	distributor := gin.H{
+		"id":            org.ID,
+		"name":          org.Name,
+		"description":   org.Description,
+		"customData":    org.CustomData,
+		"isMfaRequired": org.IsMfaRequired,
+		"type":          "distributor",
+	}
+
+	// Add branding if available
+	if org.Branding != nil {
+		distributor["branding"] = gin.H{
+			"logoUrl":     org.Branding.LogoUrl,
+			"darkLogoUrl": org.Branding.DarkLogoUrl,
+			"favicon":     org.Branding.Favicon,
+			"darkFavicon": org.Branding.DarkFavicon,
+		}
+	}
+
+	logger.RequestLogger(c, "distributors").Info().
+		Str("operation", "get_distributor_result").
+		Str("distributor_id", distributorID).
+		Msg("Retrieved distributor from Logto")
+
+	c.JSON(http.StatusOK, response.OK("distributor retrieved successfully", distributor))
+}
+
 // GetDistributors handles GET /api/distributors - retrieves organizations with Distributor role from Logto
 func GetDistributors(c *gin.Context) {
 	_, _ = c.Get("user_id")

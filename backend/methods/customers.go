@@ -111,7 +111,78 @@ func CreateCustomer(c *gin.Context) {
 	c.JSON(http.StatusCreated, response.Created("customer created successfully", customerResponse))
 }
 
-// GetCustomers handles GET /api/customers - retrieves organizations with Customer role from Logto
+// GetCustomer handles GET /api/customers/:id - retrieves a single customer organization from Logto
+func GetCustomer(c *gin.Context) {
+	customerID := c.Param("id")
+	if customerID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("customer ID required", nil))
+		return
+	}
+
+	_, _ = c.Get("user_id")
+	userOrgRole, _ := c.Get("org_role")
+	userOrgID, _ := c.Get("organization_id")
+
+	logger.RequestLogger(c, "customers").Info().
+		Str("operation", "get_customer").
+		Str("customer_id", customerID).
+		Msg("Single customer requested")
+
+	// Connect to Logto Management API
+	client := services.NewLogtoManagementClient()
+
+	// Get the specific organization
+	org, err := client.GetOrganizationByID(customerID)
+	if err != nil {
+		logger.NewHTTPErrorLogger(c, "customers").LogError(err, "fetch_customer", http.StatusInternalServerError, "Failed to fetch customer from Logto")
+		c.JSON(http.StatusNotFound, response.NotFound("customer not found", nil))
+		return
+	}
+
+	// Verify this is actually a customer organization
+	if org.CustomData == nil || org.CustomData["type"] != "customer" {
+		c.JSON(http.StatusNotFound, response.NotFound("customer not found", nil))
+		return
+	}
+
+	// Apply visibility filtering - ensure user can see this customer
+	orgs := []services.LogtoOrganization{*org}
+	filteredOrgs := services.FilterOrganizationsByVisibility(orgs, userOrgRole.(string), userOrgID.(string), "Customer")
+
+	if len(filteredOrgs) == 0 {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied to this customer", nil))
+		return
+	}
+
+	// Convert to customer format
+	customer := gin.H{
+		"id":            org.ID,
+		"name":          org.Name,
+		"description":   org.Description,
+		"customData":    org.CustomData,
+		"isMfaRequired": org.IsMfaRequired,
+		"type":          "customer",
+	}
+
+	// Add branding if available
+	if org.Branding != nil {
+		customer["branding"] = gin.H{
+			"logoUrl":     org.Branding.LogoUrl,
+			"darkLogoUrl": org.Branding.DarkLogoUrl,
+			"favicon":     org.Branding.Favicon,
+			"darkFavicon": org.Branding.DarkFavicon,
+		}
+	}
+
+	logger.RequestLogger(c, "customers").Info().
+		Str("operation", "get_customer_result").
+		Str("customer_id", customerID).
+		Msg("Retrieved customer from Logto")
+
+	c.JSON(http.StatusOK, response.OK("customer retrieved successfully", customer))
+}
+
+// GetCustomers handles GET /api/customers - retrieves all customers
 func GetCustomers(c *gin.Context) {
 	_, _ = c.Get("user_id")
 	userOrgRole, _ := c.Get("org_role")

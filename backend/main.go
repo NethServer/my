@@ -141,6 +141,7 @@ func main() {
 		distributorsGroup := customAuth.Group("/distributors", middleware.RequireOrgRole("Owner"))
 		{
 			distributorsGroup.GET("", methods.GetDistributors)
+			distributorsGroup.GET("/:id", methods.GetDistributor)
 			distributorsGroup.POST("", methods.CreateDistributor)
 			distributorsGroup.PUT("/:id", methods.UpdateDistributor)
 			distributorsGroup.DELETE("/:id", methods.DeleteDistributor)
@@ -150,6 +151,7 @@ func main() {
 		resellersGroup := customAuth.Group("/resellers", middleware.RequireAnyOrgRole("Owner", "Distributor"))
 		{
 			resellersGroup.GET("", methods.GetResellers)
+			resellersGroup.GET("/:id", methods.GetReseller)
 			resellersGroup.POST("", methods.CreateReseller)
 			resellersGroup.PUT("/:id", methods.UpdateReseller)
 			resellersGroup.DELETE("/:id", methods.DeleteReseller)
@@ -159,6 +161,7 @@ func main() {
 		customersGroup := customAuth.Group("/customers", middleware.RequireAnyOrgRole("Owner", "Distributor", "Reseller"))
 		{
 			customersGroup.GET("", methods.GetCustomers)
+			customersGroup.GET("/:id", methods.GetCustomer)
 			customersGroup.POST("", methods.CreateCustomer)
 			customersGroup.PUT("/:id", methods.UpdateCustomer)
 			customersGroup.DELETE("/:id", methods.DeleteCustomer)
@@ -172,6 +175,7 @@ func main() {
 		accountsGroup := customAuth.Group("/accounts")
 		{
 			accountsGroup.GET("", methods.GetAccounts)          // List accounts with organization filtering
+			accountsGroup.GET("/:id", methods.GetAccount)       // Get single account with hierarchical validation
 			accountsGroup.POST("", methods.CreateAccount)       // Create new account with hierarchical validation
 			accountsGroup.PUT("/:id", methods.UpdateAccount)    // Update existing account
 			accountsGroup.DELETE("/:id", methods.DeleteAccount) // Delete account

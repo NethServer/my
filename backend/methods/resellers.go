@@ -111,7 +111,78 @@ func CreateReseller(c *gin.Context) {
 	c.JSON(http.StatusCreated, response.Created("reseller created successfully", resellerResponse))
 }
 
-// GetResellers handles GET /api/resellers - retrieves organizations with Reseller role from Logto
+// GetReseller handles GET /api/resellers/:id - retrieves a single reseller organization from Logto
+func GetReseller(c *gin.Context) {
+	resellerID := c.Param("id")
+	if resellerID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("reseller ID required", nil))
+		return
+	}
+
+	_, _ = c.Get("user_id")
+	userOrgRole, _ := c.Get("org_role")
+	userOrgID, _ := c.Get("organization_id")
+
+	logger.RequestLogger(c, "resellers").Info().
+		Str("operation", "get_reseller").
+		Str("reseller_id", resellerID).
+		Msg("Single reseller requested")
+
+	// Connect to Logto Management API
+	client := services.NewLogtoManagementClient()
+
+	// Get the specific organization
+	org, err := client.GetOrganizationByID(resellerID)
+	if err != nil {
+		logger.NewHTTPErrorLogger(c, "resellers").LogError(err, "fetch_reseller", http.StatusInternalServerError, "Failed to fetch reseller from Logto")
+		c.JSON(http.StatusNotFound, response.NotFound("reseller not found", nil))
+		return
+	}
+
+	// Verify this is actually a reseller organization
+	if org.CustomData == nil || org.CustomData["type"] != "reseller" {
+		c.JSON(http.StatusNotFound, response.NotFound("reseller not found", nil))
+		return
+	}
+
+	// Apply visibility filtering - ensure user can see this reseller
+	orgs := []services.LogtoOrganization{*org}
+	filteredOrgs := services.FilterOrganizationsByVisibility(orgs, userOrgRole.(string), userOrgID.(string), "Reseller")
+
+	if len(filteredOrgs) == 0 {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied to this reseller", nil))
+		return
+	}
+
+	// Convert to reseller format
+	reseller := gin.H{
+		"id":            org.ID,
+		"name":          org.Name,
+		"description":   org.Description,
+		"customData":    org.CustomData,
+		"isMfaRequired": org.IsMfaRequired,
+		"type":          "reseller",
+	}
+
+	// Add branding if available
+	if org.Branding != nil {
+		reseller["branding"] = gin.H{
+			"logoUrl":     org.Branding.LogoUrl,
+			"darkLogoUrl": org.Branding.DarkLogoUrl,
+			"favicon":     org.Branding.Favicon,
+			"darkFavicon": org.Branding.DarkFavicon,
+		}
+	}
+
+	logger.RequestLogger(c, "resellers").Info().
+		Str("operation", "get_reseller_result").
+		Str("reseller_id", resellerID).
+		Msg("Retrieved reseller from Logto")
+
+	c.JSON(http.StatusOK, response.OK("reseller retrieved successfully", reseller))
+}
+
+// GetResellers handles GET /api/resellers - retrieves all resellers
 func GetResellers(c *gin.Context) {
 	_, _ = c.Get("user_id")
 	userOrgRole, _ := c.Get("org_role")

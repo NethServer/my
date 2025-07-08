@@ -500,7 +500,97 @@ func CreateAccount(c *gin.Context) {
 	c.JSON(http.StatusCreated, response.Created("account created successfully", accountResponse))
 }
 
-// GetAccounts handles GET /api/accounts - retrieves accounts with pagination and advanced filtering
+// GetAccount handles GET /api/accounts/:id - retrieves a single account
+func GetAccount(c *gin.Context) {
+	accountID := c.Param("id")
+	if accountID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("account ID required", nil))
+		return
+	}
+
+	currentUserID, _ := c.Get("user_id")
+	currentUserOrgID, _ := c.Get("organization_id")
+	currentUserOrgRole, _ := c.Get("org_role")
+	currentUserRoles, _ := c.Get("user_roles")
+
+	// Validate required user context
+	if currentUserOrgRole == nil || currentUserOrgID == nil || currentUserRoles == nil {
+		logger.NewHTTPErrorLogger(c, "accounts").LogError(fmt.Errorf("missing user context"), "validate_user_context", http.StatusUnauthorized, "Missing required user context in JWT token")
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("incomplete user context in token", nil))
+		return
+	}
+
+	// Extract user role from array (Admin role is required for account operations)
+	userRolesSlice := currentUserRoles.([]string)
+	var currentUserRole string
+	for _, role := range userRolesSlice {
+		if role == "Admin" {
+			currentUserRole = "Admin"
+			break
+		}
+	}
+	if currentUserRole == "" {
+		logger.NewHTTPErrorLogger(c, "accounts").LogError(fmt.Errorf("insufficient permissions"), "check_admin_role", http.StatusForbidden, "User does not have Admin role required for account operations")
+		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to view accounts", nil))
+		return
+	}
+
+	logger.RequestLogger(c, "accounts").Info().
+		Str("operation", "get_account").
+		Str("account_id", accountID).
+		Msg("Single account requested")
+
+	client := services.NewLogtoManagementClient()
+
+	// Get the specific account
+	account, err := client.GetUserByID(accountID)
+	if err != nil {
+		logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "fetch_account", http.StatusInternalServerError, "Failed to fetch account")
+		c.JSON(http.StatusNotFound, response.NotFound("account not found", nil))
+		return
+	}
+
+	// Get target account's organization to validate permissions
+	var targetOrg *services.LogtoOrganization
+	if account.CustomData != nil {
+		if orgID, ok := account.CustomData["organizationId"].(string); ok {
+			targetOrg, err = client.GetOrganizationByID(orgID)
+			if err != nil {
+				logger.RequestLogger(c, "accounts").Warn().
+					Err(err).
+					Str("operation", "fetch_target_organization").
+					Msg("Failed to fetch target organization")
+			}
+		}
+	}
+
+	// Validate hierarchical permissions
+	canOperate, reason := CanOperateOnAccount(
+		currentUserOrgRole.(string),
+		currentUserOrgID.(string),
+		currentUserRole,
+		account,
+		targetOrg,
+	)
+
+	if !canOperate {
+		logger.LogAccountOperation(c, "get_denied", accountID, "", currentUserID.(string), currentUserOrgID.(string), false, fmt.Errorf("insufficient permissions: %s", reason))
+		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to view this account", reason))
+		return
+	}
+
+	// Convert to response format
+	accountResponse := convertLogtoUserToAccountResponse(*account, targetOrg)
+
+	logger.RequestLogger(c, "accounts").Info().
+		Str("operation", "get_account_result").
+		Str("account_id", accountID).
+		Msg("Retrieved account")
+
+	c.JSON(http.StatusOK, response.OK("account retrieved successfully", accountResponse))
+}
+
+// GetAccounts handles GET /api/accounts - retrieves accounts with organization filtering
 func GetAccounts(c *gin.Context) {
 	_, _ = c.Get("user_id")
 	currentUserOrgRole, _ := c.Get("org_role")
@@ -1055,12 +1145,10 @@ func convertLogtoUserToAccountResponse(account services.LogtoUser, org *services
 			accountResponse.Phone = phone
 		}
 
-		// Copy customData but exclude fields already extracted to top level
+		// Extract custom data (excluding reserved fields)
 		customData := make(map[string]interface{})
 		for k, v := range account.CustomData {
-			if k != "__org_id" && k != "__org_name" &&
-				k != "userRoleId" && k != "organizationId" &&
-				k != "organizationRole" && k != "phone" {
+			if k != "userRoleId" && k != "organizationId" && k != "organizationRole" && k != "phone" && k != "createdBy" && k != "createdAt" && k != "updatedBy" && k != "updatedAt" {
 				customData[k] = v
 			}
 		}

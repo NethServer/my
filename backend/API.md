@@ -7,6 +7,22 @@ REST API for Nethesis Operation Center with business hierarchy management and RB
 http://localhost:8080/api
 ```
 
+## API Features
+
+### Pagination
+All list endpoints support pagination with query parameters:
+- `page`: Page number (default: 1)
+- `page_size`: Items per page (default: 20, max: 100)
+
+All paginated responses include a `pagination` object with metadata.
+
+### Filtering & Search
+List endpoints support various filtering options:
+- `search`: General search in relevant fields
+- Specific field filters (e.g., `name`, `email`, `created_by`)
+- Server-side search when supported by Logto
+- Client-side filtering for custom data fields
+
 ## Authentication
 All endpoints require JWT token from token exchange (except `/auth/exchange`).
 
@@ -68,8 +84,45 @@ Returns new access token (24h) and refresh token (7d) with fresh user data.
 ## 🏢 Distributor Management
 **Authorization:** Owner only
 
+### Get Single Distributor
+**GET** `/distributors/:id`
+
+**Response:**
+```json
+{
+  "code": 200,
+  "message": "distributor retrieved successfully",
+  "data": {
+    "id": "org_123456789",
+    "name": "ACME Distribution SpA",
+    "description": "Main distributor for Italian and Swiss markets",
+    "customData": {
+      "email": "contact@acme-distribution.com",
+      "contactPerson": "John Smith",
+      "region": "Italy"
+    },
+    "isMfaRequired": false
+  }
+}
+```
+
 ### List Distributors
 **GET** `/distributors`
+
+**Query Parameters:**
+- `page`: Page number (default: 1)
+- `page_size`: Items per page (default: 20)
+- `search`: Search in name or ID
+- `name`: Exact name match
+- `type`: Filter by type (distributor)
+- `created_by`: Filter by creator organization ID
+
+```bash
+# Examples
+GET /distributors?page=1&page_size=10
+GET /distributors?search=acme
+GET /distributors?created_by=org_owner_123
+```
 
 ```json
 {
@@ -89,7 +142,16 @@ Returns new access token (24h) and refresh token (7d) with fresh user data.
         },
         "isMfaRequired": false
       }
-    ]
+    ],
+    "pagination": {
+      "page": 1,
+      "page_size": 20,
+      "total_count": 25,
+      "total_pages": 2,
+      "has_next": true,
+      "has_prev": false,
+      "next_page": 2
+    }
   }
 }
 ```
@@ -156,8 +218,45 @@ Returns new access token (24h) and refresh token (7d) with fresh user data.
 ## 🏪 Reseller Management
 **Authorization:** Owner + Distributor
 
+### Get Single Reseller
+**GET** `/resellers/:id`
+
+**Response:**
+```json
+{
+  "code": 200,
+  "message": "reseller retrieved successfully",
+  "data": {
+    "id": "org_987654321",
+    "name": "TechSolutions SRL",
+    "description": "Reseller specialized in technology solutions for SMBs",
+    "customData": {
+      "email": "info@techsolutions.it",
+      "contactPerson": "Jane Doe",
+      "region": "Northern Region"
+    },
+    "isMfaRequired": true
+  }
+}
+```
+
 ### List Resellers
 **GET** `/resellers`
+
+**Query Parameters:**
+- `page`: Page number (default: 1)
+- `page_size`: Items per page (default: 20)
+- `search`: Search in name or ID
+- `name`: Exact name match
+- `type`: Filter by type (reseller)
+- `created_by`: Filter by creator organization ID
+
+```bash
+# Examples
+GET /resellers?page=1&page_size=10
+GET /resellers?search=tech
+GET /resellers?created_by=org_distributor_456
+```
 
 ```json
 {
@@ -178,7 +277,15 @@ Returns new access token (24h) and refresh token (7d) with fresh user data.
         },
         "isMfaRequired": true
       }
-    ]
+    ],
+    "pagination": {
+      "page": 1,
+      "page_size": 20,
+      "total_count": 12,
+      "total_pages": 1,
+      "has_next": false,
+      "has_prev": false
+    }
   }
 }
 ```
@@ -248,8 +355,46 @@ Returns new access token (24h) and refresh token (7d) with fresh user data.
 ## 🏢 Customer Management
 **Authorization:** Owner + Distributor + Reseller
 
+### Get Single Customer
+**GET** `/customers/:id`
+
+**Response:**
+```json
+{
+  "code": 200,
+  "message": "customer retrieved successfully",
+  "data": {
+    "id": "org_456789123",
+    "name": "Modern Restaurant LLC",
+    "description": "Traditional restaurant with modern IT needs",
+    "customData": {
+      "email": "contact@modernrestaurant.com",
+      "contactPerson": "Michael Johnson",
+      "tier": "basic",
+      "industry": "Food & Beverage"
+    },
+    "isMfaRequired": false
+  }
+}
+```
+
 ### List Customers
 **GET** `/customers`
+
+**Query Parameters:**
+- `page`: Page number (default: 1)
+- `page_size`: Items per page (default: 20)
+- `search`: Search in name or ID
+- `name`: Exact name match
+- `type`: Filter by type (customer)
+- `created_by`: Filter by creator organization ID
+
+```bash
+# Examples
+GET /customers?page=1&page_size=10
+GET /customers?search=lep
+GET /customers?created_by=org_reseller_789
+```
 
 ```json
 {
@@ -272,7 +417,16 @@ Returns new access token (24h) and refresh token (7d) with fresh user data.
         },
         "isMfaRequired": false
       }
-    ]
+    ],
+    "pagination": {
+      "page": 1,
+      "page_size": 20,
+      "total_count": 43,
+      "total_pages": 3,
+      "has_next": true,
+      "has_prev": false,
+      "next_page": 2
+    }
   }
 }
 ```
@@ -350,11 +504,54 @@ Returns new access token (24h) and refresh token (7d) with fresh user data.
 ## 👥 Account Management
 Users within organizations with technical capabilities and business hierarchy roles.
 
+### Get Single Account
+**GET** `/accounts/:id`
+
+**Response:**
+```json
+{
+  "code": 200,
+  "message": "account retrieved successfully",
+  "data": {
+    "id": "usr_123456789",
+    "username": "john.doe",
+    "email": "john@example.com",
+    "name": "John Doe",
+    "phone": "+39 333 123456",
+    "userRole": "rol_admin_id",
+    "organizationId": "org_123456789",
+    "organizationName": "ACME Corp",
+    "organizationRole": "Admin",
+    "isSuspended": false,
+    "customData": {
+      "department": "IT",
+      "position": "Senior Developer"
+    }
+  }
+}
+```
+
+**Note:** Hierarchical authorization - users can only view accounts in organizations they control.
+
 ### List Accounts
 **GET** `/accounts`
 
-Query parameters:
-- `organizationId`: Filter by organization
+**Query Parameters:**
+- `page`: Page number (default: 1)
+- `page_size`: Items per page (default: 20)
+- `search`: Search in username, email, or name
+- `username`: Exact username match
+- `email`: Exact email match
+- `role`: Filter by user role ID
+- `organization_id`: Filter by organization ID
+
+```bash
+# Examples
+GET /accounts?page=1&page_size=5
+GET /accounts?search=john
+GET /accounts?organization_id=org_123456789
+GET /accounts?role=admin&page=2
+```
 
 ```json
 {
@@ -374,9 +571,23 @@ Query parameters:
         "organizationRole": "Admin",
         "isSuspended": false,
         "lastSignInAt": "2025-06-25T09:15:00Z",
-        "createdAt": "2025-06-20T14:30:00Z"
+        "createdAt": "2025-06-20T14:30:00Z",
+        "updatedAt": "2025-06-21T10:45:00Z",
+        "customData": {
+          "createdBy": "org_owner_123",
+          "createdAt": "2025-06-20T14:30:00Z"
+        }
       }
-    ]
+    ],
+    "pagination": {
+      "page": 1,
+      "page_size": 20,
+      "total_count": 156,
+      "total_pages": 8,
+      "has_next": true,
+      "has_prev": false,
+      "next_page": 2
+    }
   }
 }
 ```
@@ -392,7 +603,11 @@ Query parameters:
   "phone": "+39 333 445 5667",
   "password": "SecurePassword123!",
   "userRoleId": "rol_abc123def456",
-  "organizationId": "org_xyz789"
+  "organizationId": "org_xyz789",
+  "customData": {
+    "department": "IT",
+    "position": "Senior Developer"
+  }
 }
 ```
 
@@ -407,7 +622,7 @@ Query parameters:
   "email": "john.updated@acme.com",
   "phone": "+39 333 999 8888",
   "userRoleId": "rol_new_role_id_here",
-  "metadata": {
+  "customData": {
     "department": "Sales",
     "location": "Rome"
   }
@@ -431,7 +646,7 @@ Query parameters:
     "organizationRole": "Admin",
     "isSuspended": false,
     "updatedAt": "2025-07-04T10:30:00Z",
-    "metadata": {
+    "customData": {
       "department": "Sales",
       "location": "Rome"
     }
@@ -529,6 +744,86 @@ All CRUD operations on accounts are protected by hierarchical authorization:
 
 ---
 
+## 📋 Validation & Data Structures
+
+### Input Validation
+All API endpoints enforce strict validation:
+
+#### Account Creation
+- `username`: Required, alphanumeric + underscore, sanitized for Logto compliance
+- `email`: Required, valid email format
+- `name`: Required, non-empty string
+- `password`: Required, minimum 8 characters
+- `userRoleId`: Required, must be valid role ID
+- `organizationId`: Required, must be accessible organization
+- `phone`: Optional, string format
+- `customData`: Optional, object with custom fields (mixed types supported)
+
+#### Organization Management
+- `name`: Required, must be unique across system
+- `description`: Optional, descriptive text
+- `customData`: Optional, organization metadata
+- `isMfaRequired`: Optional, boolean (default: false)
+
+#### Pagination Parameters
+- `page`: Integer ≥ 1 (default: 1)
+- `page_size`: Integer 1-100 (default: 20)
+- `search`: String, minimum 1 character
+- Field filters: Exact match strings
+
+### Response Structures
+
+#### Success Response Format
+```json
+{
+  "code": 200,
+  "message": "operation completed successfully",
+  "data": {
+    // Response data specific to endpoint
+  }
+}
+```
+
+#### Pagination Metadata
+```json
+{
+  "pagination": {
+    "page": 1,
+    "page_size": 20,
+    "total_count": 156,
+    "total_pages": 8,
+    "has_next": true,
+    "has_prev": false,
+    "next_page": 2,
+    "prev_page": null
+  }
+}
+```
+
+#### Error Response Format
+```json
+{
+  "code": 400,
+  "message": "validation error",
+  "data": {
+    "field": "email",
+    "error": "invalid email format"
+  }
+}
+```
+
+### Common HTTP Status Codes
+- `200`: Success
+- `201`: Resource created
+- `400`: Bad request (validation error)
+- `401`: Unauthorized (invalid/missing token)
+- `403`: Forbidden (insufficient permissions)
+- `404`: Resource not found
+- `409`: Conflict (duplicate name/username)
+- `500`: Internal server error
+
+---
+
 ## 🔧 Utilities
 
 ### Extract Organization IDs
@@ -551,7 +846,7 @@ curl -s -X GET "http://localhost:8080/api/health" | jq
 ```javascript
 const apiCall = async (endpoint, options = {}) => {
   const token = localStorage.getItem('access_token');
-  
+
   const response = await fetch(`http://localhost:8080/api${endpoint}`, {
     ...options,
     headers: {
@@ -560,7 +855,7 @@ const apiCall = async (endpoint, options = {}) => {
       ...options.headers
     }
   });
-  
+
   return response.json();
 };
 
