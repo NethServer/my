@@ -11,10 +11,13 @@ package services
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/nethesis/my/backend/logger"
 )
@@ -59,6 +62,117 @@ func (c *LogtoManagementClient) GetAllOrganizations() ([]LogtoOrganization, erro
 	}
 
 	return orgs, nil
+}
+
+// GetOrganizationsPaginated fetches organizations with pagination and filters using Logto native API
+func (c *LogtoManagementClient) GetOrganizationsPaginated(page, pageSize int, filters OrganizationFilters) (*PaginatedOrganizations, error) {
+	// Build URL with Logto's native pagination parameters
+	url := fmt.Sprintf("/organizations?page=%d&page_size=%d", page, pageSize)
+
+	// Add Logto's native search parameter 'q' for name/ID search
+	if filters.Search != "" {
+		url += fmt.Sprintf("&q=%s", filters.Search)
+	}
+
+	resp, err := c.makeRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch organizations: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to fetch organizations, status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var orgs []LogtoOrganization
+	if err := json.NewDecoder(resp.Body).Decode(&orgs); err != nil {
+		return nil, fmt.Errorf("failed to decode organizations: %w", err)
+	}
+
+	// Apply client-side filtering for custom data fields that Logto doesn't support
+	filteredOrgs := c.applyClientSideFilters(orgs, filters)
+
+	// Note: Logto doesn't provide total count in response, so we estimate
+	// This is a limitation - for accurate pagination we'd need to call without pagination first
+	totalCount := len(filteredOrgs)
+
+	// If we got a full page, there might be more
+	if len(orgs) == pageSize {
+		// Estimate based on current page
+		totalCount = page*pageSize + 1 // At least one more
+	}
+
+	totalPages := (totalCount + pageSize - 1) / pageSize
+
+	paginationInfo := PaginationInfo{
+		Page:       page,
+		PageSize:   pageSize,
+		TotalCount: totalCount,
+		TotalPages: totalPages,
+		HasNext:    len(orgs) == pageSize, // If we got full page, assume there might be more
+		HasPrev:    page > 1,
+	}
+
+	if paginationInfo.HasNext {
+		nextPage := page + 1
+		paginationInfo.NextPage = &nextPage
+	}
+
+	if paginationInfo.HasPrev {
+		prevPage := page - 1
+		paginationInfo.PrevPage = &prevPage
+	}
+
+	return &PaginatedOrganizations{
+		Data:       filteredOrgs,
+		Pagination: paginationInfo,
+	}, nil
+}
+
+// applyClientSideFilters applies filters that can't be done server-side
+func (c *LogtoManagementClient) applyClientSideFilters(orgs []LogtoOrganization, filters OrganizationFilters) []LogtoOrganization {
+	if filters.Name == "" && filters.Description == "" && filters.Type == "" && filters.CreatedBy == "" {
+		return orgs
+	}
+
+	var filtered []LogtoOrganization
+	for _, org := range orgs {
+		// Name filter (exact match - search is handled by Logto's 'q' parameter)
+		if filters.Name != "" && org.Name != filters.Name {
+			continue
+		}
+
+		// Description filter (exact match)
+		if filters.Description != "" && org.Description != filters.Description {
+			continue
+		}
+
+		// Custom data filters (these can't be done server-side)
+		if filters.Type != "" || filters.CreatedBy != "" {
+			if org.CustomData == nil {
+				continue
+			}
+
+			// Type filter
+			if filters.Type != "" {
+				if orgType, ok := org.CustomData["type"].(string); !ok || orgType != filters.Type {
+					continue
+				}
+			}
+
+			// CreatedBy filter
+			if filters.CreatedBy != "" {
+				if createdBy, ok := org.CustomData["createdBy"].(string); !ok || createdBy != filters.CreatedBy {
+					continue
+				}
+			}
+		}
+
+		filtered = append(filtered, org)
+	}
+
+	return filtered
 }
 
 // GetOrganizationByID fetches a specific organization by ID
@@ -156,6 +270,172 @@ func (c *LogtoManagementClient) DeleteOrganization(orgID string) error {
 
 // GetOrganizationJitRoles fetches default organization roles (just-in-time provisioning)
 func (c *LogtoManagementClient) GetOrganizationJitRoles(orgID string) ([]LogtoOrganizationRole, error) {
+	// Check cache first
+	cache := GetJitRolesCacheManager()
+	if cachedRoles, found := cache.Get(orgID); found {
+		return cachedRoles, nil
+	}
+
+	// Cache miss, fetch from API
+	resp, err := c.makeRequest("GET", fmt.Sprintf("/organizations/%s/jit/roles", orgID), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch organization JIT roles: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to fetch organization JIT roles, status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var roles []LogtoOrganizationRole
+	if err := json.NewDecoder(resp.Body).Decode(&roles); err != nil {
+		return nil, fmt.Errorf("failed to decode organization JIT roles: %w", err)
+	}
+
+	// Store in cache
+	cache.Set(orgID, roles)
+
+	return roles, nil
+}
+
+// GetOrganizationJitRolesParallel fetches JIT roles for multiple organizations in parallel
+func (c *LogtoManagementClient) GetOrganizationJitRolesParallel(orgIDs []string) map[string]JitRolesResult {
+	if len(orgIDs) == 0 {
+		return make(map[string]JitRolesResult)
+	}
+
+	// Limit concurrent requests to respect rate limits (Logto: ~200 req/10s)
+	maxConcurrent := 10
+	if len(orgIDs) < maxConcurrent {
+		maxConcurrent = len(orgIDs)
+	}
+
+	results := make(map[string]JitRolesResult)
+	resultsMutex := sync.Mutex{}
+
+	// Create semaphore for rate limiting
+	semaphore := make(chan struct{}, maxConcurrent)
+
+	// WaitGroup to wait for all goroutines
+	var wg sync.WaitGroup
+
+	// Context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cache := GetJitRolesCacheManager()
+
+	logger.ComponentLogger("logto").Info().
+		Int("org_count", len(orgIDs)).
+		Int("max_concurrent", maxConcurrent).
+		Str("operation", "parallel_jit_fetch_start").
+		Msg("Starting parallel JIT roles fetch")
+
+	startTime := time.Now()
+
+	for _, orgID := range orgIDs {
+		wg.Add(1)
+
+		go func(id string) {
+			defer wg.Done()
+
+			// Acquire semaphore
+			select {
+			case semaphore <- struct{}{}:
+				defer func() { <-semaphore }()
+			case <-ctx.Done():
+				resultsMutex.Lock()
+				results[id] = JitRolesResult{
+					OrgID: id,
+					Error: fmt.Errorf("context timeout"),
+				}
+				resultsMutex.Unlock()
+				return
+			}
+
+			// Check cache first
+			if cachedRoles, found := cache.Get(id); found {
+				resultsMutex.Lock()
+				results[id] = JitRolesResult{
+					OrgID: id,
+					Roles: cachedRoles,
+				}
+				resultsMutex.Unlock()
+				return
+			}
+
+			// Fetch from API
+			fetchStart := time.Now()
+			roles, err := c.fetchJitRolesFromAPI(id)
+			fetchDuration := time.Since(fetchStart)
+
+			if err != nil {
+				logger.ComponentLogger("logto").Warn().
+					Err(err).
+					Str("operation", "parallel_jit_fetch_error").
+					Str("org_id", id).
+					Dur("duration", fetchDuration).
+					Msg("Failed to fetch JIT roles in parallel")
+
+				resultsMutex.Lock()
+				results[id] = JitRolesResult{
+					OrgID: id,
+					Error: err,
+				}
+				resultsMutex.Unlock()
+				return
+			}
+
+			// Store in cache
+			cache.Set(id, roles)
+
+			resultsMutex.Lock()
+			results[id] = JitRolesResult{
+				OrgID: id,
+				Roles: roles,
+			}
+			resultsMutex.Unlock()
+
+			logger.ComponentLogger("logto").Debug().
+				Str("operation", "parallel_jit_fetch_success").
+				Str("org_id", id).
+				Int("roles_count", len(roles)).
+				Dur("duration", fetchDuration).
+				Msg("Successfully fetched JIT roles in parallel")
+
+		}(orgID)
+	}
+
+	// Wait for all goroutines to complete
+	wg.Wait()
+
+	totalDuration := time.Since(startTime)
+	successCount := 0
+	errorCount := 0
+
+	for _, result := range results {
+		if result.Error != nil {
+			errorCount++
+		} else {
+			successCount++
+		}
+	}
+
+	logger.ComponentLogger("logto").Info().
+		Int("total_orgs", len(orgIDs)).
+		Int("success_count", successCount).
+		Int("error_count", errorCount).
+		Dur("total_duration", totalDuration).
+		Float64("avg_duration_ms", float64(totalDuration.Nanoseconds())/float64(len(orgIDs))/1000000).
+		Str("operation", "parallel_jit_fetch_complete").
+		Msg("Completed parallel JIT roles fetch")
+
+	return results
+}
+
+// fetchJitRolesFromAPI is a helper function that only does the API call without caching
+func (c *LogtoManagementClient) fetchJitRolesFromAPI(orgID string) ([]LogtoOrganizationRole, error) {
 	resp, err := c.makeRequest("GET", fmt.Sprintf("/organizations/%s/jit/roles", orgID), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch organization JIT roles: %w", err)
@@ -197,11 +477,22 @@ func (c *LogtoManagementClient) AssignOrganizationJitRoles(orgID string, roleIDs
 		return fmt.Errorf("failed to assign JIT roles, status %d: %s", resp.StatusCode, string(body))
 	}
 
+	// Invalidate cache for this organization
+	cache := GetJitRolesCacheManager()
+	cache.Clear(orgID)
+
 	return nil
 }
 
 // GetOrganizationUsers fetches users belonging to an organization
 func (c *LogtoManagementClient) GetOrganizationUsers(orgID string) ([]LogtoUser, error) {
+	// Check cache first
+	cache := GetOrgUsersCacheManager()
+	if cachedUsers, found := cache.Get(orgID); found {
+		return cachedUsers, nil
+	}
+
+	// Cache miss, fetch from API
 	resp, err := c.makeRequest("GET", fmt.Sprintf("/organizations/%s/users", orgID), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch organization users: %w", err)
@@ -217,6 +508,9 @@ func (c *LogtoManagementClient) GetOrganizationUsers(orgID string) ([]LogtoUser,
 	if err := json.NewDecoder(resp.Body).Decode(&users); err != nil {
 		return nil, fmt.Errorf("failed to decode organization users: %w", err)
 	}
+
+	// Store in cache
+	cache.Set(orgID, users)
 
 	return users, nil
 }
@@ -278,6 +572,78 @@ func GetOrganizationsByRole(roleType string) ([]LogtoOrganization, error) {
 		Str("role_type", roleType).
 		Msg("Found organizations with JIT role")
 	return filteredOrgs, nil
+}
+
+// GetOrganizationsByRolePaginated fetches organizations with pagination and filters
+func GetOrganizationsByRolePaginated(roleType string, page, pageSize int, filters OrganizationFilters) (*PaginatedOrganizations, error) {
+	client := NewLogtoManagementClient()
+
+	// Don't apply Type filter here - we'll check JIT roles instead
+	tempFilters := filters
+	tempFilters.Type = "" // Remove type filter to get all orgs first
+
+	// Get organizations with pagination and filters (without type filter)
+	result, err := client.GetOrganizationsPaginated(page, pageSize, tempFilters)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get organizations: %w", err)
+	}
+
+	// Extract organization IDs for parallel processing
+	orgIDs := make([]string, len(result.Data))
+	orgMap := make(map[string]LogtoOrganization)
+
+	for i, org := range result.Data {
+		orgIDs[i] = org.ID
+		orgMap[org.ID] = org
+	}
+
+	// Fetch JIT roles in parallel
+	jitResults := client.GetOrganizationJitRolesParallel(orgIDs)
+
+	var filteredOrgs []LogtoOrganization
+
+	// Process results and filter organizations
+	for orgID, jitResult := range jitResults {
+		if jitResult.Error != nil {
+			logger.ComponentLogger("logto").Warn().
+				Err(jitResult.Error).
+				Str("operation", "get_jit_roles_parallel").
+				Str("org_id", orgID).
+				Msg("Failed to get JIT roles for organization in parallel")
+			continue
+		}
+
+		// Check if this organization has the target role as default
+		hasRole := false
+		for _, role := range jitResult.Roles {
+			if role.Name == roleType {
+				hasRole = true
+				break
+			}
+		}
+
+		if hasRole {
+			// Get the organization from our map
+			if org, exists := orgMap[orgID]; exists {
+				filteredOrgs = append(filteredOrgs, org)
+			}
+		}
+	}
+
+	// Update result with filtered organizations
+	result.Data = filteredOrgs
+	result.Pagination.TotalCount = len(filteredOrgs)
+	result.Pagination.TotalPages = (result.Pagination.TotalCount + pageSize - 1) / pageSize
+
+	logger.ComponentLogger("logto").Info().
+		Int("org_count", len(filteredOrgs)).
+		Str("operation", "filter_by_role_paginated").
+		Str("role_type", roleType).
+		Int("page", page).
+		Int("page_size", pageSize).
+		Msg("Found organizations with JIT role (paginated)")
+
+	return result, nil
 }
 
 // FilterOrganizationsByVisibility filters organizations based on user's visibility permissions

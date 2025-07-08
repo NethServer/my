@@ -8,6 +8,7 @@ package methods
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -116,12 +117,38 @@ func GetDistributors(c *gin.Context) {
 	userOrgRole, _ := c.Get("org_role")
 	userOrgID, _ := c.Get("organization_id")
 
+	// Parse query parameters
+	page := 1
+	pageSize := 20
+	if p := c.Query("page"); p != "" {
+		if parsedPage, err := strconv.Atoi(p); err == nil && parsedPage > 0 {
+			page = parsedPage
+		}
+	}
+	if ps := c.Query("page_size"); ps != "" {
+		if parsedPageSize, err := strconv.Atoi(ps); err == nil && parsedPageSize > 0 && parsedPageSize <= 100 {
+			pageSize = parsedPageSize
+		}
+	}
+
+	// Parse filters
+	filters := services.OrganizationFilters{
+		Name:        c.Query("name"),
+		Description: c.Query("description"),
+		Type:        "distributor", // Fixed for distributors
+		CreatedBy:   c.Query("created_by"),
+		Search:      c.Query("search"),
+	}
+
 	logger.RequestLogger(c, "distributors").Info().
 		Str("operation", "list_distributors").
+		Int("page", page).
+		Int("page_size", pageSize).
+		Str("search", filters.Search).
 		Msg("Distributors list requested")
 
-	// Get organizations with Distributor role from Logto
-	orgs, err := services.GetOrganizationsByRole("Distributor")
+	// Get organizations with Distributor role from Logto (paginated)
+	result, err := services.GetOrganizationsByRolePaginated("Distributor", page, pageSize, filters)
 	if err != nil {
 		logger.NewHTTPErrorLogger(c, "distributors").LogError(err, "fetch_distributors", http.StatusInternalServerError, "Failed to fetch distributors from Logto")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch distributors", nil))
@@ -129,7 +156,7 @@ func GetDistributors(c *gin.Context) {
 	}
 
 	// Apply visibility filtering
-	filteredOrgs := services.FilterOrganizationsByVisibility(orgs, userOrgRole.(string), userOrgID.(string), "Distributor")
+	filteredOrgs := services.FilterOrganizationsByVisibility(result.Data, userOrgRole.(string), userOrgID.(string), "Distributor")
 
 	// Convert Logto organizations to distributor format
 	distributors := make([]gin.H, 0, len(filteredOrgs))
@@ -156,12 +183,22 @@ func GetDistributors(c *gin.Context) {
 		distributors = append(distributors, distributor)
 	}
 
+	// Update pagination info with filtered count
+	paginationInfo := result.Pagination
+	paginationInfo.TotalCount = len(filteredOrgs)
+	paginationInfo.TotalPages = (paginationInfo.TotalCount + pageSize - 1) / pageSize
+
 	logger.RequestLogger(c, "distributors").Info().
 		Int("distributor_count", len(distributors)).
+		Int("total_count", paginationInfo.TotalCount).
+		Int("page", page).
 		Str("operation", "fetch_distributors_result").
 		Msg("Retrieved distributors from Logto")
 
-	c.JSON(http.StatusOK, response.OK("distributors retrieved successfully", gin.H{"distributors": distributors, "count": len(distributors)}))
+	c.JSON(http.StatusOK, response.OK("distributors retrieved successfully", gin.H{
+		"distributors": distributors,
+		"pagination":   paginationInfo,
+	}))
 }
 
 // UpdateDistributor handles PUT /api/distributors/:id - updates an existing distributor organization in Logto

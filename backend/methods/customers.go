@@ -8,6 +8,7 @@ package methods
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -110,18 +111,44 @@ func CreateCustomer(c *gin.Context) {
 	c.JSON(http.StatusCreated, response.Created("customer created successfully", customerResponse))
 }
 
-// GetCustomers handles GET /api/customers - retrieves all customers
+// GetCustomers handles GET /api/customers - retrieves organizations with Customer role from Logto
 func GetCustomers(c *gin.Context) {
 	_, _ = c.Get("user_id")
 	userOrgRole, _ := c.Get("org_role")
 	userOrgID, _ := c.Get("organization_id")
 
+	// Parse query parameters
+	page := 1
+	pageSize := 20
+	if p := c.Query("page"); p != "" {
+		if parsedPage, err := strconv.Atoi(p); err == nil && parsedPage > 0 {
+			page = parsedPage
+		}
+	}
+	if ps := c.Query("page_size"); ps != "" {
+		if parsedPageSize, err := strconv.Atoi(ps); err == nil && parsedPageSize > 0 && parsedPageSize <= 100 {
+			pageSize = parsedPageSize
+		}
+	}
+
+	// Parse filters
+	filters := services.OrganizationFilters{
+		Name:        c.Query("name"),
+		Description: c.Query("description"),
+		Type:        "customer", // Fixed for customers
+		CreatedBy:   c.Query("created_by"),
+		Search:      c.Query("search"),
+	}
+
 	logger.RequestLogger(c, "customers").Info().
 		Str("operation", "list_customers").
+		Int("page", page).
+		Int("page_size", pageSize).
+		Str("search", filters.Search).
 		Msg("Customers list requested")
 
-	// Get organizations with Customer role from Logto
-	orgs, err := services.GetOrganizationsByRole("Customer")
+	// Get organizations with Customer role from Logto (paginated)
+	result, err := services.GetOrganizationsByRolePaginated("Customer", page, pageSize, filters)
 	if err != nil {
 		logger.NewHTTPErrorLogger(c, "customers").LogError(err, "fetch_customers", http.StatusInternalServerError, "Failed to fetch customers from Logto")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch customers", nil))
@@ -129,7 +156,7 @@ func GetCustomers(c *gin.Context) {
 	}
 
 	// Apply visibility filtering
-	filteredOrgs := services.FilterOrganizationsByVisibility(orgs, userOrgRole.(string), userOrgID.(string), "Customer")
+	filteredOrgs := services.FilterOrganizationsByVisibility(result.Data, userOrgRole.(string), userOrgID.(string), "Customer")
 
 	// Convert Logto organizations to customer format
 	customers := make([]gin.H, 0, len(filteredOrgs))
@@ -156,12 +183,22 @@ func GetCustomers(c *gin.Context) {
 		customers = append(customers, customer)
 	}
 
+	// Update pagination info with filtered count
+	paginationInfo := result.Pagination
+	paginationInfo.TotalCount = len(filteredOrgs)
+	paginationInfo.TotalPages = (paginationInfo.TotalCount + pageSize - 1) / pageSize
+
 	logger.RequestLogger(c, "customers").Info().
 		Int("customer_count", len(customers)).
+		Int("total_count", paginationInfo.TotalCount).
+		Int("page", page).
 		Str("operation", "fetch_customers_result").
 		Msg("Retrieved customers from Logto")
 
-	c.JSON(http.StatusOK, response.OK("customers retrieved successfully", gin.H{"customers": customers, "count": len(customers)}))
+	c.JSON(http.StatusOK, response.OK("customers retrieved successfully", gin.H{
+		"customers":  customers,
+		"pagination": paginationInfo,
+	}))
 }
 
 // UpdateCustomer handles PUT /api/customers/:id - updates an existing customer organization in Logto

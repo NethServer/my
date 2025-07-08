@@ -18,7 +18,7 @@ func TestCreateAccountRequestStructure(t *testing.T) {
 		UserRoleID:     "role-123",
 		OrganizationID: "org-456",
 		Avatar:         "https://example.com/avatar.jpg",
-		Metadata:       map[string]string{"department": "IT"},
+		CustomData:     map[string]interface{}{"department": "IT"},
 	}
 
 	assert.Equal(t, "testuser", req.Username)
@@ -29,7 +29,7 @@ func TestCreateAccountRequestStructure(t *testing.T) {
 	assert.Equal(t, "role-123", req.UserRoleID)
 	assert.Equal(t, "org-456", req.OrganizationID)
 	assert.Equal(t, "https://example.com/avatar.jpg", req.Avatar)
-	assert.Equal(t, map[string]string{"department": "IT"}, req.Metadata)
+	assert.Equal(t, map[string]interface{}{"department": "IT"}, req.CustomData)
 }
 
 func TestCreateAccountRequestJSONSerialization(t *testing.T) {
@@ -42,7 +42,7 @@ func TestCreateAccountRequestJSONSerialization(t *testing.T) {
 		UserRoleID:     "role-json",
 		OrganizationID: "org-json",
 		Avatar:         "https://example.com/json-avatar.jpg",
-		Metadata:       map[string]string{"team": "Backend"},
+		CustomData:     map[string]interface{}{"team": "Backend"},
 	}
 
 	jsonData, err := json.Marshal(req)
@@ -61,7 +61,7 @@ func TestCreateAccountRequestJSONSerialization(t *testing.T) {
 	assert.Equal(t, req.UserRoleID, unmarshaledReq.UserRoleID)
 	assert.Equal(t, req.OrganizationID, unmarshaledReq.OrganizationID)
 	assert.Equal(t, req.Avatar, unmarshaledReq.Avatar)
-	assert.Equal(t, req.Metadata, unmarshaledReq.Metadata)
+	assert.Equal(t, req.CustomData, unmarshaledReq.CustomData)
 }
 
 func TestCreateAccountRequestJSONTags(t *testing.T) {
@@ -74,7 +74,7 @@ func TestCreateAccountRequestJSONTags(t *testing.T) {
 		UserRoleID:     "role-tag",
 		OrganizationID: "org-tag",
 		Avatar:         "https://example.com/tag-avatar.jpg",
-		Metadata:       map[string]string{"role": "Tester"},
+		CustomData:     map[string]interface{}{"role": "Tester"},
 	}
 
 	jsonData, err := json.Marshal(req)
@@ -92,7 +92,7 @@ func TestCreateAccountRequestJSONTags(t *testing.T) {
 	assert.Contains(t, jsonMap, "userRoleId")
 	assert.Contains(t, jsonMap, "organizationId")
 	assert.Contains(t, jsonMap, "avatar")
-	assert.Contains(t, jsonMap, "metadata")
+	assert.Contains(t, jsonMap, "customData")
 
 	assert.Equal(t, "taguser", jsonMap["username"])
 	assert.Equal(t, "tag@example.com", jsonMap["email"])
@@ -109,7 +109,7 @@ func TestUpdateAccountRequestStructure(t *testing.T) {
 		UserRoleID:     "role-updated",
 		OrganizationID: "org-updated",
 		Avatar:         "https://example.com/updated-avatar.jpg",
-		Metadata:       map[string]string{"status": "updated"},
+		CustomData:     map[string]interface{}{"status": "updated"},
 	}
 
 	assert.Equal(t, "updateduser", req.Username)
@@ -119,7 +119,7 @@ func TestUpdateAccountRequestStructure(t *testing.T) {
 	assert.Equal(t, "role-updated", req.UserRoleID)
 	assert.Equal(t, "org-updated", req.OrganizationID)
 	assert.Equal(t, "https://example.com/updated-avatar.jpg", req.Avatar)
-	assert.Equal(t, map[string]string{"status": "updated"}, req.Metadata)
+	assert.Equal(t, map[string]interface{}{"status": "updated"}, req.CustomData)
 }
 
 func TestUpdateAccountRequestJSONSerialization(t *testing.T) {
@@ -131,7 +131,7 @@ func TestUpdateAccountRequestJSONSerialization(t *testing.T) {
 		UserRoleID:     "role-updatejson",
 		OrganizationID: "org-updatejson",
 		Avatar:         "https://example.com/updatejson-avatar.jpg",
-		Metadata:       map[string]string{"version": "2.0"},
+		CustomData:     map[string]interface{}{"version": "2.0"},
 	}
 
 	jsonData, err := json.Marshal(req)
@@ -164,7 +164,7 @@ func TestAccountResponseStructure(t *testing.T) {
 		LastSignInAt:     &lastSignIn,
 		CreatedAt:        now,
 		UpdatedAt:        now,
-		Metadata:         map[string]string{"source": "api"},
+		CustomData:       map[string]interface{}{"source": "api"},
 	}
 
 	assert.Equal(t, "account-123", resp.ID)
@@ -181,7 +181,7 @@ func TestAccountResponseStructure(t *testing.T) {
 	assert.Equal(t, &lastSignIn, resp.LastSignInAt)
 	assert.Equal(t, now, resp.CreatedAt)
 	assert.Equal(t, now, resp.UpdatedAt)
-	assert.Equal(t, map[string]string{"source": "api"}, resp.Metadata)
+	assert.Equal(t, map[string]interface{}{"source": "api"}, resp.CustomData)
 }
 
 func TestAccountResponseJSONSerialization(t *testing.T) {
@@ -203,7 +203,7 @@ func TestAccountResponseJSONSerialization(t *testing.T) {
 		LastSignInAt:     &lastSignIn,
 		CreatedAt:        now,
 		UpdatedAt:        now,
-		Metadata:         map[string]string{"api_version": "v1"},
+		CustomData:       map[string]interface{}{"api_version": "v1"},
 	}
 
 	jsonData, err := json.Marshal(resp)
@@ -227,7 +227,7 @@ func TestAccountResponseJSONSerialization(t *testing.T) {
 	assert.Equal(t, resp.IsSuspended, unmarshaledResp.IsSuspended)
 	assert.Equal(t, resp.CreatedAt.Unix(), unmarshaledResp.CreatedAt.Unix())
 	assert.Equal(t, resp.UpdatedAt.Unix(), unmarshaledResp.UpdatedAt.Unix())
-	assert.Equal(t, resp.Metadata, unmarshaledResp.Metadata)
+	assert.Equal(t, resp.CustomData, unmarshaledResp.CustomData)
 }
 
 func TestAccountResponseWithNilLastSignIn(t *testing.T) {
@@ -246,7 +246,7 @@ func TestAccountResponseWithNilLastSignIn(t *testing.T) {
 		LastSignInAt:     nil,
 		CreatedAt:        now,
 		UpdatedAt:        now,
-		Metadata:         map[string]string{},
+		CustomData:       map[string]interface{}{},
 	}
 
 	jsonData, err := json.Marshal(resp)
@@ -263,7 +263,7 @@ func TestAccountResponseWithNilLastSignIn(t *testing.T) {
 	assert.False(t, unmarshaledResp.IsSuspended)
 }
 
-func TestAccountModelsWithEmptyMetadata(t *testing.T) {
+func TestAccountModelsWithEmptyCustomData(t *testing.T) {
 	createReq := CreateAccountRequest{
 		Username:       "emptymetauser",
 		Email:          "emptymeta@example.com",
@@ -271,14 +271,14 @@ func TestAccountModelsWithEmptyMetadata(t *testing.T) {
 		Password:       "emptypass123",
 		UserRoleID:     "role-emptymeta",
 		OrganizationID: "org-emptymeta",
-		Metadata:       map[string]string{},
+		CustomData:     map[string]interface{}{},
 	}
 
 	updateReq := UpdateAccountRequest{
-		Username: "updatedemptymetauser",
-		Email:    "updatedemptymeta@example.com",
-		Name:     "Updated Empty Meta User",
-		Metadata: map[string]string{},
+		Username:   "updatedemptymetauser",
+		Email:      "updatedemptymeta@example.com",
+		Name:       "Updated Empty Meta User",
+		CustomData: map[string]interface{}{},
 	}
 
 	resp := AccountResponse{
@@ -293,7 +293,7 @@ func TestAccountModelsWithEmptyMetadata(t *testing.T) {
 		IsSuspended:      false,
 		CreatedAt:        time.Now(),
 		UpdatedAt:        time.Now(),
-		Metadata:         map[string]string{},
+		CustomData:       map[string]interface{}{},
 	}
 
 	// Test JSON serialization for all structures
@@ -309,15 +309,15 @@ func TestAccountModelsWithEmptyMetadata(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEmpty(t, respJson)
 
-	assert.NotNil(t, createReq.Metadata)
-	assert.NotNil(t, updateReq.Metadata)
-	assert.NotNil(t, resp.Metadata)
-	assert.Len(t, createReq.Metadata, 0)
-	assert.Len(t, updateReq.Metadata, 0)
-	assert.Len(t, resp.Metadata, 0)
+	assert.NotNil(t, createReq.CustomData)
+	assert.NotNil(t, updateReq.CustomData)
+	assert.NotNil(t, resp.CustomData)
+	assert.Len(t, createReq.CustomData, 0)
+	assert.Len(t, updateReq.CustomData, 0)
+	assert.Len(t, resp.CustomData, 0)
 }
 
-func TestAccountModelsWithNilMetadata(t *testing.T) {
+func TestAccountModelsWithNilCustomData(t *testing.T) {
 	createReq := CreateAccountRequest{
 		Username:       "nilmetauser",
 		Email:          "nilmeta@example.com",
@@ -325,14 +325,14 @@ func TestAccountModelsWithNilMetadata(t *testing.T) {
 		Password:       "nilpass123",
 		UserRoleID:     "role-nilmeta",
 		OrganizationID: "org-nilmeta",
-		Metadata:       nil,
+		CustomData:     nil,
 	}
 
 	updateReq := UpdateAccountRequest{
-		Username: "updatednilmetauser",
-		Email:    "updatednilmeta@example.com",
-		Name:     "Updated Nil Meta User",
-		Metadata: nil,
+		Username:   "updatednilmetauser",
+		Email:      "updatednilmeta@example.com",
+		Name:       "Updated Nil Meta User",
+		CustomData: nil,
 	}
 
 	resp := AccountResponse{
@@ -347,10 +347,10 @@ func TestAccountModelsWithNilMetadata(t *testing.T) {
 		IsSuspended:      true,
 		CreatedAt:        time.Now(),
 		UpdatedAt:        time.Now(),
-		Metadata:         nil,
+		CustomData:       nil,
 	}
 
-	// Test JSON serialization with nil metadata
+	// Test JSON serialization with nil customData
 	createJson, err := json.Marshal(createReq)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, createJson)
@@ -363,9 +363,9 @@ func TestAccountModelsWithNilMetadata(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEmpty(t, respJson)
 
-	assert.Nil(t, createReq.Metadata)
-	assert.Nil(t, updateReq.Metadata)
-	assert.Nil(t, resp.Metadata)
+	assert.Nil(t, createReq.CustomData)
+	assert.Nil(t, updateReq.CustomData)
+	assert.Nil(t, resp.CustomData)
 }
 
 func TestAccountSuspensionStates(t *testing.T) {
@@ -385,7 +385,7 @@ func TestAccountSuspensionStates(t *testing.T) {
 				IsSuspended:      suspended,
 				CreatedAt:        time.Now(),
 				UpdatedAt:        time.Now(),
-				Metadata:         map[string]string{"test": "suspension"},
+				CustomData:       map[string]interface{}{"test": "suspension"},
 			}
 
 			assert.Equal(t, suspended, resp.IsSuspended)

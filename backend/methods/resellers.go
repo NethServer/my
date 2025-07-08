@@ -8,6 +8,7 @@ package methods
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -110,18 +111,44 @@ func CreateReseller(c *gin.Context) {
 	c.JSON(http.StatusCreated, response.Created("reseller created successfully", resellerResponse))
 }
 
-// GetResellers handles GET /api/resellers - retrieves all resellers
+// GetResellers handles GET /api/resellers - retrieves organizations with Reseller role from Logto
 func GetResellers(c *gin.Context) {
 	_, _ = c.Get("user_id")
 	userOrgRole, _ := c.Get("org_role")
 	userOrgID, _ := c.Get("organization_id")
 
+	// Parse query parameters
+	page := 1
+	pageSize := 20
+	if p := c.Query("page"); p != "" {
+		if parsedPage, err := strconv.Atoi(p); err == nil && parsedPage > 0 {
+			page = parsedPage
+		}
+	}
+	if ps := c.Query("page_size"); ps != "" {
+		if parsedPageSize, err := strconv.Atoi(ps); err == nil && parsedPageSize > 0 && parsedPageSize <= 100 {
+			pageSize = parsedPageSize
+		}
+	}
+
+	// Parse filters
+	filters := services.OrganizationFilters{
+		Name:        c.Query("name"),
+		Description: c.Query("description"),
+		Type:        "reseller", // Fixed for resellers
+		CreatedBy:   c.Query("created_by"),
+		Search:      c.Query("search"),
+	}
+
 	logger.RequestLogger(c, "resellers").Info().
 		Str("operation", "list_resellers").
+		Int("page", page).
+		Int("page_size", pageSize).
+		Str("search", filters.Search).
 		Msg("Resellers list requested")
 
-	// Get organizations with Reseller role from Logto
-	orgs, err := services.GetOrganizationsByRole("Reseller")
+	// Get organizations with Reseller role from Logto (paginated)
+	result, err := services.GetOrganizationsByRolePaginated("Reseller", page, pageSize, filters)
 	if err != nil {
 		logger.NewHTTPErrorLogger(c, "resellers").LogError(err, "fetch_resellers", http.StatusInternalServerError, "Failed to fetch resellers from Logto")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch resellers", nil))
@@ -129,7 +156,7 @@ func GetResellers(c *gin.Context) {
 	}
 
 	// Apply visibility filtering
-	filteredOrgs := services.FilterOrganizationsByVisibility(orgs, userOrgRole.(string), userOrgID.(string), "Reseller")
+	filteredOrgs := services.FilterOrganizationsByVisibility(result.Data, userOrgRole.(string), userOrgID.(string), "Reseller")
 
 	// Convert Logto organizations to reseller format
 	resellers := make([]gin.H, 0, len(filteredOrgs))
@@ -156,12 +183,22 @@ func GetResellers(c *gin.Context) {
 		resellers = append(resellers, reseller)
 	}
 
+	// Update pagination info with filtered count
+	paginationInfo := result.Pagination
+	paginationInfo.TotalCount = len(filteredOrgs)
+	paginationInfo.TotalPages = (paginationInfo.TotalCount + pageSize - 1) / pageSize
+
 	logger.RequestLogger(c, "resellers").Info().
 		Int("reseller_count", len(resellers)).
+		Int("total_count", paginationInfo.TotalCount).
+		Int("page", page).
 		Str("operation", "fetch_resellers_result").
 		Msg("Retrieved resellers from Logto")
 
-	c.JSON(http.StatusOK, response.OK("resellers retrieved successfully", gin.H{"resellers": resellers, "count": len(resellers)}))
+	c.JSON(http.StatusOK, response.OK("resellers retrieved successfully", gin.H{
+		"resellers":  resellers,
+		"pagination": paginationInfo,
+	}))
 }
 
 // UpdateReseller handles PUT /api/resellers/:id - updates an existing reseller organization in Logto

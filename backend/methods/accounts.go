@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -311,9 +312,9 @@ func CreateAccount(c *gin.Context) {
 		customData["phone"] = request.Phone
 	}
 
-	// Add metadata if provided
-	if request.Metadata != nil {
-		for k, v := range request.Metadata {
+	// Add custom data if provided
+	if request.CustomData != nil {
+		for k, v := range request.CustomData {
 			customData[k] = v
 		}
 	}
@@ -493,13 +494,13 @@ func CreateAccount(c *gin.Context) {
 		LastSignInAt:     lastSignInAt,
 		CreatedAt:        time.Unix(account.CreatedAt/1000, 0),
 		UpdatedAt:        time.Unix(account.UpdatedAt/1000, 0),
-		Metadata:         request.Metadata,
+		CustomData:       request.CustomData,
 	}
 
 	c.JSON(http.StatusCreated, response.Created("account created successfully", accountResponse))
 }
 
-// GetAccounts handles GET /api/accounts - retrieves accounts with organization filtering
+// GetAccounts handles GET /api/accounts - retrieves accounts with pagination and advanced filtering
 func GetAccounts(c *gin.Context) {
 	_, _ = c.Get("user_id")
 	currentUserOrgRole, _ := c.Get("org_role")
@@ -512,45 +513,110 @@ func GetAccounts(c *gin.Context) {
 		return
 	}
 
+	// Parse pagination parameters
+	page := 1
+	pageSize := 20
+	if p := c.Query("page"); p != "" {
+		if parsedPage, err := strconv.Atoi(p); err == nil && parsedPage > 0 {
+			page = parsedPage
+		}
+	}
+	if ps := c.Query("page_size"); ps != "" {
+		if parsedPageSize, err := strconv.Atoi(ps); err == nil && parsedPageSize > 0 && parsedPageSize <= 100 {
+			pageSize = parsedPageSize
+		}
+	}
+
+	// Parse filters
+	filters := services.UserFilters{
+		Search:         c.Query("search"),
+		OrganizationID: c.Query("organizationId"), // Keep backward compatibility
+		Role:           c.Query("role"),
+		Username:       c.Query("username"),
+		Email:          c.Query("email"),
+	}
+
 	logger.RequestLogger(c, "accounts").Info().
 		Str("operation", "list_accounts").
+		Int("page", page).
+		Int("page_size", pageSize).
+		Str("organization_filter", filters.OrganizationID).
+		Str("search", filters.Search).
 		Msg("Accounts list requested")
 
 	client := services.NewLogtoManagementClient()
-
-	// Get organization filter from query parameter
-	orgFilter := c.Query("organizationId")
-
 	var accounts []models.AccountResponse
+	var paginationInfo services.PaginationInfo
 
-	if orgFilter != "" {
-		// Get accounts from specific organization
-		orgAccounts, err := client.GetOrganizationUsers(orgFilter)
+	if filters.OrganizationID != "" {
+		// Single organization mode - get accounts from specific organization
+		orgAccounts, err := client.GetOrganizationUsers(filters.OrganizationID)
 		if err != nil {
 			logger.RequestLogger(c, "accounts").Error().
 				Err(err).
 				Str("operation", "fetch_organization_accounts").
+				Str("org_id", filters.OrganizationID).
 				Msg("Failed to fetch organization accounts")
 			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch organization accounts", err.Error()))
 			return
 		}
 
 		// Get organization details
-		org, err := client.GetOrganizationByID(orgFilter)
+		org, err := client.GetOrganizationByID(filters.OrganizationID)
 		if err != nil {
 			logger.RequestLogger(c, "accounts").Error().
 				Err(err).
 				Str("operation", "fetch_organization_details").
+				Str("org_id", filters.OrganizationID).
 				Msg("Failed to fetch organization details")
 		}
 
+		// Apply client-side pagination and filtering
+		filteredAccounts := applyAccountFilters(orgAccounts, filters)
+		totalCount := len(filteredAccounts)
+		totalPages := (totalCount + pageSize - 1) / pageSize
+
+		// Calculate slice bounds for current page
+		start := (page - 1) * pageSize
+		end := start + pageSize
+		if start > totalCount {
+			start = totalCount
+		}
+		if end > totalCount {
+			end = totalCount
+		}
+
+		var pageAccounts []services.LogtoUser
+		if start < totalCount {
+			pageAccounts = filteredAccounts[start:end]
+		}
+
 		// Convert to response format
-		for _, account := range orgAccounts {
+		for _, account := range pageAccounts {
 			accountResponse := convertLogtoUserToAccountResponse(account, org)
 			accounts = append(accounts, accountResponse)
 		}
+
+		paginationInfo = services.PaginationInfo{
+			Page:       page,
+			PageSize:   pageSize,
+			TotalCount: totalCount,
+			TotalPages: totalPages,
+			HasNext:    page < totalPages,
+			HasPrev:    page > 1,
+		}
+
+		if paginationInfo.HasNext {
+			nextPage := page + 1
+			paginationInfo.NextPage = &nextPage
+		}
+		if paginationInfo.HasPrev {
+			prevPage := page - 1
+			paginationInfo.PrevPage = &prevPage
+		}
+
 	} else {
-		// Get all organizations visible to current user and their accounts
+		// Multi-organization mode - get accounts from all visible organizations with parallel processing
 		allOrgs, err := services.GetAllVisibleOrganizations(currentUserOrgRole.(string), currentUserOrgID.(string))
 		if err != nil {
 			logger.RequestLogger(c, "accounts").Error().
@@ -561,30 +627,158 @@ func GetAccounts(c *gin.Context) {
 			return
 		}
 
-		// Get accounts from each visible organization
-		for _, org := range allOrgs {
-			orgAccounts, err := client.GetOrganizationUsers(org.ID)
-			if err != nil {
+		// Extract organization IDs for parallel processing
+		orgIDs := make([]string, len(allOrgs))
+		orgMap := make(map[string]services.LogtoOrganization)
+
+		for i, org := range allOrgs {
+			orgIDs[i] = org.ID
+			orgMap[org.ID] = org
+		}
+
+		// Fetch users from all organizations in parallel
+		usersResults := client.GetOrganizationUsersParallel(orgIDs)
+
+		var allAccounts []services.LogtoUser
+
+		// Process results and combine accounts
+		for orgID, result := range usersResults {
+			if result.Error != nil {
 				logger.RequestLogger(c, "accounts").Warn().
-					Err(err).
-					Str("operation", "fetch_org_accounts").
-					Str("org_id", org.ID).
-					Msg("Failed to fetch accounts for organization")
+					Err(result.Error).
+					Str("operation", "fetch_org_accounts_parallel").
+					Str("org_id", orgID).
+					Msg("Failed to fetch accounts for organization in parallel")
 				continue
 			}
 
-			for _, account := range orgAccounts {
-				accountResponse := convertLogtoUserToAccountResponse(account, &org)
-				accounts = append(accounts, accountResponse)
+			// Add organization context to each user for filtering
+			org := orgMap[orgID]
+			for _, user := range result.Users {
+				// Add organization context to custom data for filtering
+				if user.CustomData == nil {
+					user.CustomData = make(map[string]interface{})
+				}
+				user.CustomData["__org_id"] = org.ID
+				user.CustomData["__org_name"] = org.Name
+				allAccounts = append(allAccounts, user)
 			}
+		}
+
+		// Apply filters to all accounts
+		filteredAccounts := applyAccountFilters(allAccounts, filters)
+		totalCount := len(filteredAccounts)
+		totalPages := (totalCount + pageSize - 1) / pageSize
+
+		// Calculate slice bounds for current page
+		start := (page - 1) * pageSize
+		end := start + pageSize
+		if start > totalCount {
+			start = totalCount
+		}
+		if end > totalCount {
+			end = totalCount
+		}
+
+		var pageAccounts []services.LogtoUser
+		if start < totalCount {
+			pageAccounts = filteredAccounts[start:end]
+		}
+
+		// Convert to response format
+		for _, account := range pageAccounts {
+			// Get organization details for this account
+			var org *services.LogtoOrganization
+			if orgID, ok := account.CustomData["__org_id"].(string); ok {
+				if orgData, exists := orgMap[orgID]; exists {
+					org = &orgData
+				}
+			}
+
+			accountResponse := convertLogtoUserToAccountResponse(account, org)
+			accounts = append(accounts, accountResponse)
+		}
+
+		paginationInfo = services.PaginationInfo{
+			Page:       page,
+			PageSize:   pageSize,
+			TotalCount: totalCount,
+			TotalPages: totalPages,
+			HasNext:    page < totalPages,
+			HasPrev:    page > 1,
+		}
+
+		if paginationInfo.HasNext {
+			nextPage := page + 1
+			paginationInfo.NextPage = &nextPage
+		}
+		if paginationInfo.HasPrev {
+			prevPage := page - 1
+			paginationInfo.PrevPage = &prevPage
 		}
 	}
 
 	logger.RequestLogger(c, "accounts").Info().
 		Int("account_count", len(accounts)).
+		Int("total_count", paginationInfo.TotalCount).
+		Int("page", page).
 		Str("operation", "list_accounts_result").
 		Msg("Retrieved accounts")
-	c.JSON(http.StatusOK, response.OK("accounts retrieved successfully", gin.H{"accounts": accounts, "count": len(accounts)}))
+
+	c.JSON(http.StatusOK, response.OK("accounts retrieved successfully", gin.H{
+		"accounts":   accounts,
+		"pagination": paginationInfo,
+	}))
+}
+
+// applyAccountFilters applies client-side filters to user accounts
+func applyAccountFilters(users []services.LogtoUser, filters services.UserFilters) []services.LogtoUser {
+	if filters.Username == "" && filters.Email == "" && filters.Role == "" && filters.Search == "" {
+		return users
+	}
+
+	var filtered []services.LogtoUser
+	for _, user := range users {
+		// Username filter (exact match)
+		if filters.Username != "" && user.Username != filters.Username {
+			continue
+		}
+
+		// Email filter (exact match)
+		if filters.Email != "" && user.PrimaryEmail != filters.Email {
+			continue
+		}
+
+		// Search filter (partial match in username, email, or name)
+		if filters.Search != "" {
+			searchTerm := strings.ToLower(filters.Search)
+			match := false
+
+			if strings.Contains(strings.ToLower(user.Username), searchTerm) ||
+				strings.Contains(strings.ToLower(user.PrimaryEmail), searchTerm) ||
+				strings.Contains(strings.ToLower(user.Name), searchTerm) {
+				match = true
+			}
+
+			if !match {
+				continue
+			}
+		}
+
+		// Role filter (from custom data)
+		if filters.Role != "" {
+			if user.CustomData == nil {
+				continue
+			}
+			if userRole, ok := user.CustomData["role"].(string); !ok || userRole != filters.Role {
+				continue
+			}
+		}
+
+		filtered = append(filtered, user)
+	}
+
+	return filtered
 }
 
 // UpdateAccount handles PUT /api/accounts/:id - updates an existing account
@@ -702,8 +896,8 @@ func UpdateAccount(c *gin.Context) {
 			updateRequest.CustomData["organizationId"] = request.OrganizationID
 		}
 		// OrganizationRole is now managed via JIT provisioning
-		if request.Metadata != nil {
-			for k, v := range request.Metadata {
+		if request.CustomData != nil {
+			for k, v := range request.CustomData {
 				updateRequest.CustomData[k] = v
 			}
 		}
@@ -861,16 +1055,16 @@ func convertLogtoUserToAccountResponse(account services.LogtoUser, org *services
 			accountResponse.Phone = phone
 		}
 
-		// Extract metadata
-		metadata := make(map[string]string)
+		// Copy customData but exclude fields already extracted to top level
+		customData := make(map[string]interface{})
 		for k, v := range account.CustomData {
-			if k != "userRoleId" && k != "organizationId" && k != "organizationRole" && k != "phone" && k != "createdBy" && k != "createdAt" && k != "updatedBy" && k != "updatedAt" {
-				if str, ok := v.(string); ok {
-					metadata[k] = str
-				}
+			if k != "__org_id" && k != "__org_name" &&
+				k != "userRoleId" && k != "organizationId" &&
+				k != "organizationRole" && k != "phone" {
+				customData[k] = v
 			}
 		}
-		accountResponse.Metadata = metadata
+		accountResponse.CustomData = customData
 	}
 
 	// Set organization name if provided

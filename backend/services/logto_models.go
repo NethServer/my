@@ -9,6 +9,10 @@
 
 package services
 
+import (
+	"time"
+)
+
 // LogtoUserInfo represents the user info returned by Logto
 type LogtoUserInfo struct {
 	Sub              string   `json:"sub"`
@@ -45,6 +49,83 @@ type LogtoOrganization struct {
 	CustomData    map[string]interface{}     `json:"customData"`
 	IsMfaRequired bool                       `json:"isMfaRequired"`
 	Branding      *LogtoOrganizationBranding `json:"branding"`
+}
+
+// PaginationInfo represents pagination metadata
+type PaginationInfo struct {
+	Page       int  `json:"page"`
+	PageSize   int  `json:"page_size"`
+	TotalCount int  `json:"total_count"`
+	TotalPages int  `json:"total_pages"`
+	HasNext    bool `json:"has_next"`
+	HasPrev    bool `json:"has_prev"`
+	NextPage   *int `json:"next_page,omitempty"`
+	PrevPage   *int `json:"prev_page,omitempty"`
+}
+
+// PaginatedOrganizations represents a paginated response of organizations
+type PaginatedOrganizations struct {
+	Data       []LogtoOrganization `json:"data"`
+	Pagination PaginationInfo      `json:"pagination"`
+}
+
+// OrganizationFilters represents filters for organization queries
+type OrganizationFilters struct {
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
+	Type        string `json:"type,omitempty"`       // from customData.type
+	CreatedBy   string `json:"created_by,omitempty"` // from customData.createdBy
+	Search      string `json:"search,omitempty"`     // general search term
+}
+
+// JitRolesCache represents cached JIT roles for an organization
+type JitRolesCache struct {
+	Roles     []LogtoOrganizationRole `json:"roles"`
+	CachedAt  time.Time               `json:"cached_at"`
+	ExpiresAt time.Time               `json:"expires_at"`
+}
+
+// JitRolesResult represents the result of a parallel JIT roles fetch
+type JitRolesResult struct {
+	OrgID string                  `json:"org_id"`
+	Roles []LogtoOrganizationRole `json:"roles"`
+	Error error                   `json:"error,omitempty"`
+}
+
+// PaginatedUsers represents a paginated response of users
+type PaginatedUsers struct {
+	Data       []LogtoUser    `json:"data"`
+	Pagination PaginationInfo `json:"pagination"`
+}
+
+// UserFilters represents filters for user queries
+type UserFilters struct {
+	Search         string `json:"search,omitempty"`          // general search term
+	OrganizationID string `json:"organization_id,omitempty"` // filter by organization
+	Role           string `json:"role,omitempty"`            // filter by user role
+	Username       string `json:"username,omitempty"`        // filter by username
+	Email          string `json:"email,omitempty"`           // filter by email
+}
+
+// OrgUsersResult represents the result of a parallel organization users fetch
+type OrgUsersResult struct {
+	OrgID string      `json:"org_id"`
+	Users []LogtoUser `json:"users"`
+	Error error       `json:"error,omitempty"`
+}
+
+// OrgUsersCache represents cached organization users
+type OrgUsersCache struct {
+	Users     []LogtoUser `json:"users"`
+	CachedAt  time.Time   `json:"cached_at"`
+	ExpiresAt time.Time   `json:"expires_at"`
+}
+
+// UsersCache represents cached user list
+type UsersCache struct {
+	Users     []LogtoUser `json:"users"`
+	CachedAt  time.Time   `json:"cached_at"`
+	ExpiresAt time.Time   `json:"expires_at"`
 }
 
 // LogtoOrganizationBranding represents organization branding settings
