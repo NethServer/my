@@ -190,7 +190,7 @@ func CanCreateAccountForOrganization(userOrgRole, userOrgID, userRole, targetOrg
 func CreateAccount(c *gin.Context) {
 	var request models.CreateAccountRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.ValidationBadRequest(err))
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
 		return
 	}
 
@@ -486,7 +486,7 @@ func CreateAccount(c *gin.Context) {
 		Name:             account.Name,
 		Phone:            account.PrimaryPhone,
 		Avatar:           account.Avatar,
-		UserRole:         request.UserRoleID, // Note: This should be resolved to name in response
+		UserRoleID:       request.UserRoleID,
 		OrganizationID:   request.OrganizationID,
 		OrganizationName: targetOrg.Name,
 		OrganizationRole: targetOrgRole, // Derived from JIT configuration
@@ -881,7 +881,7 @@ func UpdateAccount(c *gin.Context) {
 
 	var request models.UpdateAccountRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.ValidationBadRequest(err))
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
 		return
 	}
 
@@ -1133,7 +1133,7 @@ func convertLogtoUserToAccountResponse(account models.LogtoUser, org *models.Log
 	// Extract data from custom data
 	if account.CustomData != nil {
 		if userRoleId, ok := account.CustomData["userRoleId"].(string); ok {
-			accountResponse.UserRole = userRoleId // Note: Should resolve to role name for display
+			accountResponse.UserRoleID = userRoleId
 		}
 		if orgID, ok := account.CustomData["organizationId"].(string); ok {
 			accountResponse.OrganizationID = orgID

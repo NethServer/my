@@ -501,6 +501,75 @@ GET /customers?created_by=org_reseller_789
 
 ---
 
+## 🎭 Role Management
+Role information needed for account creation and management.
+
+### Get All User Roles
+**GET** `/roles`
+
+Returns all available user roles with their IDs and descriptions.
+
+**Response:**
+```json
+{
+  "code": 200,
+  "message": "roles retrieved successfully",
+  "data": {
+    "roles": [
+      {
+        "id": "rol_admin_123",
+        "name": "Admin",
+        "description": "Full system administration capabilities"
+      },
+      {
+        "id": "rol_support_456",
+        "name": "Support",
+        "description": "Customer support and system management"
+      }
+    ]
+  }
+}
+```
+
+### Get All Organization Roles
+**GET** `/organization-roles`
+
+Returns all available organization roles with their IDs and descriptions.
+
+**Response:**
+```json
+{
+  "code": 200,
+  "message": "organization roles retrieved successfully",
+  "data": {
+    "organizationRoles": [
+      {
+        "id": "org_rol_owner_123",
+        "name": "Owner",
+        "description": "Complete control over organization and business hierarchy"
+      },
+      {
+        "id": "org_rol_distributor_456",
+        "name": "Distributor",
+        "description": "Can manage resellers and customers"
+      },
+      {
+        "id": "org_rol_reseller_789",
+        "name": "Reseller",
+        "description": "Can manage customers"
+      },
+      {
+        "id": "org_rol_customer_101",
+        "name": "Customer",
+        "description": "End customer with read-only access"
+      }
+    ]
+  }
+}
+```
+
+---
+
 ## 👥 Account Management
 Users within organizations with technical capabilities and business hierarchy roles.
 
@@ -518,7 +587,7 @@ Users within organizations with technical capabilities and business hierarchy ro
     "email": "john@example.com",
     "name": "John Doe",
     "phone": "+39 333 123456",
-    "userRole": "rol_admin_id",
+    "userRoleId": "rol_admin_id",
     "organizationId": "org_123456789",
     "organizationName": "ACME Corp",
     "organizationRole": "Admin",
@@ -565,7 +634,7 @@ GET /accounts?role=admin&page=2
         "email": "john@example.com",
         "name": "John Doe",
         "phone": "+39 333 123456",
-        "userRole": "rol_admin_id",
+        "userRoleId": "rol_admin_id",
         "organizationId": "org_123456789",
         "organizationName": "ACME Corp",
         "organizationRole": "Admin",
@@ -640,7 +709,7 @@ GET /accounts?role=admin&page=2
     "email": "john.updated@acme.com",
     "name": "John Doe (Updated)",
     "phone": "+39 333 999 8888",
-    "userRole": "rol_new_role_id_here",
+    "userRoleId": "rol_new_role_id_here",
     "organizationId": "org_123456789",
     "organizationName": "ACME Corp",
     "organizationRole": "Admin",
@@ -720,7 +789,7 @@ GET /accounts?role=admin&page=2
   "email": "john@example.com",
   "name": "John Doe",
   "phone": "+39 333 123456",
-  "userRole": "rol_admin_id",
+  "userRoleId": "rol_admin_id",
   "organizationId": "org_123456789",
   "organizationName": "ACME Corp",
   "organizationRole": "Admin",

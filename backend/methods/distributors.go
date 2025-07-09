@@ -24,7 +24,7 @@ import (
 func CreateDistributor(c *gin.Context) {
 	var request models.CreateDistributorRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.ValidationBadRequest(err))
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
 		return
 	}
 
@@ -282,7 +282,7 @@ func UpdateDistributor(c *gin.Context) {
 
 	var request models.UpdateDistributorRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.ValidationBadRequest(err))
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
 		return
 	}
 

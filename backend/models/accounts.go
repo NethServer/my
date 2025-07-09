@@ -40,7 +40,7 @@ type AccountResponse struct {
 	Name             string                 `json:"name" structs:"name"`
 	Phone            string                 `json:"phone" structs:"phone"`
 	Avatar           string                 `json:"avatar" structs:"avatar"`
-	UserRole         string                 `json:"userRole" structs:"userRole"`
+	UserRoleID       string                 `json:"userRoleId" structs:"userRoleId"`
 	OrganizationID   string                 `json:"organizationId" structs:"organizationId"`
 	OrganizationName string                 `json:"organizationName" structs:"organizationName"`
 	OrganizationRole string                 `json:"organizationRole" structs:"organizationRole"`

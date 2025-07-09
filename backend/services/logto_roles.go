@@ -104,8 +104,8 @@ func (c *LogtoManagementClient) GetOrganizationRoleScopes(roleID string) ([]mode
 	return scopes, nil
 }
 
-// GetRoleByName finds a role by name
-func (c *LogtoManagementClient) GetRoleByName(roleName string) (*models.LogtoRole, error) {
+// GetAllRoles fetches all roles from Logto Management API
+func (c *LogtoManagementClient) GetAllRoles() ([]models.LogtoRole, error) {
 	resp, err := c.makeRequest("GET", "/roles", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch roles: %w", err)
@@ -122,6 +122,16 @@ func (c *LogtoManagementClient) GetRoleByName(roleName string) (*models.LogtoRol
 		return nil, fmt.Errorf("failed to decode roles: %w", err)
 	}
 
+	return roles, nil
+}
+
+// GetRoleByName finds a role by name
+func (c *LogtoManagementClient) GetRoleByName(roleName string) (*models.LogtoRole, error) {
+	roles, err := c.GetAllRoles()
+	if err != nil {
+		return nil, err
+	}
+
 	for _, role := range roles {
 		if role.Name == roleName {
 			return &role, nil
@@ -131,8 +141,8 @@ func (c *LogtoManagementClient) GetRoleByName(roleName string) (*models.LogtoRol
 	return nil, fmt.Errorf("role '%s' not found", roleName)
 }
 
-// GetOrganizationRoleByName finds an organization role by name
-func (c *LogtoManagementClient) GetOrganizationRoleByName(roleName string) (*models.LogtoOrganizationRole, error) {
+// GetAllOrganizationRoles fetches all organization roles from Logto Management API
+func (c *LogtoManagementClient) GetAllOrganizationRoles() ([]models.LogtoOrganizationRole, error) {
 	resp, err := c.makeRequest("GET", "/organization-roles", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch organization roles: %w", err)
@@ -147,6 +157,16 @@ func (c *LogtoManagementClient) GetOrganizationRoleByName(roleName string) (*mod
 	var roles []models.LogtoOrganizationRole
 	if err := json.NewDecoder(resp.Body).Decode(&roles); err != nil {
 		return nil, fmt.Errorf("failed to decode organization roles: %w", err)
+	}
+
+	return roles, nil
+}
+
+// GetOrganizationRoleByName finds an organization role by name
+func (c *LogtoManagementClient) GetOrganizationRoleByName(roleName string) (*models.LogtoOrganizationRole, error) {
+	roles, err := c.GetAllOrganizationRoles()
+	if err != nil {
+		return nil, err
 	}
 
 	for _, role := range roles {

@@ -156,7 +156,7 @@ func TestAccountResponseStructure(t *testing.T) {
 		Name:             "Response User",
 		Phone:            "+4444444444",
 		Avatar:           "https://example.com/response-avatar.jpg",
-		UserRole:         "Admin",
+		UserRoleID:       "Admin",
 		OrganizationID:   "org-response",
 		OrganizationName: "Response Organization",
 		OrganizationRole: "Owner",
@@ -173,7 +173,7 @@ func TestAccountResponseStructure(t *testing.T) {
 	assert.Equal(t, "Response User", resp.Name)
 	assert.Equal(t, "+4444444444", resp.Phone)
 	assert.Equal(t, "https://example.com/response-avatar.jpg", resp.Avatar)
-	assert.Equal(t, "Admin", resp.UserRole)
+	assert.Equal(t, "Admin", resp.UserRoleID)
 	assert.Equal(t, "org-response", resp.OrganizationID)
 	assert.Equal(t, "Response Organization", resp.OrganizationName)
 	assert.Equal(t, "Owner", resp.OrganizationRole)
@@ -195,7 +195,7 @@ func TestAccountResponseJSONSerialization(t *testing.T) {
 		Name:             "JSON Response User",
 		Phone:            "+5555555555",
 		Avatar:           "https://example.com/jsonresponse-avatar.jpg",
-		UserRole:         "Support",
+		UserRoleID:       "Support",
 		OrganizationID:   "org-jsonresponse",
 		OrganizationName: "JSON Response Organization",
 		OrganizationRole: "Distributor",
@@ -220,7 +220,7 @@ func TestAccountResponseJSONSerialization(t *testing.T) {
 	assert.Equal(t, resp.Name, unmarshaledResp.Name)
 	assert.Equal(t, resp.Phone, unmarshaledResp.Phone)
 	assert.Equal(t, resp.Avatar, unmarshaledResp.Avatar)
-	assert.Equal(t, resp.UserRole, unmarshaledResp.UserRole)
+	assert.Equal(t, resp.UserRoleID, unmarshaledResp.UserRoleID)
 	assert.Equal(t, resp.OrganizationID, unmarshaledResp.OrganizationID)
 	assert.Equal(t, resp.OrganizationName, unmarshaledResp.OrganizationName)
 	assert.Equal(t, resp.OrganizationRole, unmarshaledResp.OrganizationRole)
@@ -238,7 +238,7 @@ func TestAccountResponseWithNilLastSignIn(t *testing.T) {
 		Username:         "nilsignin",
 		Email:            "nilsignin@example.com",
 		Name:             "Nil SignIn User",
-		UserRole:         "Admin",
+		UserRoleID:       "Admin",
 		OrganizationID:   "org-nilsignin",
 		OrganizationName: "Nil SignIn Organization",
 		OrganizationRole: "Customer",
@@ -286,7 +286,7 @@ func TestAccountModelsWithEmptyCustomData(t *testing.T) {
 		Username:         "emptymetaresp",
 		Email:            "emptymetaresp@example.com",
 		Name:             "Empty Meta Response User",
-		UserRole:         "Support",
+		UserRoleID:       "Support",
 		OrganizationID:   "org-emptymetaresp",
 		OrganizationName: "Empty Meta Organization",
 		OrganizationRole: "Reseller",
@@ -340,7 +340,7 @@ func TestAccountModelsWithNilCustomData(t *testing.T) {
 		Username:         "nilmetaresp",
 		Email:            "nilmetaresp@example.com",
 		Name:             "Nil Meta Response User",
-		UserRole:         "Admin",
+		UserRoleID:       "Admin",
 		OrganizationID:   "org-nilmetaresp",
 		OrganizationName: "Nil Meta Organization",
 		OrganizationRole: "Owner",
@@ -378,7 +378,7 @@ func TestAccountSuspensionStates(t *testing.T) {
 				Username:         "suspensiontest",
 				Email:            "suspension@example.com",
 				Name:             "Suspension Test User",
-				UserRole:         "Support",
+				UserRoleID:       "Support",
 				OrganizationID:   "org-suspension",
 				OrganizationName: "Suspension Test Organization",
 				OrganizationRole: "Customer",

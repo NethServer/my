@@ -127,8 +127,51 @@ func ParseValidationError(err error) ValidationError {
 	}
 }
 
+// ParseValidationErrors parses multiple validation errors from Gin binding and returns a slice of ValidationError
+func ParseValidationErrors(err error) []ValidationError {
+	if validationErrors, ok := err.(validator.ValidationErrors); ok {
+		result := make([]ValidationError, 0, len(validationErrors))
+		for _, ve := range validationErrors {
+			// Extract field name from struct tag
+			fieldName := ve.Field()
+
+			// Get the validation tag that failed
+			tag := ve.Tag()
+
+			// Get the actual value that failed validation
+			value := ""
+			if ve.Value() != nil {
+				value = strings.TrimSpace(reflect.ValueOf(ve.Value()).String())
+			}
+
+			result = append(result, ValidationError{
+				Key:     fieldName,
+				Message: tag,
+				Input:   value,
+			})
+		}
+		return result
+	}
+
+	// Fallback for other error types
+	return []ValidationError{{
+		Key:     "unknown",
+		Message: err.Error(),
+		Input:   "",
+	}}
+}
+
 // ValidationBadRequest creates a 400 Bad Request response with structured validation error
 func ValidationBadRequest(err error) Response {
 	validationError := ParseValidationError(err)
 	return BadRequest("validation failed", validationError)
+}
+
+// ValidationBadRequestMultiple creates a 400 Bad Request response with multiple validation errors
+func ValidationBadRequestMultiple(err error) Response {
+	validationErrors := ParseValidationErrors(err)
+	data := map[string]interface{}{
+		"validation_errors": validationErrors,
+	}
+	return BadRequest("validation failed", data)
 }

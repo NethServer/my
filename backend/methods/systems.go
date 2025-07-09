@@ -28,7 +28,7 @@ func CreateSystem(c *gin.Context) {
 	// Parse request body
 	var request models.CreateSystemRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.ValidationBadRequest(err))
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
 		return
 	}
 
@@ -102,7 +102,7 @@ func UpdateSystem(c *gin.Context) {
 	// Parse request body
 	var request models.UpdateSystemRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.ValidationBadRequest(err))
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
 		return
 	}
 

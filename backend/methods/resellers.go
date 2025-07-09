@@ -24,7 +24,7 @@ import (
 func CreateReseller(c *gin.Context) {
 	var request models.CreateResellerRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.ValidationBadRequest(err))
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
 		return
 	}
 
@@ -282,7 +282,7 @@ func UpdateReseller(c *gin.Context) {
 
 	var request models.UpdateResellerRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.ValidationBadRequest(err))
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
 		return
 	}
 

@@ -203,6 +203,10 @@ func main() {
 			accountsGroup.DELETE("/:id", methods.DeleteAccount) // Delete account
 		}
 
+		// Roles endpoints - for role selection in account creation
+		customAuth.GET("/roles", methods.GetRoles)
+		customAuth.GET("/organization-roles", methods.GetOrganizationRoles)
+
 		// System statistics endpoint - require management permissions
 		customAuth.GET("/stats", middleware.RequirePermission("manage:distributors"), methods.GetStats)
 	}
