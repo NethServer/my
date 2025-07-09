@@ -17,12 +17,14 @@ import {
   faChevronDown,
   type IconDefinition,
   faGlobe as fasGlobe,
+  faCity as fasCity,
   faBuilding as fasBuilding,
   faUserGroup as fasUserGroup,
 } from '@fortawesome/free-solid-svg-icons'
 import {
   faHouse as falHouse,
   faGlobe as falGlobe,
+  faCity as falCity,
   faBuilding as falBuilding,
   faUserGroup as falUserGroup,
 } from '@nethesis/nethesis-light-svg-icons'
@@ -64,8 +66,8 @@ const navigation = computed(() => {
       menuItems.push({
         name: 'resellers.title',
         to: 'resellers',
-        solidIcon: fasBuilding,
-        lightIcon: falBuilding,
+        solidIcon: fasCity,
+        lightIcon: falCity,
       })
     }
 
@@ -73,10 +75,20 @@ const navigation = computed(() => {
       menuItems.push({
         name: 'customers.title',
         to: 'customers',
-        solidIcon: fasUserGroup,
-        lightIcon: falUserGroup,
+        solidIcon: fasBuilding,
+        lightIcon: falBuilding,
       })
     }
+  }
+
+  // users menu item
+  if (loginStore.userInfo?.userRoles && loginStore.userInfo.userRoles.includes('Admin')) {
+    menuItems.push({
+      name: 'users.title',
+      to: 'users',
+      solidIcon: fasUserGroup,
+      lightIcon: falUserGroup,
+    })
   }
   return menuItems
 })

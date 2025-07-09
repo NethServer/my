@@ -9,7 +9,7 @@ import { useLoginStore } from '@/stores/login'
 import {
   faCircleInfo,
   faCirclePlus,
-  faBuilding,
+  faCity,
   faPenToSquare,
   faTrash,
 } from '@fortawesome/free-solid-svg-icons'
@@ -196,7 +196,7 @@ function getKebabMenuItems(reseller: Reseller) {
           <NeTableCell colspan="5">
             <NeEmptyState
               :title="$t('resellers.no_reseller')"
-              :icon="faBuilding"
+              :icon="faCity"
               class="bg-white dark:bg-gray-950"
             >
               <!-- create reseller -->
