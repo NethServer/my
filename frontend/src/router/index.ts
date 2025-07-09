@@ -44,6 +44,11 @@ const router = createRouter({
       name: 'customers',
       component: () => import('../views/CustomersView.vue'),
     },
+    {
+      path: '/users',
+      name: 'users',
+      component: () => import('../views/UsersView.vue'),
+    },
     //// remove
     // {
     //   path: '/test/subtest',

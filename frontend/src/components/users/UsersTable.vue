@@ -4,14 +4,14 @@
 -->
 
 <script setup lang="ts">
-import { getCustomers, searchStringInCustomer, type Customer } from '@/lib/customers'
+import { getAccounts, searchStringInUser, type User } from '@/lib/users'
 import { useLoginStore } from '@/stores/login'
 import {
   faCircleInfo,
   faCirclePlus,
+  faUserGroup,
   faPenToSquare,
   faTrash,
-  faBuilding,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -32,55 +32,53 @@ import {
 } from '@nethesis/vue-components'
 import { useQuery } from '@pinia/colada'
 import { computed, ref, watch } from 'vue'
-import CreateOrEditCustomerDrawer from './CreateOrEditCustomerDrawer.vue'
+import CreateOrEditUserDrawer from './CreateOrEditUserDrawer.vue'
 import { useI18n } from 'vue-i18n'
-import DeleteCustomerModal from './DeleteCustomerModal.vue'
+import DeleteUserModal from './DeleteUserModal.vue'
 import { loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageSize'
 
-const { isShownCreateCustomerDrawer = false } = defineProps<{
-  isShownCreateCustomerDrawer: boolean
+const { isShownCreateUserDrawer = false } = defineProps<{
+  isShownCreateUserDrawer: boolean
 }>()
 
 const emit = defineEmits(['close-drawer']) ////
 
 const { t } = useI18n()
 const loginStore = useLoginStore()
-const { state: customers, asyncStatus: customersAsyncStatus } = useQuery({
-  key: ['customers'], //// use key factory?
+const { state: users, asyncStatus: usersAsyncStatus } = useQuery({
+  key: ['users'], //// use key factory?
   enabled: () => !!loginStore.jwtToken,
-  query: getCustomers,
+  query: getAccounts,
 })
 
-const currentCustomer = ref<Customer | undefined>()
+const currentUser = ref<User | undefined>()
 const textFilter = ref('')
-const isShownCreateOrEditCustomerDrawer = ref(false)
-const isShownDeleteCustomerDrawer = ref(false)
-const tableId = 'customersTable'
+const isShownCreateOrEditUserDrawer = ref(false)
+const isShownDeleteUserDrawer = ref(false)
+const tableId = 'usersTable'
 const pageSize = ref(10)
 
-const filteredCustomers = computed(() => {
-  if (!customers.value.data?.length) {
+const filteredUsers = computed(() => {
+  if (!users.value.data?.length) {
     return []
   }
 
   if (!textFilter.value.trim()) {
-    return customers.value.data
+    return users.value.data
   } else {
-    return customers.value.data.filter((customer) =>
-      searchStringInCustomer(textFilter.value, customer),
-    )
+    return users.value.data.filter((user) => searchStringInUser(textFilter.value, user))
   }
 })
 
-const { currentPage, paginatedItems } = useItemPagination(() => filteredCustomers.value, {
+const { currentPage, paginatedItems } = useItemPagination(() => filteredUsers.value, {
   itemsPerPage: pageSize,
 })
 
 watch(
-  () => isShownCreateCustomerDrawer,
+  () => isShownCreateUserDrawer,
   () => {
-    if (isShownCreateCustomerDrawer) {
-      showCreateCustomerDrawer()
+    if (isShownCreateUserDrawer) {
+      showCreateUserDrawer()
     }
   },
   { immediate: true },
@@ -100,34 +98,34 @@ function clearFilters() {
   textFilter.value = ''
 }
 
-function showCreateCustomerDrawer() {
-  currentCustomer.value = undefined
-  isShownCreateOrEditCustomerDrawer.value = true
+function showCreateUserDrawer() {
+  currentUser.value = undefined
+  isShownCreateOrEditUserDrawer.value = true
 }
 
-function showEditCustomerDrawer(customer: Customer) {
-  currentCustomer.value = customer
-  isShownCreateOrEditCustomerDrawer.value = true
+function showEditUserDrawer(user: User) {
+  currentUser.value = user
+  isShownCreateOrEditUserDrawer.value = true
 }
 
-function showDeleteCustomerDrawer(customer: Customer) {
-  currentCustomer.value = customer
-  isShownDeleteCustomerDrawer.value = true
+function showDeleteUserDrawer(user: User) {
+  currentUser.value = user
+  isShownDeleteUserDrawer.value = true
 }
 
 function onCloseDrawer() {
-  isShownCreateOrEditCustomerDrawer.value = false
+  isShownCreateOrEditUserDrawer.value = false
   emit('close-drawer')
 }
 
-function getKebabMenuItems(customer: Customer) {
+function getKebabMenuItems(user: User) {
   return [
     {
-      id: 'deleteCustomer',
+      id: 'deleteAccount',
       label: t('common.delete'),
       icon: faTrash,
       danger: true,
-      action: () => showDeleteCustomerDrawer(customer),
+      action: () => showDeleteUserDrawer(user),
       disabled: false,
     },
   ]
@@ -136,12 +134,12 @@ function getKebabMenuItems(customer: Customer) {
 
 <template>
   <div>
-    <!-- get customers error notification -->
+    <!-- get users error notification -->
     <NeInlineNotification
-      v-if="customers.status === 'error'"
+      v-if="users.status === 'error'"
       kind="error"
-      :title="$t('customers.cannot_retrieve_customers')"
-      :description="customers.error.message"
+      :title="$t('users.cannot_retrieve_users')"
+      :description="users.error.message"
       class="mb-6"
     />
     <!-- table toolbar -->
@@ -153,7 +151,7 @@ function getKebabMenuItems(customer: Customer) {
           <NeTextInput
             v-model.trim="textFilter"
             is-search
-            :placeholder="$t('customers.filter_customers')"
+            :placeholder="$t('users.filter_users')"
             class="max-w-48 sm:max-w-sm"
           />
           <!-- clear filters -->
@@ -163,7 +161,7 @@ function getKebabMenuItems(customer: Customer) {
         </div>
         <!-- update indicator -->
         <div
-          v-if="customersAsyncStatus === 'loading' && customers.status !== 'pending'"
+          v-if="usersAsyncStatus === 'loading' && users.status !== 'pending'"
           class="flex items-center gap-2"
         >
           <NeSpinner color="white" />
@@ -175,50 +173,45 @@ function getKebabMenuItems(customer: Customer) {
     </div>
     <!-- //// check breakpoint, skeleton-columns -->
     <NeTable
-      :aria-label="$t('customers.title')"
+      :aria-label="$t('users.title')"
       card-breakpoint="xl"
-      :loading="customers.status === 'pending'"
+      :loading="users.status === 'pending'"
       :skeleton-columns="5"
       :skeleton-rows="7"
     >
       <NeTableHead>
-        <NeTableHeadCell>{{ $t('customers.name') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('customers.description') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('customers.region') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('customers.contact_person') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('users.name') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('users.username') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('users.email') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('users.phone') }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- no header for actions -->
         </NeTableHeadCell>
       </NeTableHead>
       <NeTableBody>
         <!-- empty state -->
-        <NeTableRow v-if="!customers.data?.length">
+        <NeTableRow v-if="!users.data?.length">
           <NeTableCell colspan="5">
             <NeEmptyState
-              :title="$t('customers.no_customer')"
-              :icon="faBuilding"
+              :title="$t('users.no_user')"
+              :icon="faUserGroup"
               class="bg-white dark:bg-gray-950"
             >
-              <!-- create customer -->
-              <NeButton
-                kind="secondary"
-                size="lg"
-                class="shrink-0"
-                @click="showCreateCustomerDrawer()"
-              >
+              <!-- create user -->
+              <NeButton kind="secondary" size="lg" class="shrink-0" @click="showCreateUserDrawer()">
                 <template #prefix>
                   <FontAwesomeIcon :icon="faCirclePlus" aria-hidden="true" />
                 </template>
-                {{ $t('customers.create_customer') }}
+                {{ $t('users.create_user') }}
               </NeButton>
             </NeEmptyState>
           </NeTableCell>
         </NeTableRow>
-        <!-- no customer matching filter -->
-        <NeTableRow v-else-if="!filteredCustomers.length">
+        <!-- no user matching filter -->
+        <NeTableRow v-else-if="!filteredUsers.length">
           <NeTableCell colspan="4">
             <NeEmptyState
-              :title="$t('customers.no_customer_found')"
+              :title="$t('users.no_user_found')"
               :description="$t('common.try_changing_search_filters')"
               :icon="faCircleInfo"
               class="bg-white dark:bg-gray-950"
@@ -230,21 +223,21 @@ function getKebabMenuItems(customer: Customer) {
           </NeTableCell>
         </NeTableRow>
         <NeTableRow v-for="(item, index) in paginatedItems" v-else :key="index">
-          <NeTableCell :data-label="$t('customers.name')">
+          <NeTableCell :data-label="$t('users.name')">
             {{ item.name }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('customers.description')">
-            {{ item.description || '-' }}
+          <NeTableCell :data-label="$t('users.username')">
+            {{ item.username }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('customers.region')">
-            {{ item.customData?.region || '-' }}
+          <NeTableCell :data-label="$t('users.email')">
+            {{ item.email }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('customers.contact_person')">
-            {{ item.customData?.contactPerson || '-' }}
+          <NeTableCell :data-label="$t('users.phone')">
+            {{ item.phone || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
             <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
-              <NeButton kind="tertiary" @click="showEditCustomerDrawer(item)">
+              <NeButton kind="tertiary" @click="showEditUserDrawer(item)">
                 <template #prefix>
                   <!-- //// "Details" instead of "Edit" to open the drawer? -->
                   <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
@@ -260,7 +253,7 @@ function getKebabMenuItems(customer: Customer) {
       <template #paginator>
         <NePaginator
           :current-page="currentPage"
-          :total-rows="filteredCustomers.length"
+          :total-rows="filteredUsers.length"
           :page-size="pageSize"
           :nav-pagination-label="$t('ne_table.pagination')"
           :next-label="$t('ne_table.go_to_next_page')"
@@ -282,16 +275,16 @@ function getKebabMenuItems(customer: Customer) {
       </template>
     </NeTable>
     <!-- side drawer -->
-    <CreateOrEditCustomerDrawer
-      :is-shown="isShownCreateOrEditCustomerDrawer"
-      :current-customer="currentCustomer"
+    <CreateOrEditUserDrawer
+      :is-shown="isShownCreateOrEditUserDrawer"
+      :current-user="currentUser"
       @close="onCloseDrawer"
     />
-    <!-- delete customer modal -->
-    <DeleteCustomerModal
-      :visible="isShownDeleteCustomerDrawer"
-      :customer="currentCustomer"
-      @close="isShownDeleteCustomerDrawer = false"
+    <!-- delete user modal -->
+    <DeleteUserModal
+      :visible="isShownDeleteUserDrawer"
+      :user="currentUser"
+      @close="isShownDeleteUserDrawer = false"
     />
   </div>
 </template>
