@@ -108,6 +108,10 @@ func outputText(result *InitResult) {
 	fmt.Printf("BACKEND_APP_ID=%v\n", backendEnv["BACKEND_APP_ID"])
 	fmt.Printf("BACKEND_APP_SECRET=%v\n", backendEnv["BACKEND_APP_SECRET"])
 	fmt.Printf("LOGTO_MANAGEMENT_BASE_URL=%v\n", backendEnv["LOGTO_MANAGEMENT_BASE_URL"])
+	fmt.Printf("\n# Redis Configuration (Required)\n")
+	fmt.Printf("REDIS_URL=%v\n", "redis://localhost:6379")
+	fmt.Printf("REDIS_DB=%v\n", "0")
+	fmt.Printf("REDIS_PASSWORD=%v\n", "")
 	fmt.Printf("\n# Server Configuration\n")
 	fmt.Printf("LISTEN_ADDRESS=%v\n", backendEnv["LISTEN_ADDRESS"])
 
