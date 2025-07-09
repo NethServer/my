@@ -19,11 +19,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nethesis/my/backend/background/cache"
 	"github.com/nethesis/my/backend/logger"
+	"github.com/nethesis/my/backend/models"
 )
 
 // GetUserByID fetches a specific user by ID
-func (c *LogtoManagementClient) GetUserByID(userID string) (*LogtoUser, error) {
+func (c *LogtoManagementClient) GetUserByID(userID string) (*models.LogtoUser, error) {
 	resp, err := c.makeRequest("GET", fmt.Sprintf("/users/%s", userID), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user: %w", err)
@@ -39,7 +41,7 @@ func (c *LogtoManagementClient) GetUserByID(userID string) (*LogtoUser, error) {
 		return nil, fmt.Errorf("failed to fetch user, status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var user LogtoUser
+	var user models.LogtoUser
 	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
 		return nil, fmt.Errorf("failed to decode user: %w", err)
 	}
@@ -48,7 +50,7 @@ func (c *LogtoManagementClient) GetUserByID(userID string) (*LogtoUser, error) {
 }
 
 // CreateUser creates a new account in Logto
-func (c *LogtoManagementClient) CreateUser(request CreateUserRequest) (*LogtoUser, error) {
+func (c *LogtoManagementClient) CreateUser(request models.CreateUserRequest) (*models.LogtoUser, error) {
 	reqBody, err := json.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal user request: %w", err)
@@ -65,7 +67,7 @@ func (c *LogtoManagementClient) CreateUser(request CreateUserRequest) (*LogtoUse
 		return nil, fmt.Errorf("failed to create user, status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var user LogtoUser
+	var user models.LogtoUser
 	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
 		return nil, fmt.Errorf("failed to decode created user: %w", err)
 	}
@@ -74,7 +76,7 @@ func (c *LogtoManagementClient) CreateUser(request CreateUserRequest) (*LogtoUse
 }
 
 // UpdateUser updates an existing user in Logto
-func (c *LogtoManagementClient) UpdateUser(userID string, request UpdateUserRequest) (*LogtoUser, error) {
+func (c *LogtoManagementClient) UpdateUser(userID string, request models.UpdateUserRequest) (*models.LogtoUser, error) {
 	reqBody, err := json.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal user update request: %w", err)
@@ -91,7 +93,7 @@ func (c *LogtoManagementClient) UpdateUser(userID string, request UpdateUserRequ
 		return nil, fmt.Errorf("failed to update user, status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var user LogtoUser
+	var user models.LogtoUser
 	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
 		return nil, fmt.Errorf("failed to decode updated user: %w", err)
 	}
@@ -143,7 +145,7 @@ func (c *LogtoManagementClient) AssignUserToOrganization(orgID, userID string) e
 }
 
 // GetAllUsers fetches all users from Logto
-func (c *LogtoManagementClient) GetAllUsers() ([]LogtoUser, error) {
+func (c *LogtoManagementClient) GetAllUsers() ([]models.LogtoUser, error) {
 	resp, err := c.makeRequest("GET", "/users", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch users: %w", err)
@@ -155,7 +157,7 @@ func (c *LogtoManagementClient) GetAllUsers() ([]LogtoUser, error) {
 		return nil, fmt.Errorf("failed to fetch users, status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var users []LogtoUser
+	var users []models.LogtoUser
 	if err := json.NewDecoder(resp.Body).Decode(&users); err != nil {
 		return nil, fmt.Errorf("failed to decode users: %w", err)
 	}
@@ -164,7 +166,7 @@ func (c *LogtoManagementClient) GetAllUsers() ([]LogtoUser, error) {
 }
 
 // GetUsersPaginated fetches users with pagination and filters using Logto native API
-func (c *LogtoManagementClient) GetUsersPaginated(page, pageSize int, filters UserFilters) (*PaginatedUsers, error) {
+func (c *LogtoManagementClient) GetUsersPaginated(page, pageSize int, filters models.UserFilters) (*models.PaginatedUsers, error) {
 	// Build URL with Logto's native pagination parameters
 	url := fmt.Sprintf("/users?page=%d&page_size=%d", page, pageSize)
 
@@ -184,7 +186,7 @@ func (c *LogtoManagementClient) GetUsersPaginated(page, pageSize int, filters Us
 		return nil, fmt.Errorf("failed to fetch users, status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var users []LogtoUser
+	var users []models.LogtoUser
 	if err := json.NewDecoder(resp.Body).Decode(&users); err != nil {
 		return nil, fmt.Errorf("failed to decode users: %w", err)
 	}
@@ -202,7 +204,7 @@ func (c *LogtoManagementClient) GetUsersPaginated(page, pageSize int, filters Us
 
 	totalPages := (totalCount + pageSize - 1) / pageSize
 
-	paginationInfo := PaginationInfo{
+	paginationInfo := models.PaginationInfo{
 		Page:       page,
 		PageSize:   pageSize,
 		TotalCount: totalCount,
@@ -221,19 +223,19 @@ func (c *LogtoManagementClient) GetUsersPaginated(page, pageSize int, filters Us
 		paginationInfo.PrevPage = &prevPage
 	}
 
-	return &PaginatedUsers{
+	return &models.PaginatedUsers{
 		Data:       filteredUsers,
 		Pagination: paginationInfo,
 	}, nil
 }
 
 // applyUserClientSideFilters applies filters that can't be done server-side
-func (c *LogtoManagementClient) applyUserClientSideFilters(users []LogtoUser, filters UserFilters) []LogtoUser {
+func (c *LogtoManagementClient) applyUserClientSideFilters(users []models.LogtoUser, filters models.UserFilters) []models.LogtoUser {
 	if filters.Username == "" && filters.Email == "" && filters.Role == "" && filters.OrganizationID == "" {
 		return users
 	}
 
-	var filtered []LogtoUser
+	var filtered []models.LogtoUser
 	for _, user := range users {
 		// Username filter (exact match)
 		if filters.Username != "" && user.Username != filters.Username {
@@ -273,9 +275,9 @@ func (c *LogtoManagementClient) applyUserClientSideFilters(users []LogtoUser, fi
 }
 
 // GetOrganizationUsersParallel fetches users for multiple organizations in parallel
-func (c *LogtoManagementClient) GetOrganizationUsersParallel(orgIDs []string) map[string]OrgUsersResult {
+func (c *LogtoManagementClient) GetOrganizationUsersParallel(orgIDs []string) map[string]models.OrgUsersResult {
 	if len(orgIDs) == 0 {
-		return make(map[string]OrgUsersResult)
+		return make(map[string]models.OrgUsersResult)
 	}
 
 	// Limit concurrent requests to respect rate limits
@@ -284,7 +286,7 @@ func (c *LogtoManagementClient) GetOrganizationUsersParallel(orgIDs []string) ma
 		maxConcurrent = len(orgIDs)
 	}
 
-	results := make(map[string]OrgUsersResult)
+	results := make(map[string]models.OrgUsersResult)
 	resultsMutex := sync.Mutex{}
 
 	// Create semaphore for rate limiting
@@ -312,10 +314,10 @@ func (c *LogtoManagementClient) GetOrganizationUsersParallel(orgIDs []string) ma
 			defer wg.Done()
 
 			// Check cache first (avoid semaphore if cached)
-			cache := GetOrgUsersCacheManager()
-			if cachedUsers, found := cache.Get(id); found {
+			cacheManager := cache.GetOrgUsersCacheManager()
+			if cachedUsers, found := cacheManager.Get(id); found {
 				resultsMutex.Lock()
-				results[id] = OrgUsersResult{
+				results[id] = models.OrgUsersResult{
 					OrgID: id,
 					Users: cachedUsers,
 				}
@@ -329,7 +331,7 @@ func (c *LogtoManagementClient) GetOrganizationUsersParallel(orgIDs []string) ma
 				defer func() { <-semaphore }()
 			case <-ctx.Done():
 				resultsMutex.Lock()
-				results[id] = OrgUsersResult{
+				results[id] = models.OrgUsersResult{
 					OrgID: id,
 					Error: fmt.Errorf("context timeout"),
 				}
@@ -351,7 +353,7 @@ func (c *LogtoManagementClient) GetOrganizationUsersParallel(orgIDs []string) ma
 					Msg("Failed to fetch organization users in parallel")
 
 				resultsMutex.Lock()
-				results[id] = OrgUsersResult{
+				results[id] = models.OrgUsersResult{
 					OrgID: id,
 					Error: err,
 				}
@@ -360,7 +362,7 @@ func (c *LogtoManagementClient) GetOrganizationUsersParallel(orgIDs []string) ma
 			}
 
 			resultsMutex.Lock()
-			results[id] = OrgUsersResult{
+			results[id] = models.OrgUsersResult{
 				OrgID: id,
 				Users: users,
 			}

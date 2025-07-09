@@ -38,6 +38,19 @@ JWT_ISSUER=your-api.com
 JWT_EXPIRATION=24h
 JWT_REFRESH_EXPIRATION=168h
 LOGTO_MANAGEMENT_BASE_URL=https://your-logto-instance.logto.app/api
+
+# Cache TTL Configuration
+STATS_CACHE_TTL=10m
+STATS_UPDATE_INTERVAL=5m
+STATS_STALE_THRESHOLD=15m
+JIT_ROLES_CACHE_TTL=5m
+JIT_ROLES_CLEANUP_INTERVAL=2m
+ORG_USERS_CACHE_TTL=3m
+ORG_USERS_CLEANUP_INTERVAL=1m
+JWKS_CACHE_TTL=5m
+
+# API Configuration
+DEFAULT_PAGE_SIZE=100
 ```
 
 ## Architecture
@@ -98,9 +111,22 @@ backend/
 ├── methods/                # HTTP handlers
 ├── models/                 # Data structures
 ├── services/               # Business logic
+├── background/             # Background processing tasks
 ├── logger/                 # Structured logging
 └── response/               # HTTP response helpers
 ```
+
+## Background Systems
+
+### Statistics Cache
+- **Auto-initialized**: Starts with server, updates every 5 minutes
+- **Cached Data**: Organization counts, user statistics, system metrics
+- **TTL**: 10 minutes
+
+### Roles Cache
+- **JIT-initialized**: Lazy loading on first access
+- **Cached Data**: User roles, organization roles, permissions
+- **TTL**: 3-5 minutes per cache entry
 
 ## Related
 - [API.md](API.md) - Complete API documentation

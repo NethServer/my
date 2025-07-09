@@ -20,6 +20,7 @@ import (
 
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/logger"
+	"github.com/nethesis/my/backend/models"
 )
 
 // LogtoManagementClient handles Logto Management API calls
@@ -80,7 +81,7 @@ func (c *LogtoManagementClient) getAccessToken() error {
 		return fmt.Errorf("token request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var tokenResp LogtoManagementTokenResponse
+	var tokenResp models.LogtoManagementTokenResponse
 	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
 		return fmt.Errorf("failed to decode token response: %w", err)
 	}

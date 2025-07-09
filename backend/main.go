@@ -17,11 +17,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 
+	"github.com/nethesis/my/backend/background"
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/methods"
 	"github.com/nethesis/my/backend/middleware"
 	"github.com/nethesis/my/backend/response"
+	"github.com/nethesis/my/backend/services"
 )
 
 func main() {
@@ -39,6 +41,9 @@ func main() {
 
 	// Initialize demo data for systems (still using in-memory storage)
 	methods.InitSystemsStorage()
+
+	// Start background statistics updater
+	background.InitAndStartStatsCacheManager(services.NewLogtoManagementClient())
 
 	// Init router
 	router := gin.Default()
@@ -181,16 +186,8 @@ func main() {
 			accountsGroup.DELETE("/:id", methods.DeleteAccount) // Delete account
 		}
 
-		// Quick stats endpoint - require management permissions
-		customAuth.GET("/stats", middleware.RequirePermission("manage:distributors"), func(c *gin.Context) {
-			c.JSON(http.StatusOK, response.OK("system statistics", gin.H{
-				"distributors": 1,
-				"resellers":    2,
-				"customers":    2,
-				"systems":      2,
-				"timestamp":    "2025-01-20T10:30:00Z",
-			}))
-		})
+		// System statistics endpoint - require management permissions
+		customAuth.GET("/stats", middleware.RequirePermission("manage:distributors"), methods.GetStats)
 	}
 
 	// Handle missing endpoints

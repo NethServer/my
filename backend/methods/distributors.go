@@ -66,7 +66,7 @@ func CreateDistributor(c *gin.Context) {
 		description = fmt.Sprintf("Distributor organization: %s", request.Name)
 	}
 
-	orgRequest := services.CreateOrganizationRequest{
+	orgRequest := models.CreateOrganizationRequest{
 		Name:          request.Name,
 		Description:   description,
 		CustomData:    customData,
@@ -146,7 +146,7 @@ func GetDistributor(c *gin.Context) {
 	}
 
 	// Apply visibility filtering - ensure user can see this distributor
-	orgs := []services.LogtoOrganization{*org}
+	orgs := []models.LogtoOrganization{*org}
 	filteredOrgs := services.FilterOrganizationsByVisibility(orgs, userOrgRole.(string), userOrgID.(string), "Distributor")
 
 	if len(filteredOrgs) == 0 {
@@ -203,7 +203,7 @@ func GetDistributors(c *gin.Context) {
 	}
 
 	// Parse filters
-	filters := services.OrganizationFilters{
+	filters := models.OrganizationFilters{
 		Name:        c.Query("name"),
 		Description: c.Query("description"),
 		Type:        "distributor", // Fixed for distributors
@@ -301,7 +301,7 @@ func UpdateDistributor(c *gin.Context) {
 	}
 
 	// Prepare update request with only changed fields
-	updateRequest := services.UpdateOrganizationRequest{}
+	updateRequest := models.UpdateOrganizationRequest{}
 
 	// Update name if provided
 	if request.Name != "" {

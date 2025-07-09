@@ -66,7 +66,7 @@ func CreateReseller(c *gin.Context) {
 		description = fmt.Sprintf("Reseller organization: %s", request.Name)
 	}
 
-	orgRequest := services.CreateOrganizationRequest{
+	orgRequest := models.CreateOrganizationRequest{
 		Name:          request.Name,
 		Description:   description,
 		CustomData:    customData,
@@ -146,7 +146,7 @@ func GetReseller(c *gin.Context) {
 	}
 
 	// Apply visibility filtering - ensure user can see this reseller
-	orgs := []services.LogtoOrganization{*org}
+	orgs := []models.LogtoOrganization{*org}
 	filteredOrgs := services.FilterOrganizationsByVisibility(orgs, userOrgRole.(string), userOrgID.(string), "Reseller")
 
 	if len(filteredOrgs) == 0 {
@@ -203,7 +203,7 @@ func GetResellers(c *gin.Context) {
 	}
 
 	// Parse filters
-	filters := services.OrganizationFilters{
+	filters := models.OrganizationFilters{
 		Name:        c.Query("name"),
 		Description: c.Query("description"),
 		Type:        "reseller", // Fixed for resellers
@@ -301,7 +301,7 @@ func UpdateReseller(c *gin.Context) {
 	}
 
 	// Prepare update request with only changed fields
-	updateRequest := services.UpdateOrganizationRequest{}
+	updateRequest := models.UpdateOrganizationRequest{}
 
 	// Update name if provided
 	if request.Name != "" {

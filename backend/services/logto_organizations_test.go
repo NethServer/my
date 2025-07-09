@@ -12,6 +12,7 @@ package services
 import (
 	"testing"
 
+	"github.com/nethesis/my/backend/models"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -75,21 +76,21 @@ func TestCheckOrganizationNameUniqueness(t *testing.T) {
 }
 
 func TestLogtoOrganizationStructure(t *testing.T) {
-	t.Run("LogtoOrganization struct validation", func(t *testing.T) {
-		// Test that LogtoOrganization has the required fields for name comparison
-		org := LogtoOrganization{
+	t.Run("models.LogtoOrganization struct validation", func(t *testing.T) {
+		// Test that models.LogtoOrganization has the required fields for name comparison
+		org := models.LogtoOrganization{
 			ID:   "test-id",
 			Name: "Test Organization",
 		}
 
 		assert.Equal(t, "test-id", org.ID)
 		assert.Equal(t, "Test Organization", org.Name)
-		assert.NotNil(t, org, "LogtoOrganization should be creatable")
+		assert.NotNil(t, org, "models.LogtoOrganization should be creatable")
 	})
 
 	t.Run("organization name comparison", func(t *testing.T) {
 		// Test basic string comparison logic that would be used in uniqueness check
-		existingOrgs := []LogtoOrganization{
+		existingOrgs := []models.LogtoOrganization{
 			{ID: "1", Name: "ACME Corporation"},
 			{ID: "2", Name: "TechCorp Ltd"},
 			{ID: "3", Name: "Global Solutions"},

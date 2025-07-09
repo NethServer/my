@@ -17,10 +17,11 @@ import (
 
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/logger"
+	"github.com/nethesis/my/backend/models"
 )
 
 // GetUserInfoFromLogto fetches user information from Logto using access token
-func GetUserInfoFromLogto(accessToken string) (*LogtoUserInfo, error) {
+func GetUserInfoFromLogto(accessToken string) (*models.LogtoUserInfo, error) {
 	// Create request to Logto userinfo endpoint
 	userInfoURL := configuration.Config.LogtoIssuer + "/oidc/me"
 
@@ -58,7 +59,7 @@ func GetUserInfoFromLogto(accessToken string) (*LogtoUserInfo, error) {
 		Str("response", logger.SanitizeString(string(body))).
 		Msg("Logto userinfo response")
 
-	var userInfo LogtoUserInfo
+	var userInfo models.LogtoUserInfo
 	if err := json.Unmarshal(body, &userInfo); err != nil {
 		return nil, fmt.Errorf("failed to decode user info: %w", err)
 	}
@@ -74,7 +75,7 @@ func GetUserInfoFromLogto(accessToken string) (*LogtoUserInfo, error) {
 }
 
 // GetUserProfileFromLogto fetches complete user profile from Logto Management API
-func GetUserProfileFromLogto(userID string) (*LogtoUser, error) {
+func GetUserProfileFromLogto(userID string) (*models.LogtoUser, error) {
 	client := NewLogtoManagementClient()
 
 	// Use the GetUserByID method we already have

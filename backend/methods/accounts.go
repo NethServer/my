@@ -37,7 +37,7 @@ func sanitizeUsernameForLogto(username string) string {
 }
 
 // CanOperateOnAccount validates if a user can operate (read/update/delete) on a specific account
-func CanOperateOnAccount(currentUserOrgRole, currentUserOrgID, currentUserRole string, targetAccount *services.LogtoUser, targetOrg *services.LogtoOrganization) (bool, string) {
+func CanOperateOnAccount(currentUserOrgRole, currentUserOrgID, currentUserRole string, targetAccount *models.LogtoUser, targetOrg *models.LogtoOrganization) (bool, string) {
 	// Extract target account's organization data
 	var targetAccountOrgID, targetAccountOrgRole string
 
@@ -127,7 +127,7 @@ func CanOperateOnAccount(currentUserOrgRole, currentUserOrgID, currentUserRole s
 }
 
 // CanCreateAccountForOrganization validates if a user can create accounts for a target organization
-func CanCreateAccountForOrganization(userOrgRole, userOrgID, userRole, targetOrgID, targetOrgRole string, targetOrg *services.LogtoOrganization) (bool, string) {
+func CanCreateAccountForOrganization(userOrgRole, userOrgID, userRole, targetOrgID, targetOrgRole string, targetOrg *models.LogtoOrganization) (bool, string) {
 	// Only Admin users can create accounts for colleagues in the same organization
 	if userOrgID == targetOrgID && userRole != "Admin" {
 		return false, "only Admin users can create accounts for colleagues in the same organization"
@@ -323,7 +323,7 @@ func CreateAccount(c *gin.Context) {
 	sanitizedUsername := sanitizeUsernameForLogto(request.Username)
 
 	// Create account request for Logto
-	accountRequest := services.CreateUserRequest{
+	accountRequest := models.CreateUserRequest{
 		Username:     sanitizedUsername,
 		PrimaryEmail: request.Email,
 		Name:         request.Name,
@@ -474,7 +474,7 @@ func CreateAccount(c *gin.Context) {
 
 	// Convert to response format
 	var lastSignInAt *time.Time
-	if account.LastSignInAt != nil {
+	if account.LastSignInAt != nil && *account.LastSignInAt != 0 {
 		t := time.Unix(*account.LastSignInAt/1000, 0)
 		lastSignInAt = &t
 	}
@@ -551,7 +551,7 @@ func GetAccount(c *gin.Context) {
 	}
 
 	// Get target account's organization to validate permissions
-	var targetOrg *services.LogtoOrganization
+	var targetOrg *models.LogtoOrganization
 	if account.CustomData != nil {
 		if orgID, ok := account.CustomData["organizationId"].(string); ok {
 			targetOrg, err = client.GetOrganizationByID(orgID)
@@ -618,7 +618,7 @@ func GetAccounts(c *gin.Context) {
 	}
 
 	// Parse filters
-	filters := services.UserFilters{
+	filters := models.UserFilters{
 		Search:         c.Query("search"),
 		OrganizationID: c.Query("organizationId"), // Keep backward compatibility
 		Role:           c.Query("role"),
@@ -636,7 +636,7 @@ func GetAccounts(c *gin.Context) {
 
 	client := services.NewLogtoManagementClient()
 	var accounts []models.AccountResponse
-	var paginationInfo services.PaginationInfo
+	var paginationInfo models.PaginationInfo
 
 	if filters.OrganizationID != "" {
 		// Single organization mode - get accounts from specific organization
@@ -676,7 +676,7 @@ func GetAccounts(c *gin.Context) {
 			end = totalCount
 		}
 
-		var pageAccounts []services.LogtoUser
+		var pageAccounts []models.LogtoUser
 		if start < totalCount {
 			pageAccounts = filteredAccounts[start:end]
 		}
@@ -687,7 +687,7 @@ func GetAccounts(c *gin.Context) {
 			accounts = append(accounts, accountResponse)
 		}
 
-		paginationInfo = services.PaginationInfo{
+		paginationInfo = models.PaginationInfo{
 			Page:       page,
 			PageSize:   pageSize,
 			TotalCount: totalCount,
@@ -719,7 +719,7 @@ func GetAccounts(c *gin.Context) {
 
 		// Extract organization IDs for parallel processing
 		orgIDs := make([]string, len(allOrgs))
-		orgMap := make(map[string]services.LogtoOrganization)
+		orgMap := make(map[string]models.LogtoOrganization)
 
 		for i, org := range allOrgs {
 			orgIDs[i] = org.ID
@@ -729,7 +729,7 @@ func GetAccounts(c *gin.Context) {
 		// Fetch users from all organizations in parallel
 		usersResults := client.GetOrganizationUsersParallel(orgIDs)
 
-		var allAccounts []services.LogtoUser
+		var allAccounts []models.LogtoUser
 
 		// Process results and combine accounts
 		for orgID, result := range usersResults {
@@ -770,7 +770,7 @@ func GetAccounts(c *gin.Context) {
 			end = totalCount
 		}
 
-		var pageAccounts []services.LogtoUser
+		var pageAccounts []models.LogtoUser
 		if start < totalCount {
 			pageAccounts = filteredAccounts[start:end]
 		}
@@ -778,7 +778,7 @@ func GetAccounts(c *gin.Context) {
 		// Convert to response format
 		for _, account := range pageAccounts {
 			// Get organization details for this account
-			var org *services.LogtoOrganization
+			var org *models.LogtoOrganization
 			if orgID, ok := account.CustomData["__org_id"].(string); ok {
 				if orgData, exists := orgMap[orgID]; exists {
 					org = &orgData
@@ -789,7 +789,7 @@ func GetAccounts(c *gin.Context) {
 			accounts = append(accounts, accountResponse)
 		}
 
-		paginationInfo = services.PaginationInfo{
+		paginationInfo = models.PaginationInfo{
 			Page:       page,
 			PageSize:   pageSize,
 			TotalCount: totalCount,
@@ -822,12 +822,12 @@ func GetAccounts(c *gin.Context) {
 }
 
 // applyAccountFilters applies client-side filters to user accounts
-func applyAccountFilters(users []services.LogtoUser, filters services.UserFilters) []services.LogtoUser {
+func applyAccountFilters(users []models.LogtoUser, filters models.UserFilters) []models.LogtoUser {
 	if filters.Username == "" && filters.Email == "" && filters.Role == "" && filters.Search == "" {
 		return users
 	}
 
-	var filtered []services.LogtoUser
+	var filtered []models.LogtoUser
 	for _, user := range users {
 		// Username filter (exact match)
 		if filters.Username != "" && user.Username != filters.Username {
@@ -923,7 +923,7 @@ func UpdateAccount(c *gin.Context) {
 	}
 
 	// Get target account's organization to validate permissions
-	var targetOrg *services.LogtoOrganization
+	var targetOrg *models.LogtoOrganization
 	if currentAccount.CustomData != nil {
 		if orgID, ok := currentAccount.CustomData["organizationId"].(string); ok {
 			targetOrg, err = client.GetOrganizationByID(orgID)
@@ -952,7 +952,7 @@ func UpdateAccount(c *gin.Context) {
 	}
 
 	// Prepare update request
-	updateRequest := services.UpdateUserRequest{}
+	updateRequest := models.UpdateUserRequest{}
 
 	if request.Username != "" {
 		updateRequest.Username = &request.Username
@@ -1059,7 +1059,7 @@ func DeleteAccount(c *gin.Context) {
 	}
 
 	// Get target account's organization to validate permissions
-	var targetOrg *services.LogtoOrganization
+	var targetOrg *models.LogtoOrganization
 	if currentAccount.CustomData != nil {
 		if orgID, ok := currentAccount.CustomData["organizationId"].(string); ok {
 			targetOrg, err = client.GetOrganizationByID(orgID)
@@ -1110,9 +1110,9 @@ func DeleteAccount(c *gin.Context) {
 }
 
 // Helper function to convert LogtoUser to AccountResponse
-func convertLogtoUserToAccountResponse(account services.LogtoUser, org *services.LogtoOrganization) models.AccountResponse {
+func convertLogtoUserToAccountResponse(account models.LogtoUser, org *models.LogtoOrganization) models.AccountResponse {
 	var lastSignInAt *time.Time
-	if account.LastSignInAt != nil {
+	if account.LastSignInAt != nil && *account.LastSignInAt != 0 {
 		t := time.Unix(*account.LastSignInAt/1000, 0)
 		lastSignInAt = &t
 	}

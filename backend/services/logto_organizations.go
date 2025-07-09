@@ -19,11 +19,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nethesis/my/backend/background/cache"
 	"github.com/nethesis/my/backend/logger"
+	"github.com/nethesis/my/backend/models"
 )
 
 // GetUserOrganizations fetches organizations the user belongs to
-func (c *LogtoManagementClient) GetUserOrganizations(userID string) ([]LogtoOrganization, error) {
+func (c *LogtoManagementClient) GetUserOrganizations(userID string) ([]models.LogtoOrganization, error) {
 	resp, err := c.makeRequest("GET", fmt.Sprintf("/users/%s/organizations", userID), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user organizations: %w", err)
@@ -35,7 +37,7 @@ func (c *LogtoManagementClient) GetUserOrganizations(userID string) ([]LogtoOrga
 		return nil, fmt.Errorf("failed to fetch user organizations, status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var orgs []LogtoOrganization
+	var orgs []models.LogtoOrganization
 	if err := json.NewDecoder(resp.Body).Decode(&orgs); err != nil {
 		return nil, fmt.Errorf("failed to decode user organizations: %w", err)
 	}
@@ -44,7 +46,7 @@ func (c *LogtoManagementClient) GetUserOrganizations(userID string) ([]LogtoOrga
 }
 
 // GetAllOrganizations fetches all organizations from Logto
-func (c *LogtoManagementClient) GetAllOrganizations() ([]LogtoOrganization, error) {
+func (c *LogtoManagementClient) GetAllOrganizations() ([]models.LogtoOrganization, error) {
 	resp, err := c.makeRequest("GET", "/organizations", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch organizations: %w", err)
@@ -56,7 +58,7 @@ func (c *LogtoManagementClient) GetAllOrganizations() ([]LogtoOrganization, erro
 		return nil, fmt.Errorf("failed to fetch organizations, status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var orgs []LogtoOrganization
+	var orgs []models.LogtoOrganization
 	if err := json.NewDecoder(resp.Body).Decode(&orgs); err != nil {
 		return nil, fmt.Errorf("failed to decode organizations: %w", err)
 	}
@@ -65,7 +67,7 @@ func (c *LogtoManagementClient) GetAllOrganizations() ([]LogtoOrganization, erro
 }
 
 // GetOrganizationsPaginated fetches organizations with pagination and filters using Logto native API
-func (c *LogtoManagementClient) GetOrganizationsPaginated(page, pageSize int, filters OrganizationFilters) (*PaginatedOrganizations, error) {
+func (c *LogtoManagementClient) GetOrganizationsPaginated(page, pageSize int, filters models.OrganizationFilters) (*models.PaginatedOrganizations, error) {
 	// Build URL with Logto's native pagination parameters
 	url := fmt.Sprintf("/organizations?page=%d&page_size=%d", page, pageSize)
 
@@ -85,7 +87,7 @@ func (c *LogtoManagementClient) GetOrganizationsPaginated(page, pageSize int, fi
 		return nil, fmt.Errorf("failed to fetch organizations, status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var orgs []LogtoOrganization
+	var orgs []models.LogtoOrganization
 	if err := json.NewDecoder(resp.Body).Decode(&orgs); err != nil {
 		return nil, fmt.Errorf("failed to decode organizations: %w", err)
 	}
@@ -105,7 +107,7 @@ func (c *LogtoManagementClient) GetOrganizationsPaginated(page, pageSize int, fi
 
 	totalPages := (totalCount + pageSize - 1) / pageSize
 
-	paginationInfo := PaginationInfo{
+	paginationInfo := models.PaginationInfo{
 		Page:       page,
 		PageSize:   pageSize,
 		TotalCount: totalCount,
@@ -124,19 +126,19 @@ func (c *LogtoManagementClient) GetOrganizationsPaginated(page, pageSize int, fi
 		paginationInfo.PrevPage = &prevPage
 	}
 
-	return &PaginatedOrganizations{
+	return &models.PaginatedOrganizations{
 		Data:       filteredOrgs,
 		Pagination: paginationInfo,
 	}, nil
 }
 
 // applyClientSideFilters applies filters that can't be done server-side
-func (c *LogtoManagementClient) applyClientSideFilters(orgs []LogtoOrganization, filters OrganizationFilters) []LogtoOrganization {
+func (c *LogtoManagementClient) applyClientSideFilters(orgs []models.LogtoOrganization, filters models.OrganizationFilters) []models.LogtoOrganization {
 	if filters.Name == "" && filters.Description == "" && filters.Type == "" && filters.CreatedBy == "" {
 		return orgs
 	}
 
-	var filtered []LogtoOrganization
+	var filtered []models.LogtoOrganization
 	for _, org := range orgs {
 		// Name filter (exact match - search is handled by Logto's 'q' parameter)
 		if filters.Name != "" && org.Name != filters.Name {
@@ -176,7 +178,7 @@ func (c *LogtoManagementClient) applyClientSideFilters(orgs []LogtoOrganization,
 }
 
 // GetOrganizationByID fetches a specific organization by ID
-func (c *LogtoManagementClient) GetOrganizationByID(orgID string) (*LogtoOrganization, error) {
+func (c *LogtoManagementClient) GetOrganizationByID(orgID string) (*models.LogtoOrganization, error) {
 	resp, err := c.makeRequest("GET", fmt.Sprintf("/organizations/%s", orgID), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch organization: %w", err)
@@ -192,7 +194,7 @@ func (c *LogtoManagementClient) GetOrganizationByID(orgID string) (*LogtoOrganiz
 		return nil, fmt.Errorf("failed to fetch organization, status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var org LogtoOrganization
+	var org models.LogtoOrganization
 	if err := json.NewDecoder(resp.Body).Decode(&org); err != nil {
 		return nil, fmt.Errorf("failed to decode organization: %w", err)
 	}
@@ -201,7 +203,7 @@ func (c *LogtoManagementClient) GetOrganizationByID(orgID string) (*LogtoOrganiz
 }
 
 // CreateOrganization creates a new organization in Logto with customData
-func (c *LogtoManagementClient) CreateOrganization(request CreateOrganizationRequest) (*LogtoOrganization, error) {
+func (c *LogtoManagementClient) CreateOrganization(request models.CreateOrganizationRequest) (*models.LogtoOrganization, error) {
 	reqBody, err := json.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
@@ -218,7 +220,7 @@ func (c *LogtoManagementClient) CreateOrganization(request CreateOrganizationReq
 		return nil, fmt.Errorf("failed to create organization, status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var org LogtoOrganization
+	var org models.LogtoOrganization
 	if err := json.NewDecoder(resp.Body).Decode(&org); err != nil {
 		return nil, fmt.Errorf("failed to decode created organization: %w", err)
 	}
@@ -227,7 +229,7 @@ func (c *LogtoManagementClient) CreateOrganization(request CreateOrganizationReq
 }
 
 // UpdateOrganization updates an existing organization in Logto
-func (c *LogtoManagementClient) UpdateOrganization(orgID string, request UpdateOrganizationRequest) (*LogtoOrganization, error) {
+func (c *LogtoManagementClient) UpdateOrganization(orgID string, request models.UpdateOrganizationRequest) (*models.LogtoOrganization, error) {
 	reqBody, err := json.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal update request: %w", err)
@@ -244,7 +246,7 @@ func (c *LogtoManagementClient) UpdateOrganization(orgID string, request UpdateO
 		return nil, fmt.Errorf("failed to update organization, status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var org LogtoOrganization
+	var org models.LogtoOrganization
 	if err := json.NewDecoder(resp.Body).Decode(&org); err != nil {
 		return nil, fmt.Errorf("failed to decode updated organization: %w", err)
 	}
@@ -269,10 +271,10 @@ func (c *LogtoManagementClient) DeleteOrganization(orgID string) error {
 }
 
 // GetOrganizationJitRoles fetches default organization roles (just-in-time provisioning)
-func (c *LogtoManagementClient) GetOrganizationJitRoles(orgID string) ([]LogtoOrganizationRole, error) {
+func (c *LogtoManagementClient) GetOrganizationJitRoles(orgID string) ([]models.LogtoOrganizationRole, error) {
 	// Check cache first
-	cache := GetJitRolesCacheManager()
-	if cachedRoles, found := cache.Get(orgID); found {
+	cacheManager := cache.GetJitRolesCacheManager()
+	if cachedRoles, found := cacheManager.Get(orgID); found {
 		return cachedRoles, nil
 	}
 
@@ -288,21 +290,21 @@ func (c *LogtoManagementClient) GetOrganizationJitRoles(orgID string) ([]LogtoOr
 		return nil, fmt.Errorf("failed to fetch organization JIT roles, status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var roles []LogtoOrganizationRole
+	var roles []models.LogtoOrganizationRole
 	if err := json.NewDecoder(resp.Body).Decode(&roles); err != nil {
 		return nil, fmt.Errorf("failed to decode organization JIT roles: %w", err)
 	}
 
 	// Store in cache
-	cache.Set(orgID, roles)
+	cacheManager.Set(orgID, roles)
 
 	return roles, nil
 }
 
 // GetOrganizationJitRolesParallel fetches JIT roles for multiple organizations in parallel
-func (c *LogtoManagementClient) GetOrganizationJitRolesParallel(orgIDs []string) map[string]JitRolesResult {
+func (c *LogtoManagementClient) GetOrganizationJitRolesParallel(orgIDs []string) map[string]models.JitRolesResult {
 	if len(orgIDs) == 0 {
-		return make(map[string]JitRolesResult)
+		return make(map[string]models.JitRolesResult)
 	}
 
 	// Limit concurrent requests to respect rate limits (Logto: ~200 req/10s)
@@ -311,7 +313,7 @@ func (c *LogtoManagementClient) GetOrganizationJitRolesParallel(orgIDs []string)
 		maxConcurrent = len(orgIDs)
 	}
 
-	results := make(map[string]JitRolesResult)
+	results := make(map[string]models.JitRolesResult)
 	resultsMutex := sync.Mutex{}
 
 	// Create semaphore for rate limiting
@@ -324,7 +326,7 @@ func (c *LogtoManagementClient) GetOrganizationJitRolesParallel(orgIDs []string)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	cache := GetJitRolesCacheManager()
+	cacheManager := cache.GetJitRolesCacheManager()
 
 	logger.ComponentLogger("logto").Info().
 		Int("org_count", len(orgIDs)).
@@ -346,7 +348,7 @@ func (c *LogtoManagementClient) GetOrganizationJitRolesParallel(orgIDs []string)
 				defer func() { <-semaphore }()
 			case <-ctx.Done():
 				resultsMutex.Lock()
-				results[id] = JitRolesResult{
+				results[id] = models.JitRolesResult{
 					OrgID: id,
 					Error: fmt.Errorf("context timeout"),
 				}
@@ -355,9 +357,9 @@ func (c *LogtoManagementClient) GetOrganizationJitRolesParallel(orgIDs []string)
 			}
 
 			// Check cache first
-			if cachedRoles, found := cache.Get(id); found {
+			if cachedRoles, found := cacheManager.Get(id); found {
 				resultsMutex.Lock()
-				results[id] = JitRolesResult{
+				results[id] = models.JitRolesResult{
 					OrgID: id,
 					Roles: cachedRoles,
 				}
@@ -379,7 +381,7 @@ func (c *LogtoManagementClient) GetOrganizationJitRolesParallel(orgIDs []string)
 					Msg("Failed to fetch JIT roles in parallel")
 
 				resultsMutex.Lock()
-				results[id] = JitRolesResult{
+				results[id] = models.JitRolesResult{
 					OrgID: id,
 					Error: err,
 				}
@@ -388,10 +390,10 @@ func (c *LogtoManagementClient) GetOrganizationJitRolesParallel(orgIDs []string)
 			}
 
 			// Store in cache
-			cache.Set(id, roles)
+			cacheManager.Set(id, roles)
 
 			resultsMutex.Lock()
-			results[id] = JitRolesResult{
+			results[id] = models.JitRolesResult{
 				OrgID: id,
 				Roles: roles,
 			}
@@ -435,7 +437,7 @@ func (c *LogtoManagementClient) GetOrganizationJitRolesParallel(orgIDs []string)
 }
 
 // fetchJitRolesFromAPI is a helper function that only does the API call without caching
-func (c *LogtoManagementClient) fetchJitRolesFromAPI(orgID string) ([]LogtoOrganizationRole, error) {
+func (c *LogtoManagementClient) fetchJitRolesFromAPI(orgID string) ([]models.LogtoOrganizationRole, error) {
 	resp, err := c.makeRequest("GET", fmt.Sprintf("/organizations/%s/jit/roles", orgID), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch organization JIT roles: %w", err)
@@ -447,7 +449,7 @@ func (c *LogtoManagementClient) fetchJitRolesFromAPI(orgID string) ([]LogtoOrgan
 		return nil, fmt.Errorf("failed to fetch organization JIT roles, status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var roles []LogtoOrganizationRole
+	var roles []models.LogtoOrganizationRole
 	if err := json.NewDecoder(resp.Body).Decode(&roles); err != nil {
 		return nil, fmt.Errorf("failed to decode organization JIT roles: %w", err)
 	}
@@ -478,17 +480,17 @@ func (c *LogtoManagementClient) AssignOrganizationJitRoles(orgID string, roleIDs
 	}
 
 	// Invalidate cache for this organization
-	cache := GetJitRolesCacheManager()
-	cache.Clear(orgID)
+	cacheManager := cache.GetJitRolesCacheManager()
+	cacheManager.Clear(orgID)
 
 	return nil
 }
 
 // GetOrganizationUsers fetches users belonging to an organization
-func (c *LogtoManagementClient) GetOrganizationUsers(orgID string) ([]LogtoUser, error) {
+func (c *LogtoManagementClient) GetOrganizationUsers(orgID string) ([]models.LogtoUser, error) {
 	// Check cache first
-	cache := GetOrgUsersCacheManager()
-	if cachedUsers, found := cache.Get(orgID); found {
+	cacheManager := cache.GetOrgUsersCacheManager()
+	if cachedUsers, found := cacheManager.Get(orgID); found {
 		return cachedUsers, nil
 	}
 
@@ -504,20 +506,20 @@ func (c *LogtoManagementClient) GetOrganizationUsers(orgID string) ([]LogtoUser,
 		return nil, fmt.Errorf("failed to fetch organization users, status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var users []LogtoUser
+	var users []models.LogtoUser
 	if err := json.NewDecoder(resp.Body).Decode(&users); err != nil {
 		return nil, fmt.Errorf("failed to decode organization users: %w", err)
 	}
 
 	// Store in cache
-	cache.Set(orgID, users)
+	cacheManager.Set(orgID, users)
 
 	return users, nil
 }
 
 // GetOrganizationsByRole fetches organizations that have specific default organization roles (JIT)
 // This is used to filter distributors, resellers, customers based on their JIT role configuration
-func GetOrganizationsByRole(roleType string) ([]LogtoOrganization, error) {
+func GetOrganizationsByRole(roleType string) ([]models.LogtoOrganization, error) {
 	client := NewLogtoManagementClient()
 
 	// Get all organizations
@@ -526,7 +528,7 @@ func GetOrganizationsByRole(roleType string) ([]LogtoOrganization, error) {
 		return nil, fmt.Errorf("failed to get organizations: %w", err)
 	}
 
-	var filteredOrgs []LogtoOrganization
+	var filteredOrgs []models.LogtoOrganization
 
 	// For each organization, check if it has the specified default role (JIT)
 	for _, org := range allOrgs {
@@ -575,7 +577,7 @@ func GetOrganizationsByRole(roleType string) ([]LogtoOrganization, error) {
 }
 
 // GetOrganizationsByRolePaginated fetches organizations with pagination and filters
-func GetOrganizationsByRolePaginated(roleType string, page, pageSize int, filters OrganizationFilters) (*PaginatedOrganizations, error) {
+func GetOrganizationsByRolePaginated(roleType string, page, pageSize int, filters models.OrganizationFilters) (*models.PaginatedOrganizations, error) {
 	client := NewLogtoManagementClient()
 
 	// Don't apply Type filter here - we'll check JIT roles instead
@@ -590,7 +592,7 @@ func GetOrganizationsByRolePaginated(roleType string, page, pageSize int, filter
 
 	// Extract organization IDs for parallel processing
 	orgIDs := make([]string, len(result.Data))
-	orgMap := make(map[string]LogtoOrganization)
+	orgMap := make(map[string]models.LogtoOrganization)
 
 	for i, org := range result.Data {
 		orgIDs[i] = org.ID
@@ -600,7 +602,7 @@ func GetOrganizationsByRolePaginated(roleType string, page, pageSize int, filter
 	// Fetch JIT roles in parallel
 	jitResults := client.GetOrganizationJitRolesParallel(orgIDs)
 
-	var filteredOrgs []LogtoOrganization
+	var filteredOrgs []models.LogtoOrganization
 
 	// Process results and filter organizations
 	for orgID, jitResult := range jitResults {
@@ -647,7 +649,7 @@ func GetOrganizationsByRolePaginated(roleType string, page, pageSize int, filter
 }
 
 // FilterOrganizationsByVisibility filters organizations based on user's visibility permissions
-func FilterOrganizationsByVisibility(orgs []LogtoOrganization, userOrgRole, userOrgID string, targetRole string) []LogtoOrganization {
+func FilterOrganizationsByVisibility(orgs []models.LogtoOrganization, userOrgRole, userOrgID string, targetRole string) []models.LogtoOrganization {
 	// Owner can see everything
 	if userOrgRole == "Owner" {
 		logger.ComponentLogger("logto").Info().
@@ -659,7 +661,7 @@ func FilterOrganizationsByVisibility(orgs []LogtoOrganization, userOrgRole, user
 		return orgs
 	}
 
-	var filteredOrgs []LogtoOrganization
+	var filteredOrgs []models.LogtoOrganization
 
 	switch targetRole {
 	case "Distributor":
@@ -763,7 +765,7 @@ func FilterOrganizationsByVisibility(orgs []LogtoOrganization, userOrgRole, user
 }
 
 // GetAllVisibleOrganizations gets all organizations visible to a user based on their role and organization
-func GetAllVisibleOrganizations(userOrgRole, userOrgID string) ([]LogtoOrganization, error) {
+func GetAllVisibleOrganizations(userOrgRole, userOrgID string) ([]models.LogtoOrganization, error) {
 	client := NewLogtoManagementClient()
 
 	// Get all organizations first
@@ -772,7 +774,7 @@ func GetAllVisibleOrganizations(userOrgRole, userOrgID string) ([]LogtoOrganizat
 		return nil, fmt.Errorf("failed to get all organizations: %w", err)
 	}
 
-	var visibleOrgs []LogtoOrganization
+	var visibleOrgs []models.LogtoOrganization
 
 	// Owner can see everything
 	if userOrgRole == "Owner" {

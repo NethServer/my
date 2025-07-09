@@ -179,9 +179,9 @@ func validateLogtoToken(tokenString string) (*models.User, error) {
 }
 
 func getPublicKey(kid string) (*rsa.PublicKey, error) {
-	// Check cache (5 minutes TTL)
+	// Check cache with configurable TTL
 	jwksCacheMutex.RLock()
-	if jwksCache != nil && time.Since(jwksCacheTime) < 5*time.Minute {
+	if jwksCache != nil && time.Since(jwksCacheTime) < configuration.Config.JWKSCacheTTL {
 		if key, exists := jwksCache[kid]; exists {
 			jwksCacheMutex.RUnlock()
 			logger.ComponentLogger("auth").Debug().
@@ -201,7 +201,7 @@ func getPublicKey(kid string) (*rsa.PublicKey, error) {
 	}
 	jwksCacheMutex.RUnlock()
 
-	if jwksCache == nil || time.Since(jwksCacheTime) >= 5*time.Minute {
+	if jwksCache == nil || time.Since(jwksCacheTime) >= configuration.Config.JWKSCacheTTL {
 		logger.ComponentLogger("auth").Debug().
 			Str("operation", "jwks_cache_expired").
 			Str("kid", kid).

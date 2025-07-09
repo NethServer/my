@@ -21,7 +21,7 @@ import (
 )
 
 // GetUserRoles fetches user roles from Logto Management API
-func (c *LogtoManagementClient) GetUserRoles(userID string) ([]LogtoRole, error) {
+func (c *LogtoManagementClient) GetUserRoles(userID string) ([]models.LogtoRole, error) {
 	resp, err := c.makeRequest("GET", fmt.Sprintf("/users/%s/roles", userID), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user roles: %w", err)
@@ -33,7 +33,7 @@ func (c *LogtoManagementClient) GetUserRoles(userID string) ([]LogtoRole, error)
 		return nil, fmt.Errorf("failed to fetch user roles, status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var roles []LogtoRole
+	var roles []models.LogtoRole
 	if err := json.NewDecoder(resp.Body).Decode(&roles); err != nil {
 		return nil, fmt.Errorf("failed to decode user roles: %w", err)
 	}
@@ -42,7 +42,7 @@ func (c *LogtoManagementClient) GetUserRoles(userID string) ([]LogtoRole, error)
 }
 
 // GetRoleScopes fetches scopes for a role
-func (c *LogtoManagementClient) GetRoleScopes(roleID string) ([]LogtoScope, error) {
+func (c *LogtoManagementClient) GetRoleScopes(roleID string) ([]models.LogtoScope, error) {
 	resp, err := c.makeRequest("GET", fmt.Sprintf("/roles/%s/scopes", roleID), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch role scopes: %w", err)
@@ -54,7 +54,7 @@ func (c *LogtoManagementClient) GetRoleScopes(roleID string) ([]LogtoScope, erro
 		return nil, fmt.Errorf("failed to fetch role scopes, status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var scopes []LogtoScope
+	var scopes []models.LogtoScope
 	if err := json.NewDecoder(resp.Body).Decode(&scopes); err != nil {
 		return nil, fmt.Errorf("failed to decode role scopes: %w", err)
 	}
@@ -63,7 +63,7 @@ func (c *LogtoManagementClient) GetRoleScopes(roleID string) ([]LogtoScope, erro
 }
 
 // GetUserOrganizationRoles fetches user's roles in an organization
-func (c *LogtoManagementClient) GetUserOrganizationRoles(orgID, userID string) ([]LogtoOrganizationRole, error) {
+func (c *LogtoManagementClient) GetUserOrganizationRoles(orgID, userID string) ([]models.LogtoOrganizationRole, error) {
 	resp, err := c.makeRequest("GET", fmt.Sprintf("/organizations/%s/users/%s/roles", orgID, userID), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user organization roles: %w", err)
@@ -75,7 +75,7 @@ func (c *LogtoManagementClient) GetUserOrganizationRoles(orgID, userID string) (
 		return nil, fmt.Errorf("failed to fetch user organization roles, status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var roles []LogtoOrganizationRole
+	var roles []models.LogtoOrganizationRole
 	if err := json.NewDecoder(resp.Body).Decode(&roles); err != nil {
 		return nil, fmt.Errorf("failed to decode user organization roles: %w", err)
 	}
@@ -84,7 +84,7 @@ func (c *LogtoManagementClient) GetUserOrganizationRoles(orgID, userID string) (
 }
 
 // GetOrganizationRoleScopes fetches scopes for an organization role
-func (c *LogtoManagementClient) GetOrganizationRoleScopes(roleID string) ([]LogtoScope, error) {
+func (c *LogtoManagementClient) GetOrganizationRoleScopes(roleID string) ([]models.LogtoScope, error) {
 	resp, err := c.makeRequest("GET", fmt.Sprintf("/organization-roles/%s/scopes", roleID), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch organization role scopes: %w", err)
@@ -96,7 +96,7 @@ func (c *LogtoManagementClient) GetOrganizationRoleScopes(roleID string) ([]Logt
 		return nil, fmt.Errorf("failed to fetch organization role scopes, status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var scopes []LogtoScope
+	var scopes []models.LogtoScope
 	if err := json.NewDecoder(resp.Body).Decode(&scopes); err != nil {
 		return nil, fmt.Errorf("failed to decode organization role scopes: %w", err)
 	}
@@ -105,7 +105,7 @@ func (c *LogtoManagementClient) GetOrganizationRoleScopes(roleID string) ([]Logt
 }
 
 // GetRoleByName finds a role by name
-func (c *LogtoManagementClient) GetRoleByName(roleName string) (*LogtoRole, error) {
+func (c *LogtoManagementClient) GetRoleByName(roleName string) (*models.LogtoRole, error) {
 	resp, err := c.makeRequest("GET", "/roles", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch roles: %w", err)
@@ -117,7 +117,7 @@ func (c *LogtoManagementClient) GetRoleByName(roleName string) (*LogtoRole, erro
 		return nil, fmt.Errorf("failed to fetch roles, status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var roles []LogtoRole
+	var roles []models.LogtoRole
 	if err := json.NewDecoder(resp.Body).Decode(&roles); err != nil {
 		return nil, fmt.Errorf("failed to decode roles: %w", err)
 	}
@@ -132,7 +132,7 @@ func (c *LogtoManagementClient) GetRoleByName(roleName string) (*LogtoRole, erro
 }
 
 // GetOrganizationRoleByName finds an organization role by name
-func (c *LogtoManagementClient) GetOrganizationRoleByName(roleName string) (*LogtoOrganizationRole, error) {
+func (c *LogtoManagementClient) GetOrganizationRoleByName(roleName string) (*models.LogtoOrganizationRole, error) {
 	resp, err := c.makeRequest("GET", "/organization-roles", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch organization roles: %w", err)
@@ -144,7 +144,7 @@ func (c *LogtoManagementClient) GetOrganizationRoleByName(roleName string) (*Log
 		return nil, fmt.Errorf("failed to fetch organization roles, status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var roles []LogtoOrganizationRole
+	var roles []models.LogtoOrganizationRole
 	if err := json.NewDecoder(resp.Body).Decode(&roles); err != nil {
 		return nil, fmt.Errorf("failed to decode organization roles: %w", err)
 	}

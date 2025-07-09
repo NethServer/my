@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/logger"
+	"github.com/nethesis/my/backend/models"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -38,8 +39,8 @@ var isServicesTestEnvironmentSetup bool
 
 // Test Models Structures
 func TestLogtoModels(t *testing.T) {
-	t.Run("LogtoUserInfo", func(t *testing.T) {
-		userInfo := LogtoUserInfo{
+	t.Run("models.LogtoUserInfo", func(t *testing.T) {
+		userInfo := models.LogtoUserInfo{
 			Sub:              "user-123",
 			Username:         "testuser",
 			Email:            "test@example.com",
@@ -55,14 +56,14 @@ func TestLogtoModels(t *testing.T) {
 		assert.NotEmpty(t, jsonData)
 
 		// Test JSON deserialization
-		var unmarshaled LogtoUserInfo
+		var unmarshaled models.LogtoUserInfo
 		err = json.Unmarshal(jsonData, &unmarshaled)
 		assert.NoError(t, err)
 		assert.Equal(t, userInfo, unmarshaled)
 	})
 
-	t.Run("LogtoRole", func(t *testing.T) {
-		role := LogtoRole{
+	t.Run("models.LogtoRole", func(t *testing.T) {
+		role := models.LogtoRole{
 			ID:          "role-123",
 			Name:        "Admin",
 			Description: "Administrator role",
@@ -72,20 +73,20 @@ func TestLogtoModels(t *testing.T) {
 		jsonData, err := json.Marshal(role)
 		assert.NoError(t, err)
 
-		var unmarshaled LogtoRole
+		var unmarshaled models.LogtoRole
 		err = json.Unmarshal(jsonData, &unmarshaled)
 		assert.NoError(t, err)
 		assert.Equal(t, role, unmarshaled)
 	})
 
-	t.Run("LogtoOrganization", func(t *testing.T) {
-		org := LogtoOrganization{
+	t.Run("models.LogtoOrganization", func(t *testing.T) {
+		org := models.LogtoOrganization{
 			ID:            "org-123",
 			Name:          "Test Organization",
 			Description:   "Test Description",
 			CustomData:    map[string]interface{}{"type": "customer"},
 			IsMfaRequired: true,
-			Branding: &LogtoOrganizationBranding{
+			Branding: &models.LogtoOrganizationBranding{
 				LogoUrl:     "https://example.com/logo.png",
 				DarkLogoUrl: "https://example.com/dark-logo.png",
 				Favicon:     "https://example.com/favicon.ico",
@@ -96,17 +97,17 @@ func TestLogtoModels(t *testing.T) {
 		jsonData, err := json.Marshal(org)
 		assert.NoError(t, err)
 
-		var unmarshaled LogtoOrganization
+		var unmarshaled models.LogtoOrganization
 		err = json.Unmarshal(jsonData, &unmarshaled)
 		assert.NoError(t, err)
 		assert.Equal(t, org, unmarshaled)
 	})
 
-	t.Run("LogtoUser", func(t *testing.T) {
+	t.Run("models.LogtoUser", func(t *testing.T) {
 		now := time.Now().Unix()
 		lastSignIn := now - 3600
 
-		user := LogtoUser{
+		user := models.LogtoUser{
 			ID:            "user-123",
 			Username:      "testuser",
 			PrimaryEmail:  "test@example.com",
@@ -126,7 +127,7 @@ func TestLogtoModels(t *testing.T) {
 		jsonData, err := json.Marshal(user)
 		assert.NoError(t, err)
 
-		var unmarshaled LogtoUser
+		var unmarshaled models.LogtoUser
 		err = json.Unmarshal(jsonData, &unmarshaled)
 		assert.NoError(t, err)
 		assert.Equal(t, user, unmarshaled)
@@ -169,7 +170,7 @@ func TestLogtoManagementClient_getAccessToken(t *testing.T) {
 						assert.Contains(t, string(body), "client_secret=test-client-secret")
 
 						// Return valid token response
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-access-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -249,7 +250,7 @@ func TestLogtoManagementClient_TokenCaching(t *testing.T) {
 	var requestCount int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCount++
-		response := LogtoManagementTokenResponse{
+		response := models.LogtoManagementTokenResponse{
 			AccessToken: "cached-token",
 			TokenType:   "Bearer",
 			ExpiresIn:   3600,
@@ -309,7 +310,7 @@ func TestLogtoManagementClient_makeRequest(t *testing.T) {
 					switch r.URL.Path {
 					case "/oidc/token":
 						// Token request
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -337,7 +338,7 @@ func TestLogtoManagementClient_makeRequest(t *testing.T) {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/oidc/token":
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -364,7 +365,7 @@ func TestLogtoManagementClient_makeRequest(t *testing.T) {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/oidc/token":
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -421,7 +422,7 @@ func TestGetUserInfoFromLogto(t *testing.T) {
 		accessToken  string
 		setupServer  func() *httptest.Server
 		expectError  bool
-		expectedUser *LogtoUserInfo
+		expectedUser *models.LogtoUserInfo
 	}{
 		{
 			name:        "successful user info request",
@@ -432,7 +433,7 @@ func TestGetUserInfoFromLogto(t *testing.T) {
 						// Verify authorization header
 						assert.Equal(t, "Bearer valid-access-token", r.Header.Get("Authorization"))
 
-						userInfo := LogtoUserInfo{
+						userInfo := models.LogtoUserInfo{
 							Sub:              "user-123",
 							Username:         "testuser",
 							Email:            "test@example.com",
@@ -450,7 +451,7 @@ func TestGetUserInfoFromLogto(t *testing.T) {
 				}))
 			},
 			expectError: false,
-			expectedUser: &LogtoUserInfo{
+			expectedUser: &models.LogtoUserInfo{
 				Sub:              "user-123",
 				Username:         "testuser",
 				Email:            "test@example.com",
@@ -523,13 +524,13 @@ func TestGetUserInfoFromLogto(t *testing.T) {
 }
 
 func TestCreateUserRequest(t *testing.T) {
-	// Test CreateUserRequest struct
+	// Test models.CreateUserRequest struct
 	customData := map[string]interface{}{
 		"department": "IT",
 		"location":   "Milan",
 	}
 
-	request := CreateUserRequest{
+	request := models.CreateUserRequest{
 		Username:     "newuser",
 		PrimaryEmail: "new@example.com",
 		Name:         "New User",
@@ -554,12 +555,12 @@ func TestCreateUserRequest(t *testing.T) {
 }
 
 func TestUpdateUserRequest(t *testing.T) {
-	// Test UpdateUserRequest with pointer fields
+	// Test models.UpdateUserRequest with pointer fields
 	newUsername := "updateduser"
 	newEmail := "updated@example.com"
 	newName := "Updated User"
 
-	request := UpdateUserRequest{
+	request := models.UpdateUserRequest{
 		Username:     &newUsername,
 		PrimaryEmail: &newEmail,
 		Name:         &newName,
@@ -572,7 +573,7 @@ func TestUpdateUserRequest(t *testing.T) {
 	assert.NotEmpty(t, jsonData)
 
 	// Test with nil fields (should be omitted)
-	emptyRequest := UpdateUserRequest{
+	emptyRequest := models.UpdateUserRequest{
 		CustomData: map[string]interface{}{"key": "value"},
 	}
 
@@ -588,21 +589,21 @@ func TestUpdateUserRequest(t *testing.T) {
 }
 
 func TestCreateOrganizationRequest(t *testing.T) {
-	// Test CreateOrganizationRequest
+	// Test models.CreateOrganizationRequest
 	customData := map[string]interface{}{
 		"type":   "enterprise",
 		"tier":   "premium",
 		"region": "eu-west",
 	}
 
-	branding := &LogtoOrganizationBranding{
+	branding := &models.LogtoOrganizationBranding{
 		LogoUrl:     "https://example.com/logo.png",
 		DarkLogoUrl: "https://example.com/dark-logo.png",
 		Favicon:     "https://example.com/favicon.ico",
 		DarkFavicon: "https://example.com/dark-favicon.ico",
 	}
 
-	request := CreateOrganizationRequest{
+	request := models.CreateOrganizationRequest{
 		Name:          "New Organization",
 		Description:   "A new test organization",
 		CustomData:    customData,
@@ -616,7 +617,7 @@ func TestCreateOrganizationRequest(t *testing.T) {
 	assert.NotEmpty(t, jsonData)
 
 	// Test deserialization
-	var unmarshaled CreateOrganizationRequest
+	var unmarshaled models.CreateOrganizationRequest
 	err = json.Unmarshal(jsonData, &unmarshaled)
 	assert.NoError(t, err)
 	assert.Equal(t, request.Name, unmarshaled.Name)

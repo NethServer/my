@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/nethesis/my/backend/configuration"
+	"github.com/nethesis/my/backend/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +20,7 @@ func TestLogtoManagementClient_GetUserByID(t *testing.T) {
 		userID       string
 		setupServer  func() *httptest.Server
 		expectError  bool
-		expectedUser *LogtoUser
+		expectedUser *models.LogtoUser
 	}{
 		{
 			name:   "successful user fetch",
@@ -28,7 +29,7 @@ func TestLogtoManagementClient_GetUserByID(t *testing.T) {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/oidc/token":
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -36,7 +37,7 @@ func TestLogtoManagementClient_GetUserByID(t *testing.T) {
 						}
 						_ = json.NewEncoder(w).Encode(response)
 					case "/api/users/user-123":
-						user := LogtoUser{
+						user := models.LogtoUser{
 							ID:           "user-123",
 							Username:     "testuser",
 							PrimaryEmail: "test@example.com",
@@ -53,7 +54,7 @@ func TestLogtoManagementClient_GetUserByID(t *testing.T) {
 				}))
 			},
 			expectError: false,
-			expectedUser: &LogtoUser{
+			expectedUser: &models.LogtoUser{
 				ID:           "user-123",
 				Username:     "testuser",
 				PrimaryEmail: "test@example.com",
@@ -72,7 +73,7 @@ func TestLogtoManagementClient_GetUserByID(t *testing.T) {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/oidc/token":
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -95,7 +96,7 @@ func TestLogtoManagementClient_GetUserByID(t *testing.T) {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/oidc/token":
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -149,14 +150,14 @@ func TestLogtoManagementClient_CreateUser(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		request      CreateUserRequest
+		request      models.CreateUserRequest
 		setupServer  func() *httptest.Server
 		expectError  bool
-		expectedUser *LogtoUser
+		expectedUser *models.LogtoUser
 	}{
 		{
 			name: "successful user creation",
-			request: CreateUserRequest{
+			request: models.CreateUserRequest{
 				Username:     "newuser",
 				PrimaryEmail: "new@example.com",
 				Name:         "New User",
@@ -166,7 +167,7 @@ func TestLogtoManagementClient_CreateUser(t *testing.T) {
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					if r.URL.Path == "/oidc/token" {
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -175,7 +176,7 @@ func TestLogtoManagementClient_CreateUser(t *testing.T) {
 						_ = json.NewEncoder(w).Encode(response)
 					} else if r.URL.Path == "/api/users" && r.Method == "POST" {
 						// Verify request body
-						var requestBody CreateUserRequest
+						var requestBody models.CreateUserRequest
 						err := json.NewDecoder(r.Body).Decode(&requestBody)
 						require.NoError(t, err)
 
@@ -186,7 +187,7 @@ func TestLogtoManagementClient_CreateUser(t *testing.T) {
 						assert.NotNil(t, requestBody.CustomData)
 
 						// Return created user
-						user := LogtoUser{
+						user := models.LogtoUser{
 							ID:           "user-new-123",
 							Username:     requestBody.Username,
 							PrimaryEmail: requestBody.PrimaryEmail,
@@ -204,7 +205,7 @@ func TestLogtoManagementClient_CreateUser(t *testing.T) {
 				}))
 			},
 			expectError: false,
-			expectedUser: &LogtoUser{
+			expectedUser: &models.LogtoUser{
 				ID:           "user-new-123",
 				Username:     "newuser",
 				PrimaryEmail: "new@example.com",
@@ -217,7 +218,7 @@ func TestLogtoManagementClient_CreateUser(t *testing.T) {
 		},
 		{
 			name: "user creation with conflict (username exists)",
-			request: CreateUserRequest{
+			request: models.CreateUserRequest{
 				Username:     "existinguser",
 				PrimaryEmail: "existing@example.com",
 				Name:         "Existing User",
@@ -226,7 +227,7 @@ func TestLogtoManagementClient_CreateUser(t *testing.T) {
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					if r.URL.Path == "/oidc/token" {
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -244,13 +245,13 @@ func TestLogtoManagementClient_CreateUser(t *testing.T) {
 		},
 		{
 			name: "user creation with minimal data",
-			request: CreateUserRequest{
+			request: models.CreateUserRequest{
 				Username: "minimaluser",
 			},
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					if r.URL.Path == "/oidc/token" {
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -258,10 +259,10 @@ func TestLogtoManagementClient_CreateUser(t *testing.T) {
 						}
 						_ = json.NewEncoder(w).Encode(response)
 					} else if r.URL.Path == "/api/users" && r.Method == "POST" {
-						var requestBody CreateUserRequest
+						var requestBody models.CreateUserRequest
 						_ = json.NewDecoder(r.Body).Decode(&requestBody)
 
-						user := LogtoUser{
+						user := models.LogtoUser{
 							ID:          "user-minimal-456",
 							Username:    requestBody.Username,
 							HasPassword: false,
@@ -276,7 +277,7 @@ func TestLogtoManagementClient_CreateUser(t *testing.T) {
 				}))
 			},
 			expectError: false,
-			expectedUser: &LogtoUser{
+			expectedUser: &models.LogtoUser{
 				ID:          "user-minimal-456",
 				Username:    "minimaluser",
 				HasPassword: false,
@@ -320,18 +321,18 @@ func TestLogtoManagementClient_UpdateUser(t *testing.T) {
 	tests := []struct {
 		name         string
 		userID       string
-		request      UpdateUserRequest
+		request      models.UpdateUserRequest
 		setupServer  func() *httptest.Server
 		expectError  bool
-		expectedUser *LogtoUser
+		expectedUser *models.LogtoUser
 	}{
 		{
 			name:   "successful user update",
 			userID: "user-update-123",
-			request: func() UpdateUserRequest {
+			request: func() models.UpdateUserRequest {
 				newEmail := "updated@example.com"
 				newName := "Updated User"
-				return UpdateUserRequest{
+				return models.UpdateUserRequest{
 					PrimaryEmail: &newEmail,
 					Name:         &newName,
 					CustomData:   map[string]interface{}{"updated": true},
@@ -340,7 +341,7 @@ func TestLogtoManagementClient_UpdateUser(t *testing.T) {
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					if r.URL.Path == "/oidc/token" {
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -349,7 +350,7 @@ func TestLogtoManagementClient_UpdateUser(t *testing.T) {
 						_ = json.NewEncoder(w).Encode(response)
 					} else if r.URL.Path == "/api/users/user-update-123" && r.Method == "PATCH" {
 						// Verify request body
-						var requestBody UpdateUserRequest
+						var requestBody models.UpdateUserRequest
 						err := json.NewDecoder(r.Body).Decode(&requestBody)
 						require.NoError(t, err)
 
@@ -358,7 +359,7 @@ func TestLogtoManagementClient_UpdateUser(t *testing.T) {
 						assert.NotNil(t, requestBody.CustomData)
 
 						// Return updated user
-						user := LogtoUser{
+						user := models.LogtoUser{
 							ID:           "user-update-123",
 							Username:     "originaluser",
 							PrimaryEmail: *requestBody.PrimaryEmail,
@@ -373,7 +374,7 @@ func TestLogtoManagementClient_UpdateUser(t *testing.T) {
 				}))
 			},
 			expectError: false,
-			expectedUser: &LogtoUser{
+			expectedUser: &models.LogtoUser{
 				ID:           "user-update-123",
 				Username:     "originaluser",
 				PrimaryEmail: "updated@example.com",
@@ -385,16 +386,16 @@ func TestLogtoManagementClient_UpdateUser(t *testing.T) {
 		{
 			name:   "user not found for update",
 			userID: "nonexistent-user",
-			request: func() UpdateUserRequest {
+			request: func() models.UpdateUserRequest {
 				newName := "New Name"
-				return UpdateUserRequest{
+				return models.UpdateUserRequest{
 					Name: &newName,
 				}
 			}(),
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					if r.URL.Path == "/oidc/token" {
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -413,13 +414,13 @@ func TestLogtoManagementClient_UpdateUser(t *testing.T) {
 		{
 			name:   "empty update request",
 			userID: "user-empty-update",
-			request: UpdateUserRequest{
+			request: models.UpdateUserRequest{
 				CustomData: map[string]interface{}{"empty": "update"},
 			},
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					if r.URL.Path == "/oidc/token" {
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -427,7 +428,7 @@ func TestLogtoManagementClient_UpdateUser(t *testing.T) {
 						}
 						_ = json.NewEncoder(w).Encode(response)
 					} else if r.URL.Path == "/api/users/user-empty-update" && r.Method == "PATCH" {
-						var requestBody UpdateUserRequest
+						var requestBody models.UpdateUserRequest
 						_ = json.NewDecoder(r.Body).Decode(&requestBody)
 
 						// Verify nil fields are not sent
@@ -436,7 +437,7 @@ func TestLogtoManagementClient_UpdateUser(t *testing.T) {
 						assert.Nil(t, requestBody.Name)
 						assert.NotNil(t, requestBody.CustomData)
 
-						user := LogtoUser{
+						user := models.LogtoUser{
 							ID:         "user-empty-update",
 							Username:   "unchanged",
 							CustomData: requestBody.CustomData,
@@ -448,7 +449,7 @@ func TestLogtoManagementClient_UpdateUser(t *testing.T) {
 				}))
 			},
 			expectError: false,
-			expectedUser: &LogtoUser{
+			expectedUser: &models.LogtoUser{
 				ID:         "user-empty-update",
 				Username:   "unchanged",
 				CustomData: map[string]interface{}{"empty": "update"},
@@ -499,7 +500,7 @@ func TestLogtoManagementClient_DeleteUser(t *testing.T) {
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					if r.URL.Path == "/oidc/token" {
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -519,7 +520,7 @@ func TestLogtoManagementClient_DeleteUser(t *testing.T) {
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					if r.URL.Path == "/oidc/token" {
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -540,7 +541,7 @@ func TestLogtoManagementClient_DeleteUser(t *testing.T) {
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					if r.URL.Path == "/oidc/token" {
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -591,7 +592,7 @@ func TestGetUserProfileFromLogto(t *testing.T) {
 		userID          string
 		setupServer     func() *httptest.Server
 		expectError     bool
-		expectedProfile *LogtoUser
+		expectedProfile *models.LogtoUser
 	}{
 		{
 			name:   "successful user profile fetch",
@@ -600,7 +601,7 @@ func TestGetUserProfileFromLogto(t *testing.T) {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/oidc/token":
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -608,7 +609,7 @@ func TestGetUserProfileFromLogto(t *testing.T) {
 						}
 						_ = json.NewEncoder(w).Encode(response)
 					case "/api/users/profile-user-123":
-						profile := LogtoUser{
+						profile := models.LogtoUser{
 							ID:           "profile-user-123",
 							Username:     "profileuser",
 							PrimaryEmail: "profile@example.com",
@@ -623,7 +624,7 @@ func TestGetUserProfileFromLogto(t *testing.T) {
 				}))
 			},
 			expectError: false,
-			expectedProfile: &LogtoUser{
+			expectedProfile: &models.LogtoUser{
 				ID:           "profile-user-123",
 				Username:     "profileuser",
 				PrimaryEmail: "profile@example.com",
@@ -640,7 +641,7 @@ func TestGetUserProfileFromLogto(t *testing.T) {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/oidc/token":
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,

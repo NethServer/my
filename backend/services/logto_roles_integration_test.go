@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/nethesis/my/backend/configuration"
+	"github.com/nethesis/my/backend/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +20,7 @@ func TestLogtoManagementClient_GetUserRoles(t *testing.T) {
 		userID        string
 		setupServer   func() *httptest.Server
 		expectError   bool
-		expectedRoles []LogtoRole
+		expectedRoles []models.LogtoRole
 	}{
 		{
 			name:   "successful user roles fetch",
@@ -29,7 +30,7 @@ func TestLogtoManagementClient_GetUserRoles(t *testing.T) {
 					switch r.URL.Path {
 					case "/oidc/token":
 						// Token request
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -38,7 +39,7 @@ func TestLogtoManagementClient_GetUserRoles(t *testing.T) {
 						_ = json.NewEncoder(w).Encode(response)
 					case "/api/users/user-123/roles":
 						// User roles request
-						roles := []LogtoRole{
+						roles := []models.LogtoRole{
 							{ID: "role-1", Name: "Admin", Description: "Administrator", Type: "User"},
 							{ID: "role-2", Name: "Support", Description: "Support user", Type: "User"},
 						}
@@ -48,7 +49,7 @@ func TestLogtoManagementClient_GetUserRoles(t *testing.T) {
 				}))
 			},
 			expectError: false,
-			expectedRoles: []LogtoRole{
+			expectedRoles: []models.LogtoRole{
 				{ID: "role-1", Name: "Admin", Description: "Administrator", Type: "User"},
 				{ID: "role-2", Name: "Support", Description: "Support user", Type: "User"},
 			},
@@ -60,7 +61,7 @@ func TestLogtoManagementClient_GetUserRoles(t *testing.T) {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/oidc/token":
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -83,7 +84,7 @@ func TestLogtoManagementClient_GetUserRoles(t *testing.T) {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/oidc/token":
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -92,12 +93,12 @@ func TestLogtoManagementClient_GetUserRoles(t *testing.T) {
 						_ = json.NewEncoder(w).Encode(response)
 					case "/api/users/user-no-roles/roles":
 						w.Header().Set("Content-Type", "application/json")
-						_ = json.NewEncoder(w).Encode([]LogtoRole{})
+						_ = json.NewEncoder(w).Encode([]models.LogtoRole{})
 					}
 				}))
 			},
 			expectError:   false,
-			expectedRoles: []LogtoRole{},
+			expectedRoles: []models.LogtoRole{},
 		},
 	}
 
@@ -138,7 +139,7 @@ func TestLogtoManagementClient_GetRoleScopes(t *testing.T) {
 		roleID         string
 		setupServer    func() *httptest.Server
 		expectError    bool
-		expectedScopes []LogtoScope
+		expectedScopes []models.LogtoScope
 	}{
 		{
 			name:   "successful role scopes fetch",
@@ -147,7 +148,7 @@ func TestLogtoManagementClient_GetRoleScopes(t *testing.T) {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/oidc/token":
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -155,7 +156,7 @@ func TestLogtoManagementClient_GetRoleScopes(t *testing.T) {
 						}
 						_ = json.NewEncoder(w).Encode(response)
 					case "/api/roles/role-123/scopes":
-						scopes := []LogtoScope{
+						scopes := []models.LogtoScope{
 							{ID: "scope-1", Name: "manage:systems", Description: "Manage systems", ResourceID: "api-resource"},
 							{ID: "scope-2", Name: "view:logs", Description: "View logs", ResourceID: "api-resource"},
 						}
@@ -165,7 +166,7 @@ func TestLogtoManagementClient_GetRoleScopes(t *testing.T) {
 				}))
 			},
 			expectError: false,
-			expectedScopes: []LogtoScope{
+			expectedScopes: []models.LogtoScope{
 				{ID: "scope-1", Name: "manage:systems", Description: "Manage systems", ResourceID: "api-resource"},
 				{ID: "scope-2", Name: "view:logs", Description: "View logs", ResourceID: "api-resource"},
 			},
@@ -177,7 +178,7 @@ func TestLogtoManagementClient_GetRoleScopes(t *testing.T) {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/oidc/token":
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -232,7 +233,7 @@ func TestLogtoManagementClient_GetUserOrganizationRoles(t *testing.T) {
 		organizationID string
 		setupServer    func() *httptest.Server
 		expectError    bool
-		expectedRoles  []LogtoOrganizationRole
+		expectedRoles  []models.LogtoOrganizationRole
 	}{
 		{
 			name:           "successful user organization roles fetch",
@@ -242,7 +243,7 @@ func TestLogtoManagementClient_GetUserOrganizationRoles(t *testing.T) {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/oidc/token":
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -250,7 +251,7 @@ func TestLogtoManagementClient_GetUserOrganizationRoles(t *testing.T) {
 						}
 						_ = json.NewEncoder(w).Encode(response)
 					case "/api/organizations/org-456/users/user-123/roles":
-						roles := []LogtoOrganizationRole{
+						roles := []models.LogtoOrganizationRole{
 							{ID: "org-role-1", Name: "Owner"},
 							{ID: "org-role-2", Name: "Distributor"},
 						}
@@ -260,7 +261,7 @@ func TestLogtoManagementClient_GetUserOrganizationRoles(t *testing.T) {
 				}))
 			},
 			expectError: false,
-			expectedRoles: []LogtoOrganizationRole{
+			expectedRoles: []models.LogtoOrganizationRole{
 				{ID: "org-role-1", Name: "Owner"},
 				{ID: "org-role-2", Name: "Distributor"},
 			},
@@ -273,7 +274,7 @@ func TestLogtoManagementClient_GetUserOrganizationRoles(t *testing.T) {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/oidc/token":
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -282,12 +283,12 @@ func TestLogtoManagementClient_GetUserOrganizationRoles(t *testing.T) {
 						_ = json.NewEncoder(w).Encode(response)
 					case "/api/organizations/org-empty/users/user-no-org-roles/roles":
 						w.Header().Set("Content-Type", "application/json")
-						_ = json.NewEncoder(w).Encode([]LogtoOrganizationRole{})
+						_ = json.NewEncoder(w).Encode([]models.LogtoOrganizationRole{})
 					}
 				}))
 			},
 			expectError:   false,
-			expectedRoles: []LogtoOrganizationRole{},
+			expectedRoles: []models.LogtoOrganizationRole{},
 		},
 	}
 
@@ -327,7 +328,7 @@ func TestLogtoManagementClient_GetRoleByName(t *testing.T) {
 		roleName     string
 		setupServer  func() *httptest.Server
 		expectError  bool
-		expectedRole *LogtoRole
+		expectedRole *models.LogtoRole
 	}{
 		{
 			name:     "role found by name",
@@ -336,7 +337,7 @@ func TestLogtoManagementClient_GetRoleByName(t *testing.T) {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/oidc/token":
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -344,7 +345,7 @@ func TestLogtoManagementClient_GetRoleByName(t *testing.T) {
 						}
 						_ = json.NewEncoder(w).Encode(response)
 					case "/api/roles":
-						roles := []LogtoRole{
+						roles := []models.LogtoRole{
 							{ID: "role-1", Name: "Admin", Description: "Administrator", Type: "User"},
 							{ID: "role-2", Name: "Support", Description: "Support user", Type: "User"},
 							{ID: "role-3", Name: "Manager", Description: "Manager", Type: "User"},
@@ -355,7 +356,7 @@ func TestLogtoManagementClient_GetRoleByName(t *testing.T) {
 				}))
 			},
 			expectError: false,
-			expectedRole: &LogtoRole{
+			expectedRole: &models.LogtoRole{
 				ID:          "role-1",
 				Name:        "Admin",
 				Description: "Administrator",
@@ -369,7 +370,7 @@ func TestLogtoManagementClient_GetRoleByName(t *testing.T) {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/oidc/token":
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -377,7 +378,7 @@ func TestLogtoManagementClient_GetRoleByName(t *testing.T) {
 						}
 						_ = json.NewEncoder(w).Encode(response)
 					case "/api/roles":
-						roles := []LogtoRole{
+						roles := []models.LogtoRole{
 							{ID: "role-1", Name: "Admin", Description: "Administrator", Type: "User"},
 							{ID: "role-2", Name: "Support", Description: "Support user", Type: "User"},
 						}
@@ -396,7 +397,7 @@ func TestLogtoManagementClient_GetRoleByName(t *testing.T) {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/oidc/token":
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -405,7 +406,7 @@ func TestLogtoManagementClient_GetRoleByName(t *testing.T) {
 						_ = json.NewEncoder(w).Encode(response)
 					case "/api/roles":
 						w.Header().Set("Content-Type", "application/json")
-						_ = json.NewEncoder(w).Encode([]LogtoRole{})
+						_ = json.NewEncoder(w).Encode([]models.LogtoRole{})
 					}
 				}))
 			},
@@ -462,7 +463,7 @@ func TestLogtoManagementClient_AssignUserRoles(t *testing.T) {
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					if r.URL.Path == "/oidc/token" {
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -495,7 +496,7 @@ func TestLogtoManagementClient_AssignUserRoles(t *testing.T) {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/oidc/token":
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -518,7 +519,7 @@ func TestLogtoManagementClient_AssignUserRoles(t *testing.T) {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/oidc/token":
-						response := LogtoManagementTokenResponse{
+						response := models.LogtoManagementTokenResponse{
 							AccessToken: "test-token",
 							TokenType:   "Bearer",
 							ExpiresIn:   3600,
@@ -575,7 +576,7 @@ func TestEnrichUserWithRolesAndPermissions(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
 			case "/oidc/token":
-				response := LogtoManagementTokenResponse{
+				response := models.LogtoManagementTokenResponse{
 					AccessToken: "test-token",
 					TokenType:   "Bearer",
 					ExpiresIn:   3600,
@@ -584,10 +585,10 @@ func TestEnrichUserWithRolesAndPermissions(t *testing.T) {
 				_ = json.NewEncoder(w).Encode(response)
 			case "/api/users/user-no-roles/roles":
 				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode([]LogtoRole{})
+				_ = json.NewEncoder(w).Encode([]models.LogtoRole{})
 			case "/api/users/user-no-roles/organizations":
 				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode([]LogtoOrganization{})
+				_ = json.NewEncoder(w).Encode([]models.LogtoOrganization{})
 			}
 		}))
 		defer server.Close()
@@ -619,7 +620,7 @@ func TestEnrichUserWithRolesAndPermissions(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
 			case "/oidc/token":
-				response := LogtoManagementTokenResponse{
+				response := models.LogtoManagementTokenResponse{
 					AccessToken: "test-token",
 					TokenType:   "Bearer",
 					ExpiresIn:   3600,
@@ -627,20 +628,20 @@ func TestEnrichUserWithRolesAndPermissions(t *testing.T) {
 				}
 				_ = json.NewEncoder(w).Encode(response)
 			case "/api/users/user-basic/roles":
-				roles := []LogtoRole{
+				roles := []models.LogtoRole{
 					{ID: "role-1", Name: "Admin", Description: "Administrator", Type: "User"},
 				}
 				w.Header().Set("Content-Type", "application/json")
 				_ = json.NewEncoder(w).Encode(roles)
 			case "/api/roles/role-1/scopes":
-				scopes := []LogtoScope{
+				scopes := []models.LogtoScope{
 					{ID: "scope-1", Name: "manage:systems", Description: "Manage systems", ResourceID: "api"},
 				}
 				w.Header().Set("Content-Type", "application/json")
 				_ = json.NewEncoder(w).Encode(scopes)
 			case "/api/users/user-basic/organizations":
 				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode([]LogtoOrganization{})
+				_ = json.NewEncoder(w).Encode([]models.LogtoOrganization{})
 			}
 		}))
 		defer server.Close()

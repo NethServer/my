@@ -12,6 +12,8 @@ package configuration
 import (
 	"fmt"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/nethesis/my/backend/logger"
 )
@@ -30,6 +32,17 @@ type Configuration struct {
 	LogtoManagementClientID     string `json:"logto_management_client_id"`
 	LogtoManagementClientSecret string `json:"logto_management_client_secret"`
 	LogtoManagementBaseURL      string `json:"logto_management_base_url"`
+	// Cache TTL configuration
+	StatsCacheTTL           time.Duration `json:"stats_cache_ttl"`
+	StatsUpdateInterval     time.Duration `json:"stats_update_interval"`
+	StatsStaleThreshold     time.Duration `json:"stats_stale_threshold"`
+	JitRolesCacheTTL        time.Duration `json:"jit_roles_cache_ttl"`
+	JitRolesCleanupInterval time.Duration `json:"jit_roles_cleanup_interval"`
+	OrgUsersCacheTTL        time.Duration `json:"org_users_cache_ttl"`
+	OrgUsersCleanupInterval time.Duration `json:"org_users_cleanup_interval"`
+	JWKSCacheTTL            time.Duration `json:"jwks_cache_ttl"`
+	// API configuration
+	DefaultPageSize int `json:"default_page_size"`
 }
 
 var Config = Configuration{}
@@ -103,6 +116,55 @@ func Init() {
 		Config.LogtoManagementBaseURL = Config.LogtoIssuer + "/api"
 	}
 
+	// Cache TTL configuration with defaults
+	Config.StatsCacheTTL = parseDurationWithDefault("STATS_CACHE_TTL", 10*time.Minute)
+	Config.StatsUpdateInterval = parseDurationWithDefault("STATS_UPDATE_INTERVAL", 5*time.Minute)
+	Config.StatsStaleThreshold = parseDurationWithDefault("STATS_STALE_THRESHOLD", 15*time.Minute)
+	Config.JitRolesCacheTTL = parseDurationWithDefault("JIT_ROLES_CACHE_TTL", 5*time.Minute)
+	Config.JitRolesCleanupInterval = parseDurationWithDefault("JIT_ROLES_CLEANUP_INTERVAL", 2*time.Minute)
+	Config.OrgUsersCacheTTL = parseDurationWithDefault("ORG_USERS_CACHE_TTL", 3*time.Minute)
+	Config.OrgUsersCleanupInterval = parseDurationWithDefault("ORG_USERS_CLEANUP_INTERVAL", 1*time.Minute)
+	Config.JWKSCacheTTL = parseDurationWithDefault("JWKS_CACHE_TTL", 5*time.Minute)
+	Config.DefaultPageSize = parseIntWithDefault("DEFAULT_PAGE_SIZE", 100)
+
 	// Log successful configuration load
 	logger.LogConfigLoad("env", "configuration", true, nil)
+}
+
+// parseDurationWithDefault parses a duration from environment variable or returns default
+func parseDurationWithDefault(envVar string, defaultValue time.Duration) time.Duration {
+	envValue := os.Getenv(envVar)
+	if envValue == "" {
+		return defaultValue
+	}
+
+	// Try parsing as duration string (e.g., "5m", "10s", "1h30m")
+	if duration, err := time.ParseDuration(envValue); err == nil {
+		return duration
+	}
+
+	// Try parsing as seconds (for backward compatibility)
+	if seconds, err := strconv.Atoi(envValue); err == nil {
+		return time.Duration(seconds) * time.Second
+	}
+
+	// If parsing fails, log warning and use default
+	logger.LogConfigLoad("env", envVar, false, fmt.Errorf("invalid duration format, using default %v", defaultValue))
+	return defaultValue
+}
+
+// parseIntWithDefault parses an integer from environment variable or returns default
+func parseIntWithDefault(envVar string, defaultValue int) int {
+	envValue := os.Getenv(envVar)
+	if envValue == "" {
+		return defaultValue
+	}
+
+	if value, err := strconv.Atoi(envValue); err == nil {
+		return value
+	}
+
+	// If parsing fails, log warning and use default
+	logger.LogConfigLoad("env", envVar, false, fmt.Errorf("invalid integer format, using default %d", defaultValue))
+	return defaultValue
 }
