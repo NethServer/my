@@ -568,6 +568,41 @@ Returns all available organization roles with their IDs and descriptions.
 }
 ```
 
+### Get Available Organizations
+**GET** `/organizations`
+
+Returns organizations the current user can assign users to, filtered by business hierarchy.
+
+**Hierarchy Rules:**
+- **Owner**: Can see all organizations
+- **Distributor**: Can see own organization + resellers/customers they created
+- **Reseller**: Can see own organization + customers they created
+- **Customer**: Can only see their own organization
+
+**Response:**
+```json
+{
+  "code": 200,
+  "message": "organizations retrieved successfully",
+  "data": {
+    "organizations": [
+      {
+        "id": "org_123456789",
+        "name": "ACME Corp",
+        "description": "Main customer organization",
+        "type": "customer"
+      },
+      {
+        "id": "org_987654321",
+        "name": "TechReseller Inc",
+        "description": "Technology reseller",
+        "type": "reseller"
+      }
+    ]
+  }
+}
+```
+
 ---
 
 ## 👥 Account Management
@@ -669,7 +704,6 @@ GET /accounts?role=admin&page=2
   "username": "john.doe",
   "email": "john.doe@acme.com",
   "name": "John Doe",
-  "phone": "+39 333 445 5667",
   "password": "SecurePassword123!",
   "userRoleId": "rol_abc123def456",
   "organizationId": "org_xyz789",
@@ -689,7 +723,6 @@ GET /accounts?role=admin&page=2
 {
   "name": "John Doe (Updated)",
   "email": "john.updated@acme.com",
-  "phone": "+39 333 999 8888",
   "userRoleId": "rol_new_role_id_here",
   "customData": {
     "department": "Sales",
@@ -708,7 +741,6 @@ GET /accounts?role=admin&page=2
     "username": "john.doe",
     "email": "john.updated@acme.com",
     "name": "John Doe (Updated)",
-    "phone": "+39 333 999 8888",
     "userRoleId": "rol_new_role_id_here",
     "organizationId": "org_123456789",
     "organizationName": "ACME Corp",

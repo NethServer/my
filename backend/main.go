@@ -207,6 +207,9 @@ func main() {
 		customAuth.GET("/roles", methods.GetRoles)
 		customAuth.GET("/organization-roles", methods.GetOrganizationRoles)
 
+		// Organizations endpoint - for organization selection in account creation
+		customAuth.GET("/organizations", methods.GetOrganizations)
+
 		// System statistics endpoint - require management permissions
 		customAuth.GET("/stats", middleware.RequirePermission("manage:distributors"), methods.GetStats)
 	}

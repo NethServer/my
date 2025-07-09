@@ -335,7 +335,10 @@ func CreateAccount(c *gin.Context) {
 		CustomData:   customData,
 	}
 
-	// Phone is stored in customData, not as primaryPhone
+	// Set PrimaryPhone if provided - Logto validates this field with a regex
+	if request.Phone != "" {
+		accountRequest.PrimaryPhone = &request.Phone
+	}
 
 	// Only set avatar if it's not empty
 	if request.Avatar != "" {

@@ -183,7 +183,7 @@ type CreateUserRequest struct {
 	Password     string                 `json:"password" binding:"required"`
 	Name         string                 `json:"name" binding:"required"`
 	PrimaryEmail string                 `json:"primaryEmail"`
-	PrimaryPhone string                 `json:"primaryPhone"`
+	PrimaryPhone *string                `json:"primaryPhone,omitempty"`
 	Avatar       *string                `json:"avatar,omitempty"`
 	CustomData   map[string]interface{} `json:"customData,omitempty"`
 }
