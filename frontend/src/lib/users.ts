@@ -1,0 +1,124 @@
+//  Copyright (C) 2025 Nethesis S.r.l.
+//  SPDX-License-Identifier: GPL-3.0-or-later
+
+import axios from 'axios'
+import { API_URL } from './config'
+import { useLoginStore } from '@/stores/login'
+import * as v from 'valibot'
+
+//// check attributes
+export const CreateUserSchema = v.object({
+  username: v.pipe(
+    v.string(),
+    v.nonEmpty('users.username_required'),
+    v.regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/, 'users.invalid_username'),
+  ),
+  email: v.pipe(v.string(), v.nonEmpty('users.email_required'), v.email('users.invalid_email')),
+  name: v.pipe(v.string(), v.nonEmpty('users.name_required')),
+  password: v.pipe(v.string(), v.minLength(8, 'users.password_min_length')),
+  phone: v.optional(v.string()),
+  userRoleId: v.pipe(v.string(), v.nonEmpty('users.user_role_required')),
+  organizationId: v.pipe(v.string(), v.nonEmpty('users.organization_required')),
+  customData: v.optional(v.record(v.string(), v.string())),
+})
+
+export const EditUserSchema = v.object({
+  ...CreateUserSchema.entries,
+  id: v.string(),
+})
+
+export const UserSchema = v.object({
+  ...CreateUserSchema.entries,
+  ...EditUserSchema.entries,
+  organizationName: v.optional(v.string()),
+  organizationRole: v.optional(v.string()),
+  isSuspended: v.optional(v.boolean()),
+  lastSignInAt: v.optional(v.string()),
+  createdAt: v.optional(v.string()),
+  updatedAt: v.optional(v.string()),
+})
+
+export type CreateUser = v.InferOutput<typeof CreateUserSchema>
+export type EditUser = v.InferOutput<typeof EditUserSchema>
+export type User = v.InferOutput<typeof UserSchema>
+
+export const getAccounts = () => {
+  console.log('getAccounts') ////
+
+  const loginStore = useLoginStore()
+
+  return axios
+    .get(`${API_URL}/accounts`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data.users as User[])
+}
+
+export const postAccount = (user: CreateUser) => {
+  console.log('postAccount', user) ////
+
+  const loginStore = useLoginStore()
+
+  return axios.post(`${API_URL}/accounts`, user, {
+    headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+  })
+}
+
+export const putAccount = (user: EditUser) => {
+  console.log('putAccount', user) ////
+
+  const loginStore = useLoginStore()
+
+  return axios.put(`${API_URL}/accounts/${user.id}`, user, {
+    headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+  })
+}
+
+export const deleteAccount = (user: User) => {
+  console.log('deleteAccount', user) ////
+
+  const loginStore = useLoginStore()
+
+  return axios.delete(`${API_URL}/accounts/${user.id}`, {
+    headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+  })
+}
+
+export const searchStringInUser = (searchString: string, user: User): boolean => {
+  const regex = /[^a-zA-Z0-9-]/g
+  searchString = searchString.replace(regex, '')
+  let found = false
+
+  // search in string attributes
+  found = ['name', 'description'].some((attrName) => {
+    const attrValue = user[attrName as keyof User] as string
+    return new RegExp(searchString, 'i').test(attrValue?.replace(regex, ''))
+  })
+
+  if (found) {
+    return true
+  }
+
+  //// review customData attributes
+
+  // search in customData
+  found = [
+    'address',
+    'city',
+    'codiceFiscale',
+    'contactPerson',
+    'email',
+    'partitaIva',
+    'phone',
+    'region',
+  ].some((attrName) => {
+    const attrValue = user.customData?.[attrName as keyof NonNullable<User['customData']>] as string
+    return new RegExp(searchString, 'i').test(attrValue?.replace(regex, ''))
+  })
+
+  if (found) {
+    return true
+  } else {
+    return false
+  }
+}

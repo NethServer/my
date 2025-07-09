@@ -59,7 +59,7 @@ const configureAxios = () => {
       // show error notification if it's not a validation error
       if (
         //// TODO check condition
-        !error.response?.data?.data?.validation?.errors?.length
+        error.response?.data?.code !== 400
       ) {
         notificationsStore.createNotificationFromAxiosError(error)
       }
