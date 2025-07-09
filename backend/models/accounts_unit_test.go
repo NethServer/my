@@ -15,7 +15,7 @@ func TestCreateAccountRequestStructure(t *testing.T) {
 		Name:           "Test User",
 		Phone:          "+1234567890",
 		Password:       "securepass123",
-		UserRoleID:     "role-123",
+		UserRoleIDs:    []string{"role-123", "role-456"},
 		OrganizationID: "org-456",
 		Avatar:         "https://example.com/avatar.jpg",
 		CustomData:     map[string]interface{}{"department": "IT"},
@@ -26,7 +26,7 @@ func TestCreateAccountRequestStructure(t *testing.T) {
 	assert.Equal(t, "Test User", req.Name)
 	assert.Equal(t, "+1234567890", req.Phone)
 	assert.Equal(t, "securepass123", req.Password)
-	assert.Equal(t, "role-123", req.UserRoleID)
+	assert.Equal(t, []string{"role-123", "role-456"}, req.UserRoleIDs)
 	assert.Equal(t, "org-456", req.OrganizationID)
 	assert.Equal(t, "https://example.com/avatar.jpg", req.Avatar)
 	assert.Equal(t, map[string]interface{}{"department": "IT"}, req.CustomData)
@@ -39,7 +39,7 @@ func TestCreateAccountRequestJSONSerialization(t *testing.T) {
 		Name:           "JSON User",
 		Phone:          "+9876543210",
 		Password:       "jsonpass123",
-		UserRoleID:     "role-json",
+		UserRoleIDs:    []string{"role-json"},
 		OrganizationID: "org-json",
 		Avatar:         "https://example.com/json-avatar.jpg",
 		CustomData:     map[string]interface{}{"team": "Backend"},
@@ -58,7 +58,7 @@ func TestCreateAccountRequestJSONSerialization(t *testing.T) {
 	assert.Equal(t, req.Name, unmarshaledReq.Name)
 	assert.Equal(t, req.Phone, unmarshaledReq.Phone)
 	assert.Equal(t, req.Password, unmarshaledReq.Password)
-	assert.Equal(t, req.UserRoleID, unmarshaledReq.UserRoleID)
+	assert.Equal(t, req.UserRoleIDs, unmarshaledReq.UserRoleIDs)
 	assert.Equal(t, req.OrganizationID, unmarshaledReq.OrganizationID)
 	assert.Equal(t, req.Avatar, unmarshaledReq.Avatar)
 	assert.Equal(t, req.CustomData, unmarshaledReq.CustomData)
@@ -71,7 +71,7 @@ func TestCreateAccountRequestJSONTags(t *testing.T) {
 		Name:           "Tag User",
 		Phone:          "+1111111111",
 		Password:       "tagpass123",
-		UserRoleID:     "role-tag",
+		UserRoleIDs:    []string{"role-tag"},
 		OrganizationID: "org-tag",
 		Avatar:         "https://example.com/tag-avatar.jpg",
 		CustomData:     map[string]interface{}{"role": "Tester"},
@@ -89,14 +89,14 @@ func TestCreateAccountRequestJSONTags(t *testing.T) {
 	assert.Contains(t, jsonMap, "name")
 	assert.Contains(t, jsonMap, "phone")
 	assert.Contains(t, jsonMap, "password")
-	assert.Contains(t, jsonMap, "userRoleId")
+	assert.Contains(t, jsonMap, "userRoleIds")
 	assert.Contains(t, jsonMap, "organizationId")
 	assert.Contains(t, jsonMap, "avatar")
 	assert.Contains(t, jsonMap, "customData")
 
 	assert.Equal(t, "taguser", jsonMap["username"])
 	assert.Equal(t, "tag@example.com", jsonMap["email"])
-	assert.Equal(t, "role-tag", jsonMap["userRoleId"])
+	assert.Equal(t, []interface{}{"role-tag"}, jsonMap["userRoleIds"])
 	assert.Equal(t, "org-tag", jsonMap["organizationId"])
 }
 
@@ -106,7 +106,7 @@ func TestUpdateAccountRequestStructure(t *testing.T) {
 		Email:          "updated@example.com",
 		Name:           "Updated User",
 		Phone:          "+2222222222",
-		UserRoleID:     "role-updated",
+		UserRoleIDs:    []string{"role-updated"},
 		OrganizationID: "org-updated",
 		Avatar:         "https://example.com/updated-avatar.jpg",
 		CustomData:     map[string]interface{}{"status": "updated"},
@@ -116,7 +116,7 @@ func TestUpdateAccountRequestStructure(t *testing.T) {
 	assert.Equal(t, "updated@example.com", req.Email)
 	assert.Equal(t, "Updated User", req.Name)
 	assert.Equal(t, "+2222222222", req.Phone)
-	assert.Equal(t, "role-updated", req.UserRoleID)
+	assert.Equal(t, []string{"role-updated"}, req.UserRoleIDs)
 	assert.Equal(t, "org-updated", req.OrganizationID)
 	assert.Equal(t, "https://example.com/updated-avatar.jpg", req.Avatar)
 	assert.Equal(t, map[string]interface{}{"status": "updated"}, req.CustomData)
@@ -128,7 +128,7 @@ func TestUpdateAccountRequestJSONSerialization(t *testing.T) {
 		Email:          "updatejson@example.com",
 		Name:           "Update JSON User",
 		Phone:          "+3333333333",
-		UserRoleID:     "role-updatejson",
+		UserRoleIDs:    []string{"role-updatejson"},
 		OrganizationID: "org-updatejson",
 		Avatar:         "https://example.com/updatejson-avatar.jpg",
 		CustomData:     map[string]interface{}{"version": "2.0"},
@@ -156,7 +156,7 @@ func TestAccountResponseStructure(t *testing.T) {
 		Name:             "Response User",
 		Phone:            "+4444444444",
 		Avatar:           "https://example.com/response-avatar.jpg",
-		UserRoleID:       "Admin",
+		UserRoleIDs:      []string{"Admin"},
 		OrganizationID:   "org-response",
 		OrganizationName: "Response Organization",
 		OrganizationRole: "Owner",
@@ -173,7 +173,7 @@ func TestAccountResponseStructure(t *testing.T) {
 	assert.Equal(t, "Response User", resp.Name)
 	assert.Equal(t, "+4444444444", resp.Phone)
 	assert.Equal(t, "https://example.com/response-avatar.jpg", resp.Avatar)
-	assert.Equal(t, "Admin", resp.UserRoleID)
+	assert.Equal(t, []string{"Admin"}, resp.UserRoleIDs)
 	assert.Equal(t, "org-response", resp.OrganizationID)
 	assert.Equal(t, "Response Organization", resp.OrganizationName)
 	assert.Equal(t, "Owner", resp.OrganizationRole)
@@ -195,7 +195,7 @@ func TestAccountResponseJSONSerialization(t *testing.T) {
 		Name:             "JSON Response User",
 		Phone:            "+5555555555",
 		Avatar:           "https://example.com/jsonresponse-avatar.jpg",
-		UserRoleID:       "Support",
+		UserRoleIDs:      []string{"Support"},
 		OrganizationID:   "org-jsonresponse",
 		OrganizationName: "JSON Response Organization",
 		OrganizationRole: "Distributor",
@@ -220,7 +220,7 @@ func TestAccountResponseJSONSerialization(t *testing.T) {
 	assert.Equal(t, resp.Name, unmarshaledResp.Name)
 	assert.Equal(t, resp.Phone, unmarshaledResp.Phone)
 	assert.Equal(t, resp.Avatar, unmarshaledResp.Avatar)
-	assert.Equal(t, resp.UserRoleID, unmarshaledResp.UserRoleID)
+	assert.Equal(t, resp.UserRoleIDs, unmarshaledResp.UserRoleIDs)
 	assert.Equal(t, resp.OrganizationID, unmarshaledResp.OrganizationID)
 	assert.Equal(t, resp.OrganizationName, unmarshaledResp.OrganizationName)
 	assert.Equal(t, resp.OrganizationRole, unmarshaledResp.OrganizationRole)
@@ -238,7 +238,7 @@ func TestAccountResponseWithNilLastSignIn(t *testing.T) {
 		Username:         "nilsignin",
 		Email:            "nilsignin@example.com",
 		Name:             "Nil SignIn User",
-		UserRoleID:       "Admin",
+		UserRoleIDs:      []string{"Admin"},
 		OrganizationID:   "org-nilsignin",
 		OrganizationName: "Nil SignIn Organization",
 		OrganizationRole: "Customer",
@@ -269,7 +269,7 @@ func TestAccountModelsWithEmptyCustomData(t *testing.T) {
 		Email:          "emptymeta@example.com",
 		Name:           "Empty Meta User",
 		Password:       "emptypass123",
-		UserRoleID:     "role-emptymeta",
+		UserRoleIDs:    []string{"role-emptymeta"},
 		OrganizationID: "org-emptymeta",
 		CustomData:     map[string]interface{}{},
 	}
@@ -286,7 +286,7 @@ func TestAccountModelsWithEmptyCustomData(t *testing.T) {
 		Username:         "emptymetaresp",
 		Email:            "emptymetaresp@example.com",
 		Name:             "Empty Meta Response User",
-		UserRoleID:       "Support",
+		UserRoleIDs:      []string{"Support"},
 		OrganizationID:   "org-emptymetaresp",
 		OrganizationName: "Empty Meta Organization",
 		OrganizationRole: "Reseller",
@@ -323,7 +323,7 @@ func TestAccountModelsWithNilCustomData(t *testing.T) {
 		Email:          "nilmeta@example.com",
 		Name:           "Nil Meta User",
 		Password:       "nilpass123",
-		UserRoleID:     "role-nilmeta",
+		UserRoleIDs:    []string{"role-nilmeta"},
 		OrganizationID: "org-nilmeta",
 		CustomData:     nil,
 	}
@@ -340,7 +340,7 @@ func TestAccountModelsWithNilCustomData(t *testing.T) {
 		Username:         "nilmetaresp",
 		Email:            "nilmetaresp@example.com",
 		Name:             "Nil Meta Response User",
-		UserRoleID:       "Admin",
+		UserRoleIDs:      []string{"Admin"},
 		OrganizationID:   "org-nilmetaresp",
 		OrganizationName: "Nil Meta Organization",
 		OrganizationRole: "Owner",
@@ -378,7 +378,7 @@ func TestAccountSuspensionStates(t *testing.T) {
 				Username:         "suspensiontest",
 				Email:            "suspension@example.com",
 				Name:             "Suspension Test User",
-				UserRoleID:       "Support",
+				UserRoleIDs:      []string{"Support"},
 				OrganizationID:   "org-suspension",
 				OrganizationName: "Suspension Test Organization",
 				OrganizationRole: "Customer",

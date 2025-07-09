@@ -44,6 +44,33 @@ curl -X POST "http://localhost:8080/api/auth/exchange" \
   -d '{"access_token": "YOUR_LOGTO_ACCESS_TOKEN"}'
 ```
 
+**Response:**
+```json
+{
+  "code": 200,
+  "message": "token exchange successful",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "expires_in": 86400,
+    "user": {
+      "id": "user_id",
+      "username": "john.doe",
+      "email": "john@example.com",
+      "name": "John Doe",
+      "userRoles": ["Admin"],
+      "userRoleIds": ["rol_admin_id_123"],
+      "userPermissions": ["destroy:systems", "manage:systems", "read:systems", "admin:systems"],
+      "orgRole": "Owner",
+      "orgRoleId": "org_rol_owner_456",
+      "orgPermissions": ["create:distributors", "manage:distributors", "manage:resellers"],
+      "organizationId": "org_123",
+      "organizationName": "ACME Distribution"
+    }
+  }
+}
+```
+
 Returns custom JWT with embedded permissions and 7-day refresh token.
 
 ### Refresh Token
@@ -53,6 +80,33 @@ Returns custom JWT with embedded permissions and 7-day refresh token.
 curl -X POST "http://localhost:8080/api/auth/refresh" \
   -H "Content-Type: application/json" \
   -d '{"refresh_token": "YOUR_REFRESH_TOKEN"}'
+```
+
+**Response:**
+```json
+{
+  "code": 200,
+  "message": "token refresh successful",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "expires_in": 86400,
+    "user": {
+      "id": "user_id",
+      "username": "john.doe",
+      "email": "john@example.com",
+      "name": "John Doe",
+      "userRoles": ["Admin"],
+      "userRoleIds": ["rol_admin_id_123"],
+      "userPermissions": ["destroy:systems", "manage:systems", "read:systems", "admin:systems"],
+      "orgRole": "Owner",
+      "orgRoleId": "org_rol_owner_456",
+      "orgPermissions": ["create:distributors", "manage:distributors", "manage:resellers"],
+      "organizationId": "org_123",
+      "organizationName": "ACME Distribution"
+    }
+  }
+}
 ```
 
 Returns new access token (24h) and refresh token (7d) with fresh user data.
@@ -70,8 +124,10 @@ Returns new access token (24h) and refresh token (7d) with fresh user data.
     "email": "john@example.com",
     "name": "John Doe",
     "userRoles": ["Admin"],
+    "userRoleIds": ["rol_admin_id_123"],
     "userPermissions": ["manage:systems"],
     "orgRole": "Distributor",
+    "orgRoleId": "org_rol_distributor_456",
     "orgPermissions": ["manage:resellers"],
     "organizationId": "org_123",
     "organizationName": "ACME Distribution"

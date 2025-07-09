@@ -98,8 +98,10 @@ func ExchangeToken(c *gin.Context) {
 			Msg("Failed to enrich user with roles")
 	} else {
 		user.UserRoles = enrichedUser.UserRoles
+		user.UserRoleIDs = enrichedUser.UserRoleIDs
 		user.UserPermissions = enrichedUser.UserPermissions
 		user.OrgRole = enrichedUser.OrgRole
+		user.OrgRoleID = enrichedUser.OrgRoleID
 		user.OrgPermissions = enrichedUser.OrgPermissions
 		user.OrganizationID = enrichedUser.OrganizationID
 		user.OrganizationName = enrichedUser.OrganizationName
@@ -206,8 +208,10 @@ func RefreshToken(c *gin.Context) {
 	}
 
 	user.UserRoles = enrichedUser.UserRoles
+	user.UserRoleIDs = enrichedUser.UserRoleIDs
 	user.UserPermissions = enrichedUser.UserPermissions
 	user.OrgRole = enrichedUser.OrgRole
+	user.OrgRoleID = enrichedUser.OrgRoleID
 	user.OrgPermissions = enrichedUser.OrgPermissions
 	user.OrganizationID = enrichedUser.OrganizationID
 	user.OrganizationName = enrichedUser.OrganizationName
@@ -267,8 +271,10 @@ func GetCurrentUser(c *gin.Context) {
 		"email":            user.Email,
 		"name":             user.Name,
 		"userRoles":        user.UserRoles,
+		"userRoleIds":      user.UserRoleIDs,
 		"userPermissions":  user.UserPermissions,
 		"orgRole":          user.OrgRole,
+		"orgRoleId":        user.OrgRoleID,
 		"orgPermissions":   user.OrgPermissions,
 		"organizationId":   user.OrganizationID,
 		"organizationName": user.OrganizationName,

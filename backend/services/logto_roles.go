@@ -249,8 +249,10 @@ func EnrichUserWithRolesAndPermissions(userID string) (*models.User, error) {
 	user := &models.User{
 		ID:               userID,
 		UserRoles:        []string{},
+		UserRoleIDs:      []string{},
 		UserPermissions:  []string{},
 		OrgRole:          "",
+		OrgRoleID:        "",
 		OrgPermissions:   []string{},
 		OrganizationID:   "",
 		OrganizationName: "",
@@ -274,9 +276,15 @@ func EnrichUserWithRolesAndPermissions(userID string) (*models.User, error) {
 			Str("operation", "fetch_user_roles").
 			Str("user_id", userID).
 			Msg("Found user roles")
-		// Extract role names
+		// Extract role names and IDs
 		for _, role := range userRoles {
 			user.UserRoles = append(user.UserRoles, role.Name)
+			user.UserRoleIDs = append(user.UserRoleIDs, role.ID)
+			logger.ComponentLogger("logto").Debug().
+				Str("operation", "extract_user_role").
+				Str("role_name", role.Name).
+				Str("role_id", role.ID).
+				Msg("Extracted user role")
 		}
 
 		// Fetch permissions for each user role
@@ -333,6 +341,12 @@ func EnrichUserWithRolesAndPermissions(userID string) (*models.User, error) {
 				// Use first organization role as primary
 				primaryOrgRole := orgRoles[0]
 				user.OrgRole = primaryOrgRole.Name
+				user.OrgRoleID = primaryOrgRole.ID
+				logger.ComponentLogger("logto").Debug().
+					Str("operation", "extract_org_role").
+					Str("org_role_name", primaryOrgRole.Name).
+					Str("org_role_id", primaryOrgRole.ID).
+					Msg("Extracted organization role")
 
 				// Fetch permissions for organization role
 				orgScopes, err := client.GetOrganizationRoleScopes(primaryOrgRole.ID)
@@ -359,8 +373,10 @@ func EnrichUserWithRolesAndPermissions(userID string) (*models.User, error) {
 		Str("operation", "enrich_user_complete").
 		Str("user_id", userID).
 		Int("user_roles_count", len(user.UserRoles)).
+		Strs("user_role_ids", user.UserRoleIDs).
 		Int("user_permissions_count", len(user.UserPermissions)).
 		Str("org_role", user.OrgRole).
+		Str("org_role_id", user.OrgRoleID).
 		Int("org_permissions_count", len(user.OrgPermissions)).
 		Msg("User enrichment completed")
 
