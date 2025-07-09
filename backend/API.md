@@ -613,31 +613,6 @@ GET /accounts?role=admin&page=2
 
 **Note:** Hierarchical authorization - users can only create accounts in organizations they control.
 
----
-
-## 📊 System Statistics
-**Authorization:** Requires `manage:distributors` permission
-
-### Get System Statistics
-**GET** `/stats`
-
-**Response:**
-```json
-{
-  "code": 200,
-  "message": "system statistics",
-  "data": {
-    "distributors": 125,
-    "resellers": 1847,
-    "customers": 8934,
-    "users": 24567,
-    "systems": 156,
-    "timestamp": "2025-07-08T14:30:00Z",
-    "isStale": false
-  }
-}
-```
-
 ### Update Account
 **PUT** `/accounts/{id}`
 
@@ -681,6 +656,31 @@ GET /accounts?role=admin&page=2
 
 ### Delete Account
 **DELETE** `/accounts/{id}`
+
+---
+
+## 📊 System Statistics
+**Authorization:** Requires `manage:distributors` permission
+
+### Get System Statistics
+**GET** `/stats`
+
+**Response:**
+```json
+{
+  "code": 200,
+  "message": "system statistics",
+  "data": {
+    "distributors": 125,
+    "resellers": 1847,
+    "customers": 8934,
+    "users": 24567,
+    "systems": 156,
+    "timestamp": "2025-07-08T14:30:00Z",
+    "isStale": false
+  }
+}
+```
 
 ---
 
