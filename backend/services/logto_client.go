@@ -179,14 +179,14 @@ func (c *LogtoManagementClient) makeRequestWithRetry(method, endpoint string, bo
 			Int("status_code", resp.StatusCode).
 			Dur("duration", duration).
 			Msg("Received 401, invalidating token and retrying")
-		
+
 		// Close the response body before retry
 		_ = resp.Body.Close()
-		
+
 		// Invalidate current token to force refresh
 		c.accessToken = ""
 		c.tokenExpiry = time.Time{}
-		
+
 		// For retry, we need to recreate the request body since io.Reader can only be read once
 		var retryBody io.Reader
 		if body != nil {
@@ -201,7 +201,7 @@ func (c *LogtoManagementClient) makeRequestWithRetry(method, endpoint string, bo
 				return resp, nil
 			}
 		}
-		
+
 		// Retry once with fresh token
 		return c.makeRequestWithRetry(method, endpoint, retryBody, true)
 	}

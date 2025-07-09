@@ -227,8 +227,12 @@ func CreateAccount(c *gin.Context) {
 	// Verify the target organization exists
 	targetOrg, err := client.GetOrganizationByID(request.OrganizationID)
 	if err != nil {
-		logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "find_target_organization", http.StatusNotFound, "Target organization not found")
-		c.JSON(http.StatusNotFound, response.NotFound("target organization not found", err.Error()))
+		logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "find_target_organization", http.StatusBadRequest, "Invalid organization ID in request")
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid organization ID", map[string]interface{}{
+			"field": "organizationId",
+			"error": "organization not found",
+			"value": request.OrganizationID,
+		}))
 		return
 	}
 
