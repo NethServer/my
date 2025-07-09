@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 
+	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
@@ -476,6 +477,10 @@ func CreateAccount(c *gin.Context) {
 				Msg("Successfully assigned organization role")
 		}
 	}
+
+	// Invalidate organization users cache to ensure fresh data on next request
+	cacheManager := cache.GetOrgUsersCacheManager()
+	cacheManager.Clear(request.OrganizationID)
 
 	logger.LogAccountOperation(c, "create", account.ID, request.OrganizationID, currentUserID.(string), currentUserOrgID.(string), true, nil)
 
@@ -1012,6 +1017,16 @@ func UpdateAccount(c *gin.Context) {
 		return
 	}
 
+	// Invalidate organization users cache to ensure fresh data on next request
+	cacheManager := cache.GetOrgUsersCacheManager()
+	if targetOrg != nil {
+		cacheManager.Clear(targetOrg.ID)
+	}
+	// Also clear cache for the updated organization if it changed
+	if request.OrganizationID != "" && (targetOrg == nil || targetOrg.ID != request.OrganizationID) {
+		cacheManager.Clear(request.OrganizationID)
+	}
+
 	logger.LogAccountOperation(c, "update", accountID, "", currentUserID.(string), currentUserOrgID.(string), true, nil)
 
 	// Convert to response format
@@ -1106,6 +1121,12 @@ func DeleteAccount(c *gin.Context) {
 		logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "delete_account_logto", http.StatusInternalServerError, "Failed to delete account from Logto")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to delete account", err.Error()))
 		return
+	}
+
+	// Invalidate organization users cache to ensure fresh data on next request
+	cacheManager := cache.GetOrgUsersCacheManager()
+	if targetOrg != nil {
+		cacheManager.Clear(targetOrg.ID)
 	}
 
 	logger.LogAccountOperation(c, "delete", accountID, "", currentUserID.(string), currentUserOrgID.(string), true, nil)
