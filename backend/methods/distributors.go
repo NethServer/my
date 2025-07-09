@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 
+	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
@@ -96,6 +97,19 @@ func CreateDistributor(c *gin.Context) {
 	}
 
 	logger.LogBusinessOperation(c, "distributors", "create", "distributor", org.ID, true, nil)
+
+	// Invalidate stats cache after successful creation
+	statsManager := cache.GetStatsCacheManager()
+	if err := statsManager.ClearCache(); err != nil {
+		logger.ComponentLogger("distributors").Warn().
+			Err(err).
+			Str("operation", "clear_stats_cache").
+			Msg("Failed to clear stats cache after distributor creation")
+	}
+
+	// Invalidate JIT roles cache for the new organization
+	jitRolesManager := cache.GetJitRolesCacheManager()
+	jitRolesManager.Clear(org.ID)
 
 	// Return the created organization data
 	distributorResponse := gin.H{
@@ -364,6 +378,19 @@ func UpdateDistributor(c *gin.Context) {
 
 	logger.LogBusinessOperation(c, "distributors", "update", "distributor", distributorID, true, nil)
 
+	// Invalidate stats cache after successful update
+	statsManager := cache.GetStatsCacheManager()
+	if err := statsManager.ClearCache(); err != nil {
+		logger.ComponentLogger("distributors").Warn().
+			Err(err).
+			Str("operation", "clear_stats_cache").
+			Msg("Failed to clear stats cache after distributor update")
+	}
+
+	// Invalidate JIT roles cache for the updated organization
+	jitRolesManager := cache.GetJitRolesCacheManager()
+	jitRolesManager.Clear(distributorID)
+
 	// Return the updated organization data
 	distributorResponse := gin.H{
 		"id":            updatedOrg.ID,
@@ -407,6 +434,19 @@ func DeleteDistributor(c *gin.Context) {
 	}
 
 	logger.LogBusinessOperation(c, "distributors", "delete", "distributor", distributorID, true, nil)
+
+	// Invalidate stats cache after successful deletion
+	statsManager := cache.GetStatsCacheManager()
+	if err := statsManager.ClearCache(); err != nil {
+		logger.ComponentLogger("distributors").Warn().
+			Err(err).
+			Str("operation", "clear_stats_cache").
+			Msg("Failed to clear stats cache after distributor deletion")
+	}
+
+	// Invalidate JIT roles cache for the deleted organization
+	jitRolesManager := cache.GetJitRolesCacheManager()
+	jitRolesManager.Clear(distributorID)
 
 	c.JSON(http.StatusOK, response.OK("distributor deleted successfully", gin.H{
 		"id":        distributorID,

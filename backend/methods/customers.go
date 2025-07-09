@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 
+	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
@@ -96,6 +97,19 @@ func CreateCustomer(c *gin.Context) {
 	}
 
 	logger.LogBusinessOperation(c, "customers", "create", "customer", org.ID, true, nil)
+
+	// Invalidate stats cache after successful creation
+	statsManager := cache.GetStatsCacheManager()
+	if err := statsManager.ClearCache(); err != nil {
+		logger.ComponentLogger("customers").Warn().
+			Err(err).
+			Str("operation", "clear_stats_cache").
+			Msg("Failed to clear stats cache after customer creation")
+	}
+
+	// Invalidate JIT roles cache for the new organization
+	jitRolesManager := cache.GetJitRolesCacheManager()
+	jitRolesManager.Clear(org.ID)
 
 	// Return the created organization data
 	customerResponse := gin.H{
@@ -364,6 +378,19 @@ func UpdateCustomer(c *gin.Context) {
 
 	logger.LogBusinessOperation(c, "customers", "update", "customer", customerID, true, nil)
 
+	// Invalidate stats cache after successful update
+	statsManager := cache.GetStatsCacheManager()
+	if err := statsManager.ClearCache(); err != nil {
+		logger.ComponentLogger("customers").Warn().
+			Err(err).
+			Str("operation", "clear_stats_cache").
+			Msg("Failed to clear stats cache after customer update")
+	}
+
+	// Invalidate JIT roles cache for the updated organization
+	jitRolesManager := cache.GetJitRolesCacheManager()
+	jitRolesManager.Clear(customerID)
+
 	// Return the updated organization data
 	customerResponse := gin.H{
 		"id":            updatedOrg.ID,
@@ -407,6 +434,19 @@ func DeleteCustomer(c *gin.Context) {
 	}
 
 	logger.LogBusinessOperation(c, "customers", "delete", "customer", customerID, true, nil)
+
+	// Invalidate stats cache after successful deletion
+	statsManager := cache.GetStatsCacheManager()
+	if err := statsManager.ClearCache(); err != nil {
+		logger.ComponentLogger("customers").Warn().
+			Err(err).
+			Str("operation", "clear_stats_cache").
+			Msg("Failed to clear stats cache after customer deletion")
+	}
+
+	// Invalidate JIT roles cache for the deleted organization
+	jitRolesManager := cache.GetJitRolesCacheManager()
+	jitRolesManager.Clear(customerID)
 
 	c.JSON(http.StatusOK, response.OK("customer deleted successfully", gin.H{
 		"id":        customerID,

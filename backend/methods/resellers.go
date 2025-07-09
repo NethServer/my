@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 
+	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
@@ -96,6 +97,19 @@ func CreateReseller(c *gin.Context) {
 	}
 
 	logger.LogBusinessOperation(c, "resellers", "create", "reseller", org.ID, true, nil)
+
+	// Invalidate stats cache after successful creation
+	statsManager := cache.GetStatsCacheManager()
+	if err := statsManager.ClearCache(); err != nil {
+		logger.ComponentLogger("resellers").Warn().
+			Err(err).
+			Str("operation", "clear_stats_cache").
+			Msg("Failed to clear stats cache after reseller creation")
+	}
+
+	// Invalidate JIT roles cache for the new organization
+	jitRolesManager := cache.GetJitRolesCacheManager()
+	jitRolesManager.Clear(org.ID)
 
 	// Return the created organization data
 	resellerResponse := gin.H{
@@ -364,6 +378,19 @@ func UpdateReseller(c *gin.Context) {
 
 	logger.LogBusinessOperation(c, "resellers", "update", "reseller", resellerID, true, nil)
 
+	// Invalidate stats cache after successful update
+	statsManager := cache.GetStatsCacheManager()
+	if err := statsManager.ClearCache(); err != nil {
+		logger.ComponentLogger("resellers").Warn().
+			Err(err).
+			Str("operation", "clear_stats_cache").
+			Msg("Failed to clear stats cache after reseller update")
+	}
+
+	// Invalidate JIT roles cache for the updated organization
+	jitRolesManager := cache.GetJitRolesCacheManager()
+	jitRolesManager.Clear(resellerID)
+
 	// Return the updated organization data
 	resellerResponse := gin.H{
 		"id":            updatedOrg.ID,
@@ -407,6 +434,19 @@ func DeleteReseller(c *gin.Context) {
 	}
 
 	logger.LogBusinessOperation(c, "resellers", "delete", "reseller", resellerID, true, nil)
+
+	// Invalidate stats cache after successful deletion
+	statsManager := cache.GetStatsCacheManager()
+	if err := statsManager.ClearCache(); err != nil {
+		logger.ComponentLogger("resellers").Warn().
+			Err(err).
+			Str("operation", "clear_stats_cache").
+			Msg("Failed to clear stats cache after reseller deletion")
+	}
+
+	// Invalidate JIT roles cache for the deleted organization
+	jitRolesManager := cache.GetJitRolesCacheManager()
+	jitRolesManager.Clear(resellerID)
 
 	c.JSON(http.StatusOK, response.OK("reseller deleted successfully", gin.H{
 		"id":        resellerID,
