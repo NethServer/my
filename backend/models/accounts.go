@@ -14,7 +14,7 @@ type CreateAccountRequest struct {
 	Name           string                 `json:"name" binding:"required" structs:"name"`
 	Phone          string                 `json:"phone" structs:"phone"`
 	Password       string                 `json:"password" binding:"required,min=8" structs:"password"`
-	UserRoleID     string                 `json:"userRoleId" binding:"required" structs:"userRoleId"`         // Role ID instead of name for security
+	UserRoleIDs    []string               `json:"userRoleIds" binding:"required" structs:"userRoleIds"`       // Role IDs instead of names for security
 	OrganizationID string                 `json:"organizationId" binding:"required" structs:"organizationId"` // Which organization they belong to
 	Avatar         string                 `json:"avatar" structs:"avatar"`
 	CustomData     map[string]interface{} `json:"customData" structs:"customData"`
@@ -26,7 +26,7 @@ type UpdateAccountRequest struct {
 	Email          string                 `json:"email" structs:"email"`
 	Name           string                 `json:"name" structs:"name"`
 	Phone          string                 `json:"phone" structs:"phone"`
-	UserRoleID     string                 `json:"userRoleId" structs:"userRoleId"`         // Role ID instead of name for security
+	UserRoleIDs    []string               `json:"userRoleIds" structs:"userRoleIds"`       // Role IDs instead of names for security
 	OrganizationID string                 `json:"organizationId" structs:"organizationId"` // Which organization they belong to
 	Avatar         string                 `json:"avatar" structs:"avatar"`
 	CustomData     map[string]interface{} `json:"customData" structs:"customData"`
@@ -40,7 +40,7 @@ type AccountResponse struct {
 	Name             string                 `json:"name" structs:"name"`
 	Phone            string                 `json:"phone" structs:"phone"`
 	Avatar           string                 `json:"avatar" structs:"avatar"`
-	UserRoleID       string                 `json:"userRoleId" structs:"userRoleId"`
+	UserRoleIDs      []string               `json:"userRoleIds" structs:"userRoleIds"`
 	OrganizationID   string                 `json:"organizationId" structs:"organizationId"`
 	OrganizationName string                 `json:"organizationName" structs:"organizationName"`
 	OrganizationRole string                 `json:"organizationRole" structs:"organizationRole"`

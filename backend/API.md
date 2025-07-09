@@ -622,7 +622,7 @@ Users within organizations with technical capabilities and business hierarchy ro
     "email": "john@example.com",
     "name": "John Doe",
     "phone": "+39 333 123456",
-    "userRoleId": "rol_admin_id",
+    "userRoleIds": ["rol_admin_id"],
     "organizationId": "org_123456789",
     "organizationName": "ACME Corp",
     "organizationRole": "Admin",
@@ -705,7 +705,7 @@ GET /accounts?role=admin&page=2
   "email": "john.doe@acme.com",
   "name": "John Doe",
   "password": "SecurePassword123!",
-  "userRoleId": "rol_abc123def456",
+  "userRoleIds": ["rol_abc123def456", "rol_xyz789abc123"],
   "organizationId": "org_xyz789",
   "customData": {
     "department": "IT",
@@ -723,7 +723,7 @@ GET /accounts?role=admin&page=2
 {
   "name": "John Doe (Updated)",
   "email": "john.updated@acme.com",
-  "userRoleId": "rol_new_role_id_here",
+  "userRoleIds": ["rol_new_role_id_here", "rol_another_id"],
   "customData": {
     "department": "Sales",
     "location": "Rome"
@@ -741,7 +741,7 @@ GET /accounts?role=admin&page=2
     "username": "john.doe",
     "email": "john.updated@acme.com",
     "name": "John Doe (Updated)",
-    "userRoleId": "rol_new_role_id_here",
+    "userRoleIds": ["rol_new_role_id_here", "rol_another_id"],
     "organizationId": "org_123456789",
     "organizationName": "ACME Corp",
     "organizationRole": "Admin",

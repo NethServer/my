@@ -304,7 +304,7 @@ func CreateAccount(c *gin.Context) {
 
 	// Prepare custom data for the account
 	customData := map[string]interface{}{
-		"userRoleId":       request.UserRoleID,
+		"userRoleIds":      request.UserRoleIDs,
 		"organizationId":   request.OrganizationID,
 		"organizationRole": targetOrgRole, // Derived from JIT configuration
 		"createdBy":        currentUserOrgID,
@@ -431,14 +431,14 @@ func CreateAccount(c *gin.Context) {
 		return
 	}
 
-	// Assign user role using ID directly (more secure)
-	if request.UserRoleID != "" {
-		if err := client.AssignUserRoles(account.ID, []string{request.UserRoleID}); err != nil {
+	// Assign user roles using IDs directly (more secure)
+	if len(request.UserRoleIDs) > 0 {
+		if err := client.AssignUserRoles(account.ID, request.UserRoleIDs); err != nil {
 			logger.RequestLogger(c, "accounts").Error().
 				Err(err).
-				Str("operation", "assign_user_role").
-				Str("role_id", request.UserRoleID).
-				Msg("Failed to assign user role")
+				Str("operation", "assign_user_roles").
+				Interface("role_ids", request.UserRoleIDs).
+				Msg("Failed to assign user roles")
 		}
 	}
 
@@ -493,7 +493,7 @@ func CreateAccount(c *gin.Context) {
 		Name:             account.Name,
 		Phone:            account.PrimaryPhone,
 		Avatar:           account.Avatar,
-		UserRoleID:       request.UserRoleID,
+		UserRoleIDs:      request.UserRoleIDs,
 		OrganizationID:   request.OrganizationID,
 		OrganizationName: targetOrg.Name,
 		OrganizationRole: targetOrgRole, // Derived from JIT configuration
@@ -986,8 +986,8 @@ func UpdateAccount(c *gin.Context) {
 		}
 
 		// Update with new values
-		if request.UserRoleID != "" {
-			updateRequest.CustomData["userRoleId"] = request.UserRoleID
+		if len(request.UserRoleIDs) > 0 {
+			updateRequest.CustomData["userRoleIds"] = request.UserRoleIDs
 		}
 		if request.OrganizationID != "" {
 			updateRequest.CustomData["organizationId"] = request.OrganizationID
@@ -1139,8 +1139,18 @@ func convertLogtoUserToAccountResponse(account models.LogtoUser, org *models.Log
 
 	// Extract data from custom data
 	if account.CustomData != nil {
-		if userRoleId, ok := account.CustomData["userRoleId"].(string); ok {
-			accountResponse.UserRoleID = userRoleId
+		if userRoleIds, ok := account.CustomData["userRoleIds"].([]interface{}); ok {
+			// Convert []interface{} to []string
+			var roleIDs []string
+			for _, roleID := range userRoleIds {
+				if roleIDStr, ok := roleID.(string); ok {
+					roleIDs = append(roleIDs, roleIDStr)
+				}
+			}
+			accountResponse.UserRoleIDs = roleIDs
+		} else if userRoleId, ok := account.CustomData["userRoleId"].(string); ok {
+			// Backward compatibility for single role
+			accountResponse.UserRoleIDs = []string{userRoleId}
 		}
 		if orgID, ok := account.CustomData["organizationId"].(string); ok {
 			accountResponse.OrganizationID = orgID
@@ -1155,7 +1165,7 @@ func convertLogtoUserToAccountResponse(account models.LogtoUser, org *models.Log
 		// Extract custom data (excluding reserved fields)
 		customData := make(map[string]interface{})
 		for k, v := range account.CustomData {
-			if k != "userRoleId" && k != "organizationId" && k != "organizationRole" && k != "phone" && k != "createdBy" && k != "createdAt" && k != "updatedBy" && k != "updatedAt" {
+			if k != "userRoleIds" && k != "userRoleId" && k != "organizationId" && k != "organizationRole" && k != "phone" && k != "createdBy" && k != "createdAt" && k != "updatedBy" && k != "updatedAt" {
 				customData[k] = v
 			}
 		}
