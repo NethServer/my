@@ -96,8 +96,13 @@ func (c *LogtoManagementClient) getAccessToken() error {
 	return nil
 }
 
-// makeRequest makes an authenticated request to the Management API
+// makeRequest makes an authenticated request to the Management API with token refresh retry
 func (c *LogtoManagementClient) makeRequest(method, endpoint string, body io.Reader) (*http.Response, error) {
+	return c.makeRequestWithRetry(method, endpoint, body, false)
+}
+
+// makeRequestWithRetry makes an authenticated request with optional retry for token refresh
+func (c *LogtoManagementClient) makeRequestWithRetry(method, endpoint string, body io.Reader, isRetry bool) (*http.Response, error) {
 	start := time.Now()
 
 	// Ensure we have a valid token
@@ -107,6 +112,7 @@ func (c *LogtoManagementClient) makeRequest(method, endpoint string, body io.Rea
 			Str("operation", "api_call_token_failed").
 			Str("method", method).
 			Str("endpoint", endpoint).
+			Bool("is_retry", isRetry).
 			Msg("Failed to get access token for Logto API call")
 		return nil, fmt.Errorf("failed to get access token: %w", err)
 	}
@@ -120,6 +126,7 @@ func (c *LogtoManagementClient) makeRequest(method, endpoint string, body io.Rea
 			Str("method", method).
 			Str("endpoint", endpoint).
 			Str("url", url).
+			Bool("is_retry", isRetry).
 			Msg("Failed to create HTTP request for Logto API")
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -132,6 +139,7 @@ func (c *LogtoManagementClient) makeRequest(method, endpoint string, body io.Rea
 		Str("method", method).
 		Str("endpoint", endpoint).
 		Str("url", url).
+		Bool("is_retry", isRetry).
 		Msg("Starting Logto Management API call")
 
 	client := &http.Client{Timeout: 10 * time.Second}
@@ -146,6 +154,7 @@ func (c *LogtoManagementClient) makeRequest(method, endpoint string, body io.Rea
 			Str("method", method).
 			Str("endpoint", endpoint).
 			Str("url", url).
+			Bool("is_retry", isRetry).
 			Dur("duration", duration).
 			Msg("Logto Management API call failed")
 		return nil, err
@@ -157,8 +166,45 @@ func (c *LogtoManagementClient) makeRequest(method, endpoint string, body io.Rea
 		Str("method", method).
 		Str("endpoint", endpoint).
 		Int("status_code", resp.StatusCode).
+		Bool("is_retry", isRetry).
 		Dur("duration", duration).
 		Msg("Logto Management API call completed")
+
+	// Handle 401 Unauthorized - token might be expired
+	if resp.StatusCode == 401 && !isRetry {
+		logger.ComponentLogger("logto").Warn().
+			Str("operation", "api_call_token_expired").
+			Str("method", method).
+			Str("endpoint", endpoint).
+			Int("status_code", resp.StatusCode).
+			Dur("duration", duration).
+			Msg("Received 401, invalidating token and retrying")
+		
+		// Close the response body before retry
+		_ = resp.Body.Close()
+		
+		// Invalidate current token to force refresh
+		c.accessToken = ""
+		c.tokenExpiry = time.Time{}
+		
+		// For retry, we need to recreate the request body since io.Reader can only be read once
+		var retryBody io.Reader
+		if body != nil {
+			// For POST/PUT requests, we need to recreate the body
+			// This is a limitation - for now we'll only retry GET requests
+			if method != "GET" {
+				logger.ComponentLogger("logto").Warn().
+					Str("operation", "api_call_retry_skipped").
+					Str("method", method).
+					Str("endpoint", endpoint).
+					Msg("Skipping retry for non-GET request with body")
+				return resp, nil
+			}
+		}
+		
+		// Retry once with fresh token
+		return c.makeRequestWithRetry(method, endpoint, retryBody, true)
+	}
 
 	// Log non-2xx status codes as warnings
 	if resp.StatusCode >= 400 {
@@ -167,6 +213,7 @@ func (c *LogtoManagementClient) makeRequest(method, endpoint string, body io.Rea
 			Str("method", method).
 			Str("endpoint", endpoint).
 			Int("status_code", resp.StatusCode).
+			Bool("is_retry", isRetry).
 			Dur("duration", duration).
 			Msg("Logto Management API returned error status")
 	}
