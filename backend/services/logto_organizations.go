@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nethesis/my/backend/background/cache"
+	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 )
@@ -43,6 +43,11 @@ func (c *LogtoManagementClient) GetUserOrganizations(userID string) ([]models.Lo
 	}
 
 	return orgs, nil
+}
+
+// GetOrganizations fetches all organizations from Logto
+func (c *LogtoManagementClient) GetOrganizations() ([]models.LogtoOrganization, error) {
+	return c.GetAllOrganizations()
 }
 
 // GetAllOrganizations fetches all organizations from Logto
@@ -487,7 +492,7 @@ func (c *LogtoManagementClient) AssignOrganizationJitRoles(orgID string, roleIDs
 }
 
 // GetOrganizationUsers fetches users belonging to an organization
-func (c *LogtoManagementClient) GetOrganizationUsers(orgID string) ([]models.LogtoUser, error) {
+func (c *LogtoManagementClient) GetOrganizationUsers(ctx context.Context, orgID string) ([]models.LogtoUser, error) {
 	// Check cache first
 	cacheManager := cache.GetOrgUsersCacheManager()
 	if cachedUsers, found := cacheManager.Get(orgID); found {

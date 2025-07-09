@@ -32,6 +32,14 @@ type Configuration struct {
 	LogtoManagementClientID     string `json:"logto_management_client_id"`
 	LogtoManagementClientSecret string `json:"logto_management_client_secret"`
 	LogtoManagementBaseURL      string `json:"logto_management_base_url"`
+	// Redis configuration
+	RedisURL          string        `json:"redis_url"`
+	RedisDB           int           `json:"redis_db"`
+	RedisPassword     string        `json:"redis_password"`
+	RedisMaxRetries   int           `json:"redis_max_retries"`
+	RedisDialTimeout  time.Duration `json:"redis_dial_timeout"`
+	RedisReadTimeout  time.Duration `json:"redis_read_timeout"`
+	RedisWriteTimeout time.Duration `json:"redis_write_timeout"`
 	// Cache TTL configuration
 	StatsCacheTTL           time.Duration `json:"stats_cache_ttl"`
 	StatsUpdateInterval     time.Duration `json:"stats_update_interval"`
@@ -41,6 +49,9 @@ type Configuration struct {
 	OrgUsersCacheTTL        time.Duration `json:"org_users_cache_ttl"`
 	OrgUsersCleanupInterval time.Duration `json:"org_users_cleanup_interval"`
 	JWKSCacheTTL            time.Duration `json:"jwks_cache_ttl"`
+	// HTTP timeouts configuration
+	JWKSHTTPTimeout       time.Duration `json:"jwks_http_timeout"`
+	RedisOperationTimeout time.Duration `json:"redis_operation_timeout"`
 	// API configuration
 	DefaultPageSize int `json:"default_page_size"`
 }
@@ -116,6 +127,20 @@ func Init() {
 		Config.LogtoManagementBaseURL = Config.LogtoIssuer + "/api"
 	}
 
+	// Redis configuration with defaults
+	if os.Getenv("REDIS_URL") != "" {
+		Config.RedisURL = os.Getenv("REDIS_URL")
+	} else {
+		Config.RedisURL = "redis://localhost:6379"
+	}
+
+	Config.RedisDB = parseIntWithDefault("REDIS_DB", 0)
+	Config.RedisPassword = os.Getenv("REDIS_PASSWORD")
+	Config.RedisMaxRetries = parseIntWithDefault("REDIS_MAX_RETRIES", 3)
+	Config.RedisDialTimeout = parseDurationWithDefault("REDIS_DIAL_TIMEOUT", 5*time.Second)
+	Config.RedisReadTimeout = parseDurationWithDefault("REDIS_READ_TIMEOUT", 3*time.Second)
+	Config.RedisWriteTimeout = parseDurationWithDefault("REDIS_WRITE_TIMEOUT", 3*time.Second)
+
 	// Cache TTL configuration with defaults
 	Config.StatsCacheTTL = parseDurationWithDefault("STATS_CACHE_TTL", 10*time.Minute)
 	Config.StatsUpdateInterval = parseDurationWithDefault("STATS_UPDATE_INTERVAL", 5*time.Minute)
@@ -125,6 +150,8 @@ func Init() {
 	Config.OrgUsersCacheTTL = parseDurationWithDefault("ORG_USERS_CACHE_TTL", 3*time.Minute)
 	Config.OrgUsersCleanupInterval = parseDurationWithDefault("ORG_USERS_CLEANUP_INTERVAL", 1*time.Minute)
 	Config.JWKSCacheTTL = parseDurationWithDefault("JWKS_CACHE_TTL", 5*time.Minute)
+	Config.JWKSHTTPTimeout = parseDurationWithDefault("JWKS_HTTP_TIMEOUT", 10*time.Second)
+	Config.RedisOperationTimeout = parseDurationWithDefault("REDIS_OPERATION_TIMEOUT", 5*time.Second)
 	Config.DefaultPageSize = parseIntWithDefault("DEFAULT_PAGE_SIZE", 100)
 
 	// Log successful configuration load

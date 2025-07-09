@@ -504,11 +504,11 @@ func TestLogServiceStart(t *testing.T) {
 	buf, cleanup := setupTestLogger()
 	defer cleanup()
 
-	LogServiceStart("nethesis-backend", "1.0.0", ":8080")
+	LogServiceStart("backend", "1.0.0", ":8080")
 
 	logOutput := buf.String()
 	assert.Contains(t, logOutput, "service_start")
-	assert.Contains(t, logOutput, "nethesis-backend")
+	assert.Contains(t, logOutput, "backend")
 	assert.Contains(t, logOutput, "1.0.0")
 	assert.Contains(t, logOutput, ":8080")
 
@@ -517,7 +517,7 @@ func TestLogServiceStart(t *testing.T) {
 	err := json.Unmarshal([]byte(strings.TrimSpace(logOutput)), &logEntry)
 	assert.NoError(t, err)
 	assert.Equal(t, "service_start", logEntry["operation"])
-	assert.Equal(t, "nethesis-backend", logEntry["service"])
+	assert.Equal(t, "backend", logEntry["service"])
 	assert.Equal(t, "1.0.0", logEntry["version"])
 	assert.Equal(t, ":8080", logEntry["listen_address"])
 }
@@ -526,11 +526,11 @@ func TestLogServiceStop(t *testing.T) {
 	buf, cleanup := setupTestLogger()
 	defer cleanup()
 
-	LogServiceStop("nethesis-backend", "graceful shutdown")
+	LogServiceStop("backend", "graceful shutdown")
 
 	logOutput := buf.String()
 	assert.Contains(t, logOutput, "service_stop")
-	assert.Contains(t, logOutput, "nethesis-backend")
+	assert.Contains(t, logOutput, "backend")
 	assert.Contains(t, logOutput, "graceful shutdown")
 
 	// Parse JSON to verify structure
@@ -538,7 +538,7 @@ func TestLogServiceStop(t *testing.T) {
 	err := json.Unmarshal([]byte(strings.TrimSpace(logOutput)), &logEntry)
 	assert.NoError(t, err)
 	assert.Equal(t, "service_stop", logEntry["operation"])
-	assert.Equal(t, "nethesis-backend", logEntry["service"])
+	assert.Equal(t, "backend", logEntry["service"])
 	assert.Equal(t, "graceful shutdown", logEntry["reason"])
 }
 

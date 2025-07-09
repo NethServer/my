@@ -640,7 +640,7 @@ func GetAccounts(c *gin.Context) {
 
 	if filters.OrganizationID != "" {
 		// Single organization mode - get accounts from specific organization
-		orgAccounts, err := client.GetOrganizationUsers(filters.OrganizationID)
+		orgAccounts, err := client.GetOrganizationUsers(c.Request.Context(), filters.OrganizationID)
 		if err != nil {
 			logger.RequestLogger(c, "accounts").Error().
 				Err(err).
@@ -727,24 +727,24 @@ func GetAccounts(c *gin.Context) {
 		}
 
 		// Fetch users from all organizations in parallel
-		usersResults := client.GetOrganizationUsersParallel(orgIDs)
+		usersResults, err := client.GetOrganizationUsersParallel(c.Request.Context(), orgIDs)
+		if err != nil {
+			logger.RequestLogger(c, "accounts").Error().
+				Err(err).
+				Str("operation", "fetch_parallel_organization_accounts").
+				Msg("Failed to fetch accounts from multiple organizations")
+
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to fetch accounts", err.Error()))
+			return
+		}
 
 		var allAccounts []models.LogtoUser
 
 		// Process results and combine accounts
-		for orgID, result := range usersResults {
-			if result.Error != nil {
-				logger.RequestLogger(c, "accounts").Warn().
-					Err(result.Error).
-					Str("operation", "fetch_org_accounts_parallel").
-					Str("org_id", orgID).
-					Msg("Failed to fetch accounts for organization in parallel")
-				continue
-			}
-
+		for orgID, users := range usersResults {
 			// Add organization context to each user for filtering
 			org := orgMap[orgID]
-			for _, user := range result.Users {
+			for _, user := range users {
 				// Add organization context to custom data for filtering
 				if user.CustomData == nil {
 					user.CustomData = make(map[string]interface{})

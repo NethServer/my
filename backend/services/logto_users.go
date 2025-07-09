@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nethesis/my/backend/background/cache"
+	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 )
@@ -275,9 +275,9 @@ func (c *LogtoManagementClient) applyUserClientSideFilters(users []models.LogtoU
 }
 
 // GetOrganizationUsersParallel fetches users for multiple organizations in parallel
-func (c *LogtoManagementClient) GetOrganizationUsersParallel(orgIDs []string) map[string]models.OrgUsersResult {
+func (c *LogtoManagementClient) GetOrganizationUsersParallel(ctx context.Context, orgIDs []string) (map[string][]models.LogtoUser, error) {
 	if len(orgIDs) == 0 {
-		return make(map[string]models.OrgUsersResult)
+		return make(map[string][]models.LogtoUser), nil
 	}
 
 	// Limit concurrent requests to respect rate limits
@@ -286,7 +286,7 @@ func (c *LogtoManagementClient) GetOrganizationUsersParallel(orgIDs []string) ma
 		maxConcurrent = len(orgIDs)
 	}
 
-	results := make(map[string]models.OrgUsersResult)
+	results := make(map[string][]models.LogtoUser)
 	resultsMutex := sync.Mutex{}
 
 	// Create semaphore for rate limiting
@@ -295,8 +295,8 @@ func (c *LogtoManagementClient) GetOrganizationUsersParallel(orgIDs []string) ma
 	// WaitGroup to wait for all goroutines
 	var wg sync.WaitGroup
 
-	// Context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Use provided context
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	logger.ComponentLogger("logto").Info().
@@ -317,10 +317,7 @@ func (c *LogtoManagementClient) GetOrganizationUsersParallel(orgIDs []string) ma
 			cacheManager := cache.GetOrgUsersCacheManager()
 			if cachedUsers, found := cacheManager.Get(id); found {
 				resultsMutex.Lock()
-				results[id] = models.OrgUsersResult{
-					OrgID: id,
-					Users: cachedUsers,
-				}
+				results[id] = cachedUsers
 				resultsMutex.Unlock()
 				return
 			}
@@ -330,18 +327,13 @@ func (c *LogtoManagementClient) GetOrganizationUsersParallel(orgIDs []string) ma
 			case semaphore <- struct{}{}:
 				defer func() { <-semaphore }()
 			case <-ctx.Done():
-				resultsMutex.Lock()
-				results[id] = models.OrgUsersResult{
-					OrgID: id,
-					Error: fmt.Errorf("context timeout"),
-				}
-				resultsMutex.Unlock()
+				// Skip this organization on timeout
 				return
 			}
 
 			// Fetch from API
 			fetchStart := time.Now()
-			users, err := c.GetOrganizationUsers(id)
+			users, err := c.GetOrganizationUsers(ctx, id)
 			fetchDuration := time.Since(fetchStart)
 
 			if err != nil {
@@ -351,21 +343,12 @@ func (c *LogtoManagementClient) GetOrganizationUsersParallel(orgIDs []string) ma
 					Str("org_id", id).
 					Dur("duration", fetchDuration).
 					Msg("Failed to fetch organization users in parallel")
-
-				resultsMutex.Lock()
-				results[id] = models.OrgUsersResult{
-					OrgID: id,
-					Error: err,
-				}
-				resultsMutex.Unlock()
+				// Skip this organization on error
 				return
 			}
 
 			resultsMutex.Lock()
-			results[id] = models.OrgUsersResult{
-				OrgID: id,
-				Users: users,
-			}
+			results[id] = users
 			resultsMutex.Unlock()
 
 			logger.ComponentLogger("logto").Debug().
@@ -382,16 +365,8 @@ func (c *LogtoManagementClient) GetOrganizationUsersParallel(orgIDs []string) ma
 	wg.Wait()
 
 	totalDuration := time.Since(startTime)
-	successCount := 0
-	errorCount := 0
-
-	for _, result := range results {
-		if result.Error != nil {
-			errorCount++
-		} else {
-			successCount++
-		}
-	}
+	successCount := len(results)
+	errorCount := len(orgIDs) - successCount
 
 	logger.ComponentLogger("logto").Info().
 		Int("total_orgs", len(orgIDs)).
@@ -402,5 +377,5 @@ func (c *LogtoManagementClient) GetOrganizationUsersParallel(orgIDs []string) ma
 		Str("operation", "parallel_org_users_fetch_complete").
 		Msg("Completed parallel organization users fetch")
 
-	return results
+	return results, nil
 }

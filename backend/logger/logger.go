@@ -108,7 +108,7 @@ func DefaultConfig() *Config {
 		Format:     JSONFormat,
 		Output:     StdoutOutput,
 		FilePath:   "",
-		AppName:    "nethesis-backend",
+		AppName:    "backend",
 		TimeFormat: time.RFC3339,
 	}
 }

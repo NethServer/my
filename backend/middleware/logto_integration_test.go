@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/testutils"
@@ -174,12 +175,12 @@ func TestLogtoAuthMiddleware(t *testing.T) {
 func TestJWKToRSAPublicKey(t *testing.T) {
 	tests := []struct {
 		name    string
-		jwk     JWK
+		jwk     cache.JWK
 		wantErr bool
 	}{
 		{
 			name: "valid JWK converts successfully",
-			jwk: JWK{
+			jwk: cache.JWK{
 				Kid: "test",
 				Kty: "RSA",
 				Use: "sig",
@@ -190,7 +191,7 @@ func TestJWKToRSAPublicKey(t *testing.T) {
 		},
 		{
 			name: "invalid modulus with special characters fails",
-			jwk: JWK{
+			jwk: cache.JWK{
 				Kid: "test",
 				Kty: "RSA",
 				Use: "sig",
@@ -201,7 +202,7 @@ func TestJWKToRSAPublicKey(t *testing.T) {
 		},
 		{
 			name: "invalid exponent with special characters fails",
-			jwk: JWK{
+			jwk: cache.JWK{
 				Kid: "test",
 				Kty: "RSA",
 				Use: "sig",
@@ -214,7 +215,7 @@ func TestJWKToRSAPublicKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			key, err := jwkToRSAPublicKey(tt.jwk)
+			key, err := cache.JwkToRSAPublicKey(tt.jwk)
 
 			if tt.wantErr {
 				assert.Error(t, err)

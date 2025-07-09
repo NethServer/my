@@ -17,7 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 
-	"github.com/nethesis/my/backend/background"
+	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/methods"
@@ -31,7 +31,7 @@ func main() {
 	_ = godotenv.Load()
 
 	// Init logger with zerolog
-	err := logger.InitFromEnv("nethesis-backend")
+	err := logger.InitFromEnv("backend")
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize logger")
 	}
@@ -39,11 +39,28 @@ func main() {
 	// Init configuration
 	configuration.Init()
 
+	// Initialize Redis cache
+	redisConfig := cache.RedisConfig{
+		URL:                   configuration.Config.RedisURL,
+		DB:                    configuration.Config.RedisDB,
+		Password:              configuration.Config.RedisPassword,
+		MaxRetries:            configuration.Config.RedisMaxRetries,
+		DialTimeout:           configuration.Config.RedisDialTimeout,
+		ReadTimeout:           configuration.Config.RedisReadTimeout,
+		WriteTimeout:          configuration.Config.RedisWriteTimeout,
+		RedisOperationTimeout: configuration.Config.RedisOperationTimeout,
+	}
+
+	err = cache.InitRedis(redisConfig)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to initialize Redis cache")
+	}
+
 	// Initialize demo data for systems (still using in-memory storage)
 	methods.InitSystemsStorage()
 
 	// Start background statistics updater
-	background.InitAndStartStatsCacheManager(services.NewLogtoManagementClient())
+	cache.InitAndStartStatsCacheManager(services.NewLogtoManagementClient())
 
 	// Init router
 	router := gin.Default()
@@ -196,7 +213,7 @@ func main() {
 	})
 
 	// Run server
-	logger.LogServiceStart("nethesis-backend", "1.0.0", configuration.Config.ListenAddress)
+	logger.LogServiceStart("backend", "1.0.0", configuration.Config.ListenAddress)
 	if err := router.Run(configuration.Config.ListenAddress); err != nil {
 		logger.Fatal().Err(err).Msg("Failed to start server")
 	}

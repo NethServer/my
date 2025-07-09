@@ -14,10 +14,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/nethesis/my/backend/background"
+	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/response"
-	"github.com/nethesis/my/backend/services"
 )
 
 // GetStats handles GET /api/stats - returns cached system statistics
@@ -27,18 +26,8 @@ func GetStats(c *gin.Context) {
 		Msg("System statistics requested")
 
 	// Get cached statistics from the singleton manager
-	cacheManager := background.GetStatsCacheManager()
+	cacheManager := cache.GetStatsCacheManager()
 	stats := cacheManager.GetStats()
-
-	// Check if data is stale and trigger background update if needed
-	if stats.IsStale {
-		logger.RequestLogger(c, "stats").Info().
-			Time("last_updated", stats.LastUpdated).
-			Msg("Statistics are stale, triggering background update")
-
-		// Trigger background update (non-blocking)
-		cacheManager.TriggerUpdate()
-	}
 
 	// Convert to response format
 	statsResponse := gin.H{
@@ -51,33 +40,21 @@ func GetStats(c *gin.Context) {
 		"isStale":      stats.IsStale,
 	}
 
-	// If no cached data exists (first run), calculate real-time
+	// If no cached data exists (first run), return what we have
+	// The background updater will populate the cache automatically
 	if stats.LastUpdated.IsZero() {
 		logger.RequestLogger(c, "stats").Info().
-			Msg("No cached statistics available, calculating real-time")
+			Msg("No cached statistics available, returning empty stats")
 
-		client := services.NewLogtoManagementClient()
-		realTimeStats, err := background.CalculateStatsRealTime(client)
-		if err != nil {
-			logger.NewHTTPErrorLogger(c, "stats").LogError(err, "calculate_realtime_stats", http.StatusInternalServerError, "Failed to calculate real-time statistics")
-
-			// Return cached stats even if stale, or empty stats if no cache
-			c.JSON(http.StatusOK, response.OK("system statistics (cached/stale)", statsResponse))
-			return
-		}
-
-		// Update cache with real-time data
-		cacheManager.SetStats(realTimeStats)
-
-		// Return fresh data
+		// Return empty stats, background updater will populate cache
 		statsResponse = gin.H{
-			"distributors": realTimeStats.Distributors,
-			"resellers":    realTimeStats.Resellers,
-			"customers":    realTimeStats.Customers,
-			"users":        realTimeStats.Users,
-			"systems":      realTimeStats.Systems,
-			"timestamp":    realTimeStats.LastUpdated.Format("2006-01-02T15:04:05Z07:00"),
-			"isStale":      false,
+			"distributors": 0,
+			"resellers":    0,
+			"customers":    0,
+			"users":        0,
+			"systems":      0,
+			"timestamp":    "",
+			"isStale":      true,
 		}
 	}
 

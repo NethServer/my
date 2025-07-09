@@ -20,7 +20,7 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, JSONFormat, config.Format)
 	assert.Equal(t, StdoutOutput, config.Output)
 	assert.Equal(t, "", config.FilePath)
-	assert.Equal(t, "nethesis-backend", config.AppName)
+	assert.Equal(t, "backend", config.AppName)
 	assert.Equal(t, time.RFC3339, config.TimeFormat)
 }
 

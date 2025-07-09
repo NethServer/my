@@ -5,6 +5,24 @@ VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
+# Container runtime detection (Docker with Podman fallback)
+DOCKER_CMD=$(shell which docker 2>/dev/null || echo "")
+PODMAN_CMD=$(shell which podman 2>/dev/null || echo "")
+
+# Choose container runtime
+ifeq ($(DOCKER_CMD),)
+    ifeq ($(PODMAN_CMD),)
+        CONTAINER_CMD=echo "Error: Neither Docker nor Podman is installed" && exit 1
+        CONTAINER_NAME=none
+    else
+        CONTAINER_CMD=$(PODMAN_CMD)
+        CONTAINER_NAME=podman
+    endif
+else
+    CONTAINER_CMD=$(DOCKER_CMD)
+    CONTAINER_NAME=docker
+endif
+
 # Go build flags
 LDFLAGS=-ldflags "-X main.Version=$(VERSION) \
                   -X main.Commit=$(COMMIT) \
@@ -98,9 +116,42 @@ dev-setup:
 	fi
 	@echo "Development environment ready!"
 
+# Redis development commands
+.PHONY: redis-up
+redis-up:
+	@echo "Starting Redis container with $(CONTAINER_NAME)..."
+	@$(CONTAINER_CMD) run -d --name backend-redis -p 6379:6379 redis:7-alpine redis-server --save 60 1 --loglevel warning
+
+.PHONY: redis-down
+redis-down:
+	@echo "Stopping Redis container with $(CONTAINER_NAME)..."
+	@$(CONTAINER_CMD) stop backend-redis || true
+	@$(CONTAINER_CMD) rm backend-redis || true
+
+.PHONY: redis-flush
+redis-flush:
+	@echo "Flushing Redis cache..."
+	@$(CONTAINER_CMD) exec backend-redis redis-cli FLUSHALL
+
+.PHONY: redis-cli
+redis-cli:
+	@echo "Connecting to Redis CLI..."
+	@$(CONTAINER_CMD) exec -it backend-redis redis-cli
+
+# Show container runtime status
+.PHONY: container-status
+container-status:
+	@echo "Container runtime detection:"
+	@echo "  Docker: $(if $(DOCKER_CMD),✓ $(DOCKER_CMD),✗ Not found)"
+	@echo "  Podman: $(if $(PODMAN_CMD),✓ $(PODMAN_CMD),✗ Not found)"
+	@echo ""
+	@echo "Selected runtime: $(CONTAINER_NAME)"
+
 # Show help
 .PHONY: help
 help:
+	@echo "Backend API - Container runtime: $(CONTAINER_NAME)"
+	@echo ""
 	@echo "Available targets:"
 	@echo "  build         - Build the binary"
 	@echo "  build-all     - Build for multiple platforms"
@@ -114,6 +165,13 @@ help:
 	@echo "  test          - Run tests"
 	@echo "  test-coverage - Run tests with coverage"
 	@echo "  tidy          - Tidy dependencies"
+	@echo ""
+	@echo "Redis commands:"
+	@echo "  redis-up      - Start Redis container"
+	@echo "  redis-down    - Stop Redis container"
+	@echo "  redis-flush   - Flush Redis cache"
+	@echo "  redis-cli     - Connect to Redis CLI"
+	@echo ""
 
 # Default goal
 .DEFAULT_GOAL := help
