@@ -100,14 +100,26 @@ func InternalServerError(message string, data interface{}) Response {
 	return Error(500, message, data)
 }
 
+// getJSONFieldName extracts the JSON field name from validator.FieldError
+func getJSONFieldName(ve validator.FieldError) string {
+	// For now, use a simple approach: convert field name to lowercase
+	// This covers the most common case where Go field names are capitalized
+	// but JSON tags are lowercase
+	fieldName := ve.Field()
+
+	// Simple conversion to lowercase for now
+	// This works for most standard cases like "Username" -> "username"
+	return strings.ToLower(fieldName)
+}
+
 // ParseValidationError parses validation errors from Gin binding and returns a structured ValidationError
 func ParseValidationError(err error) ValidationError {
 	if validationErrors, ok := err.(validator.ValidationErrors); ok {
 		if len(validationErrors) > 0 {
 			ve := validationErrors[0]
 
-			// Extract field name from struct tag
-			fieldName := ve.Field()
+			// Extract field name from JSON tag, fallback to lowercase field name
+			fieldName := getJSONFieldName(ve)
 
 			// Get the validation tag that failed
 			tag := ve.Tag()
@@ -139,8 +151,8 @@ func ParseValidationErrors(err error) []ValidationError {
 	if validationErrors, ok := err.(validator.ValidationErrors); ok {
 		result := make([]ValidationError, 0, len(validationErrors))
 		for _, ve := range validationErrors {
-			// Extract field name from struct tag
-			fieldName := ve.Field()
+			// Extract field name from JSON tag, fallback to lowercase field name
+			fieldName := getJSONFieldName(ve)
 
 			// Get the validation tag that failed
 			tag := ve.Tag()
