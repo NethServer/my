@@ -4,6 +4,8 @@
 [![Backend Tests](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci.yml?job=backend-tests&label=Backend%20Tests&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci.yml)
 [![sync Tests](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci.yml?job=sync-tests&label=sync%20Tests&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci.yml)
 
+[![API reference](https://img.shields.io/github/actions/workflow/status/NethServer/my/docs.yml?style=for-the-badge&label=API%20reference)](https://github.com/NethServer/my/actions/workflows/docs.yml)
+
 [![Release](https://img.shields.io/github/actions/workflow/status/NethServer/my/release.yml?style=for-the-badge&label=Release)](https://github.com/NethServer/my/actions/workflows/release.yml)
 [![Version](https://img.shields.io/github/v/release/NethServer/my?style=for-the-badge&color=3a3c3f&label=Version)](https://github.com/NethServer/my/releases)
 
@@ -67,14 +69,17 @@ TENANT_DOMAIN=your-domain.com
 ## 📚 Documentation
 
 - **[Backend](./backend/README.md)** - Go REST API server setup and development
-- **[Backend API](./backend/API.md)** - Complete API reference
+- **[Backend API](./backend/API.md)** - API docs reference
 - **[sync CLI](./sync/README.md)** - RBAC configuration management
 - **[DESIGN.md](./DESIGN.md)** - Architecture and design decisions
+
+### 📖 API Documentation
+**Live Documentation:** https://bump.sh/nethesis/doc/nethesis - auto-updated on every commit.
 
 ## 🤝 Contributing
 
 1. Follow existing code patterns and conventions
-2. **Pre-commit**: Run `make fmt && make test` in both directories
+2. **Pre-commit**: Run `make pre-commit` in both directories
 3. Test RBAC changes with `--dry-run` before applying
 4. Ensure CI tests pass before submitting PRs
 

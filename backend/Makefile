@@ -147,6 +147,23 @@ container-status:
 	@echo ""
 	@echo "Selected runtime: $(CONTAINER_NAME)"
 
+# Validate OpenAPI spec
+.PHONY: validate-docs
+validate-docs:
+	@echo "Validating OpenAPI documentation..."
+	@if command -v swagger-cli >/dev/null 2>&1; then \
+		swagger-cli validate openapi.yaml; \
+		echo "OpenAPI documentation is valid!"; \
+	else \
+		echo "swagger-cli not found"; \
+		echo "Install with: npm install -g @apidevtools/swagger-cli"; \
+	fi
+
+# Pre-commit checks
+.PHONY: pre-commit
+pre-commit: fmt lint test validate-docs
+	@echo "All pre-commit checks passed!"
+
 # Show help
 .PHONY: help
 help:
@@ -161,10 +178,16 @@ help:
 	@echo "  help          - Show this help"
 	@echo "  install       - Install the binary"
 	@echo "  lint          - Run linter"
+	@echo "  pre-commit    - Run all pre-commit checks"
 	@echo "  run           - Start development server"
 	@echo "  test          - Run tests"
 	@echo "  test-coverage - Run tests with coverage"
 	@echo "  tidy          - Tidy dependencies"
+	@echo ""
+	@echo "API Documentation:"
+	@echo "  validate-docs  - Validate OpenAPI documentation"
+	@echo ""
+	@echo "Note: API documentation is deployed automatically via GitHub Actions"
 	@echo ""
 	@echo "Redis commands:"
 	@echo "  redis-up      - Start Redis container"

@@ -99,6 +99,11 @@ dev-setup:
 	fi
 	@echo "Development environment ready!"
 
+# Pre-commit checks
+.PHONY: pre-commit
+pre-commit: fmt lint test
+	@echo "All pre-commit checks passed!"
+
 # Show help
 .PHONY: help
 help:
@@ -111,6 +116,7 @@ help:
 	@echo "  help          - Show this help"
 	@echo "  install       - Install the binary"
 	@echo "  lint          - Run linter"
+	@echo "  pre-commit    - Run all pre-commit checks"
 	@echo "  run           - Run the application (use ARGS=... for arguments)"
 	@echo "  test          - Run tests"
 	@echo "  test-coverage - Run tests with coverage"

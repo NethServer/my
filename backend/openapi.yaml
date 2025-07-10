@@ -1,0 +1,2313 @@
+openapi: 3.0.3
+info:
+  title: Nethesis Operation Center API
+  description: REST API for Nethesis Operation Center with business hierarchy management and RBAC
+  version: 1.0.0
+  contact:
+    name: Nethesis S.r.l.
+    url: http://www.nethesis.it
+    email: info@nethesis.it
+  license:
+    name: AGPL-3.0-or-later
+    url: https://www.gnu.org/licenses/agpl-3.0.html
+
+servers:
+  - url: http://localhost:8080/api
+    description: Development server
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token from auth exchange endpoint
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: HTTP error code
+          example: 400
+        message:
+          type: string
+          description: Error message
+          example: "validation failed"
+        data:
+          $ref: '#/components/schemas/ErrorData'
+
+    ErrorData:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [validation_error, external_api_error]
+          description: Type of error
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationError'
+        details:
+          description: Additional error details
+
+    ValidationError:
+      type: object
+      properties:
+        key:
+          type: string
+          description: Field name that failed validation
+          example: "username"
+        message:
+          type: string
+          description: Error code or message
+          example: "required"
+        value:
+          type: string
+          description: Value that failed validation
+          example: ""
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          description: Current page number
+          example: 1
+        page_size:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Number of items per page
+          example: 20
+        total_count:
+          type: integer
+          minimum: 0
+          description: Total number of items
+          example: 156
+        total_pages:
+          type: integer
+          minimum: 0
+          description: Total number of pages
+          example: 8
+        has_next:
+          type: boolean
+          description: Whether there is a next page
+          example: true
+        has_prev:
+          type: boolean
+          description: Whether there is a previous page
+          example: false
+        next_page:
+          type: integer
+          nullable: true
+          description: Next page number if available
+          example: 2
+        prev_page:
+          type: integer
+          nullable: true
+          description: Previous page number if available
+          example: null
+
+    TokenExchangeRequest:
+      type: object
+      required:
+        - access_token
+      properties:
+        access_token:
+          type: string
+          description: Logto access token to exchange
+          example: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+    TokenRefreshRequest:
+      type: object
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+          description: Refresh token to exchange for new access token
+          example: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT access token (24h)
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refresh_token:
+          type: string
+          description: Refresh token (7 days)
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        expires_in:
+          type: integer
+          description: Token expiration time in seconds
+          example: 86400
+        user:
+          $ref: '#/components/schemas/UserProfile'
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          description: User ID
+          example: "user_123456789"
+        username:
+          type: string
+          description: Username
+          example: "john.doe"
+        email:
+          type: string
+          format: email
+          description: User email address
+          example: "john@example.com"
+        name:
+          type: string
+          description: Full name
+          example: "John Doe"
+        userRoles:
+          type: array
+          items:
+            type: string
+          description: User role names
+          example: ["Admin"]
+        userRoleIds:
+          type: array
+          items:
+            type: string
+          description: User role IDs
+          example: ["rol_admin_id_123"]
+        userPermissions:
+          type: array
+          items:
+            type: string
+          description: User permissions from roles
+          example: ["destroy:systems", "manage:systems", "read:systems"]
+        orgRole:
+          type: string
+          description: Organization role name
+          example: "Owner"
+        orgRoleId:
+          type: string
+          description: Organization role ID
+          example: "org_rol_owner_456"
+        orgPermissions:
+          type: array
+          items:
+            type: string
+          description: Organization permissions
+          example: ["create:distributors", "manage:distributors"]
+        organizationId:
+          type: string
+          description: Organization ID
+          example: "org_123"
+        organizationName:
+          type: string
+          description: Organization name
+          example: "ACME Distribution"
+
+    Organization:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Organization ID
+          example: "org_123456789"
+        name:
+          type: string
+          description: Organization name
+          example: "ACME Distribution SpA"
+        description:
+          type: string
+          description: Organization description
+          example: "Main distributor for Italian and Swiss markets"
+        customData:
+          type: object
+          description: Custom organization data
+          additionalProperties: true
+          example:
+            email: "contact@acme-distribution.com"
+            contactPerson: "John Smith"
+            region: "Italy"
+        isMfaRequired:
+          type: boolean
+          description: Whether MFA is required for this organization
+          example: false
+
+    OrganizationInput:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Organization name
+          example: "ACME Distribution SpA"
+        description:
+          type: string
+          description: Organization description
+          example: "Main distributor for Italian and Swiss markets"
+        customData:
+          type: object
+          description: Custom organization data
+          additionalProperties: true
+          example:
+            email: "contact@acme-distribution.com"
+            contactPerson: "John Smith"
+            region: "Italy"
+        isMfaRequired:
+          type: boolean
+          description: Whether MFA is required for this organization
+          example: false
+
+    Account:
+      type: object
+      properties:
+        id:
+          type: string
+          description: User account ID
+          example: "usr_123456789"
+        username:
+          type: string
+          description: Username
+          example: "john.doe"
+        email:
+          type: string
+          format: email
+          description: Email address
+          example: "john@example.com"
+        name:
+          type: string
+          description: Full name
+          example: "John Doe"
+        phone:
+          type: string
+          description: Phone number
+          example: "+39 333 123456"
+        userRoleIds:
+          type: array
+          items:
+            type: string
+          description: User role IDs
+          example: ["rol_admin_id"]
+        organizationId:
+          type: string
+          description: Organization ID
+          example: "org_123456789"
+        organizationName:
+          type: string
+          description: Organization name
+          example: "ACME Corp"
+        organizationRole:
+          type: string
+          description: Organization role name
+          example: "Admin"
+        isSuspended:
+          type: boolean
+          description: Whether the account is suspended
+          example: false
+        lastSignInAt:
+          type: string
+          format: date-time
+          description: Last sign in timestamp
+          example: "2025-06-25T09:15:00Z"
+        createdAt:
+          type: string
+          format: date-time
+          description: Account creation timestamp
+          example: "2025-06-20T14:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: "2025-06-21T10:45:00Z"
+        customData:
+          type: object
+          description: Custom user data
+          additionalProperties: true
+          example:
+            department: "IT"
+            position: "Senior Developer"
+
+    AccountInput:
+      type: object
+      required:
+        - username
+        - email
+        - name
+        - password
+        - userRoleIds
+        - organizationId
+      properties:
+        username:
+          type: string
+          description: Username (alphanumeric + underscore)
+          example: "john.doe"
+        email:
+          type: string
+          format: email
+          description: Email address
+          example: "john.doe@acme.com"
+        name:
+          type: string
+          description: Full name
+          example: "John Doe"
+        password:
+          type: string
+          minLength: 8
+          description: Password (minimum 8 characters)
+          example: "SecurePassword123!"
+        userRoleIds:
+          type: array
+          items:
+            type: string
+          description: User role IDs to assign
+          example: ["rol_abc123def456", "rol_xyz789abc123"]
+        organizationId:
+          type: string
+          description: Organization ID to assign user to
+          example: "org_xyz789"
+        phone:
+          type: string
+          description: Phone number
+          example: "+39 333 123456"
+        customData:
+          type: object
+          description: Custom user data
+          additionalProperties: true
+          example:
+            department: "IT"
+            position: "Senior Developer"
+
+    AccountUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Full name
+          example: "John Doe (Updated)"
+        email:
+          type: string
+          format: email
+          description: Email address
+          example: "john.updated@acme.com"
+        userRoleIds:
+          type: array
+          items:
+            type: string
+          description: User role IDs to assign
+          example: ["rol_new_role_id_here", "rol_another_id"]
+        phone:
+          type: string
+          description: Phone number
+          example: "+39 333 123456"
+        customData:
+          type: object
+          description: Custom user data
+          additionalProperties: true
+          example:
+            department: "Sales"
+            location: "Rome"
+
+    Role:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Role ID
+          example: "rol_admin_123"
+        name:
+          type: string
+          description: Role name
+          example: "Admin"
+        description:
+          type: string
+          description: Role description
+          example: "Full system administration capabilities"
+
+    OrganizationRole:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Organization role ID
+          example: "org_rol_owner_123"
+        name:
+          type: string
+          description: Organization role name
+          example: "Owner"
+        description:
+          type: string
+          description: Organization role description
+          example: "Complete control over organization and business hierarchy"
+
+    OrganizationReference:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Organization ID
+          example: "org_123456789"
+        name:
+          type: string
+          description: Organization name
+          example: "ACME Corp"
+        description:
+          type: string
+          description: Organization description
+          example: "Main customer organization"
+        type:
+          type: string
+          enum: [owner, distributor, reseller, customer]
+          description: Organization type
+          example: "customer"
+
+    SystemStats:
+      type: object
+      properties:
+        distributors:
+          type: integer
+          description: Number of distributors
+          example: 125
+        resellers:
+          type: integer
+          description: Number of resellers
+          example: 1847
+        customers:
+          type: integer
+          description: Number of customers
+          example: 8934
+        users:
+          type: integer
+          description: Number of users
+          example: 24567
+        systems:
+          type: integer
+          description: Number of systems
+          example: 156
+        timestamp:
+          type: string
+          format: date-time
+          description: Statistics timestamp
+          example: "2025-07-08T14:30:00Z"
+        isStale:
+          type: boolean
+          description: Whether the statistics are stale
+          example: false
+
+    System:
+      type: object
+      properties:
+        id:
+          type: string
+          description: System ID
+          example: "sys_123456789"
+        name:
+          type: string
+          description: System name
+          example: "Production Server 01"
+        description:
+          type: string
+          description: System description
+          example: "Main production server for web applications"
+        hostname:
+          type: string
+          description: System hostname
+          example: "prod-web-01.example.com"
+        ipAddress:
+          type: string
+          description: System IP address
+          example: "192.168.1.100"
+        status:
+          type: string
+          enum: [active, inactive, maintenance, error]
+          description: System status
+          example: "active"
+        version:
+          type: string
+          description: System version
+          example: "2.1.4"
+        lastSeen:
+          type: string
+          format: date-time
+          description: Last seen timestamp
+          example: "2025-07-10T10:30:00Z"
+        uptime:
+          type: integer
+          description: System uptime in seconds
+          example: 2654321
+        organizationId:
+          type: string
+          description: Organization ID that owns this system
+          example: "org_123456789"
+        customData:
+          type: object
+          description: Custom system data
+          additionalProperties: true
+          example:
+            datacenter: "EU-West-1"
+            environment: "production"
+            tier: "web"
+
+    SystemInput:
+      type: object
+      required:
+        - name
+        - hostname
+        - organizationId
+      properties:
+        name:
+          type: string
+          description: System name
+          example: "Production Server 01"
+        description:
+          type: string
+          description: System description
+          example: "Main production server for web applications"
+        hostname:
+          type: string
+          description: System hostname
+          example: "prod-web-01.example.com"
+        ipAddress:
+          type: string
+          description: System IP address
+          example: "192.168.1.100"
+        version:
+          type: string
+          description: System version
+          example: "2.1.4"
+        organizationId:
+          type: string
+          description: Organization ID that owns this system
+          example: "org_123456789"
+        customData:
+          type: object
+          description: Custom system data
+          additionalProperties: true
+          example:
+            datacenter: "EU-West-1"
+            environment: "production"
+            tier: "web"
+
+    SystemOperationResult:
+      type: object
+      properties:
+        operationId:
+          type: string
+          description: Operation ID for tracking
+          example: "op_restart_123456789"
+        status:
+          type: string
+          enum: [initiated, in_progress, completed, failed]
+          description: Operation status
+          example: "initiated"
+        message:
+          type: string
+          description: Operation message
+          example: "System restart has been initiated successfully"
+        estimatedDuration:
+          type: integer
+          description: Estimated duration in seconds
+          example: 120
+
+    SystemSubscription:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Subscription ID
+          example: "sub_123456789"
+        systemId:
+          type: string
+          description: System ID
+          example: "sys_123456789"
+        plan:
+          type: string
+          description: Subscription plan
+          example: "enterprise"
+        status:
+          type: string
+          enum: [active, suspended, expired, cancelled]
+          description: Subscription status
+          example: "active"
+        startDate:
+          type: string
+          format: date-time
+          description: Subscription start date
+          example: "2025-01-01T00:00:00Z"
+        endDate:
+          type: string
+          format: date-time
+          description: Subscription end date
+          example: "2025-12-31T23:59:59Z"
+        features:
+          type: array
+          items:
+            type: string
+          description: Included features
+          example: ["monitoring", "backup", "support"]
+
+    LogEntry:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: Log entry timestamp
+          example: "2025-07-10T10:30:00Z"
+        level:
+          type: string
+          enum: [trace, debug, info, warn, error, fatal]
+          description: Log level
+          example: "info"
+        message:
+          type: string
+          description: Log message
+          example: "System startup completed successfully"
+        component:
+          type: string
+          description: Component that generated the log
+          example: "web-server"
+        metadata:
+          type: object
+          description: Additional log metadata
+          additionalProperties: true
+          example:
+            requestId: "req_123456789"
+            userId: "usr_987654321"
+
+    AuditLogEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Audit log entry ID
+          example: "audit_123456789"
+        timestamp:
+          type: string
+          format: date-time
+          description: Audit entry timestamp
+          example: "2025-07-10T10:30:00Z"
+        userId:
+          type: string
+          description: User who performed the action
+          example: "usr_987654321"
+        action:
+          type: string
+          description: Action performed
+          example: "system_restart"
+        systemId:
+          type: string
+          description: System ID affected
+          example: "sys_123456789"
+        details:
+          type: object
+          description: Action details
+          additionalProperties: true
+          example:
+            reason: "Security update deployment"
+            duration: 120
+
+    BackupOperationResult:
+      type: object
+      properties:
+        backupId:
+          type: string
+          description: Backup ID
+          example: "backup_123456789"
+        operationId:
+          type: string
+          description: Operation ID for tracking
+          example: "op_backup_123456789"
+        status:
+          type: string
+          enum: [initiated, in_progress, completed, failed]
+          description: Backup operation status
+          example: "initiated"
+        estimatedSize:
+          type: integer
+          description: Estimated backup size in bytes
+          example: 1073741824
+        estimatedDuration:
+          type: integer
+          description: Estimated duration in seconds
+          example: 300
+
+    RestoreOperationResult:
+      type: object
+      properties:
+        operationId:
+          type: string
+          description: Operation ID for tracking
+          example: "op_restore_123456789"
+        status:
+          type: string
+          enum: [initiated, in_progress, completed, failed]
+          description: Restore operation status
+          example: "initiated"
+        backupId:
+          type: string
+          description: Backup ID being restored
+          example: "backup_987654321"
+        estimatedDuration:
+          type: integer
+          description: Estimated duration in seconds
+          example: 600
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      description: Page number
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+        example: 1
+
+    PageSizeParam:
+      name: page_size
+      in: query
+      description: Items per page
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+        example: 20
+
+    SearchParam:
+      name: search
+      in: query
+      description: Search term
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        example: "acme"
+
+  responses:
+    BadRequest:
+      description: Bad request - validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Unauthorized:
+      description: Unauthorized - invalid or missing token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Forbidden:
+      description: Forbidden - insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    UnprocessableEntity:
+      description: Unprocessable entity - business logic error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+paths:
+  /auth/exchange:
+    post:
+      tags:
+        - Authentication
+      summary: Exchange Logto token for custom JWT
+      description: Exchange a Logto access token for a custom JWT with embedded permissions
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenExchangeRequest'
+      responses:
+        '200':
+          description: Token exchange successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "token exchange successful"
+                  data:
+                    $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: Get new access token using refresh token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+      responses:
+        '200':
+          description: Token refresh successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "token refresh successful"
+                  data:
+                    $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get current user information
+      description: Get current authenticated user's profile and permissions
+      responses:
+        '200':
+          description: User information retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "user information retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/UserProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /distributors:
+    get:
+      tags:
+        - Distributors
+      summary: List distributors
+      description: Get paginated list of distributors (Owner only)
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - $ref: '#/components/parameters/SearchParam'
+      responses:
+        '200':
+          description: Distributors retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "distributors retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      distributors:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Organization'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags:
+        - Distributors
+      summary: Create distributor
+      description: Create a new distributor organization (Owner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationInput'
+      responses:
+        '201':
+          description: Distributor created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: "distributor created successfully"
+                  data:
+                    $ref: '#/components/schemas/Organization'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /distributors/{id}:
+    get:
+      tags:
+        - Distributors
+      summary: Get single distributor
+      description: Get a specific distributor by ID (Owner only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Distributor organization ID
+          schema:
+            type: string
+            example: "org_123456789"
+      responses:
+        '200':
+          description: Distributor retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "distributor retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/Organization'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Distributors
+      summary: Update distributor
+      description: Update a distributor organization (Owner only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Distributor organization ID
+          schema:
+            type: string
+            example: "org_123456789"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationInput'
+      responses:
+        '200':
+          description: Distributor updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "distributor updated successfully"
+                  data:
+                    $ref: '#/components/schemas/Organization'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+    delete:
+      tags:
+        - Distributors
+      summary: Delete distributor
+      description: Delete a distributor organization (Owner only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Distributor organization ID
+          schema:
+            type: string
+            example: "org_123456789"
+      responses:
+        '200':
+          description: Distributor deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "distributor deleted successfully"
+                  data:
+                    type: object
+                    nullable: true
+
+  /accounts:
+    get:
+      tags:
+        - Accounts
+      summary: List accounts
+      description: Get paginated list of user accounts with hierarchical authorization
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - $ref: '#/components/parameters/SearchParam'
+      responses:
+        '200':
+          description: Accounts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "accounts retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      accounts:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Account'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags:
+        - Accounts
+      summary: Create account
+      description: Create a new user account with hierarchical authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountInput'
+      responses:
+        '201':
+          description: Account created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: "account created successfully"
+                  data:
+                    $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /roles:
+    get:
+      tags:
+        - Roles
+      summary: Get all user roles
+      description: Get all available user roles with their IDs and descriptions
+      responses:
+        '200':
+          description: Roles retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "roles retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      roles:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Role'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /resellers:
+    get:
+      tags:
+        - Resellers
+      summary: List resellers
+      description: Get paginated list of resellers (Owner + Distributor)
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - $ref: '#/components/parameters/SearchParam'
+      responses:
+        '200':
+          description: Resellers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "resellers retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      resellers:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Organization'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags:
+        - Resellers
+      summary: Create reseller
+      description: Create a new reseller organization (Owner + Distributor)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationInput'
+      responses:
+        '201':
+          description: Reseller created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: "reseller created successfully"
+                  data:
+                    $ref: '#/components/schemas/Organization'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /resellers/{id}:
+    get:
+      tags:
+        - Resellers
+      summary: Get single reseller
+      description: Get a specific reseller by ID (Owner + Distributor)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Reseller organization ID
+          schema:
+            type: string
+            example: "org_987654321"
+      responses:
+        '200':
+          description: Reseller retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "reseller retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/Organization'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Resellers
+      summary: Update reseller
+      description: Update a reseller organization (Owner + Distributor)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Reseller organization ID
+          schema:
+            type: string
+            example: "org_987654321"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationInput'
+      responses:
+        '200':
+          description: Reseller updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "reseller updated successfully"
+                  data:
+                    $ref: '#/components/schemas/Organization'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+    delete:
+      tags:
+        - Resellers
+      summary: Delete reseller
+      description: Delete a reseller organization (Owner + Distributor)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Reseller organization ID
+          schema:
+            type: string
+            example: "org_987654321"
+      responses:
+        '200':
+          description: Reseller deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "reseller deleted successfully"
+                  data:
+                    type: object
+                    nullable: true
+
+  /customers:
+    get:
+      tags:
+        - Customers
+      summary: List customers
+      description: Get paginated list of customers (Owner + Distributor + Reseller)
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - $ref: '#/components/parameters/SearchParam'
+      responses:
+        '200':
+          description: Customers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "customers retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      customers:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Organization'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags:
+        - Customers
+      summary: Create customer
+      description: Create a new customer organization (Owner + Distributor + Reseller)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationInput'
+      responses:
+        '201':
+          description: Customer created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: "customer created successfully"
+                  data:
+                    $ref: '#/components/schemas/Organization'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /customers/{id}:
+    get:
+      tags:
+        - Customers
+      summary: Get single customer
+      description: Get a specific customer by ID (Owner + Distributor + Reseller)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Customer organization ID
+          schema:
+            type: string
+            example: "org_456789123"
+      responses:
+        '200':
+          description: Customer retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "customer retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/Organization'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Customers
+      summary: Update customer
+      description: Update a customer organization (Owner + Distributor + Reseller)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Customer organization ID
+          schema:
+            type: string
+            example: "org_456789123"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationInput'
+      responses:
+        '200':
+          description: Customer updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "customer updated successfully"
+                  data:
+                    $ref: '#/components/schemas/Organization'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+    delete:
+      tags:
+        - Customers
+      summary: Delete customer
+      description: Delete a customer organization (Owner + Distributor + Reseller)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Customer organization ID
+          schema:
+            type: string
+            example: "org_456789123"
+      responses:
+        '200':
+          description: Customer deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "customer deleted successfully"
+                  data:
+                    type: object
+                    nullable: true
+
+  /organization-roles:
+    get:
+      tags:
+        - Roles
+      summary: Get all organization roles
+      description: Get all available organization roles with their IDs and descriptions
+      responses:
+        '200':
+          description: Organization roles retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "organization roles retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      organizationRoles:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/OrganizationRole'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /organizations:
+    get:
+      tags:
+        - Organizations
+      summary: Get available organizations
+      description: Get organizations the current user can assign users to, filtered by business hierarchy
+      responses:
+        '200':
+          description: Organizations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "organizations retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      organizations:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/OrganizationReference'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /systems:
+    get:
+      tags:
+        - Systems
+      summary: List systems
+      description: Get list of systems (requires Support role)
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - $ref: '#/components/parameters/SearchParam'
+      responses:
+        '200':
+          description: Systems retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "systems retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      systems:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/System'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags:
+        - Systems
+      summary: Create system
+      description: Create a new system (requires Support role)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SystemInput'
+      responses:
+        '201':
+          description: System created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: "system created successfully"
+                  data:
+                    $ref: '#/components/schemas/System'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /systems/subscriptions:
+    get:
+      tags:
+        - Systems
+      summary: Get system subscriptions
+      description: Get system subscriptions (requires Support role)
+      responses:
+        '200':
+          description: System subscriptions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "system subscriptions retrieved successfully"
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SystemSubscription'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /systems/audit:
+    get:
+      tags:
+        - Systems
+      summary: Get systems audit log
+      description: Get systems audit log (requires manage:systems permission)
+      responses:
+        '200':
+          description: Systems audit log retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "systems audit log retrieved successfully"
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditLogEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /systems/{id}:
+    put:
+      tags:
+        - Systems
+      summary: Update system
+      description: Update a system (requires Support role)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SystemInput'
+      responses:
+        '200':
+          description: System updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "system updated successfully"
+                  data:
+                    $ref: '#/components/schemas/System'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Systems
+      summary: Delete system
+      description: Delete a system (requires admin:systems permission)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: System deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "system deleted successfully"
+                  data:
+                    type: object
+                    nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/restart:
+    post:
+      tags:
+        - Systems
+      summary: Restart system
+      description: Restart a system (requires manage:systems permission)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: System restart initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "system restart initiated successfully"
+                  data:
+                    $ref: '#/components/schemas/SystemOperationResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/enable:
+    put:
+      tags:
+        - Systems
+      summary: Enable system
+      description: Enable a system (requires manage:systems permission)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: System enabled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "system enabled successfully"
+                  data:
+                    $ref: '#/components/schemas/System'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/factory-reset:
+    post:
+      tags:
+        - Systems
+      summary: Factory reset system
+      description: Perform factory reset on a system (requires admin:systems permission)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: Factory reset initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "factory reset initiated successfully"
+                  data:
+                    $ref: '#/components/schemas/SystemOperationResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/destroy:
+    delete:
+      tags:
+        - Systems
+      summary: Destroy system
+      description: Permanently destroy a system (requires destroy:systems permission)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: System destruction initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "system destruction initiated successfully"
+                  data:
+                    $ref: '#/components/schemas/SystemOperationResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/logs:
+    get:
+      tags:
+        - Systems
+      summary: Get system logs
+      description: Get system logs (requires manage:systems permission)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+        - name: lines
+          in: query
+          description: Number of log lines to retrieve
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 10000
+        - name: follow
+          in: query
+          description: Follow log output
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: System logs retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "system logs retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      logs:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/LogEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/backup:
+    post:
+      tags:
+        - Systems
+      summary: Backup system
+      description: Create a backup of the system (requires admin:systems permission)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description:
+                  type: string
+                  description: Backup description
+                  example: "Pre-update backup"
+                includeData:
+                  type: boolean
+                  description: Include user data in backup
+                  default: true
+      responses:
+        '200':
+          description: Backup initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "backup initiated successfully"
+                  data:
+                    $ref: '#/components/schemas/BackupOperationResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/restore:
+    post:
+      tags:
+        - Systems
+      summary: Restore system
+      description: Restore system from backup (requires admin:systems permission)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - backupId
+              properties:
+                backupId:
+                  type: string
+                  description: Backup ID to restore from
+                  example: "backup_987654321"
+                restoreData:
+                  type: boolean
+                  description: Restore user data
+                  default: true
+      responses:
+        '200':
+          description: Restore initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "restore initiated successfully"
+                  data:
+                    $ref: '#/components/schemas/RestoreOperationResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /user/permissions:
+    get:
+      tags:
+        - User
+      summary: Get user permissions (OAuth2/OIDC)
+      description: Get current user permissions using standard OAuth2/OIDC flow with Logto token
+      responses:
+        '200':
+          description: User permissions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "user permissions retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      userPermissions:
+                        type: array
+                        items:
+                          type: string
+                        example: ["manage:systems", "read:systems"]
+                      orgPermissions:
+                        type: array
+                        items:
+                          type: string
+                        example: ["manage:resellers", "create:customers"]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /user/profile:
+    get:
+      tags:
+        - User
+      summary: Get user profile (OAuth2/OIDC)
+      description: Get current user profile using standard OAuth2/OIDC flow with Logto token
+      responses:
+        '200':
+          description: User profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "user profile retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/UserProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Check if the service is healthy
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "service healthy"
+                  data:
+                    type: object
+                    nullable: true
+
+  /stats:
+    get:
+      tags:
+        - Statistics
+      summary: Get system statistics
+      description: Get system statistics (requires manage:distributors permission)
+      responses:
+        '200':
+          description: System statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "system statistics retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/SystemStats'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+tags:
+  - name: Authentication
+    description: Authentication and token management
+  - name: Distributors
+    description: Distributor organization management (Owner only)
+  - name: Resellers
+    description: Reseller organization management (Owner + Distributor)
+  - name: Customers
+    description: Customer organization management (Owner + Distributor + Reseller)
+  - name: Accounts
+    description: User account management with hierarchical authorization
+  - name: Roles
+    description: Role and permission information
+  - name: Organizations
+    description: Organization references for user assignment
+  - name: Systems
+    description: System management and operations
+  - name: Health
+    description: Service health monitoring
+  - name: User
+    description: User business data (OAuth2/OIDC standard)
+  - name: Statistics
+    description: System statistics and metrics

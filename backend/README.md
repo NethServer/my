@@ -199,6 +199,6 @@ The application uses Redis for high-performance caching with the following compo
 - **Configurable TTLs**: All timeouts configurable via environment variables
 
 ## Related
-- [API.md](API.md) - Complete API documentation
-- [sync](../sync/README.md) - RBAC configuration tool
+- [API.md](API.md) - API docs reference
+- [sync CLI](../sync/README.md) - RBAC configuration tool
 - [Project Overview](../README.md) - Main documentation
