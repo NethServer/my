@@ -411,24 +411,8 @@ func CreateAccount(c *gin.Context) {
 				Msg("Logto API returned client error")
 		}
 
-		// Return appropriate status code to client with correct response function
-		switch statusCode {
-		case http.StatusBadRequest:
-			c.JSON(statusCode, response.BadRequest("failed to create account", detailedError))
-		case http.StatusConflict:
-			c.JSON(statusCode, response.Conflict("failed to create account", detailedError))
-		case http.StatusUnprocessableEntity:
-			c.JSON(statusCode, response.UnprocessableEntity("failed to create account", detailedError))
-		case http.StatusInternalServerError:
-			c.JSON(statusCode, response.InternalServerError("failed to create account", detailedError))
-		default:
-			// For any other 4xx or 5xx, use generic Error function
-			if statusCode >= 400 && statusCode < 500 {
-				c.JSON(statusCode, response.Error(statusCode, "failed to create account", detailedError))
-			} else {
-				c.JSON(statusCode, response.InternalServerError("failed to create account", detailedError))
-			}
-		}
+		// Use standardized external API error response
+		c.JSON(statusCode, response.ExternalAPIError(statusCode, "failed to create account", detailedError))
 		return
 	}
 

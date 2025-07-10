@@ -982,27 +982,106 @@ All API endpoints enforce strict validation:
 }
 ```
 
-#### Error Response Format
+#### Unified Error Response Format
+All API errors follow a consistent format for easy frontend handling:
+
 ```json
 {
   "code": 400,
-  "message": "validation error",
+  "message": "descriptive error message",
   "data": {
-    "field": "email",
-    "error": "invalid email format"
+    "type": "validation_error|external_api_error",
+    "errors": [
+      {
+        "key": "fieldName",
+        "message": "error_code",
+        "value": "rejected_value"
+      }
+    ],
+    "details": "additional_info_if_needed"
   }
 }
 ```
 
-### Common HTTP Status Codes
-- `200`: Success
-- `201`: Resource created
-- `400`: Bad request (validation error)
-- `401`: Unauthorized (invalid/missing token)
-- `403`: Forbidden (insufficient permissions)
-- `404`: Resource not found
-- `409`: Conflict (duplicate name/username)
-- `500`: Internal server error
+#### Error Types
+- **`validation_error`**: Input validation failures (our validation)
+- **`external_api_error`**: Identity provider errors (Logto API)
+
+#### Common Error Message Codes
+- **`required`**: Missing required field
+- **`invalid_format`**: Invalid field format (email, phone, etc.)
+- **`already_exists`**: Resource already exists (username, email taken)
+- **`not_found`**: Resource not found
+- **`access_denied`**: Insufficient permissions
+- **`too_weak`**: Password too weak
+- **`error`**: Generic/unknown error
+
+#### Example Responses
+
+**Validation Error (400):**
+```json
+{
+  "code": 400,
+  "message": "validation failed",
+  "data": {
+    "type": "validation_error",
+    "errors": [
+      {
+        "key": "organizationId",
+        "message": "required",
+        "value": ""
+      }
+    ]
+  }
+}
+```
+
+**Username Already Exists (422):**
+```json
+{
+  "code": 422,
+  "message": "failed to create account",
+  "data": {
+    "type": "external_api_error",
+    "errors": [
+      {
+        "key": "username",
+        "message": "already_exists",
+        "value": ""
+      }
+    ]
+  }
+}
+```
+
+**Phone Validation Error (400):**
+```json
+{
+  "code": 400,
+  "message": "failed to create account",
+  "data": {
+    "type": "external_api_error",
+    "errors": [
+      {
+        "key": "phone",
+        "message": "invalid_string",
+        "value": ""
+      }
+    ]
+  }
+}
+```
+
+### HTTP Status Codes
+- **`200`**: Success
+- **`201`**: Resource created
+- **`400`**: Bad request (validation/format errors)
+- **`401`**: Unauthorized (invalid/missing token)
+- **`403`**: Forbidden (insufficient permissions)
+- **`404`**: Resource not found
+- **`409`**: Conflict (duplicate resource)
+- **`422`**: Unprocessable entity (business logic errors)
+- **`500`**: Internal server error
 
 ---
 

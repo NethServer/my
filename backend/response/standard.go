@@ -27,7 +27,14 @@ type Response struct {
 type ValidationError struct {
 	Key     string `json:"key"`
 	Message string `json:"message"`
-	Input   string `json:"input,omitempty"`
+	Value   string `json:"value,omitempty"`
+}
+
+// ErrorData represents standardized error data
+type ErrorData struct {
+	Type    string            `json:"type"`
+	Errors  []ValidationError `json:"errors,omitempty"`
+	Details interface{}       `json:"details,omitempty"`
 }
 
 // Success creates a success response
@@ -114,7 +121,7 @@ func ParseValidationError(err error) ValidationError {
 			return ValidationError{
 				Key:     fieldName,
 				Message: tag,
-				Input:   value,
+				Value:   value,
 			}
 		}
 	}
@@ -123,7 +130,7 @@ func ParseValidationError(err error) ValidationError {
 	return ValidationError{
 		Key:     "unknown",
 		Message: err.Error(),
-		Input:   "",
+		Value:   "",
 	}
 }
 
@@ -147,7 +154,7 @@ func ParseValidationErrors(err error) []ValidationError {
 			result = append(result, ValidationError{
 				Key:     fieldName,
 				Message: tag,
-				Input:   value,
+				Value:   value,
 			})
 		}
 		return result
@@ -157,7 +164,7 @@ func ParseValidationErrors(err error) []ValidationError {
 	return []ValidationError{{
 		Key:     "unknown",
 		Message: err.Error(),
-		Input:   "",
+		Value:   "",
 	}}
 }
 
@@ -170,8 +177,78 @@ func ValidationBadRequest(err error) Response {
 // ValidationBadRequestMultiple creates a 400 Bad Request response with multiple validation errors
 func ValidationBadRequestMultiple(err error) Response {
 	validationErrors := ParseValidationErrors(err)
-	data := map[string]interface{}{
-		"validation_errors": validationErrors,
+	return BadRequest("validation failed", ErrorData{
+		Type:   "validation_error",
+		Errors: validationErrors,
+	})
+}
+
+// NormalizeLogtoError converts various Logto error formats to our standard format
+func NormalizeLogtoError(logtoError interface{}) ErrorData {
+	errorData := ErrorData{
+		Type: "external_api_error",
 	}
-	return BadRequest("validation failed", data)
+
+	switch err := logtoError.(type) {
+	case map[string]interface{}:
+		// Handle Logto simple errors (e.g., user.username_already_in_use)
+		if code, exists := err["code"].(string); exists {
+			errorData.Errors = []ValidationError{{
+				Key:     MapLogtoCodeToField(code),
+				Message: MapLogtoCodeToMessage(code),
+				Value:   "",
+			}}
+			return errorData
+		}
+
+		// Handle Logto Zod validation errors (guard.invalid_input)
+		if data, exists := err["data"].(map[string]interface{}); exists {
+			if issues, exists := data["issues"].([]interface{}); exists {
+				for _, issue := range issues {
+					if issueMap, ok := issue.(map[string]interface{}); ok {
+						field := "unknown"
+						if path, exists := issueMap["path"].([]interface{}); exists && len(path) > 0 {
+							if fieldName, ok := path[0].(string); ok {
+								field = MapLogtoFieldToOurs(fieldName)
+							}
+						}
+
+						code := "invalid"
+						if codeVal, exists := issueMap["code"].(string); exists {
+							code = codeVal
+						}
+
+						errorData.Errors = append(errorData.Errors, ValidationError{
+							Key:     field,
+							Message: code,
+							Value:   "",
+						})
+					}
+				}
+				return errorData
+			}
+		}
+
+		// Fallback for unknown Logto error structure
+		errorData.Details = err
+		return errorData
+
+	default:
+		// Handle string errors or other types
+		errorData.Details = logtoError
+		return errorData
+	}
+}
+
+// ValidationFailed creates a standardized validation error response
+func ValidationFailed(message string, errors []ValidationError) Response {
+	return BadRequest(message, ErrorData{
+		Type:   "validation_error",
+		Errors: errors,
+	})
+}
+
+// ExternalAPIError creates a standardized external API error response
+func ExternalAPIError(statusCode int, message string, logtoError interface{}) Response {
+	return Error(statusCode, message, NormalizeLogtoError(logtoError))
 }
