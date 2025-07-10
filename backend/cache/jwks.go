@@ -47,7 +47,7 @@ type JWKSCache struct {
 
 // JWKSCacheManager manages Redis cache for JWKS
 type JWKSCacheManager struct {
-	redis    *RedisClient
+	redis    RedisInterface
 	ttl      time.Duration
 	endpoint string
 }

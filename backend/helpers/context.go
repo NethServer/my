@@ -36,32 +36,3 @@ func GetUserFromContext(c *gin.Context) (*models.User, bool) {
 
 	return user, true
 }
-
-// GetUserContextData extracts individual context fields (legacy compatibility)
-type UserContextData struct {
-	UserID           string
-	UserOrgRole      string
-	UserOrgID        string
-	UserRole         []string
-	UserPermissions  []string
-	OrgPermissions   []string
-	OrganizationName string
-}
-
-// GetUserContextData extracts user context as individual fields
-func GetUserContextData(c *gin.Context) (*UserContextData, bool) {
-	user, ok := GetUserFromContext(c)
-	if !ok {
-		return nil, false
-	}
-
-	return &UserContextData{
-		UserID:           user.ID,
-		UserOrgRole:      user.OrgRole,
-		UserOrgID:        user.OrganizationID,
-		UserRole:         user.UserRoles,
-		UserPermissions:  user.UserPermissions,
-		OrgPermissions:   user.OrgPermissions,
-		OrganizationName: user.OrganizationName,
-	}, true
-}

@@ -169,9 +169,9 @@ func canAccessApplication(app models.LogtoThirdPartyApp, organizationRoles []str
 	// Extract access control from custom data
 	accessControl := app.ExtractAccessControlFromCustomData()
 
-	// If no access control is defined, allow access for backwards compatibility
+	// If no access control is defined, deny access by default
 	if accessControl == nil {
-		return true
+		return false
 	}
 
 	// Check organization roles

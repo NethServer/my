@@ -28,7 +28,7 @@ type OrgUsersCache struct {
 
 // OrgUsersCacheManager manages Redis cache for organization users
 type OrgUsersCacheManager struct {
-	redis *RedisClient
+	redis RedisInterface
 	ttl   time.Duration
 }
 
@@ -54,6 +54,11 @@ func GetOrgUsersCacheManager() *OrgUsersCacheManager {
 
 // Get retrieves organization users from cache
 func (c *OrgUsersCacheManager) Get(orgID string) ([]models.LogtoUser, bool) {
+	// Return cache miss if Redis is not available
+	if c.redis == nil {
+		return nil, false
+	}
+
 	key := fmt.Sprintf("org_users:%s", orgID)
 
 	var cached OrgUsersCache
@@ -102,6 +107,11 @@ func (c *OrgUsersCacheManager) Get(orgID string) ([]models.LogtoUser, bool) {
 
 // Set stores organization users in cache
 func (c *OrgUsersCacheManager) Set(orgID string, users []models.LogtoUser) {
+	// Skip if Redis is not available
+	if c.redis == nil {
+		return
+	}
+
 	key := fmt.Sprintf("org_users:%s", orgID)
 
 	now := time.Now()
@@ -134,6 +144,11 @@ func (c *OrgUsersCacheManager) Set(orgID string, users []models.LogtoUser) {
 
 // Clear removes entry from cache
 func (c *OrgUsersCacheManager) Clear(orgID string) {
+	// Skip if Redis is not available
+	if c.redis == nil {
+		return
+	}
+
 	key := fmt.Sprintf("org_users:%s", orgID)
 
 	err := c.redis.Delete(key)
@@ -156,6 +171,11 @@ func (c *OrgUsersCacheManager) Clear(orgID string) {
 
 // ClearAll removes all entries from cache
 func (c *OrgUsersCacheManager) ClearAll() {
+	// Skip if Redis is not available
+	if c.redis == nil {
+		return
+	}
+
 	pattern := "org_users:*"
 
 	err := c.redis.DeletePattern(pattern)
@@ -178,6 +198,15 @@ func (c *OrgUsersCacheManager) ClearAll() {
 
 // GetStats returns cache statistics
 func (c *OrgUsersCacheManager) GetStats() map[string]interface{} {
+	// Return limited stats if Redis is not available
+	if c.redis == nil {
+		return map[string]interface{}{
+			"redis_available": false,
+			"ttl_minutes":     c.ttl.Minutes(),
+			"cache_prefix":    "org_users:",
+		}
+	}
+
 	// Get Redis client stats
 	redisStats, err := c.redis.GetStats()
 	if err != nil {
@@ -193,9 +222,10 @@ func (c *OrgUsersCacheManager) GetStats() map[string]interface{} {
 	}
 
 	stats := map[string]interface{}{
-		"ttl_minutes":  c.ttl.Minutes(),
-		"redis_stats":  redisStats,
-		"cache_prefix": "org_users:",
+		"redis_available": true,
+		"ttl_minutes":     c.ttl.Minutes(),
+		"redis_stats":     redisStats,
+		"cache_prefix":    "org_users:",
 	}
 
 	return stats

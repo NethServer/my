@@ -616,7 +616,7 @@ func GetAccounts(c *gin.Context) {
 	// Parse filters
 	filters := models.UserFilters{
 		Search:         c.Query("search"),
-		OrganizationID: c.Query("organizationId"), // Keep backward compatibility
+		OrganizationID: c.Query("organization_id"),
 		Role:           c.Query("role"),
 		Username:       c.Query("username"),
 		Email:          c.Query("email"),
@@ -1153,9 +1153,6 @@ func convertLogtoUserToAccountResponse(account models.LogtoUser, org *models.Log
 				}
 			}
 			accountResponse.UserRoleIDs = roleIDs
-		} else if userRoleId, ok := account.CustomData["userRoleId"].(string); ok {
-			// Backward compatibility for single role
-			accountResponse.UserRoleIDs = []string{userRoleId}
 		}
 		if orgID, ok := account.CustomData["organizationId"].(string); ok {
 			accountResponse.OrganizationID = orgID

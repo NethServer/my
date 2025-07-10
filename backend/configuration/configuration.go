@@ -165,14 +165,9 @@ func parseDurationWithDefault(envVar string, defaultValue time.Duration) time.Du
 		return defaultValue
 	}
 
-	// Try parsing as duration string (e.g., "5m", "10s", "1h30m")
+	// Parse as duration string (e.g., "5m", "10s", "1h30m")
 	if duration, err := time.ParseDuration(envValue); err == nil {
 		return duration
-	}
-
-	// Try parsing as seconds (for backward compatibility)
-	if seconds, err := strconv.Atoi(envValue); err == nil {
-		return time.Duration(seconds) * time.Second
 	}
 
 	// If parsing fails, log warning and use default

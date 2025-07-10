@@ -7,7 +7,6 @@ package methods
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -126,32 +125,13 @@ func filterOrganizationsByHierarchy(orgs []models.LogtoOrganization, userOrgRole
 
 // getOrganizationType determines the type of organization based on custom data
 func getOrganizationType(org models.LogtoOrganization) string {
-	// Priority 1: Check for explicit type field in custom data
+	// Check for explicit type field in custom data
 	if org.CustomData != nil {
 		if orgType, exists := org.CustomData["type"]; exists {
 			if typeStr, ok := orgType.(string); ok {
 				return typeStr
 			}
 		}
-
-		// Priority 2: Check for organizationType field in custom data (legacy)
-		if orgType, exists := org.CustomData["organizationType"]; exists {
-			if typeStr, ok := orgType.(string); ok {
-				return typeStr
-			}
-		}
-	}
-
-	// Priority 3: Fallback to name-based detection (legacy)
-	orgName := strings.ToLower(org.Name)
-	if strings.Contains(orgName, "distributor") {
-		return "distributor"
-	}
-	if strings.Contains(orgName, "reseller") {
-		return "reseller"
-	}
-	if strings.Contains(orgName, "customer") {
-		return "customer"
 	}
 
 	// Default to customer type if no type can be determined

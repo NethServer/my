@@ -40,18 +40,7 @@ func main() {
 	configuration.Init()
 
 	// Initialize Redis cache
-	redisConfig := cache.RedisConfig{
-		URL:                   configuration.Config.RedisURL,
-		DB:                    configuration.Config.RedisDB,
-		Password:              configuration.Config.RedisPassword,
-		MaxRetries:            configuration.Config.RedisMaxRetries,
-		DialTimeout:           configuration.Config.RedisDialTimeout,
-		ReadTimeout:           configuration.Config.RedisReadTimeout,
-		WriteTimeout:          configuration.Config.RedisWriteTimeout,
-		RedisOperationTimeout: configuration.Config.RedisOperationTimeout,
-	}
-
-	err = cache.InitRedis(redisConfig)
+	err = cache.InitRedis()
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize Redis cache")
 	}

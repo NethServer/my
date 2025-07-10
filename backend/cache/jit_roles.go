@@ -28,7 +28,7 @@ type JitRolesCache struct {
 
 // JitRolesCacheManager manages Redis cache for JIT roles
 type JitRolesCacheManager struct {
-	redis *RedisClient
+	redis RedisInterface
 	ttl   time.Duration
 }
 

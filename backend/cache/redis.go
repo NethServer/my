@@ -9,7 +9,26 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
+
+	"github.com/nethesis/my/backend/configuration"
 )
+
+// RedisInterface defines the interface for Redis operations
+type RedisInterface interface {
+	Set(key string, value interface{}, ttl time.Duration) error
+	SetWithContext(ctx context.Context, key string, value interface{}, ttl time.Duration) error
+	Get(key string, dest interface{}) error
+	GetWithContext(ctx context.Context, key string, dest interface{}) error
+	Delete(key string) error
+	DeleteWithContext(ctx context.Context, key string) error
+	DeletePattern(pattern string) error
+	DeletePatternWithContext(ctx context.Context, pattern string) error
+	Exists(key string) (bool, error)
+	GetTTL(key string) (time.Duration, error)
+	FlushDB() error
+	GetStats() (map[string]interface{}, error)
+	Close() error
+}
 
 // RedisClient wraps the redis client with additional functionality
 type RedisClient struct {
@@ -22,8 +41,8 @@ var (
 	once        sync.Once
 )
 
-// RedisConfig holds Redis connection configuration
-type RedisConfig struct {
+// redisConfig holds Redis connection configuration
+type redisConfig struct {
 	URL                   string
 	DB                    int
 	Password              string
@@ -34,10 +53,21 @@ type RedisConfig struct {
 	RedisOperationTimeout time.Duration
 }
 
-// InitRedis initializes the Redis client with the given configuration
-func InitRedis(config RedisConfig) error {
+// InitRedis initializes Redis using configuration values from the configuration package
+func InitRedis() error {
 	var err error
 	once.Do(func() {
+		config := redisConfig{
+			URL:                   configuration.Config.RedisURL,
+			DB:                    configuration.Config.RedisDB,
+			Password:              configuration.Config.RedisPassword,
+			MaxRetries:            configuration.Config.RedisMaxRetries,
+			DialTimeout:           configuration.Config.RedisDialTimeout,
+			ReadTimeout:           configuration.Config.RedisReadTimeout,
+			WriteTimeout:          configuration.Config.RedisWriteTimeout,
+			RedisOperationTimeout: configuration.Config.RedisOperationTimeout,
+		}
+
 		opts, parseErr := redis.ParseURL(config.URL)
 		if parseErr != nil {
 			err = fmt.Errorf("failed to parse Redis URL: %w", parseErr)
@@ -86,7 +116,15 @@ func InitRedis(config RedisConfig) error {
 			Msg("Redis client initialized successfully")
 	})
 
-	return err
+	if err != nil {
+		log.Error().
+			Str("component", "redis").
+			Err(err).
+			Msg("Failed to initialize Redis cache")
+		return fmt.Errorf("failed to initialize Redis cache: %w", err)
+	}
+
+	return nil
 }
 
 // GetRedisClient returns the singleton Redis client

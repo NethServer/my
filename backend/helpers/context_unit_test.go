@@ -133,7 +133,6 @@ func TestGetUserFromContext(t *testing.T) {
 	}
 }
 
-
 func TestGetUserFromContextEdgeCases(t *testing.T) {
 	setupHelpersTestEnvironment()
 
