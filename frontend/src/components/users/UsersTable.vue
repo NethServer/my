@@ -29,6 +29,9 @@ import {
   NeTextInput,
   NeSpinner,
   NeDropdown,
+  useSort,
+  type SortEvent,
+  NeSortDropdown,
 } from '@nethesis/vue-components'
 import { useQuery } from '@pinia/colada'
 import { computed, ref, watch } from 'vue'
@@ -57,6 +60,8 @@ const isShownCreateOrEditUserDrawer = ref(false)
 const isShownDeleteUserDrawer = ref(false)
 const tableId = 'usersTable'
 const pageSize = ref(10)
+const sortKey = ref<keyof User>('name')
+const sortDescending = ref(false)
 
 const filteredUsers = computed(() => {
   if (!users.value.data?.length) {
@@ -70,7 +75,9 @@ const filteredUsers = computed(() => {
   }
 })
 
-const { currentPage, paginatedItems } = useItemPagination(() => filteredUsers.value, {
+const { sortedItems } = useSort(filteredUsers, sortKey, sortDescending)
+
+const { currentPage, paginatedItems } = useItemPagination(() => sortedItems.value, {
   itemsPerPage: pageSize,
 })
 
@@ -130,6 +137,11 @@ function getKebabMenuItems(user: User) {
     },
   ]
 }
+
+const onSort = (payload: SortEvent) => {
+  sortKey.value = payload.key as keyof User
+  sortDescending.value = payload.descending
+}
 </script>
 
 <template>
@@ -154,6 +166,22 @@ function getKebabMenuItems(user: User) {
             :placeholder="$t('users.filter_users')"
             class="max-w-48 sm:max-w-sm"
           />
+          <NeSortDropdown
+            v-model:sort-key="sortKey"
+            v-model:sort-descending="sortDescending"
+            :label="t('sort.sort')"
+            :options="[
+              { id: 'name', label: t('users.name') },
+              { id: 'username', label: t('users.username') },
+              { id: 'email', label: t('users.email') },
+            ]"
+            :open-menu-aria-label="t('ne_dropdown.open_menu')"
+            :sort-by-label="t('sort.sort_by')"
+            :sort-direction-label="t('sort.direction')"
+            :ascending-label="t('sort.ascending')"
+            :descending-label="t('sort.descending')"
+            class="xl:hidden"
+          />
           <!-- clear filters -->
           <NeButton kind="tertiary" @click="clearFilters">
             {{ $t('common.clear_filters') }}
@@ -173,6 +201,8 @@ function getKebabMenuItems(user: User) {
     </div>
     <!-- //// check breakpoint, skeleton-columns -->
     <NeTable
+      :sort-key="sortKey"
+      :sort-descending="sortDescending"
       :aria-label="$t('users.title')"
       card-breakpoint="xl"
       :loading="users.status === 'pending'"
@@ -180,9 +210,15 @@ function getKebabMenuItems(user: User) {
       :skeleton-rows="7"
     >
       <NeTableHead>
-        <NeTableHeadCell>{{ $t('users.name') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('users.username') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('users.email') }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
+          $t('users.name')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="username" @sort="onSort">{{
+          $t('users.username')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="email" @sort="onSort">{{
+          $t('users.email')
+        }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('users.phone') }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- no header for actions -->
@@ -253,7 +289,7 @@ function getKebabMenuItems(user: User) {
       <template #paginator>
         <NePaginator
           :current-page="currentPage"
-          :total-rows="filteredUsers.length"
+          :total-rows="sortedItems.length"
           :page-size="pageSize"
           :nav-pagination-label="$t('ne_table.pagination')"
           :next-label="$t('ne_table.go_to_next_page')"

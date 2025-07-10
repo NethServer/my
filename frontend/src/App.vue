@@ -15,6 +15,7 @@ import ToastNotificationsArea from '@/components/ToastNotificationsArea.vue'
 import axios from 'axios'
 import { useNotificationsStore } from './stores/notifications'
 import { PiniaColadaDevtools } from '@pinia/colada-devtools'
+import { isValidationErrorCode } from './lib/validation'
 
 const themeStore = useThemeStore()
 const route = useRoute()
@@ -57,10 +58,7 @@ const configureAxios = () => {
       }
 
       // show error notification if it's not a validation error
-      if (
-        //// TODO check condition
-        error.response?.data?.code !== 400
-      ) {
+      if (!isValidationErrorCode(error.response?.data?.code)) {
         notificationsStore.createNotificationFromAxiosError(error)
       }
       return Promise.reject(error)
