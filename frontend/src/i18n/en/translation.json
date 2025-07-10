@@ -165,10 +165,12 @@
     "name_required": "Name is required",
     "username_required": "Username is required",
     "email_required": "Email is required",
-    "invalid_email": "Invalid email address",
-    "invalid_username": "Username must start with a letter or underscore and can only contain letters, numbers, and underscores.",
+    "email_invalid": "Invalid email address",
+    "email_already_exists": "Email already exists",
+    "username_invalid": "Username must start with a letter or underscore and can only contain letters, numbers, and underscores.",
+    "password_required": "Password is required",
     "password_min_length": "Password must be at least 8 characters long",
-    "user_role_required": "User role is required",
+    "user_roles_required": "User roles are required",
     "organization_required": "Organization is required",
     "user_created": "User created",
     "user_saved": "User saved",
@@ -178,7 +180,8 @@
     "cannot_delete_user": "Cannot delete user",
     "delete_user": "Delete user",
     "delete_user_confirmation": "Are you sure you want to delete user {name}? This action cannot be undone.",
-    "no_user": "No user"
+    "no_user": "No user",
+    "phone": "Phone"
   },
   "ne_table": {
     "no_items": "No items",
@@ -187,5 +190,15 @@
     "of": "of",
     "pagination": "Table pagination",
     "show": "Show"
+  },
+  "ne_dropdown": {
+    "open_menu": "Open menu"
+  },
+  "sort": {
+    "sort": "Sort",
+    "sort_by": "Sort by",
+    "direction": "Direction",
+    "ascending": "Ascending",
+    "descending": "Descending"
   }
 }

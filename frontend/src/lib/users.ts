@@ -11,13 +11,14 @@ export const CreateUserSchema = v.object({
   username: v.pipe(
     v.string(),
     v.nonEmpty('users.username_required'),
-    v.regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/, 'users.invalid_username'),
-  ),
-  email: v.pipe(v.string(), v.nonEmpty('users.email_required'), v.email('users.invalid_email')),
+    v.regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/, 'users.username_invalid'),
+  ), ////
+  // username: v.optional(v.pipe(v.string())), ////
+  email: v.pipe(v.string(), v.nonEmpty('users.email_required'), v.email('users.email_invalid')),
   name: v.pipe(v.string(), v.nonEmpty('users.name_required')),
   password: v.pipe(v.string(), v.minLength(8, 'users.password_min_length')),
   phone: v.optional(v.string()),
-  userRoleId: v.pipe(v.string(), v.nonEmpty('users.user_role_required')),
+  userRoleIds: v.pipe(v.array(v.string()), v.nonEmpty('users.user_roles_required')),
   organizationId: v.pipe(v.string(), v.nonEmpty('users.organization_required')),
   customData: v.optional(v.record(v.string(), v.string())),
 })
@@ -51,7 +52,7 @@ export const getAccounts = () => {
     .get(`${API_URL}/accounts`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
-    .then((res) => res.data.data.users as User[])
+    .then((res) => res.data.data.accounts as User[])
 }
 
 export const postAccount = (user: CreateUser) => {
