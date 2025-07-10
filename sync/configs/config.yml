@@ -96,6 +96,14 @@ hierarchy:
       post_logout_redirect_uris:
         - "https://example.company.com"
         - "https://example.company.com/logout"
+      # Access control configuration
+      access_control:
+        organization_roles:  # Which organization roles can access this app
+          - "owner"
+          - "distributor"
+        user_roles:          # Which user roles can access this app
+          - "admin"
+          - "support"
       # scopes:
       #   - "profile"
       #   - "email"

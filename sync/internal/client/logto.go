@@ -322,12 +322,13 @@ func (c *LogtoClient) CreateDomain(domain map[string]interface{}) (map[string]in
 
 // ThirdPartyApplication represents a third-party application
 type ThirdPartyApplication struct {
-	ID                 string              `json:"id,omitempty"`
-	Name               string              `json:"name"`
-	Type               string              `json:"type"`
-	Description        string              `json:"description"`
-	IsThirdParty       bool                `json:"isThirdParty"`
-	OidcClientMetadata *OidcClientMetadata `json:"oidcClientMetadata,omitempty"`
+	ID                 string                 `json:"id,omitempty"`
+	Name               string                 `json:"name"`
+	Type               string                 `json:"type"`
+	Description        string                 `json:"description"`
+	IsThirdParty       bool                   `json:"isThirdParty"`
+	OidcClientMetadata *OidcClientMetadata    `json:"oidcClientMetadata,omitempty"`
+	CustomData         map[string]interface{} `json:"customData,omitempty"`
 }
 
 // OidcClientMetadata represents OIDC client metadata

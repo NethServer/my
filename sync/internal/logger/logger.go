@@ -106,8 +106,6 @@ func SanitizeMessage(message string) string {
 	return message
 }
 
-// Legacy API for backward compatibility
-
 // Debug logs a debug message
 func Debug(format string, args ...interface{}) {
 	Logger.Debug().Msgf(SanitizeMessage(format), args...)

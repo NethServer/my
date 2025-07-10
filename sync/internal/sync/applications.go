@@ -80,6 +80,16 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 			IsThirdParty: true,
 		}
 
+		// Add access control to custom data if configured
+		if appConfig.AccessControl != nil {
+			updatedApp.CustomData = map[string]interface{}{
+				"access_control": map[string]interface{}{
+					"organization_roles": appConfig.AccessControl.OrganizationRoles,
+					"user_roles":         appConfig.AccessControl.UserRoles,
+				},
+			}
+		}
+
 		// Add OIDC metadata only if URIs are provided
 		if len(appConfig.RedirectUris) > 0 || len(appConfig.PostLogoutRedirectUris) > 0 {
 			updatedApp.OidcClientMetadata = &client.OidcClientMetadata{
@@ -117,6 +127,16 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 			Description:  appConfig.Description,
 			Type:         "Traditional",
 			IsThirdParty: true,
+		}
+
+		// Add access control to custom data if configured
+		if appConfig.AccessControl != nil {
+			newApp.CustomData = map[string]interface{}{
+				"access_control": map[string]interface{}{
+					"organization_roles": appConfig.AccessControl.OrganizationRoles,
+					"user_roles":         appConfig.AccessControl.UserRoles,
+				},
+			}
 		}
 
 		// Add OIDC metadata only if URIs are provided

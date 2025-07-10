@@ -58,12 +58,19 @@ type Resource struct {
 
 // Application represents a third-party application configuration
 type Application struct {
-	Name                   string   `yaml:"name" json:"name"`                                                               // FQDN of the application
-	Description            string   `yaml:"description" json:"description"`                                                 // Description of the application
-	DisplayName            string   `yaml:"display_name" json:"display_name"`                                               // Display name for branding
-	Scopes                 []string `yaml:"scopes,omitempty" json:"scopes,omitempty"`                                       // Custom scopes (optional)
-	RedirectUris           []string `yaml:"redirect_uris,omitempty" json:"redirect_uris,omitempty"`                         // Redirect URIs for OAuth flow
-	PostLogoutRedirectUris []string `yaml:"post_logout_redirect_uris,omitempty" json:"post_logout_redirect_uris,omitempty"` // Post logout redirect URIs
+	Name                   string         `yaml:"name" json:"name"`                                                               // FQDN of the application
+	Description            string         `yaml:"description" json:"description"`                                                 // Description of the application
+	DisplayName            string         `yaml:"display_name" json:"display_name"`                                               // Display name for branding
+	Scopes                 []string       `yaml:"scopes,omitempty" json:"scopes,omitempty"`                                       // Custom scopes (optional)
+	RedirectUris           []string       `yaml:"redirect_uris,omitempty" json:"redirect_uris,omitempty"`                         // Redirect URIs for OAuth flow
+	PostLogoutRedirectUris []string       `yaml:"post_logout_redirect_uris,omitempty" json:"post_logout_redirect_uris,omitempty"` // Post logout redirect URIs
+	AccessControl          *AccessControl `yaml:"access_control,omitempty" json:"access_control,omitempty"`                       // Access control configuration
+}
+
+// AccessControl defines which roles can access a third-party application
+type AccessControl struct {
+	OrganizationRoles []string `yaml:"organization_roles,omitempty" json:"organization_roles,omitempty"` // Organization roles that can access the app
+	UserRoles         []string `yaml:"user_roles,omitempty" json:"user_roles,omitempty"`                 // User roles that can access the app
 }
 
 // Validate validates the configuration
@@ -275,6 +282,49 @@ func (c *Config) validateApplication(app Application) error {
 				return fmt.Errorf("duplicate scope %s in application %s", scope, app.Name)
 			}
 			scopeMap[scope] = true
+		}
+	}
+
+	// Validate access control if provided
+	if app.AccessControl != nil {
+		if err := c.validateAccessControl(*app.AccessControl, app.Name); err != nil {
+			return fmt.Errorf("access control validation failed for app %s: %w", app.Name, err)
+		}
+	}
+
+	return nil
+}
+
+func (c *Config) validateAccessControl(accessControl AccessControl, appName string) error {
+	// Build map of valid organization roles
+	validOrgRoles := make(map[string]bool)
+	for _, role := range c.Hierarchy.OrganizationRoles {
+		validOrgRoles[role.ID] = true
+	}
+
+	// Build map of valid user roles
+	validUserRoles := make(map[string]bool)
+	for _, role := range c.Hierarchy.UserRoles {
+		validUserRoles[role.ID] = true
+	}
+
+	// Validate organization roles
+	for _, roleID := range accessControl.OrganizationRoles {
+		if roleID == "" {
+			return fmt.Errorf("empty organization role in application %s", appName)
+		}
+		if !validOrgRoles[roleID] {
+			return fmt.Errorf("invalid organization role %s in application %s", roleID, appName)
+		}
+	}
+
+	// Validate user roles
+	for _, roleID := range accessControl.UserRoles {
+		if roleID == "" {
+			return fmt.Errorf("empty user role in application %s", appName)
+		}
+		if !validUserRoles[roleID] {
+			return fmt.Errorf("invalid user role %s in application %s", roleID, appName)
 		}
 	}
 
