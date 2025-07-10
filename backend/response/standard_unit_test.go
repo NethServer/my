@@ -1,10 +1,20 @@
 package response
 
 import (
+	"errors"
 	"testing"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
 )
+
+// TestStruct for validation tests
+type TestStruct struct {
+	Username string `json:"username" validate:"required"`
+	Email    string `json:"email" validate:"required,email"`
+	Name     string `json:"name" validate:"required"`
+	Phone    string `json:"phone"`
+}
 
 func TestResponse(t *testing.T) {
 	tests := []struct {
@@ -325,4 +335,224 @@ func TestResponseConsistency(t *testing.T) {
 	internalErrorResponse := InternalServerError("test", "data")
 	errorInternalResponse := Error(500, "test", "data")
 	assert.Equal(t, errorInternalResponse, internalErrorResponse)
+}
+
+func TestGetJSONFieldName(t *testing.T) {
+	// Create a validator instance
+	validate := validator.New()
+
+	// Test struct with JSON tags
+	testStruct := TestStruct{}
+
+	// Validate to get field errors
+	err := validate.Struct(testStruct)
+	assert.Error(t, err)
+
+	validationErrors, ok := err.(validator.ValidationErrors)
+	assert.True(t, ok)
+	assert.Len(t, validationErrors, 3) // username, email, name are required
+
+	// Test that field names are converted to lowercase
+	for _, fieldError := range validationErrors {
+		result := getJSONFieldName(fieldError)
+
+		// All field names should be lowercase
+		assert.True(t, result == "username" || result == "email" || result == "name")
+
+		// Verify specific conversions
+		switch fieldError.Field() {
+		case "Username":
+			assert.Equal(t, "username", result)
+		case "Email":
+			assert.Equal(t, "email", result)
+		case "Name":
+			assert.Equal(t, "name", result)
+		}
+	}
+}
+
+func TestParseValidationError(t *testing.T) {
+	validate := validator.New()
+
+	tests := []struct {
+		name        string
+		testStruct  interface{}
+		expectedKey string
+		expectedTag string
+	}{
+		{
+			name:        "Required field validation error",
+			testStruct:  TestStruct{},
+			expectedKey: "username",
+			expectedTag: "required",
+		},
+		{
+			name:        "Email validation error",
+			testStruct:  TestStruct{Username: "test", Email: "invalid-email", Name: "Test User"},
+			expectedKey: "email",
+			expectedTag: "email",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validate.Struct(tt.testStruct)
+			assert.Error(t, err)
+
+			result := ParseValidationError(err)
+			assert.Equal(t, tt.expectedKey, result.Key)
+			assert.Equal(t, tt.expectedTag, result.Message)
+		})
+	}
+}
+
+func TestParseValidationErrorNonValidatorError(t *testing.T) {
+	// Test with non-validator error
+	err := errors.New("generic error")
+	result := ParseValidationError(err)
+
+	assert.Equal(t, "unknown", result.Key)
+	assert.Equal(t, "generic error", result.Message)
+	assert.Equal(t, "", result.Value)
+}
+
+func TestParseValidationErrors(t *testing.T) {
+	validate := validator.New()
+
+	// Test struct that will generate multiple errors
+	testStruct := TestStruct{}
+
+	err := validate.Struct(testStruct)
+	assert.Error(t, err)
+
+	result := ParseValidationErrors(err)
+	assert.Len(t, result, 3) // username, email, name are required
+
+	// Check that all field names are lowercase
+	fieldNames := make([]string, len(result))
+	for i, validationError := range result {
+		fieldNames[i] = validationError.Key
+		assert.Equal(t, "required", validationError.Message)
+	}
+
+	// Should contain username, email, name (all lowercase)
+	assert.Contains(t, fieldNames, "username")
+	assert.Contains(t, fieldNames, "email")
+	assert.Contains(t, fieldNames, "name")
+}
+
+func TestParseValidationErrorsNonValidatorError(t *testing.T) {
+	// Test with non-validator error
+	err := errors.New("generic error")
+	result := ParseValidationErrors(err)
+
+	assert.Len(t, result, 1)
+	assert.Equal(t, "unknown", result[0].Key)
+	assert.Equal(t, "generic error", result[0].Message)
+	assert.Equal(t, "", result[0].Value)
+}
+
+func TestValidationBadRequest(t *testing.T) {
+	validate := validator.New()
+	testStruct := TestStruct{}
+
+	err := validate.Struct(testStruct)
+	assert.Error(t, err)
+
+	result := ValidationBadRequest(err)
+
+	assert.Equal(t, 400, result.Code)
+	assert.Equal(t, "validation failed", result.Message)
+
+	// Data should be a ValidationError
+	validationError, ok := result.Data.(ValidationError)
+	assert.True(t, ok)
+	assert.Equal(t, "username", validationError.Key) // Should be lowercase
+	assert.Equal(t, "required", validationError.Message)
+}
+
+func TestValidationBadRequestMultiple(t *testing.T) {
+	validate := validator.New()
+	testStruct := TestStruct{}
+
+	err := validate.Struct(testStruct)
+	assert.Error(t, err)
+
+	result := ValidationBadRequestMultiple(err)
+
+	assert.Equal(t, 400, result.Code)
+	assert.Equal(t, "validation failed", result.Message)
+
+	// Data should be ErrorData
+	errorData, ok := result.Data.(ErrorData)
+	assert.True(t, ok)
+	assert.Equal(t, "validation_error", errorData.Type)
+	assert.Len(t, errorData.Errors, 3) // username, email, name
+
+	// Check that all field names are lowercase
+	for _, validationError := range errorData.Errors {
+		// All field names should be lowercase
+		assert.True(t, validationError.Key == "username" || validationError.Key == "email" || validationError.Key == "name")
+		assert.Equal(t, "required", validationError.Message)
+	}
+}
+
+func TestValidationFailed(t *testing.T) {
+	errors := []ValidationError{
+		{Key: "username", Message: "required", Value: ""},
+		{Key: "email", Message: "invalid", Value: "test"},
+	}
+
+	result := ValidationFailed("custom validation message", errors)
+
+	assert.Equal(t, 400, result.Code)
+	assert.Equal(t, "custom validation message", result.Message)
+
+	errorData, ok := result.Data.(ErrorData)
+	assert.True(t, ok)
+	assert.Equal(t, "validation_error", errorData.Type)
+	assert.Equal(t, errors, errorData.Errors)
+}
+
+func TestExternalAPIError(t *testing.T) {
+	logtoError := map[string]interface{}{
+		"code": "user.username_already_in_use",
+	}
+
+	result := ExternalAPIError(409, "external error", logtoError)
+
+	assert.Equal(t, 409, result.Code)
+	assert.Equal(t, "external error", result.Message)
+
+	errorData, ok := result.Data.(ErrorData)
+	assert.True(t, ok)
+	assert.Equal(t, "external_api_error", errorData.Type)
+}
+
+func TestValidationErrorStruct(t *testing.T) {
+	validationError := ValidationError{
+		Key:     "username",
+		Message: "required",
+		Value:   "",
+	}
+
+	assert.Equal(t, "username", validationError.Key)
+	assert.Equal(t, "required", validationError.Message)
+	assert.Equal(t, "", validationError.Value)
+}
+
+func TestErrorDataStruct(t *testing.T) {
+	errors := []ValidationError{
+		{Key: "username", Message: "required", Value: ""},
+	}
+
+	errorData := ErrorData{
+		Type:    "validation_error",
+		Errors:  errors,
+		Details: "additional details",
+	}
+
+	assert.Equal(t, "validation_error", errorData.Type)
+	assert.Equal(t, errors, errorData.Errors)
+	assert.Equal(t, "additional details", errorData.Details)
 }

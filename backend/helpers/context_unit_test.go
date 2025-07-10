@@ -133,130 +133,6 @@ func TestGetUserFromContext(t *testing.T) {
 	}
 }
 
-func TestGetUserContextData(t *testing.T) {
-	setupHelpersTestEnvironment()
-
-	tests := []struct {
-		name          string
-		setupContext  func(*gin.Context)
-		expectSuccess bool
-		expectedData  *UserContextData
-	}{
-		{
-			name: "valid user context returns user context data",
-			setupContext: func(c *gin.Context) {
-				user := &models.User{
-					ID:               "context-user-456",
-					Username:         "contextuser",
-					Email:            "context@example.com",
-					Name:             "Context User",
-					UserRoles:        []string{"Admin", "Support"},
-					UserPermissions:  []string{"manage:systems", "view:logs"},
-					OrgRole:          "Distributor",
-					OrgPermissions:   []string{"create:resellers", "manage:customers"},
-					OrganizationID:   "org-context-789",
-					OrganizationName: "Context Organization",
-				}
-				c.Set("user", user)
-			},
-			expectSuccess: true,
-			expectedData: &UserContextData{
-				UserID:           "context-user-456",
-				UserOrgRole:      "Distributor",
-				UserOrgID:        "org-context-789",
-				UserRole:         []string{"Admin", "Support"},
-				UserPermissions:  []string{"manage:systems", "view:logs"},
-				OrgPermissions:   []string{"create:resellers", "manage:customers"},
-				OrganizationName: "Context Organization",
-			},
-		},
-		{
-			name: "missing user context returns false",
-			setupContext: func(c *gin.Context) {
-				// Don't set user
-			},
-			expectSuccess: false,
-			expectedData:  nil,
-		},
-		{
-			name: "invalid user type returns false",
-			setupContext: func(c *gin.Context) {
-				c.Set("user", map[string]string{"not": "a user"})
-			},
-			expectSuccess: false,
-			expectedData:  nil,
-		},
-		{
-			name: "user with minimal data succeeds",
-			setupContext: func(c *gin.Context) {
-				user := &models.User{
-					ID:       "minimal-user",
-					Username: "minimal",
-				}
-				c.Set("user", user)
-			},
-			expectSuccess: true,
-			expectedData: &UserContextData{
-				UserID:           "minimal-user",
-				UserOrgRole:      "",
-				UserOrgID:        "",
-				UserRole:         nil,
-				UserPermissions:  nil,
-				OrgPermissions:   nil,
-				OrganizationName: "",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create test context
-			w := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(w)
-			c.Request = httptest.NewRequest("GET", "/test", nil)
-
-			tt.setupContext(c)
-
-			contextData, ok := GetUserContextData(c)
-
-			assert.Equal(t, tt.expectSuccess, ok)
-
-			if tt.expectSuccess {
-				assert.NotNil(t, contextData)
-				assert.Equal(t, tt.expectedData.UserID, contextData.UserID)
-				assert.Equal(t, tt.expectedData.UserOrgRole, contextData.UserOrgRole)
-				assert.Equal(t, tt.expectedData.UserOrgID, contextData.UserOrgID)
-				assert.Equal(t, tt.expectedData.UserRole, contextData.UserRole)
-				assert.Equal(t, tt.expectedData.UserPermissions, contextData.UserPermissions)
-				assert.Equal(t, tt.expectedData.OrgPermissions, contextData.OrgPermissions)
-				assert.Equal(t, tt.expectedData.OrganizationName, contextData.OrganizationName)
-			} else {
-				assert.Nil(t, contextData)
-			}
-		})
-	}
-}
-
-func TestUserContextDataStructure(t *testing.T) {
-	// Test UserContextData struct creation and field access
-	contextData := UserContextData{
-		UserID:           "test-id",
-		UserOrgRole:      "Admin",
-		UserOrgID:        "org-123",
-		UserRole:         []string{"role1", "role2"},
-		UserPermissions:  []string{"perm1", "perm2"},
-		OrgPermissions:   []string{"org_perm1", "org_perm2"},
-		OrganizationName: "Test Org",
-	}
-
-	assert.Equal(t, "test-id", contextData.UserID)
-	assert.Equal(t, "Admin", contextData.UserOrgRole)
-	assert.Equal(t, "org-123", contextData.UserOrgID)
-	assert.Equal(t, []string{"role1", "role2"}, contextData.UserRole)
-	assert.Equal(t, []string{"perm1", "perm2"}, contextData.UserPermissions)
-	assert.Equal(t, []string{"org_perm1", "org_perm2"}, contextData.OrgPermissions)
-	assert.Equal(t, "Test Org", contextData.OrganizationName)
-}
 
 func TestGetUserFromContextEdgeCases(t *testing.T) {
 	setupHelpersTestEnvironment()
@@ -335,10 +211,10 @@ func TestGetUserFromContextEdgeCases(t *testing.T) {
 	}
 }
 
-func TestGetUserContextDataIntegration(t *testing.T) {
+func TestGetUserFromContextIntegration(t *testing.T) {
 	setupHelpersTestEnvironment()
 
-	// Test that GetUserContextData correctly extracts all fields from a complete user
+	// Test GetUserFromContext with a complete user
 	user := &models.User{
 		ID:               "integration-test-user",
 		Username:         "integrationuser",
@@ -361,24 +237,4 @@ func TestGetUserContextDataIntegration(t *testing.T) {
 	retrievedUser, ok := GetUserFromContext(c)
 	assert.True(t, ok)
 	assert.Equal(t, user, retrievedUser)
-
-	// Reset context (GetUserFromContext aborts on error, need fresh context)
-	w = httptest.NewRecorder()
-	c, _ = gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("GET", "/test", nil)
-	c.Set("user", user)
-
-	// Test GetUserContextData
-	contextData, ok := GetUserContextData(c)
-	assert.True(t, ok)
-	assert.NotNil(t, contextData)
-
-	// Verify all fields are correctly mapped
-	assert.Equal(t, user.ID, contextData.UserID)
-	assert.Equal(t, user.OrgRole, contextData.UserOrgRole)
-	assert.Equal(t, user.OrganizationID, contextData.UserOrgID)
-	assert.Equal(t, user.UserRoles, contextData.UserRole)
-	assert.Equal(t, user.UserPermissions, contextData.UserPermissions)
-	assert.Equal(t, user.OrgPermissions, contextData.OrgPermissions)
-	assert.Equal(t, user.OrganizationName, contextData.OrganizationName)
 }

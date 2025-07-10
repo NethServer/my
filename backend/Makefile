@@ -95,7 +95,7 @@ tidy:
 clean:
 	@echo "Cleaning build artifacts..."
 	@rm -rf $(BUILD_DIR)
-	@rm -f coverage.out coverage.html
+	@rm -f coverage.out coverage.html redoc-static.html
 
 # Install the binary
 .PHONY: install
