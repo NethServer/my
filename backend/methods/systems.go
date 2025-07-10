@@ -83,6 +83,32 @@ func GetSystems(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("systems retrieved successfully", gin.H{"systems": systems, "count": len(systems)}))
 }
 
+// GetSystem handles GET /api/systems/:id - retrieves a single system
+func GetSystem(c *gin.Context) {
+	// Get system ID from URL parameter
+	systemID := c.Param("id")
+	if systemID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
+		return
+	}
+
+	// Check if system exists
+	system, exists := systemsStorage[systemID]
+	if !exists {
+		c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
+		return
+	}
+
+	// Log the action
+	logger.RequestLogger(c, "systems").Info().
+		Str("operation", "get_system").
+		Str("system_id", systemID).
+		Msg("System details requested")
+
+	// Return system
+	c.JSON(http.StatusOK, response.OK("system retrieved successfully", system))
+}
+
 // UpdateSystem handles PUT /api/systems/:id - updates an existing system
 func UpdateSystem(c *gin.Context) {
 	// Get system ID from URL parameter
@@ -163,89 +189,6 @@ func DeleteSystem(c *gin.Context) {
 
 	// Return success response
 	c.JSON(http.StatusOK, response.OK("system deleted successfully", nil))
-}
-
-// GetSystemSubscriptions handles GET /api/systems/subscriptions - retrieves subscription info for all systems
-func GetSystemSubscriptions(c *gin.Context) {
-	// Convert map to slice for response
-	subscriptions := make([]*models.SystemSubscription, 0, len(subscriptionsStorage))
-	for _, subscription := range subscriptionsStorage {
-		subscriptions = append(subscriptions, subscription)
-	}
-
-	// Log the action
-	logger.RequestLogger(c, "systems").Info().
-		Str("operation", "list_subscriptions").
-		Msg("Subscriptions list requested")
-
-	// Return subscriptions list
-	c.JSON(http.StatusOK, response.OK("system subscriptions retrieved successfully", gin.H{"subscriptions": subscriptions, "count": len(subscriptions)}))
-}
-
-// RestartSystem handles POST /api/systems/:id/restart - restarts a system
-func RestartSystem(c *gin.Context) {
-	// Get system ID from URL parameter
-	systemID := c.Param("id")
-	if systemID == "" {
-		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
-		return
-	}
-
-	// Check if system exists
-	system, exists := systemsStorage[systemID]
-	if !exists {
-		c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
-		return
-	}
-
-	// Parse optional request body
-	var request models.SystemActionRequest
-	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		// Ignore binding errors for optional payload
-		request = models.SystemActionRequest{}
-	}
-
-	// Simulate restart action (in production, this would trigger actual restart)
-	system.Status = "restarting"
-	system.UpdatedAt = time.Now()
-
-	// Log the action
-	logger.LogSystemOperation(c, "restart", systemID, true, nil)
-
-	// Return success response
-	c.JSON(http.StatusOK, response.OK("system restart initiated", gin.H{
-		"system_id": systemID,
-		"status":    "restarting",
-		"force":     request.Force,
-	}))
-}
-
-// EnableSystem handles PUT /api/systems/:id/enable - enables a system
-func EnableSystem(c *gin.Context) {
-	// Get system ID from URL parameter
-	systemID := c.Param("id")
-	if systemID == "" {
-		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
-		return
-	}
-
-	// Check if system exists
-	system, exists := systemsStorage[systemID]
-	if !exists {
-		c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
-		return
-	}
-
-	// Enable system
-	system.Status = "online"
-	system.UpdatedAt = time.Now()
-	system.LastSeen = time.Now()
-
-	// Log the action
-	logger.LogSystemOperation(c, "enable", systemID, true, nil)
-
-	// Return success response
-	c.JSON(http.StatusOK, response.OK("system enabled successfully", system))
 }
 
 // InitSystemsStorage initializes some demo data for testing

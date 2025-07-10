@@ -128,30 +128,10 @@ func main() {
 		systemsGroup := customAuth.Group("/systems", middleware.RequireUserRole("Support"))
 		{
 			systemsGroup.GET("", methods.GetSystems)
+			systemsGroup.GET("/:id", methods.GetSystem)
 			systemsGroup.POST("", methods.CreateSystem)
 			systemsGroup.PUT("/:id", methods.UpdateSystem)
 			systemsGroup.DELETE("/:id", middleware.RequirePermission("admin:systems"), methods.DeleteSystem) // Admin-only
-			systemsGroup.GET("/subscriptions", methods.GetSystemSubscriptions)
-		}
-
-		// Special/Sensitive operations - permission-based
-		systemsSpecial := customAuth.Group("/systems")
-		{
-			// System management operations
-			systemsSpecial.POST("/:id/restart", middleware.RequirePermission("manage:systems"), methods.RestartSystem)
-			systemsSpecial.PUT("/:id/enable", middleware.RequirePermission("manage:systems"), methods.EnableSystem)
-
-			// Dangerous operations - require admin permissions
-			systemsSpecial.POST("/:id/factory-reset", middleware.RequirePermission("admin:systems"), methods.FactoryResetSystem)
-			systemsSpecial.DELETE("/:id/destroy", middleware.RequirePermission("destroy:systems"), methods.DestroySystem)
-
-			// Log viewing operations
-			systemsSpecial.GET("/:id/logs", middleware.RequirePermission("manage:systems"), methods.GetSystemLogs)
-			systemsSpecial.GET("/audit", middleware.RequirePermission("manage:systems"), methods.GetSystemsAudit)
-
-			// System backup operations - require admin permissions
-			systemsSpecial.POST("/:id/backup", middleware.RequirePermission("admin:systems"), methods.BackupSystem)
-			systemsSpecial.POST("/:id/restore", middleware.RequirePermission("admin:systems"), methods.RestoreSystem)
 		}
 
 		// ===========================================

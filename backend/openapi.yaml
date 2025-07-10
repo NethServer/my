@@ -956,6 +956,126 @@ paths:
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
 
+  /accounts/{id}:
+    get:
+      tags:
+        - Accounts
+      summary: Get single account
+      description: Get a specific account by ID with hierarchical authorization
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Account ID
+          schema:
+            type: string
+            example: "usr_123456789"
+      responses:
+        '200':
+          description: Account retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "account retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/Account'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Accounts
+      summary: Update account
+      description: Update a user account with hierarchical authorization
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Account ID
+          schema:
+            type: string
+            example: "usr_123456789"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountUpdate'
+      responses:
+        '200':
+          description: Account updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "account updated successfully"
+                  data:
+                    $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+    delete:
+      tags:
+        - Accounts
+      summary: Delete account
+      description: Delete a user account with hierarchical authorization
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Account ID
+          schema:
+            type: string
+            example: "usr_123456789"
+      responses:
+        '200':
+          description: Account deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "account deleted successfully"
+                  data:
+                    type: object
+                    nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /applications:
     get:
       tags:
@@ -1860,65 +1980,43 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /systems/audit:
-    get:
-      tags:
-        - Systems
-      summary: Get systems audit log
-      description: Get systems audit log (requires manage:systems permission)
-      responses:
-        '200':
-          description: Systems audit log retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "systems audit log retrieved successfully"
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/AuditLogEntry'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /systems/subscriptions:
-    get:
-      tags:
-        - Systems
-      summary: Get system subscriptions
-      description: Get system subscriptions (requires Support role)
-      responses:
-        '200':
-          description: System subscriptions retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "system subscriptions retrieved successfully"
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/SystemSubscription'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
   /systems/{id}:
+    get:
+      tags:
+        - Systems
+      summary: Get single system
+      description: Get a specific system by ID (requires Support role)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: System retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "system retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/System'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
     put:
       tags:
         - Systems
@@ -1993,316 +2091,6 @@ paths:
                   data:
                     type: object
                     nullable: true
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /systems/{id}/backup:
-    post:
-      tags:
-        - Systems
-      summary: Backup system
-      description: Create a backup of the system (requires admin:systems permission)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: System ID
-          schema:
-            type: string
-            example: "sys_123456789"
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                description:
-                  type: string
-                  description: Backup description
-                  example: "Pre-update backup"
-                includeData:
-                  type: boolean
-                  description: Include user data in backup
-                  default: true
-      responses:
-        '200':
-          description: Backup initiated successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "backup initiated successfully"
-                  data:
-                    $ref: '#/components/schemas/BackupOperationResult'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /systems/{id}/destroy:
-    delete:
-      tags:
-        - Systems
-      summary: Destroy system
-      description: Permanently destroy a system (requires destroy:systems permission)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: System ID
-          schema:
-            type: string
-            example: "sys_123456789"
-      responses:
-        '200':
-          description: System destruction initiated successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "system destruction initiated successfully"
-                  data:
-                    $ref: '#/components/schemas/SystemOperationResult'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /systems/{id}/enable:
-    put:
-      tags:
-        - Systems
-      summary: Enable system
-      description: Enable a system (requires manage:systems permission)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: System ID
-          schema:
-            type: string
-            example: "sys_123456789"
-      responses:
-        '200':
-          description: System enabled successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "system enabled successfully"
-                  data:
-                    $ref: '#/components/schemas/System'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /systems/{id}/factory-reset:
-    post:
-      tags:
-        - Systems
-      summary: Factory reset system
-      description: Perform factory reset on a system (requires admin:systems permission)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: System ID
-          schema:
-            type: string
-            example: "sys_123456789"
-      responses:
-        '200':
-          description: Factory reset initiated successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "factory reset initiated successfully"
-                  data:
-                    $ref: '#/components/schemas/SystemOperationResult'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /systems/{id}/logs:
-    get:
-      tags:
-        - Systems
-      summary: Get system logs
-      description: Get system logs (requires manage:systems permission)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: System ID
-          schema:
-            type: string
-            example: "sys_123456789"
-        - name: lines
-          in: query
-          description: Number of log lines to retrieve
-          schema:
-            type: integer
-            default: 100
-            minimum: 1
-            maximum: 10000
-        - name: follow
-          in: query
-          description: Follow log output
-          schema:
-            type: boolean
-            default: false
-      responses:
-        '200':
-          description: System logs retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "system logs retrieved successfully"
-                  data:
-                    type: object
-                    properties:
-                      logs:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/LogEntry'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /systems/{id}/restart:
-    post:
-      tags:
-        - Systems
-      summary: Restart system
-      description: Restart a system (requires manage:systems permission)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: System ID
-          schema:
-            type: string
-            example: "sys_123456789"
-      responses:
-        '200':
-          description: System restart initiated successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "system restart initiated successfully"
-                  data:
-                    $ref: '#/components/schemas/SystemOperationResult'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /systems/{id}/restore:
-    post:
-      tags:
-        - Systems
-      summary: Restore system
-      description: Restore system from backup (requires admin:systems permission)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: System ID
-          schema:
-            type: string
-            example: "sys_123456789"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - backupId
-              properties:
-                backupId:
-                  type: string
-                  description: Backup ID to restore from
-                  example: "backup_987654321"
-                restoreData:
-                  type: boolean
-                  description: Restore user data
-                  default: true
-      responses:
-        '200':
-          description: Restore initiated successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "restore initiated successfully"
-                  data:
-                    $ref: '#/components/schemas/RestoreOperationResult'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
