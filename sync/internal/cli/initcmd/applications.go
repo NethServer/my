@@ -87,7 +87,7 @@ func CreateApplications(client *client.LogtoClient, config *InitConfig) (*Applic
 
 	apps, err := client.GetApplications()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to check existing applications: %w", err)
+		return nil, nil, fmt.Errorf("failed to check applications: %w", err)
 	}
 
 	var backendApp *Application

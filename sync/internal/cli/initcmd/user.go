@@ -68,10 +68,10 @@ func CreateOwnerUser(client *client.LogtoClient, username, email, displayName st
 				ID:       existingUserID,
 				Username: username,
 				Email:    email,
-				Password: "[EXISTING - NOT CHANGED]",
+				Password: "[NOT CHANGED]",
 			}
 
-			logger.Info("Using existing owner user: %s", result.ID)
+			logger.Info("Using owner user: %s", result.ID)
 			return result, nil
 		}
 		return nil, fmt.Errorf("failed to create user: %w", err)

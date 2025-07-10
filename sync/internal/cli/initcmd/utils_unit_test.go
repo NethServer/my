@@ -84,7 +84,7 @@ func TestGenerateJWTSecret(t *testing.T) {
 		// Should be valid base64
 		decoded, err := base64.URLEncoding.DecodeString(secret)
 		if err != nil {
-			// If it's not valid base64, it might be the fallback
+			// If it's not valid base64, it uses the default
 			assert.Equal(t, "your-super-secret-jwt-key-please-change-in-production", secret)
 		} else {
 			// If it's valid base64, it should decode to 32 bytes
@@ -98,7 +98,7 @@ func TestGenerateJWTSecret(t *testing.T) {
 		// Generate multiple secrets and check they're unique
 		for i := 0; i < 10; i++ {
 			secret := GenerateJWTSecret()
-			// Allow the fallback secret to appear multiple times
+			// Allow the default secret to appear multiple times
 			if secret != "your-super-secret-jwt-key-please-change-in-production" {
 				assert.False(t, secrets[secret], "JWT secrets should be unique")
 				secrets[secret] = true

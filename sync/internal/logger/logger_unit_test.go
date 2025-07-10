@@ -11,7 +11,6 @@ package logger
 
 import (
 	"bytes"
-	"os"
 	"testing"
 	"time"
 
@@ -55,8 +54,8 @@ func TestSetLevel(t *testing.T) {
 		{"ERROR", zerolog.ErrorLevel},
 		{"fatal", zerolog.FatalLevel},
 		{"FATAL", zerolog.FatalLevel},
-		{"invalid", zerolog.InfoLevel}, // Default fallback
-		{"", zerolog.InfoLevel},        // Default fallback
+		{"invalid", zerolog.InfoLevel}, // Default level
+		{"", zerolog.InfoLevel},        // Default level
 	}
 
 	for _, tt := range tests {
@@ -150,11 +149,11 @@ func TestSanitizeMessage(t *testing.T) {
 	}
 }
 
-func TestLegacyAPIFunctions(t *testing.T) {
+func TestLoggingFunctions(t *testing.T) {
 	var buf bytes.Buffer
 	Logger = zerolog.New(&buf).With().Timestamp().Logger()
 
-	// Test that legacy functions work and sanitize messages
+	// Test that logging functions work and sanitize messages
 	Debug("Debug message with password=secret123")
 	Info("Info message with token=abc123")
 	Warn("Warning message with key=value")
@@ -173,45 +172,6 @@ func TestLegacyAPIFunctions(t *testing.T) {
 	assert.NotContains(t, output, "abc123")
 	assert.NotContains(t, output, "secret")
 	assert.Contains(t, output, "[******]")
-}
-
-func TestLegacyLevelFunctions(t *testing.T) {
-	var buf bytes.Buffer
-	Logger = zerolog.New(&buf).With().Timestamp().Logger()
-
-	// Test Init with different levels
-	tests := []struct {
-		level    LogLevel
-		expected zerolog.Level
-	}{
-		{DebugLevel, zerolog.DebugLevel},
-		{InfoLevel, zerolog.InfoLevel},
-		{WarnLevel, zerolog.WarnLevel},
-		{ErrorLevel, zerolog.ErrorLevel},
-	}
-
-	for _, tt := range tests {
-		t.Run("", func(t *testing.T) {
-			// Save original stderr
-			originalStderr := os.Stderr
-
-			// Create a pipe to capture stderr
-			r, w, _ := os.Pipe()
-			os.Stderr = w
-
-			// Use SetLevelLegacy instead of Init to avoid logger reinitialization
-			SetLevelLegacy(tt.level)
-			assert.Equal(t, tt.expected, Logger.GetLevel())
-
-			// Test GetLevel
-			assert.Equal(t, tt.level, GetLevel())
-
-			// Restore stderr
-			_ = w.Close()
-			os.Stderr = originalStderr
-			_ = r.Close()
-		})
-	}
 }
 
 func TestStructuredLoggingFunctions(t *testing.T) {

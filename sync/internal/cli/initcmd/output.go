@@ -80,7 +80,7 @@ func outputText(result *InitResult) {
 	fmt.Println(strings.Repeat("=", 80))
 
 	if result.AlreadyInit {
-		fmt.Println("⚠️  Note: Some components were already initialized (use --force to recreate)")
+		fmt.Println("⚠️  Note: Some components are initialized (use --force to recreate)")
 		fmt.Println()
 	}
 
@@ -99,7 +99,7 @@ func outputText(result *InitResult) {
 	fmt.Printf("LOGTO_ISSUER=%v\n", backendEnv["LOGTO_ISSUER"])
 	fmt.Printf("LOGTO_AUDIENCE=%v\n", backendEnv["LOGTO_AUDIENCE"])
 	fmt.Printf("LOGTO_JWKS_ENDPOINT=%v\n", backendEnv["LOGTO_JWKS_ENDPOINT"])
-	fmt.Printf("\n# Custom JWT Configuration (for legacy endpoints)\n")
+	fmt.Printf("\n# Custom JWT Configuration\n")
 	fmt.Printf("JWT_SECRET=%v\n", backendEnv["JWT_SECRET"])
 	fmt.Printf("JWT_ISSUER=%v\n", backendEnv["JWT_ISSUER"])
 	fmt.Printf("JWT_EXPIRATION=%v\n", backendEnv["JWT_EXPIRATION"])

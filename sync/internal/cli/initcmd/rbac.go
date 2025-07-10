@@ -222,7 +222,7 @@ func assignScopesToOwnerRole(client *client.LogtoClient) error {
 
 		if scopeID != "" {
 			if err := client.AssignScopeToOrganizationRole(ownerRoleID, scopeID); err != nil {
-				logger.Warn("Failed to assign scope %s to Owner role (may already be assigned): %v", scopeName, err)
+				logger.Warn("Failed to assign scope %s to Owner role: %v", scopeName, err)
 			} else {
 				logger.Info("Assigned scope %s to Owner organization role", scopeName)
 			}
@@ -236,7 +236,7 @@ func assignScopesToOwnerRole(client *client.LogtoClient) error {
 func createOwnerOrganization(client *client.LogtoClient) error {
 	logger.Info("Creating Owner organization...")
 
-	// Check if Owner organization already exists
+	// Check if Owner organization exists
 	organizations, err := client.GetOrganizations()
 	if err != nil {
 		return fmt.Errorf("failed to get existing organizations: %w", err)
@@ -248,7 +248,7 @@ func createOwnerOrganization(client *client.LogtoClient) error {
 		if org.Name == "Owner" {
 			ownerOrgID = org.ID
 			organizationExists = true
-			logger.Info("Organization 'Owner' already exists, configuring default role")
+			logger.Info("Organization 'Owner' exists, configuring default role")
 			break
 		}
 	}
@@ -313,7 +313,7 @@ func setOwnerOrganizationDefaultRole(client *client.LogtoClient, ownerOrgID stri
 
 	// Set the JIT organization role (Just-in-Time provisioning)
 	if err := client.SetOrganizationJITRole(ownerOrgID, ownerRoleID); err != nil {
-		logger.Warn("Failed to set JIT organization role (may already be set): %v", err)
+		logger.Warn("Failed to set JIT organization role: %v", err)
 	} else {
 		logger.Info("Set Owner as JIT organization role for Owner organization")
 	}
@@ -384,7 +384,7 @@ func assignRolesToOwnerUser(client *client.LogtoClient, ownerUsername string) er
 	// Assign Admin user role
 	if adminRoleID != "" {
 		if err := client.AssignRoleToUser(ownerUserID, adminRoleID); err != nil {
-			logger.Warn("Failed to assign Admin user role (may already be assigned): %v", err)
+			logger.Warn("Failed to assign Admin user role: %v", err)
 		} else {
 			logger.Info("Assigned Admin user role to owner user")
 		}
@@ -392,7 +392,7 @@ func assignRolesToOwnerUser(client *client.LogtoClient, ownerUsername string) er
 
 	// Add user to Owner organization
 	if err := client.AddUserToOrganization(ownerOrgID, ownerUserID); err != nil {
-		logger.Warn("Failed to add user to Owner organization (may already be member): %v", err)
+		logger.Warn("Failed to add user to Owner organization: %v", err)
 	} else {
 		logger.Info("Added owner user to Owner organization")
 	}
@@ -401,7 +401,7 @@ func assignRolesToOwnerUser(client *client.LogtoClient, ownerUsername string) er
 	if ownerOrgRoleID != "" {
 		logger.Info("Attempting to assign Owner organization role (ID: %s) to user (ID: %s) in organization (ID: %s)", ownerOrgRoleID, ownerUserID, ownerOrgID)
 		if err := client.AssignOrganizationRoleToUser(ownerOrgID, ownerUserID, ownerOrgRoleID); err != nil {
-			logger.Warn("Failed to assign Owner organization role (may already be assigned): %v", err)
+			logger.Warn("Failed to assign Owner organization role: %v", err)
 		} else {
 			logger.Info("Assigned Owner organization role to owner user")
 		}

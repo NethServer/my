@@ -119,7 +119,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 	}
 
 	if viper.GetBool("dry-run") {
-		logger.Info("Dry run completed - no changes were made")
+		logger.Info("Dry run completed - no changes made")
 	} else {
 		logger.Info("Synchronization completed successfully")
 	}
