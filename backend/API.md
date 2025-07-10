@@ -3,7 +3,7 @@
 REST API for Nethesis Operation Center with business hierarchy management and RBAC.
 
 ## 📖 Interactive Documentation
-**Complete API Reference:** https://bump.sh/nethesis/doc/nethesis
+**Complete API Reference:** https://bump.sh/nethesis/doc/my
 
 ## Development Commands
 ```bash
@@ -104,6 +104,6 @@ Owner (Nethesis) → Distributor → Reseller → Customer
 ---
 
 **🔗 Related Links**
-- [Complete API Documentation](https://bump.sh/nethesis/doc/nethesis) - Interactive reference with examples
+- [Complete API Documentation](https://bump.sh/nethesis/doc/my) - Interactive reference with examples
 - [Project Overview](../README.md) - Main project documentation
 - [sync CLI](../sync/README.md) - RBAC configuration management tool

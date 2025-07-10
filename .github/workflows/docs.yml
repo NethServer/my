@@ -22,7 +22,7 @@ jobs:
       - name: Deploy API documentation
         uses: bump-sh/github-action@v1
         with:
-          doc: nethesis
+          doc: my
           token: ${{ secrets.BUMP_TOKEN }}
           file: backend/openapi.yaml
 
@@ -37,7 +37,7 @@ jobs:
       - name: Comment pull request with API diff
         uses: bump-sh/github-action@v1
         with:
-          doc: nethesis
+          doc: my
           token: ${{ secrets.BUMP_TOKEN }}
           file: backend/openapi.yaml
           command: diff

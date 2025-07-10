@@ -74,7 +74,7 @@ TENANT_DOMAIN=your-domain.com
 - **[DESIGN.md](./DESIGN.md)** - Architecture and design decisions
 
 ### 📖 API Documentation
-**Live Documentation:** https://bump.sh/nethesis/doc/nethesis - auto-updated on every commit.
+**Live Documentation:** https://bump.sh/nethesis/doc/my - auto-updated on every commit.
 
 ## 🤝 Contributing
 
