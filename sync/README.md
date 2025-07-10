@@ -191,7 +191,7 @@ hierarchy:
   resources:
     - name: "systems"
       actions: ["read", "manage", "admin", "destroy"]
-  
+
   # Third-party applications (optional)
   third_party_apps:
     - name: "example.company.com"
@@ -205,6 +205,14 @@ hierarchy:
       post_logout_redirect_uris:
         - "https://example.company.com"
         - "https://example.company.com/logout"
+      # Access control configuration
+      access_control:
+        organization_roles:  # Which organization roles can access this app
+          - "owner"
+          - "distributor"
+        user_roles:          # Which user roles can access this app
+          - "admin"
+          - "support"
       # Optional custom scopes (default: profile, email, roles, urn:logto:scope:organizations, urn:logto:scope:organization_roles)
       # scopes:
       #   - "profile"
