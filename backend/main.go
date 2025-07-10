@@ -210,6 +210,9 @@ func main() {
 		// Organizations endpoint - for organization selection in account creation
 		customAuth.GET("/organizations", methods.GetOrganizations)
 
+		// Applications endpoint - filtered third-party applications based on user access
+		customAuth.GET("/applications", methods.GetApplications)
+
 		// System statistics endpoint - require management permissions
 		customAuth.GET("/stats", middleware.RequirePermission("manage:distributors"), methods.GetStats)
 	}

@@ -62,6 +62,9 @@ Owner (Nethesis) → Distributor → Reseller → Customer
 - `GET /organization-roles` - Available organization roles
 - `GET /organizations` - Organizations accessible to current user
 
+### Applications
+- `GET /applications` - Third-party applications filtered by user access permissions
+
 ### System Management
 - `GET /stats` - System statistics (requires `manage:distributors` permission)
 - `GET /health` - Health check

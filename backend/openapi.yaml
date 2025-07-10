@@ -469,6 +469,56 @@ components:
           description: Organization type
           example: "customer"
 
+    ThirdPartyApplication:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Application ID
+          example: "app_123456789"
+        name:
+          type: string
+          description: Application name (FQDN)
+          example: "management.company.com"
+        description:
+          type: string
+          description: Application description
+          example: "Management interface for system administrators"
+        redirect_uris:
+          type: array
+          items:
+            type: string
+          description: OAuth redirect URIs
+          example: ["https://management.company.com/callback"]
+        post_logout_redirect_uris:
+          type: array
+          items:
+            type: string
+          description: Post logout redirect URIs
+          example: ["https://management.company.com"]
+        login_url:
+          type: string
+          description: OAuth2 login URL with dynamic scopes and parameters
+          example: "https://tree6d.logto.app/oidc/auth?client_id=app_123456789&redirect_uri=https%3A%2F%2Fmanagement.company.com%2Fcallback&response_type=code&scope=openid+profile+email+roles&state=random-state-string"
+        branding:
+          $ref: '#/components/schemas/ApplicationBranding'
+
+    ApplicationBranding:
+      type: object
+      properties:
+        display_name:
+          type: string
+          description: Application display name
+          example: "Management Console"
+        logo_url:
+          type: string
+          description: Application logo URL
+          example: "https://cdn.example.com/logos/management-console.png"
+        dark_logo_url:
+          type: string
+          description: Application dark theme logo URL
+          example: "https://cdn.example.com/logos/management-console-dark.png"
+
     SystemStats:
       type: object
       properties:
@@ -832,6 +882,113 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
 
 paths:
+  /accounts:
+    get:
+      tags:
+        - Accounts
+      summary: List accounts
+      description: Get paginated list of user accounts with hierarchical authorization
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - $ref: '#/components/parameters/SearchParam'
+      responses:
+        '200':
+          description: Accounts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "accounts retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      accounts:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Account'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags:
+        - Accounts
+      summary: Create account
+      description: Create a new user account with hierarchical authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountInput'
+      responses:
+        '201':
+          description: Account created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: "account created successfully"
+                  data:
+                    $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /applications:
+    get:
+      tags:
+        - Applications
+      summary: Get third-party applications
+      description: Get third-party applications filtered by user's organization and user roles
+      responses:
+        '200':
+          description: Applications retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Applications retrieved successfully"
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ThirdPartyApplication'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: Failed to fetch applications from Logto
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /auth/exchange:
     post:
       tags:
@@ -863,6 +1020,31 @@ paths:
                     $ref: '#/components/schemas/AuthResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get current user information
+      description: Get current authenticated user's profile and permissions
+      responses:
+        '200':
+          description: User information retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "user information retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/UserProfile'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -900,15 +1082,19 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /auth/me:
+  /customers:
     get:
       tags:
-        - Authentication
-      summary: Get current user information
-      description: Get current authenticated user's profile and permissions
+        - Customers
+      summary: List customers
+      description: Get paginated list of customers (Owner + Distributor + Reseller)
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - $ref: '#/components/parameters/SearchParam'
       responses:
         '200':
-          description: User information retrieved successfully
+          description: Customers retrieved successfully
           content:
             application/json:
               schema:
@@ -919,11 +1105,170 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: "user information retrieved successfully"
+                    example: "customers retrieved successfully"
                   data:
-                    $ref: '#/components/schemas/UserProfile'
+                    type: object
+                    properties:
+                      customers:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Organization'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags:
+        - Customers
+      summary: Create customer
+      description: Create a new customer organization (Owner + Distributor + Reseller)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationInput'
+      responses:
+        '201':
+          description: Customer created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: "customer created successfully"
+                  data:
+                    $ref: '#/components/schemas/Organization'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /customers/{id}:
+    get:
+      tags:
+        - Customers
+      summary: Get single customer
+      description: Get a specific customer by ID (Owner + Distributor + Reseller)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Customer organization ID
+          schema:
+            type: string
+            example: "org_456789123"
+      responses:
+        '200':
+          description: Customer retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "customer retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/Organization'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Customers
+      summary: Update customer
+      description: Update a customer organization (Owner + Distributor + Reseller)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Customer organization ID
+          schema:
+            type: string
+            example: "org_456789123"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationInput'
+      responses:
+        '200':
+          description: Customer updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "customer updated successfully"
+                  data:
+                    $ref: '#/components/schemas/Organization'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+    delete:
+      tags:
+        - Customers
+      summary: Delete customer
+      description: Delete a customer organization (Owner + Distributor + Reseller)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Customer organization ID
+          schema:
+            type: string
+            example: "org_456789123"
+      responses:
+        '200':
+          description: Customer deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "customer deleted successfully"
+                  data:
+                    type: object
+                    nullable: true
 
   /distributors:
     get:
@@ -1113,19 +1458,16 @@ paths:
                     type: object
                     nullable: true
 
-  /accounts:
+  /health:
     get:
       tags:
-        - Accounts
-      summary: List accounts
-      description: Get paginated list of user accounts with hierarchical authorization
-      parameters:
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/PageSizeParam'
-        - $ref: '#/components/parameters/SearchParam'
+        - Health
+      summary: Health check
+      description: Check if the service is healthy
+      security: []
       responses:
         '200':
-          description: Accounts retrieved successfully
+          description: Service is healthy
           content:
             application/json:
               schema:
@@ -1136,66 +1478,20 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: "accounts retrieved successfully"
+                    example: "service healthy"
                   data:
                     type: object
-                    properties:
-                      accounts:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Account'
-                      pagination:
-                        $ref: '#/components/schemas/Pagination'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                    nullable: true
 
-    post:
-      tags:
-        - Accounts
-      summary: Create account
-      description: Create a new user account with hierarchical authorization
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AccountInput'
-      responses:
-        '201':
-          description: Account created successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 201
-                  message:
-                    type: string
-                    example: "account created successfully"
-                  data:
-                    $ref: '#/components/schemas/Account'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
-
-  /roles:
+  /organization-roles:
     get:
       tags:
         - Roles
-      summary: Get all user roles
-      description: Get all available user roles with their IDs and descriptions
+      summary: Get all organization roles
+      description: Get all available organization roles with their IDs and descriptions
       responses:
         '200':
-          description: Roles retrieved successfully
+          description: Organization roles retrieved successfully
           content:
             application/json:
               schema:
@@ -1206,14 +1502,44 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: "roles retrieved successfully"
+                    example: "organization roles retrieved successfully"
                   data:
                     type: object
                     properties:
-                      roles:
+                      organizationRoles:
                         type: array
                         items:
-                          $ref: '#/components/schemas/Role'
+                          $ref: '#/components/schemas/OrganizationRole'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /organizations:
+    get:
+      tags:
+        - Organizations
+      summary: Get available organizations
+      description: Get organizations the current user can assign users to, filtered by business hierarchy
+      responses:
+        '200':
+          description: Organizations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "organizations retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      organizations:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/OrganizationReference'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -1405,203 +1731,15 @@ paths:
                     type: object
                     nullable: true
 
-  /customers:
-    get:
-      tags:
-        - Customers
-      summary: List customers
-      description: Get paginated list of customers (Owner + Distributor + Reseller)
-      parameters:
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/PageSizeParam'
-        - $ref: '#/components/parameters/SearchParam'
-      responses:
-        '200':
-          description: Customers retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "customers retrieved successfully"
-                  data:
-                    type: object
-                    properties:
-                      customers:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Organization'
-                      pagination:
-                        $ref: '#/components/schemas/Pagination'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-    post:
-      tags:
-        - Customers
-      summary: Create customer
-      description: Create a new customer organization (Owner + Distributor + Reseller)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/OrganizationInput'
-      responses:
-        '201':
-          description: Customer created successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 201
-                  message:
-                    type: string
-                    example: "customer created successfully"
-                  data:
-                    $ref: '#/components/schemas/Organization'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
-
-  /customers/{id}:
-    get:
-      tags:
-        - Customers
-      summary: Get single customer
-      description: Get a specific customer by ID (Owner + Distributor + Reseller)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: Customer organization ID
-          schema:
-            type: string
-            example: "org_456789123"
-      responses:
-        '200':
-          description: Customer retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "customer retrieved successfully"
-                  data:
-                    $ref: '#/components/schemas/Organization'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-    put:
-      tags:
-        - Customers
-      summary: Update customer
-      description: Update a customer organization (Owner + Distributor + Reseller)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: Customer organization ID
-          schema:
-            type: string
-            example: "org_456789123"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/OrganizationInput'
-      responses:
-        '200':
-          description: Customer updated successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "customer updated successfully"
-                  data:
-                    $ref: '#/components/schemas/Organization'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
-
-    delete:
-      tags:
-        - Customers
-      summary: Delete customer
-      description: Delete a customer organization (Owner + Distributor + Reseller)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: Customer organization ID
-          schema:
-            type: string
-            example: "org_456789123"
-      responses:
-        '200':
-          description: Customer deleted successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "customer deleted successfully"
-                  data:
-                    type: object
-                    nullable: true
-
-  /organization-roles:
+  /roles:
     get:
       tags:
         - Roles
-      summary: Get all organization roles
-      description: Get all available organization roles with their IDs and descriptions
+      summary: Get all user roles
+      description: Get all available user roles with their IDs and descriptions
       responses:
         '200':
-          description: Organization roles retrieved successfully
+          description: Roles retrieved successfully
           content:
             application/json:
               schema:
@@ -1612,26 +1750,26 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: "organization roles retrieved successfully"
+                    example: "roles retrieved successfully"
                   data:
                     type: object
                     properties:
-                      organizationRoles:
+                      roles:
                         type: array
                         items:
-                          $ref: '#/components/schemas/OrganizationRole'
+                          $ref: '#/components/schemas/Role'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /organizations:
+  /stats:
     get:
       tags:
-        - Organizations
-      summary: Get available organizations
-      description: Get organizations the current user can assign users to, filtered by business hierarchy
+        - Statistics
+      summary: Get system statistics
+      description: Get system statistics (requires manage:distributors permission)
       responses:
         '200':
-          description: Organizations retrieved successfully
+          description: System statistics retrieved successfully
           content:
             application/json:
               schema:
@@ -1642,16 +1780,13 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: "organizations retrieved successfully"
+                    example: "system statistics retrieved successfully"
                   data:
-                    type: object
-                    properties:
-                      organizations:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/OrganizationReference'
+                    $ref: '#/components/schemas/SystemStats'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /systems:
     get:
@@ -1725,35 +1860,6 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /systems/subscriptions:
-    get:
-      tags:
-        - Systems
-      summary: Get system subscriptions
-      description: Get system subscriptions (requires Support role)
-      responses:
-        '200':
-          description: System subscriptions retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "system subscriptions retrieved successfully"
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/SystemSubscription'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
   /systems/audit:
     get:
       tags:
@@ -1778,6 +1884,35 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/AuditLogEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /systems/subscriptions:
+    get:
+      tags:
+        - Systems
+      summary: Get system subscriptions
+      description: Get system subscriptions (requires Support role)
+      responses:
+        '200':
+          description: System subscriptions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "system subscriptions retrieved successfully"
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SystemSubscription'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1865,12 +2000,12 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /systems/{id}/restart:
+  /systems/{id}/backup:
     post:
       tags:
         - Systems
-      summary: Restart system
-      description: Restart a system (requires manage:systems permission)
+      summary: Backup system
+      description: Create a backup of the system (requires admin:systems permission)
       parameters:
         - name: id
           in: path
@@ -1879,9 +2014,24 @@ paths:
           schema:
             type: string
             example: "sys_123456789"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description:
+                  type: string
+                  description: Backup description
+                  example: "Pre-update backup"
+                includeData:
+                  type: boolean
+                  description: Include user data in backup
+                  default: true
       responses:
         '200':
-          description: System restart initiated successfully
+          description: Backup initiated successfully
           content:
             application/json:
               schema:
@@ -1892,7 +2042,44 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: "system restart initiated successfully"
+                    example: "backup initiated successfully"
+                  data:
+                    $ref: '#/components/schemas/BackupOperationResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/destroy:
+    delete:
+      tags:
+        - Systems
+      summary: Destroy system
+      description: Permanently destroy a system (requires destroy:systems permission)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: System destruction initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "system destruction initiated successfully"
                   data:
                     $ref: '#/components/schemas/SystemOperationResult'
         '401':
@@ -1976,43 +2163,6 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /systems/{id}/destroy:
-    delete:
-      tags:
-        - Systems
-      summary: Destroy system
-      description: Permanently destroy a system (requires destroy:systems permission)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: System ID
-          schema:
-            type: string
-            example: "sys_123456789"
-      responses:
-        '200':
-          description: System destruction initiated successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "system destruction initiated successfully"
-                  data:
-                    $ref: '#/components/schemas/SystemOperationResult'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
   /systems/{id}/logs:
     get:
       tags:
@@ -2069,12 +2219,12 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /systems/{id}/backup:
+  /systems/{id}/restart:
     post:
       tags:
         - Systems
-      summary: Backup system
-      description: Create a backup of the system (requires admin:systems permission)
+      summary: Restart system
+      description: Restart a system (requires manage:systems permission)
       parameters:
         - name: id
           in: path
@@ -2083,24 +2233,9 @@ paths:
           schema:
             type: string
             example: "sys_123456789"
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                description:
-                  type: string
-                  description: Backup description
-                  example: "Pre-update backup"
-                includeData:
-                  type: boolean
-                  description: Include user data in backup
-                  default: true
       responses:
         '200':
-          description: Backup initiated successfully
+          description: System restart initiated successfully
           content:
             application/json:
               schema:
@@ -2111,9 +2246,9 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: "backup initiated successfully"
+                    example: "system restart initiated successfully"
                   data:
-                    $ref: '#/components/schemas/BackupOperationResult'
+                    $ref: '#/components/schemas/SystemOperationResult'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2236,78 +2371,28 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /health:
-    get:
-      tags:
-        - Health
-      summary: Health check
-      description: Check if the service is healthy
-      security: []
-      responses:
-        '200':
-          description: Service is healthy
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "service healthy"
-                  data:
-                    type: object
-                    nullable: true
-
-  /stats:
-    get:
-      tags:
-        - Statistics
-      summary: Get system statistics
-      description: Get system statistics (requires manage:distributors permission)
-      responses:
-        '200':
-          description: System statistics retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "system statistics retrieved successfully"
-                  data:
-                    $ref: '#/components/schemas/SystemStats'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
 tags:
-  - name: Authentication
-    description: Authentication and token management
-  - name: Distributors
-    description: Distributor organization management (Owner only)
-  - name: Resellers
-    description: Reseller organization management (Owner + Distributor)
-  - name: Customers
-    description: Customer organization management (Owner + Distributor + Reseller)
   - name: Accounts
     description: User account management with hierarchical authorization
-  - name: Roles
-    description: Role and permission information
-  - name: Organizations
-    description: Organization references for user assignment
-  - name: Systems
-    description: System management and operations
+  - name: Applications
+    description: Third-party application management with access control
+  - name: Authentication
+    description: Authentication and token management
+  - name: Customers
+    description: Customer organization management (Owner + Distributor + Reseller)
+  - name: Distributors
+    description: Distributor organization management (Owner only)
   - name: Health
     description: Service health monitoring
-  - name: User
-    description: User business data (OAuth2/OIDC standard)
+  - name: Organizations
+    description: Organization references for user assignment
+  - name: Resellers
+    description: Reseller organization management (Owner + Distributor)
+  - name: Roles
+    description: Role and permission information
   - name: Statistics
     description: System statistics and metrics
+  - name: Systems
+    description: System management and operations
+  - name: User
+    description: User business data (OAuth2/OIDC standard)
