@@ -25,6 +25,8 @@ import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
+// import { fakerIT as faker } from '@faker-js/faker' ////
+import { isValidationErrorCode } from '../../lib/validation'
 
 //// review
 
@@ -72,6 +74,8 @@ const {
     ////
     console.error('Error creating user:', error)
     console.error('   variables:', variables)
+
+    checkValidationError(error)
   },
   //// use key factory?
   onSettled: () => queryCache.invalidateQueries({ key: ['users'] }),
@@ -123,7 +127,7 @@ const name = ref('')
 const nameRef = useTemplateRef<HTMLInputElement>('nameRef')
 const password = ref('')
 const passwordRef = useTemplateRef<HTMLInputElement>('passwordRef')
-//// TODO phone, userRoleId, organization, customData
+//// TODO phone, userRoleIds, organization, customData
 const validationIssues = ref<Record<string, string[]>>({})
 // first invalid field ref
 // const firstErrorRef = ref() ////
@@ -135,7 +139,7 @@ const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> =
   password: passwordRef,
   ////
   // phone: phoneRef, // TODO
-  // userRoleId: userRoleIdRef, // TODO
+  // userRoleIds: userRoleIdsRef, // TODO
   // organization: organizationRef, // TODO
   // customData: customDataRef, // TODO
 }
@@ -160,11 +164,20 @@ watch(
         ////
       } else {
         // creating user, reset form to defaults
+
         username.value = ''
         email.value = ''
         name.value = ''
         password.value = '' ////
         ////
+
+        //// remove
+        // setTimeout(() => {
+        //   username.value = faker.internet.username()
+        //   email.value = faker.internet.email()
+        //   name.value = faker.person.fullName()
+        //   password.value = '12345678'
+        // }, 1000) // simulate delay for testing
       }
     }
   },
@@ -184,7 +197,8 @@ function validateCreate(user: CreateUser): boolean {
   validationIssues.value = {}
   // firstErrorRef.value = null ////
 
-  const validation = v.safeParse(CreateUserSchema, user)
+  const validation = v.safeParse(CreateUserSchema, user) ////
+  // const validation = { success: true } ////
 
   if (validation.success) {
     // no validation issues
@@ -194,6 +208,8 @@ function validateCreate(user: CreateUser): boolean {
 
     if (issues.nested) {
       validationIssues.value = issues.nested as Record<string, string[]>
+
+      console.log('validationIssues', validationIssues.value) ////
 
       // focus the first field with error
 
@@ -259,17 +275,20 @@ function validateEdit(user: EditUser): boolean {
 async function saveUser() {
   clearErrors()
 
+  ////
+  // const phone = faker.phone.number() ////
+  // console.log('phone', phone) ////
+
   const user = {
     username: username.value,
     email: email.value,
     name: name.value,
     password: password.value,
-    ////
-    phone: '1234', //// TODO
-    primaryPhone: '1234', //// TODO
-    userRoleId: 'pcopj9w5bf3rvs8mlwix2', //// TODO
+    userRoleIds: ['pcopj9w5bf3rvs8mlwix2'], //// TODO
     organizationId: 'm535jc4rt03b', //// TODO
-    customData: {}, //// TODO
+    customData: {
+      // phone: phone, //// TODO
+    }, //// TODO
   }
 
   if (currentUser?.id) {
@@ -306,6 +325,26 @@ async function saveUser() {
   // } else {
   //   createUserMutate(user)
   // }
+}
+
+function checkValidationError(error: any) {
+  console.log('@ checkValidationError', error) ////
+
+  if (isValidationErrorCode(error.status)) {
+    const validationErrors = error.response?.data?.data?.errors || []
+
+    // iterate over validationErrors and set them in validationIssues
+    validationErrors.forEach((err: { key: string; message: string }) => {
+      //// remove
+      // err.key = err.key.toLowerCase() ////
+
+      if (!validationIssues.value[err.key]) {
+        validationIssues.value[err.key] = []
+      }
+      validationIssues.value[err.key].push(`users.${err.key}_${err.message}`)
+    })
+  }
+  console.log('@ validationIssues', validationIssues.value) ////
 }
 </script>
 
@@ -354,7 +393,11 @@ async function saveUser() {
         />
         <!-- create user error notification -->
         <NeInlineNotification
-          v-if="createUserError?.message"
+          v-if="
+            createUserError?.message &&
+            'status' in createUserError &&
+            !isValidationErrorCode(createUserError.status as number)
+          "
           kind="error"
           :title="t('users.cannot_create_user')"
           :description="createUserError.message"
