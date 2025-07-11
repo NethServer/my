@@ -1,0 +1,139 @@
+services:
+  # =============================================================================
+  # PRODUCTION ENVIRONMENT (my.nethesis.it)
+  # GitHub action deploy on releases only
+  # =============================================================================
+
+  # Production Redis Cache
+  - type: redis
+    name: my-redis-prod
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
+  # Production Backend API Server
+  - type: web
+    name: my-backend-prod
+    runtime: go
+    plan: free
+    buildCommand: cd backend && make build
+    startCommand: ./backend/build/backend
+    healthCheckPath: /api/health
+    envVars:
+      # Server Configuration
+      - key: GIN_MODE
+        value: release
+      - key: LISTEN_ADDRESS
+        value: 0.0.0.0:10000
+      - key: LOG_LEVEL
+        value: info
+      - key: LOG_FORMAT
+        value: json
+
+      # Redis Configuration
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: my-redis-prod
+          property: connectionString
+      - key: REDIS_DB
+        value: 0
+      - key: REDIS_PASSWORD
+        value: ""
+
+      # Environment-specific variables (configure in Render dashboard)
+      - key: LOGTO_ISSUER
+        sync: false
+      - key: LOGTO_AUDIENCE
+        sync: false
+      - key: LOGTO_JWKS_ENDPOINT
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_ISSUER
+        sync: false
+      - key: BACKEND_APP_ID
+        sync: false
+      - key: BACKEND_APP_SECRET
+        sync: false
+      - key: LOGTO_MANAGEMENT_BASE_URL
+        sync: false
+
+      # JWT Configuration
+      - key: JWT_EXPIRATION
+        value: 24h
+      - key: JWT_REFRESH_EXPIRATION
+        value: 168h
+
+    autoDeploy: false  # Deployed via GitHub Actions on release
+    branch: main
+
+  # =============================================================================
+  # DEVELOPMENT ENVIRONMENT (dev.my.nethesis.it)
+  # Auto-deploys on every commit + PR previews
+  # =============================================================================
+
+  # Development Redis Cache
+  - type: redis
+    name: my-redis-dev
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
+  # Development Backend API Server
+  - type: web
+    name: my-backend-dev
+    runtime: go
+    plan: free
+    buildCommand: cd backend && make build
+    startCommand: ./backend/build/backend
+    healthCheckPath: /api/health
+    envVars:
+      # Server Configuration
+      - key: GIN_MODE
+        value: debug
+      - key: LISTEN_ADDRESS
+        value: 0.0.0.0:10000
+      - key: LOG_LEVEL
+        value: debug
+      - key: LOG_FORMAT
+        value: json
+
+      # Redis Configuration
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: my-redis-dev
+          property: connectionString
+      - key: REDIS_DB
+        value: 0
+      - key: REDIS_PASSWORD
+        value: ""
+
+      # Environment-specific variables (configure in Render dashboard)
+      - key: LOGTO_ISSUER
+        sync: false
+      - key: LOGTO_AUDIENCE
+        sync: false
+      - key: LOGTO_JWKS_ENDPOINT
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_ISSUER
+        sync: false
+      - key: BACKEND_APP_ID
+        sync: false
+      - key: BACKEND_APP_SECRET
+        sync: false
+      - key: LOGTO_MANAGEMENT_BASE_URL
+        sync: false
+
+      # JWT Configuration
+      - key: JWT_EXPIRATION
+        value: 24h
+      - key: JWT_REFRESH_EXPIRATION
+        value: 168h
+
+    autoDeploy: true   # Auto-deploy on every commit
+    branch: main
+    pullRequestPreviewsEnabled: true  # PR previews enabled
