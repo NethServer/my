@@ -43,7 +43,9 @@ func CreateDistributor(c *gin.Context) {
 		return
 	}
 	if !isUnique {
-		c.JSON(http.StatusConflict, response.Conflict("organization name already exists", gin.H{"name": request.Name}))
+		c.JSON(http.StatusConflict, response.ValidationFailed("validation failed", []response.ValidationError{
+			{Key: "name", Message: "already_exists", Value: request.Name},
+		}))
 		return
 	}
 
@@ -328,7 +330,9 @@ func UpdateDistributor(c *gin.Context) {
 				return
 			}
 			if !isUnique {
-				c.JSON(http.StatusConflict, response.Conflict("organization name already exists", gin.H{"name": request.Name}))
+				c.JSON(http.StatusConflict, response.ValidationFailed("validation failed", []response.ValidationError{
+					{Key: "name", Message: "already_exists", Value: request.Name},
+				}))
 				return
 			}
 		}
