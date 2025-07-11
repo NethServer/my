@@ -1,5 +1,5 @@
 <!--
-  Copyright (C) 2024 Nethesis S.r.l.
+  Copyright (C) 2025 Nethesis S.r.l.
   SPDX-License-Identifier: GPL-3.0-or-later
 -->
 
@@ -11,16 +11,21 @@ import {
   focusElement,
   NeInlineNotification,
 } from '@nethesis/vue-components'
-import { computed, ref, watch } from 'vue'
-import { CustomerSchema, postCustomer, putCustomer, type Customer } from '@/lib/customers'
+import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
+import {
+  CreateCustomerSchema,
+  CustomerSchema,
+  postCustomer,
+  putCustomer,
+  type CreateCustomer,
+  type Customer,
+} from '@/lib/customers'
 import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
-
-//// review
-
-//// search "host" occurrences
+import { getValidationIssues, isValidationErrorCode } from '@/lib/validation'
+import type { AxiosError } from 'axios'
 
 const { isShown = false, currentCustomer = undefined } = defineProps<{
   isShown: boolean
@@ -39,7 +44,7 @@ const {
   reset: createCustomerReset,
   error: createCustomerError,
 } = useMutation({
-  mutation: (newCustomer: Customer) => {
+  mutation: (newCustomer: CreateCustomer) => {
     return postCustomer(newCustomer)
   },
   onSuccess(data, vars, context) {
@@ -64,6 +69,8 @@ const {
     ////
     console.error('Error creating customer:', error)
     console.error('   variables:', variables)
+
+    validationIssues.value = getValidationIssues(error as AxiosError, 'customers')
   },
   //// use key factory?
   onSettled: () => queryCache.invalidateQueries({ key: ['customers'] }),
@@ -108,12 +115,16 @@ const {
 })
 
 const name = ref('')
-const nameRef = ref()
+const nameRef = useTemplateRef<HTMLInputElement>('nameRef')
 const description = ref('')
-const descriptionRef = ref()
+const descriptionRef = useTemplateRef<HTMLInputElement>('descriptionRef')
 const validationIssues = ref<Record<string, string[]>>({})
-// first invalid field ref
-const firstErrorRef = ref()
+
+const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
+  name: nameRef,
+  description: descriptionRef,
+  //// other fields
+}
 
 const saving = computed(() => {
   return createCustomerLoading.value || editCustomerLoading.value
@@ -151,10 +162,33 @@ function clearErrors() {
   validationIssues.value = {}
 }
 
-function validate(customer: Customer): boolean {
+function validateCreate(customer: CreateCustomer): boolean {
   validationIssues.value = {}
-  firstErrorRef.value = null
+  const validation = v.safeParse(CreateCustomerSchema, customer)
 
+  if (validation.success) {
+    // no validation issues
+    return true
+  } else {
+    const issues = v.flatten(validation.issues)
+
+    if (issues.nested) {
+      validationIssues.value = issues.nested as Record<string, string[]>
+
+      // focus the first field with error
+
+      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
+
+      console.log('firstFieldName', firstErrorFieldName) ////
+
+      fieldRefs[firstErrorFieldName]?.value?.focus()
+    }
+    return false
+  }
+}
+
+function validateEdit(customer: Customer): boolean {
+  validationIssues.value = {}
   const validation = v.safeParse(CustomerSchema, customer)
 
   if (validation.success) {
@@ -172,19 +206,7 @@ function validate(customer: Customer): boolean {
 
       console.log('firstFieldName', firstErrorFieldName) ////
 
-      switch (firstErrorFieldName) {
-        case 'name':
-          firstErrorRef.value = nameRef
-          break
-        case 'description':
-          firstErrorRef.value = descriptionRef
-          break
-        //// other fields
-      }
-
-      if (firstErrorRef.value) {
-        focusElement(firstErrorRef.value)
-      }
+      fieldRefs[firstErrorFieldName]?.value?.focus()
     }
     return false
   }
@@ -193,49 +215,34 @@ function validate(customer: Customer): boolean {
 async function saveCustomer() {
   clearErrors()
 
-  const customer: Customer = {
+  const customer = {
     name: name.value,
     description: description.value,
   }
 
-  const isValidationOk = validate(customer)
-  if (!isValidationOk) {
-    return
-  }
-
-  // loading.value.saveCustomer = true ////
-
-  ////
-  // const payload: any = {
-  //   name: name.value,
-  //   family: ipVersion.value,
-  //   ipaddr: records.value,
-  // }
-
   if (currentCustomer?.id) {
     // editing customer
-    customer.id = currentCustomer.id
-    editCustomerMutate(customer)
+
+    const customerToEdit: Customer = {
+      ...customer,
+      id: currentCustomer.id,
+    }
+
+    const isValidationOk = validateEdit(customerToEdit)
+    if (!isValidationOk) {
+      return
+    }
+    editCustomerMutate(customerToEdit)
   } else {
-    createCustomerMutate(customer)
+    // creating customer
+
+    const customerToCreate: CreateCustomer = customer
+    const isValidationOk = validateCreate(customerToCreate)
+    if (!isValidationOk) {
+      return
+    }
+    createCustomerMutate(customerToCreate)
   }
-
-  // try { ////
-  //   await ubusCall('ns.objects', apiMethod, payload)
-  //   emit('reloadData')
-  //   closeDrawer()
-  // } catch (err: any) {
-  //   console.error(err)
-
-  //   if (err instanceof ValidationError) {
-  //     errorBag.value = err.errorBag
-  //   } else {
-  //     error.value.saveHostSet = $t(getAxiosErrorMessage(err))
-  //     error.value.saveHostSetDetails = err.toString()
-  //   }
-  // } finally {
-  //   loading.value.saveCustomer = false
-  // }
 }
 </script>
 
@@ -268,14 +275,22 @@ async function saveCustomer() {
         />
         <!-- create customer error notification -->
         <NeInlineNotification
-          v-if="createCustomerError?.message"
+          v-if="
+            createCustomerError?.message &&
+            'status' in createCustomerError &&
+            !isValidationErrorCode(createCustomerError.status as number)
+          "
           kind="error"
           :title="t('customers.cannot_create_customer')"
           :description="createCustomerError.message"
         />
         <!-- edit customer error notification -->
         <NeInlineNotification
-          v-if="editCustomerError?.message"
+          v-if="
+            editCustomerError?.message &&
+            'status' in editCustomerError &&
+            !isValidationErrorCode(createCustomerError.status as number)
+          "
           kind="error"
           :title="t('customers.cannot_save_customer')"
           :description="editCustomerError.message"

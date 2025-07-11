@@ -7,8 +7,7 @@ import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 
 //// check attributes
-export const ResellerSchema = v.object({
-  id: v.optional(v.string()),
+export const CreateResellerSchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty('resellers.name_required')),
   description: v.optional(v.string()),
   branding: v.optional(
@@ -19,25 +18,16 @@ export const ResellerSchema = v.object({
       logoUrl: v.string(),
     }),
   ),
-  customData: v.optional(
-    v.object({
-      address: v.optional(v.string()),
-      city: v.optional(v.string()),
-      codiceFiscale: v.optional(v.string()),
-      contactPerson: v.optional(v.string()),
-      createdAt: v.optional(v.string()),
-      createdBy: v.optional(v.string()),
-      email: v.optional(v.string()),
-      partitaIva: v.optional(v.string()),
-      phone: v.optional(v.string()),
-      region: v.optional(v.string()),
-      territory: v.optional(v.array(v.string())),
-      website: v.optional(v.string()),
-    }),
-  ),
+  customData: v.optional(v.record(v.string(), v.string())),
   isMfaRequired: v.optional(v.boolean()),
 })
 
+export const ResellerSchema = v.object({
+  ...CreateResellerSchema.entries,
+  id: v.string(),
+})
+
+export type CreateReseller = v.InferOutput<typeof CreateResellerSchema>
 export type Reseller = v.InferOutput<typeof ResellerSchema>
 
 export const getResellers = () => {
@@ -52,7 +42,7 @@ export const getResellers = () => {
     .then((res) => res.data.data.resellers as Reseller[])
 }
 
-export const postReseller = (reseller: Reseller) => {
+export const postReseller = (reseller: CreateReseller) => {
   console.log('postReseller', reseller) ////
 
   const loginStore = useLoginStore()

@@ -1,5 +1,5 @@
 <!--
-  Copyright (C) 2024 Nethesis S.r.l.
+  Copyright (C) 2025 Nethesis S.r.l.
   SPDX-License-Identifier: GPL-3.0-or-later
 -->
 
@@ -11,21 +11,21 @@ import {
   focusElement,
   NeInlineNotification,
 } from '@nethesis/vue-components'
-import { computed, ref, watch } from 'vue'
+import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import {
+  CreateDistributorSchema,
   DistributorSchema,
   postDistributor,
   putDistributor,
+  type CreateDistributor,
   type Distributor,
 } from '@/lib/distributors'
 import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
-
-//// review
-
-//// search "host" occurrences
+import { getValidationIssues, isValidationErrorCode } from '@/lib/validation'
+import type { AxiosError } from 'axios'
 
 const { isShown = false, currentDistributor = undefined } = defineProps<{
   isShown: boolean
@@ -44,7 +44,7 @@ const {
   reset: createDistributorReset,
   error: createDistributorError,
 } = useMutation({
-  mutation: (newDistributor: Distributor) => {
+  mutation: (newDistributor: CreateDistributor) => {
     return postDistributor(newDistributor)
   },
   onSuccess(data, vars, context) {
@@ -69,6 +69,8 @@ const {
     ////
     console.error('Error creating distributor:', error)
     console.error('   variables:', variables)
+
+    validationIssues.value = getValidationIssues(error as AxiosError, 'distributors')
   },
   //// use key factory?
   onSettled: () => queryCache.invalidateQueries({ key: ['distributors'] }),
@@ -113,12 +115,17 @@ const {
 })
 
 const name = ref('')
-const nameRef = ref()
+const nameRef = useTemplateRef<HTMLInputElement>('nameRef')
 const description = ref('')
-const descriptionRef = ref()
+const descriptionRef = useTemplateRef<HTMLInputElement>('descriptionRef')
+//// other fields
 const validationIssues = ref<Record<string, string[]>>({})
-// first invalid field ref
-const firstErrorRef = ref()
+
+const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
+  name: nameRef,
+  description: descriptionRef,
+  //// other fields
+}
 
 const saving = computed(() => {
   return createDistributorLoading.value || editDistributorLoading.value
@@ -156,10 +163,34 @@ function clearErrors() {
   validationIssues.value = {}
 }
 
-function validate(distributor: Distributor): boolean {
+function validateCreate(distributor: CreateDistributor): boolean {
   validationIssues.value = {}
-  firstErrorRef.value = null
+  const validation = v.safeParse(CreateDistributorSchema, distributor)
 
+  if (validation.success) {
+    // no validation issues
+    return true
+  } else {
+    const issues = v.flatten(validation.issues)
+
+    if (issues.nested) {
+      validationIssues.value = issues.nested as Record<string, string[]>
+
+      console.log('validationIssues', validationIssues.value) ////
+
+      // focus the first field with error
+      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
+
+      console.log('firstFieldName', firstErrorFieldName) ////
+
+      fieldRefs[firstErrorFieldName]?.value?.focus()
+    }
+    return false
+  }
+}
+
+function validateEdit(distributor: Distributor): boolean {
+  validationIssues.value = {}
   const validation = v.safeParse(DistributorSchema, distributor)
 
   if (validation.success) {
@@ -177,19 +208,7 @@ function validate(distributor: Distributor): boolean {
 
       console.log('firstFieldName', firstErrorFieldName) ////
 
-      switch (firstErrorFieldName) {
-        case 'name':
-          firstErrorRef.value = nameRef
-          break
-        case 'description':
-          firstErrorRef.value = descriptionRef
-          break
-        //// other fields
-      }
-
-      if (firstErrorRef.value) {
-        focusElement(firstErrorRef.value)
-      }
+      fieldRefs[firstErrorFieldName].value?.focus()
     }
     return false
   }
@@ -198,49 +217,34 @@ function validate(distributor: Distributor): boolean {
 async function saveDistributor() {
   clearErrors()
 
-  const distributor: Distributor = {
+  const distributor = {
     name: name.value,
     description: description.value,
   }
 
-  const isValidationOk = validate(distributor)
-  if (!isValidationOk) {
-    return
-  }
-
-  // loading.value.saveDistributor = true ////
-
-  ////
-  // const payload: any = {
-  //   name: name.value,
-  //   family: ipVersion.value,
-  //   ipaddr: records.value,
-  // }
-
   if (currentDistributor?.id) {
     // editing distributor
-    distributor.id = currentDistributor.id
-    editDistributorMutate(distributor)
+
+    const distributorToEdit: Distributor = {
+      ...distributor,
+      id: currentDistributor.id,
+    }
+
+    const isValidationOk = validateEdit(distributorToEdit)
+    if (!isValidationOk) {
+      return
+    }
+    editDistributorMutate(distributorToEdit)
   } else {
-    createDistributorMutate(distributor)
+    // creating distributor
+
+    const distributorToCreate: CreateDistributor = distributor
+    const isValidationOk = validateCreate(distributorToCreate)
+    if (!isValidationOk) {
+      return
+    }
+    createDistributorMutate(distributorToCreate)
   }
-
-  // try { ////
-  //   await ubusCall('ns.objects', apiMethod, payload)
-  //   emit('reloadData')
-  //   closeDrawer()
-  // } catch (err: any) {
-  //   console.error(err)
-
-  //   if (err instanceof ValidationError) {
-  //     errorBag.value = err.errorBag
-  //   } else {
-  //     error.value.saveHostSet = $t(getAxiosErrorMessage(err))
-  //     error.value.saveHostSetDetails = err.toString()
-  //   }
-  // } finally {
-  //   loading.value.saveDistributor = false
-  // }
 }
 </script>
 
@@ -277,14 +281,22 @@ async function saveDistributor() {
         />
         <!-- create distributor error notification -->
         <NeInlineNotification
-          v-if="createDistributorError?.message"
+          v-if="
+            createDistributorError?.message &&
+            'status' in createDistributorError &&
+            !isValidationErrorCode(createDistributorError.status as number)
+          "
           kind="error"
           :title="t('distributors.cannot_create_distributor')"
           :description="createDistributorError.message"
         />
         <!-- edit distributor error notification -->
         <NeInlineNotification
-          v-if="editDistributorError?.message"
+          v-if="
+            editDistributorError?.message &&
+            'status' in editDistributorError &&
+            !isValidationErrorCode(editDistributorError.status as number)
+          "
           kind="error"
           :title="t('distributors.cannot_save_distributor')"
           :description="editDistributorError.message"
