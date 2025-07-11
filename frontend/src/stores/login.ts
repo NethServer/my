@@ -7,6 +7,7 @@ import { useLogto } from '@logto/vue'
 import { API_URL, LOGIN_REDIRECT_URI, SIGN_OUT_REDIRECT_URI } from '@/lib/config'
 import axios from 'axios'
 import { useThemeStore } from './theme'
+import router from '@/router'
 
 export type UserInfo = {
   id: string
@@ -41,17 +42,23 @@ export const useLoginStore = defineStore('login', () => {
 
       if (!token) {
         //// toast notification
-        console.error('Cannot fetch access token') ////
+        console.error('Cannot fetch access token, logout') ////
         loadingUserInfo.value = false
+
+        // go to login page ////
+        // router.push('/login') ////
+
+        logout()
         return
       }
 
       accessToken.value = token || ''
     } catch (error) {
-      //// toast notification
+      //// toast notification?
       console.error('Cannot fetch access token:', error) ////
 
       loadingUserInfo.value = false
+
       return
     }
 

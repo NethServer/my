@@ -1,5 +1,5 @@
 <!--
-  Copyright (C) 2024 Nethesis S.r.l.
+  Copyright (C) 2025 Nethesis S.r.l.
   SPDX-License-Identifier: GPL-3.0-or-later
 -->
 
@@ -11,16 +11,21 @@ import {
   focusElement,
   NeInlineNotification,
 } from '@nethesis/vue-components'
-import { computed, ref, watch } from 'vue'
-import { ResellerSchema, postReseller, putReseller, type Reseller } from '@/lib/resellers'
+import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
+import {
+  CreateResellerSchema,
+  ResellerSchema,
+  postReseller,
+  putReseller,
+  type CreateReseller,
+  type Reseller,
+} from '@/lib/resellers'
 import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
-
-//// review
-
-//// search "host" occurrences
+import { getValidationIssues, isValidationErrorCode } from '@/lib/validation'
+import type { AxiosError } from 'axios'
 
 const { isShown = false, currentReseller = undefined } = defineProps<{
   isShown: boolean
@@ -39,7 +44,7 @@ const {
   reset: createResellerReset,
   error: createResellerError,
 } = useMutation({
-  mutation: (newReseller: Reseller) => {
+  mutation: (newReseller: CreateReseller) => {
     return postReseller(newReseller)
   },
   onSuccess(data, vars, context) {
@@ -64,6 +69,8 @@ const {
     ////
     console.error('Error creating reseller:', error)
     console.error('   variables:', variables)
+
+    validationIssues.value = getValidationIssues(error as AxiosError, 'resellers')
   },
   //// use key factory?
   onSettled: () => queryCache.invalidateQueries({ key: ['resellers'] }),
@@ -108,12 +115,15 @@ const {
 })
 
 const name = ref('')
-const nameRef = ref()
+const nameRef = useTemplateRef<HTMLInputElement>('nameRef')
 const description = ref('')
-const descriptionRef = ref()
+const descriptionRef = useTemplateRef<HTMLInputElement>('descriptionRef')
 const validationIssues = ref<Record<string, string[]>>({})
-// first invalid field ref
-const firstErrorRef = ref()
+
+const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
+  name: nameRef,
+  description: descriptionRef,
+}
 
 const saving = computed(() => {
   return createResellerLoading.value || editResellerLoading.value
@@ -151,11 +161,10 @@ function clearErrors() {
   validationIssues.value = {}
 }
 
-function validate(reseller: Reseller): boolean {
+function validateCreate(reseller: CreateReseller): boolean {
   validationIssues.value = {}
-  firstErrorRef.value = null
-
-  const validation = v.safeParse(ResellerSchema, reseller)
+  const validation = v.safeParse(CreateResellerSchema, reseller) ////
+  // const validation = { success: true } ////
 
   if (validation.success) {
     // no validation issues
@@ -172,19 +181,33 @@ function validate(reseller: Reseller): boolean {
 
       console.log('firstFieldName', firstErrorFieldName) ////
 
-      switch (firstErrorFieldName) {
-        case 'name':
-          firstErrorRef.value = nameRef
-          break
-        case 'description':
-          firstErrorRef.value = descriptionRef
-          break
-        //// other fields
-      }
+      fieldRefs[firstErrorFieldName]?.value?.focus()
+    }
+    return false
+  }
+}
 
-      if (firstErrorRef.value) {
-        focusElement(firstErrorRef.value)
-      }
+function validateEdit(reseller: Reseller): boolean {
+  validationIssues.value = {}
+  const validation = v.safeParse(ResellerSchema, reseller) ////
+  // const validation = { success: true } ////
+
+  if (validation.success) {
+    // no validation issues
+    return true
+  } else {
+    const issues = v.flatten(validation.issues)
+
+    if (issues.nested) {
+      validationIssues.value = issues.nested as Record<string, string[]>
+
+      // focus the first field with error
+
+      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
+
+      console.log('firstFieldName', firstErrorFieldName) ////
+
+      fieldRefs[firstErrorFieldName]?.value?.focus()
     }
     return false
   }
@@ -193,49 +216,35 @@ function validate(reseller: Reseller): boolean {
 async function saveReseller() {
   clearErrors()
 
-  const reseller: Reseller = {
+  const reseller = {
     name: name.value,
     description: description.value,
   }
 
-  const isValidationOk = validate(reseller)
-  if (!isValidationOk) {
-    return
-  }
-
-  // loading.value.saveReseller = true ////
-
-  ////
-  // const payload: any = {
-  //   name: name.value,
-  //   family: ipVersion.value,
-  //   ipaddr: records.value,
-  // }
-
   if (currentReseller?.id) {
     // editing reseller
-    reseller.id = currentReseller.id
-    editResellerMutate(reseller)
+
+    const userToEdit: Reseller = {
+      ...reseller,
+      id: currentReseller.id,
+    }
+
+    const isValidationOk = validateEdit(userToEdit)
+    if (!isValidationOk) {
+      return
+    }
+    editResellerMutate(userToEdit)
   } else {
-    createResellerMutate(reseller)
+    // creating reseller
+
+    const userToCreate: CreateReseller = reseller
+
+    const isValidationOk = validateCreate(userToCreate)
+    if (!isValidationOk) {
+      return
+    }
+    createResellerMutate(userToCreate)
   }
-
-  // try { ////
-  //   await ubusCall('ns.objects', apiMethod, payload)
-  //   emit('reloadData')
-  //   closeDrawer()
-  // } catch (err: any) {
-  //   console.error(err)
-
-  //   if (err instanceof ValidationError) {
-  //     errorBag.value = err.errorBag
-  //   } else {
-  //     error.value.saveHostSet = $t(getAxiosErrorMessage(err))
-  //     error.value.saveHostSetDetails = err.toString()
-  //   }
-  // } finally {
-  //   loading.value.saveReseller = false
-  // }
 }
 </script>
 
@@ -268,14 +277,22 @@ async function saveReseller() {
         />
         <!-- create reseller error notification -->
         <NeInlineNotification
-          v-if="createResellerError?.message"
+          v-if="
+            createResellerError?.message &&
+            'status' in createResellerError &&
+            !isValidationErrorCode(createResellerError.status as number)
+          "
           kind="error"
           :title="t('resellers.cannot_create_reseller')"
           :description="createResellerError.message"
         />
         <!-- edit reseller error notification -->
         <NeInlineNotification
-          v-if="editResellerError?.message"
+          v-if="
+            editResellerError?.message &&
+            'status' in editResellerError &&
+            !isValidationErrorCode(editResellerError.status as number)
+          "
           kind="error"
           :title="t('resellers.cannot_save_reseller')"
           :description="editResellerError.message"

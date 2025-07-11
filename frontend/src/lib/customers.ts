@@ -7,8 +7,7 @@ import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 
 //// check attributes
-export const CustomerSchema = v.object({
-  id: v.optional(v.string()),
+export const CreateCustomerSchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty('customers.name_required')),
   description: v.optional(v.string()),
   branding: v.optional(
@@ -19,27 +18,16 @@ export const CustomerSchema = v.object({
       logoUrl: v.string(),
     }),
   ),
-  customData: v.optional(
-    v.object({
-      address: v.optional(v.string()),
-      city: v.optional(v.string()),
-      codiceFiscale: v.optional(v.string()),
-      contactPerson: v.optional(v.string()),
-      createdAt: v.optional(v.string()),
-      createdBy: v.optional(v.string()),
-      email: v.optional(v.string()),
-      partitaIva: v.optional(v.string()),
-      phone: v.optional(v.string()),
-      region: v.optional(v.string()),
-      territory: v.optional(v.array(v.string())),
-      // type: v.literal('customer'), ////
-      website: v.optional(v.string()),
-    }),
-  ),
-  // type: v.literal('customer'), ////
+  customData: v.optional(v.record(v.string(), v.string())),
   isMfaRequired: v.optional(v.boolean()),
 })
 
+export const CustomerSchema = v.object({
+  ...CreateCustomerSchema.entries,
+  id: v.string(),
+})
+
+export type CreateCustomer = v.InferOutput<typeof CreateCustomerSchema>
 export type Customer = v.InferOutput<typeof CustomerSchema>
 
 export const getCustomers = () => {
@@ -54,7 +42,7 @@ export const getCustomers = () => {
     .then((res) => res.data.data.customers as Customer[])
 }
 
-export const postCustomer = (customer: Customer) => {
+export const postCustomer = (customer: CreateCustomer) => {
   console.log('postCustomer', customer) ////
 
   const loginStore = useLoginStore()
