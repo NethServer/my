@@ -1,0 +1,35 @@
+name: Deploy Production
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy Production Frontend
+        uses: render-deploy/action@v1
+        with:
+          service-id: ${{ secrets.RENDER_PRODUCTION_FRONTEND_SERVICE_ID }}
+          api-key: ${{ secrets.RENDER_API_KEY }}
+          clear-cache: true
+          wait-for-success: true
+
+      - name: Deploy Production Backend
+        uses: render-deploy/action@v1
+        with:
+          service-id: ${{ secrets.RENDER_PRODUCTION_BACKEND_SERVICE_ID }}
+          api-key: ${{ secrets.RENDER_API_KEY }}
+          clear-cache: false
+          wait-for-success: true
+
+      - name: Deploy Production Redis
+        uses: render-deploy/action@v1
+        with:
+          service-id: ${{ secrets.RENDER_PRODUCTION_REDIS_SERVICE_ID }}
+          api-key: ${{ secrets.RENDER_API_KEY }}
+          clear-cache: false
+          wait-for-success: true
