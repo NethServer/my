@@ -1,14 +1,17 @@
 # Nethesis Operation Center
 
+[![Docs build](https://img.shields.io/github/actions/workflow/status/NethServer/my/docs.yml?style=for-the-badge&label=Docs%20build)](https://github.com/NethServer/my/actions/workflows/docs.yml)
+[![Docs link](https://img.shields.io/badge/docs-available-blue?style=for-the-badge&label=Docs%20link)](https://bump.sh/nethesis/doc/my)
+
 [![CI](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci.yml?style=for-the-badge&label=CI)](https://github.com/NethServer/my/actions/workflows/ci.yml)
 [![Backend Tests](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci.yml?job=backend-tests&label=Backend%20Tests&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci.yml)
 [![sync Tests](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci.yml?job=sync-tests&label=sync%20Tests&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci.yml)
 
-[![Docs build](https://img.shields.io/github/actions/workflow/status/NethServer/my/docs.yml?style=for-the-badge&label=Docs%20build)](https://github.com/NethServer/my/actions/workflows/docs.yml)
-[![Docs link](https://img.shields.io/badge/docs-available-blue?style=for-the-badge&label=Docs%20link)](https://bump.sh/nethesis/doc/my)
 
 [![Release](https://img.shields.io/github/actions/workflow/status/NethServer/my/release.yml?style=for-the-badge&label=Release)](https://github.com/NethServer/my/actions/workflows/release.yml)
 [![Version](https://img.shields.io/github/v/release/NethServer/my?style=for-the-badge&color=3a3c3f&label=Version)](https://github.com/NethServer/my/releases)
+
+[![Deploy](https://img.shields.io/github/actions/workflow/status/NethServer/my/deploy.yml?style=for-the-badge&label=Deploy)](https://github.com/NethServer/my/actions/workflows/deploy.yml)
 
 Web application providing centralized authentication and management using Logto as an Identity Provider with simple Role-Based Access Control.
 
