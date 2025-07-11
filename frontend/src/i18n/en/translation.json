@@ -172,6 +172,7 @@
     "password_min_length": "Password must be at least 8 characters long",
     "user_roles_required": "User roles are required",
     "organization_required": "Organization is required",
+    "username_already_exists": "Username already exists",
     "user_created": "User created",
     "user_saved": "User saved",
     "user_deleted": "User deleted",

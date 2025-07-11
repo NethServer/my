@@ -7,8 +7,7 @@ import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 
 //// check attributes
-export const DistributorSchema = v.object({
-  id: v.optional(v.string()),
+export const CreateDistributorSchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty('distributors.name_required')),
   description: v.optional(v.string()),
   branding: v.optional(
@@ -19,27 +18,16 @@ export const DistributorSchema = v.object({
       logoUrl: v.string(),
     }),
   ),
-  customData: v.optional(
-    v.object({
-      address: v.optional(v.string()),
-      city: v.optional(v.string()),
-      codiceFiscale: v.optional(v.string()),
-      contactPerson: v.optional(v.string()),
-      createdAt: v.optional(v.string()),
-      createdBy: v.optional(v.string()),
-      email: v.optional(v.string()),
-      partitaIva: v.optional(v.string()),
-      phone: v.optional(v.string()),
-      region: v.optional(v.string()),
-      territory: v.optional(v.array(v.string())),
-      // type: v.literal('distributor'), ////
-      website: v.optional(v.string()),
-    }),
-  ),
-  // type: v.literal('distributor'), ////
+  customData: v.optional(v.record(v.string(), v.string())),
   isMfaRequired: v.optional(v.boolean()),
 })
 
+export const DistributorSchema = v.object({
+  ...CreateDistributorSchema.entries,
+  id: v.string(),
+})
+
+export type CreateDistributor = v.InferOutput<typeof CreateDistributorSchema>
 export type Distributor = v.InferOutput<typeof DistributorSchema>
 
 export const getDistributors = () => {
@@ -54,7 +42,7 @@ export const getDistributors = () => {
     .then((res) => res.data.data.distributors as Distributor[])
 }
 
-export const postDistributor = (distributor: Distributor) => {
+export const postDistributor = (distributor: CreateDistributor) => {
   console.log('postDistributor', distributor) ////
 
   const loginStore = useLoginStore()

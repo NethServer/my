@@ -25,12 +25,9 @@ import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
-// import { fakerIT as faker } from '@faker-js/faker' ////
-import { isValidationErrorCode } from '../../lib/validation'
-
-//// review
-
-//// search "host" occurrences
+import { fakerIT as faker } from '@faker-js/faker' ////
+import { isValidationErrorCode, getValidationIssues } from '../../lib/validation'
+import type { AxiosError } from 'axios'
 
 const { isShown = false, currentUser = undefined } = defineProps<{
   isShown: boolean
@@ -75,7 +72,7 @@ const {
     console.error('Error creating user:', error)
     console.error('   variables:', variables)
 
-    checkValidationError(error)
+    validationIssues.value = getValidationIssues(error as AxiosError, 'users')
   },
   //// use key factory?
   onSettled: () => queryCache.invalidateQueries({ key: ['users'] }),
@@ -129,8 +126,6 @@ const password = ref('')
 const passwordRef = useTemplateRef<HTMLInputElement>('passwordRef')
 //// TODO phone, userRoleIds, organization, customData
 const validationIssues = ref<Record<string, string[]>>({})
-// first invalid field ref
-// const firstErrorRef = ref() ////
 
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
   username: usernameRef,
@@ -172,12 +167,12 @@ watch(
         ////
 
         //// remove
-        // setTimeout(() => {
-        //   username.value = faker.internet.username()
-        //   email.value = faker.internet.email()
-        //   name.value = faker.person.fullName()
-        //   password.value = '12345678'
-        // }, 1000) // simulate delay for testing
+        setTimeout(() => {
+          username.value = faker.internet.username()
+          email.value = faker.internet.email()
+          name.value = faker.person.fullName()
+          password.value = '12345678'
+        }, 1000) // simulate delay for testing
       }
     }
   },
@@ -195,8 +190,6 @@ function clearErrors() {
 
 function validateCreate(user: CreateUser): boolean {
   validationIssues.value = {}
-  // firstErrorRef.value = null ////
-
   const validation = v.safeParse(CreateUserSchema, user) ////
   // const validation = { success: true } ////
 
@@ -218,28 +211,6 @@ function validateCreate(user: CreateUser): boolean {
       console.log('firstFieldName', firstErrorFieldName) ////
 
       fieldRefs[firstErrorFieldName]?.value?.focus()
-
-      ////
-      // switch (firstErrorFieldName) {
-      //   case 'username':
-      //     usernameRef.value?.focus()
-      //     break
-      //   case 'email':
-      //     emailRef.value?.focus()
-      //     break
-      //   case 'name':
-      //     nameRef.value?.focus()
-      //     break
-      //   case 'password':
-      //     passwordRef.value?.focus()
-      //     break
-      //   //// other fields
-      // }
-
-      ////
-      // if (firstErrorRef.value) {
-      //   focusElement(firstErrorRef.value)
-      // }
     }
     return false
   }
@@ -247,8 +218,6 @@ function validateCreate(user: CreateUser): boolean {
 
 function validateEdit(user: EditUser): boolean {
   validationIssues.value = {}
-  // firstErrorRef.value = null ////
-
   const validation = v.safeParse(EditUserSchema, user)
 
   if (validation.success) {
@@ -306,9 +275,8 @@ async function saveUser() {
     editUserMutate(userToEdit)
   } else {
     // creating user
-    const userToCreate: CreateUser = {
-      ...user,
-    }
+
+    const userToCreate: CreateUser = user
 
     const isValidationOk = validateCreate(userToCreate)
     if (!isValidationOk) {
@@ -316,35 +284,6 @@ async function saveUser() {
     }
     createUserMutate(userToCreate)
   }
-
-  ////
-  // if (currentUser?.id) {
-  //   // editing user
-  //   user.id = currentUser.id
-  //   editUserMutate(user)
-  // } else {
-  //   createUserMutate(user)
-  // }
-}
-
-function checkValidationError(error: any) {
-  console.log('@ checkValidationError', error) ////
-
-  if (isValidationErrorCode(error.status)) {
-    const validationErrors = error.response?.data?.data?.errors || []
-
-    // iterate over validationErrors and set them in validationIssues
-    validationErrors.forEach((err: { key: string; message: string }) => {
-      //// remove
-      // err.key = err.key.toLowerCase() ////
-
-      if (!validationIssues.value[err.key]) {
-        validationIssues.value[err.key] = []
-      }
-      validationIssues.value[err.key].push(`users.${err.key}_${err.message}`)
-    })
-  }
-  console.log('@ validationIssues', validationIssues.value) ////
 }
 </script>
 
@@ -365,20 +304,20 @@ function checkValidationError(error: any) {
           :invalid-message="validationIssues.username?.[0] ? $t(validationIssues.username[0]) : ''"
           :disabled="saving"
         />
-        <!-- email -->
-        <NeTextInput
-          ref="emailRef"
-          v-model.trim="email"
-          :label="$t('users.email')"
-          :invalid-message="validationIssues.email?.[0] ? $t(validationIssues.email[0]) : ''"
-          :disabled="saving"
-        />
         <!-- name -->
         <NeTextInput
           ref="nameRef"
           v-model.trim="name"
           :label="$t('users.name')"
           :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
+          :disabled="saving"
+        />
+        <!-- email -->
+        <NeTextInput
+          ref="emailRef"
+          v-model.trim="email"
+          :label="$t('users.email')"
+          :invalid-message="validationIssues.email?.[0] ? $t(validationIssues.email[0]) : ''"
           :disabled="saving"
         />
         <!-- password -->
@@ -404,7 +343,11 @@ function checkValidationError(error: any) {
         />
         <!-- edit user error notification -->
         <NeInlineNotification
-          v-if="editUserError?.message"
+          v-if="
+            editUserError?.message &&
+            'status' in editUserError &&
+            !isValidationErrorCode(editUserError.status as number)
+          "
           kind="error"
           :title="t('users.cannot_save_user')"
           :description="editUserError.message"
