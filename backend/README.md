@@ -89,11 +89,34 @@ DEFAULT_PAGE_SIZE=100
 - **Organization Roles** (business hierarchy): Owner, Distributor, Reseller, Customer
 
 ### Redis Caching System
-- **JIT Roles Cache**: User and organization roles with TTL-based expiration
-- **Organization Users Cache**: Cached user lists per organization
-- **JWKS Cache**: JSON Web Key Sets for token validation
-- **System Statistics Cache**: Real-time system metrics and counts
-- **Background Processing**: Automatic cache updates and cleanup
+High-performance caching system with multiple cache types:
+
+#### Statistics Cache
+- **Auto-initialized**: Starts with server, updates every 5 minutes
+- **Cached Data**: Organization counts, user statistics, system metrics
+- **TTL**: 10 minutes
+- **Redis Keys**: `stats:*`
+
+#### JIT Roles Cache
+- **JIT-initialized**: Lazy loading on first access
+- **Cached Data**: User roles, organization roles, permissions
+- **TTL**: 5 minutes per cache entry
+- **Redis Keys**: `jit_roles:*`
+
+#### Organization Users Cache
+- **Cached Data**: User lists per organization
+- **TTL**: 3 minutes per cache entry
+- **Redis Keys**: `org_users:*`
+
+#### JWKS Cache
+- **Cached Data**: JSON Web Key Sets for token validation
+- **TTL**: 5 minutes
+- **Redis Keys**: `jwks:*`
+
+#### Cache Management
+- **Graceful Degradation**: System continues working if Redis is unavailable
+- **Background Updates**: Automatic cache refresh and cleanup
+- **Configurable TTLs**: All timeouts configurable via environment variables
 
 ## API Endpoints
 
@@ -166,37 +189,6 @@ backend/
 └── .env.example            # Environment variables template
 ```
 
-## Background Systems
-
-### Redis Cache System
-The application uses Redis for high-performance caching with the following components:
-
-### Statistics Cache
-- **Auto-initialized**: Starts with server, updates every 5 minutes
-- **Cached Data**: Organization counts, user statistics, system metrics
-- **TTL**: 10 minutes
-- **Redis Keys**: `stats:*`
-
-### JIT Roles Cache
-- **JIT-initialized**: Lazy loading on first access
-- **Cached Data**: User roles, organization roles, permissions
-- **TTL**: 5 minutes per cache entry
-- **Redis Keys**: `jit_roles:*`
-
-### Organization Users Cache
-- **Cached Data**: User lists per organization
-- **TTL**: 3 minutes per cache entry
-- **Redis Keys**: `org_users:*`
-
-### JWKS Cache
-- **Cached Data**: JSON Web Key Sets for token validation
-- **TTL**: 5 minutes
-- **Redis Keys**: `jwks:*`
-
-### Cache Management
-- **Graceful Degradation**: System continues working if Redis is unavailable
-- **Background Updates**: Automatic cache refresh and cleanup
-- **Configurable TTLs**: All timeouts configurable via environment variables
 
 ## Related
 - [API.md](API.md) - API docs reference

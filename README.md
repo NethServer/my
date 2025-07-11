@@ -25,62 +25,83 @@ Web application providing centralized authentication and management using Logto 
 ## 🚀 Quick Start
 
 ### Requirements
-- **Runtime**: Any 64-bit OS (Linux, macOS, Windows) - statically linked binaries
 - **Development**: Go 1.21+ (backend requires 1.23+), Make
 - **External**: Logto instance with M2M app and Management API permissions
+- **Deploy**: Render account with GitHub integration
 
 ### Getting Started
-1. **backend**: See [backend/README.md](./backend/README.md) for server setup
-2. **sync CLI**: See [sync/README.md](./sync/README.md) for RBAC management
+1. **Local Development**: [backend/README.md](./backend/README.md) - Server setup and environment configuration
+2. **RBAC Management**: [sync/README.md](./sync/README.md) - Use `sync init` for complete setup
+3. **Production Deploy**: [deploy/README.md](./deploy/README.md) - Automated deployment with Render
 
 ## 🔐 Authorization Architecture
 
-Token exchange pattern with real-time Management API integration:
+**Token Exchange Pattern**: Frontend exchanges Logto access_token for custom JWT with embedded permissions
 
-1. Frontend exchanges Logto access_token for custom JWT with embedded permissions
-2. Real-time fetching of user roles and organization memberships from Logto
-3. All permissions pre-computed and embedded in custom JWT
-4. Single middleware checks both user and organization permissions
+**Key Features**:
+- Real-time role and permission fetching from Logto
+- Pre-computed permissions embedded in JWT
+- Combined user roles and organization roles (business hierarchy) model
+
+**Details**: See [backend/README.md](./backend/README.md) for complete architecture documentation
+
+## 🌐 Deployment Environments
+
+### Development (`dev.my.nethesis.it`)
+- **Trigger**: Every commit to `main` branch
+- **Auto-deploy**: Immediate deployment via Render
+- **PR Previews**: Temporary environments for pull requests
+
+### Production (`my.nethesis.it`)
+- **Trigger**: GitHub release creation
+- **Sequential Deploy**: Redis → Backend → Frontend
+- **Manual Control**: No auto-deploy from commits
 
 ## 📝 Configuration
 
-### backend
-```bash
-# Logto Authentication
-LOGTO_ISSUER=https://your-tenant-id.logto.app
-LOGTO_AUDIENCE=https://your-domain.com/api
+### Local Development
+See individual component documentation for setup:
+- **Backend**: [backend/README.md](./backend/README.md) - Environment variables and setup
+- **sync CLI**: [sync/README.md](./sync/README.md) - Use `sync init` to generate all required variables
 
-# Custom JWT (for legacy endpoints)
-JWT_SECRET=your-super-secret-jwt-signing-key
-
-# Management API
-BACKEND_APP_ID=your-management-api-app-id
-BACKEND_APP_SECRET=your-management-api-app-secret
-
-# Server
-LISTEN_ADDRESS=127.0.0.1:8080
-```
-
-### sync CLI
-```bash
-# Required
-TENANT_ID=your-tenant-id
-BACKEND_APP_ID=your-backend-m2m-app-id
-BACKEND_APP_SECRET=your-backend-m2m-app-secret
-
-# For 'sync init' command only
-TENANT_DOMAIN=your-domain.com
-```
+### Production Deployment
+- **Environment Variables**: Configured in Render dashboard
+- **GitHub Secrets**: API keys for automated deployment
+- **Service Configuration**: Defined in `render.yaml`
+- **Full Guide**: [deploy/README.md](./deploy/README.md) - Complete deployment setup
 
 ## 📚 Documentation
 
-- **[backend](./backend/README.md)** - Go REST API server setup and development
-- **[backend API](./backend/API.md)** - API docs reference
-- **[sync CLI](./sync/README.md)** - RBAC configuration management
-- **[DESIGN.md](./DESIGN.md)** - Architecture and design decisions
+- **[backend](./backend/README.md)** - Server setup, environment variables, and authorization architecture
+- **[backend API](./backend/API.md)** - Complete API reference with authentication
+- **[sync CLI](./sync/README.md)** - RBAC configuration and `sync init` setup
+- **[deploy](./deploy/README.md)** - Production deployment with [Render](render.yaml) and GitHub Actions
+- **[DESIGN.md](./DESIGN.md)** - Architecture decisions and design patterns
 
 ### 📖 API Documentation
 **Live Documentation:** https://bump.sh/nethesis/doc/my - auto-updated on every commit.
+
+## 🤝 Development Workflow
+
+### Standard Development
+```bash
+git commit -m "feat: new feature"
+git push origin main                    # → dev.my.nethesis.it updates
+```
+
+### Feature Testing
+```bash
+git checkout -b feature/new-feature
+git push origin feature/new-feature     # → Create PR
+# → pr-123.my-backend-dev.onrender.com created
+```
+
+### Production Release
+```bash
+git tag v1.2.3
+git push origin v1.2.3                  # → Create GitHub release
+# → my.nethesis.it deploys automatically
+```
 
 ## 🤝 Contributing
 

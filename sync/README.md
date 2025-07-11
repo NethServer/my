@@ -99,18 +99,26 @@ sync sync --output json
 Zero-to-production setup:
 
 ```bash
-# CLI flags (recommended)
+# Basic initialization
 sync init \
   --tenant-id your-tenant-id \
   --backend-app-id your-backend-app-id \
   --backend-app-secret your-secret-here \
-  --domain your-domain.com  # Custom domain for Logto authentication
+  --domain your-domain.com
 
-# JSON output for automation
+# Complete setup with user details
+sync init \
+  --tenant-id your-tenant-id \
+  --backend-app-id your-backend-app-id \
+  --backend-app-secret your-secret-here \
+  --domain your-domain.com \
+  --owner-username owner \
+  --owner-email owner@example.com \
+  --owner-name "System Owner"
+
+# Output formats
 sync init --output json > setup-result.json
-
-# Force re-initialization
-sync init --force
+sync init --force  # Force re-initialization
 ```
 
 **What Init Does:**
@@ -225,33 +233,21 @@ hierarchy:
 
 ## Development
 
-### Commands
+### Development Commands
 ```bash
 # Setup development environment
 make dev-setup
 
-# Run tests
-make test
+# Build and run
+make build
+make run-example
 
-# Format code
+# Code quality
 make fmt
-
-# Run linter
 make lint
 
-# Build
-make build
-
-# Run with example config
-make run-example
-```
-
-### Testing
-```bash
-# Run all tests
+# Testing
 make test
-
-# Test coverage
 make test-coverage
 
 # Test specific package
@@ -262,15 +258,8 @@ go test ./internal/config
 
 ### Complete Setup Workflow
 ```bash
-# 1. Initialize everything
-sync init \
-  --tenant-id your-tenant-id \
-  --backend-app-id your-backend-app-id \
-  --backend-app-secret your-secret-here \
-  --domain your-domain.com \
-  --owner-username owner \
-  --owner-email owner@example.com \
-  --owner-name "System Owner"
+# 1. Initialize everything (see Init Command section above)
+sync init --tenant-id your-tenant-id --backend-app-id your-app-id --backend-app-secret your-secret --domain your-domain.com
 
 # 2. Copy environment variables to backend/.env
 # 3. Start backend: cd backend && make dev
