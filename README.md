@@ -4,12 +4,13 @@
 [![Backend Tests](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci.yml?job=backend-tests&label=Backend%20Tests&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci.yml)
 [![sync Tests](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci.yml?job=sync-tests&label=sync%20Tests&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci.yml)
 
-[![API reference](https://img.shields.io/github/actions/workflow/status/NethServer/my/docs.yml?style=for-the-badge&label=API%20reference)](https://github.com/NethServer/my/actions/workflows/docs.yml)
+[![Docs build](https://img.shields.io/github/actions/workflow/status/NethServer/my/docs.yml?style=for-the-badge&label=Docs%20build)](https://github.com/NethServer/my/actions/workflows/docs.yml)
+[![Docs link](https://img.shields.io/badge/docs-available-blue?style=for-the-badge&label=Docs%20link)](https://bump.sh/nethesis/doc/my)
 
 [![Release](https://img.shields.io/github/actions/workflow/status/NethServer/my/release.yml?style=for-the-badge&label=Release)](https://github.com/NethServer/my/actions/workflows/release.yml)
 [![Version](https://img.shields.io/github/v/release/NethServer/my?style=for-the-badge&color=3a3c3f&label=Version)](https://github.com/NethServer/my/releases)
 
-Web application providing centralized authentication and management using Logto as an Identity Provider with sophisticated Role-Based Access Control.
+Web application providing centralized authentication and management using Logto as an Identity Provider with simple Role-Based Access Control.
 
 ## 🏗️ Components
 
@@ -24,7 +25,7 @@ Web application providing centralized authentication and management using Logto 
 - **External**: Logto instance with M2M app and Management API permissions
 
 ### Getting Started
-1. **Backend**: See [backend/README.md](./backend/README.md) for server setup
+1. **backend**: See [backend/README.md](./backend/README.md) for server setup
 2. **sync CLI**: See [sync/README.md](./sync/README.md) for RBAC management
 
 ## 🔐 Authorization Architecture
@@ -38,7 +39,7 @@ Token exchange pattern with real-time Management API integration:
 
 ## 📝 Configuration
 
-### Backend
+### backend
 ```bash
 # Logto Authentication
 LOGTO_ISSUER=https://your-tenant-id.logto.app
@@ -55,7 +56,7 @@ BACKEND_APP_SECRET=your-management-api-app-secret
 LISTEN_ADDRESS=127.0.0.1:8080
 ```
 
-### sync Tool
+### sync CLI
 ```bash
 # Required
 TENANT_ID=your-tenant-id
@@ -68,8 +69,8 @@ TENANT_DOMAIN=your-domain.com
 
 ## 📚 Documentation
 
-- **[Backend](./backend/README.md)** - Go REST API server setup and development
-- **[Backend API](./backend/API.md)** - API docs reference
+- **[backend](./backend/README.md)** - Go REST API server setup and development
+- **[backend API](./backend/API.md)** - API docs reference
 - **[sync CLI](./sync/README.md)** - RBAC configuration management
 - **[DESIGN.md](./DESIGN.md)** - Architecture and design decisions
 
