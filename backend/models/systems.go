@@ -9,36 +9,39 @@ import "time"
 
 // System represents a managed system in the infrastructure
 type System struct {
-	ID        string            `json:"id" structs:"id"`
-	Name      string            `json:"name" structs:"name"`
-	Type      string            `json:"type" structs:"type"`     // linux, windows, etc.
-	Status    string            `json:"status" structs:"status"` // online, offline, maintenance
-	IPAddress string            `json:"ip_address" structs:"ip_address"`
-	Version   string            `json:"version" structs:"version"`
-	LastSeen  time.Time         `json:"last_seen" structs:"last_seen"`
-	Metadata  map[string]string `json:"metadata" structs:"metadata"`
-	CreatedAt time.Time         `json:"created_at" structs:"created_at"`
-	UpdatedAt time.Time         `json:"updated_at" structs:"updated_at"`
-	CreatedBy string            `json:"created_by" structs:"created_by"`
+	ID             string            `json:"id" structs:"id"`
+	Name           string            `json:"name" structs:"name"`
+	Type           string            `json:"type" structs:"type"`     // linux, windows, etc.
+	Status         string            `json:"status" structs:"status"` // online, offline, maintenance
+	IPAddress      string            `json:"ip_address" structs:"ip_address"`
+	Version        string            `json:"version" structs:"version"`
+	LastSeen       time.Time         `json:"last_seen" structs:"last_seen"`
+	Metadata       map[string]string `json:"metadata" structs:"metadata"`
+	OrganizationID string            `json:"organization_id" structs:"organization_id"`
+	CreatedAt      time.Time         `json:"created_at" structs:"created_at"`
+	UpdatedAt      time.Time         `json:"updated_at" structs:"updated_at"`
+	CreatedBy      string            `json:"created_by" structs:"created_by"`
 }
 
 // CreateSystemRequest represents the request payload for creating a new system
 type CreateSystemRequest struct {
-	Name      string            `json:"name" binding:"required" structs:"name"`
-	Type      string            `json:"type" binding:"required" structs:"type"`
-	IPAddress string            `json:"ip_address" binding:"required" structs:"ip_address"`
-	Version   string            `json:"version" structs:"version"`
-	Metadata  map[string]string `json:"metadata" structs:"metadata"`
+	Name           string            `json:"name" binding:"required" structs:"name"`
+	Type           string            `json:"type" binding:"required" structs:"type"`
+	IPAddress      string            `json:"ip_address" binding:"required" structs:"ip_address"`
+	Version        string            `json:"version" structs:"version"`
+	Metadata       map[string]string `json:"metadata" structs:"metadata"`
+	OrganizationID string            `json:"organization_id" binding:"required" structs:"organization_id"`
 }
 
 // UpdateSystemRequest represents the request payload for updating an existing system
 type UpdateSystemRequest struct {
-	Name      string            `json:"name" structs:"name"`
-	Type      string            `json:"type" structs:"type"`
-	Status    string            `json:"status" structs:"status"`
-	IPAddress string            `json:"ip_address" structs:"ip_address"`
-	Version   string            `json:"version" structs:"version"`
-	Metadata  map[string]string `json:"metadata" structs:"metadata"`
+	Name           string            `json:"name" structs:"name"`
+	Type           string            `json:"type" structs:"type"`
+	Status         string            `json:"status" structs:"status"`
+	IPAddress      string            `json:"ip_address" structs:"ip_address"`
+	Version        string            `json:"version" structs:"version"`
+	Metadata       map[string]string `json:"metadata" structs:"metadata"`
+	OrganizationID string            `json:"organization_id" structs:"organization_id"`
 }
 
 // SystemSubscription represents subscription information for a system
@@ -57,4 +60,20 @@ type SystemSubscription struct {
 type SystemActionRequest struct {
 	Force   bool              `json:"force" structs:"force"`
 	Options map[string]string `json:"options" structs:"options"`
+}
+
+// SystemSecret represents the secret credentials for a system to authenticate with collect
+type SystemSecret struct {
+	SystemID  string    `json:"system_id" structs:"system_id"`
+	Secret    string    `json:"secret" structs:"secret"`           // Only returned during creation
+	SecretHint string   `json:"secret_hint" structs:"secret_hint"` // Last 4 chars for identification
+	CreatedAt time.Time `json:"created_at" structs:"created_at"`
+	UpdatedAt time.Time `json:"updated_at" structs:"updated_at"`
+	CreatedBy string    `json:"created_by" structs:"created_by"`
+}
+
+// CreateSystemResponse represents the response when creating a new system (includes secret)
+type CreateSystemResponse struct {
+	System       *System        `json:"system" structs:"system"`
+	SystemSecret *SystemSecret  `json:"system_secret" structs:"system_secret"`
 }

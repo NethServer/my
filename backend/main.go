@@ -19,6 +19,7 @@ import (
 
 	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/configuration"
+	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/methods"
 	"github.com/nethesis/my/backend/middleware"
@@ -39,13 +40,19 @@ func main() {
 	// Init configuration
 	configuration.Init()
 
+	// Initialize database connection
+	err = database.Init()
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to initialize database connection")
+	}
+
 	// Initialize Redis cache
 	err = cache.InitRedis()
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize Redis cache")
 	}
 
-	// Initialize demo data for systems (still using in-memory storage)
+	// Initialize demo data for systems (still using in-memory storage for backward compatibility)
 	methods.InitSystemsStorage()
 
 	// Start background statistics updater
@@ -121,6 +128,7 @@ func main() {
 			systemsGroup.POST("", methods.CreateSystem)
 			systemsGroup.PUT("/:id", methods.UpdateSystem)
 			systemsGroup.DELETE("/:id", middleware.RequirePermission("admin:systems"), methods.DeleteSystem) // Admin-only
+			systemsGroup.POST("/:id/regenerate-secret", methods.RegenerateSystemSecret) // Regenerate system secret
 		}
 
 		// ===========================================

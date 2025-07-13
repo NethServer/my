@@ -13,9 +13,11 @@ import (
 	"github.com/gin-gonic/gin/binding"
 	"github.com/google/uuid"
 
+	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
+	"github.com/nethesis/my/backend/services"
 )
 
 // In-memory storage for demo purposes
@@ -32,51 +34,87 @@ func CreateSystem(c *gin.Context) {
 		return
 	}
 
-	// Get current user ID from context
-	userID, exists := c.Get("user_id")
-	if !exists {
-		userID = "unknown"
+	// Get current user context
+	userID, userOrgRole, userRole := helpers.GetUserContext(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
+		return
 	}
 
-	// Generate unique ID for the system
-	systemID := uuid.New().String()
+	// Create systems service
+	systemsService := services.NewSystemsService()
 
-	// Create new system
-	system := &models.System{
-		ID:        systemID,
-		Name:      request.Name,
-		Type:      request.Type,
-		Status:    "offline", // Default status
-		IPAddress: request.IPAddress,
-		Version:   request.Version,
-		LastSeen:  time.Now(),
-		Metadata:  request.Metadata,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-		CreatedBy: userID.(string),
+	// Validate organization access
+	if err := systemsService.ValidateOrganizationAccess(userID, request.OrganizationID, userOrgRole, userRole); err != nil {
+		logger.Warn().
+			Str("user_id", userID).
+			Str("organization_id", request.OrganizationID).
+			Str("user_org_role", userOrgRole).
+			Str("user_role", userRole).
+			Err(err).
+			Msg("Access denied for system creation")
+		
+		c.JSON(http.StatusForbidden, response.Forbidden("Access denied", map[string]interface{}{
+			"error": err.Error(),
+		}))
+		return
 	}
 
-	// Store system (in production, save to database)
-	systemsStorage[systemID] = system
+	// Create system with automatic secret generation
+	result, err := systemsService.CreateSystem(&request, userID)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("user_id", userID).
+			Str("system_name", request.Name).
+			Msg("Failed to create system")
+		
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to create system", map[string]interface{}{
+			"error": err.Error(),
+		}))
+		return
+	}
+
+	// Store system in legacy storage for backward compatibility
+	systemsStorage[result.System.ID] = result.System
 
 	// Log the action
-	logger.LogBusinessOperation(c, "systems", "create", "system", system.ID, true, nil)
+	logger.LogBusinessOperation(c, "systems", "create", "system", result.System.ID, true, nil)
 
-	// Return success response
-	c.JSON(http.StatusCreated, response.Created("system created successfully", system))
+	// Return success response with system and credentials
+	c.JSON(http.StatusCreated, response.Created("system created successfully", result))
 }
 
 // GetSystems handles GET /api/systems - retrieves all systems
 func GetSystems(c *gin.Context) {
-	// Convert map to slice for response
-	systems := make([]*models.System, 0, len(systemsStorage))
-	for _, system := range systemsStorage {
-		systems = append(systems, system)
+	// Get current user context
+	userID, userOrgRole, userRole := helpers.GetUserContext(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
+		return
+	}
+
+	// Create systems service
+	systemsService := services.NewSystemsService()
+
+	// Get systems with proper filtering
+	systems, err := systemsService.GetSystemsByOrganization(userID, userOrgRole, userRole)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("user_id", userID).
+			Msg("Failed to retrieve systems")
+		
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to retrieve systems", map[string]interface{}{
+			"error": err.Error(),
+		}))
+		return
 	}
 
 	// Log the action
 	logger.RequestLogger(c, "systems").Info().
 		Str("operation", "list_systems").
+		Int("count", len(systems)).
 		Msg("Systems list requested")
 
 	// Return systems list
@@ -92,10 +130,33 @@ func GetSystem(c *gin.Context) {
 		return
 	}
 
-	// Check if system exists
-	system, exists := systemsStorage[systemID]
-	if !exists {
-		c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
+	// Get current user context
+	userID, userOrgRole, userRole := helpers.GetUserContext(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
+		return
+	}
+
+	// Create systems service
+	systemsService := services.NewSystemsService()
+
+	// Get system with access validation
+	system, err := systemsService.GetSystemByID(systemID, userID, userOrgRole, userRole)
+	if err != nil {
+		if err.Error() == "system not found" {
+			c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
+			return
+		}
+		
+		logger.Error().
+			Err(err).
+			Str("user_id", userID).
+			Str("system_id", systemID).
+			Msg("Failed to retrieve system")
+		
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to retrieve system", map[string]interface{}{
+			"error": err.Error(),
+		}))
 		return
 	}
 
@@ -118,10 +179,10 @@ func UpdateSystem(c *gin.Context) {
 		return
 	}
 
-	// Check if system exists
-	system, exists := systemsStorage[systemID]
-	if !exists {
-		c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
+	// Get current user context
+	userID, userOrgRole, userRole := helpers.GetUserContext(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
 		return
 	}
 
@@ -132,28 +193,28 @@ func UpdateSystem(c *gin.Context) {
 		return
 	}
 
-	// Update system fields (only if provided in request)
-	if request.Name != "" {
-		system.Name = request.Name
-	}
-	if request.Type != "" {
-		system.Type = request.Type
-	}
-	if request.Status != "" {
-		system.Status = request.Status
-	}
-	if request.IPAddress != "" {
-		system.IPAddress = request.IPAddress
-	}
-	if request.Version != "" {
-		system.Version = request.Version
-	}
-	if request.Metadata != nil {
-		system.Metadata = request.Metadata
-	}
+	// Create systems service
+	systemsService := services.NewSystemsService()
 
-	// Update timestamp
-	system.UpdatedAt = time.Now()
+	// Update system with access validation
+	system, err := systemsService.UpdateSystem(systemID, &request, userID, userOrgRole, userRole)
+	if err != nil {
+		if err.Error() == "system not found" {
+			c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
+			return
+		}
+		
+		logger.Error().
+			Err(err).
+			Str("user_id", userID).
+			Str("system_id", systemID).
+			Msg("Failed to update system")
+		
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to update system", map[string]interface{}{
+			"error": err.Error(),
+		}))
+		return
+	}
 
 	// Log the action
 	logger.LogBusinessOperation(c, "systems", "update", "system", systemID, true, nil)
@@ -171,17 +232,37 @@ func DeleteSystem(c *gin.Context) {
 		return
 	}
 
-	// Check if system exists
-	_, exists := systemsStorage[systemID]
-	if !exists {
-		c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
+	// Get current user context
+	userID, userOrgRole, userRole := helpers.GetUserContext(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
 		return
 	}
 
-	// Delete system from storage
-	delete(systemsStorage, systemID)
+	// Create systems service
+	systemsService := services.NewSystemsService()
 
-	// Also delete related subscription if exists
+	// Delete system with access validation
+	err := systemsService.DeleteSystem(systemID, userID, userOrgRole, userRole)
+	if err != nil {
+		if err.Error() == "system not found" {
+			c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
+			return
+		}
+		
+		logger.Error().
+			Err(err).
+			Str("user_id", userID).
+			Str("system_id", systemID).
+			Msg("Failed to delete system")
+		
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to delete system", map[string]interface{}{
+			"error": err.Error(),
+		}))
+		return
+	}
+
+	// Also delete related subscription if exists (legacy compatibility)
 	delete(subscriptionsStorage, systemID)
 
 	// Log the action
@@ -195,31 +276,33 @@ func DeleteSystem(c *gin.Context) {
 func InitSystemsStorage() {
 	// Create demo systems
 	system1 := &models.System{
-		ID:        "sys-001",
-		Name:      "production-server-01",
-		Type:      "linux",
-		Status:    "online",
-		IPAddress: "192.168.1.10",
-		Version:   "8.2.1",
-		LastSeen:  time.Now(),
-		Metadata:  map[string]string{"datacenter": "eu-west-1", "environment": "production"},
-		CreatedAt: time.Now().Add(-24 * time.Hour),
-		UpdatedAt: time.Now(),
-		CreatedBy: "admin",
+		ID:             "sys-001",
+		Name:           "production-server-01",
+		Type:           "linux",
+		Status:         "online",
+		IPAddress:      "192.168.1.10",
+		Version:        "8.2.1",
+		LastSeen:       time.Now(),
+		Metadata:       map[string]string{"datacenter": "eu-west-1", "environment": "production"},
+		OrganizationID: "org-distributor-001", // Example distributor organization
+		CreatedAt:      time.Now().Add(-24 * time.Hour),
+		UpdatedAt:      time.Now(),
+		CreatedBy:      "admin",
 	}
 
 	system2 := &models.System{
-		ID:        "sys-002",
-		Name:      "test-server-01",
-		Type:      "linux",
-		Status:    "maintenance",
-		IPAddress: "192.168.1.11",
-		Version:   "8.2.0",
-		LastSeen:  time.Now().Add(-2 * time.Hour),
-		Metadata:  map[string]string{"datacenter": "eu-west-1", "environment": "test"},
-		CreatedAt: time.Now().Add(-48 * time.Hour),
-		UpdatedAt: time.Now().Add(-1 * time.Hour),
-		CreatedBy: "admin",
+		ID:             "sys-002",
+		Name:           "test-server-01",
+		Type:           "linux",
+		Status:         "maintenance",
+		IPAddress:      "192.168.1.11",
+		Version:        "8.2.0",
+		LastSeen:       time.Now().Add(-2 * time.Hour),
+		Metadata:       map[string]string{"datacenter": "eu-west-1", "environment": "test"},
+		OrganizationID: "org-customer-001", // Example customer organization
+		CreatedAt:      time.Now().Add(-48 * time.Hour),
+		UpdatedAt:      time.Now().Add(-1 * time.Hour),
+		CreatedBy:      "admin",
 	}
 
 	systemsStorage["sys-001"] = system1
@@ -254,4 +337,45 @@ func InitSystemsStorage() {
 	logger.ComponentLogger("systems").Info().
 		Str("operation", "init_storage").
 		Msg("Demo systems storage initialized")
+}
+
+// RegenerateSystemSecret handles POST /api/systems/:id/regenerate-secret - regenerates system secret
+func RegenerateSystemSecret(c *gin.Context) {
+	// Get system ID from URL parameter
+	systemID := c.Param("id")
+	if systemID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
+		return
+	}
+
+	// Get current user context
+	userID, userOrgRole, userRole := helpers.GetUserContext(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
+		return
+	}
+
+	// Create systems service
+	systemsService := services.NewSystemsService()
+
+	// Regenerate system secret
+	systemSecret, err := systemsService.RegenerateSystemSecret(systemID, userID, userOrgRole, userRole)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("user_id", userID).
+			Str("system_id", systemID).
+			Msg("Failed to regenerate system secret")
+		
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to regenerate system secret", map[string]interface{}{
+			"error": err.Error(),
+		}))
+		return
+	}
+
+	// Log the action
+	logger.LogBusinessOperation(c, "systems", "regenerate_secret", "system", systemID, true, nil)
+
+	// Return new secret (only time it's visible)
+	c.JSON(http.StatusOK, response.OK("system secret regenerated successfully", systemSecret))
 }
