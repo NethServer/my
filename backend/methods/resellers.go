@@ -6,7 +6,6 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package methods
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -63,15 +62,9 @@ func CreateReseller(c *gin.Context) {
 		}
 	}
 
-	// Use description from request or generate default
-	description := request.Description
-	if description == "" {
-		description = fmt.Sprintf("Reseller organization: %s", request.Name)
-	}
-
 	orgRequest := models.CreateOrganizationRequest{
 		Name:          request.Name,
-		Description:   description,
+		Description:   request.Description,
 		CustomData:    customData,
 		IsMfaRequired: request.IsMfaRequired,
 	}
