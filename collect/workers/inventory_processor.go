@@ -155,6 +155,18 @@ func (ip *InventoryProcessor) processNextMessage(ctx context.Context, workerLogg
 
 // processInventoryData processes a single inventory data record
 func (ip *InventoryProcessor) processInventoryData(ctx context.Context, inventoryData *models.InventoryData, workerLogger *zerolog.Logger) error {
+	// Add timeout to prevent hanging database operations
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	defer func() {
+		workerLogger.Debug().
+			Str("system_id", inventoryData.SystemID).
+			Dur("total_processing_time", time.Since(start)).
+			Msg("Inventory processing completed")
+	}()
+
 	// Calculate data hash for deduplication
 	dataHash := ip.calculateDataHash(inventoryData.Data)
 
@@ -228,18 +240,17 @@ func (ip *InventoryProcessor) insertInventoryRecord(ctx context.Context, invento
 
 	query := `
 		INSERT INTO inventory_records 
-		(system_id, timestamp, data, data_hash, data_size, compressed, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+		(system_id, timestamp, data, data_hash, data_size, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
 		RETURNING id, created_at, updated_at
 	`
 
 	record := &models.InventoryRecord{
-		SystemID:   inventoryData.SystemID,
-		Timestamp:  inventoryData.Timestamp,
-		Data:       inventoryData.Data,
-		DataHash:   dataHash,
-		DataSize:   dataSize,
-		Compressed: false,
+		SystemID:  inventoryData.SystemID,
+		Timestamp: inventoryData.Timestamp,
+		Data:      inventoryData.Data,
+		DataHash:  dataHash,
+		DataSize:  dataSize,
 	}
 
 	err := database.DB.QueryRowContext(
@@ -249,7 +260,6 @@ func (ip *InventoryProcessor) insertInventoryRecord(ctx context.Context, invento
 		record.Data,
 		record.DataHash,
 		record.DataSize,
-		record.Compressed,
 	).Scan(&record.ID, &record.CreatedAt, &record.UpdatedAt)
 
 	if err != nil {
@@ -262,7 +272,7 @@ func (ip *InventoryProcessor) insertInventoryRecord(ctx context.Context, invento
 // getPreviousInventoryRecord gets the most recent previous inventory record
 func (ip *InventoryProcessor) getPreviousInventoryRecord(ctx context.Context, systemID string, currentID int64) (*models.InventoryRecord, error) {
 	query := `
-		SELECT id, system_id, timestamp, data, data_hash, data_size, compressed, 
+		SELECT id, system_id, timestamp, data, data_hash, data_size, 
 		       processed_at, has_changes, change_count, created_at, updated_at
 		FROM inventory_records 
 		WHERE system_id = $1 AND id < $2 
@@ -278,7 +288,6 @@ func (ip *InventoryProcessor) getPreviousInventoryRecord(ctx context.Context, sy
 		&record.Data,
 		&record.DataHash,
 		&record.DataSize,
-		&record.Compressed,
 		&record.ProcessedAt,
 		&record.HasChanges,
 		&record.ChangeCount,

@@ -61,14 +61,14 @@ func initPostgreSQL() error {
 		}
 	}
 
-	maxIdle := 25
+	maxIdle := 5 // Reduce idle connections to leave room for active ones
 	if maxIdleStr := os.Getenv("DATABASE_MAX_IDLE"); maxIdleStr != "" {
 		if parsed, err := strconv.Atoi(maxIdleStr); err == nil {
 			maxIdle = parsed
 		}
 	}
 
-	connMaxAge := 5 * time.Minute
+	connMaxAge := 1 * time.Hour // Increase lifetime to reduce reconnection overhead
 	if connMaxAgeStr := os.Getenv("DATABASE_CONN_MAX_AGE"); connMaxAgeStr != "" {
 		if parsed, err := time.ParseDuration(connMaxAgeStr); err == nil {
 			connMaxAge = parsed

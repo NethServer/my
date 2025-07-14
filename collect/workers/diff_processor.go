@@ -157,6 +157,19 @@ func (dp *DiffProcessor) processNextMessage(ctx context.Context, workerLogger *z
 
 // processInventoryDiff computes and stores differences for an inventory record
 func (dp *DiffProcessor) processInventoryDiff(ctx context.Context, job *models.InventoryProcessingJob, workerLogger *zerolog.Logger) error {
+	// Add timeout to prevent hanging database operations
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second) // Longer timeout for diff computation
+	defer cancel()
+
+	start := time.Now()
+	defer func() {
+		workerLogger.Debug().
+			Str("system_id", job.SystemID).
+			Int64("inventory_id", job.InventoryRecord.ID).
+			Dur("total_diff_time", time.Since(start)).
+			Msg("Diff processing completed")
+	}()
+
 	// Get previous inventory record
 	previousRecord, err := dp.getPreviousInventoryRecord(ctx, job.SystemID, job.InventoryRecord.ID)
 	if err != nil {
@@ -185,7 +198,7 @@ func (dp *DiffProcessor) processInventoryDiff(ctx context.Context, job *models.I
 	// Filter significant changes
 	significantDiffs := dp.diffEngine.FilterSignificantChanges(diffs)
 
-	// Store differences in database
+	// Store differences in database with reduced transaction time
 	storedDiffs, err := dp.storeDifferences(ctx, significantDiffs)
 	if err != nil {
 		return fmt.Errorf("failed to store differences: %w", err)
@@ -232,7 +245,7 @@ func (dp *DiffProcessor) processInventoryDiff(ctx context.Context, job *models.I
 // getPreviousInventoryRecord gets the most recent previous inventory record
 func (dp *DiffProcessor) getPreviousInventoryRecord(ctx context.Context, systemID string, currentID int64) (*models.InventoryRecord, error) {
 	query := `
-		SELECT id, system_id, timestamp, data, data_hash, data_size, compressed,
+		SELECT id, system_id, timestamp, data, data_hash, data_size,
 		       processed_at, has_changes, change_count, created_at, updated_at
 		FROM inventory_records 
 		WHERE system_id = $1 AND id < $2 
@@ -248,7 +261,6 @@ func (dp *DiffProcessor) getPreviousInventoryRecord(ctx context.Context, systemI
 		&record.Data,
 		&record.DataHash,
 		&record.DataSize,
-		&record.Compressed,
 		&record.ProcessedAt,
 		&record.HasChanges,
 		&record.ChangeCount,
@@ -263,32 +275,66 @@ func (dp *DiffProcessor) getPreviousInventoryRecord(ctx context.Context, systemI
 	return record, nil
 }
 
-// storeDifferences stores the computed differences in the database
+// storeDifferences stores the computed differences in the database using batch inserts
 func (dp *DiffProcessor) storeDifferences(ctx context.Context, diffs []models.InventoryDiff) ([]models.InventoryDiff, error) {
 	if len(diffs) == 0 {
 		return diffs, nil
 	}
 
-	// Start transaction
-	tx, err := database.DB.BeginTx(ctx, nil)
+	// Process in batches to reduce transaction time and prevent timeouts
+	const batchSize = 100
+	for i := 0; i < len(diffs); i += batchSize {
+		end := i + batchSize
+		if end > len(diffs) {
+			end = len(diffs)
+		}
+
+		batch := diffs[i:end]
+		if err := dp.storeDiffBatch(ctx, batch); err != nil {
+			return nil, fmt.Errorf("failed to store diff batch %d-%d: %w", i, end, err)
+		}
+	}
+
+	return diffs, nil
+}
+
+// storeDiffBatch stores a batch of diffs in a single optimized transaction
+func (dp *DiffProcessor) storeDiffBatch(ctx context.Context, diffs []models.InventoryDiff) error {
+	if len(diffs) == 0 {
+		return nil
+	}
+
+	// Add shorter timeout for batch operations
+	batchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	// Start transaction with shorter duration
+	tx, err := database.DB.BeginTx(batchCtx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		_ = tx.Rollback() // Ignore error on rollback
 	}()
 
-	// Insert differences
-	query := `
+	// Prepare statement for better performance
+	stmt, err := tx.PrepareContext(batchCtx, `
 		INSERT INTO inventory_diffs 
 		(system_id, previous_id, current_id, diff_type, field_path, previous_value, current_value, severity, category, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
 		RETURNING id
-	`
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to prepare statement: %w", err)
+	}
+	defer func() {
+		_ = stmt.Close()
+	}()
 
+	// Insert all diffs in batch
 	for i := range diffs {
-		err := tx.QueryRowContext(
-			ctx, query,
+		err := stmt.QueryRowContext(
+			batchCtx,
 			diffs[i].SystemID,
 			diffs[i].PreviousID,
 			diffs[i].CurrentID,
@@ -301,27 +347,31 @@ func (dp *DiffProcessor) storeDifferences(ctx context.Context, diffs []models.In
 		).Scan(&diffs[i].ID)
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to insert diff: %w", err)
+			return fmt.Errorf("failed to insert diff: %w", err)
 		}
 	}
 
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	return diffs, nil
+	return nil
 }
 
 // markInventoryProcessed marks an inventory record as processed
 func (dp *DiffProcessor) markInventoryProcessed(ctx context.Context, inventoryID int64, hasChanges bool, changeCount int) error {
+	// Add timeout for this operation
+	updateCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	query := `
 		UPDATE inventory_records 
 		SET processed_at = NOW(), has_changes = $2, change_count = $3, updated_at = NOW()
 		WHERE id = $1
 	`
 
-	_, err := database.DB.ExecContext(ctx, query, inventoryID, hasChanges, changeCount)
+	_, err := database.DB.ExecContext(updateCtx, query, inventoryID, hasChanges, changeCount)
 	return err
 }
 

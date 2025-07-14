@@ -179,7 +179,9 @@ func (s *SystemsService) GetSystemsByOrganization(userID string, userOrgRole, us
 	if err != nil {
 		return nil, fmt.Errorf("failed to query systems: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var systems []*models.System
 	for rows.Next() {

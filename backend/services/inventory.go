@@ -63,7 +63,7 @@ func parseJSONValue(value *string) interface{} {
 // GetLatestInventory returns the most recent inventory record for a system
 func (s *InventoryService) GetLatestInventory(systemID string) (*collectModels.InventoryRecord, error) {
 	query := `
-		SELECT id, system_id, timestamp, data, data_hash, data_size, compressed, 
+		SELECT id, system_id, timestamp, data, data_hash, data_size, 
 		       processed_at, has_changes, change_count, created_at, updated_at
 		FROM inventory_records 
 		WHERE system_id = $1 
@@ -76,7 +76,7 @@ func (s *InventoryService) GetLatestInventory(systemID string) (*collectModels.I
 
 	err := s.db.QueryRow(query, systemID).Scan(
 		&record.ID, &record.SystemID, &record.Timestamp, &record.Data, &record.DataHash,
-		&record.DataSize, &record.Compressed, &processedAt, &record.HasChanges,
+		&record.DataSize, &processedAt, &record.HasChanges,
 		&record.ChangeCount, &record.CreatedAt, &record.UpdatedAt,
 	)
 
@@ -130,7 +130,7 @@ func (s *InventoryService) GetInventoryHistory(systemID string, page, pageSize i
 	// Get paginated records
 	offset := (page - 1) * pageSize
 	query := fmt.Sprintf(`
-		SELECT id, system_id, timestamp, data, data_hash, data_size, compressed,
+		SELECT id, system_id, timestamp, data, data_hash, data_size,
 		       processed_at, has_changes, change_count, created_at, updated_at
 		FROM inventory_records 
 		%s
@@ -144,7 +144,9 @@ func (s *InventoryService) GetInventoryHistory(systemID string, page, pageSize i
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query inventory history: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var records []collectModels.InventoryRecord
 	for rows.Next() {
@@ -153,7 +155,7 @@ func (s *InventoryService) GetInventoryHistory(systemID string, page, pageSize i
 
 		err := rows.Scan(
 			&record.ID, &record.SystemID, &record.Timestamp, &record.Data, &record.DataHash,
-			&record.DataSize, &record.Compressed, &processedAt, &record.HasChanges,
+			&record.DataSize, &processedAt, &record.HasChanges,
 			&record.ChangeCount, &record.CreatedAt, &record.UpdatedAt,
 		)
 		if err != nil {
@@ -243,7 +245,9 @@ func (s *InventoryService) GetInventoryDiffs(systemID string, page, pageSize int
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query inventory diffs: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var diffs []collectModels.InventoryDiff
 	for rows.Next() {
@@ -357,7 +361,9 @@ func (s *InventoryService) GetChangesSummary(systemID string) (*collectModels.In
 	if err != nil {
 		return nil, fmt.Errorf("failed to get changes by category: %w", err)
 	}
-	defer categoryRows.Close()
+	defer func() {
+		_ = categoryRows.Close()
+	}()
 
 	changesByCategory := make(map[string]int)
 	for categoryRows.Next() {
@@ -378,7 +384,9 @@ func (s *InventoryService) GetChangesSummary(systemID string) (*collectModels.In
 	if err != nil {
 		return nil, fmt.Errorf("failed to get changes by severity: %w", err)
 	}
-	defer severityRows.Close()
+	defer func() {
+		_ = severityRows.Close()
+	}()
 
 	changesBySeverity := make(map[string]int)
 	for severityRows.Next() {
@@ -471,7 +479,9 @@ func (s *InventoryService) GetLatestInventoryChangesSummary(systemID string) (*c
 	if err != nil {
 		return nil, fmt.Errorf("failed to get changes by category: %w", err)
 	}
-	defer categoryRows.Close()
+	defer func() {
+		_ = categoryRows.Close()
+	}()
 
 	changesByCategory := make(map[string]int)
 	for categoryRows.Next() {
@@ -492,7 +502,9 @@ func (s *InventoryService) GetLatestInventoryChangesSummary(systemID string) (*c
 	if err != nil {
 		return nil, fmt.Errorf("failed to get changes by severity: %w", err)
 	}
-	defer severityRows.Close()
+	defer func() {
+		_ = severityRows.Close()
+	}()
 
 	changesBySeverity := make(map[string]int)
 	for severityRows.Next() {
@@ -553,7 +565,9 @@ func (s *InventoryService) GetLatestInventoryDiffs(systemID string) ([]collectMo
 	if err != nil {
 		return nil, fmt.Errorf("failed to query latest inventory diffs: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var diffs []collectModels.InventoryDiff
 	for rows.Next() {

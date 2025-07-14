@@ -127,7 +127,7 @@ func Init() {
 	Config.WorkerProcessingCount = parseIntWithDefault("WORKER_PROCESSING_COUNT", 3)
 	Config.WorkerNotificationCount = parseIntWithDefault("WORKER_NOTIFICATION_COUNT", 2)
 	Config.WorkerShutdownTimeout = parseDurationWithDefault("WORKER_SHUTDOWN_TIMEOUT", 30*time.Second)
-	Config.WorkerHeartbeatInterval = parseDurationWithDefault("WORKER_HEARTBEAT_INTERVAL", 30*time.Second)
+	Config.WorkerHeartbeatInterval = parseDurationWithDefault("WORKER_HEARTBEAT_INTERVAL", 10*time.Second)
 
 	// Inventory processing configuration
 	Config.InventoryMaxAge = parseDurationWithDefault("INVENTORY_MAX_AGE", 90*24*time.Hour) // 90 days

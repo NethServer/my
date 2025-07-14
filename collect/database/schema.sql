@@ -9,7 +9,6 @@ CREATE TABLE IF NOT EXISTS inventory_records (
     data JSONB NOT NULL,
     data_hash VARCHAR(64) NOT NULL,
     data_size BIGINT NOT NULL,
-    compressed BOOLEAN NOT NULL DEFAULT false,
     processed_at TIMESTAMP WITH TIME ZONE,
     has_changes BOOLEAN NOT NULL DEFAULT false,
     change_count INTEGER NOT NULL DEFAULT 0,

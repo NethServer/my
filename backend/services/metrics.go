@@ -16,16 +16,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-redis/redis/v8"
-
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/logger"
 )
 
 type MetricsService struct {
-	db    *sql.DB
-	redis *redis.Client
-	mu    sync.RWMutex
+	db *sql.DB
 }
 
 type SystemMetrics struct {

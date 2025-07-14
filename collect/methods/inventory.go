@@ -109,7 +109,8 @@ func CollectInventory(c *gin.Context) {
 		return
 	}
 
-	// Enqueue for processing
+	// Enqueue for processing with detailed timing
+	start := time.Now()
 	queueManager := queue.NewQueueManager()
 	ctx, cancel := context.WithTimeout(c.Request.Context(), configuration.Config.APIRequestTimeout)
 	defer cancel()
@@ -118,6 +119,7 @@ func CollectInventory(c *gin.Context) {
 		logger.Error().
 			Err(err).
 			Str("system_id", systemIDStr).
+			Dur("enqueue_duration", time.Since(start)).
 			Msg("Failed to enqueue inventory for processing")
 
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to process inventory", map[string]interface{}{
@@ -126,10 +128,13 @@ func CollectInventory(c *gin.Context) {
 		return
 	}
 
+	enqueueTime := time.Since(start)
+
 	logger.Info().
 		Str("system_id", systemIDStr).
 		Time("timestamp", inventoryData.Timestamp).
 		Int("data_size", len(inventoryData.Data)).
+		Dur("enqueue_time", enqueueTime).
 		Msg("Inventory data received and queued for processing")
 
 	// Return success response immediately

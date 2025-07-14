@@ -7,6 +7,10 @@ logto-sync/build/
 logto-sync/logto-sync
 sync/build/
 sync/sync
+collect/collect
+collect/main
+collect/build/
+collect/*.exe
 *.exe
 *.bin
 
@@ -31,6 +35,10 @@ coverage.html
 # Config files - exclude actual configs, keep examples
 logto-sync/configs/*.yml
 !logto-sync/configs/*.example.yml
+sync/configs/*.yml
+!sync/configs/*.example.yml
+collect/configs/*.yml
+!collect/configs/*.example.yml
 *.config
 config.json
 config.yaml

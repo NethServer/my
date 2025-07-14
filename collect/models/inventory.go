@@ -35,7 +35,6 @@ type InventoryRecord struct {
 	Data        json.RawMessage `json:"data" db:"data"`
 	DataHash    string          `json:"data_hash" db:"data_hash"`
 	DataSize    int64           `json:"data_size" db:"data_size"`
-	Compressed  bool            `json:"compressed" db:"compressed"`
 	ProcessedAt *time.Time      `json:"processed_at" db:"processed_at"`
 	HasChanges  bool            `json:"has_changes" db:"has_changes"`
 	ChangeCount int             `json:"change_count" db:"change_count"`
@@ -146,15 +145,10 @@ type InventoryChangesSummary struct {
 
 // InventoryStats represents statistics about inventory processing
 type InventoryStats struct {
-	TotalSystems       int     `json:"total_systems"`
-	ActiveSystems      int     `json:"active_systems"`
-	TotalInventories   int64   `json:"total_inventories"`
-	TodayInventories   int64   `json:"today_inventories"`
-	PendingJobs        int64   `json:"pending_jobs"`
-	ProcessingJobs     int64   `json:"processing_jobs"`
-	FailedJobs         int64   `json:"failed_jobs"`
-	AverageProcessTime float64 `json:"average_process_time_ms"`
-	QueueHealth        string  `json:"queue_health"` // healthy, warning, critical
+	PendingJobs    int64  `json:"pending_jobs"`
+	ProcessingJobs int64  `json:"processing_jobs"`
+	FailedJobs     int64  `json:"failed_jobs"`
+	QueueHealth    string `json:"queue_health"` // healthy, warning, critical
 }
 
 // ValidateInventoryData validates the inventory data payload

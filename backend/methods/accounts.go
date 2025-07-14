@@ -312,11 +312,6 @@ func CreateAccount(c *gin.Context) {
 		"createdAt":        time.Now().Format(time.RFC3339),
 	}
 
-	// Add phone to custom data if provided
-	if request.Phone != "" {
-		customData["phone"] = request.Phone
-	}
-
 	// Add custom data if provided
 	if request.CustomData != nil {
 		for k, v := range request.CustomData {
@@ -338,7 +333,7 @@ func CreateAccount(c *gin.Context) {
 
 	// Set PrimaryPhone if provided - Logto validates this field with a regex
 	if request.Phone != "" {
-		accountRequest.PrimaryPhone = &request.Phone
+		accountRequest.PrimaryPhone = request.Phone
 	}
 
 	// Only set avatar if it's not empty

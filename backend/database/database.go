@@ -8,7 +8,6 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -90,7 +89,7 @@ func initSchemaFromFile() error {
 	}
 
 	// Read schema file
-	content, err := ioutil.ReadFile(schemaFile)
+	content, err := os.ReadFile(schemaFile)
 	if err != nil {
 		return fmt.Errorf("failed to read schema file: %w", err)
 	}

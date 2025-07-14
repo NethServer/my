@@ -385,7 +385,7 @@ func TestCreateUserRequestStruct(t *testing.T) {
 		Password:     "securepassword",
 		Name:         "New User",
 		PrimaryEmail: "newuser@example.com",
-		PrimaryPhone: &phone,
+		PrimaryPhone: phone,
 		Avatar:       &avatar,
 		CustomData:   map[string]interface{}{"department": "IT"},
 	}
@@ -395,7 +395,7 @@ func TestCreateUserRequestStruct(t *testing.T) {
 	assert.Equal(t, "New User", request.Name)
 	assert.Equal(t, "newuser@example.com", request.PrimaryEmail)
 	assert.NotNil(t, request.PrimaryPhone)
-	assert.Equal(t, "+1234567890", *request.PrimaryPhone)
+	assert.Equal(t, "+1234567890", request.PrimaryPhone)
 	assert.NotNil(t, request.Avatar)
 	assert.Equal(t, "https://example.com/avatar.png", *request.Avatar)
 }
