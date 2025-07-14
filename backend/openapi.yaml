@@ -240,6 +240,8 @@ components:
           type: boolean
           description: Whether MFA is required for this organization
           example: false
+        branding:
+          $ref: '#/components/schemas/OrganizationBranding'
 
     OrganizationInput:
       type: object
@@ -468,6 +470,20 @@ components:
           enum: [owner, distributor, reseller, customer]
           description: Organization type
           example: "customer"
+        branding:
+          $ref: '#/components/schemas/OrganizationBranding'
+
+    OrganizationBranding:
+      type: object
+      properties:
+        logo_url:
+          type: string
+          description: Organization logo URL
+          example: "https://cdn.example.com/logos/org-console.png"
+        dark_logo_url:
+          type: string
+          description: Organization dark theme logo URL
+          example: "https://cdn.example.com/logos/org-console-dark.png"
 
     ThirdPartyApplication:
       type: object
