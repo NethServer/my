@@ -79,9 +79,18 @@ func main() {
 	api := router.Group("/api")
 
 	// Health check endpoint
-	api.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, response.OK("service healthy", nil))
-	})
+	api.GET("/health", methods.GetHealth)
+
+	// ===========================================
+	// METRICS AND MONITORING ENDPOINTS
+	// ===========================================
+	metricsGroup := api.Group("/metrics", middleware.JWTAuthMiddleware(), middleware.RequireOrgRole("Owner"))
+	{
+		metricsGroup.GET("", methods.GetMetrics)                  // Comprehensive system metrics
+		metricsGroup.GET("/database", methods.GetDatabaseMetrics) // Database-specific metrics
+		metricsGroup.GET("/workers", methods.GetWorkerMetrics)    // Worker and queue metrics
+		metricsGroup.GET("/systems", methods.GetSystemsStatus)    // Systems status overview
+	}
 
 	// ===========================================
 	// PUBLIC AUTH ENDPOINTS
@@ -126,6 +135,14 @@ func main() {
 			systemsGroup.PUT("/:id", methods.UpdateSystem)
 			systemsGroup.DELETE("/:id", methods.DeleteSystem)
 			systemsGroup.POST("/:id/regenerate-secret", methods.RegenerateSystemSecret) // Regenerate system secret
+
+			// Inventory endpoints
+			systemsGroup.GET("/:id/inventory", methods.GetSystemInventoryHistory)                      // Get paginated inventory history
+			systemsGroup.GET("/:id/inventory/latest", methods.GetSystemLatestInventory)                // Get latest inventory
+			systemsGroup.GET("/:id/inventory/changes", methods.GetSystemInventoryChanges)              // Get changes summary
+			systemsGroup.GET("/:id/inventory/changes/latest", methods.GetSystemLatestInventoryChanges) // Get latest batch changes summary
+			systemsGroup.GET("/:id/inventory/diffs", methods.GetSystemInventoryDiffs)                  // Get paginated diffs
+			systemsGroup.GET("/:id/inventory/diffs/latest", methods.GetSystemLatestInventoryDiff)      // Get latest diff
 		}
 
 		// ===========================================
@@ -189,7 +206,7 @@ func main() {
 		customAuth.GET("/applications", methods.GetApplications)
 
 		// System statistics endpoint - require management permissions
-		customAuth.GET("/stats", middleware.RequirePermission("manage:distributors"), methods.GetStats)
+		customAuth.GET("/stats", middleware.RequireOrgRole("Owner"), methods.GetStats)
 	}
 
 	// Handle missing endpoints

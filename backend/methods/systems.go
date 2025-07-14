@@ -20,7 +20,6 @@ import (
 	"github.com/nethesis/my/backend/services"
 )
 
-
 // CreateSystem handles POST /api/systems - creates a new system
 func CreateSystem(c *gin.Context) {
 	// Parse request body
@@ -38,7 +37,7 @@ func CreateSystem(c *gin.Context) {
 
 	// Create systems service
 	systemsService := services.NewSystemsService()
-	
+
 	// Create SystemCreator object with detailed user information
 	creatorInfo := &models.SystemCreator{
 		UserID:           user.ID,
@@ -56,7 +55,7 @@ func CreateSystem(c *gin.Context) {
 			Str("system_name", request.Name).
 			Str("customer_id", request.CustomerID).
 			Msg("Failed to create system")
-		
+
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to create system", map[string]interface{}{
 			"error": err.Error(),
 		}))
@@ -89,7 +88,7 @@ func GetSystems(c *gin.Context) {
 			Err(err).
 			Str("user_id", userID).
 			Msg("Failed to retrieve systems")
-		
+
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to retrieve systems", map[string]interface{}{
 			"error": err.Error(),
 		}))
@@ -132,13 +131,13 @@ func GetSystem(c *gin.Context) {
 			c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
 			return
 		}
-		
+
 		logger.Error().
 			Err(err).
 			Str("user_id", userID).
 			Str("system_id", systemID).
 			Msg("Failed to retrieve system")
-		
+
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to retrieve system", map[string]interface{}{
 			"error": err.Error(),
 		}))
@@ -188,13 +187,13 @@ func UpdateSystem(c *gin.Context) {
 			c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
 			return
 		}
-		
+
 		logger.Error().
 			Err(err).
 			Str("user_id", userID).
 			Str("system_id", systemID).
 			Msg("Failed to update system")
-		
+
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to update system", map[string]interface{}{
 			"error": err.Error(),
 		}))
@@ -234,19 +233,18 @@ func DeleteSystem(c *gin.Context) {
 			c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
 			return
 		}
-		
+
 		logger.Error().
 			Err(err).
 			Str("user_id", userID).
 			Str("system_id", systemID).
 			Msg("Failed to delete system")
-		
+
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to delete system", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
 	}
-
 
 	// Log the action
 	logger.LogBusinessOperation(c, "systems", "delete", "system", systemID, true, nil)
@@ -254,7 +252,6 @@ func DeleteSystem(c *gin.Context) {
 	// Return success response
 	c.JSON(http.StatusOK, response.OK("system deleted successfully", nil))
 }
-
 
 // RegenerateSystemSecret handles POST /api/systems/:id/regenerate-secret - regenerates system secret
 func RegenerateSystemSecret(c *gin.Context) {
@@ -288,7 +285,7 @@ func RegenerateSystemSecret(c *gin.Context) {
 			Str("user_id", user.ID).
 			Str("system_id", systemID).
 			Msg("Failed to regenerate system secret")
-		
+
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to regenerate system secret", map[string]interface{}{
 			"error": err.Error(),
 		}))
@@ -367,7 +364,7 @@ func GetSystemInventoryHistory(c *gin.Context) {
 			Int("page", page).
 			Int("page_size", pageSize).
 			Msg("Failed to retrieve inventory history")
-		
+
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to retrieve inventory history", map[string]interface{}{
 			"error": err.Error(),
 		}))
@@ -386,10 +383,10 @@ func GetSystemInventoryHistory(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("inventory history retrieved successfully", gin.H{
 		"records": records,
 		"pagination": gin.H{
-			"page":         page,
-			"page_size":    pageSize,
-			"total_count":  totalCount,
-			"total_pages":  (totalCount + pageSize - 1) / pageSize,
+			"page":        page,
+			"page_size":   pageSize,
+			"total_count": totalCount,
+			"total_pages": (totalCount + pageSize - 1) / pageSize,
 		},
 	}))
 }
@@ -430,12 +427,12 @@ func GetSystemLatestInventory(c *gin.Context) {
 			c.JSON(http.StatusNotFound, response.NotFound("no inventory found for system", nil))
 			return
 		}
-		
+
 		logger.Error().
 			Err(err).
 			Str("system_id", systemID).
 			Msg("Failed to retrieve latest inventory")
-		
+
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to retrieve latest inventory", map[string]interface{}{
 			"error": err.Error(),
 		}))
@@ -489,12 +486,12 @@ func GetSystemInventoryChanges(c *gin.Context) {
 			c.JSON(http.StatusNotFound, response.NotFound("no inventory found for system", nil))
 			return
 		}
-		
+
 		logger.Error().
 			Err(err).
 			Str("system_id", systemID).
 			Msg("Failed to retrieve changes summary")
-		
+
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to retrieve changes summary", map[string]interface{}{
 			"error": err.Error(),
 		}))
@@ -510,6 +507,65 @@ func GetSystemInventoryChanges(c *gin.Context) {
 
 	// Return changes summary
 	c.JSON(http.StatusOK, response.OK("changes summary retrieved successfully", summary))
+}
+
+// GetSystemLatestInventoryChanges handles GET /api/systems/:id/inventory/changes/latest - retrieves latest batch changes summary
+func GetSystemLatestInventoryChanges(c *gin.Context) {
+	// Get system ID from URL parameter
+	systemID := c.Param("id")
+	if systemID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
+		return
+	}
+
+	// Get current user context for access validation
+	userID, userOrgRole, userRole := helpers.GetUserContext(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
+		return
+	}
+
+	// Validate system access
+	systemsService := services.NewSystemsService()
+	_, err := systemsService.GetSystemByID(systemID, userID, userOrgRole, userRole)
+	if err != nil {
+		if err.Error() == "system not found" {
+			c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to validate system access", nil))
+		return
+	}
+
+	// Get latest changes summary
+	inventoryService := services.NewInventoryService()
+	summary, err := inventoryService.GetLatestInventoryChangesSummary(systemID)
+	if err != nil {
+		if err.Error() == "no inventory found for system "+systemID {
+			c.JSON(http.StatusNotFound, response.NotFound("no inventory found for system", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("system_id", systemID).
+			Msg("Failed to retrieve latest inventory changes summary")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to retrieve latest inventory changes summary", map[string]interface{}{
+			"error": err.Error(),
+		}))
+		return
+	}
+
+	// Log the action
+	logger.RequestLogger(c, "inventory").Info().
+		Str("operation", "get_latest_inventory_changes").
+		Str("system_id", systemID).
+		Int("total_changes", summary.TotalChanges).
+		Msg("Latest inventory changes summary requested")
+
+	// Return latest changes summary
+	c.JSON(http.StatusOK, response.OK("latest inventory changes summary retrieved successfully", summary))
 }
 
 // GetSystemInventoryDiffs handles GET /api/systems/:id/inventory/diffs - retrieves paginated diffs
@@ -585,7 +641,7 @@ func GetSystemInventoryDiffs(c *gin.Context) {
 			Str("category", category).
 			Str("diff_type", diffType).
 			Msg("Failed to retrieve inventory diffs")
-		
+
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to retrieve inventory diffs", map[string]interface{}{
 			"error": err.Error(),
 		}))
@@ -606,10 +662,74 @@ func GetSystemInventoryDiffs(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("inventory diffs retrieved successfully", gin.H{
 		"diffs": diffs,
 		"pagination": gin.H{
-			"page":         page,
-			"page_size":    pageSize,
-			"total_count":  totalCount,
-			"total_pages":  (totalCount + pageSize - 1) / pageSize,
+			"page":        page,
+			"page_size":   pageSize,
+			"total_count": totalCount,
+			"total_pages": (totalCount + pageSize - 1) / pageSize,
 		},
+	}))
+}
+
+// GetSystemLatestInventoryDiff handles GET /api/systems/:id/inventory/diffs/latest - retrieves latest diffs batch
+func GetSystemLatestInventoryDiff(c *gin.Context) {
+	// Get system ID from URL parameter
+	systemID := c.Param("id")
+	if systemID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
+		return
+	}
+
+	// Get current user context for access validation
+	userID, userOrgRole, userRole := helpers.GetUserContext(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
+		return
+	}
+
+	// Validate system access
+	systemsService := services.NewSystemsService()
+	_, err := systemsService.GetSystemByID(systemID, userID, userOrgRole, userRole)
+	if err != nil {
+		if err.Error() == "system not found" {
+			c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to validate system access", nil))
+		return
+	}
+
+	// Get latest diffs batch
+	inventoryService := services.NewInventoryService()
+	diffs, err := inventoryService.GetLatestInventoryDiffs(systemID)
+	if err != nil {
+		if err.Error() == "no diffs found for system "+systemID {
+			c.JSON(http.StatusNotFound, response.NotFound("no diffs found for system", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("system_id", systemID).
+			Msg("Failed to retrieve latest inventory diffs")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to retrieve latest inventory diffs", map[string]interface{}{
+			"error": err.Error(),
+		}))
+		return
+	}
+
+	// Log the action
+	logger.RequestLogger(c, "inventory").Info().
+		Str("operation", "get_latest_inventory_diffs").
+		Str("system_id", systemID).
+		Int("count", len(diffs)).
+		Int64("current_id", diffs[0].CurrentID).
+		Msg("Latest inventory diffs batch requested")
+
+	// Return latest diffs batch
+	c.JSON(http.StatusOK, response.OK("latest inventory diffs retrieved successfully", gin.H{
+		"diffs":                diffs,
+		"count":                len(diffs),
+		"current_inventory_id": diffs[0].CurrentID,
 	}))
 }

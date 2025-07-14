@@ -17,23 +17,23 @@ type SystemCreator struct {
 
 // System represents a managed system in the infrastructure
 type System struct {
-	ID           string            `json:"id" structs:"id"`
-	Name         string            `json:"name" structs:"name"`
-	Type         string            `json:"type" structs:"type"`     // ns8, nsec, etc.
-	Status       string            `json:"status" structs:"status"` // online, offline, maintenance
-	FQDN         string            `json:"fqdn" structs:"fqdn"`
-	IPv4Address  string            `json:"ipv4_address" structs:"ipv4_address"`
-	IPv6Address  string            `json:"ipv6_address" structs:"ipv6_address"`
-	Version      string            `json:"version" structs:"version"`
-	LastSeen     time.Time         `json:"last_seen" structs:"last_seen"`
-	CustomData   map[string]string `json:"custom_data" structs:"custom_data"`
-	CustomerID   string            `json:"customer_id" structs:"customer_id"`
-	Secret       string            `json:"secret,omitempty" structs:"secret"`           // Only returned during creation
-	SecretHash   string            `json:"-" structs:"secret_hash"`                     // Stored in DB, never returned
-	SecretHint   string            `json:"secret_hint,omitempty" structs:"secret_hint"` // Last 4 chars for identification
-	CreatedAt    time.Time         `json:"created_at" structs:"created_at"`
-	UpdatedAt    time.Time         `json:"updated_at" structs:"updated_at"`
-	CreatedBy    SystemCreator     `json:"created_by" structs:"created_by"`
+	ID          string            `json:"id" structs:"id"`
+	Name        string            `json:"name" structs:"name"`
+	Type        string            `json:"type" structs:"type"`     // ns8, nsec, etc.
+	Status      string            `json:"status" structs:"status"` // online, offline, maintenance
+	FQDN        string            `json:"fqdn" structs:"fqdn"`
+	IPv4Address string            `json:"ipv4_address" structs:"ipv4_address"`
+	IPv6Address string            `json:"ipv6_address" structs:"ipv6_address"`
+	Version     string            `json:"version" structs:"version"`
+	LastSeen    time.Time         `json:"last_seen" structs:"last_seen"`
+	CustomData  map[string]string `json:"custom_data" structs:"custom_data"`
+	CustomerID  string            `json:"customer_id" structs:"customer_id"`
+	Secret      string            `json:"secret,omitempty" structs:"secret"`           // Only returned during creation
+	SecretHash  string            `json:"-" structs:"secret_hash"`                     // Stored in DB, never returned
+	SecretHint  string            `json:"secret_hint,omitempty" structs:"secret_hint"` // Last 4 chars for identification
+	CreatedAt   time.Time         `json:"created_at" structs:"created_at"`
+	UpdatedAt   time.Time         `json:"updated_at" structs:"updated_at"`
+	CreatedBy   SystemCreator     `json:"created_by" structs:"created_by"`
 }
 
 // CreateSystemRequest represents the request payload for creating a new system
@@ -69,4 +69,3 @@ type SystemActionRequest struct {
 	Force   bool              `json:"force" structs:"force"`
 	Options map[string]string `json:"options" structs:"options"`
 }
-

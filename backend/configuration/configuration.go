@@ -22,7 +22,7 @@ import (
 type Configuration struct {
 	ListenAddress string `json:"listen_address"`
 	// Database configuration
-	DatabaseURL string `json:"database_url"`
+	DatabaseURL   string `json:"database_url"`
 	LogtoIssuer   string `json:"logto_issuer"`
 	LogtoAudience string `json:"logto_audience"`
 	JWKSEndpoint  string `json:"jwks_endpoint"`
@@ -56,9 +56,9 @@ type Configuration struct {
 	JWKSHTTPTimeout       time.Duration `json:"jwks_http_timeout"`
 	RedisOperationTimeout time.Duration `json:"redis_operation_timeout"`
 	// API configuration
-	DefaultPageSize int      `json:"default_page_size"`
+	DefaultPageSize int `json:"default_page_size"`
 	// System types configuration
-	SystemTypes     []string `json:"system_types"`
+	SystemTypes []string `json:"system_types"`
 }
 
 var Config = Configuration{}

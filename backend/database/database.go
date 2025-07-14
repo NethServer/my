@@ -80,7 +80,7 @@ func initSchemaFromFile() error {
 
 	// Path to the schema file
 	schemaFile := filepath.Join("database", "schema.sql")
-	
+
 	// Check if schema file exists
 	if _, err := os.Stat(schemaFile); os.IsNotExist(err) {
 		logger.ComponentLogger("database").Warn().
