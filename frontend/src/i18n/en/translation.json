@@ -187,6 +187,9 @@
     "no_user": "No user",
     "phone": "Phone"
   },
+  "third_party_apps": {
+    "description_example_company_com": "Description ////"
+  },
   "ne_table": {
     "no_items": "No items",
     "go_to_previous_page": "Go to previous page",

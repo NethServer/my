@@ -4,6 +4,12 @@
 -->
 
 <script setup lang="ts">
+import {
+  getThirdPartyApps,
+  getThirdPartyAppIcon,
+  getThirdPartyAppDescription,
+  openThirdPartyApp,
+} from '@/lib/thirdPartyApps'
 import { useLoginStore } from '@/stores/login'
 import {
   faArrowUpRightFromSquare,
@@ -23,8 +29,14 @@ import {
   NeRoundedIcon,
   NeSkeleton,
 } from '@nethesis/vue-components'
+import { useQuery } from '@pinia/colada'
 
 const loginStore = useLoginStore()
+const { state: thirdPartyApps } = useQuery({
+  key: ['thirdPartyApps'], //// use key factory?
+  enabled: () => !!loginStore.jwtToken,
+  query: getThirdPartyApps,
+})
 </script>
 
 <template>
@@ -59,6 +71,7 @@ const loginStore = useLoginStore()
       <div class="hidden sm:block"></div>
       <div class="hidden 2xl:block"></div>
       <div class="hidden 2xl:block"></div>
+      <!-- //// remove static cards -->
       <!-- warehouse -->
       <NeCard>
         <div class="flex h-full flex-col justify-between gap-4">
@@ -160,6 +173,38 @@ const loginStore = useLoginStore()
               <FontAwesomeIcon :icon="faArrowUpRightFromSquare" aria-hidden="true" />
             </template>
             {{ $t('common.open_page', { page: $t('dashboard.training_portal') }) }}
+          </NeButton>
+        </div>
+      </NeCard>
+      <!-- loading third party apps -->
+      <NeCard v-if="thirdPartyApps.status === 'pending'" v-for="i in 4" :key="i">
+        <div class="flex flex-col items-start gap-3">
+          <NeSkeleton :lines="3" class="w-full" />
+        </div>
+      </NeCard>
+      <!-- third party apps -->
+      <NeCard v-else v-for="thirdPartyApp in thirdPartyApps.data" :key="thirdPartyApp.id">
+        <div class="flex h-full flex-col justify-between gap-4">
+          <div class="flex flex-col items-start gap-3">
+            <div class="flex items-center gap-3">
+              <NeRoundedIcon
+                :customIcon="getThirdPartyAppIcon(thirdPartyApp)"
+                customBackgroundClasses="bg-indigo-100 dark:bg-indigo-800"
+                customForegroundClasses="text-indigo-700 dark:text-indigo-50"
+              />
+              <NeHeading tag="h6">
+                {{ thirdPartyApp.branding.display_name }}
+              </NeHeading>
+            </div>
+            <p>
+              {{ $t(getThirdPartyAppDescription(thirdPartyApp)) }}
+            </p>
+          </div>
+          <NeButton kind="secondary" class="self-end" @click="openThirdPartyApp(thirdPartyApp)">
+            <template #prefix>
+              <FontAwesomeIcon :icon="faArrowUpRightFromSquare" aria-hidden="true" />
+            </template>
+            {{ $t('common.open_page', { page: thirdPartyApp.branding.display_name }) }}
           </NeButton>
         </div>
       </NeCard>
