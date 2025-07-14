@@ -220,7 +220,7 @@ func (qm *QueueManager) RequeueMessage(ctx context.Context, queueName string, me
 	// Use Redis sorted set for delayed processing
 	delayedQueue := queueName + ":delayed"
 	score := float64(time.Now().Add(delay).Unix())
-	
+
 	messageData, err := json.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("failed to marshal message for requeue: %w", err)
@@ -265,12 +265,12 @@ func (qm *QueueManager) ProcessDelayedMessages(ctx context.Context, queueName st
 
 	for _, item := range result {
 		messageData := item.Member.(string)
-		
+
 		// Move message back to main queue
 		pipe := qm.client.TxPipeline()
 		pipe.ZRem(ctx, delayedQueue, messageData)
 		pipe.LPush(ctx, queueName, messageData)
-		
+
 		if _, err := pipe.Exec(ctx); err != nil {
 			logger.Error().
 				Err(err).

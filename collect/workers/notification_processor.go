@@ -17,12 +17,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/rs/zerolog"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/collect/configuration"
 	"github.com/nethesis/my/collect/database"
 	"github.com/nethesis/my/collect/models"
 	"github.com/nethesis/my/collect/queue"
+	"github.com/rs/zerolog"
 )
 
 // NotificationProcessor handles sending notifications for inventory changes
@@ -94,7 +94,7 @@ func (np *NotificationProcessor) worker(ctx context.Context, wg *sync.WaitGroup,
 			if err := np.processNextMessage(ctx, &workerLogger); err != nil {
 				workerLogger.Error().Err(err).Msg("Error processing notification message")
 				atomic.AddInt64(&np.failedJobs, 1)
-				
+
 				// Brief pause on error to prevent tight error loops
 				time.Sleep(1 * time.Second)
 			}
@@ -104,6 +104,11 @@ func (np *NotificationProcessor) worker(ctx context.Context, wg *sync.WaitGroup,
 
 // processNextMessage processes the next message from the notification queue
 func (np *NotificationProcessor) processNextMessage(ctx context.Context, workerLogger *zerolog.Logger) error {
+	// Update activity timestamp
+	np.mu.Lock()
+	np.lastActivity = time.Now()
+	np.mu.Unlock()
+
 	// Get message from queue with timeout
 	message, err := np.queueManager.DequeueMessage(ctx, configuration.Config.QueueNotificationName, 5*time.Second)
 	if err != nil {
@@ -114,11 +119,6 @@ func (np *NotificationProcessor) processNextMessage(ctx context.Context, workerL
 		// No message available, this is normal
 		return nil
 	}
-
-	// Update activity timestamp
-	np.mu.Lock()
-	np.lastActivity = time.Now()
-	np.mu.Unlock()
 
 	// Parse notification job
 	var job models.NotificationJob
@@ -205,7 +205,7 @@ func (np *NotificationProcessor) processAlertNotification(ctx context.Context, j
 		return fmt.Errorf("no alert provided for alert notification")
 	}
 
-	message := fmt.Sprintf("Alert for system %s: %s (Severity: %s)", 
+	message := fmt.Sprintf("Alert for system %s: %s (Severity: %s)",
 		job.SystemID, job.Alert.Message, job.Alert.Severity)
 
 	workerLogger.Info().
@@ -233,34 +233,34 @@ func (np *NotificationProcessor) processSystemStatusNotification(ctx context.Con
 
 // formatDiffNotificationMessage formats a human-readable notification message for diffs
 func (np *NotificationProcessor) formatDiffNotificationMessage(systemID string, categoryGroups map[string][]models.InventoryDiff, severity string) string {
-	message := fmt.Sprintf("System %s has %d inventory changes (Severity: %s):\n", 
+	message := fmt.Sprintf("System %s has %d inventory changes (Severity: %s):\n",
 		systemID, np.countTotalDiffs(categoryGroups), severity)
 
 	for category, diffs := range categoryGroups {
 		message += fmt.Sprintf("\n%s (%d changes):\n", category, len(diffs))
-		
+
 		for _, diff := range diffs {
 			var changeDesc string
 			switch diff.DiffType {
 			case "create":
 				changeDesc = fmt.Sprintf("  + Added %s", diff.FieldPath)
-				if diff.CurrentValue != nil {
-					changeDesc += fmt.Sprintf(": %s", *diff.CurrentValue)
+				if diff.CurrentValueRaw != nil {
+					changeDesc += fmt.Sprintf(": %s", *diff.CurrentValueRaw)
 				}
 			case "update":
 				changeDesc = fmt.Sprintf("  ~ Changed %s", diff.FieldPath)
-				if diff.PreviousValue != nil && diff.CurrentValue != nil {
-					changeDesc += fmt.Sprintf(": %s → %s", *diff.PreviousValue, *diff.CurrentValue)
+				if diff.PreviousValueRaw != nil && diff.CurrentValueRaw != nil {
+					changeDesc += fmt.Sprintf(": %s → %s", *diff.PreviousValueRaw, *diff.CurrentValueRaw)
 				}
 			case "delete":
 				changeDesc = fmt.Sprintf("  - Removed %s", diff.FieldPath)
-				if diff.PreviousValue != nil {
-					changeDesc += fmt.Sprintf(": %s", *diff.PreviousValue)
+				if diff.PreviousValueRaw != nil {
+					changeDesc += fmt.Sprintf(": %s", *diff.PreviousValueRaw)
 				}
 			default:
 				changeDesc = fmt.Sprintf("  ? %s %s", diff.DiffType, diff.FieldPath)
 			}
-			
+
 			message += changeDesc + "\n"
 		}
 	}
@@ -283,29 +283,49 @@ func (np *NotificationProcessor) markDiffsNotificationSent(ctx context.Context, 
 		return nil
 	}
 
-	// Build list of diff IDs
-	diffIDs := make([]interface{}, len(diffs))
-	for i, diff := range diffs {
-		diffIDs[i] = diff.ID
-	}
+	// Add timeout to prevent connection hanging
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 
-	// Create placeholders for the IN clause
-	placeholders := ""
-	for i := range diffIDs {
-		if i > 0 {
-			placeholders += ", "
+	// Process in batches to avoid connection issues with large lists
+	const batchSize = 50
+	for i := 0; i < len(diffs); i += batchSize {
+		end := i + batchSize
+		if end > len(diffs) {
+			end = len(diffs)
 		}
-		placeholders += fmt.Sprintf("$%d", i+1)
+
+		batch := diffs[i:end]
+		if err := np.markDiffBatch(ctx, batch); err != nil {
+			return fmt.Errorf("failed to mark diff batch %d-%d: %w", i, end, err)
+		}
 	}
 
-	query := fmt.Sprintf(`
-		UPDATE inventory_diffs 
-		SET notification_sent = true 
-		WHERE id IN (%s)
-	`, placeholders)
+	return nil
+}
 
-	_, err := database.DB.ExecContext(ctx, query, diffIDs...)
-	return err
+// markDiffBatch marks a batch of diffs as notified using prepared statement
+func (np *NotificationProcessor) markDiffBatch(ctx context.Context, diffs []models.InventoryDiff) error {
+	if len(diffs) == 0 {
+		return nil
+	}
+
+	// Use prepared statement for better performance and safety
+	stmt, err := database.DB.PrepareContext(ctx, "UPDATE inventory_diffs SET notification_sent = true WHERE id = $1")
+	if err != nil {
+		return fmt.Errorf("failed to prepare statement: %w", err)
+	}
+	defer func() {
+		_ = stmt.Close() // Ignore error on close
+	}()
+
+	for _, diff := range diffs {
+		if _, err := stmt.ExecContext(ctx, diff.ID); err != nil {
+			return fmt.Errorf("failed to update diff %d: %w", diff.ID, err)
+		}
+	}
+
+	return nil
 }
 
 // sendNotification sends the actual notification (placeholder implementation)
@@ -315,7 +335,7 @@ func (np *NotificationProcessor) sendNotification(ctx context.Context, systemID,
 	// - Webhook calls
 	// - Push notifications
 	// - Integration with external systems (Slack, Teams, etc.)
-	
+
 	workerLogger.Info().
 		Str("system_id", systemID).
 		Str("severity", severity).
@@ -369,10 +389,10 @@ func (np *NotificationProcessor) GetStats() map[string]interface{} {
 	defer np.mu.RUnlock()
 
 	return map[string]interface{}{
-		"worker_count":    np.workerCount,
-		"processed_jobs":  atomic.LoadInt64(&np.processedJobs),
-		"failed_jobs":     atomic.LoadInt64(&np.failedJobs),
-		"last_activity":   np.lastActivity,
-		"is_healthy":      np.IsHealthy(),
+		"worker_count":   np.workerCount,
+		"processed_jobs": atomic.LoadInt64(&np.processedJobs),
+		"failed_jobs":    atomic.LoadInt64(&np.failedJobs),
+		"last_activity":  np.lastActivity,
+		"is_healthy":     np.IsHealthy(),
 	}
 }

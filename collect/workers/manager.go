@@ -21,12 +21,12 @@ import (
 
 // Manager coordinates all background workers
 type Manager struct {
-	ctx        context.Context
-	cancel     context.CancelFunc
-	wg         sync.WaitGroup
-	workers    []Worker
-	started    bool
-	mu         sync.RWMutex
+	ctx     context.Context
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
+	workers []Worker
+	started bool
+	mu      sync.RWMutex
 }
 
 // Worker interface for all background workers
@@ -59,19 +59,19 @@ func (m *Manager) Start(ctx context.Context) error {
 	m.workers = []Worker{
 		// Inventory processing workers
 		NewInventoryProcessor(1, configuration.Config.WorkerInventoryCount),
-		
-		// Diff processing workers  
+
+		// Diff processing workers
 		NewDiffProcessor(2, configuration.Config.WorkerProcessingCount),
-		
+
 		// Notification workers
 		NewNotificationProcessor(3, configuration.Config.WorkerNotificationCount),
-		
+
 		// Cleanup worker (single instance)
 		NewCleanupWorker(4),
-		
+
 		// Delayed message processor (single instance)
 		NewDelayedMessageProcessor(5),
-		
+
 		// Health monitor (single instance)
 		NewHealthMonitor(6),
 	}
@@ -87,7 +87,7 @@ func (m *Manager) Start(ctx context.Context) error {
 				Err(err).
 				Str("worker", worker.Name()).
 				Msg("Failed to start worker")
-			
+
 			// Cancel context and wait for already started workers
 			m.cancel()
 			m.wg.Wait()

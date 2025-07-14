@@ -97,7 +97,7 @@ func main() {
 	// ===========================================
 	// INVENTORY COLLECTION ENDPOINTS
 	// ===========================================
-	
+
 	// System inventory collection with HTTP Basic authentication
 	systemsGroup := api.Group("/systems", middleware.BasicAuthMiddleware())
 	{

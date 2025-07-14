@@ -13,14 +13,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	_ "github.com/lib/pq"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/nethesis/my/backend/logger"
 )
@@ -159,7 +158,6 @@ func GetRedisClient() *redis.Client {
 	return Redis
 }
 
-
 // Close closes all database connections
 func Close() error {
 	var dbErr, redisErr error
@@ -194,7 +192,7 @@ func Health() error {
 	// Check Redis
 	ctx := context.Background()
 	if err := Redis.Ping(ctx).Err(); err != nil {
-		return fmt.Errorf("Redis health check failed: %w", err)
+		return fmt.Errorf("redis health check failed: %w", err)
 	}
 
 	return nil
@@ -208,25 +206,25 @@ func GetStats() map[string]interface{} {
 		dbStats := DB.Stats()
 		stats["postgresql"] = map[string]interface{}{
 			"open_connections":     dbStats.OpenConnections,
-			"in_use":              dbStats.InUse,
-			"idle":                dbStats.Idle,
-			"wait_count":          dbStats.WaitCount,
-			"wait_duration":       dbStats.WaitDuration,
-			"max_idle_closed":     dbStats.MaxIdleClosed,
+			"in_use":               dbStats.InUse,
+			"idle":                 dbStats.Idle,
+			"wait_count":           dbStats.WaitCount,
+			"wait_duration":        dbStats.WaitDuration,
+			"max_idle_closed":      dbStats.MaxIdleClosed,
 			"max_idle_time_closed": dbStats.MaxIdleTimeClosed,
-			"max_lifetime_closed": dbStats.MaxLifetimeClosed,
+			"max_lifetime_closed":  dbStats.MaxLifetimeClosed,
 		}
 	}
 
 	if Redis != nil {
 		poolStats := Redis.PoolStats()
 		stats["redis"] = map[string]interface{}{
-			"hits":         poolStats.Hits,
-			"misses":       poolStats.Misses,
-			"timeouts":     poolStats.Timeouts,
-			"total_conns":  poolStats.TotalConns,
-			"idle_conns":   poolStats.IdleConns,
-			"stale_conns":  poolStats.StaleConns,
+			"hits":        poolStats.Hits,
+			"misses":      poolStats.Misses,
+			"timeouts":    poolStats.Timeouts,
+			"total_conns": poolStats.TotalConns,
+			"idle_conns":  poolStats.IdleConns,
+			"stale_conns": poolStats.StaleConns,
 		}
 	}
 
@@ -239,7 +237,7 @@ func initSchemaFromFile() error {
 
 	// Path to the schema file
 	schemaFile := filepath.Join("database", "schema.sql")
-	
+
 	// Check if schema file exists
 	if _, err := os.Stat(schemaFile); os.IsNotExist(err) {
 		logger.ComponentLogger("database").Warn().
@@ -249,7 +247,7 @@ func initSchemaFromFile() error {
 	}
 
 	// Read schema file
-	content, err := ioutil.ReadFile(schemaFile)
+	content, err := os.ReadFile(schemaFile)
 	if err != nil {
 		return fmt.Errorf("failed to read schema file: %w", err)
 	}

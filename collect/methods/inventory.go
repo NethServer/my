@@ -48,7 +48,7 @@ func CollectInventory(c *gin.Context) {
 			Int64("content_length", c.Request.ContentLength).
 			Int64("max_size", configuration.Config.APIMaxRequestSize).
 			Msg("Request size exceeds limit")
-		
+
 		c.JSON(http.StatusRequestEntityTooLarge, response.BadRequest("Request too large", map[string]interface{}{
 			"max_size_bytes": configuration.Config.APIMaxRequestSize,
 			"received_bytes": c.Request.ContentLength,
@@ -63,13 +63,13 @@ func CollectInventory(c *gin.Context) {
 			Err(err).
 			Str("system_id", systemIDStr).
 			Msg("Failed to parse inventory data")
-		
+
 		c.JSON(http.StatusBadRequest, response.BadRequest("Invalid JSON payload", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
 	}
-	
+
 	// Create full InventoryData with auto-populated fields
 	now := time.Now()
 	inventoryData := models.InventoryData{
@@ -86,7 +86,7 @@ func CollectInventory(c *gin.Context) {
 			Err(err).
 			Str("system_id", systemIDStr).
 			Msg("Inventory data validation failed")
-		
+
 		c.JSON(http.StatusBadRequest, response.BadRequest("Invalid inventory data", map[string]interface{}{
 			"validation_error": err.Error(),
 		}))
@@ -102,7 +102,7 @@ func CollectInventory(c *gin.Context) {
 			Err(err).
 			Str("system_id", systemIDStr).
 			Msg("Invalid JSON structure in inventory data")
-		
+
 		c.JSON(http.StatusBadRequest, response.BadRequest("Invalid data structure", map[string]interface{}{
 			"error": "Data field must contain valid JSON",
 		}))
@@ -119,7 +119,7 @@ func CollectInventory(c *gin.Context) {
 			Err(err).
 			Str("system_id", systemIDStr).
 			Msg("Failed to enqueue inventory for processing")
-		
+
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to process inventory", map[string]interface{}{
 			"error": "Processing queue unavailable",
 		}))
@@ -145,7 +145,7 @@ func CollectInventory(c *gin.Context) {
 // GetInventoryStats returns statistics about inventory processing
 func GetInventoryStats(c *gin.Context) {
 	// This endpoint could be added to provide statistics
-	
+
 	queueManager := queue.NewQueueManager()
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
@@ -155,7 +155,7 @@ func GetInventoryStats(c *gin.Context) {
 		logger.Error().
 			Err(err).
 			Msg("Failed to get queue statistics")
-		
+
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get statistics", nil))
 		return
 	}
@@ -167,7 +167,7 @@ func GetInventoryStats(c *gin.Context) {
 func ValidateInventoryFormat(c *gin.Context) {
 	// This endpoint can be used by systems to validate their data format
 	// before sending the actual inventory
-	
+
 	var inventoryData models.InventoryData
 	if err := c.ShouldBindJSON(&inventoryData); err != nil {
 		c.JSON(http.StatusBadRequest, response.BadRequest("Invalid JSON payload", map[string]interface{}{
@@ -207,32 +207,32 @@ func GetExpectedFormat(c *gin.Context) {
 		"data": map[string]interface{}{
 			"description": "object (required) - Complete system inventory data",
 			"required_fields": map[string]string{
-				"os": "Operating system information",
+				"os":         "Operating system information",
 				"networking": "Network configuration and status",
 				"processors": "CPU information",
-				"memory": "Memory usage statistics",
+				"memory":     "Memory usage statistics",
 			},
 			"optional_fields": map[string]string{
-				"dmi": "Hardware DMI information",
-				"features": "System features and services",
-				"esmithdb": "System configuration database",
-				"rpms": "Installed packages",
-				"kernel": "Kernel information",
-				"timezone": "System timezone",
-				"public_ip": "Public IP address",
-				"virtual": "Virtualization status",
-				"mountpoints": "Filesystem mount points",
+				"dmi":           "Hardware DMI information",
+				"features":      "System features and services",
+				"esmithdb":      "System configuration database",
+				"rpms":          "Installed packages",
+				"kernel":        "Kernel information",
+				"timezone":      "System timezone",
+				"public_ip":     "Public IP address",
+				"virtual":       "Virtualization status",
+				"mountpoints":   "Filesystem mount points",
 				"system_uptime": "System uptime information",
 			},
 		},
 		"example": map[string]interface{}{
 			"data": map[string]interface{}{
 				"os": map[string]interface{}{
-					"name": "NethSec",
-					"type": "nethsecurity",
+					"name":   "NethSec",
+					"type":   "nethsecurity",
 					"family": "OpenWRT",
 					"release": map[string]interface{}{
-						"full": "8-24.10.0-ns.1.6.0-5-g0524860a0",
+						"full":  "8-24.10.0-ns.1.6.0-5-g0524860a0",
 						"major": 7,
 					},
 				},
@@ -240,28 +240,28 @@ func GetExpectedFormat(c *gin.Context) {
 					"fqdn": "fw.nethesis.it",
 				},
 				"processors": map[string]interface{}{
-					"count": "4",
+					"count":  "4",
 					"models": []string{"Intel(R) Core(TM) i5-4570S CPU @ 2.90GHz"},
 				},
 				"memory": map[string]interface{}{
 					"system": map[string]interface{}{
-						"total_bytes": 7352455168,
-						"used_bytes": 579198976,
+						"total_bytes":     7352455168,
+						"used_bytes":      579198976,
 						"available_bytes": 7352455168,
 					},
 				},
 			},
 		},
 		"authentication": map[string]interface{}{
-			"method": "HTTP Basic Authentication",
+			"method":   "HTTP Basic Authentication",
 			"username": "system_id (automatically populated from authentication)",
 			"password": "system_secret (provided during system registration)",
-			"note": "system_id and timestamp are automatically set by the server",
+			"note":     "system_id and timestamp are automatically set by the server",
 		},
 		"response": map[string]interface{}{
 			"success": map[string]interface{}{
 				"status_code": 202,
-				"message": "Inventory received and queued for processing",
+				"message":     "Inventory received and queued for processing",
 			},
 			"error_codes": map[string]interface{}{
 				"400": "Invalid JSON payload or validation error",
@@ -272,11 +272,11 @@ func GetExpectedFormat(c *gin.Context) {
 			},
 		},
 		"limits": map[string]interface{}{
-			"max_request_size": fmt.Sprintf("%d bytes (%.1f MB)", 
-				configuration.Config.APIMaxRequestSize, 
+			"max_request_size": fmt.Sprintf("%d bytes (%.1f MB)",
+				configuration.Config.APIMaxRequestSize,
 				float64(configuration.Config.APIMaxRequestSize)/(1024*1024)),
 			"timestamp_tolerance": "24 hours in the past, 5 minutes in the future",
-			"processing_timeout": configuration.Config.APIRequestTimeout.String(),
+			"processing_timeout":  configuration.Config.APIRequestTimeout.String(),
 		},
 	}
 

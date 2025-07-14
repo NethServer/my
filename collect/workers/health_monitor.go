@@ -16,11 +16,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/rs/zerolog"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/collect/configuration"
 	"github.com/nethesis/my/collect/database"
 	"github.com/nethesis/my/collect/queue"
+	"github.com/rs/zerolog"
 )
 
 // HealthMonitor monitors the overall health of the collect system
@@ -138,19 +138,19 @@ func (hm *HealthMonitor) checkDatabaseHealth(ctx context.Context, workerLogger *
 
 	// Check database stats
 	stats := database.GetStats()
-	
+
 	// Log database statistics
 	if dbStats, ok := stats["postgresql"].(map[string]interface{}); ok {
 		openConns := dbStats["open_connections"]
 		maxConns := configuration.Config.DatabaseMaxConns
-		
+
 		if openConnsInt, ok := openConns.(int); ok && openConnsInt > int(float64(maxConns)*0.8) {
 			workerLogger.Warn().
 				Int("open_connections", openConnsInt).
 				Int("max_connections", maxConns).
 				Msg("High database connection usage")
 		}
-		
+
 		workerLogger.Debug().
 			Interface("stats", dbStats).
 			Msg("Database health check passed")
@@ -162,7 +162,7 @@ func (hm *HealthMonitor) checkDatabaseHealth(ctx context.Context, workerLogger *
 // checkRedisHealth checks Redis connectivity and performance
 func (hm *HealthMonitor) checkRedisHealth(ctx context.Context, workerLogger *zerolog.Logger) error {
 	redis := database.GetRedisClient()
-	
+
 	// Check basic connectivity
 	if err := redis.Ping(ctx).Err(); err != nil {
 		return err
@@ -215,7 +215,7 @@ func (hm *HealthMonitor) checkQueueHealth(ctx context.Context, workerLogger *zer
 func (hm *HealthMonitor) checkSystemResources(ctx context.Context, workerLogger *zerolog.Logger) error {
 	// Check disk space for database directory
 	// This is a simplified check - in production, you might want more sophisticated monitoring
-	
+
 	// Check if we can write to the database
 	testQuery := "SELECT 1"
 	_, err := database.DB.QueryContext(ctx, testQuery)
@@ -241,9 +241,9 @@ func (hm *HealthMonitor) GetStats() map[string]interface{} {
 	defer hm.mu.RUnlock()
 
 	return map[string]interface{}{
-		"last_activity":     hm.lastActivity,
-		"is_healthy":        hm.IsHealthy(),
-		"check_interval":    configuration.Config.HealthCheckInterval.String(),
+		"last_activity":  hm.lastActivity,
+		"is_healthy":     hm.IsHealthy(),
+		"check_interval": configuration.Config.HealthCheckInterval.String(),
 	}
 }
 
@@ -268,14 +268,14 @@ func (hm *HealthMonitor) GetSystemHealth(ctx context.Context) map[string]interfa
 	}
 
 	// Overall health
-	overallHealthy := dbErr == nil && 
-		queueErr == nil && 
+	overallHealthy := dbErr == nil &&
+		queueErr == nil &&
 		(queueStats == nil || queueStats.QueueHealth != "critical") &&
 		hm.IsHealthy()
 
 	health["overall"] = map[string]interface{}{
-		"healthy":       overallHealthy,
-		"last_check":    hm.lastActivity,
+		"healthy":         overallHealthy,
+		"last_check":      hm.lastActivity,
 		"monitor_healthy": hm.IsHealthy(),
 	}
 

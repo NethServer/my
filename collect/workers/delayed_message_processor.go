@@ -15,10 +15,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/rs/zerolog"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/collect/configuration"
 	"github.com/nethesis/my/collect/queue"
+	"github.com/rs/zerolog"
 )
 
 // DelayedMessageProcessor handles processing of delayed messages in Redis queues
@@ -100,7 +100,7 @@ func (dmp *DelayedMessageProcessor) processDelayedMessages(ctx context.Context, 
 				Err(err).
 				Str("queue", queueName).
 				Msg("Failed to process delayed messages")
-			
+
 			atomic.StoreInt32(&dmp.isHealthy, 0)
 			continue
 		}
@@ -111,7 +111,7 @@ func (dmp *DelayedMessageProcessor) processDelayedMessages(ctx context.Context, 
 	if totalProcessed > 0 {
 		atomic.AddInt64(&dmp.processedJobs, totalProcessed)
 		atomic.StoreInt32(&dmp.isHealthy, 1)
-		
+
 		workerLogger.Debug().
 			Int64("queues_processed", totalProcessed).
 			Msg("Processed delayed messages for all queues")

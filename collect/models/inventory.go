@@ -29,59 +29,61 @@ type InventoryData struct {
 
 // InventoryRecord represents a stored inventory record in the database
 type InventoryRecord struct {
-	ID             int64           `json:"id" db:"id"`
-	SystemID       string          `json:"system_id" db:"system_id"`
-	Timestamp      time.Time       `json:"timestamp" db:"timestamp"`
-	Data           json.RawMessage `json:"data" db:"data"`
-	DataHash       string          `json:"data_hash" db:"data_hash"`
-	DataSize       int64           `json:"data_size" db:"data_size"`
-	Compressed     bool            `json:"compressed" db:"compressed"`
-	ProcessedAt    *time.Time      `json:"processed_at" db:"processed_at"`
-	HasChanges     bool            `json:"has_changes" db:"has_changes"`
-	ChangeCount    int             `json:"change_count" db:"change_count"`
-	CreatedAt      time.Time       `json:"created_at" db:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at" db:"updated_at"`
+	ID          int64           `json:"id" db:"id"`
+	SystemID    string          `json:"system_id" db:"system_id"`
+	Timestamp   time.Time       `json:"timestamp" db:"timestamp"`
+	Data        json.RawMessage `json:"data" db:"data"`
+	DataHash    string          `json:"data_hash" db:"data_hash"`
+	DataSize    int64           `json:"data_size" db:"data_size"`
+	Compressed  bool            `json:"compressed" db:"compressed"`
+	ProcessedAt *time.Time      `json:"processed_at" db:"processed_at"`
+	HasChanges  bool            `json:"has_changes" db:"has_changes"`
+	ChangeCount int             `json:"change_count" db:"change_count"`
+	CreatedAt   time.Time       `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at" db:"updated_at"`
 }
 
 // InventoryDiff represents a difference between two inventory snapshots
 type InventoryDiff struct {
-	ID             int64     `json:"id" db:"id"`
-	SystemID       string    `json:"system_id" db:"system_id"`
-	PreviousID     int64     `json:"previous_id" db:"previous_id"`
-	CurrentID      int64     `json:"current_id" db:"current_id"`
-	DiffType       string    `json:"diff_type" db:"diff_type"` // create, update, delete
-	FieldPath      string    `json:"field_path" db:"field_path"`
-	PreviousValue  *string   `json:"previous_value" db:"previous_value"`
-	CurrentValue   *string   `json:"current_value" db:"current_value"`
-	Severity       string    `json:"severity" db:"severity"` // low, medium, high, critical
-	Category       string    `json:"category" db:"category"` // os, hardware, network, features
-	NotificationSent bool    `json:"notification_sent" db:"notification_sent"`
-	CreatedAt      time.Time `json:"created_at" db:"created_at"`
+	ID               int64       `json:"id" db:"id"`
+	SystemID         string      `json:"system_id" db:"system_id"`
+	PreviousID       *int64      `json:"previous_id" db:"previous_id"`
+	CurrentID        int64       `json:"current_id" db:"current_id"`
+	DiffType         string      `json:"diff_type" db:"diff_type"` // create, update, delete
+	FieldPath        string      `json:"field_path" db:"field_path"`
+	PreviousValueRaw *string     `json:"-" db:"previous_value"`  // Raw value from DB (not exported)
+	CurrentValueRaw  *string     `json:"-" db:"current_value"`   // Raw value from DB (not exported)
+	PreviousValue    interface{} `json:"previous_value"`         // Parsed value for JSON response
+	CurrentValue     interface{} `json:"current_value"`          // Parsed value for JSON response
+	Severity         string      `json:"severity" db:"severity"` // low, medium, high, critical
+	Category         string      `json:"category" db:"category"` // os, hardware, network, features
+	NotificationSent bool        `json:"notification_sent" db:"notification_sent"`
+	CreatedAt        time.Time   `json:"created_at" db:"created_at"`
 }
 
 // SystemCredentials represents the authentication credentials for a system
 type SystemCredentials struct {
-	SystemID      string    `json:"system_id" db:"system_id"`
-	SecretHash    string    `json:"secret_hash" db:"secret_hash"`
-	IsActive      bool      `json:"is_active" db:"is_active"`
-	LastUsed      *time.Time `json:"last_used" db:"last_used"`
-	CreatedAt     time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at" db:"updated_at"`
+	SystemID   string     `json:"system_id" db:"system_id"`
+	SecretHash string     `json:"secret_hash" db:"secret_hash"`
+	IsActive   bool       `json:"is_active" db:"is_active"`
+	LastUsed   *time.Time `json:"last_used" db:"last_used"`
+	CreatedAt  time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at" db:"updated_at"`
 }
 
 // InventoryMonitoring represents monitoring rules for inventory changes
 type InventoryMonitoring struct {
-	ID           int64     `json:"id" db:"id"`
-	SystemID     *string   `json:"system_id" db:"system_id"` // null for global rules
-	FieldPath    string    `json:"field_path" db:"field_path"`
-	MonitorType  string    `json:"monitor_type" db:"monitor_type"` // threshold, change, pattern
-	Threshold    *string   `json:"threshold" db:"threshold"`
-	Pattern      *string   `json:"pattern" db:"pattern"`
-	Severity     string    `json:"severity" db:"severity"`
-	IsEnabled    bool      `json:"is_enabled" db:"is_enabled"`
-	Description  string    `json:"description" db:"description"`
-	CreatedAt    time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
+	ID          int64     `json:"id" db:"id"`
+	SystemID    *string   `json:"system_id" db:"system_id"` // null for global rules
+	FieldPath   string    `json:"field_path" db:"field_path"`
+	MonitorType string    `json:"monitor_type" db:"monitor_type"` // threshold, change, pattern
+	Threshold   *string   `json:"threshold" db:"threshold"`
+	Pattern     *string   `json:"pattern" db:"pattern"`
+	Severity    string    `json:"severity" db:"severity"`
+	IsEnabled   bool      `json:"is_enabled" db:"is_enabled"`
+	Description string    `json:"description" db:"description"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // QueueMessage represents a message in the processing queue
@@ -106,53 +108,53 @@ type InventoryProcessingJob struct {
 
 // NotificationJob represents a job for sending notifications
 type NotificationJob struct {
-	Type        string           `json:"type"` // diff, alert, system_status
-	SystemID    string           `json:"system_id"`
-	Diffs       []InventoryDiff  `json:"diffs,omitempty"`
-	Alert       *InventoryAlert  `json:"alert,omitempty"`
-	Message     string           `json:"message"`
-	Severity    string           `json:"severity"`
-	Recipients  []string         `json:"recipients"`
+	Type       string          `json:"type"` // diff, alert, system_status
+	SystemID   string          `json:"system_id"`
+	Diffs      []InventoryDiff `json:"diffs,omitempty"`
+	Alert      *InventoryAlert `json:"alert,omitempty"`
+	Message    string          `json:"message"`
+	Severity   string          `json:"severity"`
+	Recipients []string        `json:"recipients"`
 }
 
 // InventoryAlert represents an alert triggered by inventory monitoring
 type InventoryAlert struct {
-	ID           int64     `json:"id" db:"id"`
-	SystemID     string    `json:"system_id" db:"system_id"`
-	MonitoringID int64     `json:"monitoring_id" db:"monitoring_id"`
-	DiffID       *int64    `json:"diff_id" db:"diff_id"`
-	AlertType    string    `json:"alert_type" db:"alert_type"` // threshold, change, pattern
-	Message      string    `json:"message" db:"message"`
-	Severity     string    `json:"severity" db:"severity"`
-	IsResolved   bool      `json:"is_resolved" db:"is_resolved"`
+	ID           int64      `json:"id" db:"id"`
+	SystemID     string     `json:"system_id" db:"system_id"`
+	MonitoringID int64      `json:"monitoring_id" db:"monitoring_id"`
+	DiffID       *int64     `json:"diff_id" db:"diff_id"`
+	AlertType    string     `json:"alert_type" db:"alert_type"` // threshold, change, pattern
+	Message      string     `json:"message" db:"message"`
+	Severity     string     `json:"severity" db:"severity"`
+	IsResolved   bool       `json:"is_resolved" db:"is_resolved"`
 	ResolvedAt   *time.Time `json:"resolved_at" db:"resolved_at"`
-	CreatedAt    time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
+	CreatedAt    time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at" db:"updated_at"`
 }
 
 // InventoryChangesSummary represents a summary of inventory changes for a system
 type InventoryChangesSummary struct {
-	SystemID           string            `json:"system_id"`
-	TotalChanges       int               `json:"total_changes"`
-	RecentChanges      int               `json:"recent_changes"`
-	LastInventoryTime  time.Time         `json:"last_inventory_time"`
-	HasCriticalChanges bool              `json:"has_critical_changes"`
-	HasAlerts          bool              `json:"has_alerts"`
-	ChangesByCategory  map[string]int    `json:"changes_by_category"`
-	ChangesBySeverity  map[string]int    `json:"changes_by_severity"`
+	SystemID           string         `json:"system_id"`
+	TotalChanges       int            `json:"total_changes"`
+	RecentChanges      int            `json:"recent_changes"`
+	LastInventoryTime  time.Time      `json:"last_inventory_time"`
+	HasCriticalChanges bool           `json:"has_critical_changes"`
+	HasAlerts          bool           `json:"has_alerts"`
+	ChangesByCategory  map[string]int `json:"changes_by_category"`
+	ChangesBySeverity  map[string]int `json:"changes_by_severity"`
 }
 
 // InventoryStats represents statistics about inventory processing
 type InventoryStats struct {
-	TotalSystems      int     `json:"total_systems"`
-	ActiveSystems     int     `json:"active_systems"`
-	TotalInventories  int64   `json:"total_inventories"`
-	TodayInventories  int64   `json:"today_inventories"`
-	PendingJobs       int64   `json:"pending_jobs"`
-	ProcessingJobs    int64   `json:"processing_jobs"`
-	FailedJobs        int64   `json:"failed_jobs"`
+	TotalSystems       int     `json:"total_systems"`
+	ActiveSystems      int     `json:"active_systems"`
+	TotalInventories   int64   `json:"total_inventories"`
+	TodayInventories   int64   `json:"today_inventories"`
+	PendingJobs        int64   `json:"pending_jobs"`
+	ProcessingJobs     int64   `json:"processing_jobs"`
+	FailedJobs         int64   `json:"failed_jobs"`
 	AverageProcessTime float64 `json:"average_process_time_ms"`
-	QueueHealth       string  `json:"queue_health"` // healthy, warning, critical
+	QueueHealth        string  `json:"queue_health"` // healthy, warning, critical
 }
 
 // ValidateInventoryData validates the inventory data payload
@@ -166,13 +168,13 @@ func (i *InventoryData) ValidateInventoryData() error {
 	if len(i.Data) == 0 {
 		return &ValidationError{Field: "data", Message: "data is required"}
 	}
-	
+
 	// Validate that data is valid JSON
 	var testData interface{}
 	if err := json.Unmarshal(i.Data, &testData); err != nil {
 		return &ValidationError{Field: "data", Message: "data must be valid JSON"}
 	}
-	
+
 	return nil
 }
 

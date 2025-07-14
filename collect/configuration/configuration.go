@@ -20,13 +20,13 @@ import (
 
 type Configuration struct {
 	ListenAddress string `json:"listen_address"`
-	
+
 	// Database configuration
-	DatabaseURL        string `json:"database_url"`
-	DatabaseMaxConns   int    `json:"database_max_conns"`
-	DatabaseMaxIdle    int    `json:"database_max_idle"`
+	DatabaseURL        string        `json:"database_url"`
+	DatabaseMaxConns   int           `json:"database_max_conns"`
+	DatabaseMaxIdle    int           `json:"database_max_idle"`
 	DatabaseConnMaxAge time.Duration `json:"database_conn_max_age"`
-	
+
 	// Redis configuration
 	RedisURL          string        `json:"redis_url"`
 	RedisDB           int           `json:"redis_db"`
@@ -35,44 +35,44 @@ type Configuration struct {
 	RedisDialTimeout  time.Duration `json:"redis_dial_timeout"`
 	RedisReadTimeout  time.Duration `json:"redis_read_timeout"`
 	RedisWriteTimeout time.Duration `json:"redis_write_timeout"`
-	
+
 	// Queue configuration
-	QueueInventoryName     string        `json:"queue_inventory_name"`
-	QueueProcessingName    string        `json:"queue_processing_name"`
-	QueueNotificationName  string        `json:"queue_notification_name"`
-	QueueBatchSize         int           `json:"queue_batch_size"`
-	QueueProcessTimeout    time.Duration `json:"queue_process_timeout"`
-	QueueRetryAttempts     int           `json:"queue_retry_attempts"`
-	QueueRetryDelay        time.Duration `json:"queue_retry_delay"`
-	
+	QueueInventoryName    string        `json:"queue_inventory_name"`
+	QueueProcessingName   string        `json:"queue_processing_name"`
+	QueueNotificationName string        `json:"queue_notification_name"`
+	QueueBatchSize        int           `json:"queue_batch_size"`
+	QueueProcessTimeout   time.Duration `json:"queue_process_timeout"`
+	QueueRetryAttempts    int           `json:"queue_retry_attempts"`
+	QueueRetryDelay       time.Duration `json:"queue_retry_delay"`
+
 	// Worker configuration
-	WorkerInventoryCount     int           `json:"worker_inventory_count"`
-	WorkerProcessingCount    int           `json:"worker_processing_count"`
-	WorkerNotificationCount  int           `json:"worker_notification_count"`
-	WorkerShutdownTimeout    time.Duration `json:"worker_shutdown_timeout"`
-	WorkerHeartbeatInterval  time.Duration `json:"worker_heartbeat_interval"`
-	
+	WorkerInventoryCount    int           `json:"worker_inventory_count"`
+	WorkerProcessingCount   int           `json:"worker_processing_count"`
+	WorkerNotificationCount int           `json:"worker_notification_count"`
+	WorkerShutdownTimeout   time.Duration `json:"worker_shutdown_timeout"`
+	WorkerHeartbeatInterval time.Duration `json:"worker_heartbeat_interval"`
+
 	// Inventory processing configuration
-	InventoryMaxAge         time.Duration `json:"inventory_max_age"`
-	InventoryCleanupInterval time.Duration `json:"inventory_cleanup_interval"`
-	InventoryDiffDepth      int           `json:"inventory_diff_depth"`
-	InventoryCompressionEnabled bool      `json:"inventory_compression_enabled"`
-	
+	InventoryMaxAge             time.Duration `json:"inventory_max_age"`
+	InventoryCleanupInterval    time.Duration `json:"inventory_cleanup_interval"`
+	InventoryDiffDepth          int           `json:"inventory_diff_depth"`
+	InventoryCompressionEnabled bool          `json:"inventory_compression_enabled"`
+
 	// System authentication configuration
-	SystemSecretMinLength   int           `json:"system_secret_min_length"`
-	SystemAuthCacheTTL      time.Duration `json:"system_auth_cache_ttl"`
-	
+	SystemSecretMinLength int           `json:"system_secret_min_length"`
+	SystemAuthCacheTTL    time.Duration `json:"system_auth_cache_ttl"`
+
 	// API configuration
-	APIMaxRequestSize    int64         `json:"api_max_request_size"`
-	APIRequestTimeout    time.Duration `json:"api_request_timeout"`
-	APIRateLimit         int           `json:"api_rate_limit"`
-	APIRateLimitWindow   time.Duration `json:"api_rate_limit_window"`
-	
+	APIMaxRequestSize  int64         `json:"api_max_request_size"`
+	APIRequestTimeout  time.Duration `json:"api_request_timeout"`
+	APIRateLimit       int           `json:"api_rate_limit"`
+	APIRateLimitWindow time.Duration `json:"api_rate_limit_window"`
+
 	// Monitoring configuration
-	MetricsEnabled          bool          `json:"metrics_enabled"`
-	MetricsPath            string        `json:"metrics_path"`
-	HealthCheckInterval    time.Duration `json:"health_check_interval"`
-	
+	MetricsEnabled      bool          `json:"metrics_enabled"`
+	MetricsPath         string        `json:"metrics_path"`
+	HealthCheckInterval time.Duration `json:"health_check_interval"`
+
 	// Notification configuration
 	NotificationRetryAttempts int           `json:"notification_retry_attempts"`
 	NotificationRetryDelay    time.Duration `json:"notification_retry_delay"`

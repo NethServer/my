@@ -38,11 +38,11 @@ func NewDiffEngine() *DiffEngine {
 func (de *DiffEngine) ComputeDiff(systemID string, previous, current *models.InventoryRecord) ([]models.InventoryDiff, error) {
 	// Parse JSON data
 	var prevData, currData interface{}
-	
+
 	if err := json.Unmarshal(previous.Data, &prevData); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal previous data: %w", err)
 	}
-	
+
 	if err := json.Unmarshal(current.Data, &currData); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal current data: %w", err)
 	}
@@ -80,15 +80,15 @@ func (de *DiffEngine) convertToInventoryDiff(systemID string, previousID, curren
 	}
 
 	fieldPath := de.formatPath(change.Path)
-	
+
 	inventoryDiff := &models.InventoryDiff{
-		SystemID:    systemID,
-		PreviousID:  previousID,
-		CurrentID:   currentID,
-		FieldPath:   fieldPath,
-		DiffType:    string(change.Type),
-		Category:    de.categorizeField(fieldPath),
-		Severity:    de.determineSeverity(fieldPath, string(change.Type), change.From, change.To),
+		SystemID:   systemID,
+		PreviousID: &previousID,
+		CurrentID:  currentID,
+		FieldPath:  fieldPath,
+		DiffType:   string(change.Type),
+		Category:   de.categorizeField(fieldPath),
+		Severity:   de.determineSeverity(fieldPath, string(change.Type), change.From, change.To),
 	}
 
 	// Set previous and current values
@@ -96,7 +96,7 @@ func (de *DiffEngine) convertToInventoryDiff(systemID string, previousID, curren
 		prevStr := de.valueToString(change.From)
 		inventoryDiff.PreviousValue = &prevStr
 	}
-	
+
 	if change.To != nil {
 		currStr := de.valueToString(change.To)
 		inventoryDiff.CurrentValue = &currStr
@@ -121,79 +121,79 @@ func (de *DiffEngine) getPathDepth(path []string) int {
 // categorizeField determines the category of a field based on its path
 func (de *DiffEngine) categorizeField(fieldPath string) string {
 	pathLower := strings.ToLower(fieldPath)
-	
+
 	// Operating system related
-	if strings.Contains(pathLower, "os.") || 
-	   strings.Contains(pathLower, "kernel") || 
-	   strings.Contains(pathLower, "system_uptime") {
+	if strings.Contains(pathLower, "os.") ||
+		strings.Contains(pathLower, "kernel") ||
+		strings.Contains(pathLower, "system_uptime") {
 		return "os"
 	}
-	
+
 	// Hardware related
-	if strings.Contains(pathLower, "dmi.") || 
-	   strings.Contains(pathLower, "processors") || 
-	   strings.Contains(pathLower, "memory") || 
-	   strings.Contains(pathLower, "mountpoints") {
+	if strings.Contains(pathLower, "dmi.") ||
+		strings.Contains(pathLower, "processors") ||
+		strings.Contains(pathLower, "memory") ||
+		strings.Contains(pathLower, "mountpoints") {
 		return "hardware"
 	}
-	
+
 	// Network related
-	if strings.Contains(pathLower, "networking") || 
-	   strings.Contains(pathLower, "esmithdb.networks") || 
-	   strings.Contains(pathLower, "public_ip") ||
-	   strings.Contains(pathLower, "arp_macs") {
+	if strings.Contains(pathLower, "networking") ||
+		strings.Contains(pathLower, "esmithdb.networks") ||
+		strings.Contains(pathLower, "public_ip") ||
+		strings.Contains(pathLower, "arp_macs") {
 		return "network"
 	}
-	
+
 	// Features and services
-	if strings.Contains(pathLower, "features.") || 
-	   strings.Contains(pathLower, "rpms") {
+	if strings.Contains(pathLower, "features.") ||
+		strings.Contains(pathLower, "rpms") {
 		return "features"
 	}
-	
+
 	// Configuration
 	if strings.Contains(pathLower, "esmithdb.configuration") {
 		return "configuration"
 	}
-	
+
 	return "general"
 }
 
 // determineSeverity determines the severity of a change based on field and change type
 func (de *DiffEngine) determineSeverity(fieldPath string, changeType string, from, to interface{}) string {
 	pathLower := strings.ToLower(fieldPath)
-	
+
 	// Critical changes
 	if changeType == "delete" {
 		// Deleting important components is critical
-		if strings.Contains(pathLower, "os.") || 
-		   strings.Contains(pathLower, "kernel") ||
-		   strings.Contains(pathLower, "networking.fqdn") {
+		if strings.Contains(pathLower, "os.") ||
+			strings.Contains(pathLower, "kernel") ||
+			strings.Contains(pathLower, "networking.fqdn") {
 			return "critical"
 		}
 	}
-	
+
 	// High severity changes
 	if strings.Contains(pathLower, "os.release") ||
-	   strings.Contains(pathLower, "kernel") ||
-	   strings.Contains(pathLower, "subscription_status") ||
-	   strings.Contains(pathLower, "networking.fqdn") {
+		strings.Contains(pathLower, "kernel") ||
+		strings.Contains(pathLower, "subscription_status") ||
+		strings.Contains(pathLower, "networking.fqdn") {
 		return "high"
 	}
-	
+
 	// Medium severity changes
 	if strings.Contains(pathLower, "features.") ||
-	   strings.Contains(pathLower, "rpms") ||
-	   strings.Contains(pathLower, "memory") ||
-	   strings.Contains(pathLower, "public_ip") {
+		strings.Contains(pathLower, "rpms") ||
+		strings.Contains(pathLower, "memory") ||
+		strings.Contains(pathLower, "public_ip") {
 		return "medium"
 	}
-	
+
 	// Special case: numeric threshold changes
 	if de.isSignificantNumericChange(from, to) {
 		return "medium"
 	}
-	
+
 	return "low"
 }
 
@@ -201,16 +201,16 @@ func (de *DiffEngine) determineSeverity(fieldPath string, changeType string, fro
 func (de *DiffEngine) isSignificantNumericChange(from, to interface{}) bool {
 	fromNum, fromOk := de.toFloat64(from)
 	toNum, toOk := de.toFloat64(to)
-	
+
 	if !fromOk || !toOk {
 		return false
 	}
-	
+
 	// Consider changes > 20% as significant
 	if fromNum == 0 {
 		return toNum != 0
 	}
-	
+
 	percentChange := ((toNum - fromNum) / fromNum) * 100
 	return percentChange > 20 || percentChange < -20
 }
@@ -241,7 +241,7 @@ func (de *DiffEngine) valueToString(value interface{}) string {
 	if value == nil {
 		return "null"
 	}
-	
+
 	switch v := value.(type) {
 	case string:
 		return v
@@ -263,39 +263,39 @@ func (de *DiffEngine) valueToString(value interface{}) string {
 // FilterSignificantChanges filters out noise and keeps only significant changes
 func (de *DiffEngine) FilterSignificantChanges(diffs []models.InventoryDiff) []models.InventoryDiff {
 	var filtered []models.InventoryDiff
-	
+
 	for _, diff := range diffs {
 		if de.isSignificantChange(diff) {
 			filtered = append(filtered, diff)
 		}
 	}
-	
+
 	logger.Debug().
 		Int("original_count", len(diffs)).
 		Int("filtered_count", len(filtered)).
 		Msg("Filtered significant changes")
-	
+
 	return filtered
 }
 
 // isSignificantChange determines if a change is significant enough to track
 func (de *DiffEngine) isSignificantChange(diff models.InventoryDiff) bool {
 	pathLower := strings.ToLower(diff.FieldPath)
-	
+
 	// Always track high and critical severity changes
 	if diff.Severity == "high" || diff.Severity == "critical" {
 		return true
 	}
-	
+
 	// Filter out noise from frequent changing fields
 	noiseFields := []string{
 		"timestamp",
 		"system_uptime.seconds",
-		"arp_macs", // This changes frequently
+		"arp_macs",                 // This changes frequently
 		"memory.system.used_bytes", // Memory usage fluctuates
 		"memory.system.available_bytes",
 	}
-	
+
 	for _, noiseField := range noiseFields {
 		if strings.Contains(pathLower, noiseField) {
 			// Only track if it's a significant numeric change
@@ -305,40 +305,41 @@ func (de *DiffEngine) isSignificantChange(diff models.InventoryDiff) bool {
 			return false
 		}
 	}
-	
+
 	// Track configuration and feature changes
 	if strings.Contains(pathLower, "features.") ||
-	   strings.Contains(pathLower, "esmithdb.configuration") ||
-	   strings.Contains(pathLower, "rpms") {
+		strings.Contains(pathLower, "esmithdb.configuration") ||
+		strings.Contains(pathLower, "rpms") {
 		return true
 	}
-	
+
 	// Track network changes
 	if strings.Contains(pathLower, "networking") ||
-	   strings.Contains(pathLower, "public_ip") {
+		strings.Contains(pathLower, "esmithdb.networks") ||
+		strings.Contains(pathLower, "public_ip") {
 		return true
 	}
-	
+
 	// Track OS and hardware changes
 	if strings.Contains(pathLower, "os.") ||
-	   strings.Contains(pathLower, "kernel") ||
-	   strings.Contains(pathLower, "dmi.") ||
-	   strings.Contains(pathLower, "processors") {
+		strings.Contains(pathLower, "kernel") ||
+		strings.Contains(pathLower, "dmi.") ||
+		strings.Contains(pathLower, "processors") {
 		return true
 	}
-	
+
 	return false
 }
 
 // GroupRelatedChanges groups related changes together for better organization
 func (de *DiffEngine) GroupRelatedChanges(diffs []models.InventoryDiff) map[string][]models.InventoryDiff {
 	groups := make(map[string][]models.InventoryDiff)
-	
+
 	for _, diff := range diffs {
 		groupKey := de.getGroupKey(diff.FieldPath)
 		groups[groupKey] = append(groups[groupKey], diff)
 	}
-	
+
 	return groups
 }
 
@@ -348,7 +349,7 @@ func (de *DiffEngine) getGroupKey(fieldPath string) string {
 	if len(parts) == 0 {
 		return "general"
 	}
-	
+
 	// Group by top-level categories
 	topLevel := parts[0]
 	switch topLevel {
@@ -378,30 +379,30 @@ func (de *DiffEngine) getGroupKey(fieldPath string) string {
 // AnalyzeTrends analyzes trends in inventory changes over time
 func (de *DiffEngine) AnalyzeTrends(systemID string, diffs []models.InventoryDiff) map[string]interface{} {
 	trends := make(map[string]interface{})
-	
+
 	// Group by category
 	categoryCount := make(map[string]int)
 	severityCount := make(map[string]int)
 	typeCount := make(map[string]int)
-	
+
 	for _, diff := range diffs {
 		categoryCount[diff.Category]++
 		severityCount[diff.Severity]++
 		typeCount[diff.DiffType]++
 	}
-	
+
 	trends["category_distribution"] = categoryCount
 	trends["severity_distribution"] = severityCount
 	trends["type_distribution"] = typeCount
 	trends["total_changes"] = len(diffs)
-	
+
 	// Calculate change frequency
 	if len(diffs) > 0 {
 		trends["most_changed_category"] = de.findMaxKey(categoryCount)
 		trends["dominant_severity"] = de.findMaxKey(severityCount)
 		trends["dominant_type"] = de.findMaxKey(typeCount)
 	}
-	
+
 	return trends
 }
 
@@ -409,14 +410,14 @@ func (de *DiffEngine) AnalyzeTrends(systemID string, diffs []models.InventoryDif
 func (de *DiffEngine) findMaxKey(m map[string]int) string {
 	var maxKey string
 	var maxVal int
-	
+
 	for key, val := range m {
 		if val > maxVal {
 			maxVal = val
 			maxKey = key
 		}
 	}
-	
+
 	return maxKey
 }
 
@@ -426,7 +427,7 @@ func (de *DiffEngine) ValidateInventoryStructure(data json.RawMessage) error {
 	if err := json.Unmarshal(data, &parsed); err != nil {
 		return fmt.Errorf("invalid JSON structure: %w", err)
 	}
-	
+
 	// Check for required top-level fields
 	requiredFields := []string{"os", "networking", "processors", "memory"}
 	for _, field := range requiredFields {
@@ -436,6 +437,6 @@ func (de *DiffEngine) ValidateInventoryStructure(data json.RawMessage) error {
 				Msg("Inventory missing expected field")
 		}
 	}
-	
+
 	return nil
 }

@@ -19,12 +19,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/rs/zerolog"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/collect/configuration"
 	"github.com/nethesis/my/collect/database"
 	"github.com/nethesis/my/collect/models"
 	"github.com/nethesis/my/collect/queue"
+	"github.com/rs/zerolog"
 )
 
 // InventoryProcessor processes incoming inventory data
@@ -96,7 +96,7 @@ func (ip *InventoryProcessor) worker(ctx context.Context, wg *sync.WaitGroup, wo
 			if err := ip.processNextMessage(ctx, &workerLogger); err != nil {
 				workerLogger.Error().Err(err).Msg("Error processing inventory message")
 				atomic.AddInt64(&ip.failedJobs, 1)
-				
+
 				// Brief pause on error to prevent tight error loops
 				time.Sleep(1 * time.Second)
 			}
@@ -106,6 +106,11 @@ func (ip *InventoryProcessor) worker(ctx context.Context, wg *sync.WaitGroup, wo
 
 // processNextMessage processes the next message from the inventory queue
 func (ip *InventoryProcessor) processNextMessage(ctx context.Context, workerLogger *zerolog.Logger) error {
+	// Always update activity timestamp when checking queue
+	ip.mu.Lock()
+	ip.lastActivity = time.Now()
+	ip.mu.Unlock()
+
 	// Get message from queue with timeout
 	message, err := ip.queueManager.DequeueMessage(ctx, configuration.Config.QueueInventoryName, 5*time.Second)
 	if err != nil {
@@ -116,11 +121,6 @@ func (ip *InventoryProcessor) processNextMessage(ctx context.Context, workerLogg
 		// No message available, this is normal
 		return nil
 	}
-
-	// Update activity timestamp
-	ip.mu.Lock()
-	ip.lastActivity = time.Now()
-	ip.mu.Unlock()
 
 	// Parse inventory data
 	var inventoryData models.InventoryData
@@ -157,7 +157,7 @@ func (ip *InventoryProcessor) processNextMessage(ctx context.Context, workerLogg
 func (ip *InventoryProcessor) processInventoryData(ctx context.Context, inventoryData *models.InventoryData, workerLogger *zerolog.Logger) error {
 	// Calculate data hash for deduplication
 	dataHash := ip.calculateDataHash(inventoryData.Data)
-	
+
 	// Check if we already have this exact data
 	var existingID int64
 	query := `
@@ -166,7 +166,7 @@ func (ip *InventoryProcessor) processInventoryData(ctx context.Context, inventor
 		LIMIT 1
 	`
 	err := database.DB.QueryRowContext(ctx, query, inventoryData.SystemID, dataHash).Scan(&existingID)
-	
+
 	if err == nil {
 		// Duplicate data found, skip processing
 		workerLogger.Debug().
@@ -225,14 +225,14 @@ func (ip *InventoryProcessor) processInventoryData(ctx context.Context, inventor
 // insertInventoryRecord inserts a new inventory record into the database
 func (ip *InventoryProcessor) insertInventoryRecord(ctx context.Context, inventoryData *models.InventoryData, dataHash string) (*models.InventoryRecord, error) {
 	dataSize := int64(len(inventoryData.Data))
-	
+
 	query := `
 		INSERT INTO inventory_records 
 		(system_id, timestamp, data, data_hash, data_size, compressed, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
 		RETURNING id, created_at, updated_at
 	`
-	
+
 	record := &models.InventoryRecord{
 		SystemID:   inventoryData.SystemID,
 		Timestamp:  inventoryData.Timestamp,
@@ -269,7 +269,7 @@ func (ip *InventoryProcessor) getPreviousInventoryRecord(ctx context.Context, sy
 		ORDER BY timestamp DESC, id DESC 
 		LIMIT 1
 	`
-	
+
 	record := &models.InventoryRecord{}
 	err := database.DB.QueryRowContext(ctx, query, systemID, currentID).Scan(
 		&record.ID,
@@ -343,10 +343,10 @@ func (ip *InventoryProcessor) GetStats() map[string]interface{} {
 	defer ip.mu.RUnlock()
 
 	return map[string]interface{}{
-		"worker_count":    ip.workerCount,
-		"processed_jobs":  atomic.LoadInt64(&ip.processedJobs),
-		"failed_jobs":     atomic.LoadInt64(&ip.failedJobs),
-		"last_activity":   ip.lastActivity,
-		"is_healthy":      ip.IsHealthy(),
+		"worker_count":   ip.workerCount,
+		"processed_jobs": atomic.LoadInt64(&ip.processedJobs),
+		"failed_jobs":    atomic.LoadInt64(&ip.failedJobs),
+		"last_activity":  ip.lastActivity,
+		"is_healthy":     ip.IsHealthy(),
 	}
 }

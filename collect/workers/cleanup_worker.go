@@ -16,10 +16,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/rs/zerolog"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/collect/configuration"
 	"github.com/nethesis/my/collect/database"
+	"github.com/rs/zerolog"
 )
 
 // CleanupWorker handles cleanup of old inventory data and maintenance tasks
@@ -113,7 +113,6 @@ func (cw *CleanupWorker) runCleanupTasks(ctx context.Context, workerLogger *zero
 		atomic.StoreInt32(&cw.isHealthy, 0)
 		return
 	}
-
 
 	// Vacuum analyze databases for performance
 	if err := cw.vacuumAnalyze(ctx, workerLogger); err != nil {
@@ -243,7 +242,6 @@ func (cw *CleanupWorker) cleanupResolvedAlerts(ctx context.Context, workerLogger
 	return nil
 }
 
-
 // vacuumAnalyze runs VACUUM ANALYZE on tables for performance optimization
 func (cw *CleanupWorker) vacuumAnalyze(ctx context.Context, workerLogger *zerolog.Logger) error {
 	tables := []string{
@@ -277,9 +275,9 @@ func (cw *CleanupWorker) GetStats() map[string]interface{} {
 	defer cw.mu.RUnlock()
 
 	return map[string]interface{}{
-		"last_activity": cw.lastActivity,
-		"is_healthy":    cw.IsHealthy(),
+		"last_activity":    cw.lastActivity,
+		"is_healthy":       cw.IsHealthy(),
 		"cleanup_interval": configuration.Config.InventoryCleanupInterval.String(),
-		"max_age":       configuration.Config.InventoryMaxAge.String(),
+		"max_age":          configuration.Config.InventoryMaxAge.String(),
 	}
 }

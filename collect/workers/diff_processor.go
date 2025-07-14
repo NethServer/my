@@ -17,13 +17,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/rs/zerolog"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/collect/configuration"
 	"github.com/nethesis/my/collect/database"
 	"github.com/nethesis/my/collect/differ"
 	"github.com/nethesis/my/collect/models"
 	"github.com/nethesis/my/collect/queue"
+	"github.com/rs/zerolog"
 )
 
 // DiffProcessor processes inventory diffs and detects changes
@@ -97,7 +97,7 @@ func (dp *DiffProcessor) worker(ctx context.Context, wg *sync.WaitGroup, workerI
 			if err := dp.processNextMessage(ctx, &workerLogger); err != nil {
 				workerLogger.Error().Err(err).Msg("Error processing diff message")
 				atomic.AddInt64(&dp.failedJobs, 1)
-				
+
 				// Brief pause on error to prevent tight error loops
 				time.Sleep(1 * time.Second)
 			}
@@ -107,6 +107,11 @@ func (dp *DiffProcessor) worker(ctx context.Context, wg *sync.WaitGroup, workerI
 
 // processNextMessage processes the next message from the processing queue
 func (dp *DiffProcessor) processNextMessage(ctx context.Context, workerLogger *zerolog.Logger) error {
+	// Update activity timestamp
+	dp.mu.Lock()
+	dp.lastActivity = time.Now()
+	dp.mu.Unlock()
+
 	// Get message from queue with timeout
 	message, err := dp.queueManager.DequeueMessage(ctx, configuration.Config.QueueProcessingName, 5*time.Second)
 	if err != nil {
@@ -117,11 +122,6 @@ func (dp *DiffProcessor) processNextMessage(ctx context.Context, workerLogger *z
 		// No message available, this is normal
 		return nil
 	}
-
-	// Update activity timestamp
-	dp.mu.Lock()
-	dp.lastActivity = time.Now()
-	dp.mu.Unlock()
 
 	// Parse processing job
 	var job models.InventoryProcessingJob
@@ -168,7 +168,7 @@ func (dp *DiffProcessor) processInventoryDiff(ctx context.Context, job *models.I
 		if err := dp.markInventoryProcessed(ctx, job.InventoryRecord.ID, false, 0); err != nil {
 			return fmt.Errorf("failed to mark inventory as processed: %w", err)
 		}
-		
+
 		workerLogger.Info().
 			Str("system_id", job.SystemID).
 			Int64("inventory_id", job.InventoryRecord.ID).
@@ -239,7 +239,7 @@ func (dp *DiffProcessor) getPreviousInventoryRecord(ctx context.Context, systemI
 		ORDER BY timestamp DESC, id DESC 
 		LIMIT 1
 	`
-	
+
 	record := &models.InventoryRecord{}
 	err := database.DB.QueryRowContext(ctx, query, systemID, currentID).Scan(
 		&record.ID,
@@ -274,7 +274,9 @@ func (dp *DiffProcessor) storeDifferences(ctx context.Context, diffs []models.In
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		_ = tx.Rollback() // Ignore error on rollback
+	}()
 
 	// Insert differences
 	query := `
@@ -318,7 +320,7 @@ func (dp *DiffProcessor) markInventoryProcessed(ctx context.Context, inventoryID
 		SET processed_at = NOW(), has_changes = $2, change_count = $3, updated_at = NOW()
 		WHERE id = $1
 	`
-	
+
 	_, err := database.DB.ExecContext(ctx, query, inventoryID, hasChanges, changeCount)
 	return err
 }
@@ -386,10 +388,10 @@ func (dp *DiffProcessor) GetStats() map[string]interface{} {
 	defer dp.mu.RUnlock()
 
 	return map[string]interface{}{
-		"worker_count":    dp.workerCount,
-		"processed_jobs":  atomic.LoadInt64(&dp.processedJobs),
-		"failed_jobs":     atomic.LoadInt64(&dp.failedJobs),
-		"last_activity":   dp.lastActivity,
-		"is_healthy":      dp.IsHealthy(),
+		"worker_count":   dp.workerCount,
+		"processed_jobs": atomic.LoadInt64(&dp.processedJobs),
+		"failed_jobs":    atomic.LoadInt64(&dp.failedJobs),
+		"last_activity":  dp.lastActivity,
+		"is_healthy":     dp.IsHealthy(),
 	}
 }

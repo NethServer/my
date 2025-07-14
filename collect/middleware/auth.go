@@ -36,7 +36,7 @@ func BasicAuthMiddleware() gin.HandlerFunc {
 				Str("client_ip", c.ClientIP()).
 				Str("path", c.Request.URL.Path).
 				Msg("Missing Authorization header")
-			
+
 			c.Header("WWW-Authenticate", `Basic realm="System Authentication"`)
 			c.JSON(http.StatusUnauthorized, response.Unauthorized("Authentication required", nil))
 			c.Abort()
@@ -50,7 +50,7 @@ func BasicAuthMiddleware() gin.HandlerFunc {
 				Str("client_ip", c.ClientIP()).
 				Str("path", c.Request.URL.Path).
 				Msg("Invalid Authorization header format")
-			
+
 			c.Header("WWW-Authenticate", `Basic realm="System Authentication"`)
 			c.JSON(http.StatusUnauthorized, response.Unauthorized("Invalid authentication format", nil))
 			c.Abort()
@@ -66,7 +66,7 @@ func BasicAuthMiddleware() gin.HandlerFunc {
 				Str("client_ip", c.ClientIP()).
 				Str("path", c.Request.URL.Path).
 				Msg("Invalid base64 encoding in Authorization header")
-			
+
 			c.Header("WWW-Authenticate", `Basic realm="System Authentication"`)
 			c.JSON(http.StatusUnauthorized, response.Unauthorized("Invalid authentication encoding", nil))
 			c.Abort()
@@ -81,7 +81,7 @@ func BasicAuthMiddleware() gin.HandlerFunc {
 				Str("client_ip", c.ClientIP()).
 				Str("path", c.Request.URL.Path).
 				Msg("Invalid credentials format")
-			
+
 			c.Header("WWW-Authenticate", `Basic realm="System Authentication"`)
 			c.JSON(http.StatusUnauthorized, response.Unauthorized("Invalid credentials format", nil))
 			c.Abort()
@@ -140,7 +140,7 @@ func validateSystemCredentials(c *gin.Context, systemID, systemSecret string) bo
 		FROM systems 
 		WHERE id = $1
 	`
-	
+
 	err := database.DB.QueryRow(query, systemID).Scan(
 		&creds.SystemID,
 		&creds.SecretHash,
@@ -149,13 +149,13 @@ func validateSystemCredentials(c *gin.Context, systemID, systemSecret string) bo
 		&creds.CreatedAt,
 		&creds.UpdatedAt,
 	)
-	
+
 	if err != nil {
 		logger.Warn().
 			Err(err).
 			Str("system_id", systemID).
 			Msg("System credentials not found")
-		
+
 		// Cache negative result for short time to prevent brute force
 		cacheCredentialsResult(c, systemID, systemSecret, false)
 		return false
@@ -167,12 +167,11 @@ func validateSystemCredentials(c *gin.Context, systemID, systemSecret string) bo
 		logger.Warn().
 			Str("system_id", systemID).
 			Msg("Invalid system secret")
-		
+
 		// Cache negative result
 		cacheCredentialsResult(c, systemID, systemSecret, false)
 		return false
 	}
-
 
 	// Cache positive result
 	cacheCredentialsResult(c, systemID, systemSecret, true)
@@ -183,7 +182,7 @@ func validateSystemCredentials(c *gin.Context, systemID, systemSecret string) bo
 // checkCredentialsCache checks Redis cache for cached credentials
 func checkCredentialsCache(c *gin.Context, systemID, systemSecret string) *bool {
 	cacheKey := fmt.Sprintf("auth:system:%s:%s", systemID, hashSystemSecret(systemSecret))
-	
+
 	rdb := database.GetRedisClient()
 	result, err := rdb.Get(c.Request.Context(), cacheKey).Result()
 	if err == redis.Nil {
@@ -201,10 +200,10 @@ func checkCredentialsCache(c *gin.Context, systemID, systemSecret string) *bool 
 // cacheCredentialsResult caches the authentication result
 func cacheCredentialsResult(c *gin.Context, systemID, systemSecret string, valid bool) {
 	cacheKey := fmt.Sprintf("auth:system:%s:%s", systemID, hashSystemSecret(systemSecret))
-	
+
 	var value string
 	var ttl time.Duration
-	
+
 	if valid {
 		value = "valid"
 		ttl = configuration.Config.SystemAuthCacheTTL
@@ -220,10 +219,8 @@ func cacheCredentialsResult(c *gin.Context, systemID, systemSecret string, valid
 	}
 }
 
-
 // hashSystemSecret creates a SHA-256 hash of the system secret
 func hashSystemSecret(secret string) string {
 	hash := sha256.Sum256([]byte(secret))
 	return fmt.Sprintf("%x", hash)
 }
-
