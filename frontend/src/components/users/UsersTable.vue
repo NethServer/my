@@ -166,6 +166,7 @@ const onSort = (payload: SortEvent) => {
             :placeholder="$t('users.filter_users')"
             class="max-w-48 sm:max-w-sm"
           />
+           <!-- //// other filters -->
           <NeSortDropdown
             v-model:sort-key="sortKey"
             v-model:sort-descending="sortDescending"
