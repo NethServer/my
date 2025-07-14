@@ -114,12 +114,6 @@ func (cw *CleanupWorker) runCleanupTasks(ctx context.Context, workerLogger *zero
 		return
 	}
 
-	// Cleanup inactive system credentials
-	if err := cw.cleanupInactiveCredentials(ctx, workerLogger); err != nil {
-		workerLogger.Error().Err(err).Msg("Failed to cleanup inactive credentials")
-		atomic.StoreInt32(&cw.isHealthy, 0)
-		return
-	}
 
 	// Vacuum analyze databases for performance
 	if err := cw.vacuumAnalyze(ctx, workerLogger); err != nil {
@@ -134,7 +128,8 @@ func (cw *CleanupWorker) runCleanupTasks(ctx context.Context, workerLogger *zero
 // cleanupOldInventoryRecords removes inventory records older than the configured age
 func (cw *CleanupWorker) cleanupOldInventoryRecords(ctx context.Context, workerLogger *zerolog.Logger) error {
 	// Keep at least 10 records per system, regardless of age
-	query := `
+	maxAgeHours := int(configuration.Config.InventoryMaxAge.Hours())
+	query := fmt.Sprintf(`
 		DELETE FROM inventory_records 
 		WHERE id IN (
 			SELECT id FROM (
@@ -145,10 +140,9 @@ func (cw *CleanupWorker) cleanupOldInventoryRecords(ctx context.Context, workerL
 			) ranked 
 			WHERE rn > 10
 		)
-	`
+	`, maxAgeHours)
 
-	maxAgeHours := int(configuration.Config.InventoryMaxAge.Hours())
-	result, err := database.DB.ExecContext(ctx, query, maxAgeHours)
+	result, err := database.DB.ExecContext(ctx, query)
 	if err != nil {
 		return err
 	}
@@ -171,14 +165,14 @@ func (cw *CleanupWorker) cleanupOldInventoryRecords(ctx context.Context, workerL
 // cleanupOldInventoryDiffs removes old diff records
 func (cw *CleanupWorker) cleanupOldInventoryDiffs(ctx context.Context, workerLogger *zerolog.Logger) error {
 	// Remove diffs older than max age, but keep critical and high severity diffs longer
-	query := `
+	maxAgeHours := int(configuration.Config.InventoryMaxAge.Hours())
+	query := fmt.Sprintf(`
 		DELETE FROM inventory_diffs 
 		WHERE created_at < NOW() - INTERVAL '%d hours'
 		AND severity IN ('low', 'medium')
-	`
+	`, maxAgeHours)
 
-	maxAgeHours := int(configuration.Config.InventoryMaxAge.Hours())
-	result, err := database.DB.ExecContext(ctx, query, maxAgeHours)
+	result, err := database.DB.ExecContext(ctx, query)
 	if err != nil {
 		return err
 	}
@@ -195,14 +189,14 @@ func (cw *CleanupWorker) cleanupOldInventoryDiffs(ctx context.Context, workerLog
 	}
 
 	// Remove high/critical severity diffs after longer period
-	extendedQuery := `
+	extendedAgeHours := maxAgeHours * 2 // Keep high/critical diffs twice as long
+	extendedQuery := fmt.Sprintf(`
 		DELETE FROM inventory_diffs 
 		WHERE created_at < NOW() - INTERVAL '%d hours'
 		AND severity IN ('high', 'critical')
-	`
+	`, extendedAgeHours)
 
-	extendedAgeHours := maxAgeHours * 2 // Keep high/critical diffs twice as long
-	result, err = database.DB.ExecContext(ctx, extendedQuery, extendedAgeHours)
+	result, err = database.DB.ExecContext(ctx, extendedQuery)
 	if err != nil {
 		return err
 	}
@@ -249,57 +243,6 @@ func (cw *CleanupWorker) cleanupResolvedAlerts(ctx context.Context, workerLogger
 	return nil
 }
 
-// cleanupInactiveCredentials removes credentials for systems that haven't been seen in a long time
-func (cw *CleanupWorker) cleanupInactiveCredentials(ctx context.Context, workerLogger *zerolog.Logger) error {
-	// Mark credentials as inactive if not used for 180 days
-	query := `
-		UPDATE system_credentials 
-		SET is_active = false, updated_at = NOW()
-		WHERE is_active = true 
-		AND (last_used IS NULL OR last_used < NOW() - INTERVAL '180 days')
-	`
-
-	result, err := database.DB.ExecContext(ctx, query)
-	if err != nil {
-		return err
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-
-	if rowsAffected > 0 {
-		workerLogger.Info().
-			Int64("rows_updated", rowsAffected).
-			Msg("Marked inactive system credentials")
-	}
-
-	// Actually delete inactive credentials after 1 year
-	deleteQuery := `
-		DELETE FROM system_credentials 
-		WHERE is_active = false 
-		AND updated_at < NOW() - INTERVAL '365 days'
-	`
-
-	result, err = database.DB.ExecContext(ctx, deleteQuery)
-	if err != nil {
-		return err
-	}
-
-	rowsAffected, err = result.RowsAffected()
-	if err != nil {
-		return err
-	}
-
-	if rowsAffected > 0 {
-		workerLogger.Info().
-			Int64("rows_deleted", rowsAffected).
-			Msg("Deleted old inactive system credentials")
-	}
-
-	return nil
-}
 
 // vacuumAnalyze runs VACUUM ANALYZE on tables for performance optimization
 func (cw *CleanupWorker) vacuumAnalyze(ctx context.Context, workerLogger *zerolog.Logger) error {
@@ -307,7 +250,6 @@ func (cw *CleanupWorker) vacuumAnalyze(ctx context.Context, workerLogger *zerolo
 		"inventory_records",
 		"inventory_diffs",
 		"inventory_alerts",
-		"system_credentials",
 	}
 
 	for _, table := range tables {

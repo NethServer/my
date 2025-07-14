@@ -56,9 +56,9 @@ func CollectInventory(c *gin.Context) {
 		return
 	}
 
-	// Parse request body
-	var inventoryData models.InventoryData
-	if err := c.ShouldBindJSON(&inventoryData); err != nil {
+	// Parse request body using the simplified request model
+	var inventoryRequest models.InventorySubmissionRequest
+	if err := c.ShouldBindJSON(&inventoryRequest); err != nil {
 		logger.Warn().
 			Err(err).
 			Str("system_id", systemIDStr).
@@ -69,20 +69,16 @@ func CollectInventory(c *gin.Context) {
 		}))
 		return
 	}
-
-	// Validate that system_id in payload matches authenticated system
-	if inventoryData.SystemID != systemIDStr {
-		logger.Warn().
-			Str("authenticated_system", systemIDStr).
-			Str("payload_system", inventoryData.SystemID).
-			Msg("System ID mismatch between authentication and payload")
-		
-		c.JSON(http.StatusForbidden, response.Forbidden("System ID mismatch", map[string]interface{}{
-			"authenticated_system": systemIDStr,
-			"payload_system":      inventoryData.SystemID,
-		}))
-		return
+	
+	// Create full InventoryData with auto-populated fields
+	now := time.Now()
+	inventoryData := models.InventoryData{
+		SystemID:  systemIDStr,
+		Timestamp: now,
+		Data:      inventoryRequest.Data,
 	}
+
+	// System ID is automatically set from authentication context, no validation needed
 
 	// Validate inventory data
 	if err := inventoryData.ValidateInventoryData(); err != nil {
@@ -97,37 +93,7 @@ func CollectInventory(c *gin.Context) {
 		return
 	}
 
-	// Validate timestamp is not too old or in the future
-	now := time.Now()
-	if inventoryData.Timestamp.After(now.Add(5 * time.Minute)) {
-		logger.Warn().
-			Str("system_id", systemIDStr).
-			Time("timestamp", inventoryData.Timestamp).
-			Time("now", now).
-			Msg("Inventory timestamp is in the future")
-		
-		c.JSON(http.StatusBadRequest, response.BadRequest("Invalid timestamp", map[string]interface{}{
-			"error": "Timestamp cannot be in the future",
-			"timestamp": inventoryData.Timestamp,
-			"server_time": now,
-		}))
-		return
-	}
-
-	if inventoryData.Timestamp.Before(now.Add(-24 * time.Hour)) {
-		logger.Warn().
-			Str("system_id", systemIDStr).
-			Time("timestamp", inventoryData.Timestamp).
-			Time("now", now).
-			Msg("Inventory timestamp is too old")
-		
-		c.JSON(http.StatusBadRequest, response.BadRequest("Invalid timestamp", map[string]interface{}{
-			"error": "Timestamp is too old (max 24 hours)",
-			"timestamp": inventoryData.Timestamp,
-			"server_time": now,
-		}))
-		return
-	}
+	// Timestamp is automatically set to current server time, no validation needed
 
 	// Quick validation of JSON structure
 	var testData interface{}
@@ -179,7 +145,6 @@ func CollectInventory(c *gin.Context) {
 // GetInventoryStats returns statistics about inventory processing
 func GetInventoryStats(c *gin.Context) {
 	// This endpoint could be added to provide statistics
-	// For now, we'll implement basic queue statistics
 	
 	queueManager := queue.NewQueueManager()
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
@@ -239,8 +204,6 @@ func ValidateInventoryFormat(c *gin.Context) {
 // GetExpectedFormat returns the expected inventory data format
 func GetExpectedFormat(c *gin.Context) {
 	expectedFormat := map[string]interface{}{
-		"system_id": "string (required) - Unique identifier for the system",
-		"timestamp": "string (required) - ISO 8601 timestamp when inventory was collected",
 		"data": map[string]interface{}{
 			"description": "object (required) - Complete system inventory data",
 			"required_fields": map[string]string{
@@ -263,8 +226,6 @@ func GetExpectedFormat(c *gin.Context) {
 			},
 		},
 		"example": map[string]interface{}{
-			"system_id": "17639",
-			"timestamp": "2025-07-13T01:15:09.542Z",
 			"data": map[string]interface{}{
 				"os": map[string]interface{}{
 					"name": "NethSec",
@@ -293,8 +254,9 @@ func GetExpectedFormat(c *gin.Context) {
 		},
 		"authentication": map[string]interface{}{
 			"method": "HTTP Basic Authentication",
-			"username": "system_id (same as in payload)",
+			"username": "system_id (automatically populated from authentication)",
 			"password": "system_secret (provided during system registration)",
+			"note": "system_id and timestamp are automatically set by the server",
 		},
 		"response": map[string]interface{}{
 			"success": map[string]interface{}{

@@ -14,7 +14,12 @@ import (
 	"time"
 )
 
-// InventoryData represents the complete inventory payload from a system
+// InventorySubmissionRequest represents the inventory payload from a system (without auto-populated fields)
+type InventorySubmissionRequest struct {
+	Data json.RawMessage `json:"data" validate:"required"` // Only the inventory data is required
+}
+
+// InventoryData represents the complete inventory payload from a system (with auto-populated fields)
 type InventoryData struct {
 	SystemID  string          `json:"system_id" validate:"required"`
 	Timestamp time.Time       `json:"timestamp" validate:"required"`
@@ -123,6 +128,18 @@ type InventoryAlert struct {
 	ResolvedAt   *time.Time `json:"resolved_at" db:"resolved_at"`
 	CreatedAt    time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
+}
+
+// InventoryChangesSummary represents a summary of inventory changes for a system
+type InventoryChangesSummary struct {
+	SystemID           string            `json:"system_id"`
+	TotalChanges       int               `json:"total_changes"`
+	RecentChanges      int               `json:"recent_changes"`
+	LastInventoryTime  time.Time         `json:"last_inventory_time"`
+	HasCriticalChanges bool              `json:"has_critical_changes"`
+	HasAlerts          bool              `json:"has_alerts"`
+	ChangesByCategory  map[string]int    `json:"changes_by_category"`
+	ChangesBySeverity  map[string]int    `json:"changes_by_severity"`
 }
 
 // InventoryStats represents statistics about inventory processing

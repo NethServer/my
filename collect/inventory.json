@@ -1,410 +1,407 @@
 {
-    "system_id": "17639",
-    "timestamp": "2025-07-13T01:15:09.542Z",
     "data": {
-        "os": {
-            "name": "NethSec",
-            "type": "nethsecurity",
-            "family": "OpenWRT",
-            "release": {
-                "full": "8-24.10.0-ns.1.6.0-5-g0524860a0",
-                "major": 7
-            }
-        },
-        "dmi": {
-            "bios": {
-                "vendor": "American Megatrends Inc.",
-                "version": "4.6.5"
-            },
-            "board": {
-                "product": "SHARKBAY",
-                "manufacturer": "To be filled by O.E.M."
-            },
-            "product": {
-                "name": "To be filled by O.E.M.",
-                "uuid": "03000200-0400-0500-0006-000700080009"
-            }
-        },
-        "rpms": {
-            "nethserver-firewall-base-ui": "1.28.3-r1"
-        },
-        "kernel": "Linux",
-        "memory": {
-            "swap": {
-                "used_bytes": 0,
-                "total_bytes": 0,
-                "available_bytes": 0
-            },
-            "system": {
-                "used_bytes": 579198976,
-                "total_bytes": 7352455168,
-                "available_bytes": 7352455168
-            }
-        },
-        "virtual": "physical",
-        "arp_macs": "119",
-        "esmithdb": {
-            "networks": [
-                {
-                    "name": "eth0",
-                    "type": "ethernet",
-                    "props": {
-                        "role": "green",
-                        "ipaddr": "192.168.5.251",
-                        "gateway": null,
-                        "netmask": "255.255.255.0"
-                    }
-                },
-                {
-                    "name": "eth1",
-                    "type": "ethernet",
-                    "props": {
-                        "role": "green",
-                        "ipaddr": "172.25.4.253",
-                        "gateway": null,
-                        "netmask": "255.255.254.0"
-                    }
-                },
-                {
-                    "name": "eth5",
-                    "type": "ethernet",
-                    "props": {
-                        "role": "red",
-                        "ipaddr": "169.254.4.1",
-                        "gateway": null,
-                        "netmask": "255.255.255.0"
-                    }
-                },
-                {
-                    "name": "eth4",
-                    "type": "ethernet",
-                    "props": {
-                        "role": "red",
-                        "ipaddr": "169.254.3.1",
-                        "gateway": null,
-                        "netmask": "255.255.255.0"
-                    }
-                }
-            ],
-            "configuration": [
-                {
-                    "name": "sysconfig",
-                    "type": "configuration",
-                    "props": {
-                        "Version": "8-24.10.0-ns.1.6.0-5-g0524860a0"
-                    }
-                },
-                {
-                    "name": "dns",
-                    "type": "configuration",
-                    "props": {
-                        "NameServers": "8.8.8.8,8.8.4.4,/ad.nethesis.it/192.168.5.3,/adnethesis.it/172.25.4.121"
-                    }
-                },
-                {
-                    "name": "SystemName",
-                    "type": "fw"
-                },
-                {
-                    "name": "DomainName",
-                    "type": "nethesis.it"
-                }
-            ]
-        },
-        "features": {
-            "ha": {
-                "vips": 11,
-                "enabled": true
-            },
-            "ui": {
-                "luci": true,
-                "port443": true,
-                "port9090": true
-            },
-            "dpi": {
-                "rules": 0,
-                "enabled": false
-            },
-            "qos": {
-                "count": 2,
-                "rules": [
-                    {
-                        "upload": 20,
-                        "enabled": true,
-                        "download": 40
-                    },
-                    {
-                        "upload": 900,
-                        "enabled": true,
-                        "download": 900
-                    }
-                ]
-            },
-            "ddns": {
-                "enabled": true
-            },
-            "snmp": {
-                "enabled": true
-            },
-            "ipsec": {
-                "count": 2
-            },
-            "snort": {
-                "policy": "balanced",
-                "enabled": true,
-                "oink_enabled": true,
-                "disabled_rules": 1,
-                "bypass_dst_ipv4": 2,
-                "bypass_dst_ipv6": 0,
-                "bypass_src_ipv4": 2,
-                "bypass_src_ipv6": 0,
-                "suppressed_rules": 1
-            },
-            "adblock": {
-                "enabled": true,
-                "community": 1,
-                "enterprise": 4
-            },
-            "backups": {
-                "passphrase_date": 1747324139,
-                "backup_passphrase": true
-            },
-            "hotspot": {
-                "server": "https://my.nethspot.com/api",
-                "enabled": true,
-                "interface": "eth0.10"
-            },
-            "netifyd": {
-                "enabled": true
-            },
-            "network": {
-                "zones": [
-                    {
-                        "ipv4": 2,
-                        "ipv6": 0,
-                        "name": "lan"
-                    },
-                    {
-                        "ipv4": 2,
-                        "ipv6": 0,
-                        "name": "wan"
-                    },
-                    {
-                        "ipv4": 0,
-                        "ipv6": 0,
-                        "name": "guest"
-                    },
-                    {
-                        "ipv4": 0,
-                        "ipv6": 0,
-                        "name": "testvoice"
-                    },
-                    {
-                        "ipv4": 0,
-                        "ipv6": 0,
-                        "name": "ipsec"
-                    },
-                    {
-                        "ipv4": 0,
-                        "ipv6": 0,
-                        "name": "rwopenvpn"
-                    },
-                    {
-                        "ipv4": 2,
-                        "ipv6": 0,
-                        "name": "openvpn"
-                    },
-                    {
-                        "ipv4": 0,
-                        "ipv6": 0,
-                        "name": "hotspot"
-                    },
-                    {
-                        "ipv4": 0,
-                        "ipv6": 0,
-                        "name": "wg1vpn"
-                    }
-                ],
-                "route_info": {
-                    "count_ipv4_route": 2,
-                    "count_ipv6_route": 0
-                },
-                "interface_counts": {
-                    "bonds": 0,
-                    "vlans": 0,
-                    "bridges": 0
-                },
-                "zone_network_counts": {
-                    "lan": 2,
-                    "wan": 2,
-                    "guest": 0,
-                    "ipsec": 0,
-                    "wg1vpn": 1,
-                    "hotspot": 1,
-                    "openvpn": 2,
-                    "rwopenvpn": 1,
-                    "testvoice": 0
-                }
-            },
-            "storage": {
-                "enabled": true
-            },
-            "multiwan": {
-                "rules": 1,
-                "enabled": true,
-                "policies": {
-                    "backup": 1,
-                    "custom": 0,
-                    "balance": 0
-                }
-            },
-            "wireguard": {
-                "instances": 1,
-                "statistics": [
-                    {
-                        "peers": 2,
-                        "server": "wg1",
-                        "ns_user_db": "main"
-                    }
-                ]
-            },
-            "controller": {
-                "enabled": true
-            },
-            "flashstart": {
-                "bypass": 0,
-                "enabled": false,
-                "pro_plus": false,
-                "custom_servers": 0
-            },
-            "nathelpers": {
-                "count": 0,
-                "enabled": false
-            },
-            "openvpn_rw": {
-                "server": 1,
-                "enabled": 1,
-                "instances": [
-                    {
-                        "mode": "tun",
-                        "section": "ns_roadwarrior1",
-                        "user_database": "NethService",
-                        "authentication": "username_password_certificate"
-                    }
-                ]
-            },
-            "proxy_pass": {
-                "count": 5
-            },
-            "dhcp_server": {
-                "count": 5,
-                "static_leases": 125,
-                "dynamic_leases": 65,
-                "dns_records_count": 58,
-                "dns_forwarder_enabled": true
-            },
-            "openvpn_tun": {
-                "client": 1,
-                "server": 1,
-                "tunnels": [
-                    {
-                        "mode": "tun",
-                        "section": "ns_cerbeyra"
-                    },
-                    {
-                        "mode": "tun",
-                        "section": "ns_ct_nethesi"
-                    }
-                ]
-            },
-            "threat_shield": {
-                "enabled": true,
-                "community": 0,
-                "enterprise": 5
-            },
-            "database_stats": {
-                "main": {
-                    "users": 1
-                },
-                "NethService": {
-                    "users": 104
-                }
-            },
-            "firewall_stats": {
-                "objects": {
-                    "hosts": 7,
-                    "rules": {
-                        "input": 0,
-                        "output": 0,
-                        "forward": 4
-                    },
-                    "domains": 1,
-                    "mwan_rules": 0,
-                    "port_forward": {
-                        "allowed_from": 2,
-                        "destination_to": 3
-                    }
-                },
-                "firewall": {
-                    "nat": {
-                        "snat": 2,
-                        "accept": 0,
-                        "masquerade": 0
-                    },
-                    "rules": {
-                        "input": 12,
-                        "output": 0,
-                        "forward": 13
-                    },
-                    "netmap": {
-                        "source": 0,
-                        "destination": 0
-                    },
-                    "port_forward": 27
-                }
-            },
-            "mac_ip_binding": {
-                "disabled": 2,
-                "hard-binding": 0,
-                "soft-binding": 0
-            },
-            "certificates_info": {
-                "acme_certificates": {
-                    "count": 1,
-                    "issued": 1,
-                    "pending": 0
-                },
-                "custom_certificates": {
-                    "count": 0
-                }
-            },
-            "subscription_status": {
-                "status": "enterprise"
-            }
-        },
-        "timezone": "Europe/Rome",
-        "public_ip": "2.119.67.169",
-        "networking": {
-            "fqdn": "fw.nethesis.it"
-        },
-        "processors": {
-            "isa": "x86_64",
-            "count": "4",
-            "models": [
-                "Intel(R) Core(TM) i5-4570S CPU @ 2.90GHz"
-            ]
-        },
-        "mountpoints": {
-            "/": {
-                "size_bytes": 256704512,
-                "used_bytes": 71700480,
-                "available_bytes": 185004032
-            }
-        },
-        "kernelrelease": "6.6.73",
-        "system_uptime": {
-            "seconds": "725229"
+    "os": {
+        "name": "NethSec",
+        "type": "nethsecurity",
+        "family": "OpenWRT",
+        "release": {
+            "full": "8-24.10.0-ns.1.6.0-5-g0524860a0",
+            "major": 7
         }
     },
-    "id": 57677
+    "dmi": {
+        "bios": {
+            "vendor": "American Megatrends Inc.",
+            "version": "4.6.5"
+        },
+        "board": {
+            "product": "SHARKBAY",
+            "manufacturer": "To be filled by O.E.M."
+        },
+        "product": {
+            "name": "To be filled by O.E.M.",
+            "uuid": "03000200-0400-0500-0006-000700080009"
+        }
+    },
+    "rpms": {
+        "nethserver-firewall-base-ui": "1.28.3-r1"
+    },
+    "kernel": "Linux",
+    "memory": {
+        "swap": {
+            "used_bytes": 0,
+            "total_bytes": 0,
+            "available_bytes": 0
+        },
+        "system": {
+            "used_bytes": 579198976,
+            "total_bytes": 7352455168,
+            "available_bytes": 7352455168
+        }
+    },
+    "virtual": "physical",
+    "arp_macs": "119",
+    "esmithdb": {
+        "networks": [
+            {
+                "name": "eth0",
+                "type": "ethernet",
+                "props": {
+                    "role": "green",
+                    "ipaddr": "192.168.5.251",
+                    "gateway": null,
+                    "netmask": "255.255.255.0"
+                }
+            },
+            {
+                "name": "eth1",
+                "type": "ethernet",
+                "props": {
+                    "role": "green",
+                    "ipaddr": "172.25.4.253",
+                    "gateway": null,
+                    "netmask": "255.255.254.0"
+                }
+            },
+            {
+                "name": "eth5",
+                "type": "ethernet",
+                "props": {
+                    "role": "red",
+                    "ipaddr": "169.254.4.1",
+                    "gateway": null,
+                    "netmask": "255.255.255.0"
+                }
+            },
+            {
+                "name": "eth4",
+                "type": "ethernet",
+                "props": {
+                    "role": "red",
+                    "ipaddr": "169.254.3.1",
+                    "gateway": null,
+                    "netmask": "255.255.255.0"
+                }
+            }
+        ],
+        "configuration": [
+            {
+                "name": "sysconfig",
+                "type": "configuration",
+                "props": {
+                    "Version": "8-24.10.0-ns.1.6.0-5-g0524860a0"
+                }
+            },
+            {
+                "name": "dns",
+                "type": "configuration",
+                "props": {
+                    "NameServers": "8.8.8.8,8.8.4.4,/ad.nethesis.it/192.168.5.3,/adnethesis.it/172.25.4.121"
+                }
+            },
+            {
+                "name": "SystemName",
+                "type": "fw"
+            },
+            {
+                "name": "DomainName",
+                "type": "nethesis.it"
+            }
+        ]
+    },
+    "features": {
+        "ha": {
+            "vips": 11,
+            "enabled": true
+        },
+        "ui": {
+            "luci": true,
+            "port443": true,
+            "port9090": true
+        },
+        "dpi": {
+            "rules": 0,
+            "enabled": false
+        },
+        "qos": {
+            "count": 2,
+            "rules": [
+                {
+                    "upload": 20,
+                    "enabled": true,
+                    "download": 40
+                },
+                {
+                    "upload": 900,
+                    "enabled": true,
+                    "download": 900
+                }
+            ]
+        },
+        "ddns": {
+            "enabled": true
+        },
+        "snmp": {
+            "enabled": true
+        },
+        "ipsec": {
+            "count": 2
+        },
+        "snort": {
+            "policy": "balanced",
+            "enabled": true,
+            "oink_enabled": true,
+            "disabled_rules": 1,
+            "bypass_dst_ipv4": 2,
+            "bypass_dst_ipv6": 0,
+            "bypass_src_ipv4": 2,
+            "bypass_src_ipv6": 0,
+            "suppressed_rules": 1
+        },
+        "adblock": {
+            "enabled": true,
+            "community": 1,
+            "enterprise": 4
+        },
+        "backups": {
+            "passphrase_date": 1747324139,
+            "backup_passphrase": true
+        },
+        "hotspot": {
+            "server": "https://my.nethspot.com/api",
+            "enabled": true,
+            "interface": "eth0.10"
+        },
+        "netifyd": {
+            "enabled": true
+        },
+        "network": {
+            "zones": [
+                {
+                    "ipv4": 2,
+                    "ipv6": 0,
+                    "name": "lan"
+                },
+                {
+                    "ipv4": 2,
+                    "ipv6": 0,
+                    "name": "wan"
+                },
+                {
+                    "ipv4": 0,
+                    "ipv6": 0,
+                    "name": "guest"
+                },
+                {
+                    "ipv4": 0,
+                    "ipv6": 0,
+                    "name": "testvoice"
+                },
+                {
+                    "ipv4": 0,
+                    "ipv6": 0,
+                    "name": "ipsec"
+                },
+                {
+                    "ipv4": 0,
+                    "ipv6": 0,
+                    "name": "rwopenvpn"
+                },
+                {
+                    "ipv4": 2,
+                    "ipv6": 0,
+                    "name": "openvpn"
+                },
+                {
+                    "ipv4": 0,
+                    "ipv6": 0,
+                    "name": "hotspot"
+                },
+                {
+                    "ipv4": 0,
+                    "ipv6": 0,
+                    "name": "wg1vpn"
+                }
+            ],
+            "route_info": {
+                "count_ipv4_route": 2,
+                "count_ipv6_route": 0
+            },
+            "interface_counts": {
+                "bonds": 0,
+                "vlans": 0,
+                "bridges": 0
+            },
+            "zone_network_counts": {
+                "lan": 2,
+                "wan": 2,
+                "guest": 0,
+                "ipsec": 0,
+                "wg1vpn": 1,
+                "hotspot": 1,
+                "openvpn": 2,
+                "rwopenvpn": 1,
+                "testvoice": 0
+            }
+        },
+        "storage": {
+            "enabled": true
+        },
+        "multiwan": {
+            "rules": 1,
+            "enabled": true,
+            "policies": {
+                "backup": 1,
+                "custom": 0,
+                "balance": 0
+            }
+        },
+        "wireguard": {
+            "instances": 1,
+            "statistics": [
+                {
+                    "peers": 2,
+                    "server": "wg1",
+                    "ns_user_db": "main"
+                }
+            ]
+        },
+        "controller": {
+            "enabled": true
+        },
+        "flashstart": {
+            "bypass": 0,
+            "enabled": false,
+            "pro_plus": false,
+            "custom_servers": 0
+        },
+        "nathelpers": {
+            "count": 0,
+            "enabled": false
+        },
+        "openvpn_rw": {
+            "server": 1,
+            "enabled": 1,
+            "instances": [
+                {
+                    "mode": "tun",
+                    "section": "ns_roadwarrior1",
+                    "user_database": "NethService",
+                    "authentication": "username_password_certificate"
+                }
+            ]
+        },
+        "proxy_pass": {
+            "count": 5
+        },
+        "dhcp_server": {
+            "count": 5,
+            "static_leases": 125,
+            "dynamic_leases": 65,
+            "dns_records_count": 58,
+            "dns_forwarder_enabled": true
+        },
+        "openvpn_tun": {
+            "client": 1,
+            "server": 1,
+            "tunnels": [
+                {
+                    "mode": "tun",
+                    "section": "ns_cerbeyra"
+                },
+                {
+                    "mode": "tun",
+                    "section": "ns_ct_nethesi"
+                }
+            ]
+        },
+        "threat_shield": {
+            "enabled": true,
+            "community": 0,
+            "enterprise": 5
+        },
+        "database_stats": {
+            "main": {
+                "users": 1
+            },
+            "NethService": {
+                "users": 104
+            }
+        },
+        "firewall_stats": {
+            "objects": {
+                "hosts": 7,
+                "rules": {
+                    "input": 0,
+                    "output": 0,
+                    "forward": 4
+                },
+                "domains": 1,
+                "mwan_rules": 0,
+                "port_forward": {
+                    "allowed_from": 2,
+                    "destination_to": 3
+                }
+            },
+            "firewall": {
+                "nat": {
+                    "snat": 2,
+                    "accept": 0,
+                    "masquerade": 0
+                },
+                "rules": {
+                    "input": 12,
+                    "output": 0,
+                    "forward": 13
+                },
+                "netmap": {
+                    "source": 0,
+                    "destination": 0
+                },
+                "port_forward": 27
+            }
+        },
+        "mac_ip_binding": {
+            "disabled": 2,
+            "hard-binding": 0,
+            "soft-binding": 0
+        },
+        "certificates_info": {
+            "acme_certificates": {
+                "count": 1,
+                "issued": 1,
+                "pending": 0
+            },
+            "custom_certificates": {
+                "count": 0
+            }
+        },
+        "subscription_status": {
+            "status": "enterprise"
+        }
+    },
+    "timezone": "Europe/Rome",
+    "public_ip": "2.119.67.169",
+    "networking": {
+        "fqdn": "fw.nethesis.it"
+    },
+    "processors": {
+        "isa": "x86_64",
+        "count": "4",
+        "models": [
+            "Intel(R) Core(TM) i5-4570S CPU @ 2.90GHz"
+        ]
+    },
+    "mountpoints": {
+        "/": {
+            "size_bytes": 256704512,
+            "used_bytes": 71700480,
+            "available_bytes": 185004032
+        }
+    },
+    "kernelrelease": "6.6.73",
+    "system_uptime": {
+        "seconds": "725229"
+    }
+}
 }

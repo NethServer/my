@@ -8,7 +8,9 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -21,44 +23,15 @@ var (
 
 // Init initializes the database connection
 func Init() error {
-	// Get database configuration from environment
-	host := os.Getenv("DB_HOST")
-	if host == "" {
-		host = "localhost"
+	// Get database URL from environment
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		return fmt.Errorf("DATABASE_URL environment variable is required")
 	}
-
-	port := os.Getenv("DB_PORT")
-	if port == "" {
-		port = "5432"
-	}
-
-	user := os.Getenv("DB_USER")
-	if user == "" {
-		user = "postgres"
-	}
-
-	password := os.Getenv("DB_PASSWORD")
-	if password == "" {
-		return fmt.Errorf("DB_PASSWORD environment variable is required")
-	}
-
-	dbname := os.Getenv("DB_NAME")
-	if dbname == "" {
-		dbname = "nethesis_oc"
-	}
-
-	sslmode := os.Getenv("DB_SSLMODE")
-	if sslmode == "" {
-		sslmode = "disable"
-	}
-
-	// Build connection string
-	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-		host, port, user, password, dbname, sslmode)
 
 	// Open database connection
 	var err error
-	DB, err = sql.Open("postgres", connStr)
+	DB, err = sql.Open("postgres", databaseURL)
 	if err != nil {
 		return fmt.Errorf("failed to open database connection: %w", err)
 	}
@@ -74,10 +47,13 @@ func Init() error {
 	}
 
 	logger.ComponentLogger("database").Info().
-		Str("host", host).
-		Str("port", port).
-		Str("database", dbname).
+		Str("database_url", databaseURL).
 		Msg("Database connection established")
+
+	// Initialize database schema
+	if err := initSchemaFromFile(); err != nil {
+		return fmt.Errorf("failed to initialize database schema: %w", err)
+	}
 
 	return nil
 }
@@ -96,4 +72,34 @@ func HealthCheck() error {
 		return fmt.Errorf("database connection not initialized")
 	}
 	return DB.Ping()
+}
+
+// initSchemaFromFile initializes the database schema from SQL file
+func initSchemaFromFile() error {
+	logger.ComponentLogger("database").Info().Msg("Initializing database schema")
+
+	// Path to the schema file
+	schemaFile := filepath.Join("database", "schema.sql")
+	
+	// Check if schema file exists
+	if _, err := os.Stat(schemaFile); os.IsNotExist(err) {
+		logger.ComponentLogger("database").Warn().
+			Str("schema_file", schemaFile).
+			Msg("Schema file not found, skipping schema initialization")
+		return nil
+	}
+
+	// Read schema file
+	content, err := ioutil.ReadFile(schemaFile)
+	if err != nil {
+		return fmt.Errorf("failed to read schema file: %w", err)
+	}
+
+	// Execute schema SQL
+	if _, err := DB.Exec(string(content)); err != nil {
+		return fmt.Errorf("failed to execute schema: %w", err)
+	}
+
+	logger.ComponentLogger("database").Info().Msg("Database schema initialized successfully")
+	return nil
 }

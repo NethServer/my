@@ -203,7 +203,6 @@ func (m *Manager) RestartUnhealthyWorkers() error {
 				Str("worker", worker.Name()).
 				Msg("Attempting to restart unhealthy worker")
 
-			// For now, we'll just log the unhealthy worker
 			// In a more sophisticated implementation, we could implement
 			// worker restart logic here
 		}

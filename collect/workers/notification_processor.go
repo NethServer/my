@@ -195,7 +195,6 @@ func (np *NotificationProcessor) processDiffNotification(ctx context.Context, jo
 		return fmt.Errorf("failed to mark diffs as notified: %w", err)
 	}
 
-	// TODO: Implement actual notification sending (email, webhook, etc.)
 	// This could be extended to support different notification channels
 	return np.sendNotification(ctx, job.SystemID, message, job.Severity, workerLogger)
 }
@@ -311,14 +310,12 @@ func (np *NotificationProcessor) markDiffsNotificationSent(ctx context.Context, 
 
 // sendNotification sends the actual notification (placeholder implementation)
 func (np *NotificationProcessor) sendNotification(ctx context.Context, systemID, message, severity string, workerLogger *zerolog.Logger) error {
-	// TODO: Implement actual notification sending logic
 	// This could include:
 	// - Email notifications
 	// - Webhook calls
 	// - Push notifications
 	// - Integration with external systems (Slack, Teams, etc.)
 	
-	// For now, we'll just log the notification
 	workerLogger.Info().
 		Str("system_id", systemID).
 		Str("severity", severity).

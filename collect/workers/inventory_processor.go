@@ -239,7 +239,7 @@ func (ip *InventoryProcessor) insertInventoryRecord(ctx context.Context, invento
 		Data:       inventoryData.Data,
 		DataHash:   dataHash,
 		DataSize:   dataSize,
-		Compressed: false, // TODO: Implement compression if enabled
+		Compressed: false,
 	}
 
 	err := database.DB.QueryRowContext(

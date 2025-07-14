@@ -13,12 +13,16 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"strconv"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	_ "github.com/lib/pq"
 
 	"github.com/nethesis/my/backend/logger"
-	"github.com/nethesis/my/collect/configuration"
 )
 
 var (
@@ -38,56 +42,101 @@ func Init() error {
 		return fmt.Errorf("failed to initialize Redis: %w", err)
 	}
 
-	// Create database tables if they don't exist
-	if err := createTables(); err != nil {
-		return fmt.Errorf("failed to create database tables: %w", err)
-	}
-
-	logger.Info().Msg("Database connections initialized successfully")
+	logger.ComponentLogger("database").Info().Msg("Database connections initialized successfully")
 	return nil
 }
 
 // initPostgreSQL initializes the PostgreSQL connection
 func initPostgreSQL() error {
+	// Get database URL from environment
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		return fmt.Errorf("DATABASE_URL environment variable is required")
+	}
+
+	// Parse configuration with defaults
+	maxConns := 25
+	if maxConnsStr := os.Getenv("DATABASE_MAX_CONNS"); maxConnsStr != "" {
+		if parsed, err := strconv.Atoi(maxConnsStr); err == nil {
+			maxConns = parsed
+		}
+	}
+
+	maxIdle := 25
+	if maxIdleStr := os.Getenv("DATABASE_MAX_IDLE"); maxIdleStr != "" {
+		if parsed, err := strconv.Atoi(maxIdleStr); err == nil {
+			maxIdle = parsed
+		}
+	}
+
+	connMaxAge := 5 * time.Minute
+	if connMaxAgeStr := os.Getenv("DATABASE_CONN_MAX_AGE"); connMaxAgeStr != "" {
+		if parsed, err := time.ParseDuration(connMaxAgeStr); err == nil {
+			connMaxAge = parsed
+		}
+	}
+
+	// Open database connection
 	var err error
-	DB, err = sql.Open("postgres", configuration.Config.DatabaseURL)
+	DB, err = sql.Open("postgres", databaseURL)
 	if err != nil {
 		return fmt.Errorf("failed to open database connection: %w", err)
 	}
 
 	// Configure connection pool
-	DB.SetMaxOpenConns(configuration.Config.DatabaseMaxConns)
-	DB.SetMaxIdleConns(configuration.Config.DatabaseMaxIdle)
-	DB.SetConnMaxLifetime(configuration.Config.DatabaseConnMaxAge)
+	DB.SetMaxOpenConns(maxConns)
+	DB.SetMaxIdleConns(maxIdle)
+	DB.SetConnMaxLifetime(connMaxAge)
 
 	// Test connection
 	if err := DB.Ping(); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	logger.Info().
-		Int("max_conns", configuration.Config.DatabaseMaxConns).
-		Int("max_idle", configuration.Config.DatabaseMaxIdle).
-		Dur("conn_max_age", configuration.Config.DatabaseConnMaxAge).
+	logger.ComponentLogger("database").Info().
+		Str("database_url", databaseURL).
+		Int("max_conns", maxConns).
+		Int("max_idle", maxIdle).
+		Dur("conn_max_age", connMaxAge).
 		Msg("PostgreSQL connection established")
+
+	// Initialize database schema
+	if err := initSchemaFromFile(); err != nil {
+		return fmt.Errorf("failed to initialize database schema: %w", err)
+	}
 
 	return nil
 }
 
 // initRedis initializes the Redis connection
 func initRedis() error {
-	opt, err := redis.ParseURL(configuration.Config.RedisURL)
+	// Get Redis configuration from environment
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL == "" {
+		redisURL = "redis://localhost:6379"
+	}
+
+	opt, err := redis.ParseURL(redisURL)
 	if err != nil {
 		return fmt.Errorf("failed to parse Redis URL: %w", err)
 	}
 
-	// Override with configuration values
-	opt.DB = configuration.Config.RedisDB
-	opt.Password = configuration.Config.RedisPassword
-	opt.MaxRetries = configuration.Config.RedisMaxRetries
-	opt.DialTimeout = configuration.Config.RedisDialTimeout
-	opt.ReadTimeout = configuration.Config.RedisReadTimeout
-	opt.WriteTimeout = configuration.Config.RedisWriteTimeout
+	// Override with environment configuration
+	if redisDB := os.Getenv("REDIS_DB"); redisDB != "" {
+		if db, err := strconv.Atoi(redisDB); err == nil {
+			opt.DB = db
+		}
+	}
+
+	if redisPassword := os.Getenv("REDIS_PASSWORD"); redisPassword != "" {
+		opt.Password = redisPassword
+	}
+
+	// Set reasonable defaults
+	opt.MaxRetries = 3
+	opt.DialTimeout = 5 * time.Second
+	opt.ReadTimeout = 3 * time.Second
+	opt.WriteTimeout = 3 * time.Second
 
 	Redis = redis.NewClient(opt)
 
@@ -97,7 +146,7 @@ func initRedis() error {
 		return fmt.Errorf("failed to connect to Redis: %w", err)
 	}
 
-	logger.Info().
+	logger.ComponentLogger("database").Info().
 		Str("redis_url", opt.Addr).
 		Int("redis_db", opt.DB).
 		Msg("Redis connection established")
@@ -110,130 +159,6 @@ func GetRedisClient() *redis.Client {
 	return Redis
 }
 
-// createTables creates the necessary database tables
-func createTables() error {
-	tables := []string{
-		createSystemCredentialsTable,
-		createInventoryRecordsTable,
-		createInventoryDiffsTable,
-		createInventoryMonitoringTable,
-		createInventoryAlertsTable,
-		createIndexes,
-	}
-
-	for _, query := range tables {
-		if _, err := DB.Exec(query); err != nil {
-			return fmt.Errorf("failed to execute table creation query: %w", err)
-		}
-	}
-
-	logger.Info().Msg("Database tables created/verified successfully")
-	return nil
-}
-
-// SQL table creation statements
-const createSystemCredentialsTable = `
-CREATE TABLE IF NOT EXISTS system_credentials (
-    system_id VARCHAR(255) PRIMARY KEY,
-    secret_hash VARCHAR(64) NOT NULL,
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    last_used TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
-`
-
-const createInventoryRecordsTable = `
-CREATE TABLE IF NOT EXISTS inventory_records (
-    id BIGSERIAL PRIMARY KEY,
-    system_id VARCHAR(255) NOT NULL,
-    timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
-    data JSONB NOT NULL,
-    data_hash VARCHAR(64) NOT NULL,
-    data_size BIGINT NOT NULL,
-    compressed BOOLEAN NOT NULL DEFAULT false,
-    processed_at TIMESTAMP WITH TIME ZONE,
-    has_changes BOOLEAN NOT NULL DEFAULT false,
-    change_count INTEGER NOT NULL DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    UNIQUE(system_id, data_hash)
-);
-`
-
-const createInventoryDiffsTable = `
-CREATE TABLE IF NOT EXISTS inventory_diffs (
-    id BIGSERIAL PRIMARY KEY,
-    system_id VARCHAR(255) NOT NULL,
-    previous_id BIGINT REFERENCES inventory_records(id),
-    current_id BIGINT NOT NULL REFERENCES inventory_records(id),
-    diff_type VARCHAR(50) NOT NULL CHECK (diff_type IN ('create', 'update', 'delete')),
-    field_path TEXT NOT NULL,
-    previous_value TEXT,
-    current_value TEXT,
-    severity VARCHAR(50) NOT NULL DEFAULT 'low' CHECK (severity IN ('low', 'medium', 'high', 'critical')),
-    category VARCHAR(100) NOT NULL DEFAULT 'general',
-    notification_sent BOOLEAN NOT NULL DEFAULT false,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
-`
-
-const createInventoryMonitoringTable = `
-CREATE TABLE IF NOT EXISTS inventory_monitoring (
-    id BIGSERIAL PRIMARY KEY,
-    system_id VARCHAR(255), -- NULL for global rules
-    field_path TEXT NOT NULL,
-    monitor_type VARCHAR(50) NOT NULL CHECK (monitor_type IN ('threshold', 'change', 'pattern')),
-    threshold TEXT,
-    pattern TEXT,
-    severity VARCHAR(50) NOT NULL DEFAULT 'medium' CHECK (severity IN ('low', 'medium', 'high', 'critical')),
-    is_enabled BOOLEAN NOT NULL DEFAULT true,
-    description TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
-`
-
-const createInventoryAlertsTable = `
-CREATE TABLE IF NOT EXISTS inventory_alerts (
-    id BIGSERIAL PRIMARY KEY,
-    system_id VARCHAR(255) NOT NULL,
-    monitoring_id BIGINT NOT NULL REFERENCES inventory_monitoring(id),
-    diff_id BIGINT REFERENCES inventory_diffs(id),
-    alert_type VARCHAR(50) NOT NULL CHECK (alert_type IN ('threshold', 'change', 'pattern')),
-    message TEXT NOT NULL,
-    severity VARCHAR(50) NOT NULL CHECK (severity IN ('low', 'medium', 'high', 'critical')),
-    is_resolved BOOLEAN NOT NULL DEFAULT false,
-    resolved_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
-`
-
-const createIndexes = `
--- Indexes for performance optimization
-CREATE INDEX IF NOT EXISTS idx_inventory_records_system_id_timestamp ON inventory_records(system_id, timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_inventory_records_data_hash ON inventory_records(data_hash);
-CREATE INDEX IF NOT EXISTS idx_inventory_records_processed_at ON inventory_records(processed_at);
-
-CREATE INDEX IF NOT EXISTS idx_inventory_diffs_system_id_created_at ON inventory_diffs(system_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_inventory_diffs_current_id ON inventory_diffs(current_id);
-CREATE INDEX IF NOT EXISTS idx_inventory_diffs_severity ON inventory_diffs(severity);
-CREATE INDEX IF NOT EXISTS idx_inventory_diffs_category ON inventory_diffs(category);
-CREATE INDEX IF NOT EXISTS idx_inventory_diffs_notification_sent ON inventory_diffs(notification_sent) WHERE notification_sent = false;
-
-CREATE INDEX IF NOT EXISTS idx_inventory_monitoring_system_id ON inventory_monitoring(system_id);
-CREATE INDEX IF NOT EXISTS idx_inventory_monitoring_field_path ON inventory_monitoring(field_path);
-CREATE INDEX IF NOT EXISTS idx_inventory_monitoring_enabled ON inventory_monitoring(is_enabled) WHERE is_enabled = true;
-
-CREATE INDEX IF NOT EXISTS idx_inventory_alerts_system_id_created_at ON inventory_alerts(system_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_inventory_alerts_monitoring_id ON inventory_alerts(monitoring_id);
-CREATE INDEX IF NOT EXISTS idx_inventory_alerts_resolved ON inventory_alerts(is_resolved) WHERE is_resolved = false;
-CREATE INDEX IF NOT EXISTS idx_inventory_alerts_severity ON inventory_alerts(severity);
-
-CREATE INDEX IF NOT EXISTS idx_system_credentials_active ON system_credentials(is_active) WHERE is_active = true;
-CREATE INDEX IF NOT EXISTS idx_system_credentials_last_used ON system_credentials(last_used DESC);
-`
 
 // Close closes all database connections
 func Close() error {
@@ -255,7 +180,7 @@ func Close() error {
 		return fmt.Errorf("failed to close Redis connection: %w", redisErr)
 	}
 
-	logger.Info().Msg("Database connections closed successfully")
+	logger.ComponentLogger("database").Info().Msg("Database connections closed successfully")
 	return nil
 }
 
@@ -306,4 +231,34 @@ func GetStats() map[string]interface{} {
 	}
 
 	return stats
+}
+
+// initSchemaFromFile initializes the database schema from SQL file
+func initSchemaFromFile() error {
+	logger.ComponentLogger("database").Info().Msg("Initializing collect database schema")
+
+	// Path to the schema file
+	schemaFile := filepath.Join("database", "schema.sql")
+	
+	// Check if schema file exists
+	if _, err := os.Stat(schemaFile); os.IsNotExist(err) {
+		logger.ComponentLogger("database").Warn().
+			Str("schema_file", schemaFile).
+			Msg("Schema file not found, skipping schema initialization")
+		return nil
+	}
+
+	// Read schema file
+	content, err := ioutil.ReadFile(schemaFile)
+	if err != nil {
+		return fmt.Errorf("failed to read schema file: %w", err)
+	}
+
+	// Execute schema SQL
+	if _, err := DB.Exec(string(content)); err != nil {
+		return fmt.Errorf("failed to execute schema: %w", err)
+	}
+
+	logger.ComponentLogger("database").Info().Msg("Collect database schema initialized successfully")
+	return nil
 }

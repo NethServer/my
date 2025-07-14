@@ -103,7 +103,81 @@ install: build
 	@echo "Installing $(BINARY_NAME)..."
 	@go install $(LDFLAGS) .
 
-# Development setup
+
+# Database management (requires backend db-up to be run first)
+.PHONY: db-up
+db-up:
+	@echo "Checking shared PostgreSQL container with $(CONTAINER_NAME)..."
+	@if $(CONTAINER_CMD) ps --format "{{.Names}}" | grep -q "^my-postgres$$"; then \
+		echo "PostgreSQL container already running, creating collect user..."; \
+		$(CONTAINER_CMD) exec my-postgres psql -U backend -d noc -c "CREATE USER collect WITH PASSWORD 'collect';" || true; \
+		$(CONTAINER_CMD) exec my-postgres psql -U backend -d noc -c "GRANT USAGE ON SCHEMA public TO collect;" || true; \
+		$(CONTAINER_CMD) exec my-postgres psql -U backend -d noc -c "GRANT CREATE ON SCHEMA public TO collect;" || true; \
+		$(CONTAINER_CMD) exec my-postgres psql -U backend -d noc -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO collect;" || true; \
+		$(CONTAINER_CMD) exec my-postgres psql -U backend -d noc -c "GRANT ALL ON ALL TABLES IN SCHEMA public TO collect;" || true; \
+		$(CONTAINER_CMD) exec my-postgres psql -U backend -d noc -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO collect;" || true; \
+		echo "DATABASE_URL=postgresql://collect:collect@localhost:5432/noc?sslmode=disable"; \
+	else \
+		echo "ERROR: PostgreSQL container not running. Please run 'make dev-up' from backend first."; \
+		exit 1; \
+	fi
+
+.PHONY: db-down
+db-down:
+	@echo "Stopping shared PostgreSQL container with $(CONTAINER_NAME)..."
+	@$(CONTAINER_CMD) stop my-postgres || true
+	@$(CONTAINER_CMD) rm my-postgres || true
+
+.PHONY: db-reset
+db-reset: db-down db-up
+	@echo "Waiting for database to be ready..."
+	@sleep 5
+
+# Redis development commands
+.PHONY: redis-up
+redis-up:
+	@echo "Starting shared Redis container with $(CONTAINER_NAME)..."
+	@if $(CONTAINER_CMD) ps --format "{{.Names}}" | grep -q "^my-redis$$"; then \
+		echo "Redis container already running"; \
+		echo "REDIS_URL=redis://localhost:6379"; \
+	else \
+		$(CONTAINER_CMD) run -d --name my-redis -p 6379:6379 redis:7-alpine redis-server --save 60 1 --loglevel warning; \
+		echo "REDIS_URL=redis://localhost:6379"; \
+	fi
+
+.PHONY: redis-down
+redis-down:
+	@echo "Stopping shared Redis container with $(CONTAINER_NAME)..."
+	@$(CONTAINER_CMD) stop my-redis || true
+	@$(CONTAINER_CMD) rm my-redis || true
+
+.PHONY: redis-flush
+redis-flush:
+	@echo "Flushing Redis cache..."
+	@$(CONTAINER_CMD) exec my-redis redis-cli FLUSHALL
+
+.PHONY: redis-cli
+redis-cli:
+	@echo "Connecting to Redis CLI..."
+	@$(CONTAINER_CMD) exec -it my-redis redis-cli
+
+# Development environment
+.PHONY: dev-up
+dev-up: 
+	@echo "Starting full development environment..."
+	@echo ""
+	@echo "=== PostgreSQL ==="
+	@$(MAKE) db-up
+	@echo ""
+	@echo "=== Redis ==="
+	@$(MAKE) redis-up
+	@echo ""
+	@echo "Full development environment started"
+
+.PHONY: dev-down
+dev-down: db-down redis-down
+	@echo "Full development environment stopped"
+
 .PHONY: dev-setup
 dev-setup:
 	@echo "Setting up development environment..."
@@ -115,61 +189,6 @@ dev-setup:
 		echo ".env already exists, skipping copy"; \
 	fi
 	@echo "Development environment ready!"
-
-# Database management
-.PHONY: db-up
-db-up:
-	@echo "Starting PostgreSQL container with $(CONTAINER_NAME)..."
-	@$(CONTAINER_CMD) run -d --name collect-postgres \
-		-e POSTGRES_DB=collect \
-		-e POSTGRES_USER=collect \
-		-e POSTGRES_PASSWORD=collect \
-		-p 5432:5432 \
-		postgres:15-alpine
-
-.PHONY: db-down
-db-down:
-	@echo "Stopping PostgreSQL container with $(CONTAINER_NAME)..."
-	@$(CONTAINER_CMD) stop collect-postgres || true
-	@$(CONTAINER_CMD) rm collect-postgres || true
-
-.PHONY: db-reset
-db-reset: db-down db-up
-	@echo "Waiting for database to be ready..."
-	@sleep 5
-
-# Redis development commands
-.PHONY: redis-up
-redis-up:
-	@echo "Starting Redis container with $(CONTAINER_NAME)..."
-	@$(CONTAINER_CMD) run -d --name collect-redis -p 6379:6379 redis:7-alpine redis-server --save 60 1 --loglevel warning
-
-.PHONY: redis-down
-redis-down:
-	@echo "Stopping Redis container with $(CONTAINER_NAME)..."
-	@$(CONTAINER_CMD) stop collect-redis || true
-	@$(CONTAINER_CMD) rm collect-redis || true
-
-.PHONY: redis-flush
-redis-flush:
-	@echo "Flushing Redis cache..."
-	@$(CONTAINER_CMD) exec collect-redis redis-cli FLUSHALL
-
-.PHONY: redis-cli
-redis-cli:
-	@echo "Connecting to Redis CLI..."
-	@$(CONTAINER_CMD) exec -it collect-redis redis-cli
-
-# Full development environment
-.PHONY: dev-env-up
-dev-env-up: db-up redis-up
-	@echo "Full development environment started"
-	@echo "PostgreSQL: postgresql://collect:collect@localhost:5432/collect"
-	@echo "Redis: redis://localhost:6379/1"
-
-.PHONY: dev-env-down
-dev-env-down: db-down redis-down
-	@echo "Full development environment stopped"
 
 # Show container runtime status
 .PHONY: container-status
@@ -186,8 +205,8 @@ pre-commit: fmt lint test
 	@echo "All pre-commit checks passed!"
 
 # Database migration (placeholder)
-.PHONY: migrate
-migrate:
+.PHONY: db-migrate
+db-migrate:
 	@echo "Running database migrations..."
 	@echo "Note: Migrations are handled automatically by the application on startup"
 
@@ -200,7 +219,6 @@ help:
 	@echo "  build         - Build the binary"
 	@echo "  build-all     - Build for multiple platforms"
 	@echo "  clean         - Clean build artifacts"
-	@echo "  dev-setup     - Setup development environment"
 	@echo "  fmt           - Format code"
 	@echo "  help          - Show this help"
 	@echo "  install       - Install the binary"
@@ -215,7 +233,7 @@ help:
 	@echo "  db-up         - Start PostgreSQL container"
 	@echo "  db-down       - Stop PostgreSQL container"
 	@echo "  db-reset      - Reset PostgreSQL container"
-	@echo "  migrate       - Run database migrations"
+	@echo "  db-migrate    - Run database migrations"
 	@echo ""
 	@echo "Redis commands:"
 	@echo "  redis-up      - Start Redis container"
@@ -224,8 +242,9 @@ help:
 	@echo "  redis-cli     - Connect to Redis CLI"
 	@echo ""
 	@echo "Development environment:"
-	@echo "  dev-env-up    - Start full development environment (PostgreSQL + Redis)"
-	@echo "  dev-env-down  - Stop full development environment"
+	@echo "  dev-setup     - Setup development environment"
+	@echo "  dev-up        - Start full development environment (PostgreSQL + Redis)"
+	@echo "  dev-down      - Stop full development environment"
 	@echo ""
 	@echo "Container status:"
 	@echo "  container-status - Show container runtime detection"

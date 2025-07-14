@@ -133,12 +133,12 @@ func validateSystemCredentials(c *gin.Context, systemID, systemSecret string) bo
 		// If cached as invalid, still check database for updates
 	}
 
-	// Query database for system credentials
+	// Query database for system credentials from systems table
 	var creds models.SystemCredentials
 	query := `
-		SELECT system_id, secret_hash, is_active, last_used, created_at, updated_at
-		FROM system_credentials 
-		WHERE system_id = $1 AND is_active = true
+		SELECT id, secret_hash, true, null, created_at, updated_at
+		FROM systems 
+		WHERE id = $1
 	`
 	
 	err := database.DB.QueryRow(query, systemID).Scan(
@@ -173,8 +173,6 @@ func validateSystemCredentials(c *gin.Context, systemID, systemSecret string) bo
 		return false
 	}
 
-	// Update last_used timestamp
-	go updateLastUsed(systemID)
 
 	// Cache positive result
 	cacheCredentialsResult(c, systemID, systemSecret, true)
@@ -222,22 +220,6 @@ func cacheCredentialsResult(c *gin.Context, systemID, systemSecret string, valid
 	}
 }
 
-// updateLastUsed updates the last_used timestamp for system credentials
-func updateLastUsed(systemID string) {
-	query := `
-		UPDATE system_credentials 
-		SET last_used = NOW(), updated_at = NOW()
-		WHERE system_id = $1
-	`
-	
-	_, err := database.DB.Exec(query, systemID)
-	if err != nil {
-		logger.Error().
-			Err(err).
-			Str("system_id", systemID).
-			Msg("Failed to update last_used timestamp")
-	}
-}
 
 // hashSystemSecret creates a SHA-256 hash of the system secret
 func hashSystemSecret(secret string) string {
@@ -245,54 +227,3 @@ func hashSystemSecret(secret string) string {
 	return fmt.Sprintf("%x", hash)
 }
 
-// CreateSystemCredentials creates new credentials for a system
-func CreateSystemCredentials(systemID, systemSecret string) error {
-	secretHash := hashSystemSecret(systemSecret)
-	
-	query := `
-		INSERT INTO system_credentials (system_id, secret_hash, is_active, created_at, updated_at)
-		VALUES ($1, $2, true, NOW(), NOW())
-		ON CONFLICT (system_id) 
-		DO UPDATE SET secret_hash = $2, is_active = true, updated_at = NOW()
-	`
-	
-	_, err := database.DB.Exec(query, systemID, secretHash)
-	if err != nil {
-		return fmt.Errorf("failed to create system credentials: %w", err)
-	}
-
-	logger.Info().
-		Str("system_id", systemID).
-		Msg("System credentials created/updated successfully")
-
-	return nil
-}
-
-// DisableSystemCredentials disables credentials for a system
-func DisableSystemCredentials(systemID string) error {
-	query := `
-		UPDATE system_credentials 
-		SET is_active = false, updated_at = NOW()
-		WHERE system_id = $1
-	`
-	
-	result, err := database.DB.Exec(query, systemID)
-	if err != nil {
-		return fmt.Errorf("failed to disable system credentials: %w", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to check affected rows: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		return fmt.Errorf("system credentials not found: %s", systemID)
-	}
-
-	logger.Info().
-		Str("system_id", systemID).
-		Msg("System credentials disabled successfully")
-
-	return nil
-}

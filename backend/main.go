@@ -52,9 +52,6 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to initialize Redis cache")
 	}
 
-	// Initialize demo data for systems (still using in-memory storage for backward compatibility)
-	methods.InitSystemsStorage()
-
 	// Start background statistics updater
 	cache.InitAndStartStatsCacheManager(services.NewLogtoManagementClient())
 
@@ -120,14 +117,14 @@ func main() {
 		// SYSTEMS - Hybrid approach
 		// ===========================================
 
-		// Standard CRUD operations - role-based (Support can manage systems)
-		systemsGroup := customAuth.Group("/systems", middleware.RequireUserRole("Support"))
+		// Standard CRUD operations - role-based (Admin and Support can manage systems)
+		systemsGroup := customAuth.Group("/systems", middleware.RequireAnyUserRole("Admin", "Support"))
 		{
 			systemsGroup.GET("", methods.GetSystems)
 			systemsGroup.GET("/:id", methods.GetSystem)
 			systemsGroup.POST("", methods.CreateSystem)
 			systemsGroup.PUT("/:id", methods.UpdateSystem)
-			systemsGroup.DELETE("/:id", middleware.RequirePermission("admin:systems"), methods.DeleteSystem) // Admin-only
+			systemsGroup.DELETE("/:id", methods.DeleteSystem)
 			systemsGroup.POST("/:id/regenerate-secret", methods.RegenerateSystemSecret) // Regenerate system secret
 		}
 
