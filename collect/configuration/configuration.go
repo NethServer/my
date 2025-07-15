@@ -49,6 +49,13 @@ type Configuration struct {
 	WorkerShutdownTimeout   time.Duration `json:"worker_shutdown_timeout"`
 	WorkerHeartbeatInterval time.Duration `json:"worker_heartbeat_interval"`
 
+	// Scalable worker configuration
+	BatchProcessorSize      int           `json:"batch_processor_size"`
+	BatchProcessorTimeout   time.Duration `json:"batch_processor_timeout"`
+	BackpressureThreshold   float64       `json:"backpressure_threshold"`
+	CircuitBreakerThreshold int           `json:"circuit_breaker_threshold"`
+	CircuitBreakerTimeout   time.Duration `json:"circuit_breaker_timeout"`
+
 	// Inventory processing configuration
 	InventoryMaxAge          time.Duration `json:"inventory_max_age"`
 	InventoryCleanupInterval time.Duration `json:"inventory_cleanup_interval"`
@@ -116,6 +123,13 @@ func Init() {
 	Config.WorkerShutdownTimeout = parseDurationWithDefault("WORKER_SHUTDOWN_TIMEOUT", 30*time.Second)
 	Config.WorkerHeartbeatInterval = parseDurationWithDefault("WORKER_HEARTBEAT_INTERVAL", 10*time.Second)
 
+	// Scalable worker configuration
+	Config.BatchProcessorSize = parseIntWithDefault("BATCH_PROCESSOR_SIZE", 100)
+	Config.BatchProcessorTimeout = parseDurationWithDefault("BATCH_PROCESSOR_TIMEOUT", 5*time.Second)
+	Config.BackpressureThreshold = parseFloatWithDefault("BACKPRESSURE_THRESHOLD", 0.8)
+	Config.CircuitBreakerThreshold = parseIntWithDefault("CIRCUIT_BREAKER_THRESHOLD", 5)
+	Config.CircuitBreakerTimeout = parseDurationWithDefault("CIRCUIT_BREAKER_TIMEOUT", 30*time.Second)
+
 	// Inventory processing configuration
 	Config.InventoryMaxAge = parseDurationWithDefault("INVENTORY_MAX_AGE", 90*24*time.Hour) // 90 days
 	Config.InventoryCleanupInterval = parseDurationWithDefault("INVENTORY_CLEANUP_INTERVAL", 6*time.Hour)
@@ -181,6 +195,21 @@ func parseInt64WithDefault(envVar string, defaultValue int64) int64 {
 	}
 
 	logger.LogConfigLoad("env", envVar, false, fmt.Errorf("invalid int64 format, using default %d", defaultValue))
+	return defaultValue
+}
+
+// parseFloatWithDefault parses a float64 from environment variable or returns default
+func parseFloatWithDefault(envVar string, defaultValue float64) float64 {
+	envValue := os.Getenv(envVar)
+	if envValue == "" {
+		return defaultValue
+	}
+
+	if value, err := strconv.ParseFloat(envValue, 64); err == nil {
+		return value
+	}
+
+	logger.LogConfigLoad("env", envVar, false, fmt.Errorf("invalid float format, using default %f", defaultValue))
 	return defaultValue
 }
 

@@ -57,13 +57,13 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to initialize Redis queue")
 	}
 
-	// Start background workers
+	// Start scalable worker manager
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	workerManager := workers.NewManager()
+	workerManager := workers.NewScalableManager()
 	if err := workerManager.Start(ctx); err != nil {
-		logger.Fatal().Err(err).Msg("Failed to start workers")
+		logger.Fatal().Err(err).Msg("Failed to start scalable workers")
 	}
 
 	// Init router
@@ -89,9 +89,45 @@ func main() {
 	// Define API group
 	api := router.Group("/api")
 
-	// Health check endpoint
+	// Health check endpoint with detailed metrics
 	api.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, response.OK("service healthy", nil))
+		healthData := map[string]interface{}{
+			"service": "collect",
+			"status":  "healthy",
+			"workers": workerManager.GetStatus(),
+		}
+
+		if !workerManager.IsHealthy() {
+			c.JSON(http.StatusServiceUnavailable, response.Error(http.StatusServiceUnavailable, "service unhealthy", healthData))
+			return
+		}
+
+		c.JSON(http.StatusOK, response.OK("service healthy", healthData))
+	})
+
+	// ===========================================
+	// MONITORING ENDPOINTS
+	// ===========================================
+
+	// Advanced metrics endpoint
+	api.GET("/metrics", func(c *gin.Context) {
+		dbStats := database.GetStats()
+		connMetrics := database.GetConnectionMetrics()
+		workerStatus := workerManager.GetStatus()
+
+		metricsData := map[string]interface{}{
+			"database":    dbStats,
+			"connections": connMetrics,
+			"workers":     workerStatus,
+			"timestamp":   time.Now(),
+		}
+
+		c.JSON(http.StatusOK, response.OK("metrics", metricsData))
+	})
+
+	// Performance stats endpoint
+	api.GET("/stats", func(c *gin.Context) {
+		c.JSON(http.StatusOK, response.OK("stats", workerManager.GetStatus()))
 	})
 
 	// ===========================================
@@ -130,11 +166,13 @@ func main() {
 
 	logger.Info().Msg("Shutting down server...")
 
-	// Cancel workers context
-	cancel()
+	// Stop worker manager gracefully
+	if err := workerManager.Stop(); err != nil {
+		logger.Error().Err(err).Msg("Failed to stop worker manager gracefully")
+	}
 
-	// Give workers time to finish current tasks
-	time.Sleep(2 * time.Second)
+	// Cancel context for any remaining operations
+	cancel()
 
 	// Shutdown HTTP server
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)

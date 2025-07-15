@@ -41,6 +41,9 @@ func Init() error {
 		return fmt.Errorf("failed to initialize Redis: %w", err)
 	}
 
+	// Initialize connection manager
+	InitConnectionManager()
+
 	logger.ComponentLogger("database").Info().Msg("Database connections initialized successfully")
 	return nil
 }
@@ -53,22 +56,22 @@ func initPostgreSQL() error {
 		return fmt.Errorf("DATABASE_URL environment variable is required")
 	}
 
-	// Parse configuration with defaults - aggressive limits to prevent connection exhaustion
-	maxConns := 10 // Drastically reduce max connections
+	// Parse configuration with defaults - optimized for batch processing
+	maxConns := 50 // Optimized for batch processing and connection manager
 	if maxConnsStr := os.Getenv("DATABASE_MAX_CONNS"); maxConnsStr != "" {
 		if parsed, err := strconv.Atoi(maxConnsStr); err == nil {
 			maxConns = parsed
 		}
 	}
 
-	maxIdle := 2 // Very low idle connections to force cleanup
+	maxIdle := 5 // Increased from 2 for better connection reuse
 	if maxIdleStr := os.Getenv("DATABASE_MAX_IDLE"); maxIdleStr != "" {
 		if parsed, err := strconv.Atoi(maxIdleStr); err == nil {
 			maxIdle = parsed
 		}
 	}
 
-	connMaxAge := 5 * time.Minute // Much shorter lifetime to force connection cleanup
+	connMaxAge := 15 * time.Minute // Increased from 5 minutes for better connection efficiency
 	if connMaxAgeStr := os.Getenv("DATABASE_CONN_MAX_AGE"); connMaxAgeStr != "" {
 		if parsed, err := time.ParseDuration(connMaxAgeStr); err == nil {
 			connMaxAge = parsed
@@ -86,6 +89,7 @@ func initPostgreSQL() error {
 	DB.SetMaxOpenConns(maxConns)
 	DB.SetMaxIdleConns(maxIdle)
 	DB.SetConnMaxLifetime(connMaxAge)
+	DB.SetConnMaxIdleTime(1 * time.Minute) // Force cleanup of idle connections
 
 	// Test connection
 	if err := DB.Ping(); err != nil {

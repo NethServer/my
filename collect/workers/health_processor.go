@@ -232,11 +232,12 @@ func (hp *HealthProcessor) checkSystemResources(ctx context.Context, workerLogge
 	// Check disk space for database directory
 	// This is a simplified check - in production, you might want more sophisticated monitoring
 
-	// Check if we can write to the database
+	// Check if we can query the database
 	testQuery := "SELECT 1"
-	_, err := database.DB.QueryContext(ctx, testQuery)
+	var result int
+	err := database.DB.QueryRowContext(ctx, testQuery).Scan(&result)
 	if err != nil {
-		return fmt.Errorf("database write test failed: %w", err)
+		return fmt.Errorf("database query test failed: %w", err)
 	}
 
 	// Check Redis memory usage by trying to set a test key
