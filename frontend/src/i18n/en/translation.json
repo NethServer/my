@@ -187,7 +187,6 @@
     "delete_user": "Delete user",
     "delete_user_confirmation": "Are you sure you want to delete user '{name}'? This action cannot be undone.",
     "no_user": "No users",
-    "phone": "Phone",
     "phone_number": "Phone number",
     "no_organizations": "No organizations",
     "user_roles": "Roles",

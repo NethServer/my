@@ -7,7 +7,6 @@ import { useLogto } from '@logto/vue'
 import { API_URL, LOGIN_REDIRECT_URI, SIGN_OUT_REDIRECT_URI } from '@/lib/config'
 import axios from 'axios'
 import { useThemeStore } from './theme'
-import router from '@/router'
 
 export type UserInfo = {
   id: string
