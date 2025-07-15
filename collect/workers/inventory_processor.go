@@ -155,8 +155,8 @@ func (ip *InventoryProcessor) processNextMessage(ctx context.Context, workerLogg
 
 // processInventoryData processes a single inventory data record
 func (ip *InventoryProcessor) processInventoryData(ctx context.Context, inventoryData *models.InventoryData, workerLogger *zerolog.Logger) error {
-	// Add timeout to prevent hanging database operations
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	// Add very aggressive timeout to prevent connection blocking
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	start := time.Now()
@@ -238,6 +238,18 @@ func (ip *InventoryProcessor) processInventoryData(ctx context.Context, inventor
 func (ip *InventoryProcessor) insertInventoryRecord(ctx context.Context, inventoryData *models.InventoryData, dataHash string) (*models.InventoryRecord, error) {
 	dataSize := int64(len(inventoryData.Data))
 
+	// Add aggressive timeout for insert operation
+	insertCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	// Log large payloads for monitoring
+	if dataSize > 1024*1024 { // 1MB
+		logger.ComponentLogger("inventory-processor").Warn().
+			Str("system_id", inventoryData.SystemID).
+			Int64("data_size", dataSize).
+			Msg("Large inventory payload detected")
+	}
+
 	query := `
 		INSERT INTO inventory_records 
 		(system_id, timestamp, data, data_hash, data_size, created_at, updated_at)
@@ -254,7 +266,7 @@ func (ip *InventoryProcessor) insertInventoryRecord(ctx context.Context, invento
 	}
 
 	err := database.DB.QueryRowContext(
-		ctx, query,
+		insertCtx, query,
 		record.SystemID,
 		record.Timestamp,
 		record.Data,

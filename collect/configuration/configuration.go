@@ -22,10 +22,8 @@ type Configuration struct {
 	ListenAddress string `json:"listen_address"`
 
 	// Database configuration
-	DatabaseURL        string        `json:"database_url"`
-	DatabaseMaxConns   int           `json:"database_max_conns"`
-	DatabaseMaxIdle    int           `json:"database_max_idle"`
-	DatabaseConnMaxAge time.Duration `json:"database_conn_max_age"`
+	DatabaseURL      string `json:"database_url"`
+	DatabaseMaxConns int    `json:"database_max_conns"`
 
 	// Redis configuration
 	RedisURL          string        `json:"redis_url"`
@@ -41,7 +39,6 @@ type Configuration struct {
 	QueueProcessingName   string        `json:"queue_processing_name"`
 	QueueNotificationName string        `json:"queue_notification_name"`
 	QueueBatchSize        int           `json:"queue_batch_size"`
-	QueueProcessTimeout   time.Duration `json:"queue_process_timeout"`
 	QueueRetryAttempts    int           `json:"queue_retry_attempts"`
 	QueueRetryDelay       time.Duration `json:"queue_retry_delay"`
 
@@ -53,30 +50,23 @@ type Configuration struct {
 	WorkerHeartbeatInterval time.Duration `json:"worker_heartbeat_interval"`
 
 	// Inventory processing configuration
-	InventoryMaxAge             time.Duration `json:"inventory_max_age"`
-	InventoryCleanupInterval    time.Duration `json:"inventory_cleanup_interval"`
-	InventoryDiffDepth          int           `json:"inventory_diff_depth"`
-	InventoryCompressionEnabled bool          `json:"inventory_compression_enabled"`
+	InventoryMaxAge          time.Duration `json:"inventory_max_age"`
+	InventoryCleanupInterval time.Duration `json:"inventory_cleanup_interval"`
+	InventoryDiffDepth       int           `json:"inventory_diff_depth"`
 
 	// System authentication configuration
 	SystemSecretMinLength int           `json:"system_secret_min_length"`
 	SystemAuthCacheTTL    time.Duration `json:"system_auth_cache_ttl"`
 
 	// API configuration
-	APIMaxRequestSize  int64         `json:"api_max_request_size"`
-	APIRequestTimeout  time.Duration `json:"api_request_timeout"`
-	APIRateLimit       int           `json:"api_rate_limit"`
-	APIRateLimitWindow time.Duration `json:"api_rate_limit_window"`
+	APIMaxRequestSize int64         `json:"api_max_request_size"`
+	APIRequestTimeout time.Duration `json:"api_request_timeout"`
 
 	// Monitoring configuration
-	MetricsEnabled      bool          `json:"metrics_enabled"`
-	MetricsPath         string        `json:"metrics_path"`
 	HealthCheckInterval time.Duration `json:"health_check_interval"`
 
 	// Notification configuration
-	NotificationRetryAttempts int           `json:"notification_retry_attempts"`
-	NotificationRetryDelay    time.Duration `json:"notification_retry_delay"`
-	NotificationBatchSize     int           `json:"notification_batch_size"`
+	NotificationRetryAttempts int `json:"notification_retry_attempts"`
 }
 
 var Config = Configuration{}
@@ -95,9 +85,7 @@ func Init() {
 		logger.LogConfigLoad("env", "DATABASE_URL", false, fmt.Errorf("DATABASE_URL variable is empty"))
 	}
 
-	Config.DatabaseMaxConns = parseIntWithDefault("DATABASE_MAX_CONNS", 25)
-	Config.DatabaseMaxIdle = parseIntWithDefault("DATABASE_MAX_IDLE", 5)
-	Config.DatabaseConnMaxAge = parseDurationWithDefault("DATABASE_CONN_MAX_AGE", 1*time.Hour)
+	Config.DatabaseMaxConns = parseIntWithDefault("DATABASE_MAX_CONNS", 10)
 
 	// Redis configuration with defaults
 	if os.Getenv("REDIS_URL") != "" {
@@ -118,7 +106,6 @@ func Init() {
 	Config.QueueProcessingName = getStringWithDefault("QUEUE_PROCESSING_NAME", "collect:processing")
 	Config.QueueNotificationName = getStringWithDefault("QUEUE_NOTIFICATION_NAME", "collect:notifications")
 	Config.QueueBatchSize = parseIntWithDefault("QUEUE_BATCH_SIZE", 10)
-	Config.QueueProcessTimeout = parseDurationWithDefault("QUEUE_PROCESS_TIMEOUT", 30*time.Second)
 	Config.QueueRetryAttempts = parseIntWithDefault("QUEUE_RETRY_ATTEMPTS", 3)
 	Config.QueueRetryDelay = parseDurationWithDefault("QUEUE_RETRY_DELAY", 5*time.Second)
 
@@ -133,7 +120,6 @@ func Init() {
 	Config.InventoryMaxAge = parseDurationWithDefault("INVENTORY_MAX_AGE", 90*24*time.Hour) // 90 days
 	Config.InventoryCleanupInterval = parseDurationWithDefault("INVENTORY_CLEANUP_INTERVAL", 6*time.Hour)
 	Config.InventoryDiffDepth = parseIntWithDefault("INVENTORY_DIFF_DEPTH", 10) // Max diff levels
-	Config.InventoryCompressionEnabled = parseBoolWithDefault("INVENTORY_COMPRESSION_ENABLED", true)
 
 	// System authentication configuration
 	Config.SystemSecretMinLength = parseIntWithDefault("SYSTEM_SECRET_MIN_LENGTH", 32)
@@ -142,18 +128,12 @@ func Init() {
 	// API configuration
 	Config.APIMaxRequestSize = parseInt64WithDefault("API_MAX_REQUEST_SIZE", 10*1024*1024) // 10MB
 	Config.APIRequestTimeout = parseDurationWithDefault("API_REQUEST_TIMEOUT", 30*time.Second)
-	Config.APIRateLimit = parseIntWithDefault("API_RATE_LIMIT", 1000) // requests per window
-	Config.APIRateLimitWindow = parseDurationWithDefault("API_RATE_LIMIT_WINDOW", 1*time.Minute)
 
 	// Monitoring configuration
-	Config.MetricsEnabled = parseBoolWithDefault("METRICS_ENABLED", true)
-	Config.MetricsPath = getStringWithDefault("METRICS_PATH", "/metrics")
 	Config.HealthCheckInterval = parseDurationWithDefault("HEALTH_CHECK_INTERVAL", 30*time.Second)
 
 	// Notification configuration
 	Config.NotificationRetryAttempts = parseIntWithDefault("NOTIFICATION_RETRY_ATTEMPTS", 3)
-	Config.NotificationRetryDelay = parseDurationWithDefault("NOTIFICATION_RETRY_DELAY", 1*time.Minute)
-	Config.NotificationBatchSize = parseIntWithDefault("NOTIFICATION_BATCH_SIZE", 50)
 
 	// Log successful configuration load
 	logger.LogConfigLoad("env", "configuration", true, nil)
@@ -201,21 +181,6 @@ func parseInt64WithDefault(envVar string, defaultValue int64) int64 {
 	}
 
 	logger.LogConfigLoad("env", envVar, false, fmt.Errorf("invalid int64 format, using default %d", defaultValue))
-	return defaultValue
-}
-
-// parseBoolWithDefault parses a boolean from environment variable or returns default
-func parseBoolWithDefault(envVar string, defaultValue bool) bool {
-	envValue := os.Getenv(envVar)
-	if envValue == "" {
-		return defaultValue
-	}
-
-	if value, err := strconv.ParseBool(envValue); err == nil {
-		return value
-	}
-
-	logger.LogConfigLoad("env", envVar, false, fmt.Errorf("invalid boolean format, using default %t", defaultValue))
 	return defaultValue
 }
 

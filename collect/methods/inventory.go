@@ -109,10 +109,10 @@ func CollectInventory(c *gin.Context) {
 		return
 	}
 
-	// Enqueue for processing with detailed timing
+	// Enqueue for processing with detailed timing and aggressive timeout
 	start := time.Now()
 	queueManager := queue.NewQueueManager()
-	ctx, cancel := context.WithTimeout(c.Request.Context(), configuration.Config.APIRequestTimeout)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second) // Very short timeout
 	defer cancel()
 
 	if err := queueManager.EnqueueInventory(ctx, &inventoryData); err != nil {

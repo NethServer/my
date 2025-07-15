@@ -12,7 +12,6 @@ type Distributor struct {
 	ID        string    `json:"id" structs:"id"`
 	Name      string    `json:"name" structs:"name"`
 	Email     string    `json:"email" structs:"email"`
-	Status    string    `json:"status" structs:"status"` // active, suspended, inactive
 	CreatedAt time.Time `json:"created_at" structs:"created_at"`
 	UpdatedAt time.Time `json:"updated_at" structs:"updated_at"`
 	CreatedBy string    `json:"created_by" structs:"created_by"`

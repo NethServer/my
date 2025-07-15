@@ -53,22 +53,22 @@ func initPostgreSQL() error {
 		return fmt.Errorf("DATABASE_URL environment variable is required")
 	}
 
-	// Parse configuration with defaults
-	maxConns := 25
+	// Parse configuration with defaults - aggressive limits to prevent connection exhaustion
+	maxConns := 10 // Drastically reduce max connections
 	if maxConnsStr := os.Getenv("DATABASE_MAX_CONNS"); maxConnsStr != "" {
 		if parsed, err := strconv.Atoi(maxConnsStr); err == nil {
 			maxConns = parsed
 		}
 	}
 
-	maxIdle := 5 // Reduce idle connections to leave room for active ones
+	maxIdle := 2 // Very low idle connections to force cleanup
 	if maxIdleStr := os.Getenv("DATABASE_MAX_IDLE"); maxIdleStr != "" {
 		if parsed, err := strconv.Atoi(maxIdleStr); err == nil {
 			maxIdle = parsed
 		}
 	}
 
-	connMaxAge := 1 * time.Hour // Increase lifetime to reduce reconnection overhead
+	connMaxAge := 5 * time.Minute // Much shorter lifetime to force connection cleanup
 	if connMaxAgeStr := os.Getenv("DATABASE_CONN_MAX_AGE"); connMaxAgeStr != "" {
 		if parsed, err := time.ParseDuration(connMaxAgeStr); err == nil {
 			connMaxAge = parsed

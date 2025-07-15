@@ -144,11 +144,27 @@ func (hm *HealthMonitor) checkDatabaseHealth(ctx context.Context, workerLogger *
 		openConns := dbStats["open_connections"]
 		maxConns := configuration.Config.DatabaseMaxConns
 
-		if openConnsInt, ok := openConns.(int); ok && openConnsInt > int(float64(maxConns)*0.8) {
-			workerLogger.Warn().
-				Int("open_connections", openConnsInt).
-				Int("max_connections", maxConns).
-				Msg("High database connection usage")
+		if openConnsInt, ok := openConns.(int); ok {
+			connectionRatio := float64(openConnsInt) / float64(maxConns)
+
+			if connectionRatio >= 0.9 {
+				workerLogger.Error().
+					Int("open_connections", openConnsInt).
+					Int("max_connections", maxConns).
+					Float64("usage_ratio", connectionRatio).
+					Msg("CRITICAL: Database connection pool nearly exhausted")
+
+				// Force connection cleanup by setting a very short max idle time
+				if database.DB != nil {
+					database.DB.SetConnMaxIdleTime(1 * time.Second)
+				}
+			} else if connectionRatio >= 0.8 {
+				workerLogger.Warn().
+					Int("open_connections", openConnsInt).
+					Int("max_connections", maxConns).
+					Float64("usage_ratio", connectionRatio).
+					Msg("High database connection usage")
+			}
 		}
 
 		workerLogger.Debug().
