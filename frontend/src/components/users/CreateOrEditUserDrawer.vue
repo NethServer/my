@@ -143,6 +143,8 @@ const organizationId = ref('')
 const organizationIdRef = useTemplateRef<HTMLInputElement>('organizationIdRef')
 const userRoleIds: Ref<NeComboboxOption[]> = ref([])
 const userRoleIdsRef = useTemplateRef<HTMLInputElement>('userRoleIdsRef')
+const phone = ref('')
+const phoneRef = useTemplateRef<HTMLInputElement>('phoneRef')
 //// TODO phone, userRoleIds, organization, customData
 const validationIssues = ref<Record<string, string[]>>({})
 
@@ -153,11 +155,7 @@ const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> =
   password: passwordRef,
   organizationId: organizationIdRef,
   userRoleIds: userRoleIdsRef,
-  ////
-  // phone: phoneRef, // TODO
-  // userRoleIds: userRoleIdsRef, // TODO
-  // organization: organizationIdRef, // TODO
-  // customData: customDataRef, // TODO
+  phone: phoneRef,
 }
 
 const saving = computed(() => {
@@ -200,7 +198,8 @@ watch(
         username.value = currentUser.username
         email.value = currentUser.email
         name.value = currentUser.name
-        password.value = '' ////
+        password.value = ''
+        phone.value = currentUser.phone || ''
 
         console.log('setting currentUser.organizationId', currentUser.organizationId) ////
 
@@ -224,7 +223,7 @@ watch(
         password.value = '' ////
         organizationId.value = ''
         userRoleIds.value = []
-        ////
+        phone.value = ''
 
         //// remove
         setTimeout(() => {
@@ -232,7 +231,8 @@ watch(
           email.value = faker.internet.email()
           name.value = faker.person.fullName()
           password.value = '12345678'
-        }, 1000) // simulate delay for testing
+          phone.value = faker.phone.number().replace(/[\+\s]/g, '') ////
+        }, 1000)
       }
     }
   },
@@ -314,18 +314,12 @@ function validateEdit(user: EditUser): boolean {
 async function saveUser() {
   clearErrors()
 
-  ////
-  const phoneNum = faker.phone.number().replace(/[\+\s]/g, '') ////
-  console.log('phoneNum', phoneNum) ////
-
   const user = {
     email: email.value,
     name: name.value,
     userRoleIds: userRoleIds.value.map((role) => role.id),
-    // userRoleIds: ['pcopj9w5bf3rvs8mlwix2'], //// TODO
     organizationId: organizationId.value,
-    // organizationId: 'm535jc4rt03b', //// TODO
-    phone: phoneNum, ////
+    phone: phone.value,
     customData: {}, //// TODO
   }
 
@@ -451,6 +445,14 @@ async function saveUser() {
           :no-options-label="t('ne_combobox.no_options_label')"
           :selected-label="t('ne_combobox.selected')"
           :user-input-label="t('ne_combobox.user_input_label')"
+        />
+        <!-- phone -->
+        <NeTextInput
+          ref="phoneRef"
+          v-model.trim="phone"
+          :label="$t('users.phone_number')"
+          :invalid-message="validationIssues.phone?.[0] ? $t(validationIssues.phone[0]) : ''"
+          :disabled="saving"
         />
         <!-- create user error notification -->
         <NeInlineNotification
