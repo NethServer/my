@@ -152,6 +152,7 @@ const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> =
   name: nameRef,
   password: passwordRef,
   organizationId: organizationIdRef,
+  userRoleIds: userRoleIdsRef,
   ////
   // phone: phoneRef, // TODO
   // userRoleIds: userRoleIdsRef, // TODO
@@ -314,8 +315,8 @@ async function saveUser() {
   clearErrors()
 
   ////
-  // const phone = faker.phone.number() ////
-  // console.log('phone', phone) ////
+  const phoneNum = faker.phone.number().replace(/[\+\s]/g, '') ////
+  console.log('phoneNum', phoneNum) ////
 
   const user = {
     email: email.value,
@@ -324,9 +325,8 @@ async function saveUser() {
     // userRoleIds: ['pcopj9w5bf3rvs8mlwix2'], //// TODO
     organizationId: organizationId.value,
     // organizationId: 'm535jc4rt03b', //// TODO
-    customData: {
-      // phone: phone, //// TODO
-    }, //// TODO
+    phone: phoneNum, ////
+    customData: {}, //// TODO
   }
 
   if (currentUser?.id) {
@@ -439,6 +439,9 @@ async function saveUser() {
                 : t('ne_combobox.choose_multiple')
           "
           multiple
+          :invalid-message="
+            validationIssues.userRoleIds?.[0] ? $t(validationIssues.userRoleIds[0]) : ''
+          "
           :showSelectedLabel="false"
           :disabled="allUserRoles.status === 'pending' || saving"
           :optional="true"
