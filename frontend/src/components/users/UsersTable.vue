@@ -235,7 +235,6 @@ const onSort = (payload: SortEvent) => {
         <NeTableHeadCell sortable column-key="email" @sort="onSort">{{
           $t('users.email')
         }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('users.phone') }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- no header for actions -->
         </NeTableHeadCell>
@@ -283,9 +282,6 @@ const onSort = (payload: SortEvent) => {
           </NeTableCell>
           <NeTableCell :data-label="$t('users.email')">
             {{ item.email }}
-          </NeTableCell>
-          <NeTableCell :data-label="$t('users.phone')">
-            {{ item.phone || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
             <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">

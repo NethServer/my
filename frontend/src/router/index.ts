@@ -5,6 +5,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from '../views/DashboardView.vue'
 import LoginRedirectView from '../views/LoginRedirectView.vue'
 import LoginView from '../views/LoginView.vue'
+import { useLoginStore } from '@/stores/login'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -56,6 +57,20 @@ const router = createRouter({
     //   component: () => import('../views/SubTestView.vue'),
     // },
   ],
+})
+
+router.beforeEach(async (to) => {
+  const loginStore = useLoginStore()
+
+  // If the user is not logged in, redirect to the login page
+  if (to.name !== 'login' && to.name !== 'loginRedirect' && !loginStore.isAuthenticated) {
+    return { name: 'login' }
+  }
+
+  // If the user is logged in, cannot access the login page
+  if ((to.name === 'login' || to.name === 'loginRedirect') && loginStore.isAuthenticated) {
+    return { name: 'dashboard' }
+  }
 })
 
 export default router
