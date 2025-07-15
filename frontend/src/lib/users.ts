@@ -11,7 +11,7 @@ export const BaseUserSchema = v.object({
   email: v.pipe(v.string(), v.nonEmpty('users.email_required'), v.email('users.email_invalid')),
   name: v.pipe(v.string(), v.nonEmpty('users.name_required')),
   phone: v.optional(v.string()),
-  userRoleIds: v.pipe(v.array(v.string()), v.nonEmpty('users.user_roles_required')),
+  userRoleIds: v.optional(v.array(v.string())),
   organizationId: v.pipe(v.string(), v.nonEmpty('users.organization_required')),
   customData: v.optional(v.record(v.string(), v.string())),
 })
@@ -87,6 +87,21 @@ export const deleteAccount = (user: User) => {
   return axios.delete(`${API_URL}/accounts/${user.id}`, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
+}
+
+export const resetPassword = (user: User) => {
+  console.log('resetPassword', user) ////
+
+  const loginStore = useLoginStore()
+
+  ////
+  // return axios.post(
+  //   `${API_URL}/accounts/${user.id}/reset-password`,
+  //   {},
+  //   {
+  //     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+  //   },
+  // )
 }
 
 export const searchStringInUser = (searchString: string, user: User): boolean => {
