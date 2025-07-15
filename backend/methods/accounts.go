@@ -430,12 +430,15 @@ func CreateAccount(c *gin.Context) {
 
 	// Assign user roles using IDs directly (more secure)
 	if len(request.UserRoleIDs) > 0 {
-		if err := client.AssignUserRoles(account.ID, request.UserRoleIDs); err != nil {
+		err := synchronizeUserRoles(client, account.ID, request.UserRoleIDs)
+		if err != nil {
 			logger.RequestLogger(c, "accounts").Error().
 				Err(err).
-				Str("operation", "assign_user_roles").
-				Interface("role_ids", request.UserRoleIDs).
-				Msg("Failed to assign user roles")
+				Str("operation", "synchronize_user_roles").
+				Str("account_id", account.ID).
+				Interface("requested_role_ids", request.UserRoleIDs).
+				Msg("Failed to synchronize user roles with Logto")
+			// This is not critical for account creation - we can continue
 		}
 	}
 
@@ -1081,44 +1084,16 @@ func UpdateAccount(c *gin.Context) {
 
 	// Synchronize user roles in Logto when UserRoleIDs field is present (even if empty)
 	if request.UserRoleIDs != nil {
-		// Get current user roles from Logto
-		currentRoles, err := client.GetUserRoles(accountID)
+		err := synchronizeUserRoles(client, accountID, *request.UserRoleIDs)
 		if err != nil {
-			logger.RequestLogger(c, "accounts").Warn().
+			logger.RequestLogger(c, "accounts").Error().
 				Err(err).
-				Str("operation", "get_current_user_roles").
+				Str("operation", "synchronize_user_roles").
 				Str("account_id", accountID).
-				Msg("Failed to get current user roles")
-		} else {
-			// Extract current role IDs
-			currentRoleIDs := make([]string, len(currentRoles))
-			for i, role := range currentRoles {
-				currentRoleIDs[i] = role.ID
-			}
-
-			// Remove all current roles
-			if len(currentRoleIDs) > 0 {
-				if err := client.RemoveUserRoles(accountID, currentRoleIDs); err != nil {
-					logger.RequestLogger(c, "accounts").Warn().
-						Err(err).
-						Str("operation", "remove_user_roles").
-						Str("account_id", accountID).
-						Interface("role_ids", currentRoleIDs).
-						Msg("Failed to remove current user roles")
-				}
-			}
-
-			// Assign new roles if provided
-			if len(*request.UserRoleIDs) > 0 {
-				if err := client.AssignUserRoles(accountID, *request.UserRoleIDs); err != nil {
-					logger.RequestLogger(c, "accounts").Warn().
-						Err(err).
-						Str("operation", "assign_user_roles").
-						Str("account_id", accountID).
-						Interface("role_ids", *request.UserRoleIDs).
-						Msg("Failed to assign new user roles")
-				}
-			}
+				Interface("requested_role_ids", *request.UserRoleIDs).
+				Msg("Failed to synchronize user roles with Logto")
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to synchronize user roles", err.Error()))
+			return
 		}
 	}
 
@@ -1390,4 +1365,62 @@ func ResetAccountPassword(c *gin.Context) {
 	logger.LogAccountOperation(c, "password_reset", accountID, "", currentUserID.(string), currentUserOrgID.(string), true, nil)
 
 	c.JSON(http.StatusOK, response.OK("password reset successfully", nil))
+}
+
+// synchronizeUserRoles ensures user roles are properly synchronized with Logto
+func synchronizeUserRoles(client *services.LogtoManagementClient, userID string, targetRoleIDs []string) error {
+	// Get current user roles from Logto
+	currentRoles, err := client.GetUserRoles(userID)
+	if err != nil {
+		return fmt.Errorf("failed to get current user roles: %w", err)
+	}
+
+	// Extract current role IDs
+	currentRoleIDs := make([]string, len(currentRoles))
+	for i, role := range currentRoles {
+		currentRoleIDs[i] = role.ID
+	}
+
+	// Check if roles are already synchronized
+	if areRolesSynchronized(currentRoleIDs, targetRoleIDs) {
+		return nil
+	}
+
+	// Remove all current roles
+	if len(currentRoleIDs) > 0 {
+		if err := client.RemoveUserRoles(userID, currentRoleIDs); err != nil {
+			return fmt.Errorf("failed to remove current user roles: %w", err)
+		}
+	}
+
+	// Assign new roles if provided
+	if len(targetRoleIDs) > 0 {
+		if err := client.AssignUserRoles(userID, targetRoleIDs); err != nil {
+			return fmt.Errorf("failed to assign new user roles: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// areRolesSynchronized checks if two sets of role IDs are identical (ignoring order)
+func areRolesSynchronized(current, target []string) bool {
+	if len(current) != len(target) {
+		return false
+	}
+
+	// Create map for efficient lookup
+	currentMap := make(map[string]bool)
+	for _, roleID := range current {
+		currentMap[roleID] = true
+	}
+
+	// Check if all target roles are present
+	for _, roleID := range target {
+		if !currentMap[roleID] {
+			return false
+		}
+	}
+
+	return true
 }

@@ -205,24 +205,18 @@ func (c *LogtoManagementClient) AssignUserRoles(userID string, roleIDs []string)
 
 // RemoveUserRoles removes roles from a user
 func (c *LogtoManagementClient) RemoveUserRoles(userID string, roleIDs []string) error {
-	requestBody := map[string]interface{}{
-		"roleIds": roleIDs,
-	}
+	// Remove roles one by one as per Logto API specification
+	for _, roleID := range roleIDs {
+		resp, err := c.makeRequest("DELETE", fmt.Sprintf("/users/%s/roles/%s", userID, roleID), nil)
+		if err != nil {
+			return fmt.Errorf("failed to remove user role %s: %w", roleID, err)
+		}
+		defer func() { _ = resp.Body.Close() }()
 
-	reqBody, err := json.Marshal(requestBody)
-	if err != nil {
-		return fmt.Errorf("failed to marshal role removal request: %w", err)
-	}
-
-	resp, err := c.makeRequest("DELETE", fmt.Sprintf("/users/%s/roles", userID), bytes.NewBuffer(reqBody))
-	if err != nil {
-		return fmt.Errorf("failed to remove user roles: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to remove user roles, status %d: %s", resp.StatusCode, string(body))
+		if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			return fmt.Errorf("failed to remove user role %s, status %d: %s", roleID, resp.StatusCode, string(body))
+		}
 	}
 
 	return nil
