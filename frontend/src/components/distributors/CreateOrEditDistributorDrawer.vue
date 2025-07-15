@@ -72,7 +72,7 @@ const {
 
     validationIssues.value = getValidationIssues(error as AxiosError, 'distributors')
   },
-  //// use key factory?
+
   onSettled: () => queryCache.invalidateQueries({ key: ['distributors'] }),
 })
 
@@ -110,7 +110,7 @@ const {
     console.error('Error editing distributor:', error)
     console.error('   variables:', variables)
   },
-  //// use key factory?
+
   onSettled: () => queryCache.invalidateQueries({ key: ['distributors'] }),
 })
 

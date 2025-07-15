@@ -33,7 +33,7 @@ import { useQuery } from '@pinia/colada'
 
 const loginStore = useLoginStore()
 const { state: thirdPartyApps } = useQuery({
-  key: ['thirdPartyApps'], //// use key factory?
+  key: ['thirdPartyApps'],
   enabled: () => !!loginStore.jwtToken,
   query: getThirdPartyApps,
 })

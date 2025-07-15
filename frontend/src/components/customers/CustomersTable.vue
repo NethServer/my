@@ -49,7 +49,7 @@ const emit = defineEmits(['close-drawer']) ////
 const { t } = useI18n()
 const loginStore = useLoginStore()
 const { state: customers, asyncStatus: customersAsyncStatus } = useQuery({
-  key: ['customers'], //// use key factory?
+  key: ['customers'],
   enabled: () => !!loginStore.jwtToken,
   query: getCustomers,
 })
