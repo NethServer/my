@@ -29,7 +29,8 @@
     "object_created_successfully": "{name} created successfully",
     "object_saved_successfully": "{name} saved successfully",
     "object_deleted_successfully": "{name} deleted successfully",
-    "updating": "Updating..."
+    "updating": "Updating...",
+    "loading": "Loading..."
   },
   "shell": {
     "open_sidebar": "Open sidebar",
@@ -83,7 +84,7 @@
     "description": "Description",
     "region": "Region",
     "contact_person": "Contact person",
-    "no_distributor_found": "No distributor found",
+    "no_distributor_found": "No distributors found",
     "filter_distributors": "Filter distributors",
     "create_distributor": "Create distributor",
     "edit_distributor": "Edit distributor",
@@ -98,7 +99,7 @@
     "cannot_delete_distributor": "Cannot delete distributor",
     "delete_distributor": "Delete distributor",
     "delete_distributor_confirmation": "Are you sure you want to delete distributor '{name}'? This action cannot be undone.",
-    "no_distributor": "No distributor"
+    "no_distributor": "No distributors"
   },
   "resellers": {
     "title": "Resellers",
@@ -108,7 +109,7 @@
     "description": "Description",
     "region": "Region",
     "contact_person": "Contact person",
-    "no_reseller_found": "No reseller found",
+    "no_reseller_found": "No resellers found",
     "filter_resellers": "Filter resellers",
     "create_reseller": "Create reseller",
     "edit_reseller": "Edit reseller",
@@ -123,7 +124,7 @@
     "cannot_delete_reseller": "Cannot delete reseller",
     "delete_reseller": "Delete reseller",
     "delete_reseller_confirmation": "Are you sure you want to delete reseller '{name}'? This action cannot be undone.",
-    "no_reseller": "No reseller"
+    "no_reseller": "No resellers"
   },
   "customers": {
     "title": "Customers",
@@ -133,7 +134,7 @@
     "description": "Description",
     "region": "Region",
     "contact_person": "Contact person",
-    "no_customer_found": "No customer found",
+    "no_customer_found": "No customers found",
     "filter_customers": "Filter customers",
     "create_customer": "Create customer",
     "edit_customer": "Edit customer",
@@ -148,7 +149,7 @@
     "cannot_delete_customer": "Cannot delete customer",
     "delete_customer": "Delete customer",
     "delete_customer_confirmation": "Are you sure you want to delete customer '{name}'? This action cannot be undone.",
-    "no_customer": "No customer"
+    "no_customer": "No customers"
   },
   "users": {
     "title": "Users",
@@ -157,10 +158,12 @@
     "username": "Username",
     "email": "Email",
     "name": "Name",
+    "organization": "Organization",
+    "roles": "Roles",
     "password": "Password",
     "region": "Region",
     "contact_person": "Contact person",
-    "no_user_found": "No user found",
+    "no_user_found": "No users found",
     "filter_users": "Filter users",
     "create_user": "Create user",
     "edit_user": "Edit user",
@@ -184,8 +187,10 @@
     "cannot_delete_user": "Cannot delete user",
     "delete_user": "Delete user",
     "delete_user_confirmation": "Are you sure you want to delete user '{name}'? This action cannot be undone.",
-    "no_user": "No user",
-    "phone": "Phone"
+    "no_user": "No users",
+    "phone": "Phone",
+    "no_organizations": "No organizations",
+    "user_roles": "Roles"
   },
   "third_party_apps": {
     "description_example_company_com": "Description ////"
@@ -200,6 +205,18 @@
   },
   "ne_dropdown": {
     "open_menu": "Open menu"
+  },
+  "ne_combobox": {
+    "no_results": "No results",
+    "limited_options_label": "Continue typing to show more options",
+    "no_options_label": "No options available",
+    "selected": "Selected",
+    "user_input_label": "User input",
+    "choose_or_enter": "Choose or enter a value",
+    "choose_or_enter_multiple": "Choose or enter values",
+    "choose": "Choose",
+    "choose_multiple": "Choose one or more",
+    "num_selected": "{num} selected"
   },
   "sort": {
     "sort": "Sort",
