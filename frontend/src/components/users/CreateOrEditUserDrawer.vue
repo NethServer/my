@@ -10,8 +10,10 @@ import {
   NeTextInput,
   NeInlineNotification,
   focusElement,
+  NeCombobox,
+  type NeComboboxOption,
 } from '@nethesis/vue-components'
-import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
+import { computed, ref, useTemplateRef, watch, type Ref, type ShallowRef } from 'vue'
 import {
   CreateUserSchema,
   EditUserSchema,
@@ -28,6 +30,10 @@ import { useI18n } from 'vue-i18n'
 import { fakerIT as faker } from '@faker-js/faker' ////
 import { isValidationErrorCode, getValidationIssues } from '../../lib/validation'
 import type { AxiosError } from 'axios'
+import { useQuery } from '@pinia/colada'
+import { useLoginStore } from '@/stores/login'
+import { getOrganizations } from '@/lib/organizations'
+import { getUserRoles } from '@/lib/userRoles'
 
 const { isShown = false, currentUser = undefined } = defineProps<{
   isShown: boolean
@@ -39,6 +45,17 @@ const emit = defineEmits(['close'])
 const { t } = useI18n()
 const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
+const loginStore = useLoginStore()
+const { state: organizations } = useQuery({
+  key: ['organizations'],
+  enabled: () => !!loginStore.jwtToken && isShown,
+  query: getOrganizations,
+})
+const { state: allUserRoles } = useQuery({
+  key: ['userRoles'],
+  enabled: () => !!loginStore.jwtToken && isShown,
+  query: getUserRoles,
+})
 
 const {
   mutate: createUserMutate,
@@ -74,7 +91,6 @@ const {
 
     validationIssues.value = getValidationIssues(error as AxiosError, 'users')
   },
-  //// use key factory?
   onSettled: () => queryCache.invalidateQueries({ key: ['users'] }),
 })
 
@@ -112,7 +128,6 @@ const {
     console.error('Error editing user:', error)
     console.error('   variables:', variables)
   },
-  //// use key factory?
   onSettled: () => queryCache.invalidateQueries({ key: ['users'] }),
 })
 
@@ -124,6 +139,10 @@ const name = ref('')
 const nameRef = useTemplateRef<HTMLInputElement>('nameRef')
 const password = ref('')
 const passwordRef = useTemplateRef<HTMLInputElement>('passwordRef')
+const organizationId = ref('')
+const organizationIdRef = useTemplateRef<HTMLInputElement>('organizationIdRef')
+const userRoleIds: Ref<NeComboboxOption[]> = ref([])
+const userRoleIdsRef = useTemplateRef<HTMLInputElement>('userRoleIdsRef')
 //// TODO phone, userRoleIds, organization, customData
 const validationIssues = ref<Record<string, string[]>>({})
 
@@ -132,15 +151,40 @@ const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> =
   email: emailRef,
   name: nameRef,
   password: passwordRef,
+  organizationId: organizationIdRef,
   ////
   // phone: phoneRef, // TODO
   // userRoleIds: userRoleIdsRef, // TODO
-  // organization: organizationRef, // TODO
+  // organization: organizationIdRef, // TODO
   // customData: customDataRef, // TODO
 }
 
 const saving = computed(() => {
   return createUserLoading.value || editUserLoading.value
+})
+
+const organizationOptions = computed(() => {
+  if (!organizations.value.data) {
+    return []
+  }
+
+  return organizations.value.data?.map((org) => ({
+    id: org.id,
+    label: org.name,
+    description: org.type,
+  }))
+})
+
+const userRoleOptions = computed(() => {
+  if (!allUserRoles.value.data) {
+    return []
+  }
+
+  return allUserRoles.value.data?.map((role) => ({
+    id: role.id,
+    label: role.name,
+    description: role.description,
+  }))
 })
 
 watch(
@@ -156,7 +200,20 @@ watch(
         email.value = currentUser.email
         name.value = currentUser.name
         password.value = '' ////
-        ////
+
+        console.log('setting currentUser.organizationId', currentUser.organizationId) ////
+
+        organizationId.value = currentUser.organizationId || ''
+
+        // find user roles
+        userRoleIds.value =
+          allUserRoles.value.data
+            ?.filter((role) => currentUser.userRoleIds?.includes(role.id))
+            .map((role) => ({
+              id: role.id,
+              label: role.name,
+              description: role.description,
+            })) || []
       } else {
         // creating user, reset form to defaults
 
@@ -164,11 +221,13 @@ watch(
         email.value = ''
         name.value = ''
         password.value = '' ////
+        organizationId.value = ''
+        userRoleIds.value = []
         ////
 
         //// remove
         setTimeout(() => {
-          username.value = faker.internet.username()
+          username.value = faker.internet.username().replace(/\./g, '_')
           email.value = faker.internet.email()
           name.value = faker.person.fullName()
           password.value = '12345678'
@@ -177,6 +236,15 @@ watch(
     }
   },
 )
+
+watch(organizations, () => {
+  if (isShown && currentUser && organizations.value.data && organizations.value.data.length > 0) {
+    console.log('set user org') ////
+
+    // select the organization while editing a user
+    organizationId.value = currentUser.organizationId
+  }
+})
 
 function closeDrawer() {
   emit('close')
@@ -218,7 +286,8 @@ function validateCreate(user: CreateUser): boolean {
 
 function validateEdit(user: EditUser): boolean {
   validationIssues.value = {}
-  const validation = v.safeParse(EditUserSchema, user)
+  const validation = v.safeParse(EditUserSchema, user) ////
+  // const validation = { success: true } ////
 
   if (validation.success) {
     // no validation issues
@@ -249,12 +318,12 @@ async function saveUser() {
   // console.log('phone', phone) ////
 
   const user = {
-    username: username.value,
     email: email.value,
     name: name.value,
-    password: password.value,
-    userRoleIds: ['pcopj9w5bf3rvs8mlwix2'], //// TODO
-    organizationId: 'm535jc4rt03b', //// TODO
+    userRoleIds: userRoleIds.value.map((role) => role.id),
+    // userRoleIds: ['pcopj9w5bf3rvs8mlwix2'], //// TODO
+    organizationId: organizationId.value,
+    // organizationId: 'm535jc4rt03b', //// TODO
     customData: {
       // phone: phone, //// TODO
     }, //// TODO
@@ -276,7 +345,11 @@ async function saveUser() {
   } else {
     // creating user
 
-    const userToCreate: CreateUser = user
+    const userToCreate: CreateUser = {
+      ...user,
+      username: username.value,
+      password: password.value,
+    }
 
     const isValidationOk = validateCreate(userToCreate)
     if (!isValidationOk) {
@@ -298,6 +371,7 @@ async function saveUser() {
       <div class="space-y-6">
         <!-- username -->
         <NeTextInput
+          v-if="!currentUser"
           ref="usernameRef"
           v-model.trim="username"
           :label="$t('users.username')"
@@ -322,6 +396,7 @@ async function saveUser() {
         />
         <!-- password -->
         <NeTextInput
+          v-if="!currentUser"
           ref="passwordRef"
           v-model.trim="password"
           is-password
@@ -329,6 +404,50 @@ async function saveUser() {
           :label="$t('users.password')"
           :invalid-message="validationIssues.password?.[0] ? $t(validationIssues.password[0]) : ''"
           :disabled="saving"
+        />
+        <!-- organization -->
+        <NeCombobox
+          ref="organizationIdRef"
+          v-model="organizationId"
+          :options="organizationOptions"
+          :label="$t('users.organization')"
+          :placeholder="
+            organizations.status === 'pending' ? $t('common.loading') : $t('ne_combobox.choose')
+          "
+          :invalid-message="
+            validationIssues.organizationId?.[0] ? $t(validationIssues.organizationId[0]) : ''
+          "
+          :disabled="organizations.status === 'pending' || saving"
+          :no-results-label="$t('ne_combobox.no_results')"
+          :limited-options-label="$t('ne_combobox.limited_options_label')"
+          :no-options-label="$t('users.no_organizations')"
+          :selected-label="$t('ne_combobox.selected')"
+          :user-input-label="$t('ne_combobox.user_input_label')"
+          :optional-label="$t('common.optional')"
+        />
+        <!-- user roles -->
+        <NeCombobox
+          ref="userRoleIdsRef"
+          v-model="userRoleIds"
+          :label="$t('users.user_roles')"
+          :options="userRoleOptions"
+          :placeholder="
+            allUserRoles.status === 'pending'
+              ? $t('common.loading')
+              : userRoleIds.length
+                ? t('ne_combobox.num_selected', { num: userRoleIds.length })
+                : t('ne_combobox.choose_multiple')
+          "
+          multiple
+          :showSelectedLabel="false"
+          :disabled="allUserRoles.status === 'pending' || saving"
+          :optional="true"
+          :optional-label="t('common.optional')"
+          :no-results-label="t('ne_combobox.no_results')"
+          :limited-options-label="t('ne_combobox.limited_options_label')"
+          :no-options-label="t('ne_combobox.no_options_label')"
+          :selected-label="t('ne_combobox.selected')"
+          :user-input-label="t('ne_combobox.user_input_label')"
         />
         <!-- create user error notification -->
         <NeInlineNotification

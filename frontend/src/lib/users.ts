@@ -7,24 +7,28 @@ import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 
 //// check attributes
-export const CreateUserSchema = v.object({
-  username: v.pipe(
-    v.string(),
-    v.nonEmpty('users.username_required'),
-    v.regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/, 'users.username_invalid'),
-  ), ////
-  // username: v.optional(v.pipe(v.string())), ////
+export const BaseUserSchema = v.object({
   email: v.pipe(v.string(), v.nonEmpty('users.email_required'), v.email('users.email_invalid')),
   name: v.pipe(v.string(), v.nonEmpty('users.name_required')),
-  password: v.pipe(v.string(), v.minLength(8, 'users.password_min_length')),
   phone: v.optional(v.string()),
   userRoleIds: v.pipe(v.array(v.string()), v.nonEmpty('users.user_roles_required')),
   organizationId: v.pipe(v.string(), v.nonEmpty('users.organization_required')),
   customData: v.optional(v.record(v.string(), v.string())),
 })
 
+export const CreateUserSchema = v.object({
+  ...BaseUserSchema.entries,
+  username: v.pipe(
+    v.string(),
+    v.nonEmpty('users.username_required'),
+    v.regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/, 'users.username_invalid'),
+  ), ////
+  // username: v.optional(v.pipe(v.string())), ////
+  password: v.pipe(v.string(), v.minLength(8, 'users.password_min_length')),
+})
+
 export const EditUserSchema = v.object({
-  ...CreateUserSchema.entries,
+  ...BaseUserSchema.entries,
   id: v.string(),
 })
 
