@@ -79,18 +79,9 @@ func main() {
 	api := router.Group("/api")
 
 	// Health check endpoint
-	api.GET("/health", methods.GetHealth)
-
-	// ===========================================
-	// METRICS AND MONITORING ENDPOINTS
-	// ===========================================
-	metricsGroup := api.Group("/metrics", middleware.JWTAuthMiddleware(), middleware.RequireOrgRole("Owner"))
-	{
-		metricsGroup.GET("", methods.GetMetrics)                  // Comprehensive system metrics
-		metricsGroup.GET("/database", methods.GetDatabaseMetrics) // Database-specific metrics
-		metricsGroup.GET("/workers", methods.GetWorkerMetrics)    // Worker and queue metrics
-		metricsGroup.GET("/systems", methods.GetSystemsStatus)    // Systems status overview
-	}
+	api.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, response.OK("service healthy", nil))
+	})
 
 	// ===========================================
 	// PUBLIC AUTH ENDPOINTS

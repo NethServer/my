@@ -26,15 +26,17 @@ import (
 
 // ScalableManager manages workers efficiently for high-throughput scenarios
 type ScalableManager struct {
-	ctx            context.Context
-	cancel         context.CancelFunc
-	wg             sync.WaitGroup
-	batchProcessor *BatchProcessor
-	queueManager   *queue.QueueManager
-	backpressure   *BackpressureManager
-	isStarted      bool
-	mu             sync.RWMutex
-	metrics        *WorkerMetrics
+	ctx                   context.Context
+	cancel                context.CancelFunc
+	wg                    sync.WaitGroup
+	batchProcessor        *BatchProcessor
+	diffProcessor         *DiffProcessor
+	notificationProcessor *NotificationProcessor
+	queueManager          *queue.QueueManager
+	backpressure          *BackpressureManager
+	isStarted             bool
+	mu                    sync.RWMutex
+	metrics               *WorkerMetrics
 }
 
 // WorkerMetrics tracks worker performance metrics
@@ -75,10 +77,12 @@ const (
 // NewScalableManager creates a new scalable worker manager
 func NewScalableManager() *ScalableManager {
 	return &ScalableManager{
-		batchProcessor: NewBatchProcessor(100, 5*time.Second), // 100 items or 5 seconds
-		queueManager:   queue.NewQueueManager(),
-		backpressure:   NewBackpressureManager(10000, 0.8), // 10k max queue, 80% drop threshold
-		metrics:        &WorkerMetrics{},
+		batchProcessor:        NewBatchProcessor(100, 5*time.Second), // 100 items or 5 seconds
+		diffProcessor:         NewDiffProcessor(2, 1),                // 2 ID, 1 worker for diff processing
+		notificationProcessor: NewNotificationProcessor(3, 2),        // 3 ID, 2 workers for notifications
+		queueManager:          queue.NewQueueManager(),
+		backpressure:          NewBackpressureManager(10000, 0.8), // 10k max queue, 80% drop threshold
+		metrics:               &WorkerMetrics{},
 	}
 }
 
@@ -109,6 +113,16 @@ func (sm *ScalableManager) Start(ctx context.Context) error {
 	// Start batch processor
 	if err := sm.batchProcessor.Start(sm.ctx, &sm.wg); err != nil {
 		return fmt.Errorf("failed to start batch processor: %w", err)
+	}
+
+	// Start diff processor
+	if err := sm.diffProcessor.Start(sm.ctx, &sm.wg); err != nil {
+		return fmt.Errorf("failed to start diff processor: %w", err)
+	}
+
+	// Start notification processor
+	if err := sm.notificationProcessor.Start(sm.ctx, &sm.wg); err != nil {
+		return fmt.Errorf("failed to start notification processor: %w", err)
 	}
 
 	// Start queue monitoring
@@ -337,12 +351,14 @@ func (sm *ScalableManager) GetStatus() map[string]interface{} {
 	defer sm.metrics.mu.RUnlock()
 
 	return map[string]interface{}{
-		"is_started":            sm.isStarted,
-		"batch_processor_stats": sm.batchProcessor.GetStats(),
-		"connection_pool_usage": sm.metrics.ConnectionPoolUsage,
-		"processing_rate":       sm.metrics.ProcessingRate,
-		"circuit_breaker_state": sm.backpressure.circuitBreaker.GetState(),
-		"last_metrics_update":   sm.metrics.LastUpdate,
+		"is_started":                   sm.isStarted,
+		"batch_processor_stats":        sm.batchProcessor.GetStats(),
+		"diff_processor_stats":         sm.diffProcessor.GetStats(),
+		"notification_processor_stats": sm.notificationProcessor.GetStats(),
+		"connection_pool_usage":        sm.metrics.ConnectionPoolUsage,
+		"processing_rate":              sm.metrics.ProcessingRate,
+		"circuit_breaker_state":        sm.backpressure.circuitBreaker.GetState(),
+		"last_metrics_update":          sm.metrics.LastUpdate,
 	}
 }
 
@@ -351,7 +367,7 @@ func (sm *ScalableManager) IsHealthy() bool {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 
-	return sm.isStarted && sm.batchProcessor.IsHealthy() && !sm.backpressure.circuitBreaker.IsOpen()
+	return sm.isStarted && sm.batchProcessor.IsHealthy() && sm.diffProcessor.IsHealthy() && sm.notificationProcessor.IsHealthy() && !sm.backpressure.circuitBreaker.IsOpen()
 }
 
 // Circuit breaker methods

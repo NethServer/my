@@ -20,6 +20,7 @@ import (
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/collect/database"
 	"github.com/nethesis/my/collect/models"
+	"github.com/nethesis/my/collect/queue"
 	"github.com/rs/zerolog"
 )
 
@@ -34,6 +35,7 @@ type BatchProcessor struct {
 	processedCount int64
 	failedCount    int64
 	lastFlush      time.Time
+	queueManager   *queue.QueueManager
 }
 
 // NewBatchProcessor creates a new batch processor
@@ -45,6 +47,7 @@ func NewBatchProcessor(batchSize int, flushInterval time.Duration) *BatchProcess
 		stopCh:         make(chan struct{}),
 		isHealthy:      true,
 		lastFlush:      time.Now(),
+		queueManager:   queue.NewQueueManager(),
 	}
 }
 
@@ -205,6 +208,9 @@ func (bp *BatchProcessor) processBatchInTransaction(ctx context.Context, conn *d
 		}
 	}()
 
+	// Track inserted records for diff processing
+	var insertedRecords []models.InventoryRecord
+
 	// Process each item in batch
 	for _, inventory := range batch {
 		dataHash := bp.calculateDataHash(inventory.Data)
@@ -223,6 +229,16 @@ func (bp *BatchProcessor) processBatchInTransaction(ctx context.Context, conn *d
 			return fmt.Errorf("failed to insert inventory for system %s: %w", inventory.SystemID, err)
 		}
 
+		// Create record for diff processing
+		insertedRecords = append(insertedRecords, models.InventoryRecord{
+			ID:        recordID,
+			SystemID:  inventory.SystemID,
+			Timestamp: inventory.Timestamp,
+			Data:      inventory.Data,
+			DataHash:  dataHash,
+			DataSize:  dataSize,
+		})
+
 		// Log large payloads for monitoring
 		if dataSize > 1024*1024 { // 1MB
 			logger.Warn().
@@ -237,6 +253,9 @@ func (bp *BatchProcessor) processBatchInTransaction(ctx context.Context, conn *d
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit batch transaction: %w", err)
 	}
+
+	// After successful commit, trigger diff processing asynchronously
+	go bp.triggerDiffProcessingAsync(ctx, insertedRecords, logger)
 
 	return nil
 }
@@ -285,4 +304,100 @@ func (bp *BatchProcessor) GetStats() map[string]interface{} {
 		"batch_size":      bp.batchSize,
 		"flush_interval":  bp.flushInterval,
 	}
+}
+
+// triggerDiffProcessingAsync triggers diff processing asynchronously for inserted inventory records
+func (bp *BatchProcessor) triggerDiffProcessingAsync(ctx context.Context, insertedRecords []models.InventoryRecord, logger zerolog.Logger) {
+	// Create a new context with timeout to prevent goroutine leaks
+	asyncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	successCount := 0
+	failedCount := 0
+
+	for _, record := range insertedRecords {
+		// Check if there's a previous record for this system
+		previousRecord, err := bp.getPreviousInventoryRecord(asyncCtx, record.SystemID, record.ID)
+		if err != nil {
+			logger.Warn().
+				Err(err).
+				Str("system_id", record.SystemID).
+				Int64("record_id", record.ID).
+				Msg("Failed to get previous inventory record for diff processing")
+			failedCount++
+			continue
+		}
+
+		// Only trigger diff processing if there's a previous record
+		if previousRecord != nil {
+			processingJob := &models.InventoryProcessingJob{
+				InventoryRecord: &record,
+				SystemID:        record.SystemID,
+				ForceProcess:    false,
+			}
+
+			// Use a timeout context for each enqueue operation
+			enqueueCtx, enqueueCancel := context.WithTimeout(asyncCtx, 30*time.Second)
+			err := bp.queueManager.EnqueueProcessing(enqueueCtx, processingJob)
+			enqueueCancel()
+
+			if err != nil {
+				logger.Warn().
+					Err(err).
+					Str("system_id", record.SystemID).
+					Int64("inventory_id", record.ID).
+					Msg("Failed to enqueue processing job for diff computation (non-blocking)")
+				failedCount++
+			} else {
+				logger.Debug().
+					Str("system_id", record.SystemID).
+					Int64("inventory_id", record.ID).
+					Int64("previous_id", previousRecord.ID).
+					Msg("Queued diff processing job")
+				successCount++
+			}
+		}
+	}
+
+	logger.Info().
+		Int("total_records", len(insertedRecords)).
+		Int("diff_jobs_queued", successCount).
+		Int("diff_jobs_failed", failedCount).
+		Msg("Async diff processing completed")
+}
+
+// getPreviousInventoryRecord gets the most recent previous inventory record for a system
+func (bp *BatchProcessor) getPreviousInventoryRecord(ctx context.Context, systemID string, currentID int64) (*models.InventoryRecord, error) {
+	query := `
+		SELECT id, system_id, timestamp, data, data_hash, data_size,
+		       processed_at, has_changes, change_count, created_at, updated_at
+		FROM inventory_records
+		WHERE system_id = $1 AND id < $2
+		ORDER BY timestamp DESC, id DESC
+		LIMIT 1
+	`
+
+	record := &models.InventoryRecord{}
+	err := database.DB.QueryRowContext(ctx, query, systemID, currentID).Scan(
+		&record.ID,
+		&record.SystemID,
+		&record.Timestamp,
+		&record.Data,
+		&record.DataHash,
+		&record.DataSize,
+		&record.ProcessedAt,
+		&record.HasChanges,
+		&record.ChangeCount,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil // No previous record found
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get previous inventory record: %w", err)
+	}
+
+	return record, nil
 }
