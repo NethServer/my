@@ -50,7 +50,7 @@ const {
     console.error('Error deleting reseller:', error)
     console.error('   variables:', variables)
   },
-  //// use key factory?
+
   onSettled: () => queryCache.invalidateQueries({ key: ['resellers'] }),
 })
 

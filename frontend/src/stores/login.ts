@@ -48,7 +48,10 @@ export const useLoginStore = defineStore('login', () => {
         // go to login page ////
         // router.push('/login') ////
 
-        logout()
+        //// is setTimeout useful here?
+        setTimeout(() => {
+          logout()
+        }, 1000)
         return
       }
 

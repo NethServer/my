@@ -72,7 +72,7 @@ const {
 
     validationIssues.value = getValidationIssues(error as AxiosError, 'customers')
   },
-  //// use key factory?
+
   onSettled: () => queryCache.invalidateQueries({ key: ['customers'] }),
 })
 
@@ -110,7 +110,7 @@ const {
     console.error('Error editing customer:', error)
     console.error('   variables:', variables)
   },
-  //// use key factory?
+
   onSettled: () => queryCache.invalidateQueries({ key: ['customers'] }),
 })
 
