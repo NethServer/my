@@ -31,7 +31,50 @@ export const useLoginStore = defineStore('login', () => {
   const userInfo = ref<UserInfo | undefined>()
   const loadingUserInfo = ref<boolean>(true)
 
+  const userDisplayName = computed(() => userInfo.value?.name || userInfo.value?.username || '')
+
+  const userInitial = computed(() => {
+    const name = userDisplayName.value
+    return name ? name.charAt(0).toUpperCase() : ''
+  })
+
+  // watch for authentication changes
+  watch(
+    isAuthenticated,
+    () => {
+      if (isAuthenticated.value) {
+        console.log('user is authenticated') ////
+
+        fetchTokenAndUserInfo()
+
+        // go to dashboard page
+        // router.push('/dashboard') ////
+      } else {
+        console.log('user is NOT authenticated') ////
+
+        jwtToken.value = ''
+        accessToken.value = ''
+        refreshToken.value = ''
+        userInfo.value = undefined
+
+        // go to login page
+        // router.push('/login') ////
+      }
+    },
+    { immediate: true },
+  )
+
+  const login = () => {
+    signIn(LOGIN_REDIRECT_URI)
+  }
+
+  const logout = () => {
+    signOut(SIGN_OUT_REDIRECT_URI)
+  }
+
   const fetchTokenAndUserInfo = async () => {
+    console.log('fetchTokenAndUserInfo') ////
+
     loadingUserInfo.value = true
 
     try {
@@ -97,47 +140,6 @@ export const useLoginStore = defineStore('login', () => {
     } finally {
       loadingUserInfo.value = false
     }
-  }
-
-  // watch for authentication changes
-  watch(
-    isAuthenticated,
-    () => {
-      if (isAuthenticated.value) {
-        console.log('user is authenticated') ////
-
-        fetchTokenAndUserInfo()
-
-        // go to dashboard page
-        // router.push('/dashboard') ////
-      } else {
-        console.log('user is NOT authenticated') ////
-
-        jwtToken.value = ''
-        accessToken.value = ''
-        refreshToken.value = ''
-        userInfo.value = undefined
-
-        // go to login page
-        // router.push('/login') ////
-      }
-    },
-    { immediate: true },
-  )
-
-  const userDisplayName = computed(() => userInfo.value?.name || userInfo.value?.username || '')
-
-  const userInitial = computed(() => {
-    const name = userDisplayName.value
-    return name ? name.charAt(0).toUpperCase() : ''
-  })
-
-  const login = () => {
-    signIn(LOGIN_REDIRECT_URI)
-  }
-
-  const logout = () => {
-    signOut(SIGN_OUT_REDIRECT_URI)
   }
 
   return {
