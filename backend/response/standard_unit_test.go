@@ -526,7 +526,7 @@ func TestExternalAPIError(t *testing.T) {
 
 	errorData, ok := result.Data.(ErrorData)
 	assert.True(t, ok)
-	assert.Equal(t, "external_api_error", errorData.Type)
+	assert.Equal(t, "validation_error", errorData.Type) // Changed: validation errors are now properly classified
 }
 
 func TestValidationErrorStruct(t *testing.T) {

@@ -369,7 +369,7 @@ func CreateAccount(c *gin.Context) {
 			level string
 		}{
 			"status 400: ": {http.StatusBadRequest, "warn"},
-			"status 422: ": {http.StatusUnprocessableEntity, "warn"},
+			"status 422: ": {http.StatusBadRequest, "warn"}, // Map 422 to 400 for consistent client error handling
 			"status 409: ": {http.StatusConflict, "warn"},
 			"status 500: ": {http.StatusInternalServerError, "error"},
 		}
@@ -411,8 +411,20 @@ func CreateAccount(c *gin.Context) {
 				Msg("Logto API returned client error")
 		}
 
-		// Use standardized external API error response
-		c.JSON(statusCode, response.ExternalAPIError(statusCode, "failed to create account", detailedError))
+		// Use standardized external API error response with consistent message for validation errors
+		message := "failed to create account"
+		if statusCode == http.StatusBadRequest {
+			message = "validation failed"
+		}
+
+		// Create context with field values for better error reporting
+		context := map[string]interface{}{
+			"phone":    request.Phone,
+			"email":    request.Email,
+			"username": request.Username,
+		}
+
+		c.JSON(statusCode, response.ExternalAPIErrorWithContext(statusCode, message, detailedError, context))
 		return
 	}
 
@@ -996,8 +1008,74 @@ func UpdateAccount(c *gin.Context) {
 	// Update the account in Logto
 	updatedAccount, err := client.UpdateUser(accountID, updateRequest)
 	if err != nil {
-		logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "update_account_logto", http.StatusInternalServerError, "Failed to update account in Logto")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to update account", err.Error()))
+		// Parse error to determine appropriate status code and logging level
+		errorMsg := err.Error()
+		var detailedError interface{}
+		var statusCode int
+		var logLevel string
+
+		// Check for different status codes and extract JSON
+		statusMappings := map[string]struct {
+			code  int
+			level string
+		}{
+			"status 400: ": {http.StatusBadRequest, "warn"},
+			"status 422: ": {http.StatusBadRequest, "warn"}, // Map 422 to 400 for consistent client error handling
+			"status 409: ": {http.StatusConflict, "warn"},
+			"status 500: ": {http.StatusInternalServerError, "error"},
+		}
+
+		for prefix, mapping := range statusMappings {
+			if strings.Contains(errorMsg, prefix) {
+				statusCode = mapping.code
+				logLevel = mapping.level
+				parts := strings.Split(errorMsg, prefix)
+				if len(parts) > 1 {
+					// Try to parse the JSON error for better formatting
+					var logtoError map[string]interface{}
+					if json.Unmarshal([]byte(parts[1]), &logtoError) == nil {
+						detailedError = logtoError
+					} else {
+						detailedError = parts[1]
+					}
+				}
+				break
+			}
+		}
+
+		// If no status prefix found, default to internal server error
+		if statusCode == 0 {
+			statusCode = http.StatusInternalServerError
+			logLevel = "error"
+			detailedError = errorMsg
+		}
+
+		// Log with appropriate level and status code
+		if logLevel == "error" {
+			logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "update_account_logto", statusCode, "Failed to update account in Logto")
+		} else {
+			logger.RequestLogger(c, "accounts").Warn().
+				Err(err).
+				Str("operation", "update_account_logto").
+				Int("logto_status_code", statusCode).
+				Str("user_message", "Failed to update account in Logto").
+				Msg("Logto API returned client error")
+		}
+
+		// Use standardized external API error response with consistent message for validation errors
+		message := "failed to update account"
+		if statusCode == http.StatusBadRequest {
+			message = "validation failed"
+		}
+
+		// Create context with field values for better error reporting
+		context := map[string]interface{}{
+			"phone":    request.Phone,
+			"email":    request.Email,
+			"username": request.Username,
+		}
+
+		c.JSON(statusCode, response.ExternalAPIErrorWithContext(statusCode, message, detailedError, context))
 		return
 	}
 

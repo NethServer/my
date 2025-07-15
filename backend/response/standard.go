@@ -207,6 +207,17 @@ func ValidationBadRequestMultiple(err error) Response {
 	})
 }
 
+// NormalizeLogtoErrorWithContext converts various Logto error formats to our standard format with context
+func NormalizeLogtoErrorWithContext(logtoError interface{}, context map[string]interface{}) ErrorData {
+	// Add context to the error for value extraction
+	if errorMap, ok := logtoError.(map[string]interface{}); ok {
+		for k, v := range context {
+			errorMap[k] = v
+		}
+	}
+	return NormalizeLogtoError(logtoError)
+}
+
 // NormalizeLogtoError converts various Logto error formats to our standard format
 func NormalizeLogtoError(logtoError interface{}) ErrorData {
 	errorData := ErrorData{
@@ -215,19 +226,10 @@ func NormalizeLogtoError(logtoError interface{}) ErrorData {
 
 	switch err := logtoError.(type) {
 	case map[string]interface{}:
-		// Handle Logto simple errors (e.g., user.username_already_in_use)
-		if code, exists := err["code"].(string); exists {
-			errorData.Errors = []ValidationError{{
-				Key:     MapLogtoCodeToField(code),
-				Message: MapLogtoCodeToMessage(code),
-				Value:   "",
-			}}
-			return errorData
-		}
-
-		// Handle Logto Zod validation errors (guard.invalid_input)
+		// Handle Logto Zod validation errors (guard.invalid_input) - check this first
 		if data, exists := err["data"].(map[string]interface{}); exists {
 			if issues, exists := data["issues"].([]interface{}); exists {
+				errorData.Type = "validation_error"
 				for _, issue := range issues {
 					if issueMap, ok := issue.(map[string]interface{}); ok {
 						field := "unknown"
@@ -242,15 +244,50 @@ func NormalizeLogtoError(logtoError interface{}) ErrorData {
 							code = codeVal
 						}
 
+						// Normalize the message to match Gin validation format
+						normalizedMessage := code
+						switch code {
+						case "invalid_string":
+							normalizedMessage = field // Use field name as message (like "phone", "email")
+						}
+
+						// Try to extract value from the context based on field
+						value := ""
+						switch field {
+						case "phone":
+							if phoneValue, exists := err["phone"].(string); exists {
+								value = phoneValue
+							}
+						case "email":
+							if emailValue, exists := err["email"].(string); exists {
+								value = emailValue
+							}
+						case "username":
+							if usernameValue, exists := err["username"].(string); exists {
+								value = usernameValue
+							}
+						}
+
 						errorData.Errors = append(errorData.Errors, ValidationError{
 							Key:     field,
-							Message: code,
-							Value:   "",
+							Message: normalizedMessage,
+							Value:   value,
 						})
 					}
 				}
 				return errorData
 			}
+		}
+
+		// Handle Logto simple errors (e.g., user.username_already_in_use)
+		if code, exists := err["code"].(string); exists {
+			errorData.Type = "validation_error"
+			errorData.Errors = []ValidationError{{
+				Key:     MapLogtoCodeToField(code),
+				Message: MapLogtoCodeToMessage(code),
+				Value:   "",
+			}}
+			return errorData
 		}
 
 		// Fallback for unknown Logto error structure
@@ -275,4 +312,9 @@ func ValidationFailed(message string, errors []ValidationError) Response {
 // ExternalAPIError creates a standardized external API error response
 func ExternalAPIError(statusCode int, message string, logtoError interface{}) Response {
 	return Error(statusCode, message, NormalizeLogtoError(logtoError))
+}
+
+// ExternalAPIErrorWithContext creates a standardized external API error response with additional context
+func ExternalAPIErrorWithContext(statusCode int, message string, logtoError interface{}, context map[string]interface{}) Response {
+	return Error(statusCode, message, NormalizeLogtoErrorWithContext(logtoError, context))
 }

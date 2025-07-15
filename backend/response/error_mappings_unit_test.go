@@ -244,7 +244,7 @@ func TestNormalizeLogtoError(t *testing.T) {
 			logtoError: map[string]interface{}{
 				"code": "user.username_already_in_use",
 			},
-			expectedType: "external_api_error",
+			expectedType: "validation_error",
 			expectedErrors: []ValidationError{
 				{Key: "username", Message: "already_exists", Value: ""},
 			},
@@ -262,7 +262,7 @@ func TestNormalizeLogtoError(t *testing.T) {
 					},
 				},
 			},
-			expectedType: "external_api_error",
+			expectedType: "validation_error",
 			expectedErrors: []ValidationError{
 				{Key: "email", Message: "invalid_email", Value: ""},
 			},
@@ -319,7 +319,7 @@ func TestNormalizeLogtoErrorZodMultipleIssues(t *testing.T) {
 
 	result := NormalizeLogtoError(logtoError)
 
-	assert.Equal(t, "external_api_error", result.Type)
+	assert.Equal(t, "validation_error", result.Type)
 	assert.Len(t, result.Errors, 2)
 
 	// Check that both errors are present
