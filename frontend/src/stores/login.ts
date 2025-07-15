@@ -7,6 +7,10 @@ import { useLogto } from '@logto/vue'
 import { API_URL, LOGIN_REDIRECT_URI, SIGN_OUT_REDIRECT_URI } from '@/lib/config'
 import axios from 'axios'
 import { useThemeStore } from './theme'
+import { useStorage } from '@vueuse/core'
+
+// export const TOKEN_REFRESH_INTERVAL = 20 * 60 * 1000 // 20 minutes //// uncomment
+export const TOKEN_REFRESH_INTERVAL = 30 * 1000 // 30 seconds for testing //// remove
 
 export type UserInfo = {
   id: string
@@ -84,7 +88,7 @@ export const useLoginStore = defineStore('login', () => {
 
       if (!token) {
         //// toast notification
-        console.error('Cannot fetch access token, logout') ////
+        console.error('Cannot fetch access token, logout')
         loadingUserInfo.value = false
 
         // go to login page ////
@@ -100,7 +104,7 @@ export const useLoginStore = defineStore('login', () => {
       accessToken.value = token || ''
     } catch (error) {
       //// toast notification?
-      console.error('Cannot fetch access token:', error) ////
+      console.error('Cannot fetch access token:', error)
 
       loadingUserInfo.value = false
 
@@ -134,11 +138,31 @@ export const useLoginStore = defineStore('login', () => {
       console.log('[login store] user info', userInfo.value) ////
 
       themeStore.loadTheme()
+
+      // write last token refresh time to local storage
+      const tokenRefreshedTime = useStorage(`tokenRefreshed-${user.username}`, 0)
+      tokenRefreshedTime.value = Date.now()
     } catch (error) {
       //// toast notification
-      console.error('Cannot exchange token:', error) ////
+      console.error('Cannot exchange token:', error)
     } finally {
       loadingUserInfo.value = false
+    }
+  }
+
+  const doRefreshToken = async () => {
+    try {
+      console.log('doRefreshToken')
+
+      const res = await axios.post(`${API_URL}/auth/refresh`, { refresh_token: refreshToken.value })
+
+      console.log('[login store] refreshToken res', res) ////
+
+      jwtToken.value = res.data.data.token
+      refreshToken.value = res.data.data.refresh_token
+    } catch (error) {
+      //// toast notification
+      console.error('Cannot refresh token:', error)
     }
   }
 
@@ -149,6 +173,7 @@ export const useLoginStore = defineStore('login', () => {
     userInitial,
     userInfo,
     loadingUserInfo,
+    doRefreshToken,
     login,
     logout,
   }
