@@ -1177,7 +1177,7 @@ func convertLogtoUserToAccountResponse(account models.LogtoUser, org *models.Log
 		Username:     account.Username,
 		Email:        account.PrimaryEmail,
 		Name:         account.Name,
-		Phone:        "", // Will be set from customData
+		Phone:        account.PrimaryPhone,
 		Avatar:       account.Avatar,
 		IsSuspended:  account.IsSuspended,
 		LastSignInAt: lastSignInAt,
@@ -1203,14 +1203,11 @@ func convertLogtoUserToAccountResponse(account models.LogtoUser, org *models.Log
 		if orgRole, ok := account.CustomData["organizationRole"].(string); ok {
 			accountResponse.OrganizationRole = orgRole
 		}
-		if phone, ok := account.CustomData["phone"].(string); ok {
-			accountResponse.Phone = phone
-		}
 
-		// Extract custom data (excluding reserved fields)
+		// Extract custom data (excluding reserved fields and temporary internal fields)
 		customData := make(map[string]interface{})
 		for k, v := range account.CustomData {
-			if k != "userRoleIds" && k != "userRoleId" && k != "organizationId" && k != "organizationRole" && k != "phone" && k != "createdBy" && k != "createdAt" && k != "updatedBy" && k != "updatedAt" {
+			if k != "userRoleIds" && k != "userRoleId" && k != "organizationId" && k != "organizationRole" && k != "createdBy" && k != "createdAt" && k != "updatedBy" && k != "updatedAt" && k != "__org_id" && k != "__org_name" {
 				customData[k] = v
 			}
 		}
