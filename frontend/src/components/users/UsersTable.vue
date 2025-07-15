@@ -12,6 +12,7 @@ import {
   faUserGroup,
   faPenToSquare,
   faTrash,
+  faKey,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -39,6 +40,7 @@ import CreateOrEditUserDrawer from './CreateOrEditUserDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteUserModal from './DeleteUserModal.vue'
 import { loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageSize'
+import ResetPasswordModal from './ResetPasswordModal.vue'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -57,7 +59,8 @@ const { state: users, asyncStatus: usersAsyncStatus } = useQuery({
 const currentUser = ref<User | undefined>()
 const textFilter = ref('')
 const isShownCreateOrEditUserDrawer = ref(false)
-const isShownDeleteUserDrawer = ref(false)
+const isShownDeleteUserModal = ref(false)
+const isShownResetPasswordModal = ref(false)
 const tableId = 'usersTable'
 const pageSize = ref(10)
 const sortKey = ref<keyof User>('name')
@@ -115,9 +118,14 @@ function showEditUserDrawer(user: User) {
   isShownCreateOrEditUserDrawer.value = true
 }
 
-function showDeleteUserDrawer(user: User) {
+function showDeleteUserModal(user: User) {
   currentUser.value = user
-  isShownDeleteUserDrawer.value = true
+  isShownDeleteUserModal.value = true
+}
+
+function showResetPasswordModal(user: User) {
+  currentUser.value = user
+  isShownResetPasswordModal.value = true
 }
 
 function onCloseDrawer() {
@@ -128,11 +136,18 @@ function onCloseDrawer() {
 function getKebabMenuItems(user: User) {
   return [
     {
+      id: 'resetPassword',
+      label: t('users.reset_password'),
+      icon: faKey,
+      action: () => showResetPasswordModal(user),
+      disabled: false,
+    },
+    {
       id: 'deleteAccount',
       label: t('common.delete'),
       icon: faTrash,
       danger: true,
-      action: () => showDeleteUserDrawer(user),
+      action: () => showDeleteUserModal(user),
       disabled: false,
     },
   ]
@@ -166,7 +181,7 @@ const onSort = (payload: SortEvent) => {
             :placeholder="$t('users.filter_users')"
             class="max-w-48 sm:max-w-sm"
           />
-           <!-- //// other filters -->
+          <!-- //// other filters -->
           <NeSortDropdown
             v-model:sort-key="sortKey"
             v-model:sort-descending="sortDescending"
@@ -319,9 +334,15 @@ const onSort = (payload: SortEvent) => {
     />
     <!-- delete user modal -->
     <DeleteUserModal
-      :visible="isShownDeleteUserDrawer"
+      :visible="isShownDeleteUserModal"
       :user="currentUser"
-      @close="isShownDeleteUserDrawer = false"
+      @close="isShownDeleteUserModal = false"
+    />
+    <!-- reset password modal -->
+    <ResetPasswordModal
+      :visible="isShownResetPasswordModal"
+      :user="currentUser"
+      @close="isShownResetPasswordModal = false"
     />
   </div>
 </template>
