@@ -155,8 +155,8 @@ func (ip *InventoryProcessor) processNextMessage(ctx context.Context, workerLogg
 
 // processInventoryData processes a single inventory data record
 func (ip *InventoryProcessor) processInventoryData(ctx context.Context, inventoryData *models.InventoryData, workerLogger *zerolog.Logger) error {
-	// Add very aggressive timeout to prevent connection blocking
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	// Add timeout to prevent connection blocking, but allow more time for complex operations
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	start := time.Now()
@@ -170,25 +170,57 @@ func (ip *InventoryProcessor) processInventoryData(ctx context.Context, inventor
 	// Calculate data hash for deduplication
 	dataHash := ip.calculateDataHash(inventoryData.Data)
 
-	// Check if we already have this exact data
-	var existingID int64
+	// Check if the most recent inventory record has the same hash
+	var lastRecordHash string
+	var lastRecordID int64
 	query := `
-		SELECT id FROM inventory_records 
-		WHERE system_id = $1 AND data_hash = $2 
+		SELECT id, data_hash FROM inventory_records
+		WHERE system_id = $1
+		ORDER BY timestamp DESC
 		LIMIT 1
 	`
-	err := database.DB.QueryRowContext(ctx, query, inventoryData.SystemID, dataHash).Scan(&existingID)
+
+	workerLogger.Debug().
+		Str("system_id", inventoryData.SystemID).
+		Str("data_hash", dataHash).
+		Msg("Checking for duplicate inventory compared to previous record")
+
+	queryStart := time.Now()
+	err := database.DB.QueryRowContext(ctx, query, inventoryData.SystemID).Scan(&lastRecordID, &lastRecordHash)
+	queryDuration := time.Since(queryStart)
+
+	workerLogger.Debug().
+		Str("system_id", inventoryData.SystemID).
+		Dur("query_duration", queryDuration).
+		Bool("has_error", err != nil).
+		Msg("Previous inventory check completed")
 
 	if err == nil {
-		// Duplicate data found, skip processing
+		// Found previous record, check if hash matches
+		if lastRecordHash == dataHash {
+			// Duplicate data compared to previous record, skip processing
+			workerLogger.Debug().
+				Str("system_id", inventoryData.SystemID).
+				Str("data_hash", dataHash).
+				Int64("previous_id", lastRecordID).
+				Msg("Duplicate inventory data compared to previous record, skipping")
+			return nil
+		}
+		// Hash is different from previous record, continue processing
+		workerLogger.Debug().
+			Str("system_id", inventoryData.SystemID).
+			Str("current_hash", dataHash).
+			Str("previous_hash", lastRecordHash).
+			Int64("previous_id", lastRecordID).
+			Msg("Inventory data differs from previous record, processing")
+	} else if err != sql.ErrNoRows {
+		return fmt.Errorf("failed to check for previous inventory: %w", err)
+	} else {
+		// No previous record found, this is the first inventory for this system
 		workerLogger.Debug().
 			Str("system_id", inventoryData.SystemID).
 			Str("data_hash", dataHash).
-			Int64("existing_id", existingID).
-			Msg("Duplicate inventory data detected, skipping")
-		return nil
-	} else if err != sql.ErrNoRows {
-		return fmt.Errorf("failed to check for existing inventory: %w", err)
+			Msg("First inventory record for this system, processing")
 	}
 
 	// Insert new inventory record
@@ -251,7 +283,7 @@ func (ip *InventoryProcessor) insertInventoryRecord(ctx context.Context, invento
 	}
 
 	query := `
-		INSERT INTO inventory_records 
+		INSERT INTO inventory_records
 		(system_id, timestamp, data, data_hash, data_size, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
 		RETURNING id, created_at, updated_at
@@ -284,11 +316,11 @@ func (ip *InventoryProcessor) insertInventoryRecord(ctx context.Context, invento
 // getPreviousInventoryRecord gets the most recent previous inventory record
 func (ip *InventoryProcessor) getPreviousInventoryRecord(ctx context.Context, systemID string, currentID int64) (*models.InventoryRecord, error) {
 	query := `
-		SELECT id, system_id, timestamp, data, data_hash, data_size, 
+		SELECT id, system_id, timestamp, data, data_hash, data_size,
 		       processed_at, has_changes, change_count, created_at, updated_at
-		FROM inventory_records 
-		WHERE system_id = $1 AND id < $2 
-		ORDER BY timestamp DESC, id DESC 
+		FROM inventory_records
+		WHERE system_id = $1 AND id < $2
+		ORDER BY timestamp DESC, id DESC
 		LIMIT 1
 	`
 

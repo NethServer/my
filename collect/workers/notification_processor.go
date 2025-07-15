@@ -340,6 +340,7 @@ func (np *NotificationProcessor) sendNotification(ctx context.Context, systemID,
 		Str("system_id", systemID).
 		Str("severity", severity).
 		Str("notification_method", "log").
+		Str("notification_message", message).
 		Msg("Notification sent")
 
 	// Simulate some processing time

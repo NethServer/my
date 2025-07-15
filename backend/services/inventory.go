@@ -603,15 +603,18 @@ func (s *InventoryService) GetLatestInventoryDiffs(systemID string) ([]collectMo
 		return nil, fmt.Errorf("error iterating inventory diffs: %w", err)
 	}
 
-	if len(diffs) == 0 {
-		return nil, fmt.Errorf("no diffs found for system %s", systemID)
+	// Return empty array instead of error for consistency with other APIs
+	// This allows clients to handle empty results uniformly
+
+	logEvent := logger.Debug().
+		Str("system_id", systemID).
+		Int("count", len(diffs))
+
+	if len(diffs) > 0 {
+		logEvent.Int64("current_id", diffs[0].CurrentID)
 	}
 
-	logger.Debug().
-		Str("system_id", systemID).
-		Int("count", len(diffs)).
-		Int64("current_id", diffs[0].CurrentID).
-		Msg("Retrieved latest inventory diffs batch")
+	logEvent.Msg("Retrieved latest inventory diffs batch")
 
 	return diffs, nil
 }

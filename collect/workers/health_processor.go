@@ -23,8 +23,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// HealthMonitor monitors the overall health of the collect system
-type HealthMonitor struct {
+// HealthProcessor monitors the overall health of the collect system
+type HealthProcessor struct {
 	id           int
 	queueManager *queue.QueueManager
 	isHealthy    int32
@@ -32,9 +32,9 @@ type HealthMonitor struct {
 	mu           sync.RWMutex
 }
 
-// NewHealthMonitor creates a new health monitor
-func NewHealthMonitor(id int) *HealthMonitor {
-	return &HealthMonitor{
+// NewHealthProcessor creates a new health processor
+func NewHealthProcessor(id int) *HealthProcessor {
+	return &HealthProcessor{
 		id:           id,
 		queueManager: queue.NewQueueManager(),
 		isHealthy:    1,
@@ -42,25 +42,25 @@ func NewHealthMonitor(id int) *HealthMonitor {
 	}
 }
 
-// Start starts the health monitor
-func (hm *HealthMonitor) Start(ctx context.Context, wg *sync.WaitGroup) error {
+// Start starts the health processor
+func (hp *HealthProcessor) Start(ctx context.Context, wg *sync.WaitGroup) error {
 	wg.Add(1)
-	go hm.worker(ctx, wg)
+	go hp.worker(ctx, wg)
 	return nil
 }
 
-// Name returns the worker name
-func (hm *HealthMonitor) Name() string {
-	return "health-monitor"
+// Name returns the processor name
+func (hp *HealthProcessor) Name() string {
+	return "health-processor"
 }
 
 // IsHealthy returns the health status
-func (hm *HealthMonitor) IsHealthy() bool {
-	return atomic.LoadInt32(&hm.isHealthy) == 1
+func (hp *HealthProcessor) IsHealthy() bool {
+	return atomic.LoadInt32(&hp.isHealthy) == 1
 }
 
 // worker runs health checks periodically
-func (hm *HealthMonitor) worker(ctx context.Context, wg *sync.WaitGroup) {
+func (hp *HealthProcessor) worker(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	workerLogger := logger.ComponentLogger("health-monitor")
@@ -80,57 +80,57 @@ func (hm *HealthMonitor) worker(ctx context.Context, wg *sync.WaitGroup) {
 			return
 		case <-initialTimer.C:
 			// Run initial health check
-			hm.runHealthChecks(ctx, workerLogger)
+			hp.runHealthChecks(ctx, workerLogger)
 		case <-ticker.C:
 			// Run periodic health checks
-			hm.runHealthChecks(ctx, workerLogger)
+			hp.runHealthChecks(ctx, workerLogger)
 		}
 	}
 }
 
 // runHealthChecks executes all health checks
-func (hm *HealthMonitor) runHealthChecks(ctx context.Context, workerLogger *zerolog.Logger) {
-	hm.mu.Lock()
-	hm.lastActivity = time.Now()
-	hm.mu.Unlock()
+func (hp *HealthProcessor) runHealthChecks(ctx context.Context, workerLogger *zerolog.Logger) {
+	hp.mu.Lock()
+	hp.lastActivity = time.Now()
+	hp.mu.Unlock()
 
 	healthy := true
 
 	// Check database connectivity
-	if err := hm.checkDatabaseHealth(ctx, workerLogger); err != nil {
+	if err := hp.checkDatabaseHealth(ctx, workerLogger); err != nil {
 		workerLogger.Error().Err(err).Msg("Database health check failed")
 		healthy = false
 	}
 
 	// Check Redis connectivity
-	if err := hm.checkRedisHealth(ctx, workerLogger); err != nil {
+	if err := hp.checkRedisHealth(ctx, workerLogger); err != nil {
 		workerLogger.Error().Err(err).Msg("Redis health check failed")
 		healthy = false
 	}
 
 	// Check queue health
-	if err := hm.checkQueueHealth(ctx, workerLogger); err != nil {
+	if err := hp.checkQueueHealth(ctx, workerLogger); err != nil {
 		workerLogger.Error().Err(err).Msg("Queue health check failed")
 		healthy = false
 	}
 
 	// Check system resources
-	if err := hm.checkSystemResources(ctx, workerLogger); err != nil {
+	if err := hp.checkSystemResources(ctx, workerLogger); err != nil {
 		workerLogger.Warn().Err(err).Msg("System resources check warning")
 		// Don't mark as unhealthy for resource warnings
 	}
 
 	if healthy {
-		atomic.StoreInt32(&hm.isHealthy, 1)
+		atomic.StoreInt32(&hp.isHealthy, 1)
 		workerLogger.Debug().Msg("All health checks passed")
 	} else {
-		atomic.StoreInt32(&hm.isHealthy, 0)
+		atomic.StoreInt32(&hp.isHealthy, 0)
 		workerLogger.Error().Msg("One or more health checks failed")
 	}
 }
 
 // checkDatabaseHealth checks PostgreSQL database connectivity and performance
-func (hm *HealthMonitor) checkDatabaseHealth(ctx context.Context, workerLogger *zerolog.Logger) error {
+func (hp *HealthProcessor) checkDatabaseHealth(ctx context.Context, workerLogger *zerolog.Logger) error {
 	// Check basic connectivity
 	if err := database.Health(); err != nil {
 		return err
@@ -176,7 +176,7 @@ func (hm *HealthMonitor) checkDatabaseHealth(ctx context.Context, workerLogger *
 }
 
 // checkRedisHealth checks Redis connectivity and performance
-func (hm *HealthMonitor) checkRedisHealth(ctx context.Context, workerLogger *zerolog.Logger) error {
+func (hp *HealthProcessor) checkRedisHealth(ctx context.Context, workerLogger *zerolog.Logger) error {
 	redis := database.GetRedisClient()
 
 	// Check basic connectivity
@@ -198,8 +198,8 @@ func (hm *HealthMonitor) checkRedisHealth(ctx context.Context, workerLogger *zer
 }
 
 // checkQueueHealth checks the health of Redis queues
-func (hm *HealthMonitor) checkQueueHealth(ctx context.Context, workerLogger *zerolog.Logger) error {
-	stats, err := hm.queueManager.GetQueueStats(ctx)
+func (hp *HealthProcessor) checkQueueHealth(ctx context.Context, workerLogger *zerolog.Logger) error {
+	stats, err := hp.queueManager.GetQueueStats(ctx)
 	if err != nil {
 		return err
 	}
@@ -228,7 +228,7 @@ func (hm *HealthMonitor) checkQueueHealth(ctx context.Context, workerLogger *zer
 }
 
 // checkSystemResources checks system resource usage
-func (hm *HealthMonitor) checkSystemResources(ctx context.Context, workerLogger *zerolog.Logger) error {
+func (hp *HealthProcessor) checkSystemResources(ctx context.Context, workerLogger *zerolog.Logger) error {
 	// Check disk space for database directory
 	// This is a simplified check - in production, you might want more sophisticated monitoring
 
@@ -252,19 +252,19 @@ func (hm *HealthMonitor) checkSystemResources(ctx context.Context, workerLogger 
 }
 
 // GetStats returns health monitor statistics
-func (hm *HealthMonitor) GetStats() map[string]interface{} {
-	hm.mu.RLock()
-	defer hm.mu.RUnlock()
+func (hp *HealthProcessor) GetStats() map[string]interface{} {
+	hp.mu.RLock()
+	defer hp.mu.RUnlock()
 
 	return map[string]interface{}{
-		"last_activity":  hm.lastActivity,
-		"is_healthy":     hm.IsHealthy(),
+		"last_activity":  hp.lastActivity,
+		"is_healthy":     hp.IsHealthy(),
 		"check_interval": configuration.Config.HealthCheckInterval.String(),
 	}
 }
 
 // GetSystemHealth returns overall system health status
-func (hm *HealthMonitor) GetSystemHealth(ctx context.Context) map[string]interface{} {
+func (hp *HealthProcessor) GetSystemHealth(ctx context.Context) map[string]interface{} {
 	health := make(map[string]interface{})
 
 	// Database health
@@ -276,7 +276,7 @@ func (hm *HealthMonitor) GetSystemHealth(ctx context.Context) map[string]interfa
 	}
 
 	// Queue health
-	queueStats, queueErr := hm.queueManager.GetQueueStats(ctx)
+	queueStats, queueErr := hp.queueManager.GetQueueStats(ctx)
 	health["queues"] = map[string]interface{}{
 		"healthy": queueErr == nil && queueStats.QueueHealth != "critical",
 		"error":   getErrorString(queueErr),
@@ -287,12 +287,12 @@ func (hm *HealthMonitor) GetSystemHealth(ctx context.Context) map[string]interfa
 	overallHealthy := dbErr == nil &&
 		queueErr == nil &&
 		(queueStats == nil || queueStats.QueueHealth != "critical") &&
-		hm.IsHealthy()
+		hp.IsHealthy()
 
 	health["overall"] = map[string]interface{}{
 		"healthy":         overallHealthy,
-		"last_check":      hm.lastActivity,
-		"monitor_healthy": hm.IsHealthy(),
+		"last_check":      hp.lastActivity,
+		"monitor_healthy": hp.IsHealthy(),
 	}
 
 	return health

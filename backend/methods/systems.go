@@ -702,11 +702,6 @@ func GetSystemLatestInventoryDiff(c *gin.Context) {
 	inventoryService := services.NewInventoryService()
 	diffs, err := inventoryService.GetLatestInventoryDiffs(systemID)
 	if err != nil {
-		if err.Error() == "no diffs found for system "+systemID {
-			c.JSON(http.StatusNotFound, response.NotFound("no diffs found for system", nil))
-			return
-		}
-
 		logger.Error().
 			Err(err).
 			Str("system_id", systemID).
@@ -719,17 +714,28 @@ func GetSystemLatestInventoryDiff(c *gin.Context) {
 	}
 
 	// Log the action
-	logger.RequestLogger(c, "inventory").Info().
+	logEvent := logger.RequestLogger(c, "inventory").Info().
 		Str("operation", "get_latest_inventory_diffs").
 		Str("system_id", systemID).
-		Int("count", len(diffs)).
-		Int64("current_id", diffs[0].CurrentID).
-		Msg("Latest inventory diffs batch requested")
+		Int("count", len(diffs))
+
+	if len(diffs) > 0 {
+		logEvent.Int64("current_id", diffs[0].CurrentID)
+	}
+
+	logEvent.Msg("Latest inventory diffs batch requested")
+
+	// Prepare response data
+	responseData := gin.H{
+		"diffs": diffs,
+		"count": len(diffs),
+	}
+
+	// Add current_inventory_id only if there are diffs
+	if len(diffs) > 0 {
+		responseData["current_inventory_id"] = diffs[0].CurrentID
+	}
 
 	// Return latest diffs batch
-	c.JSON(http.StatusOK, response.OK("latest inventory diffs retrieved successfully", gin.H{
-		"diffs":                diffs,
-		"count":                len(diffs),
-		"current_inventory_id": diffs[0].CurrentID,
-	}))
+	c.JSON(http.StatusOK, response.OK("latest inventory diffs retrieved successfully", responseData))
 }

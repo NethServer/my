@@ -29,6 +29,7 @@ func setupServicesTestEnvironment() {
 		_ = os.Setenv("BACKEND_APP_ID", "test-client-id")
 		_ = os.Setenv("BACKEND_APP_SECRET", "test-client-secret")
 		_ = os.Setenv("LOGTO_MANAGEMENT_BASE_URL", "https://test-logto.example.com/api")
+		_ = os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test_db")
 
 		configuration.Init()
 		isServicesTestEnvironmentSetup = true

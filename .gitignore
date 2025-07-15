@@ -3,8 +3,6 @@ backend/backend
 backend/main
 backend/build/
 backend/*.exe
-logto-sync/build/
-logto-sync/logto-sync
 sync/build/
 sync/sync
 collect/collect
@@ -33,8 +31,8 @@ coverage.html
 !.env.example
 
 # Config files - exclude actual configs, keep examples
-logto-sync/configs/*.yml
-!logto-sync/configs/*.example.yml
+backend/configs/*.yml
+!backend/configs/*.example.yml
 sync/configs/*.yml
 !sync/configs/*.example.yml
 collect/configs/*.yml

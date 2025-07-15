@@ -66,14 +66,14 @@ func (m *Manager) Start(ctx context.Context) error {
 		// Notification workers
 		NewNotificationProcessor(3, configuration.Config.WorkerNotificationCount),
 
-		// Cleanup worker (single instance)
-		NewCleanupWorker(4),
+		// Cleanup processor (single instance)
+		NewCleanupProcessor(4),
 
 		// Delayed message processor (single instance)
 		NewDelayedMessageProcessor(5),
 
-		// Health monitor (single instance)
-		NewHealthMonitor(6),
+		// Health processor (single instance)
+		NewHealthProcessor(6),
 	}
 
 	// Start all workers

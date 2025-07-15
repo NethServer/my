@@ -39,13 +39,27 @@ type DiffProcessor struct {
 	mu            sync.RWMutex
 }
 
+// createDiffEngine creates a new diff engine with error handling
+func createDiffEngine() *differ.DiffEngine {
+	engine, err := differ.NewDefaultDiffEngine()
+	if err != nil {
+		logger.ComponentLogger("diff-processor").Error().
+			Err(err).
+			Msg("Failed to create diff engine, using fallback")
+		// In case of error, we could return nil and handle it in the worker
+		// For now, we'll panic since this is a critical component
+		panic(fmt.Sprintf("Failed to create diff engine: %v", err))
+	}
+	return engine
+}
+
 // NewDiffProcessor creates a new diff processor
 func NewDiffProcessor(id, workerCount int) *DiffProcessor {
 	return &DiffProcessor{
 		id:           id,
 		workerCount:  workerCount,
 		queueManager: queue.NewQueueManager(),
-		diffEngine:   differ.NewDiffEngine(),
+		diffEngine:   createDiffEngine(),
 		isHealthy:    1,
 		lastActivity: time.Now(),
 	}
@@ -196,7 +210,10 @@ func (dp *DiffProcessor) processInventoryDiff(ctx context.Context, job *models.I
 	}
 
 	// Filter significant changes
-	significantDiffs := dp.diffEngine.FilterSignificantChanges(diffs)
+	significantDiffs, err := differ.FilterSignificantChanges(diffs)
+	if err != nil {
+		return fmt.Errorf("failed to filter significant changes: %w", err)
+	}
 
 	// Store differences in database with reduced transaction time
 	storedDiffs, err := dp.storeDifferences(ctx, significantDiffs)
