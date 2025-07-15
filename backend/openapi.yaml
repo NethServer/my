@@ -418,6 +418,17 @@ components:
             department: "Sales"
             location: "Rome"
 
+    PasswordResetRequest:
+      type: object
+      required:
+        - password
+      properties:
+        password:
+          type: string
+          minLength: 8
+          description: New password (minimum 8 characters)
+          example: "NewSecurePassword123!"
+
     Role:
       type: object
       properties:
@@ -1085,6 +1096,52 @@ paths:
                   data:
                     type: object
                     nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /accounts/{id}/password:
+    patch:
+      tags:
+        - Accounts
+      summary: Reset account password
+      description: Reset a user account's password (Admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Account ID
+          schema:
+            type: string
+            example: "usr_123456789"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "password reset successfully"
+                  data:
+                    type: object
+                    nullable: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

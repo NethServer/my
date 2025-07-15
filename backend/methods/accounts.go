@@ -975,8 +975,8 @@ func UpdateAccount(c *gin.Context) {
 		}
 
 		// Update with new values
-		if len(request.UserRoleIDs) > 0 {
-			updateRequest.CustomData["userRoleIds"] = request.UserRoleIDs
+		if request.UserRoleIDs != nil {
+			updateRequest.CustomData["userRoleIds"] = *request.UserRoleIDs
 		}
 		if request.OrganizationID != "" {
 			updateRequest.CustomData["organizationId"] = request.OrganizationID
@@ -999,6 +999,49 @@ func UpdateAccount(c *gin.Context) {
 		logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "update_account_logto", http.StatusInternalServerError, "Failed to update account in Logto")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to update account", err.Error()))
 		return
+	}
+
+	// Synchronize user roles in Logto when UserRoleIDs field is present (even if empty)
+	if request.UserRoleIDs != nil {
+		// Get current user roles from Logto
+		currentRoles, err := client.GetUserRoles(accountID)
+		if err != nil {
+			logger.RequestLogger(c, "accounts").Warn().
+				Err(err).
+				Str("operation", "get_current_user_roles").
+				Str("account_id", accountID).
+				Msg("Failed to get current user roles")
+		} else {
+			// Extract current role IDs
+			currentRoleIDs := make([]string, len(currentRoles))
+			for i, role := range currentRoles {
+				currentRoleIDs[i] = role.ID
+			}
+
+			// Remove all current roles
+			if len(currentRoleIDs) > 0 {
+				if err := client.RemoveUserRoles(accountID, currentRoleIDs); err != nil {
+					logger.RequestLogger(c, "accounts").Warn().
+						Err(err).
+						Str("operation", "remove_user_roles").
+						Str("account_id", accountID).
+						Interface("role_ids", currentRoleIDs).
+						Msg("Failed to remove current user roles")
+				}
+			}
+
+			// Assign new roles if provided
+			if len(*request.UserRoleIDs) > 0 {
+				if err := client.AssignUserRoles(accountID, *request.UserRoleIDs); err != nil {
+					logger.RequestLogger(c, "accounts").Warn().
+						Err(err).
+						Str("operation", "assign_user_roles").
+						Str("account_id", accountID).
+						Interface("role_ids", *request.UserRoleIDs).
+						Msg("Failed to assign new user roles")
+				}
+			}
+		}
 	}
 
 	// Invalidate organization users cache to ensure fresh data on next request
@@ -1180,4 +1223,96 @@ func convertLogtoUserToAccountResponse(account models.LogtoUser, org *models.Log
 	}
 
 	return accountResponse
+}
+
+// ResetAccountPassword handles PATCH /api/accounts/:id/password - resets an account's password
+func ResetAccountPassword(c *gin.Context) {
+	accountID := c.Param("id")
+	if accountID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("account ID required", nil))
+		return
+	}
+
+	var request models.PasswordResetRequest
+	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
+		return
+	}
+
+	currentUserID, _ := c.Get("user_id")
+	currentUserOrgID, _ := c.Get("organization_id")
+	currentUserOrgRole, _ := c.Get("org_role")
+	currentUserRoles, _ := c.Get("user_roles")
+
+	// Validate required user context
+	if currentUserOrgRole == nil || currentUserOrgID == nil || currentUserRoles == nil {
+		logger.NewHTTPErrorLogger(c, "accounts").LogError(fmt.Errorf("missing user context"), "validate_user_context", http.StatusUnauthorized, "Missing required user context in JWT token")
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("incomplete user context in token", nil))
+		return
+	}
+
+	// Extract user role from array (Admin role is required for password reset)
+	userRolesSlice := currentUserRoles.([]string)
+	var currentUserRole string
+	for _, role := range userRolesSlice {
+		if role == "Admin" {
+			currentUserRole = "Admin"
+			break
+		}
+	}
+	if currentUserRole == "" {
+		logger.NewHTTPErrorLogger(c, "accounts").LogError(fmt.Errorf("insufficient permissions"), "check_admin_role", http.StatusForbidden, "User does not have Admin role required for password reset")
+		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to reset account passwords", nil))
+		return
+	}
+
+	client := services.NewLogtoManagementClient()
+
+	// Get current account data to validate permissions
+	currentAccount, err := client.GetUserByID(accountID)
+	if err != nil {
+		logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "fetch_account", http.StatusInternalServerError, "Failed to fetch account")
+		c.JSON(http.StatusNotFound, response.NotFound("account not found", nil))
+		return
+	}
+
+	// Get target account's organization to validate permissions
+	var targetOrg *models.LogtoOrganization
+	if currentAccount.CustomData != nil {
+		if orgID, ok := currentAccount.CustomData["organizationId"].(string); ok {
+			targetOrg, err = client.GetOrganizationByID(orgID)
+			if err != nil {
+				logger.RequestLogger(c, "accounts").Warn().
+					Err(err).
+					Str("operation", "fetch_target_organization").
+					Msg("Failed to fetch target organization")
+			}
+		}
+	}
+
+	// Validate hierarchical permissions
+	canOperate, reason := CanOperateOnAccount(
+		currentUserOrgRole.(string),
+		currentUserOrgID.(string),
+		currentUserRole,
+		currentAccount,
+		targetOrg,
+	)
+
+	if !canOperate {
+		logger.LogAccountOperation(c, "password_reset_denied", accountID, "", currentUserID.(string), currentUserOrgID.(string), false, fmt.Errorf("insufficient permissions: %s", reason))
+		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to reset password for this account", reason))
+		return
+	}
+
+	// Update the password in Logto
+	if err := client.UpdateUserPassword(accountID, request.Password); err != nil {
+		logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "update_password_logto", http.StatusInternalServerError, "Failed to update password in Logto")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to update password", err.Error()))
+		return
+	}
+
+	logger.LogAccountOperation(c, "password_reset", accountID, "", currentUserID.(string), currentUserOrgID.(string), true, nil)
+
+	c.JSON(http.StatusOK, response.OK("password reset successfully", nil))
 }

@@ -165,11 +165,12 @@ func main() {
 		// Accounts - Basic authentication required, hierarchical validation in handlers
 		accountsGroup := customAuth.Group("/accounts")
 		{
-			accountsGroup.GET("", methods.GetAccounts)          // List accounts with organization filtering
-			accountsGroup.GET("/:id", methods.GetAccount)       // Get single account with hierarchical validation
-			accountsGroup.POST("", methods.CreateAccount)       // Create new account with hierarchical validation
-			accountsGroup.PUT("/:id", methods.UpdateAccount)    // Update existing account
-			accountsGroup.DELETE("/:id", methods.DeleteAccount) // Delete account
+			accountsGroup.GET("", methods.GetAccounts)                         // List accounts with organization filtering
+			accountsGroup.GET("/:id", methods.GetAccount)                      // Get single account with hierarchical validation
+			accountsGroup.POST("", methods.CreateAccount)                      // Create new account with hierarchical validation
+			accountsGroup.PUT("/:id", methods.UpdateAccount)                   // Update existing account
+			accountsGroup.PATCH("/:id/password", methods.ResetAccountPassword) // Reset account password
+			accountsGroup.DELETE("/:id", methods.DeleteAccount)                // Delete account
 		}
 
 		// Roles endpoints - for role selection in account creation

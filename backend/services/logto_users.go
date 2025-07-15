@@ -379,3 +379,28 @@ func (c *LogtoManagementClient) GetOrganizationUsersParallel(ctx context.Context
 
 	return results, nil
 }
+
+// UpdateUserPassword updates a user's password in Logto
+func (c *LogtoManagementClient) UpdateUserPassword(userID string, password string) error {
+	requestBody := map[string]interface{}{
+		"password": password,
+	}
+
+	reqBody, err := json.Marshal(requestBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal password update request: %w", err)
+	}
+
+	resp, err := c.makeRequest("PATCH", fmt.Sprintf("/users/%s/password", userID), bytes.NewBuffer(reqBody))
+	if err != nil {
+		return fmt.Errorf("failed to update user password: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to update user password, status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}

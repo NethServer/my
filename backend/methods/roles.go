@@ -29,14 +29,18 @@ func GetRoles(c *gin.Context) {
 		return
 	}
 
-	// Convert LogtoRole to Role model
-	roles := make([]models.Role, len(logtoRoles))
-	for i, logtoRole := range logtoRoles {
-		roles[i] = models.Role{
+	// Filter out Logto Management API access role and convert LogtoRole to Role model
+	roles := make([]models.Role, 0)
+	for _, logtoRole := range logtoRoles {
+		// Skip Logto Management API access role
+		if logtoRole.Name == "Logto Management API access" {
+			continue
+		}
+		roles = append(roles, models.Role{
 			ID:          logtoRole.ID,
 			Name:        logtoRole.Name,
 			Description: logtoRole.Description,
-		}
+		})
 	}
 
 	logger.ComponentLogger("roles").Info().

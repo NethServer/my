@@ -26,10 +26,15 @@ type UpdateAccountRequest struct {
 	Email          string                 `json:"email" structs:"email"`
 	Name           string                 `json:"name" structs:"name"`
 	Phone          string                 `json:"phone" structs:"phone"`
-	UserRoleIDs    []string               `json:"userRoleIds" structs:"userRoleIds"`       // Role IDs instead of names for security
-	OrganizationID string                 `json:"organizationId" structs:"organizationId"` // Which organization they belong to
+	UserRoleIDs    *[]string              `json:"userRoleIds,omitempty" structs:"userRoleIds"` // Role IDs instead of names for security
+	OrganizationID string                 `json:"organizationId" structs:"organizationId"`     // Which organization they belong to
 	Avatar         string                 `json:"avatar" structs:"avatar"`
 	CustomData     map[string]interface{} `json:"customData" structs:"customData"`
+}
+
+// PasswordResetRequest represents the request payload for resetting a user's password
+type PasswordResetRequest struct {
+	Password string `json:"password" binding:"required" structs:"password"`
 }
 
 // AccountResponse represents the response format for account data

@@ -203,6 +203,31 @@ func (c *LogtoManagementClient) AssignUserRoles(userID string, roleIDs []string)
 	return nil
 }
 
+// RemoveUserRoles removes roles from a user
+func (c *LogtoManagementClient) RemoveUserRoles(userID string, roleIDs []string) error {
+	requestBody := map[string]interface{}{
+		"roleIds": roleIDs,
+	}
+
+	reqBody, err := json.Marshal(requestBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal role removal request: %w", err)
+	}
+
+	resp, err := c.makeRequest("DELETE", fmt.Sprintf("/users/%s/roles", userID), bytes.NewBuffer(reqBody))
+	if err != nil {
+		return fmt.Errorf("failed to remove user roles: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to remove user roles, status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
 // AssignOrganizationRolesToUser assigns specific organization roles to a user
 // This is the correct API endpoint: POST /organizations/{orgId}/users/{userId}/roles
 func (c *LogtoManagementClient) AssignOrganizationRolesToUser(orgID, userID string, roleIDs []string, roleNames []string) error {

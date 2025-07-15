@@ -106,7 +106,7 @@ func TestUpdateAccountRequestStructure(t *testing.T) {
 		Email:          "updated@example.com",
 		Name:           "Updated User",
 		Phone:          "+2222222222",
-		UserRoleIDs:    []string{"role-updated"},
+		UserRoleIDs:    &[]string{"role-updated"},
 		OrganizationID: "org-updated",
 		Avatar:         "https://example.com/updated-avatar.jpg",
 		CustomData:     map[string]interface{}{"status": "updated"},
@@ -116,7 +116,7 @@ func TestUpdateAccountRequestStructure(t *testing.T) {
 	assert.Equal(t, "updated@example.com", req.Email)
 	assert.Equal(t, "Updated User", req.Name)
 	assert.Equal(t, "+2222222222", req.Phone)
-	assert.Equal(t, []string{"role-updated"}, req.UserRoleIDs)
+	assert.Equal(t, []string{"role-updated"}, *req.UserRoleIDs)
 	assert.Equal(t, "org-updated", req.OrganizationID)
 	assert.Equal(t, "https://example.com/updated-avatar.jpg", req.Avatar)
 	assert.Equal(t, map[string]interface{}{"status": "updated"}, req.CustomData)
@@ -128,7 +128,7 @@ func TestUpdateAccountRequestJSONSerialization(t *testing.T) {
 		Email:          "updatejson@example.com",
 		Name:           "Update JSON User",
 		Phone:          "+3333333333",
-		UserRoleIDs:    []string{"role-updatejson"},
+		UserRoleIDs:    &[]string{"role-updatejson"},
 		OrganizationID: "org-updatejson",
 		Avatar:         "https://example.com/updatejson-avatar.jpg",
 		CustomData:     map[string]interface{}{"version": "2.0"},
