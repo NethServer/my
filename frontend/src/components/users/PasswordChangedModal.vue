@@ -1,0 +1,81 @@
+<!--
+  Copyright (C) 2025 Nethesis S.r.l.
+  SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
+<script setup lang="ts">
+import { NeLink, NeModal } from '@nethesis/vue-components'
+import { useI18n } from 'vue-i18n'
+import { type User } from '@/lib/users'
+import { ref } from 'vue'
+import { useNotificationsStore } from '@/stores/notifications'
+
+const {
+  visible = false,
+  user = undefined,
+  newPassword = '',
+} = defineProps<{
+  visible: boolean
+  user: User | undefined
+  newPassword: string
+}>()
+
+const emit = defineEmits(['close'])
+
+const { t } = useI18n()
+const notificationsStore = useNotificationsStore()
+const isPasswordShown = ref(false)
+
+const copyCredentials = () => {
+  if (user && newPassword) {
+    const credentials = `${t('users.email')}: ${user.email}\n${t('users.password')}: ${newPassword}`
+
+    navigator.clipboard
+      .writeText(credentials)
+      .then(() => {
+        notificationsStore.createNotification({
+          kind: 'success',
+          title: t('users.credentials_copied'),
+          description: t('users.credentials_copied_description', {
+            name: user?.name,
+          }),
+        })
+      })
+      .catch((err) => {
+        console.error('Failed to copy credentials:', err)
+      })
+  }
+}
+
+function onShow() {
+  isPasswordShown.value = false
+}
+</script>
+
+<template>
+  <NeModal
+    :visible="visible"
+    :title="$t('users.the_password_has_been_reset')"
+    kind="success"
+    :primary-label="$t('users.copy_credentials')"
+    :cancel-label="$t('common.close')"
+    primary-button-kind="primary"
+    :close-aria-label="$t('common.close')"
+    @close="emit('close')"
+    @primary-click="copyCredentials"
+    @show="onShow"
+  >
+    <p class="mb-6">{{ t('users.credentials_updated_description', { name: user?.name }) }}:</p>
+    <p class="mb-2">{{ t('users.email') }}: {{ user?.email }}</p>
+    <p>
+      {{ t('users.password') }}:
+      <span v-if="isPasswordShown">
+        {{ newPassword }}
+      </span>
+      <span v-else> ********** </span>
+      <NeLink class="ml-2" @click="isPasswordShown = !isPasswordShown">
+        {{ isPasswordShown ? t('common.hide') : t('common.show') }}
+      </NeLink>
+    </p>
+  </NeModal>
+</template>

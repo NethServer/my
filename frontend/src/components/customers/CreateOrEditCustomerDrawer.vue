@@ -289,7 +289,7 @@ async function saveCustomer() {
           v-if="
             editCustomerError?.message &&
             'status' in editCustomerError &&
-            !isValidationErrorCode(createCustomerError.status as number)
+            !isValidationErrorCode(editCustomerError.status as number)
           "
           kind="error"
           :title="t('customers.cannot_save_customer')"

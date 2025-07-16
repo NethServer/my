@@ -41,6 +41,8 @@ import { useI18n } from 'vue-i18n'
 import DeleteUserModal from './DeleteUserModal.vue'
 import { loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageSize'
 import ResetPasswordModal from './ResetPasswordModal.vue'
+import PasswordChangedModal from './PasswordChangedModal.vue'
+import { ne } from '@faker-js/faker'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -61,6 +63,8 @@ const textFilter = ref('')
 const isShownCreateOrEditUserDrawer = ref(false)
 const isShownDeleteUserModal = ref(false)
 const isShownResetPasswordModal = ref(false)
+const isShownPasswordChangedModal = ref(false)
+const newPassword = ref<string>('')
 const tableId = 'usersTable'
 const pageSize = ref(10)
 const sortKey = ref<keyof User>('name')
@@ -128,6 +132,13 @@ function showResetPasswordModal(user: User) {
   isShownResetPasswordModal.value = true
 }
 
+function onPasswordChanged(newPwd: string) {
+  console.log('onPasswordChanged, newPassword', newPwd) ////
+
+  newPassword.value = newPwd
+  isShownPasswordChangedModal.value = true
+}
+
 function onCloseDrawer() {
   isShownCreateOrEditUserDrawer.value = false
   emit('close-drawer')
@@ -156,6 +167,11 @@ function getKebabMenuItems(user: User) {
 const onSort = (payload: SortEvent) => {
   sortKey.value = payload.key as keyof User
   sortDescending.value = payload.descending
+}
+
+const onClosePasswordChangedModal = () => {
+  isShownPasswordChangedModal.value = false
+  newPassword.value = ''
 }
 </script>
 
@@ -339,6 +355,14 @@ const onSort = (payload: SortEvent) => {
       :visible="isShownResetPasswordModal"
       :user="currentUser"
       @close="isShownResetPasswordModal = false"
+      @password-changed="onPasswordChanged"
+    />
+    <!-- password changed modal -->
+    <PasswordChangedModal
+      :visible="isShownPasswordChangedModal"
+      :user="currentUser"
+      :new-password="newPassword"
+      @close="onClosePasswordChangedModal"
     />
   </div>
 </template>

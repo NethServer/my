@@ -5,6 +5,7 @@ import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
+import { generateSimplePassword } from './password'
 
 //// check attributes
 export const BaseUserSchema = v.object({
@@ -89,19 +90,18 @@ export const deleteAccount = (user: User) => {
   })
 }
 
-export const resetPassword = (user: User) => {
+export const resetPassword = (user: User, newPassword: string) => {
   console.log('resetPassword', user) ////
 
   const loginStore = useLoginStore()
 
-  ////
-  // return axios.post(
-  //   `${API_URL}/accounts/${user.id}/reset-password`,
-  //   {},
-  //   {
-  //     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
-  //   },
-  // )
+  return axios.patch(
+    `${API_URL}/accounts/${user.id}/password`,
+    { password: newPassword },
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
 }
 
 export const searchStringInUser = (searchString: string, user: User): boolean => {

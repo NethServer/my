@@ -18,7 +18,6 @@ export const isValidationErrorCode = (errorCode: number) => {
   return [400, 409, 422].includes(errorCode)
 }
 
-////
 export const getValidationIssues = (axiosError: AxiosError, i18nPrefix: string): ValidationIssue => {
   console.log('getValidationIssues', axiosError) ////
 
