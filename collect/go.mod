@@ -11,14 +11,12 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
-	github.com/nethesis/my/backend v0.0.0-00010101000000-000000000000
+	github.com/nethesis/my/backend v0.0.4
 	github.com/r3labs/diff/v3 v3.0.1
 	github.com/redis/go-redis/v9 v9.11.0
 	github.com/rs/zerolog v1.34.0
 	gopkg.in/yaml.v3 v3.0.1
 )
-
-replace github.com/nethesis/my/backend => ../backend
 
 require (
 	github.com/bytedance/sonic v1.13.3 // indirect
