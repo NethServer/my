@@ -8,7 +8,7 @@ import { NeSideDrawer, NeEmptyState } from '@nethesis/vue-components'
 import { NeToastNotification } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useNotificationsStore } from '@/stores/notifications'
-import { isEmpty } from 'lodash-es'
+import isEmpty from 'lodash/isEmpty'
 import { faBell } from '@fortawesome/free-solid-svg-icons'
 
 //// review

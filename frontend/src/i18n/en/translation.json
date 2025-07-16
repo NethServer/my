@@ -30,7 +30,9 @@
     "object_saved_successfully": "{name} saved successfully",
     "object_deleted_successfully": "{name} deleted successfully",
     "updating": "Updating...",
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "show": "Show",
+    "hide": "Hide"
   },
   "shell": {
     "open_sidebar": "Open sidebar",
@@ -187,20 +189,29 @@
     "cannot_save_user": "Cannot save user",
     "cannot_delete_user": "Cannot delete user",
     "delete_user": "Delete user",
-    "delete_user_confirmation": "Are you sure you want to delete user '{name}'? This action cannot be undone.",
+    "delete_user_confirmation": "Are you sure you want to delete user {name}? This action cannot be undone.",
     "no_user": "No users",
     "phone_number": "Phone number",
     "no_organizations": "No organizations",
     "user_roles": "Roles",
     "reset_password": "Reset password",
-    "reset_password_confirmation": "Reset the password for user '{name}'? This will update the user's sign-in information.",
+    "reset_password_confirmation": "Reset the password for user {name}? This will update the user's sign-in information.",
     "password_reset": "Password reset",
     "password_reset_description": "The password for user {name} has been reset",
     "cannot_reset_password": "Cannot reset password",
-    "phone_invalid_format": "Invalid phone number format"
+    "phone_invalid_format": "Invalid phone number format",
+    "the_password_has_been_reset": "The password has been reset",
+    "credentials_updated_description": "The credentials for user {name} have been updated",
+    "copy_credentials": "Copy credentials",
+    "credentials_copied": "User credentials copied",
+    "credentials_copied_description": "The credentials for user {name} have been copied to the clipboard"
   },
   "third_party_apps": {
     "description_example_company_com": "Description ////"
+  },
+  "ne_text_input": {
+    "show_password": "Show password",
+    "hide_password": "Hide password"
   },
   "ne_table": {
     "no_items": "No items",

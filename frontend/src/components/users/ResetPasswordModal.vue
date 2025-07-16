@@ -7,20 +7,25 @@
 import { NeInlineNotification } from '@nethesis/vue-components'
 import { NeModal } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
-import { useMutation, useQueryCache } from '@pinia/colada'
+import { useMutation } from '@pinia/colada'
 import { resetPassword, type User } from '@/lib/users'
 import { useNotificationsStore } from '@/stores/notifications'
+import { generateSimplePassword } from '@/lib/password'
+import { ref } from 'vue'
 
 const { visible = false, user = undefined } = defineProps<{
   visible: boolean
   user: User | undefined
 }>()
 
-const emit = defineEmits(['close'])
+const emit = defineEmits<{
+  close: []
+  'password-changed': [newPassword: string]
+}>()
 
 const { t } = useI18n()
 const notificationsStore = useNotificationsStore()
-const queryCache = useQueryCache()
+const newPassword = ref<string>('')
 
 const {
   mutate: resetPasswordMutate,
@@ -29,7 +34,8 @@ const {
   error: resetPasswordError,
 } = useMutation({
   mutation: (user: User) => {
-    return resetPassword(user)
+    newPassword.value = generateSimplePassword()
+    return resetPassword(user, newPassword.value)
   },
   onSuccess(data, vars) {
     // show success notification after modal closes
@@ -42,10 +48,10 @@ const {
         }),
       })
     }, 500)
-
+    emit('password-changed', newPassword.value)
     emit('close')
   },
-  onError: (error, variables) => {
+  onError: (error) => {
     console.error('Error resetting password:', error)
   },
 })
