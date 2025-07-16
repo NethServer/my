@@ -105,7 +105,6 @@ Systems → POST /api/systems/inventory → Collect API → Redis Queue → Work
 4. **PostgreSQL Database**
    - `inventory_records` - Stored inventory snapshots
    - `inventory_diffs` - Computed changes between snapshots
-   - `inventory_monitoring` - Monitoring rules and thresholds
    - `inventory_alerts` - Generated alerts and notifications
 
 ## 🛠️ Development Setup
@@ -197,7 +196,6 @@ The application automatically creates all necessary database tables on startup:
 
 - **inventory_records**: Stores system inventory snapshots
 - **inventory_diffs**: Records changes between inventory versions
-- **inventory_monitoring**: Defines monitoring rules and thresholds
 - **inventory_alerts**: Tracks generated alerts and notifications
 
 ### **Queue Configuration**

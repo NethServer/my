@@ -22,124 +22,139 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// CleanupProcessor handles cleanup of old inventory data and maintenance tasks
-type CleanupProcessor struct {
+// CleanupWorker handles cleanup of old inventory data and maintenance tasks
+type CleanupWorker struct {
 	id           int
 	isHealthy    int32
 	lastActivity time.Time
 	mu           sync.RWMutex
 }
 
-// NewCleanupProcessor creates a new cleanup processor
-func NewCleanupProcessor(id int) *CleanupProcessor {
-	return &CleanupProcessor{
+// NewCleanupWorker creates a new cleanup worker
+func NewCleanupWorker(id int) *CleanupWorker {
+	return &CleanupWorker{
 		id:           id,
 		isHealthy:    1,
 		lastActivity: time.Now(),
 	}
 }
 
-// Start starts the cleanup processor
-func (cp *CleanupProcessor) Start(ctx context.Context, wg *sync.WaitGroup) error {
+// Start starts the cleanup worker
+func (cw *CleanupWorker) Start(ctx context.Context, wg *sync.WaitGroup) error {
 	wg.Add(1)
-	go cp.worker(ctx, wg)
+	go cw.worker(ctx, wg)
 	return nil
 }
 
-// Name returns the processor name
-func (cp *CleanupProcessor) Name() string {
-	return "cleanup-processor"
+// Name returns the worker name
+func (cw *CleanupWorker) Name() string {
+	return "cleanup-worker"
 }
 
-// IsHealthy returns the health status
-func (cp *CleanupProcessor) IsHealthy() bool {
-	return atomic.LoadInt32(&cp.isHealthy) == 1
+// IsHealthy returns health status
+func (cw *CleanupWorker) IsHealthy() bool {
+	return atomic.LoadInt32(&cw.isHealthy) == 1
 }
 
-// worker runs the cleanup tasks periodically
-func (cp *CleanupProcessor) worker(ctx context.Context, wg *sync.WaitGroup) {
+// worker runs cleanup operations periodically
+func (cw *CleanupWorker) worker(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	workerLogger := logger.ComponentLogger("cleanup-worker")
+	workerLogger := logger.ComponentLogger("cleanup-worker").
+		With().
+		Int("worker_id", cw.id).
+		Logger()
+
 	workerLogger.Info().Msg("Cleanup worker started")
 
-	ticker := time.NewTicker(configuration.Config.InventoryCleanupInterval)
+	// Run cleanup every hour
+	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
 
-	// Run initial cleanup after a short delay
-	initialTimer := time.NewTimer(30 * time.Second)
+	// Run initial cleanup after 5 minutes
+	initialTimer := time.NewTimer(5 * time.Minute)
 	defer initialTimer.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
-			workerLogger.Info().Msg("Cleanup worker stopping")
+			workerLogger.Info().Msg("Cleanup worker stopped")
 			return
+
 		case <-initialTimer.C:
-			// Run initial cleanup
-			cp.runCleanupTasks(ctx, workerLogger)
+			cw.runCleanup(ctx, &workerLogger)
+
 		case <-ticker.C:
-			// Run periodic cleanup
-			cp.runCleanupTasks(ctx, workerLogger)
+			cw.runCleanup(ctx, &workerLogger)
 		}
 	}
 }
 
-// runCleanupTasks executes all cleanup tasks
-func (cp *CleanupProcessor) runCleanupTasks(ctx context.Context, workerLogger *zerolog.Logger) {
-	cp.mu.Lock()
-	cp.lastActivity = time.Now()
-	cp.mu.Unlock()
+// runCleanup runs all cleanup operations
+func (cw *CleanupWorker) runCleanup(ctx context.Context, workerLogger *zerolog.Logger) {
+	start := time.Now()
 
-	workerLogger.Info().Msg("Running cleanup tasks")
+	// Update activity timestamp
+	cw.mu.Lock()
+	cw.lastActivity = time.Now()
+	cw.mu.Unlock()
 
-	// Cleanup old inventory records
-	if err := cp.cleanupOldInventoryRecords(ctx, workerLogger); err != nil {
+	workerLogger.Info().Msg("Starting cleanup operations")
+
+	// Run cleanup operations
+	if err := cw.cleanupOldInventoryRecords(ctx, workerLogger); err != nil {
 		workerLogger.Error().Err(err).Msg("Failed to cleanup old inventory records")
-		atomic.StoreInt32(&cp.isHealthy, 0)
+		atomic.StoreInt32(&cw.isHealthy, 0)
 		return
 	}
 
-	// Cleanup old inventory diffs
-	if err := cp.cleanupOldInventoryDiffs(ctx, workerLogger); err != nil {
+	if err := cw.cleanupOldInventoryDiffs(ctx, workerLogger); err != nil {
 		workerLogger.Error().Err(err).Msg("Failed to cleanup old inventory diffs")
-		atomic.StoreInt32(&cp.isHealthy, 0)
+		atomic.StoreInt32(&cw.isHealthy, 0)
 		return
 	}
 
-	// Cleanup resolved alerts
-	if err := cp.cleanupResolvedAlerts(ctx, workerLogger); err != nil {
+	if err := cw.cleanupResolvedAlerts(ctx, workerLogger); err != nil {
 		workerLogger.Error().Err(err).Msg("Failed to cleanup resolved alerts")
-		atomic.StoreInt32(&cp.isHealthy, 0)
+		atomic.StoreInt32(&cw.isHealthy, 0)
 		return
 	}
 
-	// Vacuum analyze databases for performance
-	if err := cp.vacuumAnalyze(ctx, workerLogger); err != nil {
-		workerLogger.Error().Err(err).Msg("Failed to vacuum analyze database")
-		// Don't mark as unhealthy for vacuum failures
+	if err := cw.vacuumAnalyze(ctx, workerLogger); err != nil {
+		workerLogger.Error().Err(err).Msg("Failed to vacuum analyze tables")
+		atomic.StoreInt32(&cw.isHealthy, 0)
+		return
 	}
 
-	atomic.StoreInt32(&cp.isHealthy, 1)
-	workerLogger.Info().Msg("Cleanup tasks completed successfully")
+	atomic.StoreInt32(&cw.isHealthy, 1)
+
+	duration := time.Since(start)
+	workerLogger.Info().
+		Dur("duration", duration).
+		Msg("Cleanup operations completed")
 }
 
-// cleanupOldInventoryRecords removes inventory records older than the configured age
-func (cp *CleanupProcessor) cleanupOldInventoryRecords(ctx context.Context, workerLogger *zerolog.Logger) error {
-	// Keep at least 10 records per system, regardless of age
-	maxAgeHours := int(configuration.Config.InventoryMaxAge.Hours())
-	query := fmt.Sprintf(`
+// cleanupOldInventoryRecords removes old inventory records but keeps at least 5 per system
+func (cw *CleanupWorker) cleanupOldInventoryRecords(ctx context.Context, workerLogger *zerolog.Logger) error {
+	maxAge := configuration.Config.InventoryMaxAge
+	maxAgeHours := int(maxAge.Hours())
+
+	// Use a more complex query that keeps at least 5 records per system
+	// even if they're older than the max age
+	query := `
 		DELETE FROM inventory_records 
 		WHERE id IN (
 			SELECT id FROM (
 				SELECT id, 
-				       ROW_NUMBER() OVER (PARTITION BY system_id ORDER BY timestamp DESC) as rn
-				FROM inventory_records 
+					   ROW_NUMBER() OVER (PARTITION BY system_id ORDER BY created_at DESC) as row_num
+				FROM inventory_records
 				WHERE created_at < NOW() - INTERVAL '%d hours'
-			) ranked 
-			WHERE rn > 10
+			) ranked
+			WHERE row_num > 5
 		)
-	`, maxAgeHours)
+	`
+
+	query = fmt.Sprintf(query, maxAgeHours)
 
 	result, err := database.DB.ExecContext(ctx, query)
 	if err != nil {
@@ -154,17 +169,19 @@ func (cp *CleanupProcessor) cleanupOldInventoryRecords(ctx context.Context, work
 	if rowsAffected > 0 {
 		workerLogger.Info().
 			Int64("rows_deleted", rowsAffected).
-			Int("max_age_hours", maxAgeHours).
-			Msg("Cleaned up old inventory records")
+			Dur("max_age", maxAge).
+			Msg("Cleaned up old inventory records (kept at least 5 per system)")
 	}
 
 	return nil
 }
 
-// cleanupOldInventoryDiffs removes old diff records
-func (cp *CleanupProcessor) cleanupOldInventoryDiffs(ctx context.Context, workerLogger *zerolog.Logger) error {
-	// Remove diffs older than max age, but keep critical and high severity diffs longer
-	maxAgeHours := int(configuration.Config.InventoryMaxAge.Hours())
+// cleanupOldInventoryDiffs removes old inventory diffs
+func (cw *CleanupWorker) cleanupOldInventoryDiffs(ctx context.Context, workerLogger *zerolog.Logger) error {
+	maxAge := configuration.Config.InventoryMaxAge
+	maxAgeHours := int(maxAge.Hours())
+
+	// Remove low/medium severity diffs after configured period
 	query := fmt.Sprintf(`
 		DELETE FROM inventory_diffs 
 		WHERE created_at < NOW() - INTERVAL '%d hours'
@@ -215,7 +232,7 @@ func (cp *CleanupProcessor) cleanupOldInventoryDiffs(ctx context.Context, worker
 }
 
 // cleanupResolvedAlerts removes old resolved alerts
-func (cp *CleanupProcessor) cleanupResolvedAlerts(ctx context.Context, workerLogger *zerolog.Logger) error {
+func (cw *CleanupWorker) cleanupResolvedAlerts(ctx context.Context, workerLogger *zerolog.Logger) error {
 	// Remove resolved alerts older than 30 days
 	query := `
 		DELETE FROM inventory_alerts 
@@ -243,7 +260,7 @@ func (cp *CleanupProcessor) cleanupResolvedAlerts(ctx context.Context, workerLog
 }
 
 // vacuumAnalyze runs VACUUM ANALYZE on tables for performance optimization
-func (cp *CleanupProcessor) vacuumAnalyze(ctx context.Context, workerLogger *zerolog.Logger) error {
+func (cw *CleanupWorker) vacuumAnalyze(ctx context.Context, workerLogger *zerolog.Logger) error {
 	tables := []string{
 		"inventory_records",
 		"inventory_diffs",
@@ -270,14 +287,14 @@ func (cp *CleanupProcessor) vacuumAnalyze(ctx context.Context, workerLogger *zer
 }
 
 // GetStats returns cleanup worker statistics
-func (cp *CleanupProcessor) GetStats() map[string]interface{} {
-	cp.mu.RLock()
-	defer cp.mu.RUnlock()
+func (cw *CleanupWorker) GetStats() map[string]interface{} {
+	cw.mu.RLock()
+	defer cw.mu.RUnlock()
 
 	return map[string]interface{}{
-		"last_activity":    cp.lastActivity,
-		"is_healthy":       cp.IsHealthy(),
-		"cleanup_interval": configuration.Config.InventoryCleanupInterval.String(),
+		"last_activity":    cw.lastActivity,
+		"is_healthy":       cw.IsHealthy(),
+		"cleanup_interval": "1h",
 		"max_age":          configuration.Config.InventoryMaxAge.String(),
 	}
 }

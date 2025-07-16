@@ -11,7 +11,7 @@ categorization:
       - "kernel"
       - "system_uptime"
     description: "Operating system related changes"
-    
+
   # Hardware category
   hardware:
     patterns:
@@ -20,7 +20,7 @@ categorization:
       - "memory"
       - "mountpoints"
     description: "Hardware and system components"
-    
+
   # Network category
   network:
     patterns:
@@ -29,7 +29,7 @@ categorization:
       - "public_ip"
       - "arp_macs"
     description: "Network configuration and connectivity"
-    
+
   # Features and services
   features:
     patterns:
@@ -37,7 +37,7 @@ categorization:
       - "services."
       - "esmithdb.configuration"
     description: "Software features and services"
-    
+
   # Security-related
   security:
     patterns:
@@ -46,7 +46,7 @@ categorization:
       - "firewall"
       - "vpn"
     description: "Security configurations and certificates"
-    
+
   # Performance monitoring
   performance:
     patterns:
@@ -54,7 +54,7 @@ categorization:
       - "metrics"
       - "monitoring"
     description: "Performance and monitoring data"
-    
+
   # Default category for unmatched patterns
   default:
     name: "system"
@@ -78,13 +78,14 @@ severity:
           - "failed"
           - "critical"
     description: "Critical changes requiring immediate attention"
-    
+
   # High severity - important changes
   high:
     conditions:
       - change_type: "update"
         patterns:
           - "os.version"
+          - "os.release.full"
           - "kernel"
           - "public_ip"
           - "certificates"
@@ -93,7 +94,7 @@ severity:
           - "warning"
           - "alert"
     description: "Important changes requiring attention"
-    
+
   # Medium severity - moderate changes
   medium:
     conditions:
@@ -107,7 +108,7 @@ severity:
           - "info"
           - "notice"
     description: "Moderate changes for review"
-    
+
   # Low severity - minor changes
   low:
     conditions:
@@ -121,7 +122,7 @@ severity:
           - "debug"
           - "trace"
     description: "Minor changes for reference"
-    
+
   # Default severity for unmatched patterns
   default:
     level: "medium"
@@ -135,14 +136,14 @@ significance:
     - "severity:(high|critical)"
     - "category:(hardware|network|security)"
     - "change_type:delete"
-    
+
   # Never significant patterns (noise reduction)
   never_significant:
     - "system_uptime"
     - "metrics.timestamp"
     - "performance.last_update"
     - "monitoring.heartbeat"
-    
+
   # Time-based significance
   time_filters:
     # Ignore frequent changes within time windows
@@ -151,7 +152,7 @@ significance:
         window_seconds: 300  # 5 minutes
       - pattern: "performance"
         window_seconds: 600  # 10 minutes
-        
+
   # Value-based significance
   value_filters:
     # Ignore changes below certain thresholds
@@ -160,7 +161,7 @@ significance:
         threshold_percent: 5
       - pattern: "disk.usage"
         threshold_percent: 10
-        
+
   # Default significance for unmatched patterns
   default:
     significant: true
@@ -171,13 +172,13 @@ limits:
   max_diff_depth: 10        # Maximum depth for diff processing
   max_diffs_per_run: 1000   # Maximum diffs to process in one run
   max_field_path_length: 500 # Maximum length of field paths
-  
+
 # Trend analysis
 trends:
   enabled: true
   window_hours: 24          # Time window for trend analysis
   min_occurrences: 3        # Minimum occurrences to consider a trend
-  
+
 # Notification thresholds
 notifications:
   # Group similar changes to reduce noise
@@ -185,7 +186,7 @@ notifications:
     enabled: true
     time_window_minutes: 30
     max_group_size: 10
-    
+
   # Rate limiting
   rate_limiting:
     enabled: true

@@ -25,8 +25,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// NotificationProcessor handles sending notifications for inventory changes
-type NotificationProcessor struct {
+// NotificationWorker handles sending notifications for inventory changes
+type NotificationWorker struct {
 	id            int
 	workerCount   int
 	queueManager  *queue.QueueManager
@@ -37,9 +37,9 @@ type NotificationProcessor struct {
 	mu            sync.RWMutex
 }
 
-// NewNotificationProcessor creates a new notification processor
-func NewNotificationProcessor(id, workerCount int) *NotificationProcessor {
-	return &NotificationProcessor{
+// NewNotificationWorker creates a new notification worker
+func NewNotificationWorker(id, workerCount int) *NotificationWorker {
+	return &NotificationWorker{
 		id:           id,
 		workerCount:  workerCount,
 		queueManager: queue.NewQueueManager(),
@@ -48,52 +48,52 @@ func NewNotificationProcessor(id, workerCount int) *NotificationProcessor {
 	}
 }
 
-// Start starts the notification processor workers
-func (np *NotificationProcessor) Start(ctx context.Context, wg *sync.WaitGroup) error {
+// Start starts the notification worker workers
+func (nw *NotificationWorker) Start(ctx context.Context, wg *sync.WaitGroup) error {
 	// Start multiple worker goroutines
-	for i := 0; i < np.workerCount; i++ {
+	for i := 0; i < nw.workerCount; i++ {
 		wg.Add(1)
-		go np.worker(ctx, wg, i+1)
+		go nw.worker(ctx, wg, i+1)
 	}
 
 	// Start health monitor
 	wg.Add(1)
-	go np.healthMonitor(ctx, wg)
+	go nw.healthMonitor(ctx, wg)
 
 	return nil
 }
 
 // Name returns the worker name
-func (np *NotificationProcessor) Name() string {
-	return fmt.Sprintf("notification-processor-%d", np.id)
+func (nw *NotificationWorker) Name() string {
+	return fmt.Sprintf("notification-worker-%d", nw.id)
 }
 
 // IsHealthy returns the health status
-func (np *NotificationProcessor) IsHealthy() bool {
-	return atomic.LoadInt32(&np.isHealthy) == 1
+func (nw *NotificationWorker) IsHealthy() bool {
+	return atomic.LoadInt32(&nw.isHealthy) == 1
 }
 
 // worker processes notification messages from the queue
-func (np *NotificationProcessor) worker(ctx context.Context, wg *sync.WaitGroup, workerID int) {
+func (nw *NotificationWorker) worker(ctx context.Context, wg *sync.WaitGroup, workerID int) {
 	defer wg.Done()
 
-	workerLogger := logger.ComponentLogger("notification-processor").
+	workerLogger := logger.ComponentLogger("notification-worker").
 		With().
 		Int("worker_id", workerID).
 		Logger()
 
-	workerLogger.Info().Msg("Notification processor worker started")
+	workerLogger.Info().Msg("Notification worker started")
 
 	for {
 		select {
 		case <-ctx.Done():
-			workerLogger.Info().Msg("Notification processor worker stopping")
+			workerLogger.Info().Msg("Notification worker stopping")
 			return
 		default:
 			// Process messages from queue
-			if err := np.processNextMessage(ctx, &workerLogger); err != nil {
+			if err := nw.processNextMessage(ctx, &workerLogger); err != nil {
 				workerLogger.Error().Err(err).Msg("Error processing notification message")
-				atomic.AddInt64(&np.failedJobs, 1)
+				atomic.AddInt64(&nw.failedJobs, 1)
 
 				// Brief pause on error to prevent tight error loops
 				time.Sleep(1 * time.Second)
@@ -103,14 +103,14 @@ func (np *NotificationProcessor) worker(ctx context.Context, wg *sync.WaitGroup,
 }
 
 // processNextMessage processes the next message from the notification queue
-func (np *NotificationProcessor) processNextMessage(ctx context.Context, workerLogger *zerolog.Logger) error {
+func (nw *NotificationWorker) processNextMessage(ctx context.Context, workerLogger *zerolog.Logger) error {
 	// Update activity timestamp
-	np.mu.Lock()
-	np.lastActivity = time.Now()
-	np.mu.Unlock()
+	nw.mu.Lock()
+	nw.lastActivity = time.Now()
+	nw.mu.Unlock()
 
 	// Get message from queue with timeout
-	message, err := np.queueManager.DequeueMessage(ctx, configuration.Config.QueueNotificationName, 5*time.Second)
+	message, err := nw.queueManager.DequeueMessage(ctx, configuration.Config.QueueNotificationName, 5*time.Second)
 	if err != nil {
 		return fmt.Errorf("failed to dequeue message: %w", err)
 	}
@@ -131,9 +131,9 @@ func (np *NotificationProcessor) processNextMessage(ctx context.Context, workerL
 	}
 
 	// Process the notification
-	if err := np.processNotification(ctx, &job, workerLogger); err != nil {
+	if err := nw.processNotification(ctx, &job, workerLogger); err != nil {
 		// Requeue the message for retry
-		if requeueErr := np.queueManager.RequeueMessage(ctx, configuration.Config.QueueNotificationName, message, err); requeueErr != nil {
+		if requeueErr := nw.queueManager.RequeueMessage(ctx, configuration.Config.QueueNotificationName, message, err); requeueErr != nil {
 			workerLogger.Error().
 				Err(requeueErr).
 				Str("message_id", message.ID).
@@ -142,7 +142,7 @@ func (np *NotificationProcessor) processNextMessage(ctx context.Context, workerL
 		return fmt.Errorf("failed to process notification: %w", err)
 	}
 
-	atomic.AddInt64(&np.processedJobs, 1)
+	atomic.AddInt64(&nw.processedJobs, 1)
 	workerLogger.Debug().
 		Str("system_id", job.SystemID).
 		Str("message_id", message.ID).
@@ -153,21 +153,21 @@ func (np *NotificationProcessor) processNextMessage(ctx context.Context, workerL
 }
 
 // processNotification processes a single notification job
-func (np *NotificationProcessor) processNotification(ctx context.Context, job *models.NotificationJob, workerLogger *zerolog.Logger) error {
+func (nw *NotificationWorker) processNotification(ctx context.Context, job *models.NotificationJob, workerLogger *zerolog.Logger) error {
 	switch job.Type {
 	case "diff":
-		return np.processDiffNotification(ctx, job, workerLogger)
+		return nw.processDiffNotification(ctx, job, workerLogger)
 	case "alert":
-		return np.processAlertNotification(ctx, job, workerLogger)
+		return nw.processAlertNotification(ctx, job, workerLogger)
 	case "system_status":
-		return np.processSystemStatusNotification(ctx, job, workerLogger)
+		return nw.processSystemStatusNotification(ctx, job, workerLogger)
 	default:
 		return fmt.Errorf("unknown notification type: %s", job.Type)
 	}
 }
 
 // processDiffNotification processes notifications for inventory differences
-func (np *NotificationProcessor) processDiffNotification(ctx context.Context, job *models.NotificationJob, workerLogger *zerolog.Logger) error {
+func (nw *NotificationWorker) processDiffNotification(ctx context.Context, job *models.NotificationJob, workerLogger *zerolog.Logger) error {
 	if len(job.Diffs) == 0 {
 		return fmt.Errorf("no diffs provided for diff notification")
 	}
@@ -179,7 +179,7 @@ func (np *NotificationProcessor) processDiffNotification(ctx context.Context, jo
 	}
 
 	// Format notification message
-	message := np.formatDiffNotificationMessage(job.SystemID, categoryGroups, job.Severity)
+	message := nw.formatDiffNotificationMessage(job.SystemID, categoryGroups, job.Severity)
 
 	// Log the notification (for now, we'll just log instead of actually sending)
 	workerLogger.Info().
@@ -191,16 +191,16 @@ func (np *NotificationProcessor) processDiffNotification(ctx context.Context, jo
 		Msg("Inventory change notification")
 
 	// Mark diffs as notification sent
-	if err := np.markDiffsNotificationSent(ctx, job.Diffs); err != nil {
+	if err := nw.markDiffsNotificationSent(ctx, job.Diffs); err != nil {
 		return fmt.Errorf("failed to mark diffs as notified: %w", err)
 	}
 
 	// This could be extended to support different notification channels
-	return np.sendNotification(ctx, job.SystemID, message, job.Severity, workerLogger)
+	return nw.sendNotification(ctx, job.SystemID, message, job.Severity, workerLogger)
 }
 
 // processAlertNotification processes alert notifications
-func (np *NotificationProcessor) processAlertNotification(ctx context.Context, job *models.NotificationJob, workerLogger *zerolog.Logger) error {
+func (nw *NotificationWorker) processAlertNotification(ctx context.Context, job *models.NotificationJob, workerLogger *zerolog.Logger) error {
 	if job.Alert == nil {
 		return fmt.Errorf("no alert provided for alert notification")
 	}
@@ -215,11 +215,11 @@ func (np *NotificationProcessor) processAlertNotification(ctx context.Context, j
 		Str("message", message).
 		Msg("Alert notification")
 
-	return np.sendNotification(ctx, job.SystemID, message, job.Alert.Severity, workerLogger)
+	return nw.sendNotification(ctx, job.SystemID, message, job.Alert.Severity, workerLogger)
 }
 
 // processSystemStatusNotification processes system status change notifications
-func (np *NotificationProcessor) processSystemStatusNotification(ctx context.Context, job *models.NotificationJob, workerLogger *zerolog.Logger) error {
+func (nw *NotificationWorker) processSystemStatusNotification(ctx context.Context, job *models.NotificationJob, workerLogger *zerolog.Logger) error {
 	message := fmt.Sprintf("System status change for %s: %s", job.SystemID, job.Message)
 
 	workerLogger.Info().
@@ -228,13 +228,13 @@ func (np *NotificationProcessor) processSystemStatusNotification(ctx context.Con
 		Str("message", message).
 		Msg("System status notification")
 
-	return np.sendNotification(ctx, job.SystemID, message, job.Severity, workerLogger)
+	return nw.sendNotification(ctx, job.SystemID, message, job.Severity, workerLogger)
 }
 
 // formatDiffNotificationMessage formats a human-readable notification message for diffs
-func (np *NotificationProcessor) formatDiffNotificationMessage(systemID string, categoryGroups map[string][]models.InventoryDiff, severity string) string {
+func (nw *NotificationWorker) formatDiffNotificationMessage(systemID string, categoryGroups map[string][]models.InventoryDiff, severity string) string {
 	message := fmt.Sprintf("System %s has %d inventory changes (Severity: %s):\n",
-		systemID, np.countTotalDiffs(categoryGroups), severity)
+		systemID, nw.countTotalDiffs(categoryGroups), severity)
 
 	for category, diffs := range categoryGroups {
 		message += fmt.Sprintf("\n%s (%d changes):\n", category, len(diffs))
@@ -269,7 +269,7 @@ func (np *NotificationProcessor) formatDiffNotificationMessage(systemID string, 
 }
 
 // countTotalDiffs counts total diffs across all categories
-func (np *NotificationProcessor) countTotalDiffs(categoryGroups map[string][]models.InventoryDiff) int {
+func (nw *NotificationWorker) countTotalDiffs(categoryGroups map[string][]models.InventoryDiff) int {
 	total := 0
 	for _, diffs := range categoryGroups {
 		total += len(diffs)
@@ -278,7 +278,7 @@ func (np *NotificationProcessor) countTotalDiffs(categoryGroups map[string][]mod
 }
 
 // markDiffsNotificationSent marks diffs as having notifications sent
-func (np *NotificationProcessor) markDiffsNotificationSent(ctx context.Context, diffs []models.InventoryDiff) error {
+func (nw *NotificationWorker) markDiffsNotificationSent(ctx context.Context, diffs []models.InventoryDiff) error {
 	if len(diffs) == 0 {
 		return nil
 	}
@@ -296,7 +296,7 @@ func (np *NotificationProcessor) markDiffsNotificationSent(ctx context.Context, 
 		}
 
 		batch := diffs[i:end]
-		if err := np.markDiffBatch(ctx, batch); err != nil {
+		if err := nw.markDiffBatch(ctx, batch); err != nil {
 			return fmt.Errorf("failed to mark diff batch %d-%d: %w", i, end, err)
 		}
 	}
@@ -305,7 +305,7 @@ func (np *NotificationProcessor) markDiffsNotificationSent(ctx context.Context, 
 }
 
 // markDiffBatch marks a batch of diffs as notified using prepared statement
-func (np *NotificationProcessor) markDiffBatch(ctx context.Context, diffs []models.InventoryDiff) error {
+func (nw *NotificationWorker) markDiffBatch(ctx context.Context, diffs []models.InventoryDiff) error {
 	if len(diffs) == 0 {
 		return nil
 	}
@@ -329,7 +329,7 @@ func (np *NotificationProcessor) markDiffBatch(ctx context.Context, diffs []mode
 }
 
 // sendNotification sends the actual notification (placeholder implementation)
-func (np *NotificationProcessor) sendNotification(ctx context.Context, systemID, message, severity string, workerLogger *zerolog.Logger) error {
+func (nw *NotificationWorker) sendNotification(ctx context.Context, systemID, message, severity string, workerLogger *zerolog.Logger) error {
 	// This could include:
 	// - Email notifications
 	// - Webhook calls
@@ -349,8 +349,8 @@ func (np *NotificationProcessor) sendNotification(ctx context.Context, systemID,
 	return nil
 }
 
-// healthMonitor monitors the health of the notification processor
-func (np *NotificationProcessor) healthMonitor(ctx context.Context, wg *sync.WaitGroup) {
+// healthMonitor monitors the health of the notification worker
+func (nw *NotificationWorker) healthMonitor(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	ticker := time.NewTicker(configuration.Config.WorkerHeartbeatInterval)
@@ -361,39 +361,39 @@ func (np *NotificationProcessor) healthMonitor(ctx context.Context, wg *sync.Wai
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			np.checkHealth()
+			nw.checkHealth()
 		}
 	}
 }
 
-// checkHealth checks the health of the processor
-func (np *NotificationProcessor) checkHealth() {
-	np.mu.RLock()
-	lastActivity := np.lastActivity
-	np.mu.RUnlock()
+// checkHealth checks the health of the worker
+func (nw *NotificationWorker) checkHealth() {
+	nw.mu.RLock()
+	lastActivity := nw.lastActivity
+	nw.mu.RUnlock()
 
 	// Consider unhealthy if no activity for too long
 	if time.Since(lastActivity) > 5*configuration.Config.WorkerHeartbeatInterval {
-		atomic.StoreInt32(&np.isHealthy, 0)
+		atomic.StoreInt32(&nw.isHealthy, 0)
 		logger.Warn().
-			Str("worker", np.Name()).
+			Str("worker", nw.Name()).
 			Time("last_activity", lastActivity).
 			Msg("Worker marked as unhealthy due to inactivity")
 	} else {
-		atomic.StoreInt32(&np.isHealthy, 1)
+		atomic.StoreInt32(&nw.isHealthy, 1)
 	}
 }
 
-// GetStats returns processor statistics
-func (np *NotificationProcessor) GetStats() map[string]interface{} {
-	np.mu.RLock()
-	defer np.mu.RUnlock()
+// GetStats returns worker statistics
+func (nw *NotificationWorker) GetStats() map[string]interface{} {
+	nw.mu.RLock()
+	defer nw.mu.RUnlock()
 
 	return map[string]interface{}{
-		"worker_count":   np.workerCount,
-		"processed_jobs": atomic.LoadInt64(&np.processedJobs),
-		"failed_jobs":    atomic.LoadInt64(&np.failedJobs),
-		"last_activity":  np.lastActivity,
-		"is_healthy":     np.IsHealthy(),
+		"worker_count":   nw.workerCount,
+		"processed_jobs": atomic.LoadInt64(&nw.processedJobs),
+		"failed_jobs":    atomic.LoadInt64(&nw.failedJobs),
+		"last_activity":  nw.lastActivity,
+		"is_healthy":     nw.IsHealthy(),
 	}
 }

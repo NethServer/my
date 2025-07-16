@@ -12,7 +12,6 @@ package methods
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -78,8 +77,6 @@ func CollectInventory(c *gin.Context) {
 		Data:      inventoryRequest.Data,
 	}
 
-	// System ID is automatically set from authentication context, no validation needed
-
 	// Validate inventory data
 	if err := inventoryData.ValidateInventoryData(); err != nil {
 		logger.Warn().
@@ -92,8 +89,6 @@ func CollectInventory(c *gin.Context) {
 		}))
 		return
 	}
-
-	// Timestamp is automatically set to current server time, no validation needed
 
 	// Quick validation of JSON structure
 	var testData interface{}
@@ -145,145 +140,4 @@ func CollectInventory(c *gin.Context) {
 		"queue_status": "queued",
 		"message":      "Your inventory data has been received and will be processed shortly",
 	}))
-}
-
-// GetInventoryStats returns statistics about inventory processing
-func GetInventoryStats(c *gin.Context) {
-	// This endpoint could be added to provide statistics
-
-	queueManager := queue.NewQueueManager()
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
-	defer cancel()
-
-	stats, err := queueManager.GetQueueStats(ctx)
-	if err != nil {
-		logger.Error().
-			Err(err).
-			Msg("Failed to get queue statistics")
-
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get statistics", nil))
-		return
-	}
-
-	c.JSON(http.StatusOK, response.OK("Queue statistics", stats))
-}
-
-// ValidateInventoryFormat validates the expected format of inventory data
-func ValidateInventoryFormat(c *gin.Context) {
-	// This endpoint can be used by systems to validate their data format
-	// before sending the actual inventory
-
-	var inventoryData models.InventoryData
-	if err := c.ShouldBindJSON(&inventoryData); err != nil {
-		c.JSON(http.StatusBadRequest, response.BadRequest("Invalid JSON payload", map[string]interface{}{
-			"error": err.Error(),
-		}))
-		return
-	}
-
-	// Validate inventory data
-	if err := inventoryData.ValidateInventoryData(); err != nil {
-		c.JSON(http.StatusBadRequest, response.BadRequest("Validation failed", map[string]interface{}{
-			"validation_error": err.Error(),
-		}))
-		return
-	}
-
-	// Additional structure validation
-	var testData interface{}
-	if err := json.Unmarshal(inventoryData.Data, &testData); err != nil {
-		c.JSON(http.StatusBadRequest, response.BadRequest("Invalid data structure", map[string]interface{}{
-			"error": "Data field must contain valid JSON",
-		}))
-		return
-	}
-
-	c.JSON(http.StatusOK, response.OK("Inventory format is valid", map[string]interface{}{
-		"system_id": inventoryData.SystemID,
-		"timestamp": inventoryData.Timestamp,
-		"data_size": len(inventoryData.Data),
-		"status":    "valid",
-	}))
-}
-
-// GetExpectedFormat returns the expected inventory data format
-func GetExpectedFormat(c *gin.Context) {
-	expectedFormat := map[string]interface{}{
-		"data": map[string]interface{}{
-			"description": "object (required) - Complete system inventory data",
-			"required_fields": map[string]string{
-				"os":         "Operating system information",
-				"networking": "Network configuration and status",
-				"processors": "CPU information",
-				"memory":     "Memory usage statistics",
-			},
-			"optional_fields": map[string]string{
-				"dmi":           "Hardware DMI information",
-				"features":      "System features and services",
-				"esmithdb":      "System configuration database",
-				"rpms":          "Installed packages",
-				"kernel":        "Kernel information",
-				"timezone":      "System timezone",
-				"public_ip":     "Public IP address",
-				"virtual":       "Virtualization status",
-				"mountpoints":   "Filesystem mount points",
-				"system_uptime": "System uptime information",
-			},
-		},
-		"example": map[string]interface{}{
-			"data": map[string]interface{}{
-				"os": map[string]interface{}{
-					"name":   "NethSec",
-					"type":   "nethsecurity",
-					"family": "OpenWRT",
-					"release": map[string]interface{}{
-						"full":  "8-24.10.0-ns.1.6.0-5-g0524860a0",
-						"major": 7,
-					},
-				},
-				"networking": map[string]interface{}{
-					"fqdn": "fw.nethesis.it",
-				},
-				"processors": map[string]interface{}{
-					"count":  "4",
-					"models": []string{"Intel(R) Core(TM) i5-4570S CPU @ 2.90GHz"},
-				},
-				"memory": map[string]interface{}{
-					"system": map[string]interface{}{
-						"total_bytes":     7352455168,
-						"used_bytes":      579198976,
-						"available_bytes": 7352455168,
-					},
-				},
-			},
-		},
-		"authentication": map[string]interface{}{
-			"method":   "HTTP Basic Authentication",
-			"username": "system_id (automatically populated from authentication)",
-			"password": "system_secret (provided during system registration)",
-			"note":     "system_id and timestamp are automatically set by the server",
-		},
-		"response": map[string]interface{}{
-			"success": map[string]interface{}{
-				"status_code": 202,
-				"message":     "Inventory received and queued for processing",
-			},
-			"error_codes": map[string]interface{}{
-				"400": "Invalid JSON payload or validation error",
-				"401": "Authentication required or invalid credentials",
-				"403": "System ID mismatch",
-				"413": "Request entity too large",
-				"500": "Internal server error",
-			},
-		},
-		"limits": map[string]interface{}{
-			"max_request_size": fmt.Sprintf("%d bytes (%.1f MB)",
-				configuration.Config.APIMaxRequestSize,
-				float64(configuration.Config.APIMaxRequestSize)/(1024*1024)),
-			"timestamp_tolerance": "24 hours in the past, 5 minutes in the future",
-			"processing_timeout":  configuration.Config.APIRequestTimeout.String(),
-		},
-	}
-
-	c.JSON(http.StatusOK, response.OK("Expected inventory format", expectedFormat))
 }

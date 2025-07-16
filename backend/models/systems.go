@@ -51,21 +51,3 @@ type UpdateSystemRequest struct {
 	CustomerID string            `json:"customer_id" structs:"customer_id"`
 	CustomData map[string]string `json:"custom_data" structs:"custom_data"`
 }
-
-// SystemSubscription represents subscription information for a system
-type SystemSubscription struct {
-	SystemID   string    `json:"system_id" structs:"system_id"`
-	Plan       string    `json:"plan" structs:"plan"`
-	Status     string    `json:"status" structs:"status"` // active, expired, suspended
-	StartDate  time.Time `json:"start_date" structs:"start_date"`
-	EndDate    time.Time `json:"end_date" structs:"end_date"`
-	Features   []string  `json:"features" structs:"features"`
-	MaxUsers   int       `json:"max_users" structs:"max_users"`
-	MaxStorage int64     `json:"max_storage" structs:"max_storage"` // in bytes
-}
-
-// SystemActionRequest represents request for system actions like restart, enable, etc.
-type SystemActionRequest struct {
-	Force   bool              `json:"force" structs:"force"`
-	Options map[string]string `json:"options" structs:"options"`
-}

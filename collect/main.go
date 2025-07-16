@@ -61,9 +61,9 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	workerManager := workers.NewScalableManager()
+	workerManager := workers.NewManager()
 	if err := workerManager.Start(ctx); err != nil {
-		logger.Fatal().Err(err).Msg("Failed to start scalable workers")
+		logger.Fatal().Err(err).Msg("Failed to start worker manager")
 	}
 
 	// Init router

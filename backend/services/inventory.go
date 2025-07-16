@@ -21,6 +21,18 @@ import (
 	collectModels "github.com/nethesis/my/collect/models"
 )
 
+// InventoryChangesSummary represents a summary of inventory changes for a system
+type InventoryChangesSummary struct {
+	SystemID           string         `json:"system_id"`
+	TotalChanges       int            `json:"total_changes"`
+	RecentChanges      int            `json:"recent_changes"`
+	LastInventoryTime  time.Time      `json:"last_inventory_time"`
+	HasCriticalChanges bool           `json:"has_critical_changes"`
+	HasAlerts          bool           `json:"has_alerts"`
+	ChangesByCategory  map[string]int `json:"changes_by_category"`
+	ChangesBySeverity  map[string]int `json:"changes_by_severity"`
+}
+
 // InventoryService handles inventory-related operations
 type InventoryService struct {
 	db *sql.DB
@@ -295,7 +307,7 @@ func (s *InventoryService) GetInventoryDiffs(systemID string, page, pageSize int
 }
 
 // GetChangesSummary returns a summary of changes for a system
-func (s *InventoryService) GetChangesSummary(systemID string) (*collectModels.InventoryChangesSummary, error) {
+func (s *InventoryService) GetChangesSummary(systemID string) (*InventoryChangesSummary, error) {
 	// Get latest inventory timestamp
 	var lastInventoryTime time.Time
 	err := s.db.QueryRow(`
@@ -398,7 +410,7 @@ func (s *InventoryService) GetChangesSummary(systemID string) (*collectModels.In
 		changesBySeverity[severity] = count
 	}
 
-	summary := &collectModels.InventoryChangesSummary{
+	summary := &InventoryChangesSummary{
 		SystemID:           systemID,
 		TotalChanges:       totalChanges,
 		RecentChanges:      recentChanges,
@@ -421,7 +433,7 @@ func (s *InventoryService) GetChangesSummary(systemID string) (*collectModels.In
 }
 
 // GetLatestInventoryChangesSummary returns a summary of changes from the most recent inventory processing batch
-func (s *InventoryService) GetLatestInventoryChangesSummary(systemID string) (*collectModels.InventoryChangesSummary, error) {
+func (s *InventoryService) GetLatestInventoryChangesSummary(systemID string) (*InventoryChangesSummary, error) {
 	// Get latest inventory timestamp and ID
 	var lastInventoryTime time.Time
 	var lastInventoryID int64
@@ -516,7 +528,7 @@ func (s *InventoryService) GetLatestInventoryChangesSummary(systemID string) (*c
 		changesBySeverity[severity] = count
 	}
 
-	summary := &collectModels.InventoryChangesSummary{
+	summary := &InventoryChangesSummary{
 		SystemID:           systemID,
 		TotalChanges:       totalChanges,
 		RecentChanges:      totalChanges, // For latest batch, all changes are "recent"

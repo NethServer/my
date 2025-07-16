@@ -70,21 +70,6 @@ type SystemCredentials struct {
 	UpdatedAt  time.Time  `json:"updated_at" db:"updated_at"`
 }
 
-// InventoryMonitoring represents monitoring rules for inventory changes
-type InventoryMonitoring struct {
-	ID          int64     `json:"id" db:"id"`
-	SystemID    *string   `json:"system_id" db:"system_id"` // null for global rules
-	FieldPath   string    `json:"field_path" db:"field_path"`
-	MonitorType string    `json:"monitor_type" db:"monitor_type"` // threshold, change, pattern
-	Threshold   *string   `json:"threshold" db:"threshold"`
-	Pattern     *string   `json:"pattern" db:"pattern"`
-	Severity    string    `json:"severity" db:"severity"`
-	IsEnabled   bool      `json:"is_enabled" db:"is_enabled"`
-	Description string    `json:"description" db:"description"`
-	CreatedAt   time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
-}
-
 // QueueMessage represents a message in the processing queue
 type QueueMessage struct {
 	ID          string          `json:"id"`
@@ -105,6 +90,20 @@ type InventoryProcessingJob struct {
 	ForceProcess    bool             `json:"force_process"`
 }
 
+// InventoryAlert represents an alert triggered by inventory changes
+type InventoryAlert struct {
+	ID         int64      `json:"id" db:"id"`
+	SystemID   string     `json:"system_id" db:"system_id"`
+	DiffID     *int64     `json:"diff_id" db:"diff_id"`
+	AlertType  string     `json:"alert_type" db:"alert_type"` // change, pattern
+	Message    string     `json:"message" db:"message"`
+	Severity   string     `json:"severity" db:"severity"`
+	IsResolved bool       `json:"is_resolved" db:"is_resolved"`
+	ResolvedAt *time.Time `json:"resolved_at" db:"resolved_at"`
+	CreatedAt  time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at" db:"updated_at"`
+}
+
 // NotificationJob represents a job for sending notifications
 type NotificationJob struct {
 	Type       string          `json:"type"` // diff, alert, system_status
@@ -114,33 +113,6 @@ type NotificationJob struct {
 	Message    string          `json:"message"`
 	Severity   string          `json:"severity"`
 	Recipients []string        `json:"recipients"`
-}
-
-// InventoryAlert represents an alert triggered by inventory monitoring
-type InventoryAlert struct {
-	ID           int64      `json:"id" db:"id"`
-	SystemID     string     `json:"system_id" db:"system_id"`
-	MonitoringID int64      `json:"monitoring_id" db:"monitoring_id"`
-	DiffID       *int64     `json:"diff_id" db:"diff_id"`
-	AlertType    string     `json:"alert_type" db:"alert_type"` // threshold, change, pattern
-	Message      string     `json:"message" db:"message"`
-	Severity     string     `json:"severity" db:"severity"`
-	IsResolved   bool       `json:"is_resolved" db:"is_resolved"`
-	ResolvedAt   *time.Time `json:"resolved_at" db:"resolved_at"`
-	CreatedAt    time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at" db:"updated_at"`
-}
-
-// InventoryChangesSummary represents a summary of inventory changes for a system
-type InventoryChangesSummary struct {
-	SystemID           string         `json:"system_id"`
-	TotalChanges       int            `json:"total_changes"`
-	RecentChanges      int            `json:"recent_changes"`
-	LastInventoryTime  time.Time      `json:"last_inventory_time"`
-	HasCriticalChanges bool           `json:"has_critical_changes"`
-	HasAlerts          bool           `json:"has_alerts"`
-	ChangesByCategory  map[string]int `json:"changes_by_category"`
-	ChangesBySeverity  map[string]int `json:"changes_by_severity"`
 }
 
 // InventoryStats represents statistics about inventory processing

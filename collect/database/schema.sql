@@ -33,28 +33,12 @@ CREATE TABLE IF NOT EXISTS inventory_diffs (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- Inventory monitoring table - stores monitoring rules and thresholds
-CREATE TABLE IF NOT EXISTS inventory_monitoring (
-    id BIGSERIAL PRIMARY KEY,
-    system_id VARCHAR(255), -- NULL for global rules
-    field_path TEXT NOT NULL,
-    monitor_type VARCHAR(50) NOT NULL CHECK (monitor_type IN ('threshold', 'change', 'pattern')),
-    threshold TEXT,
-    pattern TEXT,
-    severity VARCHAR(50) NOT NULL DEFAULT 'medium' CHECK (severity IN ('low', 'medium', 'high', 'critical')),
-    is_enabled BOOLEAN NOT NULL DEFAULT true,
-    description TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
-
--- Inventory alerts table - stores triggered alerts based on monitoring rules
+-- Inventory alerts table - stores triggered alerts based on inventory changes
 CREATE TABLE IF NOT EXISTS inventory_alerts (
     id BIGSERIAL PRIMARY KEY,
     system_id VARCHAR(255) NOT NULL,
-    monitoring_id BIGINT NOT NULL REFERENCES inventory_monitoring(id),
     diff_id BIGINT REFERENCES inventory_diffs(id),
-    alert_type VARCHAR(50) NOT NULL CHECK (alert_type IN ('threshold', 'change', 'pattern')),
+    alert_type VARCHAR(50) NOT NULL CHECK (alert_type IN ('change', 'pattern')),
     message TEXT NOT NULL,
     severity VARCHAR(50) NOT NULL CHECK (severity IN ('low', 'medium', 'high', 'critical')),
     is_resolved BOOLEAN NOT NULL DEFAULT false,
@@ -74,12 +58,7 @@ CREATE INDEX IF NOT EXISTS idx_inventory_diffs_severity ON inventory_diffs(sever
 CREATE INDEX IF NOT EXISTS idx_inventory_diffs_category ON inventory_diffs(category);
 CREATE INDEX IF NOT EXISTS idx_inventory_diffs_notification_sent ON inventory_diffs(notification_sent) WHERE notification_sent = false;
 
-CREATE INDEX IF NOT EXISTS idx_inventory_monitoring_system_id ON inventory_monitoring(system_id);
-CREATE INDEX IF NOT EXISTS idx_inventory_monitoring_field_path ON inventory_monitoring(field_path);
-CREATE INDEX IF NOT EXISTS idx_inventory_monitoring_enabled ON inventory_monitoring(is_enabled) WHERE is_enabled = true;
-
 CREATE INDEX IF NOT EXISTS idx_inventory_alerts_system_id_created_at ON inventory_alerts(system_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_inventory_alerts_monitoring_id ON inventory_alerts(monitoring_id);
 CREATE INDEX IF NOT EXISTS idx_inventory_alerts_resolved ON inventory_alerts(is_resolved) WHERE is_resolved = false;
 CREATE INDEX IF NOT EXISTS idx_inventory_alerts_severity ON inventory_alerts(severity);
 

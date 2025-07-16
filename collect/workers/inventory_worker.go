@@ -24,8 +24,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// BatchProcessor handles high-throughput batch operations
-type BatchProcessor struct {
+// InventoryWorker handles high-throughput batch operations
+type InventoryWorker struct {
 	inventoryBatch chan *models.InventoryData
 	batchSize      int
 	flushInterval  time.Duration
@@ -38,9 +38,9 @@ type BatchProcessor struct {
 	queueManager   *queue.QueueManager
 }
 
-// NewBatchProcessor creates a new batch processor
-func NewBatchProcessor(batchSize int, flushInterval time.Duration) *BatchProcessor {
-	return &BatchProcessor{
+// NewInventoryWorker creates a new inventory worker
+func NewInventoryWorker(batchSize int, flushInterval time.Duration) *InventoryWorker {
+	return &InventoryWorker{
 		inventoryBatch: make(chan *models.InventoryData, batchSize*2), // Buffer 2x batch size
 		batchSize:      batchSize,
 		flushInterval:  flushInterval,
@@ -51,85 +51,85 @@ func NewBatchProcessor(batchSize int, flushInterval time.Duration) *BatchProcess
 	}
 }
 
-// Start starts the batch processor
-func (bp *BatchProcessor) Start(ctx context.Context, wg *sync.WaitGroup) error {
+// Start starts the inventory worker
+func (iw *InventoryWorker) Start(ctx context.Context, wg *sync.WaitGroup) error {
 	wg.Add(1)
-	go bp.batchWorker(ctx, wg)
+	go iw.batchWorker(ctx, wg)
 	return nil
 }
 
-// Name returns the processor name
-func (bp *BatchProcessor) Name() string {
-	return "batch-processor"
+// Name returns the worker name
+func (iw *InventoryWorker) Name() string {
+	return "inventory-worker"
 }
 
 // IsHealthy returns health status
-func (bp *BatchProcessor) IsHealthy() bool {
-	bp.mu.RLock()
-	defer bp.mu.RUnlock()
-	return bp.isHealthy
+func (iw *InventoryWorker) IsHealthy() bool {
+	iw.mu.RLock()
+	defer iw.mu.RUnlock()
+	return iw.isHealthy
 }
 
 // AddInventory adds inventory data to the batch for processing
-func (bp *BatchProcessor) AddInventory(ctx context.Context, inventory *models.InventoryData) error {
+func (iw *InventoryWorker) AddInventory(ctx context.Context, inventory *models.InventoryData) error {
 	select {
-	case bp.inventoryBatch <- inventory:
+	case iw.inventoryBatch <- inventory:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-time.After(1 * time.Second):
-		return fmt.Errorf("batch processor queue full, dropping inventory")
+		return fmt.Errorf("inventory worker queue full, dropping inventory")
 	}
 }
 
 // batchWorker processes inventory data in batches
-func (bp *BatchProcessor) batchWorker(ctx context.Context, wg *sync.WaitGroup) {
+func (iw *InventoryWorker) batchWorker(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	logger := logger.ComponentLogger("batch-processor")
+	logger := logger.ComponentLogger("inventory-worker")
 	logger.Info().
-		Int("batch_size", bp.batchSize).
-		Dur("flush_interval", bp.flushInterval).
-		Msg("Batch processor started")
+		Int("batch_size", iw.batchSize).
+		Dur("flush_interval", iw.flushInterval).
+		Msg("Inventory worker started")
 
-	ticker := time.NewTicker(bp.flushInterval)
+	ticker := time.NewTicker(iw.flushInterval)
 	defer ticker.Stop()
 
-	batch := make([]*models.InventoryData, 0, bp.batchSize)
+	batch := make([]*models.InventoryData, 0, iw.batchSize)
 
 	for {
 		select {
 		case <-ctx.Done():
 			// Process remaining items in batch before stopping
 			if len(batch) > 0 {
-				bp.processBatch(ctx, batch, *logger)
+				iw.processBatch(ctx, batch, *logger)
 			}
-			logger.Info().Msg("Batch processor stopped")
+			logger.Info().Msg("Inventory worker stopped")
 			return
 
-		case inventory := <-bp.inventoryBatch:
+		case inventory := <-iw.inventoryBatch:
 			batch = append(batch, inventory)
 
 			// Process batch when it reaches target size
-			if len(batch) >= bp.batchSize {
-				bp.processBatch(ctx, batch, *logger)
+			if len(batch) >= iw.batchSize {
+				iw.processBatch(ctx, batch, *logger)
 				batch = batch[:0] // Reset batch
-				bp.updateLastFlush()
+				iw.updateLastFlush()
 			}
 
 		case <-ticker.C:
 			// Process batch on timer if it has items
 			if len(batch) > 0 {
-				bp.processBatch(ctx, batch, *logger)
+				iw.processBatch(ctx, batch, *logger)
 				batch = batch[:0] // Reset batch
-				bp.updateLastFlush()
+				iw.updateLastFlush()
 			}
 		}
 	}
 }
 
 // processBatch processes a batch of inventory data
-func (bp *BatchProcessor) processBatch(ctx context.Context, batch []*models.InventoryData, logger zerolog.Logger) {
+func (iw *InventoryWorker) processBatch(ctx context.Context, batch []*models.InventoryData, logger zerolog.Logger) {
 	if len(batch) == 0 {
 		return
 	}
@@ -146,23 +146,23 @@ func (bp *BatchProcessor) processBatch(ctx context.Context, batch []*models.Inve
 			Err(err).
 			Int("batch_size", len(batch)).
 			Msg("Failed to acquire database connection for batch")
-		bp.recordFailure(int64(len(batch)))
+		iw.recordFailure(int64(len(batch)))
 		return
 	}
 	defer conn.Release()
 
 	// Process batch in transaction
-	if err := bp.processBatchInTransaction(ctx, conn, batch, logger); err != nil {
+	if err := iw.processBatchInTransaction(ctx, conn, batch, logger); err != nil {
 		logger.Error().
 			Err(err).
 			Int("batch_size", len(batch)).
 			Msg("Failed to process batch")
-		bp.recordFailure(int64(len(batch)))
+		iw.recordFailure(int64(len(batch)))
 		return
 	}
 
 	duration := time.Since(start)
-	bp.recordSuccess(int64(len(batch)))
+	iw.recordSuccess(int64(len(batch)))
 
 	logger.Info().
 		Int("batch_size", len(batch)).
@@ -172,7 +172,7 @@ func (bp *BatchProcessor) processBatch(ctx context.Context, batch []*models.Inve
 }
 
 // processBatchInTransaction processes a batch within a single transaction
-func (bp *BatchProcessor) processBatchInTransaction(ctx context.Context, conn *database.ManagedConnection, batch []*models.InventoryData, logger zerolog.Logger) error {
+func (iw *InventoryWorker) processBatchInTransaction(ctx context.Context, conn *database.ManagedConnection, batch []*models.InventoryData, logger zerolog.Logger) error {
 	// Start transaction with timeout
 	txCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -213,7 +213,7 @@ func (bp *BatchProcessor) processBatchInTransaction(ctx context.Context, conn *d
 
 	// Process each item in batch
 	for _, inventory := range batch {
-		dataHash := bp.calculateDataHash(inventory.Data)
+		dataHash := iw.calculateDataHash(inventory.Data)
 		dataSize := int64(len(inventory.Data))
 
 		var recordID int64
@@ -255,59 +255,59 @@ func (bp *BatchProcessor) processBatchInTransaction(ctx context.Context, conn *d
 	}
 
 	// After successful commit, trigger diff processing asynchronously
-	go bp.triggerDiffProcessingAsync(ctx, insertedRecords, logger)
+	go iw.triggerDiffProcessingAsync(ctx, insertedRecords, logger)
 
 	return nil
 }
 
 // calculateDataHash calculates SHA-256 hash of inventory data
-func (bp *BatchProcessor) calculateDataHash(data []byte) string {
+func (iw *InventoryWorker) calculateDataHash(data []byte) string {
 	hash := sha256.Sum256(data)
 	return fmt.Sprintf("%x", hash)
 }
 
 // updateLastFlush updates the last flush timestamp
-func (bp *BatchProcessor) updateLastFlush() {
-	bp.mu.Lock()
-	defer bp.mu.Unlock()
-	bp.lastFlush = time.Now()
+func (iw *InventoryWorker) updateLastFlush() {
+	iw.mu.Lock()
+	defer iw.mu.Unlock()
+	iw.lastFlush = time.Now()
 }
 
 // recordSuccess records successful batch processing
-func (bp *BatchProcessor) recordSuccess(count int64) {
-	bp.mu.Lock()
-	defer bp.mu.Unlock()
-	bp.processedCount += count
-	bp.isHealthy = true
+func (iw *InventoryWorker) recordSuccess(count int64) {
+	iw.mu.Lock()
+	defer iw.mu.Unlock()
+	iw.processedCount += count
+	iw.isHealthy = true
 }
 
 // recordFailure records failed batch processing
-func (bp *BatchProcessor) recordFailure(count int64) {
-	bp.mu.Lock()
-	defer bp.mu.Unlock()
-	bp.failedCount += count
-	bp.isHealthy = false
+func (iw *InventoryWorker) recordFailure(count int64) {
+	iw.mu.Lock()
+	defer iw.mu.Unlock()
+	iw.failedCount += count
+	iw.isHealthy = false
 }
 
-// GetStats returns batch processor statistics
-func (bp *BatchProcessor) GetStats() map[string]interface{} {
-	bp.mu.RLock()
-	defer bp.mu.RUnlock()
+// GetStats returns inventory worker statistics
+func (iw *InventoryWorker) GetStats() map[string]interface{} {
+	iw.mu.RLock()
+	defer iw.mu.RUnlock()
 
 	return map[string]interface{}{
-		"processed_count": bp.processedCount,
-		"failed_count":    bp.failedCount,
-		"queue_length":    len(bp.inventoryBatch),
-		"queue_capacity":  cap(bp.inventoryBatch),
-		"last_flush":      bp.lastFlush,
-		"is_healthy":      bp.isHealthy,
-		"batch_size":      bp.batchSize,
-		"flush_interval":  bp.flushInterval,
+		"processed_count": iw.processedCount,
+		"failed_count":    iw.failedCount,
+		"queue_length":    len(iw.inventoryBatch),
+		"queue_capacity":  cap(iw.inventoryBatch),
+		"last_flush":      iw.lastFlush,
+		"is_healthy":      iw.isHealthy,
+		"batch_size":      iw.batchSize,
+		"flush_interval":  iw.flushInterval,
 	}
 }
 
 // triggerDiffProcessingAsync triggers diff processing asynchronously for inserted inventory records
-func (bp *BatchProcessor) triggerDiffProcessingAsync(ctx context.Context, insertedRecords []models.InventoryRecord, logger zerolog.Logger) {
+func (iw *InventoryWorker) triggerDiffProcessingAsync(ctx context.Context, insertedRecords []models.InventoryRecord, logger zerolog.Logger) {
 	// Create a new context with timeout to prevent goroutine leaks
 	asyncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -317,7 +317,7 @@ func (bp *BatchProcessor) triggerDiffProcessingAsync(ctx context.Context, insert
 
 	for _, record := range insertedRecords {
 		// Check if there's a previous record for this system
-		previousRecord, err := bp.getPreviousInventoryRecord(asyncCtx, record.SystemID, record.ID)
+		previousRecord, err := iw.getPreviousInventoryRecord(asyncCtx, record.SystemID, record.ID)
 		if err != nil {
 			logger.Warn().
 				Err(err).
@@ -338,7 +338,7 @@ func (bp *BatchProcessor) triggerDiffProcessingAsync(ctx context.Context, insert
 
 			// Use a timeout context for each enqueue operation
 			enqueueCtx, enqueueCancel := context.WithTimeout(asyncCtx, 30*time.Second)
-			err := bp.queueManager.EnqueueProcessing(enqueueCtx, processingJob)
+			err := iw.queueManager.EnqueueProcessing(enqueueCtx, processingJob)
 			enqueueCancel()
 
 			if err != nil {
@@ -367,7 +367,7 @@ func (bp *BatchProcessor) triggerDiffProcessingAsync(ctx context.Context, insert
 }
 
 // getPreviousInventoryRecord gets the most recent previous inventory record for a system
-func (bp *BatchProcessor) getPreviousInventoryRecord(ctx context.Context, systemID string, currentID int64) (*models.InventoryRecord, error) {
+func (iw *InventoryWorker) getPreviousInventoryRecord(ctx context.Context, systemID string, currentID int64) (*models.InventoryRecord, error) {
 	query := `
 		SELECT id, system_id, timestamp, data, data_hash, data_size,
 		       processed_at, has_changes, change_count, created_at, updated_at
