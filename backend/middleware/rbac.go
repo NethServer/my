@@ -215,6 +215,53 @@ func RequireAnyOrgRole(roles ...string) gin.HandlerFunc {
 	}
 }
 
+// RequireAnyUserRole checks if user has any of the specified user roles (technical capabilities)
+func RequireAnyUserRole(roles ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		user, ok := getUserFromContext(c)
+		if !ok {
+			return
+		}
+
+		for _, role := range roles {
+			if hasRoleInList(user.UserRoles, role) {
+				logger.RequestLogger(c, "rbac").Info().
+					Str("operation", "any_user_role_granted").
+					Strs("required_user_roles", roles).
+					Str("matched_user_role", role).
+					Strs("user_roles", user.UserRoles).
+					Str("user_id", user.ID).
+					Str("username", user.Username).
+					Str("organization_id", user.OrganizationID).
+					Str("organization", user.OrganizationName).
+					Msg("User role granted (any)")
+				c.Next()
+				return
+			}
+		}
+
+		logger.RequestLogger(c, "rbac").Warn().
+			Str("operation", "any_user_role_denied").
+			Strs("required_user_roles", roles).
+			Strs("user_roles", user.UserRoles).
+			Str("user_id", user.ID).
+			Str("username", user.Username).
+			Str("organization_id", user.OrganizationID).
+			Str("organization", user.OrganizationName).
+			Str("client_ip", c.ClientIP()).
+			Str("path", c.Request.URL.Path).
+			Str("method", c.Request.Method).
+			Msg("User role denied - insufficient user role (any)")
+
+		c.JSON(http.StatusForbidden, response.Forbidden("insufficient user role", gin.H{
+			"required_user_roles": roles,
+			"user_roles":          user.UserRoles,
+			"user_id":             user.ID,
+		}))
+		c.Abort()
+	}
+}
+
 // Helper functions
 
 // getUserFromContext extracts the user from the Gin context and handles common error cases

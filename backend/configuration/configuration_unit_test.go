@@ -41,6 +41,7 @@ func TestConfigurationDefaults(t *testing.T) {
 	_ = os.Setenv("JWT_SECRET", "test-secret-key")
 	_ = os.Setenv("BACKEND_APP_ID", "test-client-id")
 	_ = os.Setenv("BACKEND_APP_SECRET", "test-client-secret")
+	_ = os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test_db")
 
 	Init()
 

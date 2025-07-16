@@ -17,15 +17,14 @@ Go REST API server for Nethesis Operation Center with Logto JWT authentication a
 # Setup development environment
 make dev-setup
 
-# Start Redis container (Docker/Podman auto-detected)
-make redis-up
+# Start PostgreSQL and Redis containers
+make dev-env-up
 
-# Edit .env with your Logto configuration
-# Start development server
+# Start the application
 make run
 
-# Stop Redis when done
-make redis-down
+# Stop PostgreSQL and Redis when done
+make dev-env-down
 ```
 
 ### Required Environment Variables
@@ -39,7 +38,10 @@ JWT_SECRET=your-custom-jwt-secret
 BACKEND_APP_ID=your-m2m-app-id
 BACKEND_APP_SECRET=your-m2m-secret
 
-# Redis Configuration (Required)
+# Postgres URL
+DATABASE_URL=postgresql://backend:backend@localhost:5432/noc
+
+# Redis Configuration
 REDIS_URL=redis://localhost:6379
 REDIS_DB=0
 REDIS_PASSWORD=
@@ -138,8 +140,8 @@ make lint
 # Build
 make build
 
-# Run with hot reload
-make dev
+# Run server
+make run
 
 # Test coverage
 make test-coverage
@@ -192,5 +194,6 @@ backend/
 
 ## Related
 - [API.md](API.md) - API docs reference
+- [Collect](../collect/README.md) - Collect server
 - [sync CLI](../sync/README.md) - RBAC configuration tool
 - [Project Overview](../README.md) - Main documentation

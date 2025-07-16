@@ -1,0 +1,194 @@
+# Differ Configuration
+# This file configures the inventory diff engine behavior
+
+# Field categorization rules
+# Categories help organize changes by their functional area
+categorization:
+  # Operating System category
+  os:
+    patterns:
+      - "os."
+      - "kernel"
+      - "system_uptime"
+    description: "Operating system related changes"
+
+  # Hardware category
+  hardware:
+    patterns:
+      - "dmi."
+      - "processors"
+      - "memory"
+      - "mountpoints"
+    description: "Hardware and system components"
+
+  # Network category
+  network:
+    patterns:
+      - "networking"
+      - "esmithdb.networks"
+      - "public_ip"
+      - "arp_macs"
+    description: "Network configuration and connectivity"
+
+  # Features and services
+  features:
+    patterns:
+      - "features."
+      - "services."
+      - "esmithdb.configuration"
+    description: "Software features and services"
+
+  # Security-related
+  security:
+    patterns:
+      - "certificates"
+      - "security"
+      - "firewall"
+      - "vpn"
+    description: "Security configurations and certificates"
+
+  # Performance monitoring
+  performance:
+    patterns:
+      - "performance"
+      - "metrics"
+      - "monitoring"
+    description: "Performance and monitoring data"
+
+  # Default category for unmatched patterns
+  default:
+    name: "system"
+    description: "General system changes"
+
+# Severity determination rules
+# Higher severity changes get more attention and faster notifications
+severity:
+  # Critical severity - immediate attention required
+  critical:
+    conditions:
+      - change_type: "delete"
+        patterns:
+          - "processors"
+          - "memory"
+          - "networking"
+          - "features"
+      - change_type: "create"
+        patterns:
+          - "error"
+          - "failed"
+          - "critical"
+    description: "Critical changes requiring immediate attention"
+
+  # High severity - important changes
+  high:
+    conditions:
+      - change_type: "update"
+        patterns:
+          - "os.version"
+          - "os.release.full"
+          - "kernel"
+          - "public_ip"
+          - "certificates"
+      - change_type: "create"
+        patterns:
+          - "warning"
+          - "alert"
+    description: "Important changes requiring attention"
+
+  # Medium severity - moderate changes
+  medium:
+    conditions:
+      - change_type: "update"
+        patterns:
+          - "configuration"
+          - "services"
+          - "features"
+      - change_type: "create"
+        patterns:
+          - "info"
+          - "notice"
+    description: "Moderate changes for review"
+
+  # Low severity - minor changes
+  low:
+    conditions:
+      - change_type: "update"
+        patterns:
+          - "metrics"
+          - "performance"
+          - "monitoring"
+      - change_type: "create"
+        patterns:
+          - "debug"
+          - "trace"
+    description: "Minor changes for reference"
+
+  # Default severity for unmatched patterns
+  default:
+    level: "medium"
+    description: "Default severity for unclassified changes"
+
+# Significance filters
+# Determine which changes are significant enough to track and notify
+significance:
+  # Always significant patterns
+  always_significant:
+    - "severity:(high|critical)"
+    - "category:(hardware|network|security)"
+    - "change_type:delete"
+
+  # Never significant patterns (noise reduction)
+  never_significant:
+    - "system_uptime"
+    - "metrics.timestamp"
+    - "performance.last_update"
+    - "monitoring.heartbeat"
+
+  # Time-based significance
+  time_filters:
+    # Ignore frequent changes within time windows
+    ignore_frequent:
+      - pattern: "metrics"
+        window_seconds: 300  # 5 minutes
+      - pattern: "performance"
+        window_seconds: 600  # 10 minutes
+
+  # Value-based significance
+  value_filters:
+    # Ignore changes below certain thresholds
+    ignore_minor:
+      - pattern: "memory.used"
+        threshold_percent: 5
+      - pattern: "disk.usage"
+        threshold_percent: 10
+
+  # Default significance for unmatched patterns
+  default:
+    significant: true
+    description: "Default significance for unclassified changes"
+
+# Processing limits
+limits:
+  max_diff_depth: 10        # Maximum depth for diff processing
+  max_diffs_per_run: 1000   # Maximum diffs to process in one run
+  max_field_path_length: 500 # Maximum length of field paths
+
+# Trend analysis
+trends:
+  enabled: true
+  window_hours: 24          # Time window for trend analysis
+  min_occurrences: 3        # Minimum occurrences to consider a trend
+
+# Notification thresholds
+notifications:
+  # Group similar changes to reduce noise
+  grouping:
+    enabled: true
+    time_window_minutes: 30
+    max_group_size: 10
+
+  # Rate limiting
+  rate_limiting:
+    enabled: true
+    max_notifications_per_hour: 50
+    max_critical_per_hour: 10

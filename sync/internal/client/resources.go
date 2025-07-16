@@ -18,11 +18,8 @@ import (
 
 // LogtoResource represents a resource in Logto
 type LogtoResource struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	Indicator      string `json:"indicator"`
-	IsDefault      bool   `json:"isDefault"`
-	AccessTokenTTL int    `json:"accessTokenTtl"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 // GetResources retrieves all resources

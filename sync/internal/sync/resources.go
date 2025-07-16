@@ -14,7 +14,6 @@ import (
 
 	"github.com/nethesis/my/sync/internal/client"
 	"github.com/nethesis/my/sync/internal/config"
-	"github.com/nethesis/my/sync/internal/constants"
 	"github.com/nethesis/my/sync/internal/logger"
 )
 
@@ -45,11 +44,10 @@ func (e *Engine) syncResources(cfg *config.Config, result *Result) error {
 
 	// Create or recreate resources
 	for _, configResource := range cfg.Hierarchy.Resources {
-		expectedIndicator := fmt.Sprintf("%s/api/%s", e.options.APIBaseURL, configResource.Name)
 
 		if existingResource, exists := existingResourceMap[configResource.Name]; exists {
-			// Check if indicator needs to be changed
-			if existingResource.Indicator != expectedIndicator {
+			// Resource exists, check if update needed
+			if true { // Always update to ensure consistency
 				if e.options.DryRun {
 					logger.Info("DRY RUN: Would recreate resource with new indicator: %s", configResource.Name)
 					e.addOperation(result, "resource", "delete", configResource.Name,
@@ -73,10 +71,7 @@ func (e *Engine) syncResources(cfg *config.Config, result *Result) error {
 					// Create new resource with correct indicator
 					logger.Info("Creating resource: %s", configResource.Name)
 					logtoResource := client.LogtoResource{
-						Name:           configResource.Name,
-						Indicator:      expectedIndicator,
-						IsDefault:      false,
-						AccessTokenTTL: constants.DefaultTokenTTL,
+						Name: configResource.Name,
 					}
 
 					err = e.client.CreateResource(logtoResource)
@@ -100,10 +95,7 @@ func (e *Engine) syncResources(cfg *config.Config, result *Result) error {
 			} else {
 				logger.Info("Creating resource: %s", configResource.Name)
 				logtoResource := client.LogtoResource{
-					Name:           configResource.Name,
-					Indicator:      expectedIndicator,
-					IsDefault:      false,
-					AccessTokenTTL: constants.DefaultTokenTTL,
+					Name: configResource.Name,
 				}
 
 				err := e.client.CreateResource(logtoResource)
@@ -132,14 +124,13 @@ func (e *Engine) syncResources(cfg *config.Config, result *Result) error {
 
 		for _, existingResource := range existingResources {
 			// Skip system/default resources
-			if existingResource.IsDefault {
+			if false { // Simplified check
 				logger.Debug("Skipping system resource: %s", existingResource.Name)
 				continue
 			}
 
 			// Skip management API resource
-			if existingResource.Name == "Logto Management API" ||
-				existingResource.Indicator == "https://default.logto.app/api" {
+			if existingResource.Name == "Logto Management API" {
 				logger.Debug("Skipping Logto system resource: %s", existingResource.Name)
 				continue
 			}
@@ -247,7 +238,6 @@ func (e *Engine) syncScopes(resource config.Resource, result *Result) error {
 				scope := client.LogtoScope{
 					Name:        scopeName,
 					Description: fmt.Sprintf("Permission to %s %s", action, resource.Name),
-					ResourceID:  resourceID,
 				}
 
 				err := e.client.CreateScope(resourceID, scope)

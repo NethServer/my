@@ -9,6 +9,7 @@ env:
   REGISTRY: ghcr.io
   BACKEND_IMAGE_NAME: nethserver/my/backend
   SYNC_IMAGE_NAME: nethserver/my/sync
+  COLLECT_IMAGE_NAME: nethserver/my/collect
 
 jobs:
   build-and-release:
@@ -46,6 +47,15 @@ jobs:
           exit 1
         fi
 
+    - name: Check code formatting (collect)
+      working-directory: collect
+      run: |
+        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+          echo "Code is not formatted properly in collect:"
+          gofmt -s -l .
+          exit 1
+        fi
+
     - name: Run backend linting
       uses: golangci/golangci-lint-action@v6
       with:
@@ -60,6 +70,13 @@ jobs:
         working-directory: sync
         args: --timeout=10m
 
+    - name: Run collect linting
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest
+        working-directory: collect
+        args: --timeout=10m
+
     - name: Run backend tests
       working-directory: backend
       run: go test ./...
@@ -67,6 +84,10 @@ jobs:
     - name: Run sync tests
       working-directory: sync
       run: make test
+
+    - name: Run collect tests
+      working-directory: collect
+      run: go test ./...
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -107,6 +128,32 @@ jobs:
         tar -czf backend-linux-arm64.tar.gz backend-linux-arm64
         tar -czf backend-darwin-amd64.tar.gz backend-darwin-amd64
         tar -czf backend-darwin-arm64.tar.gz backend-darwin-arm64
+
+    # Collect Release
+    - name: Build collect binary
+      working-directory: collect
+      run: |
+        # Build for multiple platforms
+        mkdir -p dist
+
+        # Linux AMD64
+        GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/collect-linux-amd64 main.go
+
+        # Linux ARM64
+        GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/collect-linux-arm64 main.go
+
+        # macOS AMD64
+        GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/collect-darwin-amd64 main.go
+
+        # macOS ARM64
+        GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/collect-darwin-arm64 main.go
+
+        # Create archives
+        cd dist
+        tar -czf collect-linux-amd64.tar.gz collect-linux-amd64
+        tar -czf collect-linux-arm64.tar.gz collect-linux-arm64
+        tar -czf collect-darwin-amd64.tar.gz collect-darwin-amd64
+        tar -czf collect-darwin-arm64.tar.gz collect-darwin-arm64
 
     # Sync Release
     - name: Build sync binary
@@ -220,6 +267,46 @@ jobs:
         format: cyclonedx-json
         output-file: sync-sbom.cdx.json
 
+    - name: Extract collect metadata
+      id: collect_meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.COLLECT_IMAGE_NAME }}
+        tags: |
+          type=semver,pattern=v{{version}},value=${{ steps.version.outputs.VERSION }}
+          type=raw,value=latest
+
+    - name: Build and push collect Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: collect
+        file: collect/Containerfile
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.collect_meta.outputs.tags }}
+        labels: |
+          org.opencontainers.image.title=Nethesis Operation Center Collect
+          org.opencontainers.image.description=Collection service for Nethesis Operation Center
+          org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
+          org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          org.opencontainers.image.revision=${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    # Wait for image to be available in registry
+    - name: Wait for collect image availability
+      run: |
+        echo "Waiting for image to be available in registry..."
+        sleep 30
+
+    # Generate SBOM for collect
+    - name: Generate collect SBOM
+      uses: anchore/sbom-action@v0
+      with:
+        image: ${{ env.REGISTRY }}/${{ env.COLLECT_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
+        format: cyclonedx-json
+        output-file: collect-sbom.cdx.json
+
     # Create GitHub Release
     - name: Create Release
       uses: softprops/action-gh-release@v2
@@ -231,6 +318,8 @@ jobs:
         files: |
           backend/dist/*.tar.gz
           sync/dist/*.tar.gz
+          collect/dist/*.tar.gz
           backend-sbom.cdx.json
           sync-sbom.cdx.json
+          collect-sbom.cdx.json
         generate_release_notes: true

@@ -10,137 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetProfile(t *testing.T) {
-	tests := []struct {
-		name           string
-		setupContext   func(*gin.Context)
-		expectedStatus int
-		expectMessage  string
-		expectUser     bool
-	}{
-		{
-			name: "valid user in context returns profile",
-			setupContext: func(c *gin.Context) {
-				user := &models.User{
-					ID:               "test-user-123",
-					Username:         "testuser",
-					Email:            "test@example.com",
-					Name:             "Test User",
-					UserRoles:        []string{"Admin"},
-					UserPermissions:  []string{"manage:systems"},
-					OrgRole:          "Customer",
-					OrgPermissions:   []string{"view:systems"},
-					OrganizationID:   "org-123",
-					OrganizationName: "Test Org",
-				}
-				c.Set("user", user)
-			},
-			expectedStatus: http.StatusOK,
-			expectUser:     true,
-		},
-		{
-			name: "missing user in context fails",
-			setupContext: func(c *gin.Context) {
-				// Don't set user in context
-			},
-			expectedStatus: http.StatusUnauthorized,
-			expectMessage:  "user not authenticated",
-			expectUser:     false,
-		},
-		{
-			name: "invalid user type in context fails",
-			setupContext: func(c *gin.Context) {
-				c.Set("user", "not-a-user-object")
-			},
-			expectedStatus: http.StatusInternalServerError,
-			expectMessage:  "invalid user context",
-			expectUser:     false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			router := testutils.SetupTestGin()
-			router.GET("/profile", func(c *gin.Context) {
-				tt.setupContext(c)
-				GetProfile(c)
-			})
-
-			w := testutils.MakeRequest(t, router, "GET", "/profile", nil, nil)
-
-			assert.Equal(t, tt.expectedStatus, w.Code)
-
-			response := testutils.AssertJSONResponse(t, w, tt.expectedStatus)
-
-			if tt.expectedStatus == http.StatusOK {
-				assert.Contains(t, response["message"], "user profile retrieved successfully")
-				assert.NotNil(t, response["data"])
-
-				// Check user data is present
-				userData, ok := response["data"].(map[string]interface{})
-				assert.True(t, ok)
-				assert.Equal(t, "test-user-123", userData["id"])
-				assert.Equal(t, "testuser", userData["username"])
-				assert.Equal(t, "test@example.com", userData["email"])
-			} else if tt.expectMessage != "" {
-				assert.Contains(t, response["message"], tt.expectMessage)
-			}
-		})
-	}
-}
-
-func TestGetProtectedResource(t *testing.T) {
-	tests := []struct {
-		name           string
-		setupContext   func(*gin.Context)
-		expectedStatus int
-		expectMessage  string
-	}{
-		{
-			name: "valid user_id in context succeeds",
-			setupContext: func(c *gin.Context) {
-				c.Set("user_id", "test-user-123")
-			},
-			expectedStatus: http.StatusOK,
-		},
-		{
-			name: "missing user_id in context fails",
-			setupContext: func(c *gin.Context) {
-				// Don't set user_id in context
-			},
-			expectedStatus: http.StatusUnauthorized,
-			expectMessage:  "user not authenticated",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			router := testutils.SetupTestGin()
-			router.GET("/protected", func(c *gin.Context) {
-				tt.setupContext(c)
-				GetProtectedResource(c)
-			})
-
-			w := testutils.MakeRequest(t, router, "GET", "/protected", nil, nil)
-
-			assert.Equal(t, tt.expectedStatus, w.Code)
-
-			response := testutils.AssertJSONResponse(t, w, tt.expectedStatus)
-
-			if tt.expectedStatus == http.StatusOK {
-				assert.Contains(t, response["message"], "protected resource accessed successfully")
-
-				data, ok := response["data"].(map[string]interface{})
-				assert.True(t, ok)
-				assert.Equal(t, "test-user-123", data["user_id"])
-				assert.Equal(t, "sensitive data", data["resource"])
-			} else if tt.expectMessage != "" {
-				assert.Contains(t, response["message"], tt.expectMessage)
-			}
-		})
-	}
-}
-
 func TestGetUserPermissions(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -366,8 +235,6 @@ func TestUserMethodsIntegration(t *testing.T) {
 	})
 
 	// Register all user endpoints
-	router.GET("/profile", GetProfile)
-	router.GET("/protected", GetProtectedResource)
 	router.GET("/permissions", GetUserPermissions)
 	router.GET("/user/profile", GetUserProfile)
 
@@ -375,14 +242,6 @@ func TestUserMethodsIntegration(t *testing.T) {
 		path           string
 		expectedFields []string
 	}{
-		{
-			path:           "/profile",
-			expectedFields: []string{"id", "username", "email", "name"},
-		},
-		{
-			path:           "/protected",
-			expectedFields: []string{"user_id", "resource"},
-		},
 		{
 			path:           "/permissions",
 			expectedFields: []string{"user_roles", "user_permissions", "org_role", "org_permissions"},

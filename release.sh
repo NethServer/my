@@ -71,7 +71,7 @@ run_linting() {
     info "Running linting for $component..."
 
     cd "$component"
-    if [ "$component" = "backend" ]; then
+    if [ "$component" = "backend" ] || [ "$component" = "collect" ]; then
         # Check if golangci-lint is available
         if command -v golangci-lint >/dev/null 2>&1; then
             if ! golangci-lint run; then
@@ -96,7 +96,7 @@ run_tests() {
     info "Running tests for $component..."
 
     cd "$component"
-    if [ "$component" = "backend" ]; then
+    if [ "$component" = "backend" ] || [ "$component" = "collect" ]; then
         if ! go test ./...; then
             error "Tests failed for $component"
         fi
@@ -160,7 +160,8 @@ update_version_file() {
     jq --arg version "$new_version" '
         .version = $version |
         .components.backend = $version |
-        .components.sync = $version
+        .components.sync = $version |
+        .components.collect = $version
     ' version.json > version.json.tmp && mv version.json.tmp version.json
 }
 
@@ -210,10 +211,13 @@ main() {
     info "Running quality checks..."
     check_formatting "backend"
     check_formatting "sync"
+    check_formatting "collect"
     run_linting "backend"
     run_linting "sync"
+    run_linting "collect"
     run_tests "backend"
     run_tests "sync"
+    run_tests "collect"
     success "All quality checks passed!"
 
     # Get current version and calculate new version

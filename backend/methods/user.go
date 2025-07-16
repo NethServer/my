@@ -17,25 +17,6 @@ import (
 	"github.com/nethesis/my/backend/response"
 )
 
-func GetProfile(c *gin.Context) {
-	user, ok := helpers.GetUserFromContext(c)
-	if !ok {
-		return
-	}
-
-	c.JSON(http.StatusOK, response.OK("user profile retrieved successfully", user))
-}
-
-func GetProtectedResource(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("user not authenticated", nil))
-		return
-	}
-
-	c.JSON(http.StatusOK, response.OK("protected resource accessed successfully", gin.H{"user_id": userID, "resource": "sensitive data"}))
-}
-
 // GetUserPermissions returns user permissions and role information
 func GetUserPermissions(c *gin.Context) {
 	user, ok := helpers.GetUserFromContext(c)

@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/nethesis/my/backend/logger"
@@ -20,6 +21,8 @@ import (
 
 type Configuration struct {
 	ListenAddress string `json:"listen_address"`
+	// Database configuration
+	DatabaseURL   string `json:"database_url"`
 	LogtoIssuer   string `json:"logto_issuer"`
 	LogtoAudience string `json:"logto_audience"`
 	JWKSEndpoint  string `json:"jwks_endpoint"`
@@ -54,6 +57,8 @@ type Configuration struct {
 	RedisOperationTimeout time.Duration `json:"redis_operation_timeout"`
 	// API configuration
 	DefaultPageSize int `json:"default_page_size"`
+	// System types configuration
+	SystemTypes []string `json:"system_types"`
 }
 
 var Config = Configuration{}
@@ -63,6 +68,13 @@ func Init() {
 		Config.ListenAddress = os.Getenv("LISTEN_ADDRESS")
 	} else {
 		Config.ListenAddress = "127.0.0.1:8080"
+	}
+
+	// Database configuration
+	if os.Getenv("DATABASE_URL") != "" {
+		Config.DatabaseURL = os.Getenv("DATABASE_URL")
+	} else {
+		logger.LogConfigLoad("env", "DATABASE_URL", false, fmt.Errorf("DATABASE_URL variable is empty"))
 	}
 
 	if os.Getenv("LOGTO_ISSUER") != "" {
@@ -154,6 +166,13 @@ func Init() {
 	Config.RedisOperationTimeout = parseDurationWithDefault("REDIS_OPERATION_TIMEOUT", 5*time.Second)
 	Config.DefaultPageSize = parseIntWithDefault("DEFAULT_PAGE_SIZE", 100)
 
+	// System types configuration
+	if os.Getenv("SYSTEM_TYPES") != "" {
+		Config.SystemTypes = parseStringSliceWithDefault("SYSTEM_TYPES", []string{"ns8", "nsec"})
+	} else {
+		Config.SystemTypes = []string{"ns8", "nsec"}
+	}
+
 	// Log successful configuration load
 	logger.LogConfigLoad("env", "configuration", true, nil)
 }
@@ -189,4 +208,29 @@ func parseIntWithDefault(envVar string, defaultValue int) int {
 	// If parsing fails, log warning and use default
 	logger.LogConfigLoad("env", envVar, false, fmt.Errorf("invalid integer format, using default %d", defaultValue))
 	return defaultValue
+}
+
+// parseStringSliceWithDefault parses a comma-separated string from environment variable or returns default
+func parseStringSliceWithDefault(envVar string, defaultValue []string) []string {
+	envValue := os.Getenv(envVar)
+	if envValue == "" {
+		return defaultValue
+	}
+
+	// Split by comma and trim whitespace
+	parts := strings.Split(envValue, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+
+	if len(result) == 0 {
+		logger.LogConfigLoad("env", envVar, false, fmt.Errorf("empty list provided, using default %v", defaultValue))
+		return defaultValue
+	}
+
+	return result
 }
