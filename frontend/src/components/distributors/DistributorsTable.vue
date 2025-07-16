@@ -160,7 +160,7 @@ const onSort = (payload: SortEvent) => {
     <div class="mb-6 flex items-center gap-4">
       <div class="flex w-full items-center justify-between gap-4">
         <!-- filters -->
-        <div class="flex gap-4">
+        <div class="flex flex-wrap items-center gap-4">
           <!-- text filter -->
           <NeTextInput
             v-model.trim="textFilter"
