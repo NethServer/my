@@ -49,8 +49,6 @@ const configureAxios = () => {
   // request interceptor
   axios.interceptors.request.use(
     function (config: InternalAxiosRequestConfig<any>) {
-      console.log('[interceptor] config.url', config.url) ////
-
       // check if token needs to be refreshed
       if (
         config.url &&
