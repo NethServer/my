@@ -9,16 +9,12 @@ import "time"
 
 // Reseller represents a reseller in the hierarchy
 type Reseller struct {
-	ID          string            `json:"id" structs:"id"`
-	Name        string            `json:"name" structs:"name"`
-	Email       string            `json:"email" structs:"email"`
-	CompanyName string            `json:"company_name" structs:"company_name"`
-	Status      string            `json:"status" structs:"status"` // active, suspended, inactive
-	Region      string            `json:"region" structs:"region"`
-	Metadata    map[string]string `json:"metadata" structs:"metadata"`
-	CreatedAt   time.Time         `json:"created_at" structs:"created_at"`
-	UpdatedAt   time.Time         `json:"updated_at" structs:"updated_at"`
-	CreatedBy   string            `json:"created_by" structs:"created_by"`
+	ID        string    `json:"id" structs:"id"`
+	Name      string    `json:"name" structs:"name"`
+	Email     string    `json:"email" structs:"email"`
+	CreatedAt time.Time `json:"created_at" structs:"created_at"`
+	UpdatedAt time.Time `json:"updated_at" structs:"updated_at"`
+	CreatedBy string    `json:"created_by" structs:"created_by"`
 }
 
 // CreateResellerRequest represents the request payload for creating a new reseller

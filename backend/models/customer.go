@@ -9,17 +9,12 @@ import "time"
 
 // Customer represents a customer in the hierarchy
 type Customer struct {
-	ID          string            `json:"id" structs:"id"`
-	Name        string            `json:"name" structs:"name"`
-	Email       string            `json:"email" structs:"email"`
-	CompanyName string            `json:"company_name" structs:"company_name"`
-	Status      string            `json:"status" structs:"status"` // active, suspended, inactive
-	Tier        string            `json:"tier" structs:"tier"`     // basic, premium, enterprise
-	ResellerID  string            `json:"reseller_id" structs:"reseller_id"`
-	Metadata    map[string]string `json:"metadata" structs:"metadata"`
-	CreatedAt   time.Time         `json:"created_at" structs:"created_at"`
-	UpdatedAt   time.Time         `json:"updated_at" structs:"updated_at"`
-	CreatedBy   string            `json:"created_by" structs:"created_by"`
+	ID        string    `json:"id" structs:"id"`
+	Name      string    `json:"name" structs:"name"`
+	Email     string    `json:"email" structs:"email"`
+	CreatedAt time.Time `json:"created_at" structs:"created_at"`
+	UpdatedAt time.Time `json:"updated_at" structs:"updated_at"`
+	CreatedBy string    `json:"created_by" structs:"created_by"`
 }
 
 // CreateCustomerRequest represents the request payload for creating a new customer

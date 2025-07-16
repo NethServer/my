@@ -19,6 +19,7 @@ import (
 
 	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/configuration"
+	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/methods"
 	"github.com/nethesis/my/backend/middleware"
@@ -39,14 +40,17 @@ func main() {
 	// Init configuration
 	configuration.Init()
 
+	// Initialize database connection
+	err = database.Init()
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to initialize database connection")
+	}
+
 	// Initialize Redis cache
 	err = cache.InitRedis()
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize Redis cache")
 	}
-
-	// Initialize demo data for systems (still using in-memory storage)
-	methods.InitSystemsStorage()
 
 	// Start background statistics updater
 	cache.InitAndStartStatsCacheManager(services.NewLogtoManagementClient())
@@ -113,14 +117,23 @@ func main() {
 		// SYSTEMS - Hybrid approach
 		// ===========================================
 
-		// Standard CRUD operations - role-based (Support can manage systems)
-		systemsGroup := customAuth.Group("/systems", middleware.RequireUserRole("Support"))
+		// Standard CRUD operations - role-based (Admin and Support can manage systems)
+		systemsGroup := customAuth.Group("/systems", middleware.RequireAnyUserRole("Admin", "Support"))
 		{
 			systemsGroup.GET("", methods.GetSystems)
 			systemsGroup.GET("/:id", methods.GetSystem)
 			systemsGroup.POST("", methods.CreateSystem)
 			systemsGroup.PUT("/:id", methods.UpdateSystem)
-			systemsGroup.DELETE("/:id", middleware.RequirePermission("admin:systems"), methods.DeleteSystem) // Admin-only
+			systemsGroup.DELETE("/:id", methods.DeleteSystem)
+			systemsGroup.POST("/:id/regenerate-secret", methods.RegenerateSystemSecret) // Regenerate system secret
+
+			// Inventory endpoints
+			systemsGroup.GET("/:id/inventory", methods.GetSystemInventoryHistory)                      // Get paginated inventory history
+			systemsGroup.GET("/:id/inventory/latest", methods.GetSystemLatestInventory)                // Get latest inventory
+			systemsGroup.GET("/:id/inventory/changes", methods.GetSystemInventoryChanges)              // Get changes summary
+			systemsGroup.GET("/:id/inventory/changes/latest", methods.GetSystemLatestInventoryChanges) // Get latest batch changes summary
+			systemsGroup.GET("/:id/inventory/diffs", methods.GetSystemInventoryDiffs)                  // Get paginated diffs
+			systemsGroup.GET("/:id/inventory/diffs/latest", methods.GetSystemLatestInventoryDiff)      // Get latest diff
 		}
 
 		// ===========================================
@@ -184,7 +197,7 @@ func main() {
 		customAuth.GET("/applications", methods.GetApplications)
 
 		// System statistics endpoint - require management permissions
-		customAuth.GET("/stats", middleware.RequirePermission("manage:distributors"), methods.GetStats)
+		customAuth.GET("/stats", middleware.RequireOrgRole("Owner"), methods.GetStats)
 	}
 
 	// Handle missing endpoints

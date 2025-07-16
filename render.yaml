@@ -11,6 +11,14 @@ services:
     maxmemoryPolicy: allkeys-lru
     ipAllowList: []
 
+  # Production PostgreSQL Database
+  - type: pserv
+    name: my-postgres-prod
+    plan: free
+    databaseName: noc
+    databaseUser: noc_user
+    ipAllowList: []
+
   # Production Backend API Server
   - type: web
     name: my-backend-prod
@@ -65,6 +73,53 @@ services:
       - key: JWT_REFRESH_EXPIRATION
         value: 168h
 
+      # PostgreSQL Configuration
+      - key: DATABASE_URL
+        fromService:
+          type: pserv
+          name: my-postgres-prod
+          property: connectionString
+
+    autoDeploy: false  # Deployed via GitHub Actions on release
+    branch: main
+
+  # Production Collect Service
+  - type: web
+    name: my-collect-prod
+    runtime: go
+    plan: free
+    buildCommand: cd collect && go build -o build/collect main.go
+    startCommand: ./collect/build/collect
+    healthCheckPath: /api/health
+    envVars:
+      # Server Configuration
+      - key: GIN_MODE
+        value: release
+      - key: LISTEN_ADDRESS
+        value: 0.0.0.0:10000
+      - key: LOG_LEVEL
+        value: info
+      - key: LOG_FORMAT
+        value: json
+
+      # Redis Configuration
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: my-redis-prod
+          property: connectionString
+      - key: REDIS_DB
+        value: 1
+      - key: REDIS_PASSWORD
+        value: ""
+
+      # PostgreSQL Configuration
+      - key: DATABASE_URL
+        fromService:
+          type: pserv
+          name: my-postgres-prod
+          property: connectionString
+
     autoDeploy: false  # Deployed via GitHub Actions on release
     branch: main
 
@@ -78,6 +133,14 @@ services:
     name: my-redis-dev
     plan: free
     maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
+  # Development PostgreSQL Database
+  - type: pserv
+    name: my-postgres-dev
+    plan: free
+    databaseName: noc
+    databaseUser: noc_user
     ipAllowList: []
 
   # Development Backend API Server
@@ -133,6 +196,54 @@ services:
         value: 24h
       - key: JWT_REFRESH_EXPIRATION
         value: 168h
+
+      # PostgreSQL Configuration
+      - key: DATABASE_URL
+        fromService:
+          type: pserv
+          name: my-postgres-dev
+          property: connectionString
+
+    autoDeploy: true   # Auto-deploy on every commit
+    branch: main
+    pullRequestPreviewsEnabled: true  # PR previews enabled
+
+  # Development Collect Service
+  - type: web
+    name: my-collect-dev
+    runtime: go
+    plan: free
+    buildCommand: cd collect && go build -o build/collect main.go
+    startCommand: ./collect/build/collect
+    healthCheckPath: /api/health
+    envVars:
+      # Server Configuration
+      - key: GIN_MODE
+        value: debug
+      - key: LISTEN_ADDRESS
+        value: 0.0.0.0:10000
+      - key: LOG_LEVEL
+        value: debug
+      - key: LOG_FORMAT
+        value: json
+
+      # Redis Configuration
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: my-redis-dev
+          property: connectionString
+      - key: REDIS_DB
+        value: 1
+      - key: REDIS_PASSWORD
+        value: ""
+
+      # PostgreSQL Configuration
+      - key: DATABASE_URL
+        fromService:
+          type: pserv
+          name: my-postgres-dev
+          property: connectionString
 
     autoDeploy: true   # Auto-deploy on every commit
     branch: main

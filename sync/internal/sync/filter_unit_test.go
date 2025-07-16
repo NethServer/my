@@ -10,6 +10,7 @@
 package sync
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/nethesis/my/sync/internal/client"
@@ -23,16 +24,16 @@ func TestFilterFunctions(t *testing.T) {
 	t.Run("test filtering resources", func(t *testing.T) {
 		// Test resource filtering function
 		resources := []client.LogtoResource{
-			{Name: "systems", ID: "res1", IsDefault: false},
-			{Name: "default-resource", ID: "res2", IsDefault: true},
-			{Name: "logto-resource", ID: "res3", IsDefault: false},
-			{Name: "user-resource", ID: "res4", IsDefault: false},
+			{Name: "systems", ID: "res1"},
+			{Name: "default-resource", ID: "res2"},
+			{Name: "logto-resource", ID: "res3"},
+			{Name: "user-resource", ID: "res4"},
 		}
 
-		// Filter out default resources (simulate filter function)
+		// Filter out system resources (simulate filter function)
 		var filteredResources []client.LogtoResource
 		for _, resource := range resources {
-			if !resource.IsDefault {
+			if resource.Name != "default-resource" {
 				filteredResources = append(filteredResources, resource)
 			}
 		}
@@ -44,8 +45,8 @@ func TestFilterFunctions(t *testing.T) {
 
 		// Check that default resource was filtered out
 		for _, resource := range filteredResources {
-			if resource.IsDefault {
-				t.Error("expected all filtered resources to be non-default")
+			if resource.Name == "default-resource" {
+				t.Error("expected default resource to be filtered out")
 			}
 		}
 	})
@@ -165,30 +166,30 @@ func TestFilterFunctions(t *testing.T) {
 	t.Run("test filtering scopes", func(t *testing.T) {
 		// Test scope filtering function
 		scopes := []client.LogtoScope{
-			{Name: "read:systems", ID: "scope1", Description: "Read systems permission", ResourceID: "res1"},
-			{Name: "write:systems", ID: "scope2", Description: "Write systems permission", ResourceID: "res1"},
-			{Name: "logto:admin", ID: "scope3", Description: "Logto admin permission", ResourceID: "res2"},
-			{Name: "system:manage", ID: "scope4", Description: "System management permission", ResourceID: "res3"},
+			{Name: "read:systems", ID: "scope1", Description: "Read systems permission"},
+			{Name: "write:systems", ID: "scope2", Description: "Write systems permission"},
+			{Name: "logto:admin", ID: "scope3", Description: "Logto admin permission"},
+			{Name: "system:manage", ID: "scope4", Description: "System management permission"},
 		}
 
-		// Filter scopes by resource
-		targetResourceID := "res1"
+		// Filter scopes by name pattern
+		targetPattern := "systems"
 		var filteredScopes []client.LogtoScope
 		for _, scope := range scopes {
-			if scope.ResourceID == targetResourceID {
+			if strings.Contains(scope.Name, targetPattern) {
 				filteredScopes = append(filteredScopes, scope)
 			}
 		}
 
 		expectedCount := 2 // read:systems and write:systems
 		if len(filteredScopes) != expectedCount {
-			t.Errorf("expected %d filtered scopes for resource %s, got %d", expectedCount, targetResourceID, len(filteredScopes))
+			t.Errorf("expected %d filtered scopes for pattern %s, got %d", expectedCount, targetPattern, len(filteredScopes))
 		}
 
-		// Check that all filtered scopes belong to the target resource
+		// Check that all filtered scopes match the pattern
 		for _, scope := range filteredScopes {
-			if scope.ResourceID != targetResourceID {
-				t.Errorf("expected scope %s to belong to resource %s, got %s", scope.Name, targetResourceID, scope.ResourceID)
+			if !strings.Contains(scope.Name, targetPattern) {
+				t.Errorf("expected scope %s to contain pattern %s", scope.Name, targetPattern)
 			}
 		}
 	})
@@ -200,18 +201,18 @@ func TestComparisonLogic(t *testing.T) {
 
 	t.Run("test resource comparison", func(t *testing.T) {
 		resource1 := client.LogtoResource{
-			Name:      "systems",
-			Indicator: "systems",
+			Name: "systems",
+			ID:   "res1",
 		}
 
 		resource2 := client.LogtoResource{
-			Name:      "systems",
-			Indicator: "systems",
+			Name: "systems",
+			ID:   "res1",
 		}
 
 		resource3 := client.LogtoResource{
-			Name:      "systems",
-			Indicator: "different-indicator",
+			Name: "systems",
+			ID:   "res2",
 		}
 
 		// Test equality
@@ -282,7 +283,7 @@ func TestComparisonLogic(t *testing.T) {
 
 // Helper functions for testing
 func resourcesEqual(a, b client.LogtoResource) bool {
-	return a.Name == b.Name && a.Indicator == b.Indicator
+	return a.Name == b.Name && a.ID == b.ID
 }
 
 func rolesEqual(a, b client.LogtoRole) bool {

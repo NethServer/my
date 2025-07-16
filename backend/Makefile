@@ -35,7 +35,7 @@ all: clean test build
 # Run the application
 .PHONY: run
 run:
-	@echo "Starting development server..."
+	@echo "Starting backend development server..."
 	@go run main.go
 
 # Build the binary
@@ -103,7 +103,80 @@ install: build
 	@echo "Installing $(BINARY_NAME)..."
 	@go install $(LDFLAGS) .
 
-# Development setup
+
+# Database management
+.PHONY: db-up
+db-up:
+	@echo "Starting shared PostgreSQL container with $(CONTAINER_NAME)..."
+	@if $(CONTAINER_CMD) ps --format "{{.Names}}" | grep -q "^my-postgres$$"; then \
+		echo "PostgreSQL container already running"; \
+		echo "DATABASE_URL=postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disable"; \
+	else \
+		$(CONTAINER_CMD) run -d --name my-postgres \
+			-e POSTGRES_DB=noc \
+			-e POSTGRES_USER=noc_user \
+			-e POSTGRES_PASSWORD=noc_password \
+			-p 5432:5432 \
+			postgres:15-alpine; \
+		echo "DATABASE_URL=postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disable"; \
+	fi
+
+.PHONY: db-down
+db-down:
+	@echo "Stopping shared PostgreSQL container with $(CONTAINER_NAME)..."
+	@$(CONTAINER_CMD) stop my-postgres || true
+	@$(CONTAINER_CMD) rm my-postgres || true
+
+.PHONY: db-reset
+db-reset: db-down db-up
+	@echo "Waiting for database to be ready..."
+	@sleep 5
+
+# Redis development commands
+.PHONY: redis-up
+redis-up:
+	@echo "Starting shared Redis container with $(CONTAINER_NAME)..."
+	@if $(CONTAINER_CMD) ps --format "{{.Names}}" | grep -q "^my-redis$$"; then \
+		echo "Redis container already running"; \
+		echo "REDIS_URL=redis://localhost:6379"; \
+	else \
+		$(CONTAINER_CMD) run -d --name my-redis -p 6379:6379 redis:7-alpine redis-server --save 60 1 --loglevel warning; \
+		echo "REDIS_URL=redis://localhost:6379"; \
+	fi
+
+.PHONY: redis-down
+redis-down:
+	@echo "Stopping shared Redis container with $(CONTAINER_NAME)..."
+	@$(CONTAINER_CMD) stop my-redis || true
+	@$(CONTAINER_CMD) rm my-redis || true
+
+.PHONY: redis-flush
+redis-flush:
+	@echo "Flushing Redis cache..."
+	@$(CONTAINER_CMD) exec my-redis redis-cli FLUSHALL
+
+.PHONY: redis-cli
+redis-cli:
+	@echo "Connecting to Redis CLI..."
+	@$(CONTAINER_CMD) exec -it my-redis redis-cli
+
+# Development environment
+.PHONY: dev-up
+dev-up:
+	@echo "Starting full development environment..."
+	@echo ""
+	@echo "=== PostgreSQL ==="
+	@$(MAKE) db-up
+	@echo ""
+	@echo "=== Redis ==="
+	@$(MAKE) redis-up
+	@echo ""
+	@echo "Full development environment started"
+
+.PHONY: dev-down
+dev-down: db-down redis-down
+	@echo "Full development environment stopped"
+
 .PHONY: dev-setup
 dev-setup:
 	@echo "Setting up development environment..."
@@ -115,28 +188,6 @@ dev-setup:
 		echo ".env already exists, skipping copy"; \
 	fi
 	@echo "Development environment ready!"
-
-# Redis development commands
-.PHONY: redis-up
-redis-up:
-	@echo "Starting Redis container with $(CONTAINER_NAME)..."
-	@$(CONTAINER_CMD) run -d --name backend-redis -p 6379:6379 redis:7-alpine redis-server --save 60 1 --loglevel warning
-
-.PHONY: redis-down
-redis-down:
-	@echo "Stopping Redis container with $(CONTAINER_NAME)..."
-	@$(CONTAINER_CMD) stop backend-redis || true
-	@$(CONTAINER_CMD) rm backend-redis || true
-
-.PHONY: redis-flush
-redis-flush:
-	@echo "Flushing Redis cache..."
-	@$(CONTAINER_CMD) exec backend-redis redis-cli FLUSHALL
-
-.PHONY: redis-cli
-redis-cli:
-	@echo "Connecting to Redis CLI..."
-	@$(CONTAINER_CMD) exec -it backend-redis redis-cli
 
 # Show container runtime status
 .PHONY: container-status
@@ -153,11 +204,16 @@ validate-docs:
 	@echo "Validating OpenAPI documentation..."
 	@if command -v swagger-cli >/dev/null 2>&1; then \
 		swagger-cli validate openapi.yaml; \
-		echo "OpenAPI documentation is valid!"; \
 	else \
 		echo "swagger-cli not found"; \
 		echo "Install with: npm install -g @apidevtools/swagger-cli"; \
 	fi
+
+# Database migration (placeholder)
+.PHONY: db-migrate
+db-migrate:
+	@echo "Running database migrations..."
+	@echo "Note: Migrations are handled automatically by the application on startup"
 
 # Pre-commit checks
 .PHONY: pre-commit
@@ -173,7 +229,6 @@ help:
 	@echo "  build         - Build the binary"
 	@echo "  build-all     - Build for multiple platforms"
 	@echo "  clean         - Clean build artifacts"
-	@echo "  dev-setup     - Setup development environment"
 	@echo "  fmt           - Format code"
 	@echo "  help          - Show this help"
 	@echo "  install       - Install the binary"
@@ -184,16 +239,30 @@ help:
 	@echo "  test-coverage - Run tests with coverage"
 	@echo "  tidy          - Tidy dependencies"
 	@echo ""
-	@echo "API Documentation:"
-	@echo "  validate-docs  - Validate OpenAPI documentation"
-	@echo ""
-	@echo "Note: API documentation is deployed automatically via GitHub Actions"
+	@echo "Database commands:"
+	@echo "  db-up         - Start PostgreSQL container"
+	@echo "  db-down       - Stop PostgreSQL container"
+	@echo "  db-reset      - Reset PostgreSQL container"
+	@echo "  db-migrate    - Run database migrations"
 	@echo ""
 	@echo "Redis commands:"
 	@echo "  redis-up      - Start Redis container"
 	@echo "  redis-down    - Stop Redis container"
 	@echo "  redis-flush   - Flush Redis cache"
 	@echo "  redis-cli     - Connect to Redis CLI"
+	@echo ""
+	@echo "Development environment:"
+	@echo "  dev-setup     - Setup development environment"
+	@echo "  dev-up        - Start full development environment (PostgreSQL + Redis)"
+	@echo "  dev-down      - Stop full development environment"
+	@echo ""
+	@echo "Container status:"
+	@echo "  container-status - Show container runtime detection"
+	@echo ""
+	@echo "API Documentation:"
+	@echo "  validate-docs - Validate OpenAPI documentation"
+	@echo ""
+	@echo "Note: API documentation is deployed automatically via GitHub Actions"
 	@echo ""
 
 # Default goal

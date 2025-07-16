@@ -28,7 +28,6 @@ type LogtoScope struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	ResourceID  string `json:"resourceId"`
 }
 
 // GetRoles retrieves all user roles

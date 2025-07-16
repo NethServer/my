@@ -301,5 +301,7 @@ sync/
 ```
 
 ## Related
+- [API.md](../backend/API.md) - API docs reference
 - [Backend](../backend/README.md) - API server
+- [Collect](../collect/README.md) - Collect server
 - [Project Overview](../README.md) - Main documentation
