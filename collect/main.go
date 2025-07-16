@@ -106,7 +106,6 @@ func main() {
 		c.JSON(http.StatusOK, response.OK("service healthy", healthData))
 	})
 
-
 	// ===========================================
 	// INVENTORY COLLECTION ENDPOINTS
 	// ===========================================

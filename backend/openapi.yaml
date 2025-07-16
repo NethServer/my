@@ -2374,48 +2374,6 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /systems/{id}/regenerate-secret:
-    post:
-      tags:
-        - Backend - Systems
-      summary: Regenerate system secret
-      description: Regenerate authentication secret for a specific system
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: System ID
-          schema:
-            type: string
-            example: "sys_123456789"
-      responses:
-        '200':
-          description: System secret regenerated successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "system secret regenerated successfully"
-                  data:
-                    type: object
-                    properties:
-                      secret:
-                        type: string
-                        description: New system secret
-                        example: "new_secret_123456789"
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
   /user/permissions:
     get:
       tags:
