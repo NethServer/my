@@ -25,19 +25,20 @@ import (
 
 // Manager manages workers efficiently for high-throughput scenarios
 type Manager struct {
-	ctx                context.Context
-	cancel             context.CancelFunc
-	wg                 sync.WaitGroup
-	inventoryWorker    *InventoryWorker
-	diffWorker         *DiffWorker
-	notificationWorker *NotificationWorker
-	cleanupWorker      *CleanupWorker
-	queueMonitorWorker *QueueMonitorWorker
-	queueManager       *queue.QueueManager
-	backpressure       *BackpressureManager
-	isStarted          bool
-	mu                 sync.RWMutex
-	metrics            *WorkerMetrics
+	ctx                  context.Context
+	cancel               context.CancelFunc
+	wg                   sync.WaitGroup
+	inventoryWorker      *InventoryWorker
+	diffWorker           *DiffWorker
+	notificationWorker   *NotificationWorker
+	cleanupWorker        *CleanupWorker
+	queueMonitorWorker   *QueueMonitorWorker
+	delayedMessageWorker *DelayedMessageWorker
+	queueManager         *queue.QueueManager
+	backpressure         *BackpressureManager
+	isStarted            bool
+	mu                   sync.RWMutex
+	metrics              *WorkerMetrics
 }
 
 // WorkerMetrics tracks worker performance metrics
@@ -81,14 +82,15 @@ func NewManager() *Manager {
 	queueManager := queue.NewQueueManager()
 
 	return &Manager{
-		inventoryWorker:    inventoryWorker,
-		diffWorker:         NewDiffWorker(2, 1),                                     // 2 ID, 1 worker for diff processing
-		notificationWorker: NewNotificationWorker(3, 2),                             // 3 ID, 2 workers for notifications
-		cleanupWorker:      NewCleanupWorker(4),                                     // 4 ID for cleanup operations
-		queueMonitorWorker: NewQueueMonitorWorker(5, queueManager, inventoryWorker), // 5 ID for queue monitoring
-		queueManager:       queueManager,
-		backpressure:       NewBackpressureManager(10000, 0.8), // 10k max queue, 80% drop threshold
-		metrics:            &WorkerMetrics{},
+		inventoryWorker:      inventoryWorker,
+		diffWorker:           NewDiffWorker(2, 1),                                     // 2 ID, 1 worker for diff processing
+		notificationWorker:   NewNotificationWorker(3, 2),                             // 3 ID, 2 workers for notifications
+		cleanupWorker:        NewCleanupWorker(4),                                     // 4 ID for cleanup operations
+		queueMonitorWorker:   NewQueueMonitorWorker(5, queueManager, inventoryWorker), // 5 ID for queue monitoring
+		delayedMessageWorker: NewDelayedMessageWorker(6, queueManager),                // 6 ID for delayed message processing
+		queueManager:         queueManager,
+		backpressure:         NewBackpressureManager(10000, 0.8), // 10k max queue, 80% drop threshold
+		metrics:              &WorkerMetrics{},
 	}
 }
 
@@ -139,6 +141,11 @@ func (m *Manager) Start(ctx context.Context) error {
 	// Start queue monitor worker
 	if err := m.queueMonitorWorker.Start(m.ctx, &m.wg); err != nil {
 		return fmt.Errorf("failed to start queue monitor worker: %w", err)
+	}
+
+	// Start delayed message worker
+	if err := m.delayedMessageWorker.Start(m.ctx, &m.wg); err != nil {
+		return fmt.Errorf("failed to start delayed message worker: %w", err)
 	}
 
 	// Start metrics collector
@@ -321,16 +328,17 @@ func (m *Manager) GetStatus() map[string]interface{} {
 	defer m.metrics.mu.RUnlock()
 
 	return map[string]interface{}{
-		"is_started":                m.isStarted,
-		"inventory_worker_stats":    m.inventoryWorker.GetStats(),
-		"diff_worker_stats":         m.diffWorker.GetStats(),
-		"notification_worker_stats": m.notificationWorker.GetStats(),
-		"cleanup_worker_stats":      m.cleanupWorker.GetStats(),
-		"queue_monitor_stats":       m.queueMonitorWorker.GetStats(),
-		"connection_pool_usage":     m.metrics.ConnectionPoolUsage,
-		"processing_rate":           m.metrics.ProcessingRate,
-		"circuit_breaker_state":     m.backpressure.circuitBreaker.GetState(),
-		"last_metrics_update":       m.metrics.LastUpdate,
+		"is_started":                   m.isStarted,
+		"inventory_worker_stats":       m.inventoryWorker.GetStats(),
+		"diff_worker_stats":            m.diffWorker.GetStats(),
+		"notification_worker_stats":    m.notificationWorker.GetStats(),
+		"cleanup_worker_stats":         m.cleanupWorker.GetStats(),
+		"queue_monitor_stats":          m.queueMonitorWorker.GetStats(),
+		"delayed_message_worker_stats": m.delayedMessageWorker.GetStats(),
+		"connection_pool_usage":        m.metrics.ConnectionPoolUsage,
+		"processing_rate":              m.metrics.ProcessingRate,
+		"circuit_breaker_state":        m.backpressure.circuitBreaker.GetState(),
+		"last_metrics_update":          m.metrics.LastUpdate,
 	}
 }
 
@@ -339,7 +347,7 @@ func (m *Manager) IsHealthy() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	return m.isStarted && m.inventoryWorker.IsHealthy() && m.diffWorker.IsHealthy() && m.notificationWorker.IsHealthy() && m.cleanupWorker.IsHealthy() && m.queueMonitorWorker.IsHealthy() && !m.backpressure.circuitBreaker.IsOpen()
+	return m.isStarted && m.inventoryWorker.IsHealthy() && m.diffWorker.IsHealthy() && m.notificationWorker.IsHealthy() && m.cleanupWorker.IsHealthy() && m.queueMonitorWorker.IsHealthy() && m.delayedMessageWorker.IsHealthy() && !m.backpressure.circuitBreaker.IsOpen()
 }
 
 // Circuit breaker methods

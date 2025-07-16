@@ -125,11 +125,6 @@ func main() {
 		c.JSON(http.StatusOK, response.OK("metrics", metricsData))
 	})
 
-	// Performance stats endpoint
-	api.GET("/stats", func(c *gin.Context) {
-		c.JSON(http.StatusOK, response.OK("stats", workerManager.GetStatus()))
-	})
-
 	// ===========================================
 	// INVENTORY COLLECTION ENDPOINTS
 	// ===========================================

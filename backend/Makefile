@@ -162,7 +162,7 @@ redis-cli:
 
 # Development environment
 .PHONY: dev-up
-dev-up: 
+dev-up:
 	@echo "Starting full development environment..."
 	@echo ""
 	@echo "=== PostgreSQL ==="
@@ -204,7 +204,6 @@ validate-docs:
 	@echo "Validating OpenAPI documentation..."
 	@if command -v swagger-cli >/dev/null 2>&1; then \
 		swagger-cli validate openapi.yaml; \
-		echo "OpenAPI documentation is valid!"; \
 	else \
 		echo "swagger-cli not found"; \
 		echo "Install with: npm install -g @apidevtools/swagger-cli"; \

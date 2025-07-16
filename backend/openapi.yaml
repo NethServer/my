@@ -13,7 +13,44 @@ info:
 
 servers:
   - url: http://localhost:8080/api
-    description: Development server
+    description: Backend API server (port 8080)
+  - url: http://localhost:8081/api
+    description: Collect API server (port 8081)
+
+tags:
+
+  - name: Backend - Accounts
+    description: Backend account management with RBAC
+  - name: Backend - Applications
+    description: Backend third-party application management
+  - name: Backend - Authentication
+    description: Backend authentication and token management
+  - name: Backend - Customers
+    description: Backend customer management
+  - name: Backend - Distributors
+    description: Backend distributor management
+  - name: Backend - Health
+    description: Backend service health monitoring
+  - name: Backend - Organizations
+    description: Backend organization hierarchy management
+  - name: Backend - Resellers
+    description: Backend reseller management
+  - name: Backend - Roles
+    description: Backend role management
+  - name: Backend - Statistics
+    description: Backend system statistics
+  - name: Backend - Systems
+    description: Backend system management and inventory
+  - name: Backend - User
+    description: Backend user profile and permissions
+
+
+  - name: Collect - Health
+    description: Collect service health and monitoring
+  - name: Collect - Metrics
+    description: Collect service metrics and performance
+  - name: Collect - Systems
+    description: Collect service system management and inventory collection
 
 security:
   - BearerAuth: []
@@ -25,6 +62,10 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: JWT token from auth exchange endpoint
+    BasicAuth:
+      type: http
+      scheme: basic
+      description: HTTP Basic authentication for system inventory collection
 
   schemas:
     ErrorResponse:
@@ -912,7 +953,7 @@ paths:
   /accounts:
     get:
       tags:
-        - Accounts
+        - Backend - Accounts
       summary: List accounts
       description: Get paginated list of user accounts with hierarchical authorization
       parameters:
@@ -949,7 +990,7 @@ paths:
 
     post:
       tags:
-        - Accounts
+        - Backend - Accounts
       summary: Create account
       description: Create a new user account with hierarchical authorization
       requestBody:
@@ -986,7 +1027,7 @@ paths:
   /accounts/{id}:
     get:
       tags:
-        - Accounts
+        - Backend - Accounts
       summary: Get single account
       description: Get a specific account by ID with hierarchical authorization
       parameters:
@@ -1022,7 +1063,7 @@ paths:
 
     put:
       tags:
-        - Accounts
+        - Backend - Accounts
       summary: Update account
       description: Update a user account with hierarchical authorization
       parameters:
@@ -1068,7 +1109,7 @@ paths:
 
     delete:
       tags:
-        - Accounts
+        - Backend - Accounts
       summary: Delete account
       description: Delete a user account with hierarchical authorization
       parameters:
@@ -1106,7 +1147,7 @@ paths:
   /accounts/{id}/password:
     patch:
       tags:
-        - Accounts
+        - Backend - Accounts
       summary: Reset account password
       description: Reset a user account's password (Admin only)
       parameters:
@@ -1152,7 +1193,7 @@ paths:
   /applications:
     get:
       tags:
-        - Applications
+        - Backend - Applications
       summary: Get third-party applications
       description: Get third-party applications filtered by user's organization and user roles
       responses:
@@ -1185,7 +1226,7 @@ paths:
   /auth/exchange:
     post:
       tags:
-        - Authentication
+        - Backend - Authentication
       summary: Exchange Logto token for custom JWT
       description: Exchange a Logto access token for a custom JWT with embedded permissions
       security: []
@@ -1219,7 +1260,7 @@ paths:
   /auth/me:
     get:
       tags:
-        - Authentication
+        - Backend - Authentication
       summary: Get current user information
       description: Get current authenticated user's profile and permissions
       responses:
@@ -1244,7 +1285,7 @@ paths:
   /auth/refresh:
     post:
       tags:
-        - Authentication
+        - Backend - Authentication
       summary: Refresh access token
       description: Get new access token using refresh token
       security: []
@@ -1278,7 +1319,7 @@ paths:
   /customers:
     get:
       tags:
-        - Customers
+        - Backend - Customers
       summary: List customers
       description: Get paginated list of customers (Owner + Distributor + Reseller)
       parameters:
@@ -1315,7 +1356,7 @@ paths:
 
     post:
       tags:
-        - Customers
+        - Backend - Customers
       summary: Create customer
       description: Create a new customer organization (Owner + Distributor + Reseller)
       requestBody:
@@ -1352,7 +1393,7 @@ paths:
   /customers/{id}:
     get:
       tags:
-        - Customers
+        - Backend - Customers
       summary: Get single customer
       description: Get a specific customer by ID (Owner + Distributor + Reseller)
       parameters:
@@ -1388,7 +1429,7 @@ paths:
 
     put:
       tags:
-        - Customers
+        - Backend - Customers
       summary: Update customer
       description: Update a customer organization (Owner + Distributor + Reseller)
       parameters:
@@ -1434,7 +1475,7 @@ paths:
 
     delete:
       tags:
-        - Customers
+        - Backend - Customers
       summary: Delete customer
       description: Delete a customer organization (Owner + Distributor + Reseller)
       parameters:
@@ -1466,7 +1507,7 @@ paths:
   /distributors:
     get:
       tags:
-        - Distributors
+        - Backend - Distributors
       summary: List distributors
       description: Get paginated list of distributors (Owner only)
       parameters:
@@ -1503,7 +1544,7 @@ paths:
 
     post:
       tags:
-        - Distributors
+        - Backend - Distributors
       summary: Create distributor
       description: Create a new distributor organization (Owner only)
       requestBody:
@@ -1540,7 +1581,7 @@ paths:
   /distributors/{id}:
     get:
       tags:
-        - Distributors
+        - Backend - Distributors
       summary: Get single distributor
       description: Get a specific distributor by ID (Owner only)
       parameters:
@@ -1576,7 +1617,7 @@ paths:
 
     put:
       tags:
-        - Distributors
+        - Backend - Distributors
       summary: Update distributor
       description: Update a distributor organization (Owner only)
       parameters:
@@ -1622,7 +1663,7 @@ paths:
 
     delete:
       tags:
-        - Distributors
+        - Backend - Distributors
       summary: Delete distributor
       description: Delete a distributor organization (Owner only)
       parameters:
@@ -1654,9 +1695,10 @@ paths:
   /health:
     get:
       tags:
-        - Health
+        - Backend - Health
+        - Collect - Health
       summary: Health check
-      description: Check if the service is healthy
+      description: Check if the service is healthy (available on both backend and collect servers)
       security: []
       responses:
         '200':
@@ -1674,12 +1716,19 @@ paths:
                     example: "service healthy"
                   data:
                     type: object
+                    description: Health data (collect includes worker metrics)
                     nullable: true
+        '503':
+          description: Service is unhealthy (collect service only)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /organization-roles:
     get:
       tags:
-        - Roles
+        - Backend - Roles
       summary: Get all organization roles
       description: Get all available organization roles with their IDs and descriptions
       responses:
@@ -1709,7 +1758,7 @@ paths:
   /organizations:
     get:
       tags:
-        - Organizations
+        - Backend - Organizations
       summary: Get available organizations
       description: Get organizations the current user can assign users to, filtered by business hierarchy
       responses:
@@ -1739,7 +1788,7 @@ paths:
   /resellers:
     get:
       tags:
-        - Resellers
+        - Backend - Resellers
       summary: List resellers
       description: Get paginated list of resellers (Owner + Distributor)
       parameters:
@@ -1776,7 +1825,7 @@ paths:
 
     post:
       tags:
-        - Resellers
+        - Backend - Resellers
       summary: Create reseller
       description: Create a new reseller organization (Owner + Distributor)
       requestBody:
@@ -1813,7 +1862,7 @@ paths:
   /resellers/{id}:
     get:
       tags:
-        - Resellers
+        - Backend - Resellers
       summary: Get single reseller
       description: Get a specific reseller by ID (Owner + Distributor)
       parameters:
@@ -1849,7 +1898,7 @@ paths:
 
     put:
       tags:
-        - Resellers
+        - Backend - Resellers
       summary: Update reseller
       description: Update a reseller organization (Owner + Distributor)
       parameters:
@@ -1895,7 +1944,7 @@ paths:
 
     delete:
       tags:
-        - Resellers
+        - Backend - Resellers
       summary: Delete reseller
       description: Delete a reseller organization (Owner + Distributor)
       parameters:
@@ -1927,7 +1976,7 @@ paths:
   /roles:
     get:
       tags:
-        - Roles
+        - Backend - Roles
       summary: Get all user roles
       description: Get all available user roles with their IDs and descriptions
       responses:
@@ -1957,12 +2006,13 @@ paths:
   /stats:
     get:
       tags:
-        - Statistics
-      summary: Get system statistics
-      description: Get system statistics (requires manage:distributors permission)
+        - Backend - Statistics
+        - Collect - Metrics
+      summary: Get statistics
+      description: Get system statistics (backend requires manage:distributors permission, collect returns worker performance stats)
       responses:
         '200':
-          description: System statistics retrieved successfully
+          description: Statistics retrieved successfully
           content:
             application/json:
               schema:
@@ -1973,9 +2023,12 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: "system statistics retrieved successfully"
+                    example: "statistics retrieved successfully"
                   data:
-                    $ref: '#/components/schemas/SystemStats'
+                    oneOf:
+                      - $ref: '#/components/schemas/SystemStats'
+                      - type: object
+                        description: Worker performance statistics (collect service)
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1984,7 +2037,7 @@ paths:
   /systems:
     get:
       tags:
-        - Systems
+        - Backend - Systems
       summary: List systems
       description: Get list of systems (requires Support role)
       parameters:
@@ -2021,7 +2074,7 @@ paths:
 
     post:
       tags:
-        - Systems
+        - Backend - Systems
       summary: Create system
       description: Create a new system (requires Support role)
       requestBody:
@@ -2056,7 +2109,7 @@ paths:
   /systems/{id}:
     get:
       tags:
-        - Systems
+        - Backend - Systems
       summary: Get single system
       description: Get a specific system by ID (requires Support role)
       parameters:
@@ -2092,7 +2145,7 @@ paths:
 
     put:
       tags:
-        - Systems
+        - Backend - Systems
       summary: Update system
       description: Update a system (requires Support role)
       parameters:
@@ -2136,7 +2189,7 @@ paths:
 
     delete:
       tags:
-        - Systems
+        - Backend - Systems
       summary: Delete system
       description: Delete a system (requires admin:systems permission)
       parameters:
@@ -2171,10 +2224,307 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /systems/{id}/inventory:
+    get:
+      tags:
+        - Backend - Systems
+      summary: Get system inventory history
+      description: Get paginated inventory history for a specific system
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: Inventory history retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "inventory history retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      inventories:
+                        type: array
+                        items:
+                          type: object
+                          description: Inventory record
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/inventory/latest:
+    get:
+      tags:
+        - Backend - Systems
+      summary: Get latest system inventory
+      description: Get the most recent inventory data for a specific system
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: Latest inventory retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "latest inventory retrieved successfully"
+                  data:
+                    type: object
+                    description: Latest inventory data
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/inventory/changes:
+    get:
+      tags:
+        - Backend - Systems
+      summary: Get inventory changes summary
+      description: Get paginated summary of inventory changes for a specific system
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: Inventory changes retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "inventory changes retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      changes:
+                        type: array
+                        items:
+                          type: object
+                          description: Inventory change record
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/inventory/changes/latest:
+    get:
+      tags:
+        - Backend - Systems
+      summary: Get latest inventory changes
+      description: Get the most recent batch of inventory changes for a specific system
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: Latest inventory changes retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "latest inventory changes retrieved successfully"
+                  data:
+                    type: object
+                    description: Latest inventory changes data
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/inventory/diffs:
+    get:
+      tags:
+        - Backend - Systems
+      summary: Get inventory diffs
+      description: Get paginated inventory diffs for a specific system
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: Inventory diffs retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "inventory diffs retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      diffs:
+                        type: array
+                        items:
+                          type: object
+                          description: Inventory diff record
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/inventory/diffs/latest:
+    get:
+      tags:
+        - Backend - Systems
+      summary: Get latest inventory diff
+      description: Get the most recent inventory diff for a specific system
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: Latest inventory diff retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "latest inventory diff retrieved successfully"
+                  data:
+                    type: object
+                    description: Latest inventory diff data
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/regenerate-secret:
+    post:
+      tags:
+        - Backend - Systems
+      summary: Regenerate system secret
+      description: Regenerate authentication secret for a specific system
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: System secret regenerated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "system secret regenerated successfully"
+                  data:
+                    type: object
+                    properties:
+                      secret:
+                        type: string
+                        description: New system secret
+                        example: "new_secret_123456789"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /user/permissions:
     get:
       tags:
-        - User
+        - Backend - User
       summary: Get user permissions (OAuth2/OIDC)
       description: Get current user permissions using standard OAuth2/OIDC flow with Logto token
       responses:
@@ -2210,7 +2560,7 @@ paths:
   /user/profile:
     get:
       tags:
-        - User
+        - Backend - User
       summary: Get user profile (OAuth2/OIDC)
       description: Get current user profile using standard OAuth2/OIDC flow with Logto token
       responses:
@@ -2232,28 +2582,123 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-tags:
-  - name: Accounts
-    description: User account management with hierarchical authorization
-  - name: Applications
-    description: Third-party application management with access control
-  - name: Authentication
-    description: Authentication and token management
-  - name: Customers
-    description: Customer organization management (Owner + Distributor + Reseller)
-  - name: Distributors
-    description: Distributor organization management (Owner only)
-  - name: Health
-    description: Service health monitoring
-  - name: Organizations
-    description: Organization references for user assignment
-  - name: Resellers
-    description: Reseller organization management (Owner + Distributor)
-  - name: Roles
-    description: Role and permission information
-  - name: Statistics
-    description: System statistics and metrics
-  - name: Systems
-    description: System management and operations
-  - name: User
-    description: User business data (OAuth2/OIDC standard)
+  # ===========================================
+  # COLLECT SERVICE ENDPOINTS
+  # ===========================================
+  /metrics:
+    get:
+      servers:
+        - url: http://localhost:8081/api
+          description: Collect API server (port 8081)
+      tags:
+        - Collect - Metrics
+      summary: Collect service metrics
+      description: Advanced metrics endpoint with database, connection, and worker metrics
+      responses:
+        '200':
+          description: Metrics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "metrics"
+                  data:
+                    type: object
+                    properties:
+                      database:
+                        type: object
+                        description: Database statistics
+                      connections:
+                        type: object
+                        description: Connection metrics
+                      workers:
+                        type: object
+                        description: Worker status information
+                      timestamp:
+                        type: string
+                        format: date-time
+                        description: Timestamp when metrics were collected
+
+  /systems/inventory:
+    post:
+      servers:
+        - url: http://localhost:8081/api
+          description: Collect API server (port 8081)
+      tags:
+        - Collect - Systems
+      summary: Collect system inventory
+      description: System inventory collection endpoint with HTTP Basic authentication
+      security:
+        - BasicAuth: [system_id:system_secret]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: object
+                  description: System inventory data
+                  additionalProperties: true
+                  example: {
+                    "os": {
+                        "name": "my.server",
+                        "type": "ns8",
+                        "family": "NethServer",
+                        "release": {
+                            "full": "1.3.5",
+                            "major": 1,
+                            "minor": 3,
+                            "patch": 5
+                        }
+                    }
+                  }
+      responses:
+        '200':
+          description: Inventory received and queued for processing
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Inventory received and queued for processing"
+                  data:
+                    type: object
+                    properties:
+                      data_size:
+                        type: integer
+                        description: Inventory data size in bytes
+                        example: 10145
+                      message:
+                        type: string
+                        description: A message from server
+                        example: "Your inventory data has been received and will be processed shortly"
+                      queue_status:
+                        type: string
+                        description: Queue status message
+                        example: "queued"
+                      system_id:
+                        type: string
+                        description: System ID
+                        example: "4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
+                      timestamp:
+                        type: string
+                        description: Timestamp of received inventory
+                        example: "2025-07-16T15:46:51.571831+02:00"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/BadRequest'
+
