@@ -3,6 +3,7 @@
   "name": "Nethesis Operation Center",
   "components": {
     "backend": "0.0.3",
-    "sync": "0.0.3"
+    "sync": "0.0.3",
+    "collect": "0.0.3"
   }
 }

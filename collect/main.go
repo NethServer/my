@@ -92,9 +92,10 @@ func main() {
 	// Health check endpoint with detailed metrics
 	api.GET("/health", func(c *gin.Context) {
 		healthData := map[string]interface{}{
-			"service": "collect",
-			"status":  "healthy",
-			"workers": workerManager.GetStatus(),
+			"service":  "collect",
+			"status":   "healthy",
+			"workers":  workerManager.GetStatus(),
+			"database": database.GetStats(),
 		}
 
 		if !workerManager.IsHealthy() {
@@ -105,25 +106,6 @@ func main() {
 		c.JSON(http.StatusOK, response.OK("service healthy", healthData))
 	})
 
-	// ===========================================
-	// MONITORING ENDPOINTS
-	// ===========================================
-
-	// Advanced metrics endpoint
-	api.GET("/metrics", func(c *gin.Context) {
-		dbStats := database.GetStats()
-		connMetrics := database.GetConnectionMetrics()
-		workerStatus := workerManager.GetStatus()
-
-		metricsData := map[string]interface{}{
-			"database":    dbStats,
-			"connections": connMetrics,
-			"workers":     workerStatus,
-			"timestamp":   time.Now(),
-		}
-
-		c.JSON(http.StatusOK, response.OK("metrics", metricsData))
-	})
 
 	// ===========================================
 	// INVENTORY COLLECTION ENDPOINTS

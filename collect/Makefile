@@ -104,22 +104,21 @@ install: build
 	@go install $(LDFLAGS) .
 
 
-# Database management (requires backend db-up to be run first)
+# Database management (uses shared database)
 .PHONY: db-up
 db-up:
-	@echo "Checking shared PostgreSQL container with $(CONTAINER_NAME)..."
+	@echo "Starting shared PostgreSQL container with $(CONTAINER_NAME)..."
 	@if $(CONTAINER_CMD) ps --format "{{.Names}}" | grep -q "^my-postgres$$"; then \
-		echo "PostgreSQL container already running, creating collect user..."; \
-		$(CONTAINER_CMD) exec my-postgres psql -U backend -d noc -c "CREATE USER collect WITH PASSWORD 'collect';" || true; \
-		$(CONTAINER_CMD) exec my-postgres psql -U backend -d noc -c "GRANT USAGE ON SCHEMA public TO collect;" || true; \
-		$(CONTAINER_CMD) exec my-postgres psql -U backend -d noc -c "GRANT CREATE ON SCHEMA public TO collect;" || true; \
-		$(CONTAINER_CMD) exec my-postgres psql -U backend -d noc -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO collect;" || true; \
-		$(CONTAINER_CMD) exec my-postgres psql -U backend -d noc -c "GRANT ALL ON ALL TABLES IN SCHEMA public TO collect;" || true; \
-		$(CONTAINER_CMD) exec my-postgres psql -U backend -d noc -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO collect;" || true; \
-		echo "DATABASE_URL=postgresql://collect:collect@localhost:5432/noc?sslmode=disable"; \
+		echo "PostgreSQL container already running"; \
+		echo "DATABASE_URL=postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disable"; \
 	else \
-		echo "ERROR: PostgreSQL container not running. Please run 'make dev-up' from backend first."; \
-		exit 1; \
+		$(CONTAINER_CMD) run -d --name my-postgres \
+			-e POSTGRES_DB=noc \
+			-e POSTGRES_USER=noc_user \
+			-e POSTGRES_PASSWORD=noc_password \
+			-p 5432:5432 \
+			postgres:15-alpine; \
+		echo "DATABASE_URL=postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disable"; \
 	fi
 
 .PHONY: db-down

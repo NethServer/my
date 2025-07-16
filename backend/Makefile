@@ -110,15 +110,15 @@ db-up:
 	@echo "Starting shared PostgreSQL container with $(CONTAINER_NAME)..."
 	@if $(CONTAINER_CMD) ps --format "{{.Names}}" | grep -q "^my-postgres$$"; then \
 		echo "PostgreSQL container already running"; \
-		echo "DATABASE_URL=postgresql://backend:backend@localhost:5432/noc?sslmode=disable"; \
+		echo "DATABASE_URL=postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disable"; \
 	else \
 		$(CONTAINER_CMD) run -d --name my-postgres \
 			-e POSTGRES_DB=noc \
-			-e POSTGRES_USER=backend \
-			-e POSTGRES_PASSWORD=backend \
+			-e POSTGRES_USER=noc_user \
+			-e POSTGRES_PASSWORD=noc_password \
 			-p 5432:5432 \
 			postgres:15-alpine; \
-		echo "DATABASE_URL=postgresql://backend:backend@localhost:5432/noc?sslmode=disable"; \
+		echo "DATABASE_URL=postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disable"; \
 	fi
 
 .PHONY: db-down

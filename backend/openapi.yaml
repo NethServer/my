@@ -47,8 +47,6 @@ tags:
 
   - name: Collect - Health
     description: Collect service health and monitoring
-  - name: Collect - Metrics
-    description: Collect service metrics and performance
   - name: Collect - Systems
     description: Collect service system management and inventory collection
 
@@ -714,170 +712,6 @@ components:
             environment: "production"
             tier: "web"
 
-    SystemOperationResult:
-      type: object
-      properties:
-        operationId:
-          type: string
-          description: Operation ID for tracking
-          example: "op_restart_123456789"
-        status:
-          type: string
-          enum: [initiated, in_progress, completed, failed]
-          description: Operation status
-          example: "initiated"
-        message:
-          type: string
-          description: Operation message
-          example: "System restart has been initiated successfully"
-        estimatedDuration:
-          type: integer
-          description: Estimated duration in seconds
-          example: 120
-
-    SystemSubscription:
-      type: object
-      properties:
-        id:
-          type: string
-          description: Subscription ID
-          example: "sub_123456789"
-        systemId:
-          type: string
-          description: System ID
-          example: "sys_123456789"
-        plan:
-          type: string
-          description: Subscription plan
-          example: "enterprise"
-        status:
-          type: string
-          enum: [active, suspended, expired, cancelled]
-          description: Subscription status
-          example: "active"
-        startDate:
-          type: string
-          format: date-time
-          description: Subscription start date
-          example: "2025-01-01T00:00:00Z"
-        endDate:
-          type: string
-          format: date-time
-          description: Subscription end date
-          example: "2025-12-31T23:59:59Z"
-        features:
-          type: array
-          items:
-            type: string
-          description: Included features
-          example: ["monitoring", "backup", "support"]
-
-    LogEntry:
-      type: object
-      properties:
-        timestamp:
-          type: string
-          format: date-time
-          description: Log entry timestamp
-          example: "2025-07-10T10:30:00Z"
-        level:
-          type: string
-          enum: [trace, debug, info, warn, error, fatal]
-          description: Log level
-          example: "info"
-        message:
-          type: string
-          description: Log message
-          example: "System startup completed successfully"
-        component:
-          type: string
-          description: Component that generated the log
-          example: "web-server"
-        metadata:
-          type: object
-          description: Additional log metadata
-          additionalProperties: true
-          example:
-            requestId: "req_123456789"
-            userId: "usr_987654321"
-
-    AuditLogEntry:
-      type: object
-      properties:
-        id:
-          type: string
-          description: Audit log entry ID
-          example: "audit_123456789"
-        timestamp:
-          type: string
-          format: date-time
-          description: Audit entry timestamp
-          example: "2025-07-10T10:30:00Z"
-        userId:
-          type: string
-          description: User who performed the action
-          example: "usr_987654321"
-        action:
-          type: string
-          description: Action performed
-          example: "system_restart"
-        systemId:
-          type: string
-          description: System ID affected
-          example: "sys_123456789"
-        details:
-          type: object
-          description: Action details
-          additionalProperties: true
-          example:
-            reason: "Security update deployment"
-            duration: 120
-
-    BackupOperationResult:
-      type: object
-      properties:
-        backupId:
-          type: string
-          description: Backup ID
-          example: "backup_123456789"
-        operationId:
-          type: string
-          description: Operation ID for tracking
-          example: "op_backup_123456789"
-        status:
-          type: string
-          enum: [initiated, in_progress, completed, failed]
-          description: Backup operation status
-          example: "initiated"
-        estimatedSize:
-          type: integer
-          description: Estimated backup size in bytes
-          example: 1073741824
-        estimatedDuration:
-          type: integer
-          description: Estimated duration in seconds
-          example: 300
-
-    RestoreOperationResult:
-      type: object
-      properties:
-        operationId:
-          type: string
-          description: Operation ID for tracking
-          example: "op_restore_123456789"
-        status:
-          type: string
-          enum: [initiated, in_progress, completed, failed]
-          description: Restore operation status
-          example: "initiated"
-        backupId:
-          type: string
-          description: Backup ID being restored
-          example: "backup_987654321"
-        estimatedDuration:
-          type: integer
-          description: Estimated duration in seconds
-          example: 600
 
   parameters:
     PageParam:
@@ -926,14 +760,36 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            type: object
+            properties:
+              code:
+                type: integer
+                example: 401
+              message:
+                type: string
+                example: "invalid token"
+              data:
+                type: object
+                nullable: true
+                example: null
 
     Forbidden:
       description: Forbidden - insufficient permissions
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            type: object
+            properties:
+              code:
+                type: integer
+                example: 403
+              message:
+                type: string
+                example: "insufficient permissions"
+              data:
+                type: object
+                nullable: true
+                example: null
 
     NotFound:
       description: Resource not found
@@ -1315,6 +1171,7 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+
 
   /customers:
     get:
@@ -2007,9 +1864,8 @@ paths:
     get:
       tags:
         - Backend - Statistics
-        - Collect - Metrics
       summary: Get statistics
-      description: Get system statistics (backend requires manage:distributors permission, collect returns worker performance stats)
+      description: Get system statistics (Owner only)
       responses:
         '200':
           description: Statistics retrieved successfully
@@ -2025,10 +1881,7 @@ paths:
                     type: string
                     example: "statistics retrieved successfully"
                   data:
-                    oneOf:
-                      - $ref: '#/components/schemas/SystemStats'
-                      - type: object
-                        description: Worker performance statistics (collect service)
+                    $ref: '#/components/schemas/SystemStats'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2039,7 +1892,7 @@ paths:
       tags:
         - Backend - Systems
       summary: List systems
-      description: Get list of systems (requires Support role)
+      description: Get list of systems (requires Admin or Support role)
       parameters:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
@@ -2076,7 +1929,7 @@ paths:
       tags:
         - Backend - Systems
       summary: Create system
-      description: Create a new system (requires Support role)
+      description: Create a new system (requires Admin or Support role)
       requestBody:
         required: true
         content:
@@ -2111,7 +1964,7 @@ paths:
       tags:
         - Backend - Systems
       summary: Get single system
-      description: Get a specific system by ID (requires Support role)
+      description: Get a specific system by ID (requires Admin or Support role)
       parameters:
         - name: id
           in: path
@@ -2147,7 +2000,7 @@ paths:
       tags:
         - Backend - Systems
       summary: Update system
-      description: Update a system (requires Support role)
+      description: Update a system (requires Admin or Support role)
       parameters:
         - name: id
           in: path
@@ -2191,7 +2044,7 @@ paths:
       tags:
         - Backend - Systems
       summary: Delete system
-      description: Delete a system (requires admin:systems permission)
+      description: Delete a system (requires Admin or Support role)
       parameters:
         - name: id
           in: path
@@ -2217,6 +2070,48 @@ paths:
                   data:
                     type: object
                     nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/regenerate-secret:
+    post:
+      tags:
+        - Backend - Systems
+      summary: Regenerate system secret
+      description: Regenerate authentication secret for a specific system (requires Admin or Support role)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: System secret regenerated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "system secret regenerated successfully"
+                  data:
+                    type: object
+                    properties:
+                      secret:
+                        type: string
+                        description: New system secret
+                        example: "new_secret_123456789"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2544,16 +2439,30 @@ paths:
                   data:
                     type: object
                     properties:
-                      userPermissions:
+                      user_roles:
+                        type: array
+                        items:
+                          type: string
+                        example: ["Admin"]
+                      user_permissions:
                         type: array
                         items:
                           type: string
                         example: ["manage:systems", "read:systems"]
-                      orgPermissions:
+                      org_role:
+                        type: string
+                        example: "Owner"
+                      org_permissions:
                         type: array
                         items:
                           type: string
                         example: ["manage:resellers", "create:customers"]
+                      organization_id:
+                        type: string
+                        example: "org_123456789"
+                      organization_name:
+                        type: string
+                        example: "ACME Corp"
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -2585,45 +2494,6 @@ paths:
   # ===========================================
   # COLLECT SERVICE ENDPOINTS
   # ===========================================
-  /metrics:
-    get:
-      servers:
-        - url: http://localhost:8081/api
-          description: Collect API server (port 8081)
-      tags:
-        - Collect - Metrics
-      summary: Collect service metrics
-      description: Advanced metrics endpoint with database, connection, and worker metrics
-      responses:
-        '200':
-          description: Metrics retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "metrics"
-                  data:
-                    type: object
-                    properties:
-                      database:
-                        type: object
-                        description: Database statistics
-                      connections:
-                        type: object
-                        description: Connection metrics
-                      workers:
-                        type: object
-                        description: Worker status information
-                      timestamp:
-                        type: string
-                        format: date-time
-                        description: Timestamp when metrics were collected
 
   /systems/inventory:
     post:
@@ -2661,7 +2531,7 @@ paths:
                     }
                   }
       responses:
-        '200':
+        '202':
           description: Inventory received and queued for processing
           content:
             application/json:
@@ -2695,10 +2565,54 @@ paths:
                         example: "4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
                       timestamp:
                         type: string
+                        format: date-time
                         description: Timestamp of received inventory
                         example: "2025-07-16T15:46:51.571831+02:00"
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '422':
-          $ref: '#/components/responses/BadRequest'
+        '413':
+          description: Request Entity Too Large
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 413
+                  message:
+                    type: string
+                    example: "Request too large"
+                  data:
+                    type: object
+                    properties:
+                      max_size_bytes:
+                        type: integer
+                        description: Maximum allowed request size in bytes
+                        example: 10485760
+                      received_bytes:
+                        type: integer
+                        description: Size of received request in bytes
+                        example: 20971520
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 500
+                  message:
+                    type: string
+                    example: "Failed to process inventory"
+                  data:
+                    type: object
+                    properties:
+                      error:
+                        type: string
+                        example: "Processing queue unavailable"
 
