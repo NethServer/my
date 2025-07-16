@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/logger"
@@ -35,7 +36,15 @@ func GetUserInfoFromLogto(accessToken string) (*models.LogtoUserInfo, error) {
 	req.Header.Set("Content-Type", "application/json")
 
 	// Make request
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			DisableKeepAlives:     true, // Disable connection reuse to handle network changes
+			MaxIdleConnsPerHost:   0,    // No idle connections
+			IdleConnTimeout:       0,    // No idle timeout
+			ResponseHeaderTimeout: 15 * time.Second,
+		},
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user info: %w", err)

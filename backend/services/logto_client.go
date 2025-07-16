@@ -69,7 +69,15 @@ func (c *LogtoManagementClient) getAccessToken() error {
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			DisableKeepAlives:     true, // Disable connection reuse to handle network changes
+			MaxIdleConnsPerHost:   0,    // No idle connections
+			IdleConnTimeout:       0,    // No idle timeout
+			ResponseHeaderTimeout: 15 * time.Second,
+		},
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to request token: %w", err)
@@ -142,7 +150,15 @@ func (c *LogtoManagementClient) makeRequestWithRetry(method, endpoint string, bo
 		Bool("is_retry", isRetry).
 		Msg("Starting Logto Management API call")
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			DisableKeepAlives:     true, // Disable connection reuse to handle network changes
+			MaxIdleConnsPerHost:   0,    // No idle connections
+			IdleConnTimeout:       0,    // No idle timeout
+			ResponseHeaderTimeout: 15 * time.Second,
+		},
+	}
 	resp, err := client.Do(req)
 
 	duration := time.Since(start)

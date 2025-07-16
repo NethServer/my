@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/logger"
@@ -43,7 +44,15 @@ func (c *LogtoManagementClient) GetThirdPartyApplications() ([]models.LogtoThird
 	req.Header.Set("Authorization", "Bearer "+c.accessToken)
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			DisableKeepAlives:     true, // Disable connection reuse to handle network changes
+			MaxIdleConnsPerHost:   0,    // No idle connections
+			IdleConnTimeout:       0,    // No idle timeout
+			ResponseHeaderTimeout: 15 * time.Second,
+		},
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
@@ -87,7 +96,15 @@ func (c *LogtoManagementClient) GetApplicationBranding(appID string) (*models.Ap
 	req.Header.Set("Authorization", "Bearer "+c.accessToken)
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			DisableKeepAlives:     true, // Disable connection reuse to handle network changes
+			MaxIdleConnsPerHost:   0,    // No idle connections
+			IdleConnTimeout:       0,    // No idle timeout
+			ResponseHeaderTimeout: 15 * time.Second,
+		},
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
@@ -121,7 +138,15 @@ func (c *LogtoManagementClient) GetApplicationScopes(appID string) ([]string, er
 	req.Header.Set("Authorization", "Bearer "+c.accessToken)
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			DisableKeepAlives:     true, // Disable connection reuse to handle network changes
+			MaxIdleConnsPerHost:   0,    // No idle connections
+			IdleConnTimeout:       0,    // No idle timeout
+			ResponseHeaderTimeout: 15 * time.Second,
+		},
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)

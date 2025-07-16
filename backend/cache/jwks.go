@@ -125,7 +125,15 @@ func (c *JWKSCacheManager) fetchAndCacheJWKS() (map[string]*rsa.PublicKey, error
 		Msg("Fetching JWKS from endpoint")
 
 	start := time.Now()
-	client := &http.Client{Timeout: configuration.Config.JWKSHTTPTimeout}
+	client := &http.Client{
+		Timeout: configuration.Config.JWKSHTTPTimeout,
+		Transport: &http.Transport{
+			DisableKeepAlives:     true, // Disable connection reuse to handle network changes
+			MaxIdleConnsPerHost:   0,    // No idle connections
+			IdleConnTimeout:       0,    // No idle timeout
+			ResponseHeaderTimeout: 15 * time.Second,
+		},
+	}
 	resp, err := client.Get(c.endpoint)
 	if err != nil {
 		log.Error().
