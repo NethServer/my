@@ -47,7 +47,9 @@
   "login": {
     "welcome_title": "Welcome",
     "welcome_description": "Sign in to {product} Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
-    "sign_in": "Sign in"
+    "sign_in": "Sign in",
+    "manual_redirect_to_dashboard": "If you are not redirected automatically, {clickHereLink}",
+    "click_here": "click here"
   },
   "notifications": {
     "title": "Notifications",
