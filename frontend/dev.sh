@@ -2,8 +2,8 @@
 
 set -e
 
-dev_image=${DEV_IMAGE:-"nethesis-my-ui:dev-22.14.0"}
-container_name=nethesis-my-ui-dev
+dev_image=${DEV_IMAGE:-"my-nethesis-ui:dev-22.14.0"}
+container_name=my-nethesis-ui-dev
 
 build_image() {
     podman build \

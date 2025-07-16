@@ -24,6 +24,15 @@ const { t } = useI18n()
 const notificationsStore = useNotificationsStore()
 const loginStore = useLoginStore()
 
+const welcomeMsg = [
+  ' __  __         _   _      _   _               _     ',
+  '|  \\/  |_   _  | \\ | | ___| |_| |__   ___  ___(_)___ ',
+  "| |\\/| | | | | |  \\| |/ _ \\ __| '_ \\ / _ \\/ __| / __|",
+  '| |  | | |_| | | |\\  |  __/ |_| | | |  __/\\__ \\ \\__ \\',
+  '|_|  |_|\\__, | |_| \\_|\\___|\\__|_| |_|\\___||___/_|___/',
+  '        |___/                                        ',
+].join('\n')
+
 const pageTitle = computed(() => {
   const routeName = route.name ? String(route.name) : ''
 
@@ -38,7 +47,7 @@ const pageTitle = computed(() => {
 useTitle(pageTitle)
 
 onMounted(() => {
-  // console.log('%c' + welcomeMsg, 'background: #0069a8; color: white;') ////
+  console.log('%c' + welcomeMsg, 'background: #0069a8; color: white;')
   themeStore.loadTheme()
   configureAxios()
 })

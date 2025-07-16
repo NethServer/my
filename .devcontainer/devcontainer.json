@@ -1,7 +1,7 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/typescript-node
 {
-  "name": "my-ui",
+  "name": "my-nethesis-ui",
   // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
   "build": {
     "context": "..",
@@ -12,7 +12,7 @@
   "workspaceFolder": "/app",
   "runArgs": [
     "--userns=keep-id",
-    "--name=my-ui-dev"
+    "--name=my-nethesis-ui-dev"
   ],
   "appPort": "5173:5173",
   "customizations": {
