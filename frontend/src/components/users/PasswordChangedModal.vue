@@ -4,11 +4,13 @@
 -->
 
 <script setup lang="ts">
-import { NeLink, NeModal } from '@nethesis/vue-components'
+import { NeButton, NeModal } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { type User } from '@/lib/users'
 import { ref } from 'vue'
 import { useNotificationsStore } from '@/stores/notifications'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
 
 const {
   visible = false,
@@ -73,9 +75,18 @@ function onShow() {
         {{ newPassword }}
       </span>
       <span v-else> ********** </span>
-      <NeLink class="ml-2" @click="isPasswordShown = !isPasswordShown">
+      <NeButton
+        kind="secondary"
+        size="sm"
+        @click="isPasswordShown = !isPasswordShown"
+        :aria-label="isPasswordShown ? t('common.hide') : t('common.show')"
+        class="ml-2"
+      >
+        <template #prefix>
+          <FontAwesomeIcon :icon="isPasswordShown ? faEyeSlash : faEye" aria-hidden="true" />
+        </template>
         {{ isPasswordShown ? t('common.hide') : t('common.show') }}
-      </NeLink>
+      </NeButton>
     </p>
   </NeModal>
 </template>
