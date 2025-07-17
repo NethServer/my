@@ -14,12 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy Production Redis
-        uses: render-deploy/action@v1
+        uses: johnbeynon/render-deploy-action@v0.0.8
         with:
           service-id: ${{ secrets.RENDER_PRODUCTION_REDIS_SERVICE_ID }}
           api-key: ${{ secrets.RENDER_API_KEY }}
-          clear-cache: false
-          wait-for-success: true
 
   deploy-postgres:
     name: Deploy PostgreSQL
@@ -27,12 +25,10 @@ jobs:
     needs: deploy-redis
     steps:
       - name: Deploy Production PostgreSQL
-        uses: render-deploy/action@v1
+        uses: johnbeynon/render-deploy-action@v0.0.8
         with:
           service-id: ${{ secrets.RENDER_PRODUCTION_POSTGRES_SERVICE_ID }}
           api-key: ${{ secrets.RENDER_API_KEY }}
-          clear-cache: false
-          wait-for-success: true
 
   deploy-backend:
     name: Deploy Backend
@@ -40,12 +36,10 @@ jobs:
     needs: deploy-postgres
     steps:
       - name: Deploy Production Backend
-        uses: render-deploy/action@v1
+        uses: johnbeynon/render-deploy-action@v0.0.8
         with:
           service-id: ${{ secrets.RENDER_PRODUCTION_BACKEND_SERVICE_ID }}
           api-key: ${{ secrets.RENDER_API_KEY }}
-          clear-cache: false
-          wait-for-success: true
 
   deploy-collect:
     name: Deploy Collect
@@ -53,12 +47,10 @@ jobs:
     needs: deploy-postgres
     steps:
       - name: Deploy Production Collect
-        uses: render-deploy/action@v1
+        uses: johnbeynon/render-deploy-action@v0.0.8
         with:
           service-id: ${{ secrets.RENDER_PRODUCTION_COLLECT_SERVICE_ID }}
           api-key: ${{ secrets.RENDER_API_KEY }}
-          clear-cache: false
-          wait-for-success: true
 
   deploy-frontend:
     name: Deploy Frontend
@@ -66,9 +58,7 @@ jobs:
     needs: [deploy-backend, deploy-collect]
     steps:
       - name: Deploy Production Frontend
-        uses: render-deploy/action@v1
+        uses: johnbeynon/render-deploy-action@v0.0.8
         with:
           service-id: ${{ secrets.RENDER_PRODUCTION_FRONTEND_SERVICE_ID }}
           api-key: ${{ secrets.RENDER_API_KEY }}
-          clear-cache: true
-          wait-for-success: true
