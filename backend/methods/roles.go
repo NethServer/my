@@ -7,6 +7,7 @@ package methods
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -29,11 +30,11 @@ func GetRoles(c *gin.Context) {
 		return
 	}
 
-	// Filter out Logto Management API access role and convert LogtoRole to Role model
+	// Filter out system roles and convert LogtoRole to Role model
 	roles := make([]models.Role, 0)
 	for _, logtoRole := range logtoRoles {
-		// Skip Logto Management API access role
-		if logtoRole.Name == "Logto Management API access" {
+		// Skip system roles based on name patterns
+		if isSystemRole(logtoRole.Name, logtoRole.Description) {
 			continue
 		}
 		roles = append(roles, models.Role{
@@ -84,4 +85,39 @@ func GetOrganizationRoles(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("organization roles retrieved successfully", models.OrganizationRolesResponse{
 		OrganizationRoles: orgRoles,
 	}))
+}
+
+// isSystemRole checks if a role is a system role that should be filtered out
+func isSystemRole(name, description string) bool {
+	// Convert to lowercase for case-insensitive comparison
+	nameLower := strings.ToLower(name)
+	descLower := strings.ToLower(description)
+
+	// System role name patterns
+	systemPatterns := []string{
+		"logto",
+		"management api",
+		"system",
+		"admin",
+		"machine-to-machine",
+		"m2m",
+		"default",
+		"service",
+	}
+
+	// Check name patterns
+	for _, pattern := range systemPatterns {
+		if strings.Contains(nameLower, pattern) {
+			return true
+		}
+	}
+
+	// Check description patterns
+	for _, pattern := range systemPatterns {
+		if strings.Contains(descLower, pattern) {
+			return true
+		}
+	}
+
+	return false
 }

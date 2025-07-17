@@ -53,9 +53,9 @@ Web application providing centralized authentication and management using Logto 
 - **PR Previews**: Temporary environments for pull requests
 
 ### Production (`my.nethesis.it`)
-- **Trigger**: GitHub release creation
-- **Sequential Deploy**: Redis → Backend → Frontend
-- **Manual Control**: No auto-deploy from commits
+- **Trigger**: Manual deployment via GitHub Actions
+- **Sequential Deploy**: Redis → PostgreSQL → Backend + Collect → Frontend
+- **Manual Control**: Deploy only when explicitly triggered
 
 ## 📝 Configuration
 
@@ -98,9 +98,13 @@ git push origin feature/new-feature     # → Create PR
 
 ### Production Release
 ```bash
+# 1. Create and push release tag
 git tag v1.2.3
-git push origin v1.2.3                  # → Create GitHub release
-# → my.nethesis.it deploys automatically
+git push origin v1.2.3                  # → Create GitHub release + containers
+
+# 2. Manual deployment trigger
+# Go to: https://github.com/NethServer/my/actions/workflows/deploy.yml
+# Click "Run workflow" → Enter version "v1.2.3" → Deploy
 ```
 
 ## 🤝 Contributing

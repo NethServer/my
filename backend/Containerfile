@@ -34,8 +34,11 @@ WORKDIR /root/
 # Copy the binary from builder stage
 COPY --from=builder /app/backend .
 
-# Change ownership of the binary
-RUN chown appuser:appgroup /root/backend
+# Copy database schema files
+COPY --from=builder /app/database/schema.sql database/
+
+# Change ownership of the binary and database files
+RUN chown -R appuser:appgroup /root/backend /root/database
 
 # Switch to non-root user
 USER appuser

@@ -30,8 +30,8 @@ services:
     name: my-backend-prod
     runtime: go
     plan: free
-    buildCommand: cd backend && make build
-    startCommand: ./backend/build/backend
+    buildCommand: cd backend && make build && mkdir -p build/database && cp database/schema.sql build/database/
+    startCommand: cd backend && ./build/backend
     healthCheckPath: /api/health
     envVars:
       # Server Configuration
@@ -79,8 +79,8 @@ services:
     name: my-collect-prod
     runtime: go
     plan: free
-    buildCommand: cd collect && go build -o build/collect main.go
-    startCommand: ./collect/build/collect
+    buildCommand: cd collect && go build -o build/collect main.go && mkdir -p build/database && cp database/schema.sql build/database/
+    startCommand: cd collect && ./build/collect
     healthCheckPath: /api/health
     envVars:
       # Server Configuration
@@ -128,8 +128,8 @@ services:
     name: my-backend-dev
     runtime: go
     plan: free
-    buildCommand: cd backend && make build
-    startCommand: ./backend/build/backend
+    buildCommand: cd backend && make build && mkdir -p build/database && cp database/schema.sql build/database/
+    startCommand: cd backend && ./build/backend
     healthCheckPath: /api/health
     envVars:
       # Server Configuration
@@ -178,8 +178,8 @@ services:
     name: my-collect-dev
     runtime: go
     plan: free
-    buildCommand: cd collect && go build -o build/collect main.go
-    startCommand: ./collect/build/collect
+    buildCommand: cd collect && go build -o build/collect main.go && mkdir -p build/database && cp database/schema.sql build/database/
+    startCommand: cd collect && ./build/collect
     healthCheckPath: /api/health
     envVars:
       # Server Configuration
