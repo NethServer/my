@@ -8,12 +8,26 @@ package cache
 import (
 	"crypto/rsa"
 	"math/big"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
+
+// MockHTTPClient is a mock implementation of HTTPClient
+type MockHTTPClient struct {
+	mock.Mock
+}
+
+func (m *MockHTTPClient) Get(url string) (*http.Response, error) {
+	args := m.Called(url)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*http.Response), args.Error(1)
+}
 
 func TestJWKStruct(t *testing.T) {
 	jwk := JWK{
@@ -84,26 +98,31 @@ func TestJWKSCacheStruct(t *testing.T) {
 
 func TestJWKSCacheManagerStruct(t *testing.T) {
 	mockRedis := NewMockRedisClient()
+	mockHTTP := &MockHTTPClient{}
 	ttl := 5 * time.Minute
 	endpoint := "https://example.com/.well-known/jwks.json"
 
 	manager := &JWKSCacheManager{
-		redis:    mockRedis,
-		ttl:      ttl,
-		endpoint: endpoint,
+		redis:      mockRedis,
+		ttl:        ttl,
+		endpoint:   endpoint,
+		httpClient: mockHTTP,
 	}
 
 	assert.Equal(t, mockRedis, manager.redis)
 	assert.Equal(t, ttl, manager.ttl)
 	assert.Equal(t, endpoint, manager.endpoint)
+	assert.Equal(t, mockHTTP, manager.httpClient)
 }
 
 func TestJWKSCacheManagerGetPublicKey(t *testing.T) {
 	mockRedis := NewMockRedisClient()
+	mockHTTP := &MockHTTPClient{}
 	manager := &JWKSCacheManager{
-		redis:    mockRedis,
-		ttl:      5 * time.Minute,
-		endpoint: "https://example.com/.well-known/jwks.json",
+		redis:      mockRedis,
+		ttl:        5 * time.Minute,
+		endpoint:   "https://example.com/.well-known/jwks.json",
+		httpClient: mockHTTP,
 	}
 
 	kid := "test_key_id"
@@ -137,10 +156,12 @@ func TestJWKSCacheManagerGetPublicKey(t *testing.T) {
 
 	t.Run("Cache hit but expired", func(t *testing.T) {
 		mockRedis := NewMockRedisClient() // Fresh mock for this test
+		mockHTTP := &MockHTTPClient{}
 		manager := &JWKSCacheManager{
-			redis:    mockRedis,
-			ttl:      5 * time.Minute,
-			endpoint: "https://example.com/.well-known/jwks.json",
+			redis:      mockRedis,
+			ttl:        5 * time.Minute,
+			endpoint:   "https://example.com/.well-known/jwks.json",
+			httpClient: mockHTTP,
 		}
 
 		// For expired cache, the method checks time.Now().Before(cached.ExpiresAt)
@@ -164,38 +185,50 @@ func TestJWKSCacheManagerGetPublicKey(t *testing.T) {
 			*arg = cached
 		})
 
-		// Since fetchAndCacheJWKS tries to make HTTP requests, it will fail in test environment
+		// Mock HTTP client to return an error when trying to fetch JWKS
+		mockHTTP.On("Get", "https://example.com/.well-known/jwks.json").Return(nil, assert.AnError)
+
+		// Since fetchAndCacheJWKS tries to make HTTP requests, it will fail with mock error
 		key, err := manager.GetPublicKey(kid)
 		assert.Error(t, err)
 		assert.Nil(t, key)
 		assert.Contains(t, err.Error(), "failed to fetch JWKS")
 		mockRedis.AssertExpectations(t)
+		mockHTTP.AssertExpectations(t)
 	})
 
 	t.Run("Cache miss", func(t *testing.T) {
 		mockRedis := NewMockRedisClient() // Fresh mock for this test
+		mockHTTP := &MockHTTPClient{}
 		manager := &JWKSCacheManager{
-			redis:    mockRedis,
-			ttl:      5 * time.Minute,
-			endpoint: "https://example.com/.well-known/jwks.json",
+			redis:      mockRedis,
+			ttl:        5 * time.Minute,
+			endpoint:   "https://example.com/.well-known/jwks.json",
+			httpClient: mockHTTP,
 		}
 
 		mockRedis.On("Get", cacheKey, mock.AnythingOfType("*cache.JWKSCache")).Return(ErrCacheMiss)
 
-		// Since fetchAndCacheJWKS is hard to mock, we expect an error
+		// Mock HTTP client to return an error when trying to fetch JWKS
+		mockHTTP.On("Get", "https://example.com/.well-known/jwks.json").Return(nil, assert.AnError)
+
+		// Since fetchAndCacheJWKS uses mock HTTP client, we expect an error
 		key, err := manager.GetPublicKey(kid)
 		assert.Error(t, err)
 		assert.Nil(t, key)
 		assert.Contains(t, err.Error(), "failed to fetch JWKS")
 		mockRedis.AssertExpectations(t)
+		mockHTTP.AssertExpectations(t)
 	})
 
 	t.Run("Cache hit but key not found", func(t *testing.T) {
 		mockRedis := NewMockRedisClient() // Fresh mock for this test
+		mockHTTP := &MockHTTPClient{}
 		manager := &JWKSCacheManager{
-			redis:    mockRedis,
-			ttl:      5 * time.Minute,
-			endpoint: "https://example.com/.well-known/jwks.json",
+			redis:      mockRedis,
+			ttl:        5 * time.Minute,
+			endpoint:   "https://example.com/.well-known/jwks.json",
+			httpClient: mockHTTP,
 		}
 
 		now := time.Now()
@@ -212,12 +245,16 @@ func TestJWKSCacheManagerGetPublicKey(t *testing.T) {
 			*arg = cached
 		})
 
+		// Mock HTTP client to return an error when trying to fetch JWKS
+		mockHTTP.On("Get", "https://example.com/.well-known/jwks.json").Return(nil, assert.AnError)
+
 		// Since the requested key is not in cache, it will try to fetch from endpoint
 		key, err := manager.GetPublicKey(kid)
 		assert.Error(t, err)
 		assert.Nil(t, key)
 		assert.Contains(t, err.Error(), "failed to fetch JWKS")
 		mockRedis.AssertExpectations(t)
+		mockHTTP.AssertExpectations(t)
 	})
 }
 
@@ -226,10 +263,12 @@ func TestJWKSCacheManagerClearCache(t *testing.T) {
 
 	t.Run("Successful clear", func(t *testing.T) {
 		mockRedis := NewMockRedisClient()
+		mockHTTP := &MockHTTPClient{}
 		manager := &JWKSCacheManager{
-			redis:    mockRedis,
-			ttl:      5 * time.Minute,
-			endpoint: "https://example.com/.well-known/jwks.json",
+			redis:      mockRedis,
+			ttl:        5 * time.Minute,
+			endpoint:   "https://example.com/.well-known/jwks.json",
+			httpClient: mockHTTP,
 		}
 
 		mockRedis.On("DeletePattern", expectedPattern).Return(nil)
@@ -241,10 +280,12 @@ func TestJWKSCacheManagerClearCache(t *testing.T) {
 
 	t.Run("Redis error during clear", func(t *testing.T) {
 		mockRedis := NewMockRedisClient()
+		mockHTTP := &MockHTTPClient{}
 		manager := &JWKSCacheManager{
-			redis:    mockRedis,
-			ttl:      5 * time.Minute,
-			endpoint: "https://example.com/.well-known/jwks.json",
+			redis:      mockRedis,
+			ttl:        5 * time.Minute,
+			endpoint:   "https://example.com/.well-known/jwks.json",
+			httpClient: mockHTTP,
 		}
 
 		mockRedis.On("DeletePattern", expectedPattern).Return(assert.AnError)
@@ -259,10 +300,12 @@ func TestJWKSCacheManagerClearCache(t *testing.T) {
 func TestJWKSCacheManagerGetStats(t *testing.T) {
 	t.Run("Successful stats retrieval", func(t *testing.T) {
 		mockRedis := NewMockRedisClient()
+		mockHTTP := &MockHTTPClient{}
 		manager := &JWKSCacheManager{
-			redis:    mockRedis,
-			ttl:      5 * time.Minute,
-			endpoint: "https://example.com/.well-known/jwks.json",
+			redis:      mockRedis,
+			ttl:        5 * time.Minute,
+			endpoint:   "https://example.com/.well-known/jwks.json",
+			httpClient: mockHTTP,
 		}
 
 		expectedRedisStats := map[string]interface{}{
@@ -283,10 +326,12 @@ func TestJWKSCacheManagerGetStats(t *testing.T) {
 
 	t.Run("Redis error during stats retrieval", func(t *testing.T) {
 		mockRedis := NewMockRedisClient()
+		mockHTTP := &MockHTTPClient{}
 		manager := &JWKSCacheManager{
-			redis:    mockRedis,
-			ttl:      5 * time.Minute,
-			endpoint: "https://example.com/.well-known/jwks.json",
+			redis:      mockRedis,
+			ttl:        5 * time.Minute,
+			endpoint:   "https://example.com/.well-known/jwks.json",
+			httpClient: mockHTTP,
 		}
 
 		mockRedis.On("GetStats").Return(map[string]interface{}(nil), assert.AnError)

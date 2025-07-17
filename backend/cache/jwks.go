@@ -24,6 +24,11 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// HTTPClient interface for HTTP operations
+type HTTPClient interface {
+	Get(url string) (*http.Response, error)
+}
+
 // JWK represents a JSON Web Key
 type JWK struct {
 	Kid string `json:"kid"`
@@ -47,9 +52,10 @@ type JWKSCache struct {
 
 // JWKSCacheManager manages Redis cache for JWKS
 type JWKSCacheManager struct {
-	redis    RedisInterface
-	ttl      time.Duration
-	endpoint string
+	redis      RedisInterface
+	ttl        time.Duration
+	endpoint   string
+	httpClient HTTPClient
 }
 
 // Global cache instances
@@ -63,6 +69,15 @@ func GetJWKSCacheManager() *JWKSCacheManager {
 			redis:    GetRedisClient(),
 			ttl:      configuration.Config.JWKSCacheTTL,
 			endpoint: configuration.Config.JWKSEndpoint,
+			httpClient: &http.Client{
+				Timeout: 30 * time.Second,
+				Transport: &http.Transport{
+					DisableKeepAlives:     true,
+					MaxIdleConnsPerHost:   0,
+					IdleConnTimeout:       0,
+					ResponseHeaderTimeout: 15 * time.Second,
+				},
+			},
 		}
 
 		log.Info().
@@ -125,16 +140,7 @@ func (c *JWKSCacheManager) fetchAndCacheJWKS() (map[string]*rsa.PublicKey, error
 		Msg("Fetching JWKS from endpoint")
 
 	start := time.Now()
-	client := &http.Client{
-		Timeout: configuration.Config.JWKSHTTPTimeout,
-		Transport: &http.Transport{
-			DisableKeepAlives:     true, // Disable connection reuse to handle network changes
-			MaxIdleConnsPerHost:   0,    // No idle connections
-			IdleConnTimeout:       0,    // No idle timeout
-			ResponseHeaderTimeout: 15 * time.Second,
-		},
-	}
-	resp, err := client.Get(c.endpoint)
+	resp, err := c.httpClient.Get(c.endpoint)
 	if err != nil {
 		log.Error().
 			Str("component", "jwks_cache").
