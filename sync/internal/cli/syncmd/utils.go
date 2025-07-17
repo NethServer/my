@@ -10,14 +10,22 @@
 package syncmd
 
 import (
+	"fmt"
 	"os"
 )
 
-// GetAPIBaseURL returns the API base URL from environment or default
+// GetAPIBaseURL returns the API base URL from environment or derives it from TENANT_DOMAIN
 func GetAPIBaseURL() string {
 	apiBaseURL := os.Getenv("API_BASE_URL")
 	if apiBaseURL == "" {
-		apiBaseURL = "http://localhost:8080"
+		// Derive from TENANT_DOMAIN if API_BASE_URL is not set
+		tenantDomain := os.Getenv("TENANT_DOMAIN")
+		if tenantDomain != "" {
+			apiBaseURL = fmt.Sprintf("https://%s/api", tenantDomain)
+		} else {
+			// Fallback to localhost only if neither is available
+			apiBaseURL = "http://localhost:8080"
+		}
 	}
 	return apiBaseURL
 }

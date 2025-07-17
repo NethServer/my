@@ -35,6 +35,47 @@ go install github.com/nethesis/sync/cmd/sync@latest
 
 ## Quick Start
 
+### Prerequisites
+- Go 1.23+
+- Logto instance with M2M app configured
+
+### Setup
+
+```bash
+# Setup development environment
+make dev-setup
+
+# Build the sync tool
+make build
+
+# Run sync commands
+./build/sync --help
+```
+
+### Environment Configuration
+
+The sync tool loads environment variables from a `.env` file by default. You can specify a different environment file using the `--env-file` flag.
+
+```bash
+# Use default .env file
+./build/sync sync
+
+# Use custom environment file
+./build/sync sync --env-file .env.production
+./build/sync init --env-file .env.staging
+```
+
+#### Required Environment Variables
+```bash
+# Logto tenant configuration
+TENANT_ID=your-tenant-id
+TENANT_DOMAIN=your-domain.com
+
+# Logto Management API (M2M app credentials)
+BACKEND_APP_ID=your-backend-m2m-app-id
+BACKEND_APP_SECRET=your-backend-m2m-app-secret
+```
+
 ### Complete Setup (Recommended)
 
 1. **Create M2M Application in Logto**
@@ -150,6 +191,11 @@ sync sync --skip-resources --skip-roles
 
 ### Global Flags
 
+**Common Flags:**
+- `--env-file`: Environment file to load (default: .env)
+- `-v, --verbose`: Enable verbose output
+- `-o, --output`: Output format (text, json, yaml)
+
 **Init Command:**
 - `--tenant-id`: Logto tenant identifier (required)
 - `--backend-app-id`: M2M application ID (required)
@@ -159,12 +205,10 @@ sync sync --skip-resources --skip-roles
 - `--owner-email`: Owner user email (default: "owner@example.com")
 - `--owner-name`: Owner user display name (default: "System Owner")
 - `--force`: Force re-initialization
-- `-o, --output`: Output format (text, json, yaml)
 
 **Sync Command:**
 - `-c, --config`: Configuration file path
 - `--dry-run`: Preview changes only
-- `--verbose`: Enable verbose output
 - `--cleanup`: Remove undefined resources
 - `--skip-resources`: Skip resource sync
 - `--skip-roles`: Skip role sync
@@ -284,6 +328,10 @@ sync init --output json | jq '.backend_app.environment_vars'
 
 # Extract environment variables
 sync init --output json | jq -r '.backend_app.environment_vars | to_entries[] | "\(.key)=\(.value)"' > backend/.env
+
+# Use different environment files in CI/CD
+sync init --env-file .env.staging --output json
+sync sync --env-file .env.production --dry-run
 ```
 
 ## Project Structure

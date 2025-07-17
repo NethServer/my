@@ -23,13 +23,13 @@ func setupServicesTestEnvironment() {
 		_ = logger.Init(&logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat, Output: logger.StdoutOutput, AppName: "[SERVICES-TEST]"})
 
 		// Set test environment variables for configuration
-		_ = os.Setenv("LOGTO_ISSUER", "https://test-logto.example.com")
-		_ = os.Setenv("LOGTO_AUDIENCE", "test-api-resource")
+		_ = os.Setenv("TENANT_ID", "test-tenant")
+		_ = os.Setenv("TENANT_DOMAIN", "test-domain.com")
 		_ = os.Setenv("JWT_SECRET", "test-secret-key")
 		_ = os.Setenv("BACKEND_APP_ID", "test-client-id")
 		_ = os.Setenv("BACKEND_APP_SECRET", "test-client-secret")
-		_ = os.Setenv("LOGTO_MANAGEMENT_BASE_URL", "https://test-logto.example.com/api")
 		_ = os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test_db")
+		_ = os.Setenv("REDIS_URL", "redis://localhost:6379")
 
 		configuration.Init()
 		isServicesTestEnvironmentSetup = true

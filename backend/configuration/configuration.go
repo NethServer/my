@@ -23,6 +23,8 @@ type Configuration struct {
 	ListenAddress string `json:"listen_address"`
 	// Database configuration
 	DatabaseURL   string `json:"database_url"`
+	TenantID      string `json:"tenant_id"`
+	TenantDomain  string `json:"tenant_domain"`
 	LogtoIssuer   string `json:"logto_issuer"`
 	LogtoAudience string `json:"logto_audience"`
 	JWKSEndpoint  string `json:"jwks_endpoint"`
@@ -77,23 +79,27 @@ func Init() {
 		logger.LogConfigLoad("env", "DATABASE_URL", false, fmt.Errorf("DATABASE_URL variable is empty"))
 	}
 
-	if os.Getenv("LOGTO_ISSUER") != "" {
-		Config.LogtoIssuer = os.Getenv("LOGTO_ISSUER")
+	// Tenant ID configuration (required)
+	if os.Getenv("TENANT_ID") != "" {
+		Config.TenantID = os.Getenv("TENANT_ID")
+		// Derive base URL from tenant ID
+		Config.LogtoIssuer = fmt.Sprintf("https://%s.logto.app", Config.TenantID)
 	} else {
-		logger.LogConfigLoad("env", "LOGTO_ISSUER", false, fmt.Errorf("LOGTO_ISSUER variable is empty"))
+		logger.LogConfigLoad("env", "TENANT_ID", false, fmt.Errorf("TENANT_ID variable is empty"))
 	}
 
-	if os.Getenv("LOGTO_AUDIENCE") != "" {
-		Config.LogtoAudience = os.Getenv("LOGTO_AUDIENCE")
+	// Tenant domain configuration (required for JWT issuer)
+	if os.Getenv("TENANT_DOMAIN") != "" {
+		Config.TenantDomain = os.Getenv("TENANT_DOMAIN")
 	} else {
-		logger.LogConfigLoad("env", "LOGTO_AUDIENCE", false, fmt.Errorf("LOGTO_AUDIENCE variable is empty"))
+		logger.LogConfigLoad("env", "TENANT_DOMAIN", false, fmt.Errorf("TENANT_DOMAIN variable is empty"))
 	}
 
-	if os.Getenv("JWKS_ENDPOINT") != "" {
-		Config.JWKSEndpoint = os.Getenv("JWKS_ENDPOINT")
-	} else {
-		Config.JWKSEndpoint = Config.LogtoIssuer + "/oidc/jwks"
-	}
+	// LOGTO_AUDIENCE (auto-derived from TENANT_DOMAIN)
+	Config.LogtoAudience = fmt.Sprintf("https://%s/api", Config.TenantDomain)
+
+	// JWKS endpoint (auto-derived from LogtoIssuer)
+	Config.JWKSEndpoint = Config.LogtoIssuer + "/oidc/jwks"
 
 	// JWT custom token configuration
 	if os.Getenv("JWT_SECRET") != "" {
@@ -102,11 +108,8 @@ func Init() {
 		logger.LogConfigLoad("env", "JWT_SECRET", false, fmt.Errorf("JWT_SECRET variable is empty"))
 	}
 
-	if os.Getenv("JWT_ISSUER") != "" {
-		Config.JWTIssuer = os.Getenv("JWT_ISSUER")
-	} else {
-		Config.JWTIssuer = "your-api.com"
-	}
+	// JWT issuer (uses tenant domain)
+	Config.JWTIssuer = Config.TenantDomain
 
 	if os.Getenv("JWT_EXPIRATION") != "" {
 		Config.JWTExpiration = os.Getenv("JWT_EXPIRATION")
@@ -133,11 +136,8 @@ func Init() {
 		logger.LogConfigLoad("env", "BACKEND_APP_SECRET", false, fmt.Errorf("BACKEND_APP_SECRET variable is empty"))
 	}
 
-	if os.Getenv("LOGTO_MANAGEMENT_BASE_URL") != "" {
-		Config.LogtoManagementBaseURL = os.Getenv("LOGTO_MANAGEMENT_BASE_URL")
-	} else {
-		Config.LogtoManagementBaseURL = Config.LogtoIssuer + "/api"
-	}
+	// Logto Management API base URL (auto-derived from LogtoIssuer)
+	Config.LogtoManagementBaseURL = Config.LogtoIssuer + "/api"
 
 	// Redis configuration with defaults
 	if os.Getenv("REDIS_URL") != "" {

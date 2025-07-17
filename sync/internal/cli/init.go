@@ -144,6 +144,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 			"Login with the owner credentials provided",
 			"Use 'sync sync' to update RBAC configuration when needed",
 		},
+		EnvFile: envFile,
 	}
 
 	logger.Info("Starting Logto initialization...")

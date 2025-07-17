@@ -29,56 +29,33 @@ make dev-env-down
 
 ### Required Environment Variables
 ```bash
-# Authentication
-LOGTO_ISSUER=https://your-logto-instance.logto.app
-LOGTO_AUDIENCE=your-api-resource-identifier
-JWT_SECRET=your-custom-jwt-secret
+# ===========================================
+# REQUIRED CONFIGURATION
+# ===========================================
+# Logto tenant configuration (all other URLs auto-derived)
+TENANT_ID=your-tenant-id
+TENANT_DOMAIN=your-domain.com
 
-# Management API
-BACKEND_APP_ID=your-m2m-app-id
-BACKEND_APP_SECRET=your-m2m-secret
+# Logto Management API (from your M2M app)
+BACKEND_APP_ID=your-management-api-app-id
+BACKEND_APP_SECRET=your-management-api-app-secret
 
-# Postgres URL
-DATABASE_URL=postgresql://backend:backend@localhost:5432/noc
+# Custom JWT for resilient offline operation
+JWT_SECRET=your-super-secret-jwt-signing-key-min-32-chars
 
-# Redis Configuration
+# PostgreSQL connection string (shared 'noc' database)
+DATABASE_URL=postgresql://backend:backend@localhost:5432/noc?sslmode=disable
+
+# Redis connection URL
 REDIS_URL=redis://localhost:6379
-REDIS_DB=0
-REDIS_PASSWORD=
-# Note: REDIS_PASSWORD can be empty for Redis without auth
 ```
 
-### Optional Environment Variables
-```bash
-LISTEN_ADDRESS=127.0.0.1:8080
-JWKS_ENDPOINT=https://your-logto-instance.logto.app/oidc/jwks
-JWT_ISSUER=your-api.com
-JWT_EXPIRATION=24h
-JWT_REFRESH_EXPIRATION=168h
-LOGTO_MANAGEMENT_BASE_URL=https://your-logto-instance.logto.app/api
-
-# Redis Connection Settings (Optional - defaults shown)
-REDIS_MAX_RETRIES=3
-REDIS_DIAL_TIMEOUT=5s
-REDIS_READ_TIMEOUT=3s
-REDIS_WRITE_TIMEOUT=3s
-REDIS_OPERATION_TIMEOUT=5s
-# Note: Omit any of these to use the default values
-
-# Cache TTL Configuration
-STATS_CACHE_TTL=10m
-STATS_UPDATE_INTERVAL=5m
-STATS_STALE_THRESHOLD=15m
-JIT_ROLES_CACHE_TTL=5m
-JIT_ROLES_CLEANUP_INTERVAL=2m
-ORG_USERS_CACHE_TTL=3m
-ORG_USERS_CLEANUP_INTERVAL=1m
-JWKS_CACHE_TTL=5m
-JWKS_HTTP_TIMEOUT=10s
-
-# API Configuration
-DEFAULT_PAGE_SIZE=100
-```
+**Auto-derived URLs:**
+- `LOGTO_ISSUER` = `https://{TENANT_ID}.logto.app`
+- `LOGTO_AUDIENCE` = `https://{TENANT_DOMAIN}/api`
+- `JWKS_ENDPOINT` = `https://{TENANT_ID}.logto.app/oidc/jwks`
+- `LOGTO_MANAGEMENT_BASE_URL` = `https://{TENANT_ID}.logto.app/api`
+- `JWT_ISSUER` = `{TENANT_DOMAIN}`
 
 ## Architecture
 
@@ -145,6 +122,21 @@ make run
 
 # Test coverage
 make test-coverage
+```
+
+### Database Commands
+```bash
+# Start PostgreSQL container (Docker/Podman auto-detected)
+make db-up
+
+# Stop PostgreSQL container
+make db-down
+
+# Reset PostgreSQL container (stop + start)
+make db-reset
+
+# Run database migrations
+make db-migrate
 ```
 
 ### Redis Commands

@@ -14,15 +14,16 @@ import (
 
 func TestMain(m *testing.M) {
 	// Set test environment variables
+	_ = os.Setenv("TENANT_ID", "test-tenant")
+	_ = os.Setenv("TENANT_DOMAIN", "test-domain.com")
 	_ = os.Setenv("JWT_SECRET", "test-secret-key-for-testing-only")
 	_ = os.Setenv("JWT_ISSUER", "test-issuer")
 	_ = os.Setenv("JWT_EXPIRATION", "24h")
 	_ = os.Setenv("JWT_REFRESH_EXPIRATION", "168h")
-	_ = os.Setenv("LOGTO_ISSUER", "https://test-logto.example.com")
-	_ = os.Setenv("LOGTO_AUDIENCE", "test-api-resource")
 	_ = os.Setenv("BACKEND_APP_ID", "test-client-id")
 	_ = os.Setenv("BACKEND_APP_SECRET", "test-client-secret")
 	_ = os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test_db")
+	_ = os.Setenv("REDIS_URL", "redis://localhost:6379")
 
 	// Initialize configuration
 	configuration.Init()
@@ -74,7 +75,7 @@ func TestGenerateCustomToken(t *testing.T) {
 
 				// Check registered claims
 				assert.Equal(t, "test-user-123", claims.Subject)
-				assert.Equal(t, "test-issuer", claims.Issuer)
+				assert.Equal(t, "test-domain.com", claims.Issuer)
 				assert.True(t, claims.ExpiresAt.After(time.Now()))
 			},
 		},
