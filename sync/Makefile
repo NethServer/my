@@ -83,7 +83,13 @@ install: build
 # Run the application
 .PHONY: run
 run:
-	@go run ./$(CMD_DIR) $(ARGS)
+	@echo "Running sync tool (development)..."
+	@GO_ENV=development go run ./$(CMD_DIR) $(ARGS)
+
+.PHONY: run-qa
+run-qa:
+	@echo "Running sync tool (qa)..."
+	@GO_ENV=qa go run ./$(CMD_DIR) $(ARGS)
 
 
 # Development setup
@@ -117,7 +123,8 @@ help:
 	@echo "  install       - Install the binary"
 	@echo "  lint          - Run linter"
 	@echo "  pre-commit    - Run all pre-commit checks"
-	@echo "  run           - Run the application (use ARGS=... for arguments)"
+	@echo "  run           - Run the application (development env, use ARGS=... for arguments)"
+	@echo "  run-qa        - Run the application (qa env, use ARGS=... for arguments)"
 	@echo "  test          - Run tests"
 	@echo "  test-coverage - Run tests with coverage"
 	@echo "  tidy          - Tidy dependencies"

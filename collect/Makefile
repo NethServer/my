@@ -35,8 +35,13 @@ all: clean test build
 # Run the application
 .PHONY: run
 run:
-	@echo "Starting collect development server..."
-	@go run main.go
+	@echo "Starting collect development server (development)..."
+	@GO_ENV=development go run main.go
+
+.PHONY: run-qa
+run-qa:
+	@echo "Starting collect QA server..."
+	@GO_ENV=qa go run main.go
 
 # Build the binary
 .PHONY: build
@@ -162,7 +167,7 @@ redis-cli:
 
 # Development environment
 .PHONY: dev-up
-dev-up: 
+dev-up:
 	@echo "Starting full development environment..."
 	@echo ""
 	@echo "=== PostgreSQL ==="
@@ -223,7 +228,8 @@ help:
 	@echo "  install       - Install the binary"
 	@echo "  lint          - Run linter"
 	@echo "  pre-commit    - Run all pre-commit checks"
-	@echo "  run           - Start development server"
+	@echo "  run           - Start development server (development env)"
+	@echo "  run-qa        - Start QA server (qa env)"
 	@echo "  test          - Run tests"
 	@echo "  test-coverage - Run tests with coverage"
 	@echo "  tidy          - Tidy dependencies"
