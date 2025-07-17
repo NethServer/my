@@ -46,7 +46,7 @@ func Init() error {
 	}
 
 	logger.ComponentLogger("database").Info().
-		Str("database_url", databaseURL).
+		Str("database_url", logger.SanitizeConnectionURL(databaseURL)).
 		Msg("Database connection established")
 
 	// Initialize database schema

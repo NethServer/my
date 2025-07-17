@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/nethesis/my/backend/configuration"
+	"github.com/nethesis/my/backend/logger"
 )
 
 // RedisInterface defines the interface for Redis operations
@@ -111,7 +112,7 @@ func InitRedis() error {
 
 		log.Info().
 			Str("component", "redis").
-			Str("url", config.URL).
+			Str("url", logger.SanitizeConnectionURL(config.URL)).
 			Int("db", opts.DB).
 			Msg("Redis client initialized successfully")
 	})

@@ -97,7 +97,7 @@ func initPostgreSQL() error {
 	}
 
 	logger.ComponentLogger("database").Info().
-		Str("database_url", databaseURL).
+		Str("database_url", logger.SanitizeConnectionURL(databaseURL)).
 		Int("max_conns", maxConns).
 		Int("max_idle", maxIdle).
 		Dur("conn_max_age", connMaxAge).
@@ -150,7 +150,7 @@ func initRedis() error {
 	}
 
 	logger.ComponentLogger("database").Info().
-		Str("redis_url", opt.Addr).
+		Str("redis_url", logger.SanitizeConnectionURL(redisURL)).
 		Int("redis_db", opt.DB).
 		Msg("Redis connection established")
 

@@ -85,6 +85,11 @@ install: build
 run:
 	@go run ./$(CMD_DIR) $(ARGS)
 
+# Run the application with QA environment
+.PHONY: run-qa
+run-qa:
+	@go run ./$(CMD_DIR) --env-file .env.qa $(ARGS)
+
 
 # Development setup
 .PHONY: dev-setup
@@ -118,6 +123,7 @@ help:
 	@echo "  lint          - Run linter"
 	@echo "  pre-commit    - Run all pre-commit checks"
 	@echo "  run           - Run the application (use ARGS=... for arguments)"
+	@echo "  run-qa        - Run the application with QA environment (uses .env.qa)"
 	@echo "  test          - Run tests"
 	@echo "  test-coverage - Run tests with coverage"
 	@echo "  tidy          - Tidy dependencies"
