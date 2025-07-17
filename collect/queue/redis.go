@@ -53,7 +53,7 @@ func Init() error {
 	}
 
 	logger.Info().
-		Str("redis_url", opt.Addr).
+		Str("redis_url", logger.SanitizeConnectionURL(configuration.Config.RedisURL)).
 		Int("redis_db", opt.DB).
 		Msg("Redis queue client initialized successfully")
 

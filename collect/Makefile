@@ -38,6 +38,12 @@ run:
 	@echo "Starting collect development server..."
 	@go run main.go
 
+# Run the application with QA environment
+.PHONY: run-qa
+run-qa:
+	@echo "Starting collect QA server..."
+	@ENV_FILE=.env.qa go run main.go
+
 # Build the binary
 .PHONY: build
 build:
@@ -224,6 +230,7 @@ help:
 	@echo "  lint          - Run linter"
 	@echo "  pre-commit    - Run all pre-commit checks"
 	@echo "  run           - Start development server"
+	@echo "  run-qa        - Start QA server (uses .env.qa)"
 	@echo "  test          - Run tests"
 	@echo "  test-coverage - Run tests with coverage"
 	@echo "  tidy          - Tidy dependencies"

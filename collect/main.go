@@ -34,12 +34,36 @@ import (
 
 func main() {
 	// Load .env file if exists (optional, won't fail if missing)
-	_ = godotenv.Load()
+	envFile := os.Getenv("ENV_FILE")
+	if envFile == "" {
+		envFile = ".env"
+	}
+	err := godotenv.Load(envFile)
 
 	// Init logger with zerolog
-	err := logger.InitFromEnv("collect")
-	if err != nil {
-		logger.Fatal().Err(err).Msg("Failed to initialize logger")
+	loggerErr := logger.InitFromEnv("collect")
+	if loggerErr != nil {
+		logger.Fatal().Err(loggerErr).Msg("Failed to initialize logger")
+	}
+
+	// Log which environment file was loaded
+	if err == nil {
+		logger.Info().
+			Str("component", "env").
+			Str("operation", "config_load").
+			Str("config_type", "environment").
+			Str("env_file", envFile).
+			Bool("success", true).
+			Msg("environment configuration loaded")
+	} else {
+		logger.Warn().
+			Str("component", "env").
+			Str("operation", "config_load").
+			Str("config_type", "environment").
+			Str("env_file", envFile).
+			Bool("success", false).
+			Err(err).
+			Msg("environment configuration not loaded (using system environment)")
 	}
 
 	// Init configuration

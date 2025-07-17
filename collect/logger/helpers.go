@@ -11,6 +11,8 @@ package logger
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
@@ -270,4 +272,36 @@ func LogServiceStop(serviceName string, reason string) {
 		Str("service", serviceName).
 		Str("reason", reason).
 		Msg(fmt.Sprintf("%s shutting down: %s", serviceName, reason))
+}
+
+// SanitizeConnectionURL removes sensitive information from connection URLs for logging
+func SanitizeConnectionURL(url string) string {
+	if url == "" {
+		return ""
+	}
+
+	// Pattern to match URLs with credentials
+	// Matches: protocol://username:password@host:port/database
+	// Replaces with: protocol://***:***@host:port/database
+	credentialsPattern := regexp.MustCompile(`(^[a-zA-Z][a-zA-Z0-9+.-]*://)([^:]+):([^@]+)@`)
+
+	sanitized := credentialsPattern.ReplaceAllString(url, "${1}***:***@")
+
+	// Additional safety: if the URL still contains what looks like credentials, replace the whole thing
+	if strings.Contains(sanitized, "://") && strings.Contains(sanitized, "@") {
+		parts := strings.Split(sanitized, "://")
+		if len(parts) >= 2 {
+			protocol := parts[0]
+			rest := parts[1]
+
+			// Find the @ symbol
+			atIndex := strings.Index(rest, "@")
+			if atIndex != -1 {
+				hostPart := rest[atIndex:]
+				return protocol + "://***:***" + hostPart
+			}
+		}
+	}
+
+	return sanitized
 }
