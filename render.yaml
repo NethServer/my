@@ -34,6 +34,10 @@ services:
     startCommand: cd backend && ./build/backend
     healthCheckPath: /api/health
     envVars:
+      # Environment Configuration
+      - key: GO_ENV
+        value: production
+
       # Server Configuration
       - key: GIN_MODE
         value: release
@@ -83,6 +87,10 @@ services:
     startCommand: cd collect && ./build/collect
     healthCheckPath: /api/health
     envVars:
+      # Environment Configuration
+      - key: GO_ENV
+        value: production
+
       # Server Configuration
       - key: GIN_MODE
         value: release
@@ -132,6 +140,10 @@ services:
     startCommand: cd backend && ./build/backend
     healthCheckPath: /api/health
     envVars:
+      # Environment Configuration
+      - key: GO_ENV
+        value: qa
+
       # Server Configuration
       - key: GIN_MODE
         value: debug
@@ -182,6 +194,10 @@ services:
     startCommand: cd collect && ./build/collect
     healthCheckPath: /api/health
     envVars:
+      # Environment Configuration
+      - key: GO_ENV
+        value: qa
+
       # Server Configuration
       - key: GIN_MODE
         value: debug
