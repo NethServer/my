@@ -10,8 +10,10 @@
     "preview": "vite preview",
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
-    "lint": "eslint . --fix",
-    "format": "prettier --write src/",
+    "lint": "eslint .",
+    "lint-fix": "eslint . --fix",
+    "format": "prettier --list-different src/",
+    "format-fix": "prettier --write src/",
     "test": "vitest"
   },
   "dependencies": {
