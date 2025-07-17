@@ -34,5 +34,4 @@ coverage
 
 # Development config
 .env*
-!.env.production
-!.env.development.sample
+!.env.example
