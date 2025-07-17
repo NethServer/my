@@ -5,7 +5,9 @@ import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
-import { generateSimplePassword } from './password'
+
+//// remove after implementing pagination
+export const paginationQueryString = '?page_size=100'
 
 //// check attributes
 export const BaseUserSchema = v.object({
@@ -48,19 +50,19 @@ export type CreateUser = v.InferOutput<typeof CreateUserSchema>
 export type EditUser = v.InferOutput<typeof EditUserSchema>
 export type User = v.InferOutput<typeof UserSchema>
 
-export const getAccounts = () => {
+export const getUsers = () => {
   console.log('getAccounts') ////
 
   const loginStore = useLoginStore()
 
   return axios
-    .get(`${API_URL}/accounts`, {
+    .get(`${API_URL}/accounts${paginationQueryString}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data.accounts as User[])
 }
 
-export const postAccount = (user: CreateUser) => {
+export const postUser = (user: CreateUser) => {
   console.log('postAccount', user) ////
 
   const loginStore = useLoginStore()
@@ -70,7 +72,7 @@ export const postAccount = (user: CreateUser) => {
   })
 }
 
-export const putAccount = (user: EditUser) => {
+export const putUser = (user: EditUser) => {
   console.log('putAccount', user) ////
 
   const loginStore = useLoginStore()
@@ -80,7 +82,7 @@ export const putAccount = (user: EditUser) => {
   })
 }
 
-export const deleteAccount = (user: User) => {
+export const deleteUser = (user: User) => {
   console.log('deleteAccount', user) ////
 
   const loginStore = useLoginStore()

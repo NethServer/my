@@ -17,8 +17,8 @@ import { computed, ref, useTemplateRef, watch, type Ref, type ShallowRef } from 
 import {
   CreateUserSchema,
   EditUserSchema,
-  postAccount,
-  putAccount,
+  postUser,
+  putUser,
   type CreateUser,
   type EditUser,
   type User,
@@ -64,7 +64,7 @@ const {
   error: createUserError,
 } = useMutation({
   mutation: (newUser: CreateUser) => {
-    return postAccount(newUser)
+    return postUser(newUser)
   },
   onSuccess(data, vars, context) {
     // show success notification after drawer closes
@@ -103,7 +103,7 @@ const {
   error: editUserError,
 } = useMutation({
   mutation: (user: EditUser) => {
-    return putAccount(user)
+    return putUser(user)
   },
   onSuccess(data, vars, context) {
     // show success notification after drawer closes
