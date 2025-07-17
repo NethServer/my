@@ -12,7 +12,9 @@
 [![Version](https://img.shields.io/github/v/release/NethServer/my?style=for-the-badge&color=3a3c3f&label=Version)](https://github.com/NethServer/my/releases)
 
 [![Deploy Redis](https://img.shields.io/github/actions/workflow/status/NethServer/my/deploy.yml?job=deploy-redis&label=Deploy%20Redis&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/deploy.yml)
+[![Deploy Postgres](https://img.shields.io/github/actions/workflow/status/NethServer/my/deploy.yml?job=deploy-postgres&label=Deploy%20Postgres&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/deploy.yml)
 [![Deploy Backend](https://img.shields.io/github/actions/workflow/status/NethServer/my/deploy.yml?job=deploy-backend&label=Deploy%20Backend&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/deploy.yml)
+[![Deploy Collect](https://img.shields.io/github/actions/workflow/status/NethServer/my/deploy.yml?job=deploy-collect&label=Deploy%20Collect&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/deploy.yml)
 [![Deploy Frontend](https://img.shields.io/github/actions/workflow/status/NethServer/my/deploy.yml?job=deploy-frontend&label=Deploy%20Frontend&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/deploy.yml)
 
 Web application providing centralized authentication and management using Logto as an Identity Provider with simple Role-Based Access Control.
