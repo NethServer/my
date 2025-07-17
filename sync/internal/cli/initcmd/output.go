@@ -86,8 +86,8 @@ func outputText(result *InitResult) {
 	}
 
 	fmt.Println("📋 SETUP INSTRUCTIONS")
-	fmt.Println(strings.Repeat("-", 40))
-	fmt.Printf("Tenant: %s\n", result.CustomDomain)
+	fmt.Println()
+	fmt.Printf("Tenant: %s\n", backendEnv["TENANT_ID"])
 	if mgmtURL, ok := backendEnv["LOGTO_MANAGEMENT_BASE_URL"].(string); ok {
 		fmt.Printf("Base URL: %s\n", mgmtURL)
 	}
@@ -97,15 +97,16 @@ func outputText(result *InitResult) {
 	if result.EnvFile != "" {
 		envFileRef = result.EnvFile
 	}
-	fmt.Printf("Environment Source: %s\n", envFileRef)
+	fmt.Printf("Environment: %s\n", envFileRef)
+	fmt.Println()
 
 	// Backend environment variables
+	fmt.Println("==================================================================================")
+	fmt.Println("  BACKEND INSTRUCTIONS")
+	fmt.Println("==================================================================================")
 	fmt.Printf("\n🔧 BACKEND ENVIRONMENT VARIABLES (%s)\n", envFileRef)
 	fmt.Printf("Copy and paste these to your backend/%s file:\n", envFileRef)
 	fmt.Println()
-	fmt.Printf("# ===========================================\n")
-	fmt.Printf("# REQUIRED CONFIGURATION\n")
-	fmt.Printf("# ===========================================\n")
 	fmt.Printf("# Logto tenant configuration (all other URLs auto-derived)\n")
 	fmt.Printf("TENANT_ID=%v\n", backendEnv["TENANT_ID"])
 	fmt.Printf("TENANT_DOMAIN=%v\n", backendEnv["TENANT_DOMAIN"])
@@ -118,8 +119,12 @@ func outputText(result *InitResult) {
 	fmt.Printf("DATABASE_URL=%v\n", backendEnv["DATABASE_URL"])
 	fmt.Printf("\n# Redis connection URL\n")
 	fmt.Printf("REDIS_URL=%v\n", backendEnv["REDIS_URL"])
+	fmt.Println()
 
 	// Frontend environment variables
+	fmt.Println("==================================================================================")
+	fmt.Println("  FRONTEND INSTRUCTIONS")
+	fmt.Println("==================================================================================")
 	fmt.Printf("\n🌐 FRONTEND ENVIRONMENT VARIABLES (%s)\n", envFileRef)
 	fmt.Printf("Copy and paste these to your frontend/%s file:\n", envFileRef)
 	fmt.Println()
@@ -129,9 +134,16 @@ func outputText(result *InitResult) {
 	fmt.Printf("VITE_LOGTO_RESOURCES=%v\n", frontendEnv["VITE_LOGTO_RESOURCES"])
 	fmt.Printf("\n# Backend API\n")
 	fmt.Printf("VITE_API_BASE_URL=%v\n", frontendEnv["VITE_API_BASE_URL"])
+	fmt.Printf("\n# Fronted Redirect URIs\n")
+	fmt.Printf("VITE_SIGNIN_REDIRECT_URI=login-redirect\n")
+	fmt.Printf("VITE_SIGNOUT_REDIRECT_URI=login\n")
+	fmt.Println()
 
 	// Login credentials
-	fmt.Println("\n👤 ADMIN CREDENTIALS")
+	fmt.Println("==================================================================================")
+	fmt.Println("  CREDENTIALS")
+	fmt.Println("==================================================================================")
+	fmt.Println("\n👤 ADMIN")
 	fmt.Println("Use these credentials to login:")
 	fmt.Println()
 	fmt.Printf("Username: %s\n", result.OwnerUser.Username)
@@ -139,6 +151,7 @@ func outputText(result *InitResult) {
 	fmt.Printf("Password: %s\n", result.OwnerUser.Password)
 	fmt.Println()
 	fmt.Println("⚠️  IMPORTANT: Save these credentials securely and change the password after first login!")
+	fmt.Println()
 
 	// Resources created
 	fmt.Println("\n📱 RESOURCES CREATED")

@@ -138,8 +138,8 @@ func CreateApplications(client *client.LogtoClient, config *InitConfig) (*Applic
 			"type":        constants.AppTypeSPA,
 			"description": "Single Page Application for Nethesis Operation Center",
 			"oidcClientMetadata": map[string]interface{}{
-				"redirectUris":            []string{"http://localhost:5173/callback", fmt.Sprintf("https://%s/callback", config.TenantDomain)},
-				"postLogoutRedirectUris":  []string{"http://localhost:5173", fmt.Sprintf("https://%s", config.TenantDomain)},
+				"redirectUris":            []string{"http://localhost:5173/login-redirect", fmt.Sprintf("https://%s/login-redirect", config.TenantDomain)},
+				"postLogoutRedirectUris":  []string{"http://localhost:5173/login", fmt.Sprintf("https://%s/login", config.TenantDomain)},
 				"corsAllowedOrigins":      []string{"http://localhost:5173", fmt.Sprintf("https://%s", config.TenantDomain)},
 				"refreshTokenTtlInDays":   30,
 				"alwaysIssueRefreshToken": true,
