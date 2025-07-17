@@ -27,8 +27,6 @@ coverage.html
 .env
 .env.local
 .env.production
-.env.qa
-.env.development
 .env.*
 !.env.example
 
