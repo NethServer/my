@@ -10,10 +10,7 @@
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/app,type=bind,Z",
   "workspaceFolder": "/app",
-  "runArgs": [
-    "--userns=keep-id",
-    "--name=my-nethesis-ui-dev"
-  ],
+  "runArgs": ["--userns=keep-id", "--name=my-nethesis-ui-dev"],
   "appPort": "5173:5173",
   "customizations": {
     "vscode": {
