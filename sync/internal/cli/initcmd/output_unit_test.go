@@ -48,6 +48,7 @@ func TestInitResult(t *testing.T) {
 				Mode:     "cli",
 			},
 			NextSteps: []string{"step1", "step2"},
+			EnvFile:   ".env.production",
 		}
 
 		// Verify structure is complete
@@ -57,6 +58,7 @@ func TestInitResult(t *testing.T) {
 		assert.NotEmpty(t, result.CustomDomain)
 		assert.NotEmpty(t, result.TenantInfo.TenantID)
 		assert.Len(t, result.NextSteps, 2)
+		assert.Equal(t, ".env.production", result.EnvFile)
 	})
 }
 
@@ -144,6 +146,7 @@ func TestOutputFunctions(t *testing.T) {
 			TenantID: "test-tenant",
 			BaseURL:  "https://test-tenant.logto.app",
 		},
+		EnvFile: ".env.staging",
 	}
 
 	t.Run("JSON output", func(t *testing.T) {
@@ -183,6 +186,24 @@ func TestOutputFunctions(t *testing.T) {
 		// We'll just verify it doesn't panic
 		assert.NotPanics(t, func() {
 			outputText(result)
+		})
+	})
+
+	t.Run("text output with custom env file", func(t *testing.T) {
+		customResult := *result
+		customResult.EnvFile = ".env.production"
+
+		assert.NotPanics(t, func() {
+			outputText(&customResult)
+		})
+	})
+
+	t.Run("text output with default env file", func(t *testing.T) {
+		customResult := *result
+		customResult.EnvFile = ""
+
+		assert.NotPanics(t, func() {
+			outputText(&customResult)
 		})
 	})
 

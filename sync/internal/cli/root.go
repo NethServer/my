@@ -24,6 +24,7 @@ import (
 
 var (
 	cfgFile      string
+	envFile      string
 	verbose      bool
 	dryRun       bool
 	outputFormat string
@@ -54,6 +55,7 @@ func init() {
 
 	// Global flags
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is ./config.yml)")
+	rootCmd.PersistentFlags().StringVar(&envFile, "env-file", "", "environment file to load (default is .env)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "show what would be done without making changes")
 	rootCmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "text", "output format (text, json, yaml)")
@@ -62,12 +64,21 @@ func init() {
 	_ = viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
 	_ = viper.BindPFlag("dry-run", rootCmd.PersistentFlags().Lookup("dry-run"))
 	_ = viper.BindPFlag("output", rootCmd.PersistentFlags().Lookup("output"))
+	_ = viper.BindPFlag("env-file", rootCmd.PersistentFlags().Lookup("env-file"))
 }
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
 	// Load .env file if exists
-	_ = godotenv.Load()
+	if envFile != "" {
+		// Load custom env file specified by --env-file flag
+		if err := godotenv.Load(envFile); err != nil {
+			fmt.Printf("Warning: Could not load env file '%s': %v\n", envFile, err)
+		}
+	} else {
+		// Load default .env file if exists
+		_ = godotenv.Load()
+	}
 
 	if cfgFile != "" {
 		// Use config file from the flag

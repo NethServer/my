@@ -29,6 +29,7 @@ type InitResult struct {
 	AlreadyInit     bool        `json:"already_initialized"`
 	TenantInfo      TenantInfo  `json:"tenant_info"`
 	NextSteps       []string    `json:"next_steps"`
+	EnvFile         string      `json:"env_file"`
 }
 
 // TenantInfo represents tenant information
@@ -91,33 +92,36 @@ func outputText(result *InitResult) {
 		fmt.Printf("Base URL: %s\n", mgmtURL)
 	}
 
+	// Display environment file reference
+	envFileRef := ".env"
+	if result.EnvFile != "" {
+		envFileRef = result.EnvFile
+	}
+	fmt.Printf("Environment Source: %s\n", envFileRef)
+
 	// Backend environment variables
-	fmt.Println("\n🔧 BACKEND ENVIRONMENT VARIABLES")
-	fmt.Println("Copy and paste these to your backend/.env file:")
+	fmt.Printf("\n🔧 BACKEND ENVIRONMENT VARIABLES (%s)\n", envFileRef)
+	fmt.Printf("Copy and paste these to your backend/%s file:\n", envFileRef)
 	fmt.Println()
-	fmt.Printf("# Logto Authentication (auto-derived)\n")
-	fmt.Printf("LOGTO_ISSUER=%v\n", backendEnv["LOGTO_ISSUER"])
-	fmt.Printf("LOGTO_AUDIENCE=%v\n", backendEnv["LOGTO_AUDIENCE"])
-	fmt.Printf("LOGTO_JWKS_ENDPOINT=%v\n", backendEnv["LOGTO_JWKS_ENDPOINT"])
-	fmt.Printf("\n# Custom JWT Configuration\n")
-	fmt.Printf("JWT_SECRET=%v\n", backendEnv["JWT_SECRET"])
-	fmt.Printf("JWT_ISSUER=%v\n", backendEnv["JWT_ISSUER"])
-	fmt.Printf("JWT_EXPIRATION=%v\n", backendEnv["JWT_EXPIRATION"])
-	fmt.Printf("JWT_REFRESH_EXPIRATION=%v\n", backendEnv["JWT_REFRESH_EXPIRATION"])
+	fmt.Printf("# ===========================================\n")
+	fmt.Printf("# REQUIRED CONFIGURATION\n")
+	fmt.Printf("# ===========================================\n")
+	fmt.Printf("# Logto tenant configuration (all other URLs auto-derived)\n")
+	fmt.Printf("TENANT_ID=%v\n", backendEnv["TENANT_ID"])
+	fmt.Printf("TENANT_DOMAIN=%v\n", backendEnv["TENANT_DOMAIN"])
 	fmt.Printf("\n# Logto Management API (from your M2M app)\n")
 	fmt.Printf("BACKEND_APP_ID=%v\n", backendEnv["BACKEND_APP_ID"])
 	fmt.Printf("BACKEND_APP_SECRET=%v\n", backendEnv["BACKEND_APP_SECRET"])
-	fmt.Printf("LOGTO_MANAGEMENT_BASE_URL=%v\n", backendEnv["LOGTO_MANAGEMENT_BASE_URL"])
-	fmt.Printf("\n# Redis Configuration (Required)\n")
-	fmt.Printf("REDIS_URL=%v\n", "redis://localhost:6379")
-	fmt.Printf("REDIS_DB=%v\n", "0")
-	fmt.Printf("REDIS_PASSWORD=%v\n", "")
-	fmt.Printf("\n# Server Configuration\n")
-	fmt.Printf("LISTEN_ADDRESS=%v\n", backendEnv["LISTEN_ADDRESS"])
+	fmt.Printf("\n# Custom JWT for resilient offline operation\n")
+	fmt.Printf("JWT_SECRET=%v\n", backendEnv["JWT_SECRET"])
+	fmt.Printf("\n# PostgreSQL connection string (shared 'noc' database)\n")
+	fmt.Printf("DATABASE_URL=%v\n", backendEnv["DATABASE_URL"])
+	fmt.Printf("\n# Redis connection URL\n")
+	fmt.Printf("REDIS_URL=%v\n", backendEnv["REDIS_URL"])
 
 	// Frontend environment variables
-	fmt.Println("\n🌐 FRONTEND ENVIRONMENT VARIABLES")
-	fmt.Println("Copy and paste these to your frontend/.env file:")
+	fmt.Printf("\n🌐 FRONTEND ENVIRONMENT VARIABLES (%s)\n", envFileRef)
+	fmt.Printf("Copy and paste these to your frontend/%s file:\n", envFileRef)
 	fmt.Println()
 	fmt.Printf("# Logto Configuration (auto-derived)\n")
 	fmt.Printf("VITE_LOGTO_ENDPOINT=%v\n", frontendEnv["VITE_LOGTO_ENDPOINT"])

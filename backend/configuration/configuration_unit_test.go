@@ -15,16 +15,14 @@ func setupConfigTestEnvironment() {
 	// Clear environment variables
 	envVars := []string{
 		"LISTEN_ADDRESS",
-		"LOGTO_ISSUER",
-		"LOGTO_AUDIENCE",
-		"JWKS_ENDPOINT",
+		"TENANT_ID",
+		"TENANT_DOMAIN",
 		"JWT_SECRET",
-		"JWT_ISSUER",
 		"JWT_EXPIRATION",
 		"JWT_REFRESH_EXPIRATION",
 		"BACKEND_APP_ID",
 		"BACKEND_APP_SECRET",
-		"LOGTO_MANAGEMENT_BASE_URL",
+		"DATABASE_URL",
 	}
 
 	for _, envVar := range envVars {
@@ -36,8 +34,8 @@ func TestConfigurationDefaults(t *testing.T) {
 	setupConfigTestEnvironment()
 
 	// Test with minimal required environment variables
-	_ = os.Setenv("LOGTO_ISSUER", "https://test-logto.example.com")
-	_ = os.Setenv("LOGTO_AUDIENCE", "test-api-resource")
+	_ = os.Setenv("TENANT_ID", "test-tenant")
+	_ = os.Setenv("TENANT_DOMAIN", "test-domain.com")
 	_ = os.Setenv("JWT_SECRET", "test-secret-key")
 	_ = os.Setenv("BACKEND_APP_ID", "test-client-id")
 	_ = os.Setenv("BACKEND_APP_SECRET", "test-client-secret")
@@ -47,16 +45,18 @@ func TestConfigurationDefaults(t *testing.T) {
 
 	// Test default values
 	assert.Equal(t, "127.0.0.1:8080", Config.ListenAddress)
-	assert.Equal(t, "https://test-logto.example.com", Config.LogtoIssuer)
-	assert.Equal(t, "test-api-resource", Config.LogtoAudience)
-	assert.Equal(t, "https://test-logto.example.com/oidc/jwks", Config.JWKSEndpoint)
+	assert.Equal(t, "test-tenant", Config.TenantID)
+	assert.Equal(t, "test-domain.com", Config.TenantDomain)
+	assert.Equal(t, "https://test-tenant.logto.app", Config.LogtoIssuer)
+	assert.Equal(t, "https://test-domain.com/api", Config.LogtoAudience)
+	assert.Equal(t, "https://test-tenant.logto.app/oidc/jwks", Config.JWKSEndpoint)
 	assert.Equal(t, "test-secret-key", Config.JWTSecret)
-	assert.Equal(t, "your-api.com", Config.JWTIssuer)
+	assert.Equal(t, "test-domain.com", Config.JWTIssuer)
 	assert.Equal(t, "24h", Config.JWTExpiration)
 	assert.Equal(t, "168h", Config.JWTRefreshExpiration)
 	assert.Equal(t, "test-client-id", Config.LogtoManagementClientID)
 	assert.Equal(t, "test-client-secret", Config.LogtoManagementClientSecret)
-	assert.Equal(t, "https://test-logto.example.com/api", Config.LogtoManagementBaseURL)
+	assert.Equal(t, "https://test-tenant.logto.app/api", Config.LogtoManagementBaseURL)
 }
 
 func TestConfigurationCustomValues(t *testing.T) {
@@ -64,31 +64,31 @@ func TestConfigurationCustomValues(t *testing.T) {
 
 	// Set custom environment variables
 	_ = os.Setenv("LISTEN_ADDRESS", "0.0.0.0:9000")
-	_ = os.Setenv("LOGTO_ISSUER", "https://custom-logto.example.com")
-	_ = os.Setenv("LOGTO_AUDIENCE", "custom-api-resource")
-	_ = os.Setenv("JWKS_ENDPOINT", "https://custom-jwks.example.com/keys")
+	_ = os.Setenv("TENANT_ID", "custom-tenant")
+	_ = os.Setenv("TENANT_DOMAIN", "custom.example.com")
 	_ = os.Setenv("JWT_SECRET", "custom-secret-key")
-	_ = os.Setenv("JWT_ISSUER", "custom.example.com")
 	_ = os.Setenv("JWT_EXPIRATION", "12h")
 	_ = os.Setenv("JWT_REFRESH_EXPIRATION", "72h")
 	_ = os.Setenv("BACKEND_APP_ID", "custom-client-id")
 	_ = os.Setenv("BACKEND_APP_SECRET", "custom-client-secret")
-	_ = os.Setenv("LOGTO_MANAGEMENT_BASE_URL", "https://custom-management.example.com/api")
+	_ = os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test_db")
 
 	Init()
 
 	// Test custom values
 	assert.Equal(t, "0.0.0.0:9000", Config.ListenAddress)
-	assert.Equal(t, "https://custom-logto.example.com", Config.LogtoIssuer)
-	assert.Equal(t, "custom-api-resource", Config.LogtoAudience)
-	assert.Equal(t, "https://custom-jwks.example.com/keys", Config.JWKSEndpoint)
+	assert.Equal(t, "custom-tenant", Config.TenantID)
+	assert.Equal(t, "custom.example.com", Config.TenantDomain)
+	assert.Equal(t, "https://custom-tenant.logto.app", Config.LogtoIssuer)
+	assert.Equal(t, "https://custom.example.com/api", Config.LogtoAudience)
+	assert.Equal(t, "https://custom-tenant.logto.app/oidc/jwks", Config.JWKSEndpoint)
 	assert.Equal(t, "custom-secret-key", Config.JWTSecret)
 	assert.Equal(t, "custom.example.com", Config.JWTIssuer)
 	assert.Equal(t, "12h", Config.JWTExpiration)
 	assert.Equal(t, "72h", Config.JWTRefreshExpiration)
 	assert.Equal(t, "custom-client-id", Config.LogtoManagementClientID)
 	assert.Equal(t, "custom-client-secret", Config.LogtoManagementClientSecret)
-	assert.Equal(t, "https://custom-management.example.com/api", Config.LogtoManagementBaseURL)
+	assert.Equal(t, "https://custom-tenant.logto.app/api", Config.LogtoManagementBaseURL)
 }
 
 func TestConfigurationMissingRequiredValues(t *testing.T) {
@@ -100,6 +100,8 @@ func TestConfigurationStructure(t *testing.T) {
 	// Test that Configuration struct has all expected fields
 	config := Configuration{
 		ListenAddress:               "test-listen",
+		TenantID:                    "test-tenant",
+		TenantDomain:                "test-domain.com",
 		LogtoIssuer:                 "test-issuer",
 		LogtoAudience:               "test-audience",
 		JWKSEndpoint:                "test-jwks",
@@ -113,6 +115,8 @@ func TestConfigurationStructure(t *testing.T) {
 	}
 
 	assert.Equal(t, "test-listen", config.ListenAddress)
+	assert.Equal(t, "test-tenant", config.TenantID)
+	assert.Equal(t, "test-domain.com", config.TenantDomain)
 	assert.Equal(t, "test-issuer", config.LogtoIssuer)
 	assert.Equal(t, "test-audience", config.LogtoAudience)
 	assert.Equal(t, "test-jwks", config.JWKSEndpoint)
@@ -138,14 +142,14 @@ func TestConfigurationEdgeCases(t *testing.T) {
 			setup: func() {
 				setupConfigTestEnvironment()
 				_ = os.Setenv("LISTEN_ADDRESS", "")
-				_ = os.Setenv("JWT_ISSUER", "")
 				_ = os.Setenv("JWT_EXPIRATION", "")
 				_ = os.Setenv("JWT_REFRESH_EXPIRATION", "")
-				_ = os.Setenv("LOGTO_ISSUER", "https://test.example.com")
-				_ = os.Setenv("LOGTO_AUDIENCE", "test-audience")
+				_ = os.Setenv("TENANT_ID", "test-tenant")
+				_ = os.Setenv("TENANT_DOMAIN", "test.example.com")
 				_ = os.Setenv("JWT_SECRET", "test-secret")
 				_ = os.Setenv("BACKEND_APP_ID", "test-id")
 				_ = os.Setenv("BACKEND_APP_SECRET", "test-secret")
+				_ = os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test_db")
 			},
 			checkField:  func() interface{} { return Config.ListenAddress },
 			expected:    "127.0.0.1:8080",
@@ -156,11 +160,12 @@ func TestConfigurationEdgeCases(t *testing.T) {
 			setup: func() {
 				setupConfigTestEnvironment()
 				_ = os.Setenv("LISTEN_ADDRESS", "  0.0.0.0:8080  ")
-				_ = os.Setenv("LOGTO_ISSUER", "https://test.example.com")
-				_ = os.Setenv("LOGTO_AUDIENCE", "test-audience")
+				_ = os.Setenv("TENANT_ID", "test-tenant")
+				_ = os.Setenv("TENANT_DOMAIN", "test.example.com")
 				_ = os.Setenv("JWT_SECRET", "test-secret")
 				_ = os.Setenv("BACKEND_APP_ID", "test-id")
 				_ = os.Setenv("BACKEND_APP_SECRET", "test-secret")
+				_ = os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test_db")
 			},
 			checkField:  func() interface{} { return Config.ListenAddress },
 			expected:    "  0.0.0.0:8080  ", // Environment variables are used as-is
@@ -182,23 +187,24 @@ func TestConfigurationInitMultipleTimes(t *testing.T) {
 
 	// Set initial values
 	_ = os.Setenv("LISTEN_ADDRESS", "127.0.0.1:8080")
-	_ = os.Setenv("LOGTO_ISSUER", "https://first.example.com")
-	_ = os.Setenv("LOGTO_AUDIENCE", "first-audience")
+	_ = os.Setenv("TENANT_ID", "first-tenant")
+	_ = os.Setenv("TENANT_DOMAIN", "first.example.com")
 	_ = os.Setenv("JWT_SECRET", "first-secret")
 	_ = os.Setenv("BACKEND_APP_ID", "first-id")
 	_ = os.Setenv("BACKEND_APP_SECRET", "first-secret")
+	_ = os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test_db")
 
 	Init()
 	firstIssuer := Config.LogtoIssuer
 
 	// Change environment variables
-	_ = os.Setenv("LOGTO_ISSUER", "https://second.example.com")
-	_ = os.Setenv("LOGTO_AUDIENCE", "second-audience")
+	_ = os.Setenv("TENANT_ID", "second-tenant")
+	_ = os.Setenv("TENANT_DOMAIN", "second.example.com")
 
 	Init() // Call again
 
 	// Config should be updated with new values
-	assert.Equal(t, "https://first.example.com", firstIssuer)
-	assert.Equal(t, "https://second.example.com", Config.LogtoIssuer)
-	assert.Equal(t, "second-audience", Config.LogtoAudience)
+	assert.Equal(t, "https://first-tenant.logto.app", firstIssuer)
+	assert.Equal(t, "https://second-tenant.logto.app", Config.LogtoIssuer)
+	assert.Equal(t, "https://second.example.com/api", Config.LogtoAudience)
 }

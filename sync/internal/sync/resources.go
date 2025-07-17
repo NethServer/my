@@ -70,8 +70,10 @@ func (e *Engine) syncResources(cfg *config.Config, result *Result) error {
 
 					// Create new resource with correct indicator
 					logger.Info("Creating resource: %s", configResource.Name)
+					resourceIndicator := fmt.Sprintf("%s/%s", e.options.APIBaseURL, configResource.Name)
 					logtoResource := client.LogtoResource{
-						Name: configResource.Name,
+						Name:      configResource.Name,
+						Indicator: resourceIndicator,
 					}
 
 					err = e.client.CreateResource(logtoResource)
@@ -94,8 +96,10 @@ func (e *Engine) syncResources(cfg *config.Config, result *Result) error {
 				result.Summary.ResourcesCreated++
 			} else {
 				logger.Info("Creating resource: %s", configResource.Name)
+				resourceIndicator := fmt.Sprintf("%s/%s", e.options.APIBaseURL, configResource.Name)
 				logtoResource := client.LogtoResource{
-					Name: configResource.Name,
+					Name:      configResource.Name,
+					Indicator: resourceIndicator,
 				}
 
 				err := e.client.CreateResource(logtoResource)

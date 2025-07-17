@@ -46,16 +46,13 @@ func TestDeriveEnvironmentVariables(t *testing.T) {
 		assert.NotNil(t, backendEnv)
 
 		expectedBackendVars := []string{
-			"LOGTO_ISSUER",
-			"LOGTO_AUDIENCE",
-			"LOGTO_JWKS_ENDPOINT",
+			"TENANT_ID",
+			"TENANT_DOMAIN",
 			"BACKEND_APP_ID",
 			"BACKEND_APP_SECRET",
-			"LOGTO_MANAGEMENT_BASE_URL",
-			"JWT_ISSUER",
-			"JWT_EXPIRATION",
-			"JWT_REFRESH_EXPIRATION",
-			"LISTEN_ADDRESS",
+			"JWT_SECRET",
+			"DATABASE_URL",
+			"REDIS_URL",
 		}
 
 		for _, envVar := range expectedBackendVars {
@@ -78,9 +75,12 @@ func TestDeriveEnvironmentVariables(t *testing.T) {
 		}
 
 		// Check specific values
-		assert.Equal(t, "https://test-tenant.logto.app", backendEnv["LOGTO_ISSUER"])
-		assert.Equal(t, "https://example.com/api", backendEnv["LOGTO_AUDIENCE"])
-		assert.Equal(t, "example.com.api", backendEnv["JWT_ISSUER"])
+		assert.Equal(t, "test-tenant", backendEnv["TENANT_ID"])
+		assert.Equal(t, "example.com", backendEnv["TENANT_DOMAIN"])
+		assert.Equal(t, "backend-client", backendEnv["BACKEND_APP_ID"])
+		assert.Equal(t, "backend-secret", backendEnv["BACKEND_APP_SECRET"])
+		assert.Equal(t, "postgresql://noc_user:noc_user@localhost:5432/noc?sslmode=disable", backendEnv["DATABASE_URL"])
+		assert.Equal(t, "redis://localhost:6379", backendEnv["REDIS_URL"])
 		assert.Equal(t, "frontend-client-id", frontendEnv["VITE_LOGTO_APP_ID"])
 	})
 
@@ -123,12 +123,11 @@ func TestDeriveEnvironmentVariables(t *testing.T) {
 
 		backendEnv := testBackend.EnvironmentVars
 
-		// Test URL formatting
-		assert.Equal(t, "https://my-tenant.logto.app", backendEnv["LOGTO_ISSUER"])
-		assert.Equal(t, "https://mydomain.com/api", backendEnv["LOGTO_AUDIENCE"])
-		assert.Equal(t, "https://my-tenant.logto.app/oidc/jwks", backendEnv["LOGTO_JWKS_ENDPOINT"])
-		assert.Equal(t, "https://my-tenant.logto.app/api", backendEnv["LOGTO_MANAGEMENT_BASE_URL"])
-		assert.Equal(t, "mydomain.com.api", backendEnv["JWT_ISSUER"])
+		// Test that environment variables are populated correctly
+		assert.Equal(t, "my-tenant", backendEnv["TENANT_ID"])
+		assert.Equal(t, "mydomain.com", backendEnv["TENANT_DOMAIN"])
+		assert.Equal(t, "postgresql://noc_user:noc_user@localhost:5432/noc?sslmode=disable", backendEnv["DATABASE_URL"])
+		assert.Equal(t, "redis://localhost:6379", backendEnv["REDIS_URL"])
 
 		frontendEnv := testFrontend.EnvironmentVars
 		assert.Equal(t, "https://my-tenant.logto.app", frontendEnv["VITE_LOGTO_ENDPOINT"])

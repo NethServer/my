@@ -35,6 +35,10 @@ func TestRootCommand(t *testing.T) {
 		assert.NotNil(t, configFlag)
 		assert.Equal(t, "c", configFlag.Shorthand)
 
+		envFileFlag := rootCmd.PersistentFlags().Lookup("env-file")
+		assert.NotNil(t, envFileFlag)
+		assert.Equal(t, "", envFileFlag.Shorthand) // No shorthand for env-file
+
 		verboseFlag := rootCmd.PersistentFlags().Lookup("verbose")
 		assert.NotNil(t, verboseFlag)
 		assert.Equal(t, "v", verboseFlag.Shorthand)
@@ -323,5 +327,27 @@ func TestCommandFlags(t *testing.T) {
 		err = rootCmd.PersistentFlags().Set("dry-run", "true")
 		assert.NoError(t, err)
 		assert.True(t, viper.GetBool("dry-run"))
+	})
+
+	t.Run("env-file flag", func(t *testing.T) {
+		viper.Reset()
+
+		// Bind env-file flag to viper for testing
+		_ = viper.BindPFlag("env-file", rootCmd.PersistentFlags().Lookup("env-file"))
+
+		// Test setting env-file flag
+		err := rootCmd.PersistentFlags().Set("env-file", ".env.production")
+		assert.NoError(t, err)
+		assert.Equal(t, ".env.production", viper.GetString("env-file"))
+
+		// Test setting another value
+		err = rootCmd.PersistentFlags().Set("env-file", ".env.test")
+		assert.NoError(t, err)
+		assert.Equal(t, ".env.test", viper.GetString("env-file"))
+
+		// Test empty value (should use default .env)
+		err = rootCmd.PersistentFlags().Set("env-file", "")
+		assert.NoError(t, err)
+		assert.Equal(t, "", viper.GetString("env-file"))
 	})
 }

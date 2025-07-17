@@ -111,7 +111,8 @@ func TestUtilityFunctions(t *testing.T) {
 			t.Fatal("expected detector to be created")
 		}
 
-		if len(detector.systemPatterns) == 0 {
+		// This check is safe because t.Fatal above would terminate if detector was nil
+		if detector != nil && len(detector.systemPatterns) == 0 {
 			t.Error("expected detector to have system patterns")
 		}
 

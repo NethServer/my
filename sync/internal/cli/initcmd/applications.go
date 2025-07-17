@@ -180,21 +180,14 @@ func DeriveEnvironmentVariables(config *InitConfig, backendApp, frontendApp *App
 
 	// Backend environment variables
 	backendApp.EnvironmentVars = map[string]interface{}{
-		// Auto-derived from base URL
-		"LOGTO_ISSUER":        baseURL,
-		"LOGTO_AUDIENCE":      apiBaseURL,
-		"LOGTO_JWKS_ENDPOINT": baseURL + "/oidc/jwks",
-
-		// From configuration
-		"BACKEND_APP_ID":            config.BackendAppID,
-		"BACKEND_APP_SECRET":        config.BackendAppSecret,
-		"LOGTO_MANAGEMENT_BASE_URL": baseURL + "/api",
-
-		// From provided tenant domain
-		"JWT_ISSUER":             config.TenantDomain + ".api",
-		"JWT_EXPIRATION":         "24h",
-		"JWT_REFRESH_EXPIRATION": "168h",
-		"LISTEN_ADDRESS":         "127.0.0.1:8080",
+		// Required configuration
+		"TENANT_ID":          config.TenantID,
+		"TENANT_DOMAIN":      config.TenantDomain,
+		"BACKEND_APP_ID":     config.BackendAppID,
+		"BACKEND_APP_SECRET": config.BackendAppSecret,
+		"JWT_SECRET":         GenerateJWTSecret(),
+		"DATABASE_URL":       "postgresql://noc_user:noc_user@localhost:5432/noc?sslmode=disable",
+		"REDIS_URL":          "redis://localhost:6379",
 	}
 
 	// Initialize empty frontend app if not set yet

@@ -52,8 +52,6 @@ services:
           property: connectionString
       - key: REDIS_DB
         value: 0
-      - key: REDIS_PASSWORD
-        value: ""
 
       # PostgreSQL Configuration
       - key: DATABASE_URL
@@ -62,28 +60,16 @@ services:
           property: connectionString
 
       # Environment-specific variables (configure in Render dashboard)
-      - key: LOGTO_ISSUER
+      - key: TENANT_ID
         sync: false
-      - key: LOGTO_AUDIENCE
-        sync: false
-      - key: LOGTO_JWKS_ENDPOINT
+      - key: TENANT_DOMAIN
         sync: false
       - key: JWT_SECRET
-        sync: false
-      - key: JWT_ISSUER
         sync: false
       - key: BACKEND_APP_ID
         sync: false
       - key: BACKEND_APP_SECRET
         sync: false
-      - key: LOGTO_MANAGEMENT_BASE_URL
-        sync: false
-
-      # JWT Configuration
-      - key: JWT_EXPIRATION
-        value: 24h
-      - key: JWT_REFRESH_EXPIRATION
-        value: 168h
 
     autoDeploy: false  # Deployed via GitHub Actions on release
     branch: main
@@ -115,8 +101,6 @@ services:
           property: connectionString
       - key: REDIS_DB
         value: 1
-      - key: REDIS_PASSWORD
-        value: ""
 
       # PostgreSQL Configuration
       - key: DATABASE_URL
@@ -166,8 +150,6 @@ services:
           property: connectionString
       - key: REDIS_DB
         value: 0
-      - key: REDIS_PASSWORD
-        value: ""
 
       # PostgreSQL Configuration
       - key: DATABASE_URL
@@ -176,28 +158,16 @@ services:
           property: connectionString
 
       # Environment-specific variables (configure in Render dashboard)
-      - key: LOGTO_ISSUER
+      - key: TENANT_ID
         sync: false
-      - key: LOGTO_AUDIENCE
-        sync: false
-      - key: LOGTO_JWKS_ENDPOINT
+      - key: TENANT_DOMAIN
         sync: false
       - key: JWT_SECRET
-        sync: false
-      - key: JWT_ISSUER
         sync: false
       - key: BACKEND_APP_ID
         sync: false
       - key: BACKEND_APP_SECRET
         sync: false
-      - key: LOGTO_MANAGEMENT_BASE_URL
-        sync: false
-
-      # JWT Configuration
-      - key: JWT_EXPIRATION
-        value: 24h
-      - key: JWT_REFRESH_EXPIRATION
-        value: 168h
 
     autoDeploy: true   # Auto-deploy on every commit
     branch: main
@@ -230,8 +200,6 @@ services:
           property: connectionString
       - key: REDIS_DB
         value: 1
-      - key: REDIS_PASSWORD
-        value: ""
 
       # PostgreSQL Configuration
       - key: DATABASE_URL

@@ -73,6 +73,13 @@ func init() {
 }
 
 func runSync(cmd *cobra.Command, args []string) error {
+	// Log environment file being used
+	envFileRef := ".env"
+	if envFile != "" {
+		envFileRef = envFile
+	}
+	logger.Info("Using environment file: %s", envFileRef)
+
 	// Validate environment variables
 	if err := validateEnvironment(); err != nil {
 		return fmt.Errorf("environment validation failed: %w", err)
