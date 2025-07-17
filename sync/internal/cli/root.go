@@ -76,8 +76,8 @@ func initConfig() {
 			fmt.Printf("Warning: Could not load env file '%s': %v\n", envFile, err)
 		}
 	} else {
-		// Load environment files based on GO_ENV
-		loadEnvironmentFiles()
+		// Load default .env file if exists
+		_ = godotenv.Load()
 	}
 
 	if cfgFile != "" {
@@ -131,26 +131,4 @@ func validateEnvironment() error {
 	}
 
 	return nil
-}
-
-// loadEnvironmentFiles loads environment files based on GO_ENV
-func loadEnvironmentFiles() {
-	// Get environment from GO_ENV variable, default to development
-	environment := os.Getenv("GO_ENV")
-	if environment == "" {
-		environment = "development"
-	}
-
-	// Try to load environment-specific file first
-	envFile := ".env." + environment
-	if _, err := os.Stat(envFile); err == nil {
-		if err := godotenv.Load(envFile); err != nil {
-			fmt.Printf("Warning: Could not load env file '%s': %v\n", envFile, err)
-		}
-	}
-
-	// Load generic .env as fallback (will not override existing variables)
-	if _, err := os.Stat(".env"); err == nil {
-		_ = godotenv.Load(".env")
-	}
 }
