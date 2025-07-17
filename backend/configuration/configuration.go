@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/nethesis/my/backend/logger"
 )
 
@@ -66,6 +67,9 @@ type Configuration struct {
 var Config = Configuration{}
 
 func Init() {
+	// Load environment files based on GO_ENV
+	loadEnvironmentFiles()
+
 	if os.Getenv("LISTEN_ADDRESS") != "" {
 		Config.ListenAddress = os.Getenv("LISTEN_ADDRESS")
 	} else {
@@ -233,4 +237,30 @@ func parseStringSliceWithDefault(envVar string, defaultValue []string) []string 
 	}
 
 	return result
+}
+
+// loadEnvironmentFiles loads environment files based on GO_ENV
+func loadEnvironmentFiles() {
+	// Get environment from GO_ENV variable, default to development
+	environment := os.Getenv("GO_ENV")
+	if environment == "" {
+		environment = "development"
+	}
+
+	// Try to load environment-specific file first
+	envFile := ".env." + environment
+	if _, err := os.Stat(envFile); err == nil {
+		if err := godotenv.Load(envFile); err != nil {
+			logger.LogConfigLoad("env", envFile, false, fmt.Errorf("failed to load %s: %v", envFile, err))
+		} else {
+			logger.LogConfigLoad("env", envFile, true, nil)
+		}
+	}
+
+	// Load generic .env as fallback (will not override existing variables)
+	if _, err := os.Stat(".env"); err == nil {
+		if err := godotenv.Load(".env"); err != nil {
+			logger.LogConfigLoad("env", ".env", false, fmt.Errorf("failed to load .env: %v", err))
+		}
+	}
 }

@@ -11,8 +11,8 @@ databases:
     databaseName: noc
     ipAllowList: []
 
-  # Development PostgreSQL Database
-  - name: my-postgres-dev
+  # QA PostgreSQL Database
+  - name: my-postgres-qa
     plan: free
     databaseName: noc
     ipAllowList: []
@@ -112,20 +112,20 @@ services:
     branch: main
 
   # =============================================================================
-  # DEVELOPMENT ENVIRONMENT (dev.my.nethesis.it)
+  # QA ENVIRONMENT (qa.my.nethesis.it)
   # Auto-deploys on every commit + PR previews
   # =============================================================================
 
-  # Development Redis Cache
+  # QA Redis Cache
   - type: keyvalue
-    name: my-redis-dev
+    name: my-redis-qa
     plan: free
     maxmemoryPolicy: allkeys-lru
     ipAllowList: []
 
-  # Development Backend API Server
+  # QA Backend API Server
   - type: web
-    name: my-backend-dev
+    name: my-backend-qa
     runtime: go
     plan: free
     buildCommand: cd backend && make build && mkdir -p build/database && cp database/schema.sql build/database/
@@ -146,7 +146,7 @@ services:
       - key: REDIS_URL
         fromService:
           type: keyvalue
-          name: my-redis-dev
+          name: my-redis-qa
           property: connectionString
       - key: REDIS_DB
         value: 0
@@ -154,7 +154,7 @@ services:
       # PostgreSQL Configuration
       - key: DATABASE_URL
         fromDatabase:
-          name: my-postgres-dev
+          name: my-postgres-qa
           property: connectionString
 
       # Environment-specific variables (configure in Render dashboard)
@@ -173,9 +173,9 @@ services:
     branch: main
     pullRequestPreviewsEnabled: true  # PR previews enabled
 
-  # Development Collect Service
+  # QA Collect Service
   - type: web
-    name: my-collect-dev
+    name: my-collect-qa
     runtime: go
     plan: free
     buildCommand: cd collect && go build -o build/collect main.go && mkdir -p build/database && cp database/schema.sql build/database/
@@ -196,7 +196,7 @@ services:
       - key: REDIS_URL
         fromService:
           type: keyvalue
-          name: my-redis-dev
+          name: my-redis-qa
           property: connectionString
       - key: REDIS_DB
         value: 1
@@ -204,7 +204,7 @@ services:
       # PostgreSQL Configuration
       - key: DATABASE_URL
         fromDatabase:
-          name: my-postgres-dev
+          name: my-postgres-qa
           property: connectionString
 
     autoDeploy: true   # Auto-deploy on every commit

@@ -30,7 +30,8 @@ Web application providing centralized authentication and management using Logto 
 - **Deploy**: Render account with GitHub integration
 
 ### Getting Started
-1. **Local Development**: [backend/README.md](./backend/README.md) - Server setup and environment configuration
+1.1 **Local Development Backend**: [backend/README.md](./backend/README.md) - Backend setup and environment configuration
+1.2 **Local Development Collect**: [collect/README.md](./collect/README.md) - Collect setup and environment configuration
 2. **RBAC Management**: [sync/README.md](./sync/README.md) - Use `sync init` for complete setup
 3. **Production Deploy**: [deploy/README.md](./deploy/README.md) - Automated deployment with Render
 
@@ -47,17 +48,49 @@ Web application providing centralized authentication and management using Logto 
 
 ## 🌐 Deployment Environments
 
-### Development (`dev.my.nethesis.it`)
-- **Trigger**: Every commit to `main` branch
-- **Auto-deploy**: Immediate deployment via Render
-- **PR Previews**: Temporary environments for pull requests
+### Development (`<custom_path>.my.nethesis.it`)
+- **Environment**: Uses `.env.development` configuration
+- **Usage**: Local development and testing
+- **Setup**: Run components locally with default GO_ENV=development
+
+### QA (`qa.my.nethesis.it`)
+- **Environment**: Uses `.env.qa` configuration
+- **Usage**: Pre-production testing and validation
+- **Setup**: Set `GO_ENV=qa` before running components
 
 ### Production (`my.nethesis.it`)
+- **Environment**: Uses `.env.production` configuration
 - **Trigger**: Manual deployment via GitHub Actions
 - **Sequential Deploy**: Redis → PostgreSQL → Backend + Collect → Frontend
-- **Manual Control**: Deploy only when explicitly triggered
+- **Setup**: Set `GO_ENV=production` in production environment
 
 ## 📝 Configuration
+
+### Environment Management
+All components support multi-environment configuration:
+- **Development**: `.env.development` (default for local development)
+- **QA**: `.env.qa` (pre-production testing)
+- **Production**: `.env.production` (production deployment)
+
+Set `GO_ENV` variable to switch environments:
+```bash
+export GO_ENV=qa         # Uses .env.qa
+export GO_ENV=production # Uses .env.production
+# Default: development   # Uses .env.development
+```
+
+### Makefile Commands
+All components support environment-specific Makefile targets:
+```bash
+# Development (default)
+make run
+
+# QA environment
+make run-qa
+
+# Production environment
+make run-production
+```
 
 ### Local Development
 See individual component documentation for setup:

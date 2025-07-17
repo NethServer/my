@@ -35,8 +35,13 @@ all: clean test build
 # Run the application
 .PHONY: run
 run:
-	@echo "Starting backend development server..."
-	@go run main.go
+	@echo "Starting backend development server (development)..."
+	@GO_ENV=development go run main.go
+
+.PHONY: run-qa
+run-qa:
+	@echo "Starting backend QA server..."
+	@GO_ENV=qa go run main.go
 
 # Build the binary
 .PHONY: build
@@ -234,7 +239,8 @@ help:
 	@echo "  install       - Install the binary"
 	@echo "  lint          - Run linter"
 	@echo "  pre-commit    - Run all pre-commit checks"
-	@echo "  run           - Start development server"
+	@echo "  run           - Start development server (development env)"
+	@echo "  run-qa        - Start QA server (qa env)"
 	@echo "  test          - Run tests"
 	@echo "  test-coverage - Run tests with coverage"
 	@echo "  tidy          - Tidy dependencies"
