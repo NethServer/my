@@ -45,11 +45,6 @@ func (c *LogtoManagementClient) GetUserOrganizations(userID string) ([]models.Lo
 	return orgs, nil
 }
 
-// GetOrganizations fetches all organizations from Logto
-func (c *LogtoManagementClient) GetOrganizations() ([]models.LogtoOrganization, error) {
-	return c.GetAllOrganizations()
-}
-
 // GetAllOrganizations fetches all organizations from Logto
 func (c *LogtoManagementClient) GetAllOrganizations() ([]models.LogtoOrganization, error) {
 	resp, err := c.makeRequest("GET", "/organizations", nil)
@@ -857,16 +852,16 @@ func GetAllVisibleOrganizations(userOrgRole, userOrgID string) ([]models.LogtoOr
 
 // CheckOrganizationNameUniqueness verifies if an organization name is already in use
 func (c *LogtoManagementClient) CheckOrganizationNameUniqueness(name string) (bool, error) {
-	allOrgs, err := c.GetAllOrganizations()
+	// Use search functionality to check for exact name match
+	filters := models.OrganizationFilters{
+		Name: name,
+	}
+
+	result, err := c.GetOrganizationsPaginated(1, 1, filters)
 	if err != nil {
-		return false, fmt.Errorf("failed to fetch organizations for name check: %w", err)
+		return false, fmt.Errorf("failed to search organizations for name check: %w", err)
 	}
 
-	for _, org := range allOrgs {
-		if org.Name == name {
-			return false, nil // Name already exists
-		}
-	}
-
-	return true, nil // Name is unique
+	// If we found any organization with this exact name, it's not unique
+	return len(result.Data) == 0, nil
 }

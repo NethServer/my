@@ -17,3 +17,9 @@ type OrganizationSummary struct {
 type OrganizationsResponse struct {
 	Organizations []OrganizationSummary `json:"organizations" structs:"organizations"`
 }
+
+// PaginatedOrganizationsResponse represents the response for getting filtered organizations with pagination
+type PaginatedOrganizationsResponse struct {
+	Organizations []OrganizationSummary `json:"organizations" structs:"organizations"`
+	Pagination    PaginationInfo        `json:"pagination" structs:"pagination"`
+}

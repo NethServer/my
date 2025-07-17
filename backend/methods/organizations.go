@@ -7,6 +7,7 @@ package methods
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -16,7 +17,7 @@ import (
 	"github.com/nethesis/my/backend/services"
 )
 
-// GetOrganizations returns organizations the current user can assign users to
+// GetOrganizations returns organizations the current user can assign users to with pagination and search
 func GetOrganizations(c *gin.Context) {
 	// Get current user context
 	currentUserOrgRole, _ := c.Get("org_role")
@@ -32,11 +33,35 @@ func GetOrganizations(c *gin.Context) {
 	userOrgRole := currentUserOrgRole.(string)
 	userOrgID := currentUserOrgID.(string)
 
+	// Parse pagination parameters
+	page := 1
+	if pageStr := c.Query("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	pageSize := 20
+	if pageSizeStr := c.Query("page_size"); pageSizeStr != "" {
+		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 && ps <= 100 {
+			pageSize = ps
+		}
+	}
+
+	// Parse filters
+	filters := models.OrganizationFilters{
+		Search:      c.Query("search"),
+		Name:        c.Query("name"),
+		Description: c.Query("description"),
+		Type:        c.Query("type"),
+		CreatedBy:   c.Query("created_by"),
+	}
+
 	// Connect to Logto Management API
 	client := services.NewLogtoManagementClient()
 
-	// Get all organizations
-	allOrgs, err := client.GetOrganizations()
+	// Get organizations with pagination and filters
+	result, err := client.GetOrganizationsPaginated(page, pageSize, filters)
 	if err != nil {
 		httpLogger := logger.NewHTTPErrorLogger(c, "organizations")
 		httpLogger.LogError(err, "fetch_organizations", http.StatusInternalServerError, "Failed to fetch organizations")
@@ -45,7 +70,7 @@ func GetOrganizations(c *gin.Context) {
 	}
 
 	// Filter organizations based on user's role and hierarchy
-	filteredOrgs := filterOrganizationsByHierarchy(allOrgs, userOrgRole, userOrgID)
+	filteredOrgs := filterOrganizationsByHierarchy(result.Data, userOrgRole, userOrgID)
 
 	// Convert to response format
 	organizations := make([]models.OrganizationSummary, len(filteredOrgs))
@@ -58,16 +83,25 @@ func GetOrganizations(c *gin.Context) {
 		}
 	}
 
+	// Update pagination info based on filtering
+	updatedPagination := result.Pagination
+	updatedPagination.TotalCount = len(organizations)
+	updatedPagination.TotalPages = (updatedPagination.TotalCount + pageSize - 1) / pageSize
+
 	logger.ComponentLogger("organizations").Info().
 		Str("operation", "get_organizations").
 		Str("user_org_role", userOrgRole).
 		Str("user_org_id", userOrgID).
-		Int("total_orgs", len(allOrgs)).
+		Int("total_orgs", len(result.Data)).
 		Int("filtered_orgs", len(organizations)).
-		Msg("Organizations filtered and returned")
+		Int("page", page).
+		Int("page_size", pageSize).
+		Str("search", filters.Search).
+		Msg("Organizations filtered and returned with pagination")
 
-	c.JSON(http.StatusOK, response.OK("organizations retrieved successfully", models.OrganizationsResponse{
+	c.JSON(http.StatusOK, response.OK("organizations retrieved successfully", models.PaginatedOrganizationsResponse{
 		Organizations: organizations,
+		Pagination:    updatedPagination,
 	}))
 }
 

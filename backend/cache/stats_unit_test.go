@@ -21,7 +21,7 @@ type MockLogtoClient struct {
 	mock.Mock
 }
 
-func (m *MockLogtoClient) GetOrganizations() ([]models.LogtoOrganization, error) {
+func (m *MockLogtoClient) GetAllOrganizations() ([]models.LogtoOrganization, error) {
 	args := m.Called()
 	return args.Get(0).([]models.LogtoOrganization), args.Error(1)
 }

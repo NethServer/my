@@ -33,7 +33,7 @@ type SystemStats struct {
 
 // LogtoClient interface for Logto operations
 type LogtoClient interface {
-	GetOrganizations() ([]models.LogtoOrganization, error)
+	GetAllOrganizations() ([]models.LogtoOrganization, error)
 	GetOrganizationUsers(ctx context.Context, orgID string) ([]models.LogtoUser, error)
 	GetOrganizationUsersParallel(ctx context.Context, orgIDs []string) (map[string][]models.LogtoUser, error)
 }
@@ -260,7 +260,7 @@ func (s *StatsCacheManager) updateStats() {
 	defer cancel()
 
 	// Fetch organizations
-	orgs, err := s.logtoClient.GetOrganizations()
+	orgs, err := s.logtoClient.GetAllOrganizations()
 	if err != nil {
 		log.Error().
 			Str("component", "stats_cache").
