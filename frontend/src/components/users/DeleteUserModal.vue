@@ -8,7 +8,7 @@ import { NeInlineNotification } from '@nethesis/vue-components'
 import { NeModal } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
-import { deleteAccount, type User } from '@/lib/users'
+import { deleteUser, type User } from '@/lib/users'
 import { useNotificationsStore } from '@/stores/notifications'
 
 const { visible = false, user = undefined } = defineProps<{
@@ -29,7 +29,7 @@ const {
   error: deleteAccountError,
 } = useMutation({
   mutation: (user: User) => {
-    return deleteAccount(user)
+    return deleteUser(user)
   },
   onSuccess(data, vars) {
     // show success notification after modal closes

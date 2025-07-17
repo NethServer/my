@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { getAccounts, searchStringInUser, type User } from '@/lib/users'
+import { getUsers, searchStringInUser, type User } from '@/lib/users'
 import { useLoginStore } from '@/stores/login'
 import {
   faCircleInfo,
@@ -55,7 +55,7 @@ const loginStore = useLoginStore()
 const { state: users, asyncStatus: usersAsyncStatus } = useQuery({
   key: ['users'],
   enabled: () => !!loginStore.jwtToken,
-  query: getAccounts,
+  query: getUsers,
 })
 
 const currentUser = ref<User | undefined>()

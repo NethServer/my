@@ -5,6 +5,7 @@ import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
+import { paginationQueryString } from './users'
 
 //// check attributes
 export const CreateCustomerSchema = v.object({
@@ -36,7 +37,7 @@ export const getCustomers = () => {
   const loginStore = useLoginStore()
 
   return axios
-    .get(`${API_URL}/customers`, {
+    .get(`${API_URL}/customers${paginationQueryString}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data.customers as Customer[])
