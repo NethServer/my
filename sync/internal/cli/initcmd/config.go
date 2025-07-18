@@ -60,7 +60,6 @@ func ValidateAndGetConfig(tenantID, backendAppID, backendAppSecret, domain strin
 			"Or use CLI flags: --tenant-id, --backend-app-id, --backend-app-secret, --domain")
 	}
 
-	logger.Info("Using environment variables mode")
 	return &InitConfig{
 		TenantID:         envTenantID,
 		TenantDomain:     envTenantDomain,
