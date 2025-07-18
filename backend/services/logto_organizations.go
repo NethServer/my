@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -854,14 +855,20 @@ func GetAllVisibleOrganizations(userOrgRole, userOrgID string) ([]models.LogtoOr
 func (c *LogtoManagementClient) CheckOrganizationNameUniqueness(name string) (bool, error) {
 	// Use search functionality to check for exact name match
 	filters := models.OrganizationFilters{
-		Name: name,
+		Search: name,
 	}
 
-	result, err := c.GetOrganizationsPaginated(1, 1, filters)
+	result, err := c.GetOrganizationsPaginated(1, 10, filters)
 	if err != nil {
 		return false, fmt.Errorf("failed to search organizations for name check: %w", err)
 	}
 
-	// If we found any organization with this exact name, it's not unique
-	return len(result.Data) == 0, nil
+	// Check if any organization has the exact same name (case-insensitive)
+	for _, org := range result.Data {
+		if strings.EqualFold(org.Name, name) {
+			return false, nil // Not unique
+		}
+	}
+
+	return true, nil // Unique
 }
