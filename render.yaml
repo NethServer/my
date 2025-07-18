@@ -210,3 +210,50 @@ services:
     autoDeploy: true   # Auto-deploy on every commit
     branch: main
     pullRequestPreviewsEnabled: true  # PR previews enabled
+
+  # =============================================================================
+  # PRODUCTION PROXY (my.nethesis.it)
+  # Single entry point for all services
+  # =============================================================================
+  - type: web
+    name: my-proxy-prod
+    runtime: docker
+    plan: free
+    rootDir: proxy
+    dockerfilePath: Dockerfile
+    healthCheckPath: /health
+    envVars:
+      # Service names for automatic URL generation
+      - key: BACKEND_SERVICE_NAME
+        value: my-backend-prod
+      - key: COLLECT_SERVICE_NAME
+        value: my-collect-prod
+      - key: FRONTEND_SERVICE_NAME
+        value: my-frontend-prod
+
+    autoDeploy: false  # Deployed via GitHub Actions on release
+    branch: main
+
+  # =============================================================================
+  # QA PROXY (qa.my.nethesis.it)
+  # Single entry point for QA services
+  # =============================================================================
+  - type: web
+    name: my-proxy-qa
+    runtime: docker
+    plan: free
+    rootDir: proxy
+    dockerfilePath: Dockerfile
+    healthCheckPath: /health
+    envVars:
+      # Service names for automatic URL generation
+      - key: BACKEND_SERVICE_NAME
+        value: my-backend-qa
+      - key: COLLECT_SERVICE_NAME
+        value: my-collect-qa
+      - key: FRONTEND_SERVICE_NAME
+        value: my-frontend-qa
+
+    autoDeploy: true   # Auto-deploy on every commit
+    branch: main
+    pullRequestPreviewsEnabled: true  # PR previews enabled
