@@ -10,6 +10,8 @@ env:
   BACKEND_IMAGE_NAME: nethserver/my/backend
   SYNC_IMAGE_NAME: nethserver/my/sync
   COLLECT_IMAGE_NAME: nethserver/my/collect
+  FRONTEND_IMAGE_NAME: nethserver/my/frontend
+  PROXY_IMAGE_NAME: nethserver/my/proxy
 
 jobs:
   build-and-release:
@@ -307,6 +309,86 @@ jobs:
         format: cyclonedx-json
         output-file: collect-sbom.cdx.json
 
+    - name: Extract frontend metadata
+      id: frontend_meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}
+        tags: |
+          type=semver,pattern=v{{version}},value=${{ steps.version.outputs.VERSION }}
+          type=raw,value=latest
+
+    - name: Build and push frontend Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: frontend
+        file: frontend/Dockerfile
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.frontend_meta.outputs.tags }}
+        labels: |
+          org.opencontainers.image.title=Nethesis Operation Center Frontend
+          org.opencontainers.image.description=Frontend web application for Nethesis Operation Center
+          org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
+          org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          org.opencontainers.image.revision=${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    # Wait for image to be available in registry
+    - name: Wait for frontend image availability
+      run: |
+        echo "Waiting for image to be available in registry..."
+        sleep 30
+
+    # Generate SBOM for frontend
+    - name: Generate frontend SBOM
+      uses: anchore/sbom-action@v0
+      with:
+        image: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
+        format: cyclonedx-json
+        output-file: frontend-sbom.cdx.json
+
+    - name: Extract proxy metadata
+      id: proxy_meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.PROXY_IMAGE_NAME }}
+        tags: |
+          type=semver,pattern=v{{version}},value=${{ steps.version.outputs.VERSION }}
+          type=raw,value=latest
+
+    - name: Build and push proxy Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: proxy
+        file: proxy/Dockerfile
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.proxy_meta.outputs.tags }}
+        labels: |
+          org.opencontainers.image.title=Nethesis Operation Center Proxy
+          org.opencontainers.image.description=Reverse proxy for Nethesis Operation Center
+          org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
+          org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          org.opencontainers.image.revision=${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    # Wait for image to be available in registry
+    - name: Wait for proxy image availability
+      run: |
+        echo "Waiting for image to be available in registry..."
+        sleep 30
+
+    # Generate SBOM for proxy
+    - name: Generate proxy SBOM
+      uses: anchore/sbom-action@v0
+      with:
+        image: ${{ env.REGISTRY }}/${{ env.PROXY_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
+        format: cyclonedx-json
+        output-file: proxy-sbom.cdx.json
+
     # Create GitHub Release
     - name: Create Release
       uses: softprops/action-gh-release@v2
@@ -322,4 +404,6 @@ jobs:
           backend-sbom.cdx.json
           sync-sbom.cdx.json
           collect-sbom.cdx.json
+          frontend-sbom.cdx.json
+          proxy-sbom.cdx.json
         generate_release_notes: true
