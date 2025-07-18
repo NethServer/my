@@ -9,7 +9,6 @@ import "time"
 
 // CreateAccountRequest represents the request payload for creating a new account
 type CreateAccountRequest struct {
-	Username       string                 `json:"username" binding:"required" structs:"username"`
 	Email          string                 `json:"email" binding:"required,email" structs:"email"`
 	Name           string                 `json:"name" binding:"required" structs:"name"`
 	Phone          string                 `json:"phone" structs:"phone"`
@@ -22,8 +21,6 @@ type CreateAccountRequest struct {
 
 // UpdateAccountRequest represents the request payload for updating an existing account
 type UpdateAccountRequest struct {
-	Username       string                 `json:"username" structs:"username"`
-	Email          string                 `json:"email" structs:"email"`
 	Name           string                 `json:"name" structs:"name"`
 	Phone          string                 `json:"phone" structs:"phone"`
 	UserRoleIDs    *[]string              `json:"userRoleIds,omitempty" structs:"userRoleIds"` // Role IDs instead of names for security
