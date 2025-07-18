@@ -212,6 +212,35 @@ services:
     pullRequestPreviewsEnabled: true  # PR previews enabled
 
   # =============================================================================
+  # FRONTEND SERVICES
+  # =============================================================================
+
+  # Production Frontend
+  - type: web
+    name: my-frontend-prod
+    runtime: docker
+    plan: free
+    rootDir: frontend
+    dockerfilePath: Dockerfile
+    healthCheckPath: /health
+    envVars: []
+    autoDeploy: false  # Deployed via GitHub Actions on release
+    branch: main
+
+  # QA Frontend
+  - type: web
+    name: my-frontend-qa
+    runtime: docker
+    plan: free
+    rootDir: frontend
+    dockerfilePath: Dockerfile
+    healthCheckPath: /health
+    envVars: []
+    autoDeploy: true   # Auto-deploy on every commit
+    branch: main
+    pullRequestPreviewsEnabled: true  # PR previews enabled
+
+  # =============================================================================
   # PRODUCTION PROXY (my.nethesis.it)
   # Single entry point for all services
   # =============================================================================
