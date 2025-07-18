@@ -27,6 +27,7 @@ function closeDrawer() {
     :title="t('notifications.title')"
     :close-aria-label="t('shell.close_side_drawer')"
     @close="closeDrawer"
+    class="z-130"
   >
     <!-- empty state -->
     <NeEmptyState
