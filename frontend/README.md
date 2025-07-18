@@ -1,39 +1,97 @@
 # My Nethesis Frontend
 
-This template should help get you started developing with Vue 3 in Vite.
+This project is a TypeScript-based [Vue.js](https://vuejs.org/) application built
+using [Vite](https://vitejs.dev/).
 
-## Recommended IDE Setup
+### Commit notations
 
-[VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+To maintain clear and linear commit history, the project adheres to the [Conventional Commits Specification v1.0.0](https://www.conventionalcommits.org/en/v1.0.0/).
 
-## Type Support for `.vue` Imports in TS
+### Code style
 
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
+The codebase follows a consistent style enforced by [Prettier](https://prettier.io) in combination with [ESLint](https://eslint.org). When opening a pull request, it is mandatory to check for linting errors and ensure the code is properly formatted. This helps maintain consistency and prevents issues during code review.
 
-## Customize configuration
+To format all source files use the NPM script `format-fix`, while for checking for (and possibly fixing) linting errors use the `lint-fix` script. Refer to the sections below for instructions on how to run these scripts.
 
-See [Vite Configuration Reference](https://vite.dev/config/).
+### Development in a container
 
-## Project Setup
+You may choose between two development environments:
 
-```sh
-npm install
+- [Podman development container](#podman-development-container)
+- [VSCode Dev Containers](#use-vscode-dev-containers)
+
+#### Podman development container
+
+This option allows you to run the container independently of any specific IDE or editor.
+
+To start the development container, simply run:
+
+```bash
+./dev.sh
 ```
 
-### Compile and Hot-Reload for Development
+This command builds the required image, installs Node.js dependencies, and starts a development server at `http://localhost:5173`.
 
-```sh
-npm run dev
+The `dev.sh` script can also perform additional tasks. For example, to rebuild the image:
+
+```bash
+./dev.sh build
 ```
 
-### Type-Check, Compile and Minify for Production
+Or to execute commands directly inside the container:
 
-```sh
-npm run build
+```bash
+# Check for (and possibly fix) linting errors
+./dev.sh npm run lint-fix
+
+# Format all source files
+./dev.sh npm run format-fix
+
+# Start the development server using the QA (quality assurance) environment
+./dev.sh npm run qa
+
+# Add a new NPM package to the project
+./dev.sh npm install cool-package
+
+# Access the container shell
+./dev.sh bash
 ```
 
-### Lint with [ESLint](https://eslint.org/)
+#### VSCode Dev Containers
 
-```sh
-npm run lint
-```
+Please note that:
+- This procedure involves modifying the `dev.containers.dockerPath` setting, which is global. This may impact other projects using VSCode and Dev Containers
+- This procedure may not work on [VSCodium](https://vscodium.com/)
+
+To develop My Nethesis frontend using VSCode Dev Containers:
+
+- Install VSCode
+  extension [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+- By default, Dev Containers uses Docker, but it can be configured to use Podman:
+  - Go to `File > Preferences > Settings`
+  - Search for `dev.containers.dockerPath`
+  - Set the value to `podman`
+- Open the `my-nethesis-ui` directory (the repository root) in VSCode, if you haven't already
+- Open the Command Palette (`CTRL+SHIFT+P`) and type `Reopen in Container` (or `Rebuild and Reopen in Container`, if needed)
+- Open the integrated terminal: `View > Terminal`
+- Enter one of the following commands:
+  - `npm install`: install dependencies
+  - `npm run dev`: start the development server
+  - `npm run lint-fix`: check for (and possibly fix) linting errors
+  - `npm run format-fix`: format all source files
+  - `npm run qa`: start the development server using the QA (quality assurance) environment
+
+Container configuration is contained inside `.devcontainer/devcontainer.json`.
+
+### Development on your workstation
+
+While container-based development is recommended, you may also work directly on your local system:
+
+- Install Node.js (LTS version) and NPM
+- Run a local web server on your workstation:
+  - `npm install`: install dependencies
+  - `npm run dev`: start the development server
+  - `npm run lint-fix`: check for (and possibly fix) linting errors
+  - `npm run format-fix`: format all source files
+  - `npm run qa`: start the development server using the QA (quality assurance) environment
+
