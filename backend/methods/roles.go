@@ -97,12 +97,9 @@ func isSystemRole(name, description string) bool {
 	systemPatterns := []string{
 		"logto",
 		"management api",
-		"system",
-		"admin",
 		"machine-to-machine",
 		"m2m",
 		"default",
-		"service",
 	}
 
 	// Check name patterns
