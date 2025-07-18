@@ -320,7 +320,7 @@ func CreateAccount(c *gin.Context) {
 	}
 
 	// Sanitize fields for Logto compliance
-	sanitizedUsername := sanitizeUsernameForLogto(request.Username)
+	sanitizedUsername := sanitizeUsernameForLogto(request.Email)
 
 	// Create account request for Logto
 	accountRequest := models.CreateUserRequest{
@@ -414,9 +414,8 @@ func CreateAccount(c *gin.Context) {
 
 		// Create context with field values for better error reporting
 		context := map[string]interface{}{
-			"phone":    request.Phone,
-			"email":    request.Email,
-			"username": request.Username,
+			"phone": request.Phone,
+			"email": request.Email,
 		}
 
 		c.JSON(statusCode, response.ExternalAPIErrorWithContext(statusCode, message, detailedError, context))
@@ -960,12 +959,6 @@ func UpdateAccount(c *gin.Context) {
 	// Prepare update request
 	updateRequest := models.UpdateUserRequest{}
 
-	if request.Username != "" {
-		updateRequest.Username = &request.Username
-	}
-	if request.Email != "" {
-		updateRequest.PrimaryEmail = &request.Email
-	}
 	if request.Name != "" {
 		updateRequest.Name = &request.Name
 	}
@@ -1068,9 +1061,7 @@ func UpdateAccount(c *gin.Context) {
 
 		// Create context with field values for better error reporting
 		context := map[string]interface{}{
-			"phone":    request.Phone,
-			"email":    request.Email,
-			"username": request.Username,
+			"phone": request.Phone,
 		}
 
 		c.JSON(statusCode, response.ExternalAPIErrorWithContext(statusCode, message, detailedError, context))

@@ -380,21 +380,16 @@ components:
     AccountInput:
       type: object
       required:
-        - username
         - email
         - name
         - password
         - userRoleIds
         - organizationId
       properties:
-        username:
-          type: string
-          description: Username (alphanumeric + underscore)
-          example: "john.doe"
         email:
           type: string
           format: email
-          description: Email address
+          description: Email address (username will be generated automatically)
           example: "john.doe@acme.com"
         name:
           type: string
@@ -434,11 +429,6 @@ components:
           type: string
           description: Full name
           example: "John Doe (Updated)"
-        email:
-          type: string
-          format: email
-          description: Email address
-          example: "john.updated@acme.com"
         userRoleIds:
           type: array
           items:
