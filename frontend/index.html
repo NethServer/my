@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Nethesis - Operation Center</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            text-align: center;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .subtitle {
+            font-size: 1.5rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background: rgba(76, 175, 80, 0.8);
+            border-radius: 25px;
+            font-weight: 500;
+            margin-bottom: 2rem;
+        }
+
+        .info {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-top: 2rem;
+            text-align: left;
+        }
+
+        .info h3 {
+            margin-bottom: 1rem;
+            color: #fff;
+        }
+
+        .info ul {
+            list-style: none;
+            margin-bottom: 1rem;
+        }
+
+        .info li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .info li:last-child {
+            border-bottom: none;
+        }
+
+        .endpoint {
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            color: #4fc3f7;
+        }
+
+        .version {
+            margin-top: 2rem;
+            font-size: 0.9rem;
+            opacity: 0.7;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+            .subtitle {
+                font-size: 1.2rem;
+            }
+            .container {
+                margin: 1rem;
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome to My Nethesis</h1>
+        <p class="subtitle">Operation Center</p>
+        <div class="status">🟢 System Online</div>
+        
+        <div class="info">
+            <h3>Available Services</h3>
+            <ul>
+                <li><strong>Backend API:</strong> <span class="endpoint">/backend/api/</span></li>
+                <li><strong>Collect Service:</strong> <span class="endpoint">/collect/api/</span></li>
+                <li><strong>Frontend:</strong> <span class="endpoint">/</span></li>
+            </ul>
+            
+            <h3>Health Checks</h3>
+            <ul>
+                <li><a href="/health" class="endpoint">/health</a> - Proxy Status</li>
+                <li><a href="/backend/api/health" class="endpoint">/backend/api/health</a> - Backend Status</li>
+                <li><a href="/collect/api/health" class="endpoint">/collect/api/health</a> - Collect Status</li>
+            </ul>
+        </div>
+        
+        <div class="version">
+            <p>Nethesis Operation Center v0.0.3</p>
+            <p>Enterprise Authentication & RBAC Management System</p>
+        </div>
+    </div>
+</body>
+</html>
