@@ -105,7 +105,7 @@ git push origin main                    # → qa.my.nethesis.it updates
 ```bash
 git checkout -b feature/new-feature
 git push origin feature/new-feature     # → Create PR
-# → pr-123.my-proxy-qa.onrender.com created
+# → qa.my-proxy-qa-pr-123.onrender.com created
 ```
 
 ### Production Release
