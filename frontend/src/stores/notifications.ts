@@ -45,7 +45,8 @@ export const useNotificationsStore = defineStore('notifications', () => {
       const chunks = axiosError.config.url.split('/api/')
 
       if (chunks.length == 2) {
-        return method + ' ' + axiosError.config.url.split('/api/')[1]
+        // return the part of url after /api/ and before '?'
+        return method + ' ' + chunks[1].split('?')[0]
       } else {
         return method + ' ' + axiosError.config.url
       }
