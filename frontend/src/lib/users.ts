@@ -112,7 +112,7 @@ export const searchStringInUser = (searchString: string, user: User): boolean =>
   let found = false
 
   // search in string attributes
-  found = ['name', 'description'].some((attrName) => {
+  found = ['name', 'username', 'email'].some((attrName) => {
     const attrValue = user[attrName as keyof User] as string
     return new RegExp(searchString, 'i').test(attrValue?.replace(regex, ''))
   })
