@@ -76,7 +76,7 @@ function onShow() {
       </span>
       <span v-else> ********** </span>
       <NeButton
-        kind="secondary"
+        kind="tertiary"
         size="sm"
         @click="isPasswordShown = !isPasswordShown"
         :aria-label="isPasswordShown ? t('common.hide') : t('common.show')"

@@ -214,10 +214,6 @@ const onClosePasswordChangedModal = () => {
             :descending-label="t('sort.descending')"
             class="xl:hidden"
           />
-          <!-- clear filters -->
-          <NeButton kind="tertiary" @click="clearFilters">
-            {{ $t('common.clear_filters') }}
-          </NeButton>
         </div>
         <!-- update indicator -->
         <div
