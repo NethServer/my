@@ -386,7 +386,7 @@ async function saveUser() {
           v-model.trim="email"
           :label="$t('users.email')"
           :invalid-message="validationIssues.email?.[0] ? $t(validationIssues.email[0]) : ''"
-          :disabled="saving"
+          :disabled="!!currentUser || saving"
         />
         <!-- password -->
         <NeTextInput
