@@ -3,6 +3,10 @@
 This project is a TypeScript-based [Vue.js](https://vuejs.org/) application built
 using [Vite](https://vitejs.dev/).
 
+### Environment
+
+My Nethesis frontend requires an environment file to communicate with the backend API and Logto. This file should be named `.env.<environment>` (e.g., `.env.development` or `.env.qa`) and must be generated using the `sync` command. For more information, please refer to the [sync README](https://github.com/NethServer/my/blob/main/sync/README.md).
+
 ### Commit notations
 
 To maintain clear and linear commit history, the project adheres to the [Conventional Commits Specification v1.0.0](https://www.conventionalcommits.org/en/v1.0.0/).
