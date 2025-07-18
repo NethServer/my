@@ -115,7 +115,6 @@ func TestHTTPErrorLoggerLogSuccess(t *testing.T) {
 	assert.Contains(t, logOutput, "completed successfully")
 	assert.Contains(t, logOutput, "test-component")
 
-	// Verify it doesn't log the actual data content (security)
 	assert.NotContains(t, logOutput, "result")
 
 	// Parse JSON to verify structure
@@ -495,9 +494,6 @@ func TestLogConfigLoad(t *testing.T) {
 		assert.Equal(t, "info", logEntry["level"])
 	})
 
-	// Note: We skip testing the failed case because LogConfigLoad calls logger.Fatal()
-	// which would terminate the test process. In a real application, this is the desired
-	// behavior for critical configuration failures.
 }
 
 func TestLogServiceStart(t *testing.T) {
@@ -583,7 +579,6 @@ func TestRequestLoggerWithNilContext(t *testing.T) {
 	assert.Contains(t, logOutput, "test-component")
 	assert.Contains(t, logOutput, "test message")
 
-	// Should not contain request-specific fields
 	assert.NotContains(t, logOutput, "method")
 	assert.NotContains(t, logOutput, "path")
 }
@@ -594,11 +589,10 @@ func TestHelperFunctionsWithSensitiveData(t *testing.T) {
 
 	c, _ := setupTestGinContext()
 
-	// Test that sensitive data in user identifier is sanitized
 	LogAuthAttempt(c, "auth", "jwt", "user@example.com password=secret123")
 
 	logOutput := buf.String()
 	assert.Contains(t, logOutput, "user@example.com")
-	assert.Contains(t, logOutput, "[******]") // Password should be redacted
+	assert.Contains(t, logOutput, "[******]")
 	assert.NotContains(t, logOutput, "secret123")
 }
