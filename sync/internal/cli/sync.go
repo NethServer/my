@@ -11,6 +11,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -83,6 +84,14 @@ func runSync(cmd *cobra.Command, args []string) error {
 	// Validate environment variables
 	if err := validateEnvironment(); err != nil {
 		return fmt.Errorf("environment validation failed: %w", err)
+	}
+
+	// Log tenant information for consistency with init command
+	if tenantID := os.Getenv("TENANT_ID"); tenantID != "" {
+		logger.Info("Using tenant ID: %s", tenantID)
+	}
+	if tenantDomain := os.Getenv("TENANT_DOMAIN"); tenantDomain != "" {
+		logger.Info("Using tenant domain: %s", tenantDomain)
 	}
 
 	// Load and validate configuration

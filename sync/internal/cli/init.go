@@ -40,7 +40,7 @@ var initCmd = &cobra.Command{
   🌐 Create custom domain in Logto (e.g., your-domain.com)
   🔧 Create backend and frontend applications in Logto
   👤 Create an owner account with secure credentials
-  🔐 Synchronize basic RBAC configuration  
+  🔐 Synchronize basic RBAC configuration
   📄 Output environment variables and setup instructions
 
 ⚠️  REQUIREMENTS:
@@ -71,7 +71,7 @@ var initCmd = &cobra.Command{
   sync init --output yaml   # 📋 YAML output for configuration
   sync init --output text   # 📖 Human-readable output (default)
 
-💡 NOTE: CLI flags take precedence over environment variables. 
+💡 NOTE: CLI flags take precedence over environment variables.
     If any CLI flag is provided, all required flags must be provided.`,
 	RunE: runInit,
 }
@@ -98,8 +98,15 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	logger.Info("Using tenant domain: %s", config.TenantDomain)
+	// Log environment file being used for consistency with sync command
+	envFileRef := ".env"
+	if envFile != "" {
+		envFileRef = envFile
+	}
+	logger.Info("Using environment file: %s", envFileRef)
+
 	logger.Info("Using tenant ID: %s", config.TenantID)
+	logger.Info("Using tenant domain: %s", config.TenantDomain)
 
 	// Create Logto client using configuration
 	baseURL := fmt.Sprintf("https://%s.logto.app", config.TenantID)
