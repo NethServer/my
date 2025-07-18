@@ -226,6 +226,9 @@ func (c *LogtoManagementClient) CreateOrganization(request models.CreateOrganiza
 		return nil, fmt.Errorf("failed to decode created organization: %w", err)
 	}
 
+	// Invalidate organization names cache since we added a new organization
+	c.InvalidateOrganizationNamesCache()
+
 	return &org, nil
 }
 
@@ -252,6 +255,9 @@ func (c *LogtoManagementClient) UpdateOrganization(orgID string, request models.
 		return nil, fmt.Errorf("failed to decode updated organization: %w", err)
 	}
 
+	// Invalidate organization names cache since we may have changed the name
+	c.InvalidateOrganizationNamesCache()
+
 	return &org, nil
 }
 
@@ -267,6 +273,9 @@ func (c *LogtoManagementClient) DeleteOrganization(orgID string) error {
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("failed to delete organization, status %d: %s", resp.StatusCode, string(body))
 	}
+
+	// Invalidate organization names cache since we removed an organization
+	c.InvalidateOrganizationNamesCache()
 
 	return nil
 }
@@ -853,22 +862,127 @@ func GetAllVisibleOrganizations(userOrgRole, userOrgID string) ([]models.LogtoOr
 
 // CheckOrganizationNameUniqueness verifies if an organization name is already in use
 func (c *LogtoManagementClient) CheckOrganizationNameUniqueness(name string) (bool, error) {
-	// Use search functionality to check for exact name match
-	filters := models.OrganizationFilters{
-		Search: name,
+	cacheManager := cache.GetOrganizationNamesCacheManager()
+
+	// Try to get from cache first
+	isNameTaken, existingName := cacheManager.IsNameTaken(name)
+	if isNameTaken {
+		logger.ComponentLogger("logto").Debug().
+			Str("operation", "name_uniqueness_check").
+			Str("requested_name", name).
+			Str("existing_name", existingName).
+			Msg("Organization name found in cache - not unique")
+		return false, nil // Not unique
 	}
 
-	result, err := c.GetOrganizationsPaginated(1, 10, filters)
+	// If cache is available but name not found, it's unique
+	names, cacheHit := cacheManager.Get()
+	if cacheHit {
+		logger.ComponentLogger("logto").Debug().
+			Str("operation", "name_uniqueness_check").
+			Str("requested_name", name).
+			Int("cached_names_count", len(names)).
+			Msg("Organization name not found in cache - unique")
+		return true, nil // Unique
+	}
+
+	// Cache miss - need to populate cache first
+	logger.ComponentLogger("logto").Info().
+		Str("operation", "name_uniqueness_check").
+		Str("requested_name", name).
+		Msg("Cache miss - populating organization names cache")
+
+	err := c.PopulateOrganizationNamesCache()
 	if err != nil {
-		return false, fmt.Errorf("failed to search organizations for name check: %w", err)
+		logger.ComponentLogger("logto").Error().
+			Err(err).
+			Str("operation", "populate_names_cache").
+			Msg("Failed to populate organization names cache")
+		// Fall back to direct API call
+		return c.checkOrganizationNameUniquenessDirect(name)
+	}
+
+	// Now check cache again
+	isNameTaken, existingName = cacheManager.IsNameTaken(name)
+	if isNameTaken {
+		logger.ComponentLogger("logto").Debug().
+			Str("operation", "name_uniqueness_check").
+			Str("requested_name", name).
+			Str("existing_name", existingName).
+			Msg("Organization name found after cache population - not unique")
+		return false, nil // Not unique
+	}
+
+	logger.ComponentLogger("logto").Debug().
+		Str("operation", "name_uniqueness_check").
+		Str("requested_name", name).
+		Msg("Organization name not found after cache population - unique")
+	return true, nil // Unique
+}
+
+// checkOrganizationNameUniquenessDirect is a fallback method that checks uniqueness directly via API
+func (c *LogtoManagementClient) checkOrganizationNameUniquenessDirect(name string) (bool, error) {
+	logger.ComponentLogger("logto").Warn().
+		Str("operation", "name_uniqueness_check_direct").
+		Str("requested_name", name).
+		Msg("Falling back to direct API call for name uniqueness check")
+
+	// Get all organizations and check manually
+	allOrgs, err := c.GetAllOrganizations()
+	if err != nil {
+		return false, fmt.Errorf("failed to get all organizations for name check: %w", err)
 	}
 
 	// Check if any organization has the exact same name (case-insensitive)
-	for _, org := range result.Data {
+	for _, org := range allOrgs {
 		if strings.EqualFold(org.Name, name) {
 			return false, nil // Not unique
 		}
 	}
 
 	return true, nil // Unique
+}
+
+// PopulateOrganizationNamesCache populates the organization names cache
+func (c *LogtoManagementClient) PopulateOrganizationNamesCache() error {
+	logger.ComponentLogger("logto").Info().
+		Str("operation", "populate_names_cache").
+		Msg("Starting organization names cache population")
+
+	startTime := time.Now()
+
+	// Get all organizations
+	allOrgs, err := c.GetAllOrganizations()
+	if err != nil {
+		return fmt.Errorf("failed to get all organizations: %w", err)
+	}
+
+	// Build names map
+	names := make(map[string]string)
+	for _, org := range allOrgs {
+		names[strings.ToLower(org.Name)] = org.Name
+	}
+
+	// Store in cache
+	cacheManager := cache.GetOrganizationNamesCacheManager()
+	cacheManager.Set(names)
+
+	duration := time.Since(startTime)
+	logger.ComponentLogger("logto").Info().
+		Str("operation", "populate_names_cache").
+		Int("organizations_count", len(allOrgs)).
+		Dur("duration", duration).
+		Msg("Organization names cache populated successfully")
+
+	return nil
+}
+
+// InvalidateOrganizationNamesCache clears the organization names cache
+func (c *LogtoManagementClient) InvalidateOrganizationNamesCache() {
+	cacheManager := cache.GetOrganizationNamesCacheManager()
+	cacheManager.Clear()
+
+	logger.ComponentLogger("logto").Info().
+		Str("operation", "invalidate_names_cache").
+		Msg("Organization names cache invalidated")
 }

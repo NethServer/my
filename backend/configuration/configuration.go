@@ -46,14 +46,15 @@ type Configuration struct {
 	RedisReadTimeout  time.Duration `json:"redis_read_timeout"`
 	RedisWriteTimeout time.Duration `json:"redis_write_timeout"`
 	// Cache TTL configuration
-	StatsCacheTTL           time.Duration `json:"stats_cache_ttl"`
-	StatsUpdateInterval     time.Duration `json:"stats_update_interval"`
-	StatsStaleThreshold     time.Duration `json:"stats_stale_threshold"`
-	JitRolesCacheTTL        time.Duration `json:"jit_roles_cache_ttl"`
-	JitRolesCleanupInterval time.Duration `json:"jit_roles_cleanup_interval"`
-	OrgUsersCacheTTL        time.Duration `json:"org_users_cache_ttl"`
-	OrgUsersCleanupInterval time.Duration `json:"org_users_cleanup_interval"`
-	JWKSCacheTTL            time.Duration `json:"jwks_cache_ttl"`
+	StatsCacheTTL             time.Duration `json:"stats_cache_ttl"`
+	StatsUpdateInterval       time.Duration `json:"stats_update_interval"`
+	StatsStaleThreshold       time.Duration `json:"stats_stale_threshold"`
+	JitRolesCacheTTL          time.Duration `json:"jit_roles_cache_ttl"`
+	JitRolesCleanupInterval   time.Duration `json:"jit_roles_cleanup_interval"`
+	OrgUsersCacheTTL          time.Duration `json:"org_users_cache_ttl"`
+	OrgUsersCleanupInterval   time.Duration `json:"org_users_cleanup_interval"`
+	OrganizationNamesCacheTTL time.Duration `json:"organization_names_cache_ttl"`
+	JWKSCacheTTL              time.Duration `json:"jwks_cache_ttl"`
 	// HTTP timeouts configuration
 	JWKSHTTPTimeout       time.Duration `json:"jwks_http_timeout"`
 	RedisOperationTimeout time.Duration `json:"redis_operation_timeout"`
@@ -161,6 +162,7 @@ func Init() {
 	Config.JitRolesCleanupInterval = parseDurationWithDefault("JIT_ROLES_CLEANUP_INTERVAL", 2*time.Minute)
 	Config.OrgUsersCacheTTL = parseDurationWithDefault("ORG_USERS_CACHE_TTL", 3*time.Minute)
 	Config.OrgUsersCleanupInterval = parseDurationWithDefault("ORG_USERS_CLEANUP_INTERVAL", 1*time.Minute)
+	Config.OrganizationNamesCacheTTL = parseDurationWithDefault("ORGANIZATION_NAMES_CACHE_TTL", 30*time.Minute)
 	Config.JWKSCacheTTL = parseDurationWithDefault("JWKS_CACHE_TTL", 5*time.Minute)
 	Config.JWKSHTTPTimeout = parseDurationWithDefault("JWKS_HTTP_TIMEOUT", 10*time.Second)
 	Config.RedisOperationTimeout = parseDurationWithDefault("REDIS_OPERATION_TIMEOUT", 5*time.Second)
