@@ -2,14 +2,14 @@
 
 ## Automated Deploy Workflow
 
-### Development Environment
-- **URL**: `dev.my.nethesis.it`
+### QA Environment
+- **URL**: `qa.my.nethesis.it`
 - **Trigger**: Every commit to `main` branch
 - **Action**: Automatic deployment via Render auto-deploy
-- **Services**: `my-backend-dev` + `my-redis-dev`
+- **Services**: `my-backend-qa` + `my-redis-qa`
 
 ### Pull Request Previews
-- **URL**: `pr-{number}.my-backend-dev.onrender.com`
+- **URL**: `pr-{number}.my-backend-qa.onrender.com`
 - **Trigger**: Every PR opened/updated
 - **Action**: Automatic temporary environment creation
 - **Lifecycle**: Created on PR open, destroyed on PR close
@@ -30,20 +30,29 @@
 #### Services Created
 ##### Production
 - `my-redis-prod` (Production Redis)
+- `my-postgres-prod` (Production PostgreSQL)
 - `my-backend-prod` (Production Backend)
+- `my-collect-prod` (Production Collect)
 - `my-frontend-prod` (Production Frontend)
-##### Development
-- `my-redis-dev` (Development Redis)
-- `my-backend-dev` (Development Backend)
-- `my-frontend-dev` (Development Frontend)
+- `my-proxy-prod` (Production Proxy)
+##### QA
+- `my-redis-qa` (QA Redis)
+- `my-postgres-qa` (QA PostgreSQL)
+- `my-backend-qa` (QA Backend)
+- `my-collect-qa` (QA Collect)
+- `my-frontend-qa` (QA Frontend)
+- `my-proxy-qa` (QA Proxy)
 
 ### 2. GitHub Secrets
 Add these secrets to your repository (**Settings** → **Secrets and variables** → **Actions**):
 ```bash
 RENDER_API_KEY=your-render-api-key
 RENDER_PRODUCTION_REDIS_SERVICE_ID=red-xxxxxxxxxxxxxxxxxx
+RENDER_PRODUCTION_POSTGRES_SERVICE_ID=dpg-xxxxxxxxxxxxxxxxxx
 RENDER_PRODUCTION_BACKEND_SERVICE_ID=srv-xxxxxxxxxxxxxxxxxx
+RENDER_PRODUCTION_COLLECT_SERVICE_ID=srv-xxxxxxxxxxxxxxxxxx
 RENDER_PRODUCTION_FRONTEND_SERVICE_ID=srv-xxxxxxxxxxxxxxxxxx
+RENDER_PRODUCTION_PROXY_SERVICE_ID=srv-xxxxxxxxxxxxxxxxxx
 ```
 
 **Where to find Service IDs**: Render Dashboard → Service → Settings → Service ID
@@ -51,8 +60,8 @@ RENDER_PRODUCTION_FRONTEND_SERVICE_ID=srv-xxxxxxxxxxxxxxxxxx
 ### 3. DNS Configuration
 Point your domains to Render services:
 ```bash
-dev.my.nethesis.it  -> my-backend-dev.onrender.com
-my.nethesis.it      -> my-backend-prod.onrender.com
+qa.my.nethesis.it   -> my-proxy-qa.onrender.com
+my.nethesis.it      -> my-proxy-prod.onrender.com
 ```
 
 ## Environment Variables
@@ -79,15 +88,30 @@ The GitHub Actions workflow deploys services in sequence with dependencies:
 - **Dependencies**: None
 - **Failure**: Stops entire pipeline
 
-### 2. Deploy Backend (`deploy-backend` job)
-- **Service**: `my-backend-prod`
-- **Dependencies**: `needs: deploy-redis`
-- **Failure**: Stops Frontend deployment
+### 2. Deploy PostgreSQL (`deploy-postgres` job)
+- **Service**: `my-postgres-prod`
+- **Dependencies**: None (parallel with Redis)
+- **Failure**: Stops application deployment
 
-### 3. Deploy Frontend (`deploy-frontend` job)
+### 3. Deploy Backend (`deploy-backend` job)
+- **Service**: `my-backend-prod`
+- **Dependencies**: `needs: [deploy-redis, deploy-postgres]`
+- **Failure**: Stops application deployment
+
+### 4. Deploy Collect (`deploy-collect` job)
+- **Service**: `my-collect-prod`
+- **Dependencies**: `needs: [deploy-redis, deploy-postgres]`
+- **Failure**: Isolated to Collect service
+
+### 5. Deploy Frontend (`deploy-frontend` job)
 - **Service**: `my-frontend-prod`
 - **Dependencies**: `needs: deploy-backend`
 - **Failure**: Isolated to Frontend only
+
+### 6. Deploy Proxy (`deploy-proxy` job)
+- **Service**: `my-proxy-prod`
+- **Dependencies**: `needs: [deploy-backend, deploy-frontend]`
+- **Failure**: Isolated to Proxy only
 
 ### Pipeline Benefits
 - **Fail-fast**: Infrastructure failures prevent application deployment
@@ -117,21 +141,23 @@ Monitor deployment status directly from README:
 
 ### Failed Production Deployment
 1. **Check GitHub Actions**: Review workflow logs for the specific job that failed
-2. **Verify Service Dependencies**: Ensure Redis is healthy before Backend deployment
+2. **Verify Service Dependencies**: Ensure Redis and PostgreSQL are healthy before Backend deployment
 3. **Review Render Logs**: Check individual service logs in Render dashboard
 
-### Development Environment Issues
+### QA Environment Issues
 1. **Auto-deploy Failures**: Check Render service logs for build/runtime errors
 2. **Redis Connection**: Verify `REDIS_URL` environment variable is correctly set
 3. **Environment Variables**: Ensure all required variables are configured
 
 ### Common Issues
-- **Redis Connection Refused**: Check if Redis service is running and healthy
+- **Database Connection Refused**: Check if Redis and PostgreSQL services are running and healthy
 - **Build Failures**: Verify Go version and dependencies in `render.yaml`
-- **Environment Variable Mismatch**: Ensure production vs development values are correct
+- **Environment Variable Mismatch**: Ensure production vs QA values are correct
 - **GitHub Secrets**: Verify all service IDs and API keys are properly configured
 
 ### Service Configuration
 - **Redis**: Internal connections only (`ipAllowList: []`)
-- **Backend**: Connects to Redis via `fromService` configuration
+- **PostgreSQL**: Internal connections only (`ipAllowList: []`)
+- **Backend & Collect**: Connect to databases via `fromService` configuration
+- **Proxy**: Routes traffic to Backend and Frontend services
 - **Environment Variables**: Managed separately for each environment

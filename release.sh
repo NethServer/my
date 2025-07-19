@@ -51,9 +51,16 @@ check_main_branch() {
     fi
 }
 
-# Check code formatting
+# Check code formatting (only for Go components)
 check_formatting() {
     local component=$1
+
+    # Skip formatting check for non-Go components
+    if [[ "$component" =~ ^(frontend|proxy)$ ]]; then
+        success "Skipping code formatting for $component (no Go code)"
+        return
+    fi
+
     info "Checking code formatting for $component..."
 
     cd "$component"
@@ -68,6 +75,13 @@ check_formatting() {
 # Run linting
 run_linting() {
     local component=$1
+
+    # Skip linting for non-Go components
+    if [[ "$component" =~ ^(frontend|proxy)$ ]]; then
+        success "Skipping linting for $component (no Go code)"
+        return
+    fi
+
     info "Running linting for $component..."
 
     cd "$component"
@@ -93,6 +107,13 @@ run_linting() {
 # Run tests
 run_tests() {
     local component=$1
+
+    # Skip tests for non-Go components that don't have test suites
+    if [[ "$component" =~ ^(frontend|proxy)$ ]]; then
+        success "Skipping tests for $component (no test suite)"
+        return
+    fi
+
     info "Running tests for $component..."
 
     cd "$component"
@@ -161,7 +182,9 @@ update_version_file() {
         .version = $version |
         .components.backend = $version |
         .components.sync = $version |
-        .components.collect = $version
+        .components.collect = $version |
+        .components.frontend = $version |
+        .components.proxy = $version
     ' version.json > version.json.tmp && mv version.json.tmp version.json
 }
 
@@ -212,12 +235,18 @@ main() {
     check_formatting "backend"
     check_formatting "sync"
     check_formatting "collect"
+    check_formatting "frontend"
+    check_formatting "proxy"
     run_linting "backend"
     run_linting "sync"
     run_linting "collect"
+    run_linting "frontend"
+    run_linting "proxy"
     run_tests "backend"
     run_tests "sync"
     run_tests "collect"
+    run_tests "frontend"
+    run_tests "proxy"
     success "All quality checks passed!"
 
     # Get current version and calculate new version

@@ -4,6 +4,8 @@
   "components": {
     "backend": "0.0.5",
     "sync": "0.0.5",
-    "collect": "0.0.5"
+    "collect": "0.0.5",
+    "frontend": "0.0.5",
+    "proxy": "0.0.5"
   }
 }
