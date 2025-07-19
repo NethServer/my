@@ -22,6 +22,7 @@ import (
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services"
+	"github.com/nethesis/my/backend/validation"
 )
 
 // sanitizeUsernameForLogto sanitizes username to match Logto's regex: /^[A-Z_a-z]\w*$/
@@ -284,6 +285,26 @@ func CreateAccount(c *gin.Context) {
 			Msg("Using JIT role for organization")
 	} else {
 		c.JSON(http.StatusBadRequest, response.BadRequest("target organization has no JIT roles configured", nil))
+		return
+	}
+
+	// Validate password strength
+	isValidPassword, passwordErrors := validation.ValidatePasswordStrength(request.Password)
+	if !isValidPassword {
+		logger.RequestLogger(c, "accounts").Warn().
+			Str("operation", "validate_password").
+			Interface("violations", passwordErrors).
+			Msg("Password validation failed")
+		c.JSON(http.StatusBadRequest, response.BadRequest("validation failed", response.ErrorData{
+			Type: "validation_error",
+			Errors: []response.ValidationError{
+				{
+					Key:     "password",
+					Message: strings.Join(passwordErrors, "; "),
+					Value:   request.Password,
+				},
+			},
+		}))
 		return
 	}
 
@@ -1324,6 +1345,26 @@ func ResetAccountPassword(c *gin.Context) {
 					Msg("Failed to fetch target organization")
 			}
 		}
+	}
+
+	// Validate password strength
+	isValidPassword, passwordErrors := validation.ValidatePasswordStrength(request.Password)
+	if !isValidPassword {
+		logger.RequestLogger(c, "accounts").Warn().
+			Str("operation", "validate_password_reset").
+			Interface("violations", passwordErrors).
+			Msg("Password validation failed for reset")
+		c.JSON(http.StatusBadRequest, response.BadRequest("validation failed", response.ErrorData{
+			Type: "validation_error",
+			Errors: []response.ValidationError{
+				{
+					Key:     "password",
+					Message: strings.Join(passwordErrors, "; "),
+					Value:   request.Password,
+				},
+			},
+		}))
+		return
 	}
 
 	// Validate hierarchical permissions
