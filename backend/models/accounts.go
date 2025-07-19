@@ -12,7 +12,7 @@ type CreateAccountRequest struct {
 	Email          string                 `json:"email" binding:"required,email" structs:"email"`
 	Name           string                 `json:"name" binding:"required" structs:"name"`
 	Phone          string                 `json:"phone" structs:"phone"`
-	Password       string                 `json:"password" binding:"required,min=8" structs:"password"`
+	Password       string                 `json:"password" binding:"required" structs:"password"`
 	UserRoleIDs    []string               `json:"userRoleIds" binding:"required" structs:"userRoleIds"`       // Role IDs instead of names for security
 	OrganizationID string                 `json:"organizationId" binding:"required" structs:"organizationId"` // Which organization they belong to
 	Avatar         string                 `json:"avatar" structs:"avatar"`
