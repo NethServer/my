@@ -339,7 +339,7 @@ func (cd *ConfigurableDiffer) AnalyzeSignificanceDistribution(changes []ChangeIn
 		"counts":      stats,
 		"percentages": percentages,
 		"effectiveness": map[string]interface{}{
-			"noise_reduction":   float64(stats["time_filtered"]+stats["value_filtered"]) / float64(stats["total"]) * 100,
+			"noise_reduction":   float64(stats["never_significant"]+stats["time_filtered"]+stats["value_filtered"]) / float64(stats["total"]) * 100,
 			"significance_rate": float64(stats["significant"]) / float64(stats["total"]) * 100,
 		},
 	}

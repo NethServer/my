@@ -7,7 +7,7 @@ categorization:
   # Operating System category
   os:
     patterns:
-      - "os."
+      - "os\\."
       - "kernel"
       - "system_uptime"
     description: "Operating system related changes"
@@ -15,7 +15,7 @@ categorization:
   # Hardware category
   hardware:
     patterns:
-      - "dmi."
+      - "dmi\\."
       - "processors"
       - "memory"
       - "mountpoints"
@@ -33,9 +33,9 @@ categorization:
   # Features and services
   features:
     patterns:
-      - "features."
-      - "services."
-      - "esmithdb.configuration"
+      - "features\\."
+      - "services\\."
+      - "esmithdb\\.configuration"
     description: "Software features and services"
 
   # Security-related
@@ -152,6 +152,14 @@ significance:
         window_seconds: 300  # 5 minutes
       - pattern: "performance"
         window_seconds: 600  # 10 minutes
+      - pattern: "monitoring"
+        window_seconds: 300  # 5 minutes
+      - pattern: "timestamp"
+        window_seconds: 60   # 1 minute
+      - pattern: "heartbeat"
+        window_seconds: 60   # 1 minute
+      - pattern: "uptime"
+        window_seconds: 300  # 5 minutes
 
   # Value-based significance
   value_filters:
