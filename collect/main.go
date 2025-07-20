@@ -27,6 +27,7 @@ import (
 	"github.com/nethesis/my/collect/logger"
 	"github.com/nethesis/my/collect/methods"
 	"github.com/nethesis/my/collect/middleware"
+	"github.com/nethesis/my/collect/pkg/version"
 	"github.com/nethesis/my/collect/queue"
 	"github.com/nethesis/my/collect/response"
 	"github.com/nethesis/my/collect/workers"
@@ -153,7 +154,7 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		logger.LogServiceStart("collect", "1.0.0", configuration.Config.ListenAddress)
+		logger.LogServiceStart("collect", version.Version, configuration.Config.ListenAddress)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatal().Err(err).Msg("Failed to start server")
 		}

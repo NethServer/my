@@ -188,6 +188,37 @@ update_version_file() {
     ' version.json > version.json.tmp && mv version.json.tmp version.json
 }
 
+# Update individual VERSION files for Go components
+update_component_versions() {
+    local new_version=$1
+
+    info "Updating component VERSION files..."
+
+    # Update backend VERSION file
+    if [ -f "backend/pkg/version/VERSION" ]; then
+        echo "$new_version" > "backend/pkg/version/VERSION"
+        success "Updated backend/pkg/version/VERSION"
+    else
+        warning "backend/pkg/version/VERSION not found"
+    fi
+
+    # Update collect VERSION file
+    if [ -f "collect/pkg/version/VERSION" ]; then
+        echo "$new_version" > "collect/pkg/version/VERSION"
+        success "Updated collect/pkg/version/VERSION"
+    else
+        warning "collect/pkg/version/VERSION not found"
+    fi
+
+    # Update sync VERSION file
+    if [ -f "sync/pkg/version/VERSION" ]; then
+        echo "$new_version" > "sync/pkg/version/VERSION"
+        success "Updated sync/pkg/version/VERSION"
+    else
+        warning "sync/pkg/version/VERSION not found"
+    fi
+}
+
 # Show usage
 usage() {
     echo "Usage: $0 [patch|minor|major]"
@@ -269,9 +300,12 @@ main() {
     info "Updating version.json..."
     update_version_file "$new_version"
 
+    # Update component VERSION files
+    update_component_versions "$new_version"
+
     # Commit changes
     info "Creating commit..."
-    git add version.json
+    git add version.json backend/pkg/version/VERSION collect/pkg/version/VERSION sync/pkg/version/VERSION
     git commit -m "release: bump version to v$new_version"
 
     # Create tag
