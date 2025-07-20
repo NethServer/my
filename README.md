@@ -62,6 +62,7 @@ Web application providing centralized authentication and management using Logto 
 - **Trigger**: Manual deployment via GitHub Actions
 - **Sequential Deploy**: Redis + PostgreSQL → Backend + Collect → Frontend → Proxy
 - **Manual Control**: Deploy only when explicitly triggered
+- **Security**: Private services (Backend, Collect, Frontend) only accessible through Proxy
 
 ## 📝 Configuration
 

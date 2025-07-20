@@ -29,19 +29,19 @@
 
 #### Services Created
 ##### Production
-- `my-redis-prod` (Production Redis)
-- `my-postgres-prod` (Production PostgreSQL)
-- `my-backend-prod` (Production Backend)
-- `my-collect-prod` (Production Collect)
-- `my-frontend-prod` (Production Frontend)
-- `my-proxy-prod` (Production Proxy)
+- `my-redis-prod` (Production Redis) - Private Service
+- `my-postgres-prod` (Production PostgreSQL) - Private Service
+- `my-backend-prod` (Production Backend) - **Private Service** (accessible only via proxy)
+- `my-collect-prod` (Production Collect) - **Private Service** (accessible only via proxy)
+- `my-frontend-prod` (Production Frontend) - **Private Service** (accessible only via proxy)
+- `my-proxy-prod` (Production Proxy) - **Public Service** (single entry point)
 ##### QA
-- `my-redis-qa` (QA Redis)
-- `my-postgres-qa` (QA PostgreSQL)
-- `my-backend-qa` (QA Backend)
-- `my-collect-qa` (QA Collect)
-- `my-frontend-qa` (QA Frontend)
-- `my-proxy-qa` (QA Proxy)
+- `my-redis-qa` (QA Redis) - Private Service
+- `my-postgres-qa` (QA PostgreSQL) - Private Service
+- `my-backend-qa` (QA Backend) - **Private Service** (accessible only via proxy)
+- `my-collect-qa` (QA Collect) - **Private Service** (accessible only via proxy)
+- `my-frontend-qa` (QA Frontend) - **Private Service** (accessible only via proxy)
+- `my-proxy-qa` (QA Proxy) - **Public Service** (single entry point)
 
 ### 2. GitHub Secrets
 Add these secrets to your repository (**Settings** → **Secrets and variables** → **Actions**):
@@ -156,8 +156,29 @@ Monitor deployment status directly from README:
 - **GitHub Secrets**: Verify all service IDs and API keys are properly configured
 
 ### Service Configuration
+
+#### Private Services Architecture
+All application services use `type: pserv` (Private Service) for enhanced security:
+
+- **Backend** (`my-backend-prod`): Private API service accessible only via internal network
+- **Collect** (`my-collect-prod`): Private inventory service accessible only via internal network
+- **Frontend** (`my-frontend-prod`): Private static file server accessible only via internal network
+- **Proxy** (`my-proxy-prod`): **Single public entry point** that routes traffic to private services
+
+#### Internal Communication
+- **Service URLs**: Private services use internal URLs (e.g., `my-backend-prod:10000`)
+- **Protocol**: HTTP for internal communication (encrypted at transport layer by Render)
+- **Routing**: Proxy forwards requests to appropriate private services
+  - `/backend/api/` → `my-backend-prod:10000`
+  - `/collect/api/` → `my-collect-prod:10000`
+  - `/` → `my-frontend-prod:10000`
+
+#### Database Configuration
 - **Redis**: Internal connections only (`ipAllowList: []`)
 - **PostgreSQL**: Internal connections only (`ipAllowList: []`)
 - **Backend & Collect**: Connect to databases via `fromService` configuration
-- **Proxy**: Routes traffic to Backend and Frontend services
-- **Environment Variables**: Managed separately for each environment
+
+#### Security Benefits
+- **Reduced Attack Surface**: Only proxy service is publicly accessible
+- **No Direct Access**: Backend, Collect, and Frontend cannot be reached directly from internet
+- **Internal Network**: All service communication happens within Render's secure internal network
