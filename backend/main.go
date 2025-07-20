@@ -24,6 +24,7 @@ import (
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/methods"
 	"github.com/nethesis/my/backend/middleware"
+	"github.com/nethesis/my/backend/pkg/version"
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services"
 )
@@ -231,7 +232,7 @@ func main() {
 	})
 
 	// Run server
-	logger.LogServiceStart("backend", "1.0.0", configuration.Config.ListenAddress)
+	logger.LogServiceStart("backend", version.Version, configuration.Config.ListenAddress)
 	if err := router.Run(configuration.Config.ListenAddress); err != nil {
 		logger.Fatal().Err(err).Msg("Failed to start server")
 	}
