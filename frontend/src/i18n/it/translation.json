@@ -25,5 +25,10 @@
     "go_to_page": "Vai a {page}",
     "no_data_available": "Nessun dato disponibile"
   },
-  "shell": {}
+  "shell": {
+    "sign_out": "Esci"
+  },
+  "account": {
+    "title": "Impostazioni account"
+  }
 }

@@ -1,10 +1,11 @@
+import { savePreference } from '@nethesis/vue-components'
 import { createI18n } from 'vue-i18n'
 
 export const SUPPORTED_LOCALES = ['en', 'it']
 const DEFAULT_LOCALE = 'en'
 
 // Detect browser language
-function getBrowserLocale() {
+export function getBrowserLocale() {
   const navigatorLocale =
     navigator.languages !== undefined ? navigator.languages[0] : navigator.language
 
@@ -53,12 +54,16 @@ export async function loadLocaleMessages(locale: string) {
 }
 
 // Function to change locale
-export async function setLocale(locale: string) {
+export async function setLocale(locale: string, username: string | undefined = undefined) {
+  console.log('@ setLocale', locale, username) ////
+
   await loadLocaleMessages(locale)
   i18n.global.locale.value = locale
 
   // Save to localStorage
-  // localStorage.setItem('user-locale', locale) ////
+  if (username) {
+    savePreference('locale', locale, username)
+  }
 
   // Update document lang attribute
   document.documentElement.setAttribute('lang', locale)

@@ -8,17 +8,12 @@ import LoginLogo from '@/assets/login_logo.svg'
 import Loader from '@/assets/loader.svg'
 import { onMounted } from 'vue'
 import { useLoginStore } from '@/stores/login'
-import router from '@/router' ////
 
 const loginStore = useLoginStore()
 
 onMounted(() => {
-  console.log('LogView onMounted, isAuthenticated', loginStore.isAuthenticated) ////
-
   if (!loginStore.isAuthenticated) {
     loginStore.login()
-    // } else { ////
-    //   router.push('/dashboard')
   }
 })
 </script>

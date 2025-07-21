@@ -12,6 +12,7 @@ import {
   faBars,
   faBell,
   faChevronDown,
+  faCircleUser,
   faMoon,
   faRightFromBracket,
   faSun,
@@ -19,6 +20,7 @@ import {
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useI18n } from 'vue-i18n'
 import { useNotificationsStore } from '@/stores/notifications'
+import router from '@/router'
 
 const emit = defineEmits(['openSidebar'])
 
@@ -33,12 +35,12 @@ const shakeNotificationsIcon = ref(false)
 
 const accountMenuOptions = computed(() => {
   return [
-    //   {
-    //     id: 'account',
-    //     label: t('shell.account_settings'),
-    //     icon: faCircleUser,
-    //     action: () => router.push('/standalone/account'),
-    //   },
+    {
+      id: 'account',
+      label: t('account_settings.title'),
+      icon: faCircleUser,
+      action: () => router.push('/account'),
+    },
     {
       id: 'logout',
       label: t('shell.sign_out'),
@@ -177,7 +179,7 @@ function openNotificationsDrawer() {
               <template #button>
                 <button type="button" :class="['-m-2.5 flex p-2.5', topBarButtonsColorClasses]">
                   <div class="flex items-center gap-2">
-                    <NeAvatar size="xs" :initials="loginStore.userInitial" aria-hidden="true" />
+                    <NeAvatar size="sm" :initials="loginStore.userInitial" aria-hidden="true" />
 
                     <FontAwesomeIcon
                       :icon="faChevronDown"

@@ -216,6 +216,12 @@
     "show_password": "Show password",
     "hide_password": "Hide password"
   },
+  "account": {
+    "title": "Account settings",
+    "change_password": "Change password",
+    "language": "Language",
+    "ui_language": "User interface language"
+  },
   "ne_table": {
     "no_items": "No items",
     "go_to_previous_page": "Go to previous page",

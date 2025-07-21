@@ -8,6 +8,8 @@ import { API_URL, LOGIN_REDIRECT_URI, SIGN_OUT_REDIRECT_URI } from '@/lib/config
 import axios from 'axios'
 import { useThemeStore } from './theme'
 import { useStorage } from '@vueuse/core'
+import { getPreference } from '@nethesis/vue-components'
+import { getBrowserLocale, setLocale } from '@/i18n'
 
 export const TOKEN_REFRESH_INTERVAL = 20 * 60 * 1000 // 20 minutes
 
@@ -134,7 +136,12 @@ export const useLoginStore = defineStore('login', () => {
 
       console.log('[login store] user info', userInfo.value) ////
 
+      // Load user theme
       themeStore.loadTheme()
+
+      // Load locale from user preference
+      const locale = getPreference('locale', user.email) || getBrowserLocale()
+      setLocale(locale)
 
       // write last token refresh time to local storage
       const tokenRefreshedTime = useStorage(`tokenRefreshed-${user.email}`, 0)
