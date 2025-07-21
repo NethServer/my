@@ -295,15 +295,17 @@ func CreateAccount(c *gin.Context) {
 			Str("operation", "validate_password").
 			Interface("violations", passwordErrors).
 			Msg("Password validation failed")
+		var validationErrors []response.ValidationError
+		for _, err := range passwordErrors {
+			validationErrors = append(validationErrors, response.ValidationError{
+				Key:     "password",
+				Message: err,
+				Value:   request.Password,
+			})
+		}
 		c.JSON(http.StatusBadRequest, response.BadRequest("validation failed", response.ErrorData{
-			Type: "validation_error",
-			Errors: []response.ValidationError{
-				{
-					Key:     "password",
-					Message: strings.Join(passwordErrors, "; "),
-					Value:   request.Password,
-				},
-			},
+			Type:   "validation_error",
+			Errors: validationErrors,
 		}))
 		return
 	}
@@ -1354,15 +1356,17 @@ func ResetAccountPassword(c *gin.Context) {
 			Str("operation", "validate_password_reset").
 			Interface("violations", passwordErrors).
 			Msg("Password validation failed for reset")
+		var validationErrors []response.ValidationError
+		for _, err := range passwordErrors {
+			validationErrors = append(validationErrors, response.ValidationError{
+				Key:     "password",
+				Message: err,
+				Value:   request.Password,
+			})
+		}
 		c.JSON(http.StatusBadRequest, response.BadRequest("validation failed", response.ErrorData{
-			Type: "validation_error",
-			Errors: []response.ValidationError{
-				{
-					Key:     "password",
-					Message: strings.Join(passwordErrors, "; "),
-					Value:   request.Password,
-				},
-			},
+			Type:   "validation_error",
+			Errors: validationErrors,
 		}))
 		return
 	}
