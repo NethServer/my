@@ -982,14 +982,9 @@ func UpdateAccount(c *gin.Context) {
 	// Prepare update request
 	updateRequest := models.UpdateUserRequest{}
 
+	updateRequest.PrimaryPhone = &request.Phone
 	if request.Name != "" {
 		updateRequest.Name = &request.Name
-	}
-	if request.Phone != "" {
-		updateRequest.PrimaryPhone = &request.Phone
-	}
-	if request.Avatar != "" {
-		updateRequest.Avatar = &request.Avatar
 	}
 
 	// Merge custom data with existing data
