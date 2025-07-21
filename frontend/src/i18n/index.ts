@@ -1,4 +1,5 @@
-import { savePreference } from '@nethesis/vue-components'
+import { getPreference, savePreference } from '@nethesis/vue-components'
+import { useStorage } from '@vueuse/core'
 import { createI18n } from 'vue-i18n'
 
 export const SUPPORTED_LOCALES = ['en', 'it']
@@ -6,8 +7,20 @@ const DEFAULT_LOCALE = 'en'
 
 // Detect browser language
 export function getBrowserLocale() {
-  const navigatorLocale =
-    navigator.languages !== undefined ? navigator.languages[0] : navigator.language
+  let navigatorLocale = ''
+  const lastUser = useStorage('lastUser', '')
+
+  if (lastUser.value && getPreference('locale', lastUser.value)) {
+    console.log('# load i18n from last user preference', getPreference('locale', lastUser.value)) ////
+
+    return getPreference('locale', lastUser.value)
+  } else if (navigator.languages && navigator.languages.length > 0) {
+    navigatorLocale = navigator.languages[0]
+  } else if (navigator.language) {
+    navigatorLocale = navigator.language
+  }
+
+  console.log('# navigatorLocale', navigatorLocale) ////
 
   if (!navigatorLocale) {
     return DEFAULT_LOCALE

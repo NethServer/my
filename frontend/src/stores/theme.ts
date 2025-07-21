@@ -5,6 +5,7 @@ import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useLoginStore } from './login'
 import { getPreference, savePreference } from '@nethesis/vue-components'
+import { useStorage } from '@vueuse/core'
 
 type Theme = 'light' | 'dark' | 'system'
 
@@ -95,13 +96,24 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   function loadTheme() {
-    let theme = 'system' as Theme
-    const username = loginStore.userInfo?.email
+    const lastUser = useStorage('lastUser', '')
+    let theme = null
+    const userLogged = loginStore.userInfo?.email
 
-    if (username) {
-      theme = getPreference('theme', username)
+    if (userLogged) {
+      console.log('@@ load theme from userLogged', userLogged) ////
+
+      theme = getPreference('theme', userLogged)
+    } else if (lastUser.value) {
+      console.log('@@ load theme from lastUser', lastUser.value) ////
+
+      theme = getPreference('theme', lastUser.value)
+    } else {
+      console.log('@@ load theme from system') ////
+
+      theme = 'system'
     }
-    setTheme(theme)
+    setTheme(theme as Theme)
   }
 
   return { theme, isLight, setTheme, toggleTheme, loadTheme }

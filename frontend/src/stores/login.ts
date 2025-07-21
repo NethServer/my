@@ -146,6 +146,10 @@ export const useLoginStore = defineStore('login', () => {
       // write last token refresh time to local storage
       const tokenRefreshedTime = useStorage(`tokenRefreshed-${user.email}`, 0)
       tokenRefreshedTime.value = Date.now()
+
+      // save last user to local storage: this is used to load the theme and locale before user info is fetched
+      const lastUser = useStorage('lastUser', '')
+      lastUser.value = user.email
     } catch (error) {
       //// toast notification
       console.error('Cannot exchange token:', error)
