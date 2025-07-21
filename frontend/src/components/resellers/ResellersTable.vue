@@ -135,7 +135,7 @@ function getKebabMenuItems(reseller: Reseller) {
       icon: faTrash,
       danger: true,
       action: () => showDeleteResellerDrawer(reseller),
-      disabled: false,
+      disabled: resellersAsyncStatus.value === 'loading',
     },
   ]
 }
@@ -275,7 +275,11 @@ const onSort = (payload: SortEvent) => {
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
             <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
-              <NeButton kind="tertiary" @click="showEditResellerDrawer(item)">
+              <NeButton
+                kind="tertiary"
+                @click="showEditResellerDrawer(item)"
+                :disabled="resellersAsyncStatus === 'loading'"
+              >
                 <template #prefix>
                   <!-- //// "Details" instead of "Edit" to open the drawer? -->
                   <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />

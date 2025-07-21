@@ -159,7 +159,7 @@ function getKebabMenuItems(user: User) {
       icon: faTrash,
       danger: true,
       action: () => showDeleteUserModal(user),
-      disabled: false,
+      disabled: usersAsyncStatus.value === 'loading',
     },
   ]
 }
@@ -290,7 +290,11 @@ const onClosePasswordChangedModal = () => {
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
             <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
-              <NeButton kind="tertiary" @click="showEditUserDrawer(item)">
+              <NeButton
+                kind="tertiary"
+                @click="showEditUserDrawer(item)"
+                :disabled="usersAsyncStatus === 'loading'"
+              >
                 <template #prefix>
                   <!-- //// "Details" instead of "Edit" to open the drawer? -->
                   <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
