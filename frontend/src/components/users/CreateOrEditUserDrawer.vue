@@ -310,12 +310,14 @@ function validateEdit(user: EditUser): boolean {
 async function saveUser() {
   clearErrors()
 
+  console.log('passing phone', phone.value.replace(/[\+\s\.\-]/g, '')) ////
+
   const user = {
     email: email.value,
     name: name.value,
     userRoleIds: userRoleIds.value.map((role) => role.id),
     organizationId: organizationId.value,
-    phone: phone.value,
+    phone: phone.value.replace(/[\+\s\.\-]/g, ''), // remove formatting characters from phone number
     customData: {}, //// TODO
   }
 

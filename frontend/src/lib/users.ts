@@ -13,7 +13,9 @@ export const paginationQueryString = '?page_size=100'
 export const BaseUserSchema = v.object({
   email: v.pipe(v.string(), v.nonEmpty('users.email_required'), v.email('users.email_invalid')),
   name: v.pipe(v.string(), v.nonEmpty('users.name_required')),
-  phone: v.optional(v.string()),
+  phone: v.optional(
+    v.pipe(v.string(), v.regex(/^\+?[\d\s\-\(\)]{7,20}$/, 'users.phone_invalid_format')),
+  ),
   userRoleIds: v.optional(v.array(v.string())),
   organizationId: v.pipe(v.string(), v.nonEmpty('users.organization_required')),
   customData: v.optional(v.record(v.string(), v.string())),
