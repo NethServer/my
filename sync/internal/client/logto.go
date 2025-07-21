@@ -447,3 +447,28 @@ func (c *LogtoClient) DeleteThirdPartyApplication(appID string) error {
 
 	return c.handleResponse(resp, http.StatusNoContent, nil)
 }
+
+// SignInExperienceMFA represents MFA configuration for sign-in experience
+type SignInExperienceMFA struct {
+	Policy  string   `json:"policy"`
+	Factors []string `json:"factors"`
+}
+
+// UpdateSignInExperienceMFA configures MFA settings using the sign-in experience API
+func (c *LogtoClient) UpdateSignInExperienceMFA(policy string, factors []string) error {
+	mfaConfig := map[string]interface{}{
+		"mfa": SignInExperienceMFA{
+			Policy:  policy,
+			Factors: factors,
+		},
+	}
+
+	logger.Debug("Configuring MFA with policy: %s, factors: %v", policy, factors)
+
+	resp, err := c.makeRequest("PATCH", "/api/sign-in-exp", mfaConfig)
+	if err != nil {
+		return fmt.Errorf("failed to update MFA configuration: %w", err)
+	}
+
+	return c.handleResponse(resp, http.StatusOK, nil)
+}
