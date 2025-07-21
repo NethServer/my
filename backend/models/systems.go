@@ -34,6 +34,10 @@ type System struct {
 	CreatedAt   time.Time         `json:"created_at" structs:"created_at"`
 	UpdatedAt   time.Time         `json:"updated_at" structs:"updated_at"`
 	CreatedBy   SystemCreator     `json:"created_by" structs:"created_by"`
+	// Heartbeat status fields
+	HeartbeatStatus  string     `json:"heartbeat_status,omitempty"`  // alive, dead, zombie
+	LastHeartbeat    *time.Time `json:"last_heartbeat,omitempty"`    // Last heartbeat timestamp
+	HeartbeatMinutes *int       `json:"heartbeat_minutes,omitempty"` // Minutes since last heartbeat
 }
 
 // CreateSystemRequest represents the request payload for creating a new system

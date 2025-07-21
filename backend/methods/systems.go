@@ -69,7 +69,7 @@ func CreateSystem(c *gin.Context) {
 	c.JSON(http.StatusCreated, response.Created("system created successfully", system))
 }
 
-// GetSystems handles GET /api/systems - retrieves all systems
+// GetSystems handles GET /api/systems - retrieves all systems with pagination
 func GetSystems(c *gin.Context) {
 	// Get current user context
 	userID, userOrgRole, userRole := helpers.GetUserContext(c)
@@ -78,15 +78,31 @@ func GetSystems(c *gin.Context) {
 		return
 	}
 
+	// Parse pagination parameters
+	page := 1
+	pageSize := 50 // Default page size for systems
+	if pageStr := c.Query("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+	if pageSizeStr := c.Query("page_size"); pageSizeStr != "" {
+		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 && ps <= 100 {
+			pageSize = ps
+		}
+	}
+
 	// Create systems service
 	systemsService := services.NewSystemsService()
 
-	// Get systems with proper filtering
-	systems, err := systemsService.GetSystemsByOrganization(userID, userOrgRole, userRole)
+	// Get systems with pagination
+	systems, totalCount, err := systemsService.GetSystemsByOrganizationPaginated(userID, userOrgRole, userRole, page, pageSize)
 	if err != nil {
 		logger.Error().
 			Err(err).
 			Str("user_id", userID).
+			Int("page", page).
+			Int("page_size", pageSize).
 			Msg("Failed to retrieve systems")
 
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to retrieve systems", map[string]interface{}{
@@ -99,10 +115,21 @@ func GetSystems(c *gin.Context) {
 	logger.RequestLogger(c, "systems").Info().
 		Str("operation", "list_systems").
 		Int("count", len(systems)).
+		Int("total", totalCount).
+		Int("page", page).
+		Int("page_size", pageSize).
 		Msg("Systems list requested")
 
-	// Return systems list
-	c.JSON(http.StatusOK, response.OK("systems retrieved successfully", gin.H{"systems": systems, "count": len(systems)}))
+	// Return paginated systems list
+	c.JSON(http.StatusOK, response.OK("systems retrieved successfully", gin.H{
+		"systems": systems,
+		"pagination": gin.H{
+			"page":        page,
+			"page_size":   pageSize,
+			"total_count": totalCount,
+			"total_pages": (totalCount + pageSize - 1) / pageSize,
+		},
+	}))
 }
 
 // GetSystem handles GET /api/systems/:id - retrieves a single system

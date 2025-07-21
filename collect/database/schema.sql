@@ -62,4 +62,13 @@ CREATE INDEX IF NOT EXISTS idx_inventory_alerts_system_id_created_at ON inventor
 CREATE INDEX IF NOT EXISTS idx_inventory_alerts_resolved ON inventory_alerts(is_resolved) WHERE is_resolved = false;
 CREATE INDEX IF NOT EXISTS idx_inventory_alerts_severity ON inventory_alerts(severity);
 
+-- System heartbeats table - lightweight system liveness tracking
+CREATE TABLE IF NOT EXISTS system_heartbeats (
+    system_id VARCHAR(255) PRIMARY KEY,
+    last_heartbeat TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+-- Performance index for heartbeat queries
+CREATE INDEX IF NOT EXISTS idx_system_heartbeats_last_heartbeat ON system_heartbeats(last_heartbeat DESC);
+
 -- Note: System credentials are managed in the backend service systems table

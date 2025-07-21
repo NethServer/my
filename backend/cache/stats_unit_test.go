@@ -43,7 +43,7 @@ func TestSystemStatsStruct(t *testing.T) {
 		Resellers:    15,
 		Customers:    100,
 		Users:        250,
-		Systems:      50,
+		Systems:      SystemHeartbeatStats{Total: 50, Alive: 40, Dead: 8, Zombie: 2},
 		LastUpdated:  now,
 		IsStale:      false,
 	}
@@ -52,7 +52,10 @@ func TestSystemStatsStruct(t *testing.T) {
 	assert.Equal(t, 15, stats.Resellers)
 	assert.Equal(t, 100, stats.Customers)
 	assert.Equal(t, 250, stats.Users)
-	assert.Equal(t, 50, stats.Systems)
+	assert.Equal(t, 50, stats.Systems.Total)
+	assert.Equal(t, 40, stats.Systems.Alive)
+	assert.Equal(t, 8, stats.Systems.Dead)
+	assert.Equal(t, 2, stats.Systems.Zombie)
 	assert.Equal(t, now, stats.LastUpdated)
 	assert.False(t, stats.IsStale)
 }
@@ -93,7 +96,7 @@ func TestStatsCacheManagerGetStats(t *testing.T) {
 			Resellers:    15,
 			Customers:    100,
 			Users:        250,
-			Systems:      50,
+			Systems:      SystemHeartbeatStats{Total: 50, Alive: 42, Dead: 6, Zombie: 2},
 			LastUpdated:  now,
 			IsStale:      false,
 		}
@@ -109,7 +112,10 @@ func TestStatsCacheManagerGetStats(t *testing.T) {
 		assert.Equal(t, 15, stats.Resellers)
 		assert.Equal(t, 100, stats.Customers)
 		assert.Equal(t, 250, stats.Users)
-		assert.Equal(t, 50, stats.Systems)
+		assert.Equal(t, 50, stats.Systems.Total)
+		assert.Equal(t, 42, stats.Systems.Alive)
+		assert.Equal(t, 6, stats.Systems.Dead)
+		assert.Equal(t, 2, stats.Systems.Zombie)
 		assert.False(t, stats.IsStale)
 		mockRedis.AssertExpectations(t)
 	})
@@ -128,7 +134,7 @@ func TestStatsCacheManagerGetStats(t *testing.T) {
 			Resellers:    15,
 			Customers:    100,
 			Users:        250,
-			Systems:      50,
+			Systems:      SystemHeartbeatStats{Total: 50, Alive: 35, Dead: 12, Zombie: 3},
 			LastUpdated:  staleTime,
 			IsStale:      false, // Will be set to true by GetStats
 		}
@@ -164,7 +170,10 @@ func TestStatsCacheManagerGetStats(t *testing.T) {
 		assert.Equal(t, 0, stats.Resellers)
 		assert.Equal(t, 0, stats.Customers)
 		assert.Equal(t, 0, stats.Users)
-		assert.Equal(t, 0, stats.Systems)
+		assert.Equal(t, 0, stats.Systems.Total)
+		assert.Equal(t, 0, stats.Systems.Alive)
+		assert.Equal(t, 0, stats.Systems.Dead)
+		assert.Equal(t, 0, stats.Systems.Zombie)
 		mockRedis.AssertExpectations(t)
 	})
 
@@ -543,7 +552,7 @@ func TestStatsCacheEdgeCases(t *testing.T) {
 			Resellers:    0,
 			Customers:    0,
 			Users:        0,
-			Systems:      0,
+			Systems:      SystemHeartbeatStats{Total: 0, Alive: 0, Dead: 0, Zombie: 0},
 			LastUpdated:  time.Time{},
 			IsStale:      true,
 		}
@@ -552,7 +561,10 @@ func TestStatsCacheEdgeCases(t *testing.T) {
 		assert.Equal(t, 0, stats.Resellers)
 		assert.Equal(t, 0, stats.Customers)
 		assert.Equal(t, 0, stats.Users)
-		assert.Equal(t, 0, stats.Systems)
+		assert.Equal(t, 0, stats.Systems.Total)
+		assert.Equal(t, 0, stats.Systems.Alive)
+		assert.Equal(t, 0, stats.Systems.Dead)
+		assert.Equal(t, 0, stats.Systems.Zombie)
 		assert.True(t, stats.LastUpdated.IsZero())
 		assert.True(t, stats.IsStale)
 	})
@@ -563,14 +575,17 @@ func TestStatsCacheEdgeCases(t *testing.T) {
 			Resellers:    5000,
 			Customers:    100000,
 			Users:        1000000,
-			Systems:      50000,
+			Systems:      SystemHeartbeatStats{Total: 50000, Alive: 45000, Dead: 4000, Zombie: 1000},
 		}
 
 		assert.Equal(t, 1000, stats.Distributors)
 		assert.Equal(t, 5000, stats.Resellers)
 		assert.Equal(t, 100000, stats.Customers)
 		assert.Equal(t, 1000000, stats.Users)
-		assert.Equal(t, 50000, stats.Systems)
+		assert.Equal(t, 50000, stats.Systems.Total)
+		assert.Equal(t, 45000, stats.Systems.Alive)
+		assert.Equal(t, 4000, stats.Systems.Dead)
+		assert.Equal(t, 1000, stats.Systems.Zombie)
 	})
 
 	t.Run("Manager with nil Redis client", func(t *testing.T) {
