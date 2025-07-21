@@ -8,6 +8,7 @@ package methods
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -19,6 +20,32 @@ import (
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services"
 )
+
+// handleSystemAccessError handles system access errors with appropriate HTTP status codes
+func handleSystemAccessError(c *gin.Context, err error, systemID string) bool {
+	if err == nil {
+		return false
+	}
+
+	errMsg := err.Error()
+	if errMsg == "system not found" {
+		c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
+		return true
+	}
+
+	if strings.Contains(errMsg, "access denied") {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied to system", map[string]interface{}{
+			"system_id": systemID,
+		}))
+		return true
+	}
+
+	// Technical error
+	c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to validate system access", map[string]interface{}{
+		"error": errMsg,
+	}))
+	return true
+}
 
 // CreateSystem handles POST /api/systems - creates a new system
 func CreateSystem(c *gin.Context) {
@@ -47,7 +74,7 @@ func CreateSystem(c *gin.Context) {
 	}
 
 	// Create system with automatic secret generation
-	system, err := systemsService.CreateSystem(&request, creatorInfo)
+	system, err := systemsService.CreateSystem(&request, creatorInfo, user.OrgRole, user.OrganizationID)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -71,8 +98,8 @@ func CreateSystem(c *gin.Context) {
 
 // GetSystems handles GET /api/systems - retrieves all systems with pagination
 func GetSystems(c *gin.Context) {
-	// Get current user context
-	userID, userOrgRole, userRole := helpers.GetUserContext(c)
+	// Get current user context with organization ID
+	userID, userOrgID, userOrgRole, userRole := helpers.GetUserContextExtended(c)
 	if userID == "" {
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
 		return
@@ -96,7 +123,7 @@ func GetSystems(c *gin.Context) {
 	systemsService := services.NewSystemsService()
 
 	// Get systems with pagination
-	systems, totalCount, err := systemsService.GetSystemsByOrganizationPaginated(userID, userOrgRole, userRole, page, pageSize)
+	systems, totalCount, err := systemsService.GetSystemsByOrganizationPaginated(userID, userOrgID, userOrgRole, userRole, page, pageSize)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -142,32 +169,23 @@ func GetSystem(c *gin.Context) {
 	}
 
 	// Get current user context
-	userID, userOrgRole, userRole := helpers.GetUserContext(c)
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
 		return
 	}
 
 	// Create systems service
 	systemsService := services.NewSystemsService()
 
+	// Get user role (first one if available)
+	userRole := ""
+	if len(user.UserRoles) > 0 {
+		userRole = user.UserRoles[0]
+	}
+
 	// Get system with access validation
-	system, err := systemsService.GetSystemByID(systemID, userID, userOrgRole, userRole)
-	if err != nil {
-		if err.Error() == "system not found" {
-			c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
-			return
-		}
-
-		logger.Error().
-			Err(err).
-			Str("user_id", userID).
-			Str("system_id", systemID).
-			Msg("Failed to retrieve system")
-
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to retrieve system", map[string]interface{}{
-			"error": err.Error(),
-		}))
+	system, err := systemsService.GetSystemByID(systemID, user.ID, user.OrganizationID, user.OrgRole, userRole)
+	if handleSystemAccessError(c, err, systemID) {
 		return
 	}
 
@@ -190,8 +208,8 @@ func UpdateSystem(c *gin.Context) {
 		return
 	}
 
-	// Get current user context
-	userID, userOrgRole, userRole := helpers.GetUserContext(c)
+	// Get current user context with organization ID
+	userID, userOrgID, userOrgRole, userRole := helpers.GetUserContextExtended(c)
 	if userID == "" {
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
 		return
@@ -208,22 +226,8 @@ func UpdateSystem(c *gin.Context) {
 	systemsService := services.NewSystemsService()
 
 	// Update system with access validation
-	system, err := systemsService.UpdateSystem(systemID, &request, userID, userOrgRole, userRole)
-	if err != nil {
-		if err.Error() == "system not found" {
-			c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
-			return
-		}
-
-		logger.Error().
-			Err(err).
-			Str("user_id", userID).
-			Str("system_id", systemID).
-			Msg("Failed to update system")
-
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to update system", map[string]interface{}{
-			"error": err.Error(),
-		}))
+	system, err := systemsService.UpdateSystem(systemID, &request, userID, userOrgID, userOrgRole, userRole)
+	if handleSystemAccessError(c, err, systemID) {
 		return
 	}
 
@@ -243,8 +247,8 @@ func DeleteSystem(c *gin.Context) {
 		return
 	}
 
-	// Get current user context
-	userID, userOrgRole, userRole := helpers.GetUserContext(c)
+	// Get current user context with organization ID
+	userID, userOrgID, userOrgRole, userRole := helpers.GetUserContextExtended(c)
 	if userID == "" {
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
 		return
@@ -254,22 +258,8 @@ func DeleteSystem(c *gin.Context) {
 	systemsService := services.NewSystemsService()
 
 	// Delete system with access validation
-	err := systemsService.DeleteSystem(systemID, userID, userOrgRole, userRole)
-	if err != nil {
-		if err.Error() == "system not found" {
-			c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
-			return
-		}
-
-		logger.Error().
-			Err(err).
-			Str("user_id", userID).
-			Str("system_id", systemID).
-			Msg("Failed to delete system")
-
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to delete system", map[string]interface{}{
-			"error": err.Error(),
-		}))
+	err := systemsService.DeleteSystem(systemID, userID, userOrgID, userOrgRole, userRole)
+	if handleSystemAccessError(c, err, systemID) {
 		return
 	}
 
@@ -305,17 +295,8 @@ func RegenerateSystemSecret(c *gin.Context) {
 	}
 
 	// Regenerate system secret
-	system, err := systemsService.RegenerateSystemSecret(systemID, user.ID, user.OrgRole, userRole)
-	if err != nil {
-		logger.Error().
-			Err(err).
-			Str("user_id", user.ID).
-			Str("system_id", systemID).
-			Msg("Failed to regenerate system secret")
-
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to regenerate system secret", map[string]interface{}{
-			"error": err.Error(),
-		}))
+	system, err := systemsService.RegenerateSystemSecret(systemID, user.ID, user.OrganizationID, user.OrgRole, userRole)
+	if handleSystemAccessError(c, err, systemID) {
 		return
 	}
 
@@ -336,7 +317,7 @@ func GetSystemInventoryHistory(c *gin.Context) {
 	}
 
 	// Get current user context for access validation
-	userID, userOrgRole, userRole := helpers.GetUserContext(c)
+	userID, userOrgID, userOrgRole, userRole := helpers.GetUserContextExtended(c)
 	if userID == "" {
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
 		return
@@ -344,13 +325,8 @@ func GetSystemInventoryHistory(c *gin.Context) {
 
 	// Validate system access
 	systemsService := services.NewSystemsService()
-	_, err := systemsService.GetSystemByID(systemID, userID, userOrgRole, userRole)
-	if err != nil {
-		if err.Error() == "system not found" {
-			c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to validate system access", nil))
+	_, err := systemsService.GetSystemByID(systemID, userID, userOrgID, userOrgRole, userRole)
+	if handleSystemAccessError(c, err, systemID) {
 		return
 	}
 
@@ -428,7 +404,7 @@ func GetSystemLatestInventory(c *gin.Context) {
 	}
 
 	// Get current user context for access validation
-	userID, userOrgRole, userRole := helpers.GetUserContext(c)
+	userID, userOrgID, userOrgRole, userRole := helpers.GetUserContextExtended(c)
 	if userID == "" {
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
 		return
@@ -436,13 +412,8 @@ func GetSystemLatestInventory(c *gin.Context) {
 
 	// Validate system access
 	systemsService := services.NewSystemsService()
-	_, err := systemsService.GetSystemByID(systemID, userID, userOrgRole, userRole)
-	if err != nil {
-		if err.Error() == "system not found" {
-			c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to validate system access", nil))
+	_, err := systemsService.GetSystemByID(systemID, userID, userOrgID, userOrgRole, userRole)
+	if handleSystemAccessError(c, err, systemID) {
 		return
 	}
 
@@ -487,7 +458,7 @@ func GetSystemInventoryChanges(c *gin.Context) {
 	}
 
 	// Get current user context for access validation
-	userID, userOrgRole, userRole := helpers.GetUserContext(c)
+	userID, userOrgID, userOrgRole, userRole := helpers.GetUserContextExtended(c)
 	if userID == "" {
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
 		return
@@ -495,13 +466,8 @@ func GetSystemInventoryChanges(c *gin.Context) {
 
 	// Validate system access
 	systemsService := services.NewSystemsService()
-	_, err := systemsService.GetSystemByID(systemID, userID, userOrgRole, userRole)
-	if err != nil {
-		if err.Error() == "system not found" {
-			c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to validate system access", nil))
+	_, err := systemsService.GetSystemByID(systemID, userID, userOrgID, userOrgRole, userRole)
+	if handleSystemAccessError(c, err, systemID) {
 		return
 	}
 
@@ -546,7 +512,7 @@ func GetSystemLatestInventoryChanges(c *gin.Context) {
 	}
 
 	// Get current user context for access validation
-	userID, userOrgRole, userRole := helpers.GetUserContext(c)
+	userID, userOrgID, userOrgRole, userRole := helpers.GetUserContextExtended(c)
 	if userID == "" {
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
 		return
@@ -554,13 +520,8 @@ func GetSystemLatestInventoryChanges(c *gin.Context) {
 
 	// Validate system access
 	systemsService := services.NewSystemsService()
-	_, err := systemsService.GetSystemByID(systemID, userID, userOrgRole, userRole)
-	if err != nil {
-		if err.Error() == "system not found" {
-			c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to validate system access", nil))
+	_, err := systemsService.GetSystemByID(systemID, userID, userOrgID, userOrgRole, userRole)
+	if handleSystemAccessError(c, err, systemID) {
 		return
 	}
 
@@ -605,7 +566,7 @@ func GetSystemInventoryDiffs(c *gin.Context) {
 	}
 
 	// Get current user context for access validation
-	userID, userOrgRole, userRole := helpers.GetUserContext(c)
+	userID, userOrgID, userOrgRole, userRole := helpers.GetUserContextExtended(c)
 	if userID == "" {
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
 		return
@@ -613,13 +574,8 @@ func GetSystemInventoryDiffs(c *gin.Context) {
 
 	// Validate system access
 	systemsService := services.NewSystemsService()
-	_, err := systemsService.GetSystemByID(systemID, userID, userOrgRole, userRole)
-	if err != nil {
-		if err.Error() == "system not found" {
-			c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to validate system access", nil))
+	_, err := systemsService.GetSystemByID(systemID, userID, userOrgID, userOrgRole, userRole)
+	if handleSystemAccessError(c, err, systemID) {
 		return
 	}
 
@@ -707,7 +663,7 @@ func GetSystemLatestInventoryDiff(c *gin.Context) {
 	}
 
 	// Get current user context for access validation
-	userID, userOrgRole, userRole := helpers.GetUserContext(c)
+	userID, userOrgID, userOrgRole, userRole := helpers.GetUserContextExtended(c)
 	if userID == "" {
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
 		return
@@ -715,13 +671,8 @@ func GetSystemLatestInventoryDiff(c *gin.Context) {
 
 	// Validate system access
 	systemsService := services.NewSystemsService()
-	_, err := systemsService.GetSystemByID(systemID, userID, userOrgRole, userRole)
-	if err != nil {
-		if err.Error() == "system not found" {
-			c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to validate system access", nil))
+	_, err := systemsService.GetSystemByID(systemID, userID, userOrgID, userOrgRole, userRole)
+	if handleSystemAccessError(c, err, systemID) {
 		return
 	}
 
