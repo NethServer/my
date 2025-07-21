@@ -9,12 +9,10 @@ import axios from 'axios'
 import { useThemeStore } from './theme'
 import { useStorage } from '@vueuse/core'
 
-// export const TOKEN_REFRESH_INTERVAL = 20 * 60 * 1000 // 20 minutes //// uncomment
-export const TOKEN_REFRESH_INTERVAL = 30 * 1000 // 30 seconds for testing //// remove
+export const TOKEN_REFRESH_INTERVAL = 20 * 60 * 1000 // 20 minutes
 
 export type UserInfo = {
   id: string
-  username: string
   name: string
   email: string
   orgId: string
@@ -35,7 +33,7 @@ export const useLoginStore = defineStore('login', () => {
   const userInfo = ref<UserInfo | undefined>()
   const loadingUserInfo = ref<boolean>(true)
 
-  const userDisplayName = computed(() => userInfo.value?.name || userInfo.value?.username || '')
+  const userDisplayName = computed(() => userInfo.value?.name || '')
 
   const userInitial = computed(() => {
     const name = userDisplayName.value
@@ -124,7 +122,6 @@ export const useLoginStore = defineStore('login', () => {
 
       userInfo.value = {
         id: user.id,
-        username: user.username,
         name: user.name,
         email: user.email,
         orgId: user.organization_id,
@@ -140,7 +137,7 @@ export const useLoginStore = defineStore('login', () => {
       themeStore.loadTheme()
 
       // write last token refresh time to local storage
-      const tokenRefreshedTime = useStorage(`tokenRefreshed-${user.username}`, 0)
+      const tokenRefreshedTime = useStorage(`tokenRefreshed-${user.email}`, 0)
       tokenRefreshedTime.value = Date.now()
     } catch (error) {
       //// toast notification

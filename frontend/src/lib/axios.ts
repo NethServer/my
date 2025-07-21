@@ -19,10 +19,10 @@ export const configureAxios = () => {
       // check if token needs to be refreshed
       if (
         config.url &&
-        loginStore.userInfo?.username &&
+        loginStore.userInfo?.email &&
         ![`${API_URL}/auth/exchange`, `${API_URL}/auth/refresh`].includes(config.url)
       ) {
-        const tokenRefreshedTime = useStorage(`tokenRefreshed-${loginStore.userInfo.username}`, 0)
+        const tokenRefreshedTime = useStorage(`tokenRefreshed-${loginStore.userInfo.email}`, 0)
         const now = Date.now()
         const tokenAge = now - tokenRefreshedTime.value
 

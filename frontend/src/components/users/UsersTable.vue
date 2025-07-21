@@ -99,9 +99,9 @@ watch(
 )
 
 watch(
-  () => loginStore.userInfo?.username,
-  (username) => {
-    if (username) {
+  () => loginStore.userInfo?.email,
+  (email) => {
+    if (email) {
       pageSize.value = loadPageSizeFromStorage(tableId)
     }
   },
@@ -204,7 +204,6 @@ const onClosePasswordChangedModal = () => {
             :label="t('sort.sort')"
             :options="[
               { id: 'name', label: t('users.name') },
-              { id: 'username', label: t('users.username') },
               { id: 'email', label: t('users.email') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
@@ -240,9 +239,6 @@ const onClosePasswordChangedModal = () => {
       <NeTableHead>
         <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
           $t('users.name')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="username" @sort="onSort">{{
-          $t('users.username')
         }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="email" @sort="onSort">{{
           $t('users.email')
@@ -288,9 +284,6 @@ const onClosePasswordChangedModal = () => {
         <NeTableRow v-for="(item, index) in paginatedItems" v-else :key="index">
           <NeTableCell :data-label="$t('users.name')">
             {{ item.name }}
-          </NeTableCell>
-          <NeTableCell :data-label="$t('users.username')">
-            {{ item.username }}
           </NeTableCell>
           <NeTableCell :data-label="$t('users.email')">
             {{ item.email }}

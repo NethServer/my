@@ -34,6 +34,7 @@ import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
 import { getOrganizations } from '@/lib/organizations'
 import { getUserRoles } from '@/lib/userRoles'
+import { generateRandomPassword } from '@/lib/password'
 
 const { isShown = false, currentUser = undefined } = defineProps<{
   isShown: boolean
@@ -127,12 +128,12 @@ const {
     ////
     console.error('Error editing user:', error)
     console.error('   variables:', variables)
+
+    validationIssues.value = getValidationIssues(error as AxiosError, 'users')
   },
   onSettled: () => queryCache.invalidateQueries({ key: ['users'] }),
 })
 
-const username = ref('')
-const usernameRef = useTemplateRef<HTMLInputElement>('usernameRef')
 const email = ref('')
 const emailRef = useTemplateRef<HTMLInputElement>('emailRef')
 const name = ref('')
@@ -145,11 +146,11 @@ const userRoleIds: Ref<NeComboboxOption[]> = ref([])
 const userRoleIdsRef = useTemplateRef<HTMLInputElement>('userRoleIdsRef')
 const phone = ref('')
 const phoneRef = useTemplateRef<HTMLInputElement>('phoneRef')
-//// TODO phone, userRoleIds, organization, customData
 const validationIssues = ref<Record<string, string[]>>({})
 
+//// TODO customData
+
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
-  username: usernameRef,
   email: emailRef,
   name: nameRef,
   password: passwordRef,
@@ -191,14 +192,13 @@ watch(
   () => {
     if (isShown) {
       clearErrors()
-      focusElement(usernameRef)
+      focusElement(nameRef)
+      password.value = ''
 
       if (currentUser) {
         // editing user
-        username.value = currentUser.username
         email.value = currentUser.email
         name.value = currentUser.name
-        password.value = ''
         phone.value = currentUser.phone || ''
 
         console.log('setting currentUser.organizationId', currentUser.organizationId) ////
@@ -216,21 +216,17 @@ watch(
             })) || []
       } else {
         // creating user, reset form to defaults
-
-        username.value = ''
         email.value = ''
         name.value = ''
-        password.value = '' ////
         organizationId.value = ''
         userRoleIds.value = []
         phone.value = ''
 
         //// remove
         setTimeout(() => {
-          username.value = faker.internet.username().replace(/\./g, '_')
           email.value = faker.internet.email()
           name.value = faker.person.fullName()
-          password.value = '12345678'
+          password.value = generateRandomPassword(12)
           phone.value = faker.phone.number().replace(/[\+\s]/g, '') ////
         }, 1000)
       }
@@ -341,7 +337,7 @@ async function saveUser() {
 
     const userToCreate: CreateUser = {
       ...user,
-      username: username.value,
+      email: email.value,
       password: password.value,
     }
 
@@ -363,15 +359,6 @@ async function saveUser() {
   >
     <form @submit.prevent>
       <div class="space-y-6">
-        <!-- username -->
-        <NeTextInput
-          v-if="!currentUser"
-          ref="usernameRef"
-          v-model.trim="username"
-          :label="$t('users.username')"
-          :invalid-message="validationIssues.username?.[0] ? $t(validationIssues.username[0]) : ''"
-          :disabled="saving"
-        />
         <!-- name -->
         <NeTextInput
           ref="nameRef"

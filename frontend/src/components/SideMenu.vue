@@ -111,15 +111,15 @@ function toggleExpand(menuItem: MenuItem) {
   const newValue = !menuExpanded.value[menuItem.to]
   menuExpanded.value[menuItem.to] = newValue
 
-  if (loginStore.userInfo?.username) {
-    savePreference(`${menuItem.to}MenuExpanded`, newValue, loginStore.userInfo.username)
+  if (loginStore.userInfo?.email) {
+    savePreference(`${menuItem.to}MenuExpanded`, newValue, loginStore.userInfo.email)
   }
 }
 
 function loadMenuItemsExpanded() {
   for (const menuName of Object.keys(menuExpanded.value)) {
-    if (loginStore.userInfo?.username) {
-      const isMenuExpanded = getPreference(`${menuName}MenuExpanded`, loginStore.userInfo.username)
+    if (loginStore.userInfo?.email) {
+      const isMenuExpanded = getPreference(`${menuName}MenuExpanded`, loginStore.userInfo.email)
 
       if (isMenuExpanded || isCurrentRoute(menuName)) {
         menuExpanded.value[menuName] = true

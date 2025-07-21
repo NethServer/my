@@ -9,7 +9,7 @@ export const DEFAULT_PAGE_SIZE = 10
 export const loadPageSizeFromStorage = (tableId: string) => {
   const loginStore = useLoginStore()
 
-  const username = loginStore.userInfo?.username
+  const username = loginStore.userInfo?.email
   if (!username) {
     return DEFAULT_PAGE_SIZE
   }
@@ -26,7 +26,7 @@ export const loadPageSizeFromStorage = (tableId: string) => {
 
 export const savePageSizeToStorage = (tableId: string, pageSize: number) => {
   const loginStore = useLoginStore()
-  const username = loginStore.userInfo?.username
+  const username = loginStore.userInfo?.email
 
   if (username) {
     savePreference(`${tableId}PageSize`, pageSize, username)

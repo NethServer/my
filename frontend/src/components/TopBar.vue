@@ -87,13 +87,7 @@ function openNotificationsDrawer() {
     <div class="h-6 w-px bg-gray-200 lg:hidden dark:bg-gray-700" aria-hidden="true" />
 
     <div class="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
-      <div class="relative flex flex-1 items-center">
-        <!-- //// remove -->
-        <div v-if="loginStore.isAuthenticated" class="text-green-600">
-          logged in: {{ loginStore.jwtToken.substring(0, 20) }}...
-        </div>
-        <div v-else class="text-amber-600">logged out</div>
-      </div>
+      <div class="relative flex flex-1 items-center"></div>
       <!-- unsaved changes button -->
       <div class="flex items-center gap-x-4 lg:gap-x-6">
         <!-- separator -->

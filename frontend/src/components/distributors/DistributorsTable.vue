@@ -94,9 +94,9 @@ watch(
 )
 
 watch(
-  () => loginStore.userInfo?.username,
-  (username) => {
-    if (username) {
+  () => loginStore.userInfo?.email,
+  (email) => {
+    if (email) {
       pageSize.value = loadPageSizeFromStorage(tableId)
     }
   },

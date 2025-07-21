@@ -21,13 +21,7 @@ export const BaseUserSchema = v.object({
 
 export const CreateUserSchema = v.object({
   ...BaseUserSchema.entries,
-  username: v.pipe(
-    v.string(),
-    v.nonEmpty('users.username_required'),
-    v.regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/, 'users.username_invalid'),
-  ), ////
-  // username: v.optional(v.pipe(v.string())), ////
-  password: v.pipe(v.string(), v.minLength(8, 'users.password_min_length')),
+  password: v.pipe(v.string(), v.minLength(12, 'users.password_min_length')),
 })
 
 export const EditUserSchema = v.object({
@@ -112,7 +106,7 @@ export const searchStringInUser = (searchString: string, user: User): boolean =>
   let found = false
 
   // search in string attributes
-  found = ['name', 'username', 'email'].some((attrName) => {
+  found = ['name', 'email'].some((attrName) => {
     const attrValue = user[attrName as keyof User] as string
     return new RegExp(searchString, 'i').test(attrValue?.replace(regex, ''))
   })

@@ -30,9 +30,9 @@ export const useThemeStore = defineStore('theme', () => {
   })
 
   watch(
-    () => loginStore.userInfo?.username,
-    (username) => {
-      if (username) {
+    () => loginStore.userInfo?.email,
+    (email) => {
+      if (email) {
         loadTheme()
       }
     },
@@ -43,7 +43,7 @@ export const useThemeStore = defineStore('theme', () => {
     theme.value = newTheme
 
     // save preference
-    const username = loginStore.userInfo?.username
+    const username = loginStore.userInfo?.email
 
     if (username) {
       savePreference('theme', newTheme, username)
@@ -96,7 +96,7 @@ export const useThemeStore = defineStore('theme', () => {
 
   function loadTheme() {
     let theme = 'system' as Theme
-    const username = loginStore.userInfo?.username
+    const username = loginStore.userInfo?.email
 
     if (username) {
       theme = getPreference('theme', username)
