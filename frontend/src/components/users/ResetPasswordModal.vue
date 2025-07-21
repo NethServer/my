@@ -10,7 +10,7 @@ import { useI18n } from 'vue-i18n'
 import { useMutation } from '@pinia/colada'
 import { resetPassword, type User } from '@/lib/users'
 import { useNotificationsStore } from '@/stores/notifications'
-import { generateSimplePassword } from '@/lib/password'
+import { generateRandomPassword } from '@/lib/password'
 import { ref } from 'vue'
 
 const { visible = false, user = undefined } = defineProps<{
@@ -34,7 +34,7 @@ const {
   error: resetPasswordError,
 } = useMutation({
   mutation: (user: User) => {
-    newPassword.value = generateSimplePassword()
+    newPassword.value = generateRandomPassword(12)
     return resetPassword(user, newPassword.value)
   },
   onSuccess(data, vars) {

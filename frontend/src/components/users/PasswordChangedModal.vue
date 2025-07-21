@@ -38,9 +38,6 @@ const copyCredentials = () => {
         notificationsStore.createNotification({
           kind: 'success',
           title: t('users.credentials_copied'),
-          description: t('users.credentials_copied_description', {
-            name: user?.name,
-          }),
         })
       })
       .catch((err) => {

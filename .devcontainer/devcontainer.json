@@ -21,7 +21,8 @@
         "esbenp.prettier-vscode",
         "streetsidesoftware.code-spell-checker",
         "bradlc.vscode-tailwindcss",
-        "foxundermoon.shell-format"
+        "foxundermoon.shell-format",
+        "vitest.explorer"
       ]
     }
   }

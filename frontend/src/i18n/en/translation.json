@@ -159,7 +159,6 @@
     "title": "Users",
     "page_description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
     "cannot_retrieve_users": "Cannot retrieve users",
-    "username": "Username",
     "email": "Email",
     "name": "Name",
     "organization": "Organization",
@@ -173,15 +172,12 @@
     "edit_user": "Edit user",
     "save_user": "Save user",
     "name_required": "Name is required",
-    "username_required": "Username is required",
     "email_required": "Email is required",
     "email_invalid": "Invalid email address",
     "email_already_exists": "Email already exists",
-    "username_invalid": "Username must start with a letter or underscore and can only contain letters, numbers, and underscores.",
     "password_required": "Password is required",
     "password_min_length": "Password must be at least 8 characters long",
     "organization_required": "Organization is required",
-    "username_already_exists": "Username already exists",
     "user_created": "User created",
     "user_saved": "User saved",
     "user_deleted": "User deleted",
@@ -203,8 +199,7 @@
     "the_password_has_been_reset": "The password has been reset",
     "credentials_updated_description": "The credentials for user {name} have been updated",
     "copy_credentials": "Copy credentials",
-    "credentials_copied": "User credentials copied",
-    "credentials_copied_description": "The credentials for user {name} have been copied to the clipboard"
+    "credentials_copied": "User credentials copied"
   },
   "third_party_apps": {
     "description_example_company_com": "Description ////"
