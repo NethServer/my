@@ -35,9 +35,33 @@ CREATE INDEX IF NOT EXISTS idx_systems_ipv6_address ON systems(ipv6_address);
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_systems_status') THEN
-        ALTER TABLE systems ADD CONSTRAINT chk_systems_status 
+        ALTER TABLE systems ADD CONSTRAINT chk_systems_status
             CHECK (status IN ('online', 'offline', 'maintenance', 'error'));
     END IF;
 END $$;
 
 -- System type validation is handled in application code using SYSTEM_TYPES environment variable
+
+-- Organization hierarchy table - caches accessible customer IDs for RBAC optimization
+CREATE TABLE IF NOT EXISTS organization_hierarchy (
+    user_org_id VARCHAR(255) NOT NULL,
+    user_org_role VARCHAR(50) NOT NULL,
+    accessible_customer_id VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_org_id, user_org_role, accessible_customer_id)
+);
+
+-- Indexes for optimal RBAC query performance
+CREATE INDEX IF NOT EXISTS idx_org_hierarchy_user_org ON organization_hierarchy(user_org_id, user_org_role);
+CREATE INDEX IF NOT EXISTS idx_org_hierarchy_customer ON organization_hierarchy(accessible_customer_id);
+CREATE INDEX IF NOT EXISTS idx_org_hierarchy_updated ON organization_hierarchy(updated_at DESC);
+
+-- Constraints
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_org_hierarchy_role') THEN
+        ALTER TABLE organization_hierarchy ADD CONSTRAINT chk_org_hierarchy_role
+            CHECK (user_org_role IN ('Owner', 'Distributor', 'Reseller', 'Customer'));
+    END IF;
+END $$;

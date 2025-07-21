@@ -229,6 +229,16 @@ func (c *LogtoManagementClient) CreateOrganization(request models.CreateOrganiza
 	// Invalidate organization names cache since we added a new organization
 	c.InvalidateOrganizationNamesCache()
 
+	// Trigger hierarchy cache synchronization since organization structure changed
+	hierarchyService := NewOrganizationHierarchyService()
+	if err := hierarchyService.UpdateOrganizationHierarchy(org.ID); err != nil {
+		logger.Warn().
+			Err(err).
+			Str("operation", "create_organization").
+			Str("org_id", org.ID).
+			Msg("Failed to update organization hierarchy cache after creating organization")
+	}
+
 	return &org, nil
 }
 
@@ -258,6 +268,16 @@ func (c *LogtoManagementClient) UpdateOrganization(orgID string, request models.
 	// Invalidate organization names cache since we may have changed the name
 	c.InvalidateOrganizationNamesCache()
 
+	// Trigger hierarchy cache synchronization since organization may have changed
+	hierarchyService := NewOrganizationHierarchyService()
+	if err := hierarchyService.UpdateOrganizationHierarchy(orgID); err != nil {
+		logger.Warn().
+			Err(err).
+			Str("operation", "update_organization").
+			Str("org_id", orgID).
+			Msg("Failed to update organization hierarchy cache after updating organization")
+	}
+
 	return &org, nil
 }
 
@@ -276,6 +296,16 @@ func (c *LogtoManagementClient) DeleteOrganization(orgID string) error {
 
 	// Invalidate organization names cache since we removed an organization
 	c.InvalidateOrganizationNamesCache()
+
+	// Trigger hierarchy cache synchronization since organization structure changed
+	hierarchyService := NewOrganizationHierarchyService()
+	if err := hierarchyService.UpdateOrganizationHierarchy(orgID); err != nil {
+		logger.Warn().
+			Err(err).
+			Str("operation", "delete_organization").
+			Str("org_id", orgID).
+			Msg("Failed to update organization hierarchy cache after deleting organization")
+	}
 
 	return nil
 }
