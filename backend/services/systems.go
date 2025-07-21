@@ -44,6 +44,22 @@ func getCollectURL() string {
 	return "http://localhost:8081"
 }
 
+// calculateHeartbeatStatus calculates heartbeat status based on last_heartbeat timestamp
+func (s *SystemsService) calculateHeartbeatStatus(lastHeartbeat *time.Time, timeoutMinutes int) (string, *int) {
+	if lastHeartbeat == nil {
+		return "zombie", nil
+	}
+
+	timeout := time.Duration(timeoutMinutes) * time.Minute
+	cutoff := time.Now().Add(-timeout)
+	minutes := int(time.Since(*lastHeartbeat).Minutes())
+
+	if lastHeartbeat.After(cutoff) {
+		return "alive", &minutes
+	}
+	return "dead", &minutes
+}
+
 // CreateSystem creates a new system with automatic secret generation
 func (s *SystemsService) CreateSystem(request *models.CreateSystemRequest, creatorInfo *models.SystemCreator) (*models.System, error) {
 	// Validate system type is allowed
@@ -170,9 +186,11 @@ func (s *SystemsService) validateSystemType(systemType string) error {
 // GetSystemsByOrganization retrieves systems filtered by organization access
 func (s *SystemsService) GetSystemsByOrganization(userID string, userOrgRole, userRole string) ([]*models.System, error) {
 	query := `
-		SELECT id, name, type, status, fqdn, ipv4_address, ipv6_address, version, last_seen, custom_data, customer_id, created_at, updated_at, created_by
-		FROM systems
-		ORDER BY created_at DESC
+		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version, s.last_seen, 
+		       s.custom_data, s.customer_id, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
+		FROM systems s
+		LEFT JOIN system_heartbeats h ON s.id = h.system_id
+		ORDER BY s.created_at DESC
 	`
 
 	rows, err := database.DB.Query(query)
@@ -189,11 +207,12 @@ func (s *SystemsService) GetSystemsByOrganization(userID string, userOrgRole, us
 		var customDataJSON []byte
 		var createdByJSON []byte
 		var fqdn, ipv4Address, ipv6Address, version sql.NullString
+		var lastHeartbeat sql.NullTime
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
 			&ipv4Address, &ipv6Address, &version, &system.LastSeen, &customDataJSON, &system.CustomerID,
-			&system.CreatedAt, &system.UpdatedAt, &createdByJSON,
+			&system.CreatedAt, &system.UpdatedAt, &createdByJSON, &lastHeartbeat,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan system: %w", err)
@@ -222,6 +241,14 @@ func (s *SystemsService) GetSystemsByOrganization(userID string, userOrgRole, us
 			}
 		}
 
+		// Calculate heartbeat status (15 minutes timeout)
+		var heartbeatTime *time.Time
+		if lastHeartbeat.Valid {
+			heartbeatTime = &lastHeartbeat.Time
+		}
+		system.HeartbeatStatus, system.HeartbeatMinutes = s.calculateHeartbeatStatus(heartbeatTime, 15)
+		system.LastHeartbeat = heartbeatTime
+
 		systems = append(systems, system)
 	}
 
@@ -237,23 +264,126 @@ func (s *SystemsService) GetSystemsByOrganization(userID string, userOrgRole, us
 	return systems, nil
 }
 
+// GetSystemsByOrganizationPaginated retrieves systems filtered by organization with pagination
+func (s *SystemsService) GetSystemsByOrganizationPaginated(userID string, userOrgRole, userRole string, page, pageSize int) ([]*models.System, int, error) {
+	// Calculate offset
+	offset := (page - 1) * pageSize
+
+	// Get total count first
+	countQuery := `
+		SELECT COUNT(*) 
+		FROM systems s
+		LEFT JOIN system_heartbeats h ON s.id = h.system_id`
+
+	var totalCount int
+	err := database.DB.QueryRow(countQuery).Scan(&totalCount)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get systems count: %w", err)
+	}
+
+	// Get paginated systems
+	query := `
+		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version, s.last_seen, 
+		       s.custom_data, s.customer_id, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
+		FROM systems s
+		LEFT JOIN system_heartbeats h ON s.id = h.system_id
+		ORDER BY s.created_at DESC
+		LIMIT $1 OFFSET $2`
+
+	rows, err := database.DB.Query(query, pageSize, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to query systems: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	var systems []*models.System
+	for rows.Next() {
+		system := &models.System{}
+		var customDataJSON []byte
+		var createdByJSON []byte
+		var fqdn, ipv4Address, ipv6Address, version sql.NullString
+		var lastHeartbeat sql.NullTime
+
+		err := rows.Scan(
+			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
+			&ipv4Address, &ipv6Address, &version, &system.LastSeen, &customDataJSON, &system.CustomerID,
+			&system.CreatedAt, &system.UpdatedAt, &createdByJSON, &lastHeartbeat,
+		)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to scan system: %w", err)
+		}
+
+		// Convert NullString to string
+		system.FQDN = fqdn.String
+		system.IPv4Address = ipv4Address.String
+		system.IPv6Address = ipv6Address.String
+		system.Version = version.String
+
+		// Parse custom_data JSON
+		if len(customDataJSON) > 0 {
+			if err := json.Unmarshal(customDataJSON, &system.CustomData); err != nil {
+				logger.Warn().Err(err).Str("system_id", system.ID).Msg("Failed to parse system custom_data")
+				system.CustomData = make(map[string]string)
+			}
+		} else {
+			system.CustomData = make(map[string]string)
+		}
+
+		// Parse created_by JSON
+		if len(createdByJSON) > 0 {
+			if err := json.Unmarshal(createdByJSON, &system.CreatedBy); err != nil {
+				logger.Warn().Err(err).Str("system_id", system.ID).Msg("Failed to parse created_by")
+			}
+		}
+
+		// Calculate heartbeat status (15 minutes timeout)
+		var heartbeatTime *time.Time
+		if lastHeartbeat.Valid {
+			heartbeatTime = &lastHeartbeat.Time
+		}
+		system.HeartbeatStatus, system.HeartbeatMinutes = s.calculateHeartbeatStatus(heartbeatTime, 15)
+		system.LastHeartbeat = heartbeatTime
+
+		systems = append(systems, system)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("error iterating systems: %w", err)
+	}
+
+	logger.Debug().
+		Str("user_id", userID).
+		Int("page", page).
+		Int("page_size", pageSize).
+		Int("count", len(systems)).
+		Int("total_count", totalCount).
+		Msg("Retrieved paginated systems for user")
+
+	return systems, totalCount, nil
+}
+
 // GetSystemByID retrieves a specific system with access validation
 func (s *SystemsService) GetSystemByID(systemID, userID string, userOrgRole, userRole string) (*models.System, error) {
 	query := `
-		SELECT id, name, type, status, fqdn, ipv4_address, ipv6_address, version, last_seen, custom_data, customer_id, created_at, updated_at, created_by
-		FROM systems
-		WHERE id = $1
+		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version, s.last_seen, 
+		       s.custom_data, s.customer_id, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
+		FROM systems s
+		LEFT JOIN system_heartbeats h ON s.id = h.system_id
+		WHERE s.id = $1
 	`
 
 	system := &models.System{}
 	var customDataJSON []byte
 	var createdByJSON []byte
 	var fqdn, ipv4Address, ipv6Address, version sql.NullString
+	var lastHeartbeat sql.NullTime
 
 	err := database.DB.QueryRow(query, systemID).Scan(
 		&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
 		&ipv4Address, &ipv6Address, &version, &system.LastSeen, &customDataJSON, &system.CustomerID,
-		&system.CreatedAt, &system.UpdatedAt, &createdByJSON,
+		&system.CreatedAt, &system.UpdatedAt, &createdByJSON, &lastHeartbeat,
 	)
 
 	if err == nil {
@@ -288,9 +418,18 @@ func (s *SystemsService) GetSystemByID(systemID, userID string, userOrgRole, use
 		}
 	}
 
+	// Calculate heartbeat status (15 minutes timeout)
+	var heartbeatTime *time.Time
+	if lastHeartbeat.Valid {
+		heartbeatTime = &lastHeartbeat.Time
+	}
+	system.HeartbeatStatus, system.HeartbeatMinutes = s.calculateHeartbeatStatus(heartbeatTime, 15)
+	system.LastHeartbeat = heartbeatTime
+
 	logger.Debug().
 		Str("system_id", systemID).
 		Str("user_id", userID).
+		Str("heartbeat_status", system.HeartbeatStatus).
 		Msg("Retrieved system by ID")
 
 	return system, nil

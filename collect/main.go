@@ -139,6 +139,7 @@ func main() {
 	systemsGroup := api.Group("/systems", middleware.BasicAuthMiddleware())
 	{
 		systemsGroup.POST("/inventory", methods.CollectInventory)
+		systemsGroup.POST("/heartbeat", methods.ReceiveHeartbeat)
 	}
 
 	// Handle missing endpoints

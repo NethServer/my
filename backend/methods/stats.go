@@ -52,9 +52,14 @@ func GetStats(c *gin.Context) {
 			"resellers":    0,
 			"customers":    0,
 			"users":        0,
-			"systems":      0,
-			"timestamp":    "",
-			"isStale":      true,
+			"systems": gin.H{
+				"total":  0,
+				"alive":  0,
+				"dead":   0,
+				"zombie": 0,
+			},
+			"timestamp": "",
+			"isStale":   true,
 		}
 	}
 
@@ -63,7 +68,10 @@ func GetStats(c *gin.Context) {
 		Int("resellers", stats.Resellers).
 		Int("customers", stats.Customers).
 		Int("users", stats.Users).
-		Int("systems", stats.Systems).
+		Int("systems_total", stats.Systems.Total).
+		Int("systems_alive", stats.Systems.Alive).
+		Int("systems_dead", stats.Systems.Dead).
+		Int("systems_zombie", stats.Systems.Zombie).
 		Bool("is_stale", stats.IsStale).
 		Msg("System statistics retrieved")
 

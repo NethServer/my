@@ -613,9 +613,25 @@ components:
           description: Number of users
           example: 24567
         systems:
-          type: integer
-          description: Number of systems
-          example: 156
+          type: object
+          description: System heartbeat statistics
+          properties:
+            total:
+              type: integer
+              description: Total number of systems
+              example: 1250
+            alive:
+              type: integer
+              description: Number of systems that communicated within the last 15 minutes
+              example: 1100
+            dead:
+              type: integer
+              description: Number of systems that communicated but not within the last 15 minutes
+              example: 100
+            zombie:
+              type: integer
+              description: Number of systems that were created but never communicated
+              example: 50
         timestamp:
           type: string
           format: date-time
@@ -632,46 +648,46 @@ components:
         id:
           type: string
           description: System ID
-          example: "sys_123456789"
+          example: "4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
         name:
           type: string
           description: System name
           example: "Production Server 01"
-        description:
+        type:
           type: string
-          description: System description
-          example: "Main production server for web applications"
-        hostname:
-          type: string
-          description: System hostname
-          example: "prod-web-01.example.com"
-        ipAddress:
-          type: string
-          description: System IP address
-          example: "192.168.1.100"
+          description: System type
+          example: "ns8"
         status:
           type: string
-          enum: [active, inactive, maintenance, error]
-          description: System status
-          example: "active"
+          enum: [online, offline, maintenance]
+          description: System operational status
+          example: "online"
+        fqdn:
+          type: string
+          description: Fully qualified domain name
+          example: "prod-web-01.example.com"
+        ipv4_address:
+          type: string
+          description: IPv4 address
+          example: "192.168.1.100"
+        ipv6_address:
+          type: string
+          description: IPv6 address
+          example: "2001:db8::1"
         version:
           type: string
           description: System version
           example: "2.1.4"
-        lastSeen:
+        last_seen:
           type: string
           format: date-time
-          description: Last seen timestamp
+          description: Last seen timestamp from inventory
           example: "2025-07-10T10:30:00Z"
-        uptime:
-          type: integer
-          description: System uptime in seconds
-          example: 2654321
-        organizationId:
+        customer_id:
           type: string
-          description: Organization ID that owns this system
-          example: "org_123456789"
-        customData:
+          description: Customer organization ID
+          example: "org_customer_123"
+        custom_data:
           type: object
           description: Custom system data
           additionalProperties: true
@@ -679,6 +695,57 @@ components:
             datacenter: "EU-West-1"
             environment: "production"
             tier: "web"
+        secret_hint:
+          type: string
+          description: Last 4 characters of system secret for identification
+          example: "a7b9"
+        created_at:
+          type: string
+          format: date-time
+          description: System creation timestamp
+          example: "2025-07-01T09:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: System last update timestamp
+          example: "2025-07-10T10:30:00Z"
+        created_by:
+          $ref: '#/components/schemas/SystemCreator'
+        # Heartbeat status fields
+        heartbeat_status:
+          type: string
+          enum: [alive, dead, zombie]
+          description: System heartbeat status (alive=<15min, dead=>15min, zombie=never communicated)
+          example: "alive"
+        last_heartbeat:
+          type: string
+          format: date-time
+          description: Last heartbeat timestamp
+          example: "2025-07-21T10:25:00Z"
+        heartbeat_minutes:
+          type: integer
+          description: Minutes since last heartbeat
+          example: 5
+
+    SystemCreator:
+      type: object
+      properties:
+        user_id:
+          type: string
+          description: User ID who created the system
+          example: "usr_123456789"
+        user_name:
+          type: string
+          description: Username who created the system
+          example: "admin"
+        organization_id:
+          type: string
+          description: Organization ID of the creator
+          example: "org_123456789"
+        organization_name:
+          type: string
+          description: Organization name of the creator
+          example: "Nethesis"
 
     SystemInput:
       type: object
@@ -812,6 +879,24 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              code:
+                type: integer
+                example: 500
+              message:
+                type: string
+                example: "internal server error"
+              data:
+                type: object
+                nullable: true
+                example: null
 
 paths:
   /accounts:
@@ -2127,6 +2212,64 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /systems/status:
+    get:
+      tags:
+        - Backend - Systems
+      summary: Get systems status summary
+      description: Get systems heartbeat status summary for dashboard (requires Admin or Support role)
+      parameters:
+        - name: timeout
+          in: query
+          description: Timeout in minutes for alive/dead determination
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 60
+            default: 15
+            example: 15
+      responses:
+        '200':
+          description: Systems status summary retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "system status retrieved"
+                  data:
+                    type: object
+                    properties:
+                      total_systems:
+                        type: integer
+                        description: Total number of systems
+                        example: 100
+                      alive_systems:
+                        type: integer
+                        description: Number of systems with recent heartbeat
+                        example: 85
+                      dead_systems:
+                        type: integer
+                        description: Number of systems with old heartbeat
+                        example: 10
+                      zombie_systems:
+                        type: integer
+                        description: Number of systems that never communicated
+                        example: 5
+                      timeout_minutes:
+                        type: integer
+                        description: Timeout used for alive/dead determination
+                        example: 15
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /systems/{id}/inventory:
     get:
       tags:
@@ -2581,4 +2724,67 @@ paths:
                       error:
                         type: string
                         example: "Processing queue unavailable"
+
+  /systems/heartbeat:
+    post:
+      servers:
+        - url: http://localhost:8081/api
+          description: Collect API server (port 8081)
+      tags:
+        - Collect - Systems
+      summary: System heartbeat
+      description: System heartbeat endpoint to track system liveness (every 10 minutes)
+      security:
+        - BasicAuth: [system_id:system_secret]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                system_id:
+                  type: string
+                  description: System ID sending the heartbeat
+                  example: "4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
+              required:
+                - system_id
+      responses:
+        '200':
+          description: Heartbeat acknowledged
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "heartbeat acknowledged"
+                  data:
+                    type: object
+                    properties:
+                      system_id:
+                        type: string
+                        description: System ID
+                        example: "4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
+                      acknowledged:
+                        type: boolean
+                        description: Whether heartbeat was acknowledged
+                        example: true
+                      last_heartbeat:
+                        type: string
+                        format: date-time
+                        description: Timestamp of this heartbeat
+                        example: "2025-07-21T10:25:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 

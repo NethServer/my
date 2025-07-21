@@ -153,6 +153,9 @@ func main() {
 			systemsGroup.DELETE("/:id", methods.DeleteSystem)
 			systemsGroup.POST("/:id/regenerate-secret", methods.RegenerateSystemSecret) // Regenerate system secret
 
+			// System status endpoint based on heartbeats
+			systemsGroup.GET("/status", methods.GetSystemsStatus) // Get systems liveness status
+
 			// Inventory endpoints
 			systemsGroup.GET("/:id/inventory", methods.GetSystemInventoryHistory)                      // Get paginated inventory history
 			systemsGroup.GET("/:id/inventory/latest", methods.GetSystemLatestInventory)                // Get latest inventory

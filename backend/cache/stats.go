@@ -11,24 +11,34 @@ package cache
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/nethesis/my/backend/configuration"
+	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/models"
 	"github.com/rs/zerolog/log"
 )
 
+// SystemHeartbeatStats represents heartbeat statistics for systems
+type SystemHeartbeatStats struct {
+	Total  int `json:"total"`
+	Alive  int `json:"alive"`
+	Dead   int `json:"dead"`
+	Zombie int `json:"zombie"`
+}
+
 // SystemStats represents aggregated statistics
 type SystemStats struct {
-	Distributors int       `json:"distributors"`
-	Resellers    int       `json:"resellers"`
-	Customers    int       `json:"customers"`
-	Users        int       `json:"users"`
-	Systems      int       `json:"systems"`
-	LastUpdated  time.Time `json:"lastUpdated"`
-	IsStale      bool      `json:"isStale"`
+	Distributors int                  `json:"distributors"`
+	Resellers    int                  `json:"resellers"`
+	Customers    int                  `json:"customers"`
+	Users        int                  `json:"users"`
+	Systems      SystemHeartbeatStats `json:"systems"`
+	LastUpdated  time.Time            `json:"lastUpdated"`
+	IsStale      bool                 `json:"isStale"`
 }
 
 // LogtoClient interface for Logto operations
@@ -315,13 +325,30 @@ func (s *StatsCacheManager) updateStats() {
 	// This should be replaced with actual system counting logic based on your business requirements
 	totalSystems = s.countSystems(orgs, usersMap)
 
+	// Get heartbeat statistics
+	systemHeartbeat, err := s.getSystemHeartbeatStats()
+	if err != nil {
+		log.Error().
+			Str("component", "stats_cache").
+			Str("operation", "fetch_heartbeat_stats").
+			Err(err).
+			Msg("Failed to fetch heartbeat statistics")
+		// Use total systems count as fallback
+		systemHeartbeat = SystemHeartbeatStats{
+			Total:  totalSystems,
+			Alive:  0,
+			Dead:   0,
+			Zombie: 0,
+		}
+	}
+
 	// Create stats object
 	stats := SystemStats{
 		Distributors: distributors,
 		Resellers:    resellers,
 		Customers:    customers,
 		Users:        totalUsers,
-		Systems:      totalSystems,
+		Systems:      systemHeartbeat,
 		LastUpdated:  time.Now(),
 		IsStale:      false,
 	}
@@ -346,7 +373,10 @@ func (s *StatsCacheManager) updateStats() {
 		Int("resellers", resellers).
 		Int("customers", customers).
 		Int("users", totalUsers).
-		Int("systems", totalSystems).
+		Int("systems_total", systemHeartbeat.Total).
+		Int("systems_alive", systemHeartbeat.Alive).
+		Int("systems_dead", systemHeartbeat.Dead).
+		Int("systems_zombie", systemHeartbeat.Zombie).
 		Int("organizations_processed", len(orgs)).
 		Dur("update_duration", time.Since(start)).
 		Msg("System stats updated successfully")
@@ -476,4 +506,44 @@ func (s *StatsCacheManager) countSystems(orgs []models.LogtoOrganization, usersM
 	}
 
 	return systemCount
+}
+
+// getDatabaseConnection returns the database connection
+func getDatabaseConnection() *sql.DB {
+	return database.DB
+}
+
+// getSystemHeartbeatStats fetches system heartbeat statistics from the database
+func (s *StatsCacheManager) getSystemHeartbeatStats() (SystemHeartbeatStats, error) {
+	db := getDatabaseConnection()
+	if db == nil {
+		return SystemHeartbeatStats{}, fmt.Errorf("database connection not available")
+	}
+
+	// Single query to get all heartbeat statistics efficiently
+	query := `
+		SELECT 
+			COUNT(*) as total,
+			COUNT(CASE WHEN h.last_heartbeat > NOW() - INTERVAL '15 minutes' THEN 1 END) as alive,
+			COUNT(CASE WHEN h.last_heartbeat <= NOW() - INTERVAL '15 minutes' THEN 1 END) as dead,
+			COUNT(CASE WHEN h.last_heartbeat IS NULL THEN 1 END) as zombie
+		FROM systems s
+		LEFT JOIN system_heartbeats h ON s.id = h.system_id`
+
+	var stats SystemHeartbeatStats
+	err := db.QueryRow(query).Scan(&stats.Total, &stats.Alive, &stats.Dead, &stats.Zombie)
+	if err != nil {
+		return SystemHeartbeatStats{}, fmt.Errorf("failed to query heartbeat statistics: %w", err)
+	}
+
+	log.Debug().
+		Str("component", "stats_cache").
+		Str("operation", "heartbeat_stats").
+		Int("total", stats.Total).
+		Int("alive", stats.Alive).
+		Int("dead", stats.Dead).
+		Int("zombie", stats.Zombie).
+		Msg("Heartbeat statistics calculated")
+
+	return stats, nil
 }
