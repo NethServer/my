@@ -79,7 +79,7 @@ func (e *Engine) syncUserRoles(cfg *config.Config, result *Result) error {
 
 		if existingRole, exists := existingRoleMap[roleNameLower]; exists {
 			// Update existing role if needed
-			newDescription := fmt.Sprintf("User role (Priority: %d)", configRole.Priority)
+			newDescription := fmt.Sprintf("User role: %s", roleName)
 			if existingRole.Description != newDescription {
 				if e.options.DryRun {
 					logger.Info("DRY RUN: Would update user role: %s", roleName)
@@ -111,7 +111,7 @@ func (e *Engine) syncUserRoles(cfg *config.Config, result *Result) error {
 				logger.Info("Creating user role: %s", roleName)
 				newRole := client.LogtoRole{
 					Name:        roleName,
-					Description: fmt.Sprintf("User role (Priority: %d)", configRole.Priority),
+					Description: fmt.Sprintf("User role: %s", roleName),
 				}
 
 				err := e.client.CreateRole(newRole)

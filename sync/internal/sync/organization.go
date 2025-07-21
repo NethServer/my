@@ -224,7 +224,7 @@ func (e *Engine) syncOrganizationRoles(cfg *config.Config, result *Result) error
 
 		if existingRole, exists := existingRoleMap[roleNameLower]; exists {
 			// Update existing role if needed
-			newDescription := fmt.Sprintf("Organization role (Priority: %d)", configRole.Priority)
+			newDescription := fmt.Sprintf("Organization role: %s", roleName)
 			if existingRole.Description != newDescription {
 				if e.options.DryRun {
 					logger.Info("DRY RUN: Would update organization role: %s", roleName)
@@ -256,7 +256,7 @@ func (e *Engine) syncOrganizationRoles(cfg *config.Config, result *Result) error
 				logger.Info("Creating organization role: %s", roleName)
 				newRole := client.LogtoOrganizationRole{
 					Name:        roleName,
-					Description: fmt.Sprintf("Organization role (Priority: %d)", configRole.Priority),
+					Description: fmt.Sprintf("Organization role: %s", roleName),
 				}
 
 				err := e.client.CreateOrganizationRole(newRole)
