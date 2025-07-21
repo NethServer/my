@@ -13,6 +13,9 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"math/big"
+
+	"github.com/nethesis/my/sync/internal/client"
+	"github.com/nethesis/my/sync/internal/logger"
 )
 
 // GenerateSecurePassword generates a secure password for the owner user
@@ -66,4 +69,17 @@ func RandomInt(max int) int {
 		return 0
 	}
 	return int(n.Int64())
+}
+
+// ConfigureMFA configures Multi-Factor Authentication with TOTP (Authenticator app OTP)
+func ConfigureMFA(logtoClient *client.LogtoClient) error {
+	logger.Info("Configuring MFA with TOTP (Authenticator app OTP)...")
+
+	// Configure MFA with mandatory policy and TOTP factor
+	if err := logtoClient.UpdateSignInExperienceMFA("Mandatory", []string{"Totp"}); err != nil {
+		return err
+	}
+
+	logger.Info("MFA configured successfully - all users will be required to use TOTP")
+	return nil
 }

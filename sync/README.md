@@ -168,7 +168,8 @@ sync init --force  # Force re-initialization
 3. Creates frontend SPA application
 4. Creates owner user with secure password
 5. Sets up complete RBAC system
-6. Generates all environment variables
+6. Configures Multi-Factor Authentication (MFA) with TOTP as mandatory
+7. Generates all environment variables
 
 ### Sync Command
 
