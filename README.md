@@ -1,8 +1,8 @@
 # Nethesis Operation Center
 
 ##### Documentation
-[![Docs build](https://img.shields.io/github/actions/workflow/status/NethServer/my/docs.yml?style=for-the-badge&label=Docs%20build)](https://github.com/NethServer/my/actions/workflows/docs.yml)
-[![Docs link](https://img.shields.io/badge/docs-available-blue?style=for-the-badge&label=Docs%20link)](https://bump.sh/nethesis/doc/my)
+[![API Docs build](https://img.shields.io/github/actions/workflow/status/NethServer/my/docs.yml?style=for-the-badge&label=API%20Docs%20build)](https://github.com/NethServer/my/actions/workflows/docs.yml)
+[![API Docs link](https://img.shields.io/badge/docs-available-blue?style=for-the-badge&label=API%20Docs%20link)](https://bump.sh/nethesis/doc/my)
 
 ##### CI and Tests
 [![CI](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci.yml?style=for-the-badge&label=CI)](https://github.com/NethServer/my/actions/workflows/ci.yml)
