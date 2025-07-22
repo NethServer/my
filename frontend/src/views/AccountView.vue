@@ -4,13 +4,11 @@
 -->
 
 <script setup lang="ts">
-import { useLoginStore } from '@/stores/login'
 import { NeHeading } from '@nethesis/vue-components'
 // import ChangePassword from '@/components/standalone/account/ChangePassword.vue' ////
 import FormLayout from '@/components/FormLayout.vue'
-import ChangeLangCombobox from '@/components/account/ChangeLangCombobox.vue'
-
-const loginStore = useLoginStore() ////
+import LanguageListbox from '@/components/account/LanguageListbox.vue'
+import ProfilePanel from '@/components/account/ProfilePanel.vue'
 </script>
 
 <template>
@@ -19,8 +17,13 @@ const loginStore = useLoginStore() ////
       {{ $t('account.title') }}
     </NeHeading>
     <div class="max-w-3xl space-y-8">
+      <FormLayout :title="$t('account.profile')">
+        <ProfilePanel />
+      </FormLayout>
+      <!-- divider -->
+      <hr />
       <FormLayout :title="$t('account.ui_language')">
-        <ChangeLangCombobox />
+        <LanguageListbox />
       </FormLayout>
       <!-- divider -->
       <hr />

@@ -220,7 +220,11 @@
     "title": "Account settings",
     "change_password": "Change password",
     "language": "Language",
-    "ui_language": "User interface language"
+    "ui_language": "User interface language",
+    "profile": "Profile",
+    "cannot_retrieve_profile_data": "Cannot retrieve profile data",
+    "profile_saved": "Profile saved",
+    "save_profile": "Save profile"
   },
   "ne_table": {
     "no_items": "No items",
