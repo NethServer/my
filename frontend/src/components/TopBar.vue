@@ -37,7 +37,7 @@ const accountMenuOptions = computed(() => {
   return [
     {
       id: 'account',
-      label: t('account_settings.title'),
+      label: t('account.title'),
       icon: faCircleUser,
       action: () => router.push('/account'),
     },

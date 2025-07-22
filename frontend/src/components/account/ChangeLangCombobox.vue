@@ -4,7 +4,10 @@
 -->
 
 <script lang="ts" setup>
-import { NeCombobox, type NeComboboxOption, savePreference } from '@nethesis/vue-components'
+import {
+  type NeComboboxOption,
+  NeListbox,
+} from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { computed, watch } from 'vue'
 import { useLoginStore } from '@/stores/login'
@@ -33,16 +36,11 @@ watch(locale, () => {
 </script>
 
 <template>
-  <NeCombobox
+  <NeListbox
     v-model="locale"
-    :limited-options-label="t('ne_combobox.limited_options_label')"
     :no-options-label="t('ne_combobox.no_options_label')"
-    :no-results-label="t('ne_combobox.no_results')"
     :optional-label="t('common.optional')"
     :options="supportedLanguages"
-    :selected-label="t('ne_combobox.selected')"
-    :user-input-label="t('ne_combobox.user_input_label')"
+    optionsPanelStyle="max-w-64 w-full"
   />
-
-  supportedLanguages {{ supportedLanguages }}
 </template>
