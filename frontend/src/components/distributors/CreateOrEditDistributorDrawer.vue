@@ -24,7 +24,7 @@ import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
-import { getValidationIssues, isValidationErrorCode } from '@/lib/validation'
+import { getValidationIssues, isValidationError } from '@/lib/validation'
 import type { AxiosError } from 'axios'
 
 const { isShown = false, currentDistributor = undefined } = defineProps<{
@@ -281,22 +281,14 @@ async function saveDistributor() {
         />
         <!-- create distributor error notification -->
         <NeInlineNotification
-          v-if="
-            createDistributorError?.message &&
-            'status' in createDistributorError &&
-            !isValidationErrorCode(createDistributorError.status as number)
-          "
+          v-if="createDistributorError?.message && !isValidationError(createDistributorError)"
           kind="error"
           :title="t('distributors.cannot_create_distributor')"
           :description="createDistributorError.message"
         />
         <!-- edit distributor error notification -->
         <NeInlineNotification
-          v-if="
-            editDistributorError?.message &&
-            'status' in editDistributorError &&
-            !isValidationErrorCode(editDistributorError.status as number)
-          "
+          v-if="editDistributorError?.message && !isValidationError(editDistributorError)"
           kind="error"
           :title="t('distributors.cannot_save_distributor')"
           :description="editDistributorError.message"

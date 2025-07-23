@@ -24,7 +24,7 @@ import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
-import { getValidationIssues, isValidationErrorCode } from '@/lib/validation'
+import { getValidationIssues, isValidationError } from '@/lib/validation'
 import type { AxiosError } from 'axios'
 
 const { isShown = false, currentReseller = undefined } = defineProps<{
@@ -277,22 +277,14 @@ async function saveReseller() {
         />
         <!-- create reseller error notification -->
         <NeInlineNotification
-          v-if="
-            createResellerError?.message &&
-            'status' in createResellerError &&
-            !isValidationErrorCode(createResellerError.status as number)
-          "
+          v-if="createResellerError?.message && !isValidationError(createResellerError)"
           kind="error"
           :title="t('resellers.cannot_create_reseller')"
           :description="createResellerError.message"
         />
         <!-- edit reseller error notification -->
         <NeInlineNotification
-          v-if="
-            editResellerError?.message &&
-            'status' in editResellerError &&
-            !isValidationErrorCode(editResellerError.status as number)
-          "
+          v-if="editResellerError?.message && !isValidationError(editResellerError)"
           kind="error"
           :title="t('resellers.cannot_save_reseller')"
           :description="editResellerError.message"

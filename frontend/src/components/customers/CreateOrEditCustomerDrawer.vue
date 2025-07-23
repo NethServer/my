@@ -24,7 +24,7 @@ import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
-import { getValidationIssues, isValidationErrorCode } from '@/lib/validation'
+import { getValidationIssues, isValidationError } from '@/lib/validation'
 import type { AxiosError } from 'axios'
 
 const { isShown = false, currentCustomer = undefined } = defineProps<{
@@ -275,22 +275,14 @@ async function saveCustomer() {
         />
         <!-- create customer error notification -->
         <NeInlineNotification
-          v-if="
-            createCustomerError?.message &&
-            'status' in createCustomerError &&
-            !isValidationErrorCode(createCustomerError.status as number)
-          "
+          v-if="createCustomerError?.message && !isValidationError(createCustomerError)"
           kind="error"
           :title="t('customers.cannot_create_customer')"
           :description="createCustomerError.message"
         />
         <!-- edit customer error notification -->
         <NeInlineNotification
-          v-if="
-            editCustomerError?.message &&
-            'status' in editCustomerError &&
-            !isValidationErrorCode(editCustomerError.status as number)
-          "
+          v-if="editCustomerError?.message && !isValidationError(editCustomerError)"
           kind="error"
           :title="t('customers.cannot_save_customer')"
           :description="editCustomerError.message"

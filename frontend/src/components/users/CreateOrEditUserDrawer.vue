@@ -28,7 +28,7 @@ import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
 import { fakerIT as faker } from '@faker-js/faker' ////
-import { isValidationErrorCode, getValidationIssues } from '../../lib/validation'
+import { getValidationIssues, isValidationError } from '../../lib/validation'
 import type { AxiosError } from 'axios'
 import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
@@ -445,22 +445,14 @@ async function saveUser() {
         />
         <!-- create user error notification -->
         <NeInlineNotification
-          v-if="
-            createUserError?.message &&
-            'status' in createUserError &&
-            !isValidationErrorCode(createUserError.status as number)
-          "
+          v-if="createUserError?.message && !isValidationError(createUserError)"
           kind="error"
           :title="t('users.cannot_create_user')"
           :description="createUserError.message"
         />
         <!-- edit user error notification -->
         <NeInlineNotification
-          v-if="
-            editUserError?.message &&
-            'status' in editUserError &&
-            !isValidationErrorCode(editUserError.status as number)
-          "
+          v-if="editUserError?.message && !isValidationError(editUserError)"
           kind="error"
           :title="t('users.cannot_save_user')"
           :description="editUserError.message"
