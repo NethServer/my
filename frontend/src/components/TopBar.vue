@@ -89,8 +89,11 @@ function openNotificationsDrawer() {
     <div class="h-6 w-px bg-gray-200 lg:hidden dark:bg-gray-700" aria-hidden="true" />
 
     <div class="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
-      <div class="relative flex flex-1 items-center"></div>
-      <!-- unsaved changes button -->
+      <div class="relative flex flex-1 items-center">
+        <!-- //// remove -->
+        <template v-if="loginStore.userInfo?.id"> User ID: {{ loginStore.userInfo?.id }} </template>
+      </div>
+      <!-- right-aligned before separator -->
       <div class="flex items-center gap-x-4 lg:gap-x-6">
         <!-- separator -->
         <div

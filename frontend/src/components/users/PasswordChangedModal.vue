@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { NeButton, NeModal } from '@nethesis/vue-components'
+import { NeButton, NeFormItemLabel, NeModal } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { type User } from '@/lib/users'
 import { ref } from 'vue'
@@ -65,9 +65,16 @@ function onShow() {
     @show="onShow"
   >
     <p class="mb-6">{{ t('users.credentials_updated_description', { name: user?.name }) }}:</p>
-    <p class="mb-2">{{ t('users.email') }}: {{ user?.email }}</p>
-    <p>
-      {{ t('users.password') }}:
+    <div class="mb-4">
+      <NeFormItemLabel class="!mb-1">
+        {{ t('users.email') }}
+      </NeFormItemLabel>
+      <span>{{ user?.email }}</span>
+    </div>
+    <div>
+      <NeFormItemLabel class="!mb-1">
+        {{ t('users.password') }}
+      </NeFormItemLabel>
       <span v-if="isPasswordShown">
         {{ newPassword }}
       </span>
@@ -77,13 +84,13 @@ function onShow() {
         size="sm"
         @click="isPasswordShown = !isPasswordShown"
         :aria-label="isPasswordShown ? t('common.hide') : t('common.show')"
-        class="ml-2"
+        class="ml-3"
       >
         <template #prefix>
           <FontAwesomeIcon :icon="isPasswordShown ? faEyeSlash : faEye" aria-hidden="true" />
         </template>
         {{ isPasswordShown ? t('common.hide') : t('common.show') }}
       </NeButton>
-    </p>
+    </div>
   </NeModal>
 </template>
