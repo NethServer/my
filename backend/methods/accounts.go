@@ -6,1447 +6,519 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package methods
 
 import (
-	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
-	"regexp"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 
-	"github.com/nethesis/my/backend/cache"
+	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
+	"github.com/nethesis/my/backend/repositories"
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services"
 	"github.com/nethesis/my/backend/validation"
 )
 
-// sanitizeUsernameForLogto sanitizes username to match Logto's regex: /^[A-Z_a-z]\w*$/
-func sanitizeUsernameForLogto(username string) string {
-	// Replace dots and other special characters with underscores
-	sanitized := regexp.MustCompile(`[^A-Za-z0-9_]`).ReplaceAllString(username, "_")
-
-	// Ensure it starts with a letter or underscore
-	if len(sanitized) > 0 && !regexp.MustCompile(`^[A-Za-z_]`).MatchString(sanitized) {
-		sanitized = "user_" + sanitized
-	}
-
-	return sanitized
-}
-
-// CanOperateOnAccount validates if a user can operate (read/update/delete) on a specific account
-func CanOperateOnAccount(currentUserOrgRole, currentUserOrgID, currentUserRole string, targetAccount *models.LogtoUser, targetOrg *models.LogtoOrganization) (bool, string) {
-	// Extract target account's organization data
-	var targetAccountOrgID, targetAccountOrgRole string
-
-	if targetAccount.CustomData != nil {
-		if orgID, ok := targetAccount.CustomData["organizationId"].(string); ok {
-			targetAccountOrgID = orgID
-		}
-		if orgRole, ok := targetAccount.CustomData["organizationRole"].(string); ok {
-			targetAccountOrgRole = orgRole
-		}
-	}
-
-	// If we couldn't get the org data from customData, try to get it from the organization parameter
-	if targetOrg != nil {
-		if targetAccountOrgID == "" {
-			targetAccountOrgID = targetOrg.ID
-		}
-		if targetAccountOrgRole == "" && targetOrg.CustomData != nil {
-			if orgType, ok := targetOrg.CustomData["type"].(string); ok {
-				switch orgType {
-				case "distributor":
-					targetAccountOrgRole = "Distributor"
-				case "reseller":
-					targetAccountOrgRole = "Reseller"
-				case "customer":
-					targetAccountOrgRole = "Customer"
-				}
-			}
-		}
-	}
-
-	switch currentUserOrgRole {
-	case "Owner":
-		// Owner can operate on any account
-		return true, ""
-
-	case "Distributor":
-		// Distributors can operate on accounts in:
-		// - Their own organization
-		// - Reseller/Customer organizations they created
-		if currentUserOrgID == targetAccountOrgID {
-			return true, ""
-		}
-		if targetAccountOrgRole == "Reseller" || targetAccountOrgRole == "Customer" {
-			// Check if the target organization was created by this distributor
-			if targetOrg != nil && targetOrg.CustomData != nil {
-				if createdBy, ok := targetOrg.CustomData["createdBy"].(string); ok {
-					if createdBy == currentUserOrgID {
-						return true, ""
-					}
-				}
-			}
-			return false, "distributors can only operate on accounts in organizations they created"
-		}
-		return false, "distributors cannot operate on accounts in this organization"
-
-	case "Reseller":
-		// Resellers can operate on accounts in:
-		// - Their own organization
-		// - Customer organizations they created
-		if currentUserOrgID == targetAccountOrgID {
-			return true, ""
-		}
-		if targetAccountOrgRole == "Customer" {
-			// Check if the target organization was created by this reseller
-			if targetOrg != nil && targetOrg.CustomData != nil {
-				if createdBy, ok := targetOrg.CustomData["createdBy"].(string); ok {
-					if createdBy == currentUserOrgID {
-						return true, ""
-					}
-				}
-			}
-			return false, "resellers can only operate on accounts in customer organizations they created"
-		}
-		return false, "resellers cannot operate on accounts in this organization"
-
-	case "Customer":
-		// Customers can only operate on accounts in their own organization
-		if currentUserOrgID == targetAccountOrgID && currentUserRole == "Admin" {
-			return true, ""
-		}
-		return false, "customers can only operate on accounts in their own organization and must be Admin"
-
-	default:
-		return false, "unknown organization role"
-	}
-}
-
-// CanCreateAccountForOrganization validates if a user can create accounts for a target organization
-func CanCreateAccountForOrganization(userOrgRole, userOrgID, userRole, targetOrgID, targetOrgRole string, targetOrg *models.LogtoOrganization) (bool, string) {
-	// Only Admin users can create accounts for colleagues in the same organization
-	if userOrgID == targetOrgID && userRole != "Admin" {
-		return false, "only Admin users can create accounts for colleagues in the same organization"
-	}
-
-	switch userOrgRole {
-	case "Owner":
-		// Owner can create accounts for any organization
-		return true, ""
-	case "Distributor":
-		// Distributors can create accounts for:
-		// - Their own organization (if Admin)
-		// - Reseller/Customer organizations that they created or are under their hierarchy
-		if userOrgID == targetOrgID {
-			return userRole == "Admin", "only Admin users can create accounts for colleagues in the same organization"
-		}
-		if targetOrgRole == "Reseller" || targetOrgRole == "Customer" {
-			// Check if the target organization was created by this distributor or is under their hierarchy
-			if targetOrg != nil && targetOrg.CustomData != nil {
-				if createdBy, ok := targetOrg.CustomData["createdBy"].(string); ok {
-					if createdBy == userOrgID {
-						return true, ""
-					}
-				}
-			}
-			return false, "distributors can only create accounts for reseller or customer organizations they created"
-		}
-		return false, "distributors can only create accounts for reseller or customer organizations"
-	case "Reseller":
-		// Resellers can create accounts for:
-		// - Their own organization (if Admin)
-		// - Customer organizations that they created
-		if userOrgID == targetOrgID {
-			return userRole == "Admin", "only Admin users can create accounts for colleagues in the same organization"
-		}
-		if targetOrgRole == "Customer" {
-			// Check if the target organization was created by this reseller
-			if targetOrg != nil && targetOrg.CustomData != nil {
-				if createdBy, ok := targetOrg.CustomData["createdBy"].(string); ok {
-					if createdBy == userOrgID {
-						return true, ""
-					}
-				}
-			}
-			return false, "resellers can only create accounts for customer organizations they created"
-		}
-		return false, "resellers can only create accounts for customer organizations"
-	case "Customer":
-		// Customers can only create accounts for their own organization (if Admin)
-		if userOrgID == targetOrgID && userRole == "Admin" {
-			return true, ""
-		}
-		return false, "customers can only create accounts for their own organization and must be Admin"
-	default:
-		return false, "unknown organization role"
-	}
-}
-
-// CreateAccount handles POST /api/accounts - creates a new account in Logto with role and organization assignment
+// CreateAccount handles POST /api/accounts - creates a new user locally and syncs to Logto
 func CreateAccount(c *gin.Context) {
-	var request models.CreateAccountRequest
+	// Parse request body
+	var request models.CreateLocalUserRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
 		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
 		return
 	}
 
-	currentUserID, _ := c.Get("user_id")
-	currentUserOrgID, _ := c.Get("organization_id")
-	currentUserOrgRole, _ := c.Get("org_role")
-	currentUserRoles, _ := c.Get("user_roles")
-
-	// Validate required user context
-	if currentUserOrgRole == nil || currentUserOrgID == nil || currentUserRoles == nil {
-		logger.NewHTTPErrorLogger(c, "accounts").LogError(fmt.Errorf("missing user context"), "validate_user_context", http.StatusUnauthorized, "Missing required user context in JWT token")
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("incomplete user context in token", nil))
+	// Validate password using our secure validator
+	isValid, errorCodes := validation.ValidatePasswordStrength(request.Password)
+	if !isValid {
+		c.JSON(http.StatusBadRequest, response.PasswordValidationBadRequest(errorCodes))
 		return
 	}
 
-	// Extract user role from array (Admin role is required for account creation)
-	userRolesSlice := currentUserRoles.([]string)
-	var currentUserRole string
-	for _, role := range userRolesSlice {
-		if role == "Admin" {
-			currentUserRole = "Admin"
-			break
-		}
-	}
-	if currentUserRole == "" {
-		logger.NewHTTPErrorLogger(c, "accounts").LogError(fmt.Errorf("insufficient permissions"), "check_admin_role", http.StatusForbidden, "User does not have Admin role required for account creation")
-		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to create accounts", nil))
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
 		return
 	}
 
-	// Connect to Logto Management API
-	client := services.NewLogtoManagementClient()
+	// Create service
+	service := services.NewLocalUserService()
 
-	// Verify the target organization exists
-	targetOrg, err := client.GetOrganizationByID(request.OrganizationID)
+	// Validate permissions
+	userOrgRole := strings.ToLower(user.OrgRole)
+	if canCreate, reason := service.CanCreateUser(userOrgRole, user.OrganizationID, &request); !canCreate {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied: "+reason, nil))
+		return
+	}
+
+	// Create user
+	account, err := service.CreateUser(&request, user.ID, user.OrganizationID)
 	if err != nil {
-		logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "find_target_organization", http.StatusBadRequest, "Invalid organization ID in request")
-		c.JSON(http.StatusBadRequest, response.BadRequest("invalid organization ID", map[string]interface{}{
-			"field": "organizationId",
-			"error": "organization not found",
-			"value": request.OrganizationID,
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("account_username", request.Username).
+			Msg("Failed to create account")
+
+		// Check if it's a validation error from Logto
+		if validationErr := getValidationError(err); validationErr != nil {
+			c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", validationErr.ErrorData.Errors))
+			return
+		}
+
+		// Default to internal server error
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to create account", map[string]interface{}{
+			"error": err.Error(),
 		}))
 		return
 	}
 
-	// Get target organization's JIT roles to determine the default organization role
-	jitRoles, err := client.GetOrganizationJitRoles(request.OrganizationID)
-	if err != nil {
-		// Parse error to determine if this is a client or server error
-		errorMsg := err.Error()
-		if strings.Contains(errorMsg, "404") || strings.Contains(errorMsg, "not found") {
-			logger.RequestLogger(c, "accounts").Warn().
-				Err(err).
-				Str("operation", "get_organization_jit_roles").
-				Str("organization_id", request.OrganizationID).
-				Msg("Organization JIT roles not found")
-			c.JSON(http.StatusNotFound, response.NotFound("organization JIT roles not configured", err.Error()))
-			return
-		} else if strings.Contains(errorMsg, "403") || strings.Contains(errorMsg, "forbidden") {
-			logger.RequestLogger(c, "accounts").Warn().
-				Err(err).
-				Str("operation", "get_organization_jit_roles").
-				Msg("Insufficient permissions to access organization JIT roles")
-			c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to access organization configuration", nil))
-			return
-		} else if strings.Contains(errorMsg, "503") || strings.Contains(errorMsg, "502") || strings.Contains(errorMsg, "timeout") {
-			logger.RequestLogger(c, "accounts").Warn().
-				Err(err).
-				Str("operation", "get_organization_jit_roles").
-				Msg("Logto service temporarily unavailable")
-			c.JSON(http.StatusServiceUnavailable, response.Error(http.StatusServiceUnavailable, "identity provider temporarily unavailable", nil))
-			return
-		} else {
-			// For genuine server errors (500, database issues, etc.)
-			logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "get_organization_jit_roles", http.StatusInternalServerError, "Failed to get JIT roles for organization")
-			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get organization JIT roles", err.Error()))
-			return
-		}
-	}
+	// Log the action
+	logger.LogBusinessOperation(c, "accounts", "create", "account", account.ID, true, nil)
 
-	// Determine target organization role from JIT configuration
-	var targetOrgRole string
-	if len(jitRoles) > 0 {
-		// Use the first JIT role as the default organization role
-		targetOrgRole = jitRoles[0].Name
-		logger.RequestLogger(c, "accounts").Info().
-			Str("operation", "assign_jit_role").
-			Str("role", targetOrgRole).
-			Str("organization_id", request.OrganizationID).
-			Msg("Using JIT role for organization")
-	} else {
-		c.JSON(http.StatusBadRequest, response.BadRequest("target organization has no JIT roles configured", nil))
-		return
-	}
-
-	// Validate password strength
-	isValidPassword, passwordErrors := validation.ValidatePasswordStrength(request.Password)
-	if !isValidPassword {
-		logger.RequestLogger(c, "accounts").Warn().
-			Str("operation", "validate_password").
-			Interface("violations", passwordErrors).
-			Msg("Password validation failed")
-		var validationErrors []response.ValidationError
-		for _, err := range passwordErrors {
-			validationErrors = append(validationErrors, response.ValidationError{
-				Key:     "password",
-				Message: err,
-				Value:   request.Password,
-			})
-		}
-		c.JSON(http.StatusBadRequest, response.BadRequest("validation failed", response.ErrorData{
-			Type:   "validation_error",
-			Errors: validationErrors,
-		}))
-		return
-	}
-
-	// Validate hierarchical permissions
-	canCreate, reason := CanCreateAccountForOrganization(
-		currentUserOrgRole.(string),
-		currentUserOrgID.(string),
-		currentUserRole,
-		request.OrganizationID,
-		targetOrgRole,
-		targetOrg,
-	)
-
-	if !canCreate {
-		logger.LogAccountOperation(c, "create_denied", request.OrganizationID, request.OrganizationID, currentUserID.(string), currentUserOrgID.(string), false, fmt.Errorf("insufficient permissions"))
-		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to create account for this organization", reason))
-		return
-	}
-
-	// Prepare custom data for the account
-	customData := map[string]interface{}{
-		"userRoleIds":      request.UserRoleIDs,
-		"organizationId":   request.OrganizationID,
-		"organizationRole": targetOrgRole, // Derived from JIT configuration
-		"createdBy":        currentUserOrgID,
-		"createdAt":        time.Now().Format(time.RFC3339),
-	}
-
-	// Add custom data if provided
-	if request.CustomData != nil {
-		for k, v := range request.CustomData {
-			customData[k] = v
-		}
-	}
-
-	// Sanitize fields for Logto compliance
-	sanitizedUsername := sanitizeUsernameForLogto(request.Email)
-
-	// Create account request for Logto
-	accountRequest := models.CreateUserRequest{
-		Username:     sanitizedUsername,
-		PrimaryEmail: request.Email,
-		Name:         request.Name,
-		Password:     request.Password,
-		CustomData:   customData,
-	}
-
-	// Set PrimaryPhone if provided - Logto validates this field with a regex
-	if request.Phone != "" {
-		accountRequest.PrimaryPhone = request.Phone
-	}
-
-	// Only set avatar if it's not empty
-	if request.Avatar != "" {
-		accountRequest.Avatar = &request.Avatar
-	}
-
-	// Debug: log the request being sent to Logto
-	if reqJSON, err := json.Marshal(accountRequest); err == nil {
-		logger.RequestLogger(c, "accounts").Debug().
-			Str("operation", "send_to_logto").
-			Str("payload", logger.SanitizeString(string(reqJSON))).
-			Msg("Sending account creation request to Logto")
-	}
-
-	// Create the account in Logto
-	account, err := client.CreateUser(accountRequest)
-	if err != nil {
-		// Parse error to determine appropriate status code and logging level
-		errorMsg := err.Error()
-		var detailedError interface{}
-		var statusCode int
-		var logLevel string
-
-		// Check for different status codes and extract JSON
-		statusMappings := map[string]struct {
-			code  int
-			level string
-		}{
-			"status 400: ": {http.StatusBadRequest, "warn"},
-			"status 422: ": {http.StatusBadRequest, "warn"}, // Map 422 to 400 for consistent client error handling
-			"status 409: ": {http.StatusConflict, "warn"},
-			"status 500: ": {http.StatusInternalServerError, "error"},
-		}
-
-		for prefix, mapping := range statusMappings {
-			if strings.Contains(errorMsg, prefix) {
-				statusCode = mapping.code
-				logLevel = mapping.level
-				parts := strings.Split(errorMsg, prefix)
-				if len(parts) > 1 {
-					// Try to parse the JSON error for better formatting
-					var logtoError map[string]interface{}
-					if json.Unmarshal([]byte(parts[1]), &logtoError) == nil {
-						detailedError = logtoError
-					} else {
-						detailedError = parts[1]
-					}
-				}
-				break
-			}
-		}
-
-		// If no status prefix found, default to internal server error
-		if statusCode == 0 {
-			statusCode = http.StatusInternalServerError
-			logLevel = "error"
-			detailedError = errorMsg
-		}
-
-		// Log with appropriate level and status code
-		if logLevel == "error" {
-			logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "create_account_logto", statusCode, "Failed to create account in Logto")
-		} else {
-			logger.RequestLogger(c, "accounts").Warn().
-				Err(err).
-				Str("operation", "create_account_logto").
-				Int("logto_status_code", statusCode).
-				Str("user_message", "Failed to create account in Logto").
-				Msg("Logto API returned client error")
-		}
-
-		// Use standardized external API error response with consistent message for validation errors
-		message := "failed to create account"
-		if statusCode == http.StatusBadRequest {
-			message = "validation failed"
-		}
-
-		// Create context with field values for better error reporting
-		context := map[string]interface{}{
-			"phone": request.Phone,
-			"email": request.Email,
-		}
-
-		c.JSON(statusCode, response.ExternalAPIErrorWithContext(statusCode, message, detailedError, context))
-		return
-	}
-
-	// Assign user roles using IDs directly (more secure)
-	if len(request.UserRoleIDs) > 0 {
-		err := synchronizeUserRoles(client, account.ID, request.UserRoleIDs)
-		if err != nil {
-			logger.RequestLogger(c, "accounts").Error().
-				Err(err).
-				Str("operation", "synchronize_user_roles").
-				Str("account_id", account.ID).
-				Interface("requested_role_ids", request.UserRoleIDs).
-				Msg("Failed to synchronize user roles with Logto")
-			// This is not critical for account creation - we can continue
-		}
-	}
-
-	// Step 1: Assign user to organization (without roles)
-	if err := client.AssignUserToOrganization(request.OrganizationID, account.ID); err != nil {
-		logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "assign_to_organization", http.StatusInternalServerError, "Failed to assign account to organization")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to assign account to organization", err.Error()))
-		return
-	}
-
-	// Step 2: Assign organization role using the specific API endpoint
-	if len(jitRoles) > 0 {
-		// Use the first JIT role for the organization
-		roleIDs := []string{jitRoles[0].ID}
-		roleNames := []string{jitRoles[0].Name}
-
-		logger.RequestLogger(c, "accounts").Info().
-			Str("operation", "assign_organization_role").
-			Str("role_name", jitRoles[0].Name).
-			Str("role_id", jitRoles[0].ID).
-			Str("user_id", account.ID).
-			Str("organization_id", request.OrganizationID).
-			Msg("Assigning organization role to user")
-
-		if err := client.AssignOrganizationRolesToUser(request.OrganizationID, account.ID, roleIDs, roleNames); err != nil {
-			logger.RequestLogger(c, "accounts").Error().
-				Err(err).
-				Str("operation", "assign_organization_role").
-				Msg("Failed to assign organization role to user")
-		} else {
-			logger.RequestLogger(c, "accounts").Info().
-				Str("operation", "assign_organization_role_success").
-				Str("role_name", jitRoles[0].Name).
-				Str("user_id", account.ID).
-				Msg("Successfully assigned organization role")
-		}
-	}
-
-	// Invalidate organization users cache to ensure fresh data on next request
-	cacheManager := cache.GetOrgUsersCacheManager()
-	cacheManager.Clear(request.OrganizationID)
-
-	logger.LogAccountOperation(c, "create", account.ID, request.OrganizationID, currentUserID.(string), currentUserOrgID.(string), true, nil)
-
-	// Convert to response format
-	var lastSignInAt *time.Time
-	if account.LastSignInAt != nil && *account.LastSignInAt != 0 {
-		t := time.Unix(*account.LastSignInAt/1000, 0)
-		lastSignInAt = &t
-	}
-
-	accountResponse := models.AccountResponse{
-		ID:               account.ID,
-		Username:         account.Username,
-		Email:            account.PrimaryEmail,
-		Name:             account.Name,
-		Phone:            account.PrimaryPhone,
-		Avatar:           account.Avatar,
-		UserRoleIDs:      request.UserRoleIDs,
-		OrganizationID:   request.OrganizationID,
-		OrganizationName: targetOrg.Name,
-		OrganizationRole: targetOrgRole, // Derived from JIT configuration
-		IsSuspended:      account.IsSuspended,
-		LastSignInAt:     lastSignInAt,
-		CreatedAt:        time.Unix(account.CreatedAt/1000, 0),
-		UpdatedAt:        time.Unix(account.UpdatedAt/1000, 0),
-		CustomData:       request.CustomData,
-	}
-
-	c.JSON(http.StatusCreated, response.Created("account created successfully", accountResponse))
+	// Return success response
+	c.JSON(http.StatusCreated, response.Created("account created successfully", account))
 }
 
-// GetAccount handles GET /api/accounts/:id - retrieves a single account
+// GetAccount handles GET /api/accounts/:id - retrieves a single user account
 func GetAccount(c *gin.Context) {
+	// Get account ID from URL parameter
 	accountID := c.Param("id")
 	if accountID == "" {
 		c.JSON(http.StatusBadRequest, response.BadRequest("account ID required", nil))
 		return
 	}
 
-	currentUserID, _ := c.Get("user_id")
-	currentUserOrgID, _ := c.Get("organization_id")
-	currentUserOrgRole, _ := c.Get("org_role")
-	currentUserRoles, _ := c.Get("user_roles")
-
-	// Validate required user context
-	if currentUserOrgRole == nil || currentUserOrgID == nil || currentUserRoles == nil {
-		logger.NewHTTPErrorLogger(c, "accounts").LogError(fmt.Errorf("missing user context"), "validate_user_context", http.StatusUnauthorized, "Missing required user context in JWT token")
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("incomplete user context in token", nil))
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
 		return
 	}
 
-	// Extract user role from array (Admin role is required for account operations)
-	userRolesSlice := currentUserRoles.([]string)
-	var currentUserRole string
-	for _, role := range userRolesSlice {
-		if role == "Admin" {
-			currentUserRole = "Admin"
-			break
-		}
-	}
-	if currentUserRole == "" {
-		logger.NewHTTPErrorLogger(c, "accounts").LogError(fmt.Errorf("insufficient permissions"), "check_admin_role", http.StatusForbidden, "User does not have Admin role required for account operations")
-		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to view accounts", nil))
-		return
-	}
-
-	logger.RequestLogger(c, "accounts").Info().
-		Str("operation", "get_account").
-		Str("account_id", accountID).
-		Msg("Single account requested")
-
-	client := services.NewLogtoManagementClient()
-
-	// Get the specific account
-	account, err := client.GetUserByID(accountID)
+	// Get account
+	repo := repositories.NewLocalUserRepository()
+	account, err := repo.GetByID(accountID)
 	if err != nil {
-		logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "fetch_account", http.StatusInternalServerError, "Failed to fetch account")
-		c.JSON(http.StatusNotFound, response.NotFound("account not found", nil))
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("account not found", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("account_id", accountID).
+			Msg("Failed to get account")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get account", nil))
 		return
 	}
 
-	// Get target account's organization to validate permissions
-	var targetOrg *models.LogtoOrganization
-	if account.CustomData != nil {
-		if orgID, ok := account.CustomData["organizationId"].(string); ok {
-			targetOrg, err = client.GetOrganizationByID(orgID)
-			if err != nil {
-				logger.RequestLogger(c, "accounts").Warn().
-					Err(err).
-					Str("operation", "fetch_target_organization").
-					Msg("Failed to fetch target organization")
+	// Apply RBAC validation
+	userOrgRole := strings.ToLower(user.OrgRole)
+	canAccess := false
+
+	// Users can always see themselves
+	if accountID == user.ID {
+		canAccess = true
+	} else {
+		// Check organization-based access
+		targetOrgID := ""
+		if account.OrganizationID != nil {
+			targetOrgID = *account.OrganizationID
+		}
+
+		switch userOrgRole {
+		case "owner":
+			canAccess = true
+		case "distributor":
+			// Distributor can see users in their organization and customer organizations they manage
+			if targetOrgID == user.OrganizationID {
+				canAccess = true
+			}
+			// Additional logic needed to check customer organizations
+		case "reseller":
+			// Reseller can see users in their organization
+			if targetOrgID == user.OrganizationID {
+				canAccess = true
+			}
+		case "customer":
+			// Customer can only see users in their own organization
+			if targetOrgID == user.OrganizationID {
+				canAccess = true
 			}
 		}
 	}
 
-	// Validate hierarchical permissions
-	canOperate, reason := CanOperateOnAccount(
-		currentUserOrgRole.(string),
-		currentUserOrgID.(string),
-		currentUserRole,
-		account,
-		targetOrg,
-	)
-
-	if !canOperate {
-		logger.LogAccountOperation(c, "get_denied", accountID, "", currentUserID.(string), currentUserOrgID.(string), false, fmt.Errorf("insufficient permissions: %s", reason))
-		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to view this account", reason))
+	if !canAccess {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied to account", nil))
 		return
 	}
 
-	// Convert to response format
-	accountResponse := convertLogtoUserToAccountResponse(*account, targetOrg)
-
+	// Log the action
 	logger.RequestLogger(c, "accounts").Info().
-		Str("operation", "get_account_result").
+		Str("operation", "get_account").
 		Str("account_id", accountID).
-		Msg("Retrieved account")
+		Msg("Account details requested")
 
-	c.JSON(http.StatusOK, response.OK("account retrieved successfully", accountResponse))
+	// Return account
+	c.JSON(http.StatusOK, response.OK("account retrieved successfully", account))
 }
 
-// GetAccounts handles GET /api/accounts - retrieves accounts with organization filtering
+// GetAccounts handles GET /api/accounts - list accounts with pagination
 func GetAccounts(c *gin.Context) {
-	_, _ = c.Get("user_id")
-	currentUserOrgRole, _ := c.Get("org_role")
-	currentUserOrgID, _ := c.Get("organization_id")
-
-	// Validate required user context
-	if currentUserOrgRole == nil || currentUserOrgID == nil {
-		logger.NewHTTPErrorLogger(c, "accounts").LogError(fmt.Errorf("missing user context"), "validate_user_context", http.StatusUnauthorized, "Missing required user context in JWT token")
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("incomplete user context in token", nil))
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
 		return
 	}
 
 	// Parse pagination parameters
-	page := 1
-	pageSize := 20
-	if p := c.Query("page"); p != "" {
-		if parsedPage, err := strconv.Atoi(p); err == nil && parsedPage > 0 {
-			page = parsedPage
-		}
-	}
-	if ps := c.Query("page_size"); ps != "" {
-		if parsedPageSize, err := strconv.Atoi(ps); err == nil && parsedPageSize > 0 && parsedPageSize <= 100 {
-			pageSize = parsedPageSize
-		}
+	page, pageSize := helpers.GetPaginationFromQuery(c)
+
+	// Create service
+	service := services.NewLocalUserService()
+
+	// Get accounts based on RBAC
+	userOrgRole := strings.ToLower(user.OrgRole)
+	accounts, totalCount, err := service.ListUsers(userOrgRole, user.OrganizationID, page, pageSize)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("user_org_role", userOrgRole).
+			Msg("Failed to list accounts")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to list accounts", nil))
+		return
 	}
 
-	// Parse filters
-	filters := models.UserFilters{
-		Search:         c.Query("search"),
-		OrganizationID: c.Query("organization_id"),
-		Role:           c.Query("role"),
-		Username:       c.Query("username"),
-		Email:          c.Query("email"),
-	}
-
+	// Log the action
 	logger.RequestLogger(c, "accounts").Info().
 		Str("operation", "list_accounts").
 		Int("page", page).
 		Int("page_size", pageSize).
-		Str("organization_filter", filters.OrganizationID).
-		Str("search", filters.Search).
+		Int("total_count", totalCount).
+		Int("returned_count", len(accounts)).
 		Msg("Accounts list requested")
 
-	client := services.NewLogtoManagementClient()
-	var accounts []models.AccountResponse
-	var paginationInfo models.PaginationInfo
-
-	if filters.OrganizationID != "" {
-		// Single organization mode - get accounts from specific organization
-		orgAccounts, err := client.GetOrganizationUsers(c.Request.Context(), filters.OrganizationID)
-		if err != nil {
-			logger.RequestLogger(c, "accounts").Error().
-				Err(err).
-				Str("operation", "fetch_organization_accounts").
-				Str("org_id", filters.OrganizationID).
-				Msg("Failed to fetch organization accounts")
-			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch organization accounts", err.Error()))
-			return
-		}
-
-		// Get organization details
-		org, err := client.GetOrganizationByID(filters.OrganizationID)
-		if err != nil {
-			logger.RequestLogger(c, "accounts").Error().
-				Err(err).
-				Str("operation", "fetch_organization_details").
-				Str("org_id", filters.OrganizationID).
-				Msg("Failed to fetch organization details")
-		}
-
-		// Apply client-side pagination and filtering
-		filteredAccounts := applyAccountFilters(orgAccounts, filters)
-		totalCount := len(filteredAccounts)
-		totalPages := (totalCount + pageSize - 1) / pageSize
-
-		// Calculate slice bounds for current page
-		start := (page - 1) * pageSize
-		end := start + pageSize
-		if start > totalCount {
-			start = totalCount
-		}
-		if end > totalCount {
-			end = totalCount
-		}
-
-		var pageAccounts []models.LogtoUser
-		if start < totalCount {
-			pageAccounts = filteredAccounts[start:end]
-		}
-
-		// Convert to response format
-		for _, account := range pageAccounts {
-			accountResponse := convertLogtoUserToAccountResponse(account, org)
-			accounts = append(accounts, accountResponse)
-		}
-
-		paginationInfo = models.PaginationInfo{
-			Page:       page,
-			PageSize:   pageSize,
-			TotalCount: totalCount,
-			TotalPages: totalPages,
-			HasNext:    page < totalPages,
-			HasPrev:    page > 1,
-		}
-
-		if paginationInfo.HasNext {
-			nextPage := page + 1
-			paginationInfo.NextPage = &nextPage
-		}
-		if paginationInfo.HasPrev {
-			prevPage := page - 1
-			paginationInfo.PrevPage = &prevPage
-		}
-
-	} else {
-		// Multi-organization mode - get accounts from all visible organizations with parallel processing
-		allOrgs, err := services.GetAllVisibleOrganizations(currentUserOrgRole.(string), currentUserOrgID.(string))
-		if err != nil {
-			logger.RequestLogger(c, "accounts").Error().
-				Err(err).
-				Str("operation", "fetch_visible_organizations").
-				Msg("Failed to fetch visible organizations")
-			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch organizations", err.Error()))
-			return
-		}
-
-		// Extract organization IDs for parallel processing
-		orgIDs := make([]string, len(allOrgs))
-		orgMap := make(map[string]models.LogtoOrganization)
-
-		for i, org := range allOrgs {
-			orgIDs[i] = org.ID
-			orgMap[org.ID] = org
-		}
-
-		// Fetch users from all organizations in parallel
-		usersResults, err := client.GetOrganizationUsersParallel(c.Request.Context(), orgIDs)
-		if err != nil {
-			logger.RequestLogger(c, "accounts").Error().
-				Err(err).
-				Str("operation", "fetch_parallel_organization_accounts").
-				Msg("Failed to fetch accounts from multiple organizations")
-
-			c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to fetch accounts", err.Error()))
-			return
-		}
-
-		var allAccounts []models.LogtoUser
-
-		// Process results and combine accounts
-		for orgID, users := range usersResults {
-			// Add organization context to each user for filtering
-			org := orgMap[orgID]
-			for _, user := range users {
-				// Add organization context to custom data for filtering
-				if user.CustomData == nil {
-					user.CustomData = make(map[string]interface{})
-				}
-				user.CustomData["__org_id"] = org.ID
-				user.CustomData["__org_name"] = org.Name
-				allAccounts = append(allAccounts, user)
-			}
-		}
-
-		// Apply filters to all accounts
-		filteredAccounts := applyAccountFilters(allAccounts, filters)
-		totalCount := len(filteredAccounts)
-		totalPages := (totalCount + pageSize - 1) / pageSize
-
-		// Calculate slice bounds for current page
-		start := (page - 1) * pageSize
-		end := start + pageSize
-		if start > totalCount {
-			start = totalCount
-		}
-		if end > totalCount {
-			end = totalCount
-		}
-
-		var pageAccounts []models.LogtoUser
-		if start < totalCount {
-			pageAccounts = filteredAccounts[start:end]
-		}
-
-		// Convert to response format
-		for _, account := range pageAccounts {
-			// Get organization details for this account
-			var org *models.LogtoOrganization
-			if orgID, ok := account.CustomData["__org_id"].(string); ok {
-				if orgData, exists := orgMap[orgID]; exists {
-					org = &orgData
-				}
-			}
-
-			accountResponse := convertLogtoUserToAccountResponse(account, org)
-			accounts = append(accounts, accountResponse)
-		}
-
-		paginationInfo = models.PaginationInfo{
-			Page:       page,
-			PageSize:   pageSize,
-			TotalCount: totalCount,
-			TotalPages: totalPages,
-			HasNext:    page < totalPages,
-			HasPrev:    page > 1,
-		}
-
-		if paginationInfo.HasNext {
-			nextPage := page + 1
-			paginationInfo.NextPage = &nextPage
-		}
-		if paginationInfo.HasPrev {
-			prevPage := page - 1
-			paginationInfo.PrevPage = &prevPage
-		}
-	}
-
-	logger.RequestLogger(c, "accounts").Info().
-		Int("account_count", len(accounts)).
-		Int("total_count", paginationInfo.TotalCount).
-		Int("page", page).
-		Str("operation", "list_accounts_result").
-		Msg("Retrieved accounts")
-
-	c.JSON(http.StatusOK, response.OK("accounts retrieved successfully", gin.H{
-		"accounts":   accounts,
-		"pagination": paginationInfo,
-	}))
+	// Return paginated response
+	c.JSON(http.StatusOK, response.Paginated("accounts retrieved successfully", "accounts", accounts, totalCount, page, pageSize))
 }
 
-// applyAccountFilters applies client-side filters to user accounts
-func applyAccountFilters(users []models.LogtoUser, filters models.UserFilters) []models.LogtoUser {
-	if filters.Username == "" && filters.Email == "" && filters.Role == "" && filters.Search == "" {
-		return users
-	}
-
-	var filtered []models.LogtoUser
-	for _, user := range users {
-		// Username filter (exact match)
-		if filters.Username != "" && user.Username != filters.Username {
-			continue
-		}
-
-		// Email filter (exact match)
-		if filters.Email != "" && user.PrimaryEmail != filters.Email {
-			continue
-		}
-
-		// Search filter (partial match in username, email, or name)
-		if filters.Search != "" {
-			searchTerm := strings.ToLower(filters.Search)
-			match := false
-
-			if strings.Contains(strings.ToLower(user.Username), searchTerm) ||
-				strings.Contains(strings.ToLower(user.PrimaryEmail), searchTerm) ||
-				strings.Contains(strings.ToLower(user.Name), searchTerm) {
-				match = true
-			}
-
-			if !match {
-				continue
-			}
-		}
-
-		// Role filter (from custom data)
-		if filters.Role != "" {
-			if user.CustomData == nil {
-				continue
-			}
-			if userRole, ok := user.CustomData["role"].(string); !ok || userRole != filters.Role {
-				continue
-			}
-		}
-
-		filtered = append(filtered, user)
-	}
-
-	return filtered
-}
-
-// UpdateAccount handles PUT /api/accounts/:id - updates an existing account
+// UpdateAccount handles PUT /api/accounts/:id - updates a user account locally and syncs to Logto
 func UpdateAccount(c *gin.Context) {
+	// Get account ID from URL parameter
 	accountID := c.Param("id")
 	if accountID == "" {
 		c.JSON(http.StatusBadRequest, response.BadRequest("account ID required", nil))
 		return
 	}
 
-	var request models.UpdateAccountRequest
+	// Parse request body
+	var request models.UpdateLocalUserRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
 		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
 		return
 	}
 
-	currentUserID, _ := c.Get("user_id")
-	currentUserOrgID, _ := c.Get("organization_id")
-	currentUserOrgRole, _ := c.Get("org_role")
-	currentUserRoles, _ := c.Get("user_roles")
-
-	// Validate required user context
-	if currentUserOrgRole == nil || currentUserOrgID == nil || currentUserRoles == nil {
-		logger.NewHTTPErrorLogger(c, "accounts").LogError(fmt.Errorf("missing user context"), "validate_user_context", http.StatusUnauthorized, "Missing required user context in JWT token")
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("incomplete user context in token", nil))
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
 		return
 	}
 
-	// Extract user role from array (Admin role is required for account operations)
-	userRolesSlice := currentUserRoles.([]string)
-	var currentUserRole string
-	for _, role := range userRolesSlice {
-		if role == "Admin" {
-			currentUserRole = "Admin"
-			break
-		}
-	}
-	if currentUserRole == "" {
-		logger.NewHTTPErrorLogger(c, "accounts").LogError(fmt.Errorf("insufficient permissions"), "check_admin_role", http.StatusForbidden, "User does not have Admin role required for account operations")
-		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to modify accounts", nil))
-		return
-	}
-
-	client := services.NewLogtoManagementClient()
-
-	// Get current account data
-	currentAccount, err := client.GetUserByID(accountID)
+	// Get current account for RBAC validation
+	repo := repositories.NewLocalUserRepository()
+	currentAccount, err := repo.GetByID(accountID)
 	if err != nil {
-		logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "fetch_account", http.StatusInternalServerError, "Failed to fetch account")
-		c.JSON(http.StatusNotFound, response.NotFound("account not found", nil))
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("account not found", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("account_id", accountID).
+			Msg("Failed to get account for update validation")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get account", nil))
 		return
 	}
 
-	// Get target account's organization to validate permissions
-	var targetOrg *models.LogtoOrganization
-	if currentAccount.CustomData != nil {
-		if orgID, ok := currentAccount.CustomData["organizationId"].(string); ok {
-			targetOrg, err = client.GetOrganizationByID(orgID)
-			if err != nil {
-				logger.RequestLogger(c, "accounts").Warn().
-					Err(err).
-					Str("operation", "fetch_target_organization").
-					Msg("Failed to fetch target organization")
-			}
+	// Apply RBAC validation
+	userOrgRole := strings.ToLower(user.OrgRole)
+	canUpdate := false
+
+	// Users can always update themselves (with restrictions)
+	if accountID == user.ID {
+		canUpdate = true
+		// Users can only update certain fields about themselves
+		// Organization-related fields should be restricted
+		if request.OrganizationID != nil || request.UserRoleIDs != nil {
+			c.JSON(http.StatusForbidden, response.Forbidden("users cannot modify their own organization or role information", nil))
+			return
 		}
-	}
-
-	// Validate hierarchical permissions
-	canOperate, reason := CanOperateOnAccount(
-		currentUserOrgRole.(string),
-		currentUserOrgID.(string),
-		currentUserRole,
-		currentAccount,
-		targetOrg,
-	)
-
-	if !canOperate {
-		logger.LogAccountOperation(c, "update_denied", accountID, "", currentUserID.(string), currentUserOrgID.(string), false, fmt.Errorf("insufficient permissions: %s", reason))
-		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to update this account", reason))
-		return
-	}
-
-	// Prepare update request
-	updateRequest := models.UpdateUserRequest{}
-
-	updateRequest.PrimaryPhone = &request.Phone
-	if request.Name != "" {
-		updateRequest.Name = &request.Name
-	}
-
-	// Merge custom data with existing data
-	if currentAccount.CustomData != nil {
-		updateRequest.CustomData = make(map[string]interface{})
-		// Copy existing custom data
-		for k, v := range currentAccount.CustomData {
-			updateRequest.CustomData[k] = v
+	} else {
+		// Check organization-based permissions for updating other users
+		targetOrgID := ""
+		if currentAccount.OrganizationID != nil {
+			targetOrgID = *currentAccount.OrganizationID
 		}
 
-		// Update with new values
-		if request.UserRoleIDs != nil {
-			updateRequest.CustomData["userRoleIds"] = *request.UserRoleIDs
-		}
-		if request.OrganizationID != "" {
-			updateRequest.CustomData["organizationId"] = request.OrganizationID
-		}
-		// OrganizationRole is now managed via JIT provisioning
-		if request.CustomData != nil {
-			for k, v := range request.CustomData {
-				updateRequest.CustomData[k] = v
-			}
-		}
-
-		// Update modification tracking
-		updateRequest.CustomData["updatedBy"] = currentUserOrgID
-		updateRequest.CustomData["updatedAt"] = time.Now().Format(time.RFC3339)
-	}
-
-	// Update the account in Logto
-	updatedAccount, err := client.UpdateUser(accountID, updateRequest)
-	if err != nil {
-		// Parse error to determine appropriate status code and logging level
-		errorMsg := err.Error()
-		var detailedError interface{}
-		var statusCode int
-		var logLevel string
-
-		// Check for different status codes and extract JSON
-		statusMappings := map[string]struct {
-			code  int
-			level string
-		}{
-			"status 400: ": {http.StatusBadRequest, "warn"},
-			"status 422: ": {http.StatusBadRequest, "warn"}, // Map 422 to 400 for consistent client error handling
-			"status 409: ": {http.StatusConflict, "warn"},
-			"status 500: ": {http.StatusInternalServerError, "error"},
-		}
-
-		for prefix, mapping := range statusMappings {
-			if strings.Contains(errorMsg, prefix) {
-				statusCode = mapping.code
-				logLevel = mapping.level
-				parts := strings.Split(errorMsg, prefix)
-				if len(parts) > 1 {
-					// Try to parse the JSON error for better formatting
-					var logtoError map[string]interface{}
-					if json.Unmarshal([]byte(parts[1]), &logtoError) == nil {
-						detailedError = logtoError
-					} else {
-						detailedError = parts[1]
-					}
-				}
-				break
-			}
-		}
-
-		// If no status prefix found, default to internal server error
-		if statusCode == 0 {
-			statusCode = http.StatusInternalServerError
-			logLevel = "error"
-			detailedError = errorMsg
-		}
-
-		// Log with appropriate level and status code
-		if logLevel == "error" {
-			logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "update_account_logto", statusCode, "Failed to update account in Logto")
+		service := services.NewLocalUserService()
+		if canUpdateUser, reason := service.CanUpdateUser(userOrgRole, user.OrganizationID, targetOrgID); canUpdateUser {
+			canUpdate = true
 		} else {
-			logger.RequestLogger(c, "accounts").Warn().
-				Err(err).
-				Str("operation", "update_account_logto").
-				Int("logto_status_code", statusCode).
-				Str("user_message", "Failed to update account in Logto").
-				Msg("Logto API returned client error")
-		}
-
-		// Use standardized external API error response with consistent message for validation errors
-		message := "failed to update account"
-		if statusCode == http.StatusBadRequest {
-			message = "validation failed"
-		}
-
-		// Create context with field values for better error reporting
-		context := map[string]interface{}{
-			"phone": request.Phone,
-		}
-
-		c.JSON(statusCode, response.ExternalAPIErrorWithContext(statusCode, message, detailedError, context))
-		return
-	}
-
-	// Synchronize user roles in Logto when UserRoleIDs field is present (even if empty)
-	if request.UserRoleIDs != nil {
-		err := synchronizeUserRoles(client, accountID, *request.UserRoleIDs)
-		if err != nil {
-			logger.RequestLogger(c, "accounts").Error().
-				Err(err).
-				Str("operation", "synchronize_user_roles").
-				Str("account_id", accountID).
-				Interface("requested_role_ids", *request.UserRoleIDs).
-				Msg("Failed to synchronize user roles with Logto")
-			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to synchronize user roles", err.Error()))
+			c.JSON(http.StatusForbidden, response.Forbidden("access denied: "+reason, nil))
 			return
 		}
 	}
 
-	// Invalidate organization users cache to ensure fresh data on next request
-	cacheManager := cache.GetOrgUsersCacheManager()
-	if targetOrg != nil {
-		cacheManager.Clear(targetOrg.ID)
-	}
-	// Also clear cache for the updated organization if it changed
-	if request.OrganizationID != "" && (targetOrg == nil || targetOrg.ID != request.OrganizationID) {
-		cacheManager.Clear(request.OrganizationID)
-	}
-
-	logger.LogAccountOperation(c, "update", accountID, "", currentUserID.(string), currentUserOrgID.(string), true, nil)
-
-	// Convert to response format
-	accountResponse := convertLogtoUserToAccountResponse(*updatedAccount, nil)
-
-	c.JSON(http.StatusOK, response.OK("account updated successfully", accountResponse))
-}
-
-// DeleteAccount handles DELETE /api/accounts/:id - deletes an account
-func DeleteAccount(c *gin.Context) {
-	accountID := c.Param("id")
-	if accountID == "" {
-		c.JSON(http.StatusBadRequest, response.BadRequest("account ID required", nil))
+	if !canUpdate {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied to update account", nil))
 		return
 	}
 
-	currentUserID, _ := c.Get("user_id")
-	currentUserOrgID, _ := c.Get("organization_id")
-	currentUserOrgRole, _ := c.Get("org_role")
-	currentUserRoles, _ := c.Get("user_roles")
+	// Create service
+	service := services.NewLocalUserService()
 
-	// Validate required user context
-	if currentUserOrgRole == nil || currentUserOrgID == nil || currentUserRoles == nil {
-		logger.NewHTTPErrorLogger(c, "accounts").LogError(fmt.Errorf("missing user context"), "validate_user_context", http.StatusUnauthorized, "Missing required user context in JWT token")
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("incomplete user context in token", nil))
-		return
-	}
-
-	// Extract user role from array (Admin role is required for account operations)
-	userRolesSlice := currentUserRoles.([]string)
-	var currentUserRole string
-	for _, role := range userRolesSlice {
-		if role == "Admin" {
-			currentUserRole = "Admin"
-			break
-		}
-	}
-	if currentUserRole == "" {
-		logger.NewHTTPErrorLogger(c, "accounts").LogError(fmt.Errorf("insufficient permissions"), "check_admin_role", http.StatusForbidden, "User does not have Admin role required for account operations")
-		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to delete accounts", nil))
-		return
-	}
-
-	client := services.NewLogtoManagementClient()
-
-	// Get account data for logging before deletion
-	currentAccount, err := client.GetUserByID(accountID)
+	// Update account
+	account, err := service.UpdateUser(accountID, &request, user.ID, user.OrganizationID)
 	if err != nil {
-		logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "fetch_account_for_deletion", http.StatusInternalServerError, "Failed to fetch account for deletion")
-		c.JSON(http.StatusNotFound, response.NotFound("account not found", nil))
-		return
-	}
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("account_id", accountID).
+			Msg("Failed to update account")
 
-	// Get target account's organization to validate permissions
-	var targetOrg *models.LogtoOrganization
-	if currentAccount.CustomData != nil {
-		if orgID, ok := currentAccount.CustomData["organizationId"].(string); ok {
-			targetOrg, err = client.GetOrganizationByID(orgID)
-			if err != nil {
-				logger.RequestLogger(c, "accounts").Warn().
-					Err(err).
-					Str("operation", "fetch_target_organization").
-					Msg("Failed to fetch target organization")
-			}
-		}
-	}
-
-	// Prevent self-deletion - critical security check
-	if currentUserID.(string) == accountID {
-		logger.LogAccountOperation(c, "delete_denied_self", accountID, "", currentUserID.(string), currentUserOrgID.(string), false, fmt.Errorf("attempted self-deletion"))
-		c.JSON(http.StatusForbidden, response.Forbidden("cannot delete your own account", "self-deletion is not allowed for security reasons"))
-		return
-	}
-
-	// Validate hierarchical permissions
-	canOperate, reason := CanOperateOnAccount(
-		currentUserOrgRole.(string),
-		currentUserOrgID.(string),
-		currentUserRole,
-		currentAccount,
-		targetOrg,
-	)
-
-	if !canOperate {
-		logger.LogAccountOperation(c, "delete_denied", accountID, "", currentUserID.(string), currentUserOrgID.(string), false, fmt.Errorf("insufficient permissions: %s", reason))
-		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to delete this account", reason))
-		return
-	}
-
-	// Delete the account from Logto
-	if err := client.DeleteUser(accountID); err != nil {
-		logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "delete_account_logto", http.StatusInternalServerError, "Failed to delete account from Logto")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to delete account", err.Error()))
-		return
-	}
-
-	// Invalidate organization users cache to ensure fresh data on next request
-	cacheManager := cache.GetOrgUsersCacheManager()
-	if targetOrg != nil {
-		cacheManager.Clear(targetOrg.ID)
-	}
-
-	logger.LogAccountOperation(c, "delete", accountID, "", currentUserID.(string), currentUserOrgID.(string), true, nil)
-	c.JSON(http.StatusOK, response.OK("account deleted successfully", gin.H{
-		"id":        accountID,
-		"name":      currentAccount.Name,
-		"deletedAt": time.Now(),
-	}))
-}
-
-// Helper function to convert LogtoUser to AccountResponse
-func convertLogtoUserToAccountResponse(account models.LogtoUser, org *models.LogtoOrganization) models.AccountResponse {
-	var lastSignInAt *time.Time
-	if account.LastSignInAt != nil && *account.LastSignInAt != 0 {
-		t := time.Unix(*account.LastSignInAt/1000, 0)
-		lastSignInAt = &t
-	}
-
-	accountResponse := models.AccountResponse{
-		ID:           account.ID,
-		Username:     account.Username,
-		Email:        account.PrimaryEmail,
-		Name:         account.Name,
-		Phone:        account.PrimaryPhone,
-		Avatar:       account.Avatar,
-		IsSuspended:  account.IsSuspended,
-		LastSignInAt: lastSignInAt,
-		CreatedAt:    time.Unix(account.CreatedAt/1000, 0),
-		UpdatedAt:    time.Unix(account.UpdatedAt/1000, 0),
-	}
-
-	// Extract data from custom data
-	if account.CustomData != nil {
-		if userRoleIds, ok := account.CustomData["userRoleIds"].([]interface{}); ok {
-			// Convert []interface{} to []string
-			var roleIDs []string
-			for _, roleID := range userRoleIds {
-				if roleIDStr, ok := roleID.(string); ok {
-					roleIDs = append(roleIDs, roleIDStr)
-				}
-			}
-			accountResponse.UserRoleIDs = roleIDs
-		}
-		if orgID, ok := account.CustomData["organizationId"].(string); ok {
-			accountResponse.OrganizationID = orgID
-		}
-		if orgRole, ok := account.CustomData["organizationRole"].(string); ok {
-			accountResponse.OrganizationRole = orgRole
+		// Check if it's a validation error from Logto
+		if validationErr := getValidationError(err); validationErr != nil {
+			c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", validationErr.ErrorData.Errors))
+			return
 		}
 
-		// Extract custom data (excluding reserved fields and temporary internal fields)
-		customData := make(map[string]interface{})
-		for k, v := range account.CustomData {
-			if k != "userRoleIds" && k != "userRoleId" && k != "organizationId" && k != "organizationRole" && k != "createdBy" && k != "createdAt" && k != "updatedBy" && k != "updatedAt" && k != "__org_id" && k != "__org_name" {
-				customData[k] = v
-			}
-		}
-		accountResponse.CustomData = customData
-	}
-
-	// Set organization name if provided
-	if org != nil {
-		accountResponse.OrganizationName = org.Name
-	}
-
-	return accountResponse
-}
-
-// ResetAccountPassword handles PATCH /api/accounts/:id/password - resets an account's password
-func ResetAccountPassword(c *gin.Context) {
-	accountID := c.Param("id")
-	if accountID == "" {
-		c.JSON(http.StatusBadRequest, response.BadRequest("account ID required", nil))
-		return
-	}
-
-	var request models.PasswordResetRequest
-	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
-		return
-	}
-
-	currentUserID, _ := c.Get("user_id")
-	currentUserOrgID, _ := c.Get("organization_id")
-	currentUserOrgRole, _ := c.Get("org_role")
-	currentUserRoles, _ := c.Get("user_roles")
-
-	// Validate required user context
-	if currentUserOrgRole == nil || currentUserOrgID == nil || currentUserRoles == nil {
-		logger.NewHTTPErrorLogger(c, "accounts").LogError(fmt.Errorf("missing user context"), "validate_user_context", http.StatusUnauthorized, "Missing required user context in JWT token")
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("incomplete user context in token", nil))
-		return
-	}
-
-	// Extract user role from array (Admin role is required for password reset)
-	userRolesSlice := currentUserRoles.([]string)
-	var currentUserRole string
-	for _, role := range userRolesSlice {
-		if role == "Admin" {
-			currentUserRole = "Admin"
-			break
-		}
-	}
-	if currentUserRole == "" {
-		logger.NewHTTPErrorLogger(c, "accounts").LogError(fmt.Errorf("insufficient permissions"), "check_admin_role", http.StatusForbidden, "User does not have Admin role required for password reset")
-		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to reset account passwords", nil))
-		return
-	}
-
-	client := services.NewLogtoManagementClient()
-
-	// Get current account data to validate permissions
-	currentAccount, err := client.GetUserByID(accountID)
-	if err != nil {
-		logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "fetch_account", http.StatusInternalServerError, "Failed to fetch account")
-		c.JSON(http.StatusNotFound, response.NotFound("account not found", nil))
-		return
-	}
-
-	// Get target account's organization to validate permissions
-	var targetOrg *models.LogtoOrganization
-	if currentAccount.CustomData != nil {
-		if orgID, ok := currentAccount.CustomData["organizationId"].(string); ok {
-			targetOrg, err = client.GetOrganizationByID(orgID)
-			if err != nil {
-				logger.RequestLogger(c, "accounts").Warn().
-					Err(err).
-					Str("operation", "fetch_target_organization").
-					Msg("Failed to fetch target organization")
-			}
-		}
-	}
-
-	// Validate password strength
-	isValidPassword, passwordErrors := validation.ValidatePasswordStrength(request.Password)
-	if !isValidPassword {
-		logger.RequestLogger(c, "accounts").Warn().
-			Str("operation", "validate_password_reset").
-			Interface("violations", passwordErrors).
-			Msg("Password validation failed for reset")
-		var validationErrors []response.ValidationError
-		for _, err := range passwordErrors {
-			validationErrors = append(validationErrors, response.ValidationError{
-				Key:     "password",
-				Message: err,
-				Value:   request.Password,
-			})
-		}
-		c.JSON(http.StatusBadRequest, response.BadRequest("validation failed", response.ErrorData{
-			Type:   "validation_error",
-			Errors: validationErrors,
+		// Default to internal server error
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to update account", map[string]interface{}{
+			"error": err.Error(),
 		}))
 		return
 	}
 
-	// Validate hierarchical permissions
-	canOperate, reason := CanOperateOnAccount(
-		currentUserOrgRole.(string),
-		currentUserOrgID.(string),
-		currentUserRole,
-		currentAccount,
-		targetOrg,
-	)
+	// Log the action
+	logger.LogBusinessOperation(c, "accounts", "update", "account", accountID, true, nil)
 
-	if !canOperate {
-		logger.LogAccountOperation(c, "password_reset_denied", accountID, "", currentUserID.(string), currentUserOrgID.(string), false, fmt.Errorf("insufficient permissions: %s", reason))
-		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to reset password for this account", reason))
+	// Return success response
+	c.JSON(http.StatusOK, response.OK("account updated successfully", account))
+}
+
+// DeleteAccount handles DELETE /api/accounts/:id - soft-deletes a user account locally and syncs to Logto
+func DeleteAccount(c *gin.Context) {
+	// Get account ID from URL parameter
+	accountID := c.Param("id")
+	if accountID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("account ID required", nil))
 		return
 	}
 
-	// Update the password in Logto
-	if err := client.UpdateUserPassword(accountID, request.Password); err != nil {
-		logger.NewHTTPErrorLogger(c, "accounts").LogError(err, "update_password_logto", http.StatusInternalServerError, "Failed to update password in Logto")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to update password", err.Error()))
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
 		return
 	}
 
-	logger.LogAccountOperation(c, "password_reset", accountID, "", currentUserID.(string), currentUserOrgID.(string), true, nil)
+	// Users cannot delete themselves
+	if accountID == user.ID {
+		c.JSON(http.StatusForbidden, response.Forbidden("users cannot delete their own account", nil))
+		return
+	}
 
+	// Get current account for RBAC validation
+	repo := repositories.NewLocalUserRepository()
+	currentAccount, err := repo.GetByID(accountID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("account not found", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("account_id", accountID).
+			Msg("Failed to get account for delete validation")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get account", nil))
+		return
+	}
+
+	// Apply RBAC validation
+	targetOrgID := ""
+	if currentAccount.OrganizationID != nil {
+		targetOrgID = *currentAccount.OrganizationID
+	}
+
+	userOrgRole := strings.ToLower(user.OrgRole)
+	service := services.NewLocalUserService()
+
+	if canDelete, reason := service.CanDeleteUser(userOrgRole, user.OrganizationID, targetOrgID); !canDelete {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied: "+reason, nil))
+		return
+	}
+
+	// Delete account
+	err = service.DeleteUser(accountID, user.ID, user.OrganizationID)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("account_id", accountID).
+			Msg("Failed to delete account")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to delete account", map[string]interface{}{
+			"error": err.Error(),
+		}))
+		return
+	}
+
+	// Log the action
+	logger.LogBusinessOperation(c, "accounts", "delete", "account", accountID, true, nil)
+
+	// Return success response
+	c.JSON(http.StatusOK, response.OK("account deleted successfully", nil))
+}
+
+// ResetAccountPassword handles PATCH /api/accounts/:id/password - resets account password
+func ResetAccountPassword(c *gin.Context) {
+	// Get account ID from URL parameter
+	accountID := c.Param("id")
+	if accountID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("account ID required", nil))
+		return
+	}
+
+	// Parse request body for password (as per OpenAPI spec)
+	var request struct {
+		Password string `json:"password"`
+	}
+	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
+		c.JSON(http.StatusBadRequest, response.BadRequest("Invalid request body", nil))
+		return
+	}
+
+	// Validate password using our secure validator
+	isValid, errorCodes := validation.ValidatePasswordStrength(request.Password)
+	if !isValid {
+		c.JSON(http.StatusBadRequest, response.PasswordValidationBadRequest(errorCodes))
+		return
+	}
+
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Get target account for RBAC validation
+	repo := repositories.NewLocalUserRepository()
+	targetAccount, err := repo.GetByID(accountID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("account not found", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("account_id", accountID).
+			Msg("Failed to get account for password reset")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get account", nil))
+		return
+	}
+
+	// Apply RBAC validation - similar to update but more restrictive
+	userOrgRole := strings.ToLower(user.OrgRole)
+	canReset := false
+
+	// Users can reset their own password
+	if accountID == user.ID {
+		canReset = true
+	} else {
+		// Only higher-level roles can reset other users' passwords
+		targetOrgID := ""
+		if targetAccount.OrganizationID != nil {
+			targetOrgID = *targetAccount.OrganizationID
+		}
+
+		switch userOrgRole {
+		case "owner":
+			canReset = true
+		case "distributor":
+			// Distributor can reset passwords in organizations they manage
+			if targetOrgID == user.OrganizationID {
+				canReset = true
+			}
+		case "reseller":
+			// Reseller can reset passwords in their organization
+			if targetOrgID == user.OrganizationID {
+				canReset = true
+			}
+		}
+	}
+
+	if !canReset {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied to reset password", nil))
+		return
+	}
+
+	// Check if user is synced to Logto
+	if targetAccount.LogtoID == nil {
+		c.JSON(http.StatusBadRequest, response.BadRequest("account not synced to Logto", nil))
+		return
+	}
+
+	// Create service and reset password using Logto ID
+	service := services.NewLocalUserService()
+	err = service.ResetUserPassword(*targetAccount.LogtoID, request.Password)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("account_id", accountID).
+			Str("logto_user_id", *targetAccount.LogtoID).
+			Msg("Failed to reset account password")
+
+		// Check if it's a validation error from Logto (same as other endpoints)
+		if validationErr := getValidationError(err); validationErr != nil {
+			c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", validationErr.ErrorData.Errors))
+			return
+		}
+
+		// Default to internal server error for non-validation errors
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to reset password", map[string]interface{}{
+			"error": err.Error(),
+		}))
+		return
+	}
+
+	// Log the action
+	logger.LogBusinessOperation(c, "accounts", "password_reset", "account", accountID, true, nil)
+
+	// Return success response
 	c.JSON(http.StatusOK, response.OK("password reset successfully", nil))
 }
 
-// synchronizeUserRoles ensures user roles are properly synchronized with Logto
-func synchronizeUserRoles(client *services.LogtoManagementClient, userID string, targetRoleIDs []string) error {
-	// Get current user roles from Logto
-	currentRoles, err := client.GetUserRoles(userID)
-	if err != nil {
-		return fmt.Errorf("failed to get current user roles: %w", err)
+// getValidationError checks if the error chain contains a ValidationError and returns it
+func getValidationError(err error) *services.ValidationError {
+	var validationErr *services.ValidationError
+	if errors.As(err, &validationErr) {
+		return validationErr
 	}
-
-	// Extract current role IDs
-	currentRoleIDs := make([]string, len(currentRoles))
-	for i, role := range currentRoles {
-		currentRoleIDs[i] = role.ID
-	}
-
-	// Check if roles are already synchronized
-	if areRolesSynchronized(currentRoleIDs, targetRoleIDs) {
-		return nil
-	}
-
-	// Remove all current roles
-	if len(currentRoleIDs) > 0 {
-		if err := client.RemoveUserRoles(userID, currentRoleIDs); err != nil {
-			return fmt.Errorf("failed to remove current user roles: %w", err)
-		}
-	}
-
-	// Assign new roles if provided
-	if len(targetRoleIDs) > 0 {
-		if err := client.AssignUserRoles(userID, targetRoleIDs); err != nil {
-			return fmt.Errorf("failed to assign new user roles: %w", err)
-		}
-	}
-
 	return nil
-}
-
-// areRolesSynchronized checks if two sets of role IDs are identical (ignoring order)
-func areRolesSynchronized(current, target []string) bool {
-	if len(current) != len(target) {
-		return false
-	}
-
-	// Create map for efficient lookup
-	currentMap := make(map[string]bool)
-	for _, roleID := range current {
-		currentMap[roleID] = true
-	}
-
-	// Check if all target roles are present
-	for _, roleID := range target {
-		if !currentMap[roleID] {
-			return false
-		}
-	}
-
-	return true
 }

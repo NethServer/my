@@ -177,6 +177,11 @@ type UpdateOrganizationRequest struct {
 	IsMfaRequired *bool                  `json:"isMfaRequired,omitempty"`
 }
 
+// CreateOrganizationJitRolesRequest represents a request to configure JIT roles for an organization
+type CreateOrganizationJitRolesRequest struct {
+	OrganizationRoleIds []string `json:"organizationRoleIds"`
+}
+
 // CreateUserRequest represents a request to create a user
 type CreateUserRequest struct {
 	Username     string                 `json:"username" binding:"required"`
