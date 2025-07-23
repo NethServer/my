@@ -35,7 +35,7 @@ func MockOwnerUser() *models.User {
 		"demo-org",
 		[]string{"Admin"},
 		[]string{"Owner"},
-		[]string{"manage:systems", "manage:accounts", "manage:organizations"},
+		[]string{"manage:systems", "manage:users", "manage:organizations"},
 		[]string{"manage:all"},
 	)
 }
@@ -47,7 +47,7 @@ func MockDistributorAdmin() *models.User {
 		"distributor-org",
 		[]string{"Admin"},
 		[]string{"Distributor"},
-		[]string{"manage:systems", "manage:accounts"},
+		[]string{"manage:systems", "manage:users"},
 		[]string{"manage:resellers", "manage:customers"},
 	)
 }
@@ -59,7 +59,7 @@ func MockResellerAdmin() *models.User {
 		"reseller-org",
 		[]string{"Admin"},
 		[]string{"Reseller"},
-		[]string{"manage:systems", "manage:accounts"},
+		[]string{"manage:systems", "manage:users"},
 		[]string{"manage:customers"},
 	)
 }
@@ -88,8 +88,8 @@ func MockSupportUser() *models.User {
 	)
 }
 
-// MockCreateAccountRequest creates a test account creation request
-func MockCreateAccountRequest() map[string]interface{} {
+// MockCreateUserRequest creates a test user creation request
+func MockCreateUserRequest() map[string]interface{} {
 	return map[string]interface{}{
 		"username":         "new-user",
 		"email":            "newuser@example.com",

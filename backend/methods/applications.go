@@ -16,7 +16,7 @@ import (
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
-	"github.com/nethesis/my/backend/services"
+	"github.com/nethesis/my/backend/services/logto"
 )
 
 // GetApplications handles GET /api/applications
@@ -42,7 +42,7 @@ func GetApplications(c *gin.Context) {
 		Msg("Fetching applications for user")
 
 	// Create Logto client
-	client := services.NewLogtoManagementClient()
+	client := logto.NewManagementClient()
 
 	// Fetch all third-party applications from Logto
 	logtoApplications, err := client.GetThirdPartyApplications()
@@ -75,7 +75,7 @@ func GetApplications(c *gin.Context) {
 		Msg("User roles for application filtering")
 
 	// Filter applications based on user's roles
-	filteredLogtoApps := services.FilterApplicationsByAccess(logtoApplications, organizationRoles, userRoles)
+	filteredLogtoApps := logto.FilterApplicationsByAccess(logtoApplications, organizationRoles, userRoles)
 
 	// Convert filtered applications to our response model
 	var responseApplications []models.ThirdPartyApplication
@@ -99,7 +99,7 @@ func GetApplications(c *gin.Context) {
 		}
 
 		// Convert to our response model
-		convertedApp := app.ToThirdPartyApplication(branding, scopes, services.GenerateOAuth2LoginURL)
+		convertedApp := app.ToThirdPartyApplication(branding, scopes, logto.GenerateOAuth2LoginURL)
 		responseApplications = append(responseApplications, *convertedApp)
 	}
 

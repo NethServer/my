@@ -15,9 +15,9 @@ import (
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
-	"github.com/nethesis/my/backend/repositories"
+	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/response"
-	"github.com/nethesis/my/backend/services"
+	"github.com/nethesis/my/backend/services/local"
 )
 
 // CreateCustomer handles POST /api/customers - creates a new customer locally and syncs to Logto
@@ -36,7 +36,7 @@ func CreateCustomer(c *gin.Context) {
 	}
 
 	// Create service
-	service := services.NewLocalOrganizationService()
+	service := local.NewOrganizationService()
 
 	// Validate permissions
 	userOrgRole := strings.ToLower(user.OrgRole)
@@ -90,7 +90,7 @@ func GetCustomer(c *gin.Context) {
 	}
 
 	// Get customer
-	repo := repositories.NewLocalCustomerRepository()
+	repo := entities.NewLocalCustomerRepository()
 	customer, err := repo.GetByID(customerID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
@@ -162,7 +162,7 @@ func GetCustomers(c *gin.Context) {
 	page, pageSize := helpers.GetPaginationFromQuery(c)
 
 	// Create service
-	service := services.NewLocalOrganizationService()
+	service := local.NewOrganizationService()
 
 	// Get customers based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
@@ -214,7 +214,7 @@ func UpdateCustomer(c *gin.Context) {
 	}
 
 	// Apply hierarchical RBAC validation using service layer
-	userService := services.NewLocalUserService()
+	userService := local.NewUserService()
 	userOrgRole := strings.ToLower(user.OrgRole)
 	canUpdate := false
 
@@ -237,7 +237,7 @@ func UpdateCustomer(c *gin.Context) {
 	}
 
 	// Create service
-	service := services.NewLocalOrganizationService()
+	service := local.NewOrganizationService()
 
 	// Update customer
 	customer, err := service.UpdateCustomer(customerID, &request, user.ID, user.OrganizationID)
@@ -284,7 +284,7 @@ func DeleteCustomer(c *gin.Context) {
 	}
 
 	// Apply hierarchical RBAC validation - only creators and above can delete
-	userService := services.NewLocalUserService()
+	userService := local.NewUserService()
 	userOrgRole := strings.ToLower(user.OrgRole)
 	canDelete := false
 
@@ -302,7 +302,7 @@ func DeleteCustomer(c *gin.Context) {
 	}
 
 	// Create service
-	service := services.NewLocalOrganizationService()
+	service := local.NewOrganizationService()
 
 	// Delete customer
 	err := service.DeleteCustomer(customerID, user.ID, user.OrganizationID)

@@ -14,12 +14,12 @@ import (
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
-	"github.com/nethesis/my/backend/services"
+	"github.com/nethesis/my/backend/services/logto"
 )
 
 // GetRoles returns all available user roles
 func GetRoles(c *gin.Context) {
-	client := services.NewLogtoManagementClient()
+	client := logto.NewManagementClient()
 
 	// Fetch all roles from Logto
 	logtoRoles, err := client.GetAllRoles()
@@ -56,7 +56,7 @@ func GetRoles(c *gin.Context) {
 
 // GetOrganizationRoles returns all available organization roles
 func GetOrganizationRoles(c *gin.Context) {
-	client := services.NewLogtoManagementClient()
+	client := logto.NewManagementClient()
 
 	// Fetch all organization roles from Logto
 	logtoOrgRoles, err := client.GetAllOrganizationRoles()

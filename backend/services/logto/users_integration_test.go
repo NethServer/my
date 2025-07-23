@@ -1,4 +1,4 @@
-package services
+package logto
 
 import (
 	"encoding/json"
@@ -128,7 +128,7 @@ func TestLogtoManagementClient_GetUserByID(t *testing.T) {
 				configuration.Config.LogtoManagementBaseURL = originalBaseURL
 			}()
 
-			client := NewLogtoManagementClient()
+			client := NewManagementClient()
 			user, err := client.GetUserByID(tt.userID)
 
 			if tt.expectError {
@@ -301,7 +301,7 @@ func TestLogtoManagementClient_CreateUser(t *testing.T) {
 				configuration.Config.LogtoManagementBaseURL = originalBaseURL
 			}()
 
-			client := NewLogtoManagementClient()
+			client := NewManagementClient()
 			user, err := client.CreateUser(tt.request)
 
 			if tt.expectError {
@@ -471,7 +471,7 @@ func TestLogtoManagementClient_UpdateUser(t *testing.T) {
 				configuration.Config.LogtoManagementBaseURL = originalBaseURL
 			}()
 
-			client := NewLogtoManagementClient()
+			client := NewManagementClient()
 			user, err := client.UpdateUser(tt.userID, tt.request)
 
 			if tt.expectError {
@@ -572,7 +572,7 @@ func TestLogtoManagementClient_DeleteUser(t *testing.T) {
 				configuration.Config.LogtoManagementBaseURL = originalBaseURL
 			}()
 
-			client := NewLogtoManagementClient()
+			client := NewManagementClient()
 			err := client.DeleteUser(tt.userID)
 
 			if tt.expectError {

@@ -18,9 +18,9 @@ import (
 
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
-	"github.com/nethesis/my/backend/repositories"
+	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/response"
-	"github.com/nethesis/my/backend/services"
+	"github.com/nethesis/my/backend/services/local"
 )
 
 // GetSystemsTotals returns the total count of systems and their liveness status based on heartbeat data
@@ -47,7 +47,7 @@ func GetSystemsTotals(c *gin.Context) {
 	}
 
 	// Use local repository for fast totals
-	repo := repositories.NewLocalSystemRepository()
+	repo := entities.NewLocalSystemRepository()
 	totals, err := repo.GetTotals(strings.ToLower(userOrgRole), userOrgID, timeoutMinutes)
 	if err != nil {
 		logger.Error().
@@ -93,7 +93,7 @@ func GetDistributorsTotals(c *gin.Context) {
 	}
 
 	// Use local repository for fast totals
-	repo := repositories.NewLocalDistributorRepository()
+	repo := entities.NewLocalDistributorRepository()
 	count, err := repo.GetTotals(strings.ToLower(userOrgRole), userOrgID)
 	if err != nil {
 		logger.Error().
@@ -130,7 +130,7 @@ func GetResellersTotals(c *gin.Context) {
 	}
 
 	// Use local repository for fast totals
-	repo := repositories.NewLocalResellerRepository()
+	repo := entities.NewLocalResellerRepository()
 	count, err := repo.GetTotals(strings.ToLower(userOrgRole), userOrgID)
 	if err != nil {
 		logger.Error().
@@ -165,7 +165,7 @@ func GetCustomersTotals(c *gin.Context) {
 		return
 	}
 
-	repo := repositories.NewLocalCustomerRepository()
+	repo := entities.NewLocalCustomerRepository()
 	count, err := repo.GetTotals(strings.ToLower(userOrgRole), userOrgID)
 	if err != nil {
 		logger.Error().Str("component", "totals").Str("operation", "get_customers").Err(err).Msg("failed to retrieve customers totals")
@@ -178,23 +178,23 @@ func GetCustomersTotals(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("customers totals retrieved", result))
 }
 
-// GetAccountsTotals returns the total count of user accounts accessible to the user
-func GetAccountsTotals(c *gin.Context) {
+// GetUsersTotals returns the total count of user accounts accessible to the user
+func GetUsersTotals(c *gin.Context) {
 	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
 	if userID == "" {
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
 		return
 	}
 
-	service := services.NewLocalUserService()
+	service := local.NewUserService()
 	count, err := service.GetTotals(strings.ToLower(userOrgRole), userOrgID)
 	if err != nil {
-		logger.Error().Str("component", "totals").Str("operation", "get_accounts").Err(err).Msg("failed to retrieve accounts totals")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve accounts totals", nil))
+		logger.Error().Str("component", "totals").Str("operation", "get_users").Err(err).Msg("failed to retrieve users totals")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve users totals", nil))
 		return
 	}
 
 	result := map[string]interface{}{"total": count}
-	logger.Info().Str("component", "totals").Str("operation", "accounts_totals").Str("user_org_id", userOrgID).Str("user_org_role", userOrgRole).Int("total", count).Msg("accounts totals retrieved")
-	c.JSON(http.StatusOK, response.OK("accounts totals retrieved", result))
+	logger.Info().Str("component", "totals").Str("operation", "users_totals").Str("user_org_id", userOrgID).Str("user_org_role", userOrgRole).Int("total", count).Msg("users totals retrieved")
+	c.JSON(http.StatusOK, response.OK("users totals retrieved", result))
 }
