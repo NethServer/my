@@ -78,7 +78,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
       title: t('error_modal.request_failed'),
       description: getErrorDescription(axiosError),
       timestamp: new Date(),
-      payload: axiosError,
+      payload: { axiosError: axiosError, responseData: axiosError.response?.data },
       primaryLabel: t('notifications.show_details'),
       secondaryLabel: t('error_modal.copy_command'),
     }
@@ -121,12 +121,12 @@ export const useNotificationsStore = defineStore('notifications', () => {
 
   const copyCommandToClipboard = (notification: NeNotification) => {
     const jwtToken = useLoginStore().jwtToken
-    const url = notification.payload.config.url
+    const url = notification.payload.axiosError?.config.url
     const tokenChunk = jwtToken ? `-H 'Authorization: Bearer ${jwtToken}'` : ''
-    const data = notification.payload.config.data
+    const data = notification.payload.axiosError?.config.data
     const dataChunk = data ? `-d ${JSON.stringify(data)}` : ''
 
-    const curlCommand = `curl -X ${notification.payload.config.method.toUpperCase()} '${url}' --insecure -H 'Content-Type: application/json' ${tokenChunk} ${dataChunk}`
+    const curlCommand = `curl -X ${notification.payload.axiosError?.config.method.toUpperCase()} '${url}' --insecure -H 'Content-Type: application/json' ${tokenChunk} ${dataChunk}`
     navigator.clipboard.writeText(curlCommand)
   }
 

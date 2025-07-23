@@ -17,14 +17,28 @@ const isExpandedRequest = ref(false)
 const isExpandedResponse = ref(false)
 
 // just a shortcut
-const axiosError = computed(() => {
+const notification = computed(() => {
   return notificationsStore.axiosErrorNotificationToShow
 })
 
 const callFailed = computed(() => {
-  const httpMethod = axiosError.value?.payload.config.method.toUpperCase()
-  const apiUrl = axiosError.value?.payload.config.url
+  const httpMethod = notification.value?.payload.axiosError?.config?.method.toUpperCase()
+  const apiUrl = notification.value?.payload.axiosError?.config?.url
   return `${httpMethod} ${apiUrl}`
+})
+
+const response = computed(() => {
+  const errorCode =
+    notification.value?.payload.responseData?.code ||
+    notification.value?.payload.axiosError?.status ||
+    ''
+
+  const message =
+    notification.value?.payload.responseData?.message ||
+    notification.value?.payload.axiosError?.message ||
+    t('error_modal.unknown_error')
+
+  return `${errorCode} ${message}`
 })
 
 watch(
@@ -35,14 +49,14 @@ watch(
       isExpandedResponse.value = false
 
       // print the error object on the console
-      console.info(toRaw(axiosError.value?.payload))
+      console.info(toRaw(notification.value?.payload))
     }
   },
 )
 
 function copyCommandToClipboard() {
-  if (axiosError.value) {
-    notificationsStore.copyCommandToClipboard(axiosError.value)
+  if (notification.value) {
+    notificationsStore.copyCommandToClipboard(notification.value)
     justCopied.value = true
 
     setTimeout(() => {
@@ -55,7 +69,7 @@ function copyCommandToClipboard() {
   <NeModal
     size="lg"
     :primary-label="t('common.close')"
-    :title="axiosError ? axiosError.title : ''"
+    :title="notification ? notification.title : ''"
     :visible="notificationsStore.isAxiosErrorModalOpen"
     :close-aria-label="t('common.close')"
     cancel-label=""
@@ -70,6 +84,15 @@ function copyCommandToClipboard() {
         </NeFormItemLabel>
         <div class="font-mono break-all">
           {{ callFailed }}
+        </div>
+      </div>
+      <div>
+        <!-- error code and response message -->
+        <NeFormItemLabel class="mb-1!">
+          {{ t('error_modal.response') }}
+        </NeFormItemLabel>
+        <div class="font-mono break-all">
+          {{ response }}
         </div>
       </div>
       <div>

@@ -66,7 +66,9 @@
     "copy_the_command": "Copy the command",
     "report_issue_step_1": "{copyTheCommand} that failed",
     "report_issue_step_2": "Paste the command on a shell and execute it",
-    "report_issue_step_3": "Report the issue, ensuring to provide both the command and its corresponding output"
+    "report_issue_step_3": "Report the issue, ensuring to provide both the command and its corresponding output",
+    "response": "Response:",
+    "unknown_error": "Unknown error"
   },
   "dashboard": {
     "title": "Dashboard",
