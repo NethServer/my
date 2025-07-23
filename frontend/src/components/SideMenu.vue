@@ -52,44 +52,45 @@ const navigation = computed(() => {
     { name: 'dashboard.title', to: 'dashboard', solidIcon: fasHouse, lightIcon: falHouse },
   ]
 
-  if (loginStore.userInfo?.orgRole) {
-    if (loginStore.userInfo.orgRole === 'Owner') {
-      menuItems.push({
-        name: 'distributors.title',
-        to: 'distributors',
-        solidIcon: fasGlobe,
-        lightIcon: falGlobe,
-      })
-    }
+  //// uncomment
+  // if (loginStore.userInfo?.orgRole) {
+  //   if (loginStore.userInfo.orgRole === 'Owner') {
+  menuItems.push({
+    name: 'distributors.title',
+    to: 'distributors',
+    solidIcon: fasGlobe,
+    lightIcon: falGlobe,
+  })
+  // } ////
 
-    if (['Owner', 'Distributor'].includes(loginStore.userInfo.orgRole)) {
-      menuItems.push({
-        name: 'resellers.title',
-        to: 'resellers',
-        solidIcon: fasCity,
-        lightIcon: falCity,
-      })
-    }
+  // if (['Owner', 'Distributor'].includes(loginStore.userInfo.orgRole)) { ////
+  menuItems.push({
+    name: 'resellers.title',
+    to: 'resellers',
+    solidIcon: fasCity,
+    lightIcon: falCity,
+  })
+  // } ////
 
-    if (['Owner', 'Distributor', 'Reseller'].includes(loginStore.userInfo.orgRole)) {
-      menuItems.push({
-        name: 'customers.title',
-        to: 'customers',
-        solidIcon: fasBuilding,
-        lightIcon: falBuilding,
-      })
-    }
-  }
+  // if (['Owner', 'Distributor', 'Reseller'].includes(loginStore.userInfo.orgRole)) { ////
+  menuItems.push({
+    name: 'customers.title',
+    to: 'customers',
+    solidIcon: fasBuilding,
+    lightIcon: falBuilding,
+  })
+  // } ////
+  // } ////
 
   // users menu item
-  if (loginStore.userInfo?.userRoles && loginStore.userInfo.userRoles.includes('Admin')) {
-    menuItems.push({
-      name: 'users.title',
-      to: 'users',
-      solidIcon: fasUserGroup,
-      lightIcon: falUserGroup,
-    })
-  }
+  // if (loginStore.userInfo?.userRoles && loginStore.userInfo.userRoles.includes('Admin')) { ////
+  menuItems.push({
+    name: 'users.title',
+    to: 'users',
+    solidIcon: fasUserGroup,
+    lightIcon: falUserGroup,
+  })
+  // } ////
   return menuItems
 })
 

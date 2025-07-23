@@ -268,7 +268,7 @@ const onSort = (payload: SortEvent) => {
             {{ item.description || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="'Created by ////'">
-            {{ item.customData?.createdBy || '-' }}
+            {{ item.custom_data?.createdBy || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('resellers.contact_person')">
             {{ item.customData?.contactPerson || '-' }}
