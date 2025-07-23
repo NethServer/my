@@ -79,7 +79,7 @@ func TestDeriveEnvironmentVariables(t *testing.T) {
 		assert.Equal(t, "example.com", backendEnv["TENANT_DOMAIN"])
 		assert.Equal(t, "backend-client", backendEnv["BACKEND_APP_ID"])
 		assert.Equal(t, "backend-secret", backendEnv["BACKEND_APP_SECRET"])
-		assert.Equal(t, "postgresql://noc_user:noc_user@localhost:5432/noc?sslmode=disable", backendEnv["DATABASE_URL"])
+		assert.Equal(t, "postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disable", backendEnv["DATABASE_URL"])
 		assert.Equal(t, "redis://localhost:6379", backendEnv["REDIS_URL"])
 		assert.Equal(t, "frontend-client-id", frontendEnv["VITE_LOGTO_APP_ID"])
 	})
@@ -126,7 +126,7 @@ func TestDeriveEnvironmentVariables(t *testing.T) {
 		// Test that environment variables are populated correctly
 		assert.Equal(t, "my-tenant", backendEnv["TENANT_ID"])
 		assert.Equal(t, "mydomain.com", backendEnv["TENANT_DOMAIN"])
-		assert.Equal(t, "postgresql://noc_user:noc_user@localhost:5432/noc?sslmode=disable", backendEnv["DATABASE_URL"])
+		assert.Equal(t, "postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disable", backendEnv["DATABASE_URL"])
 		assert.Equal(t, "redis://localhost:6379", backendEnv["REDIS_URL"])
 
 		frontendEnv := testFrontend.EnvironmentVars
