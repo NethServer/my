@@ -19,8 +19,6 @@ servers:
 
 tags:
 
-  - name: Backend - Users
-    description: Backend user management with RBAC
   - name: Backend - Applications
     description: Backend third-party application management
   - name: Backend - Authentication
@@ -43,6 +41,8 @@ tags:
     description: Backend system management and inventory
   - name: Backend - User
     description: Backend user profile and permissions
+  - name: Backend - Users
+    description: Backend user management with RBAC
 
 
   - name: Collect - Health
