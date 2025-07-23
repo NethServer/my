@@ -14,6 +14,7 @@ type User struct {
 	Username         string   `json:"username" structs:"username"`                   // Username from Logto
 	Email            string   `json:"email" structs:"email"`                         // Email from Logto
 	Name             string   `json:"name" structs:"name"`                           // Display name from Logto
+	Phone            *string  `json:"phone" structs:"phone"`                         // Phone number from Logto
 	UserRoles        []string `json:"user_roles" structs:"user_roles"`               // Technical capabilities (Admin, Support)
 	UserRoleIDs      []string `json:"user_role_ids" structs:"user_role_ids"`         // Role IDs for technical capabilities
 	UserPermissions  []string `json:"user_permissions" structs:"user_permissions"`   // Permissions derived from user roles

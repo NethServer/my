@@ -83,10 +83,14 @@ func ExchangeToken(c *gin.Context) {
 		user.Username = userProfile.Username
 		user.Email = userProfile.PrimaryEmail
 		user.Name = userProfile.Name
+		if userProfile.PrimaryPhone != "" {
+			user.Phone = &userProfile.PrimaryPhone
+		}
 	} else {
 		user.Username = userInfo.Username
 		user.Email = userInfo.Email
 		user.Name = userInfo.Name
+		// userInfo doesn't have phone, keep it nil
 	}
 
 	// Enrich user with roles and permissions
@@ -205,6 +209,9 @@ func RefreshToken(c *gin.Context) {
 		user.Username = userProfile.Username
 		user.Email = userProfile.PrimaryEmail
 		user.Name = userProfile.Name
+		if userProfile.PrimaryPhone != "" {
+			user.Phone = &userProfile.PrimaryPhone
+		}
 	}
 
 	user.UserRoles = enrichedUser.UserRoles
@@ -270,6 +277,7 @@ func GetCurrentUser(c *gin.Context) {
 		"username":         user.Username,
 		"email":            user.Email,
 		"name":             user.Name,
+		"phone":            user.Phone,
 		"userRoles":        user.UserRoles,
 		"userRoleIds":      user.UserRoleIDs,
 		"userPermissions":  user.UserPermissions,

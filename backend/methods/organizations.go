@@ -8,6 +8,7 @@ package methods
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -30,7 +31,7 @@ func GetOrganizations(c *gin.Context) {
 		return
 	}
 
-	userOrgRole := currentUserOrgRole.(string)
+	userOrgRole := strings.ToLower(currentUserOrgRole.(string))
 	userOrgID := currentUserOrgID.(string)
 
 	// Parse pagination parameters
@@ -57,11 +58,11 @@ func GetOrganizations(c *gin.Context) {
 		CreatedBy:   c.Query("created_by"),
 	}
 
-	// Connect to Logto Management API
-	client := services.NewLogtoManagementClient()
+	// Use local organization service for better performance
+	service := services.NewLocalOrganizationService()
 
-	// Get organizations with pagination and filters
-	result, err := client.GetOrganizationsPaginated(page, pageSize, filters)
+	// Get organizations with pagination and filters from local database
+	result, err := service.GetAllOrganizationsPaginated(userOrgRole, userOrgID, page, pageSize, filters)
 	if err != nil {
 		httpLogger := logger.NewHTTPErrorLogger(c, "organizations")
 		httpLogger.LogError(err, "fetch_organizations", http.StatusInternalServerError, "Failed to fetch organizations")
@@ -69,12 +70,9 @@ func GetOrganizations(c *gin.Context) {
 		return
 	}
 
-	// Filter organizations based on user's role and hierarchy
-	filteredOrgs := filterOrganizationsByHierarchy(result.Data, userOrgRole, userOrgID)
-
-	// Convert to response format
-	organizations := make([]models.OrganizationSummary, len(filteredOrgs))
-	for i, org := range filteredOrgs {
+	// Convert to response format (no additional filtering needed - RBAC already applied by repositories)
+	organizations := make([]models.OrganizationSummary, len(result.Data))
+	for i, org := range result.Data {
 		organizations[i] = models.OrganizationSummary{
 			ID:          org.ID,
 			Name:        org.Name,
@@ -83,78 +81,20 @@ func GetOrganizations(c *gin.Context) {
 		}
 	}
 
-	// Update pagination info based on filtering
-	updatedPagination := result.Pagination
-	updatedPagination.TotalCount = len(organizations)
-	updatedPagination.TotalPages = (updatedPagination.TotalCount + pageSize - 1) / pageSize
-
 	logger.ComponentLogger("organizations").Info().
 		Str("operation", "get_organizations").
 		Str("user_org_role", userOrgRole).
 		Str("user_org_id", userOrgID).
-		Int("total_orgs", len(result.Data)).
-		Int("filtered_orgs", len(organizations)).
+		Int("returned_orgs", len(organizations)).
 		Int("page", page).
 		Int("page_size", pageSize).
 		Str("search", filters.Search).
-		Msg("Organizations filtered and returned with pagination")
+		Msg("Organizations retrieved from local database with pagination")
 
 	c.JSON(http.StatusOK, response.OK("organizations retrieved successfully", models.PaginatedOrganizationsResponse{
 		Organizations: organizations,
-		Pagination:    updatedPagination,
+		Pagination:    result.Pagination,
 	}))
-}
-
-// filterOrganizationsByHierarchy filters organizations based on user hierarchy
-func filterOrganizationsByHierarchy(orgs []models.LogtoOrganization, userOrgRole, userOrgID string) []models.LogtoOrganization {
-	var filtered []models.LogtoOrganization
-
-	for _, org := range orgs {
-		orgType := getOrganizationType(org)
-
-		switch userOrgRole {
-		case "Owner":
-			// Owner can assign users to any organization
-			filtered = append(filtered, org)
-
-		case "Distributor":
-			// Distributor can assign users to:
-			// - Their own organization
-			// - Reseller organizations they created
-			// - Customer organizations (directly or through resellers they created)
-			if org.ID == userOrgID {
-				// Own organization
-				filtered = append(filtered, org)
-			} else if orgType == "reseller" || orgType == "customer" {
-				// Check if this organization was created by the current distributor
-				if isOrganizationCreatedBy(org, userOrgID) {
-					filtered = append(filtered, org)
-				}
-			}
-
-		case "Reseller":
-			// Reseller can assign users to:
-			// - Their own organization
-			// - Customer organizations they created
-			if org.ID == userOrgID {
-				// Own organization
-				filtered = append(filtered, org)
-			} else if orgType == "customer" {
-				// Check if this customer organization was created by the current reseller
-				if isOrganizationCreatedBy(org, userOrgID) {
-					filtered = append(filtered, org)
-				}
-			}
-
-		case "Customer":
-			// Customer can only assign users to their own organization
-			if org.ID == userOrgID {
-				filtered = append(filtered, org)
-			}
-		}
-	}
-
-	return filtered
 }
 
 // getOrganizationType determines the type of organization based on custom data
@@ -170,16 +110,4 @@ func getOrganizationType(org models.LogtoOrganization) string {
 
 	// Default to customer type if no type can be determined
 	return "customer"
-}
-
-// isOrganizationCreatedBy checks if an organization was created by the specified creator
-func isOrganizationCreatedBy(org models.LogtoOrganization, creatorOrgID string) bool {
-	if org.CustomData != nil {
-		if createdBy, exists := org.CustomData["createdBy"]; exists {
-			if createdByStr, ok := createdBy.(string); ok {
-				return createdByStr == creatorOrgID
-			}
-		}
-	}
-	return false
 }

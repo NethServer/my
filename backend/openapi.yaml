@@ -211,6 +211,11 @@ components:
           type: string
           description: Full name
           example: "John Doe"
+        phone:
+          type: string
+          nullable: true
+          description: Phone number
+          example: "+39 333 123456"
         userRoles:
           type: array
           items:

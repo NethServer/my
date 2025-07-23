@@ -100,6 +100,34 @@ func InternalServerError(message string, data interface{}) Response {
 	return Error(500, message, data)
 }
 
+// PaginatedResponse represents a paginated response
+type PaginatedResponse struct {
+	Data       interface{} `json:"data"`
+	Pagination interface{} `json:"pagination"`
+}
+
+// Paginated creates a response with pagination info using entity-specific field names
+func Paginated(message string, entityName string, data interface{}, totalCount, page, pageSize int) Response {
+	totalPages := (totalCount + pageSize - 1) / pageSize
+
+	pagination := map[string]interface{}{
+		"page":        page,
+		"page_size":   pageSize,
+		"total_count": totalCount,
+		"total_pages": totalPages,
+		"has_next":    page < totalPages,
+		"has_prev":    page > 1,
+	}
+
+	// Create response data with entity-specific field name
+	responseData := map[string]interface{}{
+		entityName:   data,
+		"pagination": pagination,
+	}
+
+	return OK(message, responseData)
+}
+
 // getJSONFieldName extracts the JSON field name from validator.FieldError
 func getJSONFieldName(ve validator.FieldError) string {
 	// Try to get the JSON tag name from the struct field
@@ -201,6 +229,23 @@ func ValidationBadRequest(err error) Response {
 // ValidationBadRequestMultiple creates a 400 Bad Request response with multiple validation errors
 func ValidationBadRequestMultiple(err error) Response {
 	validationErrors := ParseValidationErrors(err)
+	return BadRequest("validation failed", ErrorData{
+		Type:   "validation_error",
+		Errors: validationErrors,
+	})
+}
+
+// PasswordValidationBadRequest creates a 400 Bad Request response for password validation errors
+func PasswordValidationBadRequest(errorCodes []string) Response {
+	var validationErrors []ValidationError
+
+	for _, code := range errorCodes {
+		validationErrors = append(validationErrors, ValidationError{
+			Key:     "password",
+			Message: code, // Return just the error code, UI will handle translation
+		})
+	}
+
 	return BadRequest("validation failed", ErrorData{
 		Type:   "validation_error",
 		Errors: validationErrors,

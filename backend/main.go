@@ -26,7 +26,6 @@ import (
 	"github.com/nethesis/my/backend/middleware"
 	"github.com/nethesis/my/backend/pkg/version"
 	"github.com/nethesis/my/backend/response"
-	"github.com/nethesis/my/backend/services"
 )
 
 func main() {
@@ -77,9 +76,6 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize Redis cache")
 	}
-
-	// Start background statistics updater
-	cache.InitAndStartStatsCacheManager(services.NewLogtoManagementClient())
 
 	// Init router
 	router := gin.Default()
@@ -151,10 +147,11 @@ func main() {
 			systemsGroup.POST("", methods.CreateSystem)
 			systemsGroup.PUT("/:id", methods.UpdateSystem)
 			systemsGroup.DELETE("/:id", methods.DeleteSystem)
+
 			systemsGroup.POST("/:id/regenerate-secret", methods.RegenerateSystemSecret) // Regenerate system secret
 
-			// System status endpoint based on heartbeats
-			systemsGroup.GET("/status", methods.GetSystemsStatus) // Get systems liveness status
+			// System totals endpoint
+			systemsGroup.GET("/totals", methods.GetSystemsTotals) // Get systems totals with liveness status
 
 			// Inventory endpoints
 			systemsGroup.GET("/:id/inventory", methods.GetSystemInventoryHistory)                      // Get paginated inventory history
@@ -170,34 +167,43 @@ func main() {
 		// Owner > Distributor > Reseller > Customer
 		// ===========================================
 
-		// Distributors - only Owner can manage distributors
+		// Distributors - local-first approach with Logto sync
 		distributorsGroup := customAuth.Group("/distributors", middleware.RequireOrgRole("Owner"))
 		{
-			distributorsGroup.GET("", methods.GetDistributors)
-			distributorsGroup.GET("/:id", methods.GetDistributor)
-			distributorsGroup.POST("", methods.CreateDistributor)
-			distributorsGroup.PUT("/:id", methods.UpdateDistributor)
-			distributorsGroup.DELETE("/:id", methods.DeleteDistributor)
+			distributorsGroup.POST("", methods.CreateDistributor)       // Create distributor (Owner only - validated in handler)
+			distributorsGroup.GET("", methods.GetDistributors)          // List distributors with pagination
+			distributorsGroup.GET("/:id", methods.GetDistributor)       // Get distributor (Owner only - validated in handler)
+			distributorsGroup.PUT("/:id", methods.UpdateDistributor)    // Update distributor (Owner only - validated in handler)
+			distributorsGroup.DELETE("/:id", methods.DeleteDistributor) // Delete distributor (Owner only - validated in handler)
+
+			// Distributors totals endpoint - accessible based on hierarchy
+			distributorsGroup.GET("/distributors/totals", methods.GetDistributorsTotals)
 		}
 
-		// Resellers - Owner and Distributors can manage resellers
-		resellersGroup := customAuth.Group("/resellers", middleware.RequireAnyOrgRole("Owner", "Distributor"))
+		// Resellers - local-first approach with Logto sync
+		resellersGroup := customAuth.Group("/resellers", middleware.RequireAnyOrgRole("Owner", "Distributors"))
 		{
-			resellersGroup.GET("", methods.GetResellers)
-			resellersGroup.GET("/:id", methods.GetReseller)
-			resellersGroup.POST("", methods.CreateReseller)
-			resellersGroup.PUT("/:id", methods.UpdateReseller)
-			resellersGroup.DELETE("/:id", methods.DeleteReseller)
+			resellersGroup.POST("", methods.CreateReseller)       // Create reseller (Owner/Distributor - validated in handler)
+			resellersGroup.GET("", methods.GetResellers)          // List resellers with pagination
+			resellersGroup.GET("/:id", methods.GetReseller)       // Get reseller (RBAC validated in handler)
+			resellersGroup.PUT("/:id", methods.UpdateReseller)    // Update reseller (RBAC validated in handler)
+			resellersGroup.DELETE("/:id", methods.DeleteReseller) // Delete reseller (RBAC validated in handler)
+
+			// Resellers totals endpoint - accessible based on hierarchy
+			resellersGroup.GET("/resellers/totals", methods.GetResellersTotals)
 		}
 
-		// Customers - Owner, Distributors and Resellers can manage customers
-		customersGroup := customAuth.Group("/customers", middleware.RequireAnyOrgRole("Owner", "Distributor", "Reseller"))
+		// Customers - local-first approach with Logto sync
+		customersGroup := customAuth.Group("/customers", middleware.RequireAnyOrgRole("Owner", "Distributors", "Reseller"))
 		{
-			customersGroup.GET("", methods.GetCustomers)
-			customersGroup.GET("/:id", methods.GetCustomer)
-			customersGroup.POST("", methods.CreateCustomer)
-			customersGroup.PUT("/:id", methods.UpdateCustomer)
-			customersGroup.DELETE("/:id", methods.DeleteCustomer)
+			customersGroup.POST("", methods.CreateCustomer)       // Create customer (Owner/Distributor/Reseller - validated in handler)
+			customersGroup.GET("", methods.GetCustomers)          // List customers with pagination
+			customersGroup.GET("/:id", methods.GetCustomer)       // Get customer (RBAC validated in handler)
+			customersGroup.PUT("/:id", methods.UpdateCustomer)    // Update customer (RBAC validated in handler)
+			customersGroup.DELETE("/:id", methods.DeleteCustomer) // Delete customer (RBAC validated in handler)
+
+			// Customers totals endpoint - accessible based on hierarchy
+			customersGroup.GET("/customers/totals", methods.GetCustomersTotals)
 		}
 
 		// ===========================================
@@ -205,7 +211,7 @@ func main() {
 		// ===========================================
 
 		// Accounts - Basic authentication required, hierarchical validation in handlers
-		accountsGroup := customAuth.Group("/accounts")
+		accountsGroup := customAuth.Group("/accounts", middleware.RequireUserRole("Admin"))
 		{
 			accountsGroup.GET("", methods.GetAccounts)                         // List accounts with organization filtering
 			accountsGroup.GET("/:id", methods.GetAccount)                      // Get single account with hierarchical validation
@@ -213,6 +219,9 @@ func main() {
 			accountsGroup.PUT("/:id", methods.UpdateAccount)                   // Update existing account
 			accountsGroup.PATCH("/:id/password", methods.ResetAccountPassword) // Reset account password
 			accountsGroup.DELETE("/:id", methods.DeleteAccount)                // Delete account
+
+			// Accounts totals endpoint - accessible based on hierarchy
+			accountsGroup.GET("/accounts/totals", methods.GetAccountsTotals)
 		}
 
 		// Roles endpoints - for role selection in account creation
@@ -220,13 +229,11 @@ func main() {
 		customAuth.GET("/organization-roles", methods.GetOrganizationRoles)
 
 		// Organizations endpoint - for organization selection in account creation
-		customAuth.GET("/organizations", methods.GetOrganizations)
+		customAuth.GET("/organizations", middleware.RequireAnyOrgRole("Owner", "Distributors", "Reseller"), methods.GetOrganizations)
 
 		// Applications endpoint - filtered third-party applications based on user access
 		customAuth.GET("/applications", methods.GetApplications)
 
-		// System statistics endpoint - require management permissions
-		customAuth.GET("/stats", middleware.RequireOrgRole("Owner"), methods.GetStats)
 	}
 
 	// Handle missing endpoints

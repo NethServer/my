@@ -16,6 +16,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,17 +29,15 @@ import (
 
 // SystemsService handles business logic for systems management
 type SystemsService struct {
-	collectURL       string
-	logtoClient      *LogtoManagementClient
-	hierarchyService *OrganizationHierarchyService
+	collectURL  string
+	logtoClient *LogtoManagementClient
 }
 
 // NewSystemsService creates a new systems service
 func NewSystemsService() *SystemsService {
 	return &SystemsService{
-		collectURL:       getCollectURL(),
-		logtoClient:      NewLogtoManagementClient(),
-		hierarchyService: NewOrganizationHierarchyService(),
+		collectURL:  getCollectURL(),
+		logtoClient: NewLogtoManagementClient(),
 	}
 }
 
@@ -277,69 +276,58 @@ func (s *SystemsService) GetSystemsByOrganizationPaginated(userID, userOrgID str
 	// Calculate offset
 	offset := (page - 1) * pageSize
 
-	// Get total count first with hierarchical filtering via JOIN
-	countQuery := `
+	// Get all customer organization IDs the user can access hierarchically
+	userService := NewLocalUserService()
+	allowedOrgIDs, err := userService.GetHierarchicalOrganizationIDs(strings.ToLower(userOrgRole), userOrgID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
+	}
+
+	if len(allowedOrgIDs) == 0 {
+		return []*models.System{}, 0, nil
+	}
+
+	// Build placeholders for IN clause
+	placeholders := make([]string, len(allowedOrgIDs))
+	args := make([]interface{}, len(allowedOrgIDs))
+	for i, orgID := range allowedOrgIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = orgID
+	}
+	placeholdersStr := strings.Join(placeholders, ",")
+
+	// Get total count first
+	countQuery := fmt.Sprintf(`
 		SELECT COUNT(*)
 		FROM systems s
-		INNER JOIN organization_hierarchy oh ON s.customer_id = oh.accessible_customer_id
-		LEFT JOIN system_heartbeats h ON s.id = h.system_id
-		WHERE oh.user_org_id = $1 AND oh.user_org_role = $2`
+		WHERE s.customer_id IN (%s)`, placeholdersStr)
 
 	var totalCount int
-	err := database.DB.QueryRow(countQuery, userOrgID, userOrgRole).Scan(&totalCount)
+	err = database.DB.QueryRow(countQuery, args...).Scan(&totalCount)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get systems count: %w", err)
 	}
 
-	// If no accessible systems, check if hierarchy cache is empty (lazy initialization)
 	if totalCount == 0 {
-		logger.Info().
-			Str("operation", "get_systems_paginated").
-			Str("user_org_id", userOrgID).
-			Str("user_org_role", userOrgRole).
-			Msg("No systems found - checking if hierarchy cache needs initialization")
-
-		// Check if hierarchy cache is empty
-		var hierarchyCount int
-		err := database.DB.QueryRow("SELECT COUNT(*) FROM organization_hierarchy").Scan(&hierarchyCount)
-		if err != nil {
-			return nil, 0, fmt.Errorf("failed to check hierarchy cache: %w", err)
-		}
-
-		if hierarchyCount == 0 {
-			logger.Info().Msg("Hierarchy cache empty - performing lazy initialization")
-			if err := s.hierarchyService.SyncOrganizationHierarchy(); err != nil {
-				logger.Error().
-					Err(err).
-					Msg("Failed to sync organization hierarchy during lazy initialization")
-				return nil, 0, fmt.Errorf("failed to initialize hierarchy cache: %w", err)
-			}
-
-			// Retry the count query after initialization
-			err = database.DB.QueryRow(countQuery, userOrgID, userOrgRole).Scan(&totalCount)
-			if err != nil {
-				return nil, 0, fmt.Errorf("failed to get systems count after hierarchy sync: %w", err)
-			}
-		}
-
-		// If still no systems after potential initialization, return empty result
-		if totalCount == 0 {
-			return []*models.System{}, 0, nil
-		}
+		return []*models.System{}, 0, nil
 	}
 
-	// Get paginated systems with hierarchical filtering via optimized JOIN
-	query := `
+	// Get paginated systems with hierarchical filtering
+	listArgs := make([]interface{}, len(args)+2)
+	copy(listArgs, args)
+	listArgs[len(args)] = pageSize
+	listArgs[len(args)+1] = offset
+
+	query := fmt.Sprintf(`
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version, s.last_seen,
 		       s.custom_data, s.customer_id, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
 		FROM systems s
-		INNER JOIN organization_hierarchy oh ON s.customer_id = oh.accessible_customer_id
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
-		WHERE oh.user_org_id = $1 AND oh.user_org_role = $2
+		WHERE s.customer_id IN (%s)
 		ORDER BY s.created_at DESC
-		LIMIT $3 OFFSET $4`
+		LIMIT $%d OFFSET $%d`, placeholdersStr, len(args)+1, len(args)+2)
 
-	rows, err := database.DB.Query(query, userOrgID, userOrgRole, pageSize, offset)
+	rows, err := database.DB.Query(query, listArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query systems: %w", err)
 	}
@@ -635,17 +623,21 @@ func (s *SystemsService) RegenerateSystemSecret(systemID, userID, userOrgID stri
 
 // CanAccessSystem validates if a user can access a specific system based on hierarchical permissions
 func (s *SystemsService) CanAccessSystem(system *models.System, userOrgRole, userOrgID string) (bool, string) {
+	// Normalize role to lowercase for consistency
+	userOrgRole = strings.ToLower(userOrgRole)
+
 	switch userOrgRole {
-	case "Owner":
+	case "owner":
 		// Owner can access any system
 		return true, ""
-	case "Distributor":
-		// Can access systems in customer orgs they created (directly or through their resellers)
-		return s.canDistributorAccessCustomer(system.CustomerID, userOrgID)
-	case "Reseller":
-		// Can access systems in customer orgs they created directly
-		return s.canResellerAccessCustomer(system.CustomerID, userOrgID)
-	case "Customer":
+	case "distributor", "reseller":
+		// Use hierarchical validation - check if customer organization is in hierarchy
+		userService := NewLocalUserService()
+		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, system.CustomerID) {
+			return true, ""
+		}
+		return false, fmt.Sprintf("%ss can only access systems in organizations they manage", userOrgRole)
+	case "customer":
 		// Can only access systems in their own organization
 		if system.CustomerID == userOrgID {
 			return true, ""
@@ -654,64 +646,4 @@ func (s *SystemsService) CanAccessSystem(system *models.System, userOrgRole, use
 	default:
 		return false, "unknown organization role"
 	}
-}
-
-// canDistributorAccessCustomer checks if a distributor can access a customer organization
-func (s *SystemsService) canDistributorAccessCustomer(customerID, distributorID string) (bool, string) {
-	// Get customer organization details from Logto
-	customerOrg, err := s.logtoClient.GetOrganizationByID(customerID)
-	if err != nil {
-		return false, "customer organization not found"
-	}
-
-	// Check if customer was created directly by this distributor
-	if s.isOrganizationCreatedBy(customerOrg, distributorID) {
-		return true, ""
-	}
-
-	// Check if customer was created by a reseller under this distributor
-	if customerOrg.CustomData != nil {
-		if createdBy, exists := customerOrg.CustomData["createdBy"]; exists {
-			if resellerID, ok := createdBy.(string); ok {
-				// Get reseller organization details
-				resellerOrg, err := s.logtoClient.GetOrganizationByID(resellerID)
-				if err == nil {
-					// Check if the reseller was created by this distributor
-					if s.isOrganizationCreatedBy(resellerOrg, distributorID) {
-						return true, ""
-					}
-				}
-			}
-		}
-	}
-
-	return false, "distributor cannot access this customer organization"
-}
-
-// canResellerAccessCustomer checks if a reseller can access a customer organization
-func (s *SystemsService) canResellerAccessCustomer(customerID, resellerID string) (bool, string) {
-	// Get customer organization details from Logto
-	customerOrg, err := s.logtoClient.GetOrganizationByID(customerID)
-	if err != nil {
-		return false, "customer organization not found"
-	}
-
-	// Check if customer was created by this reseller
-	if s.isOrganizationCreatedBy(customerOrg, resellerID) {
-		return true, ""
-	}
-
-	return false, "reseller cannot access this customer organization"
-}
-
-// isOrganizationCreatedBy checks if an organization was created by a specific organization
-func (s *SystemsService) isOrganizationCreatedBy(org *models.LogtoOrganization, creatorOrgID string) bool {
-	if org.CustomData != nil {
-		if createdBy, exists := org.CustomData["createdBy"]; exists {
-			if createdByStr, ok := createdBy.(string); ok {
-				return createdByStr == creatorOrgID
-			}
-		}
-	}
-	return false
 }
