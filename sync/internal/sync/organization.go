@@ -196,8 +196,8 @@ func (e *Engine) syncOrganizationScopes(cfg *config.Config, result *Result) erro
 func (e *Engine) syncOrganizationRoles(cfg *config.Config, result *Result) error {
 	logger.Info("Syncing organization roles...")
 
-	// Filter only user type roles
-	userRoles := cfg.GetUserTypeRoles(cfg.Hierarchy.OrganizationRoles)
+	// Filter only org type roles
+	orgRoles := cfg.GetOrgTypeRoles(cfg.Hierarchy.OrganizationRoles)
 
 	// Get existing organization roles from Logto
 	existingRoles, err := e.client.GetOrganizationRoles()
@@ -213,12 +213,12 @@ func (e *Engine) syncOrganizationRoles(cfg *config.Config, result *Result) error
 
 	// Create map for quick lookup of config roles BY NAME (case-insensitive)
 	configRoleMap := make(map[string]bool)
-	for _, configRole := range userRoles {
+	for _, configRole := range orgRoles {
 		configRoleMap[strings.ToLower(configRole.Name)] = true
 	}
 
 	// Create or update organization roles
-	for _, configRole := range userRoles {
+	for _, configRole := range orgRoles {
 		roleName := configRole.Name
 		roleNameLower := strings.ToLower(roleName)
 
@@ -307,8 +307,8 @@ func (e *Engine) syncOrganizationRoles(cfg *config.Config, result *Result) error
 func (e *Engine) syncOrganizationRoleScopes(cfg *config.Config, result *Result) error {
 	logger.Info("Syncing organization role scopes...")
 
-	// Filter only user type roles
-	userRoles := cfg.GetUserTypeRoles(cfg.Hierarchy.OrganizationRoles)
+	// Filter only org type roles
+	orgRoles := cfg.GetOrgTypeRoles(cfg.Hierarchy.OrganizationRoles)
 
 	// Get all existing scopes to create name->ID mapping
 	existingScopes, err := e.client.GetOrganizationScopes()
@@ -332,7 +332,7 @@ func (e *Engine) syncOrganizationRoleScopes(cfg *config.Config, result *Result) 
 		roleNameToID[strings.ToLower(role.Name)] = role.ID
 	}
 
-	for _, configRole := range userRoles {
+	for _, configRole := range orgRoles {
 		// Find the actual role ID by name
 		roleID, exists := roleNameToID[strings.ToLower(configRole.Name)]
 		if !exists {
