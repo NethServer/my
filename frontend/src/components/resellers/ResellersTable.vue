@@ -44,7 +44,7 @@ const { isShownCreateResellerDrawer = false } = defineProps<{
   isShownCreateResellerDrawer: boolean
 }>()
 
-const emit = defineEmits(['close-drawer']) ////
+const emit = defineEmits(['close-drawer'])
 
 const { t } = useI18n()
 const loginStore = useLoginStore()
@@ -215,7 +215,7 @@ const onSort = (payload: SortEvent) => {
         <NeTableHeadCell sortable column-key="description" @sort="onSort">{{
           $t('resellers.description')
         }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('resellers.region') }}</NeTableHeadCell>
+        <NeTableHeadCell>Created by ////</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('resellers.contact_person') }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- no header for actions -->
@@ -267,8 +267,8 @@ const onSort = (payload: SortEvent) => {
           <NeTableCell :data-label="$t('resellers.description')">
             {{ item.description || '-' }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('resellers.region')">
-            {{ item.customData?.region || '-' }}
+          <NeTableCell :data-label="'Created by ////'">
+            {{ item.customData?.createdBy || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('resellers.contact_person')">
             {{ item.customData?.contactPerson || '-' }}
