@@ -25,19 +25,21 @@ import (
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
+	"github.com/nethesis/my/backend/services/local"
+	"github.com/nethesis/my/backend/services/logto"
 )
 
 // SystemsService handles business logic for systems management
 type SystemsService struct {
 	collectURL  string
-	logtoClient *LogtoManagementClient
+	logtoClient *logto.LogtoManagementClient
 }
 
 // NewSystemsService creates a new systems service
 func NewSystemsService() *SystemsService {
 	return &SystemsService{
 		collectURL:  getCollectURL(),
-		logtoClient: NewLogtoManagementClient(),
+		logtoClient: logto.NewManagementClient(),
 	}
 }
 
@@ -277,7 +279,7 @@ func (s *SystemsService) GetSystemsByOrganizationPaginated(userID, userOrgID str
 	offset := (page - 1) * pageSize
 
 	// Get all customer organization IDs the user can access hierarchically
-	userService := NewLocalUserService()
+	userService := local.NewUserService()
 	allowedOrgIDs, err := userService.GetHierarchicalOrganizationIDs(strings.ToLower(userOrgRole), userOrgID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
@@ -632,7 +634,7 @@ func (s *SystemsService) CanAccessSystem(system *models.System, userOrgRole, use
 		return true, ""
 	case "distributor", "reseller":
 		// Use hierarchical validation - check if customer organization is in hierarchy
-		userService := NewLocalUserService()
+		userService := local.NewUserService()
 		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, system.CustomerID) {
 			return true, ""
 		}

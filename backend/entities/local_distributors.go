@@ -7,7 +7,7 @@
  * author: Edoardo Spadoni <edoardo.spadoni@nethesis.it>
  */
 
-package repositories
+package entities
 
 import (
 	"database/sql"

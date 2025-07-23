@@ -16,14 +16,13 @@ import (
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
-	"github.com/nethesis/my/backend/repositories"
+	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/response"
-	"github.com/nethesis/my/backend/services"
-	"github.com/nethesis/my/backend/validation"
+	"github.com/nethesis/my/backend/services/local"
 )
 
-// CreateAccount handles POST /api/accounts - creates a new user locally and syncs to Logto
-func CreateAccount(c *gin.Context) {
+// CreateUser handles POST /api/users - creates a new user locally and syncs to Logto
+func CreateUser(c *gin.Context) {
 	// Parse request body
 	var request models.CreateLocalUserRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
@@ -32,7 +31,7 @@ func CreateAccount(c *gin.Context) {
 	}
 
 	// Validate password using our secure validator
-	isValid, errorCodes := validation.ValidatePasswordStrength(request.Password)
+	isValid, errorCodes := helpers.ValidatePasswordStrength(request.Password)
 	if !isValid {
 		c.JSON(http.StatusBadRequest, response.PasswordValidationBadRequest(errorCodes))
 		return
@@ -45,7 +44,7 @@ func CreateAccount(c *gin.Context) {
 	}
 
 	// Create service
-	service := services.NewLocalUserService()
+	service := local.NewUserService()
 
 	// Validate permissions
 	userOrgRole := strings.ToLower(user.OrgRole)
@@ -60,8 +59,8 @@ func CreateAccount(c *gin.Context) {
 		logger.Error().
 			Err(err).
 			Str("user_id", user.ID).
-			Str("account_username", request.Username).
-			Msg("Failed to create account")
+			Str("user_username", request.Username).
+			Msg("Failed to create user")
 
 		// Check if it's a validation error from Logto
 		if validationErr := getValidationError(err); validationErr != nil {
@@ -70,25 +69,25 @@ func CreateAccount(c *gin.Context) {
 		}
 
 		// Default to internal server error
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to create account", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to create user", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
 	}
 
 	// Log the action
-	logger.LogBusinessOperation(c, "accounts", "create", "account", account.ID, true, nil)
+	logger.LogBusinessOperation(c, "users", "create", "user", account.ID, true, nil)
 
 	// Return success response
-	c.JSON(http.StatusCreated, response.Created("account created successfully", account))
+	c.JSON(http.StatusCreated, response.Created("user created successfully", account))
 }
 
-// GetAccount handles GET /api/accounts/:id - retrieves a single user account
-func GetAccount(c *gin.Context) {
-	// Get account ID from URL parameter
-	accountID := c.Param("id")
-	if accountID == "" {
-		c.JSON(http.StatusBadRequest, response.BadRequest("account ID required", nil))
+// GetUser handles GET /api/users/:id - retrieves a single user account
+func GetUser(c *gin.Context) {
+	// Get user ID from URL parameter
+	userID := c.Param("id")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("user ID required", nil))
 		return
 	}
 
@@ -98,22 +97,22 @@ func GetAccount(c *gin.Context) {
 		return
 	}
 
-	// Get account
-	repo := repositories.NewLocalUserRepository()
-	account, err := repo.GetByID(accountID)
+	// Get user account
+	repo := entities.NewLocalUserRepository()
+	account, err := repo.GetByID(userID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			c.JSON(http.StatusNotFound, response.NotFound("account not found", nil))
+			c.JSON(http.StatusNotFound, response.NotFound("user not found", nil))
 			return
 		}
 
 		logger.Error().
 			Err(err).
-			Str("user_id", user.ID).
-			Str("account_id", accountID).
-			Msg("Failed to get account")
+			Str("current_user_id", user.ID).
+			Str("target_user_id", userID).
+			Msg("Failed to get user")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get account", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get user", nil))
 		return
 	}
 
@@ -122,7 +121,7 @@ func GetAccount(c *gin.Context) {
 	canAccess := false
 
 	// Users can always see themselves
-	if accountID == user.ID {
+	if userID == user.ID {
 		canAccess = true
 	} else {
 		// Check organization-based access
@@ -154,22 +153,22 @@ func GetAccount(c *gin.Context) {
 	}
 
 	if !canAccess {
-		c.JSON(http.StatusForbidden, response.Forbidden("access denied to account", nil))
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied to user", nil))
 		return
 	}
 
 	// Log the action
-	logger.RequestLogger(c, "accounts").Info().
-		Str("operation", "get_account").
-		Str("account_id", accountID).
-		Msg("Account details requested")
+	logger.RequestLogger(c, "users").Info().
+		Str("operation", "get_user").
+		Str("user_id", userID).
+		Msg("User details requested")
 
-	// Return account
-	c.JSON(http.StatusOK, response.OK("account retrieved successfully", account))
+	// Return user account
+	c.JSON(http.StatusOK, response.OK("user retrieved successfully", account))
 }
 
-// GetAccounts handles GET /api/accounts - list accounts with pagination
-func GetAccounts(c *gin.Context) {
+// GetUsers handles GET /api/users - list accounts with pagination
+func GetUsers(c *gin.Context) {
 	// Get current user context
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
@@ -180,9 +179,9 @@ func GetAccounts(c *gin.Context) {
 	page, pageSize := helpers.GetPaginationFromQuery(c)
 
 	// Create service
-	service := services.NewLocalUserService()
+	service := local.NewUserService()
 
-	// Get accounts based on RBAC
+	// Get users based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
 	accounts, totalCount, err := service.ListUsers(userOrgRole, user.OrganizationID, page, pageSize)
 	if err != nil {
@@ -190,31 +189,31 @@ func GetAccounts(c *gin.Context) {
 			Err(err).
 			Str("user_id", user.ID).
 			Str("user_org_role", userOrgRole).
-			Msg("Failed to list accounts")
+			Msg("Failed to list users")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to list accounts", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to list users", nil))
 		return
 	}
 
 	// Log the action
-	logger.RequestLogger(c, "accounts").Info().
-		Str("operation", "list_accounts").
+	logger.RequestLogger(c, "users").Info().
+		Str("operation", "list_users").
 		Int("page", page).
 		Int("page_size", pageSize).
 		Int("total_count", totalCount).
 		Int("returned_count", len(accounts)).
-		Msg("Accounts list requested")
+		Msg("Users list requested")
 
 	// Return paginated response
-	c.JSON(http.StatusOK, response.Paginated("accounts retrieved successfully", "accounts", accounts, totalCount, page, pageSize))
+	c.JSON(http.StatusOK, response.Paginated("users retrieved successfully", "users", accounts, totalCount, page, pageSize))
 }
 
-// UpdateAccount handles PUT /api/accounts/:id - updates a user account locally and syncs to Logto
-func UpdateAccount(c *gin.Context) {
-	// Get account ID from URL parameter
-	accountID := c.Param("id")
-	if accountID == "" {
-		c.JSON(http.StatusBadRequest, response.BadRequest("account ID required", nil))
+// UpdateUser handles PUT /api/users/:id - updates a user account locally and syncs to Logto
+func UpdateUser(c *gin.Context) {
+	// Get user ID from URL parameter
+	userID := c.Param("id")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("user ID required", nil))
 		return
 	}
 
@@ -231,22 +230,22 @@ func UpdateAccount(c *gin.Context) {
 		return
 	}
 
-	// Get current account for RBAC validation
-	repo := repositories.NewLocalUserRepository()
-	currentAccount, err := repo.GetByID(accountID)
+	// Get current user account for RBAC validation
+	repo := entities.NewLocalUserRepository()
+	currentAccount, err := repo.GetByID(userID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			c.JSON(http.StatusNotFound, response.NotFound("account not found", nil))
+			c.JSON(http.StatusNotFound, response.NotFound("user not found", nil))
 			return
 		}
 
 		logger.Error().
 			Err(err).
-			Str("user_id", user.ID).
-			Str("account_id", accountID).
-			Msg("Failed to get account for update validation")
+			Str("current_user_id", user.ID).
+			Str("target_user_id", userID).
+			Msg("Failed to get user for update validation")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get account", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get user", nil))
 		return
 	}
 
@@ -255,7 +254,7 @@ func UpdateAccount(c *gin.Context) {
 	canUpdate := false
 
 	// Users can always update themselves (with restrictions)
-	if accountID == user.ID {
+	if userID == user.ID {
 		canUpdate = true
 		// Users can only update certain fields about themselves
 		// Organization-related fields should be restricted
@@ -270,7 +269,7 @@ func UpdateAccount(c *gin.Context) {
 			targetOrgID = *currentAccount.OrganizationID
 		}
 
-		service := services.NewLocalUserService()
+		service := local.NewUserService()
 		if canUpdateUser, reason := service.CanUpdateUser(userOrgRole, user.OrganizationID, targetOrgID); canUpdateUser {
 			canUpdate = true
 		} else {
@@ -280,21 +279,21 @@ func UpdateAccount(c *gin.Context) {
 	}
 
 	if !canUpdate {
-		c.JSON(http.StatusForbidden, response.Forbidden("access denied to update account", nil))
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied to update user", nil))
 		return
 	}
 
 	// Create service
-	service := services.NewLocalUserService()
+	service := local.NewUserService()
 
-	// Update account
-	account, err := service.UpdateUser(accountID, &request, user.ID, user.OrganizationID)
+	// Update user
+	account, err := service.UpdateUser(userID, &request, user.ID, user.OrganizationID)
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Str("user_id", user.ID).
-			Str("account_id", accountID).
-			Msg("Failed to update account")
+			Str("current_user_id", user.ID).
+			Str("target_user_id", userID).
+			Msg("Failed to update user")
 
 		// Check if it's a validation error from Logto
 		if validationErr := getValidationError(err); validationErr != nil {
@@ -303,25 +302,25 @@ func UpdateAccount(c *gin.Context) {
 		}
 
 		// Default to internal server error
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to update account", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to update user", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
 	}
 
 	// Log the action
-	logger.LogBusinessOperation(c, "accounts", "update", "account", accountID, true, nil)
+	logger.LogBusinessOperation(c, "users", "update", "user", userID, true, nil)
 
 	// Return success response
-	c.JSON(http.StatusOK, response.OK("account updated successfully", account))
+	c.JSON(http.StatusOK, response.OK("user updated successfully", account))
 }
 
-// DeleteAccount handles DELETE /api/accounts/:id - soft-deletes a user account locally and syncs to Logto
-func DeleteAccount(c *gin.Context) {
-	// Get account ID from URL parameter
-	accountID := c.Param("id")
-	if accountID == "" {
-		c.JSON(http.StatusBadRequest, response.BadRequest("account ID required", nil))
+// DeleteUser handles DELETE /api/users/:id - soft-deletes a user account locally and syncs to Logto
+func DeleteUser(c *gin.Context) {
+	// Get user ID from URL parameter
+	userID := c.Param("id")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("user ID required", nil))
 		return
 	}
 
@@ -332,27 +331,27 @@ func DeleteAccount(c *gin.Context) {
 	}
 
 	// Users cannot delete themselves
-	if accountID == user.ID {
+	if userID == user.ID {
 		c.JSON(http.StatusForbidden, response.Forbidden("users cannot delete their own account", nil))
 		return
 	}
 
-	// Get current account for RBAC validation
-	repo := repositories.NewLocalUserRepository()
-	currentAccount, err := repo.GetByID(accountID)
+	// Get current user account for RBAC validation
+	repo := entities.NewLocalUserRepository()
+	currentAccount, err := repo.GetByID(userID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			c.JSON(http.StatusNotFound, response.NotFound("account not found", nil))
+			c.JSON(http.StatusNotFound, response.NotFound("user not found", nil))
 			return
 		}
 
 		logger.Error().
 			Err(err).
-			Str("user_id", user.ID).
-			Str("account_id", accountID).
-			Msg("Failed to get account for delete validation")
+			Str("current_user_id", user.ID).
+			Str("target_user_id", userID).
+			Msg("Failed to get user for delete validation")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get account", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get user", nil))
 		return
 	}
 
@@ -363,41 +362,41 @@ func DeleteAccount(c *gin.Context) {
 	}
 
 	userOrgRole := strings.ToLower(user.OrgRole)
-	service := services.NewLocalUserService()
+	service := local.NewUserService()
 
 	if canDelete, reason := service.CanDeleteUser(userOrgRole, user.OrganizationID, targetOrgID); !canDelete {
 		c.JSON(http.StatusForbidden, response.Forbidden("access denied: "+reason, nil))
 		return
 	}
 
-	// Delete account
-	err = service.DeleteUser(accountID, user.ID, user.OrganizationID)
+	// Delete user
+	err = service.DeleteUser(userID, user.ID, user.OrganizationID)
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Str("user_id", user.ID).
-			Str("account_id", accountID).
-			Msg("Failed to delete account")
+			Str("current_user_id", user.ID).
+			Str("target_user_id", userID).
+			Msg("Failed to delete user")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to delete account", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to delete user", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
 	}
 
 	// Log the action
-	logger.LogBusinessOperation(c, "accounts", "delete", "account", accountID, true, nil)
+	logger.LogBusinessOperation(c, "users", "delete", "user", userID, true, nil)
 
 	// Return success response
-	c.JSON(http.StatusOK, response.OK("account deleted successfully", nil))
+	c.JSON(http.StatusOK, response.OK("user deleted successfully", nil))
 }
 
-// ResetAccountPassword handles PATCH /api/accounts/:id/password - resets account password
-func ResetAccountPassword(c *gin.Context) {
-	// Get account ID from URL parameter
-	accountID := c.Param("id")
-	if accountID == "" {
-		c.JSON(http.StatusBadRequest, response.BadRequest("account ID required", nil))
+// ResetUserPassword handles PATCH /api/users/:id/password - resets user password
+func ResetUserPassword(c *gin.Context) {
+	// Get user ID from URL parameter
+	userID := c.Param("id")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("user ID required", nil))
 		return
 	}
 
@@ -411,7 +410,7 @@ func ResetAccountPassword(c *gin.Context) {
 	}
 
 	// Validate password using our secure validator
-	isValid, errorCodes := validation.ValidatePasswordStrength(request.Password)
+	isValid, errorCodes := helpers.ValidatePasswordStrength(request.Password)
 	if !isValid {
 		c.JSON(http.StatusBadRequest, response.PasswordValidationBadRequest(errorCodes))
 		return
@@ -423,22 +422,22 @@ func ResetAccountPassword(c *gin.Context) {
 		return
 	}
 
-	// Get target account for RBAC validation
-	repo := repositories.NewLocalUserRepository()
-	targetAccount, err := repo.GetByID(accountID)
+	// Get target user account for RBAC validation
+	repo := entities.NewLocalUserRepository()
+	targetAccount, err := repo.GetByID(userID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			c.JSON(http.StatusNotFound, response.NotFound("account not found", nil))
+			c.JSON(http.StatusNotFound, response.NotFound("user not found", nil))
 			return
 		}
 
 		logger.Error().
 			Err(err).
-			Str("user_id", user.ID).
-			Str("account_id", accountID).
-			Msg("Failed to get account for password reset")
+			Str("current_user_id", user.ID).
+			Str("target_user_id", userID).
+			Msg("Failed to get user for password reset")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get account", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get user", nil))
 		return
 	}
 
@@ -447,7 +446,7 @@ func ResetAccountPassword(c *gin.Context) {
 	canReset := false
 
 	// Users can reset their own password
-	if accountID == user.ID {
+	if userID == user.ID {
 		canReset = true
 	} else {
 		// Only higher-level roles can reset other users' passwords
@@ -479,20 +478,20 @@ func ResetAccountPassword(c *gin.Context) {
 
 	// Check if user is synced to Logto
 	if targetAccount.LogtoID == nil {
-		c.JSON(http.StatusBadRequest, response.BadRequest("account not synced to Logto", nil))
+		c.JSON(http.StatusBadRequest, response.BadRequest("user not synced to Logto", nil))
 		return
 	}
 
 	// Create service and reset password using Logto ID
-	service := services.NewLocalUserService()
+	service := local.NewUserService()
 	err = service.ResetUserPassword(*targetAccount.LogtoID, request.Password)
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Str("user_id", user.ID).
-			Str("account_id", accountID).
+			Str("current_user_id", user.ID).
+			Str("target_user_id", userID).
 			Str("logto_user_id", *targetAccount.LogtoID).
-			Msg("Failed to reset account password")
+			Msg("Failed to reset user password")
 
 		// Check if it's a validation error from Logto (same as other endpoints)
 		if validationErr := getValidationError(err); validationErr != nil {
@@ -508,15 +507,15 @@ func ResetAccountPassword(c *gin.Context) {
 	}
 
 	// Log the action
-	logger.LogBusinessOperation(c, "accounts", "password_reset", "account", accountID, true, nil)
+	logger.LogBusinessOperation(c, "users", "password_reset", "user", userID, true, nil)
 
 	// Return success response
 	c.JSON(http.StatusOK, response.OK("password reset successfully", nil))
 }
 
 // getValidationError checks if the error chain contains a ValidationError and returns it
-func getValidationError(err error) *services.ValidationError {
-	var validationErr *services.ValidationError
+func getValidationError(err error) *local.ValidationError {
+	var validationErr *local.ValidationError
 	if errors.As(err, &validationErr) {
 		return validationErr
 	}

@@ -1,4 +1,4 @@
-package services
+package logto
 
 import (
 	"encoding/json"
@@ -117,7 +117,7 @@ func TestLogtoManagementClient_GetUserRoles(t *testing.T) {
 				configuration.Config.LogtoManagementBaseURL = originalBaseURL
 			}()
 
-			client := NewLogtoManagementClient()
+			client := NewManagementClient()
 			roles, err := client.GetUserRoles(tt.userID)
 
 			if tt.expectError {
@@ -210,7 +210,7 @@ func TestLogtoManagementClient_GetRoleScopes(t *testing.T) {
 				configuration.Config.LogtoManagementBaseURL = originalBaseURL
 			}()
 
-			client := NewLogtoManagementClient()
+			client := NewManagementClient()
 			scopes, err := client.GetRoleScopes(tt.roleID)
 
 			if tt.expectError {
@@ -306,7 +306,7 @@ func TestLogtoManagementClient_GetUserOrganizationRoles(t *testing.T) {
 				configuration.Config.LogtoManagementBaseURL = originalBaseURL
 			}()
 
-			client := NewLogtoManagementClient()
+			client := NewManagementClient()
 			roles, err := client.GetUserOrganizationRoles(tt.organizationID, tt.userID)
 
 			if tt.expectError {
@@ -429,7 +429,7 @@ func TestLogtoManagementClient_GetRoleByName(t *testing.T) {
 				configuration.Config.LogtoManagementBaseURL = originalBaseURL
 			}()
 
-			client := NewLogtoManagementClient()
+			client := NewManagementClient()
 			role, err := client.GetRoleByName(tt.roleName)
 
 			if tt.expectError {
@@ -557,7 +557,7 @@ func TestLogtoManagementClient_AssignUserRoles(t *testing.T) {
 				configuration.Config.LogtoManagementBaseURL = originalBaseURL
 			}()
 
-			client := NewLogtoManagementClient()
+			client := NewManagementClient()
 			err := client.AssignUserRoles(tt.userID, tt.roleIDs)
 
 			if tt.expectError {

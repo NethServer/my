@@ -177,7 +177,7 @@ func main() {
 			distributorsGroup.DELETE("/:id", methods.DeleteDistributor) // Delete distributor (Owner only - validated in handler)
 
 			// Distributors totals endpoint - accessible based on hierarchy
-			distributorsGroup.GET("/distributors/totals", methods.GetDistributorsTotals)
+			distributorsGroup.GET("/totals", methods.GetDistributorsTotals)
 		}
 
 		// Resellers - local-first approach with Logto sync
@@ -190,7 +190,7 @@ func main() {
 			resellersGroup.DELETE("/:id", methods.DeleteReseller) // Delete reseller (RBAC validated in handler)
 
 			// Resellers totals endpoint - accessible based on hierarchy
-			resellersGroup.GET("/resellers/totals", methods.GetResellersTotals)
+			resellersGroup.GET("/totals", methods.GetResellersTotals)
 		}
 
 		// Customers - local-first approach with Logto sync
@@ -203,32 +203,32 @@ func main() {
 			customersGroup.DELETE("/:id", methods.DeleteCustomer) // Delete customer (RBAC validated in handler)
 
 			// Customers totals endpoint - accessible based on hierarchy
-			customersGroup.GET("/customers/totals", methods.GetCustomersTotals)
+			customersGroup.GET("/totals", methods.GetCustomersTotals)
 		}
 
 		// ===========================================
-		// ACCOUNTS MANAGEMENT - Permission-based
+		// USERS MANAGEMENT - Permission-based
 		// ===========================================
 
-		// Accounts - Basic authentication required, hierarchical validation in handlers
-		accountsGroup := customAuth.Group("/accounts", middleware.RequireUserRole("Admin"))
+		// Users - Basic authentication required, hierarchical validation in handlers
+		usersGroup := customAuth.Group("/users", middleware.RequireUserRole("Admin"))
 		{
-			accountsGroup.GET("", methods.GetAccounts)                         // List accounts with organization filtering
-			accountsGroup.GET("/:id", methods.GetAccount)                      // Get single account with hierarchical validation
-			accountsGroup.POST("", methods.CreateAccount)                      // Create new account with hierarchical validation
-			accountsGroup.PUT("/:id", methods.UpdateAccount)                   // Update existing account
-			accountsGroup.PATCH("/:id/password", methods.ResetAccountPassword) // Reset account password
-			accountsGroup.DELETE("/:id", methods.DeleteAccount)                // Delete account
+			usersGroup.GET("", methods.GetUsers)                         // List users with organization filtering
+			usersGroup.GET("/:id", methods.GetUser)                      // Get single user with hierarchical validation
+			usersGroup.POST("", methods.CreateUser)                      // Create new user with hierarchical validation
+			usersGroup.PUT("/:id", methods.UpdateUser)                   // Update existing user
+			usersGroup.PATCH("/:id/password", methods.ResetUserPassword) // Reset user password
+			usersGroup.DELETE("/:id", methods.DeleteUser)                // Delete user
 
-			// Accounts totals endpoint - accessible based on hierarchy
-			accountsGroup.GET("/accounts/totals", methods.GetAccountsTotals)
+			// Users totals endpoint - accessible based on hierarchy
+			usersGroup.GET("/totals", methods.GetUsersTotals)
 		}
 
-		// Roles endpoints - for role selection in account creation
+		// Roles endpoints - for role selection in user creation
 		customAuth.GET("/roles", methods.GetRoles)
 		customAuth.GET("/organization-roles", methods.GetOrganizationRoles)
 
-		// Organizations endpoint - for organization selection in account creation
+		// Organizations endpoint - for organization selection in user creation
 		customAuth.GET("/organizations", middleware.RequireAnyOrgRole("Owner", "Distributors", "Reseller"), methods.GetOrganizations)
 
 		// Applications endpoint - filtered third-party applications based on user access

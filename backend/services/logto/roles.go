@@ -7,7 +7,7 @@
  * author: Edoardo Spadoni <edoardo.spadoni@nethesis.it>
  */
 
-package services
+package logto
 
 import (
 	"bytes"
@@ -262,7 +262,7 @@ func EnrichUserWithRolesAndPermissions(userID string) (*models.User, error) {
 		Str("operation", "enrich_user_start").
 		Str("user_id", userID).
 		Msg("Starting user enrichment")
-	client := NewLogtoManagementClient()
+	client := NewManagementClient()
 
 	// Initialize user
 	user := &models.User{

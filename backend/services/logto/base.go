@@ -18,4 +18,4 @@
 // - logto_users.go: User/account management
 // - logto_applications.go: Application management
 
-package services
+package logto

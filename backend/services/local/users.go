@@ -7,7 +7,7 @@
  * author: Edoardo Spadoni <edoardo.spadoni@nethesis.it>
  */
 
-package services
+package local
 
 import (
 	"encoding/json"
@@ -19,8 +19,9 @@ import (
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
-	"github.com/nethesis/my/backend/repositories"
+	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/response"
+	"github.com/nethesis/my/backend/services/logto"
 )
 
 // ValidationError represents a validation error that should be returned as 400 instead of 500
@@ -35,15 +36,15 @@ func (e *ValidationError) Error() string {
 
 // LocalUserService handles local-first user CRUD operations with Logto sync
 type LocalUserService struct {
-	userRepo    *repositories.LocalUserRepository
-	logtoClient *LogtoManagementClient
+	userRepo    *entities.LocalUserRepository
+	logtoClient *logto.LogtoManagementClient
 }
 
 // NewLocalUserService creates a new local user service
-func NewLocalUserService() *LocalUserService {
+func NewUserService() *LocalUserService {
 	return &LocalUserService{
-		userRepo:    repositories.NewLocalUserRepository(),
-		logtoClient: NewLogtoManagementClient(),
+		userRepo:    entities.NewLocalUserRepository(),
+		logtoClient: logto.NewManagementClient(),
 	}
 }
 

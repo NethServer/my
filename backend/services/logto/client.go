@@ -7,7 +7,7 @@
  * author: Edoardo Spadoni <edoardo.spadoni@nethesis.it>
  */
 
-package services
+package logto
 
 import (
 	"bytes"
@@ -32,8 +32,8 @@ type LogtoManagementClient struct {
 	tokenExpiry  time.Time
 }
 
-// NewLogtoManagementClient creates a new Logto Management API client
-func NewLogtoManagementClient() *LogtoManagementClient {
+// NewManagementClient creates a new Logto Management API client
+func NewManagementClient() *LogtoManagementClient {
 	return &LogtoManagementClient{
 		baseURL:      configuration.Config.LogtoManagementBaseURL,
 		clientID:     configuration.Config.LogtoManagementClientID,

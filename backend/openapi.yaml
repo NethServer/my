@@ -19,8 +19,8 @@ servers:
 
 tags:
 
-  - name: Backend - Accounts
-    description: Backend account management with RBAC
+  - name: Backend - Users
+    description: Backend user management with RBAC
   - name: Backend - Applications
     description: Backend third-party application management
   - name: Backend - Authentication
@@ -313,7 +313,7 @@ components:
           description: Whether MFA is required for this organization
           example: false
 
-    Account:
+    User:
       type: object
       properties:
         id:
@@ -382,7 +382,7 @@ components:
             department: "IT"
             position: "Senior Developer"
 
-    AccountInput:
+    UserInput:
       type: object
       required:
         - email
@@ -436,7 +436,7 @@ components:
             department: "IT"
             position: "Senior Developer"
 
-    AccountUpdate:
+    UserUpdate:
       type: object
       properties:
         name:
@@ -646,6 +646,38 @@ components:
           type: boolean
           description: Whether the statistics are stale
           example: false
+
+    SystemTotals:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: Total number of systems
+          example: 1250
+        alive:
+          type: integer
+          description: Number of systems that communicated within the last timeout minutes
+          example: 1100
+        dead:
+          type: integer
+          description: Number of systems that communicated but not within timeout minutes
+          example: 100
+        zombie:
+          type: integer
+          description: Number of systems that were created but never communicated
+          example: 50
+        timeout_minutes:
+          type: integer
+          description: Timeout used for alive/dead determination
+          example: 15
+
+    Totals:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: Total count
+          example: 125
 
     System:
       type: object
@@ -904,19 +936,19 @@ components:
                 example: null
 
 paths:
-  /accounts:
+  /users:
     get:
       tags:
-        - Backend - Accounts
-      summary: List accounts
-      description: Get paginated list of user accounts with hierarchical authorization
+        - Backend - Users
+      summary: List users
+      description: Get paginated list of users with hierarchical authorization
       parameters:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
         - $ref: '#/components/parameters/SearchParam'
       responses:
         '200':
-          description: Accounts retrieved successfully
+          description: Users retrieved successfully
           content:
             application/json:
               schema:
@@ -927,14 +959,14 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: "accounts retrieved successfully"
+                    example: "users retrieved successfully"
                   data:
                     type: object
                     properties:
-                      accounts:
+                      users:
                         type: array
                         items:
-                          $ref: '#/components/schemas/Account'
+                          $ref: '#/components/schemas/User'
                       pagination:
                         $ref: '#/components/schemas/Pagination'
         '401':
@@ -944,18 +976,18 @@ paths:
 
     post:
       tags:
-        - Backend - Accounts
-      summary: Create account
-      description: Create a new user account with hierarchical authorization
+        - Backend - Users
+      summary: Create user
+      description: Create a new user with hierarchical authorization
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AccountInput'
+              $ref: '#/components/schemas/UserInput'
       responses:
         '201':
-          description: Account created successfully
+          description: User created successfully
           content:
             application/json:
               schema:
@@ -966,9 +998,9 @@ paths:
                     example: 201
                   message:
                     type: string
-                    example: "account created successfully"
+                    example: "user created successfully"
                   data:
-                    $ref: '#/components/schemas/Account'
+                    $ref: '#/components/schemas/User'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -978,23 +1010,23 @@ paths:
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
 
-  /accounts/{id}:
+  /users/{id}:
     get:
       tags:
-        - Backend - Accounts
-      summary: Get single account
-      description: Get a specific account by ID with hierarchical authorization
+        - Backend - Users
+      summary: Get single user
+      description: Get a specific user by ID with hierarchical authorization
       parameters:
         - name: id
           in: path
           required: true
-          description: Account ID
+          description: User ID
           schema:
             type: string
             example: "usr_123456789"
       responses:
         '200':
-          description: Account retrieved successfully
+          description: User retrieved successfully
           content:
             application/json:
               schema:
@@ -1005,9 +1037,9 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: "account retrieved successfully"
+                    example: "user retrieved successfully"
                   data:
-                    $ref: '#/components/schemas/Account'
+                    $ref: '#/components/schemas/User'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1017,14 +1049,14 @@ paths:
 
     put:
       tags:
-        - Backend - Accounts
-      summary: Update account
-      description: Update a user account with hierarchical authorization
+        - Backend - Users
+      summary: Update user
+      description: Update a user with hierarchical authorization
       parameters:
         - name: id
           in: path
           required: true
-          description: Account ID
+          description: User ID
           schema:
             type: string
             example: "usr_123456789"
@@ -1033,10 +1065,10 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AccountUpdate'
+              $ref: '#/components/schemas/UserUpdate'
       responses:
         '200':
-          description: Account updated successfully
+          description: User updated successfully
           content:
             application/json:
               schema:
@@ -1047,9 +1079,9 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: "account updated successfully"
+                    example: "user updated successfully"
                   data:
-                    $ref: '#/components/schemas/Account'
+                    $ref: '#/components/schemas/User'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1063,20 +1095,20 @@ paths:
 
     delete:
       tags:
-        - Backend - Accounts
-      summary: Delete account
-      description: Delete a user account with hierarchical authorization
+        - Backend - Users
+      summary: Delete user
+      description: Delete a user with hierarchical authorization
       parameters:
         - name: id
           in: path
           required: true
-          description: Account ID
+          description: User ID
           schema:
             type: string
             example: "usr_123456789"
       responses:
         '200':
-          description: Account deleted successfully
+          description: User deleted successfully
           content:
             application/json:
               schema:
@@ -1087,7 +1119,7 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: "account deleted successfully"
+                    example: "user deleted successfully"
                   data:
                     type: object
                     nullable: true
@@ -1098,17 +1130,17 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /accounts/{id}/password:
+  /users/{id}/password:
     patch:
       tags:
-        - Backend - Accounts
-      summary: Reset account password
-      description: Reset a user account's password (Admin only)
+        - Backend - Users
+      summary: Reset user password
+      description: Reset a user's password (Admin only)
       parameters:
         - name: id
           in: path
           required: true
-          description: Account ID
+          description: User ID
           schema:
             type: string
             example: "usr_123456789"
@@ -1143,6 +1175,33 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /users/totals:
+    get:
+      tags:
+        - Backend - Users
+      summary: Get users totals
+      description: Get total count of users accessible to the user (Admin role required)
+      responses:
+        '200':
+          description: Users totals retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "users totals retrieved"
+                  data:
+                    $ref: '#/components/schemas/Totals'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /applications:
     get:
@@ -1459,6 +1518,33 @@ paths:
                     type: object
                     nullable: true
 
+  /customers/totals:
+    get:
+      tags:
+        - Backend - Customers
+      summary: Get customers totals
+      description: Get total count of customers accessible to the user (Owner + Distributor + Reseller)
+      responses:
+        '200':
+          description: Customers totals retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "customers totals retrieved"
+                  data:
+                    $ref: '#/components/schemas/Totals'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /distributors:
     get:
       tags:
@@ -1646,6 +1732,33 @@ paths:
                   data:
                     type: object
                     nullable: true
+
+  /distributors/totals:
+    get:
+      tags:
+        - Backend - Distributors
+      summary: Get distributors totals
+      description: Get total count of distributors accessible to the user (Owner only)
+      responses:
+        '200':
+          description: Distributors totals retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "distributors totals retrieved"
+                  data:
+                    $ref: '#/components/schemas/Totals'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /health:
     get:
@@ -1927,6 +2040,33 @@ paths:
                   data:
                     type: object
                     nullable: true
+
+  /resellers/totals:
+    get:
+      tags:
+        - Backend - Resellers
+      summary: Get resellers totals
+      description: Get total count of resellers accessible to the user (Owner + Distributor)
+      responses:
+        '200':
+          description: Resellers totals retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "resellers totals retrieved"
+                  data:
+                    $ref: '#/components/schemas/Totals'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /roles:
     get:
@@ -2217,7 +2357,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /systems/status:
+  /systems/totals:
     get:
       tags:
         - Backend - Systems

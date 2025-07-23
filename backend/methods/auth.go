@@ -20,7 +20,7 @@ import (
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
-	"github.com/nethesis/my/backend/services"
+	"github.com/nethesis/my/backend/services/logto"
 )
 
 // TokenExchangeRequest represents the request body for token exchange
@@ -56,7 +56,7 @@ func ExchangeToken(c *gin.Context) {
 	}
 
 	// Get user info from Logto
-	userInfo, err := services.GetUserInfoFromLogto(req.AccessToken)
+	userInfo, err := logto.GetUserInfoFromLogto(req.AccessToken)
 	if err != nil {
 		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "get_userinfo", http.StatusUnauthorized, "Failed to get user info from Logto")
 		c.JSON(http.StatusUnauthorized, response.Unauthorized(
@@ -67,7 +67,7 @@ func ExchangeToken(c *gin.Context) {
 	}
 
 	// Get complete user profile from Management API
-	userProfile, err := services.GetUserProfileFromLogto(userInfo.Sub)
+	userProfile, err := logto.GetUserProfileFromLogto(userInfo.Sub)
 	if err != nil {
 		logger.RequestLogger(c, "auth").Warn().
 			Err(err).
@@ -94,7 +94,7 @@ func ExchangeToken(c *gin.Context) {
 	}
 
 	// Enrich user with roles and permissions
-	enrichedUser, err := services.EnrichUserWithRolesAndPermissions(userInfo.Sub)
+	enrichedUser, err := logto.EnrichUserWithRolesAndPermissions(userInfo.Sub)
 	if err != nil {
 		logger.RequestLogger(c, "auth").Warn().
 			Err(err).
@@ -179,7 +179,7 @@ func RefreshToken(c *gin.Context) {
 	}
 
 	// Get fresh user information
-	enrichedUser, err := services.EnrichUserWithRolesAndPermissions(refreshClaims.UserID)
+	enrichedUser, err := logto.EnrichUserWithRolesAndPermissions(refreshClaims.UserID)
 	if err != nil {
 		logger.RequestLogger(c, "auth").Error().
 			Err(err).
@@ -193,7 +193,7 @@ func RefreshToken(c *gin.Context) {
 	}
 
 	// Get complete user profile
-	userProfile, err := services.GetUserProfileFromLogto(refreshClaims.UserID)
+	userProfile, err := logto.GetUserProfileFromLogto(refreshClaims.UserID)
 	if err != nil {
 		logger.RequestLogger(c, "auth").Warn().
 			Err(err).

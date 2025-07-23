@@ -7,7 +7,7 @@
  * author: Edoardo Spadoni <edoardo.spadoni@nethesis.it>
  */
 
-package services
+package local
 
 import (
 	"encoding/json"
@@ -18,27 +18,28 @@ import (
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
-	"github.com/nethesis/my/backend/repositories"
+	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/response"
+	"github.com/nethesis/my/backend/services/logto"
 )
 
 // LocalOrganizationService handles local-first CRUD operations with Logto sync
 type LocalOrganizationService struct {
-	distributorRepo *repositories.LocalDistributorRepository
-	resellerRepo    *repositories.LocalResellerRepository
-	customerRepo    *repositories.LocalCustomerRepository
-	userRepo        *repositories.LocalUserRepository
-	logtoClient     *LogtoManagementClient
+	distributorRepo *entities.LocalDistributorRepository
+	resellerRepo    *entities.LocalResellerRepository
+	customerRepo    *entities.LocalCustomerRepository
+	userRepo        *entities.LocalUserRepository
+	logtoClient     *logto.LogtoManagementClient
 }
 
 // NewLocalOrganizationService creates a new local organization service
-func NewLocalOrganizationService() *LocalOrganizationService {
+func NewOrganizationService() *LocalOrganizationService {
 	return &LocalOrganizationService{
-		distributorRepo: repositories.NewLocalDistributorRepository(),
-		resellerRepo:    repositories.NewLocalResellerRepository(),
-		customerRepo:    repositories.NewLocalCustomerRepository(),
-		userRepo:        repositories.NewLocalUserRepository(),
-		logtoClient:     NewLogtoManagementClient(),
+		distributorRepo: entities.NewLocalDistributorRepository(),
+		resellerRepo:    entities.NewLocalResellerRepository(),
+		customerRepo:    entities.NewLocalCustomerRepository(),
+		userRepo:        entities.NewLocalUserRepository(),
+		logtoClient:     logto.NewManagementClient(),
 	}
 }
 

@@ -15,7 +15,7 @@ import (
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
-	"github.com/nethesis/my/backend/services"
+	"github.com/nethesis/my/backend/services/local"
 )
 
 // GetOrganizations returns organizations the current user can assign users to with pagination and search
@@ -59,7 +59,7 @@ func GetOrganizations(c *gin.Context) {
 	}
 
 	// Use local organization service for better performance
-	service := services.NewLocalOrganizationService()
+	service := local.NewOrganizationService()
 
 	// Get organizations with pagination and filters from local database
 	result, err := service.GetAllOrganizationsPaginated(userOrgRole, userOrgID, page, pageSize, filters)

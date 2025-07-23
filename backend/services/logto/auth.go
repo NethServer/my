@@ -7,7 +7,7 @@
  * author: Edoardo Spadoni <edoardo.spadoni@nethesis.it>
  */
 
-package services
+package logto
 
 import (
 	"encoding/json"
@@ -85,7 +85,7 @@ func GetUserInfoFromLogto(accessToken string) (*models.LogtoUserInfo, error) {
 
 // GetUserProfileFromLogto fetches complete user profile from Logto Management API
 func GetUserProfileFromLogto(userID string) (*models.LogtoUser, error) {
-	client := NewLogtoManagementClient()
+	client := NewManagementClient()
 
 	// Use the GetUserByID method we already have
 	user, err := client.GetUserByID(userID)

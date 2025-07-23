@@ -15,9 +15,9 @@ import (
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
-	"github.com/nethesis/my/backend/repositories"
+	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/response"
-	"github.com/nethesis/my/backend/services"
+	"github.com/nethesis/my/backend/services/local"
 )
 
 // CreateReseller handles POST /api/resellers - creates a new reseller locally and syncs to Logto
@@ -36,7 +36,7 @@ func CreateReseller(c *gin.Context) {
 	}
 
 	// Create service
-	service := services.NewLocalOrganizationService()
+	service := local.NewOrganizationService()
 
 	// Validate permissions
 	userOrgRole := strings.ToLower(user.OrgRole)
@@ -90,7 +90,7 @@ func GetReseller(c *gin.Context) {
 	}
 
 	// Get reseller
-	repo := repositories.NewLocalResellerRepository()
+	repo := entities.NewLocalResellerRepository()
 	reseller, err := repo.GetByID(resellerID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
@@ -155,7 +155,7 @@ func GetResellers(c *gin.Context) {
 	page, pageSize := helpers.GetPaginationFromQuery(c)
 
 	// Create service
-	service := services.NewLocalOrganizationService()
+	service := local.NewOrganizationService()
 
 	// Get resellers based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
@@ -207,7 +207,7 @@ func UpdateReseller(c *gin.Context) {
 	}
 
 	// Apply hierarchical RBAC validation using service layer
-	userService := services.NewLocalUserService()
+	userService := local.NewUserService()
 	userOrgRole := strings.ToLower(user.OrgRole)
 	canUpdate := false
 
@@ -230,7 +230,7 @@ func UpdateReseller(c *gin.Context) {
 	}
 
 	// Create service
-	service := services.NewLocalOrganizationService()
+	service := local.NewOrganizationService()
 
 	// Update reseller
 	reseller, err := service.UpdateReseller(resellerID, &request, user.ID, user.OrganizationID)
@@ -277,7 +277,7 @@ func DeleteReseller(c *gin.Context) {
 	}
 
 	// Apply hierarchical RBAC validation - only creators and above can delete
-	userService := services.NewLocalUserService()
+	userService := local.NewUserService()
 	userOrgRole := strings.ToLower(user.OrgRole)
 	canDelete := false
 
@@ -295,7 +295,7 @@ func DeleteReseller(c *gin.Context) {
 	}
 
 	// Create service
-	service := services.NewLocalOrganizationService()
+	service := local.NewOrganizationService()
 
 	// Delete reseller
 	err := service.DeleteReseller(resellerID, user.ID, user.OrganizationID)

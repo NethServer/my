@@ -1,4 +1,4 @@
-package services
+package logto
 
 import (
 	"bytes"
@@ -136,10 +136,10 @@ func TestLogtoModels(t *testing.T) {
 }
 
 // Test LogtoManagementClient
-func TestNewLogtoManagementClient(t *testing.T) {
+func TestNewManagementClient(t *testing.T) {
 	setupServicesTestEnvironment()
 
-	client := NewLogtoManagementClient()
+	client := NewManagementClient()
 
 	assert.NotNil(t, client)
 	assert.Equal(t, configuration.Config.LogtoManagementBaseURL, client.baseURL)
@@ -231,7 +231,7 @@ func TestLogtoManagementClient_getAccessToken(t *testing.T) {
 			configuration.Config.LogtoIssuer = server.URL
 			defer func() { configuration.Config.LogtoIssuer = originalIssuer }()
 
-			client := NewLogtoManagementClient()
+			client := NewManagementClient()
 			err := client.getAccessToken()
 
 			if tt.expectError {
@@ -266,7 +266,7 @@ func TestLogtoManagementClient_TokenCaching(t *testing.T) {
 	configuration.Config.LogtoIssuer = server.URL
 	defer func() { configuration.Config.LogtoIssuer = originalIssuer }()
 
-	client := NewLogtoManagementClient()
+	client := NewManagementClient()
 
 	// First request should hit the server
 	err := client.getAccessToken()
@@ -399,7 +399,7 @@ func TestLogtoManagementClient_makeRequest(t *testing.T) {
 				configuration.Config.LogtoManagementBaseURL = originalBaseURL
 			}()
 
-			client := NewLogtoManagementClient()
+			client := NewManagementClient()
 			resp, err := client.makeRequest(tt.method, tt.endpoint, tt.body)
 
 			if tt.expectError {
@@ -646,7 +646,7 @@ func TestServicesNetworkErrorHandling(t *testing.T) {
 	})
 
 	t.Run("LogtoManagementClient getAccessToken with network error", func(t *testing.T) {
-		client := NewLogtoManagementClient()
+		client := NewManagementClient()
 		err := client.getAccessToken()
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to request token")

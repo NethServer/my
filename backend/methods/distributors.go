@@ -15,9 +15,9 @@ import (
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
-	"github.com/nethesis/my/backend/repositories"
+	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/response"
-	"github.com/nethesis/my/backend/services"
+	"github.com/nethesis/my/backend/services/local"
 )
 
 // CreateDistributor handles POST /api/distributors - creates a new distributor locally and syncs to Logto
@@ -36,7 +36,7 @@ func CreateDistributor(c *gin.Context) {
 	}
 
 	// Create service
-	service := services.NewLocalOrganizationService()
+	service := local.NewOrganizationService()
 
 	// Validate permissions
 	userOrgRole := strings.ToLower(user.OrgRole)
@@ -96,7 +96,7 @@ func GetDistributor(c *gin.Context) {
 	}
 
 	// Get distributor
-	repo := repositories.NewLocalDistributorRepository()
+	repo := entities.NewLocalDistributorRepository()
 	distributor, err := repo.GetByID(distributorID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
@@ -136,7 +136,7 @@ func GetDistributors(c *gin.Context) {
 	page, pageSize := helpers.GetPaginationFromQuery(c)
 
 	// Create service
-	service := services.NewLocalOrganizationService()
+	service := local.NewOrganizationService()
 
 	// Get distributors based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
@@ -194,7 +194,7 @@ func UpdateDistributor(c *gin.Context) {
 	}
 
 	// Create service
-	service := services.NewLocalOrganizationService()
+	service := local.NewOrganizationService()
 
 	// Update distributor
 	distributor, err := service.UpdateDistributor(distributorID, &request, user.ID, user.OrganizationID)
@@ -252,7 +252,7 @@ func DeleteDistributor(c *gin.Context) {
 	}
 
 	// Create service
-	service := services.NewLocalOrganizationService()
+	service := local.NewOrganizationService()
 
 	// Delete distributor
 	err := service.DeleteDistributor(distributorID, user.ID, user.OrganizationID)
