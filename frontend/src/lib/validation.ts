@@ -14,11 +14,21 @@ export type BackendError = {
 
 export type ValidationIssue = Record<string, string[]>
 
-export const isValidationErrorCode = (errorCode: number) => {
+export const isValidationError = (error: Error | null): boolean => {
+  return isValidationErrorCode((error as AxiosError)?.response?.status)
+}
+
+export const isValidationErrorCode = (errorCode: number | undefined) => {
+  if (!errorCode) {
+    return false
+  }
   return [400, 409, 422].includes(errorCode)
 }
 
-export const getValidationIssues = (axiosError: AxiosError, i18nPrefix: string): ValidationIssue => {
+export const getValidationIssues = (
+  axiosError: AxiosError,
+  i18nPrefix: string,
+): ValidationIssue => {
   console.log('getValidationIssues', axiosError) ////
 
   const issues: ValidationIssue = {}

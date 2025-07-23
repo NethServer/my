@@ -223,6 +223,7 @@
     "ui_language": "User interface language",
     "profile": "Profile",
     "cannot_retrieve_profile_data": "Cannot retrieve profile data",
+    "cannot_save_profile_data": "Cannot save profile data",
     "profile_saved": "Profile saved",
     "save_profile": "Save profile"
   },

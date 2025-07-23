@@ -4,6 +4,7 @@
 import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
+import * as v from 'valibot'
 
 export type MeResponse = {
   id: string
@@ -19,6 +20,16 @@ export type MeResponse = {
   organizationId: string
   organizationName: string
 }
+
+export const EditProfileSchema = v.object({
+  id: v.string(),
+  name: v.pipe(v.string(), v.nonEmpty('users.name_required')),
+  // phone: v.optional(
+  //   v.pipe(v.string(), v.regex(/^\+?[\d\s\-\(\)]{7,20}$/, 'users.phone_invalid_format')),
+  // ), //// uncomment
+})
+
+export type EditProfile = v.InferOutput<typeof EditProfileSchema>
 
 export const getMe = () => {
   const loginStore = useLoginStore()

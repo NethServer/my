@@ -5,6 +5,7 @@ import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
+import type { EditProfile } from './me'
 
 //// remove after implementing pagination
 export const paginationQueryString = '?page_size=100'
@@ -68,7 +69,7 @@ export const postUser = (user: CreateUser) => {
   })
 }
 
-export const putUser = (user: EditUser) => {
+export const putUser = (user: EditUser | EditProfile) => {
   console.log('putAccount', user) ////
 
   const loginStore = useLoginStore()

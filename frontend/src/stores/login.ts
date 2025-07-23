@@ -181,6 +181,7 @@ export const useLoginStore = defineStore('login', () => {
     userInitial,
     userInfo,
     loadingUserInfo,
+    fetchTokenAndUserInfo,
     doRefreshToken,
     login,
     logout,

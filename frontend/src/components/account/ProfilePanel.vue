@@ -4,9 +4,9 @@
 -->
 
 <script lang="ts" setup>
-import { getMe } from '@/lib/me'
-import { putUser, type EditUser } from '@/lib/users'
-import { getValidationIssues } from '@/lib/validation'
+import { EditProfileSchema, getMe, type EditProfile } from '@/lib/me'
+import { putUser } from '@/lib/users'
+import { getValidationIssues, isValidationError } from '@/lib/validation'
 import { useLoginStore } from '@/stores/login'
 import { useNotificationsStore } from '@/stores/notifications'
 import { NeButton, NeInlineNotification, NeSkeleton, NeTextInput } from '@nethesis/vue-components'
@@ -14,6 +14,7 @@ import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
 import type { AxiosError } from 'axios'
 import { ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
+import * as v from 'valibot'
 
 const { t } = useI18n()
 const loginStore = useLoginStore()
@@ -30,7 +31,7 @@ const {
   reset: editUserReset,
   error: editUserError,
 } = useMutation({
-  mutation: (user: EditUser) => {
+  mutation: (user: EditProfile) => {
     return putUser(user)
   },
   onSuccess(data, vars, context) {
@@ -38,6 +39,9 @@ const {
       kind: 'success',
       title: t('account.profile_saved'),
     })
+
+    //// todo update login store user info
+    loginStore.fetchTokenAndUserInfo()
   },
   onError: (error, variables) => {
     console.error('Error editing user:', error)
@@ -75,6 +79,17 @@ watch(
   },
 )
 
+watch(
+  () => loginStore.userInfo,
+  (userInfo) => {
+    if (userInfo) {
+      name.value = userInfo.name || ''
+      email.value = userInfo.email || ''
+      // phone.value = userInfo.phone || '' //// uncomment
+    }
+  },
+)
+
 function clearErrors() {
   editUserReset()
   validationIssues.value = {}
@@ -84,17 +99,42 @@ async function saveProfile() {
   clearErrors()
 
   if (loginStore.userInfo?.id) {
-    const user = {
+    const profile = {
       id: loginStore.userInfo?.id,
       name: name.value,
     }
 
-    //// TODO uncomment!
-    // const isValidationOk = validateEdit(userToEdit)
-    // if (!isValidationOk) {
-    //   return
-    // }
-    editUserMutate(user as EditUser) //// remove casting
+    const isValidationOk = validate(profile)
+    if (!isValidationOk) {
+      return
+    }
+    editUserMutate(profile)
+  }
+}
+
+function validate(profile: EditProfile): boolean {
+  validationIssues.value = {}
+  const validation = v.safeParse(EditProfileSchema, profile) ////
+  // const validation = { success: true } ////
+
+  if (validation.success) {
+    // no validation issues
+    return true
+  } else {
+    const issues = v.flatten(validation.issues)
+
+    if (issues.nested) {
+      validationIssues.value = issues.nested as Record<string, string[]>
+
+      // focus the first field with error
+
+      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
+
+      console.log('firstFieldName', firstErrorFieldName) ////
+
+      fieldRefs[firstErrorFieldName].value?.focus()
+    }
+    return false
   }
 }
 </script>
@@ -127,6 +167,13 @@ async function saveProfile() {
           :label="$t('users.email')"
           :invalid-message="validationIssues.email?.[0] ? $t(validationIssues.email[0]) : ''"
           disabled
+        />
+        <!-- edit user error notification -->
+        <NeInlineNotification
+          v-if="editUserError?.message && !isValidationError(editUserError)"
+          kind="error"
+          :title="t('account.cannot_save_profile_data')"
+          :description="editUserError.message"
         />
         <!-- save button -->
         <NeButton
