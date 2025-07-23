@@ -16,9 +16,9 @@ import (
 	"time"
 
 	"github.com/nethesis/my/backend/database"
+	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
-	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services/logto"
 )

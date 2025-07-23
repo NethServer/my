@@ -17,9 +17,9 @@ import (
 	"time"
 
 	"github.com/nethesis/my/backend/database"
+	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
-	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services/logto"
 )
@@ -759,6 +759,12 @@ func (s *LocalUserService) CanCreateUser(userOrgRole, userOrgID string, req *mod
 			}
 		}
 		return false, "resellers can only create users in their own organization or customers they manage"
+	case "customer":
+		// Customer can only create users in their own organization
+		if req.OrganizationID != nil && *req.OrganizationID == userOrgID {
+			return true, ""
+		}
+		return false, "customers can only create users in their own organization"
 	default:
 		return false, "insufficient permissions to create users"
 	}
@@ -781,8 +787,11 @@ func (s *LocalUserService) CanUpdateUser(userOrgRole, userOrgID, targetUserOrgID
 		}
 		return false, "resellers can only update users in their own organization or customers they manage"
 	case "customer":
-		// Customers can only update themselves (handled at handler level)
-		return false, "customers cannot update other users"
+		// Customer can only update users in their own organization
+		if targetUserOrgID == userOrgID {
+			return true, ""
+		}
+		return false, "customers can only update users in their own organization"
 	default:
 		return false, "insufficient permissions to update users"
 	}
@@ -804,6 +813,12 @@ func (s *LocalUserService) CanDeleteUser(userOrgRole, userOrgID, targetUserOrgID
 			return true, ""
 		}
 		return false, "resellers can only delete users in their own organization or customers they manage"
+	case "customer":
+		// Customer can only delete users in their own organization
+		if targetUserOrgID == userOrgID {
+			return true, ""
+		}
+		return false, "customers can only delete users in their own organization"
 	default:
 		return false, "insufficient permissions to delete users"
 	}

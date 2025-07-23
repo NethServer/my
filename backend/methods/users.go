@@ -13,10 +13,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 
+	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
-	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services/local"
 )
@@ -465,6 +465,11 @@ func ResetUserPassword(c *gin.Context) {
 			}
 		case "reseller":
 			// Reseller can reset passwords in their organization
+			if targetOrgID == user.OrganizationID {
+				canReset = true
+			}
+		case "customer":
+			// Customer can reset passwords in their organization
 			if targetOrgID == user.OrganizationID {
 				canReset = true
 			}

@@ -229,7 +229,7 @@ func main() {
 		customAuth.GET("/organization-roles", methods.GetOrganizationRoles)
 
 		// Organizations endpoint - for organization selection in user creation
-		customAuth.GET("/organizations", middleware.RequireAnyOrgRole("Owner", "Distributors", "Reseller"), methods.GetOrganizations)
+		customAuth.GET("/organizations", methods.GetOrganizations)
 
 		// Applications endpoint - filtered third-party applications based on user access
 		customAuth.GET("/applications", methods.GetApplications)
