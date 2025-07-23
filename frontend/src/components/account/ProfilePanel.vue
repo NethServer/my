@@ -4,26 +4,31 @@
 -->
 
 <script lang="ts" setup>
-import { EditProfileSchema, getMe, type EditProfile } from '@/lib/me'
+import { EditProfileSchema, type EditProfile } from '@/lib/me'
 import { putUser } from '@/lib/users'
 import { getValidationIssues, isValidationError } from '@/lib/validation'
 import { useLoginStore } from '@/stores/login'
 import { useNotificationsStore } from '@/stores/notifications'
 import { NeButton, NeInlineNotification, NeSkeleton, NeTextInput } from '@nethesis/vue-components'
-import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
+import { useMutation, useQueryCache } from '@pinia/colada'
 import type { AxiosError } from 'axios'
 import { ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import * as v from 'valibot'
+import { useAuthMe } from '@/queries/authMe'
 
 const { t } = useI18n()
 const loginStore = useLoginStore()
 const notificationsStore = useNotificationsStore()
-const { state: me, asyncStatus: meAsyncStatus } = useQuery({
-  key: ['me'], //// use key factory?
-  enabled: () => !!loginStore.jwtToken,
-  query: getMe,
-})
+
+//// remove?
+// const { state: me, asyncStatus: meAsyncStatus } = useQuery({
+//   key: ['me'], //// use key factory?
+//   enabled: () => !!loginStore.jwtToken,
+//   query: getMe,
+// })
+
+const { me, meAsyncStatus } = useAuthMe()
 
 const {
   mutate: editUserMutate,
@@ -68,6 +73,10 @@ const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> =
   phone: phoneRef,
 }
 
+////
+// const isOwner = computed(() => {
+//   return me.value.data?.username === 'owner'
+// })
 watch(
   () => me.value.data,
   () => {
@@ -158,7 +167,7 @@ function validate(profile: EditProfile): boolean {
           v-model.trim="name"
           :label="$t('users.name')"
           :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
-          :disabled="editUserLoading"
+          :disabled="editUserLoading || loginStore.isOwner"
         />
         <!-- email -->
         <NeTextInput
@@ -168,6 +177,10 @@ function validate(profile: EditProfile): boolean {
           :invalid-message="validationIssues.email?.[0] ? $t(validationIssues.email[0]) : ''"
           disabled
         />
+        <!-- //// phone -->
+        <!-- //// organization -->
+        <!-- //// roles -->
+
         <!-- edit user error notification -->
         <NeInlineNotification
           v-if="editUserError?.message && !isValidationError(editUserError)"
@@ -180,7 +193,7 @@ function validate(profile: EditProfile): boolean {
           type="submit"
           kind="primary"
           size="lg"
-          :disabled="editUserLoading"
+          :disabled="editUserLoading || loginStore.isOwner"
           :loading="editUserLoading"
           @click.prevent="saveProfile"
         >

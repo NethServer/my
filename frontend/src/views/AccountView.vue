@@ -4,11 +4,16 @@
 -->
 
 <script setup lang="ts">
-import { NeHeading } from '@nethesis/vue-components'
+import { NeButton, NeHeading, NeInlineNotification } from '@nethesis/vue-components'
 // import ChangePassword from '@/components/standalone/account/ChangePassword.vue' ////
 import FormLayout from '@/components/FormLayout.vue'
 import LanguageListbox from '@/components/account/LanguageListbox.vue'
 import ProfilePanel from '@/components/account/ProfilePanel.vue'
+import { useLoginStore } from '@/stores/login'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { faKey } from '@fortawesome/free-solid-svg-icons'
+
+const loginStore = useLoginStore()
 </script>
 
 <template>
@@ -17,18 +22,35 @@ import ProfilePanel from '@/components/account/ProfilePanel.vue'
       {{ $t('account.title') }}
     </NeHeading>
     <div class="max-w-3xl space-y-8">
-      <FormLayout :title="$t('account.profile')">
-        <ProfilePanel />
-      </FormLayout>
-      <!-- divider -->
-      <hr />
       <FormLayout :title="$t('account.ui_language')">
         <LanguageListbox />
       </FormLayout>
       <!-- divider -->
       <hr />
+      <NeInlineNotification
+        v-if="loginStore.isOwner"
+        kind="info"
+        :title="$t('account.cannot_edit_profile')"
+        :description="$t('account.cannot_edit_profile_description')"
+      />
+      <FormLayout :title="$t('account.profile')">
+        <ProfilePanel />
+      </FormLayout>
+      <!-- divider -->
+      <hr />
+      <NeInlineNotification
+        v-if="loginStore.isOwner"
+        kind="info"
+        :title="$t('account.cannot_change_password')"
+        :description="$t('account.cannot_change_password_description')"
+      />
       <FormLayout :title="$t('account.change_password')">
-        <!-- <ChangePassword /> //// -->
+        <NeButton kind="secondary" size="lg" :disabled="loginStore.isOwner">
+          <template #prefix>
+            <FontAwesomeIcon :icon="faKey" aria-hidden="true" />
+          </template>
+          {{ $t('account.change_password') }}
+        </NeButton>
       </FormLayout>
     </div>
   </div>

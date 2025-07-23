@@ -42,6 +42,10 @@ export const useLoginStore = defineStore('login', () => {
     return name ? name.charAt(0).toUpperCase() : ''
   })
 
+  const isOwner = computed(() => {
+    return userInfo.value?.orgRole === 'Owner'
+  })
+
   // watch for authentication changes
   watch(
     isAuthenticated,
@@ -181,6 +185,7 @@ export const useLoginStore = defineStore('login', () => {
     userInitial,
     userInfo,
     loadingUserInfo,
+    isOwner,
     fetchTokenAndUserInfo,
     doRefreshToken,
     login,
