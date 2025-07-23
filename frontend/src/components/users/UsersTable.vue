@@ -151,7 +151,7 @@ function getKebabMenuItems(user: User) {
       label: t('users.reset_password'),
       icon: faKey,
       action: () => showResetPasswordModal(user),
-      disabled: false,
+      disabled: usersAsyncStatus.value === 'loading',
     },
     {
       id: 'deleteAccount',

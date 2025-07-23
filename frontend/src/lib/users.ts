@@ -48,54 +48,44 @@ export type EditUser = v.InferOutput<typeof EditUserSchema>
 export type User = v.InferOutput<typeof UserSchema>
 
 export const getUsers = () => {
-  console.log('getAccounts') ////
-
   const loginStore = useLoginStore()
 
   return axios
-    .get(`${API_URL}/accounts${paginationQueryString}`, {
+    .get(`${API_URL}/users${paginationQueryString}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
-    .then((res) => res.data.data.accounts as User[])
+    .then((res) => res.data.data.users as User[])
 }
 
 export const postUser = (user: CreateUser) => {
-  console.log('postAccount', user) ////
-
   const loginStore = useLoginStore()
 
-  return axios.post(`${API_URL}/accounts`, user, {
+  return axios.post(`${API_URL}/users`, user, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
 
 export const putUser = (user: EditUser | EditProfile) => {
-  console.log('putAccount', user) ////
-
   const loginStore = useLoginStore()
 
-  return axios.put(`${API_URL}/accounts/${user.id}`, user, {
+  return axios.put(`${API_URL}/users/${user.id}`, user, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
 
 export const deleteUser = (user: User) => {
-  console.log('deleteAccount', user) ////
-
   const loginStore = useLoginStore()
 
-  return axios.delete(`${API_URL}/accounts/${user.id}`, {
+  return axios.delete(`${API_URL}/users/${user.id}`, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
 
 export const resetPassword = (user: User, newPassword: string) => {
-  console.log('resetPassword', user) ////
-
   const loginStore = useLoginStore()
 
   return axios.patch(
-    `${API_URL}/accounts/${user.id}/password`,
+    `${API_URL}/users/${user.id}/password`,
     { password: newPassword },
     {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
