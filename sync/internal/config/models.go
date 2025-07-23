@@ -152,7 +152,7 @@ func (c *Config) validateRole(role Role, roleType string) error {
 		return fmt.Errorf("role name is required for role %s", role.ID)
 	}
 
-	if role.Type != "" && role.Type != roleType && role.Type != "user" {
+	if role.Type != "" && role.Type != roleType && role.Type != "user" && role.Type != "org" {
 		return fmt.Errorf("invalid role type %s for role %s", role.Type, role.ID)
 	}
 
@@ -353,12 +353,23 @@ func (c *Config) GetUserTypeRoles(roles []Role) []Role {
 	return userRoles
 }
 
+// GetOrgTypeRoles returns only roles with type "org" or "organization"
+func (c *Config) GetOrgTypeRoles(roles []Role) []Role {
+	var orgRoles []Role
+	for _, role := range roles {
+		if role.Type == "org" || role.Type == "organization" {
+			orgRoles = append(orgRoles, role)
+		}
+	}
+	return orgRoles
+}
+
 // GetAllPermissions returns all unique permissions from both organization roles and user roles
 func (c *Config) GetAllPermissions() map[string]Permission {
 	allPermissions := make(map[string]Permission)
 
 	// Get permissions from organization roles
-	organizationRoles := c.GetUserTypeRoles(c.Hierarchy.OrganizationRoles)
+	organizationRoles := c.GetOrgTypeRoles(c.Hierarchy.OrganizationRoles)
 	for _, role := range organizationRoles {
 		for _, permission := range role.Permissions {
 			if permission.ID != "" {

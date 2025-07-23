@@ -5,26 +5,39 @@ metadata:
 
 hierarchy:
   organization_roles:
-    - id: admin
-      name: "Administrator"
-      type: user
+    - id: owner
+      name: "Owner"
+      type: org
       priority: 0
       permissions:
-        - id: "admin:systems"
-          name: "Administer systems"
+        - id: "read:customers"
+        - id: "manage:customers"
+
+    - id: customer
+      name: "Customer"
+      type: org
+      priority: 1
+      permissions:
 
   user_roles:
+    - id: admin
+      name: "Admin"
+      type: user
+      priority: 1
+      permissions:
+        - id: "read:systems"
+        - id: "manage:systems"
+
     - id: support
       name: "Support"
       type: user
       priority: 1
       permissions:
         - id: "read:systems"
-          name: "Read systems"
 
   resources:
     - name: "systems"
-      actions: ["create", "read", "update", "delete", "admin"]
+      actions: ["read", "manage"]
 
   # Third-party applications (optional)
   third_party_apps:
