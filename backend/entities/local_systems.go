@@ -43,7 +43,7 @@ func (r *LocalSystemRepository) Create(req *models.CreateSystemRequest) (*models
 func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	query := `
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version, s.last_seen,
-		       s.custom_data, s.customer_id, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
+		       s.custom_data, s.reseller_id, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
 		WHERE s.id = $1
@@ -57,7 +57,7 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 
 	err := r.db.QueryRow(query, id).Scan(
 		&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
-		&ipv4Address, &ipv6Address, &version, &system.LastSeen, &customDataJSON, &system.CustomerID,
+		&ipv4Address, &ipv6Address, &version, &system.LastSeen, &customDataJSON, &system.ResellerID,
 		&system.CreatedAt, &system.UpdatedAt, &createdByJSON, &lastHeartbeat,
 	)
 
@@ -114,17 +114,17 @@ func (r *LocalSystemRepository) Delete(id string) error {
 
 // List retrieves systems filtered by organization with pagination and RBAC (matches other repository patterns)
 func (r *LocalSystemRepository) List(userOrgRole, userOrgID string, page, pageSize int) ([]*models.System, int, error) {
-	// Get all customer organization IDs the user can access hierarchically
-	allowedOrgIDs, err := r.GetHierarchicalCustomerIDs(strings.ToLower(userOrgRole), userOrgID)
+	// Get all reseller organization IDs the user can access hierarchically
+	allowedOrgIDs, err := r.GetHierarchicalResellerIDs(strings.ToLower(userOrgRole), userOrgID)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get hierarchical customer IDs: %w", err)
+		return nil, 0, fmt.Errorf("failed to get hierarchical reseller IDs: %w", err)
 	}
 
-	return r.ListByCustomerIDs(allowedOrgIDs, page, pageSize)
+	return r.ListByResellerIDs(allowedOrgIDs, page, pageSize)
 }
 
-// ListByCustomerIDs returns paginated list of systems in specified customer organizations
-func (r *LocalSystemRepository) ListByCustomerIDs(allowedOrgIDs []string, page, pageSize int) ([]*models.System, int, error) {
+// ListByResellerIDs returns paginated list of systems in specified reseller organizations
+func (r *LocalSystemRepository) ListByResellerIDs(allowedOrgIDs []string, page, pageSize int) ([]*models.System, int, error) {
 	if len(allowedOrgIDs) == 0 {
 		return []*models.System{}, 0, nil
 	}
@@ -144,7 +144,7 @@ func (r *LocalSystemRepository) ListByCustomerIDs(allowedOrgIDs []string, page, 
 	var totalCount int
 	countQuery := fmt.Sprintf(`
 		SELECT COUNT(*) FROM systems
-		WHERE active = TRUE AND customer_id IN (%s)
+		WHERE active = TRUE AND reseller_id IN (%s)
 	`, placeholdersStr)
 
 	err := r.db.QueryRow(countQuery, args...).Scan(&totalCount)
@@ -160,9 +160,9 @@ func (r *LocalSystemRepository) ListByCustomerIDs(allowedOrgIDs []string, page, 
 
 	query := fmt.Sprintf(`
 		SELECT id, name, type, status, fqdn, ipv4_address, ipv6_address, version, last_seen,
-		       custom_data, customer_id, created_at, updated_at, created_by
+		       custom_data, reseller_id, created_at, updated_at, created_by
 		FROM systems
-		WHERE active = TRUE AND customer_id IN (%s)
+		WHERE active = TRUE AND reseller_id IN (%s)
 		ORDER BY created_at DESC
 		LIMIT $%d OFFSET $%d
 	`, placeholdersStr, len(args)+1, len(args)+2)
@@ -181,7 +181,7 @@ func (r *LocalSystemRepository) ListByCustomerIDs(allowedOrgIDs []string, page, 
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
-			&ipv4Address, &ipv6Address, &version, &system.LastSeen, &customDataJSON, &system.CustomerID,
+			&ipv4Address, &ipv6Address, &version, &system.LastSeen, &customDataJSON, &system.ResellerID,
 			&system.CreatedAt, &system.UpdatedAt, &createdByJSON,
 		)
 		if err != nil {
@@ -220,18 +220,18 @@ func (r *LocalSystemRepository) ListByCustomerIDs(allowedOrgIDs []string, page, 
 
 // GetTotals returns total counts and status for systems visible to the user (matches other repository patterns)
 func (r *LocalSystemRepository) GetTotals(userOrgRole, userOrgID string) (*models.SystemTotals, error) {
-	// Get all customer organization IDs the user can access hierarchically
-	allowedOrgIDs, err := r.GetHierarchicalCustomerIDs(strings.ToLower(userOrgRole), userOrgID)
+	// Get all reseller organization IDs the user can access hierarchically
+	allowedOrgIDs, err := r.GetHierarchicalResellerIDs(strings.ToLower(userOrgRole), userOrgID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get hierarchical customer IDs: %w", err)
+		return nil, fmt.Errorf("failed to get hierarchical reseller IDs: %w", err)
 	}
 
 	// Use default timeout of 15 minutes for heartbeat status calculation (matching service logic)
-	return r.GetTotalsByCustomerIDs(allowedOrgIDs, 15)
+	return r.GetTotalsByResellerIDs(allowedOrgIDs, 15)
 }
 
-// GetTotalsByCustomerIDs returns total counts and status for systems in specified customer organizations
-func (r *LocalSystemRepository) GetTotalsByCustomerIDs(allowedOrgIDs []string, timeoutMinutes int) (*models.SystemTotals, error) {
+// GetTotalsByResellerIDs returns total counts and status for systems in specified reseller organizations
+func (r *LocalSystemRepository) GetTotalsByResellerIDs(allowedOrgIDs []string, timeoutMinutes int) (*models.SystemTotals, error) {
 	if len(allowedOrgIDs) == 0 {
 		return &models.SystemTotals{
 			Total:          0,
@@ -266,7 +266,7 @@ func (r *LocalSystemRepository) GetTotalsByCustomerIDs(allowedOrgIDs []string, t
 			SUM(CASE WHEN h.last_heartbeat IS NULL THEN 1 ELSE 0 END) as zombie
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
-		WHERE s.active = TRUE AND s.customer_id IN (%s)
+		WHERE s.active = TRUE AND s.reseller_id IN (%s)
 	`, placeholdersStr)
 
 	var total, alive, dead, zombie int
@@ -284,90 +284,56 @@ func (r *LocalSystemRepository) GetTotalsByCustomerIDs(allowedOrgIDs []string, t
 	}, nil
 }
 
-// GetHierarchicalCustomerIDs returns all customer organization IDs that the user can access
-// This mirrors the logic from UserService.GetHierarchicalOrganizationIDs but filtered for customers only
-func (r *LocalSystemRepository) GetHierarchicalCustomerIDs(userOrgRole, userOrgID string) ([]string, error) {
-	var customerIDs []string
+// GetHierarchicalResellerIDs returns all reseller organization IDs that the user can access
+// This mirrors the logic from UserService.GetHierarchicalOrganizationIDs but filtered for resellers only
+func (r *LocalSystemRepository) GetHierarchicalResellerIDs(userOrgRole, userOrgID string) ([]string, error) {
+	var resellerIDs []string
 
 	switch userOrgRole {
 	case "owner":
-		// Owner can see systems from all customers
-		rows, err := r.db.Query("SELECT logto_id FROM customers WHERE logto_id IS NOT NULL AND active = TRUE")
+		// Owner can see systems from all resellers
+		rows, err := r.db.Query("SELECT logto_id FROM resellers WHERE logto_id IS NOT NULL AND active = TRUE")
 		if err != nil {
-			return nil, fmt.Errorf("failed to get all customers: %w", err)
+			return nil, fmt.Errorf("failed to get all resellers: %w", err)
 		}
 		defer func() { _ = rows.Close() }()
 
 		for rows.Next() {
 			var orgID string
 			if err := rows.Scan(&orgID); err != nil {
-				return nil, fmt.Errorf("failed to scan customer ID: %w", err)
+				return nil, fmt.Errorf("failed to scan reseller ID: %w", err)
 			}
-			customerIDs = append(customerIDs, orgID)
+			resellerIDs = append(resellerIDs, orgID)
 		}
 
 	case "distributor":
-		// Distributor can see systems from customers created by them or by their resellers
-		// Get customers created directly by this distributor
-		rows, err := r.db.Query("SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND logto_id IS NOT NULL AND active = TRUE", userOrgID)
+		// Distributor can see systems from resellers they created
+		rows, err := r.db.Query("SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = $1 AND logto_id IS NOT NULL AND active = TRUE", userOrgID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get distributor customers: %w", err)
+			return nil, fmt.Errorf("failed to get distributor resellers: %w", err)
 		}
 		defer func() { _ = rows.Close() }()
 
 		for rows.Next() {
 			var orgID string
 			if err := rows.Scan(&orgID); err != nil {
-				return nil, fmt.Errorf("failed to scan customer ID: %w", err)
+				return nil, fmt.Errorf("failed to scan reseller ID: %w", err)
 			}
-			customerIDs = append(customerIDs, orgID)
-		}
-
-		// Get customers created by resellers managed by this distributor
-		rows2, err := r.db.Query(`
-			SELECT c.logto_id FROM customers c
-			WHERE c.custom_data->>'createdBy' IN (
-				SELECT logto_id FROM resellers
-				WHERE custom_data->>'createdBy' = $1 AND logto_id IS NOT NULL AND active = TRUE
-			) AND c.logto_id IS NOT NULL AND c.active = TRUE
-		`, userOrgID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get reseller customers: %w", err)
-		}
-		defer func() { _ = rows2.Close() }()
-
-		for rows2.Next() {
-			var orgID string
-			if err := rows2.Scan(&orgID); err != nil {
-				return nil, fmt.Errorf("failed to scan reseller customer ID: %w", err)
-			}
-			customerIDs = append(customerIDs, orgID)
+			resellerIDs = append(resellerIDs, orgID)
 		}
 
 	case "reseller":
-		// Reseller can see systems from customers they created
-		rows, err := r.db.Query("SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND logto_id IS NOT NULL AND active = TRUE", userOrgID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get reseller customers: %w", err)
-		}
-		defer func() { _ = rows.Close() }()
-
-		for rows.Next() {
-			var orgID string
-			if err := rows.Scan(&orgID); err != nil {
-				return nil, fmt.Errorf("failed to scan customer ID: %w", err)
-			}
-			customerIDs = append(customerIDs, orgID)
-		}
+		// Reseller can only see systems in their own organization
+		resellerIDs = append(resellerIDs, userOrgID)
 
 	case "customer":
-		// Customer can only see systems in their own organization
-		customerIDs = append(customerIDs, userOrgID)
+		// Customer cannot access systems directly - they would go through their reseller
+		return []string{}, nil
 
 	default:
 		// Unknown role - no access
 		return []string{}, nil
 	}
 
-	return customerIDs, nil
+	return resellerIDs, nil
 }

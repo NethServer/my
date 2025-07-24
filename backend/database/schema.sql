@@ -111,18 +111,18 @@ CREATE TABLE IF NOT EXISTS systems (
     version VARCHAR(100),
     last_seen TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     custom_data JSONB,
-    customer_id VARCHAR(255) NOT NULL,
+    reseller_id VARCHAR(255) NOT NULL,
     secret_hash VARCHAR(64) NOT NULL,
     secret_hint VARCHAR(8),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     created_by JSONB NOT NULL,
 
-    CONSTRAINT fk_systems_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+    CONSTRAINT fk_systems_reseller FOREIGN KEY (reseller_id) REFERENCES resellers(id) ON DELETE CASCADE
 );
 
 -- Performance indexes for systems
-CREATE INDEX IF NOT EXISTS idx_systems_customer_id ON systems(customer_id);
+CREATE INDEX IF NOT EXISTS idx_systems_reseller_id ON systems(reseller_id);
 CREATE INDEX IF NOT EXISTS idx_systems_status ON systems(status);
 CREATE INDEX IF NOT EXISTS idx_systems_type ON systems(type);
 CREATE INDEX IF NOT EXISTS idx_systems_last_seen ON systems(last_seen DESC);

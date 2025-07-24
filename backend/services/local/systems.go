@@ -52,12 +52,12 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 		return nil, err
 	}
 
-	// Validate customer_id exists in Logto as Customer organization
-	if err := s.validateCustomerID(request.CustomerID); err != nil {
-		return nil, fmt.Errorf("invalid customer_id: %w", err)
+	// Validate reseller_id exists in Logto as Reseller organization
+	if err := s.validateResellerID(request.ResellerID); err != nil {
+		return nil, fmt.Errorf("invalid reseller_id: %w", err)
 	}
 
-	// Validate hierarchical access - creator must be able to create systems in the customer organization
+	// Validate hierarchical access - creator must be able to create systems in the reseller organization
 	if canCreate, reason := s.CanCreateSystem(userOrgRole, userOrgID, request); !canCreate {
 		return nil, fmt.Errorf("access denied: %s", reason)
 	}
@@ -91,12 +91,12 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 
 	// Insert system into database
 	query := `
-		INSERT INTO systems (id, name, type, status, custom_data, customer_id, secret_hash, secret_hint, created_at, updated_at, created_by)
+		INSERT INTO systems (id, name, type, status, custom_data, reseller_id, secret_hash, secret_hint, created_at, updated_at, created_by)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 
 	_, err = database.DB.Exec(query, systemID, request.Name, request.Type, "offline",
-		customDataJSON, request.CustomerID, hashedSecret, secret[len(secret)-4:], now, now, createdByJSON)
+		customDataJSON, request.ResellerID, hashedSecret, secret[len(secret)-4:], now, now, createdByJSON)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create system: %w", err)
 	}
@@ -109,7 +109,7 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 		Status: "offline",
 		// FQDN, IPv4Address, IPv6Address will be populated by collect service
 		CustomData: request.CustomData,
-		CustomerID: request.CustomerID,
+		ResellerID: request.ResellerID,
 		Secret:     secret,
 		CreatedAt:  now,
 		UpdatedAt:  now,
@@ -119,7 +119,7 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 	logger.Info().
 		Str("system_id", systemID).
 		Str("system_name", system.Name).
-		Str("customer_id", system.CustomerID).
+		Str("reseller_id", system.ResellerID).
 		Str("created_by_user", creatorInfo.UserID).
 		Str("created_by_org", creatorInfo.OrganizationID).
 		Msg("System created successfully")
@@ -131,7 +131,7 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRole, userRole string) ([]*models.System, error) {
 	query := `
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version, s.last_seen,
-		       s.custom_data, s.customer_id, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
+		       s.custom_data, s.reseller_id, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
 		ORDER BY s.created_at DESC
@@ -155,7 +155,7 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
-			&ipv4Address, &ipv6Address, &version, &system.LastSeen, &customDataJSON, &system.CustomerID,
+			&ipv4Address, &ipv6Address, &version, &system.LastSeen, &customDataJSON, &system.ResellerID,
 			&system.CreatedAt, &system.UpdatedAt, &createdByJSON, &lastHeartbeat,
 		)
 		if err != nil {
@@ -213,12 +213,12 @@ func (s *LocalSystemsService) GetSystemsByOrganizationPaginated(userID, userOrgI
 	// Calculate offset
 	offset := (page - 1) * pageSize
 
-	// Get all customer organization IDs the user can access hierarchically
-	// Systems can only be associated with customers, so we only need customer IDs
+	// Get all reseller organization IDs the user can access hierarchically
+	// Systems can only be associated with resellers, so we only need reseller IDs
 	systemRepo := entities.NewLocalSystemRepository()
-	allowedOrgIDs, err := systemRepo.GetHierarchicalCustomerIDs(strings.ToLower(userOrgRole), userOrgID)
+	allowedOrgIDs, err := systemRepo.GetHierarchicalResellerIDs(strings.ToLower(userOrgRole), userOrgID)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get hierarchical customer IDs: %w", err)
+		return nil, 0, fmt.Errorf("failed to get hierarchical reseller IDs: %w", err)
 	}
 
 	if len(allowedOrgIDs) == 0 {
@@ -238,7 +238,7 @@ func (s *LocalSystemsService) GetSystemsByOrganizationPaginated(userID, userOrgI
 	countQuery := fmt.Sprintf(`
 		SELECT COUNT(*)
 		FROM systems s
-		WHERE s.customer_id IN (%s)`, placeholdersStr)
+		WHERE s.reseller_id IN (%s)`, placeholdersStr)
 
 	var totalCount int
 	err = database.DB.QueryRow(countQuery, args...).Scan(&totalCount)
@@ -258,10 +258,10 @@ func (s *LocalSystemsService) GetSystemsByOrganizationPaginated(userID, userOrgI
 
 	query := fmt.Sprintf(`
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version, s.last_seen,
-		       s.custom_data, s.customer_id, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
+		       s.custom_data, s.reseller_id, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
-		WHERE s.customer_id IN (%s)
+		WHERE s.reseller_id IN (%s)
 		ORDER BY s.created_at DESC
 		LIMIT $%d OFFSET $%d`, placeholdersStr, len(args)+1, len(args)+2)
 
@@ -283,7 +283,7 @@ func (s *LocalSystemsService) GetSystemsByOrganizationPaginated(userID, userOrgI
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
-			&ipv4Address, &ipv6Address, &version, &system.LastSeen, &customDataJSON, &system.CustomerID,
+			&ipv4Address, &ipv6Address, &version, &system.LastSeen, &customDataJSON, &system.ResellerID,
 			&system.CreatedAt, &system.UpdatedAt, &createdByJSON, &lastHeartbeat,
 		)
 		if err != nil {
@@ -373,7 +373,7 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 	}
 
 	// Validate update permissions
-	if canUpdate, reason := s.CanUpdateSystem(userOrgRole, userOrgID, system.CustomerID); !canUpdate {
+	if canUpdate, reason := s.CanUpdateSystem(userOrgRole, userOrgID, system.ResellerID); !canUpdate {
 		return nil, fmt.Errorf("access denied: %s", reason)
 	}
 
@@ -394,12 +394,12 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 	if request.CustomData != nil {
 		system.CustomData = request.CustomData
 	}
-	if request.CustomerID != "" {
-		// Validate customer_id exists in Logto as Customer organization
-		if err := s.validateCustomerID(request.CustomerID); err != nil {
-			return nil, fmt.Errorf("invalid customer_id: %w", err)
+	if request.ResellerID != "" {
+		// Validate reseller_id exists in Logto as Reseller organization
+		if err := s.validateResellerID(request.ResellerID); err != nil {
+			return nil, fmt.Errorf("invalid reseller_id: %w", err)
 		}
-		system.CustomerID = request.CustomerID
+		system.ResellerID = request.ResellerID
 	}
 
 	system.UpdatedAt = now
@@ -413,12 +413,12 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 	// Update system in database (FQDN and IP addresses are managed by collect service)
 	query := `
 		UPDATE systems
-		SET name = $2, type = $3, custom_data = $4, customer_id = $5, updated_at = $6
+		SET name = $2, type = $3, custom_data = $4, reseller_id = $5, updated_at = $6
 		WHERE id = $1
 	`
 
 	_, err = database.DB.Exec(query, systemID, system.Name, system.Type,
-		customDataJSON, system.CustomerID, now)
+		customDataJSON, system.ResellerID, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update system: %w", err)
 	}
@@ -440,7 +440,7 @@ func (s *LocalSystemsService) DeleteSystem(systemID, userID, userOrgID, userOrgR
 	}
 
 	// Validate delete permissions
-	if canDelete, reason := s.CanDeleteSystem(userOrgRole, userOrgID, system.CustomerID); !canDelete {
+	if canDelete, reason := s.CanDeleteSystem(userOrgRole, userOrgID, system.ResellerID); !canDelete {
 		return fmt.Errorf("access denied: %s", reason)
 	}
 
@@ -478,7 +478,7 @@ func (s *LocalSystemsService) RegenerateSystemSecret(systemID, userID, userOrgID
 	}
 
 	// Validate update permissions (regenerating secret is an update operation)
-	if canUpdate, reason := s.CanUpdateSystem(userOrgRole, userOrgID, system.CustomerID); !canUpdate {
+	if canUpdate, reason := s.CanUpdateSystem(userOrgRole, userOrgID, system.ResellerID); !canUpdate {
 		return nil, fmt.Errorf("access denied: %s", reason)
 	}
 
@@ -535,14 +535,14 @@ func (s *LocalSystemsService) GetTotals(userOrgRole, userOrgID string, timeoutMi
 
 	systemRepo := entities.NewLocalSystemRepository()
 
-	// Get hierarchical customer IDs first
-	allowedOrgIDs, err := systemRepo.GetHierarchicalCustomerIDs(strings.ToLower(userOrgRole), userOrgID)
+	// Get hierarchical reseller IDs first
+	allowedOrgIDs, err := systemRepo.GetHierarchicalResellerIDs(strings.ToLower(userOrgRole), userOrgID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get hierarchical customer IDs: %w", err)
+		return nil, fmt.Errorf("failed to get hierarchical reseller IDs: %w", err)
 	}
 
 	// Get totals with the specified timeout
-	return systemRepo.GetTotalsByCustomerIDs(allowedOrgIDs, timeoutMinutes)
+	return systemRepo.GetTotalsByResellerIDs(allowedOrgIDs, timeoutMinutes)
 }
 
 // CanCreateSystem validates if a user can create a system based on hierarchical permissions
@@ -551,85 +551,73 @@ func (s *LocalSystemsService) CanCreateSystem(userOrgRole, userOrgID string, req
 	case "owner":
 		return true, ""
 	case "distributor":
-		// Distributor can create systems in customer organizations they manage hierarchically
+		// Distributor can create systems in reseller organizations they manage hierarchically
 		userService := NewUserService()
-		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, req.CustomerID) {
+		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, req.ResellerID) {
 			return true, ""
 		}
 		return false, "distributors can only create systems in organizations they manage"
 	case "reseller":
-		// Reseller can create systems in customer organizations they manage hierarchically
-		userService := NewUserService()
-		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, req.CustomerID) {
+		// Reseller can create systems in their own organization
+		if req.ResellerID == userOrgID {
 			return true, ""
 		}
-		return false, "resellers can only create systems in their own organization or customers they manage"
+		return false, "resellers can only create systems in their own organization"
 	case "customer":
-		// Customer can only create systems in their own organization
-		if req.CustomerID == userOrgID {
-			return true, ""
-		}
-		return false, "customers can only create systems in their own organization"
+		// Customers cannot create systems directly
+		return false, "customers cannot create systems directly"
 	default:
 		return false, "insufficient permissions to create systems"
 	}
 }
 
 // CanUpdateSystem validates if a user can update a system based on hierarchical permissions
-func (s *LocalSystemsService) CanUpdateSystem(userOrgRole, userOrgID, targetSystemCustomerID string) (bool, string) {
+func (s *LocalSystemsService) CanUpdateSystem(userOrgRole, userOrgID, targetSystemResellerID string) (bool, string) {
 	switch userOrgRole {
 	case "owner":
 		return true, ""
 	case "distributor":
-		// Distributor can update systems in organizations they manage hierarchically
+		// Distributor can update systems in reseller organizations they manage hierarchically
 		userService := NewUserService()
-		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, targetSystemCustomerID) {
+		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, targetSystemResellerID) {
 			return true, ""
 		}
 		return false, "distributors can only update systems in organizations they manage"
 	case "reseller":
-		// Reseller can update systems in organizations they manage hierarchically
-		userService := NewUserService()
-		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, targetSystemCustomerID) {
+		// Reseller can update systems in their own organization
+		if targetSystemResellerID == userOrgID {
 			return true, ""
 		}
-		return false, "resellers can only update systems in their own organization or customers they manage"
+		return false, "resellers can only update systems in their own organization"
 	case "customer":
-		// Customer can only update systems in their own organization
-		if targetSystemCustomerID == userOrgID {
-			return true, ""
-		}
-		return false, "customers can only update systems in their own organization"
+		// Customers cannot update systems directly
+		return false, "customers cannot update systems directly"
 	default:
 		return false, "insufficient permissions to update systems"
 	}
 }
 
 // CanDeleteSystem validates if a user can delete a system based on hierarchical permissions
-func (s *LocalSystemsService) CanDeleteSystem(userOrgRole, userOrgID, targetSystemCustomerID string) (bool, string) {
+func (s *LocalSystemsService) CanDeleteSystem(userOrgRole, userOrgID, targetSystemResellerID string) (bool, string) {
 	switch userOrgRole {
 	case "owner":
 		return true, ""
 	case "distributor":
-		// Distributor can delete systems in organizations they manage hierarchically
+		// Distributor can delete systems in reseller organizations they manage hierarchically
 		userService := NewUserService()
-		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, targetSystemCustomerID) {
+		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, targetSystemResellerID) {
 			return true, ""
 		}
 		return false, "distributors can only delete systems in organizations they manage"
 	case "reseller":
-		// Reseller can delete systems in organizations they manage hierarchically
-		userService := NewUserService()
-		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, targetSystemCustomerID) {
+		// Reseller can delete systems in their own organization
+		if targetSystemResellerID == userOrgID {
 			return true, ""
 		}
-		return false, "resellers can only delete systems in their own organization or customers they manage"
+		return false, "resellers can only delete systems in their own organization"
 	case "customer":
-		// Customer can only delete systems in their own organization
-		if targetSystemCustomerID == userOrgID {
-			return true, ""
-		}
-		return false, "customers can only delete systems in their own organization"
+		// Customers cannot delete systems directly
+		return false, "customers cannot delete systems directly"
 	default:
 		return false, "insufficient permissions to delete systems"
 	}
@@ -641,25 +629,21 @@ func (s *LocalSystemsService) CanAccessSystem(system *models.System, userOrgRole
 	case "owner":
 		return true, ""
 	case "distributor":
-		// Distributor can access systems in organizations they manage hierarchically
+		// Distributor can access systems in reseller organizations they manage hierarchically
 		userService := NewUserService()
-		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, system.CustomerID) {
+		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, system.ResellerID) {
 			return true, ""
 		}
 		return false, "distributors can only access systems in organizations they manage"
 	case "reseller":
-		// Reseller can access systems in organizations they manage hierarchically
-		userService := NewUserService()
-		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, system.CustomerID) {
+		// Reseller can access systems in their own organization
+		if system.ResellerID == userOrgID {
 			return true, ""
 		}
-		return false, "resellers can only access systems in their own organization or customers they manage"
+		return false, "resellers can only access systems in their own organization"
 	case "customer":
-		// Customer can only access systems in their own organization
-		if system.CustomerID == userOrgID {
-			return true, ""
-		}
-		return false, "customers can only access systems in their own organization"
+		// Customers cannot access systems directly
+		return false, "customers cannot access systems directly"
 	default:
 		return false, "insufficient permissions to access systems"
 	}
@@ -695,26 +679,26 @@ func (s *LocalSystemsService) generateSystemSecret() (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
-// validateCustomerID validates that the customer_id exists in Logto as a Customer organization
-func (s *LocalSystemsService) validateCustomerID(customerID string) error {
+// validateResellerID validates that the reseller_id exists in Logto as a Reseller organization
+func (s *LocalSystemsService) validateResellerID(resellerID string) error {
 	// Get organization from Logto
-	org, err := s.logtoClient.GetOrganizationByID(customerID)
+	org, err := s.logtoClient.GetOrganizationByID(resellerID)
 	if err != nil {
-		return fmt.Errorf("customer organization not found: %w", err)
+		return fmt.Errorf("reseller organization not found: %w", err)
 	}
 
-	// Check if organization has "Customer" type in custom data
+	// Check if organization has "Reseller" type in custom data
 	if org.CustomData == nil {
-		return fmt.Errorf("organization %s has no custom data - cannot verify type", customerID)
+		return fmt.Errorf("organization %s has no custom data - cannot verify type", resellerID)
 	}
 
 	orgType, ok := org.CustomData["type"].(string)
 	if !ok {
-		return fmt.Errorf("organization %s has no type in custom data", customerID)
+		return fmt.Errorf("organization %s has no type in custom data", resellerID)
 	}
 
-	if orgType != "customer" {
-		return fmt.Errorf("organization %s is not a customer (type: %s)", customerID, orgType)
+	if orgType != "reseller" {
+		return fmt.Errorf("organization %s is not a reseller (type: %s)", resellerID, orgType)
 	}
 
 	return nil
