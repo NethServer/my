@@ -772,10 +772,10 @@ components:
           format: date-time
           description: Last seen timestamp from inventory
           example: "2025-07-10T10:30:00Z"
-        customer_id:
+        reseller_id:
           type: string
-          description: Customer organization ID
-          example: "org_customer_123"
+          description: Reseller organization ID
+          example: "org_reseller_123"
         custom_data:
           type: object
           description: Custom system data
@@ -841,7 +841,7 @@ components:
       required:
         - name
         - hostname
-        - organizationId
+        - reseller_id
       properties:
         name:
           type: string
@@ -863,10 +863,10 @@ components:
           type: string
           description: System version
           example: "2.1.4"
-        organizationId:
+        reseller_id:
           type: string
-          description: Organization ID that owns this system
-          example: "org_123456789"
+          description: Reseller organization ID that owns this system
+          example: "org_reseller_123"
         customData:
           type: object
           description: Custom system data

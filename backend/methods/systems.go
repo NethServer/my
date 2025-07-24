@@ -79,7 +79,7 @@ func CreateSystem(c *gin.Context) {
 			Err(err).
 			Str("user_id", user.ID).
 			Str("system_name", request.Name).
-			Str("customer_id", request.CustomerID).
+			Str("reseller_id", request.ResellerID).
 			Msg("Failed to create system")
 
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to create system", map[string]interface{}{

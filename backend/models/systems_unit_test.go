@@ -28,7 +28,7 @@ func TestSystemStructure(t *testing.T) {
 		Version:     "1.2.3",
 		LastSeen:    lastSeen,
 		CustomData:  map[string]string{"location": "datacenter1", "environment": "production"},
-		CustomerID:  "customer-123",
+		ResellerID:  "reseller-123",
 		CreatedAt:   now,
 		UpdatedAt:   now,
 		CreatedBy:   creator,
@@ -44,7 +44,7 @@ func TestSystemStructure(t *testing.T) {
 	assert.Equal(t, "1.2.3", system.Version)
 	assert.Equal(t, lastSeen, system.LastSeen)
 	assert.Equal(t, map[string]string{"location": "datacenter1", "environment": "production"}, system.CustomData)
-	assert.Equal(t, "customer-123", system.CustomerID)
+	assert.Equal(t, "reseller-123", system.ResellerID)
 	assert.Equal(t, now, system.CreatedAt)
 	assert.Equal(t, now, system.UpdatedAt)
 	assert.Equal(t, creator, system.CreatedBy)
@@ -70,7 +70,7 @@ func TestSystemJSONSerialization(t *testing.T) {
 		Version:     "2.0.1",
 		LastSeen:    lastSeen,
 		CustomData:  map[string]string{"cluster": "web-servers", "role": "frontend"},
-		CustomerID:  "customer-456",
+		ResellerID:  "reseller-456",
 		CreatedAt:   now,
 		UpdatedAt:   now,
 		CreatedBy:   creator,
@@ -94,7 +94,7 @@ func TestSystemJSONSerialization(t *testing.T) {
 	assert.Equal(t, system.Version, unmarshaledSystem.Version)
 	assert.Equal(t, system.LastSeen.Unix(), unmarshaledSystem.LastSeen.Unix())
 	assert.Equal(t, system.CustomData, unmarshaledSystem.CustomData)
-	assert.Equal(t, system.CustomerID, unmarshaledSystem.CustomerID)
+	assert.Equal(t, system.ResellerID, unmarshaledSystem.ResellerID)
 	assert.Equal(t, system.CreatedAt.Unix(), unmarshaledSystem.CreatedAt.Unix())
 	assert.Equal(t, system.UpdatedAt.Unix(), unmarshaledSystem.UpdatedAt.Unix())
 	assert.Equal(t, system.CreatedBy, unmarshaledSystem.CreatedBy)
@@ -104,13 +104,13 @@ func TestCreateSystemRequestStructure(t *testing.T) {
 	req := CreateSystemRequest{
 		Name:       "New System",
 		Type:       "ns8",
-		CustomerID: "customer-789",
+		ResellerID: "reseller-789",
 		CustomData: map[string]string{"purpose": "testing", "owner": "dev-team"},
 	}
 
 	assert.Equal(t, "New System", req.Name)
 	assert.Equal(t, "ns8", req.Type)
-	assert.Equal(t, "customer-789", req.CustomerID)
+	assert.Equal(t, "reseller-789", req.ResellerID)
 	assert.Equal(t, map[string]string{"purpose": "testing", "owner": "dev-team"}, req.CustomData)
 }
 
@@ -118,7 +118,7 @@ func TestCreateSystemRequestJSONSerialization(t *testing.T) {
 	req := CreateSystemRequest{
 		Name:       "JSON Create System",
 		Type:       "nsec",
-		CustomerID: "customer-json-123",
+		ResellerID: "reseller-json-123",
 		CustomData: map[string]string{
 			"environment": "staging",
 			"team":        "qa",
@@ -137,7 +137,7 @@ func TestCreateSystemRequestJSONSerialization(t *testing.T) {
 
 	assert.Equal(t, req.Name, unmarshaledReq.Name)
 	assert.Equal(t, req.Type, unmarshaledReq.Type)
-	assert.Equal(t, req.CustomerID, unmarshaledReq.CustomerID)
+	assert.Equal(t, req.ResellerID, unmarshaledReq.ResellerID)
 	assert.Equal(t, req.CustomData, unmarshaledReq.CustomData)
 }
 
@@ -145,13 +145,13 @@ func TestUpdateSystemRequestStructure(t *testing.T) {
 	req := UpdateSystemRequest{
 		Name:       "Updated System",
 		Type:       "ns8",
-		CustomerID: "customer-updated-123",
+		ResellerID: "reseller-updated-123",
 		CustomData: map[string]string{"status": "updated", "patch_level": "latest"},
 	}
 
 	assert.Equal(t, "Updated System", req.Name)
 	assert.Equal(t, "ns8", req.Type)
-	assert.Equal(t, "customer-updated-123", req.CustomerID)
+	assert.Equal(t, "reseller-updated-123", req.ResellerID)
 	assert.Equal(t, map[string]string{"status": "updated", "patch_level": "latest"}, req.CustomData)
 }
 
@@ -173,7 +173,7 @@ func TestSystemJSONTags(t *testing.T) {
 		Version:     "3.0.0",
 		LastSeen:    time.Now(),
 		CustomData:  map[string]string{"test": "tags"},
-		CustomerID:  "customer-tags",
+		ResellerID:  "reseller-tags",
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 		CreatedBy:   creator,
@@ -197,7 +197,7 @@ func TestSystemJSONTags(t *testing.T) {
 	assert.Contains(t, jsonMap, "version")
 	assert.Contains(t, jsonMap, "last_seen")
 	assert.Contains(t, jsonMap, "custom_data")
-	assert.Contains(t, jsonMap, "customer_id")
+	assert.Contains(t, jsonMap, "reseller_id")
 	assert.Contains(t, jsonMap, "created_at")
 	assert.Contains(t, jsonMap, "updated_at")
 	assert.Contains(t, jsonMap, "created_by")
@@ -211,7 +211,7 @@ func TestSystemJSONTags(t *testing.T) {
 	assert.Equal(t, "172.16.0.10", jsonMap["ipv4_address"])
 	assert.Equal(t, "2001:db8::3", jsonMap["ipv6_address"])
 	assert.Equal(t, "3.0.0", jsonMap["version"])
-	assert.Equal(t, "customer-tags", jsonMap["customer_id"])
+	assert.Equal(t, "reseller-tags", jsonMap["reseller_id"])
 
 	// Verify created_by is an object
 	createdByMap, ok := jsonMap["created_by"].(map[string]interface{})
