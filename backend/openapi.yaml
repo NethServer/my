@@ -320,6 +320,11 @@ components:
           type: string
           description: User account ID
           example: "usr_123456789"
+        logto_id:
+          type: string
+          nullable: true
+          description: Logto user ID
+          example: "user_abc123def456"
         username:
           type: string
           description: Username
@@ -335,45 +340,19 @@ components:
           example: "John Doe"
         phone:
           type: string
+          nullable: true
           description: Phone number
           example: "+39 333 123456"
-        userRoleIds:
+        organization:
+          $ref: '#/components/schemas/UserOrganization'
+          nullable: true
+          description: Organization information
+        roles:
           type: array
           items:
-            type: string
-          description: User role IDs
-          example: ["rol_admin_id"]
-        organizationId:
-          type: string
-          description: Organization ID
-          example: "org_123456789"
-        organizationName:
-          type: string
-          description: Organization name
-          example: "ACME Corp"
-        organizationRole:
-          type: string
-          description: Organization role name
-          example: "Admin"
-        isSuspended:
-          type: boolean
-          description: Whether the account is suspended
-          example: false
-        lastSignInAt:
-          type: string
-          format: date-time
-          description: Last sign in timestamp
-          example: "2025-06-25T09:15:00Z"
-        createdAt:
-          type: string
-          format: date-time
-          description: Account creation timestamp
-          example: "2025-06-20T14:30:00Z"
-        updatedAt:
-          type: string
-          format: date-time
-          description: Last update timestamp
-          example: "2025-06-21T10:45:00Z"
+            $ref: '#/components/schemas/UserRole'
+          description: User roles with names
+          example: [{"id": "rol_admin_123", "name": "Admin"}]
         customData:
           type: object
           description: Custom user data
@@ -381,6 +360,26 @@ components:
           example:
             department: "IT"
             position: "Senior Developer"
+        created_at:
+          type: string
+          format: date-time
+          description: Account creation timestamp
+          example: "2025-06-20T14:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: "2025-06-21T10:45:00Z"
+        logto_synced_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last Logto synchronization timestamp
+          example: "2025-06-21T10:45:00Z"
+        active:
+          type: boolean
+          description: Whether the user is active
+          example: true
 
     UserInput:
       type: object
@@ -496,6 +495,34 @@ components:
           type: string
           description: Role description
           example: "Full system administration capabilities"
+
+    UserRole:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Role ID
+          example: "rol_admin_123"
+        name:
+          type: string
+          description: Role name
+          example: "Admin"
+
+    UserOrganization:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Local database organization ID
+          example: "12345678-1234-1234-1234-123456789abc"
+        logto_id:
+          type: string
+          description: Logto organization ID
+          example: "org_123456789"
+        name:
+          type: string
+          description: Organization name
+          example: "ACME Corp"
 
     OrganizationRole:
       type: object

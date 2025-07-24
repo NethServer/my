@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/models"
 )
@@ -93,7 +94,8 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 	query := `
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
 		       u.created_at, u.updated_at, u.logto_synced_at, u.active,
-		       COALESCE(d.name, r.name, c.name) as organization_name
+		       COALESCE(d.name, r.name, c.name) as organization_name,
+		       COALESCE(d.id, r.id, c.id) as organization_local_id
 		FROM users u
 		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.active = TRUE
 		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.active = TRUE  
@@ -109,7 +111,7 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 		&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name, &user.Phone,
 		&user.OrganizationID, &userRoleIDsJSON, &customDataJSON,
 		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.Active,
-		&user.OrganizationName,
+		&user.OrganizationName, &user.OrganizationLocalID,
 	)
 
 	if err != nil {
@@ -137,6 +139,9 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 		user.CustomData = make(map[string]interface{})
 	}
 
+	// Enrich with organization and role data
+	_ = r.enrichUserWithRelations(user) // Relations are nice-to-have, don't fail request on error
+
 	return user, nil
 }
 
@@ -145,7 +150,8 @@ func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, e
 	query := `
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
 		       u.created_at, u.updated_at, u.logto_synced_at, u.active,
-		       COALESCE(d.name, r.name, c.name) as organization_name
+		       COALESCE(d.name, r.name, c.name) as organization_name,
+		       COALESCE(d.id, r.id, c.id) as organization_local_id
 		FROM users u
 		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.active = TRUE
 		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.active = TRUE  
@@ -161,7 +167,7 @@ func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, e
 		&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name, &user.Phone,
 		&user.OrganizationID, &userRoleIDsJSON, &customDataJSON,
 		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.Active,
-		&user.OrganizationName,
+		&user.OrganizationName, &user.OrganizationLocalID,
 	)
 
 	if err != nil {
@@ -188,6 +194,9 @@ func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, e
 	} else {
 		user.CustomData = make(map[string]interface{})
 	}
+
+	// Enrich with organization and role data
+	_ = r.enrichUserWithRelations(user) // Relations are nice-to-have, don't fail request on error
 
 	return user, nil
 }
@@ -332,7 +341,8 @@ func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, page, 
 	query := fmt.Sprintf(`
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
 		       u.created_at, u.updated_at, u.logto_synced_at, u.active,
-		       COALESCE(d.name, r.name, c.name) as organization_name
+		       COALESCE(d.name, r.name, c.name) as organization_name,
+		       COALESCE(d.id, r.id, c.id) as organization_local_id
 		FROM users u
 		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.active = TRUE
 		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.active = TRUE  
@@ -357,7 +367,7 @@ func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, page, 
 			&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name,
 			&user.Phone, &user.OrganizationID, &userRoleIDsJSON, &customDataJSON,
 			&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.Active,
-			&user.OrganizationName,
+			&user.OrganizationName, &user.OrganizationLocalID,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan user: %w", err)
@@ -380,6 +390,9 @@ func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, page, 
 		} else {
 			user.CustomData = make(map[string]interface{})
 		}
+
+		// Enrich with organization and role data
+		_ = r.enrichUserWithRelations(user) // Relations are nice-to-have, don't fail request on error
 
 		users = append(users, user)
 	}
@@ -532,4 +545,45 @@ func (r *LocalUserRepository) GetHierarchicalOrganizationIDs(userOrgRole, userOr
 	}
 
 	return orgIDs, nil
+}
+
+// enrichUserWithRelations populates Organization and Roles objects from database and cache data
+func (r *LocalUserRepository) enrichUserWithRelations(user *models.LocalUser) error {
+	// Build Organization object
+	if user.OrganizationID != nil && *user.OrganizationID != "" {
+		user.Organization = &models.UserOrganization{
+			LogtoID: *user.OrganizationID,
+			Name:    "",
+		}
+		// Set the local database ID
+		if user.OrganizationLocalID != nil {
+			user.Organization.ID = *user.OrganizationLocalID
+		}
+		// Set the organization name
+		if user.OrganizationName != nil {
+			user.Organization.Name = *user.OrganizationName
+		}
+	}
+
+	// Build Roles array
+	if len(user.UserRoleIDs) == 0 {
+		user.Roles = []models.UserRole{}
+		return nil
+	}
+
+	roleNames := cache.GetRoleNames()
+	roleNamesSlice := roleNames.GetNames(user.UserRoleIDs)
+
+	user.Roles = make([]models.UserRole, len(user.UserRoleIDs))
+	for i, roleID := range user.UserRoleIDs {
+		user.Roles[i] = models.UserRole{
+			ID: roleID,
+		}
+		// Set name if available
+		if i < len(roleNamesSlice) {
+			user.Roles[i].Name = roleNamesSlice[i]
+		}
+	}
+
+	return nil
 }

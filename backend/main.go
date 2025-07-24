@@ -77,6 +77,13 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to initialize Redis cache")
 	}
 
+	// Initialize roles from Logto
+	roleNames := cache.GetRoleNames()
+	err = roleNames.LoadRoles()
+	if err != nil {
+		logger.Warn().Err(err).Msg("Failed to load roles from Logto - userRolesNames will be empty")
+	}
+
 	// Init router
 	router := gin.Default()
 
