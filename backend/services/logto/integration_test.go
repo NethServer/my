@@ -145,8 +145,12 @@ func TestNewManagementClient(t *testing.T) {
 	assert.Equal(t, configuration.Config.LogtoManagementBaseURL, client.baseURL)
 	assert.Equal(t, configuration.Config.LogtoManagementClientID, client.clientID)
 	assert.Equal(t, configuration.Config.LogtoManagementClientSecret, client.clientSecret)
-	assert.Empty(t, client.accessToken)
-	assert.True(t, client.tokenExpiry.IsZero())
+
+	// Check that global token cache is empty initially
+	globalTokenCache.mu.RLock()
+	assert.Empty(t, globalTokenCache.accessToken)
+	assert.True(t, globalTokenCache.tokenExpiry.IsZero())
+	globalTokenCache.mu.RUnlock()
 }
 
 func TestLogtoManagementClient_getAccessToken(t *testing.T) {
@@ -187,8 +191,10 @@ func TestLogtoManagementClient_getAccessToken(t *testing.T) {
 			expectError:   false,
 			expectedToken: "test-access-token",
 			validateClient: func(t *testing.T, c *LogtoManagementClient) {
-				assert.Equal(t, "test-access-token", c.accessToken)
-				assert.True(t, c.tokenExpiry.After(time.Now()))
+				globalTokenCache.mu.RLock()
+				assert.Equal(t, "test-access-token", globalTokenCache.accessToken)
+				assert.True(t, globalTokenCache.tokenExpiry.After(time.Now()))
+				globalTokenCache.mu.RUnlock()
 			},
 		},
 		{
@@ -202,7 +208,9 @@ func TestLogtoManagementClient_getAccessToken(t *testing.T) {
 			expectError:   true,
 			expectedToken: "",
 			validateClient: func(t *testing.T, c *LogtoManagementClient) {
-				assert.Empty(t, c.accessToken)
+				globalTokenCache.mu.RLock()
+				assert.Empty(t, globalTokenCache.accessToken)
+				globalTokenCache.mu.RUnlock()
 			},
 		},
 		{
@@ -216,7 +224,9 @@ func TestLogtoManagementClient_getAccessToken(t *testing.T) {
 			expectError:   true,
 			expectedToken: "",
 			validateClient: func(t *testing.T, c *LogtoManagementClient) {
-				assert.Empty(t, c.accessToken)
+				globalTokenCache.mu.RLock()
+				assert.Empty(t, globalTokenCache.accessToken)
+				globalTokenCache.mu.RUnlock()
 			},
 		},
 	}
@@ -231,13 +241,18 @@ func TestLogtoManagementClient_getAccessToken(t *testing.T) {
 			configuration.Config.LogtoIssuer = server.URL
 			defer func() { configuration.Config.LogtoIssuer = originalIssuer }()
 
+			// Reset cache before test
+			invalidateToken()
+
 			client := NewManagementClient()
-			err := client.getAccessToken()
+			token, err := client.getAccessToken()
 
 			if tt.expectError {
 				assert.Error(t, err)
+				assert.Empty(t, token)
 			} else {
 				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedToken, token)
 			}
 
 			tt.validateClient(t, client)
@@ -266,31 +281,40 @@ func TestLogtoManagementClient_TokenCaching(t *testing.T) {
 	configuration.Config.LogtoIssuer = server.URL
 	defer func() { configuration.Config.LogtoIssuer = originalIssuer }()
 
+	// Reset cache before test
+	invalidateToken()
+
 	client := NewManagementClient()
 
 	// First request should hit the server
-	err := client.getAccessToken()
+	token, err := client.getAccessToken()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, requestCount)
-	assert.Equal(t, "cached-token", client.accessToken)
+	assert.Equal(t, "cached-token", token)
 
 	// Second request should use cached token
-	err = client.getAccessToken()
+	token, err = client.getAccessToken()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, requestCount) // Should not increase
-	assert.Equal(t, "cached-token", client.accessToken)
+	assert.Equal(t, "cached-token", token)
 
 	// Expire the token manually
-	client.tokenExpiry = time.Now().Add(-1 * time.Hour)
+	globalTokenCache.mu.Lock()
+	globalTokenCache.tokenExpiry = time.Now().Add(-1 * time.Hour)
+	globalTokenCache.mu.Unlock()
 
 	// Third request should hit the server again
-	err = client.getAccessToken()
+	token, err = client.getAccessToken()
 	assert.NoError(t, err)
 	assert.Equal(t, 2, requestCount) // Should increase
+	assert.Equal(t, "cached-token", token)
 }
 
 func TestLogtoManagementClient_makeRequest(t *testing.T) {
 	setupServicesTestEnvironment()
+
+	// Reset cache before test to avoid interference from previous tests
+	invalidateToken()
 
 	tests := []struct {
 		name           string
@@ -398,6 +422,9 @@ func TestLogtoManagementClient_makeRequest(t *testing.T) {
 				configuration.Config.LogtoIssuer = originalIssuer
 				configuration.Config.LogtoManagementBaseURL = originalBaseURL
 			}()
+
+			// Reset cache for each sub-test to avoid interference
+			invalidateToken()
 
 			client := NewManagementClient()
 			resp, err := client.makeRequest(tt.method, tt.endpoint, tt.body)
@@ -646,9 +673,13 @@ func TestServicesNetworkErrorHandling(t *testing.T) {
 	})
 
 	t.Run("LogtoManagementClient getAccessToken with network error", func(t *testing.T) {
+		// Reset cache before test
+		invalidateToken()
+
 		client := NewManagementClient()
-		err := client.getAccessToken()
+		token, err := client.getAccessToken()
 		assert.Error(t, err)
+		assert.Empty(t, token)
 		assert.Contains(t, err.Error(), "failed to request token")
 	})
 }

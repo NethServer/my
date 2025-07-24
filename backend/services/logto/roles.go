@@ -257,6 +257,7 @@ func (c *LogtoManagementClient) AssignOrganizationRolesToUser(orgID, userID stri
 }
 
 // EnrichUserWithRolesAndPermissions fetches complete roles and permissions from Logto Management API
+// Optimized version with parallel API calls for improved performance
 func EnrichUserWithRolesAndPermissions(userID string) (*models.User, error) {
 	logger.ComponentLogger("logto").Debug().
 		Str("operation", "enrich_user_start").
@@ -277,19 +278,53 @@ func EnrichUserWithRolesAndPermissions(userID string) (*models.User, error) {
 		OrganizationName: "",
 	}
 
-	// Fetch user roles (technical capabilities)
-	logger.ComponentLogger("logto").Debug().
-		Str("operation", "fetch_user_roles").
-		Str("user_id", userID).
-		Msg("Fetching user roles")
-	userRoles, err := client.GetUserRoles(userID)
-	if err != nil {
+	// Step 1: Parallel fetch of user roles and user organizations
+	type userRolesResult struct {
+		roles []models.LogtoRole
+		err   error
+	}
+	type userOrgsResult struct {
+		orgs []models.LogtoOrganization
+		err  error
+	}
+
+	userRolesCh := make(chan userRolesResult, 1)
+	userOrgsCh := make(chan userOrgsResult, 1)
+
+	// Fetch user roles in parallel
+	go func() {
+		logger.ComponentLogger("logto").Debug().
+			Str("operation", "fetch_user_roles").
+			Str("user_id", userID).
+			Msg("Fetching user roles")
+		roles, err := client.GetUserRoles(userID)
+		userRolesCh <- userRolesResult{roles: roles, err: err}
+	}()
+
+	// Fetch user organizations in parallel
+	go func() {
+		logger.ComponentLogger("logto").Debug().
+			Str("operation", "fetch_user_orgs").
+			Str("user_id", userID).
+			Msg("Fetching user organizations")
+		orgs, err := client.GetUserOrganizations(userID)
+		userOrgsCh <- userOrgsResult{orgs: orgs, err: err}
+	}()
+
+	// Wait for both results
+	userRolesRes := <-userRolesCh
+	userOrgsRes := <-userOrgsCh
+
+	// Process user roles
+	var userRoles []models.LogtoRole
+	if userRolesRes.err != nil {
 		logger.ComponentLogger("logto").Warn().
-			Err(err).
+			Err(userRolesRes.err).
 			Str("operation", "fetch_user_roles").
 			Str("user_id", userID).
 			Msg("Failed to fetch user roles")
 	} else {
+		userRoles = userRolesRes.roles
 		logger.ComponentLogger("logto").Debug().
 			Int("role_count", len(userRoles)).
 			Str("operation", "fetch_user_roles").
@@ -305,37 +340,18 @@ func EnrichUserWithRolesAndPermissions(userID string) (*models.User, error) {
 				Str("role_id", role.ID).
 				Msg("Extracted user role")
 		}
-
-		// Fetch permissions for each user role
-		for _, role := range userRoles {
-			scopes, err := client.GetRoleScopes(role.ID)
-			if err != nil {
-				logger.ComponentLogger("logto").Warn().
-					Err(err).
-					Str("operation", "fetch_role_scopes").
-					Str("role_id", role.ID).
-					Msg("Failed to fetch role scopes")
-				continue
-			}
-			for _, scope := range scopes {
-				user.UserPermissions = append(user.UserPermissions, scope.Name)
-			}
-		}
 	}
 
-	// Fetch user organizations
-	logger.ComponentLogger("logto").Debug().
-		Str("operation", "fetch_user_orgs").
-		Str("user_id", userID).
-		Msg("Fetching user organizations")
-	orgs, err := client.GetUserOrganizations(userID)
-	if err != nil {
+	// Process user organizations
+	var orgs []models.LogtoOrganization
+	if userOrgsRes.err != nil {
 		logger.ComponentLogger("logto").Warn().
-			Err(err).
+			Err(userOrgsRes.err).
 			Str("operation", "fetch_user_orgs").
 			Str("user_id", userID).
 			Msg("Failed to fetch user organizations")
 	} else {
+		orgs = userOrgsRes.orgs
 		logger.ComponentLogger("logto").Debug().
 			Int("org_count", len(orgs)).
 			Str("operation", "fetch_user_orgs").
@@ -346,40 +362,97 @@ func EnrichUserWithRolesAndPermissions(userID string) (*models.User, error) {
 			primaryOrg := orgs[0]
 			user.OrganizationID = primaryOrg.ID
 			user.OrganizationName = primaryOrg.Name
+		}
+	}
 
-			// Fetch user's roles in this organization
-			orgRoles, err := client.GetUserOrganizationRoles(primaryOrg.ID, userID)
-			if err != nil {
-				logger.ComponentLogger("logto").Warn().
-					Err(err).
-					Str("operation", "fetch_org_roles").
-					Str("user_id", userID).
-					Str("org_id", primaryOrg.ID).
-					Msg("Failed to fetch organization roles")
-			} else if len(orgRoles) > 0 {
-				// Use first organization role as primary
-				primaryOrgRole := orgRoles[0]
-				user.OrgRole = primaryOrgRole.Name
-				user.OrgRoleID = primaryOrgRole.ID
-				logger.ComponentLogger("logto").Debug().
-					Str("operation", "extract_org_role").
-					Str("org_role_name", primaryOrgRole.Name).
-					Str("org_role_id", primaryOrgRole.ID).
-					Msg("Extracted organization role")
+	// Step 2: Parallel fetch of role scopes and organization roles
+	type roleScopesResult struct {
+		roleID string
+		scopes []models.LogtoScope
+		err    error
+	}
+	type orgRolesResult struct {
+		roles []models.LogtoOrganizationRole
+		err   error
+	}
 
-				// Fetch permissions for organization role
-				orgScopes, err := client.GetOrganizationRoleScopes(primaryOrgRole.ID)
-				if err != nil {
-					logger.ComponentLogger("logto").Warn().
-						Err(err).
-						Str("operation", "fetch_org_role_scopes").
-						Str("role_id", primaryOrgRole.ID).
-						Msg("Failed to fetch organization role scopes")
-				} else {
-					for _, scope := range orgScopes {
-						user.OrgPermissions = append(user.OrgPermissions, scope.Name)
-					}
-				}
+	// Create channels for parallel processing
+	roleScopesCh := make(chan roleScopesResult, len(userRoles))
+	orgRolesCh := make(chan orgRolesResult, 1)
+
+	// Fetch scopes for all user roles in parallel
+	for _, role := range userRoles {
+		go func(roleID string) {
+			scopes, err := client.GetRoleScopes(roleID)
+			roleScopesCh <- roleScopesResult{roleID: roleID, scopes: scopes, err: err}
+		}(role.ID)
+	}
+
+	// Fetch organization roles in parallel (if we have organizations)
+	var orgRolesWaitCount int
+	if len(orgs) > 0 {
+		orgRolesWaitCount = 1
+		go func() {
+			orgRoles, err := client.GetUserOrganizationRoles(orgs[0].ID, userID)
+			orgRolesCh <- orgRolesResult{roles: orgRoles, err: err}
+		}()
+	}
+
+	// Collect role scopes results
+	for i := 0; i < len(userRoles); i++ {
+		result := <-roleScopesCh
+		if result.err != nil {
+			logger.ComponentLogger("logto").Warn().
+				Err(result.err).
+				Str("operation", "fetch_role_scopes").
+				Str("role_id", result.roleID).
+				Msg("Failed to fetch role scopes")
+			continue
+		}
+		for _, scope := range result.scopes {
+			user.UserPermissions = append(user.UserPermissions, scope.Name)
+		}
+	}
+
+	// Collect organization roles result (if fetched)
+	var orgRoles []models.LogtoOrganizationRole
+	if orgRolesWaitCount > 0 {
+		orgRolesRes := <-orgRolesCh
+		if orgRolesRes.err != nil {
+			logger.ComponentLogger("logto").Warn().
+				Err(orgRolesRes.err).
+				Str("operation", "fetch_org_roles").
+				Str("user_id", userID).
+				Str("org_id", orgs[0].ID).
+				Msg("Failed to fetch organization roles")
+		} else {
+			orgRoles = orgRolesRes.roles
+		}
+	}
+
+	// Step 3: Process organization roles and fetch their scopes
+	if len(orgRoles) > 0 {
+		// Use first organization role as primary
+		primaryOrgRole := orgRoles[0]
+		user.OrgRole = primaryOrgRole.Name
+		user.OrgRoleID = primaryOrgRole.ID
+		logger.ComponentLogger("logto").Debug().
+			Str("operation", "extract_org_role").
+			Str("org_role_name", primaryOrgRole.Name).
+			Str("org_role_id", primaryOrgRole.ID).
+			Msg("Extracted organization role")
+
+		// Fetch permissions for organization role
+		orgScopes, err := client.GetOrganizationRoleScopes(primaryOrgRole.ID)
+		if err != nil {
+			logger.ComponentLogger("logto").Warn().
+				Err(err).
+				Str("operation", "fetch_org_role_scopes").
+				Str("role_id", primaryOrgRole.ID).
+				Msg("Failed to fetch organization role scopes")
+		} else {
+			for _, scope := range orgScopes {
+				user.OrgPermissions = append(user.OrgPermissions, scope.Name)
 			}
 		}
 	}
