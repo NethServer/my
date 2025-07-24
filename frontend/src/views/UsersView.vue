@@ -21,12 +21,7 @@ const isShownCreateUserDrawer = ref(false)
         {{ $t('users.page_description') }}
       </div>
       <!-- create user -->
-      <NeButton
-        kind="secondary"
-        size="lg"
-        class="shrink-0"
-        @click="isShownCreateUserDrawer = true"
-      >
+      <NeButton kind="secondary" size="lg" class="shrink-0" @click="isShownCreateUserDrawer = true">
         <template #prefix>
           <FontAwesomeIcon :icon="faCirclePlus" aria-hidden="true" />
         </template>

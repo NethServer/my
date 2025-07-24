@@ -4,10 +4,7 @@
 -->
 
 <script lang="ts" setup>
-import {
-  type NeComboboxOption,
-  NeListbox,
-} from '@nethesis/vue-components'
+import { type NeComboboxOption, NeListbox } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { computed, watch } from 'vue'
 import { useLoginStore } from '@/stores/login'

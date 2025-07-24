@@ -37,6 +37,8 @@ describe('password generation', () => {
 
   it('should handle edge cases gracefully', () => {
     expect(() => generateRandomPassword(0)).toThrow('Password length must be at least 4 characters')
-    expect(() => generateRandomPassword(-5)).toThrow('Password length must be at least 4 characters')
+    expect(() => generateRandomPassword(-5)).toThrow(
+      'Password length must be at least 4 characters',
+    )
   })
 })
