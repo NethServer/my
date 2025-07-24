@@ -305,9 +305,9 @@ func (s *LocalUserService) GetUserByLogtoID(logtoID string) (*models.LocalUser, 
 	return s.userRepo.GetByLogtoID(logtoID)
 }
 
-// ListUsers returns paginated users based on hierarchical RBAC
-func (s *LocalUserService) ListUsers(userOrgRole, userOrgID string, page, pageSize int) ([]*models.LocalUser, int, error) {
-	return s.userRepo.List(userOrgRole, userOrgID, page, pageSize)
+// ListUsers returns paginated users based on hierarchical RBAC (excluding specified user)
+func (s *LocalUserService) ListUsers(userOrgRole, userOrgID, excludeUserID string, page, pageSize int) ([]*models.LocalUser, int, error) {
+	return s.userRepo.List(userOrgRole, userOrgID, excludeUserID, page, pageSize)
 }
 
 // GetTotals returns total count of users based on hierarchical RBAC
