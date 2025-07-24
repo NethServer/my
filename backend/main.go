@@ -141,6 +141,7 @@ func main() {
 	{
 		// Auth endpoint using custom JWT
 		customAuth.GET("/auth/me", methods.GetCurrentUser)
+		customAuth.POST("/auth/me/change-password", methods.ChangePassword)
 
 		// Business operations
 		// ===========================================

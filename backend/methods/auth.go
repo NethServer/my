@@ -331,3 +331,133 @@ func GetCurrentUser(c *gin.Context) {
 		userData,
 	))
 }
+
+// ChangePassword allows the current user to change their own password
+// POST /auth/me/change-password
+func ChangePassword(c *gin.Context) {
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Check if user has a Logto ID (required for password operations)
+	if user.LogtoID == nil || *user.LogtoID == "" {
+		logger.RequestLogger(c, "auth").Warn().
+			Str("operation", "change_password").
+			Str("user_id", user.ID).
+			Msg("User attempted password change without Logto ID")
+
+		c.JSON(http.StatusBadRequest, response.BadRequest(
+			"Password change not available for this user",
+			nil,
+		))
+		return
+	}
+
+	// Parse request body
+	var req models.ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.RequestLogger(c, "auth").Warn().
+			Err(err).
+			Str("operation", "change_password").
+			Str("user_id", user.ID).
+			Msg("Invalid change password request")
+
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
+		return
+	}
+
+	// Validate new password strength
+	isValid, validationErrors := helpers.ValidatePasswordStrength(req.NewPassword)
+	if !isValid {
+		logger.RequestLogger(c, "auth").Warn().
+			Strs("validation_errors", validationErrors).
+			Str("operation", "change_password").
+			Str("user_id", user.ID).
+			Msg("New password failed validation")
+
+		// Convert validation errors to standard format
+		var errors []gin.H
+		for _, validationError := range validationErrors {
+			errors = append(errors, gin.H{
+				"key":     "new_password",
+				"message": validationError,
+				"value":   "", // Don't expose the actual password value
+			})
+		}
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "validation failed",
+			"data": gin.H{
+				"type":   "validation_error",
+				"errors": errors,
+			},
+		})
+		return
+	}
+
+	// Create Logto client
+	logtoClient := logto.NewManagementClient()
+
+	// Verify current password
+	err := logtoClient.VerifyUserPassword(*user.LogtoID, req.CurrentPassword)
+	if err != nil {
+		logger.RequestLogger(c, "auth").Warn().
+			Err(err).
+			Str("operation", "change_password").
+			Str("user_id", user.ID).
+			Str("logto_id", *user.LogtoID).
+			Msg("Current password verification failed")
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "validation failed",
+			"data": gin.H{
+				"type": "validation_error",
+				"errors": []gin.H{
+					{
+						"key":     "current_password",
+						"message": "incorrect_password",
+						"value":   "", // Don't expose the actual password value
+					},
+				},
+			},
+		})
+		return
+	}
+
+	// Update password in Logto
+	err = logtoClient.UpdateUserPassword(*user.LogtoID, req.NewPassword)
+	if err != nil {
+		logger.RequestLogger(c, "auth").Error().
+			Err(err).
+			Str("operation", "change_password").
+			Str("user_id", user.ID).
+			Str("logto_id", *user.LogtoID).
+			Msg("Failed to update password in Logto")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError(
+			"Failed to update password",
+			map[string]interface{}{
+				"error": err.Error(),
+			},
+		))
+		return
+	}
+
+	// Log successful password change
+	logger.LogAccountOperation(c, "change_password", user.ID, user.OrganizationID, user.ID, user.OrganizationID, true, nil)
+
+	logger.RequestLogger(c, "auth").Info().
+		Str("operation", "change_password").
+		Str("user_id", user.ID).
+		Str("logto_id", *user.LogtoID).
+		Msg("Password changed successfully")
+
+	c.JSON(http.StatusOK, response.OK(
+		"password changed successfully",
+		nil,
+	))
+}
