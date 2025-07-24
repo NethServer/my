@@ -300,3 +300,83 @@ func hasRoleInList(roles []string, role string) bool {
 	}
 	return false
 }
+
+// RequireResourcePermission checks if user has the appropriate permission for the resource and HTTP method
+// It automatically maps HTTP methods to permission prefixes:
+// - GET requests require "read:resource" permission
+// - POST, PUT, PATCH, DELETE requests require "manage:resource" permission
+func RequireResourcePermission(resource string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		user, ok := getUserFromContext(c)
+		if !ok {
+			return
+		}
+
+		method := c.Request.Method
+		var requiredPermission string
+
+		// Map HTTP method to permission prefix
+		switch method {
+		case "GET":
+			requiredPermission = "read:" + resource
+		case "POST", "PUT", "PATCH", "DELETE":
+			requiredPermission = "manage:" + resource
+		default:
+			// For any other HTTP method, require manage permission
+			requiredPermission = "manage:" + resource
+		}
+
+		// Check if user has permission via User Roles (technical capabilities)
+		hasUserPermission := hasPermissionInList(user.UserPermissions, requiredPermission)
+
+		// Check if user has permission via Organization Role (business hierarchy)
+		hasOrgPermission := hasPermissionInList(user.OrgPermissions, requiredPermission)
+
+		if hasUserPermission || hasOrgPermission {
+			logger.RequestLogger(c, "rbac").Info().
+				Str("operation", "resource_permission_granted").
+				Str("resource", resource).
+				Str("http_method", method).
+				Str("required_permission", requiredPermission).
+				Str("user_id", user.ID).
+				Str("username", user.Username).
+				Str("organization_id", user.OrganizationID).
+				Str("org_role", user.OrgRole).
+				Strs("user_roles", user.UserRoles).
+				Bool("via_user_permission", hasUserPermission).
+				Bool("via_org_permission", hasOrgPermission).
+				Msg("Resource permission granted")
+			c.Next()
+			return
+		}
+
+		// Permission denied
+		logger.RequestLogger(c, "rbac").Warn().
+			Str("operation", "resource_permission_denied").
+			Str("resource", resource).
+			Str("http_method", method).
+			Str("required_permission", requiredPermission).
+			Str("user_id", user.ID).
+			Str("username", user.Username).
+			Str("organization_id", user.OrganizationID).
+			Str("org_role", user.OrgRole).
+			Strs("user_roles", user.UserRoles).
+			Strs("user_permissions", user.UserPermissions).
+			Strs("org_permissions", user.OrgPermissions).
+			Str("client_ip", c.ClientIP()).
+			Str("path", c.Request.URL.Path).
+			Msg("Resource permission denied - insufficient permissions for HTTP method")
+
+		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions for this operation", gin.H{
+			"resource":            resource,
+			"http_method":         method,
+			"required_permission": requiredPermission,
+			"user_permissions":    user.UserPermissions,
+			"org_permissions":     user.OrgPermissions,
+			"user_roles":          user.UserRoles,
+			"org_role":            user.OrgRole,
+			"organization":        user.OrganizationName,
+		}))
+		c.Abort()
+	}
+}

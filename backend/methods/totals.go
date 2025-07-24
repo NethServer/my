@@ -46,9 +46,9 @@ func GetSystemsTotals(c *gin.Context) {
 		timeoutMinutes = 15
 	}
 
-	// Use local repository for fast totals
-	repo := entities.NewLocalSystemRepository()
-	totals, err := repo.GetTotals(strings.ToLower(userOrgRole), userOrgID, timeoutMinutes)
+	// Use service which handles timeout parameter properly
+	systemsService := local.NewSystemsService()
+	totals, err := systemsService.GetTotals(strings.ToLower(userOrgRole), userOrgID, timeoutMinutes)
 	if err != nil {
 		logger.Error().
 			Str("component", "totals").

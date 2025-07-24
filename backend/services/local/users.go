@@ -40,13 +40,17 @@ type LocalUserService struct {
 	logtoClient *logto.LogtoManagementClient
 }
 
-// NewLocalUserService creates a new local user service
+// NewUserService creates a new local user service
 func NewUserService() *LocalUserService {
 	return &LocalUserService{
 		userRepo:    entities.NewLocalUserRepository(),
 		logtoClient: logto.NewManagementClient(),
 	}
 }
+
+// =============================================================================
+// PUBLIC METHODS
+// =============================================================================
 
 // CreateUser creates a user locally and syncs to Logto
 func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, createdByUserID, createdByOrgID string) (*models.LocalUser, error) {
@@ -275,31 +279,40 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, create
 	return user, nil
 }
 
-// GetUser retrieves a user by ID
-func (s *LocalUserService) GetUser(id string) (*models.LocalUser, error) {
-	return s.userRepo.GetByID(id)
+// GetUser retrieves a user by ID with RBAC validation
+func (s *LocalUserService) GetUser(id, userOrgRole, userOrgID string) (*models.LocalUser, error) {
+	// Get the user first
+	user, err := s.userRepo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate hierarchical access - user must be able to access the target user's organization
+	var targetUserOrgID string
+	if user.OrganizationID != nil {
+		targetUserOrgID = *user.OrganizationID
+	}
+
+	if canAccess, reason := s.CanAccessUser(userOrgRole, userOrgID, targetUserOrgID); !canAccess {
+		return nil, fmt.Errorf("access denied: %s", reason)
+	}
+
+	return user, nil
+}
+
+// GetUserByLogtoID retrieves a user by Logto ID (without RBAC validation, used for auth)
+func (s *LocalUserService) GetUserByLogtoID(logtoID string) (*models.LocalUser, error) {
+	return s.userRepo.GetByLogtoID(logtoID)
 }
 
 // ListUsers returns paginated users based on hierarchical RBAC
 func (s *LocalUserService) ListUsers(userOrgRole, userOrgID string, page, pageSize int) ([]*models.LocalUser, int, error) {
-	// Get all organization IDs the user can access hierarchically
-	allowedOrgIDs, err := s.GetHierarchicalOrganizationIDs(userOrgRole, userOrgID)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
-	}
-
-	return s.userRepo.ListByOrganizations(allowedOrgIDs, page, pageSize)
+	return s.userRepo.List(userOrgRole, userOrgID, page, pageSize)
 }
 
 // GetTotals returns total count of users based on hierarchical RBAC
 func (s *LocalUserService) GetTotals(userOrgRole, userOrgID string) (int, error) {
-	// Get all organization IDs the user can access hierarchically
-	allowedOrgIDs, err := s.GetHierarchicalOrganizationIDs(userOrgRole, userOrgID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
-	}
-
-	return s.userRepo.GetTotalsByOrganizations(allowedOrgIDs)
+	return s.userRepo.GetTotals(userOrgRole, userOrgID)
 }
 
 // UpdateUser updates a user locally and syncs to Logto
@@ -738,7 +751,7 @@ func (s *LocalUserService) ResetUserPassword(userID, password string) error {
 	return nil
 }
 
-// RBAC validation methods
+// CanCreateUser validates if a user can create another user based on hierarchical permissions
 func (s *LocalUserService) CanCreateUser(userOrgRole, userOrgID string, req *models.CreateLocalUserRequest) (bool, string) {
 	switch userOrgRole {
 	case "owner":
@@ -770,6 +783,7 @@ func (s *LocalUserService) CanCreateUser(userOrgRole, userOrgID string, req *mod
 	}
 }
 
+// CanUpdateUser validates if a user can update another user based on hierarchical permissions
 func (s *LocalUserService) CanUpdateUser(userOrgRole, userOrgID, targetUserOrgID string) (bool, string) {
 	switch userOrgRole {
 	case "owner":
@@ -797,6 +811,7 @@ func (s *LocalUserService) CanUpdateUser(userOrgRole, userOrgID, targetUserOrgID
 	}
 }
 
+// CanDeleteUser validates if a user can delete another user based on hierarchical permissions
 func (s *LocalUserService) CanDeleteUser(userOrgRole, userOrgID, targetUserOrgID string) (bool, string) {
 	switch userOrgRole {
 	case "owner":
@@ -824,7 +839,104 @@ func (s *LocalUserService) CanDeleteUser(userOrgRole, userOrgID, targetUserOrgID
 	}
 }
 
-// Helper method to mark user as synced
+// CanAccessUser validates if a user can access another user based on hierarchical permissions
+func (s *LocalUserService) CanAccessUser(userOrgRole, userOrgID, targetUserOrgID string) (bool, string) {
+	switch userOrgRole {
+	case "owner":
+		return true, ""
+	case "distributor":
+		// Distributor can access users in organizations they manage hierarchically
+		if s.IsOrganizationInHierarchy(userOrgRole, userOrgID, targetUserOrgID) {
+			return true, ""
+		}
+		return false, "distributors can only access users in organizations they manage"
+	case "reseller":
+		// Reseller can access users in organizations they manage hierarchically
+		if s.IsOrganizationInHierarchy(userOrgRole, userOrgID, targetUserOrgID) {
+			return true, ""
+		}
+		return false, "resellers can only access users in their own organization or customers they manage"
+	case "customer":
+		// Customer can only access users in their own organization
+		if targetUserOrgID == userOrgID {
+			return true, ""
+		}
+		return false, "customers can only access users in their own organization"
+	default:
+		return false, "insufficient permissions to access users"
+	}
+}
+
+// IsOrganizationInHierarchy checks if targetOrgID is in the hierarchy under userOrgID
+func (s *LocalUserService) IsOrganizationInHierarchy(userOrgRole, userOrgID, targetOrgID string) bool {
+	if userOrgID == targetOrgID {
+		return true // Direct match
+	}
+
+	switch userOrgRole {
+	case "owner":
+		// Owner can manage everything
+		return true
+
+	case "distributor":
+		// Distributor can manage:
+		// 1. Their own organization
+		// 2. Resellers created by them
+		// 3. Customers created by them or their resellers
+
+		// Check if target is a reseller created by this distributor
+		var count int
+		query := `SELECT COUNT(*) FROM resellers WHERE logto_id = $1 AND custom_data->>'createdBy' = $2 AND active = TRUE`
+		err := database.DB.QueryRow(query, targetOrgID, userOrgID).Scan(&count)
+		if err == nil && count > 0 {
+			return true
+		}
+
+		// Check if target is a customer created by this distributor
+		query = `SELECT COUNT(*) FROM customers WHERE logto_id = $1 AND custom_data->>'createdBy' = $2 AND active = TRUE`
+		err = database.DB.QueryRow(query, targetOrgID, userOrgID).Scan(&count)
+		if err == nil && count > 0 {
+			return true
+		}
+
+		// Check if target is a customer created by a reseller created by this distributor
+		query = `
+			SELECT COUNT(*) FROM customers c
+			JOIN resellers r ON c.custom_data->>'createdBy' = r.logto_id
+			WHERE c.logto_id = $1 AND r.custom_data->>'createdBy' = $2 AND c.active = TRUE AND r.active = TRUE
+		`
+		err = database.DB.QueryRow(query, targetOrgID, userOrgID).Scan(&count)
+		if err == nil && count > 0 {
+			return true
+		}
+
+	case "reseller":
+		// Reseller can manage:
+		// 1. Their own organization
+		// 2. Customers created by them
+
+		// Check if target is a customer created by this reseller
+		var count int
+		query := `SELECT COUNT(*) FROM customers WHERE logto_id = $1 AND custom_data->>'createdBy' = $2 AND active = TRUE`
+		err := database.DB.QueryRow(query, targetOrgID, userOrgID).Scan(&count)
+		if err == nil && count > 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
+// GetHierarchicalOrganizationIDs returns all organization IDs that the user can manage
+func (s *LocalUserService) GetHierarchicalOrganizationIDs(userOrgRole, userOrgID string) ([]string, error) {
+	return s.userRepo.GetHierarchicalOrganizationIDs(userOrgRole, userOrgID)
+}
+
+// =============================================================================
+// PRIVATE METHODS
+// =============================================================================
+
+// markUserSynced marks a user as synced with Logto
 func (s *LocalUserService) markUserSynced(id, logtoID string) error {
 	query := `UPDATE users SET logto_id = $1, logto_synced_at = $2 WHERE id = $3`
 	_, err := database.DB.Exec(query, logtoID, time.Now(), id)
@@ -832,7 +944,6 @@ func (s *LocalUserService) markUserSynced(id, logtoID string) error {
 }
 
 // generateUsernameFromEmail converts email to valid Logto username format
-// Logto requires: /^[A-Z_a-z]\w*$/ (starts with letter/underscore, followed by alphanumeric/underscore)
 func (s *LocalUserService) generateUsernameFromEmail(email string) string {
 	// Take the local part of email (before @)
 	localPart := strings.Split(email, "@")[0]
@@ -898,173 +1009,6 @@ func (s *LocalUserService) parseLogtoError(err error, context map[string]interfa
 
 	// Return original error if not parseable or not a client error
 	return err
-}
-
-// IsOrganizationInHierarchy checks if targetOrgID is in the hierarchy under userOrgID
-// Returns true if the user can manage the target organization based on hierarchical rules
-func (s *LocalUserService) IsOrganizationInHierarchy(userOrgRole, userOrgID, targetOrgID string) bool {
-	if userOrgID == targetOrgID {
-		return true // Direct match
-	}
-
-	switch userOrgRole {
-	case "owner":
-		// Owner can manage everything
-		return true
-
-	case "distributor":
-		// Distributor can manage:
-		// 1. Their own organization
-		// 2. Resellers created by them
-		// 3. Customers created by them or their resellers
-
-		// Check if target is a reseller created by this distributor
-		var count int
-		query := `SELECT COUNT(*) FROM resellers WHERE logto_id = $1 AND custom_data->>'createdBy' = $2 AND active = TRUE`
-		err := database.DB.QueryRow(query, targetOrgID, userOrgID).Scan(&count)
-		if err == nil && count > 0 {
-			return true
-		}
-
-		// Check if target is a customer created by this distributor
-		query = `SELECT COUNT(*) FROM customers WHERE logto_id = $1 AND custom_data->>'createdBy' = $2 AND active = TRUE`
-		err = database.DB.QueryRow(query, targetOrgID, userOrgID).Scan(&count)
-		if err == nil && count > 0 {
-			return true
-		}
-
-		// Check if target is a customer created by a reseller created by this distributor
-		query = `
-			SELECT COUNT(*) FROM customers c
-			JOIN resellers r ON c.custom_data->>'createdBy' = r.logto_id
-			WHERE c.logto_id = $1 AND r.custom_data->>'createdBy' = $2 AND c.active = TRUE AND r.active = TRUE
-		`
-		err = database.DB.QueryRow(query, targetOrgID, userOrgID).Scan(&count)
-		if err == nil && count > 0 {
-			return true
-		}
-
-	case "reseller":
-		// Reseller can manage:
-		// 1. Their own organization
-		// 2. Customers created by them
-
-		// Check if target is a customer created by this reseller
-		var count int
-		query := `SELECT COUNT(*) FROM customers WHERE logto_id = $1 AND custom_data->>'createdBy' = $2 AND active = TRUE`
-		err := database.DB.QueryRow(query, targetOrgID, userOrgID).Scan(&count)
-		if err == nil && count > 0 {
-			return true
-		}
-	}
-
-	return false
-}
-
-// GetHierarchicalOrganizationIDs returns all organization IDs that the user can manage
-func (s *LocalUserService) GetHierarchicalOrganizationIDs(userOrgRole, userOrgID string) ([]string, error) {
-	orgIDs := []string{userOrgID} // Always include own organization
-
-	switch userOrgRole {
-	case "owner":
-		// Owner can manage all organizations
-		var allOrgIDs []string
-
-		// Get all distributors
-		rows, err := database.DB.Query("SELECT logto_id FROM distributors WHERE logto_id IS NOT NULL AND active = TRUE")
-		if err == nil {
-			defer func() { _ = rows.Close() }()
-			for rows.Next() {
-				var orgID string
-				if rows.Scan(&orgID) == nil {
-					allOrgIDs = append(allOrgIDs, orgID)
-				}
-			}
-		}
-
-		// Get all resellers
-		rows, err = database.DB.Query("SELECT logto_id FROM resellers WHERE logto_id IS NOT NULL AND active = TRUE")
-		if err == nil {
-			defer func() { _ = rows.Close() }()
-			for rows.Next() {
-				var orgID string
-				if rows.Scan(&orgID) == nil {
-					allOrgIDs = append(allOrgIDs, orgID)
-				}
-			}
-		}
-
-		// Get all customers
-		rows, err = database.DB.Query("SELECT logto_id FROM customers WHERE logto_id IS NOT NULL AND active = TRUE")
-		if err == nil {
-			defer func() { _ = rows.Close() }()
-			for rows.Next() {
-				var orgID string
-				if rows.Scan(&orgID) == nil {
-					allOrgIDs = append(allOrgIDs, orgID)
-				}
-			}
-		}
-
-		return allOrgIDs, nil
-
-	case "distributor":
-		// Get resellers created by this distributor
-		rows, err := database.DB.Query("SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = $1 AND logto_id IS NOT NULL AND active = TRUE", userOrgID)
-		if err == nil {
-			defer func() { _ = rows.Close() }()
-			for rows.Next() {
-				var orgID string
-				if rows.Scan(&orgID) == nil {
-					orgIDs = append(orgIDs, orgID)
-				}
-			}
-		}
-
-		// Get customers created by this distributor
-		rows, err = database.DB.Query("SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND logto_id IS NOT NULL AND active = TRUE", userOrgID)
-		if err == nil {
-			defer func() { _ = rows.Close() }()
-			for rows.Next() {
-				var orgID string
-				if rows.Scan(&orgID) == nil {
-					orgIDs = append(orgIDs, orgID)
-				}
-			}
-		}
-
-		// Get customers created by resellers created by this distributor
-		query := `
-			SELECT c.logto_id FROM customers c
-			JOIN resellers r ON c.custom_data->>'createdBy' = r.logto_id
-			WHERE r.custom_data->>'createdBy' = $1 AND c.logto_id IS NOT NULL AND c.active = TRUE AND r.active = TRUE
-		`
-		rows, err = database.DB.Query(query, userOrgID)
-		if err == nil {
-			defer func() { _ = rows.Close() }()
-			for rows.Next() {
-				var orgID string
-				if rows.Scan(&orgID) == nil {
-					orgIDs = append(orgIDs, orgID)
-				}
-			}
-		}
-
-	case "reseller":
-		// Get customers created by this reseller
-		rows, err := database.DB.Query("SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND logto_id IS NOT NULL AND active = TRUE", userOrgID)
-		if err == nil {
-			defer func() { _ = rows.Close() }()
-			for rows.Next() {
-				var orgID string
-				if rows.Scan(&orgID) == nil {
-					orgIDs = append(orgIDs, orgID)
-				}
-			}
-		}
-	}
-
-	return orgIDs, nil
 }
 
 // determineOrganizationRoleName determines the organization role name based on organization type in database

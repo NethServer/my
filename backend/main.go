@@ -128,6 +128,7 @@ func main() {
 	// ===========================================
 	// CUSTOM JWT ROUTES (for resilient apps)
 	// Uses our enriched JWT - works offline when Logto is down
+	// Resource-based permissions: read:resource for GET, manage:resource for POST/PUT/PATCH/DELETE
 	// ===========================================
 	customAuth := api.Group("/", middleware.JWTAuthMiddleware())
 	{
@@ -139,8 +140,8 @@ func main() {
 		// SYSTEMS - Hybrid approach
 		// ===========================================
 
-		// Standard CRUD operations - role-based (Admin and Support can manage systems)
-		systemsGroup := customAuth.Group("/systems", middleware.RequireAnyUserRole("Admin", "Support"))
+		// Standard CRUD operations - resource-based (read:systems for GET, manage:systems for POST/PUT/DELETE)
+		systemsGroup := customAuth.Group("/systems", middleware.RequireResourcePermission("systems"))
 		{
 			systemsGroup.GET("", methods.GetSystems)
 			systemsGroup.GET("/:id", methods.GetSystem)
@@ -149,6 +150,9 @@ func main() {
 			systemsGroup.DELETE("/:id", methods.DeleteSystem)
 
 			systemsGroup.POST("/:id/regenerate-secret", methods.RegenerateSystemSecret) // Regenerate system secret
+
+			// Dangerous operations requiring specific permissions
+			// systemsGroup.DELETE("/:id/destroy", middleware.RequirePermission("destroy:systems"), methods.DestroySystem) // Complete system destruction (destroy:systems required)
 
 			// System totals endpoint
 			systemsGroup.GET("/totals", methods.GetSystemsTotals) // Get systems totals with liveness status
@@ -163,46 +167,46 @@ func main() {
 		}
 
 		// ===========================================
-		// BUSINESS HIERARCHY - Organization role-based
+		// BUSINESS HIERARCHY - Permission-based with org_permissions
 		// Owner > Distributor > Reseller > Customer
 		// ===========================================
 
-		// Distributors - local-first approach with Logto sync
-		distributorsGroup := customAuth.Group("/distributors", middleware.RequireOrgRole("Owner"))
+		// Distributors - resource-based permission validation (read:distributors for GET, manage:distributors for POST/PUT/DELETE)
+		distributorsGroup := customAuth.Group("/distributors", middleware.RequireResourcePermission("distributors"))
 		{
-			distributorsGroup.POST("", methods.CreateDistributor)       // Create distributor (Owner only - validated in handler)
-			distributorsGroup.GET("", methods.GetDistributors)          // List distributors with pagination
-			distributorsGroup.GET("/:id", methods.GetDistributor)       // Get distributor (Owner only - validated in handler)
-			distributorsGroup.PUT("/:id", methods.UpdateDistributor)    // Update distributor (Owner only - validated in handler)
-			distributorsGroup.DELETE("/:id", methods.DeleteDistributor) // Delete distributor (Owner only - validated in handler)
+			distributorsGroup.POST("", methods.CreateDistributor)       // Create distributor (manage:distributors required)
+			distributorsGroup.GET("", methods.GetDistributors)          // List distributors (read:distributors required)
+			distributorsGroup.GET("/:id", methods.GetDistributor)       // Get distributor (read:distributors required)
+			distributorsGroup.PUT("/:id", methods.UpdateDistributor)    // Update distributor (manage:distributors required)
+			distributorsGroup.DELETE("/:id", methods.DeleteDistributor) // Delete distributor (manage:distributors required)
 
-			// Distributors totals endpoint - accessible based on hierarchy
+			// Distributors totals endpoint (read:distributors required)
 			distributorsGroup.GET("/totals", methods.GetDistributorsTotals)
 		}
 
-		// Resellers - local-first approach with Logto sync
-		resellersGroup := customAuth.Group("/resellers", middleware.RequireAnyOrgRole("Owner", "Distributors"))
+		// Resellers - resource-based permission validation (read:resellers for GET, manage:resellers for POST/PUT/DELETE)
+		resellersGroup := customAuth.Group("/resellers", middleware.RequireResourcePermission("resellers"))
 		{
-			resellersGroup.POST("", methods.CreateReseller)       // Create reseller (Owner/Distributor - validated in handler)
-			resellersGroup.GET("", methods.GetResellers)          // List resellers with pagination
-			resellersGroup.GET("/:id", methods.GetReseller)       // Get reseller (RBAC validated in handler)
-			resellersGroup.PUT("/:id", methods.UpdateReseller)    // Update reseller (RBAC validated in handler)
-			resellersGroup.DELETE("/:id", methods.DeleteReseller) // Delete reseller (RBAC validated in handler)
+			resellersGroup.POST("", methods.CreateReseller)       // Create reseller (manage:resellers required)
+			resellersGroup.GET("", methods.GetResellers)          // List resellers (read:resellers required)
+			resellersGroup.GET("/:id", methods.GetReseller)       // Get reseller (read:resellers required)
+			resellersGroup.PUT("/:id", methods.UpdateReseller)    // Update reseller (manage:resellers required)
+			resellersGroup.DELETE("/:id", methods.DeleteReseller) // Delete reseller (manage:resellers required)
 
-			// Resellers totals endpoint - accessible based on hierarchy
+			// Resellers totals endpoint (read:resellers required)
 			resellersGroup.GET("/totals", methods.GetResellersTotals)
 		}
 
-		// Customers - local-first approach with Logto sync
-		customersGroup := customAuth.Group("/customers", middleware.RequireAnyOrgRole("Owner", "Distributors", "Reseller"))
+		// Customers - resource-based permission validation (read:customers for GET, manage:customers for POST/PUT/DELETE)
+		customersGroup := customAuth.Group("/customers", middleware.RequireResourcePermission("customers"))
 		{
-			customersGroup.POST("", methods.CreateCustomer)       // Create customer (Owner/Distributor/Reseller - validated in handler)
-			customersGroup.GET("", methods.GetCustomers)          // List customers with pagination
-			customersGroup.GET("/:id", methods.GetCustomer)       // Get customer (RBAC validated in handler)
-			customersGroup.PUT("/:id", methods.UpdateCustomer)    // Update customer (RBAC validated in handler)
-			customersGroup.DELETE("/:id", methods.DeleteCustomer) // Delete customer (RBAC validated in handler)
+			customersGroup.POST("", methods.CreateCustomer)       // Create customer (manage:customers required)
+			customersGroup.GET("", methods.GetCustomers)          // List customers (read:customers required)
+			customersGroup.GET("/:id", methods.GetCustomer)       // Get customer (read:customers required)
+			customersGroup.PUT("/:id", methods.UpdateCustomer)    // Update customer (manage:customers required)
+			customersGroup.DELETE("/:id", methods.DeleteCustomer) // Delete customer (manage:customers required)
 
-			// Customers totals endpoint - accessible based on hierarchy
+			// Customers totals endpoint (read:customers required)
 			customersGroup.GET("/totals", methods.GetCustomersTotals)
 		}
 
@@ -210,8 +214,8 @@ func main() {
 		// USERS MANAGEMENT - Permission-based
 		// ===========================================
 
-		// Users - Basic authentication required, hierarchical validation in handlers
-		usersGroup := customAuth.Group("/users", middleware.RequireUserRole("Admin"))
+		// Users - Resource-based permission validation (read:users for GET, manage:users for POST/PUT/PATCH/DELETE)
+		usersGroup := customAuth.Group("/users", middleware.RequireResourcePermission("users"))
 		{
 			usersGroup.GET("", methods.GetUsers)                         // List users with organization filtering
 			usersGroup.GET("/:id", methods.GetUser)                      // Get single user with hierarchical validation
@@ -220,7 +224,7 @@ func main() {
 			usersGroup.PATCH("/:id/password", methods.ResetUserPassword) // Reset user password
 			usersGroup.DELETE("/:id", methods.DeleteUser)                // Delete user
 
-			// Users totals endpoint - accessible based on hierarchy
+			// Users totals endpoint (read:users required)
 			usersGroup.GET("/totals", methods.GetUsersTotals)
 		}
 

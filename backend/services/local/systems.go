@@ -7,7 +7,7 @@
  * author: Edoardo Spadoni <edoardo.spadoni@nethesis.it>
  */
 
-package services
+package local
 
 import (
 	"crypto/rand"
@@ -23,48 +23,30 @@ import (
 
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/database"
+	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
-	"github.com/nethesis/my/backend/services/local"
 	"github.com/nethesis/my/backend/services/logto"
 )
 
-// SystemsService handles business logic for systems management
-type SystemsService struct {
-	collectURL  string
+// LocalSystemsService handles business logic for systems management
+type LocalSystemsService struct {
 	logtoClient *logto.LogtoManagementClient
 }
 
 // NewSystemsService creates a new systems service
-func NewSystemsService() *SystemsService {
-	return &SystemsService{
-		collectURL:  getCollectURL(),
+func NewSystemsService() *LocalSystemsService {
+	return &LocalSystemsService{
 		logtoClient: logto.NewManagementClient(),
 	}
 }
 
-func getCollectURL() string {
-	return "http://localhost:8081"
-}
-
-// calculateHeartbeatStatus calculates heartbeat status based on last_heartbeat timestamp
-func (s *SystemsService) calculateHeartbeatStatus(lastHeartbeat *time.Time, timeoutMinutes int) (string, *int) {
-	if lastHeartbeat == nil {
-		return "zombie", nil
-	}
-
-	timeout := time.Duration(timeoutMinutes) * time.Minute
-	cutoff := time.Now().Add(-timeout)
-	minutes := int(time.Since(*lastHeartbeat).Minutes())
-
-	if lastHeartbeat.After(cutoff) {
-		return "alive", &minutes
-	}
-	return "dead", &minutes
-}
+// =============================================================================
+// PUBLIC METHODS
+// =============================================================================
 
 // CreateSystem creates a new system with automatic secret generation
-func (s *SystemsService) CreateSystem(request *models.CreateSystemRequest, creatorInfo *models.SystemCreator, userOrgRole, userOrgID string) (*models.System, error) {
+func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, creatorInfo *models.SystemCreator, userOrgRole, userOrgID string) (*models.System, error) {
 	// Validate system type is allowed
 	if err := s.validateSystemType(request.Type); err != nil {
 		return nil, err
@@ -75,9 +57,8 @@ func (s *SystemsService) CreateSystem(request *models.CreateSystemRequest, creat
 		return nil, fmt.Errorf("invalid customer_id: %w", err)
 	}
 
-	// Validate hierarchical access - creator must be able to access the customer organization
-	tempSystem := &models.System{CustomerID: request.CustomerID}
-	if canAccess, reason := s.CanAccessSystem(tempSystem, userOrgRole, userOrgID); !canAccess {
+	// Validate hierarchical access - creator must be able to create systems in the customer organization
+	if canCreate, reason := s.CanCreateSystem(userOrgRole, userOrgID, request); !canCreate {
 		return nil, fmt.Errorf("access denied: %s", reason)
 	}
 
@@ -146,54 +127,8 @@ func (s *SystemsService) CreateSystem(request *models.CreateSystemRequest, creat
 	return system, nil
 }
 
-// generateSystemSecret generates a cryptographically secure random secret
-func (s *SystemsService) generateSystemSecret() (string, error) {
-	// Generate 32 random bytes (will be 64 hex characters)
-	bytes := make([]byte, 32)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(bytes), nil
-}
-
-// validateCustomerID validates that the customer_id exists in Logto as a Customer organization
-func (s *SystemsService) validateCustomerID(customerID string) error {
-	// Get organization from Logto
-	org, err := s.logtoClient.GetOrganizationByID(customerID)
-	if err != nil {
-		return fmt.Errorf("customer organization not found: %w", err)
-	}
-
-	// Check if organization has "Customer" type in custom data
-	if org.CustomData == nil {
-		return fmt.Errorf("organization %s has no custom data - cannot verify type", customerID)
-	}
-
-	orgType, ok := org.CustomData["type"].(string)
-	if !ok {
-		return fmt.Errorf("organization %s has no type in custom data", customerID)
-	}
-
-	if orgType != "customer" {
-		return fmt.Errorf("organization %s is not a customer (type: %s)", customerID, orgType)
-	}
-
-	return nil
-}
-
-// validateSystemType validates that the system type is in the allowed list from configuration
-func (s *SystemsService) validateSystemType(systemType string) error {
-	for _, allowedType := range configuration.Config.SystemTypes {
-		if systemType == allowedType {
-			return nil
-		}
-	}
-
-	return fmt.Errorf("invalid system type '%s', allowed types: %v", systemType, configuration.Config.SystemTypes)
-}
-
 // GetSystemsByOrganization retrieves systems filtered by organization access
-func (s *SystemsService) GetSystemsByOrganization(userID string, userOrgRole, userRole string) ([]*models.System, error) {
+func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRole, userRole string) ([]*models.System, error) {
 	query := `
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version, s.last_seen,
 		       s.custom_data, s.customer_id, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
@@ -274,15 +209,16 @@ func (s *SystemsService) GetSystemsByOrganization(userID string, userOrgRole, us
 }
 
 // GetSystemsByOrganizationPaginated retrieves systems filtered by organization with pagination and RBAC
-func (s *SystemsService) GetSystemsByOrganizationPaginated(userID, userOrgID string, userOrgRole, userRole string, page, pageSize int) ([]*models.System, int, error) {
+func (s *LocalSystemsService) GetSystemsByOrganizationPaginated(userID, userOrgID, userOrgRole string, page, pageSize int) ([]*models.System, int, error) {
 	// Calculate offset
 	offset := (page - 1) * pageSize
 
 	// Get all customer organization IDs the user can access hierarchically
-	userService := local.NewUserService()
-	allowedOrgIDs, err := userService.GetHierarchicalOrganizationIDs(strings.ToLower(userOrgRole), userOrgID)
+	// Systems can only be associated with customers, so we only need customer IDs
+	systemRepo := entities.NewLocalSystemRepository()
+	allowedOrgIDs, err := systemRepo.GetHierarchicalCustomerIDs(strings.ToLower(userOrgRole), userOrgID)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
+		return nil, 0, fmt.Errorf("failed to get hierarchical customer IDs: %w", err)
 	}
 
 	if len(allowedOrgIDs) == 0 {
@@ -403,58 +339,13 @@ func (s *SystemsService) GetSystemsByOrganizationPaginated(userID, userOrgID str
 	return systems, totalCount, nil
 }
 
-// GetSystemByID retrieves a specific system with access validation
-func (s *SystemsService) GetSystemByID(systemID, userID, userOrgID string, userOrgRole, userRole string) (*models.System, error) {
-	query := `
-		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version, s.last_seen,
-		       s.custom_data, s.customer_id, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
-		FROM systems s
-		LEFT JOIN system_heartbeats h ON s.id = h.system_id
-		WHERE s.id = $1
-	`
-
-	system := &models.System{}
-	var customDataJSON []byte
-	var createdByJSON []byte
-	var fqdn, ipv4Address, ipv6Address, version sql.NullString
-	var lastHeartbeat sql.NullTime
-
-	err := database.DB.QueryRow(query, systemID).Scan(
-		&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
-		&ipv4Address, &ipv6Address, &version, &system.LastSeen, &customDataJSON, &system.CustomerID,
-		&system.CreatedAt, &system.UpdatedAt, &createdByJSON, &lastHeartbeat,
-	)
-
-	if err == nil {
-		// Convert NullString to string
-		system.FQDN = fqdn.String
-		system.IPv4Address = ipv4Address.String
-		system.IPv6Address = ipv6Address.String
-		system.Version = version.String
-	}
-
+// GetSystem retrieves a specific system with RBAC validation
+func (s *LocalSystemsService) GetSystem(systemID, userOrgRole, userOrgID string) (*models.System, error) {
+	// Get the system first
+	systemRepo := entities.NewLocalSystemRepository()
+	system, err := systemRepo.GetByID(systemID)
 	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
-			return nil, fmt.Errorf("system not found")
-		}
-		return nil, fmt.Errorf("failed to query system: %w", err)
-	}
-
-	// Parse custom_data JSON
-	if len(customDataJSON) > 0 {
-		if err := json.Unmarshal(customDataJSON, &system.CustomData); err != nil {
-			logger.Warn().Err(err).Str("system_id", systemID).Msg("Failed to parse system custom_data")
-			system.CustomData = make(map[string]string)
-		}
-	} else {
-		system.CustomData = make(map[string]string)
-	}
-
-	// Parse created_by JSON
-	if len(createdByJSON) > 0 {
-		if err := json.Unmarshal(createdByJSON, &system.CreatedBy); err != nil {
-			logger.Warn().Err(err).Str("system_id", systemID).Msg("Failed to parse created_by")
-		}
+		return nil, err
 	}
 
 	// Validate hierarchical access
@@ -463,16 +354,10 @@ func (s *SystemsService) GetSystemByID(systemID, userID, userOrgID string, userO
 	}
 
 	// Calculate heartbeat status (15 minutes timeout)
-	var heartbeatTime *time.Time
-	if lastHeartbeat.Valid {
-		heartbeatTime = &lastHeartbeat.Time
-	}
-	system.HeartbeatStatus, system.HeartbeatMinutes = s.calculateHeartbeatStatus(heartbeatTime, 15)
-	system.LastHeartbeat = heartbeatTime
+	system.HeartbeatStatus, system.HeartbeatMinutes = s.calculateHeartbeatStatus(system.LastHeartbeat, 15)
 
 	logger.Debug().
 		Str("system_id", systemID).
-		Str("user_id", userID).
 		Str("heartbeat_status", system.HeartbeatStatus).
 		Msg("Retrieved system by ID")
 
@@ -480,11 +365,16 @@ func (s *SystemsService) GetSystemByID(systemID, userID, userOrgID string, userO
 }
 
 // UpdateSystem updates an existing system with access validation
-func (s *SystemsService) UpdateSystem(systemID string, request *models.UpdateSystemRequest, userID, userOrgID string, userOrgRole, userRole string) (*models.System, error) {
-	// Validate access to the system
-	system, err := s.GetSystemByID(systemID, userID, userOrgID, userOrgRole, userRole)
+func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.UpdateSystemRequest, userID, userOrgID, userOrgRole string) (*models.System, error) {
+	// Get the system first to check permissions
+	system, err := s.GetSystem(systemID, userOrgRole, userOrgID)
 	if err != nil {
 		return nil, err
+	}
+
+	// Validate update permissions
+	if canUpdate, reason := s.CanUpdateSystem(userOrgRole, userOrgID, system.CustomerID); !canUpdate {
+		return nil, fmt.Errorf("access denied: %s", reason)
 	}
 
 	// Update system fields
@@ -542,11 +432,16 @@ func (s *SystemsService) UpdateSystem(systemID string, request *models.UpdateSys
 }
 
 // DeleteSystem deletes a system with access validation
-func (s *SystemsService) DeleteSystem(systemID, userID, userOrgID string, userOrgRole, userRole string) error {
-	// Validate access to the system
-	_, err := s.GetSystemByID(systemID, userID, userOrgID, userOrgRole, userRole)
+func (s *LocalSystemsService) DeleteSystem(systemID, userID, userOrgID, userOrgRole string) error {
+	// Get the system first to check permissions
+	system, err := s.GetSystem(systemID, userOrgRole, userOrgID)
 	if err != nil {
 		return err
+	}
+
+	// Validate delete permissions
+	if canDelete, reason := s.CanDeleteSystem(userOrgRole, userOrgID, system.CustomerID); !canDelete {
+		return fmt.Errorf("access denied: %s", reason)
 	}
 
 	// Delete system from database (CASCADE will handle system_credentials)
@@ -575,11 +470,16 @@ func (s *SystemsService) DeleteSystem(systemID, userID, userOrgID string, userOr
 }
 
 // RegenerateSystemSecret generates a new secret for an existing system
-func (s *SystemsService) RegenerateSystemSecret(systemID, userID, userOrgID string, userOrgRole, userRole string) (*models.System, error) {
-	// Validate access to the system
-	_, err := s.GetSystemByID(systemID, userID, userOrgID, userOrgRole, userRole)
+func (s *LocalSystemsService) RegenerateSystemSecret(systemID, userID, userOrgID, userOrgRole string) (*models.System, error) {
+	// Get the system first to check permissions
+	system, err := s.GetSystem(systemID, userOrgRole, userOrgID)
 	if err != nil {
 		return nil, err
+	}
+
+	// Validate update permissions (regenerating secret is an update operation)
+	if canUpdate, reason := s.CanUpdateSystem(userOrgRole, userOrgID, system.CustomerID); !canUpdate {
+		return nil, fmt.Errorf("access denied: %s", reason)
 	}
 
 	// Generate new secret
@@ -607,7 +507,7 @@ func (s *SystemsService) RegenerateSystemSecret(systemID, userID, userOrgID stri
 	}
 
 	// Get updated system
-	system, err := s.GetSystemByID(systemID, userID, userOrgID, userOrgRole, userRole)
+	system, err = s.GetSystem(systemID, userOrgRole, userOrgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get updated system: %w", err)
 	}
@@ -623,29 +523,210 @@ func (s *SystemsService) RegenerateSystemSecret(systemID, userID, userOrgID stri
 	return system, nil
 }
 
-// CanAccessSystem validates if a user can access a specific system based on hierarchical permissions
-func (s *SystemsService) CanAccessSystem(system *models.System, userOrgRole, userOrgID string) (bool, string) {
-	// Normalize role to lowercase for consistency
-	userOrgRole = strings.ToLower(userOrgRole)
+// GetTotals returns total counts and status for systems based on hierarchical RBAC
+func (s *LocalSystemsService) GetTotals(userOrgRole, userOrgID string, timeoutMinutes int) (*models.SystemTotals, error) {
+	// First validate that the user can access systems (basic RBAC check)
+	switch userOrgRole {
+	case "owner", "distributor", "reseller", "customer":
+		// These roles can access system totals
+	default:
+		return nil, fmt.Errorf("insufficient permissions to access system totals")
+	}
 
+	systemRepo := entities.NewLocalSystemRepository()
+
+	// Get hierarchical customer IDs first
+	allowedOrgIDs, err := systemRepo.GetHierarchicalCustomerIDs(strings.ToLower(userOrgRole), userOrgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get hierarchical customer IDs: %w", err)
+	}
+
+	// Get totals with the specified timeout
+	return systemRepo.GetTotalsByCustomerIDs(allowedOrgIDs, timeoutMinutes)
+}
+
+// CanCreateSystem validates if a user can create a system based on hierarchical permissions
+func (s *LocalSystemsService) CanCreateSystem(userOrgRole, userOrgID string, req *models.CreateSystemRequest) (bool, string) {
 	switch userOrgRole {
 	case "owner":
-		// Owner can access any system
 		return true, ""
-	case "distributor", "reseller":
-		// Use hierarchical validation - check if customer organization is in hierarchy
-		userService := local.NewUserService()
+	case "distributor":
+		// Distributor can create systems in customer organizations they manage hierarchically
+		userService := NewUserService()
+		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, req.CustomerID) {
+			return true, ""
+		}
+		return false, "distributors can only create systems in organizations they manage"
+	case "reseller":
+		// Reseller can create systems in customer organizations they manage hierarchically
+		userService := NewUserService()
+		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, req.CustomerID) {
+			return true, ""
+		}
+		return false, "resellers can only create systems in their own organization or customers they manage"
+	case "customer":
+		// Customer can only create systems in their own organization
+		if req.CustomerID == userOrgID {
+			return true, ""
+		}
+		return false, "customers can only create systems in their own organization"
+	default:
+		return false, "insufficient permissions to create systems"
+	}
+}
+
+// CanUpdateSystem validates if a user can update a system based on hierarchical permissions
+func (s *LocalSystemsService) CanUpdateSystem(userOrgRole, userOrgID, targetSystemCustomerID string) (bool, string) {
+	switch userOrgRole {
+	case "owner":
+		return true, ""
+	case "distributor":
+		// Distributor can update systems in organizations they manage hierarchically
+		userService := NewUserService()
+		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, targetSystemCustomerID) {
+			return true, ""
+		}
+		return false, "distributors can only update systems in organizations they manage"
+	case "reseller":
+		// Reseller can update systems in organizations they manage hierarchically
+		userService := NewUserService()
+		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, targetSystemCustomerID) {
+			return true, ""
+		}
+		return false, "resellers can only update systems in their own organization or customers they manage"
+	case "customer":
+		// Customer can only update systems in their own organization
+		if targetSystemCustomerID == userOrgID {
+			return true, ""
+		}
+		return false, "customers can only update systems in their own organization"
+	default:
+		return false, "insufficient permissions to update systems"
+	}
+}
+
+// CanDeleteSystem validates if a user can delete a system based on hierarchical permissions
+func (s *LocalSystemsService) CanDeleteSystem(userOrgRole, userOrgID, targetSystemCustomerID string) (bool, string) {
+	switch userOrgRole {
+	case "owner":
+		return true, ""
+	case "distributor":
+		// Distributor can delete systems in organizations they manage hierarchically
+		userService := NewUserService()
+		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, targetSystemCustomerID) {
+			return true, ""
+		}
+		return false, "distributors can only delete systems in organizations they manage"
+	case "reseller":
+		// Reseller can delete systems in organizations they manage hierarchically
+		userService := NewUserService()
+		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, targetSystemCustomerID) {
+			return true, ""
+		}
+		return false, "resellers can only delete systems in their own organization or customers they manage"
+	case "customer":
+		// Customer can only delete systems in their own organization
+		if targetSystemCustomerID == userOrgID {
+			return true, ""
+		}
+		return false, "customers can only delete systems in their own organization"
+	default:
+		return false, "insufficient permissions to delete systems"
+	}
+}
+
+// CanAccessSystem validates if a user can access a specific system based on hierarchical permissions
+func (s *LocalSystemsService) CanAccessSystem(system *models.System, userOrgRole, userOrgID string) (bool, string) {
+	switch userOrgRole {
+	case "owner":
+		return true, ""
+	case "distributor":
+		// Distributor can access systems in organizations they manage hierarchically
+		userService := NewUserService()
 		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, system.CustomerID) {
 			return true, ""
 		}
-		return false, fmt.Sprintf("%ss can only access systems in organizations they manage", userOrgRole)
+		return false, "distributors can only access systems in organizations they manage"
+	case "reseller":
+		// Reseller can access systems in organizations they manage hierarchically
+		userService := NewUserService()
+		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, system.CustomerID) {
+			return true, ""
+		}
+		return false, "resellers can only access systems in their own organization or customers they manage"
 	case "customer":
-		// Can only access systems in their own organization
+		// Customer can only access systems in their own organization
 		if system.CustomerID == userOrgID {
 			return true, ""
 		}
 		return false, "customers can only access systems in their own organization"
 	default:
-		return false, "unknown organization role"
+		return false, "insufficient permissions to access systems"
 	}
+}
+
+// =============================================================================
+// PRIVATE METHODS
+// =============================================================================
+
+// calculateHeartbeatStatus calculates heartbeat status based on last_heartbeat timestamp
+func (s *LocalSystemsService) calculateHeartbeatStatus(lastHeartbeat *time.Time, timeoutMinutes int) (string, *int) {
+	if lastHeartbeat == nil {
+		return "zombie", nil
+	}
+
+	timeout := time.Duration(timeoutMinutes) * time.Minute
+	cutoff := time.Now().Add(-timeout)
+	minutes := int(time.Since(*lastHeartbeat).Minutes())
+
+	if lastHeartbeat.After(cutoff) {
+		return "alive", &minutes
+	}
+	return "dead", &minutes
+}
+
+// generateSystemSecret generates a cryptographically secure random secret
+func (s *LocalSystemsService) generateSystemSecret() (string, error) {
+	// Generate 32 random bytes (will be 64 hex characters)
+	bytes := make([]byte, 32)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
+}
+
+// validateCustomerID validates that the customer_id exists in Logto as a Customer organization
+func (s *LocalSystemsService) validateCustomerID(customerID string) error {
+	// Get organization from Logto
+	org, err := s.logtoClient.GetOrganizationByID(customerID)
+	if err != nil {
+		return fmt.Errorf("customer organization not found: %w", err)
+	}
+
+	// Check if organization has "Customer" type in custom data
+	if org.CustomData == nil {
+		return fmt.Errorf("organization %s has no custom data - cannot verify type", customerID)
+	}
+
+	orgType, ok := org.CustomData["type"].(string)
+	if !ok {
+		return fmt.Errorf("organization %s has no type in custom data", customerID)
+	}
+
+	if orgType != "customer" {
+		return fmt.Errorf("organization %s is not a customer (type: %s)", customerID, orgType)
+	}
+
+	return nil
+}
+
+// validateSystemType validates that the system type is in the allowed list from configuration
+func (s *LocalSystemsService) validateSystemType(systemType string) error {
+	for _, allowedType := range configuration.Config.SystemTypes {
+		if systemType == allowedType {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid system type '%s', allowed types: %v", systemType, configuration.Config.SystemTypes)
 }
