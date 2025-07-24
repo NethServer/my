@@ -35,12 +35,26 @@ export const EditUserSchema = v.object({
 export const UserSchema = v.object({
   ...CreateUserSchema.entries,
   ...EditUserSchema.entries,
-  organizationName: v.optional(v.string()),
-  organizationRole: v.optional(v.string()),
-  isSuspended: v.optional(v.boolean()),
-  lastSignInAt: v.optional(v.string()),
-  createdAt: v.optional(v.string()),
-  updatedAt: v.optional(v.string()),
+  active: v.optional(v.boolean()),
+  created_at: v.optional(v.string()),
+  logto_id: v.optional(v.string()),
+  logto_synced_at: v.optional(v.string()),
+  organization: v.optional(
+    v.object({
+      id: v.string(),
+      logto_id: v.optional(v.string()),
+      name: v.string(),
+    }),
+  ),
+  roles: v.optional(
+    v.array(
+      v.object({
+        id: v.string(),
+        name: v.string(),
+      }),
+    ),
+  ),
+  updated_at: v.optional(v.string()),
 })
 
 export type CreateUser = v.InferOutput<typeof CreateUserSchema>

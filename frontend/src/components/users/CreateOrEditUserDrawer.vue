@@ -201,9 +201,9 @@ watch(
         name.value = currentUser.name
         phone.value = currentUser.phone || ''
 
-        console.log('setting currentUser.organizationId', currentUser.organizationId) ////
+        console.log('setting currentUser.organization.id', currentUser.organization?.logto_id) ////
 
-        organizationId.value = currentUser.organizationId || ''
+        organizationId.value = currentUser.organization?.logto_id || ''
 
         // find user roles
         userRoleIds.value =
@@ -236,10 +236,13 @@ watch(
 
 watch(organizations, () => {
   if (isShown && currentUser && organizations.value.data && organizations.value.data.length > 0) {
-    console.log('set user org') ////
+    console.log(
+      'set user org, currentUser.organization?.logto_id',
+      currentUser.organization?.logto_id,
+    ) ////
 
     // select the organization while editing a user
-    organizationId.value = currentUser.organizationId
+    organizationId.value = currentUser.organization?.logto_id || ''
   }
 })
 

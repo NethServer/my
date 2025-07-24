@@ -202,6 +202,7 @@ const onClosePasswordChangedModal = () => {
             :options="[
               { id: 'name', label: t('users.name') },
               { id: 'email', label: t('users.email') },
+              { id: 'organization.name', label: t('users.organization') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
             :sort-by-label="t('sort.sort_by')"
@@ -239,6 +240,9 @@ const onClosePasswordChangedModal = () => {
         }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="email" @sort="onSort">{{
           $t('users.email')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="organization.name" @sort="onSort">{{
+          $t('users.organization')
         }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- no header for actions -->
@@ -284,6 +288,9 @@ const onClosePasswordChangedModal = () => {
           </NeTableCell>
           <NeTableCell :data-label="$t('users.email')">
             {{ item.email }}
+          </NeTableCell>
+          <NeTableCell :data-label="$t('users.organization')">
+            {{ item.organization?.name || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
             <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
