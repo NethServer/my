@@ -75,9 +75,9 @@ func (r *LocalCustomerRepository) Create(req *models.CreateLocalCustomerRequest)
 // GetByID retrieves a customer by ID from local database
 func (r *LocalCustomerRepository) GetByID(id string) (*models.LocalCustomer, error) {
 	query := `
-		SELECT id, logto_id, name, description,  custom_data, 
+		SELECT id, logto_id, name, description,  custom_data,
 		       created_at, updated_at, logto_synced_at, logto_sync_error, active
-		FROM customers 
+		FROM customers
 		WHERE id = $1 AND active = TRUE
 	`
 
@@ -137,7 +137,7 @@ func (r *LocalCustomerRepository) Update(id string, req *models.UpdateLocalCusto
 	}
 
 	query := `
-		UPDATE customers 
+		UPDATE customers
 		SET name = $2, description = $3, custom_data = $4, updated_at = $5, logto_synced_at = NULL
 		WHERE id = $1
 	`
@@ -188,9 +188,9 @@ func (r *LocalCustomerRepository) List(userOrgRole, userOrgID string, page, page
 		// Owner sees all customers
 		countQuery = `SELECT COUNT(*) FROM customers WHERE active = TRUE`
 		baseQuery = `
-			SELECT id, logto_id, name, description,  
+			SELECT id, logto_id, name, description,
 			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, active
-			FROM customers 
+			FROM customers
 			WHERE active = TRUE
 			ORDER BY created_at DESC
 			LIMIT $1 OFFSET $2
@@ -200,14 +200,26 @@ func (r *LocalCustomerRepository) List(userOrgRole, userOrgID string, page, page
 	case "distributor":
 		// Distributor sees customers they created directly or via their resellers (hierarchy via custom_data)
 		countQuery = `
-			SELECT COUNT(*) FROM customers 
-			WHERE active = TRUE AND custom_data->>'createdBy' = $1
+			SELECT COUNT(*) FROM customers
+			WHERE active = TRUE AND (
+				custom_data->>'createdBy' = $1 OR
+				custom_data->>'createdBy' IN (
+					SELECT logto_id FROM resellers
+					WHERE custom_data->>'createdBy' = $1 AND active = TRUE
+				)
+			)
 		`
 		baseQuery = `
-			SELECT id, logto_id, name, description,  
+			SELECT id, logto_id, name, description,
 			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, active
-			FROM customers 
-			WHERE active = TRUE AND custom_data->>'createdBy' = $1
+			FROM customers
+			WHERE active = TRUE AND (
+				custom_data->>'createdBy' = $1 OR
+				custom_data->>'createdBy' IN (
+					SELECT logto_id FROM resellers
+					WHERE custom_data->>'createdBy' = $1 AND active = TRUE
+				)
+			)
 			ORDER BY created_at DESC
 			LIMIT $2 OFFSET $3
 		`
@@ -217,9 +229,9 @@ func (r *LocalCustomerRepository) List(userOrgRole, userOrgID string, page, page
 		// Reseller sees customers they created (hierarchy via custom_data)
 		countQuery = `SELECT COUNT(*) FROM customers WHERE active = TRUE AND custom_data->>'createdBy' = $1`
 		baseQuery = `
-			SELECT id, logto_id, name, description,  
+			SELECT id, logto_id, name, description,
 			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, active
-			FROM customers 
+			FROM customers
 			WHERE active = TRUE AND custom_data->>'createdBy' = $1
 			ORDER BY created_at DESC
 			LIMIT $2 OFFSET $3
@@ -233,9 +245,9 @@ func (r *LocalCustomerRepository) List(userOrgRole, userOrgID string, page, page
 		}
 		countQuery = `SELECT COUNT(*) FROM customers WHERE id = $1 AND active = TRUE`
 		baseQuery = `
-			SELECT id, logto_id, name, description,  
+			SELECT id, logto_id, name, description,
 			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, active
-			FROM customers 
+			FROM customers
 			WHERE id = $1 AND active = TRUE
 			ORDER BY created_at DESC
 			LIMIT $2 OFFSET $3

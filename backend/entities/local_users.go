@@ -98,7 +98,7 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 		       COALESCE(d.id, r.id, c.id) as organization_local_id
 		FROM users u
 		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.active = TRUE
-		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.active = TRUE  
+		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.active = TRUE
 		LEFT JOIN customers c ON u.organization_id = c.logto_id AND c.active = TRUE
 		WHERE u.id = $1 AND u.active = TRUE
 	`
@@ -154,7 +154,7 @@ func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, e
 		       COALESCE(d.id, r.id, c.id) as organization_local_id
 		FROM users u
 		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.active = TRUE
-		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.active = TRUE  
+		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.active = TRUE
 		LEFT JOIN customers c ON u.organization_id = c.logto_id AND c.active = TRUE
 		WHERE u.logto_id = $1 AND u.active = TRUE
 	`
@@ -247,7 +247,7 @@ func (r *LocalUserRepository) Update(id string, req *models.UpdateLocalUserReque
 	}
 
 	query := `
-		UPDATE users 
+		UPDATE users
 		SET username = $2, email = $3, name = $4, phone = $5, organization_id = $6,
 		    user_role_ids = $7, custom_data = $8, updated_at = $9, logto_synced_at = NULL
 		WHERE id = $1
@@ -293,39 +293,42 @@ func (r *LocalUserRepository) Delete(id string) error {
 }
 
 // List returns paginated list of users based on hierarchical RBAC (matches other repository patterns)
-func (r *LocalUserRepository) List(userOrgRole, userOrgID string, page, pageSize int) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) List(userOrgRole, userOrgID, excludeUserID string, page, pageSize int) ([]*models.LocalUser, int, error) {
 	// Get all organization IDs the user can access hierarchically
 	allowedOrgIDs, err := r.GetHierarchicalOrganizationIDs(userOrgRole, userOrgID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
 	}
 
-	return r.ListByOrganizations(allowedOrgIDs, page, pageSize)
+	return r.ListByOrganizations(allowedOrgIDs, excludeUserID, page, pageSize)
 }
 
-// ListByOrganizations returns paginated list of users in specified organizations
-func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, page, pageSize int) ([]*models.LocalUser, int, error) {
+// ListByOrganizations returns paginated list of users in specified organizations (excluding specified user)
+func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, excludeUserID string, page, pageSize int) ([]*models.LocalUser, int, error) {
 	if len(allowedOrgIDs) == 0 {
 		return []*models.LocalUser{}, 0, nil
 	}
 
 	offset := (page - 1) * pageSize
 
-	// Build placeholders for IN clause
+	// Build placeholders for IN clause + exclude user ID
 	placeholders := make([]string, len(allowedOrgIDs))
-	args := make([]interface{}, len(allowedOrgIDs))
+	args := make([]interface{}, len(allowedOrgIDs)+1) // +1 for excludeUserID
 	for i, orgID := range allowedOrgIDs {
 		placeholders[i] = fmt.Sprintf("$%d", i+1)
 		args[i] = orgID
 	}
 	placeholdersStr := strings.Join(placeholders, ",")
+	// Add excludeUserID as last parameter
+	args[len(allowedOrgIDs)] = excludeUserID
+	excludeUserPlaceholder := fmt.Sprintf("$%d", len(allowedOrgIDs)+1)
 
 	// Get total count
 	var totalCount int
 	countQuery := fmt.Sprintf(`
-		SELECT COUNT(*) FROM users 
-		WHERE active = TRUE AND organization_id IN (%s)
-	`, placeholdersStr)
+		SELECT COUNT(*) FROM users
+		WHERE active = TRUE AND organization_id IN (%s) AND id != %s
+	`, placeholdersStr, excludeUserPlaceholder)
 
 	err := r.db.QueryRow(countQuery, args...).Scan(&totalCount)
 	if err != nil {
@@ -333,7 +336,7 @@ func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, page, 
 	}
 
 	// Get paginated results
-	listArgs := make([]interface{}, len(args)+2)
+	listArgs := make([]interface{}, len(args)+2) // args already includes excludeUserID
 	copy(listArgs, args)
 	listArgs[len(args)] = pageSize
 	listArgs[len(args)+1] = offset
@@ -345,12 +348,12 @@ func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, page, 
 		       COALESCE(d.id, r.id, c.id) as organization_local_id
 		FROM users u
 		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.active = TRUE
-		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.active = TRUE  
+		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.active = TRUE
 		LEFT JOIN customers c ON u.organization_id = c.logto_id AND c.active = TRUE
-		WHERE u.active = TRUE AND u.organization_id IN (%s)
+		WHERE u.active = TRUE AND u.organization_id IN (%s) AND u.id != %s
 		ORDER BY u.created_at DESC
 		LIMIT $%d OFFSET $%d
-	`, placeholdersStr, len(args)+1, len(args)+2)
+	`, placeholdersStr, excludeUserPlaceholder, len(args)+1, len(args)+2)
 
 	rows, err := r.db.Query(query, listArgs...)
 	if err != nil {
@@ -432,7 +435,7 @@ func (r *LocalUserRepository) GetTotalsByOrganizations(allowedOrgIDs []string) (
 
 	var count int
 	query := fmt.Sprintf(`
-		SELECT COUNT(*) FROM users 
+		SELECT COUNT(*) FROM users
 		WHERE active = TRUE AND organization_id IN (%s)
 	`, placeholdersStr)
 
