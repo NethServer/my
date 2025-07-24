@@ -142,7 +142,7 @@ const password = ref('')
 const passwordRef = useTemplateRef<HTMLInputElement>('passwordRef')
 const organizationId = ref('')
 const organizationIdRef = useTemplateRef<HTMLInputElement>('organizationIdRef')
-const userRoleIds: Ref<NeComboboxOption[]> = ref([])
+const userRoles: Ref<NeComboboxOption[]> = ref([])
 const userRoleIdsRef = useTemplateRef<HTMLInputElement>('userRoleIdsRef')
 const phone = ref('')
 const phoneRef = useTemplateRef<HTMLInputElement>('phoneRef')
@@ -205,21 +205,15 @@ watch(
 
         organizationId.value = currentUser.organization?.logto_id || ''
 
-        // find user roles
-        userRoleIds.value =
-          allUserRoles.value.data
-            ?.filter((role) => currentUser.userRoleIds?.includes(role.id))
-            .map((role) => ({
-              id: role.id,
-              label: role.name,
-              description: role.description,
-            })) || []
+        console.log('current user', currentUser) ////
+
+        userRoles.value = mapUserRoles()
       } else {
         // creating user, reset form to defaults
         email.value = ''
         name.value = ''
         organizationId.value = ''
-        userRoleIds.value = []
+        userRoles.value = []
         phone.value = ''
 
         //// remove
@@ -245,6 +239,33 @@ watch(organizations, () => {
     organizationId.value = currentUser.organization?.logto_id || ''
   }
 })
+
+watch(allUserRoles, () => {
+  if (isShown && currentUser && allUserRoles.value.data && allUserRoles.value.data.length > 0) {
+    userRoles.value = mapUserRoles()
+  }
+})
+
+function mapUserRoles() {
+  const userRoles: NeComboboxOption[] = []
+
+  for (const userRole of currentUser?.roles || []) {
+    console.log('userRole', userRole) ////
+
+    const roleFound = allUserRoles.value.data?.find((r) => r.id === userRole.id)
+
+    console.log('roleFound', roleFound) ////
+
+    if (roleFound) {
+      userRoles.push({
+        id: roleFound.id,
+        label: roleFound.name,
+        description: roleFound.description,
+      })
+    }
+  }
+  return userRoles
+}
 
 function closeDrawer() {
   emit('close')
@@ -318,7 +339,7 @@ async function saveUser() {
   const user = {
     email: email.value,
     name: name.value,
-    userRoleIds: userRoleIds.value.map((role) => role.id),
+    userRoleIds: userRoles.value.map((role) => role.id),
     organizationId: organizationId.value,
     phone: phone.value.replace(/[\+\s\.\-]/g, ''), // remove formatting characters from phone number
     customData: {}, //// TODO
@@ -414,14 +435,14 @@ async function saveUser() {
         <!-- user roles -->
         <NeCombobox
           ref="userRoleIdsRef"
-          v-model="userRoleIds"
+          v-model="userRoles"
           :label="$t('users.user_roles')"
           :options="userRoleOptions"
           :placeholder="
             allUserRoles.status === 'pending'
               ? $t('common.loading')
-              : userRoleIds.length
-                ? t('ne_combobox.num_selected', { num: userRoleIds.length })
+              : userRoles.length
+                ? t('ne_combobox.num_selected', { num: userRoles.length })
                 : t('ne_combobox.choose_multiple')
           "
           multiple

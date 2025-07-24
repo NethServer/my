@@ -47,7 +47,7 @@ const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
 }>()
 
-const emit = defineEmits(['close-drawer']) ////
+const emit = defineEmits(['close-drawer'])
 
 const { t } = useI18n()
 const loginStore = useLoginStore()
@@ -81,7 +81,18 @@ const filteredUsers = computed(() => {
   }
 })
 
-const { sortedItems } = useSort(filteredUsers, sortKey, sortDescending)
+const sortFunctions = {
+  // custom sorting function for organization attribute
+  organization: (a: User, b: User) => {
+    if ((!a.organization || !a.organization.name) && (!b.organization || !b.organization.name))
+      return 0
+    if (!a.organization || !a.organization.name) return 1
+    if (!b.organization || !b.organization.name) return -1
+    return a.organization.name.localeCompare(b.organization.name || '')
+  },
+}
+
+const { sortedItems } = useSort(filteredUsers, sortKey, sortDescending, sortFunctions)
 
 const { currentPage, paginatedItems } = useItemPagination(() => sortedItems.value, {
   itemsPerPage: pageSize,
@@ -202,7 +213,7 @@ const onClosePasswordChangedModal = () => {
             :options="[
               { id: 'name', label: t('users.name') },
               { id: 'email', label: t('users.email') },
-              { id: 'organization.name', label: t('users.organization') },
+              { id: 'organization', label: t('users.organization') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
             :sort-by-label="t('sort.sort_by')"
@@ -241,7 +252,7 @@ const onClosePasswordChangedModal = () => {
         <NeTableHeadCell sortable column-key="email" @sort="onSort">{{
           $t('users.email')
         }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="organization.name" @sort="onSort">{{
+        <NeTableHeadCell sortable column-key="organization" @sort="onSort">{{
           $t('users.organization')
         }}</NeTableHeadCell>
         <NeTableHeadCell>
