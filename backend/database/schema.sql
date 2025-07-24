@@ -22,6 +22,7 @@ CREATE INDEX IF NOT EXISTS idx_distributors_logto_synced ON distributors(logto_s
 CREATE INDEX IF NOT EXISTS idx_distributors_created_at ON distributors(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_distributors_name ON distributors(name);
 CREATE INDEX IF NOT EXISTS idx_distributors_created_by_jsonb ON distributors((custom_data->>'createdBy'));
+CREATE INDEX IF NOT EXISTS idx_distributors_vat_jsonb ON distributors((custom_data->>'vat'));
 
 -- Resellers table - local mirror of reseller organizations
 CREATE TABLE IF NOT EXISTS resellers (
@@ -44,6 +45,7 @@ CREATE INDEX IF NOT EXISTS idx_resellers_logto_synced ON resellers(logto_synced_
 CREATE INDEX IF NOT EXISTS idx_resellers_created_at ON resellers(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_resellers_name ON resellers(name);
 CREATE INDEX IF NOT EXISTS idx_resellers_created_by_jsonb ON resellers((custom_data->>'createdBy'));
+CREATE INDEX IF NOT EXISTS idx_resellers_vat_jsonb ON resellers((custom_data->>'vat'));
 
 -- Customers table - local mirror of customer organizations
 CREATE TABLE IF NOT EXISTS customers (
@@ -66,6 +68,7 @@ CREATE INDEX IF NOT EXISTS idx_customers_logto_synced ON customers(logto_synced_
 CREATE INDEX IF NOT EXISTS idx_customers_created_at ON customers(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);
 CREATE INDEX IF NOT EXISTS idx_customers_created_by_jsonb ON customers((custom_data->>'createdBy'));
+CREATE INDEX IF NOT EXISTS idx_customers_vat_jsonb ON customers((custom_data->>'vat'));
 
 -- Users table - local mirror with organization membership (Approach 2)
 CREATE TABLE IF NOT EXISTS users (
@@ -137,19 +140,19 @@ BEGIN
     END IF;
 END $$;
 
--- Organization name uniqueness constraints within the same creator
--- This prevents the same creator from creating multiple organizations with the same name
--- but allows different creators to use the same name
+-- Organization VAT uniqueness constraints within the same creator
+-- This prevents the same creator from creating multiple organizations with the same VAT
+-- but allows different creators to use the same VAT
 -- Using unique indexes instead of constraints for JSONB expressions
 
--- Distributors: unique (name, createdBy) for active records only
-CREATE UNIQUE INDEX IF NOT EXISTS uk_distributors_name_created_by
-    ON distributors (name, (custom_data->>'createdBy')) WHERE active = true;
+-- Distributors: unique (vat, createdBy) for active records only
+CREATE UNIQUE INDEX IF NOT EXISTS uk_distributors_vat_created_by
+    ON distributors ((custom_data->>'vat'), (custom_data->>'createdBy')) WHERE active = true;
 
--- Resellers: unique (name, createdBy) for active records only
-CREATE UNIQUE INDEX IF NOT EXISTS uk_resellers_name_created_by
-    ON resellers (name, (custom_data->>'createdBy')) WHERE active = true;
+-- Resellers: unique (vat, createdBy) for active records only
+CREATE UNIQUE INDEX IF NOT EXISTS uk_resellers_vat_created_by
+    ON resellers ((custom_data->>'vat'), (custom_data->>'createdBy')) WHERE active = true;
 
--- Customers: unique (name, createdBy) for active records only
-CREATE UNIQUE INDEX IF NOT EXISTS uk_customers_name_created_by
-    ON customers (name, (custom_data->>'createdBy')) WHERE active = true;
+-- Customers: unique (vat, createdBy) for active records only
+CREATE UNIQUE INDEX IF NOT EXISTS uk_customers_vat_created_by
+    ON customers ((custom_data->>'vat'), (custom_data->>'createdBy')) WHERE active = true;
