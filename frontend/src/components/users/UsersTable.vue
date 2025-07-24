@@ -42,7 +42,6 @@ import DeleteUserModal from './DeleteUserModal.vue'
 import { loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageSize'
 import ResetPasswordModal from './ResetPasswordModal.vue'
 import PasswordChangedModal from './PasswordChangedModal.vue'
-import { ne } from '@faker-js/faker'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -133,8 +132,6 @@ function showResetPasswordModal(user: User) {
 }
 
 function onPasswordChanged(newPwd: string) {
-  console.log('onPasswordChanged, newPassword', newPwd) ////
-
   newPassword.value = newPwd
   isShownPasswordChangedModal.value = true
 }

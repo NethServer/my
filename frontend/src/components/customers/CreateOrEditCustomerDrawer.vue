@@ -289,7 +289,7 @@ async function saveCustomer() {
         />
       </div>
       <!-- footer -->
-      <hr class="my-8 border-gray-200 dark:border-gray-700" />
+      <hr class="my-8" />
       <div class="flex justify-end">
         <NeButton
           kind="tertiary"

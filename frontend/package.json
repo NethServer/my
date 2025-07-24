@@ -28,7 +28,7 @@
     "@pinia/colada": "^0.17.1",
     "@tailwindcss/vite": "^4.1.10",
     "@vueuse/core": "^13.4.0",
-    "axios": "^1.10.0",
+    "axios": "^1.11.0",
     "lodash": "^4.17.21",
     "pinia": "^3.0.1",
     "tailwindcss": "^4.1.10",

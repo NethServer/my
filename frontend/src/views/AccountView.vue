@@ -5,15 +5,18 @@
 
 <script setup lang="ts">
 import { NeButton, NeHeading, NeInlineNotification } from '@nethesis/vue-components'
-// import ChangePassword from '@/components/standalone/account/ChangePassword.vue' ////
 import FormLayout from '@/components/FormLayout.vue'
 import LanguageListbox from '@/components/account/LanguageListbox.vue'
 import ProfilePanel from '@/components/account/ProfilePanel.vue'
 import { useLoginStore } from '@/stores/login'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faKey } from '@fortawesome/free-solid-svg-icons'
+import { ref } from 'vue'
+import ChangePasswordDrawer from '@/components/account/ChangePasswordDrawer.vue'
 
 const loginStore = useLoginStore()
+
+const isShownChangePasswordDrawer = ref(false)
 </script>
 
 <template>
@@ -41,11 +44,16 @@ const loginStore = useLoginStore()
       <NeInlineNotification
         v-if="loginStore.isOwner"
         kind="info"
-        :title="$t('account.cannot_change_password')"
-        :description="$t('account.cannot_change_password_description')"
+        :title="$t('account.password_change_disabled')"
+        :description="$t('account.password_change_disabled_description')"
       />
       <FormLayout :title="$t('account.change_password')">
-        <NeButton kind="secondary" size="lg" :disabled="loginStore.isOwner">
+        <NeButton
+          kind="secondary"
+          size="lg"
+          :disabled="loginStore.isOwner"
+          @click="isShownChangePasswordDrawer = true"
+        >
           <template #prefix>
             <FontAwesomeIcon :icon="faKey" aria-hidden="true" />
           </template>
@@ -53,5 +61,10 @@ const loginStore = useLoginStore()
         </NeButton>
       </FormLayout>
     </div>
+    <!-- change password drawer -->
+    <ChangePasswordDrawer
+      :is-shown="isShownChangePasswordDrawer"
+      @close="isShownChangePasswordDrawer = false"
+    />
   </div>
 </template>

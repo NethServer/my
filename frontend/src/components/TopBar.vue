@@ -207,7 +207,7 @@ function openNotificationsDrawer() {
                     </div>
                   </template>
                 </div>
-                <hr class="my-1 border-gray-200 dark:border-gray-700" />
+                <hr class="my-1" />
               </template>
             </NeDropdown>
           </template>

@@ -381,7 +381,7 @@ async function saveUser() {
         <NeTextInput
           v-if="!currentUser"
           ref="passwordRef"
-          v-model.trim="password"
+          v-model="password"
           is-password
           auto-complete="new-password"
           :label="$t('users.password')"
@@ -459,7 +459,7 @@ async function saveUser() {
         />
       </div>
       <!-- footer -->
-      <hr class="my-8 border-gray-200 dark:border-gray-700" />
+      <hr class="my-8" />
       <div class="flex justify-end">
         <NeButton
           kind="tertiary"

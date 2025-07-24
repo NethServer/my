@@ -205,7 +205,9 @@
     "the_password_has_been_reset": "The password has been reset",
     "credentials_updated_description": "The credentials for user {name} have been updated",
     "copy_credentials": "Copy credentials",
-    "credentials_copied": "User credentials copied"
+    "credentials_copied": "User credentials copied",
+    "password_changed": "Password changed",
+    "password_changed_description": "Your password has been changed"
   },
   "third_party_apps": {
     "description_example_company_com": "Description ////"
@@ -226,8 +228,12 @@
     "save_profile": "Save profile",
     "cannot_edit_profile": "Profile editing is disabled",
     "cannot_edit_profile_description": "You cannot edit your profile because you are logged in as the 'owner' user. This user is reserved for system administration.",
-    "cannot_change_password": "Password change is disabled",
-    "cannot_change_password_description": "You cannot change your password because you are logged in as the 'owner' user. This user is reserved for system administration."
+    "password_change_disabled": "Password change is disabled",
+    "password_change_disabled_description": "You cannot change your password because you are logged in as the 'owner' user. This user is reserved for system administration.",
+    "old_password": "Old password",
+    "new_password": "New password",
+    "confirm_password": "Confirm password",
+    "cannot_change_password": "Cannot change password"
   },
   "ne_table": {
     "no_items": "No items",
