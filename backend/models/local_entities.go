@@ -57,19 +57,20 @@ type LocalCustomer struct {
 
 // LocalUser represents a user stored in local database
 type LocalUser struct {
-	ID             string                 `json:"id" db:"id"`
-	LogtoID        *string                `json:"logto_id" db:"logto_id"`
-	Username       string                 `json:"username" db:"username"`
-	Email          string                 `json:"email" db:"email"`
-	Name           string                 `json:"name" db:"name"`
-	Phone          *string                `json:"phone" db:"phone"`
-	UserRoleIDs    []string               `json:"userRoleIds" db:"user_role_ids"`
-	OrganizationID *string                `json:"organizationId" db:"organization_id"`
-	CustomData     map[string]interface{} `json:"customData" db:"custom_data"`
-	CreatedAt      time.Time              `json:"created_at" db:"created_at"`
-	UpdatedAt      time.Time              `json:"updated_at" db:"updated_at"`
-	LogtoSyncedAt  *time.Time             `json:"logto_synced_at" db:"logto_synced_at"`
-	Active         bool                   `json:"active" db:"active"`
+	ID               string                 `json:"id" db:"id"`
+	LogtoID          *string                `json:"logto_id" db:"logto_id"`
+	Username         string                 `json:"username" db:"username"`
+	Email            string                 `json:"email" db:"email"`
+	Name             string                 `json:"name" db:"name"`
+	Phone            *string                `json:"phone" db:"phone"`
+	UserRoleIDs      []string               `json:"userRoleIds" db:"user_role_ids"`
+	OrganizationID   *string                `json:"organizationId" db:"organization_id"`
+	OrganizationName *string                `json:"organizationName,omitempty"`
+	CustomData       map[string]interface{} `json:"customData" db:"custom_data"`
+	CreatedAt        time.Time              `json:"created_at" db:"created_at"`
+	UpdatedAt        time.Time              `json:"updated_at" db:"updated_at"`
+	LogtoSyncedAt    *time.Time             `json:"logto_synced_at" db:"logto_synced_at"`
+	Active           bool                   `json:"active" db:"active"`
 }
 
 // SystemTotals represents total counts and status for systems

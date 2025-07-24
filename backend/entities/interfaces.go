@@ -10,6 +10,8 @@
 package entities
 
 import (
+	"time"
+
 	"github.com/nethesis/my/backend/models"
 )
 
@@ -49,11 +51,24 @@ type UserRepository interface {
 	GetByID(id string) (*models.LocalUser, error)
 	Update(id string, req *models.UpdateLocalUserRequest) (*models.LocalUser, error)
 	Delete(id string) error
-	ListByOrganizations(allowedOrgIDs []string, page, pageSize int) ([]*models.LocalUser, int, error)
-	GetTotalsByOrganizations(allowedOrgIDs []string) (int, error)
+	List(userOrgRole, userOrgID string, page, pageSize int) ([]*models.LocalUser, int, error)
+	GetTotals(userOrgRole, userOrgID string) (int, error)
 }
 
-// SystemRepository defines interface for system totals (systems table already exists)
+// SystemRepository defines interface for system data operations
 type SystemRepository interface {
-	GetTotals(userOrgRole, userOrgID string, timeoutMinutes int) (*models.SystemTotals, error)
+	Create(req *models.CreateSystemRequest) (*models.System, error)
+	GetByID(id string) (*models.System, error)
+	Update(id string, req *models.UpdateSystemRequest) (*models.System, error)
+	Delete(id string) error
+	List(userOrgRole, userOrgID string, page, pageSize int) ([]*models.System, int, error)
+	GetTotals(userOrgRole, userOrgID string) (*models.SystemTotals, error)
+}
+
+// InventoryRepository defines interface for inventory data operations
+type InventoryRepository interface {
+	GetLatestInventory(systemID string) (*models.InventoryRecord, error)
+	GetInventoryHistory(systemID string, page, pageSize int, fromDate, toDate *time.Time) ([]models.InventoryRecord, int, error)
+	GetInventoryDiffs(systemID string, page, pageSize int, severity, category, diffType string, fromDate, toDate *time.Time) ([]models.InventoryDiff, int, error)
+	GetLatestInventoryDiffs(systemID string) ([]models.InventoryDiff, error)
 }

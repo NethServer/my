@@ -4,7 +4,7 @@
 -- Distributors table - local mirror of distributor organizations
 CREATE TABLE IF NOT EXISTS distributors (
     id VARCHAR(255) PRIMARY KEY,
-    logto_id VARCHAR(255) UNIQUE,
+    logto_id VARCHAR(255),
     name VARCHAR(255) NOT NULL,
     description TEXT,
     custom_data JSONB,
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS distributors (
 );
 
 -- Performance indexes for distributors
-CREATE UNIQUE INDEX IF NOT EXISTS idx_distributors_logto_id ON distributors(logto_id) WHERE logto_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_distributors_logto_id ON distributors(logto_id) WHERE logto_id IS NOT NULL AND active = true;
 CREATE INDEX IF NOT EXISTS idx_distributors_active ON distributors(active);
 CREATE INDEX IF NOT EXISTS idx_distributors_logto_synced ON distributors(logto_synced_at);
 CREATE INDEX IF NOT EXISTS idx_distributors_created_at ON distributors(created_at DESC);
@@ -26,7 +26,7 @@ CREATE INDEX IF NOT EXISTS idx_distributors_created_by_jsonb ON distributors((cu
 -- Resellers table - local mirror of reseller organizations
 CREATE TABLE IF NOT EXISTS resellers (
     id VARCHAR(255) PRIMARY KEY,
-    logto_id VARCHAR(255) UNIQUE,
+    logto_id VARCHAR(255),
     name VARCHAR(255) NOT NULL,
     description TEXT,
     custom_data JSONB,
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS resellers (
 );
 
 -- Performance indexes for resellers
-CREATE UNIQUE INDEX IF NOT EXISTS idx_resellers_logto_id ON resellers(logto_id) WHERE logto_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_resellers_logto_id ON resellers(logto_id) WHERE logto_id IS NOT NULL AND active = true;
 CREATE INDEX IF NOT EXISTS idx_resellers_active ON resellers(active);
 CREATE INDEX IF NOT EXISTS idx_resellers_logto_synced ON resellers(logto_synced_at);
 CREATE INDEX IF NOT EXISTS idx_resellers_created_at ON resellers(created_at DESC);
@@ -48,7 +48,7 @@ CREATE INDEX IF NOT EXISTS idx_resellers_created_by_jsonb ON resellers((custom_d
 -- Customers table - local mirror of customer organizations
 CREATE TABLE IF NOT EXISTS customers (
     id VARCHAR(255) PRIMARY KEY,
-    logto_id VARCHAR(255) UNIQUE,
+    logto_id VARCHAR(255),
     name VARCHAR(255) NOT NULL,
     description TEXT,
     custom_data JSONB,
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS customers (
 );
 
 -- Performance indexes for customers
-CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_logto_id ON customers(logto_id) WHERE logto_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_logto_id ON customers(logto_id) WHERE logto_id IS NOT NULL AND active = true;
 CREATE INDEX IF NOT EXISTS idx_customers_active ON customers(active);
 CREATE INDEX IF NOT EXISTS idx_customers_logto_synced ON customers(logto_synced_at);
 CREATE INDEX IF NOT EXISTS idx_customers_created_at ON customers(created_at DESC);
@@ -70,7 +70,7 @@ CREATE INDEX IF NOT EXISTS idx_customers_created_by_jsonb ON customers((custom_d
 -- Users table - local mirror with organization membership (Approach 2)
 CREATE TABLE IF NOT EXISTS users (
     id VARCHAR(255) PRIMARY KEY,
-    logto_id VARCHAR(255) UNIQUE,
+    logto_id VARCHAR(255),
     username VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL,
     name VARCHAR(255),
@@ -88,9 +88,9 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- Performance indexes for users
-CREATE UNIQUE INDEX IF NOT EXISTS idx_users_logto_id ON users(logto_id) WHERE logto_id IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_logto_id ON users(logto_id) WHERE logto_id IS NOT NULL AND active = true;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE active = true;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE active = true;
 CREATE INDEX IF NOT EXISTS idx_users_organization_id ON users(organization_id);
 CREATE INDEX IF NOT EXISTS idx_users_active ON users(active);
 CREATE INDEX IF NOT EXISTS idx_users_logto_synced ON users(logto_synced_at);
@@ -142,14 +142,14 @@ END $$;
 -- but allows different creators to use the same name
 -- Using unique indexes instead of constraints for JSONB expressions
 
--- Distributors: unique (name, createdBy)
-CREATE UNIQUE INDEX IF NOT EXISTS uk_distributors_name_created_by 
-    ON distributors (name, (custom_data->>'createdBy'));
+-- Distributors: unique (name, createdBy) for active records only
+CREATE UNIQUE INDEX IF NOT EXISTS uk_distributors_name_created_by
+    ON distributors (name, (custom_data->>'createdBy')) WHERE active = true;
 
--- Resellers: unique (name, createdBy)
-CREATE UNIQUE INDEX IF NOT EXISTS uk_resellers_name_created_by 
-    ON resellers (name, (custom_data->>'createdBy'));
+-- Resellers: unique (name, createdBy) for active records only
+CREATE UNIQUE INDEX IF NOT EXISTS uk_resellers_name_created_by
+    ON resellers (name, (custom_data->>'createdBy')) WHERE active = true;
 
--- Customers: unique (name, createdBy)  
-CREATE UNIQUE INDEX IF NOT EXISTS uk_customers_name_created_by 
-    ON customers (name, (custom_data->>'createdBy'));
+-- Customers: unique (name, createdBy) for active records only
+CREATE UNIQUE INDEX IF NOT EXISTS uk_customers_name_created_by
+    ON customers (name, (custom_data->>'createdBy')) WHERE active = true;

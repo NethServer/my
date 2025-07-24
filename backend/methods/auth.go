@@ -20,6 +20,7 @@ import (
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
+	"github.com/nethesis/my/backend/services/local"
 	"github.com/nethesis/my/backend/services/logto"
 )
 
@@ -76,8 +77,23 @@ func ExchangeToken(c *gin.Context) {
 		userProfile = nil
 	}
 
-	// Create user with profile data
-	user := models.User{ID: userInfo.Sub}
+	// Try to get user from local database first
+	userService := local.NewUserService()
+	var user models.User
+
+	if localUser, err := userService.GetUserByLogtoID(userInfo.Sub); err == nil {
+		// User exists in local DB, use local ID as primary ID
+		user = models.User{
+			ID:      localUser.ID,      // Local database ID as primary ID
+			LogtoID: localUser.LogtoID, // Logto ID for reference
+		}
+	} else {
+		// User not in local DB, create temporary user with empty local ID
+		user = models.User{
+			ID:      "",            // No local ID available
+			LogtoID: &userInfo.Sub, // Logto ID for reference
+		}
+	}
 
 	if userProfile != nil {
 		user.Username = userProfile.Username
@@ -122,8 +138,8 @@ func ExchangeToken(c *gin.Context) {
 		return
 	}
 
-	// Generate refresh token
-	refreshToken, err := jwt.GenerateRefreshToken(user.ID)
+	// Generate refresh token using Logto ID (for auth compatibility)
+	refreshToken, err := jwt.GenerateRefreshToken(*user.LogtoID)
 	if err != nil {
 		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "generate_refresh_token", http.StatusInternalServerError, "Failed to generate refresh token")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
@@ -202,8 +218,23 @@ func RefreshToken(c *gin.Context) {
 		userProfile = nil
 	}
 
-	// Create fresh user object
-	user := models.User{ID: refreshClaims.UserID}
+	// Try to get user from local database first
+	userService := local.NewUserService()
+	var user models.User
+
+	if localUser, err := userService.GetUserByLogtoID(refreshClaims.UserID); err == nil {
+		// User exists in local DB, use local ID as primary ID
+		user = models.User{
+			ID:      localUser.ID,      // Local database ID as primary ID
+			LogtoID: localUser.LogtoID, // Logto ID for reference
+		}
+	} else {
+		// User not in local DB, create temporary user with empty local ID
+		user = models.User{
+			ID:      "",                    // No local ID available
+			LogtoID: &refreshClaims.UserID, // Logto ID for reference
+		}
+	}
 
 	if userProfile != nil {
 		user.Username = userProfile.Username
@@ -234,7 +265,7 @@ func RefreshToken(c *gin.Context) {
 		return
 	}
 
-	newRefreshToken, err := jwt.GenerateRefreshToken(user.ID)
+	newRefreshToken, err := jwt.GenerateRefreshToken(*user.LogtoID)
 	if err != nil {
 		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "generate_new_refresh_token", http.StatusInternalServerError, "Failed to generate new refresh token")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
@@ -274,6 +305,7 @@ func GetCurrentUser(c *gin.Context) {
 
 	userData := gin.H{
 		"id":               user.ID,
+		"logto_id":         user.LogtoID,
 		"username":         user.Username,
 		"email":            user.Email,
 		"name":             user.Name,

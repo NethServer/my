@@ -10,7 +10,8 @@
 package models
 
 type User struct {
-	ID               string   `json:"id" structs:"id"`
+	ID               string   `json:"id" structs:"id"`                               // Local database ID
+	LogtoID          *string  `json:"logto_id,omitempty" structs:"logto_id"`         // Logto ID for reference
 	Username         string   `json:"username" structs:"username"`                   // Username from Logto
 	Email            string   `json:"email" structs:"email"`                         // Email from Logto
 	Name             string   `json:"name" structs:"name"`                           // Display name from Logto
