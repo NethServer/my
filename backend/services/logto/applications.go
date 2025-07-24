@@ -17,7 +17,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/logger"
@@ -26,34 +25,12 @@ import (
 
 // GetThirdPartyApplications retrieves all third-party applications from Logto
 func (c *LogtoManagementClient) GetThirdPartyApplications() ([]models.LogtoThirdPartyApp, error) {
-	err := c.getAccessToken()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get access token: %w", err)
-	}
-
 	logger.ComponentLogger("logto").Debug().
 		Str("operation", "get_applications").
 		Msg("Fetching third-party applications from Logto")
 
-	// Get all applications
-	req, err := http.NewRequest("GET", c.baseURL+"/applications", nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Authorization", "Bearer "+c.accessToken)
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-		Transport: &http.Transport{
-			DisableKeepAlives:     true, // Disable connection reuse to handle network changes
-			MaxIdleConnsPerHost:   0,    // No idle connections
-			IdleConnTimeout:       0,    // No idle timeout
-			ResponseHeaderTimeout: 15 * time.Second,
-		},
-	}
-	resp, err := client.Do(req)
+	// Use makeRequest which handles token refresh automatically
+	resp, err := c.makeRequest("GET", "/applications", nil)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
@@ -88,24 +65,8 @@ func (c *LogtoManagementClient) GetThirdPartyApplications() ([]models.LogtoThird
 
 // GetApplicationBranding retrieves branding information for an application
 func (c *LogtoManagementClient) GetApplicationBranding(appID string) (*models.ApplicationSignInExperience, error) {
-	req, err := http.NewRequest("GET", c.baseURL+"/applications/"+appID+"/sign-in-experience", nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Authorization", "Bearer "+c.accessToken)
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-		Transport: &http.Transport{
-			DisableKeepAlives:     true, // Disable connection reuse to handle network changes
-			MaxIdleConnsPerHost:   0,    // No idle connections
-			IdleConnTimeout:       0,    // No idle timeout
-			ResponseHeaderTimeout: 15 * time.Second,
-		},
-	}
-	resp, err := client.Do(req)
+	// Use makeRequest which handles token refresh automatically
+	resp, err := c.makeRequest("GET", "/applications/"+appID+"/sign-in-experience", nil)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
@@ -130,24 +91,8 @@ func (c *LogtoManagementClient) GetApplicationBranding(appID string) (*models.Ap
 
 // GetApplicationScopes retrieves scopes for an application
 func (c *LogtoManagementClient) GetApplicationScopes(appID string) ([]string, error) {
-	req, err := http.NewRequest("GET", c.baseURL+"/applications/"+appID+"/user-consent-scopes", nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Authorization", "Bearer "+c.accessToken)
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-		Transport: &http.Transport{
-			DisableKeepAlives:     true, // Disable connection reuse to handle network changes
-			MaxIdleConnsPerHost:   0,    // No idle connections
-			IdleConnTimeout:       0,    // No idle timeout
-			ResponseHeaderTimeout: 15 * time.Second,
-		},
-	}
-	resp, err := client.Do(req)
+	// Use makeRequest which handles token refresh automatically
+	resp, err := c.makeRequest("GET", "/applications/"+appID+"/user-consent-scopes", nil)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
