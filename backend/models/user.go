@@ -25,3 +25,9 @@ type User struct {
 	OrganizationID   string   `json:"organization_id" structs:"organization_id"`     // Which organization the user belongs to
 	OrganizationName string   `json:"organization_name" structs:"organization_name"` // Organization name for display
 }
+
+// ChangePasswordRequest represents a request to change the current user's password
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password" validate:"required" binding:"required"`
+	NewPassword     string `json:"new_password" validate:"required" binding:"required"`
+}
