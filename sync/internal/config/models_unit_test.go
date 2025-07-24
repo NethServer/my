@@ -488,7 +488,7 @@ func TestGetAllPermissions(t *testing.T) {
 				{
 					ID:   "owner",
 					Name: "Owner",
-					Type: "user",
+					Type: "org",
 					Permissions: []Permission{
 						{ID: "manage:systems"},
 						{ID: "admin:users"},
@@ -497,7 +497,7 @@ func TestGetAllPermissions(t *testing.T) {
 				{
 					ID:   "distributor",
 					Name: "Distributor",
-					Type: "organization", // Should be excluded
+					Type: "invalid", // Should be excluded
 					Permissions: []Permission{
 						{ID: "excluded:permission"},
 					},
