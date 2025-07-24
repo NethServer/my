@@ -8,7 +8,7 @@ import { NeInlineNotification } from '@nethesis/vue-components'
 import { NeModal } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useMutation } from '@pinia/colada'
-import { changePassword, type User } from '@/lib/users'
+import { resetPassword, type User } from '@/lib/users'
 import { useNotificationsStore } from '@/stores/notifications'
 import { generateRandomPassword } from '@/lib/password'
 import { ref } from 'vue'
@@ -35,7 +35,7 @@ const {
 } = useMutation({
   mutation: (user: User) => {
     newPassword.value = generateRandomPassword(12)
-    return changePassword(user, newPassword.value)
+    return resetPassword(user, newPassword.value)
   },
   onSuccess(data, vars) {
     // show success notification after modal closes

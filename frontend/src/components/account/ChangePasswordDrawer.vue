@@ -15,7 +15,7 @@ import {
 } from '@nethesis/vue-components'
 import { computed, ref, useTemplateRef, watch, type Ref, type ShallowRef } from 'vue'
 import {
-  changePassword,
+  resetPassword,
   CreateUserSchema,
   EditUserSchema,
   postUser,
@@ -56,7 +56,7 @@ const {
   error: changePasswordError,
 } = useMutation({
   mutation: (user: User) => {
-    return changePassword(user, newPassword.value)
+    return resetPassword(user, newPassword.value)
   },
   onSuccess(data, vars) {
     // show success notification after the drawer closes

@@ -14,6 +14,7 @@ import { useLoginStore } from '@/stores/login'
 import {
   faArrowUpRightFromSquare,
   faAward,
+  faCrown,
   faGraduationCap,
   faHeadset,
   faShop,
@@ -46,7 +47,18 @@ const { state: thirdPartyApps } = useQuery({
       <!-- logged user -->
       <NeCard>
         <div class="flex items-start gap-5">
-          <NeAvatar size="lg" :initials="loginStore.userInitial" aria-hidden="true" />
+          <!-- owner avatar -->
+          <NeAvatar v-if="loginStore.isOwner" size="lg" aria-hidden="true">
+            <template #placeholder>
+              <div
+                class="flex size-12 items-center justify-center rounded-full bg-gray-700 text-white dark:bg-gray-200 dark:text-gray-950"
+              >
+                <FontAwesomeIcon :icon="faCrown" class="size-6" />
+              </div>
+            </template>
+          </NeAvatar>
+          <!-- avatar with initials -->
+          <NeAvatar v-else size="lg" :initials="loginStore.userInitial" aria-hidden="true" />
           <template v-if="loginStore.loadingUserInfo">
             <NeSkeleton :lines="3" class="w-full" />
           </template>

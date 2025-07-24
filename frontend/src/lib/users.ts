@@ -81,7 +81,7 @@ export const deleteUser = (user: User) => {
   })
 }
 
-export const changePassword = (user: User, newPassword: string) => {
+export const resetPassword = (user: User, newPassword: string) => {
   const loginStore = useLoginStore()
 
   return axios.patch(
