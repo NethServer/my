@@ -255,6 +255,7 @@ const onClosePasswordChangedModal = () => {
         <NeTableHeadCell sortable column-key="organization" @sort="onSort">{{
           $t('users.organization')
         }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('users.roles') }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- no header for actions -->
         </NeTableHeadCell>
@@ -297,11 +298,19 @@ const onClosePasswordChangedModal = () => {
           <NeTableCell :data-label="$t('users.name')">
             {{ item.name }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('users.email')">
+          <NeTableCell :data-label="$t('users.email')" class="break-all xl:break-normal">
             {{ item.email }}
           </NeTableCell>
           <NeTableCell :data-label="$t('users.organization')">
             {{ item.organization?.name || '-' }}
+          </NeTableCell>
+          <NeTableCell :data-label="$t('users.roles')">
+            {{
+              item.roles
+                ?.map((r) => r.name)
+                .sort()
+                .join(', ') || '-'
+            }}
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
             <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
