@@ -14,15 +14,19 @@ import { getBrowserLocale, setLocale } from '@/i18n'
 export const TOKEN_REFRESH_INTERVAL = 20 * 60 * 1000 // 20 minutes
 
 export type UserInfo = {
-  id: string
-  name: string
   email: string
-  orgId: string
-  orgName: string
-  orgRole: string
-  orgPermissions: string[]
-  userRoles: string[]
-  userPermissions: string[]
+  id: string
+  logto_id: string
+  name: string
+  org_permissions: string[]
+  org_role: string
+  org_role_id: string
+  organization_id: string
+  organization_name: string
+  phone: string
+  user_permissions: string[]
+  user_role_ids: string[]
+  user_roles: string[]
 }
 
 export const useLoginStore = defineStore('login', () => {
@@ -43,7 +47,7 @@ export const useLoginStore = defineStore('login', () => {
   })
 
   const isOwner = computed(() => {
-    return userInfo.value?.orgRole === 'Owner'
+    return userInfo.value?.org_role === 'Owner'
   })
 
   // watch for authentication changes
@@ -124,19 +128,8 @@ export const useLoginStore = defineStore('login', () => {
 
       jwtToken.value = res.data.data.token
       refreshToken.value = res.data.data.refresh_token
-      const user = res.data.data.user
-
-      userInfo.value = {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        orgId: user.organization_id,
-        orgName: user.organization_name,
-        orgRole: user.org_role,
-        orgPermissions: user.org_permissions || [],
-        userRoles: user.user_roles || [],
-        userPermissions: user.user_permissions || [],
-      } as UserInfo
+      const user = res.data.data.user as UserInfo
+      userInfo.value = user
 
       console.log('[login store] user info', userInfo.value) ////
 

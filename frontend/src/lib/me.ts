@@ -7,26 +7,27 @@ import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 
 export type MeResponse = {
-  id: string
-  username: string
   email: string
+  id: string
+  logto_id: string
   name: string
-  userRoles: string[]
-  userRoleIds: string[]
-  userPermissions: string[]
-  orgRole: string
-  orgRoleId: string
-  orgPermissions: string[]
-  organizationId: string
-  organizationName: string
+  org_permissions: string[]
+  org_role: string
+  org_role_id: string
+  organization_id: string
+  organization_name: string
+  phone: string
+  user_permissions: string[]
+  user_role_ids: string[]
+  user_roles: string[]
 }
 
 export const EditProfileSchema = v.object({
   id: v.string(),
   name: v.pipe(v.string(), v.nonEmpty('users.name_required')),
-  // phone: v.optional(
-  //   v.pipe(v.string(), v.regex(/^\+?[\d\s\-\(\)]{7,20}$/, 'users.phone_invalid_format')),
-  // ), //// uncomment
+  phone: v.optional(
+    v.pipe(v.string(), v.regex(/^\+?[\d\s\-\(\)]{7,20}$/, 'users.phone_invalid_format')),
+  ), //// uncomment
 })
 
 export type EditProfile = v.InferOutput<typeof EditProfileSchema>

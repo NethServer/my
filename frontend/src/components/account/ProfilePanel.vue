@@ -9,13 +9,12 @@ import { putUser } from '@/lib/users'
 import { getValidationIssues, isValidationError } from '@/lib/validation'
 import { useLoginStore } from '@/stores/login'
 import { useNotificationsStore } from '@/stores/notifications'
-import { NeButton, NeInlineNotification, NeSkeleton, NeTextInput } from '@nethesis/vue-components'
+import { NeButton, NeInlineNotification, NeTextInput } from '@nethesis/vue-components'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import type { AxiosError } from 'axios'
 import { ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import * as v from 'valibot'
-import { useAuthMe } from '@/queries/authMe'
 
 const { t } = useI18n()
 const loginStore = useLoginStore()
@@ -28,7 +27,7 @@ const notificationsStore = useNotificationsStore()
 //   query: getMe,
 // })
 
-const { me, meAsyncStatus } = useAuthMe()
+// const { me, meAsyncStatus } = useAuthMe() ////
 
 const {
   mutate: editUserMutate,
@@ -45,7 +44,7 @@ const {
       title: t('account.profile_saved'),
     })
 
-    // loginStore.fetchTokenAndUserInfo() //// uncomment?
+    loginStore.fetchTokenAndUserInfo() //// uncomment?
   },
   onError: (error, variables) => {
     console.error('Error editing user:', error)
@@ -72,20 +71,18 @@ const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> =
   phone: phoneRef,
 }
 
-////
-// const isOwner = computed(() => {
-//   return me.value.data?.username === 'owner'
-// })
-watch(
-  () => me.value.data,
-  () => {
-    if (me.value.data) {
-      name.value = me.value.data.name || ''
-      email.value = me.value.data.email || ''
-      // phone.value = me.value.data.phone || '' //// uncomment
-    }
-  },
-)
+//// remove?
+// watch(
+//   () => me.value.data,
+//   () => {
+//     if (me.value.data) {
+//       // name.value = me.value.data.name || '' ////
+//       // email.value = me.value.data.email || ''
+//       phone.value = me.value.data.phone || ''
+//     }
+//   },
+//   { immediate: true },
+// )
 
 watch(
   () => loginStore.userInfo,
@@ -93,9 +90,10 @@ watch(
     if (userInfo) {
       name.value = userInfo.name || ''
       email.value = userInfo.email || ''
-      // phone.value = userInfo.phone || '' //// uncomment
+      phone.value = userInfo.phone || '' ////
     }
   },
+  { immediate: true },
 )
 
 function clearErrors() {
@@ -110,6 +108,7 @@ async function saveProfile() {
     const profile = {
       id: loginStore.userInfo?.id,
       name: name.value,
+      phone: phone.value,
     }
 
     const isValidationOk = validate(profile)
@@ -150,55 +149,62 @@ function validate(profile: EditProfile): boolean {
 <template>
   <div>
     <!-- get me error notification -->
-    <NeInlineNotification
+    <!-- <NeInlineNotification ////
       v-if="me.status === 'error'"
       kind="error"
       :title="$t('account.cannot_retrieve_profile_data')"
       :description="me.error.message"
       class="mb-6"
-    />
-    <NeSkeleton v-if="me.status === 'pending'" :lines="7" class="w-full" />
-    <template v-else>
-      <form @submit.prevent class="space-y-6">
-        <!-- name -->
-        <NeTextInput
-          ref="nameRef"
-          v-model.trim="name"
-          :label="$t('users.name')"
-          :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
-          :disabled="editUserLoading || loginStore.isOwner"
-        />
-        <!-- email -->
-        <NeTextInput
-          ref="emailRef"
-          v-model.trim="email"
-          :label="$t('users.email')"
-          :invalid-message="validationIssues.email?.[0] ? $t(validationIssues.email[0]) : ''"
-          disabled
-        />
-        <!-- //// phone -->
-        <!-- //// organization -->
-        <!-- //// roles -->
-
-        <!-- edit user error notification -->
-        <NeInlineNotification
-          v-if="editUserError?.message && !isValidationError(editUserError)"
-          kind="error"
-          :title="t('account.cannot_save_profile_data')"
-          :description="editUserError.message"
-        />
-        <!-- save button -->
-        <NeButton
-          type="submit"
-          kind="primary"
-          size="lg"
-          :disabled="editUserLoading || loginStore.isOwner"
-          :loading="editUserLoading"
-          @click.prevent="saveProfile"
-        >
-          {{ $t('account.save_profile') }}
-        </NeButton>
-      </form>
-    </template>
+    /> -->
+    <!-- <NeSkeleton v-if="me.status === 'pending'" :lines="7" class="w-full" /> ////  -->
+    <!-- //// remove <template> -->
+    <!-- <template> ////  -->
+    <form @submit.prevent class="space-y-6">
+      <!-- name -->
+      <NeTextInput
+        ref="nameRef"
+        v-model.trim="name"
+        :label="$t('users.name')"
+        :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
+        :disabled="editUserLoading || loginStore.isOwner"
+      />
+      <!-- email -->
+      <NeTextInput
+        ref="emailRef"
+        v-model.trim="email"
+        :label="$t('users.email')"
+        :invalid-message="validationIssues.email?.[0] ? $t(validationIssues.email[0]) : ''"
+        disabled
+      />
+      <!-- phone -->
+      <NeTextInput
+        ref="phoneRef"
+        v-model.trim="phone"
+        :label="$t('users.phone_number')"
+        :invalid-message="validationIssues.phone?.[0] ? $t(validationIssues.phone[0]) : ''"
+        :disabled="editUserLoading || loginStore.isOwner"
+      />
+      <!-- //// organization -->
+      <!-- //// roles -->
+      <!-- edit user error notification -->
+      <NeInlineNotification
+        v-if="editUserError?.message && !isValidationError(editUserError)"
+        kind="error"
+        :title="t('account.cannot_save_profile_data')"
+        :description="editUserError.message"
+      />
+      <!-- save button -->
+      <NeButton
+        type="submit"
+        kind="primary"
+        size="lg"
+        :disabled="editUserLoading || loginStore.isOwner"
+        :loading="editUserLoading"
+        @click.prevent="saveProfile"
+      >
+        {{ $t('account.save_profile') }}
+      </NeButton>
+    </form>
+    <!-- </template> ////  -->
   </div>
 </template>

@@ -68,9 +68,9 @@ const { state: thirdPartyApps } = useQuery({
                 {{ $t('dashboard.welcome_user', { user: loginStore.userDisplayName }) }}
               </NeHeading>
               <NeBadge
-                v-if="loginStore.userInfo?.orgRole"
-                :text="loginStore.userInfo?.orgRole"
-                :icon="getOrganizationIcon(loginStore.userInfo?.orgRole)"
+                v-if="loginStore.userInfo?.org_role"
+                :text="loginStore.userInfo?.org_role"
+                :icon="getOrganizationIcon(loginStore.userInfo?.org_role)"
                 kind="primary"
                 size="xs"
               />

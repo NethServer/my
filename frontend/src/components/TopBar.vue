@@ -220,7 +220,7 @@ function openNotificationsDrawer() {
                       {{ loginStore.userInfo?.email }}
                     </div>
                     <div class="text-gray-500 dark:text-gray-400">
-                      {{ loginStore.userInfo?.orgRole }}
+                      {{ loginStore.userInfo?.org_role }}
                     </div>
                   </template>
                 </div>
