@@ -33,6 +33,8 @@ import {
   useSort,
   type SortEvent,
   NeSortDropdown,
+  NeBadge,
+  sortByProperty,
 } from '@nethesis/vue-components'
 import { useQuery } from '@pinia/colada'
 import { computed, ref, watch } from 'vue'
@@ -305,12 +307,15 @@ const onClosePasswordChangedModal = () => {
             {{ item.organization?.name || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('users.roles')">
-            {{
-              item.roles
-                ?.map((r) => r.name)
-                .sort()
-                .join(', ') || '-'
-            }}
+            <div class="flex flex-wrap gap-1">
+              <NeBadge
+                v-for="role in item.roles?.sort(sortByProperty('name'))"
+                :text="role.name"
+                kind="custom"
+                customColorClasses="bg-indigo-100 text-indigo-800 dark:bg-indigo-700 dark:text-indigo-100"
+                class="inline-block"
+              ></NeBadge>
+            </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
             <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">

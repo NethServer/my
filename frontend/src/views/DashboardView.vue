@@ -4,6 +4,7 @@
 -->
 
 <script setup lang="ts">
+import OrganizationRoleBadge from '@/components/OrganizationRoleBadge.vue'
 import {
   getThirdPartyApps,
   getThirdPartyAppIcon,
@@ -67,13 +68,7 @@ const { state: thirdPartyApps } = useQuery({
               <NeHeading tag="h5">
                 {{ $t('dashboard.welcome_user', { user: loginStore.userDisplayName }) }}
               </NeHeading>
-              <NeBadge
-                v-if="loginStore.userInfo?.org_role"
-                :text="loginStore.userInfo?.org_role"
-                :icon="getOrganizationIcon(loginStore.userInfo?.org_role)"
-                kind="primary"
-                size="xs"
-              />
+              <OrganizationRoleBadge />
             </div>
           </template>
         </div>

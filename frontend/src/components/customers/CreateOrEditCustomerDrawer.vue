@@ -78,8 +78,6 @@ const {
 
 const {
   mutate: editCustomerMutate,
-  // status: createCustomerStatus, ////
-  // asyncStatus: editCustomerAsyncStatus, //// dont' use?
   isLoading: editCustomerLoading,
   reset: editCustomerReset,
   error: editCustomerError,
