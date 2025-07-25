@@ -224,6 +224,28 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
+	// Additional validation for name and username fields - prevent empty strings
+	var validationErrors []response.ValidationError
+
+	if request.Name != nil && strings.TrimSpace(*request.Name) == "" {
+		validationErrors = append(validationErrors, response.ValidationError{
+			Key:     "name",
+			Message: "cannot_be_empty",
+		})
+	}
+
+	if request.Username != nil && strings.TrimSpace(*request.Username) == "" {
+		validationErrors = append(validationErrors, response.ValidationError{
+			Key:     "username",
+			Message: "cannot_be_empty",
+		})
+	}
+
+	if len(validationErrors) > 0 {
+		c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", validationErrors))
+		return
+	}
+
 	// Get current user context
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
