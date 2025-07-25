@@ -53,7 +53,7 @@ const {
     validationIssues.value = getValidationIssues(error as AxiosError, 'users')
   },
   onSettled: () => {
-    queryCache.invalidateQueries({ key: ['me'] })
+    queryCache.invalidateQueries({ key: ['authMe'] })
     queryCache.invalidateQueries({ key: ['users'] })
   },
 })

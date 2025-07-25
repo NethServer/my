@@ -6,6 +6,7 @@ import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 import type { EditProfile } from './me'
+import { faBuilding, faCity, faCrown, faGlobe, faQuestion } from '@fortawesome/free-solid-svg-icons'
 
 //// remove after implementing pagination
 export const paginationQueryString = '?page_size=100'
@@ -143,5 +144,20 @@ export const searchStringInUser = (searchString: string, user: User): boolean =>
     return true
   } else {
     return false
+  }
+}
+
+export const getOrganizationIcon = (orgRole: string) => {
+  switch (orgRole) {
+    case 'Owner':
+      return faCrown
+    case 'Distributor':
+      return faGlobe
+    case 'Reseller':
+      return faCity
+    case 'Customer':
+      return faBuilding
+    default:
+      return faQuestion
   }
 }

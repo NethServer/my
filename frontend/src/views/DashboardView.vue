@@ -10,10 +10,10 @@ import {
   getThirdPartyAppDescription,
   openThirdPartyApp,
 } from '@/lib/thirdPartyApps'
+import { getOrganizationIcon } from '@/lib/users'
 import { useLoginStore } from '@/stores/login'
 import {
   faArrowUpRightFromSquare,
-  faAward,
   faCrown,
   faGraduationCap,
   faHeadset,
@@ -70,7 +70,7 @@ const { state: thirdPartyApps } = useQuery({
               <NeBadge
                 v-if="loginStore.userInfo?.orgRole"
                 :text="loginStore.userInfo?.orgRole"
-                :icon="faAward"
+                :icon="getOrganizationIcon(loginStore.userInfo?.orgRole)"
                 kind="primary"
                 size="xs"
               />

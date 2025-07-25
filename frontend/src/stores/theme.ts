@@ -101,16 +101,10 @@ export const useThemeStore = defineStore('theme', () => {
     const userLogged = loginStore.userInfo?.email
 
     if (userLogged) {
-      console.log('@@ load theme from userLogged', userLogged) ////
-
       theme = getPreference('theme', userLogged)
     } else if (lastUser.value) {
-      console.log('@@ load theme from lastUser', lastUser.value) ////
-
       theme = getPreference('theme', lastUser.value)
     } else {
-      console.log('@@ load theme from system') ////
-
       theme = 'system'
     }
     setTheme(theme as Theme)
