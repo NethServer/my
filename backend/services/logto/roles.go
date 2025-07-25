@@ -141,6 +141,22 @@ func (c *LogtoManagementClient) GetRoleByName(roleName string) (*models.LogtoRol
 	return nil, fmt.Errorf("role '%s' not found", roleName)
 }
 
+// GetRoleByID finds a role by ID
+func (c *LogtoManagementClient) GetRoleByID(roleID string) (*models.LogtoRole, error) {
+	roles, err := c.GetAllRoles()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, role := range roles {
+		if role.ID == roleID {
+			return &role, nil
+		}
+	}
+
+	return nil, fmt.Errorf("role with ID '%s' not found", roleID)
+}
+
 // GetAllOrganizationRoles fetches all organization roles from Logto Management API
 func (c *LogtoManagementClient) GetAllOrganizationRoles() ([]models.LogtoOrganizationRole, error) {
 	resp, err := c.makeRequest("GET", "/organization-roles", nil)
