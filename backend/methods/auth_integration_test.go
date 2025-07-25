@@ -149,7 +149,7 @@ func TestGetCurrentUser(t *testing.T) {
 				c.Set("user", user)
 			},
 			expectedStatus: http.StatusOK,
-			expectedFields: []string{"id", "username", "email", "name", "userRoles", "userPermissions", "orgRole", "orgPermissions", "organizationId", "organizationName"},
+			expectedFields: []string{"id", "username", "email", "name", "user_roles", "user_permissions", "org_role", "org_permissions", "organization_id", "organization_name"},
 		},
 		{
 			name: "user with minimal data succeeds",

@@ -304,20 +304,20 @@ func GetCurrentUser(c *gin.Context) {
 	}
 
 	userData := gin.H{
-		"id":               user.ID,
-		"logto_id":         user.LogtoID,
-		"username":         user.Username,
-		"email":            user.Email,
-		"name":             user.Name,
-		"phone":            user.Phone,
-		"userRoles":        user.UserRoles,
-		"userRoleIds":      user.UserRoleIDs,
-		"userPermissions":  user.UserPermissions,
-		"orgRole":          user.OrgRole,
-		"orgRoleId":        user.OrgRoleID,
-		"orgPermissions":   user.OrgPermissions,
-		"organizationId":   user.OrganizationID,
-		"organizationName": user.OrganizationName,
+		"id":                user.ID,
+		"logto_id":          user.LogtoID,
+		"username":          user.Username,
+		"email":             user.Email,
+		"name":              user.Name,
+		"phone":             user.Phone,
+		"user_roles":        user.UserRoles,
+		"user_role_ids":     user.UserRoleIDs,
+		"user_permissions":  user.UserPermissions,
+		"org_role":          user.OrgRole,
+		"org_role_id":       user.OrgRoleID,
+		"org_permissions":   user.OrgPermissions,
+		"organization_id":   user.OrganizationID,
+		"organization_name": user.OrganizationName,
 	}
 
 	logger.RequestLogger(c, "auth").Info().

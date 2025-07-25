@@ -223,6 +223,11 @@ components:
           type: string
           description: User ID
           example: "user_123456789"
+        logto_id:
+          type: string
+          nullable: true
+          description: Logto user ID
+          example: "user_abc123def456"
         username:
           type: string
           description: Username
@@ -241,43 +246,43 @@ components:
           nullable: true
           description: Phone number
           example: "+39 333 123456"
-        userRoles:
+        user_roles:
           type: array
           items:
             type: string
           description: User role names
           example: ["Admin"]
-        userRoleIds:
+        user_role_ids:
           type: array
           items:
             type: string
           description: User role IDs
           example: ["rol_admin_id_123"]
-        userPermissions:
+        user_permissions:
           type: array
           items:
             type: string
           description: User permissions from roles
           example: ["destroy:systems", "manage:systems", "read:systems"]
-        orgRole:
+        org_role:
           type: string
           description: Organization role name
           example: "Owner"
-        orgRoleId:
+        org_role_id:
           type: string
           description: Organization role ID
           example: "org_rol_owner_456"
-        orgPermissions:
+        org_permissions:
           type: array
           items:
             type: string
           description: Organization permissions
           example: ["create:distributors", "manage:distributors"]
-        organizationId:
+        organization_id:
           type: string
           description: Organization ID
           example: "org_123"
-        organizationName:
+        organization_name:
           type: string
           description: Organization name
           example: "ACME Distribution"
