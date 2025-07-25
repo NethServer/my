@@ -54,6 +54,14 @@ type Configuration struct {
 	DefaultPageSize int `json:"default_page_size"`
 	// System types configuration
 	SystemTypes []string `json:"system_types"`
+	// SMTP configuration for sending emails
+	SMTPHost     string `json:"smtp_host"`
+	SMTPPort     int    `json:"smtp_port"`
+	SMTPUsername string `json:"smtp_username"`
+	SMTPPassword string `json:"smtp_password"`
+	SMTPFrom     string `json:"smtp_from"`
+	SMTPFromName string `json:"smtp_from_name"`
+	SMTPTLS      bool   `json:"smtp_tls"`
 }
 
 var Config = Configuration{}
@@ -159,6 +167,18 @@ func Init() {
 		Config.SystemTypes = []string{"ns8", "nsec"}
 	}
 
+	// SMTP configuration
+	Config.SMTPHost = os.Getenv("SMTP_HOST")
+	Config.SMTPPort = parseIntWithDefault("SMTP_PORT", 587)
+	Config.SMTPUsername = os.Getenv("SMTP_USERNAME")
+	Config.SMTPPassword = os.Getenv("SMTP_PASSWORD")
+	Config.SMTPFrom = os.Getenv("SMTP_FROM")
+	Config.SMTPFromName = os.Getenv("SMTP_FROM_NAME")
+	if Config.SMTPFromName == "" {
+		Config.SMTPFromName = "Nethesis Operation Center"
+	}
+	Config.SMTPTLS = parseBoolWithDefault("SMTP_TLS", true)
+
 	// Log successful configuration load
 	logger.LogConfigLoad("env", "configuration", true, nil)
 }
@@ -219,4 +239,20 @@ func parseStringSliceWithDefault(envVar string, defaultValue []string) []string 
 	}
 
 	return result
+}
+
+// parseBoolWithDefault parses a boolean from environment variable or returns default
+func parseBoolWithDefault(envVar string, defaultValue bool) bool {
+	envValue := os.Getenv(envVar)
+	if envValue == "" {
+		return defaultValue
+	}
+
+	if value, err := strconv.ParseBool(envValue); err == nil {
+		return value
+	}
+
+	// If parsing fails, log warning and use default
+	logger.LogConfigLoad("env", envVar, false, fmt.Errorf("invalid boolean format, using default %t", defaultValue))
+	return defaultValue
 }
