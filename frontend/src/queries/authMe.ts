@@ -5,6 +5,8 @@ import { getMe } from '@/lib/me'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 
+//// remove file?
+
 export const useAuthMe = defineQuery(() => {
   const loginStore = useLoginStore()
 

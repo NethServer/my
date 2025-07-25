@@ -45,8 +45,7 @@ const {
       title: t('account.profile_saved'),
     })
 
-    //// todo update login store user info
-    loginStore.fetchTokenAndUserInfo()
+    // loginStore.fetchTokenAndUserInfo() //// uncomment?
   },
   onError: (error, variables) => {
     console.error('Error editing user:', error)

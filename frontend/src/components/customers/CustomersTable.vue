@@ -186,6 +186,7 @@ const onSort = (payload: SortEvent) => {
             class="xl:hidden"
           />
         </div>
+         <!-- //// separate component UpdatingSpinner? -->
         <!-- update indicator -->
         <div
           v-if="customersAsyncStatus === 'loading' && customers.status !== 'pending'"

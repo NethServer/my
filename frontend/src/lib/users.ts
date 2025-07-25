@@ -37,7 +37,6 @@ export const UserSchema = v.object({
   ...CreateUserSchema.entries,
   ...EditUserSchema.entries,
   active: v.optional(v.boolean()),
-  created_at: v.optional(v.string()),
   logto_id: v.optional(v.string()),
   logto_synced_at: v.optional(v.string()),
   organization: v.optional(
@@ -55,12 +54,27 @@ export const UserSchema = v.object({
       }),
     ),
   ),
-  updated_at: v.optional(v.string()),
 })
 
 export type CreateUser = v.InferOutput<typeof CreateUserSchema>
 export type EditUser = v.InferOutput<typeof EditUserSchema>
 export type User = v.InferOutput<typeof UserSchema>
+
+//// remove
+// export type UserProfile = {
+//   id: string
+//   email: string
+//   name: string
+//   phone: string
+//   userRoles: string[]
+//   userRoleIds: string[]
+//   userPermissions: string[]
+//   orgRole: string
+//   orgRoleId: string
+//   orgPermissions: string[]
+//   organizationId: string
+//   organizationName: string
+// }
 
 export const getUsers = () => {
   const loginStore = useLoginStore()
@@ -107,6 +121,17 @@ export const resetPassword = (user: User, newPassword: string) => {
     },
   )
 }
+
+//// remove
+// export const getUserProfile = () => {
+//   const loginStore = useLoginStore()
+
+//   return axios
+//     .get(`${API_URL}/user/profile`, {
+//       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+//     })
+//     .then((res) => res.data.data as UserProfile)
+// }
 
 export const searchStringInUser = (searchString: string, user: User): boolean => {
   const regex = /[^a-zA-Z0-9-]/g
