@@ -1,0 +1,34 @@
+{
+  "common": {
+    "save": "Salva",
+    "cancel": "Annulla",
+    "search": "Cerca",
+    "optional": "Opzionale",
+    "close": "Chiudi",
+    "edit": "Modifica",
+    "delete": "Elimina",
+    "filter": "Filtra",
+    "advanced_settings": "Impostazioni avanzate",
+    "enable": "Abilita",
+    "disable": "Disabilita",
+    "enabled": "Abilitato",
+    "disabled": "Disabilitato",
+    "step": "Passo",
+    "previous": "Precedente",
+    "next": "Successivo",
+    "copied": "Copiato!",
+    "status": "Stato",
+    "any": "Qualsiasi",
+    "clear_filter": "Rimuovi filtro",
+    "clear_filters": "Rimuovi filtri",
+    "try_changing_search_filters": "Prova a cambiare i filtri di ricerca",
+    "go_to_page": "Vai a {page}",
+    "no_data_available": "Nessun dato disponibile"
+  },
+  "shell": {
+    "sign_out": "Esci"
+  },
+  "account": {
+    "title": "Impostazioni account"
+  }
+}

@@ -1,0 +1,47 @@
+//  Copyright (C) 2025 Nethesis S.r.l.
+//  SPDX-License-Identifier: GPL-3.0-or-later
+
+import axios from 'axios'
+import { API_URL } from './config'
+import { useLoginStore } from '@/stores/login'
+import * as v from 'valibot'
+
+export type MeResponse = {
+  email: string
+  id: string
+  logto_id: string
+  name: string
+  org_permissions: string[]
+  org_role: string
+  org_role_id: string
+  organization_id: string
+  organization_name: string
+  phone: string
+  user_permissions: string[]
+  user_role_ids: string[]
+  user_roles: string[]
+}
+
+export const EditProfileSchema = v.object({
+  id: v.string(),
+  name: v.pipe(v.string(), v.nonEmpty('users.name_required')),
+  phone: v.optional(
+    v.pipe(v.string(), v.regex(/^\+?[\d\s\-\(\)]{7,20}$/, 'users.phone_invalid_format')),
+  ), //// uncomment
+})
+
+export type EditProfile = v.InferOutput<typeof EditProfileSchema>
+
+export const getMe = () => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .get(`${API_URL}/auth/me`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => {
+      console.log('me', res.data.data) ////
+
+      return res.data.data as MeResponse
+    })
+}
