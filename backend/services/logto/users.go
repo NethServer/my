@@ -19,6 +19,10 @@ import (
 	"github.com/nethesis/my/backend/models"
 )
 
+// =============================================================================
+// PUBLIC METHODS
+// =============================================================================
+
 // GetUserByID fetches a specific user by ID
 func (c *LogtoManagementClient) GetUserByID(userID string) (*models.LogtoUser, error) {
 	resp, err := c.makeRequest("GET", fmt.Sprintf("/users/%s", userID), nil)

@@ -50,6 +50,10 @@ type EmailData struct {
 	TextBody string
 }
 
+// =============================================================================
+// PUBLIC METHODS
+// =============================================================================
+
 // SendEmail sends an email using SMTP
 func (e *EmailService) SendEmail(data EmailData) error {
 	// Validate configuration
@@ -118,6 +122,15 @@ func (e *EmailService) SendEmail(data EmailData) error {
 	return nil
 }
 
+// IsConfigured checks if SMTP is properly configured
+func (e *EmailService) IsConfigured() bool {
+	return e.host != "" && e.from != ""
+}
+
+// =============================================================================
+// PRIVATE METHODS
+// =============================================================================
+
 // sendSMTP handles the actual SMTP sending
 func (e *EmailService) sendSMTP(to []string, body []byte) error {
 	addr := fmt.Sprintf("%s:%d", e.host, e.port)
@@ -174,53 +187,6 @@ func (e *EmailService) sendSMTP(to []string, body []byte) error {
 	if err != nil {
 		return fmt.Errorf("failed to close data writer: %w", err)
 	}
-
-	return nil
-}
-
-// IsConfigured checks if SMTP is properly configured
-func (e *EmailService) IsConfigured() bool {
-	return e.host != "" && e.from != ""
-}
-
-// TestConnection tests the SMTP connection
-func (e *EmailService) TestConnection() error {
-	if !e.IsConfigured() {
-		return fmt.Errorf("SMTP not configured")
-	}
-
-	addr := fmt.Sprintf("%s:%d", e.host, e.port)
-
-	conn, err := smtp.Dial(addr)
-	if err != nil {
-		return fmt.Errorf("failed to connect to SMTP server: %w", err)
-	}
-	defer func() { _ = conn.Close() }()
-
-	// Test TLS if enabled
-	if e.useTLS {
-		tlsConfig := &tls.Config{
-			ServerName: e.host,
-		}
-		if err := conn.StartTLS(tlsConfig); err != nil {
-			return fmt.Errorf("failed to start TLS: %w", err)
-		}
-	}
-
-	// Test authentication if credentials provided
-	if e.username != "" && e.password != "" {
-		auth := smtp.PlainAuth("", e.username, e.password, e.host)
-		if err := conn.Auth(auth); err != nil {
-			return fmt.Errorf("SMTP authentication failed: %w", err)
-		}
-	}
-
-	logger.Info().
-		Str("smtp_host", e.host).
-		Int("smtp_port", e.port).
-		Bool("smtp_tls", e.useTLS).
-		Bool("smtp_auth", e.username != "").
-		Msg("SMTP connection test successful")
 
 	return nil
 }

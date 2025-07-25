@@ -24,6 +24,10 @@ import (
 	"github.com/nethesis/my/backend/models"
 )
 
+// =============================================================================
+// PUBLIC METHODS
+// =============================================================================
+
 // GetApplications retrieves all applications from Logto
 func (c *LogtoManagementClient) GetApplications() ([]models.LogtoThirdPartyApp, error) {
 	logger.ComponentLogger("logto").Debug().
@@ -149,6 +153,10 @@ func FilterApplicationsByAccess(logtoApps []models.LogtoThirdPartyApp, organizat
 		Msg("Filtered applications based on user access")
 	return filteredApps
 }
+
+// =============================================================================
+// PRIVATE METHODS
+// =============================================================================
 
 // canAccessApplication checks if a user with given roles can access an application
 func canAccessApplication(app models.LogtoThirdPartyApp, organizationRoles []string, userRoles []string) bool {

@@ -48,6 +48,10 @@ func NewTemplateService() *TemplateService {
 	}
 }
 
+// =============================================================================
+// PUBLIC METHODS
+// =============================================================================
+
 // GenerateWelcomeEmail generates HTML and text versions of welcome email
 func (ts *TemplateService) GenerateWelcomeEmail(data WelcomeEmailData) (htmlBody, textBody string, err error) {
 	// Generate HTML version
@@ -64,6 +68,27 @@ func (ts *TemplateService) GenerateWelcomeEmail(data WelcomeEmailData) (htmlBody
 
 	return htmlBody, textBody, nil
 }
+
+// ValidateTemplates checks if required template files exist
+func (ts *TemplateService) ValidateTemplates() error {
+	requiredTemplates := []string{
+		"welcome.html",
+		"welcome.txt",
+	}
+
+	for _, templateName := range requiredTemplates {
+		templatePath := filepath.Join(ts.templateDir, templateName)
+		if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+			return fmt.Errorf("required template file not found: %s", templatePath)
+		}
+	}
+
+	return nil
+}
+
+// =============================================================================
+// PRIVATE METHODS
+// =============================================================================
 
 // renderTemplate loads and renders a template file
 func (ts *TemplateService) renderTemplate(templateName string, data interface{}) (string, error) {
@@ -87,26 +112,4 @@ func (ts *TemplateService) renderTemplate(templateName string, data interface{})
 	}
 
 	return buf.String(), nil
-}
-
-// GetTemplatePath returns the absolute path to template directory
-func (ts *TemplateService) GetTemplatePath() string {
-	return ts.templateDir
-}
-
-// ValidateTemplates checks if required template files exist
-func (ts *TemplateService) ValidateTemplates() error {
-	requiredTemplates := []string{
-		"welcome.html",
-		"welcome.txt",
-	}
-
-	for _, templateName := range requiredTemplates {
-		templatePath := filepath.Join(ts.templateDir, templateName)
-		if _, err := os.Stat(templatePath); os.IsNotExist(err) {
-			return fmt.Errorf("required template file not found: %s", templatePath)
-		}
-	}
-
-	return nil
 }

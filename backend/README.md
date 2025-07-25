@@ -250,6 +250,8 @@ make validate-docs
 ```
 
 ### Testing
+
+#### Authentication Testing
 ```bash
 # Test token exchange
 curl -X POST http://localhost:8080/api/auth/exchange \
@@ -261,21 +263,58 @@ curl -X GET http://localhost:8080/api/me \
   -H "Authorization: Bearer YOUR_CUSTOM_JWT"
 ```
 
+#### Email Testing
+```bash
+# Test welcome email service configuration
+curl -X POST http://localhost:8080/api/users \
+  -H "Authorization: Bearer YOUR_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test@example.com",
+    "name": "Test User",
+    "userRoleIds": ["role_123"],
+    "organizationId": "org_456"
+  }'
+
+# Check logs for email delivery status
+docker logs backend-container 2>&1 | grep "Welcome email"
+```
+
+#### SMTP Connection Testing
+The backend automatically validates SMTP configuration on startup. Check logs for:
+```
+{"level":"info","message":"Welcome email service configuration test successful"}
+```
+
+If SMTP is misconfigured, you'll see:
+```
+{"level":"warn","message":"SMTP not configured, skipping welcome email"}
+```
+
 ## Project Structure
 ```
 backend/
-├── main.go                 # Server entry point
-├── cache/                  # Redis caching system
-├── configuration/          # Environment config
-├── helpers/                # Utilities for JWT context
-├── jwt/                    # Utilities for JWT claims
-├── logger/                 # Structured logging
-├── methods/                # HTTP handlers
-├── middleware/             # Auth and RBAC middleware
-├── models/                 # Data structures
-├── response/               # HTTP response helpers
-├── services/               # Business logic
-└── .env.example            # Environment variables template
+├── main.go                  # Server entry point
+├── cache/                   # Redis caching system
+├── configuration/           # Environment config
+├── helpers/                 # Utilities for JWT context
+├── jwt/                     # Utilities for JWT claims
+├── logger/                  # Structured logging
+├── methods/                 # HTTP handlers
+├── middleware/              # Auth and RBAC middleware
+├── models/                  # Data structures
+├── response/                # HTTP response helpers
+├── services/                # Business logic
+│   ├── email/               # Email service
+│   │   ├── smtp.go          # SMTP client implementation
+│   │   ├── templates.go     # Template rendering service
+│   │   ├── welcome.go       # Welcome email service
+│   │   └── templates/       # Email templates
+│   │       ├── welcome.html # HTML email template
+│   │       └── welcome.txt  # Text email template
+│   ├── local/               # Local database services
+│   └── logto/               # Logto API integration
+└── .env.example             # Environment variables template
 ```
 
 

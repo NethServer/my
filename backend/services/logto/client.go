@@ -50,6 +50,19 @@ func NewManagementClient() *LogtoManagementClient {
 	}
 }
 
+// =============================================================================
+// PUBLIC METHODS
+// =============================================================================
+
+// makeRequest makes an authenticated request to the Management API with token refresh retry
+func (c *LogtoManagementClient) makeRequest(method, endpoint string, body io.Reader) (*http.Response, error) {
+	return c.makeRequestWithRetry(method, endpoint, body, false)
+}
+
+// =============================================================================
+// PRIVATE METHODS
+// =============================================================================
+
 // getAccessToken obtains an access token for the Management API with enhanced caching
 func (c *LogtoManagementClient) getAccessToken() (string, error) {
 	// First, try to get token from cache (read lock)
@@ -135,11 +148,6 @@ func invalidateToken() {
 	defer globalTokenCache.mu.Unlock()
 	globalTokenCache.accessToken = ""
 	globalTokenCache.tokenExpiry = time.Time{}
-}
-
-// makeRequest makes an authenticated request to the Management API with token refresh retry
-func (c *LogtoManagementClient) makeRequest(method, endpoint string, body io.Reader) (*http.Response, error) {
-	return c.makeRequestWithRetry(method, endpoint, body, false)
 }
 
 // makeRequestWithRetry makes an authenticated request with optional retry for token refresh

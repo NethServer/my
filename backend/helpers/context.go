@@ -37,31 +37,6 @@ func GetUserFromContext(c *gin.Context) (*models.User, bool) {
 	return user, true
 }
 
-// GetUserContext extracts user ID and role information from Gin context
-// Returns userID, userOrgRole, userRole strings
-func GetUserContext(c *gin.Context) (string, string, string) {
-	userInterface, exists := c.Get("user")
-	if !exists {
-		return "", "", ""
-	}
-
-	user, ok := userInterface.(*models.User)
-	if !ok {
-		return "", "", ""
-	}
-
-	userID := user.ID
-	userOrgRole := user.OrgRole
-	userRole := ""
-
-	// Extract user role (highest privilege role)
-	if len(user.UserRoles) > 0 {
-		userRole = user.UserRoles[0]
-	}
-
-	return userID, userOrgRole, userRole
-}
-
 // GetUserContextExtended extracts user ID, organization ID, and role information from Gin context
 // Returns userID, userOrgID, userOrgRole, userRole strings
 func GetUserContextExtended(c *gin.Context) (string, string, string, string) {

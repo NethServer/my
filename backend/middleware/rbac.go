@@ -30,10 +30,10 @@ func RequirePermission(permission string) gin.HandlerFunc {
 		}
 
 		// Check if user has permission via User Roles (technical capabilities)
-		hasUserPermission := hasPermissionInList(user.UserPermissions, permission)
+		hasUserPermission := hasStringInList(user.UserPermissions, permission)
 
 		// Check if user has permission via Organization Role (business hierarchy)
-		hasOrgPermission := hasPermissionInList(user.OrgPermissions, permission)
+		hasOrgPermission := hasStringInList(user.OrgPermissions, permission)
 
 		if hasUserPermission || hasOrgPermission {
 			logger.RequestLogger(c, "rbac").Info().
@@ -88,7 +88,7 @@ func RequireUserRole(role string) gin.HandlerFunc {
 			return
 		}
 
-		if !hasRoleInList(user.UserRoles, role) {
+		if !hasStringInList(user.UserRoles, role) {
 			logger.RequestLogger(c, "rbac").Warn().
 				Str("operation", "user_role_denied").
 				Str("required_user_role", role).
@@ -224,7 +224,7 @@ func RequireAnyUserRole(roles ...string) gin.HandlerFunc {
 		}
 
 		for _, role := range roles {
-			if hasRoleInList(user.UserRoles, role) {
+			if hasStringInList(user.UserRoles, role) {
 				logger.RequestLogger(c, "rbac").Info().
 					Str("operation", "any_user_role_granted").
 					Strs("required_user_roles", roles).
@@ -283,18 +283,9 @@ func getUserFromContext(c *gin.Context) (*models.User, bool) {
 	return user, true
 }
 
-func hasPermissionInList(permissions []string, permission string) bool {
-	for _, p := range permissions {
-		if p == permission {
-			return true
-		}
-	}
-	return false
-}
-
-func hasRoleInList(roles []string, role string) bool {
-	for _, r := range roles {
-		if r == role {
+func hasStringInList(list []string, target string) bool {
+	for _, item := range list {
+		if item == target {
 			return true
 		}
 	}
@@ -327,10 +318,10 @@ func RequireResourcePermission(resource string) gin.HandlerFunc {
 		}
 
 		// Check if user has permission via User Roles (technical capabilities)
-		hasUserPermission := hasPermissionInList(user.UserPermissions, requiredPermission)
+		hasUserPermission := hasStringInList(user.UserPermissions, requiredPermission)
 
 		// Check if user has permission via Organization Role (business hierarchy)
-		hasOrgPermission := hasPermissionInList(user.OrgPermissions, requiredPermission)
+		hasOrgPermission := hasStringInList(user.OrgPermissions, requiredPermission)
 
 		if hasUserPermission || hasOrgPermission {
 			logger.RequestLogger(c, "rbac").Info().

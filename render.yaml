@@ -80,6 +80,21 @@ services:
       - key: BACKEND_APP_SECRET
         sync: false
 
+      # SMTP Configuration
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: SMTP_FROM_NAME
+        sync: false
+      - key: SMTP_TLS
+        sync: false
 
   # Production Collect Service (Private Service)
   - type: web
@@ -210,6 +225,22 @@ services:
       - key: BACKEND_APP_ID
         sync: false
       - key: BACKEND_APP_SECRET
+        sync: false
+
+      # SMTP Configuration
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: SMTP_FROM_NAME
+        sync: false
+      - key: SMTP_TLS
         sync: false
 
     autoDeploy: true   # Auto-deploy on every commit
