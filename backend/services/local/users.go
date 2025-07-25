@@ -21,6 +21,7 @@ import (
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
+	"github.com/nethesis/my/backend/services/email"
 	"github.com/nethesis/my/backend/services/logto"
 )
 
@@ -59,6 +60,17 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, create
 		req.Username = s.generateUsernameFromEmail(req.Email)
 	}
 
+	// Always generate a temporary password for new users
+	welcomeService := email.NewWelcomeEmailService()
+	tempPassword, err := welcomeService.GenerateValidTemporaryPassword()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate temporary password: %w", err)
+	}
+	logger.Info().
+		Str("username", req.Username).
+		Str("email", req.Email).
+		Msg("Generated temporary password for new user")
+
 	// 1. Create in Logto FIRST for validation (before consuming local resources)
 	// Start with user-provided custom data (allows custom fields)
 	customData := make(map[string]interface{})
@@ -77,7 +89,7 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, create
 
 	logtoUserReq := models.CreateUserRequest{
 		Username:     req.Username,
-		Password:     req.Password,
+		Password:     tempPassword,
 		Name:         req.Name,
 		PrimaryEmail: req.Email,
 		CustomData:   customData,
@@ -275,6 +287,59 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, create
 		Str("logto_user_id", logtoUser.ID).
 		Str("created_by", createdByUserID).
 		Msg("User created successfully with Logto sync")
+
+	// 9. Send welcome email with temporary password (non-blocking)
+	if req.Email != "" { // Always send email since we always generate temporary password
+		go func() {
+			welcomeService := email.NewWelcomeEmailService()
+
+			// Get organization name and type for the email
+			orgName := "the organization" // fallback
+			orgType := ""
+			if req.OrganizationID != nil && *req.OrganizationID != "" {
+				orgName = s.getOrganizationNameByLogtoID(*req.OrganizationID)
+				if orgName == "" {
+					orgName = "the organization"
+				}
+				orgType = s.determineOrganizationRoleName(*req.OrganizationID)
+			}
+
+			// Get user roles for the email
+			userRoles := []string{}
+			if len(req.UserRoleIDs) > 0 {
+				userRoles = s.getUserRoleNamesByIDs(req.UserRoleIDs)
+			}
+
+			// Send welcome email with updated data structure
+			err := welcomeService.SendWelcomeEmailWithRoles(
+				req.Email,
+				req.Name,
+				orgName,
+				orgType,
+				userRoles,
+				tempPassword, // The temporary password we generated
+			)
+
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("user_id", user.ID).
+					Str("username", user.Username).
+					Str("email", req.Email).
+					Str("organization_name", orgName).
+					Strs("user_roles", userRoles).
+					Msg("Failed to send welcome email to user")
+			} else {
+				logger.Info().
+					Str("user_id", user.ID).
+					Str("username", user.Username).
+					Str("email", req.Email).
+					Str("organization_name", orgName).
+					Strs("user_roles", userRoles).
+					Msg("Welcome email sent successfully to user")
+			}
+		}()
+	}
 
 	return user, nil
 }
@@ -1174,4 +1239,57 @@ func (s *LocalUserService) determineOrganizationRoleName(organizationID string) 
 
 	// If not found in any table, it might be the owner organization
 	return "Owner"
+}
+
+// getOrganizationNameByLogtoID gets the organization name from database using logto_id
+func (s *LocalUserService) getOrganizationNameByLogtoID(logtoID string) string {
+	var name string
+
+	// Check distributors table
+	query := `SELECT name FROM distributors WHERE logto_id = $1 AND active = TRUE`
+	err := database.DB.QueryRow(query, logtoID).Scan(&name)
+	if err == nil && name != "" {
+		return name
+	}
+
+	// Check resellers table
+	query = `SELECT name FROM resellers WHERE logto_id = $1 AND active = TRUE`
+	err = database.DB.QueryRow(query, logtoID).Scan(&name)
+	if err == nil && name != "" {
+		return name
+	}
+
+	// Check customers table
+	query = `SELECT name FROM customers WHERE logto_id = $1 AND active = TRUE`
+	err = database.DB.QueryRow(query, logtoID).Scan(&name)
+	if err == nil && name != "" {
+		return name
+	}
+
+	// If not found in any table, return empty string
+	return ""
+}
+
+// getUserRoleNamesByIDs gets user role names from Logto by their IDs
+func (s *LocalUserService) getUserRoleNamesByIDs(roleIDs []string) []string {
+	if len(roleIDs) == 0 {
+		return []string{}
+	}
+
+	roleNames := []string{}
+	for _, roleID := range roleIDs {
+		role, err := s.logtoClient.GetRoleByID(roleID)
+		if err != nil {
+			logger.Warn().
+				Err(err).
+				Str("role_id", roleID).
+				Msg("Failed to get user role name from Logto")
+			continue
+		}
+		if role != nil {
+			roleNames = append(roleNames, role.Name)
+		}
+	}
+
+	return roleNames
 }

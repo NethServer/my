@@ -145,7 +145,6 @@ type CreateLocalUserRequest struct {
 	Email          string                 `json:"email" validate:"required,email,max=255"`
 	Name           string                 `json:"name" validate:"required,min=1,max=255"`
 	Phone          *string                `json:"phone,omitempty"`
-	Password       string                 `json:"password" validate:"required,min=8"`
 	UserRoleIDs    []string               `json:"userRoleIds,omitempty"`
 	OrganizationID *string                `json:"organizationId,omitempty"`
 	CustomData     map[string]interface{} `json:"customData,omitempty"`
