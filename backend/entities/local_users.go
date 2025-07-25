@@ -95,7 +95,7 @@ func (r *LocalUserRepository) Create(req *models.CreateLocalUserRequest) (*model
 func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 	query := `
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
-		       u.created_at, u.updated_at, u.logto_synced_at, u.deleted_at, u.suspended_at,
+		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at,
 		       COALESCE(d.name, r.name, c.name) as organization_name,
 		       COALESCE(d.id, r.id, c.id) as organization_local_id
 		FROM users u
@@ -112,7 +112,7 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 	err := r.db.QueryRow(query, id).Scan(
 		&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name, &user.Phone,
 		&user.OrganizationID, &userRoleIDsJSON, &customDataJSON,
-		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.DeletedAt, &user.SuspendedAt,
+		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt,
 		&user.OrganizationName, &user.OrganizationLocalID,
 	)
 
@@ -151,7 +151,7 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, error) {
 	query := `
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
-		       u.created_at, u.updated_at, u.logto_synced_at, u.deleted_at, u.suspended_at,
+		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at,
 		       COALESCE(d.name, r.name, c.name) as organization_name,
 		       COALESCE(d.id, r.id, c.id) as organization_local_id
 		FROM users u
@@ -168,7 +168,7 @@ func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, e
 	err := r.db.QueryRow(query, logtoID).Scan(
 		&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name, &user.Phone,
 		&user.OrganizationID, &userRoleIDsJSON, &customDataJSON,
-		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.DeletedAt, &user.SuspendedAt,
+		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt,
 		&user.OrganizationName, &user.OrganizationLocalID,
 	)
 
@@ -339,6 +339,28 @@ func (r *LocalUserRepository) ReactivateUser(id string) error {
 	return nil
 }
 
+// UpdateLatestLogin updates the latest_login_at field for a user
+func (r *LocalUserRepository) UpdateLatestLogin(userID string) error {
+	query := `UPDATE users SET latest_login_at = $2, updated_at = $2 WHERE id = $1`
+
+	now := time.Now()
+	result, err := r.db.Exec(query, userID, now)
+	if err != nil {
+		return fmt.Errorf("failed to update latest login: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
+
+	return nil
+}
+
 // List returns paginated list of users based on hierarchical RBAC (matches other repository patterns)
 func (r *LocalUserRepository) List(userOrgRole, userOrgID, excludeUserID string, page, pageSize int) ([]*models.LocalUser, int, error) {
 	// Get all organization IDs the user can access hierarchically
@@ -390,7 +412,7 @@ func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, exclud
 
 	query := fmt.Sprintf(`
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
-		       u.created_at, u.updated_at, u.logto_synced_at, u.deleted_at, u.suspended_at,
+		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at,
 		       COALESCE(d.name, r.name, c.name) as organization_name,
 		       COALESCE(d.id, r.id, c.id) as organization_local_id
 		FROM users u
@@ -416,7 +438,7 @@ func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, exclud
 		err := rows.Scan(
 			&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name,
 			&user.Phone, &user.OrganizationID, &userRoleIDsJSON, &customDataJSON,
-			&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.DeletedAt, &user.SuspendedAt,
+			&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt,
 			&user.OrganizationName, &user.OrganizationLocalID,
 		)
 		if err != nil {

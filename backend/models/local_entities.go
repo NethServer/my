@@ -82,6 +82,7 @@ type LocalUser struct {
 	CreatedAt     time.Time              `json:"created_at" db:"created_at"`
 	UpdatedAt     time.Time              `json:"updated_at" db:"updated_at"`
 	LogtoSyncedAt *time.Time             `json:"logto_synced_at" db:"logto_synced_at"`
+	LatestLoginAt *time.Time             `json:"latest_login_at" db:"latest_login_at"`
 	DeletedAt     *time.Time             `json:"deleted_at" db:"deleted_at"`     // Soft delete timestamp
 	SuspendedAt   *time.Time             `json:"suspended_at" db:"suspended_at"` // Suspension timestamp
 

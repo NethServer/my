@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     logto_synced_at TIMESTAMP WITH TIME ZONE,
+    latest_login_at TIMESTAMP WITH TIME ZONE,
     deleted_at TIMESTAMP WITH TIME ZONE,        -- Soft delete timestamp (NULL = not deleted)
     suspended_at TIMESTAMP WITH TIME ZONE       -- Suspension timestamp (NULL = not suspended)
 );
@@ -100,6 +101,7 @@ CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_users_suspended_at ON users(suspended_at);
 CREATE INDEX IF NOT EXISTS idx_users_logto_synced ON users(logto_synced_at);
 CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_users_latest_login_at ON users(latest_login_at DESC);
 
 -- Systems table - updated to reference customers table
 CREATE TABLE IF NOT EXISTS systems (

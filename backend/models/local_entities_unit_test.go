@@ -395,7 +395,6 @@ func TestCreateLocalUserRequest(t *testing.T) {
 		Email:          "newuser@example.com",
 		Name:           "New User",
 		Phone:          &phone,
-		Password:       "securepassword123",
 		UserRoleIDs:    userRoleIDs,
 		OrganizationID: &orgID,
 		CustomData:     customData,
@@ -405,7 +404,6 @@ func TestCreateLocalUserRequest(t *testing.T) {
 	assert.Equal(t, "newuser@example.com", request.Email)
 	assert.Equal(t, "New User", request.Name)
 	assert.Equal(t, &phone, request.Phone)
-	assert.Equal(t, "securepassword123", request.Password)
 	assert.Equal(t, userRoleIDs, request.UserRoleIDs)
 	assert.Equal(t, &orgID, request.OrganizationID)
 	assert.Equal(t, customData, request.CustomData)

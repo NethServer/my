@@ -439,6 +439,12 @@ components:
           nullable: true
           description: Last Logto synchronization timestamp
           example: "2025-06-21T10:45:00Z"
+        latest_login_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of the last successful login via /auth/exchange endpoint. NULL means user has never logged in.
+          example: "2025-06-21T15:30:45Z"
         deleted_at:
           type: string
           format: date-time

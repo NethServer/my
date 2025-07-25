@@ -383,6 +383,11 @@ func (s *LocalUserService) GetUserByLogtoID(logtoID string) (*models.LocalUser, 
 	return s.userRepo.GetByLogtoID(logtoID)
 }
 
+// UpdateLatestLogin updates the latest_login_at timestamp for a user
+func (s *LocalUserService) UpdateLatestLogin(userID string) error {
+	return s.userRepo.UpdateLatestLogin(userID)
+}
+
 // ListUsers returns paginated users based on hierarchical RBAC (excluding specified user)
 func (s *LocalUserService) ListUsers(userOrgRole, userOrgID, excludeUserID string, page, pageSize int) ([]*models.LocalUser, int, error) {
 	return s.userRepo.List(userOrgRole, userOrgID, excludeUserID, page, pageSize)
