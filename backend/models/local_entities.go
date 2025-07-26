@@ -82,7 +82,8 @@ type LocalUser struct {
 	CreatedAt     time.Time              `json:"created_at" db:"created_at"`
 	UpdatedAt     time.Time              `json:"updated_at" db:"updated_at"`
 	LogtoSyncedAt *time.Time             `json:"logto_synced_at" db:"logto_synced_at"`
-	Active        bool                   `json:"active" db:"active"`
+	DeletedAt     *time.Time             `json:"deleted_at" db:"deleted_at"`     // Soft delete timestamp
+	SuspendedAt   *time.Time             `json:"suspended_at" db:"suspended_at"` // Suspension timestamp
 
 	// Internal fields for database operations (not serialized to JSON)
 	UserRoleIDs         []string `json:"-" db:"user_role_ids"`
@@ -158,4 +159,28 @@ type UpdateLocalUserRequest struct {
 	UserRoleIDs    *[]string               `json:"userRoleIds,omitempty"`
 	OrganizationID *string                 `json:"organizationId,omitempty"`
 	CustomData     *map[string]interface{} `json:"customData,omitempty"`
+}
+
+// Suspension/reactivation requests
+type SuspendUserRequest struct {
+	Reason *string `json:"reason,omitempty"`
+}
+
+type ReactivateUserRequest struct {
+	Reason *string `json:"reason,omitempty"`
+}
+
+// Active returns true if the user is not deleted and not suspended
+func (u *LocalUser) Active() bool {
+	return u.DeletedAt == nil && u.SuspendedAt == nil
+}
+
+// IsDeleted returns true if the user is soft-deleted
+func (u *LocalUser) IsDeleted() bool {
+	return u.DeletedAt != nil
+}
+
+// IsSuspended returns true if the user is suspended
+func (u *LocalUser) IsSuspended() bool {
+	return u.SuspendedAt != nil
 }

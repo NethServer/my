@@ -40,8 +40,8 @@ func (r *LocalUserRepository) Create(req *models.CreateLocalUserRequest) (*model
 	now := time.Now()
 
 	query := `
-		INSERT INTO users (id, logto_id, username, email, name, phone, organization_id, user_role_ids, custom_data, created_at, updated_at, active)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		INSERT INTO users (id, logto_id, username, email, name, phone, organization_id, user_role_ids, custom_data, created_at, updated_at, deleted_at, suspended_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 	`
 
 	// Serialize JSON fields
@@ -67,7 +67,8 @@ func (r *LocalUserRepository) Create(req *models.CreateLocalUserRequest) (*model
 		customDataJSON,
 		now,
 		now,
-		true,
+		nil, // deleted_at
+		nil, // suspended_at
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
@@ -85,7 +86,8 @@ func (r *LocalUserRepository) Create(req *models.CreateLocalUserRequest) (*model
 		CustomData:     req.CustomData,
 		CreatedAt:      now,
 		UpdatedAt:      now,
-		Active:         true,
+		DeletedAt:      nil,
+		SuspendedAt:    nil,
 	}, nil
 }
 
@@ -93,14 +95,14 @@ func (r *LocalUserRepository) Create(req *models.CreateLocalUserRequest) (*model
 func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 	query := `
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
-		       u.created_at, u.updated_at, u.logto_synced_at, u.active,
+		       u.created_at, u.updated_at, u.logto_synced_at, u.deleted_at, u.suspended_at,
 		       COALESCE(d.name, r.name, c.name) as organization_name,
 		       COALESCE(d.id, r.id, c.id) as organization_local_id
 		FROM users u
 		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.active = TRUE
 		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.active = TRUE
 		LEFT JOIN customers c ON u.organization_id = c.logto_id AND c.active = TRUE
-		WHERE u.id = $1 AND u.active = TRUE
+		WHERE u.id = $1 AND u.deleted_at IS NULL
 	`
 
 	user := &models.LocalUser{}
@@ -110,7 +112,7 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 	err := r.db.QueryRow(query, id).Scan(
 		&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name, &user.Phone,
 		&user.OrganizationID, &userRoleIDsJSON, &customDataJSON,
-		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.Active,
+		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.DeletedAt, &user.SuspendedAt,
 		&user.OrganizationName, &user.OrganizationLocalID,
 	)
 
@@ -149,14 +151,14 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, error) {
 	query := `
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
-		       u.created_at, u.updated_at, u.logto_synced_at, u.active,
+		       u.created_at, u.updated_at, u.logto_synced_at, u.deleted_at, u.suspended_at,
 		       COALESCE(d.name, r.name, c.name) as organization_name,
 		       COALESCE(d.id, r.id, c.id) as organization_local_id
 		FROM users u
 		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.active = TRUE
 		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.active = TRUE
 		LEFT JOIN customers c ON u.organization_id = c.logto_id AND c.active = TRUE
-		WHERE u.logto_id = $1 AND u.active = TRUE
+		WHERE u.logto_id = $1 AND u.deleted_at IS NULL
 	`
 
 	user := &models.LocalUser{}
@@ -166,7 +168,7 @@ func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, e
 	err := r.db.QueryRow(query, logtoID).Scan(
 		&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name, &user.Phone,
 		&user.OrganizationID, &userRoleIDsJSON, &customDataJSON,
-		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.Active,
+		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.DeletedAt, &user.SuspendedAt,
 		&user.OrganizationName, &user.OrganizationLocalID,
 	)
 
@@ -273,9 +275,10 @@ func (r *LocalUserRepository) Update(id string, req *models.UpdateLocalUserReque
 
 // Delete soft-deletes a user in local database
 func (r *LocalUserRepository) Delete(id string) error {
-	query := `UPDATE users SET active = FALSE, updated_at = $2 WHERE id = $1`
+	now := time.Now()
+	query := `UPDATE users SET deleted_at = $2, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL`
 
-	result, err := r.db.Exec(query, id, time.Now())
+	result, err := r.db.Exec(query, id, now)
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
@@ -287,6 +290,50 @@ func (r *LocalUserRepository) Delete(id string) error {
 
 	if rowsAffected == 0 {
 		return fmt.Errorf("user not found")
+	}
+
+	return nil
+}
+
+// SuspendUser suspends a user by setting suspended_at timestamp
+func (r *LocalUserRepository) SuspendUser(id string) error {
+	now := time.Now()
+	query := `UPDATE users SET suspended_at = $2, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL AND suspended_at IS NULL`
+
+	result, err := r.db.Exec(query, id, now)
+	if err != nil {
+		return fmt.Errorf("failed to suspend user: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("user not found or already suspended/deleted")
+	}
+
+	return nil
+}
+
+// ReactivateUser reactivates a suspended user by clearing suspended_at timestamp
+func (r *LocalUserRepository) ReactivateUser(id string) error {
+	now := time.Now()
+	query := `UPDATE users SET suspended_at = NULL, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL AND suspended_at IS NOT NULL`
+
+	result, err := r.db.Exec(query, id, now)
+	if err != nil {
+		return fmt.Errorf("failed to reactivate user: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("user not found or not suspended")
 	}
 
 	return nil
@@ -327,7 +374,7 @@ func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, exclud
 	var totalCount int
 	countQuery := fmt.Sprintf(`
 		SELECT COUNT(*) FROM users
-		WHERE active = TRUE AND organization_id IN (%s) AND id != %s
+		WHERE deleted_at IS NULL AND organization_id IN (%s) AND id != %s
 	`, placeholdersStr, excludeUserPlaceholder)
 
 	err := r.db.QueryRow(countQuery, args...).Scan(&totalCount)
@@ -343,14 +390,14 @@ func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, exclud
 
 	query := fmt.Sprintf(`
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
-		       u.created_at, u.updated_at, u.logto_synced_at, u.active,
+		       u.created_at, u.updated_at, u.logto_synced_at, u.deleted_at, u.suspended_at,
 		       COALESCE(d.name, r.name, c.name) as organization_name,
 		       COALESCE(d.id, r.id, c.id) as organization_local_id
 		FROM users u
 		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.active = TRUE
 		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.active = TRUE
 		LEFT JOIN customers c ON u.organization_id = c.logto_id AND c.active = TRUE
-		WHERE u.active = TRUE AND u.organization_id IN (%s) AND u.id != %s
+		WHERE u.deleted_at IS NULL AND u.organization_id IN (%s) AND u.id != %s
 		ORDER BY u.created_at DESC
 		LIMIT $%d OFFSET $%d
 	`, placeholdersStr, excludeUserPlaceholder, len(args)+1, len(args)+2)
@@ -369,7 +416,7 @@ func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, exclud
 		err := rows.Scan(
 			&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name,
 			&user.Phone, &user.OrganizationID, &userRoleIDsJSON, &customDataJSON,
-			&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.Active,
+			&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.DeletedAt, &user.SuspendedAt,
 			&user.OrganizationName, &user.OrganizationLocalID,
 		)
 		if err != nil {
@@ -436,7 +483,7 @@ func (r *LocalUserRepository) GetTotalsByOrganizations(allowedOrgIDs []string) (
 	var count int
 	query := fmt.Sprintf(`
 		SELECT COUNT(*) FROM users
-		WHERE active = TRUE AND organization_id IN (%s)
+		WHERE deleted_at IS NULL AND organization_id IN (%s)
 	`, placeholdersStr)
 
 	err := r.db.QueryRow(query, args...).Scan(&count)

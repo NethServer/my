@@ -413,6 +413,154 @@ func DeleteUser(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("user deleted successfully", nil))
 }
 
+// SuspendUser handles PATCH /api/users/:id/suspend - suspends a user
+func SuspendUser(c *gin.Context) {
+	// Get user ID from URL parameter
+	userID := c.Param("id")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("user ID required", nil))
+		return
+	}
+
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Users cannot suspend themselves
+	if userID == user.ID {
+		c.JSON(http.StatusForbidden, response.Forbidden("users cannot suspend themselves", nil))
+		return
+	}
+
+	// Get target user to check permissions
+	userRepo := entities.NewLocalUserRepository()
+	targetUser, err := userRepo.GetByID(userID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("user not found", nil))
+		} else {
+			logger.Logger.Error().
+				Str("component", "user-handler").
+				Str("action", "get-target-user").
+				Str("user_id", userID).
+				Err(err).
+				Msg("Failed to get target user for suspension")
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get user", nil))
+		}
+		return
+	}
+
+	// Permission validation for suspension
+	userService := local.NewUserService()
+	userOrgRole := strings.ToLower(user.OrgRole)
+	targetOrgID := ""
+	if targetUser.OrganizationID != nil {
+		targetOrgID = *targetUser.OrganizationID
+	}
+	canSuspend, reason := userService.CanSuspendUser(userOrgRole, user.OrganizationID, targetOrgID)
+	if !canSuspend {
+		c.JSON(http.StatusForbidden, response.Forbidden(reason, nil))
+		return
+	}
+
+	// Suspend user
+	err = userService.SuspendUser(userID, user.ID, user.OrganizationID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found or already suspended") {
+			c.JSON(http.StatusBadRequest, response.BadRequest("user not found or already suspended", nil))
+		} else {
+			logger.Logger.Error().
+				Str("component", "user-handler").
+				Str("action", "suspend-user").
+				Str("user_id", userID).
+				Str("suspended_by", user.ID).
+				Err(err).
+				Msg("Failed to suspend user")
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to suspend user", nil))
+		}
+		return
+	}
+
+	// Log the action
+	logger.LogBusinessOperation(c, "users", "suspend", "user", userID, true, nil)
+
+	// Return success response
+	c.JSON(http.StatusOK, response.OK("user suspended successfully", nil))
+}
+
+// ReactivateUser handles PATCH /api/users/:id/reactivate - reactivates a suspended user
+func ReactivateUser(c *gin.Context) {
+	// Get user ID from URL parameter
+	userID := c.Param("id")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("user ID required", nil))
+		return
+	}
+
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Get target user to check permissions
+	userRepo := entities.NewLocalUserRepository()
+	targetUser, err := userRepo.GetByID(userID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("user not found", nil))
+		} else {
+			logger.Logger.Error().
+				Str("component", "user-handler").
+				Str("action", "get-target-user").
+				Str("user_id", userID).
+				Err(err).
+				Msg("Failed to get target user for reactivation")
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get user", nil))
+		}
+		return
+	}
+
+	// Permission validation for reactivation (same as suspension)
+	userService := local.NewUserService()
+	userOrgRole := strings.ToLower(user.OrgRole)
+	targetOrgID := ""
+	if targetUser.OrganizationID != nil {
+		targetOrgID = *targetUser.OrganizationID
+	}
+	canSuspend, reason := userService.CanSuspendUser(userOrgRole, user.OrganizationID, targetOrgID)
+	if !canSuspend {
+		c.JSON(http.StatusForbidden, response.Forbidden(reason, nil))
+		return
+	}
+
+	// Reactivate user
+	err = userService.ReactivateUser(userID, user.ID, user.OrganizationID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found or not suspended") {
+			c.JSON(http.StatusBadRequest, response.BadRequest("user not found or not suspended", nil))
+		} else {
+			logger.Logger.Error().
+				Str("component", "user-handler").
+				Str("action", "reactivate-user").
+				Str("user_id", userID).
+				Str("reactivated_by", user.ID).
+				Err(err).
+				Msg("Failed to reactivate user")
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to reactivate user", nil))
+		}
+		return
+	}
+
+	// Log the action
+	logger.LogBusinessOperation(c, "users", "reactivate", "user", userID, true, nil)
+
+	// Return success response
+	c.JSON(http.StatusOK, response.OK("user reactivated successfully", nil))
+}
+
 // ResetUserPassword handles PATCH /api/users/:id/password - resets user password
 func ResetUserPassword(c *gin.Context) {
 	// Get user ID from URL parameter

@@ -249,3 +249,53 @@ func (c *LogtoManagementClient) UpdateUserPassword(userID, newPassword string) e
 
 	return nil
 }
+
+// SuspendUser suspends a user in Logto
+func (c *LogtoManagementClient) SuspendUser(userID string) error {
+	requestBody := map[string]interface{}{
+		"isSuspended": true,
+	}
+
+	reqBody, err := json.Marshal(requestBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal suspend user request: %w", err)
+	}
+
+	resp, err := c.makeRequest("PATCH", fmt.Sprintf("/users/%s/is-suspended", userID), bytes.NewBuffer(reqBody))
+	if err != nil {
+		return fmt.Errorf("failed to suspend user: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to suspend user, status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// ReactivateUser reactivates a suspended user in Logto
+func (c *LogtoManagementClient) ReactivateUser(userID string) error {
+	requestBody := map[string]interface{}{
+		"isSuspended": false,
+	}
+
+	reqBody, err := json.Marshal(requestBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal reactivate user request: %w", err)
+	}
+
+	resp, err := c.makeRequest("PATCH", fmt.Sprintf("/users/%s/is-suspended", userID), bytes.NewBuffer(reqBody))
+	if err != nil {
+		return fmt.Errorf("failed to reactivate user: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to reactivate user, status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}

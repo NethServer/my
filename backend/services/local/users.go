@@ -839,6 +839,34 @@ func (s *LocalUserService) CanDeleteUser(userOrgRole, userOrgID, targetUserOrgID
 	}
 }
 
+// CanSuspendUser checks if the user can suspend another user based on RBAC hierarchy
+func (s *LocalUserService) CanSuspendUser(userOrgRole, userOrgID, targetUserOrgID string) (bool, string) {
+	switch userOrgRole {
+	case "owner":
+		return true, ""
+	case "distributor":
+		// Distributor can suspend users in organizations they manage hierarchically
+		if s.IsOrganizationInHierarchy(userOrgRole, userOrgID, targetUserOrgID) {
+			return true, ""
+		}
+		return false, "distributors can only suspend users in organizations they manage"
+	case "reseller":
+		// Reseller can suspend users in organizations they manage hierarchically
+		if s.IsOrganizationInHierarchy(userOrgRole, userOrgID, targetUserOrgID) {
+			return true, ""
+		}
+		return false, "resellers can only suspend users in their own organization or customers they manage"
+	case "customer":
+		// Customer can only suspend users in their own organization
+		if targetUserOrgID == userOrgID {
+			return true, ""
+		}
+		return false, "customers can only suspend users in their own organization"
+	default:
+		return false, "insufficient permissions to suspend users"
+	}
+}
+
 // CanAccessUser validates if a user can access another user based on hierarchical permissions
 func (s *LocalUserService) CanAccessUser(userOrgRole, userOrgID, targetUserOrgID string) (bool, string) {
 	switch userOrgRole {
@@ -930,6 +958,112 @@ func (s *LocalUserService) IsOrganizationInHierarchy(userOrgRole, userOrgID, tar
 // GetHierarchicalOrganizationIDs returns all organization IDs that the user can manage
 func (s *LocalUserService) GetHierarchicalOrganizationIDs(userOrgRole, userOrgID string) ([]string, error) {
 	return s.userRepo.GetHierarchicalOrganizationIDs(userOrgRole, userOrgID)
+}
+
+// SuspendUser suspends a user both locally and in Logto
+func (s *LocalUserService) SuspendUser(id, suspendedByUserID, suspendedByOrgID string) error {
+	tx, err := database.DB.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// Get user before suspension for logging and logto_id
+	user, err := s.userRepo.GetByID(id)
+	if err != nil {
+		return fmt.Errorf("failed to get user: %w", err)
+	}
+
+	// 1. Suspend in local DB first
+	err = s.userRepo.SuspendUser(id)
+	if err != nil {
+		return fmt.Errorf("failed to suspend user locally: %w", err)
+	}
+
+	// 2. Suspend in Logto using logto_id
+	if user.LogtoID != nil {
+		err = s.logtoClient.SuspendUser(*user.LogtoID)
+		if err != nil {
+			logger.Logger.Error().
+				Str("component", "user-service").
+				Str("action", "suspend-user").
+				Str("user_id", id).
+				Str("logto_id", *user.LogtoID).
+				Err(err).
+				Msg("Failed to suspend user in Logto, local suspension rolled back")
+			return fmt.Errorf("failed to suspend user in Logto: %w", err)
+		}
+	}
+
+	// Commit transaction
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("failed to commit suspension transaction: %w", err)
+	}
+
+	logger.Logger.Info().
+		Str("component", "user-service").
+		Str("action", "suspend-user").
+		Str("user_id", id).
+		Str("username", user.Username).
+		Str("suspended_by_user_id", suspendedByUserID).
+		Str("suspended_by_org_id", suspendedByOrgID).
+		Msg("User suspended successfully")
+
+	return nil
+}
+
+// ReactivateUser reactivates a suspended user both locally and in Logto
+func (s *LocalUserService) ReactivateUser(id, reactivatedByUserID, reactivatedByOrgID string) error {
+	tx, err := database.DB.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// Get user before reactivation for logging and logto_id
+	user, err := s.userRepo.GetByID(id)
+	if err != nil {
+		return fmt.Errorf("failed to get user: %w", err)
+	}
+
+	// 1. Reactivate in local DB first
+	err = s.userRepo.ReactivateUser(id)
+	if err != nil {
+		return fmt.Errorf("failed to reactivate user locally: %w", err)
+	}
+
+	// 2. Reactivate in Logto using logto_id
+	if user.LogtoID != nil {
+		err = s.logtoClient.ReactivateUser(*user.LogtoID)
+		if err != nil {
+			logger.Logger.Error().
+				Str("component", "user-service").
+				Str("action", "reactivate-user").
+				Str("user_id", id).
+				Str("logto_id", *user.LogtoID).
+				Err(err).
+				Msg("Failed to reactivate user in Logto, local reactivation rolled back")
+			return fmt.Errorf("failed to reactivate user in Logto: %w", err)
+		}
+	}
+
+	// Commit transaction
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("failed to commit reactivation transaction: %w", err)
+	}
+
+	logger.Logger.Info().
+		Str("component", "user-service").
+		Str("action", "reactivate-user").
+		Str("user_id", id).
+		Str("username", user.Username).
+		Str("reactivated_by_user_id", reactivatedByUserID).
+		Str("reactivated_by_org_id", reactivatedByOrgID).
+		Msg("User reactivated successfully")
+
+	return nil
 }
 
 // =============================================================================
