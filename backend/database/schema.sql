@@ -87,15 +87,17 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     logto_synced_at TIMESTAMP WITH TIME ZONE,
-    active BOOLEAN DEFAULT TRUE
+    deleted_at TIMESTAMP WITH TIME ZONE,        -- Soft delete timestamp (NULL = not deleted)
+    suspended_at TIMESTAMP WITH TIME ZONE       -- Suspension timestamp (NULL = not suspended)
 );
 
 -- Performance indexes for users
-CREATE UNIQUE INDEX IF NOT EXISTS idx_users_logto_id ON users(logto_id) WHERE logto_id IS NOT NULL AND active = true;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE active = true;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE active = true;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_logto_id ON users(logto_id) WHERE logto_id IS NOT NULL AND deleted_at IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_users_organization_id ON users(organization_id);
-CREATE INDEX IF NOT EXISTS idx_users_active ON users(active);
+CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_users_suspended_at ON users(suspended_at);
 CREATE INDEX IF NOT EXISTS idx_users_logto_synced ON users(logto_synced_at);
 CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at DESC);
 

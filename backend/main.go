@@ -230,6 +230,8 @@ func main() {
 			usersGroup.POST("", methods.CreateUser)                      // Create new user with hierarchical validation
 			usersGroup.PUT("/:id", methods.UpdateUser)                   // Update existing user
 			usersGroup.PATCH("/:id/password", methods.ResetUserPassword) // Reset user password
+			usersGroup.PATCH("/:id/suspend", methods.SuspendUser)        // Suspend user
+			usersGroup.PATCH("/:id/reactivate", methods.ReactivateUser)  // Reactivate suspended user
 			usersGroup.DELETE("/:id", methods.DeleteUser)                // Delete user
 
 			// Users totals endpoint (read:users required)

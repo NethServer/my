@@ -51,6 +51,8 @@ type UserRepository interface {
 	GetByID(id string) (*models.LocalUser, error)
 	Update(id string, req *models.UpdateLocalUserRequest) (*models.LocalUser, error)
 	Delete(id string) error
+	SuspendUser(id string) error
+	ReactivateUser(id string) error
 	List(userOrgRole, userOrgID string, page, pageSize int) ([]*models.LocalUser, int, error)
 	GetTotals(userOrgRole, userOrgID string) (int, error)
 }

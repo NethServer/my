@@ -406,10 +406,18 @@ components:
           nullable: true
           description: Last Logto synchronization timestamp
           example: "2025-06-21T10:45:00Z"
-        active:
-          type: boolean
-          description: Whether the user is active
-          example: true
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Soft delete timestamp (null if not deleted)
+          example: null
+        suspended_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Suspension timestamp (null if not suspended)
+          example: null
 
     UserInput:
       type: object
@@ -509,6 +517,7 @@ components:
             - No more than 3 consecutive identical characters
             - Cannot contain common weak patterns
           example: "MySecureP4ssw9rd!"
+
 
     Role:
       type: object
@@ -1221,6 +1230,86 @@ paths:
                   message:
                     type: string
                     example: "password reset successfully"
+                  data:
+                    type: object
+                    nullable: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/{id}/suspend:
+    patch:
+      tags:
+        - Backend - Users
+      summary: Suspend user
+      description: Suspend a user (requires manage:users permission and hierarchical validation)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User ID
+          schema:
+            type: string
+            example: "usr_123456789"
+      responses:
+        '200':
+          description: User suspended successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "user suspended successfully"
+                  data:
+                    type: object
+                    nullable: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/{id}/reactivate:
+    patch:
+      tags:
+        - Backend - Users
+      summary: Reactivate suspended user
+      description: Reactivate a suspended user (requires manage:users permission and hierarchical validation)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User ID
+          schema:
+            type: string
+            example: "usr_123456789"
+      responses:
+        '200':
+          description: User reactivated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "user reactivated successfully"
                   data:
                     type: object
                     nullable: true
