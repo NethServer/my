@@ -461,3 +461,120 @@ func ChangePassword(c *gin.Context) {
 		nil,
 	))
 }
+
+// ChangeInfo allows the current user to change their own personal information
+// POST /auth/me/change-info
+func ChangeInfo(c *gin.Context) {
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Check if user has a Logto ID (required for profile operations)
+	if user.LogtoID == nil || *user.LogtoID == "" {
+		logger.RequestLogger(c, "auth").Warn().
+			Str("operation", "change_info").
+			Str("user_id", user.ID).
+			Msg("User attempted info change without Logto ID")
+
+		c.JSON(http.StatusBadRequest, response.BadRequest(
+			"Profile update not available for this user",
+			nil,
+		))
+		return
+	}
+
+	// Parse request body
+	var req models.ChangeInfoRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.RequestLogger(c, "auth").Warn().
+			Err(err).
+			Str("operation", "change_info").
+			Str("user_id", user.ID).
+			Msg("Invalid change info request")
+
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
+		return
+	}
+
+	// Validate that at least one field is provided
+	if req.Name == nil && req.Email == nil && req.Phone == nil {
+		logger.RequestLogger(c, "auth").Warn().
+			Str("operation", "change_info").
+			Str("user_id", user.ID).
+			Msg("No fields provided for info change")
+
+		c.JSON(http.StatusBadRequest, response.BadRequest(
+			"At least one field (name, email, or phone) must be provided",
+			nil,
+		))
+		return
+	}
+
+	// Create Logto client
+	logtoClient := logto.NewManagementClient()
+
+	// Prepare update data
+	updateData := models.UpdateUserRequest{}
+	changedFields := []string{}
+
+	if req.Name != nil && *req.Name != "" {
+		updateData.Name = req.Name
+		changedFields = append(changedFields, "name")
+	}
+
+	if req.Email != nil && *req.Email != "" {
+		updateData.PrimaryEmail = req.Email
+		changedFields = append(changedFields, "email")
+	}
+
+	if req.Phone != nil {
+		if *req.Phone == "" {
+			// Remove phone number
+			emptyPhone := ""
+			updateData.PrimaryPhone = &emptyPhone
+			changedFields = append(changedFields, "phone (removed)")
+		} else {
+			updateData.PrimaryPhone = req.Phone
+			changedFields = append(changedFields, "phone")
+		}
+	}
+
+	// Update user profile in Logto
+	_, err := logtoClient.UpdateUser(*user.LogtoID, updateData)
+	if err != nil {
+		logger.RequestLogger(c, "auth").Error().
+			Err(err).
+			Str("operation", "change_info").
+			Str("user_id", user.ID).
+			Str("logto_id", *user.LogtoID).
+			Strs("fields", changedFields).
+			Msg("Failed to update user profile in Logto")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError(
+			"Failed to update profile",
+			map[string]interface{}{
+				"error": err.Error(),
+			},
+		))
+		return
+	}
+
+	// Log successful profile change
+	logger.LogAccountOperation(c, "change_info", user.ID, user.OrganizationID, user.ID, user.OrganizationID, true, nil)
+
+	logger.RequestLogger(c, "auth").Info().
+		Str("operation", "change_info").
+		Str("user_id", user.ID).
+		Str("logto_id", *user.LogtoID).
+		Strs("changed_fields", changedFields).
+		Msg("Profile updated successfully")
+
+	c.JSON(http.StatusOK, response.OK(
+		"profile updated successfully",
+		gin.H{
+			"updated_fields": changedFields,
+		},
+	))
+}

@@ -142,6 +142,7 @@ func main() {
 		// Auth endpoint using custom JWT
 		customAuth.GET("/auth/me", methods.GetCurrentUser)
 		customAuth.POST("/auth/me/change-password", methods.ChangePassword)
+		customAuth.POST("/auth/me/change-info", methods.ChangeInfo)
 
 		// Business operations
 		// ===========================================
@@ -225,14 +226,14 @@ func main() {
 		// Users - Resource-based permission validation (read:users for GET, manage:users for POST/PUT/PATCH/DELETE)
 		usersGroup := customAuth.Group("/users", middleware.RequireResourcePermission("users"))
 		{
-			usersGroup.GET("", methods.GetUsers)                         // List users with organization filtering
-			usersGroup.GET("/:id", methods.GetUser)                      // Get single user with hierarchical validation
-			usersGroup.POST("", methods.CreateUser)                      // Create new user with hierarchical validation
-			usersGroup.PUT("/:id", methods.UpdateUser)                   // Update existing user
-			usersGroup.PATCH("/:id/password", methods.ResetUserPassword) // Reset user password
-			usersGroup.PATCH("/:id/suspend", methods.SuspendUser)        // Suspend user
-			usersGroup.PATCH("/:id/reactivate", methods.ReactivateUser)  // Reactivate suspended user
-			usersGroup.DELETE("/:id", methods.DeleteUser)                // Delete user
+			usersGroup.GET("", methods.GetUsers)                                                               // List users with organization filtering
+			usersGroup.GET("/:id", methods.GetUser)                                                            // Get single user with hierarchical validation
+			usersGroup.POST("", methods.CreateUser)                                                            // Create new user with hierarchical validation
+			usersGroup.PUT("/:id", middleware.PreventSelfModification(), methods.UpdateUser)                   // Update existing user (prevent self-modification)
+			usersGroup.PATCH("/:id/password", middleware.PreventSelfModification(), methods.ResetUserPassword) // Reset user password (prevent self-modification)
+			usersGroup.PATCH("/:id/suspend", middleware.PreventSelfModification(), methods.SuspendUser)        // Suspend user (prevent self-modification)
+			usersGroup.PATCH("/:id/reactivate", middleware.PreventSelfModification(), methods.ReactivateUser)  // Reactivate suspended user (prevent self-modification)
+			usersGroup.DELETE("/:id", middleware.PreventSelfModification(), methods.DeleteUser)                // Delete user (prevent self-modification)
 
 			// Users totals endpoint (read:users required)
 			usersGroup.GET("/totals", methods.GetUsersTotals)
