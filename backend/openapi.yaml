@@ -198,6 +198,24 @@ components:
             - Cannot contain common weak patterns
           example: "MyNewSecureP4ssw0rd!"
 
+    ChangeInfoRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: User's full name
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          description: User's email address
+          example: "john.doe@example.com"
+        phone:
+          type: string
+          nullable: true
+          description: User's phone number
+          example: "+39 333 123456"
+
     AuthResponse:
       type: object
       properties:
@@ -1518,6 +1536,98 @@ paths:
                             value: ""
                           - key: "new_password"
                             message: "missing_uppercase"
+                            value: ""
+        '401':
+          description: Unauthorized - invalid or missing JWT token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 401
+                  message:
+                    type: string
+                    example: "invalid token"
+                  data:
+                    type: object
+                    nullable: true
+                    example: null
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/me/change-info:
+    post:
+      tags:
+        - Backend - Authentication
+      summary: Change current user information
+      description: Allow the current authenticated user to change their name and phone number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeInfoRequest'
+      responses:
+        '200':
+          description: User information changed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "user information changed successfully"
+                  data:
+                    type: object
+                    nullable: true
+                    example: null
+        '400':
+          description: Bad request - validation error for name or phone
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 400
+                  message:
+                    type: string
+                    example: "validation failed"
+                  data:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                        enum: [validation_error]
+                        example: "validation_error"
+                      errors:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                              description: Field name that failed validation
+                              enum: [name, email, phone]
+                              example: "name"
+                            message:
+                              type: string
+                              description: Validation error type
+                              example: "required"
+                            value:
+                              type: string
+                              description: Value that failed validation
+                              example: ""
+                        example:
+                          - key: "name"
+                            message: "required"
                             value: ""
         '401':
           description: Unauthorized - invalid or missing JWT token
