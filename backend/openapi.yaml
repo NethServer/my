@@ -22,7 +22,9 @@ tags:
   - name: Backend - Applications
     description: Backend third-party application management
   - name: Backend - Authentication
-    description: Backend authentication and token management
+    description: Backend public authentication and token management
+  - name: Backend - Me
+    description: Backend authenticated user profile management
   - name: Backend - Customers
     description: Backend customer management
   - name: Backend - Distributors
@@ -1436,10 +1438,10 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /auth/me:
+  /me:
     get:
       tags:
-        - Backend - Authentication
+        - Backend - Me
       summary: Get current user information
       description: Get current authenticated user's profile and permissions
       responses:
@@ -1461,10 +1463,10 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /auth/me/change-password:
+  /me/change-password:
     post:
       tags:
-        - Backend - Authentication
+        - Backend - Me
       summary: Change current user password
       description: Allow the current authenticated user to change their own password
       requestBody:
@@ -1559,10 +1561,10 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /auth/me/change-info:
+  /me/change-info:
     post:
       tags:
-        - Backend - Authentication
+        - Backend - Me
       summary: Change current user information
       description: Allow the current authenticated user to change their name, email, and phone number. Name and email cannot be empty if provided.
       requestBody:
