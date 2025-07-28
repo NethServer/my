@@ -203,17 +203,19 @@ components:
       properties:
         name:
           type: string
-          description: User's full name
+          minLength: 1
+          description: User's full name (cannot be empty if provided)
           example: "John Doe"
         email:
           type: string
           format: email
-          description: User's email address
+          minLength: 1
+          description: User's email address (cannot be empty if provided)
           example: "john.doe@example.com"
         phone:
           type: string
           nullable: true
-          description: User's phone number
+          description: User's phone number (can be empty to remove)
           example: "+39 333 123456"
 
     AuthResponse:
@@ -1562,7 +1564,7 @@ paths:
       tags:
         - Backend - Authentication
       summary: Change current user information
-      description: Allow the current authenticated user to change their name and phone number
+      description: Allow the current authenticated user to change their name, email, and phone number. Name and email cannot be empty if provided.
       requestBody:
         required: true
         content:
@@ -1619,15 +1621,16 @@ paths:
                               example: "name"
                             message:
                               type: string
-                              description: Validation error type
-                              example: "required"
+                              description: Validation error message
+                              enum: ["name cannot be empty", "email cannot be empty", "invalid email format", "invalid phone format"]
+                              example: "name cannot be empty"
                             value:
                               type: string
                               description: Value that failed validation
                               example: ""
                         example:
                           - key: "name"
-                            message: "required"
+                            message: "name cannot be empty"
                             value: ""
         '401':
           description: Unauthorized - invalid or missing JWT token

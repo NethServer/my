@@ -515,16 +515,63 @@ func ChangeInfo(c *gin.Context) {
 	// Create Logto client
 	logtoClient := logto.NewManagementClient()
 
+	// Validate that name and email are not empty if provided
+	if req.Name != nil && *req.Name == "" {
+		logger.RequestLogger(c, "auth").Warn().
+			Str("operation", "change_info").
+			Str("user_id", user.ID).
+			Msg("Empty name provided")
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "validation failed",
+			"data": gin.H{
+				"type": "validation_error",
+				"errors": []gin.H{
+					{
+						"key":     "name",
+						"message": "name cannot be empty",
+						"value":   "",
+					},
+				},
+			},
+		})
+		return
+	}
+
+	if req.Email != nil && *req.Email == "" {
+		logger.RequestLogger(c, "auth").Warn().
+			Str("operation", "change_info").
+			Str("user_id", user.ID).
+			Msg("Empty email provided")
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "validation failed",
+			"data": gin.H{
+				"type": "validation_error",
+				"errors": []gin.H{
+					{
+						"key":     "email",
+						"message": "email cannot be empty",
+						"value":   "",
+					},
+				},
+			},
+		})
+		return
+	}
+
 	// Prepare update data
 	updateData := models.UpdateUserRequest{}
 	changedFields := []string{}
 
-	if req.Name != nil && *req.Name != "" {
+	if req.Name != nil {
 		updateData.Name = req.Name
 		changedFields = append(changedFields, "name")
 	}
 
-	if req.Email != nil && *req.Email != "" {
+	if req.Email != nil {
 		updateData.PrimaryEmail = req.Email
 		changedFields = append(changedFields, "email")
 	}
