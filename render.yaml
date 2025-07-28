@@ -36,7 +36,7 @@ services:
     ipAllowList: []
 
   # Production Backend API Server (Private Service)
-  - type: pserv
+  - type: web
     name: my-backend-prod
     runtime: go
     plan: free
@@ -84,7 +84,7 @@ services:
     branch: main
 
   # Production Collect Service (Private Service)
-  - type: pserv
+  - type: web
     name: my-collect-prod
     runtime: go
     plan: free
@@ -120,7 +120,7 @@ services:
     branch: main
 
   # Production Frontend (Private Service)
-  - type: pserv
+  - type: web
     name: my-frontend-prod
     runtime: docker
     plan: free
@@ -164,7 +164,7 @@ services:
     ipAllowList: []
 
   # QA Backend API Server (Private Service)
-  - type: pserv
+  - type: web
     name: my-backend-qa
     runtime: go
     plan: free
@@ -213,7 +213,7 @@ services:
     pullRequestPreviewsEnabled: true  # PR previews enabled
 
   # QA Collect Service (Private Service)
-  - type: pserv
+  - type: web
     name: my-collect-qa
     runtime: go
     plan: free
@@ -250,7 +250,7 @@ services:
     pullRequestPreviewsEnabled: true  # PR previews enabled
 
   # QA Frontend (Private Service)
-  - type: pserv
+  - type: web
     name: my-frontend-qa
     runtime: docker
     plan: free
