@@ -1,11 +1,11 @@
 {
-  "version": "0.0.5",
+  "version": "0.0.6",
   "name": "Nethesis Operation Center",
   "components": {
-    "backend": "0.0.5",
-    "sync": "0.0.5",
-    "collect": "0.0.5",
-    "frontend": "0.0.5",
-    "proxy": "0.0.5"
+    "backend": "0.0.6",
+    "sync": "0.0.6",
+    "collect": "0.0.6",
+    "frontend": "0.0.6",
+    "proxy": "0.0.6"
   }
 }
