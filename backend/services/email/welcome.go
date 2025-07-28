@@ -120,16 +120,16 @@ func (w *WelcomeEmailService) getLoginURL() string {
 
 	// Try to get from tenant domain configuration
 	if configuration.Config.TenantDomain != "" {
-		return fmt.Sprintf("https://%s/account?change-password=true", configuration.Config.TenantDomain)
+		return fmt.Sprintf("https://%s/account?changePassword=true", configuration.Config.TenantDomain)
 	}
 
 	// Fallback to tenant ID based URL
 	if configuration.Config.TenantID != "" {
-		return fmt.Sprintf("https://%s.logto.app/account?change-password=true", configuration.Config.TenantID)
+		return fmt.Sprintf("https://%s.logto.app/account?changePassword=true", configuration.Config.TenantID)
 	}
 
 	// Final fallback
-	return "https://localhost:3000/account?change-password=true"
+	return "https://localhost:3000/account?changePassword=true"
 }
 
 // getFrontendRedirectURI gets the frontend application's redirect URI from Logto
@@ -152,18 +152,18 @@ func (w *WelcomeEmailService) getFrontendRedirectURI() string {
 			// Get the first post logout redirect URI
 			if len(app.OidcClientMetadata.PostLogoutRedirectUris) > 0 {
 				baseURL := app.OidcClientMetadata.PostLogoutRedirectUris[0]
-				// Remove /login if present and add /account?change-password=true
+				// Remove /login if present and add /account?changePassword=true
 				baseURL = strings.TrimSuffix(baseURL, "/login")
 				baseURL = strings.TrimSuffix(baseURL, "/")
-				return baseURL + "/account?change-password=true"
+				return baseURL + "/account?changePassword=true"
 			}
 			// Fallback to redirect URIs if post logout not available
 			if len(app.OidcClientMetadata.RedirectUris) > 0 {
 				baseURL := app.OidcClientMetadata.RedirectUris[0]
-				// Remove /login if present and add /account?change-password=true
+				// Remove /login if present and add /account?changePassword=true
 				baseURL = strings.TrimSuffix(baseURL, "/login")
 				baseURL = strings.TrimSuffix(baseURL, "/")
-				return baseURL + "/account?change-password=true"
+				return baseURL + "/account?changePassword=true"
 			}
 		}
 	}
