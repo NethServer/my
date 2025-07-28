@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Nethesis Operation Center API
   description: REST API for Nethesis Operation Center with business hierarchy management and RBAC
-  version: 1.0.0
+  version: 0.0.6
   contact:
     name: Nethesis S.r.l.
     url: http://www.nethesis.it

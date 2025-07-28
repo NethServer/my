@@ -219,6 +219,22 @@ update_component_versions() {
     fi
 }
 
+# Update OpenAPI specification version
+update_openapi_version() {
+    local new_version=$1
+
+    info "Updating OpenAPI specification version..."
+
+    if [ -f "backend/openapi.yaml" ]; then
+        # Use sed to update only the version line in the info block (after title line)
+        sed -i.bak '/^info:/,/^[a-zA-Z]/ s/^  version: .*/  version: '"$new_version"'/' backend/openapi.yaml
+        rm -f backend/openapi.yaml.bak
+        success "Updated backend/openapi.yaml version to $new_version"
+    else
+        warning "backend/openapi.yaml not found"
+    fi
+}
+
 # Show usage
 usage() {
     echo "Usage: $0 [patch|minor|major]"
@@ -303,9 +319,12 @@ main() {
     # Update component VERSION files
     update_component_versions "$new_version"
 
+    # Update OpenAPI specification version
+    update_openapi_version "$new_version"
+
     # Commit changes
     info "Creating commit..."
-    git add version.json backend/pkg/version/VERSION collect/pkg/version/VERSION sync/pkg/version/VERSION
+    git add version.json backend/pkg/version/VERSION collect/pkg/version/VERSION sync/pkg/version/VERSION backend/openapi.yaml
     git commit -m "release: bump version to v$new_version"
 
     # Create tag
