@@ -24,9 +24,9 @@ else
 endif
 
 # Go build flags
-LDFLAGS=-ldflags "-X main.Version=$(VERSION) \
-                  -X main.Commit=$(COMMIT) \
-                  -X main.BuildTime=$(BUILD_TIME)"
+LDFLAGS=-ldflags "-X github.com/nethesis/my/collect/pkg/version.Version=$(VERSION) \
+                  -X github.com/nethesis/my/collect/pkg/version.Commit=$(COMMIT) \
+                  -X github.com/nethesis/my/collect/pkg/version.BuildTime=$(BUILD_TIME)"
 
 # Default target
 .PHONY: all

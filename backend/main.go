@@ -109,7 +109,7 @@ func main() {
 
 	// Health check endpoint
 	api.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, response.OK("service healthy", nil))
+		c.JSON(http.StatusOK, response.OK("service healthy", version.Get()))
 	})
 
 	// ===========================================

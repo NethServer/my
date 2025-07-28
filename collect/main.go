@@ -121,6 +121,7 @@ func main() {
 			"status":   "healthy",
 			"workers":  workerManager.GetStatus(),
 			"database": database.GetStats(),
+			"version":  version.Get(),
 		}
 
 		if !workerManager.IsHealthy() {
