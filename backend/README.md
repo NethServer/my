@@ -18,13 +18,13 @@ Go REST API server for Nethesis Operation Center with Logto JWT authentication a
 make dev-setup
 
 # Start PostgreSQL and Redis containers
-make dev-env-up
+make dev-up
 
 # Start the application
 make run
 
 # Stop PostgreSQL and Redis when done
-make dev-env-down
+make dev-down
 ```
 
 ### Required Environment Variables
@@ -120,6 +120,9 @@ make build
 # Run server
 make run
 
+# Run QA server (uses .env.qa)
+make run-qa
+
 # Test coverage
 make test-coverage
 ```
@@ -152,6 +155,12 @@ make redis-flush
 
 # Connect to Redis CLI
 make redis-cli
+```
+
+### API Documentation
+```bash
+# Validate OpenAPI documentation
+make validate-docs
 ```
 
 ### Testing

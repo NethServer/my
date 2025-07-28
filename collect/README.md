@@ -16,13 +16,13 @@ High-performance inventory collection service that handles thousands of systems 
 make dev-setup
 
 # Start PostgreSQL and Redis containers
-make dev-env-up
+make dev-up
 
 # Start the application
 make run
 
 # Stop PostgreSQL and Redis when done
-make dev-env-down
+make dev-down
 ```
 
 ### Required Environment Variables
@@ -100,6 +100,9 @@ make build
 # Run server
 make run
 
+# Run QA server (uses .env.qa)
+make run-qa
+
 # Test coverage
 make test-coverage
 ```
@@ -116,10 +119,10 @@ make db-down
 make db-reset
 
 # Start full environment
-make dev-env-up
+make dev-up
 
 # Stop full environment
-make dev-env-down
+make dev-down
 ```
 
 ### Redis Commands
