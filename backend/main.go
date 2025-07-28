@@ -139,10 +139,10 @@ func main() {
 	// ===========================================
 	customAuth := api.Group("/", middleware.JWTAuthMiddleware())
 	{
-		// Auth endpoint using custom JWT
-		customAuth.GET("/auth/me", methods.GetCurrentUser)
-		customAuth.POST("/auth/me/change-password", methods.ChangePassword)
-		customAuth.POST("/auth/me/change-info", methods.ChangeInfo)
+		// User profile endpoints using custom JWT
+		customAuth.GET("/me", methods.GetCurrentUser)
+		customAuth.POST("/me/change-password", methods.ChangePassword)
+		customAuth.POST("/me/change-info", methods.ChangeInfo)
 
 		// Business operations
 		// ===========================================
