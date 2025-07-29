@@ -1,101 +1,198 @@
-# My Nethesis Frontend
+# Frontend - Vue.js Web Application
 
-This project is a TypeScript-based [Vue.js](https://vuejs.org/) application built
-using [Vite](https://vitejs.dev/).
+Vue.js web application for My Nethesis with Logto authentication and Role-Based Access Control (RBAC) interface.
 
-### Environment
+## Quick Start
 
-My Nethesis frontend requires an environment file to communicate with the backend API and Logto. This file should be named `.env.<environment>` (e.g., `.env.development` or `.env.qa`) and must be generated using the `sync` command. For more information, please refer to the [sync README](https://github.com/NethServer/my/blob/main/sync/README.md).
+### Prerequisites
+- Node.js 20+ LTS
+- NPM
+- Backend API running
+- Logto instance configured
 
-### Commit notations
-
-To maintain clear and linear commit history, the project adheres to the [Conventional Commits Specification v1.0.0](https://www.conventionalcommits.org/en/v1.0.0/).
-
-### Code style
-
-The codebase follows a consistent style enforced by [Prettier](https://prettier.io) in combination with [ESLint](https://eslint.org). When opening a pull request, it is mandatory to check for linting errors and ensure the code is properly formatted. This helps maintain consistency and prevents issues during code review.
-
-To format all source files use the NPM script `format-fix`, while for checking for (and possibly fixing) linting errors use the `lint-fix` script. Refer to the sections below for instructions on how to run these scripts.
-
-### Development in a container
-
-You may choose between two development environments:
-
-- [Podman development container](#podman-development-container)
-- [VSCode Dev Containers](#use-vscode-dev-containers)
-
-#### Podman development container
-
-This option allows you to run the container independently of any specific IDE or editor.
-
-To start the development container, simply run:
+### Setup
 
 ```bash
+# Install dependencies
+npm ci
+
+# Start development server
+npm run dev
+
+# Access application at http://localhost:5173
+```
+
+### Required Environment Variables
+
+Environment files must be generated using the `sync` tool. See [sync README](../sync/README.md) for details.
+
+**Environment Files:**
+- `.env.development` - Development environment
+- `.env.qa` - QA/Testing environment  
+- `.env.example` - Template file with all required variables
+
+```bash
+# Example .env.development
+VITE_API_BASE_URL=http://localhost:8080
+VITE_LOGTO_ENDPOINT=https://your-tenant.logto.app
+VITE_LOGTO_APP_ID=your-spa-app-id
+VITE_LOGTO_RESOURCES=https://your-domain.com/api
+VITE_SIGNIN_REDIRECT_URI=login-redirect
+VITE_SIGNOUT_REDIRECT_URI=login
+```
+
+## Architecture
+
+### Vue 3 Composition API
+- **TypeScript**: Full type safety with Vue TSC
+- **Vite**: Fast development and build tooling
+- **Vue Router**: Client-side routing with authentication guards
+- **Pinia**: State management for auth and app state
+
+### Authentication Flow
+- **Logto SDK**: OAuth2/OIDC integration with PKCE
+- **JWT Tokens**: Secure token exchange with backend
+- **Route Guards**: Protected routes with role-based access
+- **Auto-refresh**: Automatic token renewal
+
+### UI Components
+- **Nethesis Components**: Custom component library
+- **Tailwind CSS**: Utility-first styling
+- **FontAwesome**: Icon system
+- **Dark Mode**: Theme switching support
+
+## Development
+
+### Basic Commands
+```bash
+# Run all quality checks (recommended)
+npm run pre-commit
+
+# Individual commands
+npm run format        # Check code formatting
+npm run format-fix    # Fix code formatting
+npm run lint          # Run linting
+npm run lint-fix      # Fix linting issues
+npm run type-check    # TypeScript type checking
+npm run test          # Run tests
+npm run build         # Build for production
+```
+
+### Development Servers
+```bash
+# Development server
+npm run dev
+
+# QA environment server
+npm run qa
+
+# Preview production build
+npm run preview
+```
+
+### Container Development
+
+#### Podman Development
+```bash
+# Start development container
 ./dev.sh
-```
 
-This command builds the required image, installs Node.js dependencies, and starts a development server at `http://localhost:5173`.
-
-The `dev.sh` script can also perform additional tasks. For example, to rebuild the image:
-
-```bash
+# Build container image
 ./dev.sh build
-```
 
-Or to execute commands directly inside the container:
-
-```bash
-# Check for (and possibly fix) linting errors
+# Run commands in container
 ./dev.sh npm run lint-fix
-
-# Format all source files
 ./dev.sh npm run format-fix
-
-# Start the development server using the QA (quality assurance) environment
-./dev.sh npm run qa
-
-# Add a new NPM package to the project
-./dev.sh npm install cool-package
-
-# Access the container shell
 ./dev.sh bash
 ```
 
 #### VSCode Dev Containers
 
-Please note that:
-- This procedure involves modifying the `dev.containers.dockerPath` setting, which is global. This may impact other projects using VSCode and Dev Containers
+**Important Notes:**
+- Modifying `dev.containers.dockerPath` setting affects all projects globally
 - This procedure may not work on [VSCodium](https://vscodium.com/)
 
-To develop My Nethesis frontend using VSCode Dev Containers:
+**Setup:**
+1. Install [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+2. Configure Podman support:
+   - Go to `File > Preferences > Settings`
+   - Search for `dev.containers.dockerPath`
+   - Set the value to `podman`
+3. Open the frontend directory in VSCode
+4. Open Command Palette (`CTRL+SHIFT+P`) → "Reopen in Container" (or "Rebuild and Reopen in Container")
+5. Open integrated terminal: `View > Terminal`
+6. Run development commands:
+   ```bash
+   npm install          # Install dependencies
+   npm run dev          # Start development server
+   npm run lint-fix     # Fix linting issues
+   npm run format-fix   # Format source files
+   npm run qa           # Start QA environment server
+   ```
 
-- Install VSCode
-  extension [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
-- By default, Dev Containers uses Docker, but it can be configured to use Podman:
-  - Go to `File > Preferences > Settings`
-  - Search for `dev.containers.dockerPath`
-  - Set the value to `podman`
-- Open the `my-nethesis-ui` directory (the repository root) in VSCode, if you haven't already
-- Open the Command Palette (`CTRL+SHIFT+P`) and type `Reopen in Container` (or `Rebuild and Reopen in Container`, if needed)
-- Open the integrated terminal: `View > Terminal`
-- Enter one of the following commands:
-  - `npm install`: install dependencies
-  - `npm run dev`: start the development server
-  - `npm run lint-fix`: check for (and possibly fix) linting errors
-  - `npm run format-fix`: format all source files
-  - `npm run qa`: start the development server using the QA (quality assurance) environment
+Container configuration is in `.devcontainer/devcontainer.json`.
 
-Container configuration is contained inside `.devcontainer/devcontainer.json`.
+## Testing
 
-### Development on your workstation
+### Manual Testing
+```bash
+# Run test suite
+npm run test
 
-While container-based development is recommended, you may also work directly on your local system:
+# Coverage report
+npm run test -- --coverage
+```
 
-- Install Node.js (LTS version) and NPM
-- Run a local web server on your workstation:
-  - `npm install`: install dependencies
-  - `npm run dev`: start the development server
-  - `npm run lint-fix`: check for (and possibly fix) linting errors
-  - `npm run format-fix`: format all source files
-  - `npm run qa`: start the development server using the QA (quality assurance) environment
+### Authentication Testing
+1. Start backend server: `cd ../backend && make run`
+2. Access frontend: http://localhost:5173
+3. Login with Logto credentials
+4. Verify RBAC permissions in UI
 
+## Project Structure
+
+```
+frontend/
+├── src/
+│   ├── components/         # Vue components
+│   │   ├── account/       # User account management
+│   │   ├── customers/     # Customer management
+│   │   ├── distributors/  # Distributor management
+│   │   ├── resellers/     # Reseller management
+│   │   └── users/         # User management
+│   ├── lib/               # Utilities and API clients
+│   ├── router/            # Vue Router configuration
+│   ├── stores/            # Pinia state management
+│   ├── views/             # Page components
+│   └── i18n/              # Internationalization
+├── public/                # Static assets
+├── .devcontainer/         # VSCode Dev Container config
+├── dev.sh                 # Podman development script
+└── build.sh               # Production build script
+```
+
+## Build and Deployment
+
+### Local Build
+```bash
+# Production build
+npm run build
+
+# Build output in dist/
+ls dist/
+```
+
+### Container Build
+```bash
+# Production container
+./build.sh
+
+# Verify build
+podman run -p 8080:80 my-nethesis-frontend:latest
+```
+
+## Related
+- [Backend](../backend/README.md) - API server
+- [sync CLI](../sync/README.md) - RBAC configuration tool
+- [Collect](../collect/README.md) - Collect server
+- [Project Overview](../README.md) - Main documentation
