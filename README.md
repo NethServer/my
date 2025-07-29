@@ -25,7 +25,7 @@
 
 ##### Production and QA links
 [![My](https://img.shields.io/badge/docs-available-blue?style=for-the-badge&label=my.nethesis.it)](https://my-proxy-prod.onrender.com)
-[![My QA](https://img.shields.io/badge/docs-available-blue?style=for-the-badge&label=qa.my.nethesis.it)](https://my-proxy-qa.onrender.com)
+[![My QA](https://img.shields.io/badge/docs-available-blue?style=for-the-badge&label=qa.my.nethesis.it)](https://qa.my.nethesis.it)
 
 Web application providing centralized authentication and management using Logto as an Identity Provider with simple Role-Based Access Control.
 
@@ -106,7 +106,7 @@ git push origin main                    # → qa.my.nethesis.it updates
 ```bash
 git checkout -b feature/new-feature
 git push origin feature/new-feature     # → Create PR
-# → qa.my-proxy-qa-pr-123.onrender.com created
+# → my-proxy-qa-pr-123.onrender.com created
 ```
 
 ### Production Release
