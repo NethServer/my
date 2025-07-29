@@ -53,6 +53,7 @@ REDIS_URL=redis://localhost:6379
 # SMTP EMAIL CONFIGURATION (Optional)
 # ===========================================
 # SMTP server configuration for welcome emails
+# If not configured, welcome emails will be skipped (user creation still succeeds)
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USERNAME=your-email@gmail.com
