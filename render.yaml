@@ -38,10 +38,10 @@ services:
   # Production Backend API Server (Private Service)
   - type: web
     name: my-backend-prod
-    runtime: docker
+    runtime: image
     plan: free
-    rootDir: backend
-    dockerfilePath: Containerfile
+    image:
+      url: ghcr.io/nethserver/my/backend:latest
     envVars:
       # Server Configuration
       - key: GIN_MODE
@@ -80,16 +80,14 @@ services:
       - key: BACKEND_APP_SECRET
         sync: false
 
-    autoDeploy: false  # Deployed via GitHub Actions on release
-    branch: main
 
   # Production Collect Service (Private Service)
   - type: web
     name: my-collect-prod
-    runtime: docker
+    runtime: image
     plan: free
-    rootDir: collect
-    dockerfilePath: Containerfile
+    image:
+      url: ghcr.io/nethserver/my/collect:latest
     envVars:
       # Server Configuration
       - key: GIN_MODE
@@ -116,27 +114,35 @@ services:
           name: my-postgres-prod
           property: connectionString
 
-    autoDeploy: false  # Deployed via GitHub Actions on release
-    branch: main
 
   # Production Frontend (Private Service)
   - type: web
     name: my-frontend-prod
-    runtime: docker
+    runtime: image
     plan: free
-    rootDir: frontend
-    dockerfilePath: Containerfile
-    envVars: []
-    autoDeploy: false  # Deployed via GitHub Actions on release
-    branch: main
+    image:
+      url: ghcr.io/nethserver/my/frontend:latest
+    envVars:
+      - key: VITE_PRODUCT_NAME
+        value: "My Nethesis"
+      - key: VITE_LOGTO_ENDPOINT
+        sync: false  # Configure in Render dashboard
+      - key: VITE_LOGTO_APP_ID
+        sync: false  # Configure in Render dashboard
+      - key: VITE_API_BASE_URL
+        value: "/backend/api"
+      - key: VITE_SIGNIN_REDIRECT_URI
+        value: "login-redirect"
+      - key: VITE_SIGNOUT_REDIRECT_URI
+        value: "login"
 
   # Production Proxy - Public Entry Point (my.nethesis.it)
   - type: web
     name: my-proxy-prod
-    runtime: docker
+    runtime: image
     plan: free
-    rootDir: proxy
-    dockerfilePath: Containerfile
+    image:
+      url: ghcr.io/nethserver/my/proxy:latest
     domains:
       - my.nethesis.it
     envVars:
@@ -148,8 +154,6 @@ services:
       - key: FRONTEND_SERVICE_NAME
         value: my-frontend-prod
 
-    autoDeploy: false  # Deployed via GitHub Actions on release
-    branch: main
 
 # =============================================================================
 # QA ENVIRONMENT - qa.my.nethesis.it
@@ -256,7 +260,19 @@ services:
     plan: free
     rootDir: frontend
     dockerfilePath: Containerfile
-    envVars: []
+    envVars:
+      - key: VITE_PRODUCT_NAME
+        value: "My Nethesis"
+      - key: VITE_LOGTO_ENDPOINT
+        sync: false  # Configure in Render dashboard
+      - key: VITE_LOGTO_APP_ID
+        sync: false  # Configure in Render dashboard
+      - key: VITE_API_BASE_URL
+        value: "/backend/api"
+      - key: VITE_SIGNIN_REDIRECT_URI
+        value: "login-redirect"
+      - key: VITE_SIGNOUT_REDIRECT_URI
+        value: "login"
     autoDeploy: true   # Auto-deploy on every commit
     branch: main
     pullRequestPreviewsEnabled: true  # PR previews enabled

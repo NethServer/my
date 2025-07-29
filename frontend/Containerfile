@@ -1,10 +1,44 @@
+# Build stage
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies (including dev dependencies for build)
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Accept build arguments for Vite environment variables
+ARG VITE_PRODUCT_NAME
+ARG VITE_LOGTO_ENDPOINT
+ARG VITE_LOGTO_APP_ID
+ARG VITE_API_BASE_URL
+ARG VITE_SIGNIN_REDIRECT_URI
+ARG VITE_SIGNOUT_REDIRECT_URI
+
+# Set environment variables for Vite build
+ENV VITE_PRODUCT_NAME=$VITE_PRODUCT_NAME
+ENV VITE_LOGTO_ENDPOINT=$VITE_LOGTO_ENDPOINT
+ENV VITE_LOGTO_APP_ID=$VITE_LOGTO_APP_ID
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_SIGNIN_REDIRECT_URI=$VITE_SIGNIN_REDIRECT_URI
+ENV VITE_SIGNOUT_REDIRECT_URI=$VITE_SIGNOUT_REDIRECT_URI
+
+# Build the application
+RUN npm run build
+
+# Production stage
 FROM nginx:1.25-alpine
 
 # Remove default nginx configuration
 RUN rm -rf /usr/share/nginx/html/*
 
-# Copy static files
-COPY . /usr/share/nginx/html/
+# Copy built static files from builder stage
+COPY --from=builder /app/dist /usr/share/nginx/html/
 
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/nginx.conf
@@ -17,12 +51,12 @@ RUN adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g ngi
 RUN chown -R nginx:nginx /usr/share/nginx/html
 RUN chmod -R 755 /usr/share/nginx/html
 
-# Expose port
-EXPOSE $PORT
+# Expose port (default 8080, can be overridden by PORT env var)
+EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:$PORT/ || exit 1
+  CMD curl -f http://localhost:${PORT:-8080}/ || exit 1
 
 # Start nginx
 CMD ["sh", "-c", "envsubst '$$PORT' < /etc/nginx/nginx.conf > /tmp/nginx.conf && nginx -c /tmp/nginx.conf -g 'daemon off;'"]
