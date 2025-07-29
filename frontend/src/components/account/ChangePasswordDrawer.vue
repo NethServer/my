@@ -43,7 +43,7 @@ const {
   mutation: (changePasswordData: ChangePassword) => {
     return postChangePassword(changePasswordData)
   },
-  onSuccess(data, vars) {
+  onSuccess() {
     if (route.query['changePassword'] === 'true') {
       // remove query parameter if it was set to trigger the drawer
       const newQuery = { ...route.query }

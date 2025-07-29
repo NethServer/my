@@ -111,9 +111,13 @@ jobs:
       working-directory: frontend
       run: npm ci
 
+    - name: Check frontend formatting
+      working-directory: frontend
+      run: npm run format
+
     - name: Run frontend linting
       working-directory: frontend
-      run: npm run lint || true
+      run: npm run lint
 
     - name: Run frontend type checking
       working-directory: frontend

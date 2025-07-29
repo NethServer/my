@@ -45,7 +45,7 @@ const {
 
     emit('close')
   },
-  onError: (error, variables) => {
+  onError: (error) => {
     console.error('Error deleting customer:', error)
   },
 

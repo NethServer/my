@@ -47,7 +47,7 @@ const {
   mutation: (newDistributor: CreateDistributor) => {
     return postDistributor(newDistributor)
   },
-  onSuccess(data, vars, context) {
+  onSuccess(data, vars) {
     // show success notification after drawer closes
     setTimeout(() => {
       notificationsStore.createNotification({
@@ -61,7 +61,7 @@ const {
 
     closeDrawer()
   },
-  onError: (error, variables) => {
+  onError: (error) => {
     console.error('Error creating distributor:', error)
     validationIssues.value = getValidationIssues(error as AxiosError, 'distributors')
   },
@@ -78,7 +78,7 @@ const {
   mutation: (distributor: Distributor) => {
     return putDistributor(distributor)
   },
-  onSuccess(data, vars, context) {
+  onSuccess(data, vars) {
     // show success notification after drawer closes
     setTimeout(() => {
       notificationsStore.createNotification({
@@ -92,7 +92,7 @@ const {
 
     closeDrawer()
   },
-  onError: (error, variables) => {
+  onError: (error) => {
     console.error('Error editing distributor:', error)
   },
 

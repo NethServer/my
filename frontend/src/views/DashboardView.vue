@@ -11,7 +11,6 @@ import {
   getThirdPartyAppDescription,
   openThirdPartyApp,
 } from '@/lib/thirdPartyApps'
-import { getOrganizationIcon } from '@/lib/users'
 import { useLoginStore } from '@/stores/login'
 import {
   faArrowUpRightFromSquare,
@@ -24,7 +23,6 @@ import {
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   NeAvatar,
-  NeBadge,
   NeButton,
   NeCard,
   NeHeading,
@@ -184,11 +182,13 @@ const { state: thirdPartyApps } = useQuery({
         </div>
       </NeCard>
       <!-- loading third party apps -->
-      <NeCard v-if="thirdPartyApps.status === 'pending'" v-for="i in 4" :key="i">
-        <div class="flex flex-col items-start gap-3">
-          <NeSkeleton :lines="3" class="w-full" />
-        </div>
-      </NeCard>
+      <template v-if="thirdPartyApps.status === 'pending'">
+        <NeCard v-for="i in 4" :key="i">
+          <div class="flex flex-col items-start gap-3">
+            <NeSkeleton :lines="3" class="w-full" />
+          </div>
+        </NeCard>
+      </template>
       <!-- third party apps -->
       <NeCard v-else v-for="thirdPartyApp in thirdPartyApps.data" :key="thirdPartyApp.id">
         <div class="flex h-full flex-col justify-between gap-4">

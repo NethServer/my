@@ -4,7 +4,7 @@
 import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
-import { faArrowUpRightFromSquare, faRocket, faWarehouse } from '@fortawesome/free-solid-svg-icons'
+import { faArrowUpRightFromSquare, faRocket } from '@fortawesome/free-solid-svg-icons'
 
 export type ThirdPartyApp = {
   id: string

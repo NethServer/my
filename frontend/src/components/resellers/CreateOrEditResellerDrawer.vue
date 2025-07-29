@@ -47,7 +47,7 @@ const {
   mutation: (newReseller: CreateReseller) => {
     return postReseller(newReseller)
   },
-  onSuccess(data, vars, context) {
+  onSuccess(data, vars) {
     // show success notification after drawer closes
     setTimeout(() => {
       notificationsStore.createNotification({
@@ -61,7 +61,7 @@ const {
 
     closeDrawer()
   },
-  onError: (error, variables) => {
+  onError: (error) => {
     console.error('Error creating reseller:', error)
     validationIssues.value = getValidationIssues(error as AxiosError, 'resellers')
   },
@@ -78,7 +78,7 @@ const {
   mutation: (reseller: Reseller) => {
     return putReseller(reseller)
   },
-  onSuccess(data, vars, context) {
+  onSuccess(data, vars) {
     // show success notification after drawer closes
     setTimeout(() => {
       notificationsStore.createNotification({
@@ -92,7 +92,7 @@ const {
 
     closeDrawer()
   },
-  onError: (error, variables) => {
+  onError: (error) => {
     console.error('Error editing reseller:', error)
   },
 

@@ -15,7 +15,7 @@ export const configureAxios = () => {
 
   // request interceptor
   axios.interceptors.request.use(
-    function (config: InternalAxiosRequestConfig<any>) {
+    function (config: InternalAxiosRequestConfig) {
       // check if token needs to be refreshed
       if (
         config.url &&

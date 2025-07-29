@@ -34,7 +34,7 @@ const {
   mutation: (profile: ProfileInfo) => {
     return postChangeInfo(profile)
   },
-  onSuccess(data, vars, context) {
+  onSuccess() {
     notificationsStore.createNotification({
       kind: 'success',
       title: t('account.profile_saved'),
@@ -42,7 +42,7 @@ const {
 
     loginStore.fetchTokenAndUserInfo()
   },
-  onError: (error, variables) => {
+  onError: (error) => {
     console.error('Error editing user:', error)
     validationIssues.value = getValidationIssues(error as AxiosError, 'users')
   },
@@ -173,6 +173,7 @@ function validate(profile: ProfileInfo): boolean {
         <div class="flex flex-wrap gap-1">
           <NeBadge
             v-for="role in loginStore.userInfo?.user_roles.sort()"
+            :key="role"
             :text="role"
             kind="custom"
             customColorClasses="bg-indigo-100 text-indigo-800 dark:bg-indigo-700 dark:text-indigo-100"

@@ -47,7 +47,7 @@ const {
   mutation: (newCustomer: CreateCustomer) => {
     return postCustomer(newCustomer)
   },
-  onSuccess(data, vars, context) {
+  onSuccess(data, vars) {
     // show success notification after drawer closes
     setTimeout(() => {
       notificationsStore.createNotification({
@@ -61,7 +61,7 @@ const {
 
     closeDrawer()
   },
-  onError: (error, variables) => {
+  onError: (error) => {
     console.error('Error creating customer:', error)
     validationIssues.value = getValidationIssues(error as AxiosError, 'customers')
   },
@@ -78,7 +78,7 @@ const {
   mutation: (customer: Customer) => {
     return putCustomer(customer)
   },
-  onSuccess(data, vars, context) {
+  onSuccess(data, vars) {
     // show success notification after drawer closes
     setTimeout(() => {
       notificationsStore.createNotification({
@@ -92,7 +92,7 @@ const {
 
     closeDrawer()
   },
-  onError: (error, variables) => {
+  onError: (error) => {
     console.error('Error editing customer:', error)
   },
 

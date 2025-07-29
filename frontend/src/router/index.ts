@@ -58,7 +58,7 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach(async (to, from) => {
+router.beforeEach(async (to) => {
   const loginStore = useLoginStore()
 
   // If the user is not logged in, redirect to the login page

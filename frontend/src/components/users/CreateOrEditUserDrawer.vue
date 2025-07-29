@@ -65,7 +65,7 @@ const {
   mutation: (newUser: CreateUser) => {
     return postUser(newUser)
   },
-  onSuccess(data, vars, context) {
+  onSuccess(data, vars) {
     // show success notification after drawer closes
     setTimeout(() => {
       notificationsStore.createNotification({
@@ -79,7 +79,7 @@ const {
 
     closeDrawer()
   },
-  onError: (error, variables) => {
+  onError: (error) => {
     console.error('Error creating user:', error)
     validationIssues.value = getValidationIssues(error as AxiosError, 'users')
   },
@@ -95,7 +95,7 @@ const {
   mutation: (user: EditUser) => {
     return putUser(user)
   },
-  onSuccess(data, vars, context) {
+  onSuccess(data, vars) {
     // show success notification after drawer closes
     setTimeout(() => {
       notificationsStore.createNotification({
@@ -109,7 +109,7 @@ const {
 
     closeDrawer()
   },
-  onError: (error, variables) => {
+  onError: (error) => {
     console.error('Error editing user:', error)
     validationIssues.value = getValidationIssues(error as AxiosError, 'users')
   },
