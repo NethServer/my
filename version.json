@@ -1,6 +1,6 @@
 {
   "version": "0.0.6",
-  "name": "Nethesis Operation Center",
+  "name": "My Nethesis",
   "components": {
     "backend": "0.0.6",
     "sync": "0.0.6",

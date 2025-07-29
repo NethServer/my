@@ -1,6 +1,6 @@
 # Backend API
 
-Go REST API server for Nethesis Operation Center with Logto JWT authentication and Role-Based Access Control (RBAC).
+Go REST API server for My Nethesis with Logto JWT authentication and Role-Based Access Control (RBAC).
 
 ## Quick Start
 

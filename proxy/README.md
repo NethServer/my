@@ -1,8 +1,8 @@
-# Nethesis Operation Center - Nginx Reverse Proxy
+# My Nethesis - Nginx Reverse Proxy
 
 ## Overview
 
-This nginx reverse proxy consolidates all Nethesis Operation Center services under a single domain with proper routing:
+This nginx reverse proxy consolidates all My Nethesis services under a single domain with proper routing:
 
 - **Production**: `my.nethesis.it` 
 - **QA**: `qa.my.nethesis.it`

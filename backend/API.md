@@ -1,6 +1,6 @@
 # Backend API Documentation
 
-REST API for Nethesis Operation Center with business hierarchy management and RBAC.
+REST API for My Nethesis with business hierarchy management and RBAC.
 
 ## 📖 Interactive Documentation
 **Complete API Reference:** https://bump.sh/nethesis/doc/my

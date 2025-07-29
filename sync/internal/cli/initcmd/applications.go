@@ -136,7 +136,7 @@ func CreateApplications(client *client.LogtoClient, config *InitConfig) (*Applic
 		frontendAppData := map[string]interface{}{
 			"name":        constants.FrontendAppName,
 			"type":        constants.AppTypeSPA,
-			"description": "Single Page Application for Nethesis Operation Center",
+			"description": "Single Page Application for My Nethesis",
 			"oidcClientMetadata": map[string]interface{}{
 				"redirectUris":            []string{"http://localhost:5173/login-redirect", fmt.Sprintf("https://%s/login-redirect", config.TenantDomain)},
 				"postLogoutRedirectUris":  []string{"http://localhost:5173/login", fmt.Sprintf("https://%s/login", config.TenantDomain)},

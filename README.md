@@ -1,4 +1,4 @@
-# Nethesis Operation Center
+# My Nethesis
 
 ##### Documentation
 [![API Docs build](https://img.shields.io/github/actions/workflow/status/NethServer/my/docs.yml?style=for-the-badge&label=API%20Docs%20build)](https://github.com/NethServer/my/actions/workflows/docs.yml)

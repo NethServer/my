@@ -1,4 +1,4 @@
-# Render Blueprint for Nethesis Operation Center
+# Render Blueprint for My Nethesis
 # =============================================================================
 # Architecture: Private services exposed via proxy
 # PRODUCTION: my.nethesis.it (release-based deployment)
