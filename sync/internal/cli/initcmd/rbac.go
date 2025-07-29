@@ -55,7 +55,7 @@ func createEssentialRoles(client *client.LogtoClient) error {
 	}
 
 	// Create user role "admin" (from config.yml)
-	if err := createUserRoleIfNotExists(client, constants.AdminRoleID, constants.AdminRoleName, "Admin user role - full technical control including dangerous operations"); err != nil {
+	if err := createUserRoleIfNotExists(client, constants.AdminRoleID, constants.AdminRoleName, "admin_role_description"); err != nil {
 		return fmt.Errorf("failed to create admin user role: %w", err)
 	}
 

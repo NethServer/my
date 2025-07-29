@@ -88,7 +88,7 @@ func TestRBACHierarchy(t *testing.T) {
 		// Test the business hierarchy roles that should be created
 		expectedRoles := map[string]string{
 			"Owner": "Owner organization - complete control over commercial hierarchy",
-			"Admin": "Admin user role - full technical control including dangerous operations",
+			"Admin": "admin_role_description",
 		}
 
 		for roleName, description := range expectedRoles {
@@ -101,8 +101,7 @@ func TestRBACHierarchy(t *testing.T) {
 			}
 
 			if roleName == "Admin" {
-				assert.Contains(t, description, "technical control", "Admin role should have technical control")
-				assert.Contains(t, description, "dangerous operations", "Admin role should handle dangerous operations")
+				assert.Equal(t, "admin_role_description", description, "Admin role should use translation key")
 			}
 		}
 	})
@@ -147,7 +146,7 @@ func TestRBACDataStructures(t *testing.T) {
 
 		userRoleData := map[string]interface{}{
 			"name":        "Admin",
-			"description": "Admin user role - full technical control including dangerous operations",
+			"description": "admin_role_description",
 		}
 
 		// Test organization role data
@@ -156,7 +155,7 @@ func TestRBACDataStructures(t *testing.T) {
 
 		// Test user role data
 		assert.Equal(t, "Admin", userRoleData["name"])
-		assert.Contains(t, userRoleData["description"].(string), "technical control")
+		assert.Equal(t, "admin_role_description", userRoleData["description"])
 	})
 
 	t.Run("organization data structure", func(t *testing.T) {
