@@ -49,7 +49,7 @@ Owner (Nethesis) → Distributor → Reseller → Customer
 ### Authentication
 - `POST /auth/exchange` - Exchange Logto token for custom JWT
 - `POST /auth/refresh` - Refresh expired tokens
-- `GET /auth/me` - Current user information
+- `GET /me` - Current user information
 
 ### Business Hierarchy
 - `GET|POST|PUT|DELETE /distributors` - Distributor management (Owner only)
@@ -99,7 +99,7 @@ Owner (Nethesis) → Distributor → Reseller → Customer
 ## Quick Start
 1. Exchange Logto token: `POST /auth/exchange`
 2. Use returned JWT for all subsequent requests
-3. Check permissions with `GET /auth/me`
+3. Check permissions with `GET /me`
 
 ---
 

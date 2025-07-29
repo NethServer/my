@@ -296,7 +296,7 @@ func RefreshToken(c *gin.Context) {
 }
 
 // GetCurrentUser returns current user information from JWT token
-// GET /auth/me
+// GET /me
 func GetCurrentUser(c *gin.Context) {
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
@@ -333,7 +333,7 @@ func GetCurrentUser(c *gin.Context) {
 }
 
 // ChangePassword allows the current user to change their own password
-// POST /auth/me/change-password
+// POST /me/change-password
 func ChangePassword(c *gin.Context) {
 	// Get current user context
 	user, ok := helpers.GetUserFromContext(c)
@@ -463,7 +463,7 @@ func ChangePassword(c *gin.Context) {
 }
 
 // ChangeInfo allows the current user to change their own personal information
-// POST /auth/me/change-info
+// POST /me/change-info
 func ChangeInfo(c *gin.Context) {
 	// Get current user context
 	user, ok := helpers.GetUserFromContext(c)

@@ -171,7 +171,7 @@ curl -X POST http://localhost:8080/api/auth/exchange \
   -d '{"access_token": "YOUR_LOGTO_TOKEN"}'
 
 # Test with custom JWT
-curl -X GET http://localhost:8080/api/auth/me \
+curl -X GET http://localhost:8080/api/me \
   -H "Authorization: Bearer YOUR_CUSTOM_JWT"
 ```
 

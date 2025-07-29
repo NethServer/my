@@ -177,12 +177,12 @@ func TestGetCurrentUser(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			router := testutils.SetupTestGin()
-			router.GET("/auth/me", func(c *gin.Context) {
+			router.GET("/me", func(c *gin.Context) {
 				tt.setupContext(c)
 				GetCurrentUser(c)
 			})
 
-			w := testutils.MakeRequest(t, router, "GET", "/auth/me", nil, nil)
+			w := testutils.MakeRequest(t, router, "GET", "/me", nil, nil)
 
 			assert.Equal(t, tt.expectedStatus, w.Code)
 
@@ -308,8 +308,7 @@ func TestAuthMethodsIntegration(t *testing.T) {
 	router := testutils.SetupTestGin()
 
 	// Add JWT middleware for protected routes
-	authGroup := router.Group("/auth")
-	authGroup.Use(func(c *gin.Context) {
+	router.Use(func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader != "" {
 			tokenString := authHeader[len("Bearer "):]
@@ -320,12 +319,12 @@ func TestAuthMethodsIntegration(t *testing.T) {
 		c.Next()
 	})
 
-	authGroup.GET("/me", GetCurrentUser)
+	router.GET("/me", GetCurrentUser)
 	router.POST("/auth/refresh", RefreshToken)
 
-	// 2. Test using the custom token to access /auth/me
+	// 2. Test using the custom token to access /me
 	t.Run("use_custom_token_for_me_endpoint", func(t *testing.T) {
-		w := testutils.MakeRequest(t, router, "GET", "/auth/me", nil, map[string]string{
+		w := testutils.MakeRequest(t, router, "GET", "/me", nil, map[string]string{
 			"Authorization": "Bearer " + customToken,
 		})
 
