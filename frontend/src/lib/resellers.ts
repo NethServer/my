@@ -1,0 +1,104 @@
+//  Copyright (C) 2025 Nethesis S.r.l.
+//  SPDX-License-Identifier: GPL-3.0-or-later
+
+import axios from 'axios'
+import { API_URL } from './config'
+import { useLoginStore } from '@/stores/login'
+import * as v from 'valibot'
+import { paginationQueryString } from './users'
+
+//// check attributes
+export const CreateResellerSchema = v.object({
+  name: v.pipe(v.string(), v.nonEmpty('resellers.name_required')),
+  description: v.optional(v.string()),
+  branding: v.optional(
+    v.object({
+      darkFavicon: v.string(),
+      darkLogoUrl: v.string(),
+      favicon: v.string(),
+      logoUrl: v.string(),
+    }),
+  ),
+  customData: v.optional(v.record(v.string(), v.string())),
+  isMfaRequired: v.optional(v.boolean()),
+})
+
+export const ResellerSchema = v.object({
+  ...CreateResellerSchema.entries,
+  id: v.string(),
+})
+
+export type CreateReseller = v.InferOutput<typeof CreateResellerSchema>
+export type Reseller = v.InferOutput<typeof ResellerSchema>
+
+export const getResellers = () => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .get(`${API_URL}/resellers${paginationQueryString}`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data.resellers as Reseller[])
+}
+
+export const postReseller = (reseller: CreateReseller) => {
+  const loginStore = useLoginStore()
+
+  return axios.post(`${API_URL}/resellers`, reseller, {
+    headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+  })
+}
+
+export const putReseller = (reseller: Reseller) => {
+  const loginStore = useLoginStore()
+
+  return axios.put(`${API_URL}/resellers/${reseller.id}`, reseller, {
+    headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+  })
+}
+
+export const deleteReseller = (reseller: Reseller) => {
+  const loginStore = useLoginStore()
+
+  return axios.delete(`${API_URL}/resellers/${reseller.id}`, {
+    headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+  })
+}
+
+export const searchStringInReseller = (
+  searchString: string,
+
+  reseller: Reseller,
+): boolean => {
+  const regex = /[^a-zA-Z0-9-]/g
+  searchString = searchString.replace(regex, '')
+  let found = false
+
+  // search in string attributes
+  found = ['name', 'description'].some((attrName) => {
+    const attrValue = reseller[attrName as keyof Reseller] as string
+    return new RegExp(searchString, 'i').test(attrValue?.replace(regex, ''))
+  })
+
+  if (found) {
+    return true
+  }
+
+  //// review customData attributes
+
+  // search in customData
+  found = ['address', 'city', 'codiceFiscale', 'email', 'partitaIva', 'phone', 'region'].some(
+    (attrName) => {
+      const attrValue = reseller.customData?.[
+        attrName as keyof NonNullable<Reseller['customData']>
+      ] as string
+      return new RegExp(searchString, 'i').test(attrValue?.replace(regex, ''))
+    },
+  )
+
+  if (found) {
+    return true
+  } else {
+    return false
+  }
+}
