@@ -38,10 +38,10 @@ services:
   # Production Backend API Server (Private Service)
   - type: web
     name: my-backend-prod
-    runtime: go
+    runtime: docker
     plan: free
-    buildCommand: cd backend && make build && mkdir -p build/database && cp database/schema.sql build/database/
-    startCommand: cd backend && ./build/backend
+    rootDir: backend
+    dockerfilePath: Containerfile
     envVars:
       # Server Configuration
       - key: GIN_MODE
@@ -86,10 +86,10 @@ services:
   # Production Collect Service (Private Service)
   - type: web
     name: my-collect-prod
-    runtime: go
+    runtime: docker
     plan: free
-    buildCommand: cd collect && go build -o build/collect main.go && mkdir -p build/database && cp database/schema.sql build/database/
-    startCommand: cd collect && ./build/collect
+    rootDir: collect
+    dockerfilePath: Containerfile
     envVars:
       # Server Configuration
       - key: GIN_MODE
@@ -166,10 +166,10 @@ services:
   # QA Backend API Server (Private Service)
   - type: web
     name: my-backend-qa
-    runtime: go
+    runtime: docker
     plan: free
-    buildCommand: cd backend && make build && mkdir -p build/database && cp database/schema.sql build/database/
-    startCommand: cd backend && ./build/backend
+    rootDir: backend
+    dockerfilePath: Containerfile
     envVars:
       # Server Configuration
       - key: GIN_MODE
@@ -215,10 +215,10 @@ services:
   # QA Collect Service (Private Service)
   - type: web
     name: my-collect-qa
-    runtime: go
+    runtime: docker
     plan: free
-    buildCommand: cd collect && go build -o build/collect main.go && mkdir -p build/database && cp database/schema.sql build/database/
-    startCommand: cd collect && ./build/collect
+    rootDir: collect
+    dockerfilePath: Containerfile
     envVars:
       # Server Configuration
       - key: GIN_MODE
