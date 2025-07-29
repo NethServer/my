@@ -14,6 +14,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -187,8 +188,32 @@ func canAccessApplication(app models.LogtoThirdPartyApp, organizationRoles []str
 
 // GenerateOAuth2LoginURL generates the OAuth2 login URL for a third-party application
 func GenerateOAuth2LoginURL(appID string, redirectURI string, scopes []string) string {
-	// Get Logto issuer from configuration (e.g., "https://tree6d.logto.app")
-	logtoIssuer := configuration.Config.LogtoIssuer
+	// Create a new client to validate domain
+	client := NewManagementClient()
+	return GenerateOAuth2LoginURLWithClient(client, appID, redirectURI, scopes)
+}
+
+// GenerateOAuth2LoginURLWithClient generates the OAuth2 login URL with domain validation
+func GenerateOAuth2LoginURLWithClient(client *LogtoManagementClient, appID string, redirectURI string, scopes []string) string {
+	// Get domain configuration
+	tenantDomain := configuration.Config.TenantDomain
+	tenantID := configuration.Config.TenantID
+
+	// Validate if tenant domain is valid using Logto domains API
+	var issuerHost string
+	if client.ValidateDomainWithLogto(tenantDomain) {
+		// Domain is valid, use custom domain
+		issuerHost = fmt.Sprintf("https://%s", tenantDomain)
+		logger.ComponentLogger("oauth").Debug().
+			Str("domain", tenantDomain).
+			Msg("Using custom domain in login URL")
+	} else {
+		// Domain is not valid, use tenant ID
+		issuerHost = fmt.Sprintf("https://%s.logto.app", tenantID)
+		logger.ComponentLogger("oauth").Debug().
+			Str("tenant_id", tenantID).
+			Msg("Using tenant ID in login URL")
+	}
 
 	// Use provided scopes, or fallback to basic scopes if none provided
 	if len(scopes) == 0 {
@@ -203,7 +228,7 @@ func GenerateOAuth2LoginURL(appID string, redirectURI string, scopes []string) s
 	state := generateRandomState()
 
 	// Build OAuth2 authorization URL
-	authURL := fmt.Sprintf("%s/oidc/auth", logtoIssuer)
+	authURL := fmt.Sprintf("%s/oidc/auth", issuerHost)
 
 	// Create URL with query parameters
 	u, err := url.Parse(authURL)
@@ -224,6 +249,88 @@ func GenerateOAuth2LoginURL(appID string, redirectURI string, scopes []string) s
 	u.RawQuery = q.Encode()
 
 	return u.String()
+}
+
+// ValidateDomainWithLogto checks if a domain is valid using Logto's domains API
+func (c *LogtoManagementClient) ValidateDomainWithLogto(domain string) bool {
+	logger.ComponentLogger("logto").Info().
+		Str("domain", domain).
+		Msg("Validating domain with Logto")
+
+	// Use makeRequest which handles token refresh automatically
+	resp, err := c.makeRequest("GET", "/domains", nil)
+	if err != nil {
+		logger.ComponentLogger("logto").Error().
+			Err(err).
+			Str("domain", domain).
+			Msg("Failed to fetch domains from Logto")
+		return false
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		logger.ComponentLogger("logto").Error().
+			Int("status", resp.StatusCode).
+			Str("domain", domain).
+			Msg("Failed to get domains from Logto")
+		return false
+	}
+
+	// First, let's read the raw response to see what we get
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logger.ComponentLogger("logto").Error().
+			Err(err).
+			Str("domain", domain).
+			Msg("Failed to read domains response body")
+		return false
+	}
+
+	logger.ComponentLogger("logto").Info().
+		Str("domain", domain).
+		Str("response", string(body)).
+		Msg("Raw domains API response")
+
+	var domains []struct {
+		ID     string `json:"id"`
+		Domain string `json:"domain"`
+		Status string `json:"status"`
+	}
+
+	if err := json.Unmarshal(body, &domains); err != nil {
+		logger.ComponentLogger("logto").Error().
+			Err(err).
+			Str("domain", domain).
+			Str("response", string(body)).
+			Msg("Failed to decode domains response")
+		return false
+	}
+
+	logger.ComponentLogger("logto").Info().
+		Str("domain", domain).
+		Int("domains_count", len(domains)).
+		Msg("Successfully parsed domains response")
+
+	// Check if the domain exists and is active (status should be "Active" according to API docs)
+	for _, d := range domains {
+		logger.ComponentLogger("logto").Info().
+			Str("checking_domain", d.Domain).
+			Str("status", d.Status).
+			Str("target_domain", domain).
+			Msg("Checking domain match")
+
+		if d.Domain == domain && d.Status == "Active" {
+			logger.ComponentLogger("logto").Info().
+				Str("domain", domain).
+				Msg("Domain is valid and active")
+			return true
+		}
+	}
+
+	logger.ComponentLogger("logto").Info().
+		Str("domain", domain).
+		Msg("Domain is not valid or not active")
+	return false
 }
 
 // generateRandomState generates a random state string for OAuth2

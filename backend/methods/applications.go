@@ -98,8 +98,10 @@ func GetApplications(c *gin.Context) {
 				Msg("Failed to get scopes for app")
 		}
 
-		// Convert to our response model
-		convertedApp := app.ToThirdPartyApplication(branding, scopes, logto.GenerateOAuth2LoginURL)
+		// Convert to our response model with client-aware URL generation
+		convertedApp := app.ToThirdPartyApplication(branding, scopes, func(appID string, redirectURI string, scopes []string) string {
+			return logto.GenerateOAuth2LoginURLWithClient(client, appID, redirectURI, scopes)
+		})
 		responseApplications = append(responseApplications, *convertedApp)
 	}
 
