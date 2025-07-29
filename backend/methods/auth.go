@@ -362,24 +362,61 @@ func ChangePassword(c *gin.Context) {
 			Err(err).
 			Str("operation", "change_password").
 			Str("user_id", user.ID).
-			Msg("Invalid change password request")
+			Msg("Invalid change password request JSON")
 
-		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
+		c.JSON(http.StatusBadRequest, response.BadRequest(
+			"Invalid request body: "+err.Error(),
+			nil,
+		))
+		return
+	}
+
+	// Manual validation with proper field names
+	var validationErrors []gin.H
+	if req.CurrentPassword == "" {
+		validationErrors = append(validationErrors, gin.H{
+			"key":     "current_password",
+			"message": "required",
+			"value":   "",
+		})
+	}
+	if req.NewPassword == "" {
+		validationErrors = append(validationErrors, gin.H{
+			"key":     "new_password",
+			"message": "required",
+			"value":   "",
+		})
+	}
+
+	if len(validationErrors) > 0 {
+		logger.RequestLogger(c, "auth").Warn().
+			Str("operation", "change_password").
+			Str("user_id", user.ID).
+			Msg("Missing required fields for password change")
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "validation failed",
+			"data": gin.H{
+				"type":   "validation_error",
+				"errors": validationErrors,
+			},
+		})
 		return
 	}
 
 	// Validate new password strength
-	isValid, validationErrors := helpers.ValidatePasswordStrength(req.NewPassword)
+	isValid, passwordErrors := helpers.ValidatePasswordStrength(req.NewPassword)
 	if !isValid {
 		logger.RequestLogger(c, "auth").Warn().
-			Strs("validation_errors", validationErrors).
+			Strs("validation_errors", passwordErrors).
 			Str("operation", "change_password").
 			Str("user_id", user.ID).
 			Msg("New password failed validation")
 
 		// Convert validation errors to standard format
 		var errors []gin.H
-		for _, validationError := range validationErrors {
+		for _, validationError := range passwordErrors {
 			errors = append(errors, gin.H{
 				"key":     "new_password",
 				"message": validationError,
@@ -492,9 +529,12 @@ func ChangeInfo(c *gin.Context) {
 			Err(err).
 			Str("operation", "change_info").
 			Str("user_id", user.ID).
-			Msg("Invalid change info request")
+			Msg("Invalid change info request JSON")
 
-		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
+		c.JSON(http.StatusBadRequest, response.BadRequest(
+			"Invalid request body: "+err.Error(),
+			nil,
+		))
 		return
 	}
 
@@ -515,48 +555,37 @@ func ChangeInfo(c *gin.Context) {
 	// Create Logto client
 	logtoClient := logto.NewManagementClient()
 
-	// Validate that name and email are not empty if provided
-	if req.Name != nil && *req.Name == "" {
-		logger.RequestLogger(c, "auth").Warn().
-			Str("operation", "change_info").
-			Str("user_id", user.ID).
-			Msg("Empty name provided")
+	// Manual validation with proper field names
+	var validationErrors []gin.H
 
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "validation failed",
-			"data": gin.H{
-				"type": "validation_error",
-				"errors": []gin.H{
-					{
-						"key":     "name",
-						"message": "name cannot be empty",
-						"value":   "",
-					},
-				},
-			},
+	if req.Name != nil && *req.Name == "" {
+		validationErrors = append(validationErrors, gin.H{
+			"key":     "name",
+			"message": "name cannot be empty",
+			"value":   "",
 		})
-		return
 	}
 
 	if req.Email != nil && *req.Email == "" {
+		validationErrors = append(validationErrors, gin.H{
+			"key":     "email",
+			"message": "email cannot be empty",
+			"value":   "",
+		})
+	}
+
+	if len(validationErrors) > 0 {
 		logger.RequestLogger(c, "auth").Warn().
 			Str("operation", "change_info").
 			Str("user_id", user.ID).
-			Msg("Empty email provided")
+			Msg("Validation failed for info change")
 
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,
 			"message": "validation failed",
 			"data": gin.H{
-				"type": "validation_error",
-				"errors": []gin.H{
-					{
-						"key":     "email",
-						"message": "email cannot be empty",
-						"value":   "",
-					},
-				},
+				"type":   "validation_error",
+				"errors": validationErrors,
 			},
 		})
 		return

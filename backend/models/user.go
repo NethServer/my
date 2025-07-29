@@ -28,13 +28,13 @@ type User struct {
 
 // ChangePasswordRequest represents a request to change the current user's password
 type ChangePasswordRequest struct {
-	CurrentPassword string `json:"current_password" validate:"required" binding:"required"`
-	NewPassword     string `json:"new_password" validate:"required" binding:"required"`
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
 }
 
 // ChangeInfoRequest represents a request to change the current user's personal information
 type ChangeInfoRequest struct {
-	Name  *string `json:"name,omitempty" validate:"omitempty,min=1,max=100"`
-	Email *string `json:"email,omitempty" validate:"omitempty,email"`
-	Phone *string `json:"phone,omitempty" validate:"omitempty,e164"`
+	Name  *string `json:"name,omitempty"`
+	Email *string `json:"email,omitempty"`
+	Phone *string `json:"phone,omitempty"`
 }
