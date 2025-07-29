@@ -187,21 +187,19 @@ func canAccessApplication(app models.LogtoThirdPartyApp, organizationRoles []str
 }
 
 // GenerateOAuth2LoginURL generates the OAuth2 login URL for a third-party application
-func GenerateOAuth2LoginURL(appID string, redirectURI string, scopes []string) string {
-	// Create a new client to validate domain
-	client := NewManagementClient()
-	return GenerateOAuth2LoginURLWithClient(client, appID, redirectURI, scopes)
+func GenerateOAuth2LoginURL(appID string, redirectURI string, scopes []string, isValidDomain bool) string {
+	return GenerateOAuth2LoginURLWithDomainValidation(appID, redirectURI, scopes, isValidDomain)
 }
 
-// GenerateOAuth2LoginURLWithClient generates the OAuth2 login URL with domain validation
-func GenerateOAuth2LoginURLWithClient(client *LogtoManagementClient, appID string, redirectURI string, scopes []string) string {
+// GenerateOAuth2LoginURLWithDomainValidation generates the OAuth2 login URL with pre-validated domain status
+func GenerateOAuth2LoginURLWithDomainValidation(appID string, redirectURI string, scopes []string, isValidDomain bool) string {
 	// Get domain configuration
 	tenantDomain := configuration.Config.TenantDomain
 	tenantID := configuration.Config.TenantID
 
-	// Validate if tenant domain is valid using Logto domains API
+	// Use pre-validated domain status
 	var issuerHost string
-	if client.ValidateDomainWithLogto(tenantDomain) {
+	if isValidDomain {
 		// Domain is valid, use custom domain
 		issuerHost = fmt.Sprintf("https://%s", tenantDomain)
 		logger.ComponentLogger("oauth").Debug().
@@ -251,8 +249,8 @@ func GenerateOAuth2LoginURLWithClient(client *LogtoManagementClient, appID strin
 	return u.String()
 }
 
-// ValidateDomainWithLogto checks if a domain is valid using Logto's domains API
-func (c *LogtoManagementClient) ValidateDomainWithLogto(domain string) bool {
+// ValidateDomain checks if a domain is valid using Logto's domains API
+func (c *LogtoManagementClient) ValidateDomain(domain string) bool {
 	logger.ComponentLogger("logto").Info().
 		Str("domain", domain).
 		Msg("Validating domain with Logto")

@@ -141,11 +141,11 @@ func TestToThirdPartyApplication(t *testing.T) {
 
 	scopes := []string{"openid", "profile", "email"}
 
-	loginURLGenerator := func(appID, redirectURI string, scopes []string) string {
+	loginURLGenerator := func(appID, redirectURI string, scopes []string, isValidDomain bool) string {
 		return "https://auth.example.com/login?client_id=" + appID + "&redirect_uri=" + redirectURI
 	}
 
-	app := logtoApp.ToThirdPartyApplication(branding, scopes, loginURLGenerator)
+	app := logtoApp.ToThirdPartyApplication(branding, scopes, loginURLGenerator, true)
 
 	assert.NotNil(t, app)
 	assert.Equal(t, "app_123", app.ID)
@@ -171,7 +171,7 @@ func TestToThirdPartyApplicationWithoutBranding(t *testing.T) {
 		},
 	}
 
-	app := logtoApp.ToThirdPartyApplication(nil, nil, nil)
+	app := logtoApp.ToThirdPartyApplication(nil, nil, nil, false)
 
 	assert.NotNil(t, app)
 	assert.Equal(t, "app_456", app.ID)
@@ -194,7 +194,7 @@ func TestToThirdPartyApplicationWithBrandingButNoLogos(t *testing.T) {
 		Branding:    nil, // No logo branding
 	}
 
-	app := logtoApp.ToThirdPartyApplication(branding, nil, nil)
+	app := logtoApp.ToThirdPartyApplication(branding, nil, nil, false)
 
 	assert.NotNil(t, app)
 	assert.NotNil(t, app.Branding)
@@ -211,7 +211,7 @@ func TestToThirdPartyApplicationWithoutOidcMetadata(t *testing.T) {
 		OidcClientMetadata: nil,
 	}
 
-	app := logtoApp.ToThirdPartyApplication(nil, nil, nil)
+	app := logtoApp.ToThirdPartyApplication(nil, nil, nil, false)
 
 	assert.NotNil(t, app)
 	assert.Equal(t, "app_no_oidc", app.ID)
@@ -352,7 +352,7 @@ func TestStructFieldTags(t *testing.T) {
 func TestEdgeCases(t *testing.T) {
 	t.Run("Empty LogtoThirdPartyApp conversion", func(t *testing.T) {
 		app := &LogtoThirdPartyApp{}
-		result := app.ToThirdPartyApplication(nil, nil, nil)
+		result := app.ToThirdPartyApplication(nil, nil, nil, false)
 
 		assert.NotNil(t, result)
 		assert.Empty(t, result.ID)
@@ -373,11 +373,11 @@ func TestEdgeCases(t *testing.T) {
 			},
 		}
 
-		loginURLGenerator := func(appID, redirectURI string, scopes []string) string {
+		loginURLGenerator := func(appID, redirectURI string, scopes []string, isValidDomain bool) string {
 			return "generated_url"
 		}
 
-		result := app.ToThirdPartyApplication(nil, nil, loginURLGenerator)
+		result := app.ToThirdPartyApplication(nil, nil, loginURLGenerator, false)
 		assert.Empty(t, result.LoginURL) // Should be empty because no redirect URIs
 	})
 

@@ -84,6 +84,13 @@ func main() {
 		logger.Warn().Err(err).Msg("Failed to load roles from Logto - userRolesNames will be empty")
 	}
 
+	// Initialize domain validation from Logto
+	domainValidation := cache.GetDomainValidation()
+	err = domainValidation.LoadDomainValidation()
+	if err != nil {
+		logger.Warn().Err(err).Msg("Failed to load domain validation from Logto - will fallback to tenant ID")
+	}
+
 	// Init router
 	router := gin.Default()
 

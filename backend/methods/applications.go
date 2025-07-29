@@ -11,8 +11,10 @@ package methods
 
 import (
 	"net/http"
+	"sync"
 
 	"github.com/gin-gonic/gin"
+	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
@@ -77,33 +79,68 @@ func GetApplications(c *gin.Context) {
 	// Filter applications based on user's roles
 	filteredLogtoApps := logto.FilterApplicationsByAccess(logtoApplications, organizationRoles, userRoles)
 
-	// Convert filtered applications to our response model
+	// Get cached domain validation result
+	domainValidation := cache.GetDomainValidation()
+	isValidDomain := domainValidation.IsValid()
+
+	// Convert filtered applications to our response model using parallel processing
 	var responseApplications []models.ThirdPartyApplication
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
 	for _, app := range filteredLogtoApps {
-		// Get branding information
-		branding, err := client.GetApplicationBranding(app.ID)
-		if err != nil {
-			logger.Warn().
-				Err(err).
-				Str("app_id", app.ID).
-				Msg("Failed to get branding for app")
-		}
+		wg.Add(1)
+		go func(app models.LogtoThirdPartyApp) {
+			defer wg.Done()
 
-		// Get scopes
-		scopes, err := client.GetApplicationScopes(app.ID)
-		if err != nil {
-			logger.Warn().
-				Err(err).
-				Str("app_id", app.ID).
-				Msg("Failed to get scopes for app")
-		}
+			// Parallel calls for branding and scopes
+			var branding *models.ApplicationSignInExperience
+			var scopes []string
+			var brandingWg sync.WaitGroup
 
-		// Convert to our response model with client-aware URL generation
-		convertedApp := app.ToThirdPartyApplication(branding, scopes, func(appID string, redirectURI string, scopes []string) string {
-			return logto.GenerateOAuth2LoginURLWithClient(client, appID, redirectURI, scopes)
-		})
-		responseApplications = append(responseApplications, *convertedApp)
+			brandingWg.Add(2)
+
+			// Get branding information in parallel
+			go func() {
+				defer brandingWg.Done()
+				var err error
+				branding, err = client.GetApplicationBranding(app.ID)
+				if err != nil {
+					logger.Warn().
+						Err(err).
+						Str("app_id", app.ID).
+						Msg("Failed to get branding for app")
+				}
+			}()
+
+			// Get scopes in parallel
+			go func() {
+				defer brandingWg.Done()
+				var err error
+				scopes, err = client.GetApplicationScopes(app.ID)
+				if err != nil {
+					logger.Warn().
+						Err(err).
+						Str("app_id", app.ID).
+						Msg("Failed to get scopes for app")
+				}
+			}()
+
+			brandingWg.Wait()
+
+			// Convert to our response model with cached domain validation
+			convertedApp := app.ToThirdPartyApplication(branding, scopes, func(appID string, redirectURI string, scopes []string, isValidDomain bool) string {
+				return logto.GenerateOAuth2LoginURL(appID, redirectURI, scopes, isValidDomain)
+			}, isValidDomain)
+
+			// Thread-safe append
+			mu.Lock()
+			responseApplications = append(responseApplications, *convertedApp)
+			mu.Unlock()
+		}(app)
 	}
+
+	wg.Wait()
 
 	logger.Info().
 		Int("count", len(responseApplications)).
