@@ -1,27 +1,28 @@
-FROM docker.io/library/node:22.16.0 as base
-WORKDIR /app
+FROM nginx:1.25-alpine
 
-FROM base as dev
-CMD exec /bin/bash -c "npm install && npm run dev"
+# Remove default nginx configuration
+RUN rm -rf /usr/share/nginx/html/*
 
-FROM base as qa
-CMD exec /bin/bash -c "npm install && npm run qa"
+# Copy static files
+COPY . /usr/share/nginx/html/
 
-FROM base as build
-COPY package.json .
-COPY package-lock.json .
-RUN npm ci --ignore-scripts
-COPY public public
-COPY src src
-COPY .env.production .
-COPY .gitignore .
-COPY env.d.ts .
-COPY index.html .
-COPY tsconfig.app.json .
-COPY tsconfig.json .
-COPY tsconfig.node.json .
-COPY vite.config.ts .
-RUN npm run build
+# Copy nginx configuration
+COPY nginx.conf /etc/nginx/nginx.conf
 
-FROM scratch as dist
-COPY --from=build /app/dist /
+# Create nginx user if it doesn't exist
+RUN addgroup -g 101 -S nginx || true
+RUN adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx || true
+
+# Set correct permissions
+RUN chown -R nginx:nginx /usr/share/nginx/html
+RUN chmod -R 755 /usr/share/nginx/html
+
+# Expose port
+EXPOSE $PORT
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:$PORT/ || exit 1
+
+# Start nginx
+CMD ["sh", "-c", "envsubst '$$PORT' < /etc/nginx/nginx.conf > /tmp/nginx.conf && nginx -c /tmp/nginx.conf -g 'daemon off;'"]
