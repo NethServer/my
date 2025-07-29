@@ -51,22 +51,26 @@ check_main_branch() {
     fi
 }
 
-# Check code formatting (only for Go components)
+# Check code formatting
 check_formatting() {
     local component=$1
-
-    # Skip formatting check for non-Go components
-    if [[ "$component" =~ ^(frontend|proxy)$ ]]; then
-        success "Skipping code formatting for $component (no Go code)"
-        return
-    fi
 
     info "Checking code formatting for $component..."
 
     cd "$component"
-    local unformatted=$(gofmt -s -l . | wc -l)
-    if [ "$unformatted" -gt 0 ]; then
-        error "Code is not formatted properly in $component. Run 'make fmt' to fix it."
+    if [[ "$component" =~ ^(backend|sync|collect)$ ]]; then
+        # Go formatting check
+        local unformatted=$(gofmt -s -l . | wc -l)
+        if [ "$unformatted" -gt 0 ]; then
+            error "Code is not formatted properly in $component. Run 'make fmt' to fix it."
+        fi
+    elif [ "$component" = "frontend" ]; then
+        # Frontend formatting check
+        if ! npm run format; then
+            error "Code is not formatted properly in $component. Run 'npm run format-fix' to fix it."
+        fi
+    elif [[ "$component" =~ ^(proxy)$ ]]; then
+        success "Skipping code formatting for $component (no formatting configured)"
     fi
     cd ..
     success "Code formatting OK for $component"
@@ -75,12 +79,6 @@ check_formatting() {
 # Run linting
 run_linting() {
     local component=$1
-
-    # Skip linting for non-Go components
-    if [[ "$component" =~ ^(frontend|proxy)$ ]]; then
-        success "Skipping linting for $component (no Go code)"
-        return
-    fi
 
     info "Running linting for $component..."
 
@@ -95,6 +93,16 @@ run_linting() {
             warning "golangci-lint not found, skipping linting for $component"
             warning "Install with: https://golangci-lint.run/usage/install/"
         fi
+    elif [ "$component" = "frontend" ]; then
+        # Run frontend linting and type checking
+        if ! npm run lint; then
+            error "Linting failed for $component"
+        fi
+        if ! npm run type-check; then
+            error "Type checking failed for $component"
+        fi
+    elif [[ "$component" =~ ^(proxy)$ ]]; then
+        success "Skipping linting for $component (no linting configured)"
     else
         if ! make lint; then
             error "Linting failed for $component"
@@ -108,12 +116,6 @@ run_linting() {
 run_tests() {
     local component=$1
 
-    # Skip tests for non-Go components that don't have test suites
-    if [[ "$component" =~ ^(frontend|proxy)$ ]]; then
-        success "Skipping tests for $component (no test suite)"
-        return
-    fi
-
     info "Running tests for $component..."
 
     cd "$component"
@@ -121,6 +123,13 @@ run_tests() {
         if ! go test ./...; then
             error "Tests failed for $component"
         fi
+    elif [ "$component" = "frontend" ]; then
+        # Run frontend tests
+        if ! npm run test; then
+            error "Tests failed for $component"
+        fi
+    elif [[ "$component" =~ ^(proxy)$ ]]; then
+        success "Skipping tests for $component (no test suite)"
     else
         if ! make test; then
             error "Tests failed for $component"
@@ -216,6 +225,21 @@ update_component_versions() {
         success "Updated sync/pkg/version/VERSION"
     else
         warning "sync/pkg/version/VERSION not found"
+    fi
+}
+
+# Update frontend package.json version
+update_frontend_version() {
+    local new_version=$1
+
+    info "Updating frontend package.json version..."
+
+    if [ -f "frontend/package.json" ]; then
+        # Use jq to update the version in package.json
+        jq --arg version "$new_version" '.version = $version' frontend/package.json > frontend/package.json.tmp && mv frontend/package.json.tmp frontend/package.json
+        success "Updated frontend/package.json to version $new_version"
+    else
+        warning "frontend/package.json not found"
     fi
 }
 
@@ -319,12 +343,15 @@ main() {
     # Update component VERSION files
     update_component_versions "$new_version"
 
+    # Update frontend package.json version
+    update_frontend_version "$new_version"
+
     # Update OpenAPI specification version
     update_openapi_version "$new_version"
 
     # Commit changes
     info "Creating commit..."
-    git add version.json backend/pkg/version/VERSION collect/pkg/version/VERSION sync/pkg/version/VERSION backend/openapi.yaml
+    git add version.json backend/pkg/version/VERSION collect/pkg/version/VERSION sync/pkg/version/VERSION frontend/package.json frontend/package-lock.json backend/openapi.yaml
     git commit -m "release: bump version to v$new_version"
 
     # Create tag
