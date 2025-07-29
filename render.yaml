@@ -125,7 +125,7 @@ services:
     runtime: docker
     plan: free
     rootDir: frontend
-    dockerfilePath: Dockerfile
+    dockerfilePath: Containerfile
     envVars: []
     autoDeploy: false  # Deployed via GitHub Actions on release
     branch: main
@@ -136,7 +136,7 @@ services:
     runtime: docker
     plan: free
     rootDir: proxy
-    dockerfilePath: Dockerfile
+    dockerfilePath: Containerfile
     domains:
       - my.nethesis.it
     envVars:
@@ -255,7 +255,7 @@ services:
     runtime: docker
     plan: free
     rootDir: frontend
-    dockerfilePath: Dockerfile
+    dockerfilePath: Containerfile
     envVars: []
     autoDeploy: true   # Auto-deploy on every commit
     branch: main
@@ -267,7 +267,7 @@ services:
     runtime: docker
     plan: free
     rootDir: proxy
-    dockerfilePath: Dockerfile
+    dockerfilePath: Containerfile
     domains:
       - qa.my.nethesis.it
     envVars:
