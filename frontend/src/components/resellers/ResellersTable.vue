@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { getResellers, searchStringInReseller, type Reseller } from '@/lib/resellers'
+import { searchStringInReseller, type Reseller } from '@/lib/resellers'
 import { useLoginStore } from '@/stores/login'
 import {
   faCircleInfo,
@@ -33,12 +33,12 @@ import {
   type SortEvent,
   NeSortDropdown,
 } from '@nethesis/vue-components'
-import { useQuery } from '@pinia/colada'
 import { computed, ref, watch } from 'vue'
 import CreateOrEditResellerDrawer from './CreateOrEditResellerDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteResellerModal from './DeleteResellerModal.vue'
 import { loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageSize'
+import { useResellers } from '@/queries/resellers'
 
 const { isShownCreateResellerDrawer = false } = defineProps<{
   isShownCreateResellerDrawer: boolean
@@ -48,11 +48,7 @@ const emit = defineEmits(['close-drawer'])
 
 const { t } = useI18n()
 const loginStore = useLoginStore()
-const { state: resellers, asyncStatus: resellersAsyncStatus } = useQuery({
-  key: ['resellers'],
-  enabled: () => !!loginStore.jwtToken,
-  query: getResellers,
-})
+const { resellers, resellersAsyncStatus } = useResellers()
 
 const currentReseller = ref<Reseller | undefined>()
 const textFilter = ref('')

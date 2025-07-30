@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { getUsers, searchStringInUser, type User } from '@/lib/users'
+import { searchStringInUser, type User } from '@/lib/users'
 import { useLoginStore } from '@/stores/login'
 import {
   faCircleInfo,
@@ -36,7 +36,6 @@ import {
   NeBadge,
   sortByProperty,
 } from '@nethesis/vue-components'
-import { useQuery } from '@pinia/colada'
 import { computed, ref, watch } from 'vue'
 import CreateOrEditUserDrawer from './CreateOrEditUserDrawer.vue'
 import { useI18n } from 'vue-i18n'
@@ -44,6 +43,7 @@ import DeleteUserModal from './DeleteUserModal.vue'
 import { loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageSize'
 import ResetPasswordModal from './ResetPasswordModal.vue'
 import PasswordChangedModal from './PasswordChangedModal.vue'
+import { useUsers } from '@/queries/users'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -53,11 +53,7 @@ const emit = defineEmits(['close-drawer'])
 
 const { t } = useI18n()
 const loginStore = useLoginStore()
-const { state: users, asyncStatus: usersAsyncStatus } = useQuery({
-  key: ['users'],
-  enabled: () => !!loginStore.jwtToken,
-  query: getUsers,
-})
+const { users, usersAsyncStatus } = useUsers()
 
 const currentUser = ref<User | undefined>()
 const textFilter = ref('')

@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { getCustomers, searchStringInCustomer, type Customer } from '@/lib/customers'
+import { searchStringInCustomer, type Customer } from '@/lib/customers'
 import { useLoginStore } from '@/stores/login'
 import {
   faCircleInfo,
@@ -33,12 +33,12 @@ import {
   type SortEvent,
   NeSortDropdown,
 } from '@nethesis/vue-components'
-import { useQuery } from '@pinia/colada'
 import { computed, ref, watch } from 'vue'
 import CreateOrEditCustomerDrawer from './CreateOrEditCustomerDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteCustomerModal from './DeleteCustomerModal.vue'
 import { loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageSize'
+import { useCustomers } from '@/queries/customers'
 
 const { isShownCreateCustomerDrawer = false } = defineProps<{
   isShownCreateCustomerDrawer: boolean
@@ -48,11 +48,7 @@ const emit = defineEmits(['close-drawer'])
 
 const { t } = useI18n()
 const loginStore = useLoginStore()
-const { state: customers, asyncStatus: customersAsyncStatus } = useQuery({
-  key: ['customers'],
-  enabled: () => !!loginStore.jwtToken,
-  query: getCustomers,
-})
+const { customers, customersAsyncStatus } = useCustomers()
 
 const currentCustomer = ref<Customer | undefined>()
 const textFilter = ref('')
