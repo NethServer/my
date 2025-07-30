@@ -3,477 +3,294 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light dark" />
-    <meta name="supported-color-schemes" content="light dark" />
     <title>Welcome to {{.OrganizationName}}</title>
-    <style>
-      /* Modern reset */
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
+    <!--[if mso]>
+    <noscript>
+      <xml>
+        <o:OfficeDocumentSettings>
+          <o:PixelsPerInch>96</o:PixelsPerInch>
+        </o:OfficeDocumentSettings>
+      </xml>
+    </noscript>
+    <![endif]-->
+    <style type="text/css">
+      /* Client-specific Styles */
+      #outlook a { padding: 0; }
+      body { width: 100% !important; min-width: 100%; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; margin: 0; padding: 0; }
+      .ExternalClass { width: 100%; }
+      .ExternalClass, .ExternalClass p, .ExternalClass span, .ExternalClass font, .ExternalClass td, .ExternalClass div { line-height: 100%; }
+      #backgroundTable { margin: 0; padding: 0; width: 100% !important; line-height: 100% !important; }
 
-      body {
-        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
-          Roboto, "Helvetica Neue", Arial, sans-serif;
-        line-height: 1.5;
-        color: #111827;
-        background-color: #f9fafb;
-        margin: 0;
-        padding: 0;
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-      }
+      /* General Styles */
+      img { outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
+      a img { border: none; }
+      .image_fix { display: block; }
+      p { margin: 0px 0px !important; }
 
-      /* Dark mode support */
-      @media (prefers-color-scheme: dark) {
-        body {
-          background-color: #0f172a !important;
-          color: #f8fafc !important;
-        }
-        .email-container {
-          background-color: #1e293b !important;
-          border-color: #334155 !important;
-        }
-        .greeting {
-          color: #f8fafc !important;
-        }
-        .intro-text {
-          color: #cbd5e1 !important;
-        }
-        .info-card {
-          background-color: #334155 !important;
-          border-color: #475569 !important;
-        }
-        .info-card .label {
-          color: #94a3b8 !important;
-        }
-        .info-card .value {
-          color: #f8fafc !important;
-        }
-        .password-box {
-          background-color: #1e1b4b !important;
-          border-color: #3730a3 !important;
-          color: #a5b4fc !important;
-        }
-        .password-note {
-          color: #a5b4fc !important;
-        }
-        .footer {
-          background-color: #0f172a !important;
-          border-color: #334155 !important;
-        }
-        .footer p {
-          color: #94a3b8 !important;
-        }
-        .support-info {
-          color: #64748b !important;
-        }
-        .instructions {
-          background: linear-gradient(
-            135deg,
-            #1e1b4b 0%,
-            #312e81 100%
-          ) !important;
-        }
-        .instructions h3 {
-          color: #c7d2fe !important;
-        }
-        .instructions ol {
-          color: #a5b4fc !important;
-        }
-      }
+      /* Gmail specific fixes */
+      u + .body .gmail-fix { display: none; }
 
-      /* Container */
-      .email-wrapper {
-        width: 100%;
-        margin: 0;
-        padding: 2rem 1rem;
-        background-color: #f9fafb;
-      }
-
-      .email-container {
-        max-width: 600px;
-        margin: 0 auto;
-        background-color: #ffffff;
-        border-radius: 1rem;
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
-        border: 1px solid #e2e8f0;
-        overflow: hidden;
-      }
-
-      /* Header with modern gradient */
-      .header {
-        background: linear-gradient(
-          135deg,
-          #0f172a 0%,
-          #1e293b 50%,
-          #334155 100%
-        );
-        color: white;
-        padding: 3rem 2rem;
-        text-align: center;
-        position: relative;
-      }
-
-      .header::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: linear-gradient(135deg, #6366f1 0%, #ec4899 100%);
-        opacity: 0.2;
-        pointer-events: none;
-      }
-
-      .header-content {
-        position: relative;
-        z-index: 1;
-      }
-
-      .logo {
-        margin-bottom: 1rem;
-      }
-
-      .logo img {
-        margin: auto;
-      }
-
-      .header h1 {
-        font-size: 2rem;
-        font-weight: 700;
-        margin-bottom: 0.5rem;
-        letter-spacing: -0.025em;
-      }
-
-      .header p {
-        font-size: 1.125rem;
-        opacity: 0.8;
-        font-weight: 400;
-      }
-
-      /* Content */
-      .content {
-        padding: 3rem 2rem;
-      }
-
-      .greeting {
-        font-size: 1.5rem;
-        color: #111827;
-        margin-bottom: 1.5rem;
-        letter-spacing: -0.025em;
-      }
-
-      .intro-text {
-        font-size: 1.125rem;
-        color: #6b7280;
-        margin-bottom: 2.5rem;
-        line-height: 1.7;
-      }
-
-      /* Modern cards */
-      .info-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 1rem;
-        margin-bottom: 2.5rem;
-      }
-
-      .info-card {
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 0.75rem;
-        padding: 1.5rem;
-        text-align: center;
-        transition: all 0.2s ease;
-      }
-
-      .info-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1);
-      }
-
-      .info-card .label {
-        font-size: 0.75rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: #64748b;
-        margin-bottom: 0.5rem;
-      }
-
-      .info-card .value {
-        font-size: 1rem;
-        font-weight: 600;
-        color: #111827;
-        word-break: break-word;
-        line-height: 1.4;
-      }
-
-      /* Modern password section */
-      .password-section {
-        margin: 2.5rem 0;
-        text-align: center;
-      }
-
-      .password-label {
-        font-size: 0.875rem;
-        font-weight: 600;
-        color: #3730a3;
-        margin-bottom: 1rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-      }
-
-      .password-box {
-        background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
-        border: 2px solid #c4b5fd;
-        border-radius: 0.75rem;
-        padding: 1.5rem;
-        font-family: "JetBrains Mono", "Fira Code", "SF Mono", Monaco, Consolas,
-          monospace;
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: #3730a3;
-        letter-spacing: 0.1em;
-        word-break: break-all;
-        margin-bottom: 1rem;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-      }
-
-      .password-value {
-        font-family: "JetBrains Mono", "Fira Code", "SF Mono", Monaco, Consolas,
-          monospace;
-      }
-
-      .password-note {
-        font-size: 0.875rem;
-        color: #5b21b6;
-        font-weight: 500;
-      }
-
-      /* Modern CTA button */
-      .cta-section {
-        text-align: center;
-        margin: 3rem 0;
-      }
-
-      .btn-primary {
-        display: inline-block;
-        background: #3b82f6;
-        color: white !important;
-        text-decoration: none;
-        padding: 1rem 2rem;
-        border-radius: 0.75rem;
-        font-size: 1rem;
-        font-weight: 600;
-        box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.3);
-        transition: all 0.2s ease;
-        letter-spacing: -0.025em;
-      }
-
-      .btn-primary:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 20px 25px -5px rgba(59, 130, 246, 0.4);
-      }
-
-      /* Modern instructions */
-      .instructions {
-        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-        border-left: 4px solid #0ea5e9;
-        border-radius: 0 0.75rem 0.75rem 0;
-        padding: 1.5rem;
-        margin: 2.5rem 0;
-      }
-
-      .instructions h3 {
-        font-size: 1.125rem;
-        font-weight: 600;
-        color: #0c4a6e;
-        margin-bottom: 1rem;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-      }
-
-      .instructions ol {
-        margin-left: 1.25rem;
-        color: #075985;
-      }
-
-      .instructions li {
-        margin-bottom: 0.5rem;
-        font-size: 0.875rem;
-        line-height: 1.5;
-      }
-
-      /* Modern footer */
-      .footer {
-        background-color: #f8fafc;
-        padding: 2rem;
-        text-align: center;
-        border-top: 1px solid #e2e8f0;
-      }
-
-      .footer p {
-        font-size: 0.875rem;
-        color: #64748b;
-        margin-bottom: 0.5rem;
-      }
-
-      .support-info {
-        font-size: 0.8125rem;
-        color: #94a3b8;
-      }
-
-      .support-info a {
-        color: #3b82f6;
-        text-decoration: none;
-      }
-
-      /* Responsive design */
-      @media only screen and (max-width: 600px) {
-        .email-wrapper {
-          padding: 1rem 0.5rem;
-        }
-        .email-container {
-          border-radius: 0.75rem;
-        }
-        .header {
-          padding: 2rem 1.5rem;
-        }
-        .header h1 {
-          font-size: 1.75rem;
-        }
-        .content {
-          padding: 2rem 1.5rem;
-        }
-        .info-grid {
-          grid-template-columns: 1fr;
-          gap: 0.75rem;
-        }
-        .info-card {
-          padding: 1.25rem;
-        }
-        .footer {
-          padding: 1.5rem;
-        }
-        .btn-primary {
-          padding: 0.875rem 1.5rem;
-          font-size: 0.9375rem;
-        }
-      }
-
-      /* High contrast and reduced motion */
-      @media (prefers-contrast: high) {
-        .btn-primary {
-          background: #000000 !important;
-          border: 2px solid #ffffff;
-        }
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .btn-primary,
-        .info-card {
-          transition: none;
-        }
-        .btn-primary:hover,
-        .info-card:hover {
-          transform: none;
-        }
+      /* Mobile Styles */
+      @media only screen and (max-width: 640px) {
+        .mobile-hide { display: none !important; }
+        .mobile-center { text-align: center !important; }
+        .mobile-full { width: 100% !important; max-width: 100% !important; }
+        .mobile-padding { padding: 20px !important; }
+        .mobile-font-16 { font-size: 16px !important; }
+        .mobile-font-14 { font-size: 14px !important; }
+        .mobile-font-12 { font-size: 12px !important; }
       }
     </style>
   </head>
-  <body>
-    <div class="email-wrapper">
-      <div class="email-container">
-        <!-- Header -->
-        <div class="header">
-          <div class="header-content">
-            <div class="logo">
-              <img
-                src="https://www.nethesis.it/assets/uploads/2025/07/s-nethesis.png"
-                alt="Nethesis logo"
-                style="display: block; border: 0"
-              />
-            </div>
-            <h1>Welcome to My Nethesis</h1>
-            <p>Your account is ready to go</p>
-          </div>
-        </div>
+  <body style="background-color: #f9fafb; margin: 0; padding: 0; font-family: 'Poppins', Arial, Helvetica, sans-serif;">
+    <!-- 100% background wrapper (Gmail fix) -->
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" id="backgroundTable" style="background-color: #f9fafb; margin: 0; padding: 0;">
+      <tr>
+        <td align="center" valign="top" style="padding: 20px;">
+          <!-- Main email container -->
+          <table border="0" cellpadding="0" cellspacing="0" width="600" class="mobile-full" style="background-color: #ffffff; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0; max-width: 600px;">
 
-        <!-- Content -->
-        <div class="content">
-          <div class="greeting">Hello {{.UserName}},</div>
+            <!-- Header -->
+            <tr>
+              <td align="center" valign="top" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%); border-radius: 16px 16px 0 0; padding: 48px 32px; position: relative;">
+                <!-- Logo -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td align="center" style="padding-bottom: 16px;">
+                      <img src="https://www.nethesis.it/assets/uploads/2025/07/nethesis.png" alt="Nethesis logo" width="120" height="auto" style="display: block; border: 0;" />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="center" style="color: #ffffff; font-size: 32px; font-weight: 700; line-height: 1.2; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 16px;">
+                      Welcome to My Nethesis
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="center" style="color: rgba(255, 255, 255, 0.8); font-size: 18px; font-weight: 400; font-family: 'Poppins', Arial, sans-serif;">
+                      Your account is ready to go
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
 
-          <div class="intro-text">
-            Welcome to My Nethesis! Your account has been successfully created
-            and you're ready to get started. Below you'll find your login
-            credentials and everything you need to access the platform.
-          </div>
+            <!-- Content -->
+            <tr>
+              <td style="padding: 48px 32px;" class="mobile-padding">
 
-          <!-- Account Info Grid -->
-          <div class="info-grid">
-            <div class="info-card">
-              <div class="label">Email</div>
-              <div class="value">{{.UserEmail}}</div>
-            </div>
-            <div class="info-card">
-              <div class="label">Organization</div>
-              <div class="value">
-                {{.OrganizationName}}{{if .OrganizationType}}
-                ({{.OrganizationType}}){{end}}
-              </div>
-            </div>
-            {{if .UserRoles}}
-            <div class="info-card">
-              <div class="label">Role{{if gt (len .UserRoles) 1}}s{{end}}</div>
-              <div class="value">
-                {{range $index, $role := .UserRoles}}{{if $index}},
-                {{end}}{{$role}}{{end}}
-              </div>
-            </div>
-            {{end}}
-            <div class="info-card">
-              <div class="label">Temporary Password</div>
-              <div class="value password-value">{{.TempPassword}}</div>
-            </div>
-          </div>
+                <!-- Greeting -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td style="color: #111827; font-size: 24px; font-weight: 600; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 16px;">
+                      Hello {{.UserName}},
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="color: #6b7280; font-size: 18px; line-height: 1.6; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 32px;">
+                      Welcome to My Nethesis! Your account has been successfully created and you're ready to get started. Below you'll find your login credentials and everything you need to access the platform.
+                    </td>
+                  </tr>
+                </table>
 
-          <!-- Instructions -->
-          <div class="instructions">
-            <h3>🚀 Getting Started</h3>
-            <ol>
-              <li>Click the "Login & change password" button below</li>
-              <li>Enter your email: <strong>{{.UserEmail}}</strong></li>
-              <li>Use your temporary password provided above</li>
-              <li>Set your new secure password</li>
-              <li>Start exploring My Nethesis!</li>
-            </ol>
-          </div>
+                <!-- Account Info Cards -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
 
-          <!-- CTA Button -->
-          <div class="cta-section">
-            <a href="{{.LoginURL}}" class="btn-primary">
-              Login & change password
-            </a>
-          </div>
-        </div>
+                  <!-- Email Card -->
+                  <tr>
+                    <td style="padding-bottom: 16px;">
+                      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
+                        <tr>
+                          <td style="padding: 24px; text-align: center;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #64748b; margin-bottom: 8px; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 8px;">
+                                  EMAIL
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="font-size: 16px; font-weight: 600; color: #111827; word-break: break-word; font-family: 'Poppins', Arial, sans-serif;">
+                                  {{.UserEmail}}
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
 
-        <!-- Footer -->
-        <div class="footer">
-          <p><strong>{{.CompanyName}}</strong></p>
-          <p class="support-info">
-            Need help? Contact us at
-            <a href="mailto:{{.SupportEmail}}">{{.SupportEmail}}</a>
-          </p>
-          <p class="support-info">
-            This email was sent automatically. Please do not reply.
-          </p>
-        </div>
-      </div>
-    </div>
+                  <!-- Roles Card -->
+                  {{if .UserRoles}}
+                  <tr>
+                    <td style="padding-bottom: 16px;">
+                      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
+                        <tr>
+                          <td style="padding: 24px; text-align: center;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #64748b; margin-bottom: 8px; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 8px;">
+                                  ROLE{{if gt (len .UserRoles) 1}}S{{end}}
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="font-size: 16px; font-weight: 600; color: #111827; font-family: 'Poppins', Arial, sans-serif;">
+                                  {{range $index, $role := .UserRoles}}{{if $index}}, {{end}}{{$role}}{{end}}
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  {{end}}
+
+                  <!-- Organization Card -->
+                  <tr>
+                    <td style="padding-bottom: 16px;">
+                      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
+                        <tr>
+                          <td style="padding: 24px; text-align: center;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #64748b; margin-bottom: 8px; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 8px;">
+                                  ORGANIZATION
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="font-size: 16px; font-weight: 600; color: #111827; font-family: 'Poppins', Arial, sans-serif;">
+                                  {{.OrganizationName}}
+                                  {{if .OrganizationType}}
+                                  {{$orgTypeLower := .OrganizationType | lower}}
+                                  <br><br>
+                                  <span style="display: inline-block; padding: 8px 16px; background: oklch(0.951 0.026 236.824); color: oklch(0.5 0.134 242.749); border-radius: 50px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; font-family: 'Poppins', Arial, sans-serif; vertical-align: middle;">
+                                    {{if eq $orgTypeLower "owner"}}<span style="vertical-align: middle;">👑</span> <span style="vertical-align: middle;">Owner</span>{{end}}
+                                    {{if eq $orgTypeLower "distributor"}}<span style="vertical-align: middle;">🌍</span> <span style="vertical-align: middle;">Distributor</span>{{end}}
+                                    {{if eq $orgTypeLower "reseller"}}<span style="vertical-align: middle;">🏢</span> <span style="vertical-align: middle;">Reseller</span>{{end}}
+                                    {{if eq $orgTypeLower "customer"}}<span style="vertical-align: middle;">🏠</span> <span style="vertical-align: middle;">Customer</span>{{end}}
+                                  </span>
+                                  {{end}}
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+
+                </table>
+
+                <!-- Getting Started Section -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 40px 0;">
+                  <tr>
+                    <td style="background-color: #f1f5f9; border-radius: 12px; border: 1px solid #e2e8f0; padding: 24px;">
+
+                      <!-- Getting Started Header -->
+                      <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                        <tr>
+                          <td style="color: #1e293b; font-size: 18px; font-weight: 600; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 16px;">
+                            <span style="vertical-align: middle;">ℹ️</span> <span style="vertical-align: middle;">Getting started</span>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <!-- Steps List -->
+                      <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                        <tr>
+                          <td style="color: #475569; font-size: 14px; line-height: 1.5; font-family: 'Poppins', Arial, sans-serif;">
+                            1. Click the "Login & Change Password" button below<br>
+                            2. Enter your email: <strong style="color: #1e293b;">{{.UserEmail}}</strong><br>
+                            3. Use the temporary password provided<br>
+                            4. Set your new secure password<br>
+                            5. Start exploring My Nethesis
+                          </td>
+                        </tr>
+                      </table>
+
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Temporary Password Card -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="padding-bottom: 16px;">
+                  <tr>
+                    <td>
+                      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
+                        <tr>
+                          <td style="padding: 24px; text-align: center;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #64748b; margin-bottom: 8px; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 8px;">
+                                  TEMPORARY PASSWORD
+                                </td>
+                              </tr>
+                              <tr>
+                                <td>
+                                  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background: rgb(255, 255, 255); border: 1px solid #e2e8f0; border-radius: 8px;">
+                                    <tr>
+                                      <td style="padding: 14px 16px; font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Monaco, Consolas, monospace; font-size: 16px; color: #1e293b; word-break: break-all; text-align: center;">
+                                        {{.TempPassword}}
+                                      </td>
+                                    </tr>
+                                  </table>
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- CTA Button -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 48px 0;">
+                  <tr>
+                    <td align="center">
+                      <!--[if mso]>
+                      <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{.LoginURL}}" style="height:56px;v-text-anchor:middle;width:300px;" arcsize="14%" stroke="f" fillcolor="#0069a8">
+                        <w:anchorlock/>
+                        <center>
+                      <![endif]-->
+                      <a href="{{.LoginURL}}" style="background-color: rgb(0, 105, 168); border-radius: 8px; color: #ffffff; display: inline-block; font-family: 'Poppins', Arial, sans-serif; font-size: 16px; font-weight: 600; line-height: 56px; text-align: center; text-decoration: none; width: 300px; -webkit-text-size-adjust: none;">➡️ Login and change password</a>
+                      <!--[if mso]>
+                        </center>
+                      </v:roundrect>
+                      <![endif]-->
+                    </td>
+                  </tr>
+                </table>
+
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td style="background-color: #f8fafc; padding: 32px; text-align: center; border-top: 1px solid #e2e8f0; border-radius: 0 0 16px 16px;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td style="font-size: 14px; color: #64748b; margin-bottom: 8px; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 8px;">
+                      <strong>{{.CompanyName}}</strong>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="font-size: 13px; color: #94a3b8; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 4px;">
+                      Need help? Contact us at <a href="mailto:{{.SupportEmail}}" style="color: #3b82f6; text-decoration: none;">{{.SupportEmail}}</a>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="font-size: 13px; color: #94a3b8; font-family: 'Poppins', Arial, sans-serif;">
+                      This email was sent automatically. Please do not reply.
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
   </body>
 </html>

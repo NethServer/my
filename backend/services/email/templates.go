@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 // WelcomeEmailData contains data for welcome email template
@@ -99,8 +100,14 @@ func (ts *TemplateService) renderTemplate(templateName string, data interface{})
 		return "", fmt.Errorf("failed to read template file %s: %w", templatePath, err)
 	}
 
+	// Create template with custom functions
+	funcMap := template.FuncMap{
+		"lower": strings.ToLower,
+		"upper": strings.ToUpper,
+	}
+
 	// Parse template
-	tmpl, err := template.New(templateName).Parse(string(templateContent))
+	tmpl, err := template.New(templateName).Funcs(funcMap).Parse(string(templateContent))
 	if err != nil {
 		return "", fmt.Errorf("failed to parse template %s: %w", templateName, err)
 	}
