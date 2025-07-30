@@ -12,14 +12,7 @@ import {
   openThirdPartyApp,
 } from '@/lib/thirdPartyApps'
 import { useLoginStore } from '@/stores/login'
-import {
-  faArrowUpRightFromSquare,
-  faCrown,
-  faGraduationCap,
-  faHeadset,
-  faShop,
-  faWarehouse,
-} from '@fortawesome/free-solid-svg-icons'
+import { faArrowUpRightFromSquare, faCrown } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   NeAvatar,
@@ -76,111 +69,6 @@ const { state: thirdPartyApps } = useQuery({
       <div class="hidden sm:block"></div>
       <div class="hidden 2xl:block"></div>
       <div class="hidden 2xl:block"></div>
-      <!-- //// remove static cards -->
-      <!-- warehouse -->
-      <NeCard>
-        <div class="flex h-full flex-col justify-between gap-4">
-          <div class="flex flex-col items-start gap-3">
-            <div class="flex items-center gap-3">
-              <NeRoundedIcon
-                :customIcon="faWarehouse"
-                customBackgroundClasses="bg-indigo-100 dark:bg-indigo-800"
-                customForegroundClasses="text-indigo-700 dark:text-indigo-50"
-              />
-              <NeHeading tag="h6">
-                {{ $t('dashboard.warehouse') }}
-              </NeHeading>
-            </div>
-            <p>
-              {{ $t('dashboard.warehouse_description') }}
-            </p>
-          </div>
-          <NeButton kind="secondary" disabled class="bottom-5 self-end">
-            <template #prefix>
-              <FontAwesomeIcon :icon="faArrowUpRightFromSquare" aria-hidden="true" />
-            </template>
-            {{ $t('common.coming_soon') }}
-          </NeButton>
-        </div>
-      </NeCard>
-      <!-- nethshop -->
-      <NeCard>
-        <div class="flex h-full flex-col justify-between gap-4">
-          <div class="flex flex-col items-start gap-3">
-            <div class="flex items-center gap-3">
-              <NeRoundedIcon
-                :customIcon="faShop"
-                customBackgroundClasses="bg-indigo-100 dark:bg-indigo-800"
-                customForegroundClasses="text-indigo-700 dark:text-indigo-50"
-              />
-              <NeHeading tag="h6">
-                {{ $t('dashboard.nethshop') }}
-              </NeHeading>
-            </div>
-            <p>
-              {{ $t('dashboard.nethshop_description') }}
-            </p>
-          </div>
-          <NeButton kind="secondary" disabled class="self-end">
-            <template #prefix>
-              <FontAwesomeIcon :icon="faArrowUpRightFromSquare" aria-hidden="true" />
-            </template>
-            {{ $t('common.coming_soon') }}
-          </NeButton>
-        </div>
-      </NeCard>
-      <!-- helpdesk -->
-      <NeCard>
-        <div class="flex h-full flex-col justify-between gap-4">
-          <div class="flex flex-col items-start gap-3">
-            <div class="flex items-center gap-3">
-              <NeRoundedIcon
-                :customIcon="faHeadset"
-                customBackgroundClasses="bg-indigo-100 dark:bg-indigo-800"
-                customForegroundClasses="text-indigo-700 dark:text-indigo-50"
-              />
-              <NeHeading tag="h6">
-                {{ $t('dashboard.helpdesk') }}
-              </NeHeading>
-            </div>
-            <p>
-              {{ $t('dashboard.helpdesk_description') }}
-            </p>
-          </div>
-          <NeButton kind="secondary" disabled class="self-end">
-            <template #prefix>
-              <FontAwesomeIcon :icon="faArrowUpRightFromSquare" aria-hidden="true" />
-            </template>
-            {{ $t('common.coming_soon') }}
-          </NeButton>
-        </div>
-      </NeCard>
-      <!-- training portal -->
-      <NeCard>
-        <div class="flex h-full flex-col justify-between gap-4">
-          <div class="flex flex-col items-start gap-3">
-            <div class="flex items-center gap-3">
-              <NeRoundedIcon
-                :customIcon="faGraduationCap"
-                customBackgroundClasses="bg-indigo-100 dark:bg-indigo-800"
-                customForegroundClasses="text-indigo-700 dark:text-indigo-50"
-              />
-              <NeHeading tag="h6">
-                {{ $t('dashboard.training_portal') }}
-              </NeHeading>
-            </div>
-            <p>
-              {{ $t('dashboard.training_portal_description') }}
-            </p>
-          </div>
-          <NeButton kind="secondary" disabled class="self-end">
-            <template #prefix>
-              <FontAwesomeIcon :icon="faArrowUpRightFromSquare" aria-hidden="true" />
-            </template>
-            {{ $t('common.coming_soon') }}
-          </NeButton>
-        </div>
-      </NeCard>
       <!-- loading third party apps -->
       <template v-if="thirdPartyApps.status === 'pending'">
         <NeCard v-for="i in 4" :key="i">

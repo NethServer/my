@@ -4,7 +4,13 @@
 import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
-import { faArrowUpRightFromSquare, faRocket } from '@fortawesome/free-solid-svg-icons'
+import {
+  faArrowUpRightFromSquare,
+  faHeadset,
+  faShop,
+  faWarehouse,
+  faWifi,
+} from '@fortawesome/free-solid-svg-icons'
 
 export type ThirdPartyApp = {
   id: string
@@ -30,9 +36,14 @@ export const getThirdPartyApps = () => {
 
 export const getThirdPartyAppIcon = (thirdPartyApp: ThirdPartyApp) => {
   switch (thirdPartyApp.name) {
-    ////
-    case 'example.company.com':
-      return faRocket
+    case 'helpdesk.nethesis.it':
+      return faHeadset
+    case 'nethshop.nethesis.it':
+      return faShop
+    case 'my.nethspot.com':
+      return faWifi
+    case 'stock.nethesis.it':
+      return faWarehouse
     default:
       // fallback icon
       return faArrowUpRightFromSquare

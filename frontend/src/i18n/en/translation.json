@@ -73,15 +73,7 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "welcome_user": "Welcome {user}",
-    "warehouse": "Warehouse",
-    "warehouse_description": "Check product inventory",
-    "nethshop": "NethShop",
-    "nethshop_description": "Browse and order Nethesis products",
-    "helpdesk": "Helpdesk",
-    "helpdesk_description": "Get support, open and manage tickets",
-    "training_portal": "Training portal",
-    "training_portal_description": "Access training materials and courses"
+    "welcome_user": "Welcome {user}"
   },
   "distributors": {
     "title": "Distributors",
@@ -208,7 +200,10 @@
     "username_already_exists": "Username already exists"
   },
   "third_party_apps": {
-    "description_example_company_com": "Description of Example app"
+    "description_nethshop_nethesis_it": "Browse and order Nethesis products and services.",
+    "description_my_nethspot_com": "Manage your hotspot devices.",
+    "description_stock_nethesis_it": "Check product inventory and manage stock.",
+    "description_helpdesk_nethesis_it": "Get support, open and manage tickets."
   },
   "ne_text_input": {
     "show_password": "Show password",
