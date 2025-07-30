@@ -1,4 +1,4 @@
-🎯 Welcome to {{.OrganizationName}}{{if .OrganizationType}} ({{.OrganizationType}}){{end}}!
+Welcome to My Nethesis!
 
 Hello {{.UserName}},
 
@@ -9,7 +9,6 @@ Your account has been created and is ready to go! Below you'll find everything y
 📧 Email: {{.UserEmail}}
 🏢 Organization: {{.OrganizationName}}{{if .OrganizationType}} ({{.OrganizationType}}){{end}}
 {{if .UserRoles}}👤 Role{{if gt (len .UserRoles) 1}}s{{end}}: {{range $index, $role := .UserRoles}}{{if $index}}, {{end}}{{$role}}{{end}}{{end}}
-✅ Status: Active
 
 ═══════════════════════════════════════════════════════════════
 

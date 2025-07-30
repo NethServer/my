@@ -124,8 +124,8 @@
         left: 0;
         right: 0;
         bottom: 0;
-        background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-        opacity: 0.1;
+        background: linear-gradient(135deg, #6366f1 0%, #ec4899 100%);
+        opacity: 0.2;
         pointer-events: none;
       }
 
@@ -135,15 +135,11 @@
       }
 
       .logo {
-        width: 64px;
-        height: 64px;
-        background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-        border-radius: 1rem;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: 1.5rem;
-        font-size: 2rem;
+        margin-bottom: 1rem;
+      }
+
+      .logo img {
+        margin: auto;
       }
 
       .header h1 {
@@ -166,7 +162,6 @@
 
       .greeting {
         font-size: 1.5rem;
-        font-weight: 600;
         color: #111827;
         margin-bottom: 1.5rem;
         letter-spacing: -0.025em;
@@ -249,6 +244,11 @@
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
       }
 
+      .password-value {
+        font-family: "JetBrains Mono", "Fira Code", "SF Mono", Monaco, Consolas,
+          monospace;
+      }
+
       .password-note {
         font-size: 0.875rem;
         color: #5b21b6;
@@ -263,8 +263,8 @@
 
       .btn-primary {
         display: inline-block;
-        background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-        color: white;
+        background: #3b82f6;
+        color: white !important;
         text-decoration: none;
         padding: 1rem 2rem;
         border-radius: 0.75rem;
@@ -392,8 +392,14 @@
         <!-- Header -->
         <div class="header">
           <div class="header-content">
-            <div class="logo">🎯</div>
-            <h1>Welcome to {{.OrganizationName}}</h1>
+            <div class="logo">
+              <img
+                src="https://www.nethesis.it/assets/uploads/2025/07/s-nethesis.png"
+                alt="Nethesis logo"
+                style="display: block; border: 0"
+              />
+            </div>
+            <h1>Welcome to My Nethesis</h1>
             <p>Your account is ready to go</p>
           </div>
         </div>
@@ -403,13 +409,9 @@
           <div class="greeting">Hello {{.UserName}},</div>
 
           <div class="intro-text">
-            Welcome to
-            <strong
-              >{{.OrganizationName}}{{if .OrganizationType}}
-              ({{.OrganizationType}}){{end}}</strong
-            >! Your account has been successfully created and you're ready to
-            get started. Below you'll find your login credentials and everything
-            you need to access the platform.
+            Welcome to My Nethesis! Your account has been successfully created
+            and you're ready to get started. Below you'll find your login
+            credentials and everything you need to access the platform.
           </div>
 
           <!-- Account Info Grid -->
@@ -435,37 +437,28 @@
             </div>
             {{end}}
             <div class="info-card">
-              <div class="label">Status</div>
-              <div class="value">✅ Active</div>
+              <div class="label">Temporary Password</div>
+              <div class="value password-value">{{.TempPassword}}</div>
             </div>
-          </div>
-
-          <!-- Temporary Password -->
-          <div class="password-section">
-            <div class="password-label">🔑 Temporary Password</div>
-            <div class="password-box">{{.TempPassword}}</div>
-            <div class="password-note">
-              Change this password immediately after login
-            </div>
-          </div>
-
-          <!-- CTA Button -->
-          <div class="cta-section">
-            <a href="{{.LoginURL}}" class="btn-primary">
-              Login & Change Password
-            </a>
           </div>
 
           <!-- Instructions -->
           <div class="instructions">
             <h3>🚀 Getting Started</h3>
             <ol>
-              <li>Click the "Login & Change Password" button above</li>
+              <li>Click the "Login & change password" button below</li>
               <li>Enter your email: <strong>{{.UserEmail}}</strong></li>
-              <li>Use the temporary password provided</li>
+              <li>Use your temporary password provided above</li>
               <li>Set your new secure password</li>
-              <li>Start exploring the platform!</li>
+              <li>Start exploring My Nethesis!</li>
             </ol>
+          </div>
+
+          <!-- CTA Button -->
+          <div class="cta-section">
+            <a href="{{.LoginURL}}" class="btn-primary">
+              Login & change password
+            </a>
           </div>
         </div>
 
