@@ -1,0 +1,135 @@
+name: Add PR Redirect URIs to Logto
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+jobs:
+  add-redirect-uris:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract PR number
+        id: pr
+        run: echo "number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+
+      - name: Get Logto access token
+        id: logto-token
+        run: |
+          RESPONSE=$(curl -s -X POST "${{ secrets.LOGTO_BASE_URL }}/oidc/token" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "grant_type=client_credentials" \
+            -d "client_id=${{ secrets.LOGTO_M2M_CLIENT_ID }}" \
+            -d "client_secret=${{ secrets.LOGTO_M2M_CLIENT_SECRET }}" \
+            -d "resource=${{ secrets.LOGTO_BASE_URL }}/api" \
+            -d "scope=all")
+          
+          ACCESS_TOKEN=$(echo $RESPONSE | jq -r '.access_token')
+          if [ "$ACCESS_TOKEN" = "null" ] || [ -z "$ACCESS_TOKEN" ]; then
+            echo "Failed to get access token"
+            echo "Response: $RESPONSE"
+            exit 1
+          fi
+          
+          echo "::add-mask::$ACCESS_TOKEN"
+          echo "token=$ACCESS_TOKEN" >> $GITHUB_OUTPUT
+
+      - name: Get current application configuration
+        id: current-config
+        run: |
+          RESPONSE=$(curl -s -X GET "${{ secrets.LOGTO_BASE_URL }}/api/applications/${{ secrets.LOGTO_FRONTEND_APP_ID }}" \
+            -H "Authorization: Bearer ${{ steps.logto-token.outputs.token }}" \
+            -H "Content-Type: application/json")
+          
+          echo "current_config<<EOF" >> $GITHUB_OUTPUT
+          echo "$RESPONSE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Update redirect URIs
+        run: |
+          # Extract current redirect URIs
+          CURRENT_REDIRECT_URIS=$(echo '${{ steps.current-config.outputs.current_config }}' | jq -r '.oidcClientMetadata.redirectUris // []')
+          CURRENT_POST_LOGOUT_URIS=$(echo '${{ steps.current-config.outputs.current_config }}' | jq -r '.oidcClientMetadata.postLogoutRedirectUris // []')
+          
+          # Define new URIs for this PR
+          NEW_FRONTEND_REDIRECT_URI="https://my-frontend-qa-pr-${{ steps.pr.outputs.number }}.onrender.com/login-redirect"
+          NEW_PROXY_REDIRECT_URI="https://my-proxy-qa-pr-${{ steps.pr.outputs.number }}.onrender.com/login-redirect"
+          NEW_FRONTEND_LOGOUT_URI="https://my-frontend-qa-pr-${{ steps.pr.outputs.number }}.onrender.com/login"
+          NEW_PROXY_LOGOUT_URI="https://my-proxy-qa-pr-${{ steps.pr.outputs.number }}.onrender.com/login"
+          
+          # Add new URIs to existing ones (avoiding duplicates)
+          UPDATED_REDIRECT_URIS=$(echo "$CURRENT_REDIRECT_URIS" | jq --arg frontend "$NEW_FRONTEND_REDIRECT_URI" --arg proxy "$NEW_PROXY_REDIRECT_URI" '. + [$frontend, $proxy] | unique')
+          UPDATED_POST_LOGOUT_URIS=$(echo "$CURRENT_POST_LOGOUT_URIS" | jq --arg frontend "$NEW_FRONTEND_LOGOUT_URI" --arg proxy "$NEW_PROXY_LOGOUT_URI" '. + [$frontend, $proxy] | unique')
+          
+          # Create the request body
+          REQUEST_BODY=$(jq -n \
+            --argjson redirectUris "$UPDATED_REDIRECT_URIS" \
+            --argjson postLogoutRedirectUris "$UPDATED_POST_LOGOUT_URIS" \
+            '{
+              oidcClientMetadata: {
+                redirectUris: $redirectUris,
+                postLogoutRedirectUris: $postLogoutRedirectUris
+              }
+            }')
+          
+          echo "Request body:"
+          echo "$REQUEST_BODY" | jq .
+          
+          # Update the application
+          RESPONSE=$(curl -s -X PATCH "${{ secrets.LOGTO_BASE_URL }}/api/applications/${{ secrets.LOGTO_FRONTEND_APP_ID }}" \
+            -H "Authorization: Bearer ${{ steps.logto-token.outputs.token }}" \
+            -H "Content-Type: application/json" \
+            -d "$REQUEST_BODY")
+          
+          echo "Update response:"
+          echo "$RESPONSE" | jq .
+          
+          # Check if the update was successful
+          if echo "$RESPONSE" | jq -e '.oidcClientMetadata.redirectUris' > /dev/null; then
+            echo "✅ Successfully added redirect URIs for PR #${{ steps.pr.outputs.number }}"
+            echo "Added redirect URIs:"
+            echo "- $NEW_FRONTEND_REDIRECT_URI"
+            echo "- $NEW_PROXY_REDIRECT_URI"
+            echo "Added post-logout redirect URIs:"
+            echo "- $NEW_FRONTEND_LOGOUT_URI"
+            echo "- $NEW_PROXY_LOGOUT_URI"
+          else
+            echo "❌ Failed to update redirect URIs"
+            echo "Response: $RESPONSE"
+            exit 1
+          fi
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = '${{ steps.pr.outputs.number }}';
+            const frontendRedirectUri = `https://my-frontend-qa-pr-${prNumber}.onrender.com/login-redirect`;
+            const proxyRedirectUri = `https://my-proxy-qa-pr-${prNumber}.onrender.com/login-redirect`;
+            const frontendLogoutUri = `https://my-frontend-qa-pr-${prNumber}.onrender.com/login`;
+            const proxyLogoutUri = `https://my-proxy-qa-pr-${prNumber}.onrender.com/login`;
+            
+            const body = [
+              '🔗 **Redirect URIs Added to Logto**',
+              '',
+              'The following redirect URIs have been automatically added to the Logto application configuration:',
+              '',
+              '**Redirect URIs:**',
+              `- \`${frontendRedirectUri}\``,
+              `- \`${proxyRedirectUri}\``,
+              '',
+              '**Post-logout redirect URIs:**',
+              `- \`${frontendLogoutUri}\``,
+              `- \`${proxyLogoutUri}\``,
+              '',
+              'These will be automatically removed when the PR is closed or merged.'
+            ].join('\n');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
