@@ -31,7 +31,7 @@ export const getThirdPartyApps = () => {
     .get(`${API_URL}/applications`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
-    .then((res) => res.data.data as ThirdPartyApp[])
+    .then((res) => res.data.data.sort(sortThirdPartyApps) as ThirdPartyApp[])
 }
 
 export const getThirdPartyAppIcon = (thirdPartyApp: ThirdPartyApp) => {
@@ -58,4 +58,23 @@ export const getThirdPartyAppDescription = (thirdPartyApp: ThirdPartyApp) => {
 
 export const openThirdPartyApp = (thirdPartyApp: ThirdPartyApp) => {
   window.open(thirdPartyApp.login_url, '_blank', 'noopener,noreferrer')
+}
+
+export const sortThirdPartyApps = (app1: ThirdPartyApp, app2: ThirdPartyApp) => {
+  const appsOrder = [
+    'stock.nethesis.it',
+    'nethshop.nethesis.it',
+    'helpdesk.nethesis.it',
+    'my.nethspot.com',
+  ]
+  const index1 = appsOrder.indexOf(app1.name)
+  const index2 = appsOrder.indexOf(app2.name)
+  if (index1 === -1 && index2 === -1) {
+    return app1.name.localeCompare(app2.name)
+  } else if (index1 === -1) {
+    return 1
+  } else if (index2 === -1) {
+    return -1
+  }
+  return index1 - index2
 }
