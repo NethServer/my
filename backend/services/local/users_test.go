@@ -399,7 +399,7 @@ func TestLocalUserService_generateUsernameFromEmail(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := service.generateUsernameFromEmail(tt.email)
+			result := service.generateBaseUsernameFromEmail(tt.email)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

@@ -100,7 +100,7 @@ func TestLocalUserService_generateUsernameFromEmail_EdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := service.generateUsernameFromEmail(tt.email)
+			result := service.generateBaseUsernameFromEmail(tt.email)
 			if tt.expected == "user_" {
 				// For empty email, it should contain "user_"
 				assert.Contains(t, result, "user_")

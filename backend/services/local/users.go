@@ -1160,27 +1160,65 @@ func (s *LocalUserService) markUserSynced(id, logtoID string) error {
 	return err
 }
 
-// generateUsernameFromEmail converts email to valid Logto username format
+// generateUsernameFromEmail converts email to valid Logto username format with conflict resolution
 func (s *LocalUserService) generateUsernameFromEmail(email string) string {
+	baseUsername := s.generateBaseUsernameFromEmail(email)
+
+	// Check for username conflicts and add suffix if needed
+	username := baseUsername
+	suffix := 1
+
+	for s.isUsernameExists(username) {
+		username = fmt.Sprintf("%s_%d", baseUsername, suffix)
+		suffix++
+
+		// Safety check to prevent infinite loop (very unlikely but defensive)
+		if suffix > 1000 {
+			// Use a timestamp-based suffix as ultimate fallback
+			username = fmt.Sprintf("%s_%d", baseUsername, time.Now().Unix())
+			break
+		}
+	}
+
+	return username
+}
+
+// generateBaseUsernameFromEmail converts email to valid Logto username format (without conflict resolution)
+func (s *LocalUserService) generateBaseUsernameFromEmail(email string) string {
 	// Take the local part of email (before @)
 	localPart := strings.Split(email, "@")[0]
 
 	// Replace invalid characters with underscores
 	reg := regexp.MustCompile(`[^A-Za-z0-9_]`)
-	username := reg.ReplaceAllString(localPart, "_")
+	baseUsername := reg.ReplaceAllString(localPart, "_")
 
 	// Ensure it starts with letter or underscore
-	if len(username) > 0 && !regexp.MustCompile(`^[A-Za-z_]`).MatchString(username) {
-		username = "_" + username
+	if len(baseUsername) > 0 && !regexp.MustCompile(`^[A-Za-z_]`).MatchString(baseUsername) {
+		baseUsername = "_" + baseUsername
 	}
 
 	// Ensure it's not empty (fallback)
-	if username == "" {
-		username = "user_" + strings.ReplaceAll(email, "@", "_at_")
-		username = reg.ReplaceAllString(username, "_")
+	if baseUsername == "" {
+		baseUsername = "user_" + strings.ReplaceAll(email, "@", "_at_")
+		baseUsername = reg.ReplaceAllString(baseUsername, "_")
 	}
 
-	return username
+	return baseUsername
+}
+
+// isUsernameExists checks if a username already exists in the local database
+func (s *LocalUserService) isUsernameExists(username string) bool {
+	var count int
+	query := `SELECT COUNT(*) FROM users WHERE username = $1 AND active = TRUE`
+	err := database.DB.QueryRow(query, username).Scan(&count)
+	if err != nil {
+		logger.Warn().
+			Err(err).
+			Str("username", username).
+			Msg("Failed to check username existence, assuming it exists for safety")
+		return true // Assume it exists for safety
+	}
+	return count > 0
 }
 
 // parseLogtoError parses Logto API errors and returns a ValidationError for client errors
