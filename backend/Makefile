@@ -215,11 +215,11 @@ validate-docs:
 		echo "Install with: npm install -g @apidevtools/swagger-cli"; \
 	fi
 
-# Database migration (placeholder)
+# Database migrations are handled automatically on backend startup
 .PHONY: db-migrate
 db-migrate:
-	@echo "Running database migrations..."
-	@echo "Note: Migrations are handled automatically by the application on startup"
+	@echo "Database migrations are handled automatically when the backend starts"
+	@echo "Simply run 'make run' or 'go run main.go' to apply pending migrations"
 
 # Pre-commit checks
 .PHONY: pre-commit
