@@ -8,13 +8,13 @@ import * as v from 'valibot'
 import { paginationQueryString } from './users'
 
 export const CreateResellerSchema = v.object({
-  name: v.pipe(v.string(), v.nonEmpty('organizations.name_required')),
+  name: v.pipe(v.string(), v.nonEmpty('organizations.name_cannot_be_empty')),
   description: v.optional(v.string()),
   custom_data: v.object({
-    vat_number: v.pipe(
+    vat: v.pipe(
       v.string(),
-      v.nonEmpty('organizations.vat_number_required'),
-      v.regex(/^\d{11}$/, 'organizations.vat_number_invalid'),
+      v.nonEmpty('organizations.vat_required'),
+      v.regex(/^\d{11}$/, 'organizations.vat_invalid'),
     ),
   }),
 })

@@ -110,7 +110,7 @@ const validationIssues = ref<Record<string, string[]>>({})
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
   name: nameRef,
   description: descriptionRef,
-  'custom_data.vat_number': vatNumberRef,
+  'custom_data.vat': vatNumberRef,
 }
 
 const saving = computed(() => {
@@ -128,7 +128,7 @@ watch(
         // editing distributor
         name.value = currentDistributor.name
         description.value = currentDistributor.description || ''
-        vatNumber.value = currentDistributor.custom_data?.vat_number || ''
+        vatNumber.value = currentDistributor.custom_data?.vat || ''
       } else {
         // creating distributor, reset form to defaults
         name.value = ''
@@ -208,7 +208,7 @@ async function saveDistributor() {
     name: name.value,
     description: description.value,
     custom_data: {
-      vat_number: vatNumber.value,
+      vat: vatNumber.value,
     },
   }
 
@@ -275,8 +275,8 @@ async function saveDistributor() {
           v-model.trim="vatNumber"
           :label="$t('organizations.vat_number')"
           :invalid-message="
-            validationIssues['custom_data.vat_number']?.[0]
-              ? $t(validationIssues['custom_data.vat_number'][0])
+            validationIssues['custom_data.vat']?.[0]
+              ? $t(validationIssues['custom_data.vat'][0])
               : ''
           "
           :disabled="saving"

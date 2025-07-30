@@ -13,7 +13,7 @@ export const paginationQueryString = '?page_size=100'
 //// check attributes
 export const CreateUserSchema = v.object({
   email: v.pipe(v.string(), v.nonEmpty('users.email_required'), v.email('users.email_invalid')),
-  name: v.pipe(v.string(), v.nonEmpty('users.name_required')),
+  name: v.pipe(v.string(), v.nonEmpty('users.name_cannot_be_empty')),
   phone: v.optional(
     v.union([
       v.literal(''),

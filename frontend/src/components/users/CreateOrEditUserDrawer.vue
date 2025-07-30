@@ -233,7 +233,8 @@ function clearErrors() {
 
 function validateCreate(user: CreateUser): boolean {
   validationIssues.value = {}
-  const validation = v.safeParse(CreateUserSchema, user)
+  const validation = v.safeParse(CreateUserSchema, user) //// uncomment
+  // const validation = { success: true } //// remove
 
   if (validation.success) {
     // no validation issues

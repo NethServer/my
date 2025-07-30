@@ -137,9 +137,9 @@
     "name": "Company name",
     "description": "Description",
     "vat_number": "VAT number",
-    "name_required": "Company name is required",
-    "vat_number_required": "VAT number is required",
-    "vat_number_invalid": "Invalid VAT number"
+    "name_cannot_be_empty": "Company name is required",
+    "vat_required": "VAT number is required",
+    "vat_invalid": "Invalid VAT number"
   },
   "users": {
     "title": "Users",
@@ -155,7 +155,7 @@
     "create_user": "Create user",
     "edit_user": "Edit user",
     "save_user": "Save user",
-    "name_required": "Name is required",
+    "name_cannot_be_empty": "Name is required",
     "email_required": "Email is required",
     "email_invalid": "Invalid email address",
     "email_already_exists": "Email already exists",
