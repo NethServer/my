@@ -1,11 +1,11 @@
 {
-  "version": "0.0.6",
+  "version": "0.1.0",
   "name": "My Nethesis",
   "components": {
-    "backend": "0.0.6",
-    "sync": "0.0.6",
-    "collect": "0.0.6",
-    "frontend": "0.0.6",
-    "proxy": "0.0.6"
+    "backend": "0.1.0",
+    "sync": "0.1.0",
+    "collect": "0.1.0",
+    "frontend": "0.1.0",
+    "proxy": "0.1.0"
   }
 }
