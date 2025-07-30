@@ -63,7 +63,7 @@ const {
   },
   onError: (error) => {
     console.error('Error creating reseller:', error)
-    validationIssues.value = getValidationIssues(error as AxiosError, 'resellers')
+    validationIssues.value = getValidationIssues(error as AxiosError, 'organizations')
   },
 
   onSettled: () => queryCache.invalidateQueries({ key: ['resellers'] }),
@@ -103,11 +103,14 @@ const name = ref('')
 const nameRef = useTemplateRef<HTMLInputElement>('nameRef')
 const description = ref('')
 const descriptionRef = useTemplateRef<HTMLInputElement>('descriptionRef')
+const vatNumber = ref('')
+const vatNumberRef = useTemplateRef<HTMLInputElement>('vatNumberRef')
 const validationIssues = ref<Record<string, string[]>>({})
 
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
   name: nameRef,
   description: descriptionRef,
+  'custom_data.vat_number': vatNumberRef,
 }
 
 const saving = computed(() => {
@@ -125,12 +128,12 @@ watch(
         // editing reseller
         name.value = currentReseller.name
         description.value = currentReseller.description || ''
-        ////
+        vatNumber.value = currentReseller.custom_data?.vat_number || ''
       } else {
         // creating reseller, reset form to defaults
         name.value = ''
         description.value = ''
-        ////
+        vatNumber.value = ''
       }
     }
   },
@@ -148,7 +151,8 @@ function clearErrors() {
 
 function validateCreate(reseller: CreateReseller): boolean {
   validationIssues.value = {}
-  const validation = v.safeParse(CreateResellerSchema, reseller)
+  const validation = v.safeParse(CreateResellerSchema, reseller) //// uncomment
+  // const validation = { success: true } //// remove
 
   if (validation.success) {
     // no validation issues
@@ -202,31 +206,34 @@ async function saveReseller() {
   const reseller = {
     name: name.value,
     description: description.value,
+    custom_data: {
+      vat_number: vatNumber.value,
+    },
   }
 
   if (currentReseller?.id) {
     // editing reseller
 
-    const userToEdit: Reseller = {
+    const resellerToEdit: Reseller = {
       ...reseller,
       id: currentReseller.id,
     }
 
-    const isValidationOk = validateEdit(userToEdit)
+    const isValidationOk = validateEdit(resellerToEdit)
     if (!isValidationOk) {
       return
     }
-    editResellerMutate(userToEdit)
+    editResellerMutate(resellerToEdit)
   } else {
     // creating reseller
 
-    const userToCreate: CreateReseller = reseller
+    const resellerToCreate: CreateReseller = reseller
 
-    const isValidationOk = validateCreate(userToCreate)
+    const isValidationOk = validateCreate(resellerToCreate)
     if (!isValidationOk) {
       return
     }
-    createResellerMutate(userToCreate)
+    createResellerMutate(resellerToCreate)
   }
 }
 </script>
@@ -244,7 +251,7 @@ async function saveReseller() {
         <NeTextInput
           ref="nameRef"
           v-model.trim="name"
-          :label="$t('resellers.name')"
+          :label="$t('organizations.name')"
           :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
           :disabled="saving"
         />
@@ -252,9 +259,21 @@ async function saveReseller() {
         <NeTextInput
           ref="descriptionRef"
           v-model.trim="description"
-          :label="$t('resellers.description')"
+          :label="$t('organizations.description')"
           :invalid-message="
             validationIssues.description?.[0] ? $t(validationIssues.description[0]) : ''
+          "
+          :disabled="saving"
+        />
+        <!-- VAT number -->
+        <NeTextInput
+          ref="vatNumberRef"
+          v-model.trim="vatNumber"
+          :label="$t('organizations.vat_number')"
+          :invalid-message="
+            validationIssues['custom_data.vat_number']?.[0]
+              ? $t(validationIssues['custom_data.vat_number'][0])
+              : ''
           "
           :disabled="saving"
         />

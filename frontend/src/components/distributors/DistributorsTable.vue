@@ -174,8 +174,8 @@ const onSort = (payload: SortEvent) => {
             v-model:sort-descending="sortDescending"
             :label="t('sort.sort')"
             :options="[
-              { id: 'name', label: t('distributors.name') },
-              { id: 'description', label: t('distributors.description') },
+              { id: 'name', label: t('organizations.name') },
+              { id: 'description', label: t('organizations.description') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
             :sort-by-label="t('sort.sort_by')"
@@ -209,10 +209,10 @@ const onSort = (payload: SortEvent) => {
     >
       <NeTableHead>
         <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
-          $t('distributors.name')
+          $t('organizations.name')
         }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="description" @sort="onSort">{{
-          $t('distributors.description')
+          $t('organizations.description')
         }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- no header for actions -->
@@ -258,10 +258,10 @@ const onSort = (payload: SortEvent) => {
           </NeTableCell>
         </NeTableRow>
         <NeTableRow v-for="(item, index) in paginatedItems" v-else :key="index">
-          <NeTableCell :data-label="$t('distributors.name')">
+          <NeTableCell :data-label="$t('organizations.name')">
             {{ item.name }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('distributors.description')">
+          <NeTableCell :data-label="$t('organizations.description')">
             {{ item.description || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">

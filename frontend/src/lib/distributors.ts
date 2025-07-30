@@ -7,11 +7,16 @@ import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 import { paginationQueryString } from './users'
 
-//// check attributes
 export const CreateDistributorSchema = v.object({
-  name: v.pipe(v.string(), v.nonEmpty('distributors.name_required')),
+  name: v.pipe(v.string(), v.nonEmpty('organizations.name_required')),
   description: v.optional(v.string()),
-  customData: v.optional(v.record(v.string(), v.string())),
+  custom_data: v.object({
+    vat_number: v.pipe(
+      v.string(),
+      v.nonEmpty('organizations.vat_number_required'),
+      v.regex(/^\d{11}$/, 'organizations.vat_number_invalid'),
+    ),
+  }),
 })
 
 export const DistributorSchema = v.object({
@@ -80,8 +85,8 @@ export const searchStringInDistributor = (
   // search in customData
   found = ['address', 'city', 'codiceFiscale', 'email', 'partitaIva', 'phone', 'region'].some(
     (attrName) => {
-      const attrValue = distributor.customData?.[
-        attrName as keyof NonNullable<Distributor['customData']>
+      const attrValue = distributor.custom_data?.[
+        attrName as keyof NonNullable<Distributor['custom_data']>
       ] as string
       return new RegExp(searchString, 'i').test(attrValue?.replace(regex, ''))
     },
