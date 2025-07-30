@@ -197,7 +197,8 @@
     "credentials_copied": "User credentials copied",
     "password_changed": "Password changed",
     "password_changed_description": "Your password has been changed",
-    "username_already_exists": "Username already exists"
+    "username_already_exists": "Username already exists",
+    "user_email_description": "The user will receive a welcome email containing instructions on how to access {productName}, along with a temporary password that can be changed upon first login."
   },
   "third_party_apps": {
     "description_nethshop_nethesis_it": "Browse and order Nethesis products and services.",

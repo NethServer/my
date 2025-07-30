@@ -33,6 +33,7 @@ import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
 import { getOrganizations } from '@/lib/organizations'
 import { getUserRoles } from '@/lib/userRoles'
+import { PRODUCT_NAME } from '@/lib/config'
 
 const { isShown = false, currentUser = undefined } = defineProps<{
   isShown: boolean
@@ -120,8 +121,6 @@ const email = ref('')
 const emailRef = useTemplateRef<HTMLInputElement>('emailRef')
 const name = ref('')
 const nameRef = useTemplateRef<HTMLInputElement>('nameRef')
-const password = ref('')
-const passwordRef = useTemplateRef<HTMLInputElement>('passwordRef')
 const organizationId = ref('')
 const organizationIdRef = useTemplateRef<HTMLInputElement>('organizationIdRef')
 const userRoles: Ref<NeComboboxOption[]> = ref([])
@@ -133,7 +132,6 @@ const validationIssues = ref<Record<string, string[]>>({})
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
   email: emailRef,
   name: nameRef,
-  password: passwordRef,
   organizationId: organizationIdRef,
   userRoleIds: userRoleIdsRef,
   phone: phoneRef,
@@ -173,7 +171,6 @@ watch(
     if (isShown) {
       clearErrors()
       focusElement(nameRef)
-      password.value = ''
 
       if (currentUser) {
         // editing user
@@ -316,8 +313,6 @@ async function saveUser() {
 
     const userToCreate: CreateUser = {
       ...user,
-      email: email.value,
-      password: password.value,
     }
 
     const isValidationOk = validateCreate(userToCreate)
@@ -358,17 +353,6 @@ async function saveUser() {
           v-model.trim="email"
           :label="$t('users.email')"
           :invalid-message="validationIssues.email?.[0] ? $t(validationIssues.email[0]) : ''"
-          :disabled="saving"
-        />
-        <!-- password -->
-        <NeTextInput
-          v-if="!currentUser"
-          ref="passwordRef"
-          v-model="password"
-          is-password
-          auto-complete="new-password"
-          :label="$t('users.password')"
-          :invalid-message="validationIssues.password?.[0] ? $t(validationIssues.password[0]) : ''"
           :disabled="saving"
         />
         <!-- organization -->
@@ -425,6 +409,12 @@ async function saveUser() {
           :label="$t('users.phone_number')"
           :invalid-message="validationIssues.phone?.[0] ? $t(validationIssues.phone[0]) : ''"
           :disabled="saving"
+        />
+        <!-- new user info -->
+        <NeInlineNotification
+          v-if="!currentUser"
+          kind="info"
+          :description="$t('users.user_email_description', { productName: PRODUCT_NAME })"
         />
         <!-- create user error notification -->
         <NeInlineNotification

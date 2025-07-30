@@ -11,7 +11,7 @@ import { faBuilding, faCity, faCrown, faGlobe, faQuestion } from '@fortawesome/f
 export const paginationQueryString = '?page_size=100'
 
 //// check attributes
-export const BaseUserSchema = v.object({
+export const CreateUserSchema = v.object({
   email: v.pipe(v.string(), v.nonEmpty('users.email_required'), v.email('users.email_invalid')),
   name: v.pipe(v.string(), v.nonEmpty('users.name_required')),
   phone: v.optional(
@@ -25,13 +25,8 @@ export const BaseUserSchema = v.object({
   customData: v.optional(v.record(v.string(), v.string())),
 })
 
-export const CreateUserSchema = v.object({
-  ...BaseUserSchema.entries,
-  password: v.pipe(v.string(), v.minLength(12, 'users.password_min_length')),
-})
-
 export const EditUserSchema = v.object({
-  ...BaseUserSchema.entries,
+  ...CreateUserSchema.entries,
   id: v.string(),
 })
 
