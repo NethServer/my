@@ -310,7 +310,7 @@ const onClosePasswordChangedModal = () => {
               <NeBadge
                 v-for="role in item.roles?.sort(sortByProperty('name'))"
                 :key="role.id"
-                :text="role.name"
+                :text="t(`user_roles.${role.name}`)"
                 kind="custom"
                 customColorClasses="bg-indigo-100 text-indigo-800 dark:bg-indigo-700 dark:text-indigo-100"
                 class="inline-block"

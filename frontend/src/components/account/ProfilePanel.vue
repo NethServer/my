@@ -174,7 +174,7 @@ function validate(profile: ProfileInfo): boolean {
           <NeBadge
             v-for="role in loginStore.userInfo?.user_roles.sort()"
             :key="role"
-            :text="role"
+            :text="t(`user_roles.${role}`)"
             kind="custom"
             customColorClasses="bg-indigo-100 text-indigo-800 dark:bg-indigo-700 dark:text-indigo-100"
             class="inline-block"
