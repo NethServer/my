@@ -3,6 +3,9 @@ FROM nginx:1.25-alpine
 # Install curl for health checks
 RUN apk add --no-cache curl
 
+# Copy build trigger file to force rebuilds when it changes
+COPY .render-build-trigger /tmp/build-trigger
+
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/nginx.conf
 

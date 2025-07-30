@@ -3,6 +3,9 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Copy build trigger file to force rebuilds when it changes
+COPY .render-build-trigger /tmp/build-trigger
+
 # Copy package files
 COPY package*.json ./
 

@@ -343,7 +343,13 @@ async function saveUser() {
           ref="nameRef"
           v-model.trim="name"
           :label="$t('users.name')"
-          :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
+          :invalid-message="
+            validationIssues.name?.[0]
+              ? $t(validationIssues.name[0])
+              : validationIssues.username?.[0]
+                ? $t(validationIssues.username[0])
+                : ''
+          "
           :disabled="saving"
         />
         <!-- email -->

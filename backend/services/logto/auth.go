@@ -21,6 +21,10 @@ import (
 	"github.com/nethesis/my/backend/models"
 )
 
+// =============================================================================
+// PUBLIC METHODS
+// =============================================================================
+
 // GetUserInfoFromLogto fetches user information from Logto using access token
 func GetUserInfoFromLogto(accessToken string) (*models.LogtoUserInfo, error) {
 	// Create request to Logto userinfo endpoint

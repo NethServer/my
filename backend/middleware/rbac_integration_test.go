@@ -381,22 +381,22 @@ func TestGetUserFromContext(t *testing.T) {
 }
 
 func TestHelperFunctions(t *testing.T) {
-	t.Run("hasPermissionInList", func(t *testing.T) {
+	t.Run("hasStringInList", func(t *testing.T) {
 		permissions := []string{"read:systems", "manage:accounts", "view:logs"}
 
-		assert.True(t, hasPermissionInList(permissions, "read:systems"))
-		assert.True(t, hasPermissionInList(permissions, "manage:accounts"))
-		assert.False(t, hasPermissionInList(permissions, "delete:systems"))
-		assert.False(t, hasPermissionInList([]string{}, "any:permission"))
+		assert.True(t, hasStringInList(permissions, "read:systems"))
+		assert.True(t, hasStringInList(permissions, "manage:accounts"))
+		assert.False(t, hasStringInList(permissions, "delete:systems"))
+		assert.False(t, hasStringInList([]string{}, "any:permission"))
 	})
 
-	t.Run("hasRoleInList", func(t *testing.T) {
+	t.Run("hasStringInList", func(t *testing.T) {
 		roles := []string{"Admin", "Support", "Viewer"}
 
-		assert.True(t, hasRoleInList(roles, "Admin"))
-		assert.True(t, hasRoleInList(roles, "Support"))
-		assert.False(t, hasRoleInList(roles, "SuperAdmin"))
-		assert.False(t, hasRoleInList([]string{}, "Admin"))
+		assert.True(t, hasStringInList(roles, "Admin"))
+		assert.True(t, hasStringInList(roles, "Support"))
+		assert.False(t, hasStringInList(roles, "SuperAdmin"))
+		assert.False(t, hasStringInList([]string{}, "Admin"))
 	})
 }
 

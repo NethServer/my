@@ -7,6 +7,9 @@ RUN apk add --no-cache git ca-certificates
 # Set working directory
 WORKDIR /app
 
+# Copy build trigger file to force rebuilds when it changes
+COPY .render-build-trigger /tmp/build-trigger
+
 # Copy go mod files first for better caching
 COPY go.mod go.sum ./
 

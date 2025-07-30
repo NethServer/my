@@ -18,9 +18,11 @@ import (
 
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/entities"
+	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
+	"github.com/nethesis/my/backend/services/email"
 	"github.com/nethesis/my/backend/services/logto"
 )
 
@@ -59,6 +61,16 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, create
 		req.Username = s.generateUsernameFromEmail(req.Email)
 	}
 
+	// Always generate a temporary password for new users
+	tempPassword, err := helpers.GeneratePassword()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate temporary password: %w", err)
+	}
+	logger.Info().
+		Str("username", req.Username).
+		Str("email", req.Email).
+		Msg("Generated temporary password for new user")
+
 	// 1. Create in Logto FIRST for validation (before consuming local resources)
 	// Start with user-provided custom data (allows custom fields)
 	customData := make(map[string]interface{})
@@ -77,7 +89,7 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, create
 
 	logtoUserReq := models.CreateUserRequest{
 		Username:     req.Username,
-		Password:     req.Password,
+		Password:     tempPassword,
 		Name:         req.Name,
 		PrimaryEmail: req.Email,
 		CustomData:   customData,
@@ -276,6 +288,72 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, create
 		Str("created_by", createdByUserID).
 		Msg("User created successfully with Logto sync")
 
+	// 9. Send welcome email with temporary password (non-blocking)
+	if req.Email != "" {
+		go func() {
+			welcomeService := email.NewWelcomeEmailService()
+
+			// Get enriched user data using existing repository logic
+			userRepo := entities.NewLocalUserRepository()
+			user, err := userRepo.GetByID(user.ID)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("user_id", user.ID).
+					Str("username", user.Username).
+					Str("email", req.Email).
+					Msg("Failed to get enriched user data for welcome email")
+				return
+			}
+
+			// Extract organization data from enriched user object
+			orgName := "the organization" // fallback
+			orgType := ""
+			if user.Organization != nil {
+				if user.Organization.Name != "" {
+					orgName = user.Organization.Name
+				}
+				// Determine organization type from the organization ID
+				orgType = s.determineOrganizationRoleName(user.Organization.LogtoID)
+			}
+
+			// Extract user roles data from enriched user object
+			userRoles := make([]string, len(user.Roles))
+			for i, role := range user.Roles {
+				userRoles[i] = role.Name
+			}
+
+			// Send welcome email using existing method
+			err = welcomeService.SendWelcomeEmail(
+				user.Email,
+				user.Name,
+				orgName,
+				orgType,
+				userRoles,
+				tempPassword,
+			)
+
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("user_id", user.ID).
+					Str("username", user.Username).
+					Str("email", req.Email).
+					Str("organization_name", orgName).
+					Strs("user_roles", userRoles).
+					Msg("Failed to send welcome email to user")
+			} else {
+				logger.Info().
+					Str("user_id", user.ID).
+					Str("username", user.Username).
+					Str("email", req.Email).
+					Str("organization_name", orgName).
+					Strs("user_roles", userRoles).
+					Msg("Welcome email sent successfully to user")
+			}
+		}()
+	}
+
 	return user, nil
 }
 
@@ -303,6 +381,11 @@ func (s *LocalUserService) GetUser(id, userOrgRole, userOrgID string) (*models.L
 // GetUserByLogtoID retrieves a user by Logto ID (without RBAC validation, used for auth)
 func (s *LocalUserService) GetUserByLogtoID(logtoID string) (*models.LocalUser, error) {
 	return s.userRepo.GetByLogtoID(logtoID)
+}
+
+// UpdateLatestLogin updates the latest_login_at timestamp for a user
+func (s *LocalUserService) UpdateLatestLogin(userID string) error {
+	return s.userRepo.UpdateLatestLogin(userID)
 }
 
 // ListUsers returns paginated users based on hierarchical RBAC (excluding specified user)

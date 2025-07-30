@@ -48,6 +48,19 @@ DATABASE_URL=postgresql://backend:backend@localhost:5432/noc?sslmode=disable
 
 # Redis connection URL
 REDIS_URL=redis://localhost:6379
+
+# ===========================================
+# SMTP EMAIL CONFIGURATION (Optional)
+# ===========================================
+# SMTP server configuration for welcome emails
+# If not configured, welcome emails will be skipped (user creation still succeeds)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+SMTP_FROM=noreply@yourdomain.com
+SMTP_FROM_NAME=Nethesis Operation Center
+SMTP_TLS=true
 ```
 
 **Auto-derived URLs:**
@@ -56,6 +69,80 @@ REDIS_URL=redis://localhost:6379
 - `JWKS_ENDPOINT` = `https://{TENANT_ID}.logto.app/oidc/jwks`
 - `LOGTO_MANAGEMENT_BASE_URL` = `https://{TENANT_ID}.logto.app/api`
 - `JWT_ISSUER` = `{TENANT_DOMAIN}`
+
+## Email Configuration
+
+The backend automatically sends welcome emails to newly created users with their temporary password and login instructions. Email functionality is optional and degrades gracefully if not configured.
+
+### SMTP Setup
+
+Configure SMTP settings in your environment:
+
+```bash
+# SMTP server details
+SMTP_HOST=smtp.gmail.com          # Your SMTP server hostname
+SMTP_PORT=587                     # SMTP port (587 for TLS, 465 for SSL, 25 for plain)
+SMTP_USERNAME=your-email@gmail.com # SMTP authentication username
+SMTP_PASSWORD=your-app-password    # SMTP authentication password
+SMTP_FROM=noreply@yourdomain.com   # From email address for outgoing emails
+SMTP_FROM_NAME=Your Company Name   # Display name for sender
+SMTP_TLS=true                     # Enable TLS encryption (recommended)
+```
+
+### Supported Providers
+
+**Gmail/Google Workspace:**
+```bash
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your-email@gmail.com
+SMTP_PASSWORD=your-app-password  # Use App Password, not account password
+SMTP_TLS=true
+```
+
+**AWS SES:**
+```bash
+SMTP_HOST=email-smtp.us-east-1.amazonaws.com
+SMTP_PORT=587
+SMTP_USERNAME=your-ses-smtp-username
+SMTP_PASSWORD=your-ses-smtp-password
+SMTP_TLS=true
+```
+
+**SendGrid:**
+```bash
+SMTP_HOST=smtp.sendgrid.net
+SMTP_PORT=587
+SMTP_USERNAME=apikey
+SMTP_PASSWORD=your-sendgrid-api-key
+SMTP_TLS=true
+```
+
+### Email Features
+
+- **Automatic Delivery**: Welcome emails sent when users are created via API
+- **Modern Templates**: Responsive HTML and text templates with dark/light mode support
+- **Secure Password Delivery**: Auto-generated temporary passwords sent securely
+- **Smart Links**: Login URLs point directly to password change page
+- **Graceful Degradation**: User creation succeeds even if email delivery fails
+- **Security**: Passwords never logged, email content is sanitized
+
+### Template Customization
+
+Email templates are located in `services/email/templates/`:
+- `welcome.html` - Modern HTML template with dark mode support
+- `welcome.txt` - Plain text fallback template
+
+Templates support Go template syntax with variables:
+- `{{.UserName}}` - User's full name
+- `{{.UserEmail}}` - User's email address
+- `{{.OrganizationName}}` - Organization name
+- `{{.OrganizationType}}` - Organization type (Owner, Distributor, etc.)
+- `{{.UserRoles}}` - Array of user role names
+- `{{.TempPassword}}` - Generated temporary password
+- `{{.LoginURL}}` - Direct link to password change page
+- `{{.SupportEmail}}` - Support contact email
+- `{{.CompanyName}}` - Company name from SMTP configuration
 
 ## Architecture
 
@@ -164,6 +251,8 @@ make validate-docs
 ```
 
 ### Testing
+
+#### Authentication Testing
 ```bash
 # Test token exchange
 curl -X POST http://localhost:8080/api/auth/exchange \
@@ -175,21 +264,58 @@ curl -X GET http://localhost:8080/api/me \
   -H "Authorization: Bearer YOUR_CUSTOM_JWT"
 ```
 
+#### Email Testing
+```bash
+# Test welcome email service configuration
+curl -X POST http://localhost:8080/api/users \
+  -H "Authorization: Bearer YOUR_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test@example.com",
+    "name": "Test User",
+    "userRoleIds": ["role_123"],
+    "organizationId": "org_456"
+  }'
+
+# Check logs for email delivery status
+docker logs backend-container 2>&1 | grep "Welcome email"
+```
+
+#### SMTP Connection Testing
+The backend automatically validates SMTP configuration on startup. Check logs for:
+```
+{"level":"info","message":"Welcome email service configuration test successful"}
+```
+
+If SMTP is misconfigured, you'll see:
+```
+{"level":"warn","message":"SMTP not configured, skipping welcome email"}
+```
+
 ## Project Structure
 ```
 backend/
-├── main.go                 # Server entry point
-├── cache/                  # Redis caching system
-├── configuration/          # Environment config
-├── helpers/                # Utilities for JWT context
-├── jwt/                    # Utilities for JWT claims
-├── logger/                 # Structured logging
-├── methods/                # HTTP handlers
-├── middleware/             # Auth and RBAC middleware
-├── models/                 # Data structures
-├── response/               # HTTP response helpers
-├── services/               # Business logic
-└── .env.example            # Environment variables template
+├── main.go                  # Server entry point
+├── cache/                   # Redis caching system
+├── configuration/           # Environment config
+├── helpers/                 # Utilities for JWT context
+├── jwt/                     # Utilities for JWT claims
+├── logger/                  # Structured logging
+├── methods/                 # HTTP handlers
+├── middleware/              # Auth and RBAC middleware
+├── models/                  # Data structures
+├── response/                # HTTP response helpers
+├── services/                # Business logic
+│   ├── email/               # Email service
+│   │   ├── smtp.go          # SMTP client implementation
+│   │   ├── templates.go     # Template rendering service
+│   │   ├── welcome.go       # Welcome email service
+│   │   └── templates/       # Email templates
+│   │       ├── welcome.html # HTML email template
+│   │       └── welcome.txt  # Text email template
+│   ├── local/               # Local database services
+│   └── logto/               # Logto API integration
+└── .env.example             # Environment variables template
 ```
 
 

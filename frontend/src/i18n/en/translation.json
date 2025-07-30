@@ -204,7 +204,8 @@
     "copy_credentials": "Copy credentials",
     "credentials_copied": "User credentials copied",
     "password_changed": "Password changed",
-    "password_changed_description": "Your password has been changed"
+    "password_changed_description": "Your password has been changed",
+    "username_already_exists": "Username already exists"
   },
   "third_party_apps": {
     "description_example_company_com": "Description of Example app"

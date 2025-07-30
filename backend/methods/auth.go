@@ -87,6 +87,16 @@ func ExchangeToken(c *gin.Context) {
 			ID:      localUser.ID,      // Local database ID as primary ID
 			LogtoID: localUser.LogtoID, // Logto ID for reference
 		}
+
+		// Update latest login timestamp
+		if updateErr := userService.UpdateLatestLogin(localUser.ID); updateErr != nil {
+			logger.RequestLogger(c, "auth").Warn().
+				Err(updateErr).
+				Str("operation", "update_latest_login").
+				Str("user_id", localUser.ID).
+				Msg("Failed to update latest login timestamp")
+			// Don't fail the request if this update fails
+		}
 	} else {
 		// User not in local DB, create temporary user with empty local ID
 		user = models.User{

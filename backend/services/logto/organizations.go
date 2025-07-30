@@ -19,6 +19,10 @@ import (
 	"github.com/nethesis/my/backend/models"
 )
 
+// =============================================================================
+// PUBLIC METHODS
+// =============================================================================
+
 func (c *LogtoManagementClient) GetUserOrganizations(userID string) ([]models.LogtoOrganization, error) {
 	resp, err := c.makeRequest("GET", fmt.Sprintf("/users/%s/organizations", userID), nil)
 	if err != nil {

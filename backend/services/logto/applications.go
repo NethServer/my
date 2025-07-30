@@ -24,11 +24,15 @@ import (
 	"github.com/nethesis/my/backend/models"
 )
 
-// GetThirdPartyApplications retrieves all third-party applications from Logto
-func (c *LogtoManagementClient) GetThirdPartyApplications() ([]models.LogtoThirdPartyApp, error) {
+// =============================================================================
+// PUBLIC METHODS
+// =============================================================================
+
+// GetApplications retrieves all applications from Logto
+func (c *LogtoManagementClient) GetApplications() ([]models.LogtoThirdPartyApp, error) {
 	logger.ComponentLogger("logto").Debug().
-		Str("operation", "get_applications").
-		Msg("Fetching third-party applications from Logto")
+		Str("operation", "get_all_applications").
+		Msg("Fetching all applications from Logto")
 
 	// Use makeRequest which handles token refresh automatically
 	resp, err := c.makeRequest("GET", "/applications", nil)
@@ -49,6 +53,21 @@ func (c *LogtoManagementClient) GetThirdPartyApplications() ([]models.LogtoThird
 	logger.ComponentLogger("logto").Debug().
 		Int("total_apps", len(logtoApps)).
 		Msg("Fetched all applications from Logto")
+
+	return logtoApps, nil
+}
+
+// GetThirdPartyApplications retrieves all third-party applications from Logto
+func (c *LogtoManagementClient) GetThirdPartyApplications() ([]models.LogtoThirdPartyApp, error) {
+	logger.ComponentLogger("logto").Debug().
+		Str("operation", "get_third_party_applications").
+		Msg("Fetching third-party applications from Logto")
+
+	// Get all applications first
+	logtoApps, err := c.GetApplications()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get applications: %w", err)
+	}
 
 	// Filter only third-party applications
 	var logtoThirdPartyApps []models.LogtoThirdPartyApp
@@ -134,6 +153,10 @@ func FilterApplicationsByAccess(logtoApps []models.LogtoThirdPartyApp, organizat
 		Msg("Filtered applications based on user access")
 	return filteredApps
 }
+
+// =============================================================================
+// PRIVATE METHODS
+// =============================================================================
 
 // canAccessApplication checks if a user with given roles can access an application
 func canAccessApplication(app models.LogtoThirdPartyApp, organizationRoles []string, userRoles []string) bool {

@@ -82,6 +82,7 @@ type LocalUser struct {
 	CreatedAt     time.Time              `json:"created_at" db:"created_at"`
 	UpdatedAt     time.Time              `json:"updated_at" db:"updated_at"`
 	LogtoSyncedAt *time.Time             `json:"logto_synced_at" db:"logto_synced_at"`
+	LatestLoginAt *time.Time             `json:"latest_login_at" db:"latest_login_at"`
 	DeletedAt     *time.Time             `json:"deleted_at" db:"deleted_at"`     // Soft delete timestamp
 	SuspendedAt   *time.Time             `json:"suspended_at" db:"suspended_at"` // Suspension timestamp
 
@@ -145,7 +146,6 @@ type CreateLocalUserRequest struct {
 	Email          string                 `json:"email" validate:"required,email,max=255"`
 	Name           string                 `json:"name" validate:"required,min=1,max=255"`
 	Phone          *string                `json:"phone,omitempty"`
-	Password       string                 `json:"password" validate:"required,min=8"`
 	UserRoleIDs    []string               `json:"userRoleIds,omitempty"`
 	OrganizationID *string                `json:"organizationId,omitempty"`
 	CustomData     map[string]interface{} `json:"customData,omitempty"`
