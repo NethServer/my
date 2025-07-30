@@ -20,7 +20,7 @@ jobs:
         with:
           ref: ${{ inputs.version }}
           fetch-depth: 0
-          
+
       - name: Verify tag exists
         run: |
           echo "✅ Successfully checked out tag: ${{ inputs.version }}"
@@ -32,195 +32,94 @@ jobs:
           echo "📅 Commit date: $(git log -1 --format=%cd --date=iso)"
           echo "👤 Author: $(git log -1 --format='%an <%ae>')"
 
-  verify-infrastructure:
-    name: Verify Infrastructure
+  verify-images:
+    name: Verify Docker Images
     runs-on: ubuntu-latest
     needs: checkout-tag
     steps:
-      - name: Verify Redis Service
+      - name: Verify All Images Exist
         run: |
-          echo "Checking Redis service status..."
-          response=$(curl -s -X GET "https://api.render.com/v1/redis/${{ secrets.RENDER_PRODUCTION_REDIS_SERVICE_ID }}" \
-            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}")
-          echo "Redis status: $response"
-          if echo "$response" | grep -q '"status":"available"'; then
-            echo "✅ Redis service is available"
-          else
-            echo "⚠️ Redis service status check - see response above"
-          fi
-          
-      - name: Verify PostgreSQL Service  
-        run: |
-          echo "Checking PostgreSQL service status..."
-          response=$(curl -s -X GET "https://api.render.com/v1/postgres/${{ secrets.RENDER_PRODUCTION_POSTGRES_SERVICE_ID }}" \
-            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}")
-          echo "PostgreSQL status: $response"
-          if echo "$response" | grep -q '"status":"available"'; then
-            echo "✅ PostgreSQL service is available"
-          else
-            echo "⚠️ PostgreSQL service status check - see response above"
-          fi
+          echo "Verifying all Docker images exist for version ${{ inputs.version }}"
 
-  deploy-backend:
-    name: Deploy Backend
-    runs-on: ubuntu-latest
-    needs: [checkout-tag, verify-infrastructure]
-    steps:
-      - name: Verify Backend Image Exists
-        run: |
-          echo "Checking if backend image exists: ghcr.io/nethserver/my/backend:${{ inputs.version }}"
-          docker manifest inspect ghcr.io/nethserver/my/backend:${{ inputs.version }} || {
-            echo "❌ Backend image not found: ghcr.io/nethserver/my/backend:${{ inputs.version }}"
-            echo "Please ensure the release workflow has completed successfully."
-            exit 1
-          }
-          echo "✅ Backend image found"
-          
-      - name: Deploy Production Backend
-        run: |
-          echo "Deploying backend with image: ghcr.io/nethserver/my/backend:${{ inputs.version }}"
-          response=$(curl -s -X POST "https://api.render.com/v1/services/${{ secrets.RENDER_PRODUCTION_BACKEND_SERVICE_ID }}/deploys" \
-            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "imageUrl": "ghcr.io/nethserver/my/backend:${{ inputs.version }}"
-            }')
-          echo "Render API response: $response"
-          # Check if deployment was successful
-          if echo "$response" | grep -q '"id":'; then
-            echo "✅ Backend deployment initiated successfully"
-          else
-            echo "❌ Backend deployment failed"
-            echo "$response"
-            exit 1
-          fi
+          # Check all images
+          for image in backend collect frontend proxy; do
+            echo "Checking: ghcr.io/nethserver/my/$image:${{ inputs.version }}"
+            docker manifest inspect ghcr.io/nethserver/my/$image:${{ inputs.version }} || {
+              echo "❌ Image not found: ghcr.io/nethserver/my/$image:${{ inputs.version }}"
+              echo "Please ensure the release workflow has completed successfully."
+              exit 1
+            }
+            echo "✅ $image image found"
+          done
 
-  deploy-collect:
-    name: Deploy Collect
-    runs-on: ubuntu-latest
-    needs: [checkout-tag, verify-infrastructure]
-    steps:
-      - name: Verify Collect Image Exists
-        run: |
-          echo "Checking if collect image exists: ghcr.io/nethserver/my/collect:${{ inputs.version }}"
-          docker manifest inspect ghcr.io/nethserver/my/collect:${{ inputs.version }} || {
-            echo "❌ Collect image not found: ghcr.io/nethserver/my/collect:${{ inputs.version }}"
-            echo "Please ensure the release workflow has completed successfully."
-            exit 1
-          }
-          echo "✅ Collect image found"
-          
-      - name: Deploy Production Collect
-        run: |
-          echo "Deploying collect with image: ghcr.io/nethserver/my/collect:${{ inputs.version }}"
-          response=$(curl -s -X POST "https://api.render.com/v1/services/${{ secrets.RENDER_PRODUCTION_COLLECT_SERVICE_ID }}/deploys" \
-            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "imageUrl": "ghcr.io/nethserver/my/collect:${{ inputs.version }}"
-            }')
-          echo "Render API response: $response"
-          # Check if deployment was successful
-          if echo "$response" | grep -q '"id":'; then
-            echo "✅ Collect deployment initiated successfully"
-          else
-            echo "❌ Collect deployment failed"
-            echo "$response"
-            exit 1
-          fi
+          echo "🎉 All Docker images verified successfully"
 
-  deploy-frontend:
-    name: Deploy Frontend
+  update-render-config:
+    name: Update Render Configuration
     runs-on: ubuntu-latest
-    needs: [checkout-tag, deploy-backend, deploy-collect]
+    needs: [checkout-tag, verify-images]
     steps:
-      - name: Verify Frontend Image Exists
-        run: |
-          echo "Checking if frontend image exists: ghcr.io/nethserver/my/frontend:${{ inputs.version }}"
-          docker manifest inspect ghcr.io/nethserver/my/frontend:${{ inputs.version }} || {
-            echo "❌ Frontend image not found: ghcr.io/nethserver/my/frontend:${{ inputs.version }}"
-            echo "Please ensure the release workflow has completed successfully."
-            exit 1
-          }
-          echo "✅ Frontend image found"
-          
-      - name: Deploy Production Frontend
-        run: |
-          echo "Deploying frontend with image: ghcr.io/nethserver/my/frontend:${{ inputs.version }}"
-          response=$(curl -s -X POST "https://api.render.com/v1/services/${{ secrets.RENDER_PRODUCTION_FRONTEND_SERVICE_ID }}/deploys" \
-            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "imageUrl": "ghcr.io/nethserver/my/frontend:${{ inputs.version }}"
-            }')
-          echo "Render API response: $response"
-          # Check if deployment was successful
-          if echo "$response" | grep -q '"id":'; then
-            echo "✅ Frontend deployment initiated successfully"
-          else
-            echo "❌ Frontend deployment failed"
-            echo "$response"
-            exit 1
-          fi
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-  deploy-proxy:
-    name: Deploy Proxy
-    runs-on: ubuntu-latest
-    needs: [checkout-tag, deploy-backend, deploy-collect, deploy-frontend]
-    steps:
-      - name: Verify Proxy Image Exists
+      - name: Update render.yaml with new image tags
         run: |
-          echo "Checking if proxy image exists: ghcr.io/nethserver/my/proxy:${{ inputs.version }}"
-          docker manifest inspect ghcr.io/nethserver/my/proxy:${{ inputs.version }} || {
-            echo "❌ Proxy image not found: ghcr.io/nethserver/my/proxy:${{ inputs.version }}"
-            echo "Please ensure the release workflow has completed successfully."
-            exit 1
-          }
-          echo "✅ Proxy image found"
-          
-      - name: Deploy Production Proxy
+          echo "Updating render.yaml with version ${{ inputs.version }}"
+
+          # Update backend image tag
+          sed -i 's|ghcr.io/nethserver/my/backend:v[0-9]*\.[0-9]*\.[0-9]*|ghcr.io/nethserver/my/backend:${{ inputs.version }}|g' render.yaml
+
+          # Update collect image tag
+          sed -i 's|ghcr.io/nethserver/my/collect:v[0-9]*\.[0-9]*\.[0-9]*|ghcr.io/nethserver/my/collect:${{ inputs.version }}|g' render.yaml
+
+          # Update frontend image tag
+          sed -i 's|ghcr.io/nethserver/my/frontend:v[0-9]*\.[0-9]*\.[0-9]*|ghcr.io/nethserver/my/frontend:${{ inputs.version }}|g' render.yaml
+
+          # Update proxy image tag
+          sed -i 's|ghcr.io/nethserver/my/proxy:v[0-9]*\.[0-9]*\.[0-9]*|ghcr.io/nethserver/my/proxy:${{ inputs.version }}|g' render.yaml
+
+          echo "Updated render.yaml:"
+          grep -A1 "url: ghcr.io/nethserver/my/" render.yaml
+
+      - name: Commit updated render.yaml
         run: |
-          echo "Deploying proxy with image: ghcr.io/nethserver/my/proxy:${{ inputs.version }}"
-          response=$(curl -s -X POST "https://api.render.com/v1/services/${{ secrets.RENDER_PRODUCTION_PROXY_SERVICE_ID }}/deploys" \
-            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "imageUrl": "ghcr.io/nethserver/my/proxy:${{ inputs.version }}"
-            }')
-          echo "Render API response: $response"
-          # Check if deployment was successful
-          if echo "$response" | grep -q '"id":'; then
-            echo "✅ Proxy deployment initiated successfully"
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+          if git diff --quiet render.yaml; then
+            echo "No changes to commit"
           else
-            echo "❌ Proxy deployment failed"
-            echo "$response"
-            exit 1
+            git add render.yaml
+            git commit -m "chore: update render.yaml to use ${{ inputs.version }} images"
+            git push origin main
+            echo "✅ render.yaml updated and committed to main branch"
           fi
 
   deployment-summary:
     name: Deployment Summary
     runs-on: ubuntu-latest
-    needs: [checkout-tag, verify-infrastructure, deploy-backend, deploy-collect, deploy-frontend, deploy-proxy]
+    needs: [checkout-tag, verify-images, update-render-config]
     if: always()
     steps:
       - name: Print Deployment Summary
         run: |
           echo "# 🚀 Deployment Summary for ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Services Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "## Deployment Method" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ **Redis** - Infrastructure service (verified)" >> $GITHUB_STEP_SUMMARY
-          echo "✅ **PostgreSQL** - Database service (verified)" >> $GITHUB_STEP_SUMMARY
-          echo "✅ **Backend** - API service (ghcr.io/nethserver/my/backend:${{ inputs.version }})" >> $GITHUB_STEP_SUMMARY
-          echo "✅ **Collect** - Collection service (ghcr.io/nethserver/my/collect:${{ inputs.version }})" >> $GITHUB_STEP_SUMMARY
-          echo "✅ **Frontend** - Web application (ghcr.io/nethserver/my/frontend:${{ inputs.version }})" >> $GITHUB_STEP_SUMMARY
-          echo "✅ **Proxy** - Reverse proxy (ghcr.io/nethserver/my/proxy:${{ inputs.version }})" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Blueprint Sync** - render.yaml updated with new image tags" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Auto-Deploy** - Render will automatically deploy updated services" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Docker Images Used" >> $GITHUB_STEP_SUMMARY
+          echo "## Docker Images Updated" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- Backend: \`ghcr.io/nethserver/my/backend:${{ inputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Collect: \`ghcr.io/nethserver/my/collect:${{ inputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Frontend: \`ghcr.io/nethserver/my/frontend:${{ inputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Proxy: \`ghcr.io/nethserver/my/proxy:${{ inputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Deployment completed successfully!** 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "**render.yaml updated and committed!** 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Monitor deployment progress at [Render Dashboard](https://dashboard.render.com)" >> $GITHUB_STEP_SUMMARY

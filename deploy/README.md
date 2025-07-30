@@ -16,9 +16,9 @@
 
 ### Production Environment
 - **URL**: `my.nethesis.it`
-- **Trigger**: GitHub release creation
-- **Action**: Sequential deployment via GitHub Actions
-- **Pipeline**: Redis → Backend → Frontend (with dependencies)
+- **Trigger**: Manual GitHub Actions workflow
+- **Action**: Blueprint sync (Infrastructure as Code)
+- **Pipeline**: Verify images → Update render.yaml → Render autodeploy
 
 ## Setup Instructions
 
@@ -43,19 +43,12 @@
 - `my-frontend-qa` (QA Frontend) - **Private Service** (accessible only via proxy)
 - `my-proxy-qa` (QA Proxy) - **Public Service** (single entry point)
 
-### 2. GitHub Secrets
-Add these secrets to your repository (**Settings** → **Secrets and variables** → **Actions**):
-```bash
-RENDER_API_KEY=your-render-api-key
-RENDER_PRODUCTION_REDIS_SERVICE_ID=red-xxxxxxxxxxxxxxxxxx
-RENDER_PRODUCTION_POSTGRES_SERVICE_ID=dpg-xxxxxxxxxxxxxxxxxx
-RENDER_PRODUCTION_BACKEND_SERVICE_ID=srv-xxxxxxxxxxxxxxxxxx
-RENDER_PRODUCTION_COLLECT_SERVICE_ID=srv-xxxxxxxxxxxxxxxxxx
-RENDER_PRODUCTION_FRONTEND_SERVICE_ID=srv-xxxxxxxxxxxxxxxxxx
-RENDER_PRODUCTION_PROXY_SERVICE_ID=srv-xxxxxxxxxxxxxxxxxx
-```
+### 2. GitHub Permissions
+The deploy workflow uses Infrastructure as Code via blueprint sync.
 
-**Where to find Service IDs**: Render Dashboard → Service → Settings → Service ID
+**Required**: Repository must have write access to commit updated `render.yaml`
+- The workflow uses `GITHUB_TOKEN` (automatically provided)
+- No additional Render API keys or service IDs needed
 
 ### 3. DNS Configuration
 Point your domains to Render services:
@@ -73,58 +66,51 @@ Configure environment variables in Render dashboard for each service:
 
 ### Production Release Process
 ```bash
-git tag v1.2.3
-git push origin v1.2.3
-# Create GitHub release
-# → Triggers sequential deployment pipeline (details below)
+# 1. Create and push release
+./release.sh patch  # Creates v0.1.1 tag and Docker images
+
+# 2. Deploy to production (Manual GitHub Action)
+# Go to: GitHub → Actions → Deploy Production → Run workflow
+# Input: v0.1.1
 ```
 
 ## Production Deployment Pipeline
 
-The GitHub Actions workflow deploys services in sequence with dependencies:
+The deployment uses **Infrastructure as Code** via blueprint sync:
 
-### 1. Deploy Redis (`deploy-redis` job)
-- **Service**: `my-redis-prod`
-- **Dependencies**: None
+### 1. Checkout Tag (`checkout-tag` job)
+- **Action**: Checkout the specific version tag
+- **Verification**: Ensure tag exists and contains expected commit
 - **Failure**: Stops entire pipeline
 
-### 2. Deploy PostgreSQL (`deploy-postgres` job)
-- **Service**: `my-postgres-prod`
-- **Dependencies**: None (parallel with Redis)
-- **Failure**: Stops application deployment
+### 2. Verify Images (`verify-images` job)
+- **Action**: Check all Docker images exist in registry
+- **Images**: `backend`, `collect`, `frontend`, `proxy`
+- **Failure**: Stops deployment (images not available)
 
-### 3. Deploy Backend (`deploy-backend` job)
-- **Service**: `my-backend-prod`
-- **Dependencies**: `needs: [deploy-redis, deploy-postgres]`
-- **Failure**: Stops application deployment
+### 3. Update Configuration (`update-render-config` job)
+- **Action**: Update `render.yaml` with new image tags
+- **Method**: Replace version tags using sed patterns
+- **Result**: Commit updated configuration to main branch
 
-### 4. Deploy Collect (`deploy-collect` job)
-- **Service**: `my-collect-prod`
-- **Dependencies**: `needs: [deploy-redis, deploy-postgres]`
-- **Failure**: Isolated to Collect service
-
-### 5. Deploy Frontend (`deploy-frontend` job)
-- **Service**: `my-frontend-prod`
-- **Dependencies**: `needs: deploy-backend`
-- **Failure**: Isolated to Frontend only
-
-### 6. Deploy Proxy (`deploy-proxy` job)
-- **Service**: `my-proxy-prod`
-- **Dependencies**: `needs: [deploy-backend, deploy-frontend]`
-- **Failure**: Isolated to Proxy only
+### 4. Auto-Deploy via Render
+- **Trigger**: Render detects `render.yaml` changes
+- **Action**: Automatic blueprint sync deployment
+- **Services**: All production services updated simultaneously
 
 ### Pipeline Benefits
-- **Fail-fast**: Infrastructure failures prevent application deployment
-- **Consistent State**: Each service waits for its dependencies
-- **Visibility**: Individual status badges for each deployment stage
+- **Infrastructure as Code**: Single source of truth in `render.yaml`
+- **Atomic Updates**: All services updated in one blueprint sync
+- **Version Control**: Configuration changes tracked in git
+- **No API Dependencies**: Uses standard git workflow
 
 ## Monitoring & Status
 
-### GitHub Status Badges
-Monitor deployment status directly from README:
-- **Deploy Redis**: Shows Redis deployment status
-- **Deploy Backend**: Shows Backend deployment status
-- **Deploy Frontend**: Shows Frontend deployment status
+### GitHub Actions Status
+Monitor deployment progress:
+- **Deploy Production**: Shows overall deployment workflow status
+- **Workflow Summary**: Displays updated image versions and deployment method
+- **Commit History**: Track `render.yaml` updates in git history
 
 ### Render Dashboard
 - **Service Logs**: Real-time logs for each service
@@ -140,9 +126,10 @@ Monitor deployment status directly from README:
 ## Troubleshooting
 
 ### Failed Production Deployment
-1. **Check GitHub Actions**: Review workflow logs for the specific job that failed
-2. **Verify Service Dependencies**: Ensure Redis and PostgreSQL are healthy before Backend deployment
-3. **Review Render Logs**: Check individual service logs in Render dashboard
+1. **Check GitHub Actions**: Review deploy workflow logs for failures
+2. **Verify Images**: Ensure Docker images exist for the specified version
+3. **Check render.yaml**: Verify configuration file was updated correctly
+4. **Monitor Render**: Check Render dashboard for blueprint sync status and service logs
 
 ### QA Environment Issues
 1. **Auto-deploy Failures**: Check Render service logs for build/runtime errors
@@ -153,7 +140,8 @@ Monitor deployment status directly from README:
 - **Database Connection Refused**: Check if Redis and PostgreSQL services are running and healthy
 - **Build Failures**: Verify Go version and dependencies in `render.yaml`
 - **Environment Variable Mismatch**: Ensure production vs QA values are correct
-- **GitHub Secrets**: Verify all service IDs and API keys are properly configured
+- **Blueprint Sync Failure**: Check Render dashboard for configuration validation errors
+- **Version Mismatch**: Ensure Docker images exist for the specified version tag
 
 ### Service Configuration
 
