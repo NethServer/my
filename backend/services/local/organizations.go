@@ -51,7 +51,7 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 	if strings.TrimSpace(req.Name) == "" {
 		validationErrors = append(validationErrors, response.ValidationError{
 			Key:     "name",
-			Message: "name cannot be empty",
+			Message: "cannot_be_empty",
 			Value:   req.Name,
 		})
 	}
@@ -60,7 +60,7 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 	if req.CustomData == nil || req.CustomData["vat"] == nil {
 		validationErrors = append(validationErrors, response.ValidationError{
 			Key:     "vat",
-			Message: "vat is required",
+			Message: "required",
 			Value:   "",
 		})
 	} else if vatStr, ok := req.CustomData["vat"].(string); !ok || strings.TrimSpace(vatStr) == "" {
@@ -70,7 +70,7 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 		}
 		validationErrors = append(validationErrors, response.ValidationError{
 			Key:     "vat",
-			Message: "vat cannot be empty",
+			Message: "cannot_be_empty",
 			Value:   vatValue,
 		})
 	}
@@ -207,7 +207,7 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 	if strings.TrimSpace(req.Name) == "" {
 		validationErrors = append(validationErrors, response.ValidationError{
 			Key:     "name",
-			Message: "name cannot be empty",
+			Message: "cannot_be_empty",
 			Value:   req.Name,
 		})
 	}
@@ -216,7 +216,7 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 	if req.CustomData == nil || req.CustomData["vat"] == nil {
 		validationErrors = append(validationErrors, response.ValidationError{
 			Key:     "vat",
-			Message: "vat is required",
+			Message: "required",
 			Value:   "",
 		})
 	} else if vatStr, ok := req.CustomData["vat"].(string); !ok || strings.TrimSpace(vatStr) == "" {
@@ -226,7 +226,7 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 		}
 		validationErrors = append(validationErrors, response.ValidationError{
 			Key:     "vat",
-			Message: "vat cannot be empty",
+			Message: "cannot_be_empty",
 			Value:   vatValue,
 		})
 	}
@@ -364,7 +364,7 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 	if strings.TrimSpace(req.Name) == "" {
 		validationErrors = append(validationErrors, response.ValidationError{
 			Key:     "name",
-			Message: "name cannot be empty",
+			Message: "cannot_be_empty",
 			Value:   req.Name,
 		})
 	}
@@ -373,7 +373,7 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 	if req.CustomData == nil || req.CustomData["vat"] == nil {
 		validationErrors = append(validationErrors, response.ValidationError{
 			Key:     "vat",
-			Message: "vat is required",
+			Message: "required",
 			Value:   "",
 		})
 	} else if vatStr, ok := req.CustomData["vat"].(string); !ok || strings.TrimSpace(vatStr) == "" {
@@ -383,7 +383,7 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 		}
 		validationErrors = append(validationErrors, response.ValidationError{
 			Key:     "vat",
-			Message: "vat cannot be empty",
+			Message: "cannot_be_empty",
 			Value:   vatValue,
 		})
 	}
