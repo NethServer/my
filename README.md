@@ -15,13 +15,6 @@
 [![Release](https://img.shields.io/github/actions/workflow/status/NethServer/my/release.yml?style=for-the-badge&label=Release)](https://github.com/NethServer/my/actions/workflows/release.yml)
 [![Version](https://img.shields.io/github/v/release/NethServer/my?style=for-the-badge&color=3a3c3f&label=Version)](https://github.com/NethServer/my/releases)
 
-##### Deployments
-[![Deploy Redis](https://img.shields.io/github/actions/workflow/status/NethServer/my/deploy.yml?job=deploy-redis&label=Deploy%20Redis&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/deploy.yml)
-[![Deploy Postgres](https://img.shields.io/github/actions/workflow/status/NethServer/my/deploy.yml?job=deploy-postgres&label=Deploy%20Postgres&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/deploy.yml)
-[![Deploy Backend](https://img.shields.io/github/actions/workflow/status/NethServer/my/deploy.yml?job=deploy-backend&label=Deploy%20Backend&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/deploy.yml)
-[![Deploy Collect](https://img.shields.io/github/actions/workflow/status/NethServer/my/deploy.yml?job=deploy-collect&label=Deploy%20Collect&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/deploy.yml)
-[![Deploy Frontend](https://img.shields.io/github/actions/workflow/status/NethServer/my/deploy.yml?job=deploy-frontend&label=Deploy%20Frontend&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/deploy.yml)
-[![Deploy Proxy](https://img.shields.io/github/actions/workflow/status/NethServer/my/deploy.yml?job=deploy-proxy&label=Deploy%20Proxy&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/deploy.yml)
 
 ##### Production and QA links
 [![My](https://img.shields.io/badge/docs-available-blue?style=for-the-badge&label=my.nethesis.it)](https://my-proxy-prod.onrender.com)
@@ -49,7 +42,7 @@ Web application providing centralized authentication and management using Logto 
 1. **Backend Development**: [backend/README.md](./backend/README.md) - Backend setup and environment configuration
 1. **Collect Development**: [collect/README.md](./collect/README.md) - Collect setup and environment configuration
 2. **RBAC Management**: [sync/README.md](./sync/README.md) - Use `sync init` for complete setup
-3. **Production Deploy**: [deploy/README.md](./deploy/README.md) - Automated deployment with Render
+3. **Production Deploy**: Use `./deploy.sh` for automated deployment
 
 ## 🌐 Deployment Environments
 
@@ -59,8 +52,8 @@ Web application providing centralized authentication and management using Logto 
 - **PR Previews**: Temporary environments for pull requests
 
 ### Production (`my.nethesis.it`)
-- **Trigger**: Manual deployment via GitHub Actions
-- **Sequential Deploy**: Redis + PostgreSQL → Backend + Collect → Frontend → Proxy
+- **Trigger**: Manual deployment via `./deploy.sh` script
+- **Auto-Deploy**: Render automatically deploys when `render.yaml` is updated
 - **Manual Control**: Deploy only when explicitly triggered
 - **Security**: Private services (Backend, Collect, Frontend) only accessible through Proxy
 
@@ -76,9 +69,8 @@ See individual component documentation for setup:
 
 ### Production Deployment
 - **Environment Variables**: Configured in Render dashboard
-- **GitHub Secrets**: API keys for automated deployment
 - **Service Configuration**: Defined in `render.yaml`
-- **Full Guide**: [deploy/README.md](./deploy/README.md) - Complete deployment setup
+- **Deployment**: Use `./deploy.sh` script for automated deployment
 
 ## 📚 Documentation
 
@@ -87,7 +79,7 @@ See individual component documentation for setup:
 - **[backend API](./backend/API.md)** - Complete API reference with authentication
 - **[collect](./collect/README.md)** - Server setup, environment variables and inventory structure
 - **[sync CLI](./sync/README.md)** - RBAC configuration and `sync init` setup
-- **[deploy](./deploy/README.md)** - Production deployment with [Render](render.yaml) and GitHub Actions
+- **[deploy script](./deploy.sh)** - Production deployment script for Render
 - **[proxy](./proxy/README.md)** - Production load balancer configuration with nginx
 - **[DESIGN.md](./DESIGN.md)** - Architecture decisions and design patterns
 
@@ -111,15 +103,49 @@ git push origin feature/new-feature     # → Create PR
 
 ### Production Release
 ```bash
-# 1. Automated release with quality checks
+# Automated release with quality checks
 ./release.sh patch                       # → 0.0.5 → 0.0.6 (bug fixes)
 ./release.sh minor                       # → 0.0.5 → 0.1.0 (new features)
 ./release.sh major                       # → 0.0.5 → 1.0.0 (breaking changes)
 # → Runs tests, formatting, linting → Creates tag → Pushes to GitHub
+```
 
-# 2. Manual deployment trigger
-# Go to: https://github.com/NethServer/my/actions/workflows/deploy.yml
-# Click "Run workflow" → Enter version "v1.2.3" → Deploy
+The release script will:
+1. Run all quality checks (formatting, linting, tests)
+2. Bump version in all files
+3. Create git commit and tag
+4. Push to GitHub
+5. Trigger GitHub Actions to build and publish Docker images
+
+### Production Deployment
+```bash
+# Standard deployment with image verification
+./deploy.sh
+
+# Fast deployment without image verification (less safe but faster)
+./deploy.sh --skip-verify
+
+# Show help
+./deploy.sh --help
+```
+
+The deployment script will:
+1. Get the latest git tag automatically
+2. Show the tag and ask for confirmation
+3. Verify Docker images exist on ghcr.io (unless `--skip-verify`)
+4. Update `render.yaml` with new image tags
+5. Commit changes with your git user info
+6. Push to main branch
+7. Render automatically deploys the updated services
+
+**Example output:**
+```
+ℹ️  Latest git tag: v0.1.5
+Do you want to deploy v0.1.5 to production? [y/N] y
+✅ All Docker images verified successfully
+✅ render.yaml updated successfully  
+✅ Changes committed and pushed to main branch
+✅ Deployment initiated successfully!
 ```
 
 ## 🤝 Contributing
