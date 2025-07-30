@@ -324,7 +324,7 @@ components:
           type: string
           description: Organization description
           example: "Main distributor for Italian and Swiss markets"
-        customData:
+        custom_data:
           type: object
           description: Custom organization data
           additionalProperties: true
@@ -343,20 +343,31 @@ components:
       type: object
       required:
         - name
+        - custom_data
       properties:
         name:
           type: string
-          description: Organization name
+          minLength: 1
+          description: Organization name (cannot be empty)
           example: "ACME Distribution SpA"
         description:
           type: string
           description: Organization description
           example: "Main distributor for Italian and Swiss markets"
-        customData:
+        custom_data:
           type: object
-          description: Custom organization data
+          description: Custom organization data (vat field is required)
+          required:
+            - vat
+          properties:
+            vat:
+              type: string
+              minLength: 1
+              description: VAT number (required, cannot be empty)
+              example: "IT12345678901"
           additionalProperties: true
           example:
+            vat: "IT12345678901"
             email: "contact@acme-distribution.com"
             contactPerson: "John Smith"
             region: "Italy"
@@ -405,7 +416,7 @@ components:
             $ref: '#/components/schemas/UserRole'
           description: User roles with names
           example: [{"id": "rol_admin_123", "name": "Admin"}]
-        customData:
+        custom_data:
           type: object
           description: Custom user data
           additionalProperties: true
@@ -487,7 +498,7 @@ components:
           type: string
           description: Phone number
           example: "+39 333 123456"
-        customData:
+        custom_data:
           type: object
           description: Custom user data
           additionalProperties: true
@@ -512,7 +523,7 @@ components:
           type: string
           description: Phone number
           example: "+39 333 123456"
-        customData:
+        custom_data:
           type: object
           description: Custom user data
           additionalProperties: true
@@ -903,7 +914,7 @@ components:
           type: string
           description: Reseller organization ID that owns this system
           example: "org_reseller_123"
-        customData:
+        custom_data:
           type: object
           description: Custom system data
           additionalProperties: true

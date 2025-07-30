@@ -45,6 +45,46 @@ func NewOrganizationService() *LocalOrganizationService {
 
 // CreateDistributor creates a distributor locally and syncs to Logto
 func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDistributorRequest, createdByUserID, createdByOrgID string) (*models.LocalDistributor, error) {
+	// Validate required fields
+	var validationErrors []response.ValidationError
+
+	if strings.TrimSpace(req.Name) == "" {
+		validationErrors = append(validationErrors, response.ValidationError{
+			Key:     "name",
+			Message: "name cannot be empty",
+			Value:   req.Name,
+		})
+	}
+
+	// Validate VAT in custom_data
+	if req.CustomData == nil || req.CustomData["vat"] == nil {
+		validationErrors = append(validationErrors, response.ValidationError{
+			Key:     "vat",
+			Message: "vat is required",
+			Value:   "",
+		})
+	} else if vatStr, ok := req.CustomData["vat"].(string); !ok || strings.TrimSpace(vatStr) == "" {
+		vatValue := ""
+		if req.CustomData["vat"] != nil {
+			vatValue = fmt.Sprintf("%v", req.CustomData["vat"])
+		}
+		validationErrors = append(validationErrors, response.ValidationError{
+			Key:     "vat",
+			Message: "vat cannot be empty",
+			Value:   vatValue,
+		})
+	}
+
+	if len(validationErrors) > 0 {
+		validationErr := &ValidationError{
+			StatusCode: 400,
+			ErrorData: response.ErrorData{
+				Type:   "validation_error",
+				Errors: validationErrors,
+			},
+		}
+		return nil, validationErr
+	}
 	tx, err := database.DB.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
@@ -81,6 +121,26 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 						Key:     "name",
 						Message: "already_exists",
 						Value:   req.Name,
+					}},
+				},
+			}
+			return nil, validationErr
+		}
+		// Check for VAT constraint violation (uk_distributors_vat_created_by)
+		if strings.Contains(err.Error(), "uk_distributors_vat_created_by") ||
+			(strings.Contains(err.Error(), "duplicate key value violates unique constraint") && strings.Contains(err.Error(), "vat")) {
+			vatValue := ""
+			if req.CustomData != nil && req.CustomData["vat"] != nil {
+				vatValue = fmt.Sprintf("%v", req.CustomData["vat"])
+			}
+			validationErr := &ValidationError{
+				StatusCode: 400,
+				ErrorData: response.ErrorData{
+					Type: "validation_error",
+					Errors: []response.ValidationError{{
+						Key:     "vat",
+						Message: "already_exists",
+						Value:   vatValue,
 					}},
 				},
 			}
@@ -141,6 +201,46 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 
 // CreateReseller creates a reseller locally and syncs to Logto
 func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalResellerRequest, createdByUserID, createdByOrgID string) (*models.LocalReseller, error) {
+	// Validate required fields
+	var validationErrors []response.ValidationError
+
+	if strings.TrimSpace(req.Name) == "" {
+		validationErrors = append(validationErrors, response.ValidationError{
+			Key:     "name",
+			Message: "name cannot be empty",
+			Value:   req.Name,
+		})
+	}
+
+	// Validate VAT in custom_data
+	if req.CustomData == nil || req.CustomData["vat"] == nil {
+		validationErrors = append(validationErrors, response.ValidationError{
+			Key:     "vat",
+			Message: "vat is required",
+			Value:   "",
+		})
+	} else if vatStr, ok := req.CustomData["vat"].(string); !ok || strings.TrimSpace(vatStr) == "" {
+		vatValue := ""
+		if req.CustomData["vat"] != nil {
+			vatValue = fmt.Sprintf("%v", req.CustomData["vat"])
+		}
+		validationErrors = append(validationErrors, response.ValidationError{
+			Key:     "vat",
+			Message: "vat cannot be empty",
+			Value:   vatValue,
+		})
+	}
+
+	if len(validationErrors) > 0 {
+		validationErr := &ValidationError{
+			StatusCode: 400,
+			ErrorData: response.ErrorData{
+				Type:   "validation_error",
+				Errors: validationErrors,
+			},
+		}
+		return nil, validationErr
+	}
 	tx, err := database.DB.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
@@ -179,6 +279,26 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 						Key:     "name",
 						Message: "already_exists",
 						Value:   req.Name,
+					}},
+				},
+			}
+			return nil, validationErr
+		}
+		// Check for VAT constraint violation (uk_resellers_vat_created_by)
+		if strings.Contains(err.Error(), "uk_resellers_vat_created_by") ||
+			(strings.Contains(err.Error(), "duplicate key value violates unique constraint") && strings.Contains(err.Error(), "vat")) {
+			vatValue := ""
+			if req.CustomData != nil && req.CustomData["vat"] != nil {
+				vatValue = fmt.Sprintf("%v", req.CustomData["vat"])
+			}
+			validationErr := &ValidationError{
+				StatusCode: 400,
+				ErrorData: response.ErrorData{
+					Type: "validation_error",
+					Errors: []response.ValidationError{{
+						Key:     "vat",
+						Message: "already_exists",
+						Value:   vatValue,
 					}},
 				},
 			}
@@ -238,6 +358,46 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 
 // CreateCustomer creates a customer locally and syncs to Logto
 func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustomerRequest, createdByUserID, createdByOrgID string) (*models.LocalCustomer, error) {
+	// Validate required fields
+	var validationErrors []response.ValidationError
+
+	if strings.TrimSpace(req.Name) == "" {
+		validationErrors = append(validationErrors, response.ValidationError{
+			Key:     "name",
+			Message: "name cannot be empty",
+			Value:   req.Name,
+		})
+	}
+
+	// Validate VAT in custom_data
+	if req.CustomData == nil || req.CustomData["vat"] == nil {
+		validationErrors = append(validationErrors, response.ValidationError{
+			Key:     "vat",
+			Message: "vat is required",
+			Value:   "",
+		})
+	} else if vatStr, ok := req.CustomData["vat"].(string); !ok || strings.TrimSpace(vatStr) == "" {
+		vatValue := ""
+		if req.CustomData["vat"] != nil {
+			vatValue = fmt.Sprintf("%v", req.CustomData["vat"])
+		}
+		validationErrors = append(validationErrors, response.ValidationError{
+			Key:     "vat",
+			Message: "vat cannot be empty",
+			Value:   vatValue,
+		})
+	}
+
+	if len(validationErrors) > 0 {
+		validationErr := &ValidationError{
+			StatusCode: 400,
+			ErrorData: response.ErrorData{
+				Type:   "validation_error",
+				Errors: validationErrors,
+			},
+		}
+		return nil, validationErr
+	}
 	tx, err := database.DB.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
@@ -277,6 +437,26 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 						Key:     "name",
 						Message: "already_exists",
 						Value:   req.Name,
+					}},
+				},
+			}
+			return nil, validationErr
+		}
+		// Check for VAT constraint violation (uk_customers_vat_created_by)
+		if strings.Contains(err.Error(), "uk_customers_vat_created_by") ||
+			(strings.Contains(err.Error(), "duplicate key value violates unique constraint") && strings.Contains(err.Error(), "vat")) {
+			vatValue := ""
+			if req.CustomData != nil && req.CustomData["vat"] != nil {
+				vatValue = fmt.Sprintf("%v", req.CustomData["vat"])
+			}
+			validationErr := &ValidationError{
+				StatusCode: 400,
+				ErrorData: response.ErrorData{
+					Type: "validation_error",
+					Errors: []response.ValidationError{{
+						Key:     "vat",
+						Message: "already_exists",
+						Value:   vatValue,
 					}},
 				},
 			}
