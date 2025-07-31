@@ -18,7 +18,7 @@ databases:
 
   # QA PostgreSQL Database
   - name: my-postgres-qa
-    plan: free
+    plan: basic-256mb
     databaseName: noc
     ipAllowList: []
 
@@ -186,7 +186,7 @@ services:
   - type: web
     name: my-backend-qa
     runtime: docker
-    plan: free
+    plan: starter
     rootDir: backend
     dockerfilePath: Containerfile
     envVars:
@@ -251,7 +251,7 @@ services:
   - type: web
     name: my-collect-qa
     runtime: docker
-    plan: free
+    plan: starter
     rootDir: collect
     dockerfilePath: Containerfile
     envVars:
@@ -288,7 +288,7 @@ services:
   - type: web
     name: my-frontend-qa
     runtime: docker
-    plan: free
+    plan: starter
     rootDir: frontend
     dockerfilePath: Containerfile
     envVars:
@@ -312,7 +312,7 @@ services:
   - type: web
     name: my-proxy-qa
     runtime: docker
-    plan: free
+    plan: starter
     rootDir: proxy
     dockerfilePath: Containerfile
     domains:
