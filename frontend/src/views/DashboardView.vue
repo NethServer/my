@@ -8,7 +8,6 @@ import CustomersCounterCard from '@/components/dashboard/CustomersCounterCard.vu
 import DistributorsCounterCard from '@/components/dashboard/DistributorsCounterCard.vue'
 import ResellersCounterCard from '@/components/dashboard/ResellersCounterCard.vue'
 import UsersCounterCard from '@/components/dashboard/UsersCounterCard.vue'
-import OrganizationRoleBadge from '@/components/OrganizationRoleBadge.vue'
 import {
   getThirdPartyApps,
   getThirdPartyAppIcon,
@@ -21,6 +20,7 @@ import { faArrowUpRightFromSquare, faCrown } from '@fortawesome/free-solid-svg-i
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   NeAvatar,
+  NeBadge,
   NeButton,
   NeCard,
   NeHeading,
@@ -64,7 +64,14 @@ const { state: thirdPartyApps } = useQuery({
               <NeHeading tag="h5">
                 {{ $t('dashboard.welcome_user', { user: loginStore.userDisplayName }) }}
               </NeHeading>
-              <OrganizationRoleBadge />
+              <NeBadge
+                v-for="role in loginStore.userInfo?.user_roles.sort()"
+                :key="role"
+                :text="$t(`user_roles.${role}`)"
+                kind="custom"
+                customColorClasses="bg-indigo-100 text-indigo-800 dark:bg-indigo-700 dark:text-indigo-100"
+                class="inline-block"
+              ></NeBadge>
             </div>
           </template>
         </div>
@@ -76,8 +83,7 @@ const { state: thirdPartyApps } = useQuery({
         </NeCard>
       </template>
       <template v-else>
-        <!-- //// uncomment -->
-        <!-- <DistributorsCounterCard v-if="loginStore.userInfo.org_role === 'Owner'" />
+        <DistributorsCounterCard v-if="loginStore.userInfo.org_role === 'Owner'" />
         <ResellersCounterCard
           v-if="['Owner', 'Distributor'].includes(loginStore.userInfo.org_role)"
         />
@@ -86,7 +92,7 @@ const { state: thirdPartyApps } = useQuery({
         />
         <UsersCounterCard
           v-if="loginStore.userInfo.user_roles && loginStore.userInfo.user_roles.includes('Admin')"
-        /> -->
+        />
       </template>
     </div>
     <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">

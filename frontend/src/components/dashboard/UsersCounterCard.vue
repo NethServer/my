@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { faBuilding } from '@fortawesome/free-solid-svg-icons'
+import { faUserGroup } from '@fortawesome/free-solid-svg-icons'
 import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
 import CounterCard from '../CounterCard.vue'
@@ -23,7 +23,7 @@ const { state: usersTotal } = useQuery({
   <CounterCard
     :title="$t('users.title')"
     :counter="usersTotal.data ?? 0"
-    :icon="faBuilding"
+    :icon="faUserGroup"
     :loading="usersTotal.status === 'pending'"
   />
 </template>
