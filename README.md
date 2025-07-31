@@ -1,22 +1,46 @@
 # My Nethesis
 
-##### Documentation
-[![API Docs build](https://img.shields.io/github/actions/workflow/status/NethServer/my/docs.yml?style=for-the-badge&label=API%20Docs%20build)](https://github.com/NethServer/my/actions/workflows/docs.yml)
+#### Documentation
+[![API Docs build](https://img.shields.io/github/actions/workflow/status/NethServer/my/docs-api.yml?style=for-the-badge&label=API%20Docs%20build)](https://github.com/NethServer/my/actions/workflows/docs-api.yml)
 [![API Docs link](https://img.shields.io/badge/docs-available-blue?style=for-the-badge&label=API%20Docs%20link)](https://bump.sh/nethesis/doc/my)
 
-##### CI and Tests
-[![CI](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci.yml?style=for-the-badge&label=CI)](https://github.com/NethServer/my/actions/workflows/ci.yml)
-[![Backend Tests](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci.yml?job=backend-tests&label=Backend%20Tests&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci.yml)
-[![Collect Tests](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci.yml?job=collect-tests&label=Collect%20Tests&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci.yml)
-[![sync Tests](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci.yml?job=sync-tests&label=sync%20Tests&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci.yml)
+#### CI and Tests
+
+CI Pipeline:
+
+[![CI](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci-main.yml?style=for-the-badge&label=CI%20Pipeline)](https://github.com/NethServer/my/actions/workflows/ci-main.yml)
+
+Backend:
+
+[![Backend Tests](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci-main.yml?job=backend-tests&label=Tests&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci-main.yml)
+[![Backend Build](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci-main.yml?job=backend-build&label=Build&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci-main.yml)
+
+Collect:
+
+[![Collect Tests](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci-main.yml?job=collect-tests&label=Tests&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci-main.yml)
+[![Collect Build](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci-main.yml?job=collect-build&label=Build&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci-main.yml)
+
+Sync:
+
+[![Sync Tests](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci-main.yml?job=sync-tests&label=Tests&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci-main.yml)
+[![Sync Build](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci-main.yml?job=sync-build&label=Build&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci-main.yml)
+
+Frontend:
+
+[![Frontend Tests](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci-main.yml?job=frontend-tests&label=Tests&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci-main.yml)
+[![Frontend Build](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci-main.yml?job=frontend-build&label=Build&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci-main.yml)
+
+Proxy:
+
+[![Proxy Build](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci-main.yml?job=proxy-build&label=Build&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci-main.yml)
 
 
-##### Release
-[![Release](https://img.shields.io/github/actions/workflow/status/NethServer/my/release.yml?style=for-the-badge&label=Release)](https://github.com/NethServer/my/actions/workflows/release.yml)
+#### Release
+[![Release](https://img.shields.io/github/actions/workflow/status/NethServer/my/release-production.yml?style=for-the-badge&label=Release)](https://github.com/NethServer/my/actions/workflows/release-production.yml)
 [![Version](https://img.shields.io/github/v/release/NethServer/my?style=for-the-badge&color=3a3c3f&label=Version)](https://github.com/NethServer/my/releases)
 
 
-##### Production and QA links
+#### Production and QA
 [![My](https://img.shields.io/badge/docs-available-blue?style=for-the-badge&label=my.nethesis.it)](https://my-proxy-prod.onrender.com)
 [![My QA](https://img.shields.io/badge/docs-available-blue?style=for-the-badge&label=qa.my.nethesis.it)](https://qa.my.nethesis.it)
 
@@ -143,7 +167,7 @@ The deployment script will:
 ℹ️  Latest git tag: v0.1.5
 Do you want to deploy v0.1.5 to production? [y/N] y
 ✅ All Docker images verified successfully
-✅ render.yaml updated successfully  
+✅ render.yaml updated successfully
 ✅ Changes committed and pushed to main branch
 ✅ Deployment initiated successfully!
 ```
