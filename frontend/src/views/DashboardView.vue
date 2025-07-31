@@ -43,7 +43,7 @@ const { state: thirdPartyApps } = useQuery({
     <div class="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">
       <!-- logged user -->
       <NeCard>
-        <div class="flex items-start gap-5">
+        <div class="flex items-center gap-5 text-xs">
           <!-- owner avatar -->
           <NeAvatar v-if="loginStore.isOwner" size="lg" aria-hidden="true">
             <template #placeholder>
@@ -61,8 +61,11 @@ const { state: thirdPartyApps } = useQuery({
           </template>
           <template v-else>
             <div class="flex flex-col gap-2">
+              <span class="text-gray-600 uppercase dark:text-gray-300">
+                {{ loginStore.userInfo?.organization_name }}
+              </span>
               <NeHeading tag="h5">
-                {{ $t('dashboard.welcome_user', { user: loginStore.userDisplayName }) }}
+                {{ $t('dashboard.hello_user', { user: loginStore.userDisplayName }) }}
               </NeHeading>
               <div class="flex flex-wrap gap-1">
                 <NeBadge

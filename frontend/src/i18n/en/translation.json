@@ -73,7 +73,7 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "welcome_user": "Welcome {user}"
+    "hello_user": "Hi {user}"
   },
   "distributors": {
     "title": "Distributors",
