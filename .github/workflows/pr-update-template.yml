@@ -1,4 +1,4 @@
-name: Update PR Template
+name: PR - Update Template
 
 on:
   pull_request:

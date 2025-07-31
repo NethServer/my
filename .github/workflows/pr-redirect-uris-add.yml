@@ -1,4 +1,4 @@
-name: Add PR Redirect URIs to Logto
+name: PR - Add Redirect URIs to Logto
 
 on:
   pull_request:

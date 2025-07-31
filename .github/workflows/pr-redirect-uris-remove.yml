@@ -1,4 +1,4 @@
-name: Remove PR Redirect URIs from Logto
+name: PR - Remove Redirect URIs from Logto
 
 on:
   pull_request:

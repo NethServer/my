@@ -1,4 +1,4 @@
-name: Update Build Triggers
+name: PR - Update Build Triggers
 
 on:
   pull_request:
