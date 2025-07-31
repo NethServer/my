@@ -206,6 +206,25 @@ func UpdateReseller(c *gin.Context) {
 		return
 	}
 
+	// Get reseller to obtain logto_id for hierarchy validation
+	repo := entities.NewLocalResellerRepository()
+	reseller, err := repo.GetByID(resellerID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("reseller not found", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("reseller_id", resellerID).
+			Msg("Failed to get reseller for update validation")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get reseller", nil))
+		return
+	}
+
 	// Apply hierarchical RBAC validation using service layer
 	userService := local.NewUserService()
 	userOrgRole := strings.ToLower(user.OrgRole)
@@ -216,10 +235,13 @@ func UpdateReseller(c *gin.Context) {
 		canUpdate = true
 	case "distributor":
 		// Use hierarchical validation - check if reseller organization is in hierarchy
-		canUpdate = userService.IsOrganizationInHierarchy(userOrgRole, user.OrganizationID, resellerID)
+		// Pass the logto_id, not the local database ID
+		if reseller.LogtoID != nil {
+			canUpdate = userService.IsOrganizationInHierarchy(userOrgRole, user.OrganizationID, *reseller.LogtoID)
+		}
 	case "reseller":
-		// Reseller can only update themselves
-		if resellerID == user.OrganizationID {
+		// Reseller can only update themselves - compare with logto_id
+		if reseller.LogtoID != nil && *reseller.LogtoID == user.OrganizationID {
 			canUpdate = true
 		}
 	}
@@ -233,7 +255,7 @@ func UpdateReseller(c *gin.Context) {
 	service := local.NewOrganizationService()
 
 	// Update reseller
-	reseller, err := service.UpdateReseller(resellerID, &request, user.ID, user.OrganizationID)
+	reseller, err = service.UpdateReseller(resellerID, &request, user.ID, user.OrganizationID)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -276,6 +298,25 @@ func DeleteReseller(c *gin.Context) {
 		return
 	}
 
+	// Get reseller to obtain logto_id for hierarchy validation
+	repo := entities.NewLocalResellerRepository()
+	reseller, err := repo.GetByID(resellerID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("reseller not found", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("reseller_id", resellerID).
+			Msg("Failed to get reseller for deletion validation")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get reseller", nil))
+		return
+	}
+
 	// Apply hierarchical RBAC validation - only creators and above can delete
 	userService := local.NewUserService()
 	userOrgRole := strings.ToLower(user.OrgRole)
@@ -286,7 +327,10 @@ func DeleteReseller(c *gin.Context) {
 		canDelete = true
 	case "distributor":
 		// Use hierarchical validation - check if reseller organization is in hierarchy
-		canDelete = userService.IsOrganizationInHierarchy(userOrgRole, user.OrganizationID, resellerID)
+		// Pass the logto_id, not the local database ID
+		if reseller.LogtoID != nil {
+			canDelete = userService.IsOrganizationInHierarchy(userOrgRole, user.OrganizationID, *reseller.LogtoID)
+		}
 	}
 
 	if !canDelete {
@@ -298,7 +342,7 @@ func DeleteReseller(c *gin.Context) {
 	service := local.NewOrganizationService()
 
 	// Delete reseller
-	err := service.DeleteReseller(resellerID, user.ID, user.OrganizationID)
+	err = service.DeleteReseller(resellerID, user.ID, user.OrganizationID)
 	if err != nil {
 		logger.Error().
 			Err(err).
