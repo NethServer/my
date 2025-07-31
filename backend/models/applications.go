@@ -40,7 +40,7 @@ type LogtoThirdPartyApp struct {
 	Description        string                 `json:"description"`
 	Type               string                 `json:"type"`
 	IsThirdParty       bool                   `json:"isThirdParty"`
-	CustomData         map[string]interface{} `json:"customData,omitempty"`
+	CustomData         map[string]interface{} `json:"custom_data,omitempty"`
 	OidcClientMetadata *OidcClientMetadata    `json:"oidcClientMetadata,omitempty"`
 }
 

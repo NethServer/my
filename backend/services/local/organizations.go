@@ -59,7 +59,7 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 	// Validate VAT in custom_data
 	if req.CustomData == nil || req.CustomData["vat"] == nil {
 		validationErrors = append(validationErrors, response.ValidationError{
-			Key:     "vat",
+			Key:     "custom_data.vat",
 			Message: "required",
 			Value:   "",
 		})
@@ -69,7 +69,7 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 			vatValue = fmt.Sprintf("%v", req.CustomData["vat"])
 		}
 		validationErrors = append(validationErrors, response.ValidationError{
-			Key:     "vat",
+			Key:     "custom_data.vat",
 			Message: "cannot_be_empty",
 			Value:   vatValue,
 		})
@@ -138,7 +138,7 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 				ErrorData: response.ErrorData{
 					Type: "validation_error",
 					Errors: []response.ValidationError{{
-						Key:     "vat",
+						Key:     "custom_data.vat",
 						Message: "already_exists",
 						Value:   vatValue,
 					}},
@@ -215,7 +215,7 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 	// Validate VAT in custom_data
 	if req.CustomData == nil || req.CustomData["vat"] == nil {
 		validationErrors = append(validationErrors, response.ValidationError{
-			Key:     "vat",
+			Key:     "custom_data.vat",
 			Message: "required",
 			Value:   "",
 		})
@@ -225,7 +225,7 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 			vatValue = fmt.Sprintf("%v", req.CustomData["vat"])
 		}
 		validationErrors = append(validationErrors, response.ValidationError{
-			Key:     "vat",
+			Key:     "custom_data.vat",
 			Message: "cannot_be_empty",
 			Value:   vatValue,
 		})
@@ -296,7 +296,7 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 				ErrorData: response.ErrorData{
 					Type: "validation_error",
 					Errors: []response.ValidationError{{
-						Key:     "vat",
+						Key:     "custom_data.vat",
 						Message: "already_exists",
 						Value:   vatValue,
 					}},
@@ -372,7 +372,7 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 	// Validate VAT in custom_data
 	if req.CustomData == nil || req.CustomData["vat"] == nil {
 		validationErrors = append(validationErrors, response.ValidationError{
-			Key:     "vat",
+			Key:     "custom_data.vat",
 			Message: "required",
 			Value:   "",
 		})
@@ -382,7 +382,7 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 			vatValue = fmt.Sprintf("%v", req.CustomData["vat"])
 		}
 		validationErrors = append(validationErrors, response.ValidationError{
-			Key:     "vat",
+			Key:     "custom_data.vat",
 			Message: "cannot_be_empty",
 			Value:   vatValue,
 		})
@@ -454,7 +454,7 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 				ErrorData: response.ErrorData{
 					Type: "validation_error",
 					Errors: []response.ValidationError{{
-						Key:     "vat",
+						Key:     "custom_data.vat",
 						Message: "already_exists",
 						Value:   vatValue,
 					}},

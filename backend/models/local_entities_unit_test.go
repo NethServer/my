@@ -603,7 +603,7 @@ func TestLocalUserJSONTagsSpecial(t *testing.T) {
 	// Verify JSON field names match struct tags
 	expectedFields := []string{
 		"id", "logto_id", "username", "email", "name", "phone",
-		"organization", "roles", "customData", "created_at", "updated_at",
+		"organization", "roles", "custom_data", "created_at", "updated_at",
 		"logto_synced_at", "deleted_at", "suspended_at",
 	}
 
@@ -624,7 +624,7 @@ func TestLocalUserJSONTagsSpecial(t *testing.T) {
 	assert.Equal(t, "user-json-tags", jsonMap["id"])
 	assert.Equal(t, "jsonuser", jsonMap["username"])
 	assert.Equal(t, "json@example.com", jsonMap["email"])
-	assert.Equal(t, "customData", "customData") // customData field uses camelCase
+	assert.Equal(t, "custom_data", "custom_data") // custom_data field uses snake_case
 }
 
 func TestLocalEntitiesPointerOperations(t *testing.T) {

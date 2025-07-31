@@ -208,11 +208,11 @@ container-status:
 .PHONY: validate-docs
 validate-docs:
 	@echo "Validating OpenAPI documentation..."
-	@if command -v swagger-cli >/dev/null 2>&1; then \
-		swagger-cli validate openapi.yaml; \
+	@if command -v redocly >/dev/null 2>&1; then \
+		redocly lint openapi.yaml; \
 	else \
-		echo "swagger-cli not found"; \
-		echo "Install with: npm install -g @apidevtools/swagger-cli"; \
+		echo "redocly not found"; \
+		echo "Install with: npm install -g @redocly/cli"; \
 	fi
 
 # Database migrations are handled automatically on backend startup

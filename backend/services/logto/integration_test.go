@@ -82,11 +82,10 @@ func TestLogtoModels(t *testing.T) {
 
 	t.Run("models.LogtoOrganization", func(t *testing.T) {
 		org := models.LogtoOrganization{
-			ID:            "org-123",
-			Name:          "Test Organization",
-			Description:   "Test Description",
-			CustomData:    map[string]interface{}{"type": "customer"},
-			IsMfaRequired: true,
+			ID:          "org-123",
+			Name:        "Test Organization",
+			Description: "Test Description",
+			CustomData:  map[string]interface{}{"type": "customer"},
 			Branding: &models.LogtoOrganizationBranding{
 				LogoUrl:     "https://example.com/logo.png",
 				DarkLogoUrl: "https://example.com/dark-logo.png",
@@ -632,11 +631,10 @@ func TestCreateOrganizationRequest(t *testing.T) {
 	}
 
 	request := models.CreateOrganizationRequest{
-		Name:          "New Organization",
-		Description:   "A new test organization",
-		CustomData:    customData,
-		IsMfaRequired: true,
-		Branding:      branding,
+		Name:        "New Organization",
+		Description: "A new test organization",
+		CustomData:  customData,
+		Branding:    branding,
 	}
 
 	// Test JSON serialization
@@ -650,7 +648,6 @@ func TestCreateOrganizationRequest(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, request.Name, unmarshaled.Name)
 	assert.Equal(t, request.Description, unmarshaled.Description)
-	assert.Equal(t, request.IsMfaRequired, unmarshaled.IsMfaRequired)
 	assert.Equal(t, request.CustomData, unmarshaled.CustomData)
 	assert.NotNil(t, unmarshaled.Branding)
 	assert.Equal(t, branding.LogoUrl, unmarshaled.Branding.LogoUrl)

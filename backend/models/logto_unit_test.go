@@ -86,19 +86,17 @@ func TestLogtoOrganizationStruct(t *testing.T) {
 	}
 
 	org := LogtoOrganization{
-		ID:            "org_123",
-		Name:          "Test Organization",
-		Description:   "Test organization description",
-		CustomData:    customData,
-		IsMfaRequired: true,
-		Branding:      branding,
+		ID:          "org_123",
+		Name:        "Test Organization",
+		Description: "Test organization description",
+		CustomData:  customData,
+		Branding:    branding,
 	}
 
 	assert.Equal(t, "org_123", org.ID)
 	assert.Equal(t, "Test Organization", org.Name)
 	assert.Equal(t, "Test organization description", org.Description)
 	assert.Equal(t, customData, org.CustomData)
-	assert.True(t, org.IsMfaRequired)
 	assert.NotNil(t, org.Branding)
 	assert.Equal(t, "https://example.com/logo.png", org.Branding.LogoUrl)
 }
@@ -342,38 +340,32 @@ func TestCreateOrganizationRequestStruct(t *testing.T) {
 	}
 
 	request := CreateOrganizationRequest{
-		Name:          "New Organization",
-		Description:   "New organization description",
-		CustomData:    customData,
-		IsMfaRequired: true,
-		Branding:      branding,
+		Name:        "New Organization",
+		Description: "New organization description",
+		CustomData:  customData,
+		Branding:    branding,
 	}
 
 	assert.Equal(t, "New Organization", request.Name)
 	assert.Equal(t, "New organization description", request.Description)
 	assert.Equal(t, customData, request.CustomData)
-	assert.True(t, request.IsMfaRequired)
 	assert.NotNil(t, request.Branding)
 }
 
 func TestUpdateOrganizationRequestStruct(t *testing.T) {
 	name := "Updated Organization"
 	description := "Updated description"
-	mfaRequired := false
 
 	request := UpdateOrganizationRequest{
-		Name:          &name,
-		Description:   &description,
-		CustomData:    map[string]interface{}{"updated": true},
-		IsMfaRequired: &mfaRequired,
+		Name:        &name,
+		Description: &description,
+		CustomData:  map[string]interface{}{"updated": true},
 	}
 
 	assert.NotNil(t, request.Name)
 	assert.Equal(t, "Updated Organization", *request.Name)
 	assert.NotNil(t, request.Description)
 	assert.Equal(t, "Updated description", *request.Description)
-	assert.NotNil(t, request.IsMfaRequired)
-	assert.False(t, *request.IsMfaRequired)
 }
 
 func TestCreateUserRequestStruct(t *testing.T) {
@@ -465,7 +457,6 @@ func TestPointerFieldHandling(t *testing.T) {
 
 		assert.Nil(t, request.Name)
 		assert.Nil(t, request.Description)
-		assert.Nil(t, request.IsMfaRequired)
 		assert.NotNil(t, request.CustomData)
 	})
 

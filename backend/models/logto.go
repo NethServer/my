@@ -51,12 +51,11 @@ type LogtoScope struct {
 
 // LogtoOrganization represents an organization from Logto Management API
 type LogtoOrganization struct {
-	ID            string                     `json:"id"`
-	Name          string                     `json:"name"`
-	Description   string                     `json:"description"`
-	CustomData    map[string]interface{}     `json:"customData"`
-	IsMfaRequired bool                       `json:"isMfaRequired"`
-	Branding      *LogtoOrganizationBranding `json:"branding"`
+	ID          string                     `json:"id"`
+	Name        string                     `json:"name"`
+	Description string                     `json:"description"`
+	CustomData  map[string]interface{}     `json:"customData"`
+	Branding    *LogtoOrganizationBranding `json:"branding"`
 }
 
 // LogtoOrganizationRole represents an organization role from Logto Management API
@@ -162,19 +161,17 @@ type LogtoOrganizationBranding struct {
 
 // CreateOrganizationRequest represents a request to create an organization
 type CreateOrganizationRequest struct {
-	Name          string                     `json:"name" binding:"required"`
-	Description   string                     `json:"description,omitempty"`
-	CustomData    map[string]interface{}     `json:"customData,omitempty"`
-	IsMfaRequired bool                       `json:"isMfaRequired"`
-	Branding      *LogtoOrganizationBranding `json:"branding,omitempty"`
+	Name        string                     `json:"name" binding:"required"`
+	Description string                     `json:"description,omitempty"`
+	CustomData  map[string]interface{}     `json:"customData,omitempty"`
+	Branding    *LogtoOrganizationBranding `json:"branding,omitempty"`
 }
 
 // UpdateOrganizationRequest represents a request to update an organization
 type UpdateOrganizationRequest struct {
-	Name          *string                `json:"name,omitempty"`
-	Description   *string                `json:"description,omitempty"`
-	CustomData    map[string]interface{} `json:"customData,omitempty"`
-	IsMfaRequired *bool                  `json:"isMfaRequired,omitempty"`
+	Name        *string                `json:"name,omitempty"`
+	Description *string                `json:"description,omitempty"`
+	CustomData  map[string]interface{} `json:"customData,omitempty"`
 }
 
 // CreateOrganizationJitRolesRequest represents a request to configure JIT roles for an organization

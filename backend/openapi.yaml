@@ -12,9 +12,9 @@ info:
     url: https://www.gnu.org/licenses/agpl-3.0.html
 
 servers:
-  - url: http://localhost:8080/api
+  - url: https://api.your-domain.com/api
     description: Backend API server (port 8080)
-  - url: http://localhost:8081/api
+  - url: https://collect.your-domain.com/api
     description: Collect API server (port 8081)
 
 tags:
@@ -37,8 +37,6 @@ tags:
     description: Backend reseller management
   - name: Backend - Roles
     description: Backend role management
-  - name: Backend - Statistics
-    description: Backend system statistics
   - name: Backend - Systems
     description: Backend system management and inventory
   - name: Backend - User
@@ -332,10 +330,6 @@ components:
             email: "contact@acme-distribution.com"
             contactPerson: "John Smith"
             region: "Italy"
-        isMfaRequired:
-          type: boolean
-          description: Whether MFA is required for this organization
-          example: false
         branding:
           $ref: '#/components/schemas/OrganizationBranding'
 
@@ -371,10 +365,6 @@ components:
             email: "contact@acme-distribution.com"
             contactPerson: "John Smith"
             region: "Italy"
-        isMfaRequired:
-          type: boolean
-          description: Whether MFA is required for this organization
-          example: false
 
     User:
       type: object
@@ -465,8 +455,8 @@ components:
       required:
         - email
         - name
-        - userRoleIds
-        - organizationId
+        - user_role_ids
+        - organization_id
       properties:
         email:
           type: string
@@ -477,13 +467,13 @@ components:
           type: string
           description: Full name
           example: "John Doe"
-        userRoleIds:
+        user_role_ids:
           type: array
           items:
             type: string
           description: User role IDs to assign
           example: ["rol_abc123def456", "rol_xyz789abc123"]
-        organizationId:
+        organization_id:
           type: string
           description: Organization ID to assign user to
           example: "org_xyz789"
@@ -506,7 +496,7 @@ components:
           type: string
           description: Full name
           example: "John Doe (Updated)"
-        userRoleIds:
+        user_role_ids:
           type: array
           items:
             type: string
@@ -690,71 +680,23 @@ components:
           description: Application dark theme logo URL
           example: "https://cdn.example.com/logos/management-console-dark.png"
 
-    SystemStats:
-      type: object
-      properties:
-        distributors:
-          type: integer
-          description: Number of distributors
-          example: 125
-        resellers:
-          type: integer
-          description: Number of resellers
-          example: 1847
-        customers:
-          type: integer
-          description: Number of customers
-          example: 8934
-        users:
-          type: integer
-          description: Number of users
-          example: 24567
-        systems:
-          type: object
-          description: System heartbeat statistics
-          properties:
-            total:
-              type: integer
-              description: Total number of systems
-              example: 1250
-            alive:
-              type: integer
-              description: Number of systems that communicated within the last 15 minutes
-              example: 1100
-            dead:
-              type: integer
-              description: Number of systems that communicated but not within the last 15 minutes
-              example: 100
-            zombie:
-              type: integer
-              description: Number of systems that were created but never communicated
-              example: 50
-        timestamp:
-          type: string
-          format: date-time
-          description: Statistics timestamp
-          example: "2025-07-08T14:30:00Z"
-        isStale:
-          type: boolean
-          description: Whether the statistics are stale
-          example: false
 
     SystemTotals:
       type: object
       properties:
-        total:
+        total_systems:
           type: integer
           description: Total number of systems
           example: 1250
-        alive:
+        alive_systems:
           type: integer
           description: Number of systems that communicated within the last timeout minutes
           example: 1100
-        dead:
+        dead_systems:
           type: integer
           description: Number of systems that communicated but not within timeout minutes
           example: 100
-        zombie:
+        zombie_systems:
           type: integer
           description: Number of systems that were created but never communicated
           example: 50
@@ -880,29 +822,17 @@ components:
       type: object
       required:
         - name
-        - hostname
+        - type
         - reseller_id
       properties:
         name:
           type: string
           description: System name
           example: "Production Server 01"
-        description:
+        type:
           type: string
-          description: System description
-          example: "Main production server for web applications"
-        hostname:
-          type: string
-          description: System hostname
-          example: "prod-web-01.example.com"
-        ipAddress:
-          type: string
-          description: System IP address
-          example: "192.168.1.100"
-        version:
-          type: string
-          description: System version
-          example: "2.1.4"
+          description: System type
+          example: "ns8"
         reseller_id:
           type: string
           description: Reseller organization ID that owns this system
@@ -910,7 +840,8 @@ components:
         custom_data:
           type: object
           description: Custom system data
-          additionalProperties: true
+          additionalProperties:
+            type: string
           example:
             datacenter: "EU-West-1"
             environment: "production"
@@ -1030,6 +961,7 @@ components:
 paths:
   /users:
     get:
+      operationId: getUsers
       tags:
         - Backend - Users
       summary: List users
@@ -1067,6 +999,7 @@ paths:
           $ref: '#/components/responses/Forbidden'
 
     post:
+      operationId: createUser
       tags:
         - Backend - Users
       summary: Create user
@@ -1104,6 +1037,7 @@ paths:
 
   /users/{id}:
     get:
+      operationId: getUserById
       tags:
         - Backend - Users
       summary: Get single user
@@ -1140,6 +1074,7 @@ paths:
           $ref: '#/components/responses/NotFound'
 
     put:
+      operationId: updateUser
       tags:
         - Backend - Users
       summary: Update user
@@ -1186,6 +1121,7 @@ paths:
           $ref: '#/components/responses/UnprocessableEntity'
 
     delete:
+      operationId: deleteUser
       tags:
         - Backend - Users
       summary: Delete user
@@ -1215,6 +1151,8 @@ paths:
                   data:
                     type: object
                     nullable: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1224,6 +1162,7 @@ paths:
 
   /users/{id}/password:
     patch:
+      operationId: resetUserPassword
       tags:
         - Backend - Users
       summary: Reset user password
@@ -1270,6 +1209,7 @@ paths:
 
   /users/{id}/suspend:
     patch:
+      operationId: suspendUser
       tags:
         - Backend - Users
       summary: Suspend user
@@ -1310,6 +1250,7 @@ paths:
 
   /users/{id}/reactivate:
     patch:
+      operationId: reactivateUser
       tags:
         - Backend - Users
       summary: Reactivate suspended user
@@ -1350,6 +1291,7 @@ paths:
 
   /users/totals:
     get:
+      operationId: getUsersTotals
       tags:
         - Backend - Users
       summary: Get users totals
@@ -1377,6 +1319,7 @@ paths:
 
   /applications:
     get:
+      operationId: getApplications
       tags:
         - Backend - Applications
       summary: Get third-party applications
@@ -1410,6 +1353,7 @@ paths:
 
   /auth/exchange:
     post:
+      operationId: exchangeToken
       tags:
         - Backend - Authentication
       summary: Exchange Logto token for custom JWT
@@ -1444,6 +1388,7 @@ paths:
 
   /me:
     get:
+      operationId: getMe
       tags:
         - Backend - Me
       summary: Get current user information
@@ -1469,6 +1414,7 @@ paths:
 
   /me/change-password:
     post:
+      operationId: changeMyPassword
       tags:
         - Backend - Me
       summary: Change current user password
@@ -1567,6 +1513,7 @@ paths:
 
   /me/change-info:
     post:
+      operationId: changeMyInfo
       tags:
         - Backend - Me
       summary: Change current user information
@@ -1660,6 +1607,7 @@ paths:
 
   /auth/refresh:
     post:
+      operationId: refreshToken
       tags:
         - Backend - Authentication
       summary: Refresh access token
@@ -1695,6 +1643,7 @@ paths:
 
   /customers:
     get:
+      operationId: getCustomers
       tags:
         - Backend - Customers
       summary: List customers
@@ -1732,6 +1681,7 @@ paths:
           $ref: '#/components/responses/Forbidden'
 
     post:
+      operationId: createCustomer
       tags:
         - Backend - Customers
       summary: Create customer
@@ -1769,6 +1719,7 @@ paths:
 
   /customers/{id}:
     get:
+      operationId: getCustomerById
       tags:
         - Backend - Customers
       summary: Get single customer
@@ -1805,6 +1756,7 @@ paths:
           $ref: '#/components/responses/NotFound'
 
     put:
+      operationId: updateCustomer
       tags:
         - Backend - Customers
       summary: Update customer
@@ -1851,6 +1803,7 @@ paths:
           $ref: '#/components/responses/UnprocessableEntity'
 
     delete:
+      operationId: deleteCustomer
       tags:
         - Backend - Customers
       summary: Delete customer
@@ -1880,9 +1833,18 @@ paths:
                   data:
                     type: object
                     nullable: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /customers/totals:
     get:
+      operationId: getCustomersTotals
       tags:
         - Backend - Customers
       summary: Get customers totals
@@ -1910,6 +1872,7 @@ paths:
 
   /distributors:
     get:
+      operationId: getDistributors
       tags:
         - Backend - Distributors
       summary: List distributors
@@ -1947,6 +1910,7 @@ paths:
           $ref: '#/components/responses/Forbidden'
 
     post:
+      operationId: createDistributor
       tags:
         - Backend - Distributors
       summary: Create distributor
@@ -1984,6 +1948,7 @@ paths:
 
   /distributors/{id}:
     get:
+      operationId: getDistributorById
       tags:
         - Backend - Distributors
       summary: Get single distributor
@@ -2020,6 +1985,7 @@ paths:
           $ref: '#/components/responses/NotFound'
 
     put:
+      operationId: updateDistributor
       tags:
         - Backend - Distributors
       summary: Update distributor
@@ -2066,6 +2032,7 @@ paths:
           $ref: '#/components/responses/UnprocessableEntity'
 
     delete:
+      operationId: deleteDistributor
       tags:
         - Backend - Distributors
       summary: Delete distributor
@@ -2095,9 +2062,18 @@ paths:
                   data:
                     type: object
                     nullable: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /distributors/totals:
     get:
+      operationId: getDistributorsTotals
       tags:
         - Backend - Distributors
       summary: Get distributors totals
@@ -2125,6 +2101,7 @@ paths:
 
   /health:
     get:
+      operationId: getHealth
       tags:
         - Backend - Health
         - Collect - Health
@@ -2149,6 +2126,25 @@ paths:
                     type: object
                     description: Health data (collect includes worker metrics)
                     nullable: true
+        '404':
+          description: Endpoint not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 404
+                  message:
+                    type: string
+                    example: "endpoint not found"
+                  data:
+                    type: object
+                    nullable: true
+                    example: null
+        '500':
+          $ref: '#/components/responses/InternalServerError'
         '503':
           description: Service is unhealthy (collect service only)
           content:
@@ -2158,6 +2154,7 @@ paths:
 
   /organization-roles:
     get:
+      operationId: getOrganizationRoles
       tags:
         - Backend - Roles
       summary: Get all organization roles
@@ -2188,6 +2185,7 @@ paths:
 
   /organizations:
     get:
+      operationId: getOrganizations
       tags:
         - Backend - Organizations
       summary: Get available organizations
@@ -2218,6 +2216,7 @@ paths:
 
   /resellers:
     get:
+      operationId: getResellers
       tags:
         - Backend - Resellers
       summary: List resellers
@@ -2255,6 +2254,7 @@ paths:
           $ref: '#/components/responses/Forbidden'
 
     post:
+      operationId: createReseller
       tags:
         - Backend - Resellers
       summary: Create reseller
@@ -2292,6 +2292,7 @@ paths:
 
   /resellers/{id}:
     get:
+      operationId: getResellerById
       tags:
         - Backend - Resellers
       summary: Get single reseller
@@ -2328,6 +2329,7 @@ paths:
           $ref: '#/components/responses/NotFound'
 
     put:
+      operationId: updateReseller
       tags:
         - Backend - Resellers
       summary: Update reseller
@@ -2374,6 +2376,7 @@ paths:
           $ref: '#/components/responses/UnprocessableEntity'
 
     delete:
+      operationId: deleteReseller
       tags:
         - Backend - Resellers
       summary: Delete reseller
@@ -2403,9 +2406,18 @@ paths:
                   data:
                     type: object
                     nullable: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /resellers/totals:
     get:
+      operationId: getResellersTotals
       tags:
         - Backend - Resellers
       summary: Get resellers totals
@@ -2433,6 +2445,7 @@ paths:
 
   /roles:
     get:
+      operationId: getRoles
       tags:
         - Backend - Roles
       summary: Get all user roles
@@ -2461,35 +2474,10 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /stats:
-    get:
-      tags:
-        - Backend - Statistics
-      summary: Get statistics
-      description: Get system statistics (Owner only)
-      responses:
-        '200':
-          description: Statistics retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "statistics retrieved successfully"
-                  data:
-                    $ref: '#/components/schemas/SystemStats'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
 
   /systems:
     get:
+      operationId: getSystems
       tags:
         - Backend - Systems
       summary: List systems
@@ -2527,6 +2515,7 @@ paths:
           $ref: '#/components/responses/Forbidden'
 
     post:
+      operationId: createSystem
       tags:
         - Backend - Systems
       summary: Create system
@@ -2562,6 +2551,7 @@ paths:
 
   /systems/{id}:
     get:
+      operationId: getSystemById
       tags:
         - Backend - Systems
       summary: Get single system
@@ -2598,6 +2588,7 @@ paths:
           $ref: '#/components/responses/NotFound'
 
     put:
+      operationId: updateSystem
       tags:
         - Backend - Systems
       summary: Update system
@@ -2642,6 +2633,7 @@ paths:
           $ref: '#/components/responses/NotFound'
 
     delete:
+      operationId: deleteSystem
       tags:
         - Backend - Systems
       summary: Delete system
@@ -2671,6 +2663,8 @@ paths:
                   data:
                     type: object
                     nullable: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2680,6 +2674,7 @@ paths:
 
   /systems/{id}/regenerate-secret:
     post:
+      operationId: regenerateSystemSecret
       tags:
         - Backend - Systems
       summary: Regenerate system secret
@@ -2722,6 +2717,7 @@ paths:
 
   /systems/totals:
     get:
+      operationId: getSystemsTotals
       tags:
         - Backend - Systems
       summary: Get systems status summary
@@ -2751,28 +2747,7 @@ paths:
                     type: string
                     example: "system status retrieved"
                   data:
-                    type: object
-                    properties:
-                      total_systems:
-                        type: integer
-                        description: Total number of systems
-                        example: 100
-                      alive_systems:
-                        type: integer
-                        description: Number of systems with recent heartbeat
-                        example: 85
-                      dead_systems:
-                        type: integer
-                        description: Number of systems with old heartbeat
-                        example: 10
-                      zombie_systems:
-                        type: integer
-                        description: Number of systems that never communicated
-                        example: 5
-                      timeout_minutes:
-                        type: integer
-                        description: Timeout used for alive/dead determination
-                        example: 15
+                    $ref: '#/components/schemas/SystemTotals'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2780,6 +2755,7 @@ paths:
 
   /systems/{id}/inventory:
     get:
+      operationId: getSystemInventory
       tags:
         - Backend - Systems
       summary: Get system inventory history
@@ -2827,6 +2803,7 @@ paths:
 
   /systems/{id}/inventory/latest:
     get:
+      operationId: getSystemInventoryLatest
       tags:
         - Backend - Systems
       summary: Get latest system inventory
@@ -2865,6 +2842,7 @@ paths:
 
   /systems/{id}/inventory/changes:
     get:
+      operationId: getSystemInventoryChanges
       tags:
         - Backend - Systems
       summary: Get inventory changes summary
@@ -2912,6 +2890,7 @@ paths:
 
   /systems/{id}/inventory/changes/latest:
     get:
+      operationId: getSystemInventoryChangesLatest
       tags:
         - Backend - Systems
       summary: Get latest inventory changes
@@ -2950,6 +2929,7 @@ paths:
 
   /systems/{id}/inventory/diffs:
     get:
+      operationId: getSystemInventoryDiffs
       tags:
         - Backend - Systems
       summary: Get inventory diffs
@@ -2997,6 +2977,7 @@ paths:
 
   /systems/{id}/inventory/diffs/latest:
     get:
+      operationId: getSystemInventoryDiffsLatest
       tags:
         - Backend - Systems
       summary: Get latest inventory diff
@@ -3035,6 +3016,7 @@ paths:
 
   /user/permissions:
     get:
+      operationId: getUserPermissions
       tags:
         - Backend - User
       summary: Get user permissions (OAuth2/OIDC)
@@ -3085,6 +3067,7 @@ paths:
 
   /user/profile:
     get:
+      operationId: getUserProfile
       tags:
         - Backend - User
       summary: Get user profile (OAuth2/OIDC)
@@ -3114,8 +3097,9 @@ paths:
 
   /systems/inventory:
     post:
+      operationId: collectSystemInventory
       servers:
-        - url: http://localhost:8081/api
+        - url: https://collect.your-domain.com/api
           description: Collect API server (port 8081)
       tags:
         - Collect - Systems
@@ -3235,8 +3219,9 @@ paths:
 
   /systems/heartbeat:
     post:
+      operationId: sendSystemHeartbeat
       servers:
-        - url: http://localhost:8081/api
+        - url: https://collect.your-domain.com/api
           description: Collect API server (port 8081)
       tags:
         - Collect - Systems
@@ -3295,4 +3280,3 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
-

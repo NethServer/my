@@ -78,7 +78,7 @@ type LocalUser struct {
 	Phone         *string                `json:"phone" db:"phone"`
 	Organization  *UserOrganization      `json:"organization,omitempty"`
 	Roles         []UserRole             `json:"roles,omitempty"`
-	CustomData    map[string]interface{} `json:"customData" db:"custom_data"`
+	CustomData    map[string]interface{} `json:"custom_data" db:"custom_data"`
 	CreatedAt     time.Time              `json:"created_at" db:"created_at"`
 	UpdatedAt     time.Time              `json:"updated_at" db:"updated_at"`
 	LogtoSyncedAt *time.Time             `json:"logto_synced_at" db:"logto_synced_at"`
@@ -146,9 +146,9 @@ type CreateLocalUserRequest struct {
 	Email          string                 `json:"email" validate:"required,email,max=255"`
 	Name           string                 `json:"name" validate:"required,min=1,max=255"`
 	Phone          *string                `json:"phone,omitempty"`
-	UserRoleIDs    []string               `json:"userRoleIds,omitempty"`
-	OrganizationID *string                `json:"organizationId,omitempty"`
-	CustomData     map[string]interface{} `json:"customData,omitempty"`
+	UserRoleIDs    []string               `json:"user_role_ids,omitempty"`
+	OrganizationID *string                `json:"organization_id,omitempty"`
+	CustomData     map[string]interface{} `json:"custom_data,omitempty"`
 }
 
 type UpdateLocalUserRequest struct {
@@ -156,9 +156,9 @@ type UpdateLocalUserRequest struct {
 	Email          *string                 `json:"email,omitempty" validate:"omitempty,email,max=255"`
 	Name           *string                 `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
 	Phone          *string                 `json:"phone,omitempty"`
-	UserRoleIDs    *[]string               `json:"userRoleIds,omitempty"`
-	OrganizationID *string                 `json:"organizationId,omitempty"`
-	CustomData     *map[string]interface{} `json:"customData,omitempty"`
+	UserRoleIDs    *[]string               `json:"user_role_ids,omitempty"`
+	OrganizationID *string                 `json:"organization_id,omitempty"`
+	CustomData     *map[string]interface{} `json:"custom_data,omitempty"`
 }
 
 // Suspension/reactivation requests

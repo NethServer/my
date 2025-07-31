@@ -26,5 +26,5 @@ type RolesResponse struct {
 
 // OrganizationRolesResponse represents the response for getting all organization roles
 type OrganizationRolesResponse struct {
-	OrganizationRoles []OrganizationRole `json:"organizationRoles" structs:"organizationRoles"`
+	OrganizationRoles []OrganizationRole `json:"organization_roles" structs:"organization_roles"`
 }
