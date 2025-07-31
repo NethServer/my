@@ -13,7 +13,6 @@
     "disable": "Disable",
     "enabled": "Enabled",
     "disabled": "Disabled",
-    "step": "Step",
     "previous": "Previous",
     "next": "Next",
     "copied": "Copied!",
@@ -24,7 +23,6 @@
     "try_changing_search_filters": "Try changing your search filters",
     "go_to_page": "Go to {page}",
     "open_page": "Open {page}",
-    "no_data_available": "No data available",
     "actions": "Actions",
     "object_created_successfully": "{name} created successfully",
     "object_saved_successfully": "{name} saved successfully",
@@ -32,8 +30,7 @@
     "updating": "Updating...",
     "loading": "Loading...",
     "show": "Show",
-    "hide": "Hide",
-    "coming_soon": "Coming soon"
+    "hide": "Hide"
   },
   "shell": {
     "open_sidebar": "Open sidebar",
@@ -48,9 +45,6 @@
     "close_side_drawer": "Close side drawer"
   },
   "login": {
-    "welcome_title": "Welcome",
-    "welcome_description": "Sign in to {product} Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
-    "sign_in": "Sign in",
     "manual_redirect_to_dashboard": "If you are not redirected automatically, {clickHereLink}",
     "click_here": "click here"
   },
@@ -122,7 +116,6 @@
     "create_customer": "Create customer",
     "edit_customer": "Edit customer",
     "save_customer": "Save customer",
-    "name_already_exists": "An organization with this name already exists",
     "customer_created": "Customer created",
     "customer_saved": "Customer saved",
     "customer_deleted": "Customer deleted",
@@ -159,7 +152,7 @@
     "name_cannot_be_empty": "Name is required",
     "email_required": "Email is required",
     "email_invalid": "Invalid email address",
-    "email_already_exists": "Email already exists",
+    "email_already_exists": "A user with this email already exists",
     "password_required": "Password is required",
     "password_min_length": "Password must be at least 12 characters long",
     "password_max_length": "Password must not exceed 128 characters",
