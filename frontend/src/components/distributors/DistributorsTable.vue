@@ -39,6 +39,7 @@ import { useI18n } from 'vue-i18n'
 import DeleteDistributorModal from './DeleteDistributorModal.vue'
 import { loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useDistributors } from '@/queries/distributors'
+import { canManageDistributors } from '@/lib/permissions'
 
 const { isShownCreateDistributorDrawer = false } = defineProps<{
   isShownCreateDistributorDrawer: boolean
@@ -225,6 +226,7 @@ const onSort = (payload: SortEvent) => {
             >
               <!-- create distributor -->
               <NeButton
+                v-if="canManageDistributors()"
                 kind="secondary"
                 size="lg"
                 class="shrink-0"
@@ -261,7 +263,7 @@ const onSort = (payload: SortEvent) => {
             {{ item.description || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+            <div v-if="canManageDistributors()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
               <NeButton
                 kind="tertiary"
                 @click="showEditDistributorDrawer(item)"

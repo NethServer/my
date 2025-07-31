@@ -39,6 +39,7 @@ import { useI18n } from 'vue-i18n'
 import DeleteResellerModal from './DeleteResellerModal.vue'
 import { loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useResellers } from '@/queries/resellers'
+import { canManageResellers } from '@/lib/permissions'
 
 const { isShownCreateResellerDrawer = false } = defineProps<{
   isShownCreateResellerDrawer: boolean
@@ -225,6 +226,7 @@ const onSort = (payload: SortEvent) => {
             >
               <!-- create reseller -->
               <NeButton
+                v-if="canManageResellers()"
                 kind="secondary"
                 size="lg"
                 class="shrink-0"
@@ -261,7 +263,7 @@ const onSort = (payload: SortEvent) => {
             {{ item.description || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+            <div v-if="canManageResellers()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
               <NeButton
                 kind="tertiary"
                 @click="showEditResellerDrawer(item)"

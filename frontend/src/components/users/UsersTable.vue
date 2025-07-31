@@ -44,6 +44,7 @@ import { loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageS
 import ResetPasswordModal from './ResetPasswordModal.vue'
 import PasswordChangedModal from './PasswordChangedModal.vue'
 import { useUsers } from '@/queries/users'
+import { canManageUsers } from '@/lib/permissions'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -267,7 +268,13 @@ const onClosePasswordChangedModal = () => {
               class="bg-white dark:bg-gray-950"
             >
               <!-- create user -->
-              <NeButton kind="secondary" size="lg" class="shrink-0" @click="showCreateUserDrawer()">
+              <NeButton
+                v-if="canManageUsers()"
+                kind="secondary"
+                size="lg"
+                class="shrink-0"
+                @click="showCreateUserDrawer()"
+              >
                 <template #prefix>
                   <FontAwesomeIcon :icon="faCirclePlus" aria-hidden="true" />
                 </template>
@@ -314,7 +321,7 @@ const onClosePasswordChangedModal = () => {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+            <div v-if="canManageUsers()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
               <NeButton
                 kind="tertiary"
                 @click="showEditUserDrawer(item)"

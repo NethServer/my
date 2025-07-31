@@ -28,6 +28,12 @@ import {
   faBuilding as falBuilding,
   faUserGroup as falUserGroup,
 } from '@nethesis/nethesis-light-svg-icons'
+import {
+  canReadCustomers,
+  canReadDistributors,
+  canReadResellers,
+  canReadUsers,
+} from '@/lib/permissions'
 
 type MenuItem = {
   name: string
@@ -52,37 +58,34 @@ const navigation = computed(() => {
     { name: 'dashboard.title', to: 'dashboard', solidIcon: fasHouse, lightIcon: falHouse },
   ]
 
-  if (loginStore.userInfo?.org_role) {
-    if (loginStore.userInfo.org_role === 'Owner') {
-      menuItems.push({
-        name: 'distributors.title',
-        to: 'distributors',
-        solidIcon: fasGlobe,
-        lightIcon: falGlobe,
-      })
-    }
-
-    if (['Owner', 'Distributor'].includes(loginStore.userInfo.org_role)) {
-      menuItems.push({
-        name: 'resellers.title',
-        to: 'resellers',
-        solidIcon: fasCity,
-        lightIcon: falCity,
-      })
-    }
-
-    if (['Owner', 'Distributor', 'Reseller'].includes(loginStore.userInfo.org_role)) {
-      menuItems.push({
-        name: 'customers.title',
-        to: 'customers',
-        solidIcon: fasBuilding,
-        lightIcon: falBuilding,
-      })
-    }
+  if (canReadDistributors()) {
+    menuItems.push({
+      name: 'distributors.title',
+      to: 'distributors',
+      solidIcon: fasGlobe,
+      lightIcon: falGlobe,
+    })
   }
 
-  // users menu item
-  if (loginStore.userInfo?.user_roles && loginStore.userInfo.user_roles.includes('Admin')) {
+  if (canReadResellers()) {
+    menuItems.push({
+      name: 'resellers.title',
+      to: 'resellers',
+      solidIcon: fasCity,
+      lightIcon: falCity,
+    })
+  }
+
+  if (canReadCustomers()) {
+    menuItems.push({
+      name: 'customers.title',
+      to: 'customers',
+      solidIcon: fasBuilding,
+      lightIcon: falBuilding,
+    })
+  }
+
+  if (canReadUsers()) {
     menuItems.push({
       name: 'users.title',
       to: 'users',
