@@ -25,14 +25,14 @@ jobs:
             -d "client_secret=${{ secrets.LOGTO_M2M_CLIENT_SECRET }}" \
             -d "resource=${{ secrets.LOGTO_BASE_URL }}/api" \
             -d "scope=all")
-          
+
           ACCESS_TOKEN=$(echo $RESPONSE | jq -r '.access_token')
           if [ "$ACCESS_TOKEN" = "null" ] || [ -z "$ACCESS_TOKEN" ]; then
             echo "Failed to get access token"
             echo "Response: $RESPONSE"
             exit 1
           fi
-          
+
           echo "::add-mask::$ACCESS_TOKEN"
           echo "token=$ACCESS_TOKEN" >> $GITHUB_OUTPUT
 
@@ -42,7 +42,7 @@ jobs:
           RESPONSE=$(curl -s -X GET "${{ secrets.LOGTO_BASE_URL }}/api/applications/${{ secrets.LOGTO_FRONTEND_APP_ID }}" \
             -H "Authorization: Bearer ${{ steps.logto-token.outputs.token }}" \
             -H "Content-Type: application/json")
-          
+
           echo "current_config<<EOF" >> $GITHUB_OUTPUT
           echo "$RESPONSE" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -52,23 +52,23 @@ jobs:
           # Extract current redirect URIs
           CURRENT_REDIRECT_URIS=$(echo '${{ steps.current-config.outputs.current_config }}' | jq -r '.oidcClientMetadata.redirectUris // []')
           CURRENT_POST_LOGOUT_URIS=$(echo '${{ steps.current-config.outputs.current_config }}' | jq -r '.oidcClientMetadata.postLogoutRedirectUris // []')
-          
+
           # Define URIs to remove for this PR
           PR_FRONTEND_REDIRECT_URI="https://my-frontend-qa-pr-${{ steps.pr.outputs.number }}.onrender.com/login-redirect"
           PR_PROXY_REDIRECT_URI="https://my-proxy-qa-pr-${{ steps.pr.outputs.number }}.onrender.com/login-redirect"
           PR_FRONTEND_LOGOUT_URI="https://my-frontend-qa-pr-${{ steps.pr.outputs.number }}.onrender.com/login"
           PR_PROXY_LOGOUT_URI="https://my-proxy-qa-pr-${{ steps.pr.outputs.number }}.onrender.com/login"
-          
+
           # Remove PR-specific URIs from existing ones
           UPDATED_REDIRECT_URIS=$(echo "$CURRENT_REDIRECT_URIS" | jq --arg frontend "$PR_FRONTEND_REDIRECT_URI" --arg proxy "$PR_PROXY_REDIRECT_URI" '. - [$frontend, $proxy]')
           UPDATED_POST_LOGOUT_URIS=$(echo "$CURRENT_POST_LOGOUT_URIS" | jq --arg frontend "$PR_FRONTEND_LOGOUT_URI" --arg proxy "$PR_PROXY_LOGOUT_URI" '. - [$frontend, $proxy]')
-          
+
           # Check if there are URIs to remove
           REDIRECT_COUNT_BEFORE=$(echo "$CURRENT_REDIRECT_URIS" | jq 'length')
           REDIRECT_COUNT_AFTER=$(echo "$UPDATED_REDIRECT_URIS" | jq 'length')
           POST_LOGOUT_COUNT_BEFORE=$(echo "$CURRENT_POST_LOGOUT_URIS" | jq 'length')
           POST_LOGOUT_COUNT_AFTER=$(echo "$UPDATED_POST_LOGOUT_URIS" | jq 'length')
-          
+
           if [ "$REDIRECT_COUNT_BEFORE" -eq "$REDIRECT_COUNT_AFTER" ] && [ "$POST_LOGOUT_COUNT_BEFORE" -eq "$POST_LOGOUT_COUNT_AFTER" ]; then
             echo "ℹ️ No redirect URIs found for PR #${{ steps.pr.outputs.number }} to remove"
             echo "Checked redirect URIs:"
@@ -79,7 +79,7 @@ jobs:
             echo "- $PR_PROXY_LOGOUT_URI"
             exit 0
           fi
-          
+
           # Create the request body
           REQUEST_BODY=$(jq -n \
             --argjson redirectUris "$UPDATED_REDIRECT_URIS" \
@@ -90,19 +90,19 @@ jobs:
                 postLogoutRedirectUris: $postLogoutRedirectUris
               }
             }')
-          
+
           echo "Request body:"
           echo "$REQUEST_BODY" | jq .
-          
+
           # Update the application
           RESPONSE=$(curl -s -X PATCH "${{ secrets.LOGTO_BASE_URL }}/api/applications/${{ secrets.LOGTO_FRONTEND_APP_ID }}" \
             -H "Authorization: Bearer ${{ steps.logto-token.outputs.token }}" \
             -H "Content-Type: application/json" \
             -d "$REQUEST_BODY")
-          
+
           echo "Update response:"
           echo "$RESPONSE" | jq .
-          
+
           # Check if the update was successful
           if echo "$RESPONSE" | jq -e '.oidcClientMetadata.redirectUris' > /dev/null; then
             echo "✅ Successfully removed redirect URIs for PR #${{ steps.pr.outputs.number }}"
@@ -127,7 +127,7 @@ jobs:
             const proxyRedirectUri = `https://my-proxy-qa-pr-${prNumber}.onrender.com/login-redirect`;
             const frontendLogoutUri = `https://my-frontend-qa-pr-${prNumber}.onrender.com/login`;
             const proxyLogoutUri = `https://my-proxy-qa-pr-${prNumber}.onrender.com/login`;
-            
+
             const body = [
               '🗑️ **Redirect URIs Removed from Logto**',
               '',
@@ -143,7 +143,7 @@ jobs:
               '',
               `Cleanup completed for PR #${prNumber}.`
             ].join('\n');
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
