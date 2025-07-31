@@ -46,7 +46,7 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 		       s.custom_data, s.reseller_id, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
-		WHERE s.id = $1
+		WHERE s.id = $1 AND s.deleted_at IS NULL
 	`
 
 	system := &models.System{}

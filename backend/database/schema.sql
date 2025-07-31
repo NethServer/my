@@ -126,16 +126,21 @@ CREATE TABLE IF NOT EXISTS systems (
     secret_hint VARCHAR(8),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMP WITH TIME ZONE,  -- Soft delete timestamp (NULL = active, non-NULL = deleted)
     created_by JSONB NOT NULL,
 
     CONSTRAINT fk_systems_reseller FOREIGN KEY (reseller_id) REFERENCES resellers(id) ON DELETE CASCADE
 );
+
+-- Comment for systems.deleted_at
+COMMENT ON COLUMN systems.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted at that time.';
 
 -- Performance indexes for systems
 CREATE INDEX IF NOT EXISTS idx_systems_reseller_id ON systems(reseller_id);
 CREATE INDEX IF NOT EXISTS idx_systems_status ON systems(status);
 CREATE INDEX IF NOT EXISTS idx_systems_type ON systems(type);
 CREATE INDEX IF NOT EXISTS idx_systems_last_seen ON systems(last_seen DESC);
+CREATE INDEX IF NOT EXISTS idx_systems_deleted_at ON systems(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_systems_secret_hash ON systems(secret_hash);
 CREATE INDEX IF NOT EXISTS idx_systems_fqdn ON systems(fqdn);
 CREATE INDEX IF NOT EXISTS idx_systems_ipv4_address ON systems(ipv4_address);

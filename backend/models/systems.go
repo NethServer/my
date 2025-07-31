@@ -33,6 +33,7 @@ type System struct {
 	SecretHint  string            `json:"secret_hint,omitempty" structs:"secret_hint"` // Last 4 chars for identification
 	CreatedAt   time.Time         `json:"created_at" structs:"created_at"`
 	UpdatedAt   time.Time         `json:"updated_at" structs:"updated_at"`
+	DeletedAt   *time.Time        `json:"deleted_at" structs:"deleted_at"` // Soft delete timestamp
 	CreatedBy   SystemCreator     `json:"created_by" structs:"created_by"`
 	// Heartbeat status fields
 	HeartbeatStatus  string     `json:"heartbeat_status,omitempty"`  // alive, dead, zombie

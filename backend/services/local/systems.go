@@ -134,6 +134,7 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 		       s.custom_data, s.reseller_id, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
+		WHERE s.deleted_at IS NULL
 		ORDER BY s.created_at DESC
 	`
 
@@ -238,7 +239,7 @@ func (s *LocalSystemsService) GetSystemsByOrganizationPaginated(userID, userOrgI
 	countQuery := fmt.Sprintf(`
 		SELECT COUNT(*)
 		FROM systems s
-		WHERE s.reseller_id IN (%s)`, placeholdersStr)
+		WHERE s.reseller_id IN (%s) AND s.deleted_at IS NULL`, placeholdersStr)
 
 	var totalCount int
 	err = database.DB.QueryRow(countQuery, args...).Scan(&totalCount)
@@ -261,7 +262,7 @@ func (s *LocalSystemsService) GetSystemsByOrganizationPaginated(userID, userOrgI
 		       s.custom_data, s.reseller_id, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
-		WHERE s.reseller_id IN (%s)
+		WHERE s.reseller_id IN (%s) AND s.deleted_at IS NULL
 		ORDER BY s.created_at DESC
 		LIMIT $%d OFFSET $%d`, placeholdersStr, len(args)+1, len(args)+2)
 
@@ -414,7 +415,7 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 	query := `
 		UPDATE systems
 		SET name = $2, type = $3, custom_data = $4, reseller_id = $5, updated_at = $6
-		WHERE id = $1
+		WHERE id = $1 AND deleted_at IS NULL
 	`
 
 	_, err = database.DB.Exec(query, systemID, system.Name, system.Type,
@@ -444,8 +445,8 @@ func (s *LocalSystemsService) DeleteSystem(systemID, userID, userOrgID, userOrgR
 		return fmt.Errorf("access denied: %s", reason)
 	}
 
-	// Delete system from database (CASCADE will handle system_credentials)
-	query := `DELETE FROM systems WHERE id = $1`
+	// Soft delete system from database (set deleted_at timestamp)
+	query := `UPDATE systems SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL`
 
 	result, err := database.DB.Exec(query, systemID)
 	if err != nil {
@@ -498,7 +499,7 @@ func (s *LocalSystemsService) RegenerateSystemSecret(systemID, userID, userOrgID
 	query := `
 		UPDATE systems
 		SET secret_hash = $2, secret_hint = $3, updated_at = $4
-		WHERE id = $1
+		WHERE id = $1 AND deleted_at IS NULL
 	`
 
 	_, err = database.DB.Exec(query, systemID, hashedSecret, secret[len(secret)-4:], now)
