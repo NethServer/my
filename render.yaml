@@ -318,13 +318,22 @@ services:
     domains:
       - qa.my.nethesis.it
     envVars:
-      # Service names for automatic URL generation
+      # Dynamic service names from other services
       - key: BACKEND_SERVICE_NAME
-        value: my-backend-qa
+        fromService:
+          name: my-backend-qa
+          type: web
+          property: host
       - key: COLLECT_SERVICE_NAME
-        value: my-collect-qa
+        fromService:
+          name: my-collect-qa
+          type: web
+          property: host
       - key: FRONTEND_SERVICE_NAME
-        value: my-frontend-qa
+        fromService:
+          name: my-frontend-qa
+          type: web
+          property: host
 
     autoDeploy: true   # Auto-deploy on every commit
     branch: main
