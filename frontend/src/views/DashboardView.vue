@@ -64,14 +64,16 @@ const { state: thirdPartyApps } = useQuery({
               <NeHeading tag="h5">
                 {{ $t('dashboard.welcome_user', { user: loginStore.userDisplayName }) }}
               </NeHeading>
-              <NeBadge
-                v-for="role in loginStore.userInfo?.user_roles.sort()"
-                :key="role"
-                :text="$t(`user_roles.${role}`)"
-                kind="custom"
-                customColorClasses="bg-indigo-100 text-indigo-800 dark:bg-indigo-700 dark:text-indigo-100"
-                class="inline-block"
-              ></NeBadge>
+              <div class="flex flex-wrap gap-1">
+                <NeBadge
+                  v-for="role in loginStore.userInfo?.user_roles.sort()"
+                  :key="role"
+                  :text="$t(`user_roles.${role}`)"
+                  kind="custom"
+                  customColorClasses="bg-indigo-100 text-indigo-800 dark:bg-indigo-700 dark:text-indigo-100"
+                  class="inline-block"
+                ></NeBadge>
+              </div>
             </div>
           </template>
         </div>
