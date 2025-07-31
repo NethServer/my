@@ -15,7 +15,7 @@
     "format": "prettier --list-different src/",
     "format-fix": "prettier --write src/",
     "test": "vitest",
-    "pre-commit": "npm run format && npm run lint && npm run type-check && npm run test"
+    "pre-commit": "npm run format && npm run lint && npm run type-check && npm run test -- --run"
   },
   "dependencies": {
     "@fontsource/poppins": "^5.2.6",
