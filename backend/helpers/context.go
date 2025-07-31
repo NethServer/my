@@ -50,7 +50,12 @@ func GetUserContextExtended(c *gin.Context) (string, string, string, string) {
 		return "", "", "", ""
 	}
 
+	// Use local ID if available, otherwise fall back to LogtoID for user identification
 	userID := user.ID
+	if userID == "" && user.LogtoID != nil {
+		userID = *user.LogtoID
+	}
+
 	userOrgID := user.OrganizationID
 	userOrgRole := user.OrgRole
 	userRole := ""
