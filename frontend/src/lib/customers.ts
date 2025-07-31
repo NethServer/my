@@ -16,8 +16,8 @@ export const CreateCustomerSchema = v.object({
   custom_data: v.object({
     vat: v.pipe(
       v.string(),
-      v.nonEmpty('organizations.vat_required'),
-      v.regex(/^\d{11}$/, 'organizations.vat_invalid'),
+      v.nonEmpty('organizations.custom_data_vat_cannot_be_empty'),
+      v.regex(/^\d{11}$/, 'organizations.custom_data_vat_invalid'),
     ),
   }),
 })

@@ -138,8 +138,9 @@
     "description": "Description",
     "vat_number": "VAT number",
     "name_cannot_be_empty": "Company name is required",
-    "vat_required": "VAT number is required",
-    "vat_invalid": "Invalid VAT number"
+    "custom_data_vat_cannot_be_empty": "VAT number is required",
+    "custom_data_vat_invalid": "Invalid VAT number",
+    "custom_data_vat_already_exists": "An organization with this VAT number already exists"
   },
   "users": {
     "title": "Users",

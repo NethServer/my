@@ -115,7 +115,7 @@ const validationIssues = ref<Record<string, string[]>>({})
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
   name: nameRef,
   description: descriptionRef,
-  'custom_data.vat': vatNumberRef,
+  custom_data_vat: vatNumberRef,
 }
 
 const saving = computed(() => {
@@ -156,21 +156,27 @@ function clearErrors() {
 
 function validateCreate(distributor: CreateDistributor): boolean {
   validationIssues.value = {}
-  const validation = v.safeParse(CreateDistributorSchema, distributor) //// uncomment
+  const validation = v.safeParse(CreateDistributorSchema, distributor) ////
   // const validation = { success: true } //// remove
 
   if (validation.success) {
     // no validation issues
     return true
   } else {
-    const issues = v.flatten(validation.issues)
+    const flattenedIssues = v.flatten(validation.issues)
 
-    if (issues.nested) {
-      validationIssues.value = issues.nested as Record<string, string[]>
+    if (flattenedIssues.nested) {
+      const issues: Record<string, string[]> = {}
 
-      console.log('validationIssues', validationIssues.value) ////
+      for (const key in flattenedIssues.nested) {
+        // replace dots with underscores for i18n key
+        const newKey = key.replace(/\./g, '_')
+        issues[newKey] = flattenedIssues.nested[key] ?? []
+      }
+      validationIssues.value = issues
 
       // focus the first field with error
+
       const firstErrorFieldName = Object.keys(validationIssues.value)[0]
 
       console.log('firstFieldName', firstErrorFieldName) ////
@@ -189,10 +195,17 @@ function validateEdit(distributor: Distributor): boolean {
     // no validation issues
     return true
   } else {
-    const issues = v.flatten(validation.issues)
+    const flattenedIssues = v.flatten(validation.issues)
 
-    if (issues.nested) {
-      validationIssues.value = issues.nested as Record<string, string[]>
+    if (flattenedIssues.nested) {
+      const issues: Record<string, string[]> = {}
+
+      for (const key in flattenedIssues.nested) {
+        // replace dots with underscores for i18n key
+        const newKey = key.replace(/\./g, '_')
+        issues[newKey] = flattenedIssues.nested[key] ?? []
+      }
+      validationIssues.value = issues
 
       // focus the first field with error
 
@@ -200,7 +213,7 @@ function validateEdit(distributor: Distributor): boolean {
 
       console.log('firstFieldName', firstErrorFieldName) ////
 
-      fieldRefs[firstErrorFieldName].value?.focus()
+      fieldRefs[firstErrorFieldName]?.value?.focus()
     }
     return false
   }
@@ -280,11 +293,10 @@ async function saveDistributor() {
           v-model.trim="vatNumber"
           :label="$t('organizations.vat_number')"
           :invalid-message="
-            validationIssues['custom_data.vat']?.[0]
-              ? $t(validationIssues['custom_data.vat'][0])
-              : ''
+            validationIssues.custom_data_vat?.[0] ? $t(validationIssues.custom_data_vat[0]) : ''
           "
           :disabled="saving"
+          maxlength="11"
         />
         <!-- create distributor error notification -->
         <NeInlineNotification

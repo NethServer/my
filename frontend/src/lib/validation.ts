@@ -36,10 +36,13 @@ export const getValidationIssues = (
     const validationErrors = backendError.data.errors || []
 
     validationErrors.forEach((err: { key: string; message: string }) => {
-      if (!issues[err.key]) {
-        issues[err.key] = []
+      // replace dots with underscores for i18n key
+      const key = err.key.replace(/\./g, '_')
+
+      if (!issues[key]) {
+        issues[key] = []
       }
-      issues[err.key].push(`${i18nPrefix}.${err.key}_${err.message}`)
+      issues[key].push(`${i18nPrefix}.${key}_${err.message}`)
     })
   }
   console.log('issues', issues) ////
