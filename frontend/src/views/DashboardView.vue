@@ -76,7 +76,8 @@ const { state: thirdPartyApps } = useQuery({
         </NeCard>
       </template>
       <template v-else>
-        <DistributorsCounterCard v-if="loginStore.userInfo.org_role === 'Owner'" />
+        <!-- //// uncomment -->
+        <!-- <DistributorsCounterCard v-if="loginStore.userInfo.org_role === 'Owner'" />
         <ResellersCounterCard
           v-if="['Owner', 'Distributor'].includes(loginStore.userInfo.org_role)"
         />
@@ -85,7 +86,7 @@ const { state: thirdPartyApps } = useQuery({
         />
         <UsersCounterCard
           v-if="loginStore.userInfo.user_roles && loginStore.userInfo.user_roles.includes('Admin')"
-        />
+        /> -->
       </template>
     </div>
     <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">

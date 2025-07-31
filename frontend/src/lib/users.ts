@@ -22,9 +22,9 @@ export const CreateUserSchema = v.object({
       v.pipe(v.string(), v.regex(/^\+?[\d\s\-\(\)]{7,20}$/, 'users.phone_invalid_format')),
     ]),
   ),
-  userRoleIds: v.optional(v.array(v.string())),
-  organizationId: v.pipe(v.string(), v.nonEmpty('users.organization_required')),
-  customData: v.optional(v.record(v.string(), v.string())),
+  user_role_ids: v.optional(v.array(v.string())),
+  organization_id: v.pipe(v.string(), v.nonEmpty('users.organization_required')),
+  custom_data: v.optional(v.record(v.string(), v.string())), //// use correct types
 })
 
 export const EditUserSchema = v.object({
@@ -135,8 +135,8 @@ export const searchStringInUser = (searchString: string, user: User): boolean =>
   // search in customData
   found = ['address', 'city', 'codiceFiscale', 'email', 'partitaIva', 'phone', 'region'].some(
     (attrName) => {
-      const attrValue = user.customData?.[
-        attrName as keyof NonNullable<User['customData']>
+      const attrValue = user.custom_data?.[
+        attrName as keyof NonNullable<User['custom_data']>
       ] as string
       return new RegExp(searchString, 'i').test(attrValue?.replace(regex, ''))
     },

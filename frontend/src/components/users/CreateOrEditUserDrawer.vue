@@ -295,10 +295,10 @@ async function saveUser() {
   const user = {
     email: email.value,
     name: name.value,
-    userRoleIds: userRoles.value.map((role) => role.id),
-    organizationId: organizationId.value,
+    user_role_ids: userRoles.value.map((role) => role.id),
+    organization_id: organizationId.value,
     phone: phone.value.replace(/[\+\s\.\-]/g, ''), // remove formatting characters from phone number
-    customData: {}, //// TODO
+    custom_data: {},
   }
 
   if (currentUser?.id) {
@@ -371,7 +371,7 @@ async function saveUser() {
             organizations.status === 'pending' ? $t('common.loading') : $t('ne_combobox.choose')
           "
           :invalid-message="
-            validationIssues.organizationId?.[0] ? $t(validationIssues.organizationId[0]) : ''
+            validationIssues.organization_id?.[0] ? $t(validationIssues.organization_id[0]) : ''
           "
           :disabled="organizations.status === 'pending' || saving"
           :no-results-label="$t('ne_combobox.no_results')"
@@ -396,7 +396,7 @@ async function saveUser() {
           "
           multiple
           :invalid-message="
-            validationIssues.userRoleIds?.[0] ? $t(validationIssues.userRoleIds[0]) : ''
+            validationIssues.user_role_ids?.[0] ? $t(validationIssues.user_role_ids[0]) : ''
           "
           :showSelectedLabel="false"
           :disabled="allUserRoles.status === 'pending' || saving"
