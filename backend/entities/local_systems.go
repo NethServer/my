@@ -144,7 +144,7 @@ func (r *LocalSystemRepository) ListByResellerIDs(allowedOrgIDs []string, page, 
 	var totalCount int
 	countQuery := fmt.Sprintf(`
 		SELECT COUNT(*) FROM systems
-		WHERE active = TRUE AND reseller_id IN (%s)
+		WHERE deleted_at IS NULL AND reseller_id IN (%s)
 	`, placeholdersStr)
 
 	err := r.db.QueryRow(countQuery, args...).Scan(&totalCount)
@@ -162,7 +162,7 @@ func (r *LocalSystemRepository) ListByResellerIDs(allowedOrgIDs []string, page, 
 		SELECT id, name, type, status, fqdn, ipv4_address, ipv6_address, version, last_seen,
 		       custom_data, reseller_id, created_at, updated_at, created_by
 		FROM systems
-		WHERE active = TRUE AND reseller_id IN (%s)
+		WHERE deleted_at IS NULL AND reseller_id IN (%s)
 		ORDER BY created_at DESC
 		LIMIT $%d OFFSET $%d
 	`, placeholdersStr, len(args)+1, len(args)+2)
@@ -266,7 +266,7 @@ func (r *LocalSystemRepository) GetTotalsByResellerIDs(allowedOrgIDs []string, t
 			SUM(CASE WHEN h.last_heartbeat IS NULL THEN 1 ELSE 0 END) as zombie
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
-		WHERE s.active = TRUE AND s.reseller_id IN (%s)
+		WHERE s.deleted_at IS NULL AND s.reseller_id IN (%s)
 	`, placeholdersStr)
 
 	var total, alive, dead, zombie int
@@ -292,7 +292,7 @@ func (r *LocalSystemRepository) GetHierarchicalResellerIDs(userOrgRole, userOrgI
 	switch userOrgRole {
 	case "owner":
 		// Owner can see systems from all resellers
-		rows, err := r.db.Query("SELECT logto_id FROM resellers WHERE logto_id IS NOT NULL AND active = TRUE")
+		rows, err := r.db.Query("SELECT logto_id FROM resellers WHERE logto_id IS NOT NULL AND deleted_at IS NULL")
 		if err != nil {
 			return nil, fmt.Errorf("failed to get all resellers: %w", err)
 		}
@@ -308,7 +308,7 @@ func (r *LocalSystemRepository) GetHierarchicalResellerIDs(userOrgRole, userOrgI
 
 	case "distributor":
 		// Distributor can see systems from resellers they created
-		rows, err := r.db.Query("SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = $1 AND logto_id IS NOT NULL AND active = TRUE", userOrgID)
+		rows, err := r.db.Query("SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = $1 AND logto_id IS NOT NULL AND deleted_at IS NULL", userOrgID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get distributor resellers: %w", err)
 		}

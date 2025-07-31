@@ -99,9 +99,9 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 		       COALESCE(d.name, r.name, c.name) as organization_name,
 		       COALESCE(d.id, r.id, c.id) as organization_local_id
 		FROM users u
-		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.active = TRUE
-		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.active = TRUE
-		LEFT JOIN customers c ON u.organization_id = c.logto_id AND c.active = TRUE
+		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON u.organization_id = c.logto_id AND c.deleted_at IS NULL
 		WHERE u.id = $1 AND u.deleted_at IS NULL
 	`
 
@@ -155,9 +155,9 @@ func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, e
 		       COALESCE(d.name, r.name, c.name) as organization_name,
 		       COALESCE(d.id, r.id, c.id) as organization_local_id
 		FROM users u
-		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.active = TRUE
-		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.active = TRUE
-		LEFT JOIN customers c ON u.organization_id = c.logto_id AND c.active = TRUE
+		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON u.organization_id = c.logto_id AND c.deleted_at IS NULL
 		WHERE u.logto_id = $1 AND u.deleted_at IS NULL
 	`
 
@@ -416,9 +416,9 @@ func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, exclud
 		       COALESCE(d.name, r.name, c.name) as organization_name,
 		       COALESCE(d.id, r.id, c.id) as organization_local_id
 		FROM users u
-		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.active = TRUE
-		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.active = TRUE
-		LEFT JOIN customers c ON u.organization_id = c.logto_id AND c.active = TRUE
+		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON u.organization_id = c.logto_id AND c.deleted_at IS NULL
 		WHERE u.deleted_at IS NULL AND u.organization_id IN (%s) AND u.id != %s
 		ORDER BY u.created_at DESC
 		LIMIT $%d OFFSET $%d
@@ -523,7 +523,7 @@ func (r *LocalUserRepository) GetHierarchicalOrganizationIDs(userOrgRole, userOr
 		var allOrgIDs []string
 
 		// Get all distributors
-		rows, err := r.db.Query("SELECT logto_id FROM distributors WHERE logto_id IS NOT NULL AND active = TRUE")
+		rows, err := r.db.Query("SELECT logto_id FROM distributors WHERE logto_id IS NOT NULL AND deleted_at IS NULL")
 		if err == nil {
 			defer func() { _ = rows.Close() }()
 			for rows.Next() {
@@ -535,7 +535,7 @@ func (r *LocalUserRepository) GetHierarchicalOrganizationIDs(userOrgRole, userOr
 		}
 
 		// Get all resellers
-		rows, err = r.db.Query("SELECT logto_id FROM resellers WHERE logto_id IS NOT NULL AND active = TRUE")
+		rows, err = r.db.Query("SELECT logto_id FROM resellers WHERE logto_id IS NOT NULL AND deleted_at IS NULL")
 		if err == nil {
 			defer func() { _ = rows.Close() }()
 			for rows.Next() {
@@ -547,7 +547,7 @@ func (r *LocalUserRepository) GetHierarchicalOrganizationIDs(userOrgRole, userOr
 		}
 
 		// Get all customers
-		rows, err = r.db.Query("SELECT logto_id FROM customers WHERE logto_id IS NOT NULL AND active = TRUE")
+		rows, err = r.db.Query("SELECT logto_id FROM customers WHERE logto_id IS NOT NULL AND deleted_at IS NULL")
 		if err == nil {
 			defer func() { _ = rows.Close() }()
 			for rows.Next() {
@@ -562,7 +562,7 @@ func (r *LocalUserRepository) GetHierarchicalOrganizationIDs(userOrgRole, userOr
 
 	case "distributor":
 		// Get resellers created by this distributor
-		rows, err := r.db.Query("SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = $1 AND logto_id IS NOT NULL AND active = TRUE", userOrgID)
+		rows, err := r.db.Query("SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = $1 AND logto_id IS NOT NULL AND deleted_at IS NULL", userOrgID)
 		if err == nil {
 			defer func() { _ = rows.Close() }()
 			for rows.Next() {
@@ -574,7 +574,7 @@ func (r *LocalUserRepository) GetHierarchicalOrganizationIDs(userOrgRole, userOr
 		}
 
 		// Get customers created by this distributor
-		rows, err = r.db.Query("SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND logto_id IS NOT NULL AND active = TRUE", userOrgID)
+		rows, err = r.db.Query("SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND logto_id IS NOT NULL AND deleted_at IS NULL", userOrgID)
 		if err == nil {
 			defer func() { _ = rows.Close() }()
 			for rows.Next() {
@@ -589,7 +589,7 @@ func (r *LocalUserRepository) GetHierarchicalOrganizationIDs(userOrgRole, userOr
 		query := `
 			SELECT c.logto_id FROM customers c
 			JOIN resellers r ON c.custom_data->>'createdBy' = r.logto_id
-			WHERE r.custom_data->>'createdBy' = $1 AND c.logto_id IS NOT NULL AND c.active = TRUE AND r.active = TRUE
+			WHERE r.custom_data->>'createdBy' = $1 AND c.logto_id IS NOT NULL AND c.deleted_at IS NULL AND r.deleted_at IS NULL
 		`
 		rows, err = r.db.Query(query, userOrgID)
 		if err == nil {
@@ -604,7 +604,7 @@ func (r *LocalUserRepository) GetHierarchicalOrganizationIDs(userOrgRole, userOr
 
 	case "reseller":
 		// Get customers created by this reseller
-		rows, err := r.db.Query("SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND logto_id IS NOT NULL AND active = TRUE", userOrgID)
+		rows, err := r.db.Query("SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND logto_id IS NOT NULL AND deleted_at IS NULL", userOrgID)
 		if err == nil {
 			defer func() { _ = rows.Close() }()
 			for rows.Next() {

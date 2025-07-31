@@ -111,24 +111,8 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 	// 2. Create in local DB with CustomData
 	distributor, err := s.distributorRepo.Create(req)
 	if err != nil {
-		// Check for name constraint violation
-		if strings.Contains(err.Error(), "name already exists for this creator") {
-			validationErr := &ValidationError{
-				StatusCode: 400,
-				ErrorData: response.ErrorData{
-					Type: "validation_error",
-					Errors: []response.ValidationError{{
-						Key:     "name",
-						Message: "already_exists",
-						Value:   req.Name,
-					}},
-				},
-			}
-			return nil, validationErr
-		}
-		// Check for VAT constraint violation (uk_distributors_vat_created_by)
-		if strings.Contains(err.Error(), "uk_distributors_vat_created_by") ||
-			(strings.Contains(err.Error(), "duplicate key value violates unique constraint") && strings.Contains(err.Error(), "vat")) {
+		// Check for global VAT constraint violation (from entities)
+		if strings.Contains(err.Error(), "VAT already exists in the system") {
 			vatValue := ""
 			if req.CustomData != nil && req.CustomData["vat"] != nil {
 				vatValue = fmt.Sprintf("%v", req.CustomData["vat"])
@@ -269,24 +253,8 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 	// 2. Create in local DB with CustomData
 	reseller, err := s.resellerRepo.Create(req)
 	if err != nil {
-		// Check for name constraint violation
-		if strings.Contains(err.Error(), "name already exists for this creator") {
-			validationErr := &ValidationError{
-				StatusCode: 400,
-				ErrorData: response.ErrorData{
-					Type: "validation_error",
-					Errors: []response.ValidationError{{
-						Key:     "name",
-						Message: "already_exists",
-						Value:   req.Name,
-					}},
-				},
-			}
-			return nil, validationErr
-		}
-		// Check for VAT constraint violation (uk_resellers_vat_created_by)
-		if strings.Contains(err.Error(), "uk_resellers_vat_created_by") ||
-			(strings.Contains(err.Error(), "duplicate key value violates unique constraint") && strings.Contains(err.Error(), "vat")) {
+		// Check for global VAT constraint violation (from entities)
+		if strings.Contains(err.Error(), "VAT already exists in the system") {
 			vatValue := ""
 			if req.CustomData != nil && req.CustomData["vat"] != nil {
 				vatValue = fmt.Sprintf("%v", req.CustomData["vat"])
@@ -427,24 +395,8 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 	// 2. Create in local DB with CustomData
 	customer, err := s.customerRepo.Create(req)
 	if err != nil {
-		// Check for name constraint violation
-		if strings.Contains(err.Error(), "name already exists for this creator") {
-			validationErr := &ValidationError{
-				StatusCode: 400,
-				ErrorData: response.ErrorData{
-					Type: "validation_error",
-					Errors: []response.ValidationError{{
-						Key:     "name",
-						Message: "already_exists",
-						Value:   req.Name,
-					}},
-				},
-			}
-			return nil, validationErr
-		}
-		// Check for VAT constraint violation (uk_customers_vat_created_by)
-		if strings.Contains(err.Error(), "uk_customers_vat_created_by") ||
-			(strings.Contains(err.Error(), "duplicate key value violates unique constraint") && strings.Contains(err.Error(), "vat")) {
+		// Check for global VAT constraint violation (from entities)
+		if strings.Contains(err.Error(), "VAT already exists in the system") {
 			vatValue := ""
 			if req.CustomData != nil && req.CustomData["vat"] != nil {
 				vatValue = fmt.Sprintf("%v", req.CustomData["vat"])
@@ -706,8 +658,14 @@ func (s *LocalOrganizationService) UpdateDistributor(id string, req *models.Upda
 	// 5. Update in local DB (after Logto validation passes)
 	distributor, err := s.distributorRepo.Update(id, req)
 	if err != nil {
-		// Check for name constraint violation
-		if strings.Contains(err.Error(), "name already exists for this creator") {
+
+		// Check for global VAT constraint violation (from entities)
+		if strings.Contains(err.Error(), "VAT already exists in the system") {
+			vatValue := ""
+			if req.CustomData != nil && (*req.CustomData)["vat"] != nil {
+				vatValue = fmt.Sprintf("%v", (*req.CustomData)["vat"])
+			}
+
 			// Revert Logto changes before returning validation error
 			originalReq := models.UpdateOrganizationRequest{
 				Name:        &currentDistributor.Name,
@@ -726,7 +684,7 @@ func (s *LocalOrganizationService) UpdateDistributor(id string, req *models.Upda
 				logger.Warn().
 					Err(revertErr).
 					Str("distributor_id", id).
-					Msg("Failed to revert Logto changes after name constraint violation")
+					Msg("Failed to revert Logto changes after VAT constraint violation")
 			}
 
 			validationErr := &ValidationError{
@@ -734,9 +692,9 @@ func (s *LocalOrganizationService) UpdateDistributor(id string, req *models.Upda
 				ErrorData: response.ErrorData{
 					Type: "validation_error",
 					Errors: []response.ValidationError{{
-						Key:     "name",
+						Key:     "custom_data.vat",
 						Message: "already_exists",
-						Value:   *req.Name,
+						Value:   vatValue,
 					}},
 				},
 			}
@@ -892,8 +850,14 @@ func (s *LocalOrganizationService) UpdateReseller(id string, req *models.UpdateL
 	// 5. Update in local DB (after Logto validation passes)
 	reseller, err := s.resellerRepo.Update(id, req)
 	if err != nil {
-		// Check for name constraint violation
-		if strings.Contains(err.Error(), "name already exists for this creator") {
+
+		// Check for global VAT constraint violation (from entities)
+		if strings.Contains(err.Error(), "VAT already exists in the system") {
+			vatValue := ""
+			if req.CustomData != nil && (*req.CustomData)["vat"] != nil {
+				vatValue = fmt.Sprintf("%v", (*req.CustomData)["vat"])
+			}
+
 			// Revert Logto changes before returning validation error
 			originalReq := models.UpdateOrganizationRequest{
 				Name:        &currentReseller.Name,
@@ -912,7 +876,7 @@ func (s *LocalOrganizationService) UpdateReseller(id string, req *models.UpdateL
 				logger.Warn().
 					Err(revertErr).
 					Str("reseller_id", id).
-					Msg("Failed to revert Logto changes after name constraint violation")
+					Msg("Failed to revert Logto changes after VAT constraint violation")
 			}
 
 			validationErr := &ValidationError{
@@ -920,9 +884,9 @@ func (s *LocalOrganizationService) UpdateReseller(id string, req *models.UpdateL
 				ErrorData: response.ErrorData{
 					Type: "validation_error",
 					Errors: []response.ValidationError{{
-						Key:     "name",
+						Key:     "custom_data.vat",
 						Message: "already_exists",
-						Value:   *req.Name,
+						Value:   vatValue,
 					}},
 				},
 			}
@@ -1078,8 +1042,14 @@ func (s *LocalOrganizationService) UpdateCustomer(id string, req *models.UpdateL
 	// 5. Update in local DB (after Logto validation passes)
 	customer, err := s.customerRepo.Update(id, req)
 	if err != nil {
-		// Check for name constraint violation
-		if strings.Contains(err.Error(), "name already exists for this creator") {
+
+		// Check for global VAT constraint violation (from entities)
+		if strings.Contains(err.Error(), "VAT already exists in the system") {
+			vatValue := ""
+			if req.CustomData != nil && (*req.CustomData)["vat"] != nil {
+				vatValue = fmt.Sprintf("%v", (*req.CustomData)["vat"])
+			}
+
 			// Revert Logto changes before returning validation error
 			originalReq := models.UpdateOrganizationRequest{
 				Name:        &currentCustomer.Name,
@@ -1098,7 +1068,7 @@ func (s *LocalOrganizationService) UpdateCustomer(id string, req *models.UpdateL
 				logger.Warn().
 					Err(revertErr).
 					Str("customer_id", id).
-					Msg("Failed to revert Logto changes after name constraint violation")
+					Msg("Failed to revert Logto changes after VAT constraint violation")
 			}
 
 			validationErr := &ValidationError{
@@ -1106,9 +1076,9 @@ func (s *LocalOrganizationService) UpdateCustomer(id string, req *models.UpdateL
 				ErrorData: response.ErrorData{
 					Type: "validation_error",
 					Errors: []response.ValidationError{{
-						Key:     "name",
+						Key:     "custom_data.vat",
 						Message: "already_exists",
-						Value:   *req.Name,
+						Value:   vatValue,
 					}},
 				},
 			}

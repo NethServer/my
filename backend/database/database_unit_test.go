@@ -157,6 +157,10 @@ func TestInitSchemaFromFile_NoSchemaFile(t *testing.T) {
 	// Set our mock as the global DB
 	DB = db
 
+	// Expect the table existence check
+	mock.ExpectQuery(`SELECT EXISTS \(SELECT FROM information_schema\.tables WHERE table_name = 'distributors'\)`).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+
 	// Change to a temporary directory where schema.sql doesn't exist
 	tempDir := t.TempDir()
 	originalWd, err := os.Getwd()
@@ -192,6 +196,10 @@ func TestInitSchemaFromFile_WithSchemaFile(t *testing.T) {
 
 	// Set our mock as the global DB
 	DB = db
+
+	// Expect the table existence check
+	mock.ExpectQuery(`SELECT EXISTS \(SELECT FROM information_schema\.tables WHERE table_name = 'distributors'\)`).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
 
 	// Create temporary directory with schema file
 	tempDir := t.TempDir()
@@ -244,6 +252,10 @@ func TestInitSchemaFromFile_SchemaExecutionFails(t *testing.T) {
 
 	// Set our mock as the global DB
 	DB = db
+
+	// Expect the table existence check
+	mock.ExpectQuery(`SELECT EXISTS \(SELECT FROM information_schema\.tables WHERE table_name = 'distributors'\)`).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
 
 	// Create temporary directory with schema file
 	tempDir := t.TempDir()

@@ -254,7 +254,7 @@ func TestLocal_DistributorRepository_TimestampHandling(t *testing.T) {
 			distributor := &models.LocalDistributor{
 				ID:        "test-distributor-123",
 				Name:      "Test Distributor",
-				DeletedAt:  nil,
+				DeletedAt: nil,
 				CreatedAt: now,
 				UpdatedAt: now,
 			}

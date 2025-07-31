@@ -24,7 +24,6 @@ CREATE INDEX IF NOT EXISTS idx_distributors_deleted_at ON distributors(deleted_a
 CREATE INDEX IF NOT EXISTS idx_distributors_logto_synced ON distributors(logto_synced_at);
 CREATE INDEX IF NOT EXISTS idx_distributors_created_at ON distributors(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_distributors_name ON distributors(name);
-CREATE INDEX IF NOT EXISTS idx_distributors_created_by_jsonb ON distributors((custom_data->>'createdBy'));
 CREATE INDEX IF NOT EXISTS idx_distributors_vat_jsonb ON distributors((custom_data->>'vat'));
 
 -- Resellers table - local mirror of reseller organizations
@@ -50,7 +49,6 @@ CREATE INDEX IF NOT EXISTS idx_resellers_deleted_at ON resellers(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_resellers_logto_synced ON resellers(logto_synced_at);
 CREATE INDEX IF NOT EXISTS idx_resellers_created_at ON resellers(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_resellers_name ON resellers(name);
-CREATE INDEX IF NOT EXISTS idx_resellers_created_by_jsonb ON resellers((custom_data->>'createdBy'));
 CREATE INDEX IF NOT EXISTS idx_resellers_vat_jsonb ON resellers((custom_data->>'vat'));
 
 -- Customers table - local mirror of customer organizations
@@ -76,7 +74,6 @@ CREATE INDEX IF NOT EXISTS idx_customers_deleted_at ON customers(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_customers_logto_synced ON customers(logto_synced_at);
 CREATE INDEX IF NOT EXISTS idx_customers_created_at ON customers(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);
-CREATE INDEX IF NOT EXISTS idx_customers_created_by_jsonb ON customers((custom_data->>'createdBy'));
 CREATE INDEX IF NOT EXISTS idx_customers_vat_jsonb ON customers((custom_data->>'vat'));
 
 -- Users table - local mirror with organization membership (Approach 2)
@@ -153,19 +150,73 @@ BEGIN
     END IF;
 END $$;
 
--- Organization VAT uniqueness constraints within the same creator
--- This prevents the same creator from creating multiple organizations with the same VAT
--- but allows different creators to use the same VAT
--- Using unique indexes instead of constraints for JSONB expressions
+-- Global VAT uniqueness constraint across all entity types
+-- This prevents the same VAT from being used in any of the organization tables
+-- Only applies to active records (deleted_at IS NULL)
 
--- Distributors: unique (vat, createdBy) for active records only
-CREATE UNIQUE INDEX IF NOT EXISTS uk_distributors_vat_created_by
-    ON distributors ((custom_data->>'vat'), (custom_data->>'createdBy')) WHERE active = true;
+-- Global VAT uniqueness function
+CREATE OR REPLACE FUNCTION check_unique_vat()
+RETURNS TRIGGER AS $$
+DECLARE
+    new_vat TEXT;
+BEGIN
+    new_vat := TRIM(NEW.custom_data->>'vat');
 
--- Resellers: unique (vat, createdBy) for active records only
-CREATE UNIQUE INDEX IF NOT EXISTS uk_resellers_vat_created_by
-    ON resellers ((custom_data->>'vat'), (custom_data->>'createdBy')) WHERE active = true;
+    IF new_vat IS NULL OR new_vat = '' OR NEW.deleted_at IS NOT NULL THEN
+        RETURN NEW;
+    END IF;
 
--- Customers: unique (vat, createdBy) for active records only
-CREATE UNIQUE INDEX IF NOT EXISTS uk_customers_vat_created_by
-    ON customers ((custom_data->>'vat'), (custom_data->>'createdBy')) WHERE active = true;
+    -- Check in distributors, excluding same id (for updates)
+    IF EXISTS (
+        SELECT 1 FROM distributors
+        WHERE TRIM(custom_data->>'vat') = new_vat
+          AND deleted_at IS NULL
+          AND (id IS DISTINCT FROM NEW.id)
+    ) THEN
+        RAISE EXCEPTION 'VAT "%" already exists in distributors', new_vat;
+    END IF;
+
+    -- Check in resellers, excluding same id (for updates)
+    IF EXISTS (
+        SELECT 1 FROM resellers
+        WHERE TRIM(custom_data->>'vat') = new_vat
+          AND deleted_at IS NULL
+          AND (id IS DISTINCT FROM NEW.id)
+    ) THEN
+        RAISE EXCEPTION 'VAT "%" already exists in resellers', new_vat;
+    END IF;
+
+    -- Check in customers, excluding same id (for updates)
+    IF EXISTS (
+        SELECT 1 FROM customers
+        WHERE TRIM(custom_data->>'vat') = new_vat
+          AND deleted_at IS NULL
+          AND (id IS DISTINCT FROM NEW.id)
+    ) THEN
+        RAISE EXCEPTION 'VAT "%" already exists in customers', new_vat;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Distributors
+DROP TRIGGER IF EXISTS trg_check_vat_distributors ON distributors;
+CREATE TRIGGER trg_check_vat_distributors
+BEFORE INSERT OR UPDATE ON distributors
+FOR EACH ROW
+EXECUTE FUNCTION check_unique_vat();
+
+-- Resellers
+DROP TRIGGER IF EXISTS trg_check_vat_resellers ON resellers;
+CREATE TRIGGER trg_check_vat_resellers
+BEFORE INSERT OR UPDATE ON resellers
+FOR EACH ROW
+EXECUTE FUNCTION check_unique_vat();
+
+-- Customers
+DROP TRIGGER IF EXISTS trg_check_vat_customers ON customers;
+CREATE TRIGGER trg_check_vat_customers
+BEFORE INSERT OR UPDATE ON customers
+FOR EACH ROW
+EXECUTE FUNCTION check_unique_vat();

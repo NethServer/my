@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/models"
 )
@@ -51,11 +50,9 @@ func (r *LocalDistributorRepository) Create(req *models.CreateLocalDistributorRe
 
 	_, err = r.db.Exec(query, id, nil, req.Name, req.Description, customDataJSON, now, now, nil)
 	if err != nil {
-		// Check for unique constraint violation
-		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
-			if strings.Contains(pqErr.Message, "uk_distributors_name_created_by") {
-				return nil, fmt.Errorf("distributor name already exists for this creator")
-			}
+		// Check for global VAT constraint violation (from trigger function)
+		if strings.Contains(err.Error(), "VAT") && strings.Contains(err.Error(), "already exists") {
+			return nil, fmt.Errorf("VAT already exists in the system")
 		}
 		return nil, fmt.Errorf("failed to create distributor: %w", err)
 	}
@@ -144,11 +141,9 @@ func (r *LocalDistributorRepository) Update(id string, req *models.UpdateLocalDi
 
 	_, err = r.db.Exec(query, id, current.Name, current.Description, customDataJSON, current.UpdatedAt)
 	if err != nil {
-		// Check for unique constraint violation
-		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
-			if strings.Contains(pqErr.Message, "uk_distributors_name_created_by") {
-				return nil, fmt.Errorf("distributor name already exists for this creator")
-			}
+		// Check for global VAT constraint violation (from trigger function)
+		if strings.Contains(err.Error(), "VAT") && strings.Contains(err.Error(), "already exists") {
+			return nil, fmt.Errorf("VAT already exists in the system")
 		}
 		return nil, fmt.Errorf("failed to update distributor: %w", err)
 	}

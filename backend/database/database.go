@@ -90,7 +90,7 @@ func initSchemaFromFile() error {
 	if err != nil {
 		return fmt.Errorf("failed to check if tables exist: %w", err)
 	}
-	
+
 	if tableExists {
 		logger.ComponentLogger("database").Info().Msg("Core tables already exist, skipping schema initialization")
 		return nil
@@ -239,9 +239,13 @@ func executeMigration(filePath, migrationName string) error {
 	if err != nil {
 		return fmt.Errorf("failed to start transaction: %w", err)
 	}
+
+	var committed bool
 	defer func() {
-		if err := tx.Rollback(); err != nil {
-			logger.ComponentLogger("database").Error().Err(err).Msg("Failed to rollback transaction")
+		if !committed {
+			if err := tx.Rollback(); err != nil {
+				logger.ComponentLogger("database").Error().Err(err).Msg("Failed to rollback transaction")
+			}
 		}
 	}()
 
@@ -256,7 +260,11 @@ func executeMigration(filePath, migrationName string) error {
 	}
 
 	// Commit transaction
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	committed = true
+	return nil
 }
 
 // contains checks if a slice contains a string

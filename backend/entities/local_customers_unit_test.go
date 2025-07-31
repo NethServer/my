@@ -228,7 +228,7 @@ func TestLocal_CustomerRepository_TimestampHandling(t *testing.T) {
 			customer := &models.LocalCustomer{
 				ID:        "test-customer-123",
 				Name:      "Test Customer",
-				DeletedAt:  nil,
+				DeletedAt: nil,
 				CreatedAt: now,
 				UpdatedAt: now,
 			}

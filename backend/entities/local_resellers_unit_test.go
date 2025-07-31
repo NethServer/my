@@ -361,7 +361,7 @@ func TestLocal_ResellerRepository_TimestampHandling(t *testing.T) {
 			reseller := &models.LocalReseller{
 				ID:        "test-reseller-123",
 				Name:      "Test Reseller",
-				DeletedAt:  nil,
+				DeletedAt: nil,
 				CreatedAt: now,
 				UpdatedAt: now,
 			}

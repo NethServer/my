@@ -997,14 +997,14 @@ func (s *LocalUserService) IsOrganizationInHierarchy(userOrgRole, userOrgID, tar
 
 		// Check if target is a reseller created by this distributor
 		var count int
-		query := `SELECT COUNT(*) FROM resellers WHERE logto_id = $1 AND custom_data->>'createdBy' = $2 AND active = TRUE`
+		query := `SELECT COUNT(*) FROM resellers WHERE logto_id = $1 AND custom_data->>'createdBy' = $2 AND deleted_at IS NULL`
 		err := database.DB.QueryRow(query, targetOrgID, userOrgID).Scan(&count)
 		if err == nil && count > 0 {
 			return true
 		}
 
 		// Check if target is a customer created by this distributor
-		query = `SELECT COUNT(*) FROM customers WHERE logto_id = $1 AND custom_data->>'createdBy' = $2 AND active = TRUE`
+		query = `SELECT COUNT(*) FROM customers WHERE logto_id = $1 AND custom_data->>'createdBy' = $2 AND deleted_at IS NULL`
 		err = database.DB.QueryRow(query, targetOrgID, userOrgID).Scan(&count)
 		if err == nil && count > 0 {
 			return true
@@ -1014,7 +1014,7 @@ func (s *LocalUserService) IsOrganizationInHierarchy(userOrgRole, userOrgID, tar
 		query = `
 			SELECT COUNT(*) FROM customers c
 			JOIN resellers r ON c.custom_data->>'createdBy' = r.logto_id
-			WHERE c.logto_id = $1 AND r.custom_data->>'createdBy' = $2 AND c.active = TRUE AND r.active = TRUE
+			WHERE c.logto_id = $1 AND r.custom_data->>'createdBy' = $2 AND c.deleted_at IS NULL AND r.deleted_at IS NULL
 		`
 		err = database.DB.QueryRow(query, targetOrgID, userOrgID).Scan(&count)
 		if err == nil && count > 0 {
@@ -1028,7 +1028,7 @@ func (s *LocalUserService) IsOrganizationInHierarchy(userOrgRole, userOrgID, tar
 
 		// Check if target is a customer created by this reseller
 		var count int
-		query := `SELECT COUNT(*) FROM customers WHERE logto_id = $1 AND custom_data->>'createdBy' = $2 AND active = TRUE`
+		query := `SELECT COUNT(*) FROM customers WHERE logto_id = $1 AND custom_data->>'createdBy' = $2 AND deleted_at IS NULL`
 		err := database.DB.QueryRow(query, targetOrgID, userOrgID).Scan(&count)
 		if err == nil && count > 0 {
 			return true
@@ -1209,7 +1209,7 @@ func (s *LocalUserService) generateBaseUsernameFromEmail(email string) string {
 // isUsernameExists checks if a username already exists in the local database
 func (s *LocalUserService) isUsernameExists(username string) bool {
 	var count int
-	query := `SELECT COUNT(*) FROM users WHERE username = $1 AND active = TRUE`
+	query := `SELECT COUNT(*) FROM users WHERE username = $1 AND deleted_at IS NULL`
 	err := database.DB.QueryRow(query, username).Scan(&count)
 	if err != nil {
 		logger.Warn().
@@ -1273,21 +1273,21 @@ func (s *LocalUserService) determineOrganizationRoleName(organizationID string) 
 
 	// Check distributors table
 	var count int
-	query := `SELECT COUNT(*) FROM distributors WHERE logto_id = $1 AND active = TRUE`
+	query := `SELECT COUNT(*) FROM distributors WHERE logto_id = $1 AND deleted_at IS NULL`
 	err := database.DB.QueryRow(query, organizationID).Scan(&count)
 	if err == nil && count > 0 {
 		return "Distributor"
 	}
 
 	// Check resellers table
-	query = `SELECT COUNT(*) FROM resellers WHERE logto_id = $1 AND active = TRUE`
+	query = `SELECT COUNT(*) FROM resellers WHERE logto_id = $1 AND deleted_at IS NULL`
 	err = database.DB.QueryRow(query, organizationID).Scan(&count)
 	if err == nil && count > 0 {
 		return "Reseller"
 	}
 
 	// Check customers table
-	query = `SELECT COUNT(*) FROM customers WHERE logto_id = $1 AND active = TRUE`
+	query = `SELECT COUNT(*) FROM customers WHERE logto_id = $1 AND deleted_at IS NULL`
 	err = database.DB.QueryRow(query, organizationID).Scan(&count)
 	if err == nil && count > 0 {
 		return "Customer"
