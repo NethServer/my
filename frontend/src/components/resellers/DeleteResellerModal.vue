@@ -8,7 +8,7 @@ import { NeInlineNotification } from '@nethesis/vue-components'
 import { NeModal } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
-import { deleteReseller, type Reseller } from '@/lib/resellers'
+import { deleteReseller, RESELLERS_KEY, RESELLERS_TOTAL_KEY, type Reseller } from '@/lib/resellers'
 import { useNotificationsStore } from '@/stores/notifications'
 
 const { visible = false, reseller = undefined } = defineProps<{
@@ -48,8 +48,10 @@ const {
   onError: (error) => {
     console.error('Error deleting reseller:', error)
   },
-
-  onSettled: () => queryCache.invalidateQueries({ key: ['resellers'] }),
+  onSettled: () => {
+    queryCache.invalidateQueries({ key: [RESELLERS_KEY] })
+    queryCache.invalidateQueries({ key: [RESELLERS_TOTAL_KEY] })
+  },
 })
 
 function onShow() {

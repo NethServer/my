@@ -4,12 +4,17 @@
 -->
 
 <script setup lang="ts">
+import CustomersCounterCard from '@/components/dashboard/CustomersCounterCard.vue'
+import DistributorsCounterCard from '@/components/dashboard/DistributorsCounterCard.vue'
+import ResellersCounterCard from '@/components/dashboard/ResellersCounterCard.vue'
+import UsersCounterCard from '@/components/dashboard/UsersCounterCard.vue'
 import OrganizationRoleBadge from '@/components/OrganizationRoleBadge.vue'
 import {
   getThirdPartyApps,
   getThirdPartyAppIcon,
   getThirdPartyAppDescription,
   openThirdPartyApp,
+  THIRD_PARTY_APPS_KEY,
 } from '@/lib/thirdPartyApps'
 import { useLoginStore } from '@/stores/login'
 import { faArrowUpRightFromSquare, faCrown } from '@fortawesome/free-solid-svg-icons'
@@ -26,7 +31,7 @@ import { useQuery } from '@pinia/colada'
 
 const loginStore = useLoginStore()
 const { state: thirdPartyApps } = useQuery({
-  key: ['thirdPartyApps'],
+  key: [THIRD_PARTY_APPS_KEY],
   enabled: () => !!loginStore.jwtToken,
   query: getThirdPartyApps,
 })
@@ -64,11 +69,26 @@ const { state: thirdPartyApps } = useQuery({
           </template>
         </div>
       </NeCard>
-      <!-- //// improve spacing grid -->
-      <!-- spacing -->
-      <div class="hidden sm:block"></div>
-      <div class="hidden 2xl:block"></div>
-      <div class="hidden 2xl:block"></div>
+      <!-- organizations and users counters -->
+      <template v-if="!loginStore.userInfo">
+        <NeCard v-for="i in 2" :key="i">
+          <NeSkeleton :lines="2" class="w-full" />
+        </NeCard>
+      </template>
+      <template v-else>
+        <DistributorsCounterCard v-if="loginStore.userInfo.org_role === 'Owner'" />
+        <ResellersCounterCard
+          v-if="['Owner', 'Distributor'].includes(loginStore.userInfo.org_role)"
+        />
+        <CustomersCounterCard
+          v-if="['Owner', 'Distributor', 'Reseller'].includes(loginStore.userInfo.org_role)"
+        />
+        <UsersCounterCard
+          v-if="loginStore.userInfo.user_roles && loginStore.userInfo.user_roles.includes('Admin')"
+        />
+      </template>
+    </div>
+    <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">
       <!-- loading third party apps -->
       <template v-if="thirdPartyApps.status === 'pending'">
         <NeCard v-for="i in 4" :key="i">

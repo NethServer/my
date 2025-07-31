@@ -7,6 +7,9 @@ import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 import { paginationQueryString } from './users'
 
+export const DISTRIBUTORS_KEY = 'distributors'
+export const DISTRIBUTORS_TOTAL_KEY = 'distributorsTotal'
+
 export const CreateDistributorSchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty('organizations.name_cannot_be_empty')),
   description: v.optional(v.string()),
@@ -59,6 +62,16 @@ export const deleteDistributor = (distributor: Distributor) => {
   return axios.delete(`${API_URL}/distributors/${distributor.id}`, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
+}
+
+export const getDistributorsTotal = () => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .get(`${API_URL}/distributors/totals`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data.total as number)
 }
 
 export const searchStringInDistributor = (

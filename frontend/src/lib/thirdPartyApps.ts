@@ -12,6 +12,8 @@ import {
   faWifi,
 } from '@fortawesome/free-solid-svg-icons'
 
+export const THIRD_PARTY_APPS_KEY = 'thirdPartyApps'
+
 export type ThirdPartyApp = {
   id: string
   name: string

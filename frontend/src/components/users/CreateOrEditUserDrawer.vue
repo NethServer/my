@@ -19,6 +19,8 @@ import {
   EditUserSchema,
   postUser,
   putUser,
+  USERS_KEY,
+  USERS_TOTAL_KEY,
   type CreateUser,
   type EditUser,
   type User,
@@ -31,8 +33,8 @@ import { getValidationIssues, isValidationError } from '../../lib/validation'
 import type { AxiosError } from 'axios'
 import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
-import { getOrganizations } from '@/lib/organizations'
-import { getUserRoles } from '@/lib/userRoles'
+import { getOrganizations, ORGANIZATIONS_KEY } from '@/lib/organizations'
+import { getUserRoles, USER_ROLES_KEY } from '@/lib/userRoles'
 import { PRODUCT_NAME } from '@/lib/config'
 
 const { isShown = false, currentUser = undefined } = defineProps<{
@@ -47,12 +49,12 @@ const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
 const loginStore = useLoginStore()
 const { state: organizations } = useQuery({
-  key: ['organizations'],
+  key: [ORGANIZATIONS_KEY],
   enabled: () => !!loginStore.jwtToken && isShown,
   query: getOrganizations,
 })
 const { state: allUserRoles } = useQuery({
-  key: ['userRoles'],
+  key: [USER_ROLES_KEY],
   enabled: () => !!loginStore.jwtToken && isShown,
   query: getUserRoles,
 })
@@ -84,7 +86,10 @@ const {
     console.error('Error creating user:', error)
     validationIssues.value = getValidationIssues(error as AxiosError, 'users')
   },
-  onSettled: () => queryCache.invalidateQueries({ key: ['users'] }),
+  onSettled: () => {
+    queryCache.invalidateQueries({ key: [USERS_KEY] })
+    queryCache.invalidateQueries({ key: [USERS_TOTAL_KEY] })
+  },
 })
 
 const {
@@ -114,7 +119,7 @@ const {
     console.error('Error editing user:', error)
     validationIssues.value = getValidationIssues(error as AxiosError, 'users')
   },
-  onSettled: () => queryCache.invalidateQueries({ key: ['users'] }),
+  onSettled: () => queryCache.invalidateQueries({ key: [USERS_KEY] }),
 })
 
 const email = ref('')

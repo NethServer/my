@@ -14,6 +14,8 @@ import {
 import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import {
   CreateResellerSchema,
+  RESELLERS_KEY,
+  RESELLERS_TOTAL_KEY,
   ResellerSchema,
   postReseller,
   putReseller,
@@ -65,8 +67,10 @@ const {
     console.error('Error creating reseller:', error)
     validationIssues.value = getValidationIssues(error as AxiosError, 'organizations')
   },
-
-  onSettled: () => queryCache.invalidateQueries({ key: ['resellers'] }),
+  onSettled: () => {
+    queryCache.invalidateQueries({ key: [RESELLERS_KEY] })
+    queryCache.invalidateQueries({ key: [RESELLERS_TOTAL_KEY] })
+  },
 })
 
 const {
@@ -95,8 +99,7 @@ const {
   onError: (error) => {
     console.error('Error editing reseller:', error)
   },
-
-  onSettled: () => queryCache.invalidateQueries({ key: ['resellers'] }),
+  onSettled: () => queryCache.invalidateQueries({ key: [RESELLERS_KEY] }),
 })
 
 const name = ref('')

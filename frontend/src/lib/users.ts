@@ -10,7 +10,9 @@ import { faBuilding, faCity, faCrown, faGlobe, faQuestion } from '@fortawesome/f
 //// remove after implementing pagination
 export const paginationQueryString = '?page_size=100'
 
-//// check attributes
+export const USERS_KEY = 'users'
+export const USERS_TOTAL_KEY = 'usersTotal'
+
 export const CreateUserSchema = v.object({
   email: v.pipe(v.string(), v.nonEmpty('users.email_required'), v.email('users.email_invalid')),
   name: v.pipe(v.string(), v.nonEmpty('users.name_cannot_be_empty')),
@@ -89,6 +91,16 @@ export const deleteUser = (user: User) => {
   return axios.delete(`${API_URL}/users/${user.id}`, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
+}
+
+export const getUsersTotal = () => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .get(`${API_URL}/users/totals`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data.total as number)
 }
 
 export const resetPassword = (user: User, newPassword: string) => {

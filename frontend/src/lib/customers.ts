@@ -7,6 +7,9 @@ import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 import { paginationQueryString } from './users'
 
+export const CUSTOMERS_KEY = 'customers'
+export const CUSTOMERS_TOTAL_KEY = 'customersTotal'
+
 export const CreateCustomerSchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty('organizations.name_cannot_be_empty')),
   description: v.optional(v.string()),
@@ -59,6 +62,16 @@ export const deleteCustomer = (customer: Customer) => {
   return axios.delete(`${API_URL}/customers/${customer.id}`, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
+}
+
+export const getCustomersTotal = () => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .get(`${API_URL}/customers/totals`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data.total as number)
 }
 
 export const searchStringInCustomer = (

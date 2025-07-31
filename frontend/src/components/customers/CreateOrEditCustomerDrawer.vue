@@ -14,6 +14,8 @@ import {
 import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import {
   CreateCustomerSchema,
+  CUSTOMERS_KEY,
+  CUSTOMERS_TOTAL_KEY,
   CustomerSchema,
   postCustomer,
   putCustomer,
@@ -65,8 +67,10 @@ const {
     console.error('Error creating customer:', error)
     validationIssues.value = getValidationIssues(error as AxiosError, 'organizations')
   },
-
-  onSettled: () => queryCache.invalidateQueries({ key: ['customers'] }),
+  onSettled: () => {
+    queryCache.invalidateQueries({ key: [CUSTOMERS_KEY] })
+    queryCache.invalidateQueries({ key: [CUSTOMERS_TOTAL_KEY] })
+  },
 })
 
 const {
@@ -95,8 +99,7 @@ const {
   onError: (error) => {
     console.error('Error editing customer:', error)
   },
-
-  onSettled: () => queryCache.invalidateQueries({ key: ['customers'] }),
+  onSettled: () => queryCache.invalidateQueries({ key: [CUSTOMERS_KEY] }),
 })
 
 const name = ref('')

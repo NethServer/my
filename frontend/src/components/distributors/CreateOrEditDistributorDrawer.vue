@@ -14,6 +14,8 @@ import {
 import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import {
   CreateDistributorSchema,
+  DISTRIBUTORS_KEY,
+  DISTRIBUTORS_TOTAL_KEY,
   DistributorSchema,
   postDistributor,
   putDistributor,
@@ -65,8 +67,10 @@ const {
     console.error('Error creating distributor:', error)
     validationIssues.value = getValidationIssues(error as AxiosError, 'organizations')
   },
-
-  onSettled: () => queryCache.invalidateQueries({ key: ['distributors'] }),
+  onSettled: () => {
+    queryCache.invalidateQueries({ key: [DISTRIBUTORS_KEY] })
+    queryCache.invalidateQueries({ key: [DISTRIBUTORS_TOTAL_KEY] })
+  },
 })
 
 const {
@@ -95,8 +99,9 @@ const {
   onError: (error) => {
     console.error('Error editing distributor:', error)
   },
-
-  onSettled: () => queryCache.invalidateQueries({ key: ['distributors'] }),
+  onSettled: () => {
+    queryCache.invalidateQueries({ key: [DISTRIBUTORS_KEY] })
+  },
 })
 
 const name = ref('')
