@@ -28,7 +28,7 @@ func TestLocalDistributorStructure(t *testing.T) {
 		UpdatedAt:      now,
 		LogtoSyncedAt:  &syncedAt,
 		LogtoSyncError: &syncError,
-		Active:         true,
+		DeletedAt:      nil,
 	}
 
 	assert.Equal(t, "dist-123", distributor.ID)
@@ -40,7 +40,7 @@ func TestLocalDistributorStructure(t *testing.T) {
 	assert.Equal(t, now, distributor.UpdatedAt)
 	assert.Equal(t, &syncedAt, distributor.LogtoSyncedAt)
 	assert.Equal(t, &syncError, distributor.LogtoSyncError)
-	assert.True(t, distributor.Active)
+	assert.True(t, distributor.Active())
 }
 
 func TestLocalDistributorJSONSerialization(t *testing.T) {
@@ -59,7 +59,7 @@ func TestLocalDistributorJSONSerialization(t *testing.T) {
 		CustomData:  customData,
 		CreatedAt:   now,
 		UpdatedAt:   now,
-		Active:      true,
+		DeletedAt:   nil,
 	}
 
 	// Test JSON marshaling
@@ -77,7 +77,7 @@ func TestLocalDistributorJSONSerialization(t *testing.T) {
 	assert.Equal(t, distributor.Name, unmarshaledDistributor.Name)
 	assert.Equal(t, distributor.Description, unmarshaledDistributor.Description)
 	assert.Equal(t, distributor.CustomData, unmarshaledDistributor.CustomData)
-	assert.Equal(t, distributor.Active, unmarshaledDistributor.Active)
+	assert.Equal(t, distributor.Active(), unmarshaledDistributor.Active())
 }
 
 func TestLocalResellerStructure(t *testing.T) {
@@ -96,7 +96,7 @@ func TestLocalResellerStructure(t *testing.T) {
 		CustomData:  customData,
 		CreatedAt:   now,
 		UpdatedAt:   now,
-		Active:      true,
+		DeletedAt:   nil,
 	}
 
 	assert.Equal(t, "reseller-789", reseller.ID)
@@ -106,7 +106,7 @@ func TestLocalResellerStructure(t *testing.T) {
 	assert.Equal(t, customData, reseller.CustomData)
 	assert.Equal(t, now, reseller.CreatedAt)
 	assert.Equal(t, now, reseller.UpdatedAt)
-	assert.True(t, reseller.Active)
+	assert.True(t, reseller.Active())
 }
 
 func TestLocalCustomerStructure(t *testing.T) {
@@ -125,7 +125,7 @@ func TestLocalCustomerStructure(t *testing.T) {
 		CustomData:  customData,
 		CreatedAt:   now,
 		UpdatedAt:   now,
-		Active:      false,
+		DeletedAt:   &now,
 	}
 
 	assert.Equal(t, "customer-101", customer.ID)
@@ -135,7 +135,7 @@ func TestLocalCustomerStructure(t *testing.T) {
 	assert.Equal(t, customData, customer.CustomData)
 	assert.Equal(t, now, customer.CreatedAt)
 	assert.Equal(t, now, customer.UpdatedAt)
-	assert.False(t, customer.Active)
+	assert.False(t, customer.Active())
 }
 
 func TestUserOrganizationStructure(t *testing.T) {
@@ -537,7 +537,7 @@ func TestLocalEntitiesJSONTags(t *testing.T) {
 		Name:       "Tag Test",
 		CustomData: customData,
 		CreatedAt:  now,
-		Active:     true,
+		DeletedAt:  nil,
 	}
 
 	jsonData, err := json.Marshal(distributor)
@@ -551,7 +551,7 @@ func TestLocalEntitiesJSONTags(t *testing.T) {
 	// Verify JSON field names match struct tags
 	expectedFields := []string{
 		"id", "logto_id", "name", "description", "custom_data",
-		"created_at", "updated_at", "logto_synced_at", "logto_sync_error", "active",
+		"created_at", "updated_at", "logto_synced_at", "logto_sync_error", "deleted_at",
 	}
 
 	for _, field := range expectedFields {
@@ -561,7 +561,9 @@ func TestLocalEntitiesJSONTags(t *testing.T) {
 	// Verify values
 	assert.Equal(t, "tag-test-dist", jsonMap["id"])
 	assert.Equal(t, "Tag Test", jsonMap["name"])
-	assert.Equal(t, true, jsonMap["active"])
+	// Active is computed dynamically, not a field in JSON
+	// The deleted_at field should be nil (null in JSON) for active entities
+	assert.Nil(t, jsonMap["deleted_at"])
 }
 
 func TestLocalUserJSONTagsSpecial(t *testing.T) {

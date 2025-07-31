@@ -204,7 +204,7 @@ func TestLocal_CustomerRepository_TimestampHandling(t *testing.T) {
 			name:      "customer creation sets timestamps",
 			operation: "create",
 			expectedCondition: func(c *models.LocalCustomer) bool {
-				return !c.CreatedAt.IsZero() && !c.UpdatedAt.IsZero() && c.Active
+				return !c.CreatedAt.IsZero() && !c.UpdatedAt.IsZero() && c.Active()
 			},
 		},
 		{
@@ -218,7 +218,7 @@ func TestLocal_CustomerRepository_TimestampHandling(t *testing.T) {
 			name:      "customer deactivation sets Active to false",
 			operation: "deactivate",
 			expectedCondition: func(c *models.LocalCustomer) bool {
-				return !c.Active
+				return !c.Active()
 			},
 		},
 	}
@@ -228,7 +228,7 @@ func TestLocal_CustomerRepository_TimestampHandling(t *testing.T) {
 			customer := &models.LocalCustomer{
 				ID:        "test-customer-123",
 				Name:      "Test Customer",
-				Active:    true,
+				DeletedAt:  nil,
 				CreatedAt: now,
 				UpdatedAt: now,
 			}
@@ -400,12 +400,13 @@ func simulateCustomerOperation(customer *models.LocalCustomer, operation string)
 	case "create":
 		customer.CreatedAt = now
 		customer.UpdatedAt = now
-		customer.Active = true
+		customer.DeletedAt = nil
 	case "update":
 		customer.UpdatedAt = now.Add(time.Minute) // Simulate time passing
 		customer.LogtoSyncedAt = nil
 	case "deactivate":
-		customer.Active = false
+		now := time.Now()
+		customer.DeletedAt = &now
 		customer.UpdatedAt = now
 	}
 }

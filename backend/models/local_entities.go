@@ -24,7 +24,7 @@ type LocalDistributor struct {
 	UpdatedAt      time.Time              `json:"updated_at" db:"updated_at"`
 	LogtoSyncedAt  *time.Time             `json:"logto_synced_at" db:"logto_synced_at"`
 	LogtoSyncError *string                `json:"logto_sync_error" db:"logto_sync_error"`
-	Active         bool                   `json:"active" db:"active"`
+	DeletedAt      *time.Time             `json:"deleted_at" db:"deleted_at"`
 }
 
 // LocalReseller represents a reseller stored in local database
@@ -38,7 +38,7 @@ type LocalReseller struct {
 	UpdatedAt      time.Time              `json:"updated_at" db:"updated_at"`
 	LogtoSyncedAt  *time.Time             `json:"logto_synced_at" db:"logto_synced_at"`
 	LogtoSyncError *string                `json:"logto_sync_error" db:"logto_sync_error"`
-	Active         bool                   `json:"active" db:"active"`
+	DeletedAt      *time.Time             `json:"deleted_at" db:"deleted_at"`
 }
 
 // LocalCustomer represents a customer stored in local database
@@ -52,7 +52,7 @@ type LocalCustomer struct {
 	UpdatedAt      time.Time              `json:"updated_at" db:"updated_at"`
 	LogtoSyncedAt  *time.Time             `json:"logto_synced_at" db:"logto_synced_at"`
 	LogtoSyncError *string                `json:"logto_sync_error" db:"logto_sync_error"`
-	Active         bool                   `json:"active" db:"active"`
+	DeletedAt      *time.Time             `json:"deleted_at" db:"deleted_at"`
 }
 
 // UserOrganization represents organization info in user responses
@@ -183,4 +183,34 @@ func (u *LocalUser) IsDeleted() bool {
 // IsSuspended returns true if the user is suspended
 func (u *LocalUser) IsSuspended() bool {
 	return u.SuspendedAt != nil
+}
+
+// Active returns true if the distributor is not deleted
+func (d *LocalDistributor) Active() bool {
+	return d.DeletedAt == nil
+}
+
+// IsDeleted returns true if the distributor is soft-deleted
+func (d *LocalDistributor) IsDeleted() bool {
+	return d.DeletedAt != nil
+}
+
+// Active returns true if the reseller is not deleted
+func (r *LocalReseller) Active() bool {
+	return r.DeletedAt == nil
+}
+
+// IsDeleted returns true if the reseller is soft-deleted
+func (r *LocalReseller) IsDeleted() bool {
+	return r.DeletedAt != nil
+}
+
+// Active returns true if the customer is not deleted
+func (c *LocalCustomer) Active() bool {
+	return c.DeletedAt == nil
+}
+
+// IsDeleted returns true if the customer is soft-deleted
+func (c *LocalCustomer) IsDeleted() bool {
+	return c.DeletedAt != nil
 }

@@ -51,14 +51,14 @@ func Init() error {
 		Str("database_url", logger.SanitizeConnectionURL(databaseURL)).
 		Msg("Database connection established")
 
-	// Initialize database schema
-	if err := initSchemaFromFile(); err != nil {
-		return fmt.Errorf("failed to initialize database schema: %w", err)
-	}
-
-	// Run database migrations
+	// Run database migrations first
 	if err := runMigrations(); err != nil {
 		return fmt.Errorf("failed to run database migrations: %w", err)
+	}
+
+	// Initialize database schema (for new installations)
+	if err := initSchemaFromFile(); err != nil {
+		return fmt.Errorf("failed to initialize database schema: %w", err)
 	}
 
 	return nil
@@ -83,6 +83,18 @@ func HealthCheck() error {
 // initSchemaFromFile initializes the database schema from SQL file
 func initSchemaFromFile() error {
 	logger.ComponentLogger("database").Info().Msg("Initializing database schema")
+
+	// Check if core tables already exist (meaning migrations have run)
+	var tableExists bool
+	err := DB.QueryRow("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'distributors')").Scan(&tableExists)
+	if err != nil {
+		return fmt.Errorf("failed to check if tables exist: %w", err)
+	}
+	
+	if tableExists {
+		logger.ComponentLogger("database").Info().Msg("Core tables already exist, skipping schema initialization")
+		return nil
+	}
 
 	// Path to the schema file
 	schemaFile := filepath.Join("database", "schema.sql")

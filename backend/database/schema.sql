@@ -12,12 +12,15 @@ CREATE TABLE IF NOT EXISTS distributors (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     logto_synced_at TIMESTAMP WITH TIME ZONE,
     logto_sync_error TEXT,
-    active BOOLEAN DEFAULT TRUE
+    deleted_at TIMESTAMP WITH TIME ZONE  -- Soft delete timestamp (NULL = active, non-NULL = deleted)
 );
 
+-- Comment for distributors.deleted_at
+COMMENT ON COLUMN distributors.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted at that time.';
+
 -- Performance indexes for distributors
-CREATE UNIQUE INDEX IF NOT EXISTS idx_distributors_logto_id ON distributors(logto_id) WHERE logto_id IS NOT NULL AND active = true;
-CREATE INDEX IF NOT EXISTS idx_distributors_active ON distributors(active);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_distributors_logto_id ON distributors(logto_id) WHERE logto_id IS NOT NULL AND deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_distributors_deleted_at ON distributors(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_distributors_logto_synced ON distributors(logto_synced_at);
 CREATE INDEX IF NOT EXISTS idx_distributors_created_at ON distributors(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_distributors_name ON distributors(name);
@@ -35,12 +38,15 @@ CREATE TABLE IF NOT EXISTS resellers (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     logto_synced_at TIMESTAMP WITH TIME ZONE,
     logto_sync_error TEXT,
-    active BOOLEAN DEFAULT TRUE
+    deleted_at TIMESTAMP WITH TIME ZONE  -- Soft delete timestamp (NULL = active, non-NULL = deleted)
 );
 
+-- Comment for resellers.deleted_at
+COMMENT ON COLUMN resellers.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted at that time.';
+
 -- Performance indexes for resellers
-CREATE UNIQUE INDEX IF NOT EXISTS idx_resellers_logto_id ON resellers(logto_id) WHERE logto_id IS NOT NULL AND active = true;
-CREATE INDEX IF NOT EXISTS idx_resellers_active ON resellers(active);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_resellers_logto_id ON resellers(logto_id) WHERE logto_id IS NOT NULL AND deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_resellers_deleted_at ON resellers(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_resellers_logto_synced ON resellers(logto_synced_at);
 CREATE INDEX IF NOT EXISTS idx_resellers_created_at ON resellers(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_resellers_name ON resellers(name);
@@ -58,12 +64,15 @@ CREATE TABLE IF NOT EXISTS customers (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     logto_synced_at TIMESTAMP WITH TIME ZONE,
     logto_sync_error TEXT,
-    active BOOLEAN DEFAULT TRUE
+    deleted_at TIMESTAMP WITH TIME ZONE  -- Soft delete timestamp (NULL = active, non-NULL = deleted)
 );
 
+-- Comment for customers.deleted_at
+COMMENT ON COLUMN customers.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted at that time.';
+
 -- Performance indexes for customers
-CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_logto_id ON customers(logto_id) WHERE logto_id IS NOT NULL AND active = true;
-CREATE INDEX IF NOT EXISTS idx_customers_active ON customers(active);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_logto_id ON customers(logto_id) WHERE logto_id IS NOT NULL AND deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_customers_deleted_at ON customers(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_customers_logto_synced ON customers(logto_synced_at);
 CREATE INDEX IF NOT EXISTS idx_customers_created_at ON customers(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);

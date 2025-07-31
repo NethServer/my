@@ -1555,15 +1555,15 @@ func (s *LocalOrganizationService) getUserOwnOrganization(userOrgRole, userOrgID
 	case "distributor":
 		// Search for distributor by logto_id (since userOrgID is the logto_id from JWT)
 		var distributor *models.LocalDistributor
-		query := `SELECT id, logto_id, name, description, custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, active 
-		          FROM distributors WHERE logto_id = $1 AND active = TRUE LIMIT 1`
+		query := `SELECT id, logto_id, name, description, custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at 
+		          FROM distributors WHERE logto_id = $1 AND deleted_at IS NULL LIMIT 1`
 		row := database.DB.QueryRow(query, userOrgID)
 
 		distributor = &models.LocalDistributor{}
 		var customDataJSON []byte
 		err := row.Scan(&distributor.ID, &distributor.LogtoID, &distributor.Name, &distributor.Description,
 			&customDataJSON, &distributor.CreatedAt, &distributor.UpdatedAt,
-			&distributor.LogtoSyncedAt, &distributor.LogtoSyncError, &distributor.Active)
+			&distributor.LogtoSyncedAt, &distributor.LogtoSyncError, &distributor.DeletedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get distributor organization: %w", err)
 		}
@@ -1580,15 +1580,15 @@ func (s *LocalOrganizationService) getUserOwnOrganization(userOrgRole, userOrgID
 	case "reseller":
 		// Search for reseller by logto_id (since userOrgID is the logto_id from JWT)
 		var reseller *models.LocalReseller
-		query := `SELECT id, logto_id, name, description, custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, active 
-		          FROM resellers WHERE logto_id = $1 AND active = TRUE LIMIT 1`
+		query := `SELECT id, logto_id, name, description, custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at 
+		          FROM resellers WHERE logto_id = $1 AND deleted_at IS NULL LIMIT 1`
 		row := database.DB.QueryRow(query, userOrgID)
 
 		reseller = &models.LocalReseller{}
 		var customDataJSON []byte
 		err := row.Scan(&reseller.ID, &reseller.LogtoID, &reseller.Name, &reseller.Description,
 			&customDataJSON, &reseller.CreatedAt, &reseller.UpdatedAt,
-			&reseller.LogtoSyncedAt, &reseller.LogtoSyncError, &reseller.Active)
+			&reseller.LogtoSyncedAt, &reseller.LogtoSyncError, &reseller.DeletedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get reseller organization: %w", err)
 		}
@@ -1615,15 +1615,15 @@ func (s *LocalOrganizationService) getUserOwnOrganization(userOrgRole, userOrgID
 	case "customer":
 		// Search for customer by logto_id (since userOrgID is the logto_id from JWT)
 		var customer *models.LocalCustomer
-		query := `SELECT id, logto_id, name, description, custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, active 
-		          FROM customers WHERE logto_id = $1 AND active = TRUE LIMIT 1`
+		query := `SELECT id, logto_id, name, description, custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at 
+		          FROM customers WHERE logto_id = $1 AND deleted_at IS NULL LIMIT 1`
 		row := database.DB.QueryRow(query, userOrgID)
 
 		customer = &models.LocalCustomer{}
 		var customDataJSON []byte
 		err := row.Scan(&customer.ID, &customer.LogtoID, &customer.Name, &customer.Description,
 			&customDataJSON, &customer.CreatedAt, &customer.UpdatedAt,
-			&customer.LogtoSyncedAt, &customer.LogtoSyncError, &customer.Active)
+			&customer.LogtoSyncedAt, &customer.LogtoSyncError, &customer.DeletedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get customer organization: %w", err)
 		}

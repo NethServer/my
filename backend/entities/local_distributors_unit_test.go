@@ -223,7 +223,7 @@ func TestLocal_DistributorRepository_TimestampHandling(t *testing.T) {
 			name:      "distributor creation sets timestamps",
 			operation: "create",
 			expectedCondition: func(d *models.LocalDistributor) bool {
-				return !d.CreatedAt.IsZero() && !d.UpdatedAt.IsZero() && d.Active
+				return !d.CreatedAt.IsZero() && !d.UpdatedAt.IsZero() && d.Active()
 			},
 		},
 		{
@@ -237,7 +237,7 @@ func TestLocal_DistributorRepository_TimestampHandling(t *testing.T) {
 			name:      "distributor deactivation sets Active to false",
 			operation: "deactivate",
 			expectedCondition: func(d *models.LocalDistributor) bool {
-				return !d.Active
+				return !d.Active()
 			},
 		},
 		{
@@ -254,7 +254,7 @@ func TestLocal_DistributorRepository_TimestampHandling(t *testing.T) {
 			distributor := &models.LocalDistributor{
 				ID:        "test-distributor-123",
 				Name:      "Test Distributor",
-				Active:    true,
+				DeletedAt:  nil,
 				CreatedAt: now,
 				UpdatedAt: now,
 			}
@@ -413,12 +413,13 @@ func simulateDistributorOperation(distributor *models.LocalDistributor, operatio
 	case "create":
 		distributor.CreatedAt = now
 		distributor.UpdatedAt = now
-		distributor.Active = true
+		distributor.DeletedAt = nil
 	case "update":
 		distributor.UpdatedAt = now.Add(time.Minute) // Simulate time passing
 		distributor.LogtoSyncedAt = nil
 	case "deactivate":
-		distributor.Active = false
+		now := time.Now()
+		distributor.DeletedAt = &now
 		distributor.UpdatedAt = now
 	case "sync":
 		distributor.LogtoSyncedAt = &now

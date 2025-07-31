@@ -330,7 +330,7 @@ func TestLocal_ResellerRepository_TimestampHandling(t *testing.T) {
 			name:      "reseller creation sets timestamps",
 			operation: "create",
 			expectedCondition: func(r *models.LocalReseller) bool {
-				return !r.CreatedAt.IsZero() && !r.UpdatedAt.IsZero() && r.Active
+				return !r.CreatedAt.IsZero() && !r.UpdatedAt.IsZero() && r.Active()
 			},
 		},
 		{
@@ -344,7 +344,7 @@ func TestLocal_ResellerRepository_TimestampHandling(t *testing.T) {
 			name:      "reseller deactivation sets Active to false",
 			operation: "deactivate",
 			expectedCondition: func(r *models.LocalReseller) bool {
-				return !r.Active
+				return !r.Active()
 			},
 		},
 		{
@@ -361,7 +361,7 @@ func TestLocal_ResellerRepository_TimestampHandling(t *testing.T) {
 			reseller := &models.LocalReseller{
 				ID:        "test-reseller-123",
 				Name:      "Test Reseller",
-				Active:    true,
+				DeletedAt:  nil,
 				CreatedAt: now,
 				UpdatedAt: now,
 			}
@@ -484,12 +484,13 @@ func simulateResellerOperation(reseller *models.LocalReseller, operation string)
 	case "create":
 		reseller.CreatedAt = now
 		reseller.UpdatedAt = now
-		reseller.Active = true
+		reseller.DeletedAt = nil
 	case "update":
 		reseller.UpdatedAt = now.Add(time.Minute) // Simulate time passing
 		reseller.LogtoSyncedAt = nil
 	case "deactivate":
-		reseller.Active = false
+		now := time.Now()
+		reseller.DeletedAt = &now
 		reseller.UpdatedAt = now
 	case "sync":
 		reseller.LogtoSyncedAt = &now

@@ -45,11 +45,11 @@ func (r *LocalResellerRepository) Create(req *models.CreateLocalResellerRequest)
 	}
 
 	query := `
-		INSERT INTO resellers (id, logto_id, name, description, custom_data, created_at, updated_at, active)
+		INSERT INTO resellers (id, logto_id, name, description, custom_data, created_at, updated_at, deleted_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 
-	_, err = r.db.Exec(query, id, nil, req.Name, req.Description, customDataJSON, now, now, true)
+	_, err = r.db.Exec(query, id, nil, req.Name, req.Description, customDataJSON, now, now, nil)
 	if err != nil {
 		// Check for unique constraint violation
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
@@ -68,7 +68,7 @@ func (r *LocalResellerRepository) Create(req *models.CreateLocalResellerRequest)
 		CustomData:  req.CustomData,
 		CreatedAt:   now,
 		UpdatedAt:   now,
-		Active:      true,
+		DeletedAt:   nil,
 	}, nil
 }
 
@@ -76,9 +76,9 @@ func (r *LocalResellerRepository) Create(req *models.CreateLocalResellerRequest)
 func (r *LocalResellerRepository) GetByID(id string) (*models.LocalReseller, error) {
 	query := `
 		SELECT id, logto_id, name, description,  custom_data, created_at, updated_at, 
-		       logto_synced_at, logto_sync_error, active
+		       logto_synced_at, logto_sync_error, deleted_at
 		FROM resellers 
-		WHERE id = $1 AND active = TRUE
+		WHERE id = $1 AND deleted_at IS NULL
 	`
 
 	reseller := &models.LocalReseller{}
@@ -87,7 +87,7 @@ func (r *LocalResellerRepository) GetByID(id string) (*models.LocalReseller, err
 	err := r.db.QueryRow(query, id).Scan(
 		&reseller.ID, &reseller.LogtoID, &reseller.Name, &reseller.Description,
 		&customDataJSON, &reseller.CreatedAt, &reseller.UpdatedAt,
-		&reseller.LogtoSyncedAt, &reseller.LogtoSyncError, &reseller.Active,
+		&reseller.LogtoSyncedAt, &reseller.LogtoSyncError, &reseller.DeletedAt,
 	)
 
 	if err != nil {
@@ -158,7 +158,7 @@ func (r *LocalResellerRepository) Update(id string, req *models.UpdateLocalResel
 
 // Delete soft-deletes a reseller in local database
 func (r *LocalResellerRepository) Delete(id string) error {
-	query := `UPDATE resellers SET active = FALSE, updated_at = $2 WHERE id = $1`
+	query := `UPDATE resellers SET deleted_at = $2, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL`
 
 	result, err := r.db.Exec(query, id, time.Now())
 	if err != nil {
@@ -186,12 +186,12 @@ func (r *LocalResellerRepository) List(userOrgRole, userOrgID string, page, page
 	switch userOrgRole {
 	case "owner":
 		// Owner sees all resellers
-		countQuery = `SELECT COUNT(*) FROM resellers WHERE active = TRUE`
+		countQuery = `SELECT COUNT(*) FROM resellers WHERE deleted_at IS NULL`
 		baseQuery = `
 			SELECT id, logto_id, name, description, custom_data, created_at, updated_at, 
-			       logto_synced_at, logto_sync_error, active
+			       logto_synced_at, logto_sync_error, deleted_at
 			FROM resellers 
-			WHERE active = TRUE
+			WHERE deleted_at IS NULL
 			ORDER BY created_at DESC
 			LIMIT $1 OFFSET $2
 		`
@@ -199,12 +199,12 @@ func (r *LocalResellerRepository) List(userOrgRole, userOrgID string, page, page
 
 	case "distributor":
 		// Distributor sees resellers they created (hierarchy via custom_data)
-		countQuery = `SELECT COUNT(*) FROM resellers WHERE active = TRUE AND custom_data->>'createdBy' = $1`
+		countQuery = `SELECT COUNT(*) FROM resellers WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1`
 		baseQuery = `
 			SELECT id, logto_id, name, description, custom_data, created_at, updated_at, 
-			       logto_synced_at, logto_sync_error, active
+			       logto_synced_at, logto_sync_error, deleted_at
 			FROM resellers 
-			WHERE active = TRUE AND custom_data->>'createdBy' = $1
+			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1
 			ORDER BY created_at DESC
 			LIMIT $2 OFFSET $3
 		`
@@ -244,7 +244,7 @@ func (r *LocalResellerRepository) List(userOrgRole, userOrgID string, page, page
 		err := rows.Scan(
 			&reseller.ID, &reseller.LogtoID, &reseller.Name, &reseller.Description,
 			&customDataJSON, &reseller.CreatedAt, &reseller.UpdatedAt,
-			&reseller.LogtoSyncedAt, &reseller.LogtoSyncError, &reseller.Active,
+			&reseller.LogtoSyncedAt, &reseller.LogtoSyncError, &reseller.DeletedAt,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan reseller: %w", err)
@@ -277,13 +277,13 @@ func (r *LocalResellerRepository) GetTotals(userOrgRole, userOrgID string) (int,
 	switch userOrgRole {
 	case "owner":
 		// Owner sees all resellers
-		query = `SELECT COUNT(*) FROM resellers WHERE active = TRUE`
+		query = `SELECT COUNT(*) FROM resellers WHERE deleted_at IS NULL`
 		err := r.db.QueryRow(query).Scan(&count)
 		return count, err
 
 	case "distributor":
 		// Distributor sees resellers they created (hierarchy via custom_data)
-		query = `SELECT COUNT(*) FROM resellers WHERE active = TRUE AND custom_data->>'createdBy' = $1`
+		query = `SELECT COUNT(*) FROM resellers WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1`
 		err := r.db.QueryRow(query, userOrgID).Scan(&count)
 		return count, err
 

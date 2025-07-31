@@ -45,11 +45,11 @@ func (r *LocalCustomerRepository) Create(req *models.CreateLocalCustomerRequest)
 	}
 
 	query := `
-		INSERT INTO customers (id, logto_id, name, description, custom_data, created_at, updated_at, active)
+		INSERT INTO customers (id, logto_id, name, description, custom_data, created_at, updated_at, deleted_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 
-	_, err = r.db.Exec(query, id, nil, req.Name, req.Description, customDataJSON, now, now, true)
+	_, err = r.db.Exec(query, id, nil, req.Name, req.Description, customDataJSON, now, now, nil)
 	if err != nil {
 		// Check for unique constraint violation
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
@@ -68,7 +68,7 @@ func (r *LocalCustomerRepository) Create(req *models.CreateLocalCustomerRequest)
 		CustomData:  req.CustomData,
 		CreatedAt:   now,
 		UpdatedAt:   now,
-		Active:      true,
+		DeletedAt:   nil,
 	}, nil
 }
 
@@ -76,9 +76,9 @@ func (r *LocalCustomerRepository) Create(req *models.CreateLocalCustomerRequest)
 func (r *LocalCustomerRepository) GetByID(id string) (*models.LocalCustomer, error) {
 	query := `
 		SELECT id, logto_id, name, description,  custom_data,
-		       created_at, updated_at, logto_synced_at, logto_sync_error, active
+		       created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
 		FROM customers
-		WHERE id = $1 AND active = TRUE
+		WHERE id = $1 AND deleted_at IS NULL
 	`
 
 	customer := &models.LocalCustomer{}
@@ -87,7 +87,7 @@ func (r *LocalCustomerRepository) GetByID(id string) (*models.LocalCustomer, err
 	err := r.db.QueryRow(query, id).Scan(
 		&customer.ID, &customer.LogtoID, &customer.Name, &customer.Description,
 		&customDataJSON, &customer.CreatedAt, &customer.UpdatedAt,
-		&customer.LogtoSyncedAt, &customer.LogtoSyncError, &customer.Active,
+		&customer.LogtoSyncedAt, &customer.LogtoSyncError, &customer.DeletedAt,
 	)
 
 	if err != nil {
@@ -158,7 +158,7 @@ func (r *LocalCustomerRepository) Update(id string, req *models.UpdateLocalCusto
 
 // Delete soft-deletes a customer in local database
 func (r *LocalCustomerRepository) Delete(id string) error {
-	query := `UPDATE customers SET active = FALSE, updated_at = $2 WHERE id = $1`
+	query := `UPDATE customers SET deleted_at = NOW(), updated_at = $2 WHERE id = $1`
 
 	result, err := r.db.Exec(query, id, time.Now())
 	if err != nil {
@@ -186,12 +186,12 @@ func (r *LocalCustomerRepository) List(userOrgRole, userOrgID string, page, page
 	switch userOrgRole {
 	case "owner":
 		// Owner sees all customers
-		countQuery = `SELECT COUNT(*) FROM customers WHERE active = TRUE`
+		countQuery = `SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL`
 		baseQuery = `
 			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, active
+			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
 			FROM customers
-			WHERE active = TRUE
+			WHERE deleted_at IS NULL
 			ORDER BY created_at DESC
 			LIMIT $1 OFFSET $2
 		`
@@ -201,23 +201,23 @@ func (r *LocalCustomerRepository) List(userOrgRole, userOrgID string, page, page
 		// Distributor sees customers they created directly or via their resellers (hierarchy via custom_data)
 		countQuery = `
 			SELECT COUNT(*) FROM customers
-			WHERE active = TRUE AND (
+			WHERE deleted_at IS NULL AND (
 				custom_data->>'createdBy' = $1 OR
 				custom_data->>'createdBy' IN (
 					SELECT logto_id FROM resellers
-					WHERE custom_data->>'createdBy' = $1 AND active = TRUE
+					WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 				)
 			)
 		`
 		baseQuery = `
 			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, active
+			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
 			FROM customers
-			WHERE active = TRUE AND (
+			WHERE deleted_at IS NULL AND (
 				custom_data->>'createdBy' = $1 OR
 				custom_data->>'createdBy' IN (
 					SELECT logto_id FROM resellers
-					WHERE custom_data->>'createdBy' = $1 AND active = TRUE
+					WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 				)
 			)
 			ORDER BY created_at DESC
@@ -227,12 +227,12 @@ func (r *LocalCustomerRepository) List(userOrgRole, userOrgID string, page, page
 
 	case "reseller":
 		// Reseller sees customers they created (hierarchy via custom_data)
-		countQuery = `SELECT COUNT(*) FROM customers WHERE active = TRUE AND custom_data->>'createdBy' = $1`
+		countQuery = `SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1`
 		baseQuery = `
 			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, active
+			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
 			FROM customers
-			WHERE active = TRUE AND custom_data->>'createdBy' = $1
+			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1
 			ORDER BY created_at DESC
 			LIMIT $2 OFFSET $3
 		`
@@ -243,12 +243,12 @@ func (r *LocalCustomerRepository) List(userOrgRole, userOrgID string, page, page
 		if userOrgID == "" {
 			return []*models.LocalCustomer{}, 0, nil
 		}
-		countQuery = `SELECT COUNT(*) FROM customers WHERE id = $1 AND active = TRUE`
+		countQuery = `SELECT COUNT(*) FROM customers WHERE id = $1 AND deleted_at IS NULL`
 		baseQuery = `
 			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, active
+			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
 			FROM customers
-			WHERE id = $1 AND active = TRUE
+			WHERE id = $1 AND deleted_at IS NULL
 			ORDER BY created_at DESC
 			LIMIT $2 OFFSET $3
 		`
@@ -287,7 +287,7 @@ func (r *LocalCustomerRepository) List(userOrgRole, userOrgID string, page, page
 		err := rows.Scan(
 			&customer.ID, &customer.LogtoID, &customer.Name, &customer.Description,
 			&customDataJSON, &customer.CreatedAt, &customer.UpdatedAt,
-			&customer.LogtoSyncedAt, &customer.LogtoSyncError, &customer.Active,
+			&customer.LogtoSyncedAt, &customer.LogtoSyncError, &customer.DeletedAt,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan customer: %w", err)
@@ -320,26 +320,26 @@ func (r *LocalCustomerRepository) GetTotals(userOrgRole, userOrgID string) (int,
 	switch userOrgRole {
 	case "owner":
 		// Owner sees all customers
-		query = `SELECT COUNT(*) FROM customers WHERE active = TRUE`
+		query = `SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL`
 		err := r.db.QueryRow(query).Scan(&count)
 		return count, err
 
 	case "distributor":
 		// Distributor sees customers they created (hierarchy via custom_data)
-		query = `SELECT COUNT(*) FROM customers WHERE active = TRUE AND custom_data->>'createdBy' = $1`
+		query = `SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1`
 		err := r.db.QueryRow(query, userOrgID).Scan(&count)
 		return count, err
 
 	case "reseller":
 		// Reseller sees customers they created (hierarchy via custom_data)
-		query = `SELECT COUNT(*) FROM customers WHERE active = TRUE AND custom_data->>'createdBy' = $1`
+		query = `SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1`
 		err := r.db.QueryRow(query, userOrgID).Scan(&count)
 		return count, err
 
 	case "customer":
 		// Customers see only themselves
 		if userOrgID != "" {
-			query = `SELECT COUNT(*) FROM customers WHERE id = $1 AND active = TRUE`
+			query = `SELECT COUNT(*) FROM customers WHERE id = $1 AND deleted_at IS NULL`
 			err := r.db.QueryRow(query, userOrgID).Scan(&count)
 			return count, err
 		}

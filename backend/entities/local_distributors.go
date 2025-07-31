@@ -45,11 +45,11 @@ func (r *LocalDistributorRepository) Create(req *models.CreateLocalDistributorRe
 	}
 
 	query := `
-		INSERT INTO distributors (id, logto_id, name, description, custom_data, created_at, updated_at, active)
+		INSERT INTO distributors (id, logto_id, name, description, custom_data, created_at, updated_at, deleted_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 
-	_, err = r.db.Exec(query, id, nil, req.Name, req.Description, customDataJSON, now, now, true)
+	_, err = r.db.Exec(query, id, nil, req.Name, req.Description, customDataJSON, now, now, nil)
 	if err != nil {
 		// Check for unique constraint violation
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
@@ -68,7 +68,7 @@ func (r *LocalDistributorRepository) Create(req *models.CreateLocalDistributorRe
 		CustomData:  req.CustomData,
 		CreatedAt:   now,
 		UpdatedAt:   now,
-		Active:      true,
+		DeletedAt:   nil,
 	}, nil
 }
 
@@ -76,9 +76,9 @@ func (r *LocalDistributorRepository) Create(req *models.CreateLocalDistributorRe
 func (r *LocalDistributorRepository) GetByID(id string) (*models.LocalDistributor, error) {
 	query := `
 		SELECT id, logto_id, name, description, custom_data, created_at, updated_at, 
-		       logto_synced_at, logto_sync_error, active
+		       logto_synced_at, logto_sync_error, deleted_at
 		FROM distributors 
-		WHERE id = $1 AND active = TRUE
+		WHERE id = $1 AND deleted_at IS NULL
 	`
 
 	distributor := &models.LocalDistributor{}
@@ -87,7 +87,7 @@ func (r *LocalDistributorRepository) GetByID(id string) (*models.LocalDistributo
 	err := r.db.QueryRow(query, id).Scan(
 		&distributor.ID, &distributor.LogtoID, &distributor.Name, &distributor.Description,
 		&customDataJSON, &distributor.CreatedAt, &distributor.UpdatedAt,
-		&distributor.LogtoSyncedAt, &distributor.LogtoSyncError, &distributor.Active,
+		&distributor.LogtoSyncedAt, &distributor.LogtoSyncError, &distributor.DeletedAt,
 	)
 
 	if err != nil {
@@ -158,7 +158,7 @@ func (r *LocalDistributorRepository) Update(id string, req *models.UpdateLocalDi
 
 // Delete soft-deletes a distributor in local database
 func (r *LocalDistributorRepository) Delete(id string) error {
-	query := `UPDATE distributors SET active = FALSE, updated_at = $2 WHERE id = $1`
+	query := `UPDATE distributors SET deleted_at = $2, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL`
 
 	result, err := r.db.Exec(query, id, time.Now())
 	if err != nil {
@@ -188,7 +188,7 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 
 	// Get total count
 	var totalCount int
-	countQuery := `SELECT COUNT(*) FROM distributors WHERE active = TRUE`
+	countQuery := `SELECT COUNT(*) FROM distributors WHERE deleted_at IS NULL`
 	err := r.db.QueryRow(countQuery).Scan(&totalCount)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get distributors count: %w", err)
@@ -197,9 +197,9 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 	// Get paginated results
 	query := `
 		SELECT id, logto_id, name, description, custom_data, created_at, updated_at, 
-		       logto_synced_at, logto_sync_error, active
+		       logto_synced_at, logto_sync_error, deleted_at
 		FROM distributors 
-		WHERE active = TRUE
+		WHERE deleted_at IS NULL
 		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2
 	`
@@ -218,7 +218,7 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 		err := rows.Scan(
 			&distributor.ID, &distributor.LogtoID, &distributor.Name, &distributor.Description,
 			&customDataJSON, &distributor.CreatedAt, &distributor.UpdatedAt,
-			&distributor.LogtoSyncedAt, &distributor.LogtoSyncError, &distributor.Active,
+			&distributor.LogtoSyncedAt, &distributor.LogtoSyncError, &distributor.DeletedAt,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan distributor: %w", err)
@@ -251,7 +251,7 @@ func (r *LocalDistributorRepository) GetTotals(userOrgRole, userOrgID string) (i
 	}
 
 	var count int
-	query := `SELECT COUNT(*) FROM distributors WHERE active = TRUE`
+	query := `SELECT COUNT(*) FROM distributors WHERE deleted_at IS NULL`
 
 	err := r.db.QueryRow(query).Scan(&count)
 	if err != nil {
