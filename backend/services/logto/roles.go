@@ -481,6 +481,9 @@ func EnrichUserWithRolesAndPermissions(userID string) (*models.User, error) {
 	user.UserPermissions = removeDuplicates(user.UserPermissions)
 	user.OrgPermissions = removeDuplicates(user.OrgPermissions)
 
+	// Filter out manage permissions for reader roles
+	user.OrgPermissions = filterManagePermissionsForReader(user.OrgPermissions, user.UserRoles)
+
 	logger.ComponentLogger("logto").Info().
 		Str("operation", "enrich_user_complete").
 		Str("user_id", userID).
@@ -510,4 +513,35 @@ func removeDuplicates(slice []string) []string {
 		}
 	}
 	return result
+}
+
+// filterManagePermissionsForReader removes manage permissions for users with reader role
+func filterManagePermissionsForReader(permissions []string, userRoles []string) []string {
+	// Check if user has reader role (case-insensitive)
+	hasReaderRole := false
+	for _, role := range userRoles {
+		if role == "reader" || role == "Reader" {
+			hasReaderRole = true
+			break
+		}
+	}
+
+	// If user doesn't have reader role, return permissions unchanged
+	if !hasReaderRole {
+		return permissions
+	}
+
+	// Filter out manage permissions for distributors, resellers, customers
+	var filteredPermissions []string
+	for _, permission := range permissions {
+		// Skip manage permissions for distributors, resellers, and customers
+		if permission == "manage:distributors" ||
+			permission == "manage:resellers" ||
+			permission == "manage:customers" {
+			continue
+		}
+		filteredPermissions = append(filteredPermissions, permission)
+	}
+
+	return filteredPermissions
 }
