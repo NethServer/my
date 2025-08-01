@@ -17,10 +17,12 @@ jobs:
         with:
           script: |
             const prNumber = context.payload.pull_request.number;
+            const prBranch = context.payload.pull_request.head.ref;
             const currentBody = context.payload.pull_request.body || '';
 
-            // Replace [PR_NUMBER] with actual PR number
-            const updatedBody = currentBody.replace(/\[PR_NUMBER\]/g, prNumber);
+            // Replace [PR_NUMBER] with actual PR number and [PR_BRANCH] with branch name
+            let updatedBody = currentBody.replace(/\[PR_NUMBER\]/g, prNumber);
+            updatedBody = updatedBody.replace(/\[PR_BRANCH\]/g, prBranch);
 
             // Only update if there were replacements made
             if (updatedBody !== currentBody) {
@@ -31,7 +33,7 @@ jobs:
                 body: updatedBody
               });
 
-              console.log(`Updated PR #${prNumber} description with PR number`);
+              console.log(`Updated PR #${prNumber} description with PR number and branch name`);
             } else {
-              console.log(`No [PR_NUMBER] placeholders found in PR #${prNumber}`);
+              console.log(`No [PR_NUMBER] or [PR_BRANCH] placeholders found in PR #${prNumber}`);
             }
