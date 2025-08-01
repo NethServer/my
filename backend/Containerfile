@@ -49,6 +49,9 @@ COPY --from=builder /app/backend .
 COPY --from=builder /app/database/schema.sql database/
 COPY --from=builder /app/database/migrations/ database/migrations/
 
+# Copy email templates
+COPY --from=builder /app/services/email/templates/ services/email/templates/
+
 # Change ownership of the application directory
 RUN chown -R appuser:appgroup /app
 
