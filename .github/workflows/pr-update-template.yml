@@ -109,7 +109,6 @@ jobs:
 
                   jobData[jobName] = {
                     url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${workflowRunId}/job/${job.id}`,
-                    badge: `https://img.shields.io/badge/${encodeURIComponent(job.name)}-${statusText}-${color}`,
                     status
                   };
                 }
@@ -129,9 +128,12 @@ jobs:
                 for (const { name, jobKey } of badgeReplacements) {
                   const job = jobData[jobKey];
                   if (job) {
+                    // Create badge with proper display name
+                    const badgeUrl = `https://img.shields.io/badge/${encodeURIComponent(name)}-${job.status === 'success' ? 'passing' : job.status === 'failure' ? 'failing' : job.status === 'cancelled' ? 'cancelled' : job.status === 'skipped' ? 'skipped' : 'running'}-${job.status === 'success' ? 'brightgreen' : job.status === 'failure' ? 'red' : job.status === 'cancelled' ? 'lightgrey' : job.status === 'skipped' ? 'yellow' : 'blue'}`;
+                    
                     // Replace the specific badge line
                     const badgeRegex = new RegExp(`- \\[!\\[${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]\\([^\\)]+\\)\\]\\([^\\)]+\\)`, 'g');
-                    updatedBody = updatedBody.replace(badgeRegex, `- [![${name}](${job.badge})](${job.url})`);
+                    updatedBody = updatedBody.replace(badgeRegex, `- [![${name}](${badgeUrl})](${job.url})`);
                   }
                 }
               } catch (error) {
