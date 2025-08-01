@@ -9,6 +9,7 @@ import ResellersTable from '@/components/resellers/ResellersTable.vue'
 import { ref } from 'vue'
 import { faCirclePlus } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { canManageResellers } from '@/lib/permissions'
 
 const isShownCreateResellerDrawer = ref(false)
 </script>
@@ -22,6 +23,7 @@ const isShownCreateResellerDrawer = ref(false)
       </div>
       <!-- create reseller -->
       <NeButton
+        v-if="canManageResellers()"
         kind="secondary"
         size="lg"
         class="shrink-0"

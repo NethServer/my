@@ -9,6 +9,7 @@ import CustomersTable from '@/components/customers/CustomersTable.vue'
 import { ref } from 'vue'
 import { faCirclePlus } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { canManageCustomers } from '@/lib/permissions'
 
 const isShownCreateCustomerDrawer = ref(false)
 </script>
@@ -22,6 +23,7 @@ const isShownCreateCustomerDrawer = ref(false)
       </div>
       <!-- create customer -->
       <NeButton
+        v-if="canManageCustomers()"
         kind="secondary"
         size="lg"
         class="shrink-0"
