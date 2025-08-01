@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 
+	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
@@ -478,6 +479,25 @@ func SuspendUser(c *gin.Context) {
 		return
 	}
 
+	// Blacklist all user tokens when suspended
+	blacklist := cache.GetTokenBlacklist()
+	blacklistErr := blacklist.BlacklistAllUserTokens(userID, "user suspended by administrator")
+	if blacklistErr != nil {
+		logger.RequestLogger(c, "users").Warn().
+			Err(blacklistErr).
+			Str("operation", "blacklist_suspended_user").
+			Str("user_id", userID).
+			Str("suspended_by", user.ID).
+			Msg("Failed to blacklist suspended user tokens - user suspended but tokens still valid")
+		// Don't fail the suspension if blacklist fails, just log warning
+	} else {
+		logger.RequestLogger(c, "users").Info().
+			Str("operation", "tokens_blacklisted").
+			Str("user_id", userID).
+			Str("suspended_by", user.ID).
+			Msg("All user tokens blacklisted due to suspension")
+	}
+
 	// Log the action
 	logger.LogBusinessOperation(c, "users", "suspend", "user", userID, true, nil)
 
@@ -547,6 +567,25 @@ func ReactivateUser(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to reactivate user", nil))
 		}
 		return
+	}
+
+	// Remove user from token blacklist when reactivated
+	blacklist := cache.GetTokenBlacklist()
+	blacklistErr := blacklist.RemoveUserFromBlacklist(userID)
+	if blacklistErr != nil {
+		logger.RequestLogger(c, "users").Warn().
+			Err(blacklistErr).
+			Str("operation", "remove_user_from_blacklist").
+			Str("user_id", userID).
+			Str("reactivated_by", user.ID).
+			Msg("Failed to remove user from token blacklist - user reactivated but old tokens still blocked")
+		// Don't fail the reactivation if blacklist removal fails, just log warning
+	} else {
+		logger.RequestLogger(c, "users").Info().
+			Str("operation", "user_removed_from_blacklist").
+			Str("user_id", userID).
+			Str("reactivated_by", user.ID).
+			Msg("User removed from token blacklist due to reactivation")
 	}
 
 	// Log the action

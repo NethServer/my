@@ -151,6 +151,9 @@ func main() {
 		customAuth.POST("/me/change-password", methods.ChangePassword)
 		customAuth.POST("/me/change-info", methods.ChangeInfo)
 
+		// Authentication endpoints
+		customAuth.POST("/auth/logout", methods.Logout)
+
 		// Business operations
 		// ===========================================
 		// SYSTEMS - Hybrid approach

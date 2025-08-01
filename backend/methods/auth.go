@@ -11,9 +11,11 @@ package methods
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/jwt"
@@ -661,6 +663,83 @@ func ChangeInfo(c *gin.Context) {
 		"profile updated successfully",
 		gin.H{
 			"updated_fields": changedFields,
+		},
+	))
+}
+
+// Logout invalidates the current JWT token by adding it to the blacklist
+// POST /api/auth/logout
+func Logout(c *gin.Context) {
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Extract token from Authorization header
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		logger.RequestLogger(c, "auth").Warn().
+			Str("operation", "logout").
+			Str("user_id", user.ID).
+			Msg("Logout called without authorization header")
+		c.JSON(http.StatusBadRequest, response.BadRequest("authorization header required", nil))
+		return
+	}
+
+	// Check Bearer prefix and extract token
+	const bearerPrefix = "Bearer "
+	if !strings.HasPrefix(authHeader, bearerPrefix) {
+		logger.RequestLogger(c, "auth").Warn().
+			Str("operation", "logout").
+			Str("user_id", user.ID).
+			Msg("Invalid authorization header format for logout")
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid authorization header format", nil))
+		return
+	}
+
+	tokenString := authHeader[len(bearerPrefix):]
+	if tokenString == "" {
+		logger.RequestLogger(c, "auth").Warn().
+			Str("operation", "logout").
+			Str("user_id", user.ID).
+			Msg("Empty token provided for logout")
+		c.JSON(http.StatusBadRequest, response.BadRequest("token not provided", nil))
+		return
+	}
+
+	// Get blacklist service
+	blacklist := cache.GetTokenBlacklist()
+
+	// Blacklist the current token
+	err := blacklist.BlacklistToken(tokenString, "user logout")
+	if err != nil {
+		logger.RequestLogger(c, "auth").Error().
+			Err(err).
+			Str("operation", "logout").
+			Str("user_id", user.ID).
+			Msg("Failed to blacklist token during logout")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError(
+			"logout failed",
+			map[string]interface{}{
+				"error": err.Error(),
+			},
+		))
+		return
+	}
+
+	// Log successful logout
+	logger.RequestLogger(c, "auth").Info().
+		Str("operation", "logout_success").
+		Str("user_id", user.ID).
+		Str("username", user.Username).
+		Msg("User successfully logged out and token blacklisted")
+
+	c.JSON(http.StatusOK, response.OK(
+		"logout successful",
+		gin.H{
+			"message": "token has been invalidated",
 		},
 	))
 }

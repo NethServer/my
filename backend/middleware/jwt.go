@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/jwt"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/response"
@@ -60,6 +61,29 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		// Check token blacklist before validation
+		blacklist := cache.GetTokenBlacklist()
+		isBlacklisted, blacklistReason, blacklistErr := blacklist.IsTokenBlacklisted(tokenString)
+		if blacklistErr != nil {
+			logger.RequestLogger(c, "auth").Warn().
+				Err(blacklistErr).
+				Str("operation", "blacklist_check_failed").
+				Str("client_ip", c.ClientIP()).
+				Msg("Failed to check token blacklist - allowing request")
+			// Continue with token validation if blacklist check fails (fail open)
+		} else if isBlacklisted {
+			logger.RequestLogger(c, "auth").Warn().
+				Str("operation", "blacklisted_token_rejected").
+				Str("client_ip", c.ClientIP()).
+				Str("blacklist_reason", blacklistReason).
+				Msg("Blacklisted token rejected")
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("token has been revoked", gin.H{
+				"reason": blacklistReason,
+			}))
+			c.Abort()
+			return
+		}
+
 		// Validate token
 		claims, err := jwt.ValidateCustomToken(tokenString)
 		if err != nil {
@@ -69,7 +93,31 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 				Str("client_ip", c.ClientIP()).
 				Str("error_type", "jwt_validation").
 				Msg("Custom JWT token validation failed")
-			c.JSON(http.StatusUnauthorized, response.Unauthorized("invalid token: "+err.Error(), nil))
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("invalid token", nil))
+			c.Abort()
+			return
+		}
+
+		// Check user-level blacklist after token validation
+		isUserBlacklisted, userBlacklistReason, userBlacklistErr := blacklist.IsUserBlacklisted(claims.User.ID)
+		if userBlacklistErr != nil {
+			logger.RequestLogger(c, "auth").Warn().
+				Err(userBlacklistErr).
+				Str("operation", "user_blacklist_check_failed").
+				Str("user_id", claims.User.ID).
+				Str("client_ip", c.ClientIP()).
+				Msg("Failed to check user blacklist - allowing request")
+			// Continue if user blacklist check fails (fail open)
+		} else if isUserBlacklisted {
+			logger.RequestLogger(c, "auth").Warn().
+				Str("operation", "blacklisted_user_rejected").
+				Str("user_id", claims.User.ID).
+				Str("client_ip", c.ClientIP()).
+				Str("blacklist_reason", userBlacklistReason).
+				Msg("Request from blacklisted user rejected")
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("user account has been suspended", gin.H{
+				"reason": userBlacklistReason,
+			}))
 			c.Abort()
 			return
 		}
