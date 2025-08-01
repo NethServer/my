@@ -8,7 +8,7 @@ import { NeInlineNotification } from '@nethesis/vue-components'
 import { NeModal } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
-import { deleteCustomer, type Customer } from '@/lib/customers'
+import { CUSTOMERS_KEY, CUSTOMERS_TOTAL_KEY, deleteCustomer, type Customer } from '@/lib/customers'
 import { useNotificationsStore } from '@/stores/notifications'
 
 const { visible = false, customer = undefined } = defineProps<{
@@ -48,8 +48,10 @@ const {
   onError: (error) => {
     console.error('Error deleting customer:', error)
   },
-
-  onSettled: () => queryCache.invalidateQueries({ key: ['customers'] }),
+  onSettled: () => {
+    queryCache.invalidateQueries({ key: [CUSTOMERS_KEY] })
+    queryCache.invalidateQueries({ key: [CUSTOMERS_TOTAL_KEY] })
+  },
 })
 
 function onShow() {

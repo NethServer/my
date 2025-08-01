@@ -4,25 +4,23 @@
 -->
 
 <script setup lang="ts">
-import OrganizationRoleBadge from '@/components/OrganizationRoleBadge.vue'
+import CustomersCounterCard from '@/components/dashboard/CustomersCounterCard.vue'
+import DistributorsCounterCard from '@/components/dashboard/DistributorsCounterCard.vue'
+import ResellersCounterCard from '@/components/dashboard/ResellersCounterCard.vue'
+import UsersCounterCard from '@/components/dashboard/UsersCounterCard.vue'
 import {
   getThirdPartyApps,
   getThirdPartyAppIcon,
   getThirdPartyAppDescription,
   openThirdPartyApp,
+  THIRD_PARTY_APPS_KEY,
 } from '@/lib/thirdPartyApps'
 import { useLoginStore } from '@/stores/login'
-import {
-  faArrowUpRightFromSquare,
-  faCrown,
-  faGraduationCap,
-  faHeadset,
-  faShop,
-  faWarehouse,
-} from '@fortawesome/free-solid-svg-icons'
+import { faArrowUpRightFromSquare, faCrown } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   NeAvatar,
+  NeBadge,
   NeButton,
   NeCard,
   NeHeading,
@@ -33,7 +31,7 @@ import { useQuery } from '@pinia/colada'
 
 const loginStore = useLoginStore()
 const { state: thirdPartyApps } = useQuery({
-  key: ['thirdPartyApps'],
+  key: [THIRD_PARTY_APPS_KEY],
   enabled: () => !!loginStore.jwtToken,
   query: getThirdPartyApps,
 })
@@ -45,7 +43,7 @@ const { state: thirdPartyApps } = useQuery({
     <div class="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">
       <!-- logged user -->
       <NeCard>
-        <div class="flex items-start gap-5">
+        <div class="flex items-center gap-5 text-xs">
           <!-- owner avatar -->
           <NeAvatar v-if="loginStore.isOwner" size="lg" aria-hidden="true">
             <template #placeholder>
@@ -63,124 +61,46 @@ const { state: thirdPartyApps } = useQuery({
           </template>
           <template v-else>
             <div class="flex flex-col gap-2">
+              <span class="text-gray-600 uppercase dark:text-gray-300">
+                {{ loginStore.userInfo?.organization_name }}
+              </span>
               <NeHeading tag="h5">
-                {{ $t('dashboard.welcome_user', { user: loginStore.userDisplayName }) }}
+                {{ $t('dashboard.hello_user', { user: loginStore.userDisplayName }) }}
               </NeHeading>
-              <OrganizationRoleBadge />
+              <div class="flex flex-wrap gap-1">
+                <NeBadge
+                  v-for="role in loginStore.userInfo?.user_roles.sort()"
+                  :key="role"
+                  :text="$t(`user_roles.${role}`)"
+                  kind="custom"
+                  customColorClasses="bg-indigo-100 text-indigo-800 dark:bg-indigo-700 dark:text-indigo-100"
+                  class="inline-block"
+                ></NeBadge>
+              </div>
             </div>
           </template>
         </div>
       </NeCard>
-      <!-- //// improve spacing grid -->
-      <!-- spacing -->
-      <div class="hidden sm:block"></div>
-      <div class="hidden 2xl:block"></div>
-      <div class="hidden 2xl:block"></div>
-      <!-- //// remove static cards -->
-      <!-- warehouse -->
-      <NeCard>
-        <div class="flex h-full flex-col justify-between gap-4">
-          <div class="flex flex-col items-start gap-3">
-            <div class="flex items-center gap-3">
-              <NeRoundedIcon
-                :customIcon="faWarehouse"
-                customBackgroundClasses="bg-indigo-100 dark:bg-indigo-800"
-                customForegroundClasses="text-indigo-700 dark:text-indigo-50"
-              />
-              <NeHeading tag="h6">
-                {{ $t('dashboard.warehouse') }}
-              </NeHeading>
-            </div>
-            <p>
-              {{ $t('dashboard.warehouse_description') }}
-            </p>
-          </div>
-          <NeButton kind="secondary" disabled class="bottom-5 self-end">
-            <template #prefix>
-              <FontAwesomeIcon :icon="faArrowUpRightFromSquare" aria-hidden="true" />
-            </template>
-            {{ $t('common.coming_soon') }}
-          </NeButton>
-        </div>
-      </NeCard>
-      <!-- nethshop -->
-      <NeCard>
-        <div class="flex h-full flex-col justify-between gap-4">
-          <div class="flex flex-col items-start gap-3">
-            <div class="flex items-center gap-3">
-              <NeRoundedIcon
-                :customIcon="faShop"
-                customBackgroundClasses="bg-indigo-100 dark:bg-indigo-800"
-                customForegroundClasses="text-indigo-700 dark:text-indigo-50"
-              />
-              <NeHeading tag="h6">
-                {{ $t('dashboard.nethshop') }}
-              </NeHeading>
-            </div>
-            <p>
-              {{ $t('dashboard.nethshop_description') }}
-            </p>
-          </div>
-          <NeButton kind="secondary" disabled class="self-end">
-            <template #prefix>
-              <FontAwesomeIcon :icon="faArrowUpRightFromSquare" aria-hidden="true" />
-            </template>
-            {{ $t('common.coming_soon') }}
-          </NeButton>
-        </div>
-      </NeCard>
-      <!-- helpdesk -->
-      <NeCard>
-        <div class="flex h-full flex-col justify-between gap-4">
-          <div class="flex flex-col items-start gap-3">
-            <div class="flex items-center gap-3">
-              <NeRoundedIcon
-                :customIcon="faHeadset"
-                customBackgroundClasses="bg-indigo-100 dark:bg-indigo-800"
-                customForegroundClasses="text-indigo-700 dark:text-indigo-50"
-              />
-              <NeHeading tag="h6">
-                {{ $t('dashboard.helpdesk') }}
-              </NeHeading>
-            </div>
-            <p>
-              {{ $t('dashboard.helpdesk_description') }}
-            </p>
-          </div>
-          <NeButton kind="secondary" disabled class="self-end">
-            <template #prefix>
-              <FontAwesomeIcon :icon="faArrowUpRightFromSquare" aria-hidden="true" />
-            </template>
-            {{ $t('common.coming_soon') }}
-          </NeButton>
-        </div>
-      </NeCard>
-      <!-- training portal -->
-      <NeCard>
-        <div class="flex h-full flex-col justify-between gap-4">
-          <div class="flex flex-col items-start gap-3">
-            <div class="flex items-center gap-3">
-              <NeRoundedIcon
-                :customIcon="faGraduationCap"
-                customBackgroundClasses="bg-indigo-100 dark:bg-indigo-800"
-                customForegroundClasses="text-indigo-700 dark:text-indigo-50"
-              />
-              <NeHeading tag="h6">
-                {{ $t('dashboard.training_portal') }}
-              </NeHeading>
-            </div>
-            <p>
-              {{ $t('dashboard.training_portal_description') }}
-            </p>
-          </div>
-          <NeButton kind="secondary" disabled class="self-end">
-            <template #prefix>
-              <FontAwesomeIcon :icon="faArrowUpRightFromSquare" aria-hidden="true" />
-            </template>
-            {{ $t('common.coming_soon') }}
-          </NeButton>
-        </div>
-      </NeCard>
+      <!-- organizations and users counters -->
+      <template v-if="!loginStore.userInfo">
+        <NeCard v-for="i in 2" :key="i">
+          <NeSkeleton :lines="2" class="w-full" />
+        </NeCard>
+      </template>
+      <template v-else>
+        <DistributorsCounterCard v-if="loginStore.userInfo.org_role === 'Owner'" />
+        <ResellersCounterCard
+          v-if="['Owner', 'Distributor'].includes(loginStore.userInfo.org_role)"
+        />
+        <CustomersCounterCard
+          v-if="['Owner', 'Distributor', 'Reseller'].includes(loginStore.userInfo.org_role)"
+        />
+        <UsersCounterCard
+          v-if="loginStore.userInfo.user_roles && loginStore.userInfo.user_roles.includes('Admin')"
+        />
+      </template>
+    </div>
+    <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">
       <!-- loading third party apps -->
       <template v-if="thirdPartyApps.status === 'pending'">
         <NeCard v-for="i in 4" :key="i">
@@ -207,11 +127,17 @@ const { state: thirdPartyApps } = useQuery({
               {{ $t(getThirdPartyAppDescription(thirdPartyApp)) }}
             </p>
           </div>
-          <NeButton kind="secondary" class="self-end" @click="openThirdPartyApp(thirdPartyApp)">
+          <NeButton
+            kind="secondary"
+            disabled
+            class="self-end"
+            @click="openThirdPartyApp(thirdPartyApp)"
+          >
             <template #prefix>
               <FontAwesomeIcon :icon="faArrowUpRightFromSquare" aria-hidden="true" />
             </template>
-            {{ $t('common.open_page', { page: thirdPartyApp.branding.display_name }) }}
+            {{ $t('common.coming_soon') }}
+            <!-- {{ $t('common.open_page', { page: thirdPartyApp.branding.display_name }) }} //// -->
           </NeButton>
         </div>
       </NeCard>

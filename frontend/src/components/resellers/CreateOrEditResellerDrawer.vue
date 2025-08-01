@@ -14,6 +14,8 @@ import {
 import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import {
   CreateResellerSchema,
+  RESELLERS_KEY,
+  RESELLERS_TOTAL_KEY,
   ResellerSchema,
   postReseller,
   putReseller,
@@ -63,10 +65,12 @@ const {
   },
   onError: (error) => {
     console.error('Error creating reseller:', error)
-    validationIssues.value = getValidationIssues(error as AxiosError, 'resellers')
+    validationIssues.value = getValidationIssues(error as AxiosError, 'organizations')
   },
-
-  onSettled: () => queryCache.invalidateQueries({ key: ['resellers'] }),
+  onSettled: () => {
+    queryCache.invalidateQueries({ key: [RESELLERS_KEY] })
+    queryCache.invalidateQueries({ key: [RESELLERS_TOTAL_KEY] })
+  },
 })
 
 const {
@@ -95,19 +99,21 @@ const {
   onError: (error) => {
     console.error('Error editing reseller:', error)
   },
-
-  onSettled: () => queryCache.invalidateQueries({ key: ['resellers'] }),
+  onSettled: () => queryCache.invalidateQueries({ key: [RESELLERS_KEY] }),
 })
 
 const name = ref('')
 const nameRef = useTemplateRef<HTMLInputElement>('nameRef')
 const description = ref('')
 const descriptionRef = useTemplateRef<HTMLInputElement>('descriptionRef')
+const vatNumber = ref('')
+const vatNumberRef = useTemplateRef<HTMLInputElement>('vatNumberRef')
 const validationIssues = ref<Record<string, string[]>>({})
 
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
   name: nameRef,
   description: descriptionRef,
+  custom_data_vat: vatNumberRef,
 }
 
 const saving = computed(() => {
@@ -125,12 +131,12 @@ watch(
         // editing reseller
         name.value = currentReseller.name
         description.value = currentReseller.description || ''
-        ////
+        vatNumber.value = currentReseller.custom_data?.vat || ''
       } else {
         // creating reseller, reset form to defaults
         name.value = ''
         description.value = ''
-        ////
+        vatNumber.value = ''
       }
     }
   },
@@ -148,16 +154,24 @@ function clearErrors() {
 
 function validateCreate(reseller: CreateReseller): boolean {
   validationIssues.value = {}
-  const validation = v.safeParse(CreateResellerSchema, reseller)
+  const validation = v.safeParse(CreateResellerSchema, reseller) ////
+  // const validation = { success: true } //// remove
 
   if (validation.success) {
     // no validation issues
     return true
   } else {
-    const issues = v.flatten(validation.issues)
+    const flattenedIssues = v.flatten(validation.issues)
 
-    if (issues.nested) {
-      validationIssues.value = issues.nested as Record<string, string[]>
+    if (flattenedIssues.nested) {
+      const issues: Record<string, string[]> = {}
+
+      for (const key in flattenedIssues.nested) {
+        // replace dots with underscores for i18n key
+        const newKey = key.replace(/\./g, '_')
+        issues[newKey] = flattenedIssues.nested[key] ?? []
+      }
+      validationIssues.value = issues
 
       // focus the first field with error
 
@@ -173,16 +187,24 @@ function validateCreate(reseller: CreateReseller): boolean {
 
 function validateEdit(reseller: Reseller): boolean {
   validationIssues.value = {}
-  const validation = v.safeParse(ResellerSchema, reseller)
+  const validation = v.safeParse(ResellerSchema, reseller) ////
+  // const validation = { success: true } //// remove
 
   if (validation.success) {
     // no validation issues
     return true
   } else {
-    const issues = v.flatten(validation.issues)
+    const flattenedIssues = v.flatten(validation.issues)
 
-    if (issues.nested) {
-      validationIssues.value = issues.nested as Record<string, string[]>
+    if (flattenedIssues.nested) {
+      const issues: Record<string, string[]> = {}
+
+      for (const key in flattenedIssues.nested) {
+        // replace dots with underscores for i18n key
+        const newKey = key.replace(/\./g, '_')
+        issues[newKey] = flattenedIssues.nested[key] ?? []
+      }
+      validationIssues.value = issues
 
       // focus the first field with error
 
@@ -202,31 +224,34 @@ async function saveReseller() {
   const reseller = {
     name: name.value,
     description: description.value,
+    custom_data: {
+      vat: vatNumber.value,
+    },
   }
 
   if (currentReseller?.id) {
     // editing reseller
 
-    const userToEdit: Reseller = {
+    const resellerToEdit: Reseller = {
       ...reseller,
       id: currentReseller.id,
     }
 
-    const isValidationOk = validateEdit(userToEdit)
+    const isValidationOk = validateEdit(resellerToEdit)
     if (!isValidationOk) {
       return
     }
-    editResellerMutate(userToEdit)
+    editResellerMutate(resellerToEdit)
   } else {
     // creating reseller
 
-    const userToCreate: CreateReseller = reseller
+    const resellerToCreate: CreateReseller = reseller
 
-    const isValidationOk = validateCreate(userToCreate)
+    const isValidationOk = validateCreate(resellerToCreate)
     if (!isValidationOk) {
       return
     }
-    createResellerMutate(userToCreate)
+    createResellerMutate(resellerToCreate)
   }
 }
 </script>
@@ -244,7 +269,7 @@ async function saveReseller() {
         <NeTextInput
           ref="nameRef"
           v-model.trim="name"
-          :label="$t('resellers.name')"
+          :label="$t('organizations.name')"
           :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
           :disabled="saving"
         />
@@ -252,11 +277,22 @@ async function saveReseller() {
         <NeTextInput
           ref="descriptionRef"
           v-model.trim="description"
-          :label="$t('resellers.description')"
+          :label="$t('organizations.description')"
           :invalid-message="
             validationIssues.description?.[0] ? $t(validationIssues.description[0]) : ''
           "
           :disabled="saving"
+        />
+        <!-- VAT number -->
+        <NeTextInput
+          ref="vatNumberRef"
+          v-model.trim="vatNumber"
+          :label="$t('organizations.vat_number')"
+          :invalid-message="
+            validationIssues.custom_data_vat?.[0] ? $t(validationIssues.custom_data_vat[0]) : ''
+          "
+          :disabled="saving"
+          maxlength="11"
         />
         <!-- create reseller error notification -->
         <NeInlineNotification

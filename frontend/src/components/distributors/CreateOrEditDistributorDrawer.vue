@@ -14,6 +14,8 @@ import {
 import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import {
   CreateDistributorSchema,
+  DISTRIBUTORS_KEY,
+  DISTRIBUTORS_TOTAL_KEY,
   DistributorSchema,
   postDistributor,
   putDistributor,
@@ -63,10 +65,12 @@ const {
   },
   onError: (error) => {
     console.error('Error creating distributor:', error)
-    validationIssues.value = getValidationIssues(error as AxiosError, 'distributors')
+    validationIssues.value = getValidationIssues(error as AxiosError, 'organizations')
   },
-
-  onSettled: () => queryCache.invalidateQueries({ key: ['distributors'] }),
+  onSettled: () => {
+    queryCache.invalidateQueries({ key: [DISTRIBUTORS_KEY] })
+    queryCache.invalidateQueries({ key: [DISTRIBUTORS_TOTAL_KEY] })
+  },
 })
 
 const {
@@ -95,21 +99,23 @@ const {
   onError: (error) => {
     console.error('Error editing distributor:', error)
   },
-
-  onSettled: () => queryCache.invalidateQueries({ key: ['distributors'] }),
+  onSettled: () => {
+    queryCache.invalidateQueries({ key: [DISTRIBUTORS_KEY] })
+  },
 })
 
 const name = ref('')
 const nameRef = useTemplateRef<HTMLInputElement>('nameRef')
 const description = ref('')
 const descriptionRef = useTemplateRef<HTMLInputElement>('descriptionRef')
-//// other fields
+const vatNumber = ref('')
+const vatNumberRef = useTemplateRef<HTMLInputElement>('vatNumberRef')
 const validationIssues = ref<Record<string, string[]>>({})
 
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
   name: nameRef,
   description: descriptionRef,
-  //// other fields
+  custom_data_vat: vatNumberRef,
 }
 
 const saving = computed(() => {
@@ -127,12 +133,12 @@ watch(
         // editing distributor
         name.value = currentDistributor.name
         description.value = currentDistributor.description || ''
-        ////
+        vatNumber.value = currentDistributor.custom_data?.vat || ''
       } else {
         // creating distributor, reset form to defaults
         name.value = ''
         description.value = ''
-        ////
+        vatNumber.value = ''
       }
     }
   },
@@ -150,20 +156,27 @@ function clearErrors() {
 
 function validateCreate(distributor: CreateDistributor): boolean {
   validationIssues.value = {}
-  const validation = v.safeParse(CreateDistributorSchema, distributor)
+  const validation = v.safeParse(CreateDistributorSchema, distributor) ////
+  // const validation = { success: true } //// remove
 
   if (validation.success) {
     // no validation issues
     return true
   } else {
-    const issues = v.flatten(validation.issues)
+    const flattenedIssues = v.flatten(validation.issues)
 
-    if (issues.nested) {
-      validationIssues.value = issues.nested as Record<string, string[]>
+    if (flattenedIssues.nested) {
+      const issues: Record<string, string[]> = {}
 
-      console.log('validationIssues', validationIssues.value) ////
+      for (const key in flattenedIssues.nested) {
+        // replace dots with underscores for i18n key
+        const newKey = key.replace(/\./g, '_')
+        issues[newKey] = flattenedIssues.nested[key] ?? []
+      }
+      validationIssues.value = issues
 
       // focus the first field with error
+
       const firstErrorFieldName = Object.keys(validationIssues.value)[0]
 
       console.log('firstFieldName', firstErrorFieldName) ////
@@ -182,10 +195,17 @@ function validateEdit(distributor: Distributor): boolean {
     // no validation issues
     return true
   } else {
-    const issues = v.flatten(validation.issues)
+    const flattenedIssues = v.flatten(validation.issues)
 
-    if (issues.nested) {
-      validationIssues.value = issues.nested as Record<string, string[]>
+    if (flattenedIssues.nested) {
+      const issues: Record<string, string[]> = {}
+
+      for (const key in flattenedIssues.nested) {
+        // replace dots with underscores for i18n key
+        const newKey = key.replace(/\./g, '_')
+        issues[newKey] = flattenedIssues.nested[key] ?? []
+      }
+      validationIssues.value = issues
 
       // focus the first field with error
 
@@ -193,7 +213,7 @@ function validateEdit(distributor: Distributor): boolean {
 
       console.log('firstFieldName', firstErrorFieldName) ////
 
-      fieldRefs[firstErrorFieldName].value?.focus()
+      fieldRefs[firstErrorFieldName]?.value?.focus()
     }
     return false
   }
@@ -205,6 +225,9 @@ async function saveDistributor() {
   const distributor = {
     name: name.value,
     description: description.value,
+    custom_data: {
+      vat: vatNumber.value,
+    },
   }
 
   if (currentDistributor?.id) {
@@ -250,7 +273,7 @@ async function saveDistributor() {
         <NeTextInput
           ref="nameRef"
           v-model.trim="name"
-          :label="$t('distributors.name')"
+          :label="$t('organizations.name')"
           :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
           :disabled="saving"
         />
@@ -258,11 +281,22 @@ async function saveDistributor() {
         <NeTextInput
           ref="descriptionRef"
           v-model.trim="description"
-          :label="$t('distributors.description')"
+          :label="$t('organizations.description')"
           :invalid-message="
             validationIssues.description?.[0] ? $t(validationIssues.description[0]) : ''
           "
           :disabled="saving"
+        />
+        <!-- VAT number -->
+        <NeTextInput
+          ref="vatNumberRef"
+          v-model.trim="vatNumber"
+          :label="$t('organizations.vat_number')"
+          :invalid-message="
+            validationIssues.custom_data_vat?.[0] ? $t(validationIssues.custom_data_vat[0]) : ''
+          "
+          :disabled="saving"
+          maxlength="11"
         />
         <!-- create distributor error notification -->
         <NeInlineNotification

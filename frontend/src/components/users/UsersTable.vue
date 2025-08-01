@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { getUsers, searchStringInUser, type User } from '@/lib/users'
+import { searchStringInUser, type User } from '@/lib/users'
 import { useLoginStore } from '@/stores/login'
 import {
   faCircleInfo,
@@ -36,7 +36,6 @@ import {
   NeBadge,
   sortByProperty,
 } from '@nethesis/vue-components'
-import { useQuery } from '@pinia/colada'
 import { computed, ref, watch } from 'vue'
 import CreateOrEditUserDrawer from './CreateOrEditUserDrawer.vue'
 import { useI18n } from 'vue-i18n'
@@ -44,6 +43,8 @@ import DeleteUserModal from './DeleteUserModal.vue'
 import { loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageSize'
 import ResetPasswordModal from './ResetPasswordModal.vue'
 import PasswordChangedModal from './PasswordChangedModal.vue'
+import { useUsers } from '@/queries/users'
+import { canManageUsers } from '@/lib/permissions'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -53,11 +54,7 @@ const emit = defineEmits(['close-drawer'])
 
 const { t } = useI18n()
 const loginStore = useLoginStore()
-const { state: users, asyncStatus: usersAsyncStatus } = useQuery({
-  key: ['users'],
-  enabled: () => !!loginStore.jwtToken,
-  query: getUsers,
-})
+const { users, usersAsyncStatus } = useUsers()
 
 const currentUser = ref<User | undefined>()
 const textFilter = ref('')
@@ -271,7 +268,13 @@ const onClosePasswordChangedModal = () => {
               class="bg-white dark:bg-gray-950"
             >
               <!-- create user -->
-              <NeButton kind="secondary" size="lg" class="shrink-0" @click="showCreateUserDrawer()">
+              <NeButton
+                v-if="canManageUsers()"
+                kind="secondary"
+                size="lg"
+                class="shrink-0"
+                @click="showCreateUserDrawer()"
+              >
                 <template #prefix>
                   <FontAwesomeIcon :icon="faCirclePlus" aria-hidden="true" />
                 </template>
@@ -318,7 +321,7 @@ const onClosePasswordChangedModal = () => {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+            <div v-if="canManageUsers()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
               <NeButton
                 kind="tertiary"
                 @click="showEditUserDrawer(item)"

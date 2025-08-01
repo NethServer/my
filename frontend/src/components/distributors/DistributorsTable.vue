@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { getDistributors, searchStringInDistributor, type Distributor } from '@/lib/distributors'
+import { searchStringInDistributor, type Distributor } from '@/lib/distributors'
 import { useLoginStore } from '@/stores/login'
 import {
   faCircleInfo,
@@ -33,12 +33,13 @@ import {
   type SortEvent,
   NeSortDropdown,
 } from '@nethesis/vue-components'
-import { useQuery } from '@pinia/colada'
 import { computed, ref, watch } from 'vue'
 import CreateOrEditDistributorDrawer from './CreateOrEditDistributorDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteDistributorModal from './DeleteDistributorModal.vue'
 import { loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageSize'
+import { useDistributors } from '@/queries/distributors'
+import { canManageDistributors } from '@/lib/permissions'
 
 const { isShownCreateDistributorDrawer = false } = defineProps<{
   isShownCreateDistributorDrawer: boolean
@@ -48,11 +49,7 @@ const emit = defineEmits(['close-drawer'])
 
 const { t } = useI18n()
 const loginStore = useLoginStore()
-const { state: distributors, asyncStatus: distributorsAsyncStatus } = useQuery({
-  key: ['distributors'],
-  enabled: () => !!loginStore.jwtToken,
-  query: getDistributors,
-})
+const { distributors, distributorsAsyncStatus } = useDistributors()
 
 const currentDistributor = ref<Distributor | undefined>()
 const textFilter = ref('')
@@ -174,8 +171,8 @@ const onSort = (payload: SortEvent) => {
             v-model:sort-descending="sortDescending"
             :label="t('sort.sort')"
             :options="[
-              { id: 'name', label: t('distributors.name') },
-              { id: 'description', label: t('distributors.description') },
+              { id: 'name', label: t('organizations.name') },
+              { id: 'description', label: t('organizations.description') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
             :sort-by-label="t('sort.sort_by')"
@@ -209,10 +206,10 @@ const onSort = (payload: SortEvent) => {
     >
       <NeTableHead>
         <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
-          $t('distributors.name')
+          $t('organizations.name')
         }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="description" @sort="onSort">{{
-          $t('distributors.description')
+          $t('organizations.description')
         }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- no header for actions -->
@@ -229,6 +226,7 @@ const onSort = (payload: SortEvent) => {
             >
               <!-- create distributor -->
               <NeButton
+                v-if="canManageDistributors()"
                 kind="secondary"
                 size="lg"
                 class="shrink-0"
@@ -258,14 +256,14 @@ const onSort = (payload: SortEvent) => {
           </NeTableCell>
         </NeTableRow>
         <NeTableRow v-for="(item, index) in paginatedItems" v-else :key="index">
-          <NeTableCell :data-label="$t('distributors.name')">
+          <NeTableCell :data-label="$t('organizations.name')">
             {{ item.name }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('distributors.description')">
+          <NeTableCell :data-label="$t('organizations.description')">
             {{ item.description || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+            <div v-if="canManageDistributors()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
               <NeButton
                 kind="tertiary"
                 @click="showEditDistributorDrawer(item)"

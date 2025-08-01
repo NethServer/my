@@ -9,6 +9,7 @@ import UsersTable from '@/components/users/UsersTable.vue'
 import { ref } from 'vue'
 import { faCirclePlus } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { PRODUCT_NAME } from '@/lib/config'
 
 const isShownCreateUserDrawer = ref(false)
 </script>
@@ -18,7 +19,7 @@ const isShownCreateUserDrawer = ref(false)
     <NeHeading tag="h3" class="mb-7">{{ $t('users.title') }}</NeHeading>
     <div class="mb-8 flex flex-col items-start justify-between gap-6 xl:flex-row">
       <div class="max-w-2xl text-gray-500 dark:text-gray-400">
-        {{ $t('users.page_description') }}
+        {{ $t('users.page_description', { productName: PRODUCT_NAME }) }}
       </div>
       <!-- create user -->
       <NeButton kind="secondary" size="lg" class="shrink-0" @click="isShownCreateUserDrawer = true">

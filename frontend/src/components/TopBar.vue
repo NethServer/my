@@ -22,7 +22,6 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useI18n } from 'vue-i18n'
 import { useNotificationsStore } from '@/stores/notifications'
 import router from '@/router'
-import OrganizationRoleBadge from './OrganizationRoleBadge.vue'
 
 const emit = defineEmits(['openSidebar'])
 
@@ -217,7 +216,6 @@ function openNotificationsDrawer() {
                     <div class="mb-1 text-gray-500 dark:text-gray-400">
                       {{ loginStore.userInfo?.email }}
                     </div>
-                    <OrganizationRoleBadge />
                   </div>
                 </div>
                 <hr class="my-1" />

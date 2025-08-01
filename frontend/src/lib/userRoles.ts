@@ -11,6 +11,8 @@ export type UserRole = {
   description: string
 }
 
+export const USER_ROLES_KEY = 'userRoles'
+
 export const getUserRoles = () => {
   const loginStore = useLoginStore()
 

@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { getCustomers, searchStringInCustomer, type Customer } from '@/lib/customers'
+import { searchStringInCustomer, type Customer } from '@/lib/customers'
 import { useLoginStore } from '@/stores/login'
 import {
   faCircleInfo,
@@ -33,12 +33,13 @@ import {
   type SortEvent,
   NeSortDropdown,
 } from '@nethesis/vue-components'
-import { useQuery } from '@pinia/colada'
 import { computed, ref, watch } from 'vue'
 import CreateOrEditCustomerDrawer from './CreateOrEditCustomerDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteCustomerModal from './DeleteCustomerModal.vue'
 import { loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageSize'
+import { useCustomers } from '@/queries/customers'
+import { canManageCustomers } from '@/lib/permissions'
 
 const { isShownCreateCustomerDrawer = false } = defineProps<{
   isShownCreateCustomerDrawer: boolean
@@ -48,11 +49,7 @@ const emit = defineEmits(['close-drawer'])
 
 const { t } = useI18n()
 const loginStore = useLoginStore()
-const { state: customers, asyncStatus: customersAsyncStatus } = useQuery({
-  key: ['customers'],
-  enabled: () => !!loginStore.jwtToken,
-  query: getCustomers,
-})
+const { customers, customersAsyncStatus } = useCustomers()
 
 const currentCustomer = ref<Customer | undefined>()
 const textFilter = ref('')
@@ -173,8 +170,8 @@ const onSort = (payload: SortEvent) => {
             v-model:sort-descending="sortDescending"
             :label="t('sort.sort')"
             :options="[
-              { id: 'name', label: t('customers.name') },
-              { id: 'description', label: t('customers.description') },
+              { id: 'name', label: t('organizations.name') },
+              { id: 'description', label: t('organizations.description') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
             :sort-by-label="t('sort.sort_by')"
@@ -209,10 +206,10 @@ const onSort = (payload: SortEvent) => {
     >
       <NeTableHead>
         <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
-          $t('customers.name')
+          $t('organizations.name')
         }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="description" @sort="onSort">{{
-          $t('customers.description')
+          $t('organizations.description')
         }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- no header for actions -->
@@ -229,6 +226,7 @@ const onSort = (payload: SortEvent) => {
             >
               <!-- create customer -->
               <NeButton
+                v-if="canManageCustomers()"
                 kind="secondary"
                 size="lg"
                 class="shrink-0"
@@ -258,14 +256,14 @@ const onSort = (payload: SortEvent) => {
           </NeTableCell>
         </NeTableRow>
         <NeTableRow v-for="(item, index) in paginatedItems" v-else :key="index">
-          <NeTableCell :data-label="$t('customers.name')">
+          <NeTableCell :data-label="$t('organizations.name')">
             {{ item.name }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('customers.description')">
+          <NeTableCell :data-label="$t('organizations.description')">
             {{ item.description || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+            <div v-if="canManageCustomers()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
               <NeButton
                 kind="tertiary"
                 @click="showEditCustomerDrawer(item)"

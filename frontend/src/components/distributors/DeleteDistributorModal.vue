@@ -8,7 +8,7 @@ import { NeInlineNotification } from '@nethesis/vue-components'
 import { NeModal } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
-import { deleteDistributor, type Distributor } from '@/lib/distributors'
+import { deleteDistributor, DISTRIBUTORS_KEY, type Distributor } from '@/lib/distributors'
 import { useNotificationsStore } from '@/stores/notifications'
 
 const { visible = false, distributor = undefined } = defineProps<{
@@ -48,8 +48,7 @@ const {
   onError: (error) => {
     console.error('Error deleting distributor:', error)
   },
-
-  onSettled: () => queryCache.invalidateQueries({ key: ['distributors'] }),
+  onSettled: () => queryCache.invalidateQueries({ key: [DISTRIBUTORS_KEY] }),
 })
 
 function onShow() {

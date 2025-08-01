@@ -22,7 +22,8 @@
         "streetsidesoftware.code-spell-checker",
         "bradlc.vscode-tailwindcss",
         "foxundermoon.shell-format",
-        "vitest.explorer"
+        "vitest.explorer",
+        "streetsidesoftware.code-spell-checker-italian"
       ]
     }
   }

@@ -10,28 +10,25 @@ import { faBuilding, faCity, faCrown, faGlobe, faQuestion } from '@fortawesome/f
 //// remove after implementing pagination
 export const paginationQueryString = '?page_size=100'
 
-//// check attributes
-export const BaseUserSchema = v.object({
+export const USERS_KEY = 'users'
+export const USERS_TOTAL_KEY = 'usersTotal'
+
+export const CreateUserSchema = v.object({
   email: v.pipe(v.string(), v.nonEmpty('users.email_required'), v.email('users.email_invalid')),
-  name: v.pipe(v.string(), v.nonEmpty('users.name_required')),
+  name: v.pipe(v.string(), v.nonEmpty('users.name_cannot_be_empty')),
   phone: v.optional(
     v.union([
       v.literal(''),
       v.pipe(v.string(), v.regex(/^\+?[\d\s\-\(\)]{7,20}$/, 'users.phone_invalid_format')),
     ]),
   ),
-  userRoleIds: v.optional(v.array(v.string())),
-  organizationId: v.pipe(v.string(), v.nonEmpty('users.organization_required')),
-  customData: v.optional(v.record(v.string(), v.string())),
-})
-
-export const CreateUserSchema = v.object({
-  ...BaseUserSchema.entries,
-  password: v.pipe(v.string(), v.minLength(12, 'users.password_min_length')),
+  user_role_ids: v.optional(v.array(v.string())),
+  organization_id: v.pipe(v.string(), v.nonEmpty('users.organization_required')),
+  custom_data: v.optional(v.record(v.string(), v.string())), //// use correct types
 })
 
 export const EditUserSchema = v.object({
-  ...BaseUserSchema.entries,
+  ...CreateUserSchema.entries,
   id: v.string(),
 })
 
@@ -96,6 +93,16 @@ export const deleteUser = (user: User) => {
   })
 }
 
+export const getUsersTotal = () => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .get(`${API_URL}/users/totals`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data.total as number)
+}
+
 export const resetPassword = (user: User, newPassword: string) => {
   const loginStore = useLoginStore()
 
@@ -128,8 +135,8 @@ export const searchStringInUser = (searchString: string, user: User): boolean =>
   // search in customData
   found = ['address', 'city', 'codiceFiscale', 'email', 'partitaIva', 'phone', 'region'].some(
     (attrName) => {
-      const attrValue = user.customData?.[
-        attrName as keyof NonNullable<User['customData']>
+      const attrValue = user.custom_data?.[
+        attrName as keyof NonNullable<User['custom_data']>
       ] as string
       return new RegExp(searchString, 'i').test(attrValue?.replace(regex, ''))
     },

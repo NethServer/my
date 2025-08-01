@@ -19,6 +19,8 @@ import {
   EditUserSchema,
   postUser,
   putUser,
+  USERS_KEY,
+  USERS_TOTAL_KEY,
   type CreateUser,
   type EditUser,
   type User,
@@ -31,8 +33,9 @@ import { getValidationIssues, isValidationError } from '../../lib/validation'
 import type { AxiosError } from 'axios'
 import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
-import { getOrganizations } from '@/lib/organizations'
-import { getUserRoles } from '@/lib/userRoles'
+import { getOrganizations, ORGANIZATIONS_KEY } from '@/lib/organizations'
+import { getUserRoles, USER_ROLES_KEY } from '@/lib/userRoles'
+import { PRODUCT_NAME } from '@/lib/config'
 
 const { isShown = false, currentUser = undefined } = defineProps<{
   isShown: boolean
@@ -46,12 +49,12 @@ const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
 const loginStore = useLoginStore()
 const { state: organizations } = useQuery({
-  key: ['organizations'],
+  key: [ORGANIZATIONS_KEY],
   enabled: () => !!loginStore.jwtToken && isShown,
   query: getOrganizations,
 })
 const { state: allUserRoles } = useQuery({
-  key: ['userRoles'],
+  key: [USER_ROLES_KEY],
   enabled: () => !!loginStore.jwtToken && isShown,
   query: getUserRoles,
 })
@@ -83,7 +86,10 @@ const {
     console.error('Error creating user:', error)
     validationIssues.value = getValidationIssues(error as AxiosError, 'users')
   },
-  onSettled: () => queryCache.invalidateQueries({ key: ['users'] }),
+  onSettled: () => {
+    queryCache.invalidateQueries({ key: [USERS_KEY] })
+    queryCache.invalidateQueries({ key: [USERS_TOTAL_KEY] })
+  },
 })
 
 const {
@@ -113,15 +119,13 @@ const {
     console.error('Error editing user:', error)
     validationIssues.value = getValidationIssues(error as AxiosError, 'users')
   },
-  onSettled: () => queryCache.invalidateQueries({ key: ['users'] }),
+  onSettled: () => queryCache.invalidateQueries({ key: [USERS_KEY] }),
 })
 
 const email = ref('')
 const emailRef = useTemplateRef<HTMLInputElement>('emailRef')
 const name = ref('')
 const nameRef = useTemplateRef<HTMLInputElement>('nameRef')
-const password = ref('')
-const passwordRef = useTemplateRef<HTMLInputElement>('passwordRef')
 const organizationId = ref('')
 const organizationIdRef = useTemplateRef<HTMLInputElement>('organizationIdRef')
 const userRoles: Ref<NeComboboxOption[]> = ref([])
@@ -133,7 +137,6 @@ const validationIssues = ref<Record<string, string[]>>({})
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
   email: emailRef,
   name: nameRef,
-  password: passwordRef,
   organizationId: organizationIdRef,
   userRoleIds: userRoleIdsRef,
   phone: phoneRef,
@@ -173,7 +176,6 @@ watch(
     if (isShown) {
       clearErrors()
       focusElement(nameRef)
-      password.value = ''
 
       if (currentUser) {
         // editing user
@@ -236,7 +238,8 @@ function clearErrors() {
 
 function validateCreate(user: CreateUser): boolean {
   validationIssues.value = {}
-  const validation = v.safeParse(CreateUserSchema, user)
+  const validation = v.safeParse(CreateUserSchema, user) //// uncomment
+  // const validation = { success: true } //// remove
 
   if (validation.success) {
     // no validation issues
@@ -292,10 +295,10 @@ async function saveUser() {
   const user = {
     email: email.value,
     name: name.value,
-    userRoleIds: userRoles.value.map((role) => role.id),
-    organizationId: organizationId.value,
+    user_role_ids: userRoles.value.map((role) => role.id),
+    organization_id: organizationId.value,
     phone: phone.value.replace(/[\+\s\.\-]/g, ''), // remove formatting characters from phone number
-    customData: {}, //// TODO
+    custom_data: {},
   }
 
   if (currentUser?.id) {
@@ -316,8 +319,6 @@ async function saveUser() {
 
     const userToCreate: CreateUser = {
       ...user,
-      email: email.value,
-      password: password.value,
     }
 
     const isValidationOk = validateCreate(userToCreate)
@@ -360,17 +361,6 @@ async function saveUser() {
           :invalid-message="validationIssues.email?.[0] ? $t(validationIssues.email[0]) : ''"
           :disabled="saving"
         />
-        <!-- password -->
-        <NeTextInput
-          v-if="!currentUser"
-          ref="passwordRef"
-          v-model="password"
-          is-password
-          auto-complete="new-password"
-          :label="$t('users.password')"
-          :invalid-message="validationIssues.password?.[0] ? $t(validationIssues.password[0]) : ''"
-          :disabled="saving"
-        />
         <!-- organization -->
         <NeCombobox
           ref="organizationIdRef"
@@ -381,7 +371,7 @@ async function saveUser() {
             organizations.status === 'pending' ? $t('common.loading') : $t('ne_combobox.choose')
           "
           :invalid-message="
-            validationIssues.organizationId?.[0] ? $t(validationIssues.organizationId[0]) : ''
+            validationIssues.organization_id?.[0] ? $t(validationIssues.organization_id[0]) : ''
           "
           :disabled="organizations.status === 'pending' || saving"
           :no-results-label="$t('ne_combobox.no_results')"
@@ -406,7 +396,7 @@ async function saveUser() {
           "
           multiple
           :invalid-message="
-            validationIssues.userRoleIds?.[0] ? $t(validationIssues.userRoleIds[0]) : ''
+            validationIssues.user_role_ids?.[0] ? $t(validationIssues.user_role_ids[0]) : ''
           "
           :showSelectedLabel="false"
           :disabled="allUserRoles.status === 'pending' || saving"
@@ -425,6 +415,12 @@ async function saveUser() {
           :label="$t('users.phone_number')"
           :invalid-message="validationIssues.phone?.[0] ? $t(validationIssues.phone[0]) : ''"
           :disabled="saving"
+        />
+        <!-- new user info -->
+        <NeInlineNotification
+          v-if="!currentUser"
+          kind="info"
+          :description="$t('users.user_email_description', { productName: PRODUCT_NAME })"
         />
         <!-- create user error notification -->
         <NeInlineNotification

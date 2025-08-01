@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { getResellers, searchStringInReseller, type Reseller } from '@/lib/resellers'
+import { searchStringInReseller, type Reseller } from '@/lib/resellers'
 import { useLoginStore } from '@/stores/login'
 import {
   faCircleInfo,
@@ -33,12 +33,13 @@ import {
   type SortEvent,
   NeSortDropdown,
 } from '@nethesis/vue-components'
-import { useQuery } from '@pinia/colada'
 import { computed, ref, watch } from 'vue'
 import CreateOrEditResellerDrawer from './CreateOrEditResellerDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteResellerModal from './DeleteResellerModal.vue'
 import { loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageSize'
+import { useResellers } from '@/queries/resellers'
+import { canManageResellers } from '@/lib/permissions'
 
 const { isShownCreateResellerDrawer = false } = defineProps<{
   isShownCreateResellerDrawer: boolean
@@ -48,11 +49,7 @@ const emit = defineEmits(['close-drawer'])
 
 const { t } = useI18n()
 const loginStore = useLoginStore()
-const { state: resellers, asyncStatus: resellersAsyncStatus } = useQuery({
-  key: ['resellers'],
-  enabled: () => !!loginStore.jwtToken,
-  query: getResellers,
-})
+const { resellers, resellersAsyncStatus } = useResellers()
 
 const currentReseller = ref<Reseller | undefined>()
 const textFilter = ref('')
@@ -174,8 +171,8 @@ const onSort = (payload: SortEvent) => {
             v-model:sort-descending="sortDescending"
             :label="t('sort.sort')"
             :options="[
-              { id: 'name', label: t('resellers.name') },
-              { id: 'description', label: t('resellers.description') },
+              { id: 'name', label: t('organizations.name') },
+              { id: 'description', label: t('organizations.description') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
             :sort-by-label="t('sort.sort_by')"
@@ -209,10 +206,10 @@ const onSort = (payload: SortEvent) => {
     >
       <NeTableHead>
         <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
-          $t('resellers.name')
+          $t('organizations.name')
         }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="description" @sort="onSort">{{
-          $t('resellers.description')
+          $t('organizations.description')
         }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- no header for actions -->
@@ -229,6 +226,7 @@ const onSort = (payload: SortEvent) => {
             >
               <!-- create reseller -->
               <NeButton
+                v-if="canManageResellers()"
                 kind="secondary"
                 size="lg"
                 class="shrink-0"
@@ -258,14 +256,14 @@ const onSort = (payload: SortEvent) => {
           </NeTableCell>
         </NeTableRow>
         <NeTableRow v-for="(item, index) in paginatedItems" v-else :key="index">
-          <NeTableCell :data-label="$t('resellers.name')">
+          <NeTableCell :data-label="$t('organizations.name')">
             {{ item.name }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('resellers.description')">
+          <NeTableCell :data-label="$t('organizations.description')">
             {{ item.description || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+            <div v-if="canManageResellers()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
               <NeButton
                 kind="tertiary"
                 @click="showEditResellerDrawer(item)"

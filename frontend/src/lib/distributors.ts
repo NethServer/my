@@ -7,11 +7,19 @@ import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 import { paginationQueryString } from './users'
 
-//// check attributes
+export const DISTRIBUTORS_KEY = 'distributors'
+export const DISTRIBUTORS_TOTAL_KEY = 'distributorsTotal'
+
 export const CreateDistributorSchema = v.object({
-  name: v.pipe(v.string(), v.nonEmpty('distributors.name_required')),
+  name: v.pipe(v.string(), v.nonEmpty('organizations.name_cannot_be_empty')),
   description: v.optional(v.string()),
-  customData: v.optional(v.record(v.string(), v.string())),
+  custom_data: v.object({
+    vat: v.pipe(
+      v.string(),
+      v.nonEmpty('organizations.custom_data_vat_cannot_be_empty'),
+      v.regex(/^\d{11}$/, 'organizations.custom_data_vat_invalid'),
+    ),
+  }),
 })
 
 export const DistributorSchema = v.object({
@@ -56,6 +64,16 @@ export const deleteDistributor = (distributor: Distributor) => {
   })
 }
 
+export const getDistributorsTotal = () => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .get(`${API_URL}/distributors/totals`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data.total as number)
+}
+
 export const searchStringInDistributor = (
   searchString: string,
 
@@ -80,8 +98,8 @@ export const searchStringInDistributor = (
   // search in customData
   found = ['address', 'city', 'codiceFiscale', 'email', 'partitaIva', 'phone', 'region'].some(
     (attrName) => {
-      const attrValue = distributor.customData?.[
-        attrName as keyof NonNullable<Distributor['customData']>
+      const attrValue = distributor.custom_data?.[
+        attrName as keyof NonNullable<Distributor['custom_data']>
       ] as string
       return new RegExp(searchString, 'i').test(attrValue?.replace(regex, ''))
     },

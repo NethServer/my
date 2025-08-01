@@ -12,6 +12,8 @@ export type Organization = {
   type: string
 }
 
+export const ORGANIZATIONS_KEY = 'organizations'
+
 export const getOrganizations = () => {
   const loginStore = useLoginStore()
 

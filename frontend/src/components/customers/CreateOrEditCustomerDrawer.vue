@@ -14,6 +14,8 @@ import {
 import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import {
   CreateCustomerSchema,
+  CUSTOMERS_KEY,
+  CUSTOMERS_TOTAL_KEY,
   CustomerSchema,
   postCustomer,
   putCustomer,
@@ -63,10 +65,12 @@ const {
   },
   onError: (error) => {
     console.error('Error creating customer:', error)
-    validationIssues.value = getValidationIssues(error as AxiosError, 'customers')
+    validationIssues.value = getValidationIssues(error as AxiosError, 'organizations')
   },
-
-  onSettled: () => queryCache.invalidateQueries({ key: ['customers'] }),
+  onSettled: () => {
+    queryCache.invalidateQueries({ key: [CUSTOMERS_KEY] })
+    queryCache.invalidateQueries({ key: [CUSTOMERS_TOTAL_KEY] })
+  },
 })
 
 const {
@@ -95,20 +99,21 @@ const {
   onError: (error) => {
     console.error('Error editing customer:', error)
   },
-
-  onSettled: () => queryCache.invalidateQueries({ key: ['customers'] }),
+  onSettled: () => queryCache.invalidateQueries({ key: [CUSTOMERS_KEY] }),
 })
 
 const name = ref('')
 const nameRef = useTemplateRef<HTMLInputElement>('nameRef')
 const description = ref('')
 const descriptionRef = useTemplateRef<HTMLInputElement>('descriptionRef')
+const vatNumber = ref('')
+const vatNumberRef = useTemplateRef<HTMLInputElement>('vatNumberRef')
 const validationIssues = ref<Record<string, string[]>>({})
 
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
   name: nameRef,
   description: descriptionRef,
-  //// other fields
+  custom_data_vat: vatNumberRef,
 }
 
 const saving = computed(() => {
@@ -126,12 +131,12 @@ watch(
         // editing customer
         name.value = currentCustomer.name
         description.value = currentCustomer.description || ''
-        ////
+        vatNumber.value = currentCustomer.custom_data?.vat || ''
       } else {
         // creating customer, reset form to defaults
         name.value = ''
         description.value = ''
-        ////
+        vatNumber.value = ''
       }
     }
   },
@@ -149,16 +154,24 @@ function clearErrors() {
 
 function validateCreate(customer: CreateCustomer): boolean {
   validationIssues.value = {}
-  const validation = v.safeParse(CreateCustomerSchema, customer)
+  const validation = v.safeParse(CreateCustomerSchema, customer) ////
+  // const validation = { success: true } //// remove
 
   if (validation.success) {
     // no validation issues
     return true
   } else {
-    const issues = v.flatten(validation.issues)
+    const flattenedIssues = v.flatten(validation.issues)
 
-    if (issues.nested) {
-      validationIssues.value = issues.nested as Record<string, string[]>
+    if (flattenedIssues.nested) {
+      const issues: Record<string, string[]> = {}
+
+      for (const key in flattenedIssues.nested) {
+        // replace dots with underscores for i18n key
+        const newKey = key.replace(/\./g, '_')
+        issues[newKey] = flattenedIssues.nested[key] ?? []
+      }
+      validationIssues.value = issues
 
       // focus the first field with error
 
@@ -174,16 +187,24 @@ function validateCreate(customer: CreateCustomer): boolean {
 
 function validateEdit(customer: Customer): boolean {
   validationIssues.value = {}
-  const validation = v.safeParse(CustomerSchema, customer)
+  const validation = v.safeParse(CustomerSchema, customer) ////
+  // const validation = { success: true } //// remove
 
   if (validation.success) {
     // no validation issues
     return true
   } else {
-    const issues = v.flatten(validation.issues)
+    const flattenedIssues = v.flatten(validation.issues)
 
-    if (issues.nested) {
-      validationIssues.value = issues.nested as Record<string, string[]>
+    if (flattenedIssues.nested) {
+      const issues: Record<string, string[]> = {}
+
+      for (const key in flattenedIssues.nested) {
+        // replace dots with underscores for i18n key
+        const newKey = key.replace(/\./g, '_')
+        issues[newKey] = flattenedIssues.nested[key] ?? []
+      }
+      validationIssues.value = issues
 
       // focus the first field with error
 
@@ -203,6 +224,9 @@ async function saveCustomer() {
   const customer = {
     name: name.value,
     description: description.value,
+    custom_data: {
+      vat: vatNumber.value,
+    },
   }
 
   if (currentCustomer?.id) {
@@ -244,7 +268,7 @@ async function saveCustomer() {
         <NeTextInput
           ref="nameRef"
           v-model.trim="name"
-          :label="$t('customers.name')"
+          :label="$t('organizations.name')"
           :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
           :disabled="saving"
         />
@@ -252,11 +276,22 @@ async function saveCustomer() {
         <NeTextInput
           ref="descriptionRef"
           v-model.trim="description"
-          :label="$t('customers.description')"
+          :label="$t('organizations.description')"
           :invalid-message="
             validationIssues.description?.[0] ? $t(validationIssues.description[0]) : ''
           "
           :disabled="saving"
+        />
+        <!-- VAT number -->
+        <NeTextInput
+          ref="vatNumberRef"
+          v-model.trim="vatNumber"
+          :label="$t('organizations.vat_number')"
+          :invalid-message="
+            validationIssues.custom_data_vat?.[0] ? $t(validationIssues.custom_data_vat[0]) : ''
+          "
+          :disabled="saving"
+          maxlength="11"
         />
         <!-- create customer error notification -->
         <NeInlineNotification

@@ -7,20 +7,19 @@ import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 import { paginationQueryString } from './users'
 
-//// check attributes
+export const CUSTOMERS_KEY = 'customers'
+export const CUSTOMERS_TOTAL_KEY = 'customersTotal'
+
 export const CreateCustomerSchema = v.object({
-  name: v.pipe(v.string(), v.nonEmpty('customers.name_required')),
+  name: v.pipe(v.string(), v.nonEmpty('organizations.name_cannot_be_empty')),
   description: v.optional(v.string()),
-  branding: v.optional(
-    v.object({
-      darkFavicon: v.string(),
-      darkLogoUrl: v.string(),
-      favicon: v.string(),
-      logoUrl: v.string(),
-    }),
-  ),
-  customData: v.optional(v.record(v.string(), v.string())),
-  isMfaRequired: v.optional(v.boolean()),
+  custom_data: v.object({
+    vat: v.pipe(
+      v.string(),
+      v.nonEmpty('organizations.custom_data_vat_cannot_be_empty'),
+      v.regex(/^\d{11}$/, 'organizations.custom_data_vat_invalid'),
+    ),
+  }),
 })
 
 export const CustomerSchema = v.object({
@@ -65,6 +64,16 @@ export const deleteCustomer = (customer: Customer) => {
   })
 }
 
+export const getCustomersTotal = () => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .get(`${API_URL}/customers/totals`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data.total as number)
+}
+
 export const searchStringInCustomer = (
   searchString: string,
 
@@ -89,8 +98,8 @@ export const searchStringInCustomer = (
   // search in customData
   found = ['address', 'city', 'codiceFiscale', 'email', 'partitaIva', 'phone', 'region'].some(
     (attrName) => {
-      const attrValue = customer.customData?.[
-        attrName as keyof NonNullable<Customer['customData']>
+      const attrValue = customer.custom_data?.[
+        attrName as keyof NonNullable<Customer['custom_data']>
       ] as string
       return new RegExp(searchString, 'i').test(attrValue?.replace(regex, ''))
     },

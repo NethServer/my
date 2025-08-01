@@ -7,7 +7,7 @@ import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 
 export const ProfileInfoSchema = v.object({
-  name: v.pipe(v.string(), v.nonEmpty('users.name_required')),
+  name: v.pipe(v.string(), v.nonEmpty('users.name_cannot_be_empty')),
   email: v.pipe(v.string(), v.nonEmpty('users.email_required'), v.email('users.email_invalid')),
   phone: v.optional(
     v.pipe(v.string(), v.regex(/^\+?[\d\s\-\(\)]{7,20}$/, 'users.phone_invalid_format')),

@@ -51,6 +51,10 @@ export const useLoginStore = defineStore('login', () => {
     return userInfo.value?.org_role === 'Owner'
   })
 
+  const permissions = computed(() => {
+    return (userInfo.value?.org_permissions || []).concat(userInfo.value?.user_permissions || [])
+  })
+
   // watch for authentication changes
   watch(
     isAuthenticated,
@@ -155,6 +159,7 @@ export const useLoginStore = defineStore('login', () => {
     userInfo,
     loadingUserInfo,
     isOwner,
+    permissions,
     fetchTokenAndUserInfo,
     doRefreshToken,
     login,
