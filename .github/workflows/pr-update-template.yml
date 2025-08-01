@@ -3,6 +3,9 @@ name: PR - Update Template
 on:
   pull_request:
     types: [opened]
+  workflow_run:
+    workflows: ["CI - Main Pipeline"]
+    types: [completed]
 
 jobs:
   update-template:
@@ -10,19 +13,133 @@ jobs:
     permissions:
       pull-requests: write
       contents: read
+      actions: read
 
     steps:
-      - name: Update PR description with PR number
+      - name: Update PR description
         uses: actions/github-script@v7
         with:
           script: |
-            const prNumber = context.payload.pull_request.number;
-            const currentBody = context.payload.pull_request.body || '';
+            let prNumber, prBranch, workflowRunId;
 
-            // Replace [PR_NUMBER] with actual PR number
-            const updatedBody = currentBody.replace(/\[PR_NUMBER\]/g, prNumber);
+            // Handle different trigger events
+            if (context.eventName === 'pull_request') {
+              // PR opened event
+              prNumber = context.payload.pull_request.number;
+              prBranch = context.payload.pull_request.head.ref;
+            } else if (context.eventName === 'workflow_run') {
+              // Workflow completed event
+              workflowRunId = context.payload.workflow_run.id;
 
-            // Only update if there were replacements made
+              // Get PR number from workflow run
+              const workflowRun = await github.rest.actions.getWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: workflowRunId
+              });
+
+              // Extract PR number from head branch or event
+              if (!workflowRun.data.pull_requests || workflowRun.data.pull_requests.length === 0) {
+                console.log('No PR associated with this workflow run');
+                return;
+              }
+
+              prNumber = workflowRun.data.pull_requests[0].number;
+              prBranch = workflowRun.data.head_branch;
+            }
+
+            if (!prNumber) {
+              console.log('Could not determine PR number');
+              return;
+            }
+
+            // Get current PR details
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber
+            });
+
+            let currentBody = pr.data.body || '';
+            let updatedBody = currentBody;
+
+            // Replace basic placeholders
+            updatedBody = updatedBody.replace(/\[PR_NUMBER\]/g, prNumber);
+            updatedBody = updatedBody.replace(/\[PR_BRANCH\]/g, prBranch);
+
+            // If we have a workflow run, update job links and badges
+            if (workflowRunId) {
+              try {
+                // Get jobs for this workflow run
+                const jobs = await github.rest.actions.listJobsForWorkflowRun({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  run_id: workflowRunId
+                });
+
+                // Create job mappings with status and links
+                const jobData = {};
+                for (const job of jobs.data.jobs) {
+                  const jobName = job.name.toLowerCase();
+                  const status = job.conclusion || job.status || 'pending';
+
+                  // Map GitHub status to badge colors
+                  let color, statusText;
+                  switch (status) {
+                    case 'success':
+                      color = 'brightgreen';
+                      statusText = 'passing';
+                      break;
+                    case 'failure':
+                      color = 'red';
+                      statusText = 'failing';
+                      break;
+                    case 'cancelled':
+                      color = 'lightgrey';
+                      statusText = 'cancelled';
+                      break;
+                    case 'skipped':
+                      color = 'yellow';
+                      statusText = 'skipped';
+                      break;
+                    default:
+                      color = 'blue';
+                      statusText = 'running';
+                  }
+
+                  jobData[jobName] = {
+                    url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${workflowRunId}/job/${job.id}`,
+                    badge: `https://img.shields.io/badge/${encodeURIComponent(job.name)}-${statusText}-${color}`,
+                    status
+                  };
+                }
+
+                // Replace badges with job-specific ones
+                const badgeReplacements = [
+                  { name: 'Backend Tests', jobKey: 'backend-tests' },
+                  { name: 'Collect Tests', jobKey: 'collect-tests' },
+                  { name: 'Sync Tests', jobKey: 'sync-tests' },
+                  { name: 'Frontend Tests', jobKey: 'frontend-tests' },
+                  { name: 'Backend Build', jobKey: 'backend-build' },
+                  { name: 'Collect Build', jobKey: 'collect-build' },
+                  { name: 'Sync Build', jobKey: 'sync-build' },
+                  { name: 'Frontend Build', jobKey: 'frontend-build' }
+                ];
+
+                for (const { name, jobKey } of badgeReplacements) {
+                  const job = jobData[jobKey];
+                  if (job) {
+                    // Replace the specific badge line
+                    const badgeRegex = new RegExp(`- \\[!\\[${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]\\([^\\)]+\\)\\]\\([^\\)]+\\)`, 'g');
+                    updatedBody = updatedBody.replace(badgeRegex, `- [![${name}](${job.badge})](${job.url})`);
+                  }
+                }
+              } catch (error) {
+                console.log('Error fetching job details:', error.message);
+              }
+            }
+
+            // Only update if there were changes
             if (updatedBody !== currentBody) {
               await github.rest.pulls.update({
                 owner: context.repo.owner,
@@ -31,7 +148,7 @@ jobs:
                 body: updatedBody
               });
 
-              console.log(`Updated PR #${prNumber} description with PR number`);
+              console.log(`Updated PR #${prNumber} description`);
             } else {
-              console.log(`No [PR_NUMBER] placeholders found in PR #${prNumber}`);
+              console.log(`No updates needed for PR #${prNumber}`);
             }

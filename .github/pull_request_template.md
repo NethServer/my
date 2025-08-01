@@ -4,17 +4,6 @@ Briefly describe what this PR does and why it's needed.
 
 **Related Issue:** #[ISSUE_NUMBER]
 
-## 🔧 Changes
-
-- [ ] Backend
-- [ ] Collect
-- [ ] Frontend
-- [ ] Proxy
-- [ ] Sync
-- [ ] Documentation
-- [ ] Tests
-- [ ] Build/Deploy
-
 ## 🚀 Testing Environment
 
 To trigger a fresh deployment of all services in the PR preview environment, comment:
@@ -28,16 +17,16 @@ update deploy
 - Frontend: https://my-frontend-qa-pr-[PR_NUMBER].onrender.com
 - Proxy: https://my-proxy-qa-pr-[PR_NUMBER].onrender.com
 
-## ✅ Test Checklist
+## ✅ Merge Checklist
 
 **Code Quality:**
-- [ ] Backend: `make pre-commit` passes
-- [ ] Collect: `make pre-commit` passes
-- [ ] Sync: `make pre-commit` passes
-- [ ] Frontend: `npm run pre-commit` passes
+- [![Backend Tests](https://img.shields.io/badge/Backend%20Tests-pending-blue)](https://github.com/NethServer/my/actions)
+- [![Collect Tests](https://img.shields.io/badge/Collect%20Tests-pending-blue)](https://github.com/NethServer/my/actions)
+- [![Sync Tests](https://img.shields.io/badge/Sync%20Tests-pending-blue)](https://github.com/NethServer/my/actions)
+- [![Frontend Tests](https://img.shields.io/badge/Frontend%20Tests-pending-blue)](https://github.com/NethServer/my/actions)
 
-**Health Checks:**
-- [ ] Backend: https://my-backend-qa-pr-[PR_NUMBER].onrender.com/api/health
-- [ ] Collect: https://my-collect-qa-pr-[PR_NUMBER].onrender.com/api/health
-- [ ] Frontend: https://my-frontend-qa-pr-[PR_NUMBER].onrender.com
-- [ ] Proxy: https://my-proxy-qa-pr-[PR_NUMBER].onrender.com/health
+**Builds:**
+- [![Backend Build](https://img.shields.io/badge/Backend%20Build-pending-blue)](https://github.com/NethServer/my/actions)
+- [![Collect Build](https://img.shields.io/badge/Collect%20Build-pending-blue)](https://github.com/NethServer/my/actions)
+- [![Sync Build](https://img.shields.io/badge/Sync%20Build-pending-blue)](https://github.com/NethServer/my/actions)
+- [![Frontend Build](https://img.shields.io/badge/Frontend%20Build-pending-blue)](https://github.com/NethServer/my/actions)
