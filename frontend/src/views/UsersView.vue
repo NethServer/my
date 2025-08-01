@@ -10,6 +10,7 @@ import { ref } from 'vue'
 import { faCirclePlus } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { PRODUCT_NAME } from '@/lib/config'
+import { canManageUsers } from '@/lib/permissions'
 
 const isShownCreateUserDrawer = ref(false)
 </script>
@@ -22,7 +23,13 @@ const isShownCreateUserDrawer = ref(false)
         {{ $t('users.page_description', { productName: PRODUCT_NAME }) }}
       </div>
       <!-- create user -->
-      <NeButton kind="secondary" size="lg" class="shrink-0" @click="isShownCreateUserDrawer = true">
+      <NeButton
+        v-if="canManageUsers()"
+        kind="secondary"
+        size="lg"
+        class="shrink-0"
+        @click="isShownCreateUserDrawer = true"
+      >
         <template #prefix>
           <FontAwesomeIcon :icon="faCirclePlus" aria-hidden="true" />
         </template>

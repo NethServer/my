@@ -9,6 +9,7 @@ import DistributorsTable from '@/components/distributors/DistributorsTable.vue'
 import { ref } from 'vue'
 import { faCirclePlus } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { canManageDistributors } from '@/lib/permissions'
 
 const isShownCreateDistributorDrawer = ref(false)
 </script>
@@ -22,6 +23,7 @@ const isShownCreateDistributorDrawer = ref(false)
       </div>
       <!-- create distributor -->
       <NeButton
+        v-if="canManageDistributors()"
         kind="secondary"
         size="lg"
         class="shrink-0"
