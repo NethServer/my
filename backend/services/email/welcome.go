@@ -11,11 +11,9 @@ package email
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/logger"
-	"github.com/nethesis/my/backend/services/logto"
 )
 
 // WelcomeEmailService handles sending welcome emails to new users
@@ -113,11 +111,6 @@ func (w *WelcomeEmailService) SendWelcomeEmail(userEmail, userName, organization
 
 // getLoginURL returns the login URL for the application
 func (w *WelcomeEmailService) getLoginURL() string {
-	// Try to get the frontend application's redirect URI from Logto
-	if frontendURL := w.getFrontendRedirectURI(); frontendURL != "" {
-		return frontendURL
-	}
-
 	// Try to get from tenant domain configuration
 	if configuration.Config.TenantDomain != "" {
 		return fmt.Sprintf("https://%s/account?changePassword=true", configuration.Config.TenantDomain)
@@ -130,47 +123,6 @@ func (w *WelcomeEmailService) getLoginURL() string {
 
 	// Final fallback
 	return "https://localhost:3000/account?changePassword=true"
-}
-
-// getFrontendRedirectURI gets the frontend application's redirect URI from Logto
-func (w *WelcomeEmailService) getFrontendRedirectURI() string {
-	// Create Logto client
-	client := logto.NewManagementClient()
-
-	// Get all applications
-	apps, err := client.GetApplications()
-	if err != nil {
-		logger.Debug().
-			Err(err).
-			Msg("Failed to get applications from Logto for redirect URI lookup")
-		return ""
-	}
-
-	// Look for the frontend application
-	for _, app := range apps {
-		if strings.ToLower(app.Name) == "frontend" && app.Type == "SPA" {
-			// Get the first post logout redirect URI
-			if len(app.OidcClientMetadata.PostLogoutRedirectUris) > 0 {
-				baseURL := app.OidcClientMetadata.PostLogoutRedirectUris[0]
-				// Remove /login if present and add /account?changePassword=true
-				baseURL = strings.TrimSuffix(baseURL, "/login")
-				baseURL = strings.TrimSuffix(baseURL, "/")
-				return baseURL + "/account?changePassword=true"
-			}
-			// Fallback to redirect URIs if post logout not available
-			if len(app.OidcClientMetadata.RedirectUris) > 0 {
-				baseURL := app.OidcClientMetadata.RedirectUris[0]
-				// Remove /login if present and add /account?changePassword=true
-				baseURL = strings.TrimSuffix(baseURL, "/login")
-				baseURL = strings.TrimSuffix(baseURL, "/")
-				return baseURL + "/account?changePassword=true"
-			}
-		}
-	}
-
-	logger.Debug().
-		Msg("Frontend application not found in Logto applications")
-	return ""
 }
 
 // getSupportEmail returns the support email address

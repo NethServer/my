@@ -1640,6 +1640,49 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /auth/logout:
+    post:
+      operationId: logout
+      tags:
+        - Backend - Authentication
+      summary: Logout user
+      description: Invalidate user's access token and refresh token (blacklist tokens)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token:
+                  type: string
+                  description: Refresh token to blacklist
+                  example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+              required:
+                - refresh_token
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "logout successful"
+                  data:
+                    type: object
+                    nullable: true
+                    example: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
 
   /customers:
     get:

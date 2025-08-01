@@ -1151,13 +1151,26 @@ func (s *LocalOrganizationService) DeleteDistributor(id, deletedByUserID, delete
 		return fmt.Errorf("failed to get distributor: %w", err)
 	}
 
-	// 1. Soft delete in local DB first
+	// 1. Delete all users associated with this organization (both locally and from Logto)
+	if distributor.LogtoID != nil {
+		err = s.deleteOrganizationUsers(*distributor.LogtoID, "distributor", distributor.Name)
+		if err != nil {
+			logger.Warn().
+				Err(err).
+				Str("distributor_id", id).
+				Str("distributor_name", distributor.Name).
+				Msg("Failed to delete some users associated with distributor organization")
+			// Continue with organization deletion even if some users failed to delete
+		}
+	}
+
+	// 2. Soft delete in local DB
 	err = s.distributorRepo.Delete(id)
 	if err != nil {
 		return fmt.Errorf("failed to delete distributor locally: %w", err)
 	}
 
-	// 2. Delete from Logto using logto_id
+	// 3. Delete from Logto using logto_id
 	if distributor.LogtoID != nil {
 		err = s.logtoClient.DeleteOrganization(*distributor.LogtoID)
 	} else {
@@ -1173,7 +1186,7 @@ func (s *LocalOrganizationService) DeleteDistributor(id, deletedByUserID, delete
 		return fmt.Errorf("failed to sync distributor deletion to Logto: %w", err)
 	}
 
-	// 3. Commit transaction
+	// 4. Commit transaction
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
@@ -1201,13 +1214,26 @@ func (s *LocalOrganizationService) DeleteReseller(id, deletedByUserID, deletedBy
 		return fmt.Errorf("failed to get reseller: %w", err)
 	}
 
-	// 1. Soft delete in local DB first
+	// 1. Delete all users associated with this organization (both locally and from Logto)
+	if reseller.LogtoID != nil {
+		err = s.deleteOrganizationUsers(*reseller.LogtoID, "reseller", reseller.Name)
+		if err != nil {
+			logger.Warn().
+				Err(err).
+				Str("reseller_id", id).
+				Str("reseller_name", reseller.Name).
+				Msg("Failed to delete some users associated with reseller organization")
+			// Continue with organization deletion even if some users failed to delete
+		}
+	}
+
+	// 2. Soft delete in local DB
 	err = s.resellerRepo.Delete(id)
 	if err != nil {
 		return fmt.Errorf("failed to delete reseller locally: %w", err)
 	}
 
-	// 2. Delete from Logto using logto_id
+	// 3. Delete from Logto using logto_id
 	if reseller.LogtoID != nil {
 		err = s.logtoClient.DeleteOrganization(*reseller.LogtoID)
 	} else {
@@ -1223,7 +1249,7 @@ func (s *LocalOrganizationService) DeleteReseller(id, deletedByUserID, deletedBy
 		return fmt.Errorf("failed to sync reseller deletion to Logto: %w", err)
 	}
 
-	// 3. Commit transaction
+	// 4. Commit transaction
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
@@ -1251,13 +1277,26 @@ func (s *LocalOrganizationService) DeleteCustomer(id, deletedByUserID, deletedBy
 		return fmt.Errorf("failed to get customer: %w", err)
 	}
 
-	// 1. Soft delete in local DB first
+	// 1. Delete all users associated with this organization (both locally and from Logto)
+	if customer.LogtoID != nil {
+		err = s.deleteOrganizationUsers(*customer.LogtoID, "customer", customer.Name)
+		if err != nil {
+			logger.Warn().
+				Err(err).
+				Str("customer_id", id).
+				Str("customer_name", customer.Name).
+				Msg("Failed to delete some users associated with customer organization")
+			// Continue with organization deletion even if some users failed to delete
+		}
+	}
+
+	// 2. Soft delete in local DB
 	err = s.customerRepo.Delete(id)
 	if err != nil {
 		return fmt.Errorf("failed to delete customer locally: %w", err)
 	}
 
-	// 2. Delete from Logto using logto_id
+	// 3. Delete from Logto using logto_id
 	if customer.LogtoID != nil {
 		err = s.logtoClient.DeleteOrganization(*customer.LogtoID)
 	} else {
@@ -1273,7 +1312,7 @@ func (s *LocalOrganizationService) DeleteCustomer(id, deletedByUserID, deletedBy
 		return fmt.Errorf("failed to sync customer deletion to Logto: %w", err)
 	}
 
-	// 3. Commit transaction
+	// 4. Commit transaction
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
@@ -1620,4 +1659,110 @@ func (s *LocalOrganizationService) getUserOwnOrganization(userOrgRole, userOrgID
 	default:
 		return nil, fmt.Errorf("unsupported user organization role: %s", userOrgRole)
 	}
+}
+
+// deleteOrganizationUsers deletes all users associated with an organization
+// This function is called when deleting an organization to ensure user consistency
+func (s *LocalOrganizationService) deleteOrganizationUsers(organizationLogtoID, orgType, orgName string) error {
+	// 1. Find all users associated with this organization
+	query := `
+		SELECT id, logto_id, username, email, name
+		FROM users
+		WHERE organization_id = $1 AND deleted_at IS NULL
+	`
+
+	rows, err := database.DB.Query(query, organizationLogtoID)
+	if err != nil {
+		return fmt.Errorf("failed to query users for organization %s: %w", organizationLogtoID, err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	type userToDelete struct {
+		ID       string
+		LogtoID  *string
+		Username string
+		Email    string
+		Name     string
+	}
+
+	var usersToDelete []userToDelete
+	for rows.Next() {
+		var user userToDelete
+		err := rows.Scan(&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name)
+		if err != nil {
+			logger.Warn().
+				Err(err).
+				Str("organization_logto_id", organizationLogtoID).
+				Msg("Failed to scan user for deletion")
+			continue
+		}
+		usersToDelete = append(usersToDelete, user)
+	}
+
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("error iterating users for organization %s: %w", organizationLogtoID, err)
+	}
+
+	// 2. Delete each user both locally and from Logto
+	deletedCount := 0
+	failedCount := 0
+
+	for _, user := range usersToDelete {
+		// Delete from local database first (soft delete)
+		err := s.userRepo.Delete(user.ID)
+		if err != nil {
+			logger.Warn().
+				Err(err).
+				Str("user_id", user.ID).
+				Str("username", user.Username).
+				Str("organization_logto_id", organizationLogtoID).
+				Str("org_type", orgType).
+				Msg("Failed to delete user locally")
+			failedCount++
+			continue
+		}
+
+		// Delete from Logto if user has been synced
+		if user.LogtoID != nil && *user.LogtoID != "" {
+			err := s.logtoClient.DeleteUser(*user.LogtoID)
+			if err != nil {
+				logger.Warn().
+					Err(err).
+					Str("user_id", user.ID).
+					Str("logto_user_id", *user.LogtoID).
+					Str("username", user.Username).
+					Str("organization_logto_id", organizationLogtoID).
+					Str("org_type", orgType).
+					Msg("Failed to delete user from Logto (user deleted locally)")
+				// User is deleted locally but failed in Logto - this is acceptable
+				// The inconsistency will be logged but won't block the organization deletion
+			}
+		}
+
+		deletedCount++
+		logger.Info().
+			Str("user_id", user.ID).
+			Str("username", user.Username).
+			Str("email", user.Email).
+			Str("organization_logto_id", organizationLogtoID).
+			Str("org_type", orgType).
+			Str("org_name", orgName).
+			Msg("User deleted successfully due to organization deletion")
+	}
+
+	logger.Info().
+		Int("total_users", len(usersToDelete)).
+		Int("deleted_successfully", deletedCount).
+		Int("failed_deletions", failedCount).
+		Str("organization_logto_id", organizationLogtoID).
+		Str("org_type", orgType).
+		Str("org_name", orgName).
+		Msg("Completed user deletion for organization")
+
+	// Return error only if all deletions failed, otherwise log warnings and continue
+	if failedCount > 0 && deletedCount == 0 {
+		return fmt.Errorf("failed to delete any users for organization %s (%s)", orgName, orgType)
+	}
+
+	return nil
 }
