@@ -71,6 +71,9 @@ The sync tool loads environment variables from a `.env` file by default. You can
 TENANT_ID=your-tenant-id
 TENANT_DOMAIN=your-domain.com
 
+# App URL configuration (required for init command)
+APP_URL=https://your-app-domain.com
+
 # Logto Management API (M2M app credentials)
 BACKEND_APP_ID=your-backend-m2m-app-id
 BACKEND_APP_SECRET=your-backend-m2m-app-secret
@@ -91,7 +94,8 @@ BACKEND_APP_SECRET=your-backend-m2m-app-secret
      --tenant-id your-tenant-id \
      --backend-app-id your-backend-app-id \
      --backend-app-secret your-secret-here \
-     --domain your-domain.com \
+     --logto-domain your-domain.com \
+     --app-url https://your-app.com \
      --owner-username owner \
      --owner-email owner@example.com \
      --owner-name "System Owner"
@@ -120,7 +124,7 @@ cp configs/config.yml my-config.yml
 
 ```bash
 # Complete Logto initialization
-sync init --tenant-id your-tenant-id --backend-app-id your-backend-app-id --backend-app-secret your-secret --domain your-domain.com --owner-username owner --owner-email owner@example.com
+sync init --tenant-id your-tenant-id --backend-app-id your-backend-app-id --backend-app-secret your-secret --logto-domain your-domain.com --app-url https://your-app.com --owner-username owner --owner-email owner@example.com
 
 # RBAC sync with default config
 sync sync
@@ -145,14 +149,16 @@ sync init \
   --tenant-id your-tenant-id \
   --backend-app-id your-backend-app-id \
   --backend-app-secret your-secret-here \
-  --domain your-domain.com
+  --logto-domain your-domain.com \
+  --app-url https://your-app.com
 
 # Complete setup with user details
 sync init \
   --tenant-id your-tenant-id \
   --backend-app-id your-backend-app-id \
   --backend-app-secret your-secret-here \
-  --domain your-domain.com \
+  --logto-domain your-domain.com \
+  --app-url https://your-app.com \
   --owner-username owner \
   --owner-email owner@example.com \
   --owner-name "System Owner"
@@ -201,7 +207,8 @@ sync sync --skip-resources --skip-roles
 - `--tenant-id`: Logto tenant identifier (required)
 - `--backend-app-id`: M2M application ID (required)
 - `--backend-app-secret`: M2M application secret (required)
-- `--domain`: Custom domain for Logto authentication (required, e.g., auth.yourcompany.com)
+- `--logto-domain`: Custom domain for Logto authentication (required, e.g., auth.yourcompany.com)
+- `--app-url`: Frontend application URL (required, e.g., https://app.yourcompany.com)
 - `--owner-username`: Owner user username (default: "owner")
 - `--owner-email`: Owner user email (default: "owner@example.com")
 - `--owner-name`: Owner user display name (default: "System Owner")
@@ -285,7 +292,8 @@ make dev-setup
 
 # Build and run
 make build
-make run-example
+make run init
+make run sync
 
 # Code quality
 make fmt
@@ -304,7 +312,7 @@ go test ./internal/config
 ### Complete Setup Workflow
 ```bash
 # 1. Initialize everything (see Init Command section above)
-sync init --tenant-id your-tenant-id --backend-app-id your-app-id --backend-app-secret your-secret --domain your-domain.com
+sync init --tenant-id your-tenant-id --backend-app-id your-app-id --backend-app-secret your-secret --logto-domain your-domain.com --app-url https://your-app.com
 
 # 2. Copy environment variables to backend/.env
 # 3. Start backend: cd backend && make dev

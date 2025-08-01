@@ -20,7 +20,7 @@ import (
 func TestValidateAndGetConfig(t *testing.T) {
 	// Save original environment
 	originalEnvs := make(map[string]string)
-	envVars := []string{"TENANT_ID", "BACKEND_APP_ID", "BACKEND_APP_SECRET", "TENANT_DOMAIN"}
+	envVars := []string{"TENANT_ID", "BACKEND_APP_ID", "BACKEND_APP_SECRET", "TENANT_DOMAIN", "APP_URL"}
 	for _, env := range envVars {
 		originalEnvs[env] = os.Getenv(env)
 	}
@@ -42,11 +42,12 @@ func TestValidateAndGetConfig(t *testing.T) {
 			_ = os.Unsetenv(env)
 		}
 
-		config, err := ValidateAndGetConfig("cli-tenant", "cli-client", "cli-secret", "cli-domain.com")
+		config, err := ValidateAndGetConfig("cli-tenant", "cli-client", "cli-secret", "cli-domain.com", "https://cli-app.com")
 		require.NoError(t, err)
 
 		assert.Equal(t, "cli-tenant", config.TenantID)
 		assert.Equal(t, "cli-domain.com", config.TenantDomain)
+		assert.Equal(t, "https://cli-app.com", config.AppURL)
 		assert.Equal(t, "cli-client", config.BackendAppID)
 		assert.Equal(t, "cli-secret", config.BackendAppSecret)
 		assert.Equal(t, "cli", config.Mode)
@@ -58,7 +59,7 @@ func TestValidateAndGetConfig(t *testing.T) {
 			_ = os.Unsetenv(env)
 		}
 
-		config, err := ValidateAndGetConfig("cli-tenant", "", "", "")
+		config, err := ValidateAndGetConfig("cli-tenant", "", "", "", "")
 		assert.Error(t, err)
 		assert.Nil(t, config)
 		assert.Contains(t, err.Error(), "all must be provided")
@@ -70,12 +71,14 @@ func TestValidateAndGetConfig(t *testing.T) {
 		_ = os.Setenv("TENANT_DOMAIN", "env-domain.com")
 		_ = os.Setenv("BACKEND_APP_ID", "env-client")
 		_ = os.Setenv("BACKEND_APP_SECRET", "env-secret")
+		_ = os.Setenv("APP_URL", "https://env-app.com")
 
-		config, err := ValidateAndGetConfig("", "", "", "")
+		config, err := ValidateAndGetConfig("", "", "", "", "")
 		require.NoError(t, err)
 
 		assert.Equal(t, "env-tenant", config.TenantID)
 		assert.Equal(t, "env-domain.com", config.TenantDomain)
+		assert.Equal(t, "https://env-app.com", config.AppURL)
 		assert.Equal(t, "env-client", config.BackendAppID)
 		assert.Equal(t, "env-secret", config.BackendAppSecret)
 		assert.Equal(t, "env", config.Mode)
@@ -87,7 +90,7 @@ func TestValidateAndGetConfig(t *testing.T) {
 			_ = os.Unsetenv(env)
 		}
 
-		config, err := ValidateAndGetConfig("", "", "", "")
+		config, err := ValidateAndGetConfig("", "", "", "", "")
 		assert.Error(t, err)
 		assert.Nil(t, config)
 		assert.Contains(t, err.Error(), "required environment variables missing")
@@ -99,14 +102,16 @@ func TestValidateAndGetConfig(t *testing.T) {
 		_ = os.Setenv("TENANT_DOMAIN", "env-domain.com")
 		_ = os.Setenv("BACKEND_APP_ID", "env-client")
 		_ = os.Setenv("BACKEND_APP_SECRET", "env-secret")
+		_ = os.Setenv("APP_URL", "https://env-app.com")
 
 		// Override with CLI flags
-		config, err := ValidateAndGetConfig("cli-tenant", "cli-client", "cli-secret", "cli-domain.com")
+		config, err := ValidateAndGetConfig("cli-tenant", "cli-client", "cli-secret", "cli-domain.com", "https://cli-app.com")
 		require.NoError(t, err)
 
 		// Should use CLI values, not environment
 		assert.Equal(t, "cli-tenant", config.TenantID)
 		assert.Equal(t, "cli-domain.com", config.TenantDomain)
+		assert.Equal(t, "https://cli-app.com", config.AppURL)
 		assert.Equal(t, "cli-client", config.BackendAppID)
 		assert.Equal(t, "cli-secret", config.BackendAppSecret)
 		assert.Equal(t, "cli", config.Mode)
@@ -118,6 +123,7 @@ func TestInitConfig(t *testing.T) {
 		config := InitConfig{
 			TenantID:         "test-tenant",
 			TenantDomain:     "test-domain.com",
+			AppURL:           "https://test-app.com",
 			BackendAppID:     "test-client",
 			BackendAppSecret: "test-secret",
 			Mode:             "cli",
@@ -125,6 +131,7 @@ func TestInitConfig(t *testing.T) {
 
 		assert.Equal(t, "test-tenant", config.TenantID)
 		assert.Equal(t, "test-domain.com", config.TenantDomain)
+		assert.Equal(t, "https://test-app.com", config.AppURL)
 		assert.Equal(t, "test-client", config.BackendAppID)
 		assert.Equal(t, "test-secret", config.BackendAppSecret)
 		assert.Equal(t, "cli", config.Mode)

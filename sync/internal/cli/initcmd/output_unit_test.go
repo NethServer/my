@@ -131,9 +131,9 @@ func TestOutputFunctions(t *testing.T) {
 			ID:   "frontend-id",
 			Name: "frontend",
 			EnvironmentVars: map[string]interface{}{
-				"VITE_LOGTO_ENDPOINT": "https://example.logto.app",
+				"VITE_LOGTO_ENDPOINT": "https://example.com",
 				"VITE_LOGTO_APP_ID":   "frontend-id",
-				"VITE_API_BASE_URL":   "https://api.example.com",
+				"VITE_API_BASE_URL":   "https://app.example.com/backend/api",
 			},
 		},
 		OwnerUser: User{

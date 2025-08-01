@@ -170,8 +170,9 @@ func CreateApplications(client *client.LogtoClient, config *InitConfig) (*Applic
 func DeriveEnvironmentVariables(config *InitConfig, backendApp, frontendApp *Application) error {
 	logger.Info("Deriving environment variables...")
 
-	baseURL := fmt.Sprintf("https://%s.logto.app", config.TenantID)
+	customLogtoEndpoint := fmt.Sprintf("https://%s", config.TenantDomain)
 	apiBaseURL := fmt.Sprintf("https://%s/api", config.TenantDomain)
+	frontendAPIBaseURL := fmt.Sprintf("%s/backend/api", config.AppURL)
 
 	// Initialize empty backend app if not set yet
 	if backendApp.EnvironmentVars == nil {
@@ -183,6 +184,7 @@ func DeriveEnvironmentVariables(config *InitConfig, backendApp, frontendApp *App
 		// Required configuration
 		"TENANT_ID":          config.TenantID,
 		"TENANT_DOMAIN":      config.TenantDomain,
+		"APP_URL":            config.AppURL,
 		"BACKEND_APP_ID":     config.BackendAppID,
 		"BACKEND_APP_SECRET": config.BackendAppSecret,
 		"JWT_SECRET":         GenerateJWTSecret(),
@@ -197,14 +199,16 @@ func DeriveEnvironmentVariables(config *InitConfig, backendApp, frontendApp *App
 
 	// Frontend environment variables
 	frontendApp.EnvironmentVars = map[string]interface{}{
-		"VITE_LOGTO_ENDPOINT":  baseURL,
+		"VITE_LOGTO_ENDPOINT":  customLogtoEndpoint,
 		"VITE_LOGTO_APP_ID":    frontendApp.ClientID,
 		"VITE_LOGTO_RESOURCES": fmt.Sprintf("[\"%s\"]", apiBaseURL),
-		"VITE_API_BASE_URL":    apiBaseURL,
+		"VITE_API_BASE_URL":    frontendAPIBaseURL,
 	}
 
 	logger.Info("Using tenant domain: %s", config.TenantDomain)
+	logger.Info("Derived custom Logto endpoint: %s", customLogtoEndpoint)
 	logger.Info("Derived API base URL: %s", apiBaseURL)
+	logger.Info("Derived frontend API base URL: %s", frontendAPIBaseURL)
 	logger.Info("Derived JWT issuer: %s", config.TenantDomain+".api")
 
 	return nil

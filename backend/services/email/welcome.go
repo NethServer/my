@@ -111,18 +111,7 @@ func (w *WelcomeEmailService) SendWelcomeEmail(userEmail, userName, organization
 
 // getLoginURL returns the login URL for the application
 func (w *WelcomeEmailService) getLoginURL() string {
-	// Try to get from tenant domain configuration
-	if configuration.Config.TenantDomain != "" {
-		return fmt.Sprintf("https://%s/account?changePassword=true", "qa.my.nethesis.it")
-	}
-
-	// Fallback to tenant ID based URL
-	if configuration.Config.TenantID != "" {
-		return fmt.Sprintf("https://%s.logto.app/account?changePassword=true", configuration.Config.TenantID)
-	}
-
-	// Final fallback
-	return "https://localhost:3000/account?changePassword=true"
+	return fmt.Sprintf("%s/account?changePassword=true", configuration.Config.AppURL)
 }
 
 // getSupportEmail returns the support email address
