@@ -30,7 +30,8 @@
     "updating": "Aggiornamento...",
     "loading": "Caricamento...",
     "show": "Mostra",
-    "hide": "Nascondi"
+    "hide": "Nascondi",
+    "coming_soon": "Coming soon"
   },
   "shell": {
     "open_sidebar": "Apri barra laterale",

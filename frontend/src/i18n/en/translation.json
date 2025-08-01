@@ -30,7 +30,8 @@
     "updating": "Updating...",
     "loading": "Loading...",
     "show": "Show",
-    "hide": "Hide"
+    "hide": "Hide",
+    "coming_soon": "Coming soon"
   },
   "shell": {
     "open_sidebar": "Open sidebar",

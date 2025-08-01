@@ -127,11 +127,17 @@ const { state: thirdPartyApps } = useQuery({
               {{ $t(getThirdPartyAppDescription(thirdPartyApp)) }}
             </p>
           </div>
-          <NeButton kind="secondary" class="self-end" @click="openThirdPartyApp(thirdPartyApp)">
+          <NeButton
+            kind="secondary"
+            disabled
+            class="self-end"
+            @click="openThirdPartyApp(thirdPartyApp)"
+          >
             <template #prefix>
               <FontAwesomeIcon :icon="faArrowUpRightFromSquare" aria-hidden="true" />
             </template>
-            {{ $t('common.open_page', { page: thirdPartyApp.branding.display_name }) }}
+            {{ $t('common.coming_soon') }}
+            <!-- {{ $t('common.open_page', { page: thirdPartyApp.branding.display_name }) }} //// -->
           </NeButton>
         </div>
       </NeCard>
