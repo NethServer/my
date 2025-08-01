@@ -25,6 +25,7 @@ type Configuration struct {
 	DatabaseURL   string `json:"database_url"`
 	TenantID      string `json:"tenant_id"`
 	TenantDomain  string `json:"tenant_domain"`
+	AppDomain     string `json:"app_domain"`
 	LogtoIssuer   string `json:"logto_issuer"`
 	LogtoAudience string `json:"logto_audience"`
 	JWKSEndpoint  string `json:"jwks_endpoint"`
@@ -94,6 +95,13 @@ func Init() {
 		Config.TenantDomain = os.Getenv("TENANT_DOMAIN")
 	} else {
 		logger.LogConfigLoad("env", "TENANT_DOMAIN", false, fmt.Errorf("TENANT_DOMAIN variable is empty"))
+	}
+
+	// App domain configuration (required for app domain)
+	if os.Getenv("APP_DOMAIN") != "" {
+		Config.AppDomain = os.Getenv("APP_DOMAIN")
+	} else {
+		logger.LogConfigLoad("env", "APP_DOMAIN", false, fmt.Errorf("APP_DOMAIN variable is empty"))
 	}
 
 	// LOGTO_AUDIENCE (auto-derived from TENANT_DOMAIN)

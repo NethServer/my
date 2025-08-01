@@ -183,6 +183,7 @@ func DeriveEnvironmentVariables(config *InitConfig, backendApp, frontendApp *App
 		// Required configuration
 		"TENANT_ID":          config.TenantID,
 		"TENANT_DOMAIN":      config.TenantDomain,
+		"APP_DOMAIN":         config.AppDomain,
 		"BACKEND_APP_ID":     config.BackendAppID,
 		"BACKEND_APP_SECRET": config.BackendAppSecret,
 		"JWT_SECRET":         GenerateJWTSecret(),

@@ -383,7 +383,8 @@ sync init \
   --tenant-id your-tenant-id \
   --backend-app-id your-backend-app-id \
   --backend-app-secret your-secret-here \
-  --domain your-domain.com
+  --logto-domain your-domain.com \
+  --app-domain https://your-app.com
 
 # Alternative: Environment variables mode
 export TENANT_ID=your-tenant-id

@@ -110,6 +110,8 @@ func outputText(result *InitResult) {
 	fmt.Printf("# Logto tenant configuration (all other URLs auto-derived)\n")
 	fmt.Printf("TENANT_ID=%v\n", backendEnv["TENANT_ID"])
 	fmt.Printf("TENANT_DOMAIN=%v\n", backendEnv["TENANT_DOMAIN"])
+	fmt.Printf("\n# App domain configuration (frontend application domain)\n")
+	fmt.Printf("APP_DOMAIN=%v\n", backendEnv["APP_DOMAIN"])
 	fmt.Printf("\n# Logto Management API (from your M2M app)\n")
 	fmt.Printf("BACKEND_APP_ID=%v\n", backendEnv["BACKEND_APP_ID"])
 	fmt.Printf("BACKEND_APP_SECRET=%v\n", backendEnv["BACKEND_APP_SECRET"])

@@ -146,13 +146,13 @@ func main() {
 	// ===========================================
 	customAuth := api.Group("/", middleware.JWTAuthMiddleware())
 	{
+		// Authentication endpoints
+		customAuth.POST("/auth/logout", methods.Logout)
+
 		// User profile endpoints using custom JWT
 		customAuth.GET("/me", methods.GetCurrentUser)
 		customAuth.POST("/me/change-password", methods.ChangePassword)
 		customAuth.POST("/me/change-info", methods.ChangeInfo)
-
-		// Authentication endpoints
-		customAuth.POST("/auth/logout", methods.Logout)
 
 		// Business operations
 		// ===========================================

@@ -26,7 +26,8 @@ func TestInitCommand(t *testing.T) {
 	t.Run("init flags", func(t *testing.T) {
 		flags := []string{
 			"force",
-			"domain",
+			"logto-domain",
+			"app-domain",
 			"tenant-id",
 			"backend-app-id",
 			"backend-app-secret",
