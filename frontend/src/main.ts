@@ -21,6 +21,7 @@ fontawesomeConfig.autoAddCss = false
 const logtoConfig: LogtoConfig = {
   endpoint: LOGTO_ENDPOINT,
   appId: LOGTO_APP_ID,
+  scopes: ['openid', 'profile', 'email'],
 }
 
 const app = createApp(App)
