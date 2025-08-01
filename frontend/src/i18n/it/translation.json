@@ -86,7 +86,7 @@
     "cannot_save_distributor": "Impossibile salvare il distributore",
     "cannot_delete_distributor": "Impossibile eliminare il distributore",
     "delete_distributor": "Elimina distributore",
-    "delete_distributor_confirmation": "Sei sicuro di voler eliminare il distributore {name}? Questa azione non può essere annullata.",
+    "delete_distributor_confirmation": "Sei sicuro di voler eliminare il distributore {name}? Tutti gli utenti associati a questa organizzazione verranno eliminati. Questa azione non può essere annullata.",
     "no_distributor": "Nessun distributore"
   },
   "resellers": {
@@ -105,7 +105,7 @@
     "cannot_save_reseller": "Impossibile salvare il rivenditore",
     "cannot_delete_reseller": "Impossibile eliminare il rivenditore",
     "delete_reseller": "Elimina rivenditore",
-    "delete_reseller_confirmation": "Sei sicuro di voler eliminare il rivenditore {name}? Questa azione non può essere annullata.",
+    "delete_reseller_confirmation": "Sei sicuro di voler eliminare il rivenditore {name}? Tutti gli utenti associati a questa organizzazione verranno eliminati. Questa azione non può essere annullata.",
     "no_reseller": "Nessun rivenditore"
   },
   "customers": {
@@ -124,7 +124,7 @@
     "cannot_save_customer": "Impossibile salvare il cliente",
     "cannot_delete_customer": "Impossibile eliminare il cliente",
     "delete_customer": "Elimina cliente",
-    "delete_customer_confirmation": "Sei sicuro di voler eliminare il cliente {name}? Questa azione non può essere annullata.",
+    "delete_customer_confirmation": "Sei sicuro di voler eliminare il cliente {name}? Tutti gli utenti associati a questa organizzazione verranno eliminati. Questa azione non può essere annullata.",
     "no_customer": "Nessun cliente"
   },
   "organizations": {
