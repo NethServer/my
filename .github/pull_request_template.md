@@ -17,6 +17,11 @@ Briefly describe what this PR does and why it's needed.
 
 ## 🚀 Testing Environment
 
+To trigger a fresh deployment of all services in the PR preview environment, comment:
+```
+update deploy
+```
+
 **Automatic PR environments:**
 - Backend: https://my-backend-qa-pr-[PR_NUMBER].onrender.com
 - Collect: https://my-collect-qa-pr-[PR_NUMBER].onrender.com
