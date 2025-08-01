@@ -219,6 +219,10 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
+        build-args: |
+          VERSION=${{ github.ref_name != 'main' && format('dev-{0}', github.sha) || github.ref_name }}
+          COMMIT=${{ github.sha }}
+          BUILD_TIME=${{ steps.meta.outputs.labels['org.opencontainers.image.created'] }}
 
     # Security scanning (only on main)
     - name: Generate Trivy SARIF report
@@ -281,6 +285,10 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
+        build-args: |
+          VERSION=${{ github.ref_name != 'main' && format('dev-{0}', github.sha) || github.ref_name }}
+          COMMIT=${{ github.sha }}
+          BUILD_TIME=${{ steps.meta.outputs.labels['org.opencontainers.image.created'] }}
 
     # Security scanning (only on main)
     - name: Generate Trivy SARIF report
@@ -343,6 +351,10 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
+        build-args: |
+          VERSION=${{ github.ref_name != 'main' && format('dev-{0}', github.sha) || github.ref_name }}
+          COMMIT=${{ github.sha }}
+          BUILD_TIME=${{ steps.meta.outputs.labels['org.opencontainers.image.created'] }}
 
     # Security scanning (only on main)
     - name: Generate Trivy SARIF report

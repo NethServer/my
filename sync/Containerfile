@@ -16,8 +16,16 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the CLI application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o sync ./cmd/sync/main.go
+# Build the CLI application with version information
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_TIME=unknown
+
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
+    -ldflags "-X github.com/nethesis/my/sync/pkg/version.Version=${VERSION} \
+              -X github.com/nethesis/my/sync/pkg/version.Commit=${COMMIT} \
+              -X github.com/nethesis/my/sync/pkg/version.BuildTime=${BUILD_TIME}" \
+    -o sync ./cmd/sync/main.go
 
 # Final stage
 FROM alpine:3.21
