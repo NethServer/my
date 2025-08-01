@@ -72,7 +72,7 @@
   },
   "distributors": {
     "title": "Distributors",
-    "page_description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+    "page_description": "List of authorized distributors, including company details.",
     "cannot_retrieve_distributors": "Cannot retrieve distributors",
     "no_distributor_found": "No distributors found",
     "filter_distributors": "Filter distributors",
@@ -91,7 +91,7 @@
   },
   "resellers": {
     "title": "Resellers",
-    "page_description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+    "page_description": "List of authorized resellers, including company details.",
     "cannot_retrieve_resellers": "Cannot retrieve resellers",
     "no_reseller_found": "No resellers found",
     "filter_resellers": "Filter resellers",
@@ -110,7 +110,7 @@
   },
   "customers": {
     "title": "Customers",
-    "page_description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+    "page_description": "List of end customers, including company details.",
     "cannot_retrieve_customers": "Cannot retrieve customers",
     "no_customer_found": "No customers found",
     "filter_customers": "Filter customers",
@@ -138,7 +138,7 @@
   },
   "users": {
     "title": "Users",
-    "page_description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+    "page_description": "List of users authorized to access {productName}, with associated organizations and assigned roles.",
     "cannot_retrieve_users": "Cannot retrieve users",
     "email": "Email",
     "name": "Name",

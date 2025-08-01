@@ -72,7 +72,7 @@
   },
   "distributors": {
     "title": "Distributori",
-    "page_description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+    "page_description": "Elenco dei distributori autorizzati con relative informazioni aziendali.",
     "cannot_retrieve_distributors": "Impossibile recuperare i distributori",
     "no_distributor_found": "Nessun distributore trovato",
     "filter_distributors": "Filtra distributori",
@@ -91,7 +91,7 @@
   },
   "resellers": {
     "title": "Rivenditori",
-    "page_description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+    "page_description": "Elenco dei rivenditori autorizzati con relative informazioni aziendali.",
     "cannot_retrieve_resellers": "Impossibile recuperare i rivenditori",
     "no_reseller_found": "Nessun rivenditore trovato",
     "filter_resellers": "Filtra rivenditori",
@@ -110,7 +110,7 @@
   },
   "customers": {
     "title": "Clienti",
-    "page_description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+    "page_description": "Elenco dei clienti finali con relative informazioni aziendali.",
     "cannot_retrieve_customers": "Impossibile recuperare i clienti",
     "no_customer_found": "Nessun cliente trovato",
     "filter_customers": "Filtra clienti",
@@ -138,7 +138,7 @@
   },
   "users": {
     "title": "Utenti",
-    "page_description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+    "page_description": "Elenco degli utenti autorizzati ad accedere a {productName}, con l'organizzazione associata e i ruoli assegnati.",
     "cannot_retrieve_users": "Impossibile recuperare gli utenti",
     "email": "Email",
     "name": "Nome",
