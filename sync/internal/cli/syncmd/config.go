@@ -35,8 +35,8 @@ func LoadAndValidateConfig(configFile string) (*config.Config, error) {
 	}
 
 	// Log configuration loading with structured data
-	resourceCount := len(cfg.Hierarchy.Resources)
-	roleCount := len(cfg.Hierarchy.UserRoles) + len(cfg.Hierarchy.OrganizationRoles)
+	resourceCount := len(cfg.Resources)
+	roleCount := len(cfg.UserRoles) + len(cfg.OrganizationRoles)
 
 	// Validate configuration
 	if err := cfg.Validate(); err != nil && !viper.GetBool("force") {

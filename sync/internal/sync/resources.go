@@ -38,12 +38,12 @@ func (e *Engine) syncResources(cfg *config.Config, result *Result) error {
 		existingResourceMap[resource.Name] = resource
 	}
 
-	for _, resource := range cfg.Hierarchy.Resources {
+	for _, resource := range cfg.Resources {
 		configResourceMap[resource.Name] = true
 	}
 
 	// Create or recreate resources
-	for _, configResource := range cfg.Hierarchy.Resources {
+	for _, configResource := range cfg.Resources {
 
 		if existingResource, exists := existingResourceMap[configResource.Name]; exists {
 			// Resource exists, check if update needed

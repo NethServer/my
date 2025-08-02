@@ -16,8 +16,12 @@ import (
 
 // Config represents the complete configuration structure
 type Config struct {
-	Metadata  Metadata  `yaml:"metadata" json:"metadata"`
-	Hierarchy Hierarchy `yaml:"hierarchy" json:"hierarchy"`
+	Metadata          Metadata          `yaml:"metadata" json:"metadata"`
+	OrganizationRoles []Role            `yaml:"organization_roles" json:"organization_roles"`
+	UserRoles         []Role            `yaml:"user_roles" json:"user_roles"`
+	Resources         []Resource        `yaml:"resources" json:"resources"`
+	ThirdPartyApps    []Application     `yaml:"third_party_apps,omitempty" json:"third_party_apps,omitempty"`
+	SignInExperience  *SignInExperience `yaml:"sign_in_experience,omitempty" json:"sign_in_experience,omitempty"`
 }
 
 // Metadata contains configuration metadata
@@ -25,14 +29,6 @@ type Metadata struct {
 	Name        string `yaml:"name" json:"name"`
 	Version     string `yaml:"version" json:"version"`
 	Description string `yaml:"description" json:"description"`
-}
-
-// Hierarchy contains the RBAC hierarchy configuration
-type Hierarchy struct {
-	OrganizationRoles []Role        `yaml:"organization_roles" json:"organization_roles"`
-	UserRoles         []Role        `yaml:"user_roles" json:"user_roles"`
-	Resources         []Resource    `yaml:"resources" json:"resources"`
-	ThirdPartyApps    []Application `yaml:"third_party_apps,omitempty" json:"third_party_apps,omitempty"`
 }
 
 // Role represents a role with permissions
@@ -85,7 +81,7 @@ func (c *Config) Validate() error {
 
 	// Validate organization roles
 	orgRoleNames := make(map[string]bool)
-	for _, role := range c.Hierarchy.OrganizationRoles {
+	for _, role := range c.OrganizationRoles {
 		if err := c.validateRole(role, "organization"); err != nil {
 			return fmt.Errorf("organization role validation failed: %w", err)
 		}
@@ -98,7 +94,7 @@ func (c *Config) Validate() error {
 
 	// Validate user roles
 	userRoleNames := make(map[string]bool)
-	for _, role := range c.Hierarchy.UserRoles {
+	for _, role := range c.UserRoles {
 		if err := c.validateRole(role, "user"); err != nil {
 			return fmt.Errorf("user role validation failed: %w", err)
 		}
@@ -111,7 +107,7 @@ func (c *Config) Validate() error {
 
 	// Validate resources
 	resourceNames := make(map[string]bool)
-	for _, resource := range c.Hierarchy.Resources {
+	for _, resource := range c.Resources {
 		if err := c.validateResource(resource); err != nil {
 			return fmt.Errorf("resource validation failed: %w", err)
 		}
@@ -129,7 +125,7 @@ func (c *Config) Validate() error {
 
 	// Validate third-party apps
 	appNames := make(map[string]bool)
-	for _, app := range c.Hierarchy.ThirdPartyApps {
+	for _, app := range c.ThirdPartyApps {
 		if err := c.validateApplication(app); err != nil {
 			return fmt.Errorf("third-party app validation failed: %w", err)
 		}
@@ -205,7 +201,7 @@ func (c *Config) validatePermissionReferences() error {
 	// Build map of valid permissions from resources
 	validPermissions := make(map[string]bool)
 
-	for _, resource := range c.Hierarchy.Resources {
+	for _, resource := range c.Resources {
 		for _, action := range resource.Actions {
 			permissionID := fmt.Sprintf("%s:%s", action, resource.Name)
 			validPermissions[permissionID] = true
@@ -213,7 +209,7 @@ func (c *Config) validatePermissionReferences() error {
 	}
 
 	// Check organization roles
-	for _, role := range c.Hierarchy.OrganizationRoles {
+	for _, role := range c.OrganizationRoles {
 		for _, perm := range role.Permissions {
 			if !validPermissions[perm.ID] && !c.isSystemPermission(perm.ID) {
 				return fmt.Errorf("invalid permission reference %s in organization role %s", perm.ID, role.ID)
@@ -222,7 +218,7 @@ func (c *Config) validatePermissionReferences() error {
 	}
 
 	// Check user roles
-	for _, role := range c.Hierarchy.UserRoles {
+	for _, role := range c.UserRoles {
 		for _, perm := range role.Permissions {
 			if !validPermissions[perm.ID] && !c.isSystemPermission(perm.ID) {
 				return fmt.Errorf("invalid permission reference %s in user role %s", perm.ID, role.ID)
@@ -298,13 +294,13 @@ func (c *Config) validateApplication(app Application) error {
 func (c *Config) validateAccessControl(accessControl AccessControl, appName string) error {
 	// Build map of valid organization roles
 	validOrgRoles := make(map[string]bool)
-	for _, role := range c.Hierarchy.OrganizationRoles {
+	for _, role := range c.OrganizationRoles {
 		validOrgRoles[role.ID] = true
 	}
 
 	// Build map of valid user roles
 	validUserRoles := make(map[string]bool)
-	for _, role := range c.Hierarchy.UserRoles {
+	for _, role := range c.UserRoles {
 		validUserRoles[role.ID] = true
 	}
 
@@ -369,7 +365,7 @@ func (c *Config) GetAllPermissions() map[string]Permission {
 	allPermissions := make(map[string]Permission)
 
 	// Get permissions from organization roles
-	organizationRoles := c.GetOrgTypeRoles(c.Hierarchy.OrganizationRoles)
+	organizationRoles := c.GetOrgTypeRoles(c.OrganizationRoles)
 	for _, role := range organizationRoles {
 		for _, permission := range role.Permissions {
 			if permission.ID != "" {
@@ -379,7 +375,7 @@ func (c *Config) GetAllPermissions() map[string]Permission {
 	}
 
 	// Get permissions from user roles
-	userRoles := c.GetUserTypeRoles(c.Hierarchy.UserRoles)
+	userRoles := c.GetUserTypeRoles(c.UserRoles)
 	for _, role := range userRoles {
 		for _, permission := range role.Permissions {
 			if permission.ID != "" {
@@ -389,4 +385,57 @@ func (c *Config) GetAllPermissions() map[string]Permission {
 	}
 
 	return allPermissions
+}
+
+// SignInExperience represents the sign-in experience configuration
+type SignInExperience struct {
+	Colors        *SignInColors          `yaml:"colors,omitempty" json:"colors,omitempty"`
+	Branding      *SignInBranding        `yaml:"branding,omitempty" json:"branding,omitempty"`
+	CustomCSSPath string                 `yaml:"custom_css_path,omitempty" json:"custom_css_path,omitempty"`
+	Language      *SignInLanguage        `yaml:"language,omitempty" json:"language,omitempty"`
+	SignIn        *SignInMethod          `yaml:"sign_in,omitempty" json:"sign_in,omitempty"`
+	SignUp        *SignUpMethod          `yaml:"sign_up,omitempty" json:"sign_up,omitempty"`
+	SocialSignIn  map[string]interface{} `yaml:"social_sign_in,omitempty" json:"social_sign_in,omitempty"`
+}
+
+// SignInColors represents color configuration for sign-in experience
+type SignInColors struct {
+	PrimaryColor     string `yaml:"primary_color,omitempty" json:"primary_color,omitempty"`
+	PrimaryColorDark string `yaml:"primary_color_dark,omitempty" json:"primary_color_dark,omitempty"`
+	DarkModeEnabled  bool   `yaml:"dark_mode_enabled,omitempty" json:"dark_mode_enabled,omitempty"`
+}
+
+// SignInBranding represents branding assets for sign-in experience
+type SignInBranding struct {
+	LogoPath        string `yaml:"logo_path,omitempty" json:"logo_path,omitempty"`
+	LogoDarkPath    string `yaml:"logo_dark_path,omitempty" json:"logo_dark_path,omitempty"`
+	FaviconPath     string `yaml:"favicon_path,omitempty" json:"favicon_path,omitempty"`
+	FaviconDarkPath string `yaml:"favicon_dark_path,omitempty" json:"favicon_dark_path,omitempty"`
+}
+
+// SignInLanguage represents language configuration
+type SignInLanguage struct {
+	AutoDetect       bool   `yaml:"auto_detect,omitempty" json:"auto_detect,omitempty"`
+	FallbackLanguage string `yaml:"fallback_language,omitempty" json:"fallback_language,omitempty"`
+}
+
+// SignInMethod represents sign-in method configuration
+type SignInMethod struct {
+	Methods []SignInMethodItem `yaml:"methods,omitempty" json:"methods,omitempty"`
+}
+
+// SignInMethodItem represents a single sign-in method
+type SignInMethodItem struct {
+	Identifier        string `yaml:"identifier,omitempty" json:"identifier,omitempty"`
+	Password          bool   `yaml:"password,omitempty" json:"password,omitempty"`
+	VerificationCode  bool   `yaml:"verification_code,omitempty" json:"verification_code,omitempty"`
+	IsPasswordPrimary bool   `yaml:"is_password_primary,omitempty" json:"is_password_primary,omitempty"`
+}
+
+// SignUpMethod represents sign-up method configuration
+type SignUpMethod struct {
+	Identifiers          []string `yaml:"identifiers,omitempty" json:"identifiers,omitempty"`
+	Password             bool     `yaml:"password,omitempty" json:"password,omitempty"`
+	Verify               bool     `yaml:"verify,omitempty" json:"verify,omitempty"`
+	SecondaryIdentifiers []string `yaml:"secondary_identifiers,omitempty" json:"secondary_identifiers,omitempty"`
 }

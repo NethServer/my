@@ -230,30 +230,29 @@ metadata:
   name: "nethesis-rbac"
   version: "1.0.0"
 
-hierarchy:
-  # Business hierarchy (organization roles)
-  organization_roles:
-    - id: owner
-      name: "Owner"
-      permissions:
-        - id: create:distributors
-        - id: manage:distributors
+# Business hierarchy (organization roles)
+organization_roles:
+  - id: owner
+    name: "Owner"
+    permissions:
+      - id: create:distributors
+      - id: manage:distributors
 
-  # Technical capabilities (user roles)
-  user_roles:
-    - id: admin
-      name: "Admin"
-      permissions:
-        - id: admin:systems
-        - id: destroy:systems
+# Technical capabilities (user roles)
+user_roles:
+  - id: admin
+    name: "Admin"
+    permissions:
+      - id: admin:systems
+      - id: destroy:systems
 
-  # Available resources
-  resources:
-    - name: "systems"
-      actions: ["read", "manage", "admin", "destroy"]
+# Available resources
+resources:
+  - name: "systems"
+    actions: ["read", "manage", "admin", "destroy"]
 
-  # Third-party applications (optional)
-  third_party_apps:
+# Third-party applications (optional)
+third_party_apps:
     - name: "example.company.com"
       description: "Example third-party application"
       display_name: "Example App"
@@ -281,6 +280,47 @@ hierarchy:
       #   - "urn:logto:scope:organizations"
       #   - "urn:logto:scope:organization_roles"
       #   - "custom:scope"
+
+# Sign-in experience configuration (optional)
+sign_in_experience:
+  # Brand colors (hex format)
+  colors:
+    primary_color: "#0069A8"
+    primary_color_dark: "#0087DB"
+    dark_mode_enabled: true
+
+  # Branding assets (relative paths from config file directory)
+  branding:
+    logo_path: "sign-in/logo.png"
+    logo_dark_path: "sign-in/logo-dark.png"
+    favicon_path: "sign-in/favicon.ico"
+    favicon_dark_path: "sign-in/favicon-dark.ico"
+
+  # Custom CSS (relative path from config file directory)
+  custom_css_path: "sign-in/default.css"
+
+  # Language configuration
+  language:
+    auto_detect: true
+    fallback_language: "en"
+
+  # Sign-in methods configuration
+  sign_in:
+    methods:
+      - identifier: "email"
+        password: true
+        verification_code: false
+        is_password_primary: true
+
+  # Sign-up configuration (disabled by default)
+  sign_up:
+    identifiers: []
+    password: false
+    verify: false
+    secondary_identifiers: []
+
+  # Social sign-in configuration (empty by default)
+  social_sign_in: {}
 ```
 
 ## Development

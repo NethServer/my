@@ -120,6 +120,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 		SkipPermissions: viper.GetBool("skip-permissions"),
 		Cleanup:         viper.GetBool("cleanup"),
 		APIBaseURL:      syncmd.GetAPIBaseURL(),
+		ConfigFile:      cfgFile,
 	})
 
 	// Run synchronization

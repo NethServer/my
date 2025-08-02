@@ -30,20 +30,19 @@ metadata:
   name: "Test Config"
   version: "1.0.0"
   description: "Test configuration"
-hierarchy:
-  organization_roles:
-    - id: "owner"
-      name: "Owner"
-      permissions:
-        - id: "manage:systems"
-  user_roles:
-    - id: "admin"
-      name: "Admin"
-      permissions:
-        - id: "read:systems"
-  resources:
-    - name: "systems"
-      actions: ["read", "manage"]
+organization_roles:
+  - id: "owner"
+    name: "Owner"
+    permissions:
+      - id: "manage:systems"
+user_roles:
+  - id: "admin"
+    name: "Admin"
+    permissions:
+      - id: "read:systems"
+resources:
+  - name: "systems"
+    actions: ["read", "manage"]
 `
 				tmpFile := createTempFile(t, content)
 				return tmpFile
@@ -73,7 +72,7 @@ hierarchy:
 metadata:
   name: "Test Config"
   version: 1.0.0
-hierarchy:
+organization_roles:
   invalid_yaml: [
     - missing_closing_bracket
 `
@@ -138,20 +137,19 @@ func TestLoadFromData(t *testing.T) {
 metadata:
   name: "Test Config"
   version: "1.0.0"
-hierarchy:
-  organization_roles:
-    - id: "owner"
-      name: "Owner"
-      permissions:
-        - id: "manage:systems"
-  user_roles:
-    - id: "admin"
-      name: "Admin"
-      permissions:
-        - id: "read:systems"
-  resources:
-    - name: "systems"
-      actions: ["read", "manage"]
+organization_roles:
+  - id: "owner"
+    name: "Owner"
+    permissions:
+      - id: "manage:systems"
+user_roles:
+  - id: "admin"
+    name: "Admin"
+    permissions:
+      - id: "read:systems"
+resources:
+  - name: "systems"
+    actions: ["read", "manage"]
 `,
 			expectError: false,
 		},
@@ -160,7 +158,7 @@ hierarchy:
 			yamlData: `
 metadata:
   name: "Test"
-hierarchy:
+organization_roles:
   invalid: [
     - unclosed
 `,
@@ -208,30 +206,28 @@ func TestConfigSaveToFile(t *testing.T) {
 			Version:     "1.0.0",
 			Description: "Test description",
 		},
-		Hierarchy: Hierarchy{
-			OrganizationRoles: []Role{
-				{
-					ID:   "owner",
-					Name: "Owner",
-					Permissions: []Permission{
-						{ID: "manage:systems"},
-					},
+		OrganizationRoles: []Role{
+			{
+				ID:   "owner",
+				Name: "Owner",
+				Permissions: []Permission{
+					{ID: "manage:systems"},
 				},
 			},
-			UserRoles: []Role{
-				{
-					ID:   "admin",
-					Name: "Admin",
-					Permissions: []Permission{
-						{ID: "read:systems"},
-					},
+		},
+		UserRoles: []Role{
+			{
+				ID:   "admin",
+				Name: "Admin",
+				Permissions: []Permission{
+					{ID: "read:systems"},
 				},
 			},
-			Resources: []Resource{
-				{
-					Name:    "systems",
-					Actions: []string{"read", "manage"},
-				},
+		},
+		Resources: []Resource{
+			{
+				Name:    "systems",
+				Actions: []string{"read", "manage"},
 			},
 		},
 	}
@@ -263,12 +259,10 @@ func TestConfigToYAML(t *testing.T) {
 			Name:    "Test Config",
 			Version: "1.0.0",
 		},
-		Hierarchy: Hierarchy{
-			OrganizationRoles: []Role{
-				{
-					ID:   "owner",
-					Name: "Owner",
-				},
+		OrganizationRoles: []Role{
+			{
+				ID:   "owner",
+				Name: "Owner",
 			},
 		},
 	}
@@ -312,13 +306,4 @@ func createTempFile(t *testing.T, content string) string {
 func contains(str, substr string) bool {
 	return len(str) >= len(substr) && str[:len(substr)] == substr ||
 		len(str) > len(substr) && containsSubstring(str, substr)
-}
-
-func containsSubstring(str, substr string) bool {
-	for i := 0; i <= len(str)-len(substr); i++ {
-		if str[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

@@ -93,6 +93,7 @@ func init() {
 	initCmd.Flags().StringVar(&initOwnerUsername, "owner-username", "owner", "Owner user username")
 	initCmd.Flags().StringVar(&initOwnerEmail, "owner-email", "owner@example.com", "Owner user email")
 	initCmd.Flags().StringVar(&initOwnerDisplayName, "owner-name", "Company Owner", "Owner user display name")
+
 }
 
 func runInit(cmd *cobra.Command, args []string) error {

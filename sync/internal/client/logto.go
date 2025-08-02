@@ -454,6 +454,59 @@ type SignInExperienceMFA struct {
 	Factors []string `json:"factors"`
 }
 
+// SignInExperienceColor represents color configuration
+type SignInExperienceColor struct {
+	PrimaryColor      string `json:"primaryColor"`
+	IsDarkModeEnabled bool   `json:"isDarkModeEnabled"`
+	DarkPrimaryColor  string `json:"darkPrimaryColor"`
+}
+
+// SignInExperienceBranding represents branding configuration
+type SignInExperienceBranding struct {
+	LogoURL     string `json:"logoUrl"`
+	DarkLogoURL string `json:"darkLogoUrl"`
+	Favicon     string `json:"favicon"`
+	DarkFavicon string `json:"darkFavicon"`
+}
+
+// SignInExperienceLanguageInfo represents language configuration
+type SignInExperienceLanguageInfo struct {
+	AutoDetect       bool   `json:"autoDetect"`
+	FallbackLanguage string `json:"fallbackLanguage"`
+}
+
+// SignInExperienceSignInMethod represents sign-in method configuration
+type SignInExperienceSignInMethod struct {
+	Identifier        string `json:"identifier"`
+	Password          bool   `json:"password"`
+	VerificationCode  bool   `json:"verificationCode"`
+	IsPasswordPrimary bool   `json:"isPasswordPrimary"`
+}
+
+// SignInExperienceSignIn represents sign-in configuration
+type SignInExperienceSignIn struct {
+	Methods []SignInExperienceSignInMethod `json:"methods"`
+}
+
+// SignInExperienceSignUp represents sign-up configuration
+type SignInExperienceSignUp struct {
+	Identifiers          []string `json:"identifiers"`
+	Password             bool     `json:"password"`
+	Verify               bool     `json:"verify"`
+	SecondaryIdentifiers []string `json:"secondaryIdentifiers"`
+}
+
+// SignInExperienceConfig represents the complete sign-in experience configuration
+type SignInExperienceConfig struct {
+	Color        *SignInExperienceColor        `json:"color,omitempty"`
+	Branding     *SignInExperienceBranding     `json:"branding,omitempty"`
+	CustomCSS    string                        `json:"customCss,omitempty"`
+	LanguageInfo *SignInExperienceLanguageInfo `json:"languageInfo,omitempty"`
+	SignIn       *SignInExperienceSignIn       `json:"signIn,omitempty"`
+	SignUp       *SignInExperienceSignUp       `json:"signUp,omitempty"`
+	SocialSignIn map[string]interface{}        `json:"socialSignIn,omitempty"`
+}
+
 // UpdateSignInExperienceMFA configures MFA settings using the sign-in experience API
 func (c *LogtoClient) UpdateSignInExperienceMFA(policy string, factors []string) error {
 	mfaConfig := map[string]interface{}{
@@ -468,6 +521,18 @@ func (c *LogtoClient) UpdateSignInExperienceMFA(policy string, factors []string)
 	resp, err := c.makeRequest("PATCH", "/api/sign-in-exp", mfaConfig)
 	if err != nil {
 		return fmt.Errorf("failed to update MFA configuration: %w", err)
+	}
+
+	return c.handleResponse(resp, http.StatusOK, nil)
+}
+
+// UpdateSignInExperience updates the complete sign-in experience configuration
+func (c *LogtoClient) UpdateSignInExperience(config SignInExperienceConfig) error {
+	logger.Debug("Updating sign-in experience configuration")
+
+	resp, err := c.makeRequest("PATCH", "/api/sign-in-exp", config)
+	if err != nil {
+		return fmt.Errorf("failed to update sign-in experience: %w", err)
 	}
 
 	return c.handleResponse(resp, http.StatusOK, nil)

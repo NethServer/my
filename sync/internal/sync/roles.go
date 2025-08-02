@@ -52,7 +52,7 @@ func (e *Engine) syncUserRoles(cfg *config.Config, result *Result) error {
 	logger.Info("Syncing user roles...")
 
 	// Filter only user type roles
-	userRoles := cfg.GetUserTypeRoles(cfg.Hierarchy.UserRoles)
+	userRoles := cfg.GetUserTypeRoles(cfg.UserRoles)
 
 	// Get existing user roles from Logto
 	existingRoles, err := e.client.GetRoles()
@@ -188,7 +188,7 @@ func (e *Engine) buildUserRolePermissionMappings(cfg *config.Config) (*UserRoleP
 		resourceNameToID = CreateResourceNameToIDMapping(existingResources)
 
 		// Add simulated mappings for roles that don't exist
-		for _, role := range cfg.Hierarchy.UserRoles {
+		for _, role := range cfg.UserRoles {
 			roleNameLower := strings.ToLower(role.Name)
 			if _, exists := roleNameToID[roleNameLower]; !exists {
 				roleNameToID[roleNameLower] = "dry-run-role-" + roleNameLower
@@ -196,7 +196,7 @@ func (e *Engine) buildUserRolePermissionMappings(cfg *config.Config) (*UserRoleP
 		}
 
 		// Add simulated mappings for resources that don't exist
-		for _, resource := range cfg.Hierarchy.Resources {
+		for _, resource := range cfg.Resources {
 			if _, exists := resourceNameToID[resource.Name]; !exists {
 				resourceNameToID[resource.Name] = "dry-run-resource-" + resource.Name
 			}
@@ -243,7 +243,7 @@ func (e *Engine) syncUserRolePermissions(cfg *config.Config, result *Result) err
 	logger.Info("Syncing user role permissions...")
 
 	// Filter only user type roles
-	userRoles := cfg.GetUserTypeRoles(cfg.Hierarchy.UserRoles)
+	userRoles := cfg.GetUserTypeRoles(cfg.UserRoles)
 
 	// Build necessary mappings
 	mappings, err := e.buildUserRolePermissionMappings(cfg)

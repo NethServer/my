@@ -87,7 +87,7 @@ func BuildGlobalScopeMapping(client *client.LogtoClient, cfg *config.Config, res
 	allScopeNameToID := make(map[string]string)
 	allScopeIDToName := make(map[string]string)
 
-	for _, configResource := range cfg.Hierarchy.Resources {
+	for _, configResource := range cfg.Resources {
 		resourceID, exists := resourceNameToID[configResource.Name]
 		if !exists {
 			syncLogger := logger.ComponentLogger("sync")

@@ -37,6 +37,7 @@ type Options struct {
 	SkipPermissions bool
 	Cleanup         bool
 	APIBaseURL      string
+	ConfigFile      string
 }
 
 // Result contains the results of a synchronization
@@ -152,9 +153,16 @@ func (e *Engine) Sync(cfg *config.Config) (*Result, error) {
 	}
 
 	// Sync third-party applications
-	if len(cfg.Hierarchy.ThirdPartyApps) > 0 {
+	if len(cfg.ThirdPartyApps) > 0 {
 		if err := e.syncThirdPartyApplications(cfg, result); err != nil {
 			result.Errors = append(result.Errors, fmt.Sprintf("Third-party applications sync failed: %v", err))
+		}
+	}
+
+	// Sync sign-in experience
+	if cfg.SignInExperience != nil {
+		if err := e.syncSignInExperience(cfg, result); err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("Sign-in experience sync failed: %v", err))
 		}
 	}
 
