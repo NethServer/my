@@ -19,12 +19,12 @@ import (
 
 // syncThirdPartyApplications synchronizes third-party applications
 func (e *Engine) syncThirdPartyApplications(cfg *config.Config, result *Result) error {
-	if len(cfg.Hierarchy.ThirdPartyApps) == 0 {
+	if len(cfg.ThirdPartyApps) == 0 {
 		logger.Info("No third-party applications to sync")
 		return nil
 	}
 
-	logger.Info("Syncing %d third-party applications", len(cfg.Hierarchy.ThirdPartyApps))
+	logger.Info("Syncing %d third-party applications", len(cfg.ThirdPartyApps))
 
 	// Get existing third-party applications
 	existingAppsList, err := e.client.GetThirdPartyApplications()
@@ -39,7 +39,7 @@ func (e *Engine) syncThirdPartyApplications(cfg *config.Config, result *Result) 
 	}
 
 	// Sync each configured application
-	for _, appConfig := range cfg.Hierarchy.ThirdPartyApps {
+	for _, appConfig := range cfg.ThirdPartyApps {
 		if err := e.syncSingleApplication(appConfig, existingApps, cfg, result); err != nil {
 			logger.Error("Failed to sync application %s: %v", appConfig.Name, err)
 			result.Errors = append(result.Errors, fmt.Sprintf("Application %s sync failed: %v", appConfig.Name, err))
@@ -177,7 +177,7 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 func (e *Engine) cleanupThirdPartyApplications(cfg *config.Config, existingApps map[string]client.ThirdPartyApplication, result *Result) error {
 	// Build set of configured application names
 	configuredNames := make(map[string]bool)
-	for _, app := range cfg.Hierarchy.ThirdPartyApps {
+	for _, app := range cfg.ThirdPartyApps {
 		configuredNames[app.Name] = true
 	}
 

@@ -83,7 +83,9 @@ install: build
 # Run the application
 .PHONY: run
 run:
-	@go run ./$(CMD_DIR) $(ARGS)
+	@go run ./$(CMD_DIR) $(filter-out $@,$(MAKECMDGOALS))
+%:
+	@:
 
 # Run the application with QA environment
 .PHONY: run-qa

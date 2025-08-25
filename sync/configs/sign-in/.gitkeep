@@ -1,0 +1,8 @@
+# Add your sign-in experience assets here:
+#
+# - logo.png            (Logo for light theme)
+# - logo-dark.png       (Logo for dark theme) 
+# - favicon.ico         (Favicon for light theme)
+# - favicon-dark.ico    (Favicon for dark theme)
+#
+# Configure paths in config.yml and apply with 'sync sync'

@@ -28,30 +28,28 @@ func TestConfigValidate(t *testing.T) {
 					Version:     "1.0.0",
 					Description: "Test description",
 				},
-				Hierarchy: Hierarchy{
-					OrganizationRoles: []Role{
-						{
-							ID:   "owner",
-							Name: "Owner",
-							Permissions: []Permission{
-								{ID: "manage:systems"},
-							},
+				OrganizationRoles: []Role{
+					{
+						ID:   "owner",
+						Name: "Owner",
+						Permissions: []Permission{
+							{ID: "manage:systems"},
 						},
 					},
-					UserRoles: []Role{
-						{
-							ID:   "admin",
-							Name: "Admin",
-							Permissions: []Permission{
-								{ID: "read:systems"},
-							},
+				},
+				UserRoles: []Role{
+					{
+						ID:   "admin",
+						Name: "Admin",
+						Permissions: []Permission{
+							{ID: "read:systems"},
 						},
 					},
-					Resources: []Resource{
-						{
-							Name:    "systems",
-							Actions: []string{"read", "manage"},
-						},
+				},
+				Resources: []Resource{
+					{
+						Name:    "systems",
+						Actions: []string{"read", "manage"},
 					},
 				},
 			},
@@ -84,28 +82,26 @@ func TestConfigValidate(t *testing.T) {
 					Name:    "Test Config",
 					Version: "1.0.0",
 				},
-				Hierarchy: Hierarchy{
-					OrganizationRoles: []Role{
-						{
-							ID:   "owner",
-							Name: "Owner",
-							Permissions: []Permission{
-								{ID: "manage:systems"},
-							},
-						},
-						{
-							ID:   "owner",
-							Name: "Owner Duplicate",
-							Permissions: []Permission{
-								{ID: "read:systems"},
-							},
+				OrganizationRoles: []Role{
+					{
+						ID:   "owner",
+						Name: "Owner",
+						Permissions: []Permission{
+							{ID: "manage:systems"},
 						},
 					},
-					Resources: []Resource{
-						{
-							Name:    "systems",
-							Actions: []string{"read", "manage"},
+					{
+						ID:   "owner",
+						Name: "Owner Duplicate",
+						Permissions: []Permission{
+							{ID: "read:systems"},
 						},
+					},
+				},
+				Resources: []Resource{
+					{
+						Name:    "systems",
+						Actions: []string{"read", "manage"},
 					},
 				},
 			},
@@ -119,28 +115,26 @@ func TestConfigValidate(t *testing.T) {
 					Name:    "Test Config",
 					Version: "1.0.0",
 				},
-				Hierarchy: Hierarchy{
-					UserRoles: []Role{
-						{
-							ID:   "admin",
-							Name: "Admin",
-							Permissions: []Permission{
-								{ID: "manage:systems"},
-							},
-						},
-						{
-							ID:   "admin",
-							Name: "Admin Duplicate",
-							Permissions: []Permission{
-								{ID: "read:systems"},
-							},
+				UserRoles: []Role{
+					{
+						ID:   "admin",
+						Name: "Admin",
+						Permissions: []Permission{
+							{ID: "read:systems"},
 						},
 					},
-					Resources: []Resource{
-						{
-							Name:    "systems",
-							Actions: []string{"read", "manage"},
+					{
+						ID:   "admin",
+						Name: "Admin Duplicate",
+						Permissions: []Permission{
+							{ID: "read:systems"},
 						},
+					},
+				},
+				Resources: []Resource{
+					{
+						Name:    "systems",
+						Actions: []string{"read", "manage"},
 					},
 				},
 			},
@@ -154,16 +148,14 @@ func TestConfigValidate(t *testing.T) {
 					Name:    "Test Config",
 					Version: "1.0.0",
 				},
-				Hierarchy: Hierarchy{
-					Resources: []Resource{
-						{
-							Name:    "systems",
-							Actions: []string{"read"},
-						},
-						{
-							Name:    "systems",
-							Actions: []string{"manage"},
-						},
+				Resources: []Resource{
+					{
+						Name:    "systems",
+						Actions: []string{"read"},
+					},
+					{
+						Name:    "systems",
+						Actions: []string{"write"},
 					},
 				},
 			},
@@ -177,21 +169,19 @@ func TestConfigValidate(t *testing.T) {
 					Name:    "Test Config",
 					Version: "1.0.0",
 				},
-				Hierarchy: Hierarchy{
-					OrganizationRoles: []Role{
-						{
-							ID:   "owner",
-							Name: "Owner",
-							Permissions: []Permission{
-								{ID: "invalid:permission"},
-							},
+				OrganizationRoles: []Role{
+					{
+						ID:   "owner",
+						Name: "Owner",
+						Permissions: []Permission{
+							{ID: "invalid:permission"},
 						},
 					},
-					Resources: []Resource{
-						{
-							Name:    "systems",
-							Actions: []string{"read"},
-						},
+				},
+				Resources: []Resource{
+					{
+						Name:    "systems",
+						Actions: []string{"read"},
 					},
 				},
 			},
@@ -412,134 +402,118 @@ func TestValidateResource(t *testing.T) {
 	}
 }
 
-func TestIsSystemPermission(t *testing.T) {
-	config := &Config{}
+func TestValidateApplication(t *testing.T) {
+	config := &Config{
+		OrganizationRoles: []Role{
+			{ID: "owner", Name: "Owner"},
+		},
+		UserRoles: []Role{
+			{ID: "admin", Name: "Admin"},
+		},
+	}
 
 	tests := []struct {
-		name         string
-		permissionID string
-		expected     bool
+		name        string
+		app         Application
+		expectError bool
+		errorMsg    string
 	}{
-		{"admin permission", "admin:users", true},
-		{"manage permission", "manage:systems", true},
-		{"view permission", "view:reports", true},
-		{"create permission", "create:accounts", true},
-		{"read permission", "read:data", true},
-		{"update permission", "update:profile", true},
-		{"delete permission", "delete:files", true},
-		{"destroy permission", "destroy:system", true},
-		{"audit permission", "audit:logs", true},
-		{"backup permission", "backup:data", true},
-		{"invalid permission", "invalid:permission", false},
-		{"custom permission", "custom:action", false},
+		{
+			name: "valid application passes validation",
+			app: Application{
+				Name:        "test.example.com",
+				Description: "Test application",
+				DisplayName: "Test App",
+				AccessControl: &AccessControl{
+					OrganizationRoles: []string{"owner"},
+					UserRoles:         []string{"admin"},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "missing application name fails validation",
+			app: Application{
+				Description: "Test application",
+				DisplayName: "Test App",
+			},
+			expectError: true,
+			errorMsg:    "application name is required",
+		},
+		{
+			name: "missing description fails validation",
+			app: Application{
+				Name:        "test.example.com",
+				DisplayName: "Test App",
+			},
+			expectError: true,
+			errorMsg:    "application description is required",
+		},
+		{
+			name: "missing display name fails validation",
+			app: Application{
+				Name:        "test.example.com",
+				Description: "Test application",
+			},
+			expectError: true,
+			errorMsg:    "application display_name is required",
+		},
+		{
+			name: "invalid organization role in access control fails validation",
+			app: Application{
+				Name:        "test.example.com",
+				Description: "Test application",
+				DisplayName: "Test App",
+				AccessControl: &AccessControl{
+					OrganizationRoles: []string{"invalid"},
+				},
+			},
+			expectError: true,
+			errorMsg:    "invalid organization role",
+		},
+		{
+			name: "invalid user role in access control fails validation",
+			app: Application{
+				Name:        "test.example.com",
+				Description: "Test application",
+				DisplayName: "Test App",
+				AccessControl: &AccessControl{
+					UserRoles: []string{"invalid"},
+				},
+			},
+			expectError: true,
+			errorMsg:    "invalid user role",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := config.isSystemPermission(tt.permissionID)
-			if result != tt.expected {
-				t.Errorf("expected %v for permission %q, got %v", tt.expected, tt.permissionID, result)
+			err := config.validateApplication(tt.app)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("expected error but got none")
+					return
+				}
+				if tt.errorMsg != "" && !containsSubstring(err.Error(), tt.errorMsg) {
+					t.Errorf("expected error message to contain %q, got %q", tt.errorMsg, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
 			}
 		})
 	}
 }
 
-func TestGetUserTypeRoles(t *testing.T) {
-	config := &Config{}
-
-	roles := []Role{
-		{ID: "admin", Name: "Admin", Type: "user"},
-		{ID: "owner", Name: "Owner", Type: "organization"},
-		{ID: "support", Name: "Support", Type: ""},
-		{ID: "system", Name: "System", Type: "system"},
-	}
-
-	userRoles := config.GetUserTypeRoles(roles)
-
-	expectedCount := 2 // admin (type: user) and support (type: empty)
-	if len(userRoles) != expectedCount {
-		t.Errorf("expected %d user roles, got %d", expectedCount, len(userRoles))
-	}
-
-	// Check that the correct roles are returned
-	found := make(map[string]bool)
-	for _, role := range userRoles {
-		found[role.ID] = true
-	}
-
-	if !found["admin"] {
-		t.Error("expected admin role to be included")
-	}
-	if !found["support"] {
-		t.Error("expected support role to be included")
-	}
-	if found["owner"] {
-		t.Error("expected owner role to be excluded")
-	}
-	if found["system"] {
-		t.Error("expected system role to be excluded")
-	}
-}
-
-func TestGetAllPermissions(t *testing.T) {
-	config := &Config{
-		Hierarchy: Hierarchy{
-			OrganizationRoles: []Role{
-				{
-					ID:   "owner",
-					Name: "Owner",
-					Type: "org",
-					Permissions: []Permission{
-						{ID: "manage:systems"},
-						{ID: "admin:users"},
-					},
-				},
-				{
-					ID:   "distributor",
-					Name: "Distributor",
-					Type: "invalid", // Should be excluded
-					Permissions: []Permission{
-						{ID: "excluded:permission"},
-					},
-				},
-			},
-			UserRoles: []Role{
-				{
-					ID:   "admin",
-					Name: "Admin",
-					Type: "user",
-					Permissions: []Permission{
-						{ID: "read:systems"},
-						{ID: "manage:systems"}, // Duplicate, should be deduplicated
-					},
-				},
-				{
-					ID:   "support",
-					Name: "Support",
-					Type: "", // Empty type should be included
-					Permissions: []Permission{
-						{ID: "view:reports"},
-					},
-				},
-			},
-		},
-	}
-
-	allPermissions := config.GetAllPermissions()
-
-	expectedPermissions := []string{"manage:systems", "admin:users", "read:systems", "view:reports"}
-	if len(allPermissions) != len(expectedPermissions) {
-		t.Errorf("expected %d permissions, got %d", len(expectedPermissions), len(allPermissions))
-	}
-
-	for _, expected := range expectedPermissions {
-		if _, found := allPermissions[expected]; !found {
-			t.Errorf("expected permission %q to be included", expected)
+// Helper function for substring matching
+func containsSubstring(str, substr string) bool {
+	for i := 0; i <= len(str)-len(substr); i++ {
+		if str[i:i+len(substr)] == substr {
+			return true
 		}
 	}
-
-	// Check that excluded permission is not included
-	if _, found := allPermissions["excluded:permission"]; found {
-		t.Error("expected excluded:permission to not be included")
-	}
+	return false
 }

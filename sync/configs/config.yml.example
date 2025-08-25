@@ -3,8 +3,7 @@ metadata:
   version: "1.0.0"
   description: "RBAC configuration for my application"
 
-hierarchy:
-  organization_roles:
+organization_roles:
     - id: owner
       name: "Owner"
       type: org
@@ -19,7 +18,7 @@ hierarchy:
       priority: 1
       permissions:
 
-  user_roles:
+user_roles:
     - id: admin
       name: "Admin"
       type: user
@@ -35,12 +34,12 @@ hierarchy:
       permissions:
         - id: "read:systems"
 
-  resources:
+resources:
     - name: "systems"
       actions: ["read", "manage"]
 
-  # Third-party applications (optional)
-  third_party_apps:
+# Third-party applications (optional)
+third_party_apps:
     # Example: Management app - only accessible by owners and admins
     - name: "management.company.com"
       description: "Management interface for system administrators"
@@ -103,3 +102,43 @@ hierarchy:
         - "api:read"
         - "api:write"
 
+# Sign-in experience configuration (optional)
+sign_in_experience:
+  # Brand colors (hex format)
+  colors:
+    primary_color: "#0069A8"
+    primary_color_dark: "#0087DB"
+    dark_mode_enabled: true
+
+  # Branding assets (relative paths from config file directory)
+  branding:
+    logo_path: "sign-in/logo.png"
+    logo_dark_path: "sign-in/logo-dark.png"
+    favicon_path: "sign-in/favicon.ico"
+    favicon_dark_path: "sign-in/favicon-dark.ico"
+
+  # Custom CSS (relative path from config file directory)
+  custom_css_path: "sign-in/default.css"
+
+  # Language configuration
+  language:
+    auto_detect: true
+    fallback_language: "en"
+
+  # Sign-in methods configuration
+  sign_in:
+    methods:
+      - identifier: "email"
+        password: true
+        verification_code: false
+        is_password_primary: true
+
+  # Sign-up configuration (disabled by default)
+  sign_up:
+    identifiers: []
+    password: false
+    verify: false
+    secondary_identifiers: []
+
+  # Social sign-in configuration (empty by default)
+  social_sign_in: {}

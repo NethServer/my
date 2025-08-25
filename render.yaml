@@ -73,6 +73,8 @@ services:
         sync: false
       - key: TENANT_DOMAIN
         sync: false
+      - key: APP_URL
+        sync: false
       - key: JWT_SECRET
         sync: false
       - key: BACKEND_APP_ID
@@ -219,6 +221,8 @@ services:
       - key: TENANT_ID
         sync: false
       - key: TENANT_DOMAIN
+        sync: false
+      - key: APP_URL
         sync: false
       - key: JWT_SECRET
         sync: false

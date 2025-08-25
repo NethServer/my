@@ -197,7 +197,7 @@ func (e *Engine) syncOrganizationRoles(cfg *config.Config, result *Result) error
 	logger.Info("Syncing organization roles...")
 
 	// Filter only org type roles
-	orgRoles := cfg.GetOrgTypeRoles(cfg.Hierarchy.OrganizationRoles)
+	orgRoles := cfg.GetOrgTypeRoles(cfg.OrganizationRoles)
 
 	// Get existing organization roles from Logto
 	existingRoles, err := e.client.GetOrganizationRoles()
@@ -308,7 +308,7 @@ func (e *Engine) syncOrganizationRoleScopes(cfg *config.Config, result *Result) 
 	logger.Info("Syncing organization role scopes...")
 
 	// Filter only org type roles
-	orgRoles := cfg.GetOrgTypeRoles(cfg.Hierarchy.OrganizationRoles)
+	orgRoles := cfg.GetOrgTypeRoles(cfg.OrganizationRoles)
 
 	// Get all existing scopes to create name->ID mapping
 	existingScopes, err := e.client.GetOrganizationScopes()

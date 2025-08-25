@@ -19,6 +19,7 @@ func TestDeriveEnvironmentVariables(t *testing.T) {
 	config := &InitConfig{
 		TenantID:         "test-tenant",
 		TenantDomain:     "example.com",
+		AppURL:           "https://app.example.com",
 		BackendAppID:     "backend-client",
 		BackendAppSecret: "backend-secret",
 	}
@@ -48,6 +49,7 @@ func TestDeriveEnvironmentVariables(t *testing.T) {
 		expectedBackendVars := []string{
 			"TENANT_ID",
 			"TENANT_DOMAIN",
+			"APP_URL",
 			"BACKEND_APP_ID",
 			"BACKEND_APP_SECRET",
 			"JWT_SECRET",
@@ -77,6 +79,7 @@ func TestDeriveEnvironmentVariables(t *testing.T) {
 		// Check specific values
 		assert.Equal(t, "test-tenant", backendEnv["TENANT_ID"])
 		assert.Equal(t, "example.com", backendEnv["TENANT_DOMAIN"])
+		assert.Equal(t, "https://app.example.com", backendEnv["APP_URL"])
 		assert.Equal(t, "backend-client", backendEnv["BACKEND_APP_ID"])
 		assert.Equal(t, "backend-secret", backendEnv["BACKEND_APP_SECRET"])
 		assert.Equal(t, "postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disable", backendEnv["DATABASE_URL"])
@@ -86,6 +89,14 @@ func TestDeriveEnvironmentVariables(t *testing.T) {
 
 	t.Run("environment variables with nil maps", func(t *testing.T) {
 		// Test that the function initializes the maps if they're nil
+		testConfig := &InitConfig{
+			TenantID:         "test-tenant",
+			TenantDomain:     "example.com",
+			AppURL:           "https://app.example.com",
+			BackendAppID:     "backend-client",
+			BackendAppSecret: "backend-secret",
+		}
+
 		appWithoutEnv := &Application{
 			ID:       "test-id",
 			Name:     "test-app",
@@ -100,7 +111,7 @@ func TestDeriveEnvironmentVariables(t *testing.T) {
 			ClientID: "frontend-test-client-id",
 		}
 
-		err := DeriveEnvironmentVariables(config, appWithoutEnv, frontendWithoutEnv)
+		err := DeriveEnvironmentVariables(testConfig, appWithoutEnv, frontendWithoutEnv)
 		assert.NoError(t, err)
 
 		assert.NotNil(t, appWithoutEnv.EnvironmentVars)
@@ -113,6 +124,7 @@ func TestDeriveEnvironmentVariables(t *testing.T) {
 		testConfig := &InitConfig{
 			TenantID:     "my-tenant",
 			TenantDomain: "mydomain.com",
+			AppURL:       "https://app.example.com",
 		}
 
 		testBackend := &Application{ClientID: "backend-id"}
@@ -130,10 +142,10 @@ func TestDeriveEnvironmentVariables(t *testing.T) {
 		assert.Equal(t, "redis://localhost:6379", backendEnv["REDIS_URL"])
 
 		frontendEnv := testFrontend.EnvironmentVars
-		assert.Equal(t, "https://my-tenant.logto.app", frontendEnv["VITE_LOGTO_ENDPOINT"])
+		assert.Equal(t, "https://mydomain.com", frontendEnv["VITE_LOGTO_ENDPOINT"])
 		assert.Equal(t, "frontend-id", frontendEnv["VITE_LOGTO_APP_ID"])
 		assert.Equal(t, "[\"https://mydomain.com/api\"]", frontendEnv["VITE_LOGTO_RESOURCES"])
-		assert.Equal(t, "https://mydomain.com/api", frontendEnv["VITE_API_BASE_URL"])
+		assert.Equal(t, "https://app.example.com/backend/api", frontendEnv["VITE_API_BASE_URL"])
 	})
 }
 

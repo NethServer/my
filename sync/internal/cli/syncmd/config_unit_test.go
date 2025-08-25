@@ -33,22 +33,21 @@ func TestLoadAndValidateConfig(t *testing.T) {
   name: "test-config"
   version: "1.0.0"
 
-hierarchy:
-  resources:
-    - name: "systems"
-      actions: ["read", "manage"]
-  
-  user_roles:
-    - id: "admin"
-      name: "Admin"
-      permissions:
-        - id: "manage:systems"
-  
-  organization_roles:
-    - id: "owner"
-      name: "Owner"
-      permissions:
-        - id: "read:systems"`
+resources:
+  - name: "systems"
+    actions: ["read", "manage"]
+
+user_roles:
+  - id: "admin"
+    name: "Admin"
+    permissions:
+      - id: "manage:systems"
+
+organization_roles:
+  - id: "owner"
+    name: "Owner"
+    permissions:
+      - id: "read:systems"`
 
 		err := os.WriteFile(configFile, []byte(validConfig), 0644)
 		require.NoError(t, err)

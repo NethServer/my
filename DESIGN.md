@@ -290,10 +290,9 @@ metadata:
   version: "1.0.0"
   description: "Nethesis Role-Based Authentication with clear separation between business hierarchy and technical capabilities"
 
-hierarchy:
-  # Organization roles define BUSINESS HIERARCHY permissions
-  # Users inherit these based on their organization's role in the commercial chain
-  organization_roles:
+# Organization roles define BUSINESS HIERARCHY permissions
+# Users inherit these based on their organization's role in the commercial chain
+organization_roles:
     - id: owner
       name: "Owner"
       priority: 1
@@ -334,9 +333,9 @@ hierarchy:
       permissions:
         # Read-only access to own organization data
 
-  # User roles define TECHNICAL CAPABILITIES
-  # Independent of business hierarchy - define what technical operations a user can perform
-  user_roles:
+# User roles define TECHNICAL CAPABILITIES
+# Independent of business hierarchy - define what technical operations a user can perform
+user_roles:
     - id: admin
       name: "Admin"
       priority: 1
@@ -358,8 +357,8 @@ hierarchy:
         - id: read:systems           # Can read systems
 
 
-  # Resources and their available actions
-  resources:
+# Resources and their available actions
+resources:
     - name: "systems"
       actions: ["read", "manage", "admin", "destroy"]
 
@@ -383,7 +382,8 @@ sync init \
   --tenant-id your-tenant-id \
   --backend-app-id your-backend-app-id \
   --backend-app-secret your-secret-here \
-  --domain your-domain.com
+  --logto-domain your-domain.com \
+  --app-url https://your-app.com
 
 # Alternative: Environment variables mode
 export TENANT_ID=your-tenant-id

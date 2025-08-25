@@ -21,7 +21,8 @@ import (
 
 var (
 	initForce            bool
-	initDomain           string
+	initLogtoDomain      string
+	initAppURL           string
 	initTenantID         string
 	initBackendAppID     string
 	initBackendAppSecret string
@@ -62,7 +63,8 @@ var initCmd = &cobra.Command{
     --tenant-id your-tenant-id \
     --backend-app-id your-backend-app-id \
     --backend-app-secret your-secret \
-    --domain your-domain.com \
+    --logto-domain your-domain.com \
+    --app-url https://your-app.com \
     --owner-username owner \
     --owner-email owner@example.com \
     --owner-name "Company Owner"
@@ -82,7 +84,8 @@ func init() {
 
 	// Init-specific flags
 	initCmd.Flags().BoolVar(&initForce, "force", false, "force re-initialization even if already done")
-	initCmd.Flags().StringVar(&initDomain, "domain", "", "tenant domain (e.g., your-domain.com)")
+	initCmd.Flags().StringVar(&initLogtoDomain, "logto-domain", "", "Logto tenant domain (e.g., your-domain.com)")
+	initCmd.Flags().StringVar(&initAppURL, "app-url", "", "frontend app URL (e.g., https://your-app.com)")
 	initCmd.Flags().StringVar(&initTenantID, "tenant-id", "", "Logto tenant ID (e.g., your-tenant-id)")
 	initCmd.Flags().StringVar(&initBackendAppID, "backend-app-id", "", "backend M2M application ID")
 	initCmd.Flags().StringVar(&initBackendAppSecret, "backend-app-secret", "", "backend M2M application secret")
@@ -90,11 +93,12 @@ func init() {
 	initCmd.Flags().StringVar(&initOwnerUsername, "owner-username", "owner", "Owner user username")
 	initCmd.Flags().StringVar(&initOwnerEmail, "owner-email", "owner@example.com", "Owner user email")
 	initCmd.Flags().StringVar(&initOwnerDisplayName, "owner-name", "Company Owner", "Owner user display name")
+
 }
 
 func runInit(cmd *cobra.Command, args []string) error {
 	// Determine configuration mode and validate parameters
-	config, err := initcmd.ValidateAndGetConfig(initTenantID, initBackendAppID, initBackendAppSecret, initDomain)
+	config, err := initcmd.ValidateAndGetConfig(initTenantID, initBackendAppID, initBackendAppSecret, initLogtoDomain, initAppURL)
 	if err != nil {
 		return err
 	}

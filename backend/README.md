@@ -36,6 +36,9 @@ make dev-down
 TENANT_ID=your-tenant-id
 TENANT_DOMAIN=your-domain.com
 
+# App URL configuration (frontend application URL)
+APP_URL=https://your-app-domain.com
+
 # Logto Management API (from your M2M app)
 BACKEND_APP_ID=your-management-api-app-id
 BACKEND_APP_SECRET=your-management-api-app-secret

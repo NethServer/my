@@ -17,6 +17,7 @@ func setupConfigTestEnvironment() {
 		"LISTEN_ADDRESS",
 		"TENANT_ID",
 		"TENANT_DOMAIN",
+		"APP_URL",
 		"JWT_SECRET",
 		"JWT_EXPIRATION",
 		"JWT_REFRESH_EXPIRATION",
@@ -36,6 +37,7 @@ func TestConfigurationDefaults(t *testing.T) {
 	// Test with minimal required environment variables
 	_ = os.Setenv("TENANT_ID", "test-tenant")
 	_ = os.Setenv("TENANT_DOMAIN", "test-domain.com")
+	_ = os.Setenv("APP_URL", "https://test-app.com")
 	_ = os.Setenv("JWT_SECRET", "test-secret-key")
 	_ = os.Setenv("BACKEND_APP_ID", "test-client-id")
 	_ = os.Setenv("BACKEND_APP_SECRET", "test-client-secret")
@@ -47,6 +49,7 @@ func TestConfigurationDefaults(t *testing.T) {
 	assert.Equal(t, "127.0.0.1:8080", Config.ListenAddress)
 	assert.Equal(t, "test-tenant", Config.TenantID)
 	assert.Equal(t, "test-domain.com", Config.TenantDomain)
+	assert.Equal(t, "https://test-app.com", Config.AppURL)
 	assert.Equal(t, "https://test-tenant.logto.app", Config.LogtoIssuer)
 	assert.Equal(t, "https://test-domain.com/api", Config.LogtoAudience)
 	assert.Equal(t, "https://test-tenant.logto.app/oidc/jwks", Config.JWKSEndpoint)
@@ -66,6 +69,7 @@ func TestConfigurationCustomValues(t *testing.T) {
 	_ = os.Setenv("LISTEN_ADDRESS", "0.0.0.0:9000")
 	_ = os.Setenv("TENANT_ID", "custom-tenant")
 	_ = os.Setenv("TENANT_DOMAIN", "custom.example.com")
+	_ = os.Setenv("APP_URL", "https://custom-app.example.com")
 	_ = os.Setenv("JWT_SECRET", "custom-secret-key")
 	_ = os.Setenv("JWT_EXPIRATION", "12h")
 	_ = os.Setenv("JWT_REFRESH_EXPIRATION", "72h")
@@ -79,6 +83,7 @@ func TestConfigurationCustomValues(t *testing.T) {
 	assert.Equal(t, "0.0.0.0:9000", Config.ListenAddress)
 	assert.Equal(t, "custom-tenant", Config.TenantID)
 	assert.Equal(t, "custom.example.com", Config.TenantDomain)
+	assert.Equal(t, "https://custom-app.example.com", Config.AppURL)
 	assert.Equal(t, "https://custom-tenant.logto.app", Config.LogtoIssuer)
 	assert.Equal(t, "https://custom.example.com/api", Config.LogtoAudience)
 	assert.Equal(t, "https://custom-tenant.logto.app/oidc/jwks", Config.JWKSEndpoint)
@@ -102,6 +107,7 @@ func TestConfigurationStructure(t *testing.T) {
 		ListenAddress:               "test-listen",
 		TenantID:                    "test-tenant",
 		TenantDomain:                "test-domain.com",
+		AppURL:                      "https://test-app.com",
 		LogtoIssuer:                 "test-issuer",
 		LogtoAudience:               "test-audience",
 		JWKSEndpoint:                "test-jwks",
@@ -117,6 +123,7 @@ func TestConfigurationStructure(t *testing.T) {
 	assert.Equal(t, "test-listen", config.ListenAddress)
 	assert.Equal(t, "test-tenant", config.TenantID)
 	assert.Equal(t, "test-domain.com", config.TenantDomain)
+	assert.Equal(t, "https://test-app.com", config.AppURL)
 	assert.Equal(t, "test-issuer", config.LogtoIssuer)
 	assert.Equal(t, "test-audience", config.LogtoAudience)
 	assert.Equal(t, "test-jwks", config.JWKSEndpoint)
@@ -146,6 +153,7 @@ func TestConfigurationEdgeCases(t *testing.T) {
 				_ = os.Setenv("JWT_REFRESH_EXPIRATION", "")
 				_ = os.Setenv("TENANT_ID", "test-tenant")
 				_ = os.Setenv("TENANT_DOMAIN", "test.example.com")
+				_ = os.Setenv("APP_URL", "https://test-app.com")
 				_ = os.Setenv("JWT_SECRET", "test-secret")
 				_ = os.Setenv("BACKEND_APP_ID", "test-id")
 				_ = os.Setenv("BACKEND_APP_SECRET", "test-secret")
@@ -162,6 +170,7 @@ func TestConfigurationEdgeCases(t *testing.T) {
 				_ = os.Setenv("LISTEN_ADDRESS", "  0.0.0.0:8080  ")
 				_ = os.Setenv("TENANT_ID", "test-tenant")
 				_ = os.Setenv("TENANT_DOMAIN", "test.example.com")
+				_ = os.Setenv("APP_URL", "https://test-app.com")
 				_ = os.Setenv("JWT_SECRET", "test-secret")
 				_ = os.Setenv("BACKEND_APP_ID", "test-id")
 				_ = os.Setenv("BACKEND_APP_SECRET", "test-secret")
@@ -189,6 +198,7 @@ func TestConfigurationInitMultipleTimes(t *testing.T) {
 	_ = os.Setenv("LISTEN_ADDRESS", "127.0.0.1:8080")
 	_ = os.Setenv("TENANT_ID", "first-tenant")
 	_ = os.Setenv("TENANT_DOMAIN", "first.example.com")
+	_ = os.Setenv("APP_URL", "https://first-app.com")
 	_ = os.Setenv("JWT_SECRET", "first-secret")
 	_ = os.Setenv("BACKEND_APP_ID", "first-id")
 	_ = os.Setenv("BACKEND_APP_SECRET", "first-secret")
