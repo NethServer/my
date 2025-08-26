@@ -90,7 +90,7 @@ run:
 # Run the application with QA environment
 .PHONY: run-qa
 run-qa:
-	@go run ./$(CMD_DIR) --env-file .env.qa $(ARGS)
+	@go run ./$(CMD_DIR) --env-file .env.qa --config configs/config.qa.yml $(filter-out $@,$(MAKECMDGOALS))
 
 
 # Development setup
