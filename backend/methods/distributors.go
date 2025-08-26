@@ -132,8 +132,8 @@ func GetDistributors(c *gin.Context) {
 		return
 	}
 
-	// Parse pagination parameters
-	page, pageSize := helpers.GetPaginationFromQuery(c)
+	// Parse pagination and sorting parameters
+	page, pageSize, sortBy, sortDirection := helpers.GetPaginationAndSortingFromQuery(c)
 
 	// Parse search parameter
 	search := c.Query("search")
@@ -143,7 +143,7 @@ func GetDistributors(c *gin.Context) {
 
 	// Get distributors based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
-	distributors, totalCount, err := service.ListDistributors(userOrgRole, user.OrganizationID, page, pageSize, search)
+	distributors, totalCount, err := service.ListDistributors(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -166,7 +166,7 @@ func GetDistributors(c *gin.Context) {
 		Msg("Distributors list requested")
 
 	// Return paginated response
-	c.JSON(http.StatusOK, response.Paginated("distributors retrieved successfully", "distributors", distributors, totalCount, page, pageSize))
+	c.JSON(http.StatusOK, response.PaginatedWithSorting("distributors retrieved successfully", "distributors", distributors, totalCount, page, pageSize, sortBy, sortDirection))
 }
 
 // UpdateDistributor handles PUT /api/distributors/:id - updates a distributor locally and syncs to Logto

@@ -158,8 +158,8 @@ func GetCustomers(c *gin.Context) {
 		return
 	}
 
-	// Parse pagination parameters
-	page, pageSize := helpers.GetPaginationFromQuery(c)
+	// Parse pagination and sorting parameters
+	page, pageSize, sortBy, sortDirection := helpers.GetPaginationAndSortingFromQuery(c)
 
 	// Parse search parameter
 	search := c.Query("search")
@@ -169,7 +169,7 @@ func GetCustomers(c *gin.Context) {
 
 	// Get customers based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
-	customers, totalCount, err := service.ListCustomers(userOrgRole, user.OrganizationID, page, pageSize, search)
+	customers, totalCount, err := service.ListCustomers(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -192,7 +192,7 @@ func GetCustomers(c *gin.Context) {
 		Msg("Customers list requested")
 
 	// Return paginated response
-	c.JSON(http.StatusOK, response.Paginated("customers retrieved successfully", "customers", customers, totalCount, page, pageSize))
+	c.JSON(http.StatusOK, response.PaginatedWithSorting("customers retrieved successfully", "customers", customers, totalCount, page, pageSize, sortBy, sortDirection))
 }
 
 // UpdateCustomer handles PUT /api/customers/:id - updates a customer locally and syncs to Logto

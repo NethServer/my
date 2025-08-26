@@ -152,6 +152,17 @@ components:
           nullable: true
           description: Previous page number if available
           example: null
+        sort_by:
+          type: string
+          nullable: true
+          description: Field used for sorting
+          example: "name"
+        sort_direction:
+          type: string
+          nullable: true
+          enum: ["asc", "desc"]
+          description: Sort direction
+          example: "asc"
 
     TokenExchangeRequest:
       type: object
@@ -872,6 +883,57 @@ components:
         default: 20
         example: 20
 
+    DistributorSortByParam:
+      name: sort_by
+      in: query
+      description: Field to sort distributors by
+      required: false
+      schema:
+        type: string
+        enum: ["name", "description", "created_at", "updated_at"]
+        example: "name"
+
+    ResellerSortByParam:
+      name: sort_by
+      in: query
+      description: Field to sort resellers by
+      required: false
+      schema:
+        type: string
+        enum: ["name", "description", "created_at", "updated_at"]
+        example: "name"
+
+    CustomerSortByParam:
+      name: sort_by
+      in: query
+      description: Field to sort customers by
+      required: false
+      schema:
+        type: string
+        enum: ["name", "description", "created_at", "updated_at"]
+        example: "name"
+
+    UserSortByParam:
+      name: sort_by
+      in: query
+      description: Field to sort users by
+      required: false
+      schema:
+        type: string
+        enum: ["name", "email", "username", "created_at", "updated_at", "latest_login_at"]
+        example: "name"
+
+    SortDirectionParam:
+      name: sort_direction
+      in: query
+      description: Sort direction
+      required: false
+      schema:
+        type: string
+        enum: ["asc", "desc"]
+        default: "asc"
+        example: "asc"
+
     SearchParam:
       name: search
       in: query
@@ -970,6 +1032,8 @@ paths:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
         - $ref: '#/components/parameters/SearchParam'
+        - $ref: '#/components/parameters/UserSortByParam'
+        - $ref: '#/components/parameters/SortDirectionParam'
       responses:
         '200':
           description: Users retrieved successfully
@@ -1695,6 +1759,8 @@ paths:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
         - $ref: '#/components/parameters/SearchParam'
+        - $ref: '#/components/parameters/CustomerSortByParam'
+        - $ref: '#/components/parameters/SortDirectionParam'
       responses:
         '200':
           description: Customers retrieved successfully
@@ -1924,6 +1990,8 @@ paths:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
         - $ref: '#/components/parameters/SearchParam'
+        - $ref: '#/components/parameters/DistributorSortByParam'
+        - $ref: '#/components/parameters/SortDirectionParam'
       responses:
         '200':
           description: Distributors retrieved successfully
@@ -2268,6 +2336,8 @@ paths:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
         - $ref: '#/components/parameters/SearchParam'
+        - $ref: '#/components/parameters/ResellerSortByParam'
+        - $ref: '#/components/parameters/SortDirectionParam'
       responses:
         '200':
           description: Resellers retrieved successfully

@@ -173,14 +173,14 @@ func (r *LocalResellerRepository) Delete(id string) error {
 }
 
 // List returns paginated list of resellers visible to the user
-func (r *LocalResellerRepository) List(userOrgRole, userOrgID string, page, pageSize int, search string) ([]*models.LocalReseller, int, error) {
+func (r *LocalResellerRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string) ([]*models.LocalReseller, int, error) {
 	offset := (page - 1) * pageSize
 
 	switch userOrgRole {
 	case "owner":
-		return r.listForOwner(page, pageSize, offset, search)
+		return r.listForOwner(page, pageSize, offset, search, sortBy, sortDirection)
 	case "distributor":
-		return r.listForDistributor(userOrgID, page, pageSize, offset, search)
+		return r.listForDistributor(userOrgID, page, pageSize, offset, search, sortBy, sortDirection)
 	default:
 		// Resellers and customers can't see other resellers
 		return []*models.LocalReseller{}, 0, nil
@@ -188,7 +188,26 @@ func (r *LocalResellerRepository) List(userOrgRole, userOrgID string, page, page
 }
 
 // listForOwner handles reseller listing for owner role
-func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, search string) ([]*models.LocalReseller, int, error) {
+func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, search, sortBy, sortDirection string) ([]*models.LocalReseller, int, error) {
+	// Validate and build sorting clause
+	orderClause := "ORDER BY created_at DESC" // default sorting
+	if sortBy != "" {
+		validSortFields := map[string]string{
+			"name":        "name",
+			"description": "description",
+			"created_at":  "created_at",
+			"updated_at":  "updated_at",
+		}
+
+		if dbField, valid := validSortFields[sortBy]; valid {
+			direction := "ASC"
+			if strings.ToUpper(sortDirection) == "DESC" {
+				direction = "DESC"
+			}
+			orderClause = fmt.Sprintf("ORDER BY %s %s", dbField, direction)
+		}
+	}
+
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
 
@@ -197,28 +216,28 @@ func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, searc
 		countQuery = `SELECT COUNT(*) FROM resellers WHERE deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%' || $1 || '%') OR LOWER(description) LIKE LOWER('%' || $1 || '%'))`
 		countArgs = []interface{}{search}
 
-		query = `
+		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
 			       logto_synced_at, logto_sync_error, deleted_at
 			FROM resellers
-			WHERE deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%' || $1 || '%') OR LOWER(description) LIKE LOWER('%' || $1 || '%'))
-			ORDER BY created_at DESC
+			WHERE deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%'))
+			%s
 			LIMIT $2 OFFSET $3
-		`
+		`, orderClause)
 		queryArgs = []interface{}{search, pageSize, offset}
 	} else {
 		// Without search
 		countQuery = `SELECT COUNT(*) FROM resellers WHERE deleted_at IS NULL`
 		countArgs = []interface{}{}
 
-		query = `
+		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
 			       logto_synced_at, logto_sync_error, deleted_at
 			FROM resellers
 			WHERE deleted_at IS NULL
-			ORDER BY created_at DESC
+			%s
 			LIMIT $1 OFFSET $2
-		`
+		`, orderClause)
 		queryArgs = []interface{}{pageSize, offset}
 	}
 
@@ -226,7 +245,26 @@ func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, searc
 }
 
 // listForDistributor handles reseller listing for distributor role
-func (r *LocalResellerRepository) listForDistributor(userOrgID string, page, pageSize, offset int, search string) ([]*models.LocalReseller, int, error) {
+func (r *LocalResellerRepository) listForDistributor(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string) ([]*models.LocalReseller, int, error) {
+	// Validate and build sorting clause
+	orderClause := "ORDER BY created_at DESC" // default sorting
+	if sortBy != "" {
+		validSortFields := map[string]string{
+			"name":        "name",
+			"description": "description",
+			"created_at":  "created_at",
+			"updated_at":  "updated_at",
+		}
+
+		if dbField, valid := validSortFields[sortBy]; valid {
+			direction := "ASC"
+			if strings.ToUpper(sortDirection) == "DESC" {
+				direction = "DESC"
+			}
+			orderClause = fmt.Sprintf("ORDER BY %s %s", dbField, direction)
+		}
+	}
+
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
 
@@ -235,28 +273,28 @@ func (r *LocalResellerRepository) listForDistributor(userOrgID string, page, pag
 		countQuery = `SELECT COUNT(*) FROM resellers WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1 AND (LOWER(name) LIKE LOWER('%' || $2 || '%') OR LOWER(description) LIKE LOWER('%' || $2 || '%'))`
 		countArgs = []interface{}{userOrgID, search}
 
-		query = `
+		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
 			       logto_synced_at, logto_sync_error, deleted_at
 			FROM resellers
-			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1 AND (LOWER(name) LIKE LOWER('%' || $2 || '%') OR LOWER(description) LIKE LOWER('%' || $2 || '%'))
-			ORDER BY created_at DESC
+			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1 AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))
+			%s
 			LIMIT $3 OFFSET $4
-		`
+		`, orderClause)
 		queryArgs = []interface{}{userOrgID, search, pageSize, offset}
 	} else {
 		// Without search
 		countQuery = `SELECT COUNT(*) FROM resellers WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1`
 		countArgs = []interface{}{userOrgID}
 
-		query = `
+		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
 			       logto_synced_at, logto_sync_error, deleted_at
 			FROM resellers
 			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1
-			ORDER BY created_at DESC
+			%s
 			LIMIT $2 OFFSET $3
-		`
+		`, orderClause)
 		queryArgs = []interface{}{userOrgID, pageSize, offset}
 	}
 

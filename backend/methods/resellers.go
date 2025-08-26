@@ -151,8 +151,8 @@ func GetResellers(c *gin.Context) {
 		return
 	}
 
-	// Parse pagination parameters
-	page, pageSize := helpers.GetPaginationFromQuery(c)
+	// Parse pagination and sorting parameters
+	page, pageSize, sortBy, sortDirection := helpers.GetPaginationAndSortingFromQuery(c)
 
 	// Parse search parameter
 	search := c.Query("search")
@@ -162,7 +162,7 @@ func GetResellers(c *gin.Context) {
 
 	// Get resellers based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
-	resellers, totalCount, err := service.ListResellers(userOrgRole, user.OrganizationID, page, pageSize, search)
+	resellers, totalCount, err := service.ListResellers(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -185,7 +185,7 @@ func GetResellers(c *gin.Context) {
 		Msg("Resellers list requested")
 
 	// Return paginated response
-	c.JSON(http.StatusOK, response.Paginated("resellers retrieved successfully", "resellers", resellers, totalCount, page, pageSize))
+	c.JSON(http.StatusOK, response.PaginatedWithSorting("resellers retrieved successfully", "resellers", resellers, totalCount, page, pageSize, sortBy, sortDirection))
 }
 
 // UpdateReseller handles PUT /api/resellers/:id - updates a reseller locally and syncs to Logto

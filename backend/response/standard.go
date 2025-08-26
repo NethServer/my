@@ -128,6 +128,34 @@ func Paginated(message string, entityName string, data interface{}, totalCount, 
 	return OK(message, responseData)
 }
 
+// PaginatedWithSorting creates a response with pagination and sorting info using entity-specific field names
+func PaginatedWithSorting(message string, entityName string, data interface{}, totalCount, page, pageSize int, sortBy, sortDirection string) Response {
+	totalPages := (totalCount + pageSize - 1) / pageSize
+
+	pagination := map[string]interface{}{
+		"page":        page,
+		"page_size":   pageSize,
+		"total_count": totalCount,
+		"total_pages": totalPages,
+		"has_next":    page < totalPages,
+		"has_prev":    page > 1,
+	}
+
+	// Add sorting fields if provided
+	if sortBy != "" {
+		pagination["sort_by"] = sortBy
+		pagination["sort_direction"] = sortDirection
+	}
+
+	// Create response data with entity-specific field name
+	responseData := map[string]interface{}{
+		entityName:   data,
+		"pagination": pagination,
+	}
+
+	return OK(message, responseData)
+}
+
 // getJSONFieldName extracts the JSON field name from validator.FieldError
 func getJSONFieldName(ve validator.FieldError) string {
 	// Try to get the JSON tag name from the struct field

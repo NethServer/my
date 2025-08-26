@@ -33,3 +33,25 @@ func GetPaginationFromQuery(c *gin.Context) (int, int) {
 
 	return page, pageSize
 }
+
+// GetSortingFromQuery extracts sortBy and sortDirection from query parameters
+func GetSortingFromQuery(c *gin.Context) (string, string) {
+	sortBy := c.Query("sort_by")
+
+	sortDirection := "asc" // Default sort direction
+	if sortDir := c.Query("sort_direction"); sortDir != "" {
+		if sortDir == "desc" || sortDir == "asc" {
+			sortDirection = sortDir
+		}
+	}
+
+	return sortBy, sortDirection
+}
+
+// GetPaginationAndSortingFromQuery extracts page, pageSize, sortBy and sortDirection from query parameters
+func GetPaginationAndSortingFromQuery(c *gin.Context) (int, int, string, string) {
+	page, pageSize := GetPaginationFromQuery(c)
+	sortBy, sortDirection := GetSortingFromQuery(c)
+
+	return page, pageSize, sortBy, sortDirection
+}

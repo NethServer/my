@@ -539,18 +539,18 @@ func (s *LocalOrganizationService) GetCustomer(id string) (*models.LocalCustomer
 }
 
 // ListDistributors returns paginated distributors based on RBAC
-func (s *LocalOrganizationService) ListDistributors(userOrgRole, userOrgID string, page, pageSize int, search string) ([]*models.LocalDistributor, int, error) {
-	return s.distributorRepo.List(userOrgRole, userOrgID, page, pageSize, search)
+func (s *LocalOrganizationService) ListDistributors(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string) ([]*models.LocalDistributor, int, error) {
+	return s.distributorRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection)
 }
 
 // ListResellers returns paginated resellers based on RBAC
-func (s *LocalOrganizationService) ListResellers(userOrgRole, userOrgID string, page, pageSize int, search string) ([]*models.LocalReseller, int, error) {
-	return s.resellerRepo.List(userOrgRole, userOrgID, page, pageSize, search)
+func (s *LocalOrganizationService) ListResellers(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string) ([]*models.LocalReseller, int, error) {
+	return s.resellerRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection)
 }
 
 // ListCustomers returns paginated customers based on RBAC
-func (s *LocalOrganizationService) ListCustomers(userOrgRole, userOrgID string, page, pageSize int, search string) ([]*models.LocalCustomer, int, error) {
-	return s.customerRepo.List(userOrgRole, userOrgID, page, pageSize, search)
+func (s *LocalOrganizationService) ListCustomers(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string) ([]*models.LocalCustomer, int, error) {
+	return s.customerRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection)
 }
 
 // ============================================
@@ -1348,7 +1348,7 @@ func (s *LocalOrganizationService) GetAllOrganizationsPaginated(userOrgRole, use
 	}
 
 	// Fetch distributors
-	distributors, _, err := s.distributorRepo.List(userOrgRole, userOrgID, 1, fetchSize, "")
+	distributors, _, err := s.distributorRepo.List(userOrgRole, userOrgID, 1, fetchSize, "", "", "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get distributors: %w", err)
 	}
@@ -1370,7 +1370,7 @@ func (s *LocalOrganizationService) GetAllOrganizationsPaginated(userOrgRole, use
 	}
 
 	// Fetch resellers
-	resellers, _, err := s.resellerRepo.List(userOrgRole, userOrgID, 1, fetchSize, "")
+	resellers, _, err := s.resellerRepo.List(userOrgRole, userOrgID, 1, fetchSize, "", "", "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get resellers: %w", err)
 	}
@@ -1394,7 +1394,7 @@ func (s *LocalOrganizationService) GetAllOrganizationsPaginated(userOrgRole, use
 	}
 
 	// Fetch customers
-	customers, _, err := s.customerRepo.List(userOrgRole, userOrgID, 1, fetchSize, "")
+	customers, _, err := s.customerRepo.List(userOrgRole, userOrgID, 1, fetchSize, "", "", "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get customers: %w", err)
 	}

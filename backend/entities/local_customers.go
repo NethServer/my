@@ -173,25 +173,44 @@ func (r *LocalCustomerRepository) Delete(id string) error {
 }
 
 // List returns paginated list of customers visible to the user
-func (r *LocalCustomerRepository) List(userOrgRole, userOrgID string, page, pageSize int, search string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string) ([]*models.LocalCustomer, int, error) {
 	offset := (page - 1) * pageSize
 
 	switch userOrgRole {
 	case "owner":
-		return r.listForOwner(page, pageSize, offset, search)
+		return r.listForOwner(page, pageSize, offset, search, sortBy, sortDirection)
 	case "distributor":
-		return r.listForDistributor(userOrgID, page, pageSize, offset, search)
+		return r.listForDistributor(userOrgID, page, pageSize, offset, search, sortBy, sortDirection)
 	case "reseller":
-		return r.listForReseller(userOrgID, page, pageSize, offset, search)
+		return r.listForReseller(userOrgID, page, pageSize, offset, search, sortBy, sortDirection)
 	case "customer":
-		return r.listForCustomer(userOrgID, page, pageSize, offset, search)
+		return r.listForCustomer(userOrgID, page, pageSize, offset, search, sortBy, sortDirection)
 	default:
 		return []*models.LocalCustomer{}, 0, nil
 	}
 }
 
 // listForOwner handles customer listing for owner role
-func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, search string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, search, sortBy, sortDirection string) ([]*models.LocalCustomer, int, error) {
+	// Validate and build sorting clause
+	orderClause := "ORDER BY created_at DESC" // default sorting
+	if sortBy != "" {
+		validSortFields := map[string]string{
+			"name":        "name",
+			"description": "description",
+			"created_at":  "created_at",
+			"updated_at":  "updated_at",
+		}
+
+		if dbField, valid := validSortFields[sortBy]; valid {
+			direction := "ASC"
+			if strings.ToUpper(sortDirection) == "DESC" {
+				direction = "DESC"
+			}
+			orderClause = fmt.Sprintf("ORDER BY %s %s", dbField, direction)
+		}
+	}
+
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
 
@@ -200,28 +219,28 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 		countQuery = `SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%' || $1 || '%') OR LOWER(description) LIKE LOWER('%' || $1 || '%'))`
 		countArgs = []interface{}{search}
 
-		query = `
+		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
 			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
 			FROM customers
-			WHERE deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%' || $1 || '%') OR LOWER(description) LIKE LOWER('%' || $1 || '%'))
-			ORDER BY created_at DESC
+			WHERE deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%'))
+			%s
 			LIMIT $2 OFFSET $3
-		`
+		`, orderClause)
 		queryArgs = []interface{}{search, pageSize, offset}
 	} else {
 		// Without search
 		countQuery = `SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL`
 		countArgs = []interface{}{}
 
-		query = `
+		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
 			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
 			FROM customers
 			WHERE deleted_at IS NULL
-			ORDER BY created_at DESC
+			%s
 			LIMIT $1 OFFSET $2
-		`
+		`, orderClause)
 		queryArgs = []interface{}{pageSize, offset}
 	}
 
@@ -229,7 +248,26 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 }
 
 // listForDistributor handles customer listing for distributor role
-func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pageSize, offset int, search string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string) ([]*models.LocalCustomer, int, error) {
+	// Validate and build sorting clause
+	orderClause := "ORDER BY created_at DESC" // default sorting
+	if sortBy != "" {
+		validSortFields := map[string]string{
+			"name":        "name",
+			"description": "description",
+			"created_at":  "created_at",
+			"updated_at":  "updated_at",
+		}
+
+		if dbField, valid := validSortFields[sortBy]; valid {
+			direction := "ASC"
+			if strings.ToUpper(sortDirection) == "DESC" {
+				direction = "DESC"
+			}
+			orderClause = fmt.Sprintf("ORDER BY %s %s", dbField, direction)
+		}
+	}
+
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
 
@@ -246,7 +284,7 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 			) AND (LOWER(name) LIKE LOWER('%' || $2 || '%') OR LOWER(description) LIKE LOWER('%' || $2 || '%'))`
 		countArgs = []interface{}{userOrgID, search}
 
-		query = `
+		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
 			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
 			FROM customers
@@ -256,10 +294,10 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 					SELECT logto_id FROM resellers
 					WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 				)
-			) AND (LOWER(name) LIKE LOWER('%' || $2 || '%') OR LOWER(description) LIKE LOWER('%' || $2 || '%'))
-			ORDER BY created_at DESC
+			) AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))
+			%s
 			LIMIT $3 OFFSET $4
-		`
+		`, orderClause)
 		queryArgs = []interface{}{userOrgID, search, pageSize, offset}
 	} else {
 		// Without search
@@ -274,7 +312,7 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 			)`
 		countArgs = []interface{}{userOrgID}
 
-		query = `
+		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
 			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
 			FROM customers
@@ -285,9 +323,9 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 					WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 				)
 			)
-			ORDER BY created_at DESC
+			%s
 			LIMIT $2 OFFSET $3
-		`
+		`, orderClause)
 		queryArgs = []interface{}{userOrgID, pageSize, offset}
 	}
 
@@ -295,7 +333,26 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 }
 
 // listForReseller handles customer listing for reseller role
-func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSize, offset int, search string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string) ([]*models.LocalCustomer, int, error) {
+	// Validate and build sorting clause
+	orderClause := "ORDER BY created_at DESC" // default sorting
+	if sortBy != "" {
+		validSortFields := map[string]string{
+			"name":        "name",
+			"description": "description",
+			"created_at":  "created_at",
+			"updated_at":  "updated_at",
+		}
+
+		if dbField, valid := validSortFields[sortBy]; valid {
+			direction := "ASC"
+			if strings.ToUpper(sortDirection) == "DESC" {
+				direction = "DESC"
+			}
+			orderClause = fmt.Sprintf("ORDER BY %s %s", dbField, direction)
+		}
+	}
+
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
 
@@ -304,28 +361,28 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 		countQuery = `SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1 AND (LOWER(name) LIKE LOWER('%' || $2 || '%') OR LOWER(description) LIKE LOWER('%' || $2 || '%'))`
 		countArgs = []interface{}{userOrgID, search}
 
-		query = `
+		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
 			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
 			FROM customers
-			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1 AND (LOWER(name) LIKE LOWER('%' || $2 || '%') OR LOWER(description) LIKE LOWER('%' || $2 || '%'))
-			ORDER BY created_at DESC
+			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1 AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))
+			%s
 			LIMIT $3 OFFSET $4
-		`
+		`, orderClause)
 		queryArgs = []interface{}{userOrgID, search, pageSize, offset}
 	} else {
 		// Without search
 		countQuery = `SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1`
 		countArgs = []interface{}{userOrgID}
 
-		query = `
+		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
 			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
 			FROM customers
 			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1
-			ORDER BY created_at DESC
+			%s
 			LIMIT $2 OFFSET $3
-		`
+		`, orderClause)
 		queryArgs = []interface{}{userOrgID, pageSize, offset}
 	}
 
@@ -333,9 +390,28 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 }
 
 // listForCustomer handles customer listing for customer role
-func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSize, offset int, search string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string) ([]*models.LocalCustomer, int, error) {
 	if userOrgID == "" {
 		return []*models.LocalCustomer{}, 0, nil
+	}
+
+	// Validate and build sorting clause
+	orderClause := "ORDER BY created_at DESC" // default sorting
+	if sortBy != "" {
+		validSortFields := map[string]string{
+			"name":        "name",
+			"description": "description",
+			"created_at":  "created_at",
+			"updated_at":  "updated_at",
+		}
+
+		if dbField, valid := validSortFields[sortBy]; valid {
+			direction := "ASC"
+			if strings.ToUpper(sortDirection) == "DESC" {
+				direction = "DESC"
+			}
+			orderClause = fmt.Sprintf("ORDER BY %s %s", dbField, direction)
+		}
 	}
 
 	var countQuery, query string
@@ -346,28 +422,28 @@ func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSi
 		countQuery = `SELECT COUNT(*) FROM customers WHERE id = $1 AND deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%' || $2 || '%') OR LOWER(description) LIKE LOWER('%' || $2 || '%'))`
 		countArgs = []interface{}{userOrgID, search}
 
-		query = `
+		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
 			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
 			FROM customers
-			WHERE id = $1 AND deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%' || $2 || '%') OR LOWER(description) LIKE LOWER('%' || $2 || '%'))
-			ORDER BY created_at DESC
+			WHERE id = $1 AND deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))
+			%s
 			LIMIT $3 OFFSET $4
-		`
+		`, orderClause)
 		queryArgs = []interface{}{userOrgID, search, pageSize, offset}
 	} else {
 		// Without search
 		countQuery = `SELECT COUNT(*) FROM customers WHERE id = $1 AND deleted_at IS NULL`
 		countArgs = []interface{}{userOrgID}
 
-		query = `
+		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
 			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
 			FROM customers
 			WHERE id = $1 AND deleted_at IS NULL
-			ORDER BY created_at DESC
+			%s
 			LIMIT $2 OFFSET $3
-		`
+		`, orderClause)
 		queryArgs = []interface{}{userOrgID, pageSize, offset}
 	}
 

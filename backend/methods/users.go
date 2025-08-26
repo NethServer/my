@@ -171,8 +171,8 @@ func GetUsers(c *gin.Context) {
 		return
 	}
 
-	// Parse pagination parameters
-	page, pageSize := helpers.GetPaginationFromQuery(c)
+	// Parse pagination and sorting parameters
+	page, pageSize, sortBy, sortDirection := helpers.GetPaginationAndSortingFromQuery(c)
 
 	// Parse search parameter
 	search := c.Query("search")
@@ -182,7 +182,7 @@ func GetUsers(c *gin.Context) {
 
 	// Get users based on RBAC (exclude current user)
 	userOrgRole := strings.ToLower(user.OrgRole)
-	accounts, totalCount, err := service.ListUsers(userOrgRole, user.OrganizationID, user.ID, page, pageSize, search)
+	accounts, totalCount, err := service.ListUsers(userOrgRole, user.OrganizationID, user.ID, page, pageSize, search, sortBy, sortDirection)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -205,7 +205,7 @@ func GetUsers(c *gin.Context) {
 		Msg("Users list requested")
 
 	// Return paginated response
-	c.JSON(http.StatusOK, response.Paginated("users retrieved successfully", "users", accounts, totalCount, page, pageSize))
+	c.JSON(http.StatusOK, response.PaginatedWithSorting("users retrieved successfully", "users", accounts, totalCount, page, pageSize, sortBy, sortDirection))
 }
 
 // UpdateUser handles PUT /api/users/:id - updates a user account locally and syncs to Logto

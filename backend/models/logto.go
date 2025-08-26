@@ -88,14 +88,16 @@ type LogtoUser struct {
 
 // PaginationInfo represents pagination metadata
 type PaginationInfo struct {
-	Page       int  `json:"page"`
-	PageSize   int  `json:"page_size"`
-	TotalCount int  `json:"total_count"`
-	TotalPages int  `json:"total_pages"`
-	HasNext    bool `json:"has_next"`
-	HasPrev    bool `json:"has_prev"`
-	NextPage   *int `json:"next_page,omitempty"`
-	PrevPage   *int `json:"prev_page,omitempty"`
+	Page          int     `json:"page"`
+	PageSize      int     `json:"page_size"`
+	TotalCount    int     `json:"total_count"`
+	TotalPages    int     `json:"total_pages"`
+	HasNext       bool    `json:"has_next"`
+	HasPrev       bool    `json:"has_prev"`
+	NextPage      *int    `json:"next_page,omitempty"`
+	PrevPage      *int    `json:"prev_page,omitempty"`
+	SortBy        *string `json:"sort_by,omitempty"`
+	SortDirection *string `json:"sort_direction,omitempty"`
 }
 
 // OrganizationFilters represents filters for organization queries

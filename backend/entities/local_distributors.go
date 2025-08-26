@@ -173,13 +173,32 @@ func (r *LocalDistributorRepository) Delete(id string) error {
 }
 
 // List returns paginated list of distributors visible to the user
-func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, pageSize int, search string) ([]*models.LocalDistributor, int, error) {
+func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string) ([]*models.LocalDistributor, int, error) {
 	// Only Owner can see distributors
 	if userOrgRole != "owner" {
 		return []*models.LocalDistributor{}, 0, nil
 	}
 
 	offset := (page - 1) * pageSize
+
+	// Validate and build sorting clause
+	orderClause := "ORDER BY created_at DESC" // default sorting
+	if sortBy != "" {
+		validSortFields := map[string]string{
+			"name":        "name",
+			"description": "description",
+			"created_at":  "created_at",
+			"updated_at":  "updated_at",
+		}
+
+		if dbField, valid := validSortFields[sortBy]; valid {
+			direction := "ASC"
+			if strings.ToUpper(sortDirection) == "DESC" {
+				direction = "DESC"
+			}
+			orderClause = fmt.Sprintf("ORDER BY %s %s", dbField, direction)
+		}
+	}
 
 	// Build queries with optional search
 	var countQuery, query string
@@ -190,28 +209,28 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 		countQuery = `SELECT COUNT(*) FROM distributors WHERE deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%' || $1 || '%') OR LOWER(description) LIKE LOWER('%' || $1 || '%'))`
 		countArgs = []interface{}{search}
 
-		query = `
+		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
 			       logto_synced_at, logto_sync_error, deleted_at
 			FROM distributors
-			WHERE deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%' || $1 || '%') OR LOWER(description) LIKE LOWER('%' || $1 || '%'))
-			ORDER BY created_at DESC
+			WHERE deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%'))
+			%s
 			LIMIT $2 OFFSET $3
-		`
+		`, orderClause)
 		queryArgs = []interface{}{search, pageSize, offset}
 	} else {
 		// Without search
 		countQuery = `SELECT COUNT(*) FROM distributors WHERE deleted_at IS NULL`
 		countArgs = []interface{}{}
 
-		query = `
+		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
 			       logto_synced_at, logto_sync_error, deleted_at
 			FROM distributors
 			WHERE deleted_at IS NULL
-			ORDER BY created_at DESC
+			%s
 			LIMIT $1 OFFSET $2
-		`
+		`, orderClause)
 		queryArgs = []interface{}{pageSize, offset}
 	}
 

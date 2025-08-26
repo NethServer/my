@@ -362,18 +362,18 @@ func (r *LocalUserRepository) UpdateLatestLogin(userID string) error {
 }
 
 // List returns paginated list of users based on hierarchical RBAC (matches other repository patterns)
-func (r *LocalUserRepository) List(userOrgRole, userOrgID, excludeUserID string, page, pageSize int, search string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) List(userOrgRole, userOrgID, excludeUserID string, page, pageSize int, search, sortBy, sortDirection string) ([]*models.LocalUser, int, error) {
 	// Get all organization IDs the user can access hierarchically
 	allowedOrgIDs, err := r.GetHierarchicalOrganizationIDs(userOrgRole, userOrgID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
 	}
 
-	return r.ListByOrganizations(allowedOrgIDs, excludeUserID, page, pageSize, search)
+	return r.ListByOrganizations(allowedOrgIDs, excludeUserID, page, pageSize, search, sortBy, sortDirection)
 }
 
 // ListByOrganizations returns paginated list of users in specified organizations (excluding specified user)
-func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, excludeUserID string, page, pageSize int, search string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, excludeUserID string, page, pageSize int, search, sortBy, sortDirection string) ([]*models.LocalUser, int, error) {
 	if len(allowedOrgIDs) == 0 {
 		return []*models.LocalUser{}, 0, nil
 	}
@@ -381,14 +381,35 @@ func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, exclud
 	offset := (page - 1) * pageSize
 
 	if search != "" {
-		return r.listUsersWithSearch(allowedOrgIDs, excludeUserID, pageSize, offset, search)
+		return r.listUsersWithSearch(allowedOrgIDs, excludeUserID, pageSize, offset, search, sortBy, sortDirection)
 	} else {
-		return r.listUsersWithoutSearch(allowedOrgIDs, excludeUserID, pageSize, offset)
+		return r.listUsersWithoutSearch(allowedOrgIDs, excludeUserID, pageSize, offset, sortBy, sortDirection)
 	}
 }
 
 // listUsersWithSearch handles user listing with search functionality
-func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, excludeUserID string, pageSize, offset int, search string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, excludeUserID string, pageSize, offset int, search, sortBy, sortDirection string) ([]*models.LocalUser, int, error) {
+	// Validate and build sorting clause
+	orderClause := "ORDER BY u.created_at DESC" // default sorting
+	if sortBy != "" {
+		validSortFields := map[string]string{
+			"name":            "u.name",
+			"email":           "u.email",
+			"username":        "u.username",
+			"created_at":      "u.created_at",
+			"updated_at":      "u.updated_at",
+			"latest_login_at": "u.latest_login_at",
+		}
+
+		if dbField, valid := validSortFields[sortBy]; valid {
+			direction := "ASC"
+			if strings.ToUpper(sortDirection) == "DESC" {
+				direction = "DESC"
+			}
+			orderClause = fmt.Sprintf("ORDER BY %s %s", dbField, direction)
+		}
+	}
+
 	// Build placeholders for organization IDs
 	placeholders := make([]string, len(allowedOrgIDs))
 	for i := range allowedOrgIDs {
@@ -419,9 +440,9 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, exclud
 		  AND u.organization_id IN (%s)
 		  AND u.id != $%d
 		  AND (LOWER(u.name) LIKE LOWER('%%' || $%d || '%%') OR LOWER(u.email) LIKE LOWER('%%' || $%d || '%%'))
-		ORDER BY u.created_at DESC
+		%s
 		LIMIT $%d OFFSET $%d
-	`, orgPlaceholders, len(allowedOrgIDs)+1, len(allowedOrgIDs)+2, len(allowedOrgIDs)+3, len(allowedOrgIDs)+4, len(allowedOrgIDs)+5)
+	`, orgPlaceholders, len(allowedOrgIDs)+1, len(allowedOrgIDs)+2, len(allowedOrgIDs)+3, orderClause, len(allowedOrgIDs)+4, len(allowedOrgIDs)+5)
 
 	// Prepare arguments for count query
 	countArgs := make([]interface{}, len(allowedOrgIDs)+3)
@@ -447,7 +468,28 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, exclud
 }
 
 // listUsersWithoutSearch handles user listing without search functionality
-func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, excludeUserID string, pageSize, offset int) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, excludeUserID string, pageSize, offset int, sortBy, sortDirection string) ([]*models.LocalUser, int, error) {
+	// Validate and build sorting clause
+	orderClause := "ORDER BY u.created_at DESC" // default sorting
+	if sortBy != "" {
+		validSortFields := map[string]string{
+			"name":            "u.name",
+			"email":           "u.email",
+			"username":        "u.username",
+			"created_at":      "u.created_at",
+			"updated_at":      "u.updated_at",
+			"latest_login_at": "u.latest_login_at",
+		}
+
+		if dbField, valid := validSortFields[sortBy]; valid {
+			direction := "ASC"
+			if strings.ToUpper(sortDirection) == "DESC" {
+				direction = "DESC"
+			}
+			orderClause = fmt.Sprintf("ORDER BY %s %s", dbField, direction)
+		}
+	}
+
 	// Build placeholders for organization IDs
 	placeholders := make([]string, len(allowedOrgIDs))
 	for i := range allowedOrgIDs {
@@ -476,9 +518,9 @@ func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, exc
 		WHERE u.deleted_at IS NULL
 		  AND u.organization_id IN (%s)
 		  AND u.id != $%d
-		ORDER BY u.created_at DESC
+		%s
 		LIMIT $%d OFFSET $%d
-	`, orgPlaceholders, len(allowedOrgIDs)+1, len(allowedOrgIDs)+2, len(allowedOrgIDs)+3)
+	`, orgPlaceholders, len(allowedOrgIDs)+1, orderClause, len(allowedOrgIDs)+2, len(allowedOrgIDs)+3)
 
 	// Prepare arguments for count query
 	countArgs := make([]interface{}, len(allowedOrgIDs)+1)
