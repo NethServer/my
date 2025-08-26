@@ -174,12 +174,15 @@ func GetUsers(c *gin.Context) {
 	// Parse pagination parameters
 	page, pageSize := helpers.GetPaginationFromQuery(c)
 
+	// Parse search parameter
+	search := c.Query("search")
+
 	// Create service
 	service := local.NewUserService()
 
 	// Get users based on RBAC (exclude current user)
 	userOrgRole := strings.ToLower(user.OrgRole)
-	accounts, totalCount, err := service.ListUsers(userOrgRole, user.OrganizationID, user.ID, page, pageSize)
+	accounts, totalCount, err := service.ListUsers(userOrgRole, user.OrganizationID, user.ID, page, pageSize, search)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -196,6 +199,7 @@ func GetUsers(c *gin.Context) {
 		Str("operation", "list_users").
 		Int("page", page).
 		Int("page_size", pageSize).
+		Str("search", search).
 		Int("total_count", totalCount).
 		Int("returned_count", len(accounts)).
 		Msg("Users list requested")

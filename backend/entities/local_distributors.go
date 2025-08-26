@@ -72,9 +72,9 @@ func (r *LocalDistributorRepository) Create(req *models.CreateLocalDistributorRe
 // GetByID retrieves a distributor by ID from local database
 func (r *LocalDistributorRepository) GetByID(id string) (*models.LocalDistributor, error) {
 	query := `
-		SELECT id, logto_id, name, description, custom_data, created_at, updated_at, 
+		SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
 		       logto_synced_at, logto_sync_error, deleted_at
-		FROM distributors 
+		FROM distributors
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 
@@ -134,7 +134,7 @@ func (r *LocalDistributorRepository) Update(id string, req *models.UpdateLocalDi
 	}
 
 	query := `
-		UPDATE distributors 
+		UPDATE distributors
 		SET name = $2, description = $3, custom_data = $4, updated_at = $5, logto_synced_at = NULL
 		WHERE id = $1
 	`
@@ -173,7 +173,7 @@ func (r *LocalDistributorRepository) Delete(id string) error {
 }
 
 // List returns paginated list of distributors visible to the user
-func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, pageSize int) ([]*models.LocalDistributor, int, error) {
+func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, pageSize int, search string) ([]*models.LocalDistributor, int, error) {
 	// Only Owner can see distributors
 	if userOrgRole != "owner" {
 		return []*models.LocalDistributor{}, 0, nil
@@ -181,25 +181,56 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 
 	offset := (page - 1) * pageSize
 
+	// Build queries with optional search
+	var countQuery, query string
+	var countArgs, queryArgs []interface{}
+
+	if search != "" {
+		// With search
+		countQuery = `SELECT COUNT(*) FROM distributors WHERE deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%' || $1 || '%') OR LOWER(description) LIKE LOWER('%' || $1 || '%'))`
+		countArgs = []interface{}{search}
+
+		query = `
+			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
+			       logto_synced_at, logto_sync_error, deleted_at
+			FROM distributors
+			WHERE deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%' || $1 || '%') OR LOWER(description) LIKE LOWER('%' || $1 || '%'))
+			ORDER BY created_at DESC
+			LIMIT $2 OFFSET $3
+		`
+		queryArgs = []interface{}{search, pageSize, offset}
+	} else {
+		// Without search
+		countQuery = `SELECT COUNT(*) FROM distributors WHERE deleted_at IS NULL`
+		countArgs = []interface{}{}
+
+		query = `
+			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
+			       logto_synced_at, logto_sync_error, deleted_at
+			FROM distributors
+			WHERE deleted_at IS NULL
+			ORDER BY created_at DESC
+			LIMIT $1 OFFSET $2
+		`
+		queryArgs = []interface{}{pageSize, offset}
+	}
+
 	// Get total count
 	var totalCount int
-	countQuery := `SELECT COUNT(*) FROM distributors WHERE deleted_at IS NULL`
-	err := r.db.QueryRow(countQuery).Scan(&totalCount)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get distributors count: %w", err)
+	if len(countArgs) > 0 {
+		err := r.db.QueryRow(countQuery, countArgs...).Scan(&totalCount)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to get distributors count: %w", err)
+		}
+	} else {
+		err := r.db.QueryRow(countQuery).Scan(&totalCount)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to get distributors count: %w", err)
+		}
 	}
 
 	// Get paginated results
-	query := `
-		SELECT id, logto_id, name, description, custom_data, created_at, updated_at, 
-		       logto_synced_at, logto_sync_error, deleted_at
-		FROM distributors 
-		WHERE deleted_at IS NULL
-		ORDER BY created_at DESC
-		LIMIT $1 OFFSET $2
-	`
-
-	rows, err := r.db.Query(query, pageSize, offset)
+	rows, err := r.db.Query(query, queryArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query distributors: %w", err)
 	}

@@ -161,12 +161,15 @@ func GetCustomers(c *gin.Context) {
 	// Parse pagination parameters
 	page, pageSize := helpers.GetPaginationFromQuery(c)
 
+	// Parse search parameter
+	search := c.Query("search")
+
 	// Create service
 	service := local.NewOrganizationService()
 
 	// Get customers based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
-	customers, totalCount, err := service.ListCustomers(userOrgRole, user.OrganizationID, page, pageSize)
+	customers, totalCount, err := service.ListCustomers(userOrgRole, user.OrganizationID, page, pageSize, search)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -183,6 +186,7 @@ func GetCustomers(c *gin.Context) {
 		Str("operation", "list_customers").
 		Int("page", page).
 		Int("page_size", pageSize).
+		Str("search", search).
 		Int("total_count", totalCount).
 		Int("returned_count", len(customers)).
 		Msg("Customers list requested")

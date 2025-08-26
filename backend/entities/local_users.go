@@ -362,55 +362,51 @@ func (r *LocalUserRepository) UpdateLatestLogin(userID string) error {
 }
 
 // List returns paginated list of users based on hierarchical RBAC (matches other repository patterns)
-func (r *LocalUserRepository) List(userOrgRole, userOrgID, excludeUserID string, page, pageSize int) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) List(userOrgRole, userOrgID, excludeUserID string, page, pageSize int, search string) ([]*models.LocalUser, int, error) {
 	// Get all organization IDs the user can access hierarchically
 	allowedOrgIDs, err := r.GetHierarchicalOrganizationIDs(userOrgRole, userOrgID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
 	}
 
-	return r.ListByOrganizations(allowedOrgIDs, excludeUserID, page, pageSize)
+	return r.ListByOrganizations(allowedOrgIDs, excludeUserID, page, pageSize, search)
 }
 
 // ListByOrganizations returns paginated list of users in specified organizations (excluding specified user)
-func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, excludeUserID string, page, pageSize int) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, excludeUserID string, page, pageSize int, search string) ([]*models.LocalUser, int, error) {
 	if len(allowedOrgIDs) == 0 {
 		return []*models.LocalUser{}, 0, nil
 	}
 
 	offset := (page - 1) * pageSize
 
-	// Build placeholders for IN clause + exclude user ID
+	if search != "" {
+		return r.listUsersWithSearch(allowedOrgIDs, excludeUserID, pageSize, offset, search)
+	} else {
+		return r.listUsersWithoutSearch(allowedOrgIDs, excludeUserID, pageSize, offset)
+	}
+}
+
+// listUsersWithSearch handles user listing with search functionality
+func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, excludeUserID string, pageSize, offset int, search string) ([]*models.LocalUser, int, error) {
+	// Build placeholders for organization IDs
 	placeholders := make([]string, len(allowedOrgIDs))
-	args := make([]interface{}, len(allowedOrgIDs)+1) // +1 for excludeUserID
-	for i, orgID := range allowedOrgIDs {
+	for i := range allowedOrgIDs {
 		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		args[i] = orgID
 	}
-	placeholdersStr := strings.Join(placeholders, ",")
-	// Add excludeUserID as last parameter
-	args[len(allowedOrgIDs)] = excludeUserID
-	excludeUserPlaceholder := fmt.Sprintf("$%d", len(allowedOrgIDs)+1)
+	orgPlaceholders := strings.Join(placeholders, ",")
 
-	// Get total count
-	var totalCount int
+	// Build count query
 	countQuery := fmt.Sprintf(`
-		SELECT COUNT(*) FROM users
-		WHERE deleted_at IS NULL AND organization_id IN (%s) AND id != %s
-	`, placeholdersStr, excludeUserPlaceholder)
+		SELECT COUNT(*) FROM users u
+		WHERE u.deleted_at IS NULL
+		  AND u.organization_id IN (%s)
+		  AND u.id != $%d
+		  AND (LOWER(u.name) LIKE LOWER('%%' || $%d || '%%') OR LOWER(u.email) LIKE LOWER('%%' || $%d || '%%'))
+	`, orgPlaceholders, len(allowedOrgIDs)+1, len(allowedOrgIDs)+2, len(allowedOrgIDs)+3)
 
-	err := r.db.QueryRow(countQuery, args...).Scan(&totalCount)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get users count: %w", err)
-	}
-
-	// Get paginated results
-	listArgs := make([]interface{}, len(args)+2) // args already includes excludeUserID
-	copy(listArgs, args)
-	listArgs[len(args)] = pageSize
-	listArgs[len(args)+1] = offset
-
-	query := fmt.Sprintf(`
+	// Build main query
+	mainQuery := fmt.Sprintf(`
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
 		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at,
 		       COALESCE(d.name, r.name, c.name) as organization_name,
@@ -419,12 +415,101 @@ func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, exclud
 		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.deleted_at IS NULL
 		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.deleted_at IS NULL
 		LEFT JOIN customers c ON u.organization_id = c.logto_id AND c.deleted_at IS NULL
-		WHERE u.deleted_at IS NULL AND u.organization_id IN (%s) AND u.id != %s
+		WHERE u.deleted_at IS NULL
+		  AND u.organization_id IN (%s)
+		  AND u.id != $%d
+		  AND (LOWER(u.name) LIKE LOWER('%%' || $%d || '%%') OR LOWER(u.email) LIKE LOWER('%%' || $%d || '%%'))
 		ORDER BY u.created_at DESC
 		LIMIT $%d OFFSET $%d
-	`, placeholdersStr, excludeUserPlaceholder, len(args)+1, len(args)+2)
+	`, orgPlaceholders, len(allowedOrgIDs)+1, len(allowedOrgIDs)+2, len(allowedOrgIDs)+3, len(allowedOrgIDs)+4, len(allowedOrgIDs)+5)
 
-	rows, err := r.db.Query(query, listArgs...)
+	// Prepare arguments for count query
+	countArgs := make([]interface{}, len(allowedOrgIDs)+3)
+	for i, orgID := range allowedOrgIDs {
+		countArgs[i] = orgID
+	}
+	countArgs[len(allowedOrgIDs)] = excludeUserID
+	countArgs[len(allowedOrgIDs)+1] = search
+	countArgs[len(allowedOrgIDs)+2] = search
+
+	// Prepare arguments for main query
+	mainArgs := make([]interface{}, len(allowedOrgIDs)+5)
+	for i, orgID := range allowedOrgIDs {
+		mainArgs[i] = orgID
+	}
+	mainArgs[len(allowedOrgIDs)] = excludeUserID
+	mainArgs[len(allowedOrgIDs)+1] = search
+	mainArgs[len(allowedOrgIDs)+2] = search
+	mainArgs[len(allowedOrgIDs)+3] = pageSize
+	mainArgs[len(allowedOrgIDs)+4] = offset
+
+	return r.executeUserQuery(countQuery, countArgs, mainQuery, mainArgs)
+}
+
+// listUsersWithoutSearch handles user listing without search functionality
+func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, excludeUserID string, pageSize, offset int) ([]*models.LocalUser, int, error) {
+	// Build placeholders for organization IDs
+	placeholders := make([]string, len(allowedOrgIDs))
+	for i := range allowedOrgIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+	}
+	orgPlaceholders := strings.Join(placeholders, ",")
+
+	// Build count query
+	countQuery := fmt.Sprintf(`
+		SELECT COUNT(*) FROM users u
+		WHERE u.deleted_at IS NULL
+		  AND u.organization_id IN (%s)
+		  AND u.id != $%d
+	`, orgPlaceholders, len(allowedOrgIDs)+1)
+
+	// Build main query
+	mainQuery := fmt.Sprintf(`
+		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
+		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at,
+		       COALESCE(d.name, r.name, c.name) as organization_name,
+		       COALESCE(d.id, r.id, c.id) as organization_local_id
+		FROM users u
+		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON u.organization_id = c.logto_id AND c.deleted_at IS NULL
+		WHERE u.deleted_at IS NULL
+		  AND u.organization_id IN (%s)
+		  AND u.id != $%d
+		ORDER BY u.created_at DESC
+		LIMIT $%d OFFSET $%d
+	`, orgPlaceholders, len(allowedOrgIDs)+1, len(allowedOrgIDs)+2, len(allowedOrgIDs)+3)
+
+	// Prepare arguments for count query
+	countArgs := make([]interface{}, len(allowedOrgIDs)+1)
+	for i, orgID := range allowedOrgIDs {
+		countArgs[i] = orgID
+	}
+	countArgs[len(allowedOrgIDs)] = excludeUserID
+
+	// Prepare arguments for main query
+	mainArgs := make([]interface{}, len(allowedOrgIDs)+3)
+	for i, orgID := range allowedOrgIDs {
+		mainArgs[i] = orgID
+	}
+	mainArgs[len(allowedOrgIDs)] = excludeUserID
+	mainArgs[len(allowedOrgIDs)+1] = pageSize
+	mainArgs[len(allowedOrgIDs)+2] = offset
+
+	return r.executeUserQuery(countQuery, countArgs, mainQuery, mainArgs)
+}
+
+// executeUserQuery executes the count and main queries for users
+func (r *LocalUserRepository) executeUserQuery(countQuery string, countArgs []interface{}, mainQuery string, mainArgs []interface{}) ([]*models.LocalUser, int, error) {
+	// Get total count
+	var totalCount int
+	err := r.db.QueryRow(countQuery, countArgs...).Scan(&totalCount)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get users count: %w", err)
+	}
+
+	// Get paginated results
+	rows, err := r.db.Query(mainQuery, mainArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query users: %w", err)
 	}

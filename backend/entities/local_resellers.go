@@ -72,9 +72,9 @@ func (r *LocalResellerRepository) Create(req *models.CreateLocalResellerRequest)
 // GetByID retrieves a reseller by ID from local database
 func (r *LocalResellerRepository) GetByID(id string) (*models.LocalReseller, error) {
 	query := `
-		SELECT id, logto_id, name, description,  custom_data, created_at, updated_at, 
+		SELECT id, logto_id, name, description,  custom_data, created_at, updated_at,
 		       logto_synced_at, logto_sync_error, deleted_at
-		FROM resellers 
+		FROM resellers
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 
@@ -134,7 +134,7 @@ func (r *LocalResellerRepository) Update(id string, req *models.UpdateLocalResel
 	}
 
 	query := `
-		UPDATE resellers 
+		UPDATE resellers
 		SET name = $2, description = $3, custom_data = $4, updated_at = $5, logto_synced_at = NULL
 		WHERE id = $1
 	`
@@ -173,47 +173,102 @@ func (r *LocalResellerRepository) Delete(id string) error {
 }
 
 // List returns paginated list of resellers visible to the user
-func (r *LocalResellerRepository) List(userOrgRole, userOrgID string, page, pageSize int) ([]*models.LocalReseller, int, error) {
+func (r *LocalResellerRepository) List(userOrgRole, userOrgID string, page, pageSize int, search string) ([]*models.LocalReseller, int, error) {
 	offset := (page - 1) * pageSize
-	var baseQuery, countQuery string
-	var args []interface{}
 
 	switch userOrgRole {
 	case "owner":
-		// Owner sees all resellers
-		countQuery = `SELECT COUNT(*) FROM resellers WHERE deleted_at IS NULL`
-		baseQuery = `
-			SELECT id, logto_id, name, description, custom_data, created_at, updated_at, 
-			       logto_synced_at, logto_sync_error, deleted_at
-			FROM resellers 
-			WHERE deleted_at IS NULL
-			ORDER BY created_at DESC
-			LIMIT $1 OFFSET $2
-		`
-		args = []interface{}{pageSize, offset}
-
+		return r.listForOwner(page, pageSize, offset, search)
 	case "distributor":
-		// Distributor sees resellers they created (hierarchy via custom_data)
-		countQuery = `SELECT COUNT(*) FROM resellers WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1`
-		baseQuery = `
-			SELECT id, logto_id, name, description, custom_data, created_at, updated_at, 
-			       logto_synced_at, logto_sync_error, deleted_at
-			FROM resellers 
-			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1
-			ORDER BY created_at DESC
-			LIMIT $2 OFFSET $3
-		`
-		args = []interface{}{userOrgID, pageSize, offset}
-
+		return r.listForDistributor(userOrgID, page, pageSize, offset, search)
 	default:
 		// Resellers and customers can't see other resellers
 		return []*models.LocalReseller{}, 0, nil
 	}
+}
 
+// listForOwner handles reseller listing for owner role
+func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, search string) ([]*models.LocalReseller, int, error) {
+	var countQuery, query string
+	var countArgs, queryArgs []interface{}
+
+	if search != "" {
+		// With search
+		countQuery = `SELECT COUNT(*) FROM resellers WHERE deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%' || $1 || '%') OR LOWER(description) LIKE LOWER('%' || $1 || '%'))`
+		countArgs = []interface{}{search}
+
+		query = `
+			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
+			       logto_synced_at, logto_sync_error, deleted_at
+			FROM resellers
+			WHERE deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%' || $1 || '%') OR LOWER(description) LIKE LOWER('%' || $1 || '%'))
+			ORDER BY created_at DESC
+			LIMIT $2 OFFSET $3
+		`
+		queryArgs = []interface{}{search, pageSize, offset}
+	} else {
+		// Without search
+		countQuery = `SELECT COUNT(*) FROM resellers WHERE deleted_at IS NULL`
+		countArgs = []interface{}{}
+
+		query = `
+			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
+			       logto_synced_at, logto_sync_error, deleted_at
+			FROM resellers
+			WHERE deleted_at IS NULL
+			ORDER BY created_at DESC
+			LIMIT $1 OFFSET $2
+		`
+		queryArgs = []interface{}{pageSize, offset}
+	}
+
+	return r.executeResellerQuery(countQuery, countArgs, query, queryArgs)
+}
+
+// listForDistributor handles reseller listing for distributor role
+func (r *LocalResellerRepository) listForDistributor(userOrgID string, page, pageSize, offset int, search string) ([]*models.LocalReseller, int, error) {
+	var countQuery, query string
+	var countArgs, queryArgs []interface{}
+
+	if search != "" {
+		// With search
+		countQuery = `SELECT COUNT(*) FROM resellers WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1 AND (LOWER(name) LIKE LOWER('%' || $2 || '%') OR LOWER(description) LIKE LOWER('%' || $2 || '%'))`
+		countArgs = []interface{}{userOrgID, search}
+
+		query = `
+			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
+			       logto_synced_at, logto_sync_error, deleted_at
+			FROM resellers
+			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1 AND (LOWER(name) LIKE LOWER('%' || $2 || '%') OR LOWER(description) LIKE LOWER('%' || $2 || '%'))
+			ORDER BY created_at DESC
+			LIMIT $3 OFFSET $4
+		`
+		queryArgs = []interface{}{userOrgID, search, pageSize, offset}
+	} else {
+		// Without search
+		countQuery = `SELECT COUNT(*) FROM resellers WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1`
+		countArgs = []interface{}{userOrgID}
+
+		query = `
+			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
+			       logto_synced_at, logto_sync_error, deleted_at
+			FROM resellers
+			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1
+			ORDER BY created_at DESC
+			LIMIT $2 OFFSET $3
+		`
+		queryArgs = []interface{}{userOrgID, pageSize, offset}
+	}
+
+	return r.executeResellerQuery(countQuery, countArgs, query, queryArgs)
+}
+
+// executeResellerQuery executes the count and query operations
+func (r *LocalResellerRepository) executeResellerQuery(countQuery string, countArgs []interface{}, query string, queryArgs []interface{}) ([]*models.LocalReseller, int, error) {
 	// Get total count
 	var totalCount int
-	if userOrgRole == "distributor" {
-		err := r.db.QueryRow(countQuery, userOrgID).Scan(&totalCount)
+	if len(countArgs) > 0 {
+		err := r.db.QueryRow(countQuery, countArgs...).Scan(&totalCount)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to get resellers count: %w", err)
 		}
@@ -225,7 +280,7 @@ func (r *LocalResellerRepository) List(userOrgRole, userOrgID string, page, page
 	}
 
 	// Get paginated results
-	rows, err := r.db.Query(baseQuery, args...)
+	rows, err := r.db.Query(query, queryArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query resellers: %w", err)
 	}

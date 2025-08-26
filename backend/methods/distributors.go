@@ -135,12 +135,15 @@ func GetDistributors(c *gin.Context) {
 	// Parse pagination parameters
 	page, pageSize := helpers.GetPaginationFromQuery(c)
 
+	// Parse search parameter
+	search := c.Query("search")
+
 	// Create service
 	service := local.NewOrganizationService()
 
 	// Get distributors based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
-	distributors, totalCount, err := service.ListDistributors(userOrgRole, user.OrganizationID, page, pageSize)
+	distributors, totalCount, err := service.ListDistributors(userOrgRole, user.OrganizationID, page, pageSize, search)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -157,6 +160,7 @@ func GetDistributors(c *gin.Context) {
 		Str("operation", "list_distributors").
 		Int("page", page).
 		Int("page_size", pageSize).
+		Str("search", search).
 		Int("total_count", totalCount).
 		Int("returned_count", len(distributors)).
 		Msg("Distributors list requested")

@@ -154,12 +154,15 @@ func GetResellers(c *gin.Context) {
 	// Parse pagination parameters
 	page, pageSize := helpers.GetPaginationFromQuery(c)
 
+	// Parse search parameter
+	search := c.Query("search")
+
 	// Create service
 	service := local.NewOrganizationService()
 
 	// Get resellers based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
-	resellers, totalCount, err := service.ListResellers(userOrgRole, user.OrganizationID, page, pageSize)
+	resellers, totalCount, err := service.ListResellers(userOrgRole, user.OrganizationID, page, pageSize, search)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -176,6 +179,7 @@ func GetResellers(c *gin.Context) {
 		Str("operation", "list_resellers").
 		Int("page", page).
 		Int("page_size", pageSize).
+		Str("search", search).
 		Int("total_count", totalCount).
 		Int("returned_count", len(resellers)).
 		Msg("Resellers list requested")

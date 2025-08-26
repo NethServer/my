@@ -55,6 +55,21 @@ type LocalCustomer struct {
 	DeletedAt      *time.Time             `json:"deleted_at" db:"deleted_at"`
 }
 
+// CustomerFilters represents filters for customer queries
+type CustomerFilters struct {
+	Search string `json:"search,omitempty"` // general search term
+}
+
+// DistributorFilters represents filters for distributor queries
+type DistributorFilters struct {
+	Search string `json:"search,omitempty"` // general search term
+}
+
+// ResellerFilters represents filters for reseller queries
+type ResellerFilters struct {
+	Search string `json:"search,omitempty"` // general search term
+}
+
 // UserOrganization represents organization info in user responses
 type UserOrganization struct {
 	ID      string `json:"id"`
