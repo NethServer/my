@@ -1,8 +1,13 @@
 # Build stage
-FROM node:20-alpine AS builder
+FROM docker.io/library/node:22.18.0 AS base
 
 WORKDIR /app
 
+# Development stage
+FROM base as dev
+CMD ["sh", "-c", "npm install && npm run dev"]
+
+FROM base as builder
 # Copy build trigger file to force rebuilds when it changes
 COPY .render-build-trigger /tmp/build-trigger
 
@@ -63,3 +68,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
 
 # Start nginx
 CMD ["sh", "-c", "envsubst '$$PORT' < /etc/nginx/nginx.conf > /tmp/nginx.conf && nginx -c /tmp/nginx.conf -g 'daemon off;'"]
+
+FROM scratch as dist
+COPY --from=builder /app/dist /
