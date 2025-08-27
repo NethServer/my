@@ -400,3 +400,103 @@ func TestEdgeCases(t *testing.T) {
 		assert.Equal(t, []string{"ValidRole", "", "AnotherValidRole"}, result.OrganizationRoles)
 	})
 }
+
+func TestToThirdPartyApplicationWithLoginURLFromCustomData(t *testing.T) {
+	t.Run("LoginURL from custom_data takes precedence over generated URL", func(t *testing.T) {
+		logtoApp := &LogtoThirdPartyApp{
+			ID:          "app_custom_login",
+			Name:        "App with Custom Login URL",
+			Description: "Test app with login URL in custom_data",
+			CustomData: map[string]interface{}{
+				"login_url": "https://custom.example.com/login",
+				"access_control": map[string]interface{}{
+					"organization_roles": []interface{}{"owner"},
+					"user_roles":         []interface{}{"admin"},
+				},
+			},
+			OidcClientMetadata: &OidcClientMetadata{
+				RedirectUris: []string{"https://app.com/callback"},
+			},
+		}
+
+		loginURLGenerator := func(appID, redirectURI string, scopes []string, isValidDomain bool) string {
+			return "https://generated.example.com/auth?client_id=" + appID
+		}
+
+		app := logtoApp.ToThirdPartyApplication(nil, nil, loginURLGenerator, true)
+
+		assert.NotNil(t, app)
+		assert.Equal(t, "app_custom_login", app.ID)
+		assert.Equal(t, "https://custom.example.com/login", app.LoginURL) // Should use custom_data login_url
+	})
+
+	t.Run("Fallback to generated URL when login_url not in custom_data", func(t *testing.T) {
+		logtoApp := &LogtoThirdPartyApp{
+			ID:          "app_generated_login",
+			Name:        "App with Generated Login URL",
+			Description: "Test app without login URL in custom_data",
+			CustomData: map[string]interface{}{
+				"access_control": map[string]interface{}{
+					"organization_roles": []interface{}{"owner"},
+				},
+			},
+			OidcClientMetadata: &OidcClientMetadata{
+				RedirectUris: []string{"https://app.com/callback"},
+			},
+		}
+
+		loginURLGenerator := func(appID, redirectURI string, scopes []string, isValidDomain bool) string {
+			return "https://generated.example.com/auth?client_id=" + appID
+		}
+
+		app := logtoApp.ToThirdPartyApplication(nil, nil, loginURLGenerator, true)
+
+		assert.NotNil(t, app)
+		assert.Equal(t, "app_generated_login", app.ID)
+		assert.Equal(t, "https://generated.example.com/auth?client_id=app_generated_login", app.LoginURL) // Should use generated URL
+	})
+
+	t.Run("Empty login_url in custom_data falls back to generated URL", func(t *testing.T) {
+		logtoApp := &LogtoThirdPartyApp{
+			ID:          "app_empty_login",
+			Name:        "App with Empty Login URL",
+			Description: "Test app with empty login URL in custom_data",
+			CustomData: map[string]interface{}{
+				"login_url": "", // Empty string
+			},
+			OidcClientMetadata: &OidcClientMetadata{
+				RedirectUris: []string{"https://app.com/callback"},
+			},
+		}
+
+		loginURLGenerator := func(appID, redirectURI string, scopes []string, isValidDomain bool) string {
+			return "https://generated.example.com/auth?client_id=" + appID
+		}
+
+		app := logtoApp.ToThirdPartyApplication(nil, nil, loginURLGenerator, true)
+
+		assert.NotNil(t, app)
+		assert.Equal(t, "https://generated.example.com/auth?client_id=app_empty_login", app.LoginURL) // Should use generated URL
+	})
+
+	t.Run("No redirect URIs and no login_url results in empty LoginURL", func(t *testing.T) {
+		logtoApp := &LogtoThirdPartyApp{
+			ID:          "app_no_urls",
+			Name:        "App with No URLs",
+			Description: "Test app without login URL or redirect URIs",
+			CustomData: map[string]interface{}{
+				"some_other_data": "value",
+			},
+			OidcClientMetadata: nil,
+		}
+
+		loginURLGenerator := func(appID, redirectURI string, scopes []string, isValidDomain bool) string {
+			return "https://generated.example.com/auth?client_id=" + appID
+		}
+
+		app := logtoApp.ToThirdPartyApplication(nil, nil, loginURLGenerator, true)
+
+		assert.NotNil(t, app)
+		assert.Empty(t, app.LoginURL) // Should be empty as no login_url in custom_data and no redirect URIs
+	})
+}

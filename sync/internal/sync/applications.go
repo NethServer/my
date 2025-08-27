@@ -80,14 +80,25 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 			IsThirdParty: true,
 		}
 
-		// Add access control to custom data if configured
+		// Add custom data (access control and login_url)
+		customData := make(map[string]interface{})
+
+		// Add access control if configured
 		if appConfig.AccessControl != nil {
-			updatedApp.CustomData = map[string]interface{}{
-				"access_control": map[string]interface{}{
-					"organization_roles": appConfig.AccessControl.OrganizationRoles,
-					"user_roles":         appConfig.AccessControl.UserRoles,
-				},
+			customData["access_control"] = map[string]interface{}{
+				"organization_roles": appConfig.AccessControl.OrganizationRoles,
+				"user_roles":         appConfig.AccessControl.UserRoles,
 			}
+		}
+
+		// Add login_url if configured
+		if appConfig.LoginURL != "" {
+			customData["login_url"] = appConfig.LoginURL
+		}
+
+		// Set custom data if we have any
+		if len(customData) > 0 {
+			updatedApp.CustomData = customData
 		}
 
 		// Add OIDC metadata only if URIs are provided
@@ -129,14 +140,25 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 			IsThirdParty: true,
 		}
 
-		// Add access control to custom data if configured
+		// Add custom data (access control and login_url)
+		customData := make(map[string]interface{})
+
+		// Add access control if configured
 		if appConfig.AccessControl != nil {
-			newApp.CustomData = map[string]interface{}{
-				"access_control": map[string]interface{}{
-					"organization_roles": appConfig.AccessControl.OrganizationRoles,
-					"user_roles":         appConfig.AccessControl.UserRoles,
-				},
+			customData["access_control"] = map[string]interface{}{
+				"organization_roles": appConfig.AccessControl.OrganizationRoles,
+				"user_roles":         appConfig.AccessControl.UserRoles,
 			}
+		}
+
+		// Add login_url if configured
+		if appConfig.LoginURL != "" {
+			customData["login_url"] = appConfig.LoginURL
+		}
+
+		// Set custom data if we have any
+		if len(customData) > 0 {
+			newApp.CustomData = customData
 		}
 
 		// Add OIDC metadata only if URIs are provided

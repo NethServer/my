@@ -93,8 +93,17 @@ func (l *LogtoThirdPartyApp) ToThirdPartyApplication(branding *ApplicationSignIn
 		app.PostLogoutRedirectUris = l.OidcClientMetadata.PostLogoutRedirectUris
 	}
 
-	// Generate login URL using the first redirect URI (if available) and dynamic scopes
-	if len(app.RedirectUris) > 0 && loginURLGenerator != nil {
+	// Use login URL from custom_data if available, otherwise generate it using redirect URI
+	if l.CustomData != nil {
+		if loginURLData, exists := l.CustomData["login_url"]; exists {
+			if loginURLStr, ok := loginURLData.(string); ok && loginURLStr != "" {
+				app.LoginURL = loginURLStr
+			}
+		}
+	}
+
+	// Fallback: Generate login URL using the first redirect URI if not provided in custom_data
+	if app.LoginURL == "" && len(app.RedirectUris) > 0 && loginURLGenerator != nil {
 		app.LoginURL = loginURLGenerator(l.ID, app.RedirectUris[0], scopes, isValidDomain)
 	}
 

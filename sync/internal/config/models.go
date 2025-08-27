@@ -57,6 +57,7 @@ type Application struct {
 	Name                   string         `yaml:"name" json:"name"`                                                               // FQDN of the application
 	Description            string         `yaml:"description" json:"description"`                                                 // Description of the application
 	DisplayName            string         `yaml:"display_name" json:"display_name"`                                               // Display name for branding
+	LoginURL               string         `yaml:"login_url,omitempty" json:"login_url,omitempty"`                                 // Login URL for OAuth authentication
 	Scopes                 []string       `yaml:"scopes,omitempty" json:"scopes,omitempty"`                                       // Custom scopes (optional)
 	RedirectUris           []string       `yaml:"redirect_uris,omitempty" json:"redirect_uris,omitempty"`                         // Redirect URIs for OAuth flow
 	PostLogoutRedirectUris []string       `yaml:"post_logout_redirect_uris,omitempty" json:"post_logout_redirect_uris,omitempty"` // Post logout redirect URIs
