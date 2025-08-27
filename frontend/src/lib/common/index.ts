@@ -1,3 +1,5 @@
+export const MIN_SEARCH_LENGTH = 2
+
 export interface Pagination {
   has_next: boolean
   has_prev: boolean

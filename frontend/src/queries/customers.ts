@@ -1,6 +1,7 @@
 //  Copyright (C) 2025 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
+import { MIN_SEARCH_LENGTH } from '@/lib/common'
 import { CUSTOMERS_KEY, CUSTOMERS_TABLE_ID, getCustomers, type Customer } from '@/lib/customers'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
@@ -53,8 +54,8 @@ export const useCustomers = defineQuery(() => {
   watch(
     () => textFilter.value,
     useDebounceFn(() => {
-      // debounce and ignore if text filter is 1 char or less
-      if (textFilter.value.length !== 1) {
+      // debounce and ignore if text filter is too short
+      if (textFilter.value.length === 0 || textFilter.value.length >= MIN_SEARCH_LENGTH) {
         debouncedTextFilter.value = textFilter.value
 
         // reset to first page when filter changes
