@@ -6,12 +6,11 @@ import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 import { faBuilding, faCity, faCrown, faGlobe, faQuestion } from '@fortawesome/free-solid-svg-icons'
-
-//// remove after implementing pagination
-export const paginationQueryString = '?page_size=100'
+import { getQueryStringParams, type Pagination } from './common'
 
 export const USERS_KEY = 'users'
 export const USERS_TOTAL_KEY = 'usersTotal'
+export const USERS_TABLE_ID = 'usersTable'
 
 export const CreateUserSchema = v.object({
   email: v.pipe(v.string(), v.nonEmpty('users.email_required'), v.email('users.email_invalid')),
@@ -59,14 +58,30 @@ export type CreateUser = v.InferOutput<typeof CreateUserSchema>
 export type EditUser = v.InferOutput<typeof EditUserSchema>
 export type User = v.InferOutput<typeof UserSchema>
 
-export const getUsers = () => {
+interface UsersResponse {
+  code: number
+  message: string
+  data: {
+    users: User[]
+    pagination: Pagination
+  }
+}
+
+export const getUsers = (
+  pageNum: number,
+  pageSize: number,
+  textFilter: string,
+  sortBy: string,
+  sortDescending: boolean,
+) => {
   const loginStore = useLoginStore()
+  const params = getQueryStringParams(pageNum, pageSize, textFilter, sortBy, sortDescending)
 
   return axios
-    .get(`${API_URL}/users${paginationQueryString}`, {
+    .get<UsersResponse>(`${API_URL}/users?${params}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
-    .then((res) => res.data.data.users as User[])
+    .then((res) => res.data.data)
 }
 
 export const postUser = (user: CreateUser) => {
@@ -113,40 +128,6 @@ export const resetPassword = (user: User, newPassword: string) => {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     },
   )
-}
-
-export const searchStringInUser = (searchString: string, user: User): boolean => {
-  const regex = /[^a-zA-Z0-9-]/g
-  searchString = searchString.replace(regex, '')
-  let found = false
-
-  // search in string attributes
-  found = ['name', 'email'].some((attrName) => {
-    const attrValue = user[attrName as keyof User] as string
-    return new RegExp(searchString, 'i').test(attrValue?.replace(regex, ''))
-  })
-
-  if (found) {
-    return true
-  }
-
-  //// review customData attributes
-
-  // search in customData
-  found = ['address', 'city', 'codiceFiscale', 'email', 'partitaIva', 'phone', 'region'].some(
-    (attrName) => {
-      const attrValue = user.custom_data?.[
-        attrName as keyof NonNullable<User['custom_data']>
-      ] as string
-      return new RegExp(searchString, 'i').test(attrValue?.replace(regex, ''))
-    },
-  )
-
-  if (found) {
-    return true
-  } else {
-    return false
-  }
 }
 
 export const getOrganizationIcon = (orgRole: string) => {

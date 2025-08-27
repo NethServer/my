@@ -5,10 +5,11 @@ import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
-import { paginationQueryString } from './users'
+import { getQueryStringParams, type Pagination } from './common'
 
 export const RESELLERS_KEY = 'resellers'
 export const RESELLERS_TOTAL_KEY = 'resellersTotal'
+export const RESELLERS_TABLE_ID = 'resellersTable'
 
 export const CreateResellerSchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty('organizations.name_cannot_be_empty')),
@@ -30,14 +31,30 @@ export const ResellerSchema = v.object({
 export type CreateReseller = v.InferOutput<typeof CreateResellerSchema>
 export type Reseller = v.InferOutput<typeof ResellerSchema>
 
-export const getResellers = () => {
+interface ResellersResponse {
+  code: number
+  message: string
+  data: {
+    resellers: Reseller[]
+    pagination: Pagination
+  }
+}
+
+export const getResellers = (
+  pageNum: number,
+  pageSize: number,
+  textFilter: string,
+  sortBy: string,
+  sortDescending: boolean,
+) => {
   const loginStore = useLoginStore()
+  const params = getQueryStringParams(pageNum, pageSize, textFilter, sortBy, sortDescending)
 
   return axios
-    .get(`${API_URL}/resellers${paginationQueryString}`, {
+    .get<ResellersResponse>(`${API_URL}/resellers?${params}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
-    .then((res) => res.data.data.resellers as Reseller[])
+    .then((res) => res.data.data)
 }
 
 export const postReseller = (reseller: CreateReseller) => {
@@ -72,42 +89,4 @@ export const getResellersTotal = () => {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data.total as number)
-}
-
-export const searchStringInReseller = (
-  searchString: string,
-
-  reseller: Reseller,
-): boolean => {
-  const regex = /[^a-zA-Z0-9-]/g
-  searchString = searchString.replace(regex, '')
-  let found = false
-
-  // search in string attributes
-  found = ['name', 'description'].some((attrName) => {
-    const attrValue = reseller[attrName as keyof Reseller] as string
-    return new RegExp(searchString, 'i').test(attrValue?.replace(regex, ''))
-  })
-
-  if (found) {
-    return true
-  }
-
-  //// review customData attributes
-
-  // search in customData
-  found = ['address', 'city', 'codiceFiscale', 'email', 'partitaIva', 'phone', 'region'].some(
-    (attrName) => {
-      const attrValue = reseller.custom_data?.[
-        attrName as keyof NonNullable<Reseller['custom_data']>
-      ] as string
-      return new RegExp(searchString, 'i').test(attrValue?.replace(regex, ''))
-    },
-  )
-
-  if (found) {
-    return true
-  } else {
-    return false
-  }
 }

@@ -5,10 +5,11 @@ import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
-import { paginationQueryString } from './users'
+import { getQueryStringParams, type Pagination } from './common'
 
 export const CUSTOMERS_KEY = 'customers'
 export const CUSTOMERS_TOTAL_KEY = 'customersTotal'
+export const CUSTOMERS_TABLE_ID = 'customersTable'
 
 export const CreateCustomerSchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty('organizations.name_cannot_be_empty')),
@@ -30,14 +31,30 @@ export const CustomerSchema = v.object({
 export type CreateCustomer = v.InferOutput<typeof CreateCustomerSchema>
 export type Customer = v.InferOutput<typeof CustomerSchema>
 
-export const getCustomers = () => {
+interface CustomersResponse {
+  code: number
+  message: string
+  data: {
+    customers: Customer[]
+    pagination: Pagination
+  }
+}
+
+export const getCustomers = (
+  pageNum: number,
+  pageSize: number,
+  textFilter: string,
+  sortBy: string,
+  sortDescending: boolean,
+) => {
   const loginStore = useLoginStore()
+  const params = getQueryStringParams(pageNum, pageSize, textFilter, sortBy, sortDescending)
 
   return axios
-    .get(`${API_URL}/customers${paginationQueryString}`, {
+    .get<CustomersResponse>(`${API_URL}/customers?${params}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
-    .then((res) => res.data.data.customers as Customer[])
+    .then((res) => res.data.data)
 }
 
 export const postCustomer = (customer: CreateCustomer) => {
@@ -72,42 +89,4 @@ export const getCustomersTotal = () => {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data.total as number)
-}
-
-export const searchStringInCustomer = (
-  searchString: string,
-
-  customer: Customer,
-): boolean => {
-  const regex = /[^a-zA-Z0-9-]/g
-  searchString = searchString.replace(regex, '')
-  let found = false
-
-  // search in string attributes
-  found = ['name', 'description'].some((attrName) => {
-    const attrValue = customer[attrName as keyof Customer] as string
-    return new RegExp(searchString, 'i').test(attrValue?.replace(regex, ''))
-  })
-
-  if (found) {
-    return true
-  }
-
-  //// review customData attributes
-
-  // search in customData
-  found = ['address', 'city', 'codiceFiscale', 'email', 'partitaIva', 'phone', 'region'].some(
-    (attrName) => {
-      const attrValue = customer.custom_data?.[
-        attrName as keyof NonNullable<Customer['custom_data']>
-      ] as string
-      return new RegExp(searchString, 'i').test(attrValue?.replace(regex, ''))
-    },
-  )
-
-  if (found) {
-    return true
-  } else {
-    return false
-  }
 }

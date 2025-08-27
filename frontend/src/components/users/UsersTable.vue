@@ -4,8 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { searchStringInUser, type User } from '@/lib/users'
-import { useLoginStore } from '@/stores/login'
+import { USERS_TABLE_ID, type User } from '@/lib/users'
 import {
   faCircleInfo,
   faCirclePlus,
@@ -23,14 +22,12 @@ import {
   NeTableRow,
   NeTableCell,
   NePaginator,
-  useItemPagination,
   NeButton,
   NeEmptyState,
   NeInlineNotification,
   NeTextInput,
   NeSpinner,
   NeDropdown,
-  useSort,
   type SortEvent,
   NeSortDropdown,
   NeBadge,
@@ -40,7 +37,7 @@ import { computed, ref, watch } from 'vue'
 import CreateOrEditUserDrawer from './CreateOrEditUserDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteUserModal from './DeleteUserModal.vue'
-import { loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageSize'
+import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import ResetPasswordModal from './ResetPasswordModal.vue'
 import PasswordChangedModal from './PasswordChangedModal.vue'
 import { useUsers } from '@/queries/users'
@@ -53,48 +50,30 @@ const { isShownCreateUserDrawer = false } = defineProps<{
 const emit = defineEmits(['close-drawer'])
 
 const { t } = useI18n()
-const loginStore = useLoginStore()
-const { users, usersAsyncStatus } = useUsers()
+const {
+  state,
+  asyncStatus,
+  pageNum,
+  pageSize,
+  textFilter,
+  debouncedTextFilter,
+  sortBy,
+  sortDescending,
+} = useUsers()
 
 const currentUser = ref<User | undefined>()
-const textFilter = ref('')
 const isShownCreateOrEditUserDrawer = ref(false)
 const isShownDeleteUserModal = ref(false)
 const isShownResetPasswordModal = ref(false)
 const isShownPasswordChangedModal = ref(false)
 const newPassword = ref<string>('')
-const tableId = 'usersTable'
-const pageSize = ref(10)
-const sortKey = ref<keyof User>('name')
-const sortDescending = ref(false)
 
-const filteredUsers = computed(() => {
-  if (!users.value.data?.length) {
-    return []
-  }
-
-  if (!textFilter.value.trim()) {
-    return users.value.data
-  } else {
-    return users.value.data.filter((user) => searchStringInUser(textFilter.value, user))
-  }
+const usersPage = computed(() => {
+  return state.value.data?.users
 })
 
-const sortFunctions = {
-  // custom sorting function for organization attribute
-  organization: (a: User, b: User) => {
-    if ((!a.organization || !a.organization.name) && (!b.organization || !b.organization.name))
-      return 0
-    if (!a.organization || !a.organization.name) return 1
-    if (!b.organization || !b.organization.name) return -1
-    return a.organization.name.localeCompare(b.organization.name || '')
-  },
-}
-
-const { sortedItems } = useSort(filteredUsers, sortKey, sortDescending, sortFunctions)
-
-const { currentPage, paginatedItems } = useItemPagination(() => sortedItems.value, {
-  itemsPerPage: pageSize,
+const pagination = computed(() => {
+  return state.value.data?.pagination
 })
 
 watch(
@@ -102,16 +81,6 @@ watch(
   () => {
     if (isShownCreateUserDrawer) {
       showCreateUserDrawer()
-    }
-  },
-  { immediate: true },
-)
-
-watch(
-  () => loginStore.userInfo?.email,
-  (email) => {
-    if (email) {
-      pageSize.value = loadPageSizeFromStorage(tableId)
     }
   },
   { immediate: true },
@@ -158,7 +127,7 @@ function getKebabMenuItems(user: User) {
       label: t('users.reset_password'),
       icon: faKey,
       action: () => showResetPasswordModal(user),
-      disabled: usersAsyncStatus.value === 'loading',
+      disabled: asyncStatus.value === 'loading',
     },
     {
       id: 'deleteAccount',
@@ -166,13 +135,13 @@ function getKebabMenuItems(user: User) {
       icon: faTrash,
       danger: true,
       action: () => showDeleteUserModal(user),
-      disabled: usersAsyncStatus.value === 'loading',
+      disabled: asyncStatus.value === 'loading',
     },
   ]
 }
 
 const onSort = (payload: SortEvent) => {
-  sortKey.value = payload.key as keyof User
+  sortBy.value = payload.key as keyof User
   sortDescending.value = payload.descending
 }
 
@@ -186,10 +155,10 @@ const onClosePasswordChangedModal = () => {
   <div>
     <!-- get users error notification -->
     <NeInlineNotification
-      v-if="users.status === 'error'"
+      v-if="state.status === 'error'"
       kind="error"
       :title="$t('users.cannot_retrieve_users')"
-      :description="users.error.message"
+      :description="state.error.message"
       class="mb-6"
     />
     <!-- table toolbar -->
@@ -205,7 +174,7 @@ const onClosePasswordChangedModal = () => {
             class="max-w-48 sm:max-w-sm"
           />
           <NeSortDropdown
-            v-model:sort-key="sortKey"
+            v-model:sort-key="sortBy"
             v-model:sort-descending="sortDescending"
             :label="t('sort.sort')"
             :options="[
@@ -223,7 +192,7 @@ const onClosePasswordChangedModal = () => {
         </div>
         <!-- update indicator -->
         <div
-          v-if="usersAsyncStatus === 'loading' && users.status !== 'pending'"
+          v-if="asyncStatus === 'loading' && state.status !== 'pending'"
           class="flex items-center gap-2"
         >
           <NeSpinner color="white" />
@@ -235,11 +204,11 @@ const onClosePasswordChangedModal = () => {
     </div>
     <!-- //// check breakpoint, skeleton-columns -->
     <NeTable
-      :sort-key="sortKey"
+      :sort-key="sortBy"
       :sort-descending="sortDescending"
       :aria-label="$t('users.title')"
       card-breakpoint="xl"
-      :loading="users.status === 'pending'"
+      :loading="state.status === 'pending'"
       :skeleton-columns="5"
       :skeleton-rows="7"
     >
@@ -250,9 +219,7 @@ const onClosePasswordChangedModal = () => {
         <NeTableHeadCell sortable column-key="email" @sort="onSort">{{
           $t('users.email')
         }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="organization" @sort="onSort">{{
-          $t('users.organization')
-        }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('users.organization') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('users.roles') }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- no header for actions -->
@@ -260,7 +227,7 @@ const onClosePasswordChangedModal = () => {
       </NeTableHead>
       <NeTableBody>
         <!-- empty state -->
-        <NeTableRow v-if="!users.data?.length">
+        <NeTableRow v-if="!usersPage?.length && !debouncedTextFilter">
           <NeTableCell colspan="5">
             <NeEmptyState
               :title="$t('users.no_user')"
@@ -284,7 +251,7 @@ const onClosePasswordChangedModal = () => {
           </NeTableCell>
         </NeTableRow>
         <!-- no user matching filter -->
-        <NeTableRow v-else-if="!filteredUsers.length">
+        <NeTableRow v-else-if="!usersPage?.length && debouncedTextFilter">
           <NeTableCell colspan="4">
             <NeEmptyState
               :title="$t('users.no_user_found')"
@@ -298,7 +265,7 @@ const onClosePasswordChangedModal = () => {
             </NeEmptyState>
           </NeTableCell>
         </NeTableRow>
-        <NeTableRow v-for="(item, index) in paginatedItems" v-else :key="index">
+        <NeTableRow v-for="(item, index) in usersPage" v-else :key="index">
           <NeTableCell :data-label="$t('users.name')">
             {{ item.name }}
           </NeTableCell>
@@ -325,7 +292,7 @@ const onClosePasswordChangedModal = () => {
               <NeButton
                 kind="tertiary"
                 @click="showEditUserDrawer(item)"
-                :disabled="usersAsyncStatus === 'loading'"
+                :disabled="asyncStatus === 'loading'"
               >
                 <template #prefix>
                   <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
@@ -340,9 +307,10 @@ const onClosePasswordChangedModal = () => {
       </NeTableBody>
       <template #paginator>
         <NePaginator
-          :current-page="currentPage"
-          :total-rows="sortedItems.length"
+          :current-page="pageNum"
+          :total-rows="pagination?.total_count || 0"
           :page-size="pageSize"
+          :page-sizes="[5, 10, 25, 50, 100]"
           :nav-pagination-label="$t('ne_table.pagination')"
           :next-label="$t('ne_table.go_to_next_page')"
           :previous-label="$t('ne_table.go_to_previous_page')"
@@ -350,13 +318,13 @@ const onClosePasswordChangedModal = () => {
           :page-size-label="$t('ne_table.show')"
           @select-page="
             (page: number) => {
-              currentPage = page
+              pageNum = page
             }
           "
           @select-page-size="
             (size: number) => {
               pageSize = size
-              savePageSizeToStorage(tableId, size)
+              savePageSizeToStorage(USERS_TABLE_ID, size)
             }
           "
         />
