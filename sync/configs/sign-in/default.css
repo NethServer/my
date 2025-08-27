@@ -25,6 +25,15 @@ html[data-theme="dark"] button.odkpo_large {
   color:  oklch(13% 0.028 261.692);
 }
 
+/* text color of secondary buttons */
+
+html[data-theme="light"] button._0Rgzl_secondary {
+  color:  oklch(50.40% 0.128 245.46);
+}
+html[data-theme="dark"] button._0Rgzl_secondary {
+  color:  oklch(60.64% 0.159 246.97);
+}
+
 /* animated background */
 
 .logto_page-container {
