@@ -7,7 +7,6 @@ package methods
 
 import (
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -79,7 +78,6 @@ func CreateSystem(c *gin.Context) {
 			Err(err).
 			Str("user_id", user.ID).
 			Str("system_name", request.Name).
-			Str("reseller_id", request.ResellerID).
 			Msg("Failed to create system")
 
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to create system", map[string]interface{}{
@@ -104,31 +102,31 @@ func GetSystems(c *gin.Context) {
 		return
 	}
 
-	// Parse pagination parameters
-	page := 1
-	pageSize := 50 // Default page size for systems
-	if pageStr := c.Query("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
+	// Parse pagination and sorting parameters
+	page, pageSize, sortBy, sortDirection := helpers.GetPaginationAndSortingFromQuery(c)
+
+	// Override default page size for systems
+	if c.Query("page_size") == "" {
+		pageSize = 50 // Default page size for systems
 	}
-	if pageSizeStr := c.Query("page_size"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 && ps <= 100 {
-			pageSize = ps
-		}
-	}
+
+	// Parse search parameter
+	search := c.Query("search")
 
 	// Create systems service
 	systemsService := local.NewSystemsService()
 
-	// Get systems with pagination
-	systems, totalCount, err := systemsService.GetSystemsByOrganizationPaginated(userID, userOrgID, userOrgRole, page, pageSize)
+	// Get systems with pagination, search and sorting
+	systems, totalCount, err := systemsService.GetSystemsByOrganizationPaginated(userID, userOrgID, userOrgRole, page, pageSize, search, sortBy, sortDirection)
 	if err != nil {
 		logger.Error().
 			Err(err).
 			Str("user_id", userID).
 			Int("page", page).
 			Int("page_size", pageSize).
+			Str("search", search).
+			Str("sort_by", sortBy).
+			Str("sort_direction", sortDirection).
 			Msg("Failed to retrieve systems")
 
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to retrieve systems", map[string]interface{}{
@@ -144,6 +142,9 @@ func GetSystems(c *gin.Context) {
 		Int("total", totalCount).
 		Int("page", page).
 		Int("page_size", pageSize).
+		Str("search", search).
+		Str("sort_by", sortBy).
+		Str("sort_direction", sortDirection).
 		Msg("Systems list requested")
 
 	// Return paginated systems list

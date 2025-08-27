@@ -43,7 +43,7 @@ func (r *LocalSystemRepository) Create(req *models.CreateSystemRequest) (*models
 func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	query := `
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version, s.last_seen,
-		       s.custom_data, s.reseller_id, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
+		       s.custom_data, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
 		WHERE s.id = $1 AND s.deleted_at IS NULL
@@ -57,7 +57,7 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 
 	err := r.db.QueryRow(query, id).Scan(
 		&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
-		&ipv4Address, &ipv6Address, &version, &system.LastSeen, &customDataJSON, &system.ResellerID,
+		&ipv4Address, &ipv6Address, &version, &system.LastSeen, &customDataJSON,
 		&system.CreatedAt, &system.UpdatedAt, &createdByJSON, &lastHeartbeat,
 	)
 
@@ -112,19 +112,8 @@ func (r *LocalSystemRepository) Delete(id string) error {
 	return fmt.Errorf("Delete method not yet implemented - use SystemsService directly")
 }
 
-// List retrieves systems filtered by organization with pagination and RBAC (matches other repository patterns)
-func (r *LocalSystemRepository) List(userOrgRole, userOrgID string, page, pageSize int) ([]*models.System, int, error) {
-	// Get all reseller organization IDs the user can access hierarchically
-	allowedOrgIDs, err := r.GetHierarchicalResellerIDs(strings.ToLower(userOrgRole), userOrgID)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get hierarchical reseller IDs: %w", err)
-	}
-
-	return r.ListByResellerIDs(allowedOrgIDs, page, pageSize)
-}
-
-// ListByResellerIDs returns paginated list of systems in specified reseller organizations
-func (r *LocalSystemRepository) ListByResellerIDs(allowedOrgIDs []string, page, pageSize int) ([]*models.System, int, error) {
+// ListByCreatedByOrganizations returns paginated list of systems created by users in specified organizations
+func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []string, page, pageSize int, search, sortBy, sortDirection string) ([]*models.System, int, error) {
 	if len(allowedOrgIDs) == 0 {
 		return []*models.System{}, 0, nil
 	}
@@ -133,39 +122,74 @@ func (r *LocalSystemRepository) ListByResellerIDs(allowedOrgIDs []string, page, 
 
 	// Build placeholders for IN clause
 	placeholders := make([]string, len(allowedOrgIDs))
-	args := make([]interface{}, len(allowedOrgIDs))
+	baseArgs := make([]interface{}, len(allowedOrgIDs))
 	for i, orgID := range allowedOrgIDs {
 		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		args[i] = orgID
+		baseArgs[i] = orgID
 	}
 	placeholdersStr := strings.Join(placeholders, ",")
 
+	// Build WHERE clause for search
+	whereClause := fmt.Sprintf("deleted_at IS NULL AND JSON_EXTRACT(created_by, '$.organization_id') IN (%s)", placeholdersStr)
+	args := make([]interface{}, len(baseArgs))
+	copy(args, baseArgs)
+
+	if search != "" {
+		searchPattern := "%" + search + "%"
+		whereClause += fmt.Sprintf(" AND (name ILIKE $%d OR type ILIKE $%d OR status ILIKE $%d OR fqdn ILIKE $%d OR version ILIKE $%d OR JSON_EXTRACT(created_by, '$.user_name') ILIKE $%d)",
+			len(args)+1, len(args)+2, len(args)+3, len(args)+4, len(args)+5, len(args)+6)
+		args = append(args, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
+	}
+
 	// Get total count
 	var totalCount int
-	countQuery := fmt.Sprintf(`
-		SELECT COUNT(*) FROM systems
-		WHERE deleted_at IS NULL AND reseller_id IN (%s)
-	`, placeholdersStr)
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM systems WHERE %s", whereClause)
 
 	err := r.db.QueryRow(countQuery, args...).Scan(&totalCount)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get systems count: %w", err)
 	}
 
-	// Get paginated results
+	// Build ORDER BY clause
+	orderBy := "created_at DESC"
+	if sortBy != "" {
+		// Map sortBy values to actual column names
+		columnMap := map[string]string{
+			"name":         "name",
+			"type":         "type",
+			"status":       "status",
+			"fqdn":         "fqdn",
+			"version":      "version",
+			"created_at":   "created_at",
+			"updated_at":   "updated_at",
+			"last_seen":    "last_seen",
+			"creator_name": "JSON_EXTRACT(created_by, '$.user_name')",
+		}
+
+		if column, exists := columnMap[sortBy]; exists {
+			direction := "ASC"
+			if sortDirection == "desc" {
+				direction = "DESC"
+			}
+			orderBy = fmt.Sprintf("%s %s", column, direction)
+		}
+	}
+
+	// Build main query
+	query := fmt.Sprintf(`
+		SELECT id, name, type, status, fqdn, ipv4_address, ipv6_address, version, last_seen,
+		       custom_data, created_at, updated_at, created_by
+		FROM systems
+		WHERE %s
+		ORDER BY %s
+		LIMIT $%d OFFSET $%d
+	`, whereClause, orderBy, len(args)+1, len(args)+2)
+
+	// Add pagination parameters
 	listArgs := make([]interface{}, len(args)+2)
 	copy(listArgs, args)
 	listArgs[len(args)] = pageSize
 	listArgs[len(args)+1] = offset
-
-	query := fmt.Sprintf(`
-		SELECT id, name, type, status, fqdn, ipv4_address, ipv6_address, version, last_seen,
-		       custom_data, reseller_id, created_at, updated_at, created_by
-		FROM systems
-		WHERE deleted_at IS NULL AND reseller_id IN (%s)
-		ORDER BY created_at DESC
-		LIMIT $%d OFFSET $%d
-	`, placeholdersStr, len(args)+1, len(args)+2)
 
 	rows, err := r.db.Query(query, listArgs...)
 	if err != nil {
@@ -181,7 +205,7 @@ func (r *LocalSystemRepository) ListByResellerIDs(allowedOrgIDs []string, page, 
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
-			&ipv4Address, &ipv6Address, &version, &system.LastSeen, &customDataJSON, &system.ResellerID,
+			&ipv4Address, &ipv6Address, &version, &system.LastSeen, &customDataJSON,
 			&system.CreatedAt, &system.UpdatedAt, &createdByJSON,
 		)
 		if err != nil {
@@ -205,7 +229,7 @@ func (r *LocalSystemRepository) ListByResellerIDs(allowedOrgIDs []string, page, 
 
 		// Parse created_by JSON
 		if len(createdByJSON) > 0 {
-			_ = json.Unmarshal(createdByJSON, &system.CreatedBy) // Ignore JSON unmarshal errors - keep default zero value
+			_ = json.Unmarshal(createdByJSON, &system.CreatedBy)
 		}
 
 		systems = append(systems, system)
@@ -218,20 +242,8 @@ func (r *LocalSystemRepository) ListByResellerIDs(allowedOrgIDs []string, page, 
 	return systems, totalCount, nil
 }
 
-// GetTotals returns total counts and status for systems visible to the user (matches other repository patterns)
-func (r *LocalSystemRepository) GetTotals(userOrgRole, userOrgID string) (*models.SystemTotals, error) {
-	// Get all reseller organization IDs the user can access hierarchically
-	allowedOrgIDs, err := r.GetHierarchicalResellerIDs(strings.ToLower(userOrgRole), userOrgID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get hierarchical reseller IDs: %w", err)
-	}
-
-	// Use default timeout of 15 minutes for heartbeat status calculation (matching service logic)
-	return r.GetTotalsByResellerIDs(allowedOrgIDs, 15)
-}
-
-// GetTotalsByResellerIDs returns total counts and status for systems in specified reseller organizations
-func (r *LocalSystemRepository) GetTotalsByResellerIDs(allowedOrgIDs []string, timeoutMinutes int) (*models.SystemTotals, error) {
+// GetTotalsByCreatedByOrganizations returns total counts and status for systems created by users in specified organizations
+func (r *LocalSystemRepository) GetTotalsByCreatedByOrganizations(allowedOrgIDs []string, timeoutMinutes int) (*models.SystemTotals, error) {
 	if len(allowedOrgIDs) == 0 {
 		return &models.SystemTotals{
 			Total:          0,
@@ -266,7 +278,7 @@ func (r *LocalSystemRepository) GetTotalsByResellerIDs(allowedOrgIDs []string, t
 			SUM(CASE WHEN h.last_heartbeat IS NULL THEN 1 ELSE 0 END) as zombie
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
-		WHERE s.deleted_at IS NULL AND s.reseller_id IN (%s)
+		WHERE s.deleted_at IS NULL AND JSON_EXTRACT(s.created_by, '$.organization_id') IN (%s)
 	`, placeholdersStr)
 
 	var total, alive, dead, zombie int
@@ -282,58 +294,4 @@ func (r *LocalSystemRepository) GetTotalsByResellerIDs(allowedOrgIDs []string, t
 		Zombie:         zombie,
 		TimeoutMinutes: timeoutMinutes,
 	}, nil
-}
-
-// GetHierarchicalResellerIDs returns all reseller organization IDs that the user can access
-// This mirrors the logic from UserService.GetHierarchicalOrganizationIDs but filtered for resellers only
-func (r *LocalSystemRepository) GetHierarchicalResellerIDs(userOrgRole, userOrgID string) ([]string, error) {
-	var resellerIDs []string
-
-	switch userOrgRole {
-	case "owner":
-		// Owner can see systems from all resellers
-		rows, err := r.db.Query("SELECT logto_id FROM resellers WHERE logto_id IS NOT NULL AND deleted_at IS NULL")
-		if err != nil {
-			return nil, fmt.Errorf("failed to get all resellers: %w", err)
-		}
-		defer func() { _ = rows.Close() }()
-
-		for rows.Next() {
-			var orgID string
-			if err := rows.Scan(&orgID); err != nil {
-				return nil, fmt.Errorf("failed to scan reseller ID: %w", err)
-			}
-			resellerIDs = append(resellerIDs, orgID)
-		}
-
-	case "distributor":
-		// Distributor can see systems from resellers they created
-		rows, err := r.db.Query("SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = $1 AND logto_id IS NOT NULL AND deleted_at IS NULL", userOrgID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get distributor resellers: %w", err)
-		}
-		defer func() { _ = rows.Close() }()
-
-		for rows.Next() {
-			var orgID string
-			if err := rows.Scan(&orgID); err != nil {
-				return nil, fmt.Errorf("failed to scan reseller ID: %w", err)
-			}
-			resellerIDs = append(resellerIDs, orgID)
-		}
-
-	case "reseller":
-		// Reseller can only see systems in their own organization
-		resellerIDs = append(resellerIDs, userOrgID)
-
-	case "customer":
-		// Customer cannot access systems directly - they would go through their reseller
-		return []string{}, nil
-
-	default:
-		// Unknown role - no access
-		return []string{}, nil
-	}
-
-	return resellerIDs, nil
 }

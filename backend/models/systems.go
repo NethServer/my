@@ -27,7 +27,6 @@ type System struct {
 	Version     string            `json:"version" structs:"version"`
 	LastSeen    time.Time         `json:"last_seen" structs:"last_seen"`
 	CustomData  map[string]string `json:"custom_data" structs:"custom_data"`
-	ResellerID  string            `json:"reseller_id" structs:"reseller_id"`
 	Secret      string            `json:"secret,omitempty" structs:"secret"`           // Only returned during creation
 	SecretHash  string            `json:"-" structs:"secret_hash"`                     // Stored in DB, never returned
 	SecretHint  string            `json:"secret_hint,omitempty" structs:"secret_hint"` // Last 4 chars for identification
@@ -45,7 +44,6 @@ type System struct {
 type CreateSystemRequest struct {
 	Name       string            `json:"name" binding:"required" structs:"name"`
 	Type       string            `json:"type" binding:"required" structs:"type"`
-	ResellerID string            `json:"reseller_id" binding:"required" structs:"reseller_id"`
 	CustomData map[string]string `json:"custom_data" structs:"custom_data"`
 }
 
@@ -53,6 +51,5 @@ type CreateSystemRequest struct {
 type UpdateSystemRequest struct {
 	Name       string            `json:"name" structs:"name"`
 	Type       string            `json:"type" structs:"type"`
-	ResellerID string            `json:"reseller_id" structs:"reseller_id"`
 	CustomData map[string]string `json:"custom_data" structs:"custom_data"`
 }

@@ -765,10 +765,6 @@ components:
           format: date-time
           description: Last seen timestamp from inventory
           example: "2025-07-10T10:30:00Z"
-        reseller_id:
-          type: string
-          description: Reseller organization ID
-          example: "org_reseller_123"
         custom_data:
           type: object
           description: Custom system data
@@ -831,10 +827,10 @@ components:
 
     SystemInput:
       type: object
+      description: System creation/update request. The system will be associated with the creator's organization automatically.
       required:
         - name
         - type
-        - reseller_id
       properties:
         name:
           type: string
@@ -844,10 +840,6 @@ components:
           type: string
           description: System type
           example: "ns8"
-        reseller_id:
-          type: string
-          description: Reseller organization ID that owns this system
-          example: "org_reseller_123"
         custom_data:
           type: object
           description: Custom system data
@@ -921,6 +913,16 @@ components:
       schema:
         type: string
         enum: ["name", "email", "username", "created_at", "updated_at", "latest_login_at", "organization"]
+        example: "name"
+
+    SystemSortByParam:
+      name: sort_by
+      in: query
+      description: Field to sort systems by
+      required: false
+      schema:
+        type: string
+        enum: ["name", "type", "status", "fqdn", "version", "created_at", "updated_at", "last_seen", "creator_name"]
         example: "name"
 
     SortDirectionParam:
@@ -2594,11 +2596,13 @@ paths:
       tags:
         - Backend - Systems
       summary: List systems
-      description: Get list of systems (requires Admin or Support role)
+      description: Get list of systems visible to the user based on hierarchical organization permissions.
       parameters:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
         - $ref: '#/components/parameters/SearchParam'
+        - $ref: '#/components/parameters/SystemSortByParam'
+        - $ref: '#/components/parameters/SortDirectionParam'
       responses:
         '200':
           description: Systems retrieved successfully
@@ -2632,7 +2636,7 @@ paths:
       tags:
         - Backend - Systems
       summary: Create system
-      description: Create a new system (requires Admin or Support role)
+      description: Create a new system. Any authenticated user can create systems - access control is based on the creator's organization.
       requestBody:
         required: true
         content:
@@ -2668,7 +2672,7 @@ paths:
       tags:
         - Backend - Systems
       summary: Get single system
-      description: Get a specific system by ID (requires Admin or Support role)
+      description: Get a specific system by ID. Users can access systems created by their organization based on hierarchical permissions.
       parameters:
         - name: id
           in: path
@@ -2705,7 +2709,7 @@ paths:
       tags:
         - Backend - Systems
       summary: Update system
-      description: Update a system (requires Admin or Support role)
+      description: Update a system. Users can update systems created by their organization based on hierarchical permissions.
       parameters:
         - name: id
           in: path
@@ -2750,7 +2754,7 @@ paths:
       tags:
         - Backend - Systems
       summary: Delete system
-      description: Delete a system (requires Admin or Support role)
+      description: Delete a system. Users can delete systems created by their organization based on hierarchical permissions.
       parameters:
         - name: id
           in: path
@@ -2791,7 +2795,7 @@ paths:
       tags:
         - Backend - Systems
       summary: Regenerate system secret
-      description: Regenerate authentication secret for a specific system (requires Admin or Support role)
+      description: Regenerate authentication secret for a specific system. Users can regenerate secrets for systems created by their organization based on hierarchical permissions.
       parameters:
         - name: id
           in: path

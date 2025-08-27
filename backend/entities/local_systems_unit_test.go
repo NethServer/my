@@ -32,7 +32,6 @@ func TestLocal_SystemRepository_ValidateCreateRequest(t *testing.T) {
 			request: &models.CreateSystemRequest{
 				Name:       "Production Server",
 				Type:       "ns8",
-				ResellerID: "org-reseller-123",
 				CustomData: map[string]string{"environment": "production"},
 			},
 			shouldError: false,
@@ -40,9 +39,8 @@ func TestLocal_SystemRepository_ValidateCreateRequest(t *testing.T) {
 		{
 			name: "empty name",
 			request: &models.CreateSystemRequest{
-				Name:       "",
-				Type:       "ns8",
-				ResellerID: "org-reseller-123",
+				Name: "",
+				Type: "ns8",
 			},
 			shouldError: true,
 			errorMsg:    "name",
@@ -50,28 +48,17 @@ func TestLocal_SystemRepository_ValidateCreateRequest(t *testing.T) {
 		{
 			name: "empty type",
 			request: &models.CreateSystemRequest{
-				Name:       "Test Server",
-				Type:       "",
-				ResellerID: "org-reseller-123",
+				Name: "Test Server",
+				Type: "",
 			},
 			shouldError: true,
 			errorMsg:    "type",
 		},
 		{
-			name: "empty reseller ID",
-			request: &models.CreateSystemRequest{
-				Name: "Test Server",
-				Type: "ns8",
-			},
-			shouldError: true,
-			errorMsg:    "reseller",
-		},
-		{
 			name: "valid minimal request",
 			request: &models.CreateSystemRequest{
-				Name:       "Minimal Server",
-				Type:       "nsec",
-				ResellerID: "org-reseller-123",
+				Name: "Minimal Server",
+				Type: "nsec",
 			},
 			shouldError: false,
 		},
@@ -80,7 +67,6 @@ func TestLocal_SystemRepository_ValidateCreateRequest(t *testing.T) {
 			request: &models.CreateSystemRequest{
 				Name:       "Custom Server",
 				Type:       "ns8",
-				ResellerID: "org-reseller-123",
 				CustomData: map[string]string{"location": "datacenter-1", "tier": "production"},
 			},
 			shouldError: false,
@@ -134,10 +120,8 @@ func TestLocal_SystemRepository_ValidateUpdateRequest(t *testing.T) {
 			errorMsg:    "type",
 		},
 		{
-			name: "valid reseller update",
-			request: &models.UpdateSystemRequest{
-				ResellerID: "org-reseller-456",
-			},
+			name:        "valid reseller update",
+			request:     &models.UpdateSystemRequest{},
 			shouldError: false,
 		},
 		{
@@ -386,9 +370,8 @@ func TestLocal_SystemRepository_SystemStates(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			system := &models.System{
-				ID:         "test-system-123",
-				Name:       "Test System",
-				ResellerID: "org-customer-123",
+				ID:   "test-system-123",
+				Name: "Test System",
 			}
 
 			// Set initial state
@@ -464,8 +447,8 @@ func validateCreateSystemRequest(req *models.CreateSystemRequest) error {
 	if req.Type == "" {
 		return fmt.Errorf("type cannot be empty")
 	}
-	if req.ResellerID == "" {
-		return fmt.Errorf("reseller ID cannot be empty")
+	if req.Name == "" {
+		return fmt.Errorf("name cannot be empty")
 	}
 	return nil
 }

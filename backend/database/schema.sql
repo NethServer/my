@@ -109,7 +109,7 @@ CREATE INDEX IF NOT EXISTS idx_users_logto_synced ON users(logto_synced_at);
 CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_users_latest_login_at ON users(latest_login_at DESC);
 
--- Systems table - updated to reference customers table
+-- Systems table - access control based on created_by organization
 CREATE TABLE IF NOT EXISTS systems (
     id VARCHAR(255) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -121,22 +121,19 @@ CREATE TABLE IF NOT EXISTS systems (
     version VARCHAR(100),
     last_seen TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     custom_data JSONB,
-    reseller_id VARCHAR(255) NOT NULL,
     secret_hash VARCHAR(64) NOT NULL,
     secret_hint VARCHAR(8),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMP WITH TIME ZONE,  -- Soft delete timestamp (NULL = active, non-NULL = deleted)
-    created_by JSONB NOT NULL,
-
-    CONSTRAINT fk_systems_reseller FOREIGN KEY (reseller_id) REFERENCES resellers(id) ON DELETE CASCADE
+    created_by JSONB NOT NULL
 );
 
 -- Comment for systems.deleted_at
 COMMENT ON COLUMN systems.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted at that time.';
 
 -- Performance indexes for systems
-CREATE INDEX IF NOT EXISTS idx_systems_reseller_id ON systems(reseller_id);
+CREATE INDEX IF NOT EXISTS idx_systems_created_by_org ON systems((created_by->>'organization_id'));
 CREATE INDEX IF NOT EXISTS idx_systems_status ON systems(status);
 CREATE INDEX IF NOT EXISTS idx_systems_type ON systems(type);
 CREATE INDEX IF NOT EXISTS idx_systems_last_seen ON systems(last_seen DESC);
