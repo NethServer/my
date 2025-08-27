@@ -219,7 +219,9 @@ const onClosePasswordChangedModal = () => {
         <NeTableHeadCell sortable column-key="email" @sort="onSort">{{
           $t('users.email')
         }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('users.organization') }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="organization" @sort="onSort">{{
+          $t('users.organization')
+        }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('users.roles') }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- no header for actions -->
