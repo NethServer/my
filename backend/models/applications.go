@@ -27,10 +27,11 @@ type ApplicationBranding struct {
 	DarkLogoURL string `json:"dark_logo_url,omitempty"`
 }
 
-// AccessControl defines which roles can access a third-party application
+// AccessControl defines which roles and organizations can access a third-party application
 type AccessControl struct {
 	OrganizationRoles []string `json:"organization_roles,omitempty"`
 	UserRoles         []string `json:"user_roles,omitempty"`
+	OrganizationIDs   []string `json:"organization_ids,omitempty"`
 }
 
 // LogtoThirdPartyApp represents the raw application data from Logto API
@@ -145,6 +146,17 @@ func (l *LogtoThirdPartyApp) ExtractAccessControlFromCustomData() *AccessControl
 			for _, role := range userRolesList {
 				if roleStr, ok := role.(string); ok {
 					accessControl.UserRoles = append(accessControl.UserRoles, roleStr)
+				}
+			}
+		}
+	}
+
+	if orgIDs, exists := accessControlMap["organization_ids"]; exists {
+		if orgIDsList, ok := orgIDs.([]interface{}); ok {
+			accessControl.OrganizationIDs = make([]string, 0, len(orgIDsList))
+			for _, orgID := range orgIDsList {
+				if orgIDStr, ok := orgID.(string); ok {
+					accessControl.OrganizationIDs = append(accessControl.OrganizationIDs, orgIDStr)
 				}
 			}
 		}

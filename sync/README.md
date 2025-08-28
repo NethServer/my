@@ -266,6 +266,9 @@ third_party_apps:
         - "https://example.company.com/logout"
       # Access control configuration
       access_control:
+        organization_ids:    # Which specific organization IDs can access this app (optional)
+          - "org-12345"
+          - "org-67890"
         organization_roles:  # Which organization roles can access this app
           - "owner"
           - "distributor"

@@ -64,8 +64,9 @@ type Application struct {
 	AccessControl          *AccessControl `yaml:"access_control,omitempty" json:"access_control,omitempty"`                       // Access control configuration
 }
 
-// AccessControl defines which roles can access a third-party application
+// AccessControl defines which roles and organizations can access a third-party application
 type AccessControl struct {
+	OrganizationIDs   []string `yaml:"organization_ids,omitempty" json:"organization_ids,omitempty"`     // Organization IDs that can access the app
 	OrganizationRoles []string `yaml:"organization_roles,omitempty" json:"organization_roles,omitempty"` // Organization roles that can access the app
 	UserRoles         []string `yaml:"user_roles,omitempty" json:"user_roles,omitempty"`                 // User roles that can access the app
 }
@@ -323,6 +324,15 @@ func (c *Config) validateAccessControl(accessControl AccessControl, appName stri
 		if !validUserRoles[roleID] {
 			return fmt.Errorf("invalid user role %s in application %s", roleID, appName)
 		}
+	}
+
+	// Validate organization IDs
+	for _, orgID := range accessControl.OrganizationIDs {
+		if orgID == "" {
+			return fmt.Errorf("empty organization ID in application %s", appName)
+		}
+		// Note: We don't validate if organization IDs exist in Logto here
+		// as they are external references that will be validated during sync
 	}
 
 	return nil

@@ -70,14 +70,23 @@ func GetApplications(c *gin.Context) {
 		}
 	}
 
+	// Get user's organization ID
+	var userOrganizationID string
+	if orgID, exists := c.Get("organization_id"); exists {
+		if orgIDStr, ok := orgID.(string); ok {
+			userOrganizationID = orgIDStr
+		}
+	}
+
 	logger.Debug().
 		Str("user_id", userIDStr).
+		Str("organization_id", userOrganizationID).
 		Strs("organization_roles", organizationRoles).
 		Strs("user_roles", userRoles).
-		Msg("User roles for application filtering")
+		Msg("User context for application filtering")
 
-	// Filter applications based on user's roles
-	filteredLogtoApps := logto.FilterApplicationsByAccess(logtoApplications, organizationRoles, userRoles)
+	// Filter applications based on user's roles and organization membership
+	filteredLogtoApps := logto.FilterApplicationsByAccess(logtoApplications, organizationRoles, userRoles, userOrganizationID)
 
 	// Get cached domain validation result
 	domainValidation := cache.GetDomainValidation()

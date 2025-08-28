@@ -85,10 +85,15 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 
 		// Add access control if configured
 		if appConfig.AccessControl != nil {
-			customData["access_control"] = map[string]interface{}{
+			accessControlData := map[string]interface{}{
 				"organization_roles": appConfig.AccessControl.OrganizationRoles,
 				"user_roles":         appConfig.AccessControl.UserRoles,
 			}
+			// Add organization_ids if configured
+			if len(appConfig.AccessControl.OrganizationIDs) > 0 {
+				accessControlData["organization_ids"] = appConfig.AccessControl.OrganizationIDs
+			}
+			customData["access_control"] = accessControlData
 		}
 
 		// Add login_url if configured
@@ -145,10 +150,15 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 
 		// Add access control if configured
 		if appConfig.AccessControl != nil {
-			customData["access_control"] = map[string]interface{}{
+			accessControlData := map[string]interface{}{
 				"organization_roles": appConfig.AccessControl.OrganizationRoles,
 				"user_roles":         appConfig.AccessControl.UserRoles,
 			}
+			// Add organization_ids if configured
+			if len(appConfig.AccessControl.OrganizationIDs) > 0 {
+				accessControlData["organization_ids"] = appConfig.AccessControl.OrganizationIDs
+			}
+			customData["access_control"] = accessControlData
 		}
 
 		// Add login_url if configured

@@ -138,11 +138,11 @@ func (c *LogtoManagementClient) GetApplicationScopes(appID string) ([]string, er
 }
 
 // FilterApplicationsByAccess filters applications based on user's organization and user roles
-func FilterApplicationsByAccess(logtoApps []models.LogtoThirdPartyApp, organizationRoles []string, userRoles []string) []models.LogtoThirdPartyApp {
+func FilterApplicationsByAccess(logtoApps []models.LogtoThirdPartyApp, organizationRoles []string, userRoles []string, userOrganizationID string) []models.LogtoThirdPartyApp {
 	var filteredApps []models.LogtoThirdPartyApp
 
 	for _, app := range logtoApps {
-		if canAccessApplication(app, organizationRoles, userRoles) {
+		if canAccessApplication(app, organizationRoles, userRoles, userOrganizationID) {
 			filteredApps = append(filteredApps, app)
 		}
 	}
@@ -150,7 +150,8 @@ func FilterApplicationsByAccess(logtoApps []models.LogtoThirdPartyApp, organizat
 	logger.ComponentLogger("access_control").Debug().
 		Int("total", len(logtoApps)).
 		Int("filtered", len(filteredApps)).
-		Msg("Filtered applications based on user access")
+		Str("user_organization_id", userOrganizationID).
+		Msg("Filtered applications based on user access and organization membership")
 	return filteredApps
 }
 
@@ -158,14 +159,33 @@ func FilterApplicationsByAccess(logtoApps []models.LogtoThirdPartyApp, organizat
 // PRIVATE METHODS
 // =============================================================================
 
-// canAccessApplication checks if a user with given roles can access an application
-func canAccessApplication(app models.LogtoThirdPartyApp, organizationRoles []string, userRoles []string) bool {
+// canAccessApplication checks if a user with given roles and organization can access an application
+func canAccessApplication(app models.LogtoThirdPartyApp, organizationRoles []string, userRoles []string, userOrganizationID string) bool {
 	// Extract access control from custom data
 	accessControl := app.ExtractAccessControlFromCustomData()
 
 	// If no access control is defined, deny access by default
 	if accessControl == nil {
 		return false
+	}
+
+	// Check organization IDs - if specified, user must belong to one of the allowed organizations
+	if len(accessControl.OrganizationIDs) > 0 {
+		hasOrgID := false
+		for _, allowedOrgID := range accessControl.OrganizationIDs {
+			if userOrganizationID == allowedOrgID {
+				hasOrgID = true
+				break
+			}
+		}
+		if !hasOrgID {
+			logger.ComponentLogger("access_control").Debug().
+				Str("app_id", app.ID).
+				Str("user_organization_id", userOrganizationID).
+				Strs("allowed_organization_ids", accessControl.OrganizationIDs).
+				Msg("Access denied: user organization not in allowed list")
+			return false
+		}
 	}
 
 	// Check organization roles
@@ -183,6 +203,11 @@ func canAccessApplication(app models.LogtoThirdPartyApp, organizationRoles []str
 			}
 		}
 		if !hasOrgRole {
+			logger.ComponentLogger("access_control").Debug().
+				Str("app_id", app.ID).
+				Strs("user_organization_roles", organizationRoles).
+				Strs("required_organization_roles", accessControl.OrganizationRoles).
+				Msg("Access denied: user lacks required organization role")
 			return false
 		}
 	}
@@ -202,9 +227,21 @@ func canAccessApplication(app models.LogtoThirdPartyApp, organizationRoles []str
 			}
 		}
 		if !hasUserRole {
+			logger.ComponentLogger("access_control").Debug().
+				Str("app_id", app.ID).
+				Strs("user_roles", userRoles).
+				Strs("required_user_roles", accessControl.UserRoles).
+				Msg("Access denied: user lacks required user role")
 			return false
 		}
 	}
+
+	logger.ComponentLogger("access_control").Debug().
+		Str("app_id", app.ID).
+		Str("user_organization_id", userOrganizationID).
+		Strs("user_organization_roles", organizationRoles).
+		Strs("user_roles", userRoles).
+		Msg("Access granted to application")
 
 	return true
 }

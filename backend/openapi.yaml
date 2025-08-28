@@ -1389,7 +1389,7 @@ paths:
       tags:
         - Backend - Applications
       summary: Get third-party applications
-      description: Get third-party applications filtered by user's organization and user roles
+      description: Get third-party applications filtered by user's organization membership, organization roles, and user roles
       responses:
         '200':
           description: Applications retrieved successfully

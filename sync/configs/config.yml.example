@@ -40,7 +40,7 @@ resources:
 
 # Third-party applications (optional)
 third_party_apps:
-    # Example: Management app - only accessible by owners and admins
+    # Example: Management app - only accessible by specific organizations and roles
     - name: "management.company.com"
       description: "Management interface for system administrators"
       display_name: "Management Console"
@@ -51,6 +51,9 @@ third_party_apps:
         - "https://management.company.com"
         - "https://management.company.com/logout"
       access_control:
+        organization_ids:    # Only specific organization IDs can access (optional)
+          - "org-headquarters"
+          - "org-main-branch"
         organization_roles:  # Only specific organization roles can access
           - "owner"
         user_roles:          # Only specific user roles can access
