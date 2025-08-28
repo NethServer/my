@@ -130,13 +130,13 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	placeholdersStr := strings.Join(placeholders, ",")
 
 	// Build WHERE clause for search
-	whereClause := fmt.Sprintf("deleted_at IS NULL AND JSON_EXTRACT(created_by, '$.organization_id') IN (%s)", placeholdersStr)
+	whereClause := fmt.Sprintf("deleted_at IS NULL AND created_by ->> 'organization_id' IN (%s)", placeholdersStr)
 	args := make([]interface{}, len(baseArgs))
 	copy(args, baseArgs)
 
 	if search != "" {
 		searchPattern := "%" + search + "%"
-		whereClause += fmt.Sprintf(" AND (name ILIKE $%d OR type ILIKE $%d OR status ILIKE $%d OR fqdn ILIKE $%d OR version ILIKE $%d OR JSON_EXTRACT(created_by, '$.user_name') ILIKE $%d)",
+		whereClause += fmt.Sprintf(" AND (name ILIKE $%d OR type ILIKE $%d OR status ILIKE $%d OR fqdn ILIKE $%d OR version ILIKE $%d OR created_by ->> 'user_name' ILIKE $%d)",
 			len(args)+1, len(args)+2, len(args)+3, len(args)+4, len(args)+5, len(args)+6)
 		args = append(args, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
 	}
@@ -163,7 +163,7 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 			"created_at":   "created_at",
 			"updated_at":   "updated_at",
 			"last_seen":    "last_seen",
-			"creator_name": "JSON_EXTRACT(created_by, '$.user_name')",
+			"creator_name": "created_by ->> 'user_name'",
 		}
 
 		if column, exists := columnMap[sortBy]; exists {
@@ -278,7 +278,7 @@ func (r *LocalSystemRepository) GetTotalsByCreatedByOrganizations(allowedOrgIDs 
 			SUM(CASE WHEN h.last_heartbeat IS NULL THEN 1 ELSE 0 END) as zombie
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
-		WHERE s.deleted_at IS NULL AND JSON_EXTRACT(s.created_by, '$.organization_id') IN (%s)
+		WHERE s.deleted_at IS NULL AND s.created_by ->> 'organization_id' IN (%s)
 	`, placeholdersStr)
 
 	var total, alive, dead, zombie int

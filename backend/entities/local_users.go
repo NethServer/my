@@ -687,7 +687,7 @@ func (r *LocalUserRepository) GetHierarchicalOrganizationIDs(userOrgRole, userOr
 			}
 		}
 
-		return allOrgIDs, nil
+		return append(orgIDs, allOrgIDs...), nil
 
 	case "distributor":
 		// Get resellers created by this distributor

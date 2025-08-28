@@ -567,7 +567,7 @@ func (s *LocalSystemsService) GetTotalsByCreatedByOrganizations(allowedOrgIDs []
 			SUM(CASE WHEN h.last_heartbeat IS NULL THEN 1 ELSE 0 END) as zombie
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
-		WHERE s.deleted_at IS NULL AND JSON_EXTRACT(s.created_by, '$.organization_id') IN (%s)
+		WHERE s.deleted_at IS NULL AND s.created_by ->> 'organization_id' IN (%s)
 	`, placeholdersStr)
 
 	var total, alive, dead, zombie int
