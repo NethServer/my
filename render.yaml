@@ -41,7 +41,7 @@ services:
     runtime: image
     plan: free
     image:
-      url: ghcr.io/nethserver/my/backend:v0.1.0
+      url: ghcr.io/nethserver/my/backend:v0.2.0
     envVars:
       # Server Configuration
       - key: GIN_MODE
@@ -104,7 +104,7 @@ services:
     runtime: image
     plan: free
     image:
-      url: ghcr.io/nethserver/my/collect:v0.1.0
+      url: ghcr.io/nethserver/my/collect:v0.2.0
     envVars:
       # Server Configuration
       - key: GIN_MODE
@@ -138,7 +138,7 @@ services:
     runtime: image
     plan: free
     image:
-      url: ghcr.io/nethserver/my/frontend:v0.1.0
+      url: ghcr.io/nethserver/my/frontend:v0.2.0
     envVars:
       - key: VITE_PRODUCT_NAME
         value: "My Nethesis"
@@ -159,7 +159,7 @@ services:
     runtime: image
     plan: free
     image:
-      url: ghcr.io/nethserver/my/proxy:v0.1.0
+      url: ghcr.io/nethserver/my/proxy:v0.2.0
     domains:
       - my.nethesis.it
     envVars:
