@@ -4,8 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { searchStringInReseller, type Reseller } from '@/lib/resellers'
-import { useLoginStore } from '@/stores/login'
+import { RESELLERS_TABLE_ID, type Reseller } from '@/lib/resellers'
 import {
   faCircleInfo,
   faCirclePlus,
@@ -22,14 +21,12 @@ import {
   NeTableRow,
   NeTableCell,
   NePaginator,
-  useItemPagination,
   NeButton,
   NeEmptyState,
   NeInlineNotification,
   NeTextInput,
   NeSpinner,
   NeDropdown,
-  useSort,
   type SortEvent,
   NeSortDropdown,
 } from '@nethesis/vue-components'
@@ -37,7 +34,7 @@ import { computed, ref, watch } from 'vue'
 import CreateOrEditResellerDrawer from './CreateOrEditResellerDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteResellerModal from './DeleteResellerModal.vue'
-import { loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageSize'
+import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useResellers } from '@/queries/resellers'
 import { canManageResellers } from '@/lib/permissions'
 
@@ -48,36 +45,27 @@ const { isShownCreateResellerDrawer = false } = defineProps<{
 const emit = defineEmits(['close-drawer'])
 
 const { t } = useI18n()
-const loginStore = useLoginStore()
-const { resellers, resellersAsyncStatus } = useResellers()
+const {
+  state,
+  asyncStatus,
+  pageNum,
+  pageSize,
+  textFilter,
+  debouncedTextFilter,
+  sortBy,
+  sortDescending,
+} = useResellers()
 
 const currentReseller = ref<Reseller | undefined>()
-const textFilter = ref('')
 const isShownCreateOrEditResellerDrawer = ref(false)
 const isShownDeleteResellerDrawer = ref(false)
-const tableId = 'resellersTable'
-const pageSize = ref(10)
-const sortKey = ref<keyof Reseller>('name')
-const sortDescending = ref(false)
 
-const filteredResellers = computed(() => {
-  if (!resellers.value.data?.length) {
-    return []
-  }
-
-  if (!textFilter.value.trim()) {
-    return resellers.value.data
-  } else {
-    return resellers.value.data.filter((reseller) =>
-      searchStringInReseller(textFilter.value, reseller),
-    )
-  }
+const resellersPage = computed(() => {
+  return state.value.data?.resellers
 })
 
-const { sortedItems } = useSort(filteredResellers, sortKey, sortDescending)
-
-const { currentPage, paginatedItems } = useItemPagination(() => sortedItems.value, {
-  itemsPerPage: pageSize,
+const pagination = computed(() => {
+  return state.value.data?.pagination
 })
 
 watch(
@@ -85,16 +73,6 @@ watch(
   () => {
     if (isShownCreateResellerDrawer) {
       showCreateResellerDrawer()
-    }
-  },
-  { immediate: true },
-)
-
-watch(
-  () => loginStore.userInfo?.email,
-  (email) => {
-    if (email) {
-      pageSize.value = loadPageSizeFromStorage(tableId)
     }
   },
   { immediate: true },
@@ -132,13 +110,13 @@ function getKebabMenuItems(reseller: Reseller) {
       icon: faTrash,
       danger: true,
       action: () => showDeleteResellerDrawer(reseller),
-      disabled: resellersAsyncStatus.value === 'loading',
+      disabled: asyncStatus.value === 'loading',
     },
   ]
 }
 
 const onSort = (payload: SortEvent) => {
-  sortKey.value = payload.key as keyof Reseller
+  sortBy.value = payload.key as keyof Reseller
   sortDescending.value = payload.descending
 }
 </script>
@@ -147,10 +125,10 @@ const onSort = (payload: SortEvent) => {
   <div>
     <!-- get resellers error notification -->
     <NeInlineNotification
-      v-if="resellers.status === 'error'"
+      v-if="state.status === 'error'"
       kind="error"
       :title="$t('resellers.cannot_retrieve_resellers')"
-      :description="resellers.error.message"
+      :description="state.error.message"
       class="mb-6"
     />
     <!-- table toolbar -->
@@ -167,7 +145,7 @@ const onSort = (payload: SortEvent) => {
           />
           <!-- //// check dropdown options -->
           <NeSortDropdown
-            v-model:sort-key="sortKey"
+            v-model:sort-key="sortBy"
             v-model:sort-descending="sortDescending"
             :label="t('sort.sort')"
             :options="[
@@ -184,7 +162,7 @@ const onSort = (payload: SortEvent) => {
         </div>
         <!-- update indicator -->
         <div
-          v-if="resellersAsyncStatus === 'loading' && resellers.status !== 'pending'"
+          v-if="asyncStatus === 'loading' && state.status !== 'pending'"
           class="flex items-center gap-2"
         >
           <NeSpinner color="white" />
@@ -196,11 +174,11 @@ const onSort = (payload: SortEvent) => {
     </div>
     <!-- //// check breakpoint, skeleton-columns -->
     <NeTable
-      :sort-key="sortKey"
+      :sort-key="sortBy"
       :sort-descending="sortDescending"
       :aria-label="$t('resellers.title')"
       card-breakpoint="xl"
-      :loading="resellers.status === 'pending'"
+      :loading="state.status === 'pending'"
       :skeleton-columns="5"
       :skeleton-rows="7"
     >
@@ -217,7 +195,7 @@ const onSort = (payload: SortEvent) => {
       </NeTableHead>
       <NeTableBody>
         <!-- empty state -->
-        <NeTableRow v-if="!resellers.data?.length">
+        <NeTableRow v-if="!resellersPage?.length && !debouncedTextFilter">
           <NeTableCell colspan="5">
             <NeEmptyState
               :title="$t('resellers.no_reseller')"
@@ -241,7 +219,7 @@ const onSort = (payload: SortEvent) => {
           </NeTableCell>
         </NeTableRow>
         <!-- no reseller matching filter -->
-        <NeTableRow v-else-if="!filteredResellers.length">
+        <NeTableRow v-else-if="!resellersPage?.length && debouncedTextFilter">
           <NeTableCell colspan="4">
             <NeEmptyState
               :title="$t('resellers.no_reseller_found')"
@@ -255,7 +233,7 @@ const onSort = (payload: SortEvent) => {
             </NeEmptyState>
           </NeTableCell>
         </NeTableRow>
-        <NeTableRow v-for="(item, index) in paginatedItems" v-else :key="index">
+        <NeTableRow v-for="(item, index) in resellersPage" v-else :key="index">
           <NeTableCell :data-label="$t('organizations.name')">
             {{ item.name }}
           </NeTableCell>
@@ -267,7 +245,7 @@ const onSort = (payload: SortEvent) => {
               <NeButton
                 kind="tertiary"
                 @click="showEditResellerDrawer(item)"
-                :disabled="resellersAsyncStatus === 'loading'"
+                :disabled="asyncStatus === 'loading'"
               >
                 <template #prefix>
                   <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
@@ -282,9 +260,10 @@ const onSort = (payload: SortEvent) => {
       </NeTableBody>
       <template #paginator>
         <NePaginator
-          :current-page="currentPage"
-          :total-rows="sortedItems.length"
+          :current-page="pageNum"
+          :total-rows="pagination?.total_count || 0"
           :page-size="pageSize"
+          :page-sizes="[5, 10, 25, 50, 100]"
           :nav-pagination-label="$t('ne_table.pagination')"
           :next-label="$t('ne_table.go_to_next_page')"
           :previous-label="$t('ne_table.go_to_previous_page')"
@@ -292,13 +271,13 @@ const onSort = (payload: SortEvent) => {
           :page-size-label="$t('ne_table.show')"
           @select-page="
             (page: number) => {
-              currentPage = page
+              pageNum = page
             }
           "
           @select-page-size="
             (size: number) => {
               pageSize = size
-              savePageSizeToStorage(tableId, size)
+              savePageSizeToStorage(RESELLERS_TABLE_ID, size)
             }
           "
         />

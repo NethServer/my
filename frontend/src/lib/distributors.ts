@@ -5,10 +5,11 @@ import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
-import { paginationQueryString } from './users'
+import { getQueryStringParams, type Pagination } from './common'
 
 export const DISTRIBUTORS_KEY = 'distributors'
 export const DISTRIBUTORS_TOTAL_KEY = 'distributorsTotal'
+export const DISTRIBUTORS_TABLE_ID = 'distributorsTable'
 
 export const CreateDistributorSchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty('organizations.name_cannot_be_empty')),
@@ -30,14 +31,30 @@ export const DistributorSchema = v.object({
 export type CreateDistributor = v.InferOutput<typeof CreateDistributorSchema>
 export type Distributor = v.InferOutput<typeof DistributorSchema>
 
-export const getDistributors = () => {
+interface DistributorsResponse {
+  code: number
+  message: string
+  data: {
+    distributors: Distributor[]
+    pagination: Pagination
+  }
+}
+
+export const getDistributors = (
+  pageNum: number,
+  pageSize: number,
+  textFilter: string,
+  sortBy: string,
+  sortDescending: boolean,
+) => {
   const loginStore = useLoginStore()
+  const params = getQueryStringParams(pageNum, pageSize, textFilter, sortBy, sortDescending)
 
   return axios
-    .get(`${API_URL}/distributors${paginationQueryString}`, {
+    .get<DistributorsResponse>(`${API_URL}/distributors?${params}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
-    .then((res) => res.data.data.distributors as Distributor[])
+    .then((res) => res.data.data)
 }
 
 export const postDistributor = (distributor: CreateDistributor) => {
@@ -72,42 +89,4 @@ export const getDistributorsTotal = () => {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data.total as number)
-}
-
-export const searchStringInDistributor = (
-  searchString: string,
-
-  distributor: Distributor,
-): boolean => {
-  const regex = /[^a-zA-Z0-9-]/g
-  searchString = searchString.replace(regex, '')
-  let found = false
-
-  // search in string attributes
-  found = ['name', 'description'].some((attrName) => {
-    const attrValue = distributor[attrName as keyof Distributor] as string
-    return new RegExp(searchString, 'i').test(attrValue?.replace(regex, ''))
-  })
-
-  if (found) {
-    return true
-  }
-
-  //// review customData attributes
-
-  // search in customData
-  found = ['address', 'city', 'codiceFiscale', 'email', 'partitaIva', 'phone', 'region'].some(
-    (attrName) => {
-      const attrValue = distributor.custom_data?.[
-        attrName as keyof NonNullable<Distributor['custom_data']>
-      ] as string
-      return new RegExp(searchString, 'i').test(attrValue?.replace(regex, ''))
-    },
-  )
-
-  if (found) {
-    return true
-  } else {
-    return false
-  }
 }

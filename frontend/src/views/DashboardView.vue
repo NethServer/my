@@ -14,6 +14,8 @@ import {
   getThirdPartyAppDescription,
   openThirdPartyApp,
   THIRD_PARTY_APPS_KEY,
+  isEnabled,
+  getButtonLabel,
 } from '@/lib/thirdPartyApps'
 import { useLoginStore } from '@/stores/login'
 import { faArrowUpRightFromSquare, faCrown } from '@fortawesome/free-solid-svg-icons'
@@ -129,15 +131,14 @@ const { state: thirdPartyApps } = useQuery({
           </div>
           <NeButton
             kind="secondary"
-            disabled
+            :disabled="!isEnabled(thirdPartyApp)"
             class="self-end"
             @click="openThirdPartyApp(thirdPartyApp)"
           >
             <template #prefix>
               <FontAwesomeIcon :icon="faArrowUpRightFromSquare" aria-hidden="true" />
             </template>
-            {{ $t('common.coming_soon') }}
-            <!-- {{ $t('common.open_page', { page: thirdPartyApp.branding.display_name }) }} //// -->
+            {{ getButtonLabel(thirdPartyApp) }}
           </NeButton>
         </div>
       </NeCard>

@@ -4,8 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { searchStringInDistributor, type Distributor } from '@/lib/distributors'
-import { useLoginStore } from '@/stores/login'
+import { DISTRIBUTORS_TABLE_ID, type Distributor } from '@/lib/distributors'
 import {
   faCircleInfo,
   faCirclePlus,
@@ -22,14 +21,12 @@ import {
   NeTableRow,
   NeTableCell,
   NePaginator,
-  useItemPagination,
   NeButton,
   NeEmptyState,
   NeInlineNotification,
   NeTextInput,
   NeSpinner,
   NeDropdown,
-  useSort,
   type SortEvent,
   NeSortDropdown,
 } from '@nethesis/vue-components'
@@ -37,7 +34,7 @@ import { computed, ref, watch } from 'vue'
 import CreateOrEditDistributorDrawer from './CreateOrEditDistributorDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteDistributorModal from './DeleteDistributorModal.vue'
-import { loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageSize'
+import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useDistributors } from '@/queries/distributors'
 import { canManageDistributors } from '@/lib/permissions'
 
@@ -48,36 +45,27 @@ const { isShownCreateDistributorDrawer = false } = defineProps<{
 const emit = defineEmits(['close-drawer'])
 
 const { t } = useI18n()
-const loginStore = useLoginStore()
-const { distributors, distributorsAsyncStatus } = useDistributors()
+const {
+  state,
+  asyncStatus,
+  pageNum,
+  pageSize,
+  textFilter,
+  debouncedTextFilter,
+  sortBy,
+  sortDescending,
+} = useDistributors()
 
 const currentDistributor = ref<Distributor | undefined>()
-const textFilter = ref('')
 const isShownCreateOrEditDistributorDrawer = ref(false)
 const isShownDeleteDistributorDrawer = ref(false)
-const tableId = 'distributorsTable'
-const pageSize = ref(10)
-const sortKey = ref<keyof Distributor>('name')
-const sortDescending = ref(false)
 
-const filteredDistributors = computed(() => {
-  if (!distributors.value.data?.length) {
-    return []
-  }
-
-  if (!textFilter.value.trim()) {
-    return distributors.value.data
-  } else {
-    return distributors.value.data.filter((distributor) =>
-      searchStringInDistributor(textFilter.value, distributor),
-    )
-  }
+const distributorsPage = computed(() => {
+  return state.value.data?.distributors
 })
 
-const { sortedItems } = useSort(filteredDistributors, sortKey, sortDescending)
-
-const { currentPage, paginatedItems } = useItemPagination(() => sortedItems.value, {
-  itemsPerPage: pageSize,
+const pagination = computed(() => {
+  return state.value.data?.pagination
 })
 
 watch(
@@ -85,16 +73,6 @@ watch(
   () => {
     if (isShownCreateDistributorDrawer) {
       showCreateDistributorDrawer()
-    }
-  },
-  { immediate: true },
-)
-
-watch(
-  () => loginStore.userInfo?.email,
-  (email) => {
-    if (email) {
-      pageSize.value = loadPageSizeFromStorage(tableId)
     }
   },
   { immediate: true },
@@ -132,13 +110,13 @@ function getKebabMenuItems(distributor: Distributor) {
       icon: faTrash,
       danger: true,
       action: () => showDeleteDistributorDrawer(distributor),
-      disabled: distributorsAsyncStatus.value === 'loading',
+      disabled: asyncStatus.value === 'loading',
     },
   ]
 }
 
 const onSort = (payload: SortEvent) => {
-  sortKey.value = payload.key as keyof Distributor
+  sortBy.value = payload.key as keyof Distributor
   sortDescending.value = payload.descending
 }
 </script>
@@ -147,10 +125,10 @@ const onSort = (payload: SortEvent) => {
   <div>
     <!-- get distributors error notification -->
     <NeInlineNotification
-      v-if="distributors.status === 'error'"
+      v-if="state.status === 'error'"
       kind="error"
       :title="$t('distributors.cannot_retrieve_distributors')"
-      :description="distributors.error.message"
+      :description="state.error.message"
       class="mb-6"
     />
     <!-- table toolbar -->
@@ -167,7 +145,7 @@ const onSort = (payload: SortEvent) => {
           />
           <!-- //// check dropdown options -->
           <NeSortDropdown
-            v-model:sort-key="sortKey"
+            v-model:sort-key="sortBy"
             v-model:sort-descending="sortDescending"
             :label="t('sort.sort')"
             :options="[
@@ -184,7 +162,7 @@ const onSort = (payload: SortEvent) => {
         </div>
         <!-- update indicator -->
         <div
-          v-if="distributorsAsyncStatus === 'loading' && distributors.status !== 'pending'"
+          v-if="asyncStatus === 'loading' && state.status !== 'pending'"
           class="flex items-center gap-2"
         >
           <NeSpinner color="white" />
@@ -196,11 +174,11 @@ const onSort = (payload: SortEvent) => {
     </div>
     <!-- //// check breakpoint, skeleton-columns -->
     <NeTable
-      :sort-key="sortKey"
+      :sort-key="sortBy"
       :sort-descending="sortDescending"
       :aria-label="$t('distributors.title')"
       card-breakpoint="xl"
-      :loading="distributors.status === 'pending'"
+      :loading="state.status === 'pending'"
       :skeleton-columns="5"
       :skeleton-rows="7"
     >
@@ -217,7 +195,7 @@ const onSort = (payload: SortEvent) => {
       </NeTableHead>
       <NeTableBody>
         <!-- empty state -->
-        <NeTableRow v-if="!distributors.data?.length">
+        <NeTableRow v-if="!distributorsPage?.length && !debouncedTextFilter">
           <NeTableCell colspan="5">
             <NeEmptyState
               :title="$t('distributors.no_distributor')"
@@ -241,7 +219,7 @@ const onSort = (payload: SortEvent) => {
           </NeTableCell>
         </NeTableRow>
         <!-- no distributor matching filter -->
-        <NeTableRow v-else-if="!filteredDistributors.length">
+        <NeTableRow v-else-if="!distributorsPage?.length && debouncedTextFilter">
           <NeTableCell colspan="4">
             <NeEmptyState
               :title="$t('distributors.no_distributor_found')"
@@ -255,7 +233,7 @@ const onSort = (payload: SortEvent) => {
             </NeEmptyState>
           </NeTableCell>
         </NeTableRow>
-        <NeTableRow v-for="(item, index) in paginatedItems" v-else :key="index">
+        <NeTableRow v-for="(item, index) in distributorsPage" v-else :key="index">
           <NeTableCell :data-label="$t('organizations.name')">
             {{ item.name }}
           </NeTableCell>
@@ -267,7 +245,7 @@ const onSort = (payload: SortEvent) => {
               <NeButton
                 kind="tertiary"
                 @click="showEditDistributorDrawer(item)"
-                :disabled="distributorsAsyncStatus === 'loading'"
+                :disabled="asyncStatus === 'loading'"
               >
                 <template #prefix>
                   <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
@@ -282,9 +260,10 @@ const onSort = (payload: SortEvent) => {
       </NeTableBody>
       <template #paginator>
         <NePaginator
-          :current-page="currentPage"
-          :total-rows="sortedItems.length"
+          :current-page="pageNum"
+          :total-rows="pagination?.total_count || 0"
           :page-size="pageSize"
+          :page-sizes="[5, 10, 25, 50, 100]"
           :nav-pagination-label="$t('ne_table.pagination')"
           :next-label="$t('ne_table.go_to_next_page')"
           :previous-label="$t('ne_table.go_to_previous_page')"
@@ -292,13 +271,13 @@ const onSort = (payload: SortEvent) => {
           :page-size-label="$t('ne_table.show')"
           @select-page="
             (page: number) => {
-              currentPage = page
+              pageNum = page
             }
           "
           @select-page-size="
             (size: number) => {
               pageSize = size
-              savePageSizeToStorage(tableId, size)
+              savePageSizeToStorage(DISTRIBUTORS_TABLE_ID, size)
             }
           "
         />

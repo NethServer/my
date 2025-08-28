@@ -4,8 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { searchStringInCustomer, type Customer } from '@/lib/customers'
-import { useLoginStore } from '@/stores/login'
+import { CUSTOMERS_TABLE_ID, type Customer } from '@/lib/customers'
 import {
   faCircleInfo,
   faCirclePlus,
@@ -22,14 +21,12 @@ import {
   NeTableRow,
   NeTableCell,
   NePaginator,
-  useItemPagination,
   NeButton,
   NeEmptyState,
   NeInlineNotification,
   NeTextInput,
   NeSpinner,
   NeDropdown,
-  useSort,
   type SortEvent,
   NeSortDropdown,
 } from '@nethesis/vue-components'
@@ -37,7 +34,7 @@ import { computed, ref, watch } from 'vue'
 import CreateOrEditCustomerDrawer from './CreateOrEditCustomerDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteCustomerModal from './DeleteCustomerModal.vue'
-import { loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageSize'
+import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useCustomers } from '@/queries/customers'
 import { canManageCustomers } from '@/lib/permissions'
 
@@ -48,36 +45,27 @@ const { isShownCreateCustomerDrawer = false } = defineProps<{
 const emit = defineEmits(['close-drawer'])
 
 const { t } = useI18n()
-const loginStore = useLoginStore()
-const { customers, customersAsyncStatus } = useCustomers()
+const {
+  state,
+  asyncStatus,
+  pageNum,
+  pageSize,
+  textFilter,
+  debouncedTextFilter,
+  sortBy,
+  sortDescending,
+} = useCustomers()
 
 const currentCustomer = ref<Customer | undefined>()
-const textFilter = ref('')
 const isShownCreateOrEditCustomerDrawer = ref(false)
 const isShownDeleteCustomerDrawer = ref(false)
-const tableId = 'customersTable'
-const pageSize = ref(10)
-const sortKey = ref<keyof Customer>('name')
-const sortDescending = ref(false)
 
-const filteredCustomers = computed(() => {
-  if (!customers.value.data?.length) {
-    return []
-  }
-
-  if (!textFilter.value.trim()) {
-    return customers.value.data
-  } else {
-    return customers.value.data.filter((customer) =>
-      searchStringInCustomer(textFilter.value, customer),
-    )
-  }
+const customersPage = computed(() => {
+  return state.value.data?.customers
 })
 
-const { sortedItems } = useSort(filteredCustomers, sortKey, sortDescending)
-
-const { currentPage, paginatedItems } = useItemPagination(() => sortedItems.value, {
-  itemsPerPage: pageSize,
+const pagination = computed(() => {
+  return state.value.data?.pagination
 })
 
 watch(
@@ -85,16 +73,6 @@ watch(
   () => {
     if (isShownCreateCustomerDrawer) {
       showCreateCustomerDrawer()
-    }
-  },
-  { immediate: true },
-)
-
-watch(
-  () => loginStore.userInfo?.email,
-  (email) => {
-    if (email) {
-      pageSize.value = loadPageSizeFromStorage(tableId)
     }
   },
   { immediate: true },
@@ -132,13 +110,13 @@ function getKebabMenuItems(customer: Customer) {
       icon: faTrash,
       danger: true,
       action: () => showDeleteCustomerDrawer(customer),
-      disabled: customersAsyncStatus.value === 'loading',
+      disabled: asyncStatus.value === 'loading',
     },
   ]
 }
 
 const onSort = (payload: SortEvent) => {
-  sortKey.value = payload.key as keyof Customer
+  sortBy.value = payload.key as keyof Customer
   sortDescending.value = payload.descending
 }
 </script>
@@ -147,10 +125,10 @@ const onSort = (payload: SortEvent) => {
   <div>
     <!-- get customers error notification -->
     <NeInlineNotification
-      v-if="customers.status === 'error'"
+      v-if="state.status === 'error'"
       kind="error"
       :title="$t('customers.cannot_retrieve_customers')"
-      :description="customers.error.message"
+      :description="state.error.message"
       class="mb-6"
     />
     <!-- table toolbar -->
@@ -166,7 +144,7 @@ const onSort = (payload: SortEvent) => {
             class="max-w-48 sm:max-w-sm"
           />
           <NeSortDropdown
-            v-model:sort-key="sortKey"
+            v-model:sort-key="sortBy"
             v-model:sort-descending="sortDescending"
             :label="t('sort.sort')"
             :options="[
@@ -184,7 +162,7 @@ const onSort = (payload: SortEvent) => {
         <!-- //// separate component UpdatingSpinner? -->
         <!-- update indicator -->
         <div
-          v-if="customersAsyncStatus === 'loading' && customers.status !== 'pending'"
+          v-if="asyncStatus === 'loading' && state.status !== 'pending'"
           class="flex items-center gap-2"
         >
           <NeSpinner color="white" />
@@ -196,11 +174,11 @@ const onSort = (payload: SortEvent) => {
     </div>
     <!-- //// check breakpoint, skeleton-columns -->
     <NeTable
-      :sort-key="sortKey"
+      :sort-key="sortBy"
       :sort-descending="sortDescending"
       :aria-label="$t('customers.title')"
       card-breakpoint="xl"
-      :loading="customers.status === 'pending'"
+      :loading="state.status === 'pending'"
       :skeleton-columns="5"
       :skeleton-rows="7"
     >
@@ -217,7 +195,7 @@ const onSort = (payload: SortEvent) => {
       </NeTableHead>
       <NeTableBody>
         <!-- empty state -->
-        <NeTableRow v-if="!customers.data?.length">
+        <NeTableRow v-if="!customersPage?.length && !debouncedTextFilter">
           <NeTableCell colspan="5">
             <NeEmptyState
               :title="$t('customers.no_customer')"
@@ -241,7 +219,7 @@ const onSort = (payload: SortEvent) => {
           </NeTableCell>
         </NeTableRow>
         <!-- no customer matching filter -->
-        <NeTableRow v-else-if="!filteredCustomers.length">
+        <NeTableRow v-else-if="!customersPage?.length && debouncedTextFilter">
           <NeTableCell colspan="4">
             <NeEmptyState
               :title="$t('customers.no_customer_found')"
@@ -255,7 +233,7 @@ const onSort = (payload: SortEvent) => {
             </NeEmptyState>
           </NeTableCell>
         </NeTableRow>
-        <NeTableRow v-for="(item, index) in paginatedItems" v-else :key="index">
+        <NeTableRow v-for="(item, index) in customersPage" v-else :key="index">
           <NeTableCell :data-label="$t('organizations.name')">
             {{ item.name }}
           </NeTableCell>
@@ -267,7 +245,7 @@ const onSort = (payload: SortEvent) => {
               <NeButton
                 kind="tertiary"
                 @click="showEditCustomerDrawer(item)"
-                :disabled="customersAsyncStatus === 'loading'"
+                :disabled="asyncStatus === 'loading'"
               >
                 <template #prefix>
                   <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
@@ -282,9 +260,10 @@ const onSort = (payload: SortEvent) => {
       </NeTableBody>
       <template #paginator>
         <NePaginator
-          :current-page="currentPage"
-          :total-rows="sortedItems.length"
+          :current-page="pageNum"
+          :total-rows="pagination?.total_count || 0"
           :page-size="pageSize"
+          :page-sizes="[5, 10, 25, 50, 100]"
           :nav-pagination-label="$t('ne_table.pagination')"
           :next-label="$t('ne_table.go_to_next_page')"
           :previous-label="$t('ne_table.go_to_previous_page')"
@@ -292,13 +271,13 @@ const onSort = (payload: SortEvent) => {
           :page-size-label="$t('ne_table.show')"
           @select-page="
             (page: number) => {
-              currentPage = page
+              pageNum = page
             }
           "
           @select-page-size="
             (size: number) => {
               pageSize = size
-              savePageSizeToStorage(tableId, size)
+              savePageSizeToStorage(CUSTOMERS_TABLE_ID, size)
             }
           "
         />

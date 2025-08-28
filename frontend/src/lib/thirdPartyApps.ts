@@ -11,8 +11,11 @@ import {
   faWarehouse,
   faWifi,
 } from '@fortawesome/free-solid-svg-icons'
+import { useI18n } from 'vue-i18n'
 
 export const THIRD_PARTY_APPS_KEY = 'thirdPartyApps'
+
+const ENABLED_APPS = ['helpdesk.nethesis.it']
 
 export type ThirdPartyApp = {
   id: string
@@ -79,4 +82,18 @@ export const sortThirdPartyApps = (app1: ThirdPartyApp, app2: ThirdPartyApp) => 
     return -1
   }
   return index1 - index2
+}
+
+export const isEnabled = (thirdPartyApp: ThirdPartyApp) => {
+  return ENABLED_APPS.includes(thirdPartyApp.name)
+}
+
+export const getButtonLabel = (thirdPartyApp: ThirdPartyApp) => {
+  const { t } = useI18n()
+
+  if (isEnabled(thirdPartyApp)) {
+    return t('common.open_page', { page: thirdPartyApp.branding.display_name })
+  } else {
+    return t('common.coming_soon')
+  }
 }
