@@ -9,6 +9,25 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Container runtime detection (Docker with Podman fallback)
+detect_container_runtime() {
+    local docker_cmd
+    local podman_cmd
+
+    docker_cmd=$(which docker 2>/dev/null || echo "")
+    podman_cmd=$(which podman 2>/dev/null || echo "")
+
+    if [ -n "$docker_cmd" ]; then
+        CONTAINER_CMD="docker"
+        info "Using Docker for container operations"
+    elif [ -n "$podman_cmd" ]; then
+        CONTAINER_CMD="podman"
+        info "Using Podman for container operations"
+    else
+        error "Neither Docker nor Podman is installed. Please install one of them to verify images."
+    fi
+}
+
 # Helper functions
 info() {
     echo -e "${BLUE}ℹ️  $1${NC}"
@@ -73,7 +92,7 @@ verify_docker_images() {
         local image_url="ghcr.io/nethserver/my/$image:$version"
         info "Checking: $image_url"
 
-        if docker manifest inspect "$image_url" >/dev/null 2>&1; then
+        if $CONTAINER_CMD manifest inspect "$image_url" >/dev/null 2>&1; then
             success "$image image found"
         else
             error "Image not found: $image_url. Please ensure the release workflow has completed successfully."
@@ -196,6 +215,9 @@ main() {
     done
 
     info "Starting deployment process..."
+
+    # Detect container runtime
+    detect_container_runtime
 
     # Pre-flight checks
     check_git_status
