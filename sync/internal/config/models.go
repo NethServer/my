@@ -22,6 +22,7 @@ type Config struct {
 	Resources         []Resource        `yaml:"resources" json:"resources"`
 	ThirdPartyApps    []Application     `yaml:"third_party_apps,omitempty" json:"third_party_apps,omitempty"`
 	SignInExperience  *SignInExperience `yaml:"sign_in_experience,omitempty" json:"sign_in_experience,omitempty"`
+	Connectors        *Connectors       `yaml:"connectors,omitempty" json:"connectors,omitempty"`
 }
 
 // Metadata contains configuration metadata
@@ -449,4 +450,41 @@ type SignUpMethod struct {
 	Password             bool     `yaml:"password,omitempty" json:"password,omitempty"`
 	Verify               bool     `yaml:"verify,omitempty" json:"verify,omitempty"`
 	SecondaryIdentifiers []string `yaml:"secondary_identifiers,omitempty" json:"secondary_identifiers,omitempty"`
+}
+
+// Connectors represents connector configurations
+type Connectors struct {
+	SMTP *SMTPConnector `yaml:"smtp,omitempty" json:"smtp,omitempty"`
+}
+
+// SMTPConnector represents SMTP connector configuration for email sending
+type SMTPConnector struct {
+	Host              string                `yaml:"host" json:"host"`
+	Port              int                   `yaml:"port,omitempty" json:"port,omitempty"`
+	Username          string                `yaml:"username" json:"username"`
+	Password          string                `yaml:"password" json:"password"`
+	FromEmail         string                `yaml:"from_email" json:"from_email"`
+	FromName          string                `yaml:"from_name,omitempty" json:"from_name,omitempty"`
+	TLS               bool                  `yaml:"tls,omitempty" json:"tls,omitempty"`
+	Secure            bool                  `yaml:"secure,omitempty" json:"secure,omitempty"`
+	Debug             bool                  `yaml:"debug,omitempty" json:"debug,omitempty"`
+	Logger            bool                  `yaml:"logger,omitempty" json:"logger,omitempty"`
+	DisableFileAccess bool                  `yaml:"disable_file_access,omitempty" json:"disable_file_access,omitempty"`
+	DisableUrlAccess  bool                  `yaml:"disable_url_access,omitempty" json:"disable_url_access,omitempty"`
+	TemplateSettings  *SMTPTemplateSettings `yaml:"template_settings,omitempty" json:"template_settings,omitempty"`
+	CustomHeaders     map[string]string     `yaml:"custom_headers,omitempty" json:"custom_headers,omitempty"`
+}
+
+// SMTPTemplateSettings represents template configuration for SMTP
+type SMTPTemplateSettings struct {
+	CompanyName  string `yaml:"company_name,omitempty" json:"company_name,omitempty"`
+	SupportEmail string `yaml:"support_email,omitempty" json:"support_email,omitempty"`
+}
+
+// EmailTemplate represents an email template configuration
+type EmailTemplate struct {
+	Subject     string `yaml:"subject" json:"subject"`
+	Content     string `yaml:"content" json:"content"`
+	UsageType   string `yaml:"usage_type" json:"usage_type"`
+	ContentType string `yaml:"content_type" json:"content_type"`
 }

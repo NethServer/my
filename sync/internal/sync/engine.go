@@ -69,6 +69,7 @@ type Summary struct {
 	ApplicationsCreated int `json:"applications_created" yaml:"applications_created"`
 	ApplicationsUpdated int `json:"applications_updated" yaml:"applications_updated"`
 	ApplicationsDeleted int `json:"applications_deleted" yaml:"applications_deleted"`
+	ConnectorsSynced    int `json:"connectors_synced" yaml:"connectors_synced"`
 }
 
 // Operation represents a single operation performed
@@ -166,6 +167,13 @@ func (e *Engine) Sync(cfg *config.Config) (*Result, error) {
 		}
 	}
 
+	// Sync SMTP connector from configuration
+	if cfg.Connectors != nil && cfg.Connectors.SMTP != nil {
+		if err := e.syncSMTPConnector(cfg.Connectors.SMTP, result); err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("SMTP connector sync failed: %v", err))
+		}
+	}
+
 	result.EndTime = time.Now()
 	result.Duration = result.EndTime.Sub(result.StartTime)
 	result.Success = len(result.Errors) == 0
@@ -217,8 +225,9 @@ func (r *Result) OutputText(w io.Writer) error {
 		r.Summary.PermissionsCreated, r.Summary.PermissionsUpdated, r.Summary.PermissionsDeleted)
 	_, _ = fmt.Fprintf(w, "  Scopes: %d created, %d updated, %d deleted\n",
 		r.Summary.ScopesCreated, r.Summary.ScopesUpdated, r.Summary.ScopesDeleted)
-	_, _ = fmt.Fprintf(w, "  Applications: %d created, %d updated, %d deleted\n\n",
+	_, _ = fmt.Fprintf(w, "  Applications: %d created, %d updated, %d deleted\n",
 		r.Summary.ApplicationsCreated, r.Summary.ApplicationsUpdated, r.Summary.ApplicationsDeleted)
+	_, _ = fmt.Fprintf(w, "  Connectors: %d synced\n\n", r.Summary.ConnectorsSynced)
 
 	if len(r.Errors) > 0 {
 		_, _ = fmt.Fprintf(w, "Errors:\n")
@@ -254,4 +263,26 @@ func (r *Result) OutputYAML(w io.Writer) error {
 	encoder := yaml.NewEncoder(w)
 	defer func() { _ = encoder.Close() }()
 	return encoder.Encode(r)
+}
+
+// syncSMTPConnector synchronizes SMTP connector configuration
+func (e *Engine) syncSMTPConnector(smtpConfig *config.SMTPConnector, result *Result) error {
+	logger.Info("Synchronizing SMTP connector configuration")
+
+	if e.options.DryRun {
+		logger.Info("DRY RUN: Would sync SMTP connector with host: %s", smtpConfig.Host)
+		e.addOperation(result, "connector", "sync", "smtp", "SMTP connector configuration", nil)
+		result.Summary.ConnectorsSynced++
+		return nil
+	}
+
+	err := e.client.SyncSMTPConnector(smtpConfig)
+	e.addOperation(result, "connector", "sync", "smtp", "SMTP connector configuration", err)
+
+	if err != nil {
+		return fmt.Errorf("failed to sync SMTP connector: %w", err)
+	}
+
+	result.Summary.ConnectorsSynced++
+	return nil
 }

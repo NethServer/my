@@ -145,3 +145,29 @@ sign_in_experience:
 
   # Social sign-in configuration (empty by default)
   social_sign_in: {}
+
+# Connectors configuration (optional)
+connectors:
+  # SMTP email connector for password reset and verification emails
+  smtp:
+    # SMTP server configuration
+    host: "smtp.your-provider.com"
+    port: 587
+    username: "your-smtp-username"
+    password: "your-smtp-password"
+    from_email: "no-reply@your-company.com"
+    from_name: "Your Company Name"
+    tls: true
+    secure: false
+    debug: false
+    logger: true
+    disable_file_access: true
+    disable_url_access: true
+    
+    # Template variable settings
+    template_settings:
+      company_name: "Your Company Name"
+      support_email: "support@your-company.com"
+    
+    # Custom headers (optional)
+    custom_headers: {}
