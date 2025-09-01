@@ -8,7 +8,7 @@ import { API_URL, LOGIN_REDIRECT_URI, SIGN_OUT_REDIRECT_URI } from '@/lib/config
 import axios from 'axios'
 import { useThemeStore } from './theme'
 import { useStorage } from '@vueuse/core'
-import { getPreference } from '@nethesis/vue-components'
+import { getPreference, savePreference } from '@nethesis/vue-components'
 import { getBrowserLocale, setLocale } from '@/i18n'
 import router from '@/router'
 
@@ -135,6 +135,20 @@ export const useLoginStore = defineStore('login', () => {
       // save last user to local storage: this is used to load the theme and locale before user info is fetched
       const lastUser = useStorage('lastUser', '')
       lastUser.value = user.email
+
+      // check if we are in impersonation mode
+      const impersonatedUserId = getPreference('impersonatedUser', user.email)
+
+      if (impersonatedUserId && !isImpersonating.value) {
+        try {
+          await impersonateUser(impersonatedUserId)
+        } catch (error) {
+          console.error('Failed to start impersonation:', error)
+
+          // Clear invalid impersonation state
+          savePreference('impersonatedUser', '', user.email)
+        }
+      }
     } catch (error) {
       //// toast notification
       console.error('Cannot exchange token:', error)
@@ -144,6 +158,11 @@ export const useLoginStore = defineStore('login', () => {
   }
 
   const doRefreshToken = async () => {
+    // don't refresh if we are impersonating
+    if (isImpersonating.value) {
+      return
+    }
+
     try {
       const res = await axios.post(`${API_URL}/auth/refresh`, { refresh_token: refreshToken.value })
       jwtToken.value = res.data.data.token
@@ -155,6 +174,11 @@ export const useLoginStore = defineStore('login', () => {
   }
 
   const impersonateUser = async (userId: string) => {
+    // save impersonation state to local storage
+    if (userInfo.value?.email) {
+      savePreference('impersonatedUser', userId, userInfo.value.email)
+    }
+
     try {
       const res = await axios.post(
         `${API_URL}/auth/impersonate`,
@@ -209,6 +233,7 @@ export const useLoginStore = defineStore('login', () => {
       isImpersonating.value = false
       impersonatedUser.value = undefined
       originalUser.value = undefined
+      savePreference('impersonatedUser', '', userInfo.value.email)
 
       console.log('[login store] impersonation ended', userInfo.value)
 

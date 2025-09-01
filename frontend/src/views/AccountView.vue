@@ -58,7 +58,7 @@ onMounted(() => {
         <NeButton
           kind="secondary"
           size="lg"
-          :disabled="loginStore.isOwner"
+          :disabled="loginStore.isOwner || loginStore.isImpersonating"
           @click="isShownChangePasswordDrawer = true"
         >
           <template #prefix>
