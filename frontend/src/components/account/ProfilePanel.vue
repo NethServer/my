@@ -193,7 +193,7 @@ function validate(profile: ProfileInfo): boolean {
         type="submit"
         kind="primary"
         size="lg"
-        :disabled="editUserLoading || loginStore.isOwner"
+        :disabled="editUserLoading || loginStore.isOwner || loginStore.isImpersonating"
         :loading="editUserLoading"
         @click.prevent="saveProfile"
       >
