@@ -8,6 +8,7 @@ import CustomersCounterCard from '@/components/dashboard/CustomersCounterCard.vu
 import DistributorsCounterCard from '@/components/dashboard/DistributorsCounterCard.vue'
 import ResellersCounterCard from '@/components/dashboard/ResellersCounterCard.vue'
 import UsersCounterCard from '@/components/dashboard/UsersCounterCard.vue'
+import NeComboboxV2 from '@/components/NeComboboxV2.vue'
 import {
   getThirdPartyApps,
   getThirdPartyAppIcon,
@@ -37,6 +38,40 @@ const { state: thirdPartyApps } = useQuery({
   enabled: () => !!loginStore.jwtToken,
   query: getThirdPartyApps,
 })
+
+////
+import { ref } from 'vue'
+
+interface User {
+  id: number
+  name: string
+  email: string
+}
+
+const users: User[] = [
+  { id: 1, name: 'John Doe', email: 'john@example.com' },
+  { id: 2, name: 'Jane Smith', email: 'jane@example.com' },
+  { id: 3, name: 'Alice Johnson', email: 'alice@test.com' },
+  { id: 4, name: 'Bob Brown', email: 'bob@test.com' },
+  { id: 5, name: 'Charlie Davis', email: 'charlie_davis@test.com' },
+  { id: 6, name: 'Diana Evans', email: 'diana_evans@test.com' },
+  { id: 7, name: 'Ethan Harris', email: 'ethan_harris@test.com' },
+]
+
+// Single selection
+const selectedUser = ref<User | null>(null)
+
+// Multiple selection
+const selectedUsers = ref<User[]>([])
+
+// Custom filter function with compatible typing for NeComboboxV2
+const customFilter = (options: any[], searchTerm: string): any[] => {
+  return options.filter(
+    (user) =>
+      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchTerm.toLowerCase()),
+  )
+}
 </script>
 
 <template>
@@ -144,6 +179,60 @@ const { state: thirdPartyApps } = useQuery({
       </NeCard>
     </div>
   </div>
+  <!-- ////  -->
+  <!-- <div class="flex items-center gap-6">
+    <NeComboboxV2
+      v-model="selectedUsers"
+      :options="users"
+      :multiple="true"
+      label-key="name"
+      value-key="id"
+      :filter-function="customFilter"
+      :allowCustomInput="false"
+      placeholder="Search users..."
+      @change="(value) => console.log('Selected:', value)"
+      class="mt-6 mb-32 w-96"
+    />
+
+    <NeComboboxV2
+      v-model="selectedUser"
+      :options="users"
+      :multiple="false"
+      label-key="name"
+      value-key="id"
+      :filter-function="customFilter"
+      :allowCustomInput="false"
+      placeholder="Search users..."
+      @change="(value) => console.log('Selected:', value)"
+      class="mt-6 mb-32 w-64"
+    />
+  </div> -->
+
+  <NeComboboxV2
+    v-model="selectedUsers"
+    :options="users"
+    :multiple="true"
+    label-key="name"
+    value-key="id"
+    :filter-function="customFilter"
+    :allowCustomInput="false"
+    placeholder="Search users..."
+    @change="(value) => console.log('Selected:', value)"
+    class="mt-6 mb-32 w-96"
+  />
+
+  <NeComboboxV2
+    v-model="selectedUser"
+    :options="users"
+    :multiple="false"
+    label-key="name"
+    value-key="id"
+    :filter-function="customFilter"
+    :allowCustomInput="false"
+    placeholder="Search users..."
+    @change="(value) => console.log('Selected:', value)"
+    class="mt-6 mb-32 w-64"
+  />
 </template>
 
 <style scoped></style>
