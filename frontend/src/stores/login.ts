@@ -196,15 +196,11 @@ export const useLoginStore = defineStore('login', () => {
 
   const exitImpersonation = async () => {
     try {
-      const res = await axios.post(
-        `${API_URL}/auth/exit-impersonation`,
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${jwtToken.value}`,
-          },
+      const res = await axios.delete(`${API_URL}/auth/impersonate`, {
+        headers: {
+          Authorization: `Bearer ${jwtToken.value}`,
         },
-      )
+      })
 
       // Restore original user info
       jwtToken.value = res.data.data.token

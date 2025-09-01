@@ -514,3 +514,465 @@ func TestConfigurationFallbacks(t *testing.T) {
 	configuration.Config.JWTExpiration = originalExp
 	configuration.Config.JWTRefreshExpiration = originalRefreshExp
 }
+
+func TestGenerateImpersonationToken(t *testing.T) {
+	impersonatedUser := models.User{
+		ID:               "impersonated-user-123",
+		Username:         "impersonateduser",
+		Email:            "impersonated@example.com",
+		Name:             "Impersonated User",
+		OrganizationID:   "customer-org-456",
+		OrganizationName: "Customer Organization",
+		UserRoles:        []string{"Reader"},
+		UserPermissions:  []string{"view:systems"},
+		OrgRole:          "Customer",
+		OrgPermissions:   []string{"view:own:data"},
+	}
+
+	impersonatorUser := models.User{
+		ID:               "impersonator-user-789",
+		Username:         "owneruser",
+		Email:            "owner@example.com",
+		Name:             "Owner User",
+		OrganizationID:   "owner-org-123",
+		OrganizationName: "Owner Organization",
+		UserRoles:        []string{"Admin"},
+		UserPermissions:  []string{"manage:systems", "manage:accounts"},
+		OrgRole:          "Owner",
+		OrgPermissions:   []string{"manage:all"},
+	}
+
+	tests := []struct {
+		name             string
+		impersonatedUser models.User
+		impersonatorUser models.User
+		wantErr          bool
+		validate         func(t *testing.T, tokenString string)
+	}{
+		{
+			name:             "valid impersonation token generation",
+			impersonatedUser: impersonatedUser,
+			impersonatorUser: impersonatorUser,
+			wantErr:          false,
+			validate: func(t *testing.T, tokenString string) {
+				// Parse and validate the impersonation token
+				claims, err := ValidateImpersonationToken(tokenString)
+				require.NoError(t, err)
+				require.NotNil(t, claims)
+
+				// Check impersonated user data
+				assert.Equal(t, "impersonated-user-123", claims.User.ID)
+				assert.Equal(t, "impersonateduser", claims.User.Username)
+				assert.Equal(t, "impersonated@example.com", claims.User.Email)
+				assert.Equal(t, "Customer", claims.User.OrgRole)
+				assert.Equal(t, []string{"Reader"}, claims.User.UserRoles)
+
+				// Check impersonator data
+				assert.Equal(t, "impersonator-user-789", claims.ImpersonatedBy.ID)
+				assert.Equal(t, "owneruser", claims.ImpersonatedBy.Username)
+				assert.Equal(t, "owner@example.com", claims.ImpersonatedBy.Email)
+				assert.Equal(t, "Owner", claims.ImpersonatedBy.OrgRole)
+
+				// Check impersonation flag
+				assert.True(t, claims.IsImpersonated)
+
+				// Check registered claims
+				assert.Equal(t, "impersonated-user-123", claims.Subject)
+				assert.Equal(t, configuration.Config.JWTIssuer, claims.Issuer)
+
+				// Check expiration (should be 1 hour)
+				expectedExpiry := time.Now().Add(1 * time.Hour)
+				assert.True(t, claims.ExpiresAt.After(time.Now()))
+				assert.True(t, claims.ExpiresAt.Before(expectedExpiry.Add(time.Minute)))
+				assert.True(t, claims.ExpiresAt.After(expectedExpiry.Add(-time.Minute)))
+			},
+		},
+		{
+			name: "impersonation with users having minimal data",
+			impersonatedUser: models.User{
+				ID:       "user1",
+				Username: "user1",
+				OrgRole:  "Customer",
+			},
+			impersonatorUser: models.User{
+				ID:       "owner1",
+				Username: "owner1",
+				OrgRole:  "Owner",
+			},
+			wantErr: false,
+			validate: func(t *testing.T, tokenString string) {
+				claims, err := ValidateImpersonationToken(tokenString)
+				require.NoError(t, err)
+				assert.Equal(t, "user1", claims.User.ID)
+				assert.Equal(t, "owner1", claims.ImpersonatedBy.ID)
+				assert.True(t, claims.IsImpersonated)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			token, err := GenerateImpersonationToken(tt.impersonatedUser, tt.impersonatorUser)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Empty(t, token)
+			} else {
+				assert.NoError(t, err)
+				assert.NotEmpty(t, token)
+				tt.validate(t, token)
+			}
+		})
+	}
+}
+
+func TestValidateImpersonationToken(t *testing.T) {
+	impersonatedUser := models.User{
+		ID:       "impersonated-123",
+		Username: "impersonated",
+		Email:    "impersonated@example.com",
+		OrgRole:  "Customer",
+	}
+
+	impersonatorUser := models.User{
+		ID:       "owner-789",
+		Username: "owner",
+		Email:    "owner@example.com",
+		OrgRole:  "Owner",
+	}
+
+	// Generate a valid impersonation token
+	validImpersonationToken, err := GenerateImpersonationToken(impersonatedUser, impersonatorUser)
+	require.NoError(t, err)
+
+	// Generate a regular token for testing
+	regularToken, err := GenerateCustomToken(impersonatedUser)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		tokenString string
+		wantErr     bool
+		wantClaims  *ImpersonationClaims
+		errContains string
+	}{
+		{
+			name:        "valid impersonation token",
+			tokenString: validImpersonationToken,
+			wantErr:     false,
+			wantClaims: &ImpersonationClaims{
+				User:           impersonatedUser,
+				ImpersonatedBy: impersonatorUser,
+				IsImpersonated: true,
+			},
+		},
+		{
+			name:        "regular token should fail impersonation validation",
+			tokenString: regularToken,
+			wantErr:     true,
+			errContains: "token is not an impersonation token",
+		},
+		{
+			name:        "empty token string",
+			tokenString: "",
+			wantErr:     true,
+			errContains: "failed to parse impersonation token",
+		},
+		{
+			name:        "invalid token format",
+			tokenString: "not.a.jwt",
+			wantErr:     true,
+			errContains: "failed to parse impersonation token",
+		},
+		{
+			name:        "token with wrong signature",
+			tokenString: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0IiwiZXhwIjo5OTk5OTk5OTk5fQ.invalid-signature",
+			wantErr:     true,
+			errContains: "failed to parse impersonation token",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			claims, err := ValidateImpersonationToken(tt.tokenString)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, claims)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, claims)
+				assert.Equal(t, tt.wantClaims.User.ID, claims.User.ID)
+				assert.Equal(t, tt.wantClaims.ImpersonatedBy.ID, claims.ImpersonatedBy.ID)
+				assert.Equal(t, tt.wantClaims.IsImpersonated, claims.IsImpersonated)
+			}
+		})
+	}
+}
+
+func TestImpersonationTokenSecurityValidation(t *testing.T) {
+	impersonatedUser := models.User{
+		ID:       "user-123",
+		Username: "user",
+		OrgRole:  "Customer",
+	}
+
+	impersonatorUser := models.User{
+		ID:       "owner-456",
+		Username: "owner",
+		OrgRole:  "Owner",
+	}
+
+	tests := []struct {
+		name        string
+		setupToken  func() string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name: "impersonation token without IsImpersonated flag fails",
+			setupToken: func() string {
+				claims := ImpersonationClaims{
+					User:           impersonatedUser,
+					ImpersonatedBy: impersonatorUser,
+					IsImpersonated: false, // This should cause validation to fail
+					RegisteredClaims: jwt.RegisteredClaims{
+						Issuer:    configuration.Config.JWTIssuer,
+						Subject:   impersonatedUser.ID,
+						ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
+						IssuedAt:  jwt.NewNumericDate(time.Now()),
+					},
+				}
+				token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+				tokenString, _ := token.SignedString([]byte(configuration.Config.JWTSecret))
+				return tokenString
+			},
+			wantErr:     true,
+			errContains: "token is not an impersonation token",
+		},
+		{
+			name: "impersonation token without impersonator data fails",
+			setupToken: func() string {
+				claims := ImpersonationClaims{
+					User:           impersonatedUser,
+					ImpersonatedBy: models.User{
+						// Empty impersonator data
+					},
+					IsImpersonated: true,
+					RegisteredClaims: jwt.RegisteredClaims{
+						Issuer:    configuration.Config.JWTIssuer,
+						Subject:   impersonatedUser.ID,
+						ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
+						IssuedAt:  jwt.NewNumericDate(time.Now()),
+					},
+				}
+				token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+				tokenString, _ := token.SignedString([]byte(configuration.Config.JWTSecret))
+				return tokenString
+			},
+			wantErr:     true,
+			errContains: "impersonation token missing impersonator data",
+		},
+		{
+			name: "expired impersonation token fails validation",
+			setupToken: func() string {
+				claims := ImpersonationClaims{
+					User:           impersonatedUser,
+					ImpersonatedBy: impersonatorUser,
+					IsImpersonated: true,
+					RegisteredClaims: jwt.RegisteredClaims{
+						Issuer:    configuration.Config.JWTIssuer,
+						Subject:   impersonatedUser.ID,
+						ExpiresAt: jwt.NewNumericDate(time.Now().Add(-1 * time.Hour)), // Expired
+						IssuedAt:  jwt.NewNumericDate(time.Now().Add(-2 * time.Hour)),
+					},
+				}
+				token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+				tokenString, _ := token.SignedString([]byte(configuration.Config.JWTSecret))
+				return tokenString
+			},
+			wantErr:     true,
+			errContains: "failed to parse impersonation token",
+		},
+		{
+			name: "impersonation token with wrong signing method fails",
+			setupToken: func() string {
+				claims := ImpersonationClaims{
+					User:           impersonatedUser,
+					ImpersonatedBy: impersonatorUser,
+					IsImpersonated: true,
+					RegisteredClaims: jwt.RegisteredClaims{
+						Issuer:    configuration.Config.JWTIssuer,
+						Subject:   impersonatedUser.ID,
+						ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
+						IssuedAt:  jwt.NewNumericDate(time.Now()),
+					},
+				}
+				// Use wrong signing method
+				token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+				tokenString, _ := token.SignedString([]byte("fake-key"))
+				return tokenString
+			},
+			wantErr:     true,
+			errContains: "failed to parse impersonation token",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tokenString := tt.setupToken()
+			claims, err := ValidateImpersonationToken(tokenString)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, claims)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, claims)
+			}
+		})
+	}
+}
+
+func TestImpersonationTokenExpiration(t *testing.T) {
+	impersonatedUser := models.User{
+		ID:       "user-123",
+		Username: "user",
+		OrgRole:  "Customer",
+	}
+
+	impersonatorUser := models.User{
+		ID:       "owner-456",
+		Username: "owner",
+		OrgRole:  "Owner",
+	}
+
+	// Generate impersonation token
+	tokenString, err := GenerateImpersonationToken(impersonatedUser, impersonatorUser)
+	require.NoError(t, err)
+
+	// Validate and check expiration
+	claims, err := ValidateImpersonationToken(tokenString)
+	require.NoError(t, err)
+
+	// Token should expire in exactly 1 hour
+	now := time.Now()
+	expectedExpiry := now.Add(1 * time.Hour)
+
+	assert.True(t, claims.ExpiresAt.After(now), "Impersonation token should not be expired")
+	assert.True(t, claims.ExpiresAt.Before(expectedExpiry.Add(time.Minute)), "Impersonation token should expire within 1 hour")
+	assert.True(t, claims.ExpiresAt.After(expectedExpiry.Add(-time.Minute)), "Impersonation token should expire close to 1 hour")
+}
+
+func TestTokenTypeDistinction(t *testing.T) {
+	user := models.User{
+		ID:       "user-123",
+		Username: "testuser",
+		Email:    "test@example.com",
+		OrgRole:  "Customer",
+	}
+
+	owner := models.User{
+		ID:       "owner-456",
+		Username: "owner",
+		Email:    "owner@example.com",
+		OrgRole:  "Owner",
+	}
+
+	// Generate both types of tokens
+	regularToken, err := GenerateCustomToken(user)
+	require.NoError(t, err)
+
+	impersonationToken, err := GenerateImpersonationToken(user, owner)
+	require.NoError(t, err)
+
+	t.Run("regular token validates as regular token", func(t *testing.T) {
+		claims, err := ValidateCustomToken(regularToken)
+		assert.NoError(t, err)
+		assert.NotNil(t, claims)
+		assert.Equal(t, user.ID, claims.User.ID)
+	})
+
+	t.Run("regular token fails impersonation validation", func(t *testing.T) {
+		claims, err := ValidateImpersonationToken(regularToken)
+		assert.Error(t, err)
+		assert.Nil(t, claims)
+		assert.Contains(t, err.Error(), "token is not an impersonation token")
+	})
+
+	t.Run("impersonation token validates as impersonation token", func(t *testing.T) {
+		claims, err := ValidateImpersonationToken(impersonationToken)
+		assert.NoError(t, err)
+		assert.NotNil(t, claims)
+		assert.Equal(t, user.ID, claims.User.ID)
+		assert.Equal(t, owner.ID, claims.ImpersonatedBy.ID)
+		assert.True(t, claims.IsImpersonated)
+	})
+
+	t.Run("impersonation token can also be parsed as regular token (but without impersonation data)", func(t *testing.T) {
+		// This test verifies that the middleware can distinguish between token types
+		claims, err := ValidateCustomToken(impersonationToken)
+		assert.NoError(t, err)
+		assert.NotNil(t, claims)
+		// The user data should be preserved, but no impersonation context
+		assert.Equal(t, user.ID, claims.User.ID)
+	})
+}
+
+func TestImpersonationTokenWithLogtoUser(t *testing.T) {
+	// Test impersonation with users that have LogtoID
+	impersonatedUser := models.User{
+		ID:       "local-user-123",
+		Username: "localuser",
+		LogtoID:  stringPtr("logto-user-456"),
+		Email:    "user@example.com",
+		OrgRole:  "Customer",
+	}
+
+	impersonatorUser := models.User{
+		ID:       "owner-789",
+		Username: "owner",
+		LogtoID:  stringPtr("logto-owner-123"),
+		Email:    "owner@example.com",
+		OrgRole:  "Owner",
+	}
+
+	tokenString, err := GenerateImpersonationToken(impersonatedUser, impersonatorUser)
+	require.NoError(t, err)
+
+	claims, err := ValidateImpersonationToken(tokenString)
+	require.NoError(t, err)
+
+	// Verify LogtoID is preserved
+	assert.Equal(t, "logto-user-456", *claims.User.LogtoID)
+	assert.Equal(t, "logto-owner-123", *claims.ImpersonatedBy.LogtoID)
+
+	t.Run("impersonation token with empty username but valid LogtoID passes validation", func(t *testing.T) {
+		// Test case where impersonator has LogtoID but empty username
+		impersonatorWithLogto := models.User{
+			ID:      "owner-empty-username",
+			LogtoID: stringPtr("logto-owner-valid"),
+			OrgRole: "Owner",
+			// Username is empty but LogtoID is present
+		}
+
+		token, err := GenerateImpersonationToken(impersonatedUser, impersonatorWithLogto)
+		require.NoError(t, err)
+
+		claims, err := ValidateImpersonationToken(token)
+		assert.NoError(t, err)
+		assert.NotNil(t, claims)
+		assert.Equal(t, "logto-owner-valid", *claims.ImpersonatedBy.LogtoID)
+	})
+}
+
+// Helper function to create string pointers
+func stringPtr(s string) *string {
+	return &s
+}
