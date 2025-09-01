@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -493,4 +494,123 @@ func createExpiredImpersonationToken(impersonated, impersonator models.User) str
 	// Create an expired token for testing
 	// This is a simplified implementation for testing purposes
 	return "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.expired.token"
+}
+
+func TestDisableOnImpersonateMiddleware(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// Create test users
+	impersonatedUser := models.User{
+		ID:       "customer-123",
+		Username: "customer",
+		Email:    "customer@example.com",
+		Name:     "Customer User",
+		OrgRole:  "Customer",
+	}
+
+	ownerUser := models.User{
+		ID:       "owner-789",
+		Username: "owner",
+		Email:    "owner@example.com",
+		Name:     "Owner User",
+		OrgRole:  "Owner",
+	}
+
+	// Generate tokens
+	regularToken, err := jwt.GenerateCustomToken(impersonatedUser)
+	require.NoError(t, err)
+
+	impersonationToken, err := jwt.GenerateImpersonationToken(impersonatedUser, ownerUser)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name           string
+		token          string
+		endpoint       string
+		wantStatusCode int
+		wantReason     string
+	}{
+		{
+			name:           "regular user can change password",
+			token:          regularToken,
+			endpoint:       "/me/change-password",
+			wantStatusCode: http.StatusOK,
+		},
+		{
+			name:           "regular user can change profile info",
+			token:          regularToken,
+			endpoint:       "/me/change-info",
+			wantStatusCode: http.StatusOK,
+		},
+		{
+			name:           "impersonated user blocked from changing password",
+			token:          impersonationToken,
+			endpoint:       "/me/change-password",
+			wantStatusCode: http.StatusForbidden,
+			wantReason:     "impersonation_active",
+		},
+		{
+			name:           "impersonated user blocked from changing profile info",
+			token:          impersonationToken,
+			endpoint:       "/me/change-info",
+			wantStatusCode: http.StatusForbidden,
+			wantReason:     "impersonation_active",
+		},
+		{
+			name:           "impersonated user can access non-restricted endpoints",
+			token:          impersonationToken,
+			endpoint:       "/me",
+			wantStatusCode: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create test router with middleware chain
+			router := gin.New()
+			router.Use(JWTAuthMiddleware())
+
+			// Apply self-service prevention middleware only to restricted endpoints
+			if tt.endpoint == "/me/change-password" || tt.endpoint == "/me/change-info" {
+				router.POST(tt.endpoint, DisableOnImpersonate(), func(c *gin.Context) {
+					c.JSON(http.StatusOK, gin.H{"message": "success"})
+				})
+			} else {
+				router.GET(tt.endpoint, func(c *gin.Context) {
+					c.JSON(http.StatusOK, gin.H{"message": "success"})
+				})
+			}
+
+			// Create request
+			method := "GET"
+			if tt.endpoint == "/me/change-password" || tt.endpoint == "/me/change-info" {
+				method = "POST"
+			}
+			req := httptest.NewRequest(method, tt.endpoint, nil)
+			req.Header.Set("Authorization", "Bearer "+tt.token)
+
+			// Execute request
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			// Validate response status
+			assert.Equal(t, tt.wantStatusCode, w.Code, "Expected status code for %s", tt.name)
+
+			// For forbidden responses, check the error reason
+			if tt.wantStatusCode == http.StatusForbidden {
+				var response map[string]interface{}
+				err := json.Unmarshal(w.Body.Bytes(), &response)
+				require.NoError(t, err)
+
+				data, exists := response["data"]
+				assert.True(t, exists, "Response should contain data field")
+
+				if dataMap, ok := data.(map[string]interface{}); ok {
+					reason, reasonExists := dataMap["reason"]
+					assert.True(t, reasonExists, "Response data should contain reason field")
+					assert.Equal(t, tt.wantReason, reason, "Expected reason for %s", tt.name)
+				}
+			}
+		})
+	}
 }
