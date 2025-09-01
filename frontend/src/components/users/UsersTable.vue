@@ -12,6 +12,7 @@ import {
   faPenToSquare,
   faTrash,
   faKey,
+  faUserSecret,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -41,7 +42,8 @@ import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import ResetPasswordModal from './ResetPasswordModal.vue'
 import PasswordChangedModal from './PasswordChangedModal.vue'
 import { useUsers } from '@/queries/users'
-import { canManageUsers } from '@/lib/permissions'
+import { canManageUsers, canImpersonateUsers } from '@/lib/permissions'
+import { useLoginStore } from '@/stores/login'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -61,12 +63,15 @@ const {
   sortDescending,
 } = useUsers()
 
+const loginStore = useLoginStore()
+
 const currentUser = ref<User | undefined>()
 const isShownCreateOrEditUserDrawer = ref(false)
 const isShownDeleteUserModal = ref(false)
 const isShownResetPasswordModal = ref(false)
 const isShownPasswordChangedModal = ref(false)
 const newPassword = ref<string>('')
+const isImpersonating = ref(false)
 
 const usersPage = computed(() => {
   return state.value.data?.users
@@ -115,13 +120,34 @@ function onPasswordChanged(newPwd: string) {
   isShownPasswordChangedModal.value = true
 }
 
+async function impersonateUser(user: User) {
+  if (!canImpersonateUsers()) {
+    console.error('User cannot impersonate')
+    return
+  }
+
+  if (user.logto_id === loginStore.userInfo?.logto_id) {
+    console.error('Cannot impersonate yourself')
+    return
+  }
+
+  isImpersonating.value = true
+  try {
+    await loginStore.impersonateUser(user.logto_id!)
+  } catch (error) {
+    console.error('Impersonation failed:', error)
+  } finally {
+    isImpersonating.value = false
+  }
+}
+
 function onCloseDrawer() {
   isShownCreateOrEditUserDrawer.value = false
   emit('close-drawer')
 }
 
 function getKebabMenuItems(user: User) {
-  return [
+  const items = [
     {
       id: 'resetPassword',
       label: t('users.reset_password'),
@@ -138,6 +164,19 @@ function getKebabMenuItems(user: User) {
       disabled: asyncStatus.value === 'loading',
     },
   ]
+
+  // Add impersonate option for owners, but not for self
+  if (canImpersonateUsers() && user.logto_id !== loginStore.userInfo?.logto_id) {
+    items.unshift({
+      id: 'impersonate',
+      label: t('users.impersonate_user'),
+      icon: faUserSecret,
+      action: () => impersonateUser(user),
+      disabled: asyncStatus.value === 'loading' || isImpersonating.value,
+    })
+  }
+
+  return items
 }
 
 const onSort = (payload: SortEvent) => {

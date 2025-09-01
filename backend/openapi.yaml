@@ -1759,6 +1759,170 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /auth/impersonate:
+    post:
+      operationId: impersonateUser
+      tags:
+        - Backend - Authentication
+      summary: Impersonate another user
+      description: |
+        Allows Owner organization users to temporarily assume the identity and permissions
+        of another user for troubleshooting and support purposes. Creates a special
+        impersonation JWT token with 1-hour expiration.
+
+        **Security Features:**
+        - Only Owner organization users can impersonate
+        - Cannot impersonate yourself
+        - Cannot impersonate while already impersonating
+        - All activities are logged for audit
+        - Token expires in 1 hour (vs 24 hours for normal tokens)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                  description: Logto ID of the user to impersonate
+                  example: "nkipq0dbham1"
+              required:
+                - user_id
+      responses:
+        '200':
+          description: Impersonation started successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "impersonation started successfully"
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                        description: Impersonation JWT token (1-hour expiration)
+                        example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      expires_in:
+                        type: integer
+                        description: Token expiration time in seconds (3600 = 1 hour)
+                        example: 3600
+                      impersonated_user:
+                        $ref: '#/components/schemas/User'
+                      impersonator:
+                        $ref: '#/components/schemas/User'
+                      is_impersonated:
+                        type: boolean
+                        description: Flag indicating this is an impersonation token
+                        example: true
+        '400':
+          description: Bad request (cannot impersonate yourself, invalid user_id, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                self_impersonation:
+                  summary: Cannot impersonate yourself
+                  value:
+                    code: 400
+                    message: "Cannot impersonate yourself"
+                user_not_found:
+                  summary: Target user not found
+                  value:
+                    code: 400
+                    message: "Target user not found or inaccessible"
+        '403':
+          description: Forbidden (only Owner users can impersonate, or already impersonating)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_owner:
+                  summary: Non-owner user attempted impersonation
+                  value:
+                    code: 403
+                    message: "Only owner users can impersonate other users"
+                already_impersonating:
+                  summary: Cannot impersonate while already impersonating
+                  value:
+                    code: 403
+                    message: "Cannot impersonate while already impersonating another user. Exit current impersonation first."
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/exit-impersonation:
+    post:
+      operationId: exitImpersonation
+      tags:
+        - Backend - Authentication
+      summary: Exit impersonation mode
+      description: |
+        Allows user to exit impersonation mode and return to their original account.
+        This endpoint can only be called with an active impersonation token.
+        Returns fresh tokens for the original user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              example: {}
+      responses:
+        '200':
+          description: Impersonation ended successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "impersonation ended successfully"
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                        description: New JWT token for original user (24-hour expiration)
+                        example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      refresh_token:
+                        type: string
+                        description: New refresh token for original user
+                        example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      expires_in:
+                        type: integer
+                        description: Token expiration time in seconds (86400 = 24 hours)
+                        example: 86400
+                      user:
+                        $ref: '#/components/schemas/User'
+                      is_impersonated:
+                        type: boolean
+                        description: Flag indicating impersonation has ended
+                        example: false
+        '400':
+          description: Bad request (not currently impersonating)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: 400
+                message: "Not currently impersonating a user"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
 
   /customers:
     get:
