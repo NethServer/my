@@ -49,6 +49,7 @@ const accountMenuOptions = computed(() => {
       label: t('shell.sign_out'),
       icon: faRightFromBracket,
       action: () => loginStore.logout(),
+      disabled: loginStore.isImpersonating,
     },
   ]
 })
