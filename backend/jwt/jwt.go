@@ -31,6 +31,14 @@ type RefreshTokenClaims struct {
 	jwt.RegisteredClaims
 }
 
+// ImpersonationClaims represents the claims for impersonation tokens
+type ImpersonationClaims struct {
+	User           models.User `json:"user"`            // The user being impersonated
+	ImpersonatedBy models.User `json:"impersonated_by"` // The user doing the impersonation
+	IsImpersonated bool        `json:"is_impersonated"` // Flag to indicate this is an impersonation token
+	jwt.RegisteredClaims
+}
+
 // GenerateCustomToken creates a JWT token with user information and permissions
 func GenerateCustomToken(user models.User) (string, error) {
 	// Parse expiration duration
@@ -205,4 +213,117 @@ func ValidateRefreshToken(tokenString string) (*RefreshTokenClaims, error) {
 		Msg("Invalid refresh token claims")
 
 	return nil, fmt.Errorf("invalid refresh token claims")
+}
+
+// GenerateImpersonationToken creates a JWT token for user impersonation
+func GenerateImpersonationToken(impersonatedUser, impersonator models.User) (string, error) {
+	// Use 1 hour expiration for impersonation tokens (security)
+	expDuration := 1 * time.Hour
+
+	// Create impersonation claims
+	claims := ImpersonationClaims{
+		User:           impersonatedUser,
+		ImpersonatedBy: impersonator,
+		IsImpersonated: true,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    configuration.Config.JWTIssuer,
+			Subject:   impersonatedUser.ID,
+			Audience:  jwt.ClaimStrings{configuration.Config.LogtoAudience},
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expDuration)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	// Create token with claims
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	// Sign token with secret
+	tokenString, err := token.SignedString([]byte(configuration.Config.JWTSecret))
+	if err != nil {
+		logger.ComponentLogger("jwt").Error().
+			Err(err).
+			Str("operation", "impersonation_token_sign_failed").
+			Str("impersonated_user_id", impersonatedUser.ID).
+			Str("impersonator_user_id", impersonator.ID).
+			Msg("Failed to sign impersonation JWT token")
+		return "", fmt.Errorf("failed to sign impersonation token: %w", err)
+	}
+
+	logger.ComponentLogger("jwt").Info().
+		Str("operation", "impersonation_token_generated").
+		Str("impersonated_user_id", impersonatedUser.ID).
+		Str("impersonated_username", impersonatedUser.Username).
+		Str("impersonator_user_id", impersonator.ID).
+		Str("impersonator_username", impersonator.Username).
+		Time("expires_at", time.Now().Add(expDuration)).
+		Dur("duration", expDuration).
+		Msg("Impersonation JWT token generated successfully")
+
+	return tokenString, nil
+}
+
+// ValidateImpersonationToken parses and validates an impersonation JWT token
+func ValidateImpersonationToken(tokenString string) (*ImpersonationClaims, error) {
+	// Parse token
+	token, err := jwt.ParseWithClaims(tokenString, &ImpersonationClaims{}, func(token *jwt.Token) (interface{}, error) {
+		// Verify signing method
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(configuration.Config.JWTSecret), nil
+	})
+
+	if err != nil {
+		logger.ComponentLogger("jwt").Warn().
+			Err(err).
+			Str("operation", "impersonation_token_validation_failed").
+			Str("error_type", "parse_failed").
+			Msg("Failed to parse impersonation JWT token")
+		return nil, fmt.Errorf("failed to parse impersonation token: %w", err)
+	}
+
+	// Extract and validate claims
+	if claims, ok := token.Claims.(*ImpersonationClaims); ok && token.Valid {
+		// CRITICAL: Verify this is actually an impersonation token
+		// A regular token can be parsed as ImpersonationClaims but will have IsImpersonated=false
+		if !claims.IsImpersonated {
+			logger.ComponentLogger("jwt").Debug().
+				Str("operation", "impersonation_token_validation_failed").
+				Str("error_type", "not_impersonation_token").
+				Bool("is_impersonated", claims.IsImpersonated).
+				Msg("Token is not an impersonation token")
+			return nil, fmt.Errorf("token is not an impersonation token")
+		}
+
+		// Additional validation: check that impersonator data exists
+		// Note: ID might be empty for some users, so we check LogtoID or Username
+		if claims.ImpersonatedBy.Username == "" && (claims.ImpersonatedBy.LogtoID == nil || *claims.ImpersonatedBy.LogtoID == "") {
+			logger.ComponentLogger("jwt").Debug().
+				Str("operation", "impersonation_token_validation_failed").
+				Str("error_type", "missing_impersonator_data").
+				Str("impersonator_id", claims.ImpersonatedBy.ID).
+				Str("impersonator_username", claims.ImpersonatedBy.Username).
+				Msg("Impersonation token missing impersonator data")
+			return nil, fmt.Errorf("impersonation token missing impersonator data")
+		}
+
+		logger.ComponentLogger("jwt").Debug().
+			Str("operation", "impersonation_token_validation_success").
+			Str("impersonated_user_id", claims.User.ID).
+			Str("impersonated_username", claims.User.Username).
+			Str("impersonator_user_id", claims.ImpersonatedBy.ID).
+			Str("impersonator_username", claims.ImpersonatedBy.Username).
+			Time("expires_at", claims.ExpiresAt.Time).
+			Msg("Impersonation JWT token validated successfully")
+		return claims, nil
+	}
+
+	logger.ComponentLogger("jwt").Warn().
+		Str("operation", "impersonation_token_validation_failed").
+		Str("error_type", "invalid_claims").
+		Bool("token_valid", token.Valid).
+		Msg("Invalid impersonation JWT token claims")
+
+	return nil, fmt.Errorf("invalid impersonation token claims")
 }
