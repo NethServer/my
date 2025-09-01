@@ -317,7 +317,8 @@ const onClosePasswordChangedModal = () => {
             {{ item.organization?.name || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('users.roles')">
-            <div class="flex flex-wrap gap-1">
+            <span v-if="!item.roles || item.roles.length === 0">-</span>
+            <div v-else class="flex flex-wrap gap-1">
               <NeBadge
                 v-for="role in item.roles?.sort(sortByProperty('name'))"
                 :key="role.id"
