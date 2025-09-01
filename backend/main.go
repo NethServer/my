@@ -149,6 +149,8 @@ func main() {
 	{
 		// Authentication endpoints
 		customAuth.POST("/auth/logout", methods.Logout)
+		customAuth.POST("/auth/impersonate", methods.ImpersonateUser)
+		customAuth.POST("/auth/exit-impersonation", methods.ExitImpersonation)
 
 		// User profile endpoints using custom JWT
 		customAuth.GET("/me", methods.GetCurrentUser)

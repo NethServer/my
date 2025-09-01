@@ -17,6 +17,8 @@ import {
   faMoon,
   faRightFromBracket,
   faSun,
+  faUserSecret,
+  faTimes,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useI18n } from 'vue-i18n'
@@ -50,6 +52,14 @@ const accountMenuOptions = computed(() => {
     },
   ]
 })
+
+const exitImpersonation = async () => {
+  try {
+    await loginStore.exitImpersonation()
+  } catch (error) {
+    console.error('Failed to exit impersonation:', error)
+  }
+}
 
 //// uncomment
 // watch(
@@ -90,7 +100,34 @@ function openNotificationsDrawer() {
     <div class="h-6 w-px bg-gray-200 lg:hidden dark:bg-gray-700" aria-hidden="true" />
 
     <div class="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
-      <div class="relative flex flex-1 items-center"></div>
+      <div class="relative flex flex-1 items-center">
+        <!-- Impersonation banner -->
+        <div
+          v-if="loginStore.isImpersonating"
+          class="flex items-center gap-2 rounded-md bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+        >
+          <FontAwesomeIcon :icon="faUserSecret" class="h-4 w-4" aria-hidden="true" />
+          <div class="flex flex-col">
+            <span>Impersonating: {{ loginStore.userDisplayName }}</span>
+            <span class="text-xs opacity-75" v-if="loginStore.userInfo?.organization_name">
+              {{ loginStore.userInfo.organization_name }}
+            </span>
+          </div>
+          <NeTooltip trigger-event="mouseenter focus" placement="bottom">
+            <template #trigger>
+              <button
+                @click="exitImpersonation"
+                class="ml-2 rounded p-1 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors duration-200"
+              >
+                <FontAwesomeIcon :icon="faTimes" class="h-3 w-3" aria-hidden="true" />
+              </button>
+            </template>
+            <template #content>
+              {{ $t('impersonation.exit_tooltip') }}
+            </template>
+          </NeTooltip>
+        </div>
+      </div>
       <!-- right-aligned before separator -->
       <div class="flex items-center gap-x-4 lg:gap-x-6">
         <!-- separator -->
