@@ -154,8 +154,8 @@ func main() {
 
 		// User profile endpoints using custom JWT
 		customAuth.GET("/me", methods.GetCurrentUser)
-		customAuth.POST("/me/change-password", methods.ChangePassword)
-		customAuth.POST("/me/change-info", methods.ChangeInfo)
+		customAuth.POST("/me/change-password", middleware.DisableOnImpersonate(), methods.ChangePassword)
+		customAuth.POST("/me/change-info", middleware.DisableOnImpersonate(), methods.ChangeInfo)
 
 		// Business operations
 		// ===========================================
