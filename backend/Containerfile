@@ -19,11 +19,17 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the application with version information from Render environment variables
-RUN VERSION=${RENDER_GIT_BRANCH:-dev} && \
+# Build the application with version information
+RUN echo "=== Build Environment Debug ===" && \
+    echo "All environment variables:" && \
+    env | sort && \
+    echo "RENDER_GIT_BRANCH value: [${RENDER_GIT_BRANCH}]" && \
+    echo "RENDER_GIT_COMMIT value: [${RENDER_GIT_COMMIT}]" && \
+    echo "============================" && \
+    VERSION=${RENDER_GIT_BRANCH:-dev} && \
     COMMIT=${RENDER_GIT_COMMIT:-unknown} && \
     BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) && \
-    echo "Building with VERSION=$VERSION COMMIT=$COMMIT BUILD_TIME=$BUILD_TIME" && \
+    echo "Final values: VERSION=$VERSION COMMIT=$COMMIT BUILD_TIME=$BUILD_TIME" && \
     CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
     -ldflags "-X github.com/nethesis/my/backend/pkg/version.Version=${VERSION} \
               -X github.com/nethesis/my/backend/pkg/version.Commit=${COMMIT} \
