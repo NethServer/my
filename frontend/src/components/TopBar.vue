@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { NeAvatar, NeDropdown, NeSkeleton, NeTooltip } from '@nethesis/vue-components'
+import { NeAvatar, NeBadgeV2, NeDropdown, NeSkeleton, NeTooltip } from '@nethesis/vue-components'
 import { computed, ref } from 'vue'
 import { useThemeStore } from '@/stores/theme'
 import { useLoginStore } from '@/stores/login'
@@ -101,36 +101,20 @@ function openNotificationsDrawer() {
     <div class="h-6 w-px bg-gray-200 lg:hidden dark:bg-gray-700" aria-hidden="true" />
 
     <div class="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
-      <div class="relative flex flex-1 items-center">
-        <!-- Impersonation banner -->
-        <div
-          v-if="loginStore.isImpersonating"
-          class="flex items-center gap-2 rounded-md bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800 dark:bg-amber-900 dark:text-amber-200"
-        >
-          <FontAwesomeIcon :icon="faUserSecret" class="h-4 w-4" aria-hidden="true" />
-          <div class="flex flex-col">
-            <span>Impersonating: {{ loginStore.userDisplayName }}</span>
-            <span class="text-xs opacity-75" v-if="loginStore.userInfo?.organization_name">
-              {{ loginStore.userInfo.organization_name }}
-            </span>
-          </div>
-          <NeTooltip trigger-event="mouseenter focus" placement="bottom">
-            <template #trigger>
-              <button
-                @click="exitImpersonation"
-                class="ml-2 rounded p-1 transition-colors duration-200 hover:bg-amber-200 dark:hover:bg-amber-800"
-              >
-                <FontAwesomeIcon :icon="faTimes" class="h-3 w-3" aria-hidden="true" />
-              </button>
-            </template>
-            <template #content>
-              {{ $t('impersonation.exit_tooltip') }}
-            </template>
-          </NeTooltip>
-        </div>
-      </div>
+      <div class="relative flex flex-1 items-center"></div>
       <!-- right-aligned before separator -->
       <div class="flex items-center gap-x-4 lg:gap-x-6">
+        <!-- Impersonation badge -->
+        <NeBadgeV2
+          v-if="loginStore.isImpersonating"
+          kind="amber"
+          dismissable
+          :dismissAriaLabel="t('shell.stop_impersonation')"
+          @dismiss="exitImpersonation"
+        >
+          <FontAwesomeIcon :icon="faUserSecret" class="size-4" aria-hidden="true" />
+          {{ $t('shell.impersonating_user', { user: loginStore.userDisplayName }) }}
+        </NeBadgeV2>
         <!-- separator -->
         <div
           class="hidden lg:block lg:h-6 lg:w-px lg:bg-gray-200 dark:lg:bg-gray-700"
