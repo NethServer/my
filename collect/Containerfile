@@ -19,12 +19,12 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the application with version information from Render environment variables
-RUN VERSION=${RENDER_GIT_BRANCH:-dev} && \
-    COMMIT=${RENDER_GIT_COMMIT:-unknown} && \
-    BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) && \
-    echo "Building with VERSION=$VERSION COMMIT=$COMMIT BUILD_TIME=$BUILD_TIME" && \
-    CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
+# Build the application with version information
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_TIME=unknown
+
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
     -ldflags "-X github.com/nethesis/my/collect/pkg/version.Version=${VERSION} \
               -X github.com/nethesis/my/collect/pkg/version.Commit=${COMMIT} \
               -X github.com/nethesis/my/collect/pkg/version.BuildTime=${BUILD_TIME}" \
