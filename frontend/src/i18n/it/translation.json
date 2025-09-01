@@ -43,7 +43,9 @@
     "switch_to_dark_theme": "Passa al tema scuro",
     "switch_to_light_theme": "Passa al tema chiaro",
     "sign_out": "Esci",
-    "close_side_drawer": "Chiudi pannello laterale"
+    "close_side_drawer": "Chiudi pannello laterale",
+    "impersonating_user": "Impersonazione: {user}",
+    "stop_impersonation": "Termina l'impersonazione"
   },
   "login": {
     "manual_redirect_to_dashboard": "Se non vieni reindirizzato automaticamente, {clickHereLink}",
@@ -135,9 +137,6 @@
     "custom_data_vat_cannot_be_empty": "La partita IVA è richiesta",
     "custom_data_vat_invalid": "Partita IVA non valida",
     "custom_data_vat_already_exists": "Un'organizzazione con questa partita IVA esiste già"
-  },
-  "impersonation": {
-    "exit_tooltip": "Clicca per uscire dall'impersonazione e tornare al tuo account originale"
   },
   "users": {
     "title": "Utenti",

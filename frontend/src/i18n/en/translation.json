@@ -43,7 +43,9 @@
     "switch_to_dark_theme": "Switch to dark theme",
     "switch_to_light_theme": "Switch to light theme",
     "sign_out": "Sign out",
-    "close_side_drawer": "Close side drawer"
+    "close_side_drawer": "Close side drawer",
+    "impersonating_user": "Impersonating: {user}",
+    "stop_impersonation": "Stop impersonation"
   },
   "login": {
     "manual_redirect_to_dashboard": "If you are not redirected automatically, {clickHereLink}",
@@ -135,9 +137,6 @@
     "custom_data_vat_cannot_be_empty": "VAT number is required",
     "custom_data_vat_invalid": "Invalid VAT number",
     "custom_data_vat_already_exists": "An organization with this VAT number already exists"
-  },
-  "impersonation": {
-    "exit_tooltip": "Click to exit impersonation and return to your original account"
   },
   "users": {
     "title": "Users",
