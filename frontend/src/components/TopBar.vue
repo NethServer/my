@@ -117,7 +117,7 @@ function openNotificationsDrawer() {
             <template #trigger>
               <button
                 @click="exitImpersonation"
-                class="ml-2 rounded p-1 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors duration-200"
+                class="ml-2 rounded p-1 transition-colors duration-200 hover:bg-amber-200 dark:hover:bg-amber-800"
               >
                 <FontAwesomeIcon :icon="faTimes" class="h-3 w-3" aria-hidden="true" />
               </button>
