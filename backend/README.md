@@ -181,6 +181,26 @@ The backend supports OAuth-style system creation callbacks for external applicat
 - **User Roles** (technical capabilities): Admin, Support
 - **Organization Roles** (business hierarchy): Owner, Distributor, Reseller, Customer
 
+### User Impersonation System
+Secure user impersonation allowing Owner organization users to temporarily become another user:
+
+#### Features
+- **Owner-Only Access**: Only users with "Owner" organization role can impersonate others
+- **Secure Tokens**: 1-hour duration impersonation JWT tokens with embedded user data
+- **Permission Filtering**: All API calls filtered by impersonated user's actual permissions
+- **Audit Trail**: Complete logging of all impersonation activities for security compliance
+- **UI Integration**: Frontend banner shows impersonation status with easy exit mechanism
+
+#### Security Controls
+- Prevents self-impersonation and token chaining
+- Strict token validation prevents regular tokens being used as impersonation tokens
+- Comprehensive security checks ensure only authorized users can initiate impersonation
+- Token blacklisting for immediate session termination
+
+#### API Endpoints
+- `POST /api/auth/impersonate` - Start impersonating another user
+- `POST /api/auth/exit-impersonation` - Exit impersonation and return to original user
+
 ### Redis Caching System
 High-performance caching system with multiple cache types:
 
@@ -296,6 +316,23 @@ curl -X POST http://localhost:8080/api/auth/exchange \
 # Test with custom JWT
 curl -X GET http://localhost:8080/api/me \
   -H "Authorization: Bearer YOUR_CUSTOM_JWT"
+```
+
+#### User Impersonation Testing
+```bash
+# Impersonate a user (Owner users only)
+curl -X POST http://localhost:8080/api/auth/impersonate \
+  -H "Authorization: Bearer YOUR_OWNER_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "target_user_id"}'
+
+# Verify impersonation is active
+curl -X GET http://localhost:8080/api/auth/me \
+  -H "Authorization: Bearer YOUR_IMPERSONATION_JWT"
+
+# Exit impersonation
+curl -X POST http://localhost:8080/api/auth/exit-impersonation \
+  -H "Authorization: Bearer YOUR_IMPERSONATION_JWT"
 ```
 
 #### Email Testing

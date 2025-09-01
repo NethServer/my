@@ -136,6 +136,9 @@
     "custom_data_vat_invalid": "Partita IVA non valida",
     "custom_data_vat_already_exists": "Un'organizzazione con questa partita IVA esiste già"
   },
+  "impersonation": {
+    "exit_tooltip": "Clicca per uscire dall'impersonazione e tornare al tuo account originale"
+  },
   "users": {
     "title": "Utenti",
     "page_description": "Elenco degli utenti autorizzati ad accedere a {productName}, con l'organizzazione associata e i ruoli assegnati.",
@@ -177,6 +180,7 @@
     "no_organizations": "Nessuna organizzazione",
     "user_roles": "Ruoli",
     "reset_password": "Reimposta password",
+    "impersonate_user": "Impersona utente",
     "reset_password_confirmation": "Reimpostare la password per l'utente {name}? Questo aggiornerà le informazioni di accesso dell'utente.",
     "password_reset": "Password reimpostata",
     "password_reset_description": "La password per l'utente {name} è stata reimpostata",

@@ -39,6 +39,9 @@ export const useLoginStore = defineStore('login', () => {
   const refreshToken = ref<string>('')
   const userInfo = ref<UserInfo | undefined>()
   const loadingUserInfo = ref<boolean>(true)
+  const isImpersonating = ref<boolean>(false)
+  const impersonatedUser = ref<UserInfo | undefined>()
+  const originalUser = ref<UserInfo | undefined>()
 
   const userDisplayName = computed(() => userInfo.value?.name || '')
 
@@ -151,6 +154,75 @@ export const useLoginStore = defineStore('login', () => {
     }
   }
 
+  const impersonateUser = async (userId: string) => {
+    try {
+      const res = await axios.post(
+        `${API_URL}/auth/impersonate`,
+        { user_id: userId },
+        {
+          headers: {
+            Authorization: `Bearer ${jwtToken.value}`,
+          },
+        },
+      )
+
+      // Store original user info before switching
+      if (!isImpersonating.value) {
+        originalUser.value = { ...userInfo.value! }
+      }
+
+      // Update tokens and user info with impersonated user
+      jwtToken.value = res.data.data.token
+      impersonatedUser.value = res.data.data.impersonated_user as UserInfo
+      userInfo.value = impersonatedUser.value
+      isImpersonating.value = true
+
+      console.log('[login store] impersonation started', {
+        impersonated: impersonatedUser.value,
+        original: originalUser.value,
+      })
+
+      // Navigate to dashboard or stay on current page
+      if (router.currentRoute.value.path === '/users') {
+        router.push('/dashboard')
+      }
+
+      return res.data
+    } catch (error) {
+      console.error('Cannot impersonate user:', error)
+      throw error
+    }
+  }
+
+  const exitImpersonation = async () => {
+    try {
+      const res = await axios.post(
+        `${API_URL}/auth/exit-impersonation`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${jwtToken.value}`,
+          },
+        },
+      )
+
+      // Restore original user info
+      jwtToken.value = res.data.data.token
+      refreshToken.value = res.data.data.refresh_token
+      userInfo.value = res.data.data.user as UserInfo
+      isImpersonating.value = false
+      impersonatedUser.value = undefined
+      originalUser.value = undefined
+
+      console.log('[login store] impersonation ended', userInfo.value)
+
+      return res.data
+    } catch (error) {
+      console.error('Cannot exit impersonation:', error)
+      throw error
+    }
+  }
+
   return {
     isAuthenticated,
     jwtToken,
@@ -160,8 +232,13 @@ export const useLoginStore = defineStore('login', () => {
     loadingUserInfo,
     isOwner,
     permissions,
+    isImpersonating,
+    impersonatedUser,
+    originalUser,
     fetchTokenAndUserInfo,
     doRefreshToken,
+    impersonateUser,
+    exitImpersonation,
     login,
     logout,
   }

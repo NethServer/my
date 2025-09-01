@@ -36,6 +36,11 @@ type RefreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
+// ImpersonateRequest represents the request body for user impersonation
+type ImpersonateRequest struct {
+	UserID string `json:"user_id" binding:"required"`
+}
+
 // TokenExchangeResponse represents the response for token exchange
 type TokenExchangeResponse struct {
 	Token        string      `json:"token"`
@@ -740,6 +745,246 @@ func Logout(c *gin.Context) {
 		"logout successful",
 		gin.H{
 			"message": "token has been invalidated",
+		},
+	))
+}
+
+// ImpersonateUser allows owner users to impersonate another user
+// POST /api/auth/impersonate
+func ImpersonateUser(c *gin.Context) {
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Check if user is already impersonating someone
+	isImpersonated, exists := c.Get("is_impersonated")
+	if exists && isImpersonated.(bool) {
+		logger.RequestLogger(c, "auth").Warn().
+			Str("operation", "impersonate_chaining_prevented").
+			Str("user_id", user.ID).
+			Msg("User attempted to impersonate while already impersonating")
+
+		c.JSON(http.StatusForbidden, response.Forbidden(
+			"Cannot impersonate while already impersonating another user. Exit current impersonation first.",
+			nil,
+		))
+		return
+	}
+
+	// Only owner organization users can impersonate
+	if user.OrgRole != "Owner" {
+		logger.RequestLogger(c, "auth").Warn().
+			Str("operation", "impersonate_unauthorized").
+			Str("user_id", user.ID).
+			Str("org_role", user.OrgRole).
+			Msg("Non-owner user attempted impersonation")
+
+		c.JSON(http.StatusForbidden, response.Forbidden(
+			"Only owner users can impersonate other users",
+			nil,
+		))
+		return
+	}
+
+	// Parse request body
+	var req ImpersonateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.RequestLogger(c, "auth").Warn().
+			Err(err).
+			Str("operation", "impersonate_parse_request").
+			Str("user_id", user.ID).
+			Msg("Invalid impersonate request JSON")
+
+		c.JSON(http.StatusBadRequest, response.BadRequest(
+			"Invalid request body: "+err.Error(),
+			nil,
+		))
+		return
+	}
+
+	// Get target user information for impersonation
+	targetUser, err := logto.GetUserForImpersonation(req.UserID)
+	if err != nil {
+		logger.RequestLogger(c, "auth").Error().
+			Err(err).
+			Str("operation", "impersonate_get_target_user").
+			Str("user_id", user.ID).
+			Str("target_user_id", req.UserID).
+			Msg("Failed to get target user for impersonation")
+
+		c.JSON(http.StatusBadRequest, response.BadRequest(
+			"Target user not found or inaccessible: "+err.Error(),
+			nil,
+		))
+		return
+	}
+
+	// Prevent self-impersonation
+	if targetUser.ID == user.ID || (user.LogtoID != nil && targetUser.LogtoID != nil && *user.LogtoID == *targetUser.LogtoID) {
+		logger.RequestLogger(c, "auth").Warn().
+			Str("operation", "impersonate_self_attempt").
+			Str("user_id", user.ID).
+			Str("target_user_id", req.UserID).
+			Msg("User attempted to impersonate themselves")
+
+		c.JSON(http.StatusBadRequest, response.BadRequest(
+			"Cannot impersonate yourself",
+			nil,
+		))
+		return
+	}
+
+	// Generate impersonation token
+	impersonationToken, err := jwt.GenerateImpersonationToken(*targetUser, *user)
+	if err != nil {
+		logger.RequestLogger(c, "auth").Error().
+			Err(err).
+			Str("operation", "impersonate_generate_token").
+			Str("user_id", user.ID).
+			Str("target_user_id", req.UserID).
+			Msg("Failed to generate impersonation token")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError(
+			"Failed to generate impersonation token: "+err.Error(),
+			nil,
+		))
+		return
+	}
+
+	// Log successful impersonation start
+	logger.RequestLogger(c, "auth").Info().
+		Str("operation", "impersonation_started").
+		Str("impersonator_user_id", user.ID).
+		Str("impersonator_username", user.Username).
+		Str("impersonated_user_id", targetUser.ID).
+		Str("impersonated_username", targetUser.Username).
+		Str("impersonator_org", user.OrganizationID).
+		Str("impersonated_org", targetUser.OrganizationID).
+		Msg("User impersonation started successfully")
+
+	c.JSON(http.StatusOK, response.OK(
+		"impersonation started successfully",
+		gin.H{
+			"token":             impersonationToken,
+			"expires_in":        3600, // 1 hour
+			"impersonated_user": targetUser,
+			"impersonator":      user,
+			"is_impersonated":   true,
+		},
+	))
+}
+
+// ExitImpersonation allows user to exit impersonation mode and return to original token
+// POST /api/auth/exit-impersonation
+func ExitImpersonation(c *gin.Context) {
+	// Check if this is an impersonation token
+	isImpersonated, exists := c.Get("is_impersonated")
+	logger.RequestLogger(c, "auth").Debug().
+		Bool("is_impersonated_exists", exists).
+		Interface("is_impersonated_value", isImpersonated).
+		Msg("ExitImpersonation - checking impersonation state")
+
+	if !exists || !isImpersonated.(bool) {
+		logger.RequestLogger(c, "auth").Warn().
+			Str("operation", "exit_impersonation_not_impersonating").
+			Msg("Exit impersonation called without active impersonation")
+
+		c.JSON(http.StatusBadRequest, response.BadRequest(
+			"Not currently impersonating a user",
+			nil,
+		))
+		return
+	}
+
+	// Get impersonator information
+	impersonator, exists := c.Get("impersonated_by")
+	if !exists || impersonator == nil {
+		logger.RequestLogger(c, "auth").Error().
+			Str("operation", "exit_impersonation_missing_impersonator").
+			Bool("exists", exists).
+			Interface("impersonator", impersonator).
+			Msg("Impersonation context missing impersonator information")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError(
+			"Invalid impersonation state",
+			nil,
+		))
+		return
+	}
+
+	impersonatorUser, ok := impersonator.(*models.User)
+	if !ok || impersonatorUser == nil {
+		logger.RequestLogger(c, "auth").Error().
+			Str("operation", "exit_impersonation_invalid_impersonator_type").
+			Interface("impersonator_type", impersonator).
+			Msg("Invalid impersonator type in context")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError(
+			"Invalid impersonation state",
+			nil,
+		))
+		return
+	}
+	impersonatedUser, _ := helpers.GetUserFromContext(c)
+
+	// Generate new regular token for the original user
+	newToken, err := jwt.GenerateCustomToken(*impersonatorUser)
+	if err != nil {
+		logger.RequestLogger(c, "auth").Error().
+			Err(err).
+			Str("operation", "exit_impersonation_generate_token").
+			Str("impersonator_user_id", impersonatorUser.ID).
+			Msg("Failed to generate token for exiting impersonation")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError(
+			"Failed to generate exit token: "+err.Error(),
+			nil,
+		))
+		return
+	}
+
+	// Generate refresh token for the original user
+	refreshToken, err := jwt.GenerateRefreshToken(*impersonatorUser.LogtoID)
+	if err != nil {
+		logger.RequestLogger(c, "auth").Error().
+			Err(err).
+			Str("operation", "exit_impersonation_generate_refresh_token").
+			Str("impersonator_user_id", impersonatorUser.ID).
+			Msg("Failed to generate refresh token for exiting impersonation")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError(
+			"Failed to generate refresh token: "+err.Error(),
+			nil,
+		))
+		return
+	}
+
+	// Calculate expiration in seconds for regular token
+	expDuration, err := time.ParseDuration(configuration.Config.JWTExpiration)
+	if err != nil {
+		expDuration = 24 * time.Hour // Default fallback
+	}
+	expiresIn := int64(expDuration.Seconds())
+
+	// Log successful impersonation exit
+	logger.RequestLogger(c, "auth").Info().
+		Str("operation", "impersonation_exited").
+		Str("impersonator_user_id", impersonatorUser.ID).
+		Str("impersonator_username", impersonatorUser.Username).
+		Str("impersonated_user_id", impersonatedUser.ID).
+		Str("impersonated_username", impersonatedUser.Username).
+		Msg("User successfully exited impersonation")
+
+	c.JSON(http.StatusOK, response.OK(
+		"impersonation ended successfully",
+		gin.H{
+			"token":           newToken,
+			"refresh_token":   refreshToken,
+			"expires_in":      expiresIn,
+			"user":            impersonatorUser,
+			"is_impersonated": false,
 		},
 	))
 }

@@ -136,6 +136,9 @@
     "custom_data_vat_invalid": "Invalid VAT number",
     "custom_data_vat_already_exists": "An organization with this VAT number already exists"
   },
+  "impersonation": {
+    "exit_tooltip": "Click to exit impersonation and return to your original account"
+  },
   "users": {
     "title": "Users",
     "page_description": "List of users authorized to access {productName}, with associated organizations and assigned roles.",
@@ -177,6 +180,7 @@
     "no_organizations": "No organizations",
     "user_roles": "Roles",
     "reset_password": "Reset password",
+    "impersonate_user": "Impersonate user",
     "reset_password_confirmation": "Reset the password for user {name}? This will update the user's sign-in information.",
     "password_reset": "Password reset",
     "password_reset_description": "The password for user {name} has been reset",

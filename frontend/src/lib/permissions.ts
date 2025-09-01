@@ -51,3 +51,9 @@ export const canManageUsers = () => {
   const loginStore = useLoginStore()
   return loginStore.permissions.includes(MANAGE_USERS)
 }
+
+export const canImpersonateUsers = () => {
+  const loginStore = useLoginStore()
+  // Only owner organization users can impersonate
+  return loginStore.userInfo?.org_role === 'Owner'
+}
