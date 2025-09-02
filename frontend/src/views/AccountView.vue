@@ -41,7 +41,13 @@ onMounted(() => {
         v-if="loginStore.isOwner"
         kind="info"
         :title="$t('account.cannot_edit_profile')"
-        :description="$t('account.cannot_edit_profile_description')"
+        :description="$t('account.cannot_edit_profile_owner_description')"
+      />
+      <NeInlineNotification
+        v-else-if="loginStore.isImpersonating"
+        kind="info"
+        :title="$t('account.cannot_edit_profile')"
+        :description="$t('account.cannot_edit_profile_impersonating_description')"
       />
       <FormLayout :title="$t('account.profile')">
         <ProfilePanel />
@@ -52,7 +58,13 @@ onMounted(() => {
         v-if="loginStore.isOwner"
         kind="info"
         :title="$t('account.password_change_disabled')"
-        :description="$t('account.password_change_disabled_description')"
+        :description="$t('account.password_change_disabled_owner_description')"
+      />
+      <NeInlineNotification
+        v-if="loginStore.isImpersonating"
+        kind="info"
+        :title="$t('account.password_change_disabled')"
+        :description="$t('account.password_change_disabled_impersonating_description')"
       />
       <FormLayout :title="$t('account.change_password')">
         <NeButton
