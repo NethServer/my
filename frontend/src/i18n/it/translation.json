@@ -44,8 +44,7 @@
     "switch_to_light_theme": "Passa al tema chiaro",
     "sign_out": "Esci",
     "close_side_drawer": "Chiudi pannello laterale",
-    "impersonating_user": "Impersonazione: {user}",
-    "stop_impersonation": "Termina l'impersonazione"
+    "end_impersonation": "Termina l'impersonazione e torna al tuo account"
   },
   "login": {
     "manual_redirect_to_dashboard": "Se non vieni reindirizzato automaticamente, {clickHereLink}",
@@ -180,6 +179,14 @@
     "user_roles": "Ruoli",
     "reset_password": "Reimposta password",
     "impersonate_user": "Impersona utente",
+    "impersonate_user_message_1": "Impersonare l'utente {user}? Agirai temporaneamente come questo utente e avrai i suoi permessi.",
+    "impersonate_user_message_2": "Per tornare al tuo account, clicca sull'icona di chiusura nel badge di impersonificazione nella barra superiore. Per motivi di sicurezza, la sessione di impersonificazione ha una durata limitata e terminerà automaticamente.",
+    "impersonation_started": "Impersonificazione avviata",
+    "you_are_now_impersonating_user": "Ora stai impersonando {user}",
+    "impersonation_ended": "Impersonificazione terminata",
+    "impersonation_expired_message": "La sessione di impersonificazione è scaduta, sei tornato ad usare il tuo account.",
+    "impersonation_timer_tooltip": "La sessione di impersonificazione terminerà automaticamente tra {timer}",
+    "you_are_now_logged_in_as_yourself": "Sei tornato ad usare il tuo account",
     "reset_password_confirmation": "Reimpostare la password per l'utente {name}? Questo aggiornerà le informazioni di accesso dell'utente.",
     "password_reset": "Password reimpostata",
     "password_reset_description": "La password per l'utente {name} è stata reimpostata",
@@ -193,7 +200,8 @@
     "password_changed": "Password cambiata",
     "password_changed_description": "La tua password è stata cambiata",
     "username_already_exists": "Nome utente già esistente",
-    "user_email_description": "L'utente riceverà un'email di benvenuto contenente le istruzioni su come accedere a {productName}, insieme a una password temporanea che potrà essere modificata al primo accesso."
+    "user_email_description": "L'utente riceverà un'email di benvenuto contenente le istruzioni su come accedere a {productName}, insieme a una password temporanea che potrà essere modificata al primo accesso.",
+    "cannot_impersonate_user": "Impossibile impersonare l'utente"
   },
   "third_party_apps": {
     "description_nethshop_nethesis_it": "Sfoglia e ordina prodotti e servizi Nethesis.",
@@ -216,9 +224,11 @@
     "profile_saved": "Profilo salvato",
     "save_profile": "Salva profilo",
     "cannot_edit_profile": "La modifica del profilo è disabilitata",
-    "cannot_edit_profile_description": "Non puoi modificare il tuo profilo perché hai effettuato l'accesso come utente 'owner'. Questo utente è riservato all'amministrazione del sistema.",
+    "cannot_edit_profile_owner_description": "Non puoi modificare il tuo profilo perché hai effettuato l'accesso come utente 'owner'. Questo utente è riservato all'amministrazione del sistema.",
+    "cannot_edit_profile_impersonating_description": "Non puoi modificare il profilo mentre stai impersonando un altro utente.",
     "password_change_disabled": "La modifica della password è disabilitata",
-    "password_change_disabled_description": "Non puoi cambiare la password perché hai effettuato l'accesso come utente 'owner'. Questo utente è riservato all'amministrazione del sistema.",
+    "password_change_disabled_owner_description": "Non puoi cambiare la password perché hai effettuato l'accesso come utente 'owner'. Questo utente è riservato all'amministrazione del sistema.",
+    "password_change_disabled_impersonating_description": "Non puoi cambiare la password mentre stai impersonando un altro utente.",
     "current_password": "Password attuale",
     "new_password": "Nuova password",
     "confirm_password": "Conferma password",

@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { NeAvatar, NeBadgeV2, NeDropdown, NeSkeleton, NeTooltip } from '@nethesis/vue-components'
+import { NeAvatar, NeDropdown, NeSkeleton, NeTooltip } from '@nethesis/vue-components'
 import { computed, ref } from 'vue'
 import { useThemeStore } from '@/stores/theme'
 import { useLoginStore } from '@/stores/login'
@@ -17,13 +17,12 @@ import {
   faMoon,
   faRightFromBracket,
   faSun,
-  faUserSecret,
-  faTimes,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useI18n } from 'vue-i18n'
 import { useNotificationsStore } from '@/stores/notifications'
 import router from '@/router'
+import ImpersonationBadge from './ImpersonationBadge.vue'
 
 const emit = defineEmits(['openSidebar'])
 
@@ -53,14 +52,6 @@ const accountMenuOptions = computed(() => {
     },
   ]
 })
-
-const exitImpersonation = async () => {
-  try {
-    await loginStore.exitImpersonation()
-  } catch (error) {
-    console.error('Failed to exit impersonation:', error)
-  }
-}
 
 //// uncomment
 // watch(
@@ -104,17 +95,8 @@ function openNotificationsDrawer() {
       <div class="relative flex flex-1 items-center"></div>
       <!-- right-aligned before separator -->
       <div class="flex items-center gap-x-4 lg:gap-x-6">
-        <!-- Impersonation badge -->
-        <NeBadgeV2
-          v-if="loginStore.isImpersonating"
-          kind="amber"
-          dismissable
-          :dismissAriaLabel="t('shell.stop_impersonation')"
-          @dismiss="exitImpersonation"
-        >
-          <FontAwesomeIcon :icon="faUserSecret" class="size-4" aria-hidden="true" />
-          {{ $t('shell.impersonating_user', { user: loginStore.userDisplayName }) }}
-        </NeBadgeV2>
+        <!-- impersonation badge -->
+        <ImpersonationBadge />
         <!-- separator -->
         <div
           class="hidden lg:block lg:h-6 lg:w-px lg:bg-gray-200 dark:lg:bg-gray-700"
