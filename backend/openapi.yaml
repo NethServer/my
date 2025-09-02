@@ -45,6 +45,8 @@ tags:
     description: Backend user management with RBAC
   - name: Backend - Validators
     description: Backend validation endpoints for real-time checks
+  - name: Backend - Impersonation
+    description: Backend consent-based user impersonation system
 
 
   - name: Collect - Health
@@ -468,6 +470,10 @@ components:
           nullable: true
           description: Suspension timestamp (null if not suspended)
           example: null
+        can_be_impersonated:
+          type: boolean
+          description: Whether this user can currently be impersonated (only shown for Owner users, based on active consent)
+          example: true
 
     UserInput:
       type: object
@@ -1038,7 +1044,7 @@ paths:
       operationId: getUsers
       tags:
         - Backend - Users
-      summary: List users
+      summary: /users - List users
       description: Get paginated list of users with hierarchical authorization
       parameters:
         - $ref: '#/components/parameters/PageParam'
@@ -1078,7 +1084,7 @@ paths:
       operationId: createUser
       tags:
         - Backend - Users
-      summary: Create user
+      summary: /users - Create user
       description: Create a new user with hierarchical authorization
       requestBody:
         required: true
@@ -1116,7 +1122,7 @@ paths:
       operationId: getUserById
       tags:
         - Backend - Users
-      summary: Get single user
+      summary: /users/{id} - Get single user
       description: Get a specific user by ID with hierarchical authorization
       parameters:
         - name: id
@@ -1153,7 +1159,7 @@ paths:
       operationId: updateUser
       tags:
         - Backend - Users
-      summary: Update user
+      summary: /users/{id} - Update user
       description: Update a user with hierarchical authorization
       parameters:
         - name: id
@@ -1200,7 +1206,7 @@ paths:
       operationId: deleteUser
       tags:
         - Backend - Users
-      summary: Delete user
+      summary: /users/{id} - Delete user
       description: Delete a user with hierarchical authorization
       parameters:
         - name: id
@@ -1241,7 +1247,7 @@ paths:
       operationId: resetUserPassword
       tags:
         - Backend - Users
-      summary: Reset user password
+      summary: /users/{id}/password - Reset user password
       description: Reset a user's password (Admin only)
       parameters:
         - name: id
@@ -1288,7 +1294,7 @@ paths:
       operationId: suspendUser
       tags:
         - Backend - Users
-      summary: Suspend user
+      summary: /users/{id}/suspend - Suspend user
       description: Suspend a user (requires manage:users permission and hierarchical validation)
       parameters:
         - name: id
@@ -1329,7 +1335,7 @@ paths:
       operationId: reactivateUser
       tags:
         - Backend - Users
-      summary: Reactivate suspended user
+      summary: /users/{id}/reactivate - Reactivate suspended user
       description: Reactivate a suspended user (requires manage:users permission and hierarchical validation)
       parameters:
         - name: id
@@ -1370,7 +1376,7 @@ paths:
       operationId: getUsersTotals
       tags:
         - Backend - Users
-      summary: Get users totals
+      summary: /users/totals - Get users totals
       description: Get total count of users accessible to the user (Admin role required)
       responses:
         '200':
@@ -1398,7 +1404,7 @@ paths:
       operationId: getApplications
       tags:
         - Backend - Applications
-      summary: Get third-party applications
+      summary: /applications - Get third-party applications
       description: Get third-party applications filtered by user's organization membership, organization roles, and user roles
       responses:
         '200':
@@ -1432,7 +1438,7 @@ paths:
       operationId: exchangeToken
       tags:
         - Backend - Authentication
-      summary: Exchange Logto token for custom JWT
+      summary: /auth/exchange - Exchange Logto token for custom JWT
       description: Exchange a Logto access token for a custom JWT with embedded permissions
       security: []
       requestBody:
@@ -1467,7 +1473,7 @@ paths:
       operationId: getMe
       tags:
         - Backend - Me
-      summary: Get current user information
+      summary: /me - Get current user information
       description: Get current authenticated user's profile and permissions
       responses:
         '200':
@@ -1493,7 +1499,7 @@ paths:
       operationId: changeMyPassword
       tags:
         - Backend - Me
-      summary: Change current user password
+      summary: /me/change-password - Change current user password
       description: Allow the current authenticated user to change their own password
       requestBody:
         required: true
@@ -1592,7 +1598,7 @@ paths:
       operationId: changeMyInfo
       tags:
         - Backend - Me
-      summary: Change current user information
+      summary: /me/change-info - Change current user information
       description: Allow the current authenticated user to change their name, email, and phone number. Name and email cannot be empty if provided.
       requestBody:
         required: true
@@ -1686,7 +1692,7 @@ paths:
       operationId: refreshToken
       tags:
         - Backend - Authentication
-      summary: Refresh access token
+      summary: /auth/refresh - Refresh access token
       description: Get new access token using refresh token
       security: []
       requestBody:
@@ -1721,7 +1727,7 @@ paths:
       operationId: logout
       tags:
         - Backend - Authentication
-      summary: Logout user
+      summary: /auth/logout - Logout user
       description: Invalidate user's access token and refresh token (blacklist tokens)
       requestBody:
         required: true
@@ -1759,23 +1765,175 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /auth/impersonate:
-    post:
-      operationId: impersonateUser
-      tags:
-        - Backend - Authentication
-      summary: Impersonate another user
-      description: |
-        Allows Owner organization users to temporarily assume the identity and permissions
-        of another user for troubleshooting and support purposes. Creates a special
-        impersonation JWT token with 1-hour expiration.
+  # ===========================================================================
+  # CONSENT-BASED IMPERSONATION SYSTEM
+  # ===========================================================================
 
-        **Security Features:**
-        - Only Owner organization users can impersonate
-        - Cannot impersonate yourself
-        - Cannot impersonate while already impersonating
-        - All activities are logged for audit
-        - Token expires in 1 hour (vs 24 hours for normal tokens)
+  /impersonate/consent:
+    post:
+      operationId: enableImpersonationConsent
+      tags:
+        - Backend - Impersonation
+      summary: /impersonate/consent - Enable impersonation consent
+      description: |
+        Allows a user to enable consent for being impersonated by Owner users.
+        This is a **privacy-friendly** approach where users explicitly control
+        if and for how long they can be impersonated.
+
+        **Key Features:**
+        - User controls their own impersonation consent
+        - Custom duration (1-168 hours)
+        - Only active while consent is valid
+        - Complete audit trail of all impersonation activities
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                duration_hours:
+                  type: integer
+                  minimum: 1
+                  maximum: 168
+                  description: How many hours the consent should be active (max 1 week)
+                  example: 24
+              required:
+                - duration_hours
+      responses:
+        '200':
+          description: Impersonation consent enabled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "impersonation consent enabled successfully"
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        description: Consent ID
+                        example: "consent-uuid-here"
+                      user_id:
+                        type: string
+                        description: User ID who gave consent
+                        example: "user-uuid-here"
+                      expires_at:
+                        type: string
+                        format: date-time
+                        description: When the consent expires
+                        example: "2024-01-02T15:04:05Z"
+                      max_duration_minutes:
+                        type: integer
+                        description: Maximum duration in minutes
+                        example: 1440
+                      active:
+                        type: boolean
+                        description: Whether consent is currently active
+                        example: true
+        '400':
+          description: Bad request (invalid duration)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: 400
+                message: "Duration must be between 1 and 168 hours"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    get:
+      operationId: getImpersonationConsentStatus
+      tags:
+        - Backend - Impersonation
+      summary: /impersonate/consent - Get impersonation consent status
+      description: |
+        Retrieves the current impersonation consent status for the authenticated user.
+        Shows if consent is active, when it expires, and other consent details.
+      responses:
+        '200':
+          description: Consent status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "consent status retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        description: Consent ID (null if no active consent)
+                        example: "consent-uuid-here"
+                      user_id:
+                        type: string
+                        description: User ID
+                        example: "user-uuid-here"
+                      expires_at:
+                        type: string
+                        format: date-time
+                        description: When consent expires (null if no active consent)
+                        example: "2024-01-02T15:04:05Z"
+                      max_duration_minutes:
+                        type: integer
+                        description: Maximum duration in minutes (null if no active consent)
+                        example: 1440
+                      active:
+                        type: boolean
+                        description: Whether consent is currently active
+                        example: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      operationId: disableImpersonationConsent
+      tags:
+        - Backend - Impersonation
+      summary: /impersonate/consent - Disable impersonation consent
+      description: |
+        Disables all active impersonation consent for the authenticated user.
+        This prevents any future impersonation until consent is re-enabled.
+      responses:
+        '200':
+          description: Impersonation consent disabled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "impersonation consent disabled successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /impersonate:
+    post:
+      operationId: impersonateUserWithConsent
+      tags:
+        - Backend - Impersonation
+      summary: /impersonate - Start impersonation (Owner only)
+      description: |
+        Allows an Owner user to impersonate another user, but only if that user
+        has active consent enabled. The impersonation token duration will match
+        the user's consent settings.
       requestBody:
         required: true
         content:
@@ -1785,8 +1943,8 @@ paths:
               properties:
                 user_id:
                   type: string
-                  description: Logto ID of the user to impersonate
-                  example: "nkipq0dbham1"
+                  description: ID of the user to impersonate
+                  example: "user-uuid-here"
               required:
                 - user_id
       responses:
@@ -1808,12 +1966,16 @@ paths:
                     properties:
                       token:
                         type: string
-                        description: Impersonation JWT token (1-hour expiration)
+                        description: Impersonation JWT token with custom duration
                         example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                       expires_in:
                         type: integer
-                        description: Token expiration time in seconds (3600 = 1 hour)
-                        example: 3600
+                        description: Token expiration time in seconds (matches user consent)
+                        example: 86400
+                      session_id:
+                        type: string
+                        description: Unique session ID for audit tracking
+                        example: "session-uuid-here"
                       impersonated_user:
                         $ref: '#/components/schemas/User'
                       impersonator:
@@ -1823,7 +1985,7 @@ paths:
                         description: Flag indicating this is an impersonation token
                         example: true
         '400':
-          description: Bad request (cannot impersonate yourself, invalid user_id, etc.)
+          description: Bad request (cannot impersonate yourself, user not found, etc.)
           content:
             application/json:
               schema:
@@ -1839,6 +2001,11 @@ paths:
                   value:
                     code: 400
                     message: "Target user not found or inaccessible"
+                no_consent:
+                  summary: User has no active consent
+                  value:
+                    code: 400
+                    message: "Target user has not provided consent for impersonation or consent has expired"
         '403':
           description: Forbidden (only Owner users can impersonate, or already impersonating)
           content:
@@ -1860,14 +2027,14 @@ paths:
           $ref: '#/components/responses/Unauthorized'
 
     delete:
-      operationId: exitImpersonation
+      operationId: exitImpersonationWithAudit
       tags:
-        - Backend - Authentication
-      summary: Exit impersonation mode
+        - Backend - Impersonation
+      summary: /impersonate - Exit impersonation mode
       description: |
         Allows user to exit impersonation mode and return to their original account.
         This endpoint can only be called with an active impersonation token.
-        Returns fresh tokens for the original user.
+        Returns fresh tokens for the original user and completes the audit session.
       responses:
         '200':
           description: Impersonation ended successfully
@@ -1915,13 +2082,121 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /impersonate/audit:
+    get:
+      operationId: getImpersonationAudit
+      tags:
+        - Backend - Impersonation
+      summary: /impersonate/audit - Get impersonation audit logs
+      description: |
+        Retrieves impersonation audit logs. Users can view their own audit history
+        (when they were impersonated). Owner users can view audit logs for any user.
+      parameters:
+        - name: user_id
+          in: query
+          description: User ID to get audit for (optional, defaults to current user)
+          schema:
+            type: string
+          example: "user-uuid-here"
+        - name: session_id
+          in: query
+          description: Session ID to get audit for specific session (optional)
+          schema:
+            type: string
+          example: "session-uuid-here"
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: Audit logs retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "audit logs retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      audit_entries:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              description: Audit entry ID
+                              example: "audit-uuid-here"
+                            session_id:
+                              type: string
+                              description: Impersonation session ID
+                              example: "session-uuid-here"
+                            impersonator_user_id:
+                              type: string
+                              description: ID of user who performed impersonation
+                              example: "owner-uuid-here"
+                            impersonated_user_id:
+                              type: string
+                              description: ID of user who was impersonated
+                              example: "user-uuid-here"
+                            action_type:
+                              type: string
+                              description: Type of action performed
+                              example: "api_call"
+                            api_endpoint:
+                              type: string
+                              description: API endpoint that was called
+                              example: "/api/users"
+                            http_method:
+                              type: string
+                              description: HTTP method used
+                              example: "GET"
+                            request_data:
+                              type: string
+                              description: Sanitized request data (sensitive info redacted)
+                              example: "{\"name\": \"John\", \"password\": \"[REDACTED]\"}"
+                            response_status:
+                              type: integer
+                              description: HTTP response status code
+                              example: 200
+                            timestamp:
+                              type: string
+                              format: date-time
+                              description: When the action was performed
+                              example: "2024-01-01T12:00:00Z"
+                            impersonator_username:
+                              type: string
+                              description: Username of impersonator
+                              example: "admin"
+                            impersonated_username:
+                              type: string
+                              description: Username of impersonated user
+                              example: "john.doe"
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Forbidden (cannot view other user's audit logs unless Owner)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: 403
+                message: "Cannot view audit logs for other users"
 
   /customers:
     get:
       operationId: getCustomers
       tags:
         - Backend - Customers
-      summary: List customers
+      summary: /customers - List customers
       description: Get paginated list of customers (Owner + Distributor + Reseller)
       parameters:
         - $ref: '#/components/parameters/PageParam'
@@ -1961,7 +2236,7 @@ paths:
       operationId: createCustomer
       tags:
         - Backend - Customers
-      summary: Create customer
+      summary: /customers - Create customer
       description: Create a new customer organization (Owner + Distributor + Reseller)
       requestBody:
         required: true
@@ -1999,7 +2274,7 @@ paths:
       operationId: getCustomerById
       tags:
         - Backend - Customers
-      summary: Get single customer
+      summary: /customers/{id} - Get single customer
       description: Get a specific customer by ID (Owner + Distributor + Reseller)
       parameters:
         - name: id
@@ -2036,7 +2311,7 @@ paths:
       operationId: updateCustomer
       tags:
         - Backend - Customers
-      summary: Update customer
+      summary: /customers/{id} - Update customer
       description: Update a customer organization (Owner + Distributor + Reseller)
       parameters:
         - name: id
@@ -2083,7 +2358,7 @@ paths:
       operationId: deleteCustomer
       tags:
         - Backend - Customers
-      summary: Delete customer
+      summary: /customers/{id} - Delete customer
       description: Delete a customer organization (Owner + Distributor + Reseller)
       parameters:
         - name: id
@@ -2124,7 +2399,7 @@ paths:
       operationId: getCustomersTotals
       tags:
         - Backend - Customers
-      summary: Get customers totals
+      summary: /customers/totals - Get customers totals
       description: Get total count of customers accessible to the user (Owner + Distributor + Reseller)
       responses:
         '200':
@@ -2152,7 +2427,7 @@ paths:
       operationId: getDistributors
       tags:
         - Backend - Distributors
-      summary: List distributors
+      summary: /distributors - List distributors
       description: Get paginated list of distributors (Owner only)
       parameters:
         - $ref: '#/components/parameters/PageParam'
@@ -2192,7 +2467,7 @@ paths:
       operationId: createDistributor
       tags:
         - Backend - Distributors
-      summary: Create distributor
+      summary: /distributors - Create distributor
       description: Create a new distributor organization (Owner only)
       requestBody:
         required: true
@@ -2230,7 +2505,7 @@ paths:
       operationId: getDistributorById
       tags:
         - Backend - Distributors
-      summary: Get single distributor
+      summary: /distributors/{id} - Get single distributor
       description: Get a specific distributor by ID (Owner only)
       parameters:
         - name: id
@@ -2267,7 +2542,7 @@ paths:
       operationId: updateDistributor
       tags:
         - Backend - Distributors
-      summary: Update distributor
+      summary: /distributors/{id} - Update distributor
       description: Update a distributor organization (Owner only)
       parameters:
         - name: id
@@ -2314,7 +2589,7 @@ paths:
       operationId: deleteDistributor
       tags:
         - Backend - Distributors
-      summary: Delete distributor
+      summary: /distributors/{id} - Delete distributor
       description: Delete a distributor organization (Owner only)
       parameters:
         - name: id
@@ -2355,7 +2630,7 @@ paths:
       operationId: getDistributorsTotals
       tags:
         - Backend - Distributors
-      summary: Get distributors totals
+      summary: /distributors/totals - Get distributors totals
       description: Get total count of distributors accessible to the user (Owner only)
       responses:
         '200':
@@ -2384,7 +2659,7 @@ paths:
       tags:
         - Backend - Health
         - Collect - Health
-      summary: Health check
+      summary: /health - Health check
       description: Check if the service is healthy (available on both backend and collect servers)
       security: []
       responses:
@@ -2436,7 +2711,7 @@ paths:
       operationId: getOrganizationRoles
       tags:
         - Backend - Roles
-      summary: Get all organization roles
+      summary: /organization-roles - Get all organization roles
       description: Get all available organization roles with their IDs and descriptions
       responses:
         '200':
@@ -2467,7 +2742,7 @@ paths:
       operationId: getOrganizations
       tags:
         - Backend - Organizations
-      summary: Get available organizations
+      summary: /organizations - Get available organizations
       description: Get organizations the current user can assign users to, filtered by business hierarchy
       responses:
         '200':
@@ -2498,7 +2773,7 @@ paths:
       operationId: getResellers
       tags:
         - Backend - Resellers
-      summary: List resellers
+      summary: /resellers - List resellers
       description: Get paginated list of resellers (Owner + Distributor)
       parameters:
         - $ref: '#/components/parameters/PageParam'
@@ -2538,7 +2813,7 @@ paths:
       operationId: createReseller
       tags:
         - Backend - Resellers
-      summary: Create reseller
+      summary: /resellers - Create reseller
       description: Create a new reseller organization (Owner + Distributor)
       requestBody:
         required: true
@@ -2576,7 +2851,7 @@ paths:
       operationId: getResellerById
       tags:
         - Backend - Resellers
-      summary: Get single reseller
+      summary: /resellers/{id} - Get single reseller
       description: Get a specific reseller by ID (Owner + Distributor)
       parameters:
         - name: id
@@ -2613,7 +2888,7 @@ paths:
       operationId: updateReseller
       tags:
         - Backend - Resellers
-      summary: Update reseller
+      summary: /resellers/{id} - Update reseller
       description: Update a reseller organization (Owner + Distributor)
       parameters:
         - name: id
@@ -2660,7 +2935,7 @@ paths:
       operationId: deleteReseller
       tags:
         - Backend - Resellers
-      summary: Delete reseller
+      summary: /resellers/{id} - Delete reseller
       description: Delete a reseller organization (Owner + Distributor)
       parameters:
         - name: id
@@ -2701,7 +2976,7 @@ paths:
       operationId: getResellersTotals
       tags:
         - Backend - Resellers
-      summary: Get resellers totals
+      summary: /resellers/totals - Get resellers totals
       description: Get total count of resellers accessible to the user (Owner + Distributor)
       responses:
         '200':
@@ -2729,7 +3004,7 @@ paths:
       operationId: getRoles
       tags:
         - Backend - Roles
-      summary: Get all user roles
+      summary: /roles - Get all user roles
       description: Get all available user roles with their IDs and descriptions
       responses:
         '200':
@@ -2761,7 +3036,7 @@ paths:
       operationId: getSystems
       tags:
         - Backend - Systems
-      summary: List systems
+      summary: /systems - List systems
       description: Get list of systems visible to the user based on hierarchical organization permissions.
       parameters:
         - $ref: '#/components/parameters/PageParam'
@@ -2801,7 +3076,7 @@ paths:
       operationId: createSystem
       tags:
         - Backend - Systems
-      summary: Create system
+      summary: /systems - Create system
       description: Create a new system. Any authenticated user can create systems - access control is based on the creator's organization.
       requestBody:
         required: true
@@ -2952,7 +3227,7 @@ paths:
       operationId: getSystemById
       tags:
         - Backend - Systems
-      summary: Get single system
+      summary: /systems/{id} - Get single system
       description: Get a specific system by ID. Users can access systems created by their organization based on hierarchical permissions.
       parameters:
         - name: id
@@ -2989,7 +3264,7 @@ paths:
       operationId: updateSystem
       tags:
         - Backend - Systems
-      summary: Update system
+      summary: /systems/{id} - Update system
       description: Update a system. Users can update systems created by their organization based on hierarchical permissions.
       parameters:
         - name: id
@@ -3034,7 +3309,7 @@ paths:
       operationId: deleteSystem
       tags:
         - Backend - Systems
-      summary: Delete system
+      summary: /systems/{id} - Delete system
       description: Delete a system. Users can delete systems created by their organization based on hierarchical permissions.
       parameters:
         - name: id
@@ -3075,7 +3350,7 @@ paths:
       operationId: regenerateSystemSecret
       tags:
         - Backend - Systems
-      summary: Regenerate system secret
+      summary: /systems/{id}/regenerate-secret - Regenerate system secret
       description: Regenerate authentication secret for a specific system. Users can regenerate secrets for systems created by their organization based on hierarchical permissions.
       parameters:
         - name: id
@@ -3118,7 +3393,7 @@ paths:
       operationId: getSystemsTotals
       tags:
         - Backend - Systems
-      summary: Get systems status summary
+      summary: /systems/totals - Get systems status summary
       description: Get systems heartbeat status summary for dashboard (requires Admin or Support role)
       parameters:
         - name: timeout
@@ -3156,7 +3431,7 @@ paths:
       operationId: getSystemInventory
       tags:
         - Backend - Systems
-      summary: Get system inventory history
+      summary: /systems/{id}/inventory - Get system inventory history
       description: Get paginated inventory history for a specific system
       parameters:
         - name: id
@@ -3204,7 +3479,7 @@ paths:
       operationId: getSystemInventoryLatest
       tags:
         - Backend - Systems
-      summary: Get latest system inventory
+      summary: /systems/{id}/inventory/latest - Get latest system inventory
       description: Get the most recent inventory data for a specific system
       parameters:
         - name: id
@@ -3243,7 +3518,7 @@ paths:
       operationId: getSystemInventoryChanges
       tags:
         - Backend - Systems
-      summary: Get inventory changes summary
+      summary: /systems/{id}/inventory/changes - Get inventory changes summary
       description: Get paginated summary of inventory changes for a specific system
       parameters:
         - name: id
@@ -3291,7 +3566,7 @@ paths:
       operationId: getSystemInventoryChangesLatest
       tags:
         - Backend - Systems
-      summary: Get latest inventory changes
+      summary: /systems/{id}/inventory/changes/latest - Get latest inventory changes
       description: Get the most recent batch of inventory changes for a specific system
       parameters:
         - name: id
@@ -3330,7 +3605,7 @@ paths:
       operationId: getSystemInventoryDiffs
       tags:
         - Backend - Systems
-      summary: Get inventory diffs
+      summary: /systems/{id}/inventory/diffs - Get inventory diffs
       description: Get paginated inventory diffs for a specific system
       parameters:
         - name: id
@@ -3378,7 +3653,7 @@ paths:
       operationId: getSystemInventoryDiffsLatest
       tags:
         - Backend - Systems
-      summary: Get latest inventory diff
+      summary: /systems/{id}/inventory/diffs/latest - Get latest inventory diff
       description: Get the most recent inventory diff for a specific system
       parameters:
         - name: id
@@ -3417,7 +3692,7 @@ paths:
       operationId: getUserPermissions
       tags:
         - Backend - User
-      summary: Get user permissions (OAuth2/OIDC)
+      summary: /user/permissions - Get user permissions (OAuth2/OIDC)
       description: Get current user permissions using standard OAuth2/OIDC flow with Logto token
       responses:
         '200':
@@ -3468,7 +3743,7 @@ paths:
       operationId: getUserProfile
       tags:
         - Backend - User
-      summary: Get user profile (OAuth2/OIDC)
+      summary: /user/profile - Get user profile (OAuth2/OIDC)
       description: Get current user profile using standard OAuth2/OIDC flow with Logto token
       responses:
         '200':
@@ -3501,7 +3776,7 @@ paths:
           description: Collect API server (port 8081)
       tags:
         - Collect - Systems
-      summary: Collect system inventory
+      summary: /systems/inventory - Collect system inventory
       description: System inventory collection endpoint with HTTP Basic authentication
       security:
         - BasicAuth: [system_id:system_secret]
@@ -3623,7 +3898,7 @@ paths:
           description: Collect API server (port 8081)
       tags:
         - Collect - Systems
-      summary: System heartbeat
+      summary: /systems/heartbeat - System heartbeat
       description: System heartbeat endpoint to track system liveness (every 10 minutes)
       security:
         - BasicAuth: [system_id:system_secret]
