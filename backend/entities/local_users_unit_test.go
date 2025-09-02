@@ -301,7 +301,7 @@ func validateCreateUserRequest(req *models.CreateLocalUserRequest) error {
 		return fmt.Errorf("name cannot be empty")
 	}
 	if req.OrganizationID == nil {
-		return fmt.Errorf("organization ID cannot be nil")
+		return fmt.Errorf("organization id cannot be nil")
 	}
 	return nil
 }
