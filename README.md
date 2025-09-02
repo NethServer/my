@@ -2,7 +2,7 @@
 
 #### Documentation
 [![API Docs build](https://img.shields.io/github/actions/workflow/status/NethServer/my/docs-api.yml?style=for-the-badge&label=API%20Docs%20build)](https://github.com/NethServer/my/actions/workflows/docs-api.yml)
-[![API Docs link](https://img.shields.io/badge/docs-available-blue?style=for-the-badge&label=API%20Docs%20link)](https://bump.sh/nethesis/doc/my)
+[![API Docs link](https://img.shields.io/badge/docs-available-blue?style=for-the-badge&label=API%20Docs%20link)](https://api.my.nethesis.it/)
 
 #### CI and Tests
 
