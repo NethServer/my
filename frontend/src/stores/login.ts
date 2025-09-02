@@ -42,6 +42,7 @@ export const useLoginStore = defineStore('login', () => {
   const isImpersonating = ref<boolean>(false)
   const impersonatedUser = ref<UserInfo | undefined>()
   const originalUser = ref<UserInfo | undefined>()
+  const impersonateExpiration = ref<Date | undefined>()
 
   const userDisplayName = computed(() => userInfo.value?.name || '')
 
@@ -119,8 +120,6 @@ export const useLoginStore = defineStore('login', () => {
       const user = res.data.data.user as UserInfo
       userInfo.value = user
 
-      console.log('[login store] user info', userInfo.value) ////
-
       // Load user theme
       themeStore.loadTheme()
 
@@ -180,6 +179,7 @@ export const useLoginStore = defineStore('login', () => {
     }
 
     try {
+      //// add typing
       const res = await axios.post(
         `${API_URL}/auth/impersonate`,
         { user_id: userId },
@@ -201,10 +201,12 @@ export const useLoginStore = defineStore('login', () => {
       userInfo.value = impersonatedUser.value
       isImpersonating.value = true
 
-      console.log('[login store] impersonation started', {
-        impersonated: impersonatedUser.value,
-        original: originalUser.value,
-      })
+      ////
+      const now = new Date()
+      impersonateExpiration.value = new Date(now.getTime() + res.data.data.expires_in * 1000)
+
+      //// remove
+      // impersonateExpiration.value = new Date(now.getTime() + 15000)
 
       // Navigate to dashboard or stay on current page
       if (router.currentRoute.value.path === '/users') {
@@ -235,8 +237,6 @@ export const useLoginStore = defineStore('login', () => {
       originalUser.value = undefined
       savePreference('impersonatedUser', '', userInfo.value.email)
 
-      console.log('[login store] impersonation ended', userInfo.value)
-
       return res.data
     } catch (error) {
       console.error('Cannot exit impersonation:', error)
@@ -256,6 +256,7 @@ export const useLoginStore = defineStore('login', () => {
     isImpersonating,
     impersonatedUser,
     originalUser,
+    impersonateExpiration,
     fetchTokenAndUserInfo,
     doRefreshToken,
     impersonateUser,

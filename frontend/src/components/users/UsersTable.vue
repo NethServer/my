@@ -44,6 +44,7 @@ import PasswordChangedModal from './PasswordChangedModal.vue'
 import { useUsers } from '@/queries/users'
 import { canManageUsers, canImpersonateUsers } from '@/lib/permissions'
 import { useLoginStore } from '@/stores/login'
+import ImpersonateUserModal from './ImpersonateUserModal.vue'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -70,6 +71,7 @@ const isShownCreateOrEditUserDrawer = ref(false)
 const isShownDeleteUserModal = ref(false)
 const isShownResetPasswordModal = ref(false)
 const isShownPasswordChangedModal = ref(false)
+const isShownImpersonateUserModal = ref(false)
 const newPassword = ref<string>('')
 const isImpersonating = ref(false)
 
@@ -115,30 +117,14 @@ function showResetPasswordModal(user: User) {
   isShownResetPasswordModal.value = true
 }
 
+function showImpersonateUserModal(user: User) {
+  currentUser.value = user
+  isShownImpersonateUserModal.value = true
+}
+
 function onPasswordChanged(newPwd: string) {
   newPassword.value = newPwd
   isShownPasswordChangedModal.value = true
-}
-
-async function impersonateUser(user: User) {
-  if (!canImpersonateUsers()) {
-    console.error('User cannot impersonate')
-    return
-  }
-
-  if (user.logto_id === loginStore.userInfo?.logto_id) {
-    console.error('Cannot impersonate yourself')
-    return
-  }
-
-  isImpersonating.value = true
-  try {
-    await loginStore.impersonateUser(user.logto_id!)
-  } catch (error) {
-    console.error('Impersonation failed:', error)
-  } finally {
-    isImpersonating.value = false
-  }
 }
 
 function onCloseDrawer() {
@@ -171,7 +157,7 @@ function getKebabMenuItems(user: User) {
       id: 'impersonate',
       label: t('users.impersonate_user'),
       icon: faUserSecret,
-      action: () => impersonateUser(user),
+      action: () => showImpersonateUserModal(user),
       disabled: asyncStatus.value === 'loading' || isImpersonating.value,
     })
   }
@@ -383,6 +369,12 @@ const onClosePasswordChangedModal = () => {
       :visible="isShownDeleteUserModal"
       :user="currentUser"
       @close="isShownDeleteUserModal = false"
+    />
+    <!-- impersonate user modal -->
+    <ImpersonateUserModal
+      :visible="isShownImpersonateUserModal"
+      :user="currentUser"
+      @close="isShownImpersonateUserModal = false"
     />
     <!-- reset password modal -->
     <ResetPasswordModal
