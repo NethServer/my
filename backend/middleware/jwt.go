@@ -15,10 +15,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/nethesis/my/backend/cache"
+	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/jwt"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
+	"github.com/nethesis/my/backend/services/local"
 )
 
 // JWTAuthMiddleware validates custom JWT tokens and sets user context
@@ -89,6 +91,36 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 		impersonationClaims, impErr := jwt.ValidateImpersonationToken(tokenString)
 		if impErr == nil {
 			// This is a valid impersonation token
+			// Check if impersonation consent is still active (security: revoked consent should invalidate active tokens)
+			// Skip consent validation if database is not available (e.g., in test environments)
+			if database.DB != nil {
+				impersonationService := local.NewImpersonationService()
+				canBeImpersonated, consentErr := impersonationService.CanBeImpersonated(impersonationClaims.User.ID)
+				if consentErr != nil {
+					logger.RequestLogger(c, "auth").Warn().
+						Err(consentErr).
+						Str("operation", "impersonation_consent_check_failed").
+						Str("impersonated_user_id", impersonationClaims.User.ID).
+						Str("impersonator_user_id", impersonationClaims.ImpersonatedBy.ID).
+						Str("client_ip", c.ClientIP()).
+						Msg("Failed to check impersonation consent - allowing request (fail open)")
+					// Continue with token validation if consent check fails (fail open for infrastructure issues)
+				} else if !canBeImpersonated {
+					logger.RequestLogger(c, "auth").Warn().
+						Str("operation", "impersonation_consent_revoked").
+						Str("impersonated_user_id", impersonationClaims.User.ID).
+						Str("impersonator_user_id", impersonationClaims.ImpersonatedBy.ID).
+						Str("session_id", impersonationClaims.SessionID).
+						Str("client_ip", c.ClientIP()).
+						Msg("Impersonation consent has been revoked - invalidating token")
+					c.JSON(http.StatusUnauthorized, response.Unauthorized("impersonation consent has been revoked", gin.H{
+						"message": "the user has revoked consent for impersonation. please exit impersonation mode.",
+					}))
+					c.Abort()
+					return
+				}
+			}
+
 			// Check user-level blacklist for the impersonated user
 			isUserBlacklisted, userBlacklistReason, userBlacklistErr := blacklist.IsUserBlacklisted(impersonationClaims.User.ID)
 			if userBlacklistErr != nil {
@@ -148,6 +180,7 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 			c.Set("impersonated_by", &impersonationClaims.ImpersonatedBy)
 			c.Set("impersonator_id", impersonationClaims.ImpersonatedBy.ID)
 			c.Set("impersonator_username", impersonationClaims.ImpersonatedBy.Username)
+			c.Set("session_id", impersonationClaims.SessionID)
 
 			c.Next()
 			return

@@ -26,7 +26,7 @@ func GetRoles(c *gin.Context) {
 	if err != nil {
 		httpLogger := logger.NewHTTPErrorLogger(c, "roles")
 		httpLogger.LogError(err, "get_roles", http.StatusInternalServerError, "Failed to fetch roles from Logto")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to fetch roles", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch roles", nil))
 		return
 	}
 
@@ -63,7 +63,7 @@ func GetOrganizationRoles(c *gin.Context) {
 	if err != nil {
 		httpLogger := logger.NewHTTPErrorLogger(c, "roles")
 		httpLogger.LogError(err, "get_organization_roles", http.StatusInternalServerError, "Failed to fetch organization roles from Logto")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to fetch organization roles", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch organization roles", nil))
 		return
 	}
 

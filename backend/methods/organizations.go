@@ -66,7 +66,7 @@ func GetOrganizations(c *gin.Context) {
 	if err != nil {
 		httpLogger := logger.NewHTTPErrorLogger(c, "organizations")
 		httpLogger.LogError(err, "fetch_organizations", http.StatusInternalServerError, "Failed to fetch organizations")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to fetch organizations", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch organizations", nil))
 		return
 	}
 
