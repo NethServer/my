@@ -148,7 +148,7 @@ func main() {
 	customAuth := api.Group("/", middleware.JWTAuthMiddleware())
 	{
 		// Authentication endpoints
-		customAuth.POST("/auth/logout", methods.Logout)
+		customAuth.POST("/auth/logout", middleware.DisableOnImpersonate(), methods.Logout)
 		customAuth.POST("/auth/impersonate", methods.ImpersonateUser)
 		customAuth.DELETE("/auth/impersonate", methods.ExitImpersonation)
 
