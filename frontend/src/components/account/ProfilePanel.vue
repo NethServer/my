@@ -137,7 +137,7 @@ function validate(profile: ProfileInfo): boolean {
         v-model.trim="name"
         :label="$t('users.name')"
         :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
-        :disabled="editUserLoading || loginStore.isOwner"
+        :disabled="editUserLoading || loginStore.isOwner || loginStore.isImpersonating"
       />
       <!-- email -->
       <NeTextInput
@@ -145,7 +145,7 @@ function validate(profile: ProfileInfo): boolean {
         v-model.trim="email"
         :label="$t('users.email')"
         :invalid-message="validationIssues.email?.[0] ? $t(validationIssues.email[0]) : ''"
-        :disabled="editUserLoading || loginStore.isOwner"
+        :disabled="editUserLoading || loginStore.isOwner || loginStore.isImpersonating"
       />
       <!-- phone -->
       <NeTextInput
@@ -153,7 +153,7 @@ function validate(profile: ProfileInfo): boolean {
         v-model.trim="phone"
         :label="$t('users.phone_number')"
         :invalid-message="validationIssues.phone?.[0] ? $t(validationIssues.phone[0]) : ''"
-        :disabled="editUserLoading || loginStore.isOwner"
+        :disabled="editUserLoading || loginStore.isOwner || loginStore.isImpersonating"
       />
       <!-- organization -->
       <div>

@@ -44,8 +44,7 @@
     "switch_to_light_theme": "Switch to light theme",
     "sign_out": "Sign out",
     "close_side_drawer": "Close side drawer",
-    "impersonating_user": "Impersonating: {user}",
-    "stop_impersonation": "Stop impersonation"
+    "end_impersonation": "End impersonation and return to your account"
   },
   "login": {
     "manual_redirect_to_dashboard": "If you are not redirected automatically, {clickHereLink}",
@@ -180,6 +179,14 @@
     "user_roles": "Roles",
     "reset_password": "Reset password",
     "impersonate_user": "Impersonate user",
+    "impersonate_user_message_1": "Impersonate user {user}? You will temporarily act as this user and have their permissions.",
+    "impersonate_user_message_2": "To return to your account, click the close icon on the impersonation badge in the top bar. For security reasons, the impersonation session has a limited duration and will end automatically.",
+    "impersonation_started": "Impersonation started",
+    "you_are_now_impersonating_user": "You are now impersonating {user}",
+    "impersonation_ended": "Impersonation ended",
+    "impersonation_expired_message": "The impersonation session has expired, you are now logged in as yourself.",
+    "impersonation_timer_tooltip": "The impersonation session will end automatically in {timer}",
+    "you_are_now_logged_in_as_yourself": "You are now logged in as yourself",
     "reset_password_confirmation": "Reset the password for user {name}? This will update the user's sign-in information.",
     "password_reset": "Password reset",
     "password_reset_description": "The password for user {name} has been reset",
@@ -193,7 +200,8 @@
     "password_changed": "Password changed",
     "password_changed_description": "Your password has been changed",
     "username_already_exists": "Username already exists",
-    "user_email_description": "The user will receive a welcome email containing instructions on how to access {productName}, along with a temporary password that can be changed upon first login."
+    "user_email_description": "The user will receive a welcome email containing instructions on how to access {productName}, along with a temporary password that can be changed upon first login.",
+    "cannot_impersonate_user": "Cannot impersonate user"
   },
   "third_party_apps": {
     "description_nethshop_nethesis_it": "Browse and order Nethesis products and services.",
@@ -216,9 +224,11 @@
     "profile_saved": "Profile saved",
     "save_profile": "Save profile",
     "cannot_edit_profile": "Profile editing is disabled",
-    "cannot_edit_profile_description": "You cannot edit your profile because you are logged in as the 'owner' user. This user is reserved for system administration.",
+    "cannot_edit_profile_owner_description": "You cannot edit your profile because you are logged in as the 'owner' user. This user is reserved for system administration.",
+    "cannot_edit_profile_impersonating_description": "You cannot edit the profile because you are impersonating another user.",
     "password_change_disabled": "Password change is disabled",
-    "password_change_disabled_description": "You cannot change your password because you are logged in as the 'owner' user. This user is reserved for system administration.",
+    "password_change_disabled_owner_description": "You cannot change your password because you are logged in as the 'owner' user. This user is reserved for system administration.",
+    "password_change_disabled_impersonating_description": "You cannot change the password because you are impersonating another user.",
     "current_password": "Current password",
     "new_password": "New password",
     "confirm_password": "Confirm password",
