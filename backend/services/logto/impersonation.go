@@ -16,6 +16,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 )
@@ -114,19 +115,47 @@ func (c *LogtoManagementClient) RequestImpersonationToken(impersonatedUserID, im
 }
 
 // GetUserForImpersonation fetches user information specifically for impersonation
-func GetUserForImpersonation(userID string) (*models.User, error) {
+// Takes a local user_id and converts it to logto_id before querying Logto
+func GetUserForImpersonation(localUserID string) (*models.User, error) {
+	// First, get the logto_id from local database (direct query to avoid import cycle)
+	var logtoID string
+	query := `SELECT logto_id FROM users WHERE id = $1 AND deleted_at IS NULL`
+	err := database.DB.QueryRow(query, localUserID).Scan(&logtoID)
+	if err != nil {
+		logger.ComponentLogger("logto").Error().
+			Err(err).
+			Str("operation", "get_logto_id_for_impersonation").
+			Str("local_user_id", localUserID).
+			Msg("Failed to get logto_id for impersonation")
+		return nil, fmt.Errorf("failed to get logto_id for user: %w", err)
+	}
+
+	if logtoID == "" {
+		logger.ComponentLogger("logto").Error().
+			Str("operation", "missing_logto_id").
+			Str("local_user_id", localUserID).
+			Msg("User has no Logto ID")
+		return nil, fmt.Errorf("user has no Logto ID")
+	}
+
+	logger.ComponentLogger("logto").Debug().
+		Str("operation", "id_conversion_impersonation").
+		Str("local_user_id", localUserID).
+		Str("logto_id", logtoID).
+		Msg("Converting local user ID to Logto ID for impersonation")
+
 	client := NewManagementClient()
 
-	// Get user profile from Logto
-	userProfile, err := client.GetUserByID(userID)
+	// Get user profile from Logto using logto_id
+	userProfile, err := client.GetUserByID(logtoID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user profile: %w", err)
 	}
 
 	// Create user model
 	user := models.User{
-		ID:       userID, // Use Logto ID as primary for impersonation
-		LogtoID:  &userID,
+		ID:       localUserID, // Use local ID as primary ID
+		LogtoID:  &logtoID,    // Set the Logto ID
 		Username: userProfile.Username,
 		Email:    userProfile.PrimaryEmail,
 		Name:     userProfile.Name,
@@ -136,13 +165,14 @@ func GetUserForImpersonation(userID string) (*models.User, error) {
 		user.Phone = &userProfile.PrimaryPhone
 	}
 
-	// Enrich with roles and permissions
-	enrichedUser, err := EnrichUserWithRolesAndPermissions(userID)
+	// Enrich with roles and permissions using logto_id
+	enrichedUser, err := EnrichUserWithRolesAndPermissions(logtoID)
 	if err != nil {
 		logger.ComponentLogger("logto").Warn().
 			Err(err).
 			Str("operation", "enrich_user_impersonation").
-			Str("user_id", userID).
+			Str("local_user_id", localUserID).
+			Str("logto_id", logtoID).
 			Msg("Failed to enrich user for impersonation")
 		return &user, nil
 	}
@@ -158,7 +188,8 @@ func GetUserForImpersonation(userID string) (*models.User, error) {
 
 	logger.ComponentLogger("logto").Debug().
 		Str("operation", "user_impersonation_prepared").
-		Str("user_id", userID).
+		Str("local_user_id", localUserID).
+		Str("logto_id", logtoID).
 		Str("username", user.Username).
 		Str("organization_id", user.OrganizationID).
 		Str("org_role", user.OrgRole).

@@ -72,7 +72,7 @@ func CreateUser(c *gin.Context) {
 			Msg("Failed to create user")
 
 		// Default to internal server error
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to create user", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to create user", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
@@ -115,7 +115,7 @@ func GetUser(c *gin.Context) {
 			Str("target_user_id", userID).
 			Msg("Failed to get user")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get user", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get user", nil))
 		return
 	}
 
@@ -197,8 +197,82 @@ func GetUsers(c *gin.Context) {
 			Str("user_org_role", userOrgRole).
 			Msg("Failed to list users")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to list users", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to list users", nil))
 		return
+	}
+
+	// Check if current user is Owner (can impersonate)
+	canImpersonate := user.OrgRole == "Owner"
+
+	// Enrich users with impersonation consent status if user can impersonate
+	var enrichedUsers []gin.H
+	if canImpersonate {
+		impersonationService := local.NewImpersonationService()
+
+		// Collect all user IDs for batch consent check (performance optimization)
+		userIDs := make([]string, len(accounts))
+		for i, account := range accounts {
+			userIDs[i] = account.ID
+		}
+
+		// Batch check impersonation consent for all users (single query instead of N queries)
+		consentMap, err := impersonationService.CanBeImpersonatedBatch(userIDs)
+		if err != nil {
+			logger.RequestLogger(c, "users").Warn().
+				Err(err).
+				Int("user_count", len(userIDs)).
+				Msg("Failed to batch check impersonation consent, defaulting to false")
+			// Initialize empty map so all users default to false
+			consentMap = make(map[string]bool)
+		}
+
+		for _, account := range accounts {
+			// Get consent status from batch result (defaults to false if not found)
+			canBeImpersonated := consentMap[account.ID]
+
+			// Convert account to gin.H and add impersonation field
+			userMap := gin.H{
+				"id":                  account.ID,
+				"logto_id":            account.LogtoID,
+				"username":            account.Username,
+				"email":               account.Email,
+				"name":                account.Name,
+				"phone":               account.Phone,
+				"organization":        account.Organization,
+				"roles":               account.Roles,
+				"custom_data":         account.CustomData,
+				"created_at":          account.CreatedAt,
+				"updated_at":          account.UpdatedAt,
+				"logto_synced_at":     account.LogtoSyncedAt,
+				"latest_login_at":     account.LatestLoginAt,
+				"deleted_at":          account.DeletedAt,
+				"suspended_at":        account.SuspendedAt,
+				"can_be_impersonated": canBeImpersonated,
+			}
+			enrichedUsers = append(enrichedUsers, userMap)
+		}
+	} else {
+		// For non-Owner users, just convert to gin.H without impersonation field
+		for _, account := range accounts {
+			userMap := gin.H{
+				"id":              account.ID,
+				"logto_id":        account.LogtoID,
+				"username":        account.Username,
+				"email":           account.Email,
+				"name":            account.Name,
+				"phone":           account.Phone,
+				"organization":    account.Organization,
+				"roles":           account.Roles,
+				"custom_data":     account.CustomData,
+				"created_at":      account.CreatedAt,
+				"updated_at":      account.UpdatedAt,
+				"logto_synced_at": account.LogtoSyncedAt,
+				"latest_login_at": account.LatestLoginAt,
+				"deleted_at":      account.DeletedAt,
+				"suspended_at":    account.SuspendedAt,
+			}
+			enrichedUsers = append(enrichedUsers, userMap)
+		}
 	}
 
 	// Log the action
@@ -209,10 +283,11 @@ func GetUsers(c *gin.Context) {
 		Str("search", search).
 		Int("total_count", totalCount).
 		Int("returned_count", len(accounts)).
+		Bool("can_impersonate", canImpersonate).
 		Msg("Users list requested")
 
-	// Return paginated response
-	c.JSON(http.StatusOK, response.PaginatedWithSorting("users retrieved successfully", "users", accounts, totalCount, page, pageSize, sortBy, sortDirection))
+	// Return paginated response with enriched data
+	c.JSON(http.StatusOK, response.PaginatedWithSorting("users retrieved successfully", "users", enrichedUsers, totalCount, page, pageSize, sortBy, sortDirection))
 }
 
 // UpdateUser handles PUT /api/users/:id - updates a user account locally and syncs to Logto
@@ -274,7 +349,7 @@ func UpdateUser(c *gin.Context) {
 			Str("target_user_id", userID).
 			Msg("Failed to get user for update validation")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get user", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get user", nil))
 		return
 	}
 
@@ -331,7 +406,7 @@ func UpdateUser(c *gin.Context) {
 		}
 
 		// Default to internal server error
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to update user", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to update user", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
@@ -380,7 +455,7 @@ func DeleteUser(c *gin.Context) {
 			Str("target_user_id", userID).
 			Msg("Failed to get user for delete validation")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get user", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get user", nil))
 		return
 	}
 
@@ -407,7 +482,7 @@ func DeleteUser(c *gin.Context) {
 			Str("target_user_id", userID).
 			Msg("Failed to delete user")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to delete user", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to delete user", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
@@ -620,7 +695,7 @@ func ResetUserPassword(c *gin.Context) {
 		Password string `json:"password"`
 	}
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.BadRequest("Invalid request body", nil))
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body", nil))
 		return
 	}
 
@@ -652,7 +727,7 @@ func ResetUserPassword(c *gin.Context) {
 			Str("target_user_id", userID).
 			Msg("Failed to get user for password reset")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get user", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get user", nil))
 		return
 	}
 
@@ -720,7 +795,7 @@ func ResetUserPassword(c *gin.Context) {
 		}
 
 		// Default to internal server error for non-validation errors
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to reset password", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to reset password", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return

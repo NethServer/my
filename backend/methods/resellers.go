@@ -68,7 +68,7 @@ func CreateReseller(c *gin.Context) {
 			Msg("Failed to create reseller")
 
 		// Default to internal server error
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to create reseller", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to create reseller", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
@@ -111,7 +111,7 @@ func GetReseller(c *gin.Context) {
 			Str("reseller_id", resellerID).
 			Msg("Failed to get reseller")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get reseller", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get reseller", nil))
 		return
 	}
 
@@ -177,7 +177,7 @@ func GetResellers(c *gin.Context) {
 			Str("user_org_role", userOrgRole).
 			Msg("Failed to list resellers")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to list resellers", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to list resellers", nil))
 		return
 	}
 
@@ -232,7 +232,7 @@ func UpdateReseller(c *gin.Context) {
 			Str("reseller_id", resellerID).
 			Msg("Failed to get reseller for update validation")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get reseller", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get reseller", nil))
 		return
 	}
 
@@ -281,7 +281,7 @@ func UpdateReseller(c *gin.Context) {
 		}
 
 		// Default to internal server error
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to update reseller", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to update reseller", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
@@ -324,7 +324,7 @@ func DeleteReseller(c *gin.Context) {
 			Str("reseller_id", resellerID).
 			Msg("Failed to get reseller for deletion validation")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get reseller", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get reseller", nil))
 		return
 	}
 
@@ -361,7 +361,7 @@ func DeleteReseller(c *gin.Context) {
 			Str("reseller_id", resellerID).
 			Msg("Failed to delete reseller")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to delete reseller", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to delete reseller", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return

@@ -68,7 +68,7 @@ func CreateDistributor(c *gin.Context) {
 			Msg("Failed to create distributor")
 
 		// Default to internal server error
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to create distributor", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to create distributor", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
@@ -117,7 +117,7 @@ func GetDistributor(c *gin.Context) {
 			Str("distributor_id", distributorID).
 			Msg("Failed to get distributor")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get distributor", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get distributor", nil))
 		return
 	}
 
@@ -158,7 +158,7 @@ func GetDistributors(c *gin.Context) {
 			Str("user_org_role", userOrgRole).
 			Msg("Failed to list distributors")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to list distributors", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to list distributors", nil))
 		return
 	}
 
@@ -228,7 +228,7 @@ func UpdateDistributor(c *gin.Context) {
 		}
 
 		// Default to internal server error
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to update distributor", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to update distributor", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
@@ -279,7 +279,7 @@ func DeleteDistributor(c *gin.Context) {
 			Str("distributor_id", distributorID).
 			Msg("Failed to delete distributor")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to delete distributor", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to delete distributor", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return

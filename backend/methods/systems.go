@@ -41,7 +41,7 @@ func handleSystemAccessError(c *gin.Context, err error, systemID string) bool {
 	}
 
 	// Technical error
-	c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to validate system access", map[string]interface{}{
+	c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to validate system access", map[string]interface{}{
 		"error": errMsg,
 	}))
 	return true
@@ -82,7 +82,7 @@ func CreateSystem(c *gin.Context) {
 			Str("system_name", request.Name).
 			Msg("Failed to create system")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to create system", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to create system", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
@@ -100,7 +100,7 @@ func GetSystems(c *gin.Context) {
 	// Get current user context with organization ID
 	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
 	if userID == "" {
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
 		return
 	}
 
@@ -131,7 +131,7 @@ func GetSystems(c *gin.Context) {
 			Str("sort_direction", sortDirection).
 			Msg("Failed to retrieve systems")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to retrieve systems", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve systems", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
@@ -207,7 +207,7 @@ func UpdateSystem(c *gin.Context) {
 	// Get current user context with organization ID
 	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
 	if userID == "" {
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
 		return
 	}
 
@@ -246,7 +246,7 @@ func DeleteSystem(c *gin.Context) {
 	// Get current user context with organization ID
 	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
 	if userID == "" {
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
 		return
 	}
 

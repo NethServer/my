@@ -36,6 +36,7 @@ type ImpersonationClaims struct {
 	User           models.User `json:"user"`            // The user being impersonated
 	ImpersonatedBy models.User `json:"impersonated_by"` // The user doing the impersonation
 	IsImpersonated bool        `json:"is_impersonated"` // Flag to indicate this is an impersonation token
+	SessionID      string      `json:"session_id"`      // Session ID for audit tracking
 	jwt.RegisteredClaims
 }
 
@@ -215,16 +216,19 @@ func ValidateRefreshToken(tokenString string) (*RefreshTokenClaims, error) {
 	return nil, fmt.Errorf("invalid refresh token claims")
 }
 
-// GenerateImpersonationToken creates a JWT token for user impersonation
+// GenerateImpersonationToken creates a JWT token for user impersonation (legacy - 1 hour)
 func GenerateImpersonationToken(impersonatedUser, impersonator models.User) (string, error) {
-	// Use 1 hour expiration for impersonation tokens (security)
-	expDuration := 1 * time.Hour
+	return GenerateImpersonationTokenWithDuration(impersonatedUser, impersonator, "", 1*time.Hour)
+}
 
+// GenerateImpersonationTokenWithDuration creates a JWT token for user impersonation with custom duration and session ID
+func GenerateImpersonationTokenWithDuration(impersonatedUser, impersonator models.User, sessionID string, expDuration time.Duration) (string, error) {
 	// Create impersonation claims
 	claims := ImpersonationClaims{
 		User:           impersonatedUser,
 		ImpersonatedBy: impersonator,
 		IsImpersonated: true,
+		SessionID:      sessionID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    configuration.Config.JWTIssuer,
 			Subject:   impersonatedUser.ID,
@@ -256,6 +260,7 @@ func GenerateImpersonationToken(impersonatedUser, impersonator models.User) (str
 		Str("impersonated_username", impersonatedUser.Username).
 		Str("impersonator_user_id", impersonator.ID).
 		Str("impersonator_username", impersonator.Username).
+		Str("session_id", sessionID).
 		Time("expires_at", time.Now().Add(expDuration)).
 		Dur("duration", expDuration).
 		Msg("Impersonation JWT token generated successfully")

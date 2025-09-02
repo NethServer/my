@@ -34,7 +34,7 @@ func GetSystemInventoryHistory(c *gin.Context) {
 	// Get current user context for access validation
 	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
 	if userID == "" {
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
 		return
 	}
 
@@ -83,7 +83,7 @@ func GetSystemInventoryHistory(c *gin.Context) {
 			Int("page_size", pageSize).
 			Msg("Failed to retrieve inventory history")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to retrieve inventory history", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve inventory history", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
@@ -121,7 +121,7 @@ func GetSystemLatestInventory(c *gin.Context) {
 	// Get current user context for access validation
 	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
 	if userID == "" {
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
 		return
 	}
 
@@ -146,7 +146,7 @@ func GetSystemLatestInventory(c *gin.Context) {
 			Str("system_id", systemID).
 			Msg("Failed to retrieve latest inventory")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to retrieve latest inventory", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve latest inventory", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
@@ -175,7 +175,7 @@ func GetSystemInventoryChanges(c *gin.Context) {
 	// Get current user context for access validation
 	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
 	if userID == "" {
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
 		return
 	}
 
@@ -200,7 +200,7 @@ func GetSystemInventoryChanges(c *gin.Context) {
 			Str("system_id", systemID).
 			Msg("Failed to retrieve changes summary")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to retrieve changes summary", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve changes summary", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
@@ -229,7 +229,7 @@ func GetSystemLatestInventoryChanges(c *gin.Context) {
 	// Get current user context for access validation
 	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
 	if userID == "" {
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
 		return
 	}
 
@@ -254,7 +254,7 @@ func GetSystemLatestInventoryChanges(c *gin.Context) {
 			Str("system_id", systemID).
 			Msg("Failed to retrieve latest inventory changes summary")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to retrieve latest inventory changes summary", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve latest inventory changes summary", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
@@ -283,7 +283,7 @@ func GetSystemInventoryDiffs(c *gin.Context) {
 	// Get current user context for access validation
 	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
 	if userID == "" {
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
 		return
 	}
 
@@ -340,7 +340,7 @@ func GetSystemInventoryDiffs(c *gin.Context) {
 			Str("diff_type", diffType).
 			Msg("Failed to retrieve inventory diffs")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to retrieve inventory diffs", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve inventory diffs", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
@@ -380,7 +380,7 @@ func GetSystemLatestInventoryDiff(c *gin.Context) {
 	// Get current user context for access validation
 	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
 	if userID == "" {
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
 		return
 	}
 
@@ -400,7 +400,7 @@ func GetSystemLatestInventoryDiff(c *gin.Context) {
 			Str("system_id", systemID).
 			Msg("Failed to retrieve latest inventory diffs")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to retrieve latest inventory diffs", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve latest inventory diffs", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return

@@ -116,6 +116,86 @@ cd sync && make run-example
 - **Manual Control**: Deploy only when explicitly triggered
 - **Security**: Private services (Backend, Collect, Frontend) only accessible through Proxy
 
+## 🔐 Consent-Based Impersonation System
+
+The platform provides a privacy-friendly impersonation system that allows **Owner organization users** to temporarily access other user accounts for troubleshooting and support, with full user consent and complete audit trails.
+
+### 🎯 Key Features
+- **User-Controlled Consent**: Users explicitly enable impersonation and set duration (1-168 hours)
+- **Custom Token Duration**: Impersonation tokens match user's consent duration (not fixed)
+- **Complete Audit Trail**: Every API call during impersonation is logged for transparency
+- **Session-Based Tracking**: Unique session IDs for complete audit organization
+- **Automatic Data Sanitization**: Sensitive information redacted from audit logs
+- **Owner-Only Access**: Only users with `org_role: "Owner"` can initiate impersonation
+
+### 🔄 Consent-Based Flow
+
+#### 1. User Enables Consent
+```bash
+# User calls API to enable impersonation consent
+POST /api/impersonate/consent
+{
+  "duration_hours": 24  # 1-168 hours
+}
+```
+
+#### 2. Admin Initiates Impersonation
+```bash
+# Owner user starts impersonation (only if consent is active)
+POST /api/impersonate
+{
+  "user_id": "target-user-id"
+}
+# Returns JWT token with custom duration matching user's consent
+```
+
+#### 3. Automatic Audit Logging
+- **Every API call** during impersonation is automatically logged
+- **Request/response data** captured (with sensitive data redacted)
+- **Session tracking** groups all actions for easy review
+- **Real-time logging** with no performance impact
+
+#### 4. Complete Transparency
+```bash
+# User can view complete audit of impersonation actions
+GET /api/impersonate/audit/user/{user_id}
+
+# Get audit by session for detailed review
+GET /api/impersonate/audit/session/{session_id}
+```
+
+### 🛡️ Security Features
+- **No Self-Impersonation**: Users cannot impersonate themselves
+- **No Chaining**: Cannot impersonate while already impersonating
+- **Consent Expiration**: Automatic consent expiration based on user settings
+- **Session Isolation**: Each impersonation creates unique session for audit
+- **Sensitive Data Protection**: Passwords, tokens, and secrets automatically redacted
+- **Owner Restriction**: Only organization owners can perform impersonation
+
+### 📊 API Integration
+The impersonation system integrates seamlessly with existing user management:
+
+```bash
+# User list includes impersonation status (for Owner users only)
+GET /api/users
+# Response includes: "can_be_impersonated": true/false
+
+# Complete consent management
+POST /api/impersonate/consent     # Enable consent
+GET /api/impersonate/consent      # Check status  
+DELETE /api/impersonate/consent   # Disable consent
+
+# Impersonation control
+POST /api/impersonate            # Start impersonation
+DELETE /api/impersonate          # Exit impersonation
+
+# Audit and transparency
+GET /api/impersonate/audit/user/{user_id}      # User's audit history
+GET /api/impersonate/audit/session/{session}  # Session audit details
+```
+
+This system ensures complete transparency and user control while providing necessary support capabilities for troubleshooting.
+
 ## 📝 Configuration
 
 ### Local Development
@@ -134,8 +214,8 @@ See individual component documentation for setup:
 ## 📚 Documentation
 
 - **[frontend](./frontend/README.md)** - UI setup, environment variables, and pages
-- **[backend](./backend/README.md)** - Server setup, environment variables, and authorization architecture
-- **[backend API](./backend/API.md)** - Complete API reference with authentication
+- **[backend](./backend/README.md)** - Server setup, environment variables, authorization architecture, and consent-based impersonation
+- **[backend OpenAPI](./backend/openapi.yaml)** - Complete API specification with authentication
 - **[collect](./collect/README.md)** - Server setup, environment variables and inventory structure
 - **[sync CLI](./sync/README.md)** - RBAC configuration and `sync init` setup
 - **[deploy script](./deploy.sh)** - Production deployment script for Render

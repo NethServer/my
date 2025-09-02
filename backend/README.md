@@ -233,7 +233,7 @@ High-performance caching system with multiple cache types:
 
 ## API Endpoints
 
-See [API.md](API.md) for complete API documentation.
+See [openapi.yaml](openapi.yaml) for complete API specification.
 
 ## Development
 
@@ -391,7 +391,7 @@ backend/
 
 
 ## Related
-- [API.md](API.md) - API docs reference
+- [openapi.yaml](openapi.yaml) - API specification
 - [Collect](../collect/README.md) - Collect server
 - [sync CLI](../sync/README.md) - RBAC configuration tool
 - [Project Overview](../README.md) - Main documentation
