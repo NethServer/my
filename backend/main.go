@@ -164,7 +164,7 @@ func main() {
 
 			// Impersonation endpoints
 			impersonateGroup.GET("/status", methods.GetImpersonationStatus)
-			impersonateGroup.POST("", methods.ImpersonateUserWithConsent)
+			impersonateGroup.POST("", middleware.RequirePermission("impersonate:users"), methods.ImpersonateUserWithConsent) // Only users with impersonate:users permission
 			impersonateGroup.DELETE("", methods.ExitImpersonationWithAudit)
 
 			// Session management endpoints
