@@ -6,7 +6,7 @@ import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 
 export const IMPERSONATION_CONSENT_KEY = 'impersonationConsent'
-export const CONSENT_DURATION_HOURS = 24
+export const CONSENT_DURATION_HOURS = 1
 const CONSENT_PATH = 'impersonate/consent'
 
 interface ConsentResponse {
