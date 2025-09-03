@@ -54,6 +54,11 @@ func EnableImpersonationConsent(c *gin.Context) {
 		return
 	}
 
+	// Set default duration if not provided
+	if req.DurationHours == 0 {
+		req.DurationHours = 1 // Default to 1 hour
+	}
+
 	// Create impersonation service
 	impersonationService := local.NewImpersonationService()
 
@@ -598,6 +603,7 @@ func ExitImpersonationWithAudit(c *gin.Context) {
 			"token":         newToken,
 			"refresh_token": refreshToken,
 			"expires_in":    expiresIn,
+			"user":          impersonatorUser,
 		},
 	))
 }
