@@ -163,6 +163,7 @@ func main() {
 			impersonateGroup.GET("/consent", methods.GetImpersonationConsentStatus)
 
 			// Impersonation endpoints
+			impersonateGroup.GET("/status", methods.GetImpersonationStatus)
 			impersonateGroup.POST("", methods.ImpersonateUserWithConsent)
 			impersonateGroup.DELETE("", methods.ExitImpersonationWithAudit)
 

@@ -223,27 +223,48 @@ func ImpersonateUserWithConsent(c *gin.Context) {
 			Msg("Failed to check for active impersonation session - allowing request (fail open)")
 		// Continue with fail-open approach for infrastructure issues
 	} else if hasActiveSession {
-		// Get session details for better error message
+		// Get session details to check if it's expired
 		activeSession, _ := sessionManager.GetActiveSession(user.ID)
 
-		logger.RequestLogger(c, "impersonate").Warn().
-			Str("operation", "impersonate_duplicate_session_prevented").
-			Str("user_id", user.ID).
-			Str("existing_session_id", func() string {
-				if activeSession != nil {
-					return activeSession.SessionID
-				}
-				return "unknown"
-			}()).
-			Msg("User attempted to start impersonation while having an active session")
+		// If session is expired, clean it up automatically
+		if activeSession != nil && time.Now().After(activeSession.ExpiresAt) {
+			logger.RequestLogger(c, "impersonate").Info().
+				Str("operation", "cleanup_expired_session").
+				Str("user_id", user.ID).
+				Str("session_id", activeSession.SessionID).
+				Time("expired_at", activeSession.ExpiresAt).
+				Msg("Cleaning up expired impersonation session")
 
-		c.JSON(http.StatusConflict, response.Conflict(
-			"you already have an active impersonation session. exit the current session before starting a new one.",
-			gin.H{
-				"active_session": activeSession,
-			},
-		))
-		return
+			err := sessionManager.ClearSession(user.ID)
+			if err != nil {
+				logger.RequestLogger(c, "impersonate").Warn().
+					Err(err).
+					Str("operation", "cleanup_expired_session_failed").
+					Str("user_id", user.ID).
+					Msg("Failed to clean up expired session - continuing")
+			}
+			// Continue with the impersonation request since session was expired
+		} else {
+			// Session is still active - prevent duplicate
+			logger.RequestLogger(c, "impersonate").Warn().
+				Str("operation", "impersonate_duplicate_session_prevented").
+				Str("user_id", user.ID).
+				Str("existing_session_id", func() string {
+					if activeSession != nil {
+						return activeSession.SessionID
+					}
+					return "unknown"
+				}()).
+				Msg("User attempted to start impersonation while having an active session")
+
+			c.JSON(http.StatusConflict, response.Conflict(
+				"you already have an active impersonation session. exit the current session before starting a new one.",
+				gin.H{
+					"active_session": activeSession,
+				},
+			))
+			return
+		}
 	}
 
 	// Only owner organization users can impersonate
@@ -394,10 +415,16 @@ func ImpersonateUserWithConsent(c *gin.Context) {
 		// Don't fail the request for Redis issues, but log the problem
 	}
 
+	// Get impersonator ID (use "owner" if no local DB ID)
+	impersonatorID := user.ID
+	if impersonatorID == "" && user.OrgRole == "Owner" {
+		impersonatorID = "owner"
+	}
+
 	// Log session start in audit
 	auditEntry := &models.ImpersonationAuditEntry{
 		SessionID:            sessionID,
-		ImpersonatorUserID:   user.ID,
+		ImpersonatorUserID:   impersonatorID,
 		ImpersonatedUserID:   targetUser.ID,
 		ActionType:           "session_start",
 		ImpersonatorUsername: user.Username,
@@ -530,10 +557,16 @@ func ExitImpersonationWithAudit(c *gin.Context) {
 
 	// Log session end in audit (if session ID is available)
 	if sessionIDStr != "" {
+		// Get impersonator ID (use "owner" if no local DB ID)
+		impersonatorID := impersonatorUser.ID
+		if impersonatorID == "" && impersonatorUser.OrgRole == "Owner" {
+			impersonatorID = "owner"
+		}
+
 		impersonationService := local.NewImpersonationService()
 		auditEntry := &models.ImpersonationAuditEntry{
 			SessionID:            sessionIDStr,
-			ImpersonatorUserID:   impersonatorUser.ID,
+			ImpersonatorUserID:   impersonatorID,
 			ImpersonatedUserID:   impersonatedUser.ID,
 			ActionType:           "session_end",
 			ImpersonatorUsername: impersonatorUser.Username,
@@ -604,6 +637,55 @@ func ExitImpersonationWithAudit(c *gin.Context) {
 			"refresh_token": refreshToken,
 			"expires_in":    expiresIn,
 			"user":          impersonatorUser,
+		},
+	))
+}
+
+// GetImpersonationStatus checks if user is currently impersonating and returns session info
+// GET /api/impersonate/status
+func GetImpersonationStatus(c *gin.Context) {
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Check if this is an impersonation token
+	isImpersonated, exists := c.Get("is_impersonated")
+	if !exists || !isImpersonated.(bool) {
+		// Not currently impersonating
+		c.JSON(http.StatusOK, response.OK(
+			"not currently impersonating",
+			gin.H{
+				"is_impersonating": false,
+			},
+		))
+		return
+	}
+
+	// Get session details
+	sessionID, _ := c.Get("session_id")
+	impersonator, _ := c.Get("impersonated_by")
+
+	sessionIDStr := ""
+	if sessionID != nil {
+		sessionIDStr = sessionID.(string)
+	}
+
+	var impersonatorUser *models.User
+	if impersonator != nil {
+		if imp, ok := impersonator.(*models.User); ok {
+			impersonatorUser = imp
+		}
+	}
+
+	c.JSON(http.StatusOK, response.OK(
+		"currently impersonating",
+		gin.H{
+			"is_impersonating":  true,
+			"session_id":        sessionIDStr,
+			"impersonated_user": user,
+			"impersonator":      impersonatorUser,
 		},
 	))
 }
@@ -683,7 +765,7 @@ func GetImpersonationSession(c *gin.Context) {
 	impersonationService := local.NewImpersonationService()
 
 	// Get all sessions and find the specific one (to verify ownership)
-	sessions, _, err := impersonationService.GetUserSessions(user.ID, 1000, 0)
+	sessions, _, err := impersonationService.GetUserSessions(user.ID, 1, 1000)
 	if err != nil {
 		logger.RequestLogger(c, "impersonate").Error().
 			Err(err).
@@ -759,7 +841,7 @@ func GetSessionAudit(c *gin.Context) {
 
 	// First, verify that this session belongs to the current user
 	// We get sessions for the current user and check if the requested session_id exists
-	sessions, _, err := impersonationService.GetUserSessions(user.ID, 1000, 0) // Get all sessions (reasonable limit)
+	sessions, _, err := impersonationService.GetUserSessions(user.ID, 1, 1000) // Get all sessions (page 1, large page size)
 	if err != nil {
 		logger.RequestLogger(c, "impersonate").Error().
 			Err(err).
