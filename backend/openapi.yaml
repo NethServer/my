@@ -472,7 +472,7 @@ components:
           example: null
         can_be_impersonated:
           type: boolean
-          description: Whether this user can currently be impersonated (only shown for Owner users, based on active consent)
+          description: Whether this user can currently be impersonated (only shown for users with impersonation permissions, based on active consent)
           example: true
 
     UserInput:
@@ -1908,7 +1908,7 @@ paths:
         - Backend - Impersonation
       summary: /impersonate/consent - Enable impersonation consent
       description: |
-        Allows a user to enable consent for being impersonated by Owner users.
+        Allows a user to enable consent for being impersonated by authorized users (Super Admin role or Owner organization users).
         This is a **privacy-friendly** approach where users explicitly control
         if and for how long they can be impersonated.
 
@@ -2029,11 +2029,11 @@ paths:
       operationId: impersonateUserWithConsent
       tags:
         - Backend - Impersonation
-      summary: /impersonate - Start impersonation (Owner only)
+      summary: /impersonate - Start impersonation (permission-based access)
       description: |
-        Allows an Owner user to impersonate another user, but only if that user
-        has active consent enabled. The impersonation token duration will match
-        the user's consent settings.
+        Allows users with `impersonate:users` permission (Super Admin role) or Owner organization role
+        to impersonate another user, but only if that user has active consent enabled.
+        The impersonation token duration will match the user's consent settings.
       requestBody:
         required: true
         content:
@@ -2107,17 +2107,17 @@ paths:
                     code: 400
                     message: "Target user has not provided consent for impersonation or consent has expired"
         '403':
-          description: Forbidden (only Owner users can impersonate, or already impersonating)
+          description: Forbidden (insufficient permissions for impersonation, or already impersonating)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
               examples:
-                not_owner:
-                  summary: Non-owner user attempted impersonation
+                insufficient_permissions:
+                  summary: User without impersonation permissions attempted impersonation
                   value:
                     code: 403
-                    message: "Only owner users can impersonate other users"
+                    message: "Insufficient permissions to impersonate users"
                 already_impersonating:
                   summary: Cannot impersonate while already impersonating
                   value:

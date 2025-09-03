@@ -118,7 +118,7 @@ cd sync && make run-example
 
 ## 🔐 Consent-Based Impersonation System
 
-The platform provides a privacy-friendly impersonation system that allows **Owner organization users** to temporarily access other user accounts for troubleshooting and support, with full user consent and complete audit trails.
+The platform provides a privacy-friendly impersonation system that allows **users with impersonation permissions** (Super Admin role or Owner organization users) to temporarily access other user accounts for troubleshooting and support, with full user consent and complete audit trails.
 
 ### 🎯 Key Features
 - **User-Controlled Consent**: Users explicitly enable impersonation and set duration (1-168 hours)
@@ -126,7 +126,7 @@ The platform provides a privacy-friendly impersonation system that allows **Owne
 - **Complete Audit Trail**: Every API call during impersonation is logged for transparency
 - **Session-Based Tracking**: Unique session IDs for complete audit organization
 - **Automatic Data Sanitization**: Sensitive information redacted from audit logs
-- **Owner-Only Access**: Only users with `org_role: "Owner"` can initiate impersonation
+- **Permission-Based Access**: Only users with `impersonate:users` permission (Super Admin role) or Owner organization role can initiate impersonation
 
 ### 🔄 Consent-Based Flow
 
@@ -141,7 +141,7 @@ POST /api/impersonate/consent
 
 #### 2. Admin Initiates Impersonation
 ```bash
-# Owner user starts impersonation (only if consent is active)
+# User with impersonation permissions starts impersonation (only if consent is active)
 POST /api/impersonate
 {
   "user_id": "target-user-id"
@@ -170,7 +170,16 @@ GET /api/impersonate/audit/session/{session_id}
 - **Consent Expiration**: Automatic consent expiration based on user settings
 - **Session Isolation**: Each impersonation creates unique session for audit
 - **Sensitive Data Protection**: Passwords, tokens, and secrets automatically redacted
-- **Owner Restriction**: Only organization owners can perform impersonation
+- **Permission-Based Restriction**: Only users with `impersonate:users` permission or Owner organization role can perform impersonation
+
+### 👑 Role-Based Access Control
+
+The impersonation system supports role-based access control:
+
+- **Super Admin Role**: Users assigned the "Super Admin" role have `impersonate:users` permission and can impersonate any user
+- **Access Control**: Super Admin role can only be assigned by Owner organization users
+- **Automatic Assignment**: During `sync init`, the Owner user is automatically assigned the Super Admin role
+- **Multiple Administrators**: Organizations can have multiple users with impersonation capabilities by assigning them the Super Admin role
 
 ### 📊 API Integration
 The impersonation system integrates seamlessly with existing user management:
@@ -182,7 +191,7 @@ GET /api/users
 
 # Complete consent management
 POST /api/impersonate/consent     # Enable consent
-GET /api/impersonate/consent      # Check status  
+GET /api/impersonate/consent      # Check status
 DELETE /api/impersonate/consent   # Disable consent
 
 # Impersonation control

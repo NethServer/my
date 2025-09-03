@@ -267,21 +267,6 @@ func ImpersonateUserWithConsent(c *gin.Context) {
 		}
 	}
 
-	// Only owner organization users can impersonate
-	if user.OrgRole != "Owner" {
-		logger.RequestLogger(c, "impersonate").Warn().
-			Str("operation", "impersonate_unauthorized").
-			Str("user_id", user.ID).
-			Str("org_role", user.OrgRole).
-			Msg("Non-owner user attempted impersonation")
-
-		c.JSON(http.StatusForbidden, response.Forbidden(
-			"only owner users can impersonate other users",
-			nil,
-		))
-		return
-	}
-
 	// Parse request body
 	var req ImpersonateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
