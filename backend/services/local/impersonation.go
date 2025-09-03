@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
@@ -83,6 +84,15 @@ func (s *ImpersonationService) EnableConsent(userID string, durationHours int) (
 
 // DisableConsent disables all active consent for a user
 func (s *ImpersonationService) DisableConsent(userID string) error {
+	// First, clear all active impersonation sessions for this user
+	if err := s.InvalidateActiveSessionsForUser(userID); err != nil {
+		logger.ComponentLogger("impersonation").Warn().
+			Err(err).
+			Str("user_id", userID).
+			Msg("Failed to invalidate active sessions when disabling consent")
+		// Continue with consent disabling even if session cleanup fails
+	}
+
 	query := `UPDATE impersonation_consents SET active = FALSE WHERE user_id = $1 AND active = TRUE`
 
 	result, err := s.db.Exec(query, userID)
@@ -406,4 +416,114 @@ func (s *ImpersonationService) GetUserSessions(userID string, page, pageSize int
 	}
 
 	return sessions, total, nil
+}
+
+// InvalidateActiveSessionsForUser invalidates all active impersonation sessions where the specified user is being impersonated
+// This is called when a user revokes consent to ensure all active sessions are terminated
+func (s *ImpersonationService) InvalidateActiveSessionsForUser(impersonatedUserID string) error {
+	sessionManager := cache.NewImpersonationSessionManager()
+
+	// Query the audit database to find all unique impersonators who have active sessions with this user
+	query := `
+		SELECT DISTINCT impersonator_user_id
+		FROM impersonation_audit a1
+		WHERE a1.impersonated_user_id = $1
+		  AND a1.action_type = 'session_start'
+		  AND NOT EXISTS (
+			  SELECT 1
+			  FROM impersonation_audit a2
+			  WHERE a2.session_id = a1.session_id
+			    AND a2.action_type = 'session_end'
+		  )
+		  AND a1.timestamp > NOW() - INTERVAL '24 hours'
+	`
+
+	rows, err := s.db.Query(query, impersonatedUserID)
+	if err != nil {
+		logger.ComponentLogger("impersonation").Error().
+			Err(err).
+			Str("impersonated_user_id", impersonatedUserID).
+			Msg("Failed to query for active session impersonators")
+		return fmt.Errorf("failed to query active sessions: %w", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			logger.ComponentLogger("impersonation").Warn().
+				Err(err).
+				Str("impersonated_user_id", impersonatedUserID).
+				Msg("Failed to close database rows")
+		}
+	}()
+
+	var impersonators []string
+	for rows.Next() {
+		var impersonatorUserID string
+		if err := rows.Scan(&impersonatorUserID); err != nil {
+			logger.ComponentLogger("impersonation").Warn().
+				Err(err).
+				Str("impersonated_user_id", impersonatedUserID).
+				Msg("Failed to scan impersonator user ID")
+			continue
+		}
+		impersonators = append(impersonators, impersonatorUserID)
+	}
+
+	if err := rows.Err(); err != nil {
+		logger.ComponentLogger("impersonation").Error().
+			Err(err).
+			Str("impersonated_user_id", impersonatedUserID).
+			Msg("Error iterating through impersonator results")
+		return fmt.Errorf("error reading query results: %w", err)
+	}
+
+	// For each impersonator, check if they have an active session and clear it if it targets this user
+	clearedCount := 0
+	for _, impersonatorUserID := range impersonators {
+		// Handle special case where impersonator_user_id is "owner" but actual Redis key uses empty string
+		redisKeyUserID := impersonatorUserID
+		if impersonatorUserID == "owner" {
+			redisKeyUserID = "" // Owner uses empty string as Redis key
+		}
+
+		activeSession, err := sessionManager.GetActiveSession(redisKeyUserID)
+		if err != nil {
+			logger.ComponentLogger("impersonation").Warn().
+				Err(err).
+				Str("impersonator_user_id", impersonatorUserID).
+				Str("redis_key_user_id", redisKeyUserID).
+				Str("impersonated_user_id", impersonatedUserID).
+				Msg("Failed to check active session for impersonator")
+			continue
+		}
+
+		// If there's an active session and it targets our user, clear it
+		if activeSession != nil && activeSession.ImpersonatedUserID == impersonatedUserID {
+			if err := sessionManager.ClearSession(redisKeyUserID); err != nil {
+				logger.ComponentLogger("impersonation").Warn().
+					Err(err).
+					Str("impersonator_user_id", impersonatorUserID).
+					Str("redis_key_user_id", redisKeyUserID).
+					Str("impersonated_user_id", impersonatedUserID).
+					Str("session_id", activeSession.SessionID).
+					Msg("Failed to clear active impersonation session")
+				continue
+			}
+
+			clearedCount++
+			logger.ComponentLogger("impersonation").Info().
+				Str("impersonator_user_id", impersonatorUserID).
+				Str("redis_key_user_id", redisKeyUserID).
+				Str("impersonated_user_id", impersonatedUserID).
+				Str("session_id", activeSession.SessionID).
+				Msg("Cleared active impersonation session due to consent revocation")
+		}
+	}
+
+	logger.ComponentLogger("impersonation").Info().
+		Str("impersonated_user_id", impersonatedUserID).
+		Int("sessions_cleared", clearedCount).
+		Int("impersonators_checked", len(impersonators)).
+		Msg("Completed invalidation of active sessions for user")
+
+	return nil
 }

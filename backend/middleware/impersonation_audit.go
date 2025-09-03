@@ -121,11 +121,17 @@ func ImpersonationAuditMiddleware() gin.HandlerFunc {
 		// Process the request
 		c.Next()
 
+		// Get impersonator ID (use "owner" if no local DB ID)
+		impersonatorID := impersonatorUser.ID
+		if impersonatorID == "" && impersonatorUser.OrgRole == "Owner" {
+			impersonatorID = "owner"
+		}
+
 		// Create audit entry
 		responseStatus := c.Writer.Status()
 		auditEntry := &models.ImpersonationAuditEntry{
 			SessionID:            sessionIDStr,
-			ImpersonatorUserID:   impersonatorUser.ID,
+			ImpersonatorUserID:   impersonatorID,
 			ImpersonatedUserID:   impersonatedUser.ID,
 			ActionType:           "api_call",
 			APIEndpoint:          &c.Request.URL.Path,
