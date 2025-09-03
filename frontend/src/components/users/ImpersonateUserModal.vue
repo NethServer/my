@@ -31,7 +31,7 @@ async function impersonateUser(user: User) {
   errorImpersonate.value = null
 
   loginStore
-    .impersonateUser(user.logto_id!)
+    .impersonateUser(user.id!)
     .then(() => {
       // show success notification after modal closes
       setTimeout(() => {

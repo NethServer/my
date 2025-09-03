@@ -152,7 +152,7 @@ function getKebabMenuItems(user: User) {
   ]
 
   // Add impersonate option for owners, but not for self
-  if (canImpersonateUsers() && user.logto_id !== loginStore.userInfo?.logto_id) {
+  if (canImpersonateUsers() && user.id !== loginStore.userInfo?.id) {
     items.unshift({
       id: 'impersonate',
       label: t('users.impersonate_user'),

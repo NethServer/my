@@ -253,7 +253,7 @@
     "impersonation": "Impersonation",
     "impersonation_description": "Impersonation allows the 'owner' user to temporarily take on your identity and permissions. This can be useful for resolving technical issues or providing support. For security reasons, impersonation sessions always have a limited duration.",
     "impersonation_consent_enabled": "Impersonation consent enabled",
-    "impersonation_consent_enabled_description": "You have enabled impersonation consent. The 'owner' user can now impersonate your account for {hours} hours.",
+    "impersonation_consent_enabled_description": "You have enabled impersonation consent. The 'owner' user can now impersonate your account for {hours} hour.",
     "impersonation_consent_disabled": "Impersonation consent disabled",
     "impersonation_consent_is_enabled_until_time": "Impersonation consent will remain enabled until {time}",
     "impersonation_consent_is_disabled": "Impersonation consent is disabled",
@@ -267,7 +267,7 @@
     "impersonation_consent_cant_be_modified_owner_description": "You cannot edit impersonation consent because you are logged in as the 'owner' user.",
     "impersonation_consent_cant_be_modified_impersonating_description": "You cannot edit impersonation consent because you are impersonating another user.",
     "extend_consent_to_impersonation": "Extend consent",
-    "enable_impersonation_modal_message": "By enabling impersonation consent, you allow the 'owner' user to impersonate your account for {hours} hours. This action can be revoked at any time."
+    "enable_impersonation_modal_message": "By enabling impersonation consent, you allow the 'owner' user to impersonate your account for {hours} hour. This action can be revoked at any time."
   },
   "user_roles": {
     "Admin": "Admin",

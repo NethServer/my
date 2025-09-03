@@ -181,7 +181,7 @@ export const useLoginStore = defineStore('login', () => {
     try {
       //// add typing
       const res = await axios.post(
-        `${API_URL}/auth/impersonate`,
+        `${API_URL}/impersonate`,
         { user_id: userId },
         {
           headers: {
@@ -222,7 +222,7 @@ export const useLoginStore = defineStore('login', () => {
 
   const exitImpersonation = async () => {
     try {
-      const res = await axios.delete(`${API_URL}/auth/impersonate`, {
+      const res = await axios.delete(`${API_URL}/impersonate`, {
         headers: {
           Authorization: `Bearer ${jwtToken.value}`,
         },
