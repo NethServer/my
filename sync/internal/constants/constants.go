@@ -39,10 +39,12 @@ const (
 	OwnerOrgDescription = "Owner organization - complete control over commercial hierarchy"
 
 	// Role Names
-	AdminRoleName = "Admin"
-	AdminRoleID   = "admin"
-	OwnerRoleName = "Owner"
-	OwnerRoleID   = "owner"
+	AdminRoleName      = "Admin"
+	AdminRoleID        = "admin"
+	SuperAdminRoleName = "Super Admin"
+	SuperAdminRoleID   = "super"
+	OwnerRoleName      = "Owner"
+	OwnerRoleID        = "owner"
 
 	// Application Types
 	AppTypeSPA = "SPA"
