@@ -892,6 +892,113 @@ components:
           description: Consent creation timestamp
           example: "2025-09-03T14:30:00Z"
 
+    ImpersonationSession:
+      type: object
+      properties:
+        session_id:
+          type: string
+          description: Unique session identifier
+          example: "sess_abc123def456"
+        impersonator_user_id:
+          type: string
+          description: User ID of the person doing the impersonation
+          example: "usr_owner_123"
+        impersonated_user_id:
+          type: string
+          description: User ID of the person being impersonated
+          example: "usr_target_456"
+        impersonator_username:
+          type: string
+          description: Username of the impersonator
+          example: "owner@company.com"
+        impersonated_username:
+          type: string
+          description: Username of the impersonated user
+          example: "customer@example.com"
+        start_time:
+          type: string
+          format: date-time
+          description: Session start timestamp
+          example: "2025-09-02T14:30:00Z"
+        end_time:
+          type: string
+          format: date-time
+          nullable: true
+          description: Session end timestamp (null if still active)
+          example: "2025-09-02T15:45:00Z"
+        duration_minutes:
+          type: integer
+          nullable: true
+          description: Session duration in minutes (null if still active)
+          example: 75
+        action_count:
+          type: integer
+          description: Number of actions performed in this session
+          example: 24
+        status:
+          type: string
+          enum: [active, completed]
+          description: Session status
+          example: "completed"
+
+    ImpersonationAuditEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Audit entry ID
+          example: "audit_xyz789abc"
+        session_id:
+          type: string
+          description: Impersonation session ID
+          example: "sess_abc123def456"
+        impersonator_user_id:
+          type: string
+          description: User ID of the person doing the impersonation
+          example: "usr_owner_123"
+        impersonated_user_id:
+          type: string
+          description: User ID of the person being impersonated
+          example: "usr_target_456"
+        impersonator_username:
+          type: string
+          description: Username of the impersonator
+          example: "owner@company.com"
+        impersonated_username:
+          type: string
+          description: Username of the impersonated user
+          example: "customer@example.com"
+        action_type:
+          type: string
+          enum: [session_start, session_end, api_call]
+          description: Type of action performed
+          example: "api_call"
+        api_endpoint:
+          type: string
+          nullable: true
+          description: API endpoint called (only for api_call actions)
+          example: "/api/users"
+        http_method:
+          type: string
+          nullable: true
+          description: HTTP method used (only for api_call actions)
+          example: "GET"
+        request_data:
+          type: string
+          nullable: true
+          description: Request data (only for api_call actions)
+          example: "{\"limit\": 10}"
+        response_status:
+          type: integer
+          nullable: true
+          description: HTTP response status (only for api_call actions)
+          example: 200
+        timestamp:
+          type: string
+          format: date-time
+          description: When this action occurred
+          example: "2025-09-02T14:32:15Z"
+
   parameters:
     PageParam:
       name: page
@@ -2070,33 +2177,25 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /impersonate/audit:
+  /impersonate/sessions:
     get:
-      operationId: getImpersonationAudit
+      operationId: getImpersonationSessions
       tags:
         - Backend - Impersonation
-      summary: /impersonate/audit - Get impersonation audit logs
+      summary: /impersonate/sessions - List impersonation sessions
       description: |
-        Retrieves impersonation audit logs. Users can view their own audit history
-        (when they were impersonated). Owner users can view audit logs for any user.
+        Retrieves all impersonation sessions for the current user. Sessions are grouped
+        by session_id and show start/end times, duration, and action count. This endpoint
+        should be used first to get session overview, then use /impersonate/audit/{session_id}
+        to get detailed audit logs for specific sessions.
       parameters:
-        - name: user_id
-          in: query
-          description: User ID to get audit for (optional, defaults to current user)
-          schema:
-            type: string
-          example: "user-uuid-here"
-        - name: session_id
-          in: query
-          description: Session ID to get audit for specific session (optional)
-          schema:
-            type: string
-          example: "session-uuid-here"
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+      security:
+        - BearerAuth: []
       responses:
         '200':
-          description: Audit logs retrieved successfully
+          description: Sessions retrieved successfully
           content:
             application/json:
               schema:
@@ -2107,77 +2206,168 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: "audit logs retrieved successfully"
+                    example: "sessions retrieved successfully"
                   data:
                     type: object
                     properties:
-                      audit_entries:
+                      sessions:
                         type: array
                         items:
-                          type: object
-                          properties:
-                            id:
-                              type: string
-                              description: Audit entry ID
-                              example: "audit-uuid-here"
-                            session_id:
-                              type: string
-                              description: Impersonation session ID
-                              example: "session-uuid-here"
-                            impersonator_user_id:
-                              type: string
-                              description: ID of user who performed impersonation
-                              example: "owner-uuid-here"
-                            impersonated_user_id:
-                              type: string
-                              description: ID of user who was impersonated
-                              example: "user-uuid-here"
-                            action_type:
-                              type: string
-                              description: Type of action performed
-                              example: "api_call"
-                            api_endpoint:
-                              type: string
-                              description: API endpoint that was called
-                              example: "/api/users"
-                            http_method:
-                              type: string
-                              description: HTTP method used
-                              example: "GET"
-                            request_data:
-                              type: string
-                              description: Sanitized request data (sensitive info redacted)
-                              example: "{\"name\": \"John\", \"password\": \"[REDACTED]\"}"
-                            response_status:
-                              type: integer
-                              description: HTTP response status code
-                              example: 200
-                            timestamp:
-                              type: string
-                              format: date-time
-                              description: When the action was performed
-                              example: "2024-01-01T12:00:00Z"
-                            impersonator_username:
-                              type: string
-                              description: Username of impersonator
-                              example: "admin"
-                            impersonated_username:
-                              type: string
-                              description: Username of impersonated user
-                              example: "john.doe"
-                      pagination:
-                        $ref: '#/components/schemas/Pagination'
+                          $ref: '#/components/schemas/ImpersonationSession'
+                      total:
+                        type: integer
+                        description: Total number of sessions
+                        example: 25
+                      page:
+                        type: integer
+                        description: Current page number
+                        example: 1
+                      page_size:
+                        type: integer
+                        description: Number of sessions per page
+                        example: 20
+                      has_more:
+                        type: boolean
+                        description: Whether there are more sessions available
+                        example: true
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          description: Forbidden (cannot view other user's audit logs unless Owner)
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /impersonate/sessions/{session_id}:
+    get:
+      operationId: getImpersonationSession
+      tags:
+        - Backend - Impersonation
+      summary: /impersonate/sessions/{session_id} - Get details for specific session
+      description: |
+        Retrieves details for a specific impersonation session. Users can only
+        view sessions where they were impersonated. The session must belong to
+        the requesting user.
+      parameters:
+        - name: session_id
+          in: path
+          description: Impersonation session ID
+          required: true
+          schema:
+            type: string
+          example: "sess_abc123def456"
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Session details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "session details retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      session:
+                        $ref: '#/components/schemas/ImpersonationSession'
+        '400':
+          description: Missing or invalid session_id parameter
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
               example:
-                code: 403
-                message: "Cannot view audit logs for other users"
+                code: 400
+                message: "session_id parameter is required"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: 404
+                message: "session not found"
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /impersonate/sessions/{session_id}/audit:
+    get:
+      operationId: getSessionAudit
+      tags:
+        - Backend - Impersonation
+      summary: /impersonate/sessions/{session_id}/audit - Get audit logs for specific session
+      description: |
+        Retrieves detailed audit logs for a specific impersonation session. Users can only
+        view audit logs for their own sessions (when they were impersonated). The session
+        must belong to the requesting user.
+      parameters:
+        - name: session_id
+          in: path
+          description: Impersonation session ID
+          required: true
+          schema:
+            type: string
+          example: "sess_abc123def456"
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Session audit logs retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "session audit retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      session_id:
+                        type: string
+                        description: Session ID
+                        example: "sess_abc123def456"
+                      entries:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ImpersonationAuditEntry'
+                      total:
+                        type: integer
+                        description: Total number of entries in this session
+                        example: 15
+        '400':
+          description: Missing or invalid session_id parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: 400
+                message: "session_id parameter is required"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Session not found or access denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: 404
+                message: "session not found or access denied"
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /customers:
     get:

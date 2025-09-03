@@ -11,7 +11,6 @@ package methods
 
 import (
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -607,9 +606,9 @@ func ExitImpersonationWithAudit(c *gin.Context) {
 // AUDIT ENDPOINTS
 // =============================================================================
 
-// GetImpersonationAudit retrieves audit history for the current user (being impersonated)
-// GET /api/impersonate/audit
-func GetImpersonationAudit(c *gin.Context) {
+// GetImpersonationSessions retrieves all impersonation sessions for current user
+// GET /api/impersonate/sessions
+func GetImpersonationSessions(c *gin.Context) {
 	// Get current user context
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
@@ -617,46 +616,205 @@ func GetImpersonationAudit(c *gin.Context) {
 	}
 
 	// Parse pagination parameters
-	limitStr := c.DefaultQuery("limit", "50")
-	offsetStr := c.DefaultQuery("offset", "0")
-
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 1 || limit > 1000 {
-		limit = 50
-	}
-
-	offset, err := strconv.Atoi(offsetStr)
-	if err != nil || offset < 0 {
-		offset = 0
-	}
+	page, pageSize := helpers.GetPaginationFromQuery(c)
 
 	// Create impersonation service
 	impersonationService := local.NewImpersonationService()
 
-	// Get audit history
-	entries, total, err := impersonationService.GetUserAuditHistory(user.ID, limit, offset)
+	// Get sessions
+	sessions, total, err := impersonationService.GetUserSessions(user.ID, page, pageSize)
 	if err != nil {
 		logger.RequestLogger(c, "impersonate").Error().
 			Err(err).
-			Str("operation", "get_audit_history").
+			Str("operation", "get_sessions").
 			Str("user_id", user.ID).
-			Msg("Failed to get impersonation audit history")
+			Msg("Failed to get impersonation sessions")
 
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
-			"failed to get audit history: "+err.Error(),
+			"failed to get sessions: "+err.Error(),
 			nil,
 		))
 		return
 	}
 
 	c.JSON(http.StatusOK, response.OK(
-		"audit history retrieved successfully",
+		"sessions retrieved successfully",
 		gin.H{
-			"entries":  entries,
-			"total":    total,
-			"limit":    limit,
-			"offset":   offset,
-			"has_more": offset+len(entries) < total,
+			"sessions":  sessions,
+			"total":     total,
+			"page":      page,
+			"page_size": pageSize,
+			"has_more":  page*pageSize < total,
+		},
+	))
+}
+
+// GetImpersonationSession retrieves details for a specific impersonation session
+// GET /api/impersonate/sessions/:session_id
+func GetImpersonationSession(c *gin.Context) {
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Get session_id parameter
+	sessionID := c.Param("session_id")
+	if sessionID == "" {
+		logger.RequestLogger(c, "impersonate").Warn().
+			Str("operation", "get_session_details").
+			Str("user_id", user.ID).
+			Msg("Missing session_id parameter")
+
+		c.JSON(http.StatusBadRequest, response.BadRequest(
+			"session_id parameter is required",
+			nil,
+		))
+		return
+	}
+
+	// Create impersonation service
+	impersonationService := local.NewImpersonationService()
+
+	// Get all sessions and find the specific one (to verify ownership)
+	sessions, _, err := impersonationService.GetUserSessions(user.ID, 1000, 0)
+	if err != nil {
+		logger.RequestLogger(c, "impersonate").Error().
+			Err(err).
+			Str("operation", "verify_session_ownership").
+			Str("user_id", user.ID).
+			Str("session_id", sessionID).
+			Msg("Failed to verify session ownership")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError(
+			"failed to verify session ownership: "+err.Error(),
+			nil,
+		))
+		return
+	}
+
+	// Find the specific session
+	var session *models.ImpersonationSession
+	for _, s := range sessions {
+		if s.SessionID == sessionID {
+			session = &s
+			break
+		}
+	}
+
+	if session == nil {
+		logger.RequestLogger(c, "impersonate").Warn().
+			Str("operation", "session_not_found").
+			Str("user_id", user.ID).
+			Str("session_id", sessionID).
+			Msg("Session not found for user")
+
+		c.JSON(http.StatusNotFound, response.NotFound(
+			"session not found",
+			nil,
+		))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK(
+		"session details retrieved successfully",
+		gin.H{
+			"session": session,
+		},
+	))
+}
+
+// GetSessionAudit retrieves audit history for a specific impersonation session
+// GET /api/impersonate/sessions/:session_id/audit
+func GetSessionAudit(c *gin.Context) {
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Get session_id parameter
+	sessionID := c.Param("session_id")
+	if sessionID == "" {
+		logger.RequestLogger(c, "impersonate").Warn().
+			Str("operation", "get_session_audit").
+			Str("user_id", user.ID).
+			Msg("Missing session_id parameter")
+
+		c.JSON(http.StatusBadRequest, response.BadRequest(
+			"session_id parameter is required",
+			nil,
+		))
+		return
+	}
+
+	// Create impersonation service
+	impersonationService := local.NewImpersonationService()
+
+	// First, verify that this session belongs to the current user
+	// We get sessions for the current user and check if the requested session_id exists
+	sessions, _, err := impersonationService.GetUserSessions(user.ID, 1000, 0) // Get all sessions (reasonable limit)
+	if err != nil {
+		logger.RequestLogger(c, "impersonate").Error().
+			Err(err).
+			Str("operation", "verify_session_ownership").
+			Str("user_id", user.ID).
+			Str("session_id", sessionID).
+			Msg("Failed to verify session ownership")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError(
+			"failed to verify session ownership: "+err.Error(),
+			nil,
+		))
+		return
+	}
+
+	// Check if the session belongs to this user
+	var sessionFound bool
+	for _, session := range sessions {
+		if session.SessionID == sessionID {
+			sessionFound = true
+			break
+		}
+	}
+
+	if !sessionFound {
+		logger.RequestLogger(c, "impersonate").Warn().
+			Str("operation", "session_access_denied").
+			Str("user_id", user.ID).
+			Str("session_id", sessionID).
+			Msg("User attempted to access session that doesn't belong to them")
+
+		c.JSON(http.StatusNotFound, response.NotFound(
+			"session not found or access denied",
+			nil,
+		))
+		return
+	}
+
+	// Get session audit history
+	entries, err := impersonationService.GetSessionAuditHistory(sessionID)
+	if err != nil {
+		logger.RequestLogger(c, "impersonate").Error().
+			Err(err).
+			Str("operation", "get_session_audit").
+			Str("user_id", user.ID).
+			Str("session_id", sessionID).
+			Msg("Failed to get session audit history")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError(
+			"failed to get session audit: "+err.Error(),
+			nil,
+		))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK(
+		"session audit retrieved successfully",
+		gin.H{
+			"session_id": sessionID,
+			"entries":    entries,
+			"total":      len(entries),
 		},
 	))
 }
