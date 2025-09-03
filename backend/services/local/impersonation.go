@@ -248,71 +248,6 @@ func (s *ImpersonationService) LogImpersonationAction(entry *models.Impersonatio
 	return nil
 }
 
-// GetUserAuditHistory retrieves audit history for a specific user (being impersonated)
-func (s *ImpersonationService) GetUserAuditHistory(userID string, limit, offset int) ([]models.ImpersonationAuditEntry, int, error) {
-	// Get total count
-	countQuery := `SELECT COUNT(*) FROM impersonation_audit WHERE impersonated_user_id = $1`
-	var total int
-	err := s.db.QueryRow(countQuery, userID).Scan(&total)
-	if err != nil {
-		logger.ComponentLogger("impersonation").Error().
-			Err(err).
-			Str("user_id", userID).
-			Msg("Failed to get audit history count")
-		return nil, 0, err
-	}
-
-	// Get entries
-	query := `
-		SELECT id, session_id, impersonator_user_id, impersonated_user_id, action_type,
-			   api_endpoint, http_method, request_data, response_status, timestamp,
-			   impersonator_username, impersonated_username
-		FROM impersonation_audit
-		WHERE impersonated_user_id = $1
-		ORDER BY timestamp DESC
-		LIMIT $2 OFFSET $3
-	`
-
-	rows, err := s.db.Query(query, userID, limit, offset)
-	if err != nil {
-		logger.ComponentLogger("impersonation").Error().
-			Err(err).
-			Str("user_id", userID).
-			Msg("Failed to get audit history")
-		return nil, 0, err
-	}
-	defer func() { _ = rows.Close() }()
-
-	var entries []models.ImpersonationAuditEntry
-	for rows.Next() {
-		var entry models.ImpersonationAuditEntry
-		err := rows.Scan(
-			&entry.ID,
-			&entry.SessionID,
-			&entry.ImpersonatorUserID,
-			&entry.ImpersonatedUserID,
-			&entry.ActionType,
-			&entry.APIEndpoint,
-			&entry.HTTPMethod,
-			&entry.RequestData,
-			&entry.ResponseStatus,
-			&entry.Timestamp,
-			&entry.ImpersonatorUsername,
-			&entry.ImpersonatedUsername,
-		)
-		if err != nil {
-			logger.ComponentLogger("impersonation").Error().
-				Err(err).
-				Str("user_id", userID).
-				Msg("Failed to scan audit entry")
-			continue
-		}
-		entries = append(entries, entry)
-	}
-
-	return entries, total, nil
-}
-
 // GetSessionAuditHistory retrieves audit history for a specific impersonation session
 func (s *ImpersonationService) GetSessionAuditHistory(sessionID string) ([]models.ImpersonationAuditEntry, error) {
 	query := `
@@ -362,4 +297,113 @@ func (s *ImpersonationService) GetSessionAuditHistory(sessionID string) ([]model
 	}
 
 	return entries, nil
+}
+
+// GetUserSessions retrieves all impersonation sessions for a specific user (being impersonated)
+func (s *ImpersonationService) GetUserSessions(userID string, page, pageSize int) ([]models.ImpersonationSession, int, error) {
+	// Get total count of sessions
+	countQuery := `
+		SELECT COUNT(DISTINCT session_id)
+		FROM impersonation_audit
+		WHERE impersonated_user_id = $1
+	`
+	var total int
+	err := s.db.QueryRow(countQuery, userID).Scan(&total)
+	if err != nil {
+		logger.ComponentLogger("impersonation").Error().
+			Err(err).
+			Str("user_id", userID).
+			Msg("Failed to get sessions count")
+		return nil, 0, err
+	}
+
+	// Get sessions with aggregated data
+	query := `
+		WITH session_data AS (
+			SELECT
+				session_id,
+				impersonator_user_id,
+				impersonated_user_id,
+				impersonator_username,
+				impersonated_username,
+				MIN(timestamp) as start_time,
+				MAX(CASE WHEN action_type = 'session_end' THEN timestamp END) as end_time,
+				COUNT(*) as action_count,
+				CASE
+					WHEN MAX(CASE WHEN action_type = 'session_end' THEN timestamp END) IS NULL THEN 'active'
+					ELSE 'completed'
+				END as status
+			FROM impersonation_audit
+			WHERE impersonated_user_id = $1
+			GROUP BY session_id, impersonator_user_id, impersonated_user_id,
+					 impersonator_username, impersonated_username
+		)
+		SELECT
+			session_id,
+			impersonator_user_id,
+			impersonated_user_id,
+			impersonator_username,
+			impersonated_username,
+			start_time,
+			end_time,
+			CASE
+				WHEN end_time IS NOT NULL THEN EXTRACT(EPOCH FROM (end_time - start_time))/60
+				ELSE NULL
+			END as duration_minutes,
+			action_count,
+			status
+		FROM session_data
+		ORDER BY start_time DESC
+		LIMIT $2 OFFSET $3
+	`
+
+	// Convert page/pageSize to limit/offset for SQL query
+	limit := pageSize
+	offset := (page - 1) * pageSize
+
+	rows, err := s.db.Query(query, userID, limit, offset)
+	if err != nil {
+		logger.ComponentLogger("impersonation").Error().
+			Err(err).
+			Str("user_id", userID).
+			Msg("Failed to get user sessions")
+		return nil, 0, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var sessions []models.ImpersonationSession
+	for rows.Next() {
+		var session models.ImpersonationSession
+		var durationMinutes *float64 // Use float64 to handle EXTRACT result
+
+		err := rows.Scan(
+			&session.SessionID,
+			&session.ImpersonatorUserID,
+			&session.ImpersonatedUserID,
+			&session.ImpersonatorUsername,
+			&session.ImpersonatedUsername,
+			&session.StartTime,
+			&session.EndTime,
+			&durationMinutes,
+			&session.ActionCount,
+			&session.Status,
+		)
+		if err != nil {
+			logger.ComponentLogger("impersonation").Error().
+				Err(err).
+				Str("user_id", userID).
+				Msg("Failed to scan session entry")
+			continue
+		}
+
+		// Convert duration from float64 to *int (rounded)
+		if durationMinutes != nil {
+			duration := int(*durationMinutes + 0.5) // Round to nearest minute
+			session.Duration = &duration
+		}
+
+		sessions = append(sessions, session)
+	}
+
+	return sessions, total, nil
 }

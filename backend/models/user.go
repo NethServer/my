@@ -71,3 +71,17 @@ type ImpersonationAuditEntry struct {
 	ImpersonatorUsername string    `json:"impersonator_username" db:"impersonator_username"`
 	ImpersonatedUsername string    `json:"impersonated_username" db:"impersonated_username"`
 }
+
+// ImpersonationSession represents a summary of an impersonation session
+type ImpersonationSession struct {
+	SessionID            string     `json:"session_id" db:"session_id"`
+	ImpersonatorUserID   string     `json:"impersonator_user_id" db:"impersonator_user_id"`
+	ImpersonatedUserID   string     `json:"impersonated_user_id" db:"impersonated_user_id"`
+	ImpersonatorUsername string     `json:"impersonator_username" db:"impersonator_username"`
+	ImpersonatedUsername string     `json:"impersonated_username" db:"impersonated_username"`
+	StartTime            time.Time  `json:"start_time" db:"start_time"`
+	EndTime              *time.Time `json:"end_time" db:"end_time"`
+	Duration             *int       `json:"duration_minutes" db:"duration_minutes"` // Duration in minutes, null if still active
+	ActionCount          int        `json:"action_count" db:"action_count"`         // Number of actions performed in this session
+	Status               string     `json:"status"`                                 // "active", "completed"
+}

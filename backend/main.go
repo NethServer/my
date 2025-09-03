@@ -166,8 +166,10 @@ func main() {
 			impersonateGroup.POST("", methods.ImpersonateUserWithConsent)
 			impersonateGroup.DELETE("", methods.ExitImpersonationWithAudit)
 
-			// Audit endpoints (no audit middleware to avoid recursion)
-			impersonateGroup.GET("/audit", methods.GetImpersonationAudit)
+			// Session management endpoints
+			impersonateGroup.GET("/sessions", methods.GetImpersonationSessions)
+			impersonateGroup.GET("/sessions/:session_id", methods.GetImpersonationSession)
+			impersonateGroup.GET("/sessions/:session_id/audit", methods.GetSessionAudit)
 		}
 
 		// User profile endpoints using custom JWT (with audit for impersonation)
