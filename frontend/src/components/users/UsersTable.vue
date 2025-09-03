@@ -158,7 +158,8 @@ function getKebabMenuItems(user: User) {
       label: t('users.impersonate_user'),
       icon: faUserSecret,
       action: () => showImpersonateUserModal(user),
-      disabled: asyncStatus.value === 'loading' || isImpersonating.value,
+      disabled:
+        asyncStatus.value === 'loading' || isImpersonating.value || !user.can_be_impersonated,
     })
   }
 
