@@ -1928,10 +1928,9 @@ paths:
                   type: integer
                   minimum: 1
                   maximum: 168
-                  description: How many hours the consent should be active (max 1 week)
+                  default: 1
+                  description: How many hours the consent should be active (max 1 week, defaults to 1 hour)
                   example: 24
-              required:
-                - duration_hours
       responses:
         '200':
           description: Impersonation consent enabled successfully
