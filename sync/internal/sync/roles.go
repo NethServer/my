@@ -259,6 +259,12 @@ func (e *Engine) syncUserRolePermissions(cfg *config.Config, result *Result) err
 	}
 
 	logger.Info("User role permissions sync completed")
+
+	// Sync access control scopes for roles with access_control defined
+	if err := e.syncUserRoleAccessControlScopes(cfg, result); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -414,6 +420,128 @@ func (e *Engine) applyUserRolePermissionChanges(roleID, roleName string, diff *P
 				} else {
 					result.Summary.PermissionsDeleted += len(permissionIDs)
 				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// syncUserRoleAccessControlScopes synchronizes access control scopes for user roles
+func (e *Engine) syncUserRoleAccessControlScopes(cfg *config.Config, result *Result) error {
+	logger.Info("Syncing user role access control scopes...")
+
+	// Filter roles that have access control defined
+	userRoles := cfg.GetUserTypeRoles(cfg.UserRoles)
+	rolesWithAccessControl := make([]config.Role, 0)
+	for _, role := range userRoles {
+		if role.AccessControl != nil {
+			rolesWithAccessControl = append(rolesWithAccessControl, role)
+		}
+	}
+
+	if len(rolesWithAccessControl) == 0 {
+		logger.Info("No roles with access control configuration found")
+		return nil
+	}
+
+	// Build role mappings
+	mappings, err := e.buildUserRolePermissionMappings(cfg)
+	if err != nil {
+		return err
+	}
+
+	// Process each role with access control
+	for _, configRole := range rolesWithAccessControl {
+		if err := e.syncSingleRoleAccessControlScopes(configRole, mappings, result); err != nil {
+			return err
+		}
+	}
+
+	logger.Info("User role access control scopes sync completed")
+	return nil
+}
+
+// syncSingleRoleAccessControlScopes synchronizes access control scopes for a single role
+func (e *Engine) syncSingleRoleAccessControlScopes(configRole config.Role, mappings *UserRolePermissionMappings, result *Result) error {
+	roleID, exists := mappings.RoleNameToID[strings.ToLower(configRole.Name)]
+	if !exists {
+		// Role doesn't exist yet, skip
+		return nil
+	}
+
+	// Determine required access control scope based on configuration
+	var requiredScopeName string
+	if configRole.AccessControl != nil && len(configRole.AccessControl.OrganizationRoles) > 0 {
+		// Use the first (most restrictive) organization role for the scope name
+		// Format follows Logto convention: action:resource
+		requiredScopeName = fmt.Sprintf("%s:role-access-control", configRole.AccessControl.OrganizationRoles[0])
+	}
+
+	if requiredScopeName == "" {
+		return nil
+	}
+
+	// Get current scopes for the role
+	currentScopes, err := e.client.GetRolePermissions(roleID)
+	if err != nil {
+		return fmt.Errorf("failed to get current scopes for role %s: %w", configRole.Name, err)
+	}
+
+	// Check if the required access control scope is already assigned
+	hasRequiredScope := false
+	accessControlScopesToRemove := make([]string, 0)
+	for _, scope := range currentScopes {
+		if strings.HasSuffix(scope.Name, ":role-access-control") {
+			if scope.Name == requiredScopeName {
+				hasRequiredScope = true
+			} else {
+				// Different access control scope, should be removed
+				accessControlScopesToRemove = append(accessControlScopesToRemove, scope.ID)
+			}
+		}
+	}
+
+	// Add required scope if missing
+	if !hasRequiredScope {
+		// Find the scope ID by name from mappings
+		scopeID, exists := mappings.ScopeMapping.NameToID[requiredScopeName]
+		if !exists {
+			logger.Warn("Access control scope not found: %s", requiredScopeName)
+			e.addOperation(result, "role-access-control", "assign", configRole.Name,
+				fmt.Sprintf("Access control scope not found: %s", requiredScopeName),
+				fmt.Errorf("scope not found"))
+			return nil
+		}
+
+		if e.options.DryRun {
+			logger.Info("DRY RUN: Would assign access control scope %s to role %s", requiredScopeName, configRole.Name)
+			e.addOperation(result, "role-access-control", "assign", configRole.Name,
+				fmt.Sprintf("Would assign access control scope: %s", requiredScopeName), nil)
+		} else {
+			logger.Info("Assigning access control scope %s to role %s", requiredScopeName, configRole.Name)
+			err := e.client.AssignPermissionsToRole(roleID, []string{scopeID})
+			e.addOperation(result, "role-access-control", "assign", configRole.Name,
+				fmt.Sprintf("Assigned access control scope: %s", requiredScopeName), err)
+			if err != nil {
+				return fmt.Errorf("failed to assign access control scope to role %s: %w", configRole.Name, err)
+			}
+		}
+	}
+
+	// Remove old access control scopes if any
+	if len(accessControlScopesToRemove) > 0 {
+		if e.options.DryRun {
+			logger.Info("DRY RUN: Would remove old access control scopes from role %s", configRole.Name)
+			e.addOperation(result, "role-access-control", "remove", configRole.Name,
+				fmt.Sprintf("Would remove %d old access control scopes", len(accessControlScopesToRemove)), nil)
+		} else {
+			logger.Info("Removing %d old access control scopes from role %s", len(accessControlScopesToRemove), configRole.Name)
+			err := e.client.RemovePermissionsFromRole(roleID, accessControlScopesToRemove)
+			e.addOperation(result, "role-access-control", "remove", configRole.Name,
+				fmt.Sprintf("Removed %d old access control scopes", len(accessControlScopesToRemove)), err)
+			if err != nil {
+				logger.Warn("Failed to remove old access control scopes from role %s: %v", configRole.Name, err)
 			}
 		}
 	}

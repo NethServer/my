@@ -19,6 +19,22 @@ organization_roles:
       permissions:
 
 user_roles:
+    - id: super
+      name: "Super Admin"
+      type: user
+      priority: 0
+      permissions:
+        - id: "impersonate:users"
+        - id: "destroy:systems"
+        - id: "read:systems"
+        - id: "manage:systems"
+        - id: "read:users"
+        - id: "manage:users"
+      # Access control: only Owner users can assign this role
+      access_control:
+        organization_roles:
+          - "owner"
+
     - id: admin
       name: "Admin"
       type: user
@@ -26,17 +42,26 @@ user_roles:
       permissions:
         - id: "read:systems"
         - id: "manage:systems"
+        - id: "read:users"
+        - id: "manage:users"
 
     - id: support
       name: "Support"
       type: user
-      priority: 1
+      priority: 2
       permissions:
         - id: "read:systems"
+        - id: "manage:systems"
 
 resources:
     - name: "systems"
-      actions: ["read", "manage"]
+      actions: ["read", "manage", "destroy"]
+
+    - name: "users"
+      actions: ["read", "manage", "impersonate"]
+
+    - name: "role-access-control"
+      actions: ["owner", "distributor", "reseller"]
 
 # Third-party applications (optional)
 third_party_apps:
