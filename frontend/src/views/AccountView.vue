@@ -14,6 +14,7 @@ import { faKey } from '@fortawesome/free-solid-svg-icons'
 import { onMounted, ref } from 'vue'
 import ChangePasswordDrawer from '@/components/account/ChangePasswordDrawer.vue'
 import { useRoute } from 'vue-router'
+import ImpersonationPanel from '@/components/account/ImpersonationPanel.vue'
 
 const loginStore = useLoginStore()
 const route = useRoute()
@@ -32,11 +33,13 @@ onMounted(() => {
       {{ $t('account.title') }}
     </NeHeading>
     <div class="max-w-3xl space-y-8">
+      <!-- ui language -->
       <FormLayout :title="$t('account.ui_language')">
         <LanguageListbox />
       </FormLayout>
       <!-- divider -->
       <hr />
+      <!-- profile -->
       <NeInlineNotification
         v-if="loginStore.isOwner"
         kind="info"
@@ -54,6 +57,7 @@ onMounted(() => {
       </FormLayout>
       <!-- divider -->
       <hr />
+      <!-- change password -->
       <NeInlineNotification
         v-if="loginStore.isOwner"
         kind="info"
@@ -78,6 +82,29 @@ onMounted(() => {
           </template>
           {{ $t('account.change_password') }}
         </NeButton>
+      </FormLayout>
+      <!-- divider -->
+      <hr />
+      <!-- impersonation consent -->
+      <NeInlineNotification
+        v-if="loginStore.isOwner"
+        kind="info"
+        :title="$t('account.impersonation_consent_cant_be_modified')"
+        :description="$t('account.impersonation_consent_cant_be_modified_owner_description')"
+      />
+      <NeInlineNotification
+        v-if="loginStore.isImpersonating"
+        kind="info"
+        :title="$t('account.impersonation_consent_cant_be_modified')"
+        :description="
+          $t('account.impersonation_consent_cant_be_modified_impersonating_description')
+        "
+      />
+      <FormLayout
+        :title="$t('account.impersonation')"
+        :description="$t('account.impersonation_description')"
+      >
+        <ImpersonationPanel />
       </FormLayout>
     </div>
     <!-- change password drawer -->
