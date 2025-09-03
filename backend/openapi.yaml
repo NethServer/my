@@ -866,6 +866,31 @@ components:
             environment: "production"
             tier: "web"
 
+    ImpersonationConsent:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Consent ID
+          example: "consent_123"
+        user_id:
+          type: string
+          description: User ID who grants consent
+          example: "usr_456"
+        expires_at:
+          type: string
+          format: date-time
+          description: Consent expiration timestamp
+          example: "2025-09-04T14:30:00Z"
+        max_duration_minutes:
+          type: integer
+          description: Maximum duration for each impersonation session in minutes
+          example: 60
+        created_at:
+          type: string
+          format: date-time
+          description: Consent creation timestamp
+          example: "2025-09-03T14:30:00Z"
 
   parameters:
     PageParam:
@@ -1817,27 +1842,8 @@ paths:
                   data:
                     type: object
                     properties:
-                      id:
-                        type: string
-                        description: Consent ID
-                        example: "consent-uuid-here"
-                      user_id:
-                        type: string
-                        description: User ID who gave consent
-                        example: "user-uuid-here"
-                      expires_at:
-                        type: string
-                        format: date-time
-                        description: When the consent expires
-                        example: "2024-01-02T15:04:05Z"
-                      max_duration_minutes:
-                        type: integer
-                        description: Maximum duration in minutes
-                        example: 1440
-                      active:
-                        type: boolean
-                        description: Whether consent is currently active
-                        example: true
+                      consent:
+                        $ref: '#/components/schemas/ImpersonationConsent'
         '400':
           description: Bad request (invalid duration)
           content:
@@ -1875,27 +1881,12 @@ paths:
                   data:
                     type: object
                     properties:
-                      id:
-                        type: string
-                        description: Consent ID (null if no active consent)
-                        example: "consent-uuid-here"
-                      user_id:
-                        type: string
-                        description: User ID
-                        example: "user-uuid-here"
-                      expires_at:
-                        type: string
-                        format: date-time
-                        description: When consent expires (null if no active consent)
-                        example: "2024-01-02T15:04:05Z"
-                      max_duration_minutes:
-                        type: integer
-                        description: Maximum duration in minutes (null if no active consent)
-                        example: 1440
-                      active:
-                        type: boolean
-                        description: Whether consent is currently active
-                        example: true
+                      consent:
+                        allOf:
+                          - $ref: '#/components/schemas/ImpersonationConsent'
+                        type: object
+                        nullable: true
+                        description: Consent details (null if no active consent)
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -1921,6 +1912,9 @@ paths:
                   message:
                     type: string
                     example: "impersonation consent disabled successfully"
+                  data:
+                    type: object
+                    nullable: true
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -2064,12 +2058,6 @@ paths:
                         type: integer
                         description: Token expiration time in seconds (86400 = 24 hours)
                         example: 86400
-                      user:
-                        $ref: '#/components/schemas/User'
-                      is_impersonated:
-                        type: boolean
-                        description: Flag indicating impersonation has ended
-                        example: false
         '400':
           description: Bad request (not currently impersonating)
           content:

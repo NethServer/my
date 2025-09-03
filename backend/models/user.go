@@ -48,7 +48,7 @@ type ImpersonationConsent struct {
 	ExpiresAt          time.Time `json:"expires_at" db:"expires_at"`
 	MaxDurationMinutes int       `json:"max_duration_minutes" db:"max_duration_minutes"`
 	CreatedAt          time.Time `json:"created_at" db:"created_at"`
-	Active             bool      `json:"active" db:"active"`
+	Active             bool      `json:"-" db:"active"`
 }
 
 // EnableConsentRequest represents a request to enable impersonation consent

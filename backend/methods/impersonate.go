@@ -166,15 +166,14 @@ func GetImpersonationConsentStatus(c *gin.Context) {
 		c.JSON(http.StatusOK, response.OK(
 			"no active impersonation consent",
 			gin.H{
-				"has_consent": false,
-				"consent":     nil,
+				"consent": nil,
 			},
 		))
 		return
 	}
 
 	c.JSON(http.StatusOK, response.OK(
-		"impersonation consent status retrieved",
+		"consent status retrieved successfully",
 		gin.H{
 			"consent": consent,
 		},
