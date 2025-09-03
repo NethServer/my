@@ -53,7 +53,7 @@ type ImpersonationConsent struct {
 
 // EnableConsentRequest represents a request to enable impersonation consent
 type EnableConsentRequest struct {
-	DurationHours int `json:"duration_hours" binding:"required,min=1,max=168"` // Max 1 week
+	DurationHours int `json:"duration_hours" binding:"min=1,max=168"` // Max 1 week, defaults to 1 hour if not provided
 }
 
 // ImpersonationAuditEntry represents an action performed during impersonation
