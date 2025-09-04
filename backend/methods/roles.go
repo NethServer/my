@@ -209,3 +209,20 @@ func HasOrgRolePermission(userOrgRole, requiredOrgRole string) bool {
 	// User can access if their level is equal or higher (lower number = higher privilege)
 	return userLevel <= requiredLevel
 }
+
+// HasPermission checks if a permission exists in either user permissions or org permissions arrays
+func HasPermission(userPermissions, orgPermissions []string, permission string) bool {
+	// Check user permissions (from user roles)
+	for _, p := range userPermissions {
+		if p == permission {
+			return true
+		}
+	}
+	// Check organization permissions (from organization role)
+	for _, p := range orgPermissions {
+		if p == permission {
+			return true
+		}
+	}
+	return false
+}
