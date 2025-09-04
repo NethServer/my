@@ -111,8 +111,8 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 	// 2. Create in local DB with CustomData
 	distributor, err := s.distributorRepo.Create(req)
 	if err != nil {
-		// Check for global VAT constraint violation (from entities)
-		if strings.Contains(err.Error(), "VAT already exists in the system") {
+		// Check for VAT constraint violation (from entities/database)
+		if strings.Contains(err.Error(), "VAT already exists") {
 			vatValue := ""
 			if req.CustomData != nil && req.CustomData["vat"] != nil {
 				vatValue = fmt.Sprintf("%v", req.CustomData["vat"])
@@ -123,7 +123,7 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 					Type: "validation_error",
 					Errors: []response.ValidationError{{
 						Key:     "custom_data.vat",
-						Message: "already_exists",
+						Message: strings.ToLower(strings.ReplaceAll(err.Error(), "VAT", "vat")),
 						Value:   vatValue,
 					}},
 				},
@@ -253,8 +253,8 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 	// 2. Create in local DB with CustomData
 	reseller, err := s.resellerRepo.Create(req)
 	if err != nil {
-		// Check for global VAT constraint violation (from entities)
-		if strings.Contains(err.Error(), "VAT already exists in the system") {
+		// Check for VAT constraint violation (from entities/database)
+		if strings.Contains(err.Error(), "VAT already exists") {
 			vatValue := ""
 			if req.CustomData != nil && req.CustomData["vat"] != nil {
 				vatValue = fmt.Sprintf("%v", req.CustomData["vat"])
@@ -265,7 +265,7 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 					Type: "validation_error",
 					Errors: []response.ValidationError{{
 						Key:     "custom_data.vat",
-						Message: "already_exists",
+						Message: strings.ToLower(strings.ReplaceAll(err.Error(), "VAT", "vat")),
 						Value:   vatValue,
 					}},
 				},
@@ -395,8 +395,8 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 	// 2. Create in local DB with CustomData
 	customer, err := s.customerRepo.Create(req)
 	if err != nil {
-		// Check for global VAT constraint violation (from entities)
-		if strings.Contains(err.Error(), "VAT already exists in the system") {
+		// Check for VAT constraint violation (from entities/database)
+		if strings.Contains(err.Error(), "VAT already exists") {
 			vatValue := ""
 			if req.CustomData != nil && req.CustomData["vat"] != nil {
 				vatValue = fmt.Sprintf("%v", req.CustomData["vat"])
@@ -407,7 +407,7 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 					Type: "validation_error",
 					Errors: []response.ValidationError{{
 						Key:     "custom_data.vat",
-						Message: "already_exists",
+						Message: strings.ToLower(strings.ReplaceAll(err.Error(), "VAT", "vat")),
 						Value:   vatValue,
 					}},
 				},
@@ -659,8 +659,8 @@ func (s *LocalOrganizationService) UpdateDistributor(id string, req *models.Upda
 	distributor, err := s.distributorRepo.Update(id, req)
 	if err != nil {
 
-		// Check for global VAT constraint violation (from entities)
-		if strings.Contains(err.Error(), "VAT already exists in the system") {
+		// Check for VAT constraint violation (from entities/database)
+		if strings.Contains(err.Error(), "VAT already exists") {
 			vatValue := ""
 			if req.CustomData != nil && (*req.CustomData)["vat"] != nil {
 				vatValue = fmt.Sprintf("%v", (*req.CustomData)["vat"])
@@ -693,7 +693,7 @@ func (s *LocalOrganizationService) UpdateDistributor(id string, req *models.Upda
 					Type: "validation_error",
 					Errors: []response.ValidationError{{
 						Key:     "custom_data.vat",
-						Message: "already_exists",
+						Message: strings.ToLower(strings.ReplaceAll(err.Error(), "VAT", "vat")),
 						Value:   vatValue,
 					}},
 				},
@@ -851,8 +851,8 @@ func (s *LocalOrganizationService) UpdateReseller(id string, req *models.UpdateL
 	reseller, err := s.resellerRepo.Update(id, req)
 	if err != nil {
 
-		// Check for global VAT constraint violation (from entities)
-		if strings.Contains(err.Error(), "VAT already exists in the system") {
+		// Check for VAT constraint violation (from entities/database)
+		if strings.Contains(err.Error(), "VAT already exists") {
 			vatValue := ""
 			if req.CustomData != nil && (*req.CustomData)["vat"] != nil {
 				vatValue = fmt.Sprintf("%v", (*req.CustomData)["vat"])
@@ -885,7 +885,7 @@ func (s *LocalOrganizationService) UpdateReseller(id string, req *models.UpdateL
 					Type: "validation_error",
 					Errors: []response.ValidationError{{
 						Key:     "custom_data.vat",
-						Message: "already_exists",
+						Message: strings.ToLower(strings.ReplaceAll(err.Error(), "VAT", "vat")),
 						Value:   vatValue,
 					}},
 				},
@@ -1043,8 +1043,8 @@ func (s *LocalOrganizationService) UpdateCustomer(id string, req *models.UpdateL
 	customer, err := s.customerRepo.Update(id, req)
 	if err != nil {
 
-		// Check for global VAT constraint violation (from entities)
-		if strings.Contains(err.Error(), "VAT already exists in the system") {
+		// Check for VAT constraint violation (from entities/database)
+		if strings.Contains(err.Error(), "VAT already exists") {
 			vatValue := ""
 			if req.CustomData != nil && (*req.CustomData)["vat"] != nil {
 				vatValue = fmt.Sprintf("%v", (*req.CustomData)["vat"])
@@ -1077,7 +1077,7 @@ func (s *LocalOrganizationService) UpdateCustomer(id string, req *models.UpdateL
 					Type: "validation_error",
 					Errors: []response.ValidationError{{
 						Key:     "custom_data.vat",
-						Message: "already_exists",
+						Message: strings.ToLower(strings.ReplaceAll(err.Error(), "VAT", "vat")),
 						Value:   vatValue,
 					}},
 				},

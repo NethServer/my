@@ -152,12 +152,12 @@ BEGIN
     END IF;
 END $$;
 
--- Global VAT uniqueness constraint across all entity types
--- This prevents the same VAT from being used in any of the organization tables
+-- VAT uniqueness constraint per organization role
+-- This prevents the same VAT from being used within the same organization type
 -- Only applies to active records (deleted_at IS NULL)
 
--- Global VAT uniqueness function
-CREATE OR REPLACE FUNCTION check_unique_vat()
+-- VAT uniqueness function for distributors
+CREATE OR REPLACE FUNCTION check_unique_vat_distributors()
 RETURNS TRIGGER AS $$
 DECLARE
     new_vat TEXT;
@@ -168,7 +168,7 @@ BEGIN
         RETURN NEW;
     END IF;
 
-    -- Check in distributors, excluding same id (for updates)
+    -- Check in distributors only, excluding same id (for updates)
     IF EXISTS (
         SELECT 1 FROM distributors
         WHERE TRIM(custom_data->>'vat') = new_vat
@@ -178,7 +178,23 @@ BEGIN
         RAISE EXCEPTION 'VAT "%" already exists in distributors', new_vat;
     END IF;
 
-    -- Check in resellers, excluding same id (for updates)
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- VAT uniqueness function for resellers
+CREATE OR REPLACE FUNCTION check_unique_vat_resellers()
+RETURNS TRIGGER AS $$
+DECLARE
+    new_vat TEXT;
+BEGIN
+    new_vat := TRIM(NEW.custom_data->>'vat');
+
+    IF new_vat IS NULL OR new_vat = '' OR NEW.deleted_at IS NOT NULL THEN
+        RETURN NEW;
+    END IF;
+
+    -- Check in resellers only, excluding same id (for updates)
     IF EXISTS (
         SELECT 1 FROM resellers
         WHERE TRIM(custom_data->>'vat') = new_vat
@@ -188,16 +204,16 @@ BEGIN
         RAISE EXCEPTION 'VAT "%" already exists in resellers', new_vat;
     END IF;
 
-    -- Check in customers, excluding same id (for updates)
-    IF EXISTS (
-        SELECT 1 FROM customers
-        WHERE TRIM(custom_data->>'vat') = new_vat
-          AND deleted_at IS NULL
-          AND (id IS DISTINCT FROM NEW.id)
-    ) THEN
-        RAISE EXCEPTION 'VAT "%" already exists in customers', new_vat;
-    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
+-- VAT uniqueness function for customers (no uniqueness constraint)
+CREATE OR REPLACE FUNCTION check_unique_vat_customers()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- No VAT uniqueness constraint for customers
+    -- VAT is optional for customers and can be duplicate
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -207,18 +223,18 @@ DROP TRIGGER IF EXISTS trg_check_vat_distributors ON distributors;
 CREATE TRIGGER trg_check_vat_distributors
 BEFORE INSERT OR UPDATE ON distributors
 FOR EACH ROW
-EXECUTE FUNCTION check_unique_vat();
+EXECUTE FUNCTION check_unique_vat_distributors();
 
 -- Resellers
 DROP TRIGGER IF EXISTS trg_check_vat_resellers ON resellers;
 CREATE TRIGGER trg_check_vat_resellers
 BEFORE INSERT OR UPDATE ON resellers
 FOR EACH ROW
-EXECUTE FUNCTION check_unique_vat();
+EXECUTE FUNCTION check_unique_vat_resellers();
 
 -- Customers
 DROP TRIGGER IF EXISTS trg_check_vat_customers ON customers;
 CREATE TRIGGER trg_check_vat_customers
 BEFORE INSERT OR UPDATE ON customers
 FOR EACH ROW
-EXECUTE FUNCTION check_unique_vat();
+EXECUTE FUNCTION check_unique_vat_customers();

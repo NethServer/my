@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
-	"strings"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -50,11 +48,6 @@ func Init() error {
 	logger.ComponentLogger("database").Info().
 		Str("database_url", logger.SanitizeConnectionURL(databaseURL)).
 		Msg("Database connection established")
-
-	// Run database migrations first
-	if err := runMigrations(); err != nil {
-		return fmt.Errorf("failed to run database migrations: %w", err)
-	}
 
 	// Initialize database schema (for new installations)
 	if err := initSchemaFromFile(); err != nil {
@@ -120,159 +113,4 @@ func initSchemaFromFile() error {
 
 	logger.ComponentLogger("database").Info().Msg("Database schema initialized successfully")
 	return nil
-}
-
-// runMigrations runs all pending database migrations
-func runMigrations() error {
-	logger.ComponentLogger("database").Info().Msg("Running database migrations")
-
-	// Create migrations table if it doesn't exist
-	if err := createMigrationsTable(); err != nil {
-		return fmt.Errorf("failed to create migrations table: %w", err)
-	}
-
-	// Get list of executed migrations
-	executedMigrations, err := getExecutedMigrations()
-	if err != nil {
-		return fmt.Errorf("failed to get executed migrations: %w", err)
-	}
-
-	// Get list of migration files
-	migrationFiles, err := getMigrationFiles()
-	if err != nil {
-		return fmt.Errorf("failed to get migration files: %w", err)
-	}
-
-	// Execute pending migrations
-	for _, migrationFile := range migrationFiles {
-		migrationName := strings.TrimSuffix(filepath.Base(migrationFile), ".sql")
-
-		// Skip if already executed
-		if contains(executedMigrations, migrationName) {
-			continue
-		}
-
-		logger.ComponentLogger("database").Info().
-			Str("migration", migrationName).
-			Msg("Executing migration")
-
-		if err := executeMigration(migrationFile, migrationName); err != nil {
-			return fmt.Errorf("failed to execute migration %s: %w", migrationName, err)
-		}
-
-		logger.ComponentLogger("database").Info().
-			Str("migration", migrationName).
-			Msg("Migration executed successfully")
-	}
-
-	logger.ComponentLogger("database").Info().Msg("All migrations completed successfully")
-	return nil
-}
-
-// createMigrationsTable creates the migrations tracking table
-func createMigrationsTable() error {
-	query := `
-		CREATE TABLE IF NOT EXISTS migrations (
-			id SERIAL PRIMARY KEY,
-			name VARCHAR(255) NOT NULL UNIQUE,
-			executed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-		);
-	`
-	_, err := DB.Exec(query)
-	return err
-}
-
-// getExecutedMigrations returns list of already executed migrations
-func getExecutedMigrations() ([]string, error) {
-	rows, err := DB.Query("SELECT name FROM migrations ORDER BY executed_at")
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			logger.ComponentLogger("database").Error().Err(err).Msg("Failed to close rows")
-		}
-	}()
-
-	var migrations []string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, err
-		}
-		migrations = append(migrations, name)
-	}
-
-	return migrations, rows.Err()
-}
-
-// getMigrationFiles returns sorted list of migration files
-func getMigrationFiles() ([]string, error) {
-	migrationsDir := filepath.Join("database", "migrations")
-
-	// Check if migrations directory exists
-	if _, err := os.Stat(migrationsDir); os.IsNotExist(err) {
-		logger.ComponentLogger("database").Info().Msg("No migrations directory found, skipping migrations")
-		return []string{}, nil
-	}
-
-	files, err := filepath.Glob(filepath.Join(migrationsDir, "*.sql"))
-	if err != nil {
-		return nil, err
-	}
-
-	// Sort files to ensure consistent execution order
-	sort.Strings(files)
-	return files, nil
-}
-
-// executeMigration executes a single migration file
-func executeMigration(filePath, migrationName string) error {
-	// Read migration file
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		return fmt.Errorf("failed to read migration file: %w", err)
-	}
-
-	// Start transaction
-	tx, err := DB.Begin()
-	if err != nil {
-		return fmt.Errorf("failed to start transaction: %w", err)
-	}
-
-	var committed bool
-	defer func() {
-		if !committed {
-			if err := tx.Rollback(); err != nil {
-				logger.ComponentLogger("database").Error().Err(err).Msg("Failed to rollback transaction")
-			}
-		}
-	}()
-
-	// Execute migration SQL
-	if _, err := tx.Exec(string(content)); err != nil {
-		return fmt.Errorf("failed to execute migration SQL: %w", err)
-	}
-
-	// Record migration as executed
-	if _, err := tx.Exec("INSERT INTO migrations (name) VALUES ($1)", migrationName); err != nil {
-		return fmt.Errorf("failed to record migration: %w", err)
-	}
-
-	// Commit transaction
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	committed = true
-	return nil
-}
-
-// contains checks if a slice contains a string
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
 }

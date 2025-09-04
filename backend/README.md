@@ -20,6 +20,9 @@ make dev-setup
 # Start PostgreSQL and Redis containers
 make dev-up
 
+# Run database migrations
+make db-migrate
+
 # Start the application
 make run
 
@@ -228,8 +231,15 @@ make db-down
 # Reset PostgreSQL container (stop + start)
 make db-reset
 
-# Run database migrations
-make db-migrate
+# Run all pending database migrations (automatically skips applied ones)
+make db-migrate                              # Uses .env
+make db-migrate-qa                           # Uses .env.qa
+
+# Run specific migration (for advanced users)
+make db-migration MIGRATION=001 ACTION=apply              # Uses .env
+make db-migration MIGRATION=001 ACTION=apply ENV=qa       # Uses .env.qa
+make db-migration MIGRATION=001 ACTION=rollback
+make db-migration MIGRATION=001 ACTION=status
 ```
 
 ### Redis Commands

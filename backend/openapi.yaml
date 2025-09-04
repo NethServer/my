@@ -43,6 +43,8 @@ tags:
     description: Backend user profile and permissions
   - name: Backend - Users
     description: Backend user management with RBAC
+  - name: Backend - Validators
+    description: Backend validation endpoints for real-time checks
 
 
   - name: Collect - Health
@@ -109,6 +111,14 @@ components:
           type: string
           description: Value that failed validation
           example: ""
+
+    VATValidationResponse:
+      type: object
+      properties:
+        exists:
+          type: boolean
+          description: Whether the VAT number exists in the specified entity type
+          example: true
 
     Pagination:
       type: object
@@ -3395,5 +3405,58 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /validators/vat/{entity_type}:
+    get:
+      operationId: validateVAT
+      tags:
+        - Backend - Validators
+      summary: Validate VAT number
+      description: Check if a VAT number exists in the specified entity type (distributors, resellers, customers)
+      parameters:
+        - name: entity_type
+          in: path
+          required: true
+          description: Type of entity to check VAT against
+          schema:
+            type: string
+            enum: [distributors, resellers, customers]
+            example: "customers"
+        - name: vat
+          in: query
+          required: true
+          description: VAT number to validate
+          schema:
+            type: string
+            example: "12345678901"
+        - name: exclude_id
+          in: query
+          required: false
+          description: Entity ID to exclude from check (useful for updates)
+          schema:
+            type: string
+            example: "cust_123456789"
+      responses:
+        '200':
+          description: VAT validation completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "VAT validation completed"
+                  data:
+                    $ref: '#/components/schemas/VATValidationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'

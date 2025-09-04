@@ -45,9 +45,8 @@ WORKDIR /app
 # Copy the binary from builder stage
 COPY --from=builder /app/backend .
 
-# Copy database schema and migration files
+# Copy database schema (needed for new installations)
 COPY --from=builder /app/database/schema.sql database/
-COPY --from=builder /app/database/migrations/ database/migrations/
 
 # Copy email templates
 COPY --from=builder /app/services/email/templates/ services/email/templates/

@@ -229,3 +229,8 @@ func (c *LocalCustomer) Active() bool {
 func (c *LocalCustomer) IsDeleted() bool {
 	return c.DeletedAt != nil
 }
+
+// VATValidationResponse represents a VAT validation response
+type VATValidationResponse struct {
+	Exists bool `json:"exists"`
+}

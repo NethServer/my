@@ -215,11 +215,78 @@ validate-docs:
 		echo "Install with: npm install -g @redocly/cli"; \
 	fi
 
-# Database migrations are handled automatically on backend startup
+# Database migrations using containerized script
 .PHONY: db-migrate
 db-migrate:
-	@echo "Database migrations are handled automatically when the backend starts"
-	@echo "Simply run 'make run' or 'go run main.go' to apply pending migrations"
+	@echo "Running all pending database migrations (using .env)..."
+	@if [ ! -f .env ]; then \
+		echo "Error: .env file not found. Run 'make dev-setup' first."; \
+		exit 1; \
+	fi; \
+	set -a && source .env && set +a && \
+	cd database/migrations && \
+	for migration in $$(ls *.sql | grep -E '^[0-9]+_.*\.sql$$' | sed 's/_.*\.sql$$//' | sort -u); do \
+		echo "Checking migration $$migration..."; \
+		if ./run_migration.sh $$migration status >/dev/null 2>&1; then \
+			echo "Migration $$migration already applied, skipping"; \
+		else \
+			echo "Applying migration $$migration..."; \
+			./run_migration.sh $$migration apply; \
+		fi; \
+	done; \
+	echo "All migrations completed!"
+
+# Database migrations for QA environment
+.PHONY: db-migrate-qa
+db-migrate-qa:
+	@echo "Running all pending database migrations (using .env.qa)..."
+	@if [ ! -f .env.qa ]; then \
+		echo "Error: .env.qa file not found."; \
+		exit 1; \
+	fi; \
+	set -a && source .env.qa && set +a && \
+	cd database/migrations && \
+	for migration in $$(ls *.sql | grep -E '^[0-9]+_.*\.sql$$' | sed 's/_.*\.sql$$//' | sort -u); do \
+		echo "Checking migration $$migration..."; \
+		if ./run_migration.sh $$migration status >/dev/null 2>&1; then \
+			echo "Migration $$migration already applied, skipping"; \
+		else \
+			echo "Applying migration $$migration..."; \
+			./run_migration.sh $$migration apply; \
+		fi; \
+	done; \
+	echo "All migrations completed!"
+
+# Individual migration management (for advanced users)
+.PHONY: db-migration
+db-migration:
+	@if [ -z "$(MIGRATION)" ]; then \
+		echo "Usage: make db-migration MIGRATION=<number> ACTION=<apply|rollback|status> [ENV=qa]"; \
+		echo "Example: make db-migration MIGRATION=001 ACTION=apply"; \
+		echo "Example: make db-migration MIGRATION=001 ACTION=apply ENV=qa"; \
+		echo ""; \
+		echo "Available actions:"; \
+		echo "  apply    - Apply the migration"; \
+		echo "  rollback - Rollback the migration"; \
+		echo "  status   - Check migration status"; \
+		echo ""; \
+		echo "For applying all pending migrations, use: make db-migrate or make db-migrate-qa"; \
+		exit 1; \
+	fi; \
+	if [ -z "$(ACTION)" ]; then \
+		echo "ACTION parameter is required (apply|rollback|status)"; \
+		exit 1; \
+	fi; \
+	ENV_FILE=.env; \
+	if [ "$(ENV)" = "qa" ]; then \
+		ENV_FILE=.env.qa; \
+	fi; \
+	if [ ! -f $$ENV_FILE ]; then \
+		echo "Error: $$ENV_FILE file not found."; \
+		exit 1; \
+	fi; \
+	set -a && source $$ENV_FILE && set +a && \
+	cd database/migrations && ./run_migration.sh $(MIGRATION) $(ACTION)
 
 # Pre-commit checks
 .PHONY: pre-commit
@@ -250,7 +317,9 @@ help:
 	@echo "  db-up         - Start PostgreSQL container"
 	@echo "  db-down       - Stop PostgreSQL container"
 	@echo "  db-reset      - Reset PostgreSQL container"
-	@echo "  db-migrate    - Run database migrations"
+	@echo "  db-migrate    - Run all pending database migrations (uses .env)"
+	@echo "  db-migrate-qa - Run all pending database migrations (uses .env.qa)"
+	@echo "  db-migration  - Run specific migration (MIGRATION=001 ACTION=apply [ENV=qa])"
 	@echo ""
 	@echo "Redis commands:"
 	@echo "  redis-up      - Start Redis container"

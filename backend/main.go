@@ -23,6 +23,7 @@ import (
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/methods"
+	"github.com/nethesis/my/backend/methods/validators"
 	"github.com/nethesis/my/backend/middleware"
 	"github.com/nethesis/my/backend/pkg/version"
 	"github.com/nethesis/my/backend/response"
@@ -258,6 +259,12 @@ func main() {
 
 		// Applications endpoint - filtered third-party applications based on user access
 		customAuth.GET("/applications", methods.GetApplications)
+
+		// Validators group - for validation endpoints
+		validatorsGroup := customAuth.Group("/validators")
+		{
+			validatorsGroup.GET("/vat/:entity_type", validators.ValidateVAT)
+		}
 
 	}
 

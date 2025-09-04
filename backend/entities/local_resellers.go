@@ -50,9 +50,9 @@ func (r *LocalResellerRepository) Create(req *models.CreateLocalResellerRequest)
 
 	_, err = r.db.Exec(query, id, nil, req.Name, req.Description, customDataJSON, now, now, nil)
 	if err != nil {
-		// Check for global VAT constraint violation (from trigger function)
+		// Check for VAT constraint violation (from trigger function)
 		if strings.Contains(err.Error(), "VAT") && strings.Contains(err.Error(), "already exists") {
-			return nil, fmt.Errorf("VAT already exists in the system")
+			return nil, fmt.Errorf("VAT already exists in resellers")
 		}
 		return nil, fmt.Errorf("failed to create reseller: %w", err)
 	}
@@ -141,9 +141,9 @@ func (r *LocalResellerRepository) Update(id string, req *models.UpdateLocalResel
 
 	_, err = r.db.Exec(query, id, current.Name, current.Description, customDataJSON, current.UpdatedAt)
 	if err != nil {
-		// Check for global VAT constraint violation (from trigger function)
+		// Check for VAT constraint violation (from trigger function)
 		if strings.Contains(err.Error(), "VAT") && strings.Contains(err.Error(), "already exists") {
-			return nil, fmt.Errorf("VAT already exists in the system")
+			return nil, fmt.Errorf("VAT already exists in resellers")
 		}
 		return nil, fmt.Errorf("failed to update reseller: %w", err)
 	}

@@ -141,9 +141,9 @@ func (r *LocalCustomerRepository) Update(id string, req *models.UpdateLocalCusto
 
 	_, err = r.db.Exec(query, id, current.Name, current.Description, customDataJSON, current.UpdatedAt)
 	if err != nil {
-		// Check for global VAT constraint violation (from trigger function)
+		// Check for VAT constraint violation (from trigger function)
 		if strings.Contains(err.Error(), "VAT") && strings.Contains(err.Error(), "already exists") {
-			return nil, fmt.Errorf("VAT already exists in the system")
+			return nil, fmt.Errorf("VAT already exists in customers")
 		}
 		return nil, fmt.Errorf("failed to update customer: %w", err)
 	}
