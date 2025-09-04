@@ -246,8 +246,8 @@ func GetUsers(c *gin.Context) {
 		return
 	}
 
-	// Check if current user is Owner (can impersonate)
-	canImpersonate := user.OrgRole == "Owner"
+	// Check if current user has impersonate permission (from user roles or organization roles)
+	canImpersonate := HasPermission(user.UserPermissions, user.OrgPermissions, "impersonate:users")
 
 	// Enrich users with impersonation consent status if user can impersonate
 	var enrichedUsers []gin.H
