@@ -174,7 +174,7 @@ func canUserAccessRoleCached(roleCache *cache.RoleNames, roleID string, user *mo
 	}
 
 	// Check if user's organization role has sufficient privileges
-	hasPermission := hasOrgRolePermission(user.OrgRole, accessControl.RequiredOrgRole)
+	hasPermission := HasOrgRolePermission(user.OrgRole, accessControl.RequiredOrgRole)
 
 	logger.ComponentLogger("roles").Debug().
 		Str("role_id", roleID).
@@ -186,9 +186,9 @@ func canUserAccessRoleCached(roleCache *cache.RoleNames, roleID string, user *mo
 	return hasPermission
 }
 
-// hasOrgRolePermission checks if userOrgRole has permission to access requiredOrgRole
+// HasOrgRolePermission checks if userOrgRole has permission to access requiredOrgRole
 // Following the business hierarchy: Owner > Distributor > Reseller > Customer
-func hasOrgRolePermission(userOrgRole, requiredOrgRole string) bool {
+func HasOrgRolePermission(userOrgRole, requiredOrgRole string) bool {
 	// Define hierarchy levels (case-insensitive)
 	orgRoleLevels := map[string]int{
 		"owner":       1,
