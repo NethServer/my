@@ -154,11 +154,11 @@ func canUserAccessRoleCached(roleCache *cache.RoleNames, roleID string, user *mo
 	// Get access control information from cache
 	accessControl, exists := roleCache.GetAccessControl(roleID)
 	if !exists {
-		// If role not found in cache, allow access (fail open)
+		// If role not found in cache, deny access for security (fail closed)
 		logger.ComponentLogger("roles").Warn().
 			Str("role_id", roleID).
-			Msg("Role access control not found in cache, allowing access")
-		return true
+			Msg("Role access control not found in cache, denying access for security")
+		return false
 	}
 
 	logger.ComponentLogger("roles").Debug().
