@@ -49,6 +49,51 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
+	// Validate role assignment permissions if roles are being assigned
+	if len(request.UserRoleIDs) > 0 {
+		roleCache := cache.GetRoleNames()
+		if !roleCache.IsLoaded() {
+			logger.Error().
+				Str("current_user_id", user.ID).
+				Msg("Role cache not loaded - cannot validate role assignments")
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("role validation unavailable", nil))
+			return
+		}
+
+		// Check each role being assigned
+		for _, roleID := range request.UserRoleIDs {
+			accessControl, exists := roleCache.GetAccessControl(roleID)
+			if exists && accessControl.HasAccessControl {
+				// This role has access control restrictions
+				hasPermission := HasOrgRolePermission(user.OrgRole, accessControl.RequiredOrgRole)
+				if !hasPermission {
+					logger.RequestLogger(c, "users").Warn().
+						Str("operation", "role_assignment_denied").
+						Str("current_user_id", user.ID).
+						Str("current_user_org_role", user.OrgRole).
+						Str("role_id", roleID).
+						Str("required_org_role", accessControl.RequiredOrgRole).
+						Msg("User attempted to assign role without sufficient privileges")
+
+					c.JSON(http.StatusForbidden, response.Forbidden("insufficient privileges to assign this role", map[string]interface{}{
+						"role_id":           roleID,
+						"required_org_role": strings.ToLower(accessControl.RequiredOrgRole),
+						"current_org_role":  strings.ToLower(user.OrgRole),
+					}))
+					return
+				}
+
+				logger.RequestLogger(c, "users").Debug().
+					Str("operation", "role_assignment_validated").
+					Str("current_user_id", user.ID).
+					Str("current_user_org_role", user.OrgRole).
+					Str("role_id", roleID).
+					Str("required_org_role", accessControl.RequiredOrgRole).
+					Msg("Role assignment validated successfully")
+			}
+		}
+	}
+
 	// Create user
 	account, err := service.CreateUser(&request, user.ID, user.OrganizationID)
 	if err != nil {
@@ -385,6 +430,54 @@ func UpdateUser(c *gin.Context) {
 	if !canUpdate {
 		c.JSON(http.StatusForbidden, response.Forbidden("access denied to update user", nil))
 		return
+	}
+
+	// Validate role assignment permissions if roles are being updated
+	if request.UserRoleIDs != nil && len(*request.UserRoleIDs) > 0 {
+		roleCache := cache.GetRoleNames()
+		if !roleCache.IsLoaded() {
+			logger.Error().
+				Str("current_user_id", user.ID).
+				Str("target_user_id", userID).
+				Msg("Role cache not loaded - cannot validate role assignments")
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("role validation unavailable", nil))
+			return
+		}
+
+		// Check each role being assigned
+		for _, roleID := range *request.UserRoleIDs {
+			accessControl, exists := roleCache.GetAccessControl(roleID)
+			if exists && accessControl.HasAccessControl {
+				// This role has access control restrictions
+				hasPermission := HasOrgRolePermission(user.OrgRole, accessControl.RequiredOrgRole)
+				if !hasPermission {
+					logger.RequestLogger(c, "users").Warn().
+						Str("operation", "role_assignment_denied").
+						Str("current_user_id", user.ID).
+						Str("current_user_org_role", user.OrgRole).
+						Str("target_user_id", userID).
+						Str("role_id", roleID).
+						Str("required_org_role", accessControl.RequiredOrgRole).
+						Msg("User attempted to assign role without sufficient privileges")
+
+					c.JSON(http.StatusForbidden, response.Forbidden("insufficient privileges to assign this role", map[string]interface{}{
+						"role_id":           roleID,
+						"required_org_role": strings.ToLower(accessControl.RequiredOrgRole),
+						"current_org_role":  strings.ToLower(user.OrgRole),
+					}))
+					return
+				}
+
+				logger.RequestLogger(c, "users").Debug().
+					Str("operation", "role_assignment_validated").
+					Str("current_user_id", user.ID).
+					Str("current_user_org_role", user.OrgRole).
+					Str("target_user_id", userID).
+					Str("role_id", roleID).
+					Str("required_org_role", accessControl.RequiredOrgRole).
+					Msg("Role assignment validated successfully")
+			}
+		}
 	}
 
 	// Create service
