@@ -3289,7 +3289,7 @@ paths:
       operationId: createSystemWithCallback
       tags:
         - Backend - Systems
-      summary: Create system with OAuth-style callback
+      summary: /systems/callback - Create system with OAuth-style callback
       description: |
         Create a new system and execute an OAuth-style callback to an external URL.
         This endpoint is designed for external applications that want to integrate system creation
@@ -4136,7 +4136,7 @@ paths:
       operationId: validateVAT
       tags:
         - Backend - Validators
-      summary: Validate VAT number
+      summary: /validators/vat/{entity_type} - Validate VAT number
       description: Check if a VAT number exists in the specified entity type (distributors, resellers, customers)
       parameters:
         - name: entity_type
