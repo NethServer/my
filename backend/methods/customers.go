@@ -61,7 +61,7 @@ func CreateCustomer(c *gin.Context) {
 		}
 
 		// Default to internal server error
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to create customer", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to create customer", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
@@ -104,7 +104,7 @@ func GetCustomer(c *gin.Context) {
 			Str("customer_id", customerID).
 			Msg("Failed to get customer")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get customer", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get customer", nil))
 		return
 	}
 
@@ -177,7 +177,7 @@ func GetCustomers(c *gin.Context) {
 			Str("user_org_role", userOrgRole).
 			Msg("Failed to list customers")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to list customers", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to list customers", nil))
 		return
 	}
 
@@ -232,7 +232,7 @@ func UpdateCustomer(c *gin.Context) {
 			Str("customer_id", customerID).
 			Msg("Failed to get customer for update validation")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get customer", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get customer", nil))
 		return
 	}
 
@@ -281,7 +281,7 @@ func UpdateCustomer(c *gin.Context) {
 		}
 
 		// Default to internal server error
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to update customer", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to update customer", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
@@ -324,7 +324,7 @@ func DeleteCustomer(c *gin.Context) {
 			Str("customer_id", customerID).
 			Msg("Failed to get customer for deletion validation")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to get customer", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get customer", nil))
 		return
 	}
 
@@ -361,7 +361,7 @@ func DeleteCustomer(c *gin.Context) {
 			Str("customer_id", customerID).
 			Msg("Failed to delete customer")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to delete customer", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to delete customer", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return

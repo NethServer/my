@@ -34,11 +34,12 @@ type Metadata struct {
 
 // Role represents a role with permissions
 type Role struct {
-	ID          string       `yaml:"id" json:"id"`
-	Name        string       `yaml:"name" json:"name"`
-	Type        string       `yaml:"type" json:"type"`
-	Priority    int          `yaml:"priority,omitempty" json:"priority,omitempty"`
-	Permissions []Permission `yaml:"permissions" json:"permissions"`
+	ID            string         `yaml:"id" json:"id"`
+	Name          string         `yaml:"name" json:"name"`
+	Type          string         `yaml:"type" json:"type"`
+	Priority      int            `yaml:"priority,omitempty" json:"priority,omitempty"`
+	Permissions   []Permission   `yaml:"permissions" json:"permissions"`
+	AccessControl *AccessControl `yaml:"access_control,omitempty" json:"access_control,omitempty"` // Access control for role assignment
 }
 
 // Permission represents a permission/scope
@@ -170,6 +171,13 @@ func (c *Config) validateRole(role Role, roleType string) error {
 			return fmt.Errorf("duplicate permission ID %s in role %s", perm.ID, role.ID)
 		}
 		permissionIDs[perm.ID] = true
+	}
+
+	// Validate access control if provided
+	if role.AccessControl != nil {
+		if err := c.validateAccessControl(*role.AccessControl, role.ID); err != nil {
+			return fmt.Errorf("access control validation failed for role %s: %w", role.ID, err)
+		}
 	}
 
 	return nil

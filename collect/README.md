@@ -186,7 +186,7 @@ collect/
 ```
 
 ## Related
-- [API.md](../backend/API.md) - API docs reference
+- [openapi.yaml](../backend/openapi.yaml) - API specification
 - [Backend](../backend/README.md) - API server
 - [sync CLI](../sync/README.md) - RBAC configuration tool
 - [Project Overview](../README.md) - Main documentation
