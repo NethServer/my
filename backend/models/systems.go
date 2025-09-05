@@ -53,3 +53,17 @@ type UpdateSystemRequest struct {
 	Type       string            `json:"type" structs:"type"`
 	CustomData map[string]string `json:"custom_data" structs:"custom_data"`
 }
+
+// CreateSystemWithCallbackRequest represents the request payload for creating a system with callback
+type CreateSystemWithCallbackRequest struct {
+	CreateSystemRequest
+	CallbackURL   string `json:"callback_url" binding:"required,url" structs:"callback_url"`
+	CallbackState string `json:"callback_state" binding:"required,min=10" structs:"callback_state"`
+}
+
+// CallbackPayload represents the data sent to the callback URL after system creation
+type CallbackPayload struct {
+	State     string    `json:"state"`
+	Timestamp time.Time `json:"timestamp"`
+	System    System    `json:"system"`
+}

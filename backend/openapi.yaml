@@ -2676,6 +2676,121 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /systems/callback:
+    post:
+      operationId: createSystemWithCallback
+      tags:
+        - Backend - Systems
+      summary: Create system with OAuth-style callback
+      description: |
+        Create a new system and execute an OAuth-style callback to an external URL.
+        This endpoint is designed for external applications that want to integrate system creation
+        into their workflow. The callback includes system information as query parameters.
+
+        **Security Features:**
+        - Time-based state tokens: State tokens expire after 1 hour
+        - One-shot protection: Each state token can only be used once (24-hour blacklist)
+        - CSRF protection: State validation prevents cross-site request forgery
+
+        **Callback Flow:**
+        1. External page generates time-based state token with timestamp
+        2. External page redirects user to My Nethesis frontend with parameters
+        3. User authenticates via Logto if needed
+        4. Frontend calls this endpoint with system details and callback info
+        5. Backend creates system and executes GET callback to external URL
+        6. External page receives callback with system data in query parameters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - type
+                - callback_url
+                - callback_state
+              properties:
+                name:
+                  type: string
+                  description: System name
+                  example: "Production Server"
+                type:
+                  type: string
+                  description: System type
+                  enum: [ns8, nsec]
+                  example: "ns8"
+                callback_url:
+                  type: string
+                  format: uri
+                  description: External URL to callback with system creation results
+                  example: "https://external-app.com/callback"
+                callback_state:
+                  type: string
+                  description: |
+                    Time-based state token for CSRF protection and replay prevention.
+                    Format: state_{base64-encoded-json}
+                    JSON contains: {timestamp: number, random: string}
+                  example: "state_eyJ0aW1lc3RhbXAiOjE3MjU1MjUxMjM0NTYsInJhbmRvbSI6ImFiYzEyM2RlZjQ1NiJ9"
+                custom_data:
+                  type: object
+                  description: Optional custom metadata for the system
+                  additionalProperties:
+                    type: string
+                  example:
+                    created_via: "callback_flow"
+                    source: "external_app"
+      responses:
+        '201':
+          description: System created successfully and callback executed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: "system created successfully"
+                  data:
+                    type: object
+                    properties:
+                      system:
+                        $ref: '#/components/schemas/System'
+                      callback_executed:
+                        type: boolean
+                        description: Whether the callback was successfully executed
+                        example: true
+        '400':
+          description: Bad request - invalid parameters or expired state token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 400
+                  message:
+                    type: string
+                    enum:
+                      - "invalid or already used state token"
+                      - "state token expired"
+                      - "state token already used"
+                    example: "state token expired"
+                  data:
+                    type: object
+                    properties:
+                      error:
+                        type: string
+                        example: "state token expired"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /systems/{id}:
     get:
       operationId: getSystemById

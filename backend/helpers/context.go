@@ -34,6 +34,12 @@ func GetUserFromContext(c *gin.Context) (*models.User, bool) {
 		return nil, false
 	}
 
+	// Apply the same fallback logic as GetUserContextExtended
+	// Use LogtoID if local ID is empty (for users not yet synced to local database)
+	if user != nil && user.ID == "" && user.LogtoID != nil {
+		user.ID = *user.LogtoID
+	}
+
 	return user, true
 }
 
