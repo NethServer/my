@@ -138,11 +138,11 @@ func (c *LogtoManagementClient) GetApplicationScopes(appID string) ([]string, er
 }
 
 // FilterApplicationsByAccess filters applications based on user's organization and user roles
-func FilterApplicationsByAccess(logtoApps []models.LogtoThirdPartyApp, organizationRoles []string, userRoles []string, userOrganizationID string) []models.LogtoThirdPartyApp {
+func FilterApplicationsByAccess(logtoApps []models.LogtoThirdPartyApp, organizationRoles []string, userRoleIDs []string, userOrganizationID string) []models.LogtoThirdPartyApp {
 	var filteredApps []models.LogtoThirdPartyApp
 
 	for _, app := range logtoApps {
-		if canAccessApplication(app, organizationRoles, userRoles, userOrganizationID) {
+		if canAccessApplication(app, organizationRoles, userRoleIDs, userOrganizationID) {
 			filteredApps = append(filteredApps, app)
 		}
 	}
@@ -160,7 +160,7 @@ func FilterApplicationsByAccess(logtoApps []models.LogtoThirdPartyApp, organizat
 // =============================================================================
 
 // canAccessApplication checks if a user with given roles and organization can access an application
-func canAccessApplication(app models.LogtoThirdPartyApp, organizationRoles []string, userRoles []string, userOrganizationID string) bool {
+func canAccessApplication(app models.LogtoThirdPartyApp, organizationRoles []string, userRoleIDs []string, userOrganizationID string) bool {
 	// Extract access control from custom data
 	accessControl := app.ExtractAccessControlFromCustomData()
 
@@ -212,12 +212,12 @@ func canAccessApplication(app models.LogtoThirdPartyApp, organizationRoles []str
 		}
 	}
 
-	// Check user roles
-	if len(accessControl.UserRoles) > 0 {
+	// Check user roles using role IDs
+	if len(accessControl.UserRoleIDs) > 0 {
 		hasUserRole := false
-		for _, userRole := range userRoles {
-			for _, requiredUserRole := range accessControl.UserRoles {
-				if strings.EqualFold(userRole, requiredUserRole) {
+		for _, userRoleID := range userRoleIDs {
+			for _, requiredUserRoleID := range accessControl.UserRoleIDs {
+				if userRoleID == requiredUserRoleID {
 					hasUserRole = true
 					break
 				}
@@ -229,8 +229,8 @@ func canAccessApplication(app models.LogtoThirdPartyApp, organizationRoles []str
 		if !hasUserRole {
 			logger.ComponentLogger("access_control").Debug().
 				Str("app_id", app.ID).
-				Strs("user_roles", userRoles).
-				Strs("required_user_roles", accessControl.UserRoles).
+				Strs("user_role_ids", userRoleIDs).
+				Strs("required_user_role_ids", accessControl.UserRoleIDs).
 				Msg("Access denied: user lacks required user role")
 			return false
 		}
@@ -240,7 +240,7 @@ func canAccessApplication(app models.LogtoThirdPartyApp, organizationRoles []str
 		Str("app_id", app.ID).
 		Str("user_organization_id", userOrganizationID).
 		Strs("user_organization_roles", organizationRoles).
-		Strs("user_roles", userRoles).
+		Strs("user_role_ids", userRoleIDs).
 		Msg("Access granted to application")
 
 	return true

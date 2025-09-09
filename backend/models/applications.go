@@ -31,6 +31,7 @@ type ApplicationBranding struct {
 type AccessControl struct {
 	OrganizationRoles []string `json:"organization_roles,omitempty"`
 	UserRoles         []string `json:"user_roles,omitempty"`
+	UserRoleIDs       []string `json:"user_role_ids,omitempty"`
 	OrganizationIDs   []string `json:"organization_ids,omitempty"`
 }
 
@@ -146,6 +147,17 @@ func (l *LogtoThirdPartyApp) ExtractAccessControlFromCustomData() *AccessControl
 			for _, role := range userRolesList {
 				if roleStr, ok := role.(string); ok {
 					accessControl.UserRoles = append(accessControl.UserRoles, roleStr)
+				}
+			}
+		}
+	}
+
+	if userRoleIDs, exists := accessControlMap["user_role_ids"]; exists {
+		if userRoleIDsList, ok := userRoleIDs.([]interface{}); ok {
+			accessControl.UserRoleIDs = make([]string, 0, len(userRoleIDsList))
+			for _, roleID := range userRoleIDsList {
+				if roleIDStr, ok := roleID.(string); ok {
+					accessControl.UserRoleIDs = append(accessControl.UserRoleIDs, roleIDStr)
 				}
 			}
 		}
