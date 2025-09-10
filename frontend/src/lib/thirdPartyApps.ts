@@ -15,7 +15,7 @@ import { useI18n } from 'vue-i18n'
 
 export const THIRD_PARTY_APPS_KEY = 'thirdPartyApps'
 
-const ENABLED_APPS = ['helpdesk.nethesis.it']
+const ENABLED_APPS = ['helpdesk.nethesis.it', 'stock.nethesis.it', 'nethshop.nethesis.it', 'my.nethspot.com']
 
 export type ThirdPartyApp = {
   id: string
@@ -62,7 +62,7 @@ export const getThirdPartyAppDescription = (thirdPartyApp: ThirdPartyApp) => {
 }
 
 export const openThirdPartyApp = (thirdPartyApp: ThirdPartyApp) => {
-  window.open(thirdPartyApp.login_url, '_blank', 'noopener,noreferrer')
+  window.open(thirdPartyApp.login_url, '_blank', 'noopener')
 }
 
 export const sortThirdPartyApps = (app1: ThirdPartyApp, app2: ThirdPartyApp) => {
