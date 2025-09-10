@@ -112,6 +112,11 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 			customData["login_url"] = appConfig.LoginURL
 		}
 
+		// Add info_url if configured
+		if appConfig.InfoURL != "" {
+			customData["info_url"] = appConfig.InfoURL
+		}
+
 		// Set custom data if we have any
 		if len(customData) > 0 {
 			updatedApp.CustomData = customData
@@ -186,6 +191,11 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 		// Add login_url if configured
 		if appConfig.LoginURL != "" {
 			customData["login_url"] = appConfig.LoginURL
+		}
+
+		// Add info_url if configured
+		if appConfig.InfoURL != "" {
+			customData["info_url"] = appConfig.InfoURL
 		}
 
 		// Set custom data if we have any
