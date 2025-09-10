@@ -15,7 +15,12 @@ import { useI18n } from 'vue-i18n'
 
 export const THIRD_PARTY_APPS_KEY = 'thirdPartyApps'
 
-const ENABLED_APPS = ['helpdesk.nethesis.it', 'stock.nethesis.it', 'nethshop.nethesis.it', 'my.nethspot.com']
+const ENABLED_APPS = [
+  'helpdesk.nethesis.it',
+  'stock.nethesis.it',
+  'nethshop.nethesis.it',
+  'my.nethspot.com',
+]
 
 export type ThirdPartyApp = {
   id: string
