@@ -17,6 +17,7 @@ type ThirdPartyApplication struct {
 	RedirectUris           []string             `json:"redirect_uris"`
 	PostLogoutRedirectUris []string             `json:"post_logout_redirect_uris"`
 	LoginURL               string               `json:"login_url"`
+	InfoURL                string               `json:"info_url,omitempty"`
 	Branding               *ApplicationBranding `json:"branding,omitempty"`
 }
 
@@ -100,6 +101,13 @@ func (l *LogtoThirdPartyApp) ToThirdPartyApplication(branding *ApplicationSignIn
 		if loginURLData, exists := l.CustomData["login_url"]; exists {
 			if loginURLStr, ok := loginURLData.(string); ok && loginURLStr != "" {
 				app.LoginURL = loginURLStr
+			}
+		}
+
+		// Extract info_url from custom_data if available
+		if infoURLData, exists := l.CustomData["info_url"]; exists {
+			if infoURLStr, ok := infoURLData.(string); ok && infoURLStr != "" {
+				app.InfoURL = infoURLStr
 			}
 		}
 	}
