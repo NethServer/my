@@ -343,19 +343,25 @@ func (c *LogtoClient) CreateDomain(domain map[string]interface{}) (map[string]in
 
 // ThirdPartyApplication represents a third-party application
 type ThirdPartyApplication struct {
-	ID                 string                 `json:"id,omitempty"`
-	Name               string                 `json:"name"`
-	Type               string                 `json:"type"`
-	Description        string                 `json:"description"`
-	IsThirdParty       bool                   `json:"isThirdParty"`
-	OidcClientMetadata *OidcClientMetadata    `json:"oidcClientMetadata,omitempty"`
-	CustomData         map[string]interface{} `json:"customData,omitempty"`
+	ID                   string                 `json:"id,omitempty"`
+	Name                 string                 `json:"name"`
+	Type                 string                 `json:"type"`
+	Description          string                 `json:"description"`
+	IsThirdParty         bool                   `json:"isThirdParty"`
+	OidcClientMetadata   *OidcClientMetadata    `json:"oidcClientMetadata,omitempty"`
+	CustomClientMetadata *CustomClientMetadata  `json:"customClientMetadata,omitempty"`
+	CustomData           map[string]interface{} `json:"customData,omitempty"`
 }
 
 // OidcClientMetadata represents OIDC client metadata
 type OidcClientMetadata struct {
 	RedirectUris           []string `json:"redirectUris,omitempty"`
 	PostLogoutRedirectUris []string `json:"postLogoutRedirectUris,omitempty"`
+}
+
+// CustomClientMetadata represents custom client metadata
+type CustomClientMetadata struct {
+	CorsAllowedOrigins []string `json:"corsAllowedOrigins,omitempty"`
 }
 
 // ApplicationSignInExperience represents application sign-in experience settings
