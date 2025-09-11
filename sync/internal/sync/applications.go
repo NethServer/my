@@ -130,6 +130,13 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 			}
 		}
 
+		// Add custom client metadata for CORS origins if provided
+		if len(appConfig.CorsAllowed) > 0 {
+			updatedApp.CustomClientMetadata = &client.CustomClientMetadata{
+				CorsAllowedOrigins: appConfig.CorsAllowed,
+			}
+		}
+
 		if !e.options.DryRun {
 			if err := e.client.UpdateThirdPartyApplication(existingApp.ID, updatedApp); err != nil {
 				e.addOperation(result, "application", "update", appConfig.Name, fmt.Sprintf("Update application %s", appConfig.Name), err)
@@ -208,6 +215,13 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 			newApp.OidcClientMetadata = &client.OidcClientMetadata{
 				RedirectUris:           appConfig.RedirectUris,
 				PostLogoutRedirectUris: appConfig.PostLogoutRedirectUris,
+			}
+		}
+
+		// Add custom client metadata for CORS origins if provided
+		if len(appConfig.CorsAllowed) > 0 {
+			newApp.CustomClientMetadata = &client.CustomClientMetadata{
+				CorsAllowedOrigins: appConfig.CorsAllowed,
 			}
 		}
 
