@@ -474,7 +474,10 @@ func (s *LocalSystemsService) CanDeleteSystemByCreator(userOrgRole, userOrgID st
 
 // CanAccessSystem validates if a user can access a specific system based on created_by organization
 func (s *LocalSystemsService) CanAccessSystem(system *models.System, userOrgRole, userOrgID string) (bool, string) {
-	switch userOrgRole {
+	// Normalize role to lowercase for case-insensitive comparison
+	normalizedRole := strings.ToLower(userOrgRole)
+
+	switch normalizedRole {
 	case "owner":
 		return true, ""
 	case "distributor":
