@@ -10,17 +10,25 @@
 package cache
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/services/logto"
 )
 
-// RoleNames provides in-memory access to role names from Logto
+// RoleAccessControl holds access control information for a role
+type RoleAccessControl struct {
+	RequiredOrgRole  string // Required organization role (e.g., "owner", "distributor")
+	HasAccessControl bool   // Whether this role has access control restrictions
+}
+
+// RoleNames provides in-memory access to role names and access control from Logto
 type RoleNames struct {
-	roles  map[string]string // roleID -> roleName
-	mutex  sync.RWMutex
-	loaded bool
+	roles         map[string]string            // roleID -> roleName
+	accessControl map[string]RoleAccessControl // roleID -> access control info
+	mutex         sync.RWMutex
+	loaded        bool
 }
 
 var (
@@ -32,7 +40,8 @@ var (
 func GetRoleNames() *RoleNames {
 	roleNamesOnce.Do(func() {
 		roleNames = &RoleNames{
-			roles: make(map[string]string),
+			roles:         make(map[string]string),
+			accessControl: make(map[string]RoleAccessControl),
 		}
 	})
 	return roleNames
@@ -56,12 +65,26 @@ func (r *RoleNames) LoadRoles() error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	// Clear existing roles
+	// Clear existing data
 	r.roles = make(map[string]string)
+	r.accessControl = make(map[string]RoleAccessControl)
 
 	// Populate with new data
 	for _, role := range roles {
 		r.roles[role.ID] = role.Name
+
+		// Load access control information for this role
+		accessControlInfo, err := r.loadRoleAccessControl(client, role.ID)
+		if err != nil {
+			logger.ComponentLogger("roles").Warn().
+				Err(err).
+				Str("role_id", role.ID).
+				Str("role_name", role.Name).
+				Msg("Failed to load access control for role, defaulting to no restrictions")
+			// Default to no access control restrictions on error
+			accessControlInfo = RoleAccessControl{HasAccessControl: false}
+		}
+		r.accessControl[role.ID] = accessControlInfo
 	}
 
 	r.loaded = true
@@ -107,4 +130,42 @@ func (r *RoleNames) IsLoaded() bool {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 	return r.loaded
+}
+
+// GetAccessControl returns the access control information for a role
+func (r *RoleNames) GetAccessControl(roleID string) (RoleAccessControl, bool) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	if !r.loaded {
+		return RoleAccessControl{}, false
+	}
+
+	accessControl, exists := r.accessControl[roleID]
+	return accessControl, exists
+}
+
+// loadRoleAccessControl loads access control information for a specific role
+func (r *RoleNames) loadRoleAccessControl(client *logto.LogtoManagementClient, roleID string) (RoleAccessControl, error) {
+	// Get role scopes to check for access control restrictions
+	roleScopes, err := client.GetRoleScopes(roleID)
+	if err != nil {
+		return RoleAccessControl{}, err
+	}
+
+	// Check if role has any access control scopes
+	for _, scope := range roleScopes {
+		if strings.HasSuffix(scope.Name, ":role-access-control") {
+			// Extract required organization role from scope name
+			// Format: "owner:role-access-control" -> "owner"
+			requiredOrgRole := strings.TrimSuffix(scope.Name, ":role-access-control")
+			return RoleAccessControl{
+				RequiredOrgRole:  requiredOrgRole,
+				HasAccessControl: true,
+			}, nil
+		}
+	}
+
+	// No access control scope found
+	return RoleAccessControl{HasAccessControl: false}, nil
 }

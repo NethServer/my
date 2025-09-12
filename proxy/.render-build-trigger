@@ -2,9 +2,9 @@
 # This file is used to force Docker service rebuilds in PR previews
 # Modify LAST_UPDATE to trigger rebuilds
 
-LAST_UPDATE=2025-08-27T15:40:39Z
+LAST_UPDATE=2025-09-01T10:07:10Z
 
 # Instructions:
 # 1. To force rebuild of Docker services in a PR, update LAST_UPDATE
-# 2. Run: perl -i -pe "s/LAST_UPDATE=2025-08-27T15:40:39Z
+# 2. Run: perl -i -pe "s/LAST_UPDATE=2025-09-01T09:37:10Z
 # 2. Commit and push changes to trigger Docker rebuilds

@@ -22,6 +22,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useI18n } from 'vue-i18n'
 import { useNotificationsStore } from '@/stores/notifications'
 import router from '@/router'
+import ImpersonationBadge from './ImpersonationBadge.vue'
 
 const emit = defineEmits(['openSidebar'])
 
@@ -47,6 +48,7 @@ const accountMenuOptions = computed(() => {
       label: t('shell.sign_out'),
       icon: faRightFromBracket,
       action: () => loginStore.logout(),
+      disabled: loginStore.isImpersonating,
     },
   ]
 })
@@ -93,6 +95,8 @@ function openNotificationsDrawer() {
       <div class="relative flex flex-1 items-center"></div>
       <!-- right-aligned before separator -->
       <div class="flex items-center gap-x-4 lg:gap-x-6">
+        <!-- impersonation badge -->
+        <ImpersonationBadge />
         <!-- separator -->
         <div
           class="hidden lg:block lg:h-6 lg:w-px lg:bg-gray-200 dark:lg:bg-gray-700"
