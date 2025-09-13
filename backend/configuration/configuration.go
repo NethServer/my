@@ -183,7 +183,7 @@ func Init() {
 	Config.SMTPFrom = os.Getenv("SMTP_FROM")
 	Config.SMTPFromName = os.Getenv("SMTP_FROM_NAME")
 	if Config.SMTPFromName == "" {
-		Config.SMTPFromName = "Nethesis Operation Center"
+		Config.SMTPFromName = "My Nethesis"
 	}
 	Config.SMTPTLS = parseBoolWithDefault("SMTP_TLS", true)
 

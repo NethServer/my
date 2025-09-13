@@ -1,6 +1,6 @@
 # Database Migrations
 
-This directory contains database migration scripts for the Nethesis Operation Center backend.
+This directory contains database migration scripts for the My Nethesis backend.
 
 ## Overview
 

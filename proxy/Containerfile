@@ -12,12 +12,14 @@ COPY nginx.conf /etc/nginx/nginx.conf
 # Create log directory
 RUN mkdir -p /var/log/nginx
 
-# Expose port (Render assigns dynamically)
-EXPOSE $PORT
+# Expose default port (can be overridden by runtime environment)
+ARG PORT=80
+ENV PORT=${PORT}
+EXPOSE ${PORT}
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:$PORT/health || exit 1
+  CMD curl -f http://localhost:${PORT}/health || exit 1
 
 # Copy and setup entrypoint script
 COPY entrypoint.sh /entrypoint.sh

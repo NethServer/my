@@ -65,7 +65,7 @@ SMTP_PORT=587
 SMTP_USERNAME=your-email@gmail.com
 SMTP_PASSWORD=your-app-password
 SMTP_FROM=noreply@yourdomain.com
-SMTP_FROM_NAME=Nethesis Operation Center
+SMTP_FROM_NAME=My Nethesis
 SMTP_TLS=true
 ```
 
