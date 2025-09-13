@@ -67,7 +67,9 @@ RUN chown -R nginx:nginx /usr/share/nginx/html
 RUN chmod -R 755 /usr/share/nginx/html
 
 # Expose port (default 8080, can be overridden by PORT env var)
-EXPOSE 8080
+ARG PORT=8080
+ENV PORT=${PORT}
+EXPOSE ${PORT}
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \

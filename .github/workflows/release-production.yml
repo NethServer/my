@@ -262,8 +262,8 @@ jobs:
         push: true
         tags: ${{ steps.backend_meta.outputs.tags }}
         labels: |
-          org.opencontainers.image.title=Nethesis Operation Center Backend
-          org.opencontainers.image.description=Backend API for Nethesis Operation Center
+          org.opencontainers.image.title=My Nethesis Backend
+          org.opencontainers.image.description=Backend API for My Nethesis
           org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
           org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           org.opencontainers.image.revision=${{ github.sha }}
@@ -306,7 +306,7 @@ jobs:
         push: true
         tags: ${{ steps.sync_meta.outputs.tags }}
         labels: |
-          org.opencontainers.image.title=Nethesis Operation Center Sync
+          org.opencontainers.image.title=My Nethesis Sync
           org.opencontainers.image.description=CLI tool for syncing RBAC configuration with Logto
           org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
           org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -350,8 +350,8 @@ jobs:
         push: true
         tags: ${{ steps.collect_meta.outputs.tags }}
         labels: |
-          org.opencontainers.image.title=Nethesis Operation Center Collect
-          org.opencontainers.image.description=Collection service for Nethesis Operation Center
+          org.opencontainers.image.title=My Nethesis Collect
+          org.opencontainers.image.description=Collection service for My Nethesis
           org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
           org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           org.opencontainers.image.revision=${{ github.sha }}
@@ -394,8 +394,8 @@ jobs:
         push: true
         tags: ${{ steps.frontend_meta.outputs.tags }}
         labels: |
-          org.opencontainers.image.title=Nethesis Operation Center Frontend
-          org.opencontainers.image.description=Frontend web application for Nethesis Operation Center
+          org.opencontainers.image.title=My Nethesis Frontend
+          org.opencontainers.image.description=Frontend web application for My Nethesis
           org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
           org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           org.opencontainers.image.revision=${{ github.sha }}
@@ -434,8 +434,8 @@ jobs:
         push: true
         tags: ${{ steps.proxy_meta.outputs.tags }}
         labels: |
-          org.opencontainers.image.title=Nethesis Operation Center Proxy
-          org.opencontainers.image.description=Reverse proxy for Nethesis Operation Center
+          org.opencontainers.image.title=My Nethesis Proxy
+          org.opencontainers.image.description=Reverse proxy for My Nethesis
           org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
           org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           org.opencontainers.image.revision=${{ github.sha }}
