@@ -29,14 +29,14 @@ func CollectInventory(c *gin.Context) {
 	systemID, exists := c.Get("system_id")
 	if !exists {
 		logger.Error().Msg("System ID not found in context after authentication")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Authentication context error", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("authentication context error", nil))
 		return
 	}
 
 	systemIDStr, ok := systemID.(string)
 	if !ok {
 		logger.Error().Msg("System ID is not a string")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Authentication context error", nil))
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("authentication context error", nil))
 		return
 	}
 
@@ -48,7 +48,7 @@ func CollectInventory(c *gin.Context) {
 			Int64("max_size", configuration.Config.APIMaxRequestSize).
 			Msg("Request size exceeds limit")
 
-		c.JSON(http.StatusRequestEntityTooLarge, response.BadRequest("Request too large", map[string]interface{}{
+		c.JSON(http.StatusRequestEntityTooLarge, response.BadRequest("request too large", map[string]interface{}{
 			"max_size_bytes": configuration.Config.APIMaxRequestSize,
 			"received_bytes": c.Request.ContentLength,
 		}))
@@ -63,7 +63,7 @@ func CollectInventory(c *gin.Context) {
 			Str("system_id", systemIDStr).
 			Msg("Failed to parse inventory data")
 
-		c.JSON(http.StatusBadRequest, response.BadRequest("Invalid JSON payload", map[string]interface{}{
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid JSON payload", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
@@ -84,7 +84,7 @@ func CollectInventory(c *gin.Context) {
 			Str("system_id", systemIDStr).
 			Msg("Inventory data validation failed")
 
-		c.JSON(http.StatusBadRequest, response.BadRequest("Invalid inventory data", map[string]interface{}{
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid inventory data", map[string]interface{}{
 			"validation_error": err.Error(),
 		}))
 		return
@@ -98,7 +98,7 @@ func CollectInventory(c *gin.Context) {
 			Str("system_id", systemIDStr).
 			Msg("Invalid JSON structure in inventory data")
 
-		c.JSON(http.StatusBadRequest, response.BadRequest("Invalid data structure", map[string]interface{}{
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid data structure", map[string]interface{}{
 			"error": "Data field must contain valid JSON",
 		}))
 		return
@@ -117,7 +117,7 @@ func CollectInventory(c *gin.Context) {
 			Dur("enqueue_duration", time.Since(start)).
 			Msg("Failed to enqueue inventory for processing")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to process inventory", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to process inventory", map[string]interface{}{
 			"error": "Processing queue unavailable",
 		}))
 		return

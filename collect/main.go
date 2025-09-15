@@ -145,7 +145,7 @@ func main() {
 
 	// Handle missing endpoints
 	router.NoRoute(func(c *gin.Context) {
-		c.JSON(http.StatusNotFound, response.NotFound("API not found", nil))
+		c.JSON(http.StatusNotFound, response.NotFound("api not found", nil))
 	})
 
 	// Setup graceful shutdown

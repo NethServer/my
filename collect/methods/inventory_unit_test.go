@@ -45,7 +45,7 @@ func TestCollectInventoryNoSystemID(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	assert.Equal(t, "Authentication context error", response["message"])
+	assert.Equal(t, "authentication context error", response["message"])
 }
 
 func TestCollectInventoryInvalidSystemIDType(t *testing.T) {
@@ -70,7 +70,7 @@ func TestCollectInventoryInvalidSystemIDType(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	assert.Equal(t, "Authentication context error", response["message"])
+	assert.Equal(t, "authentication context error", response["message"])
 }
 
 func TestCollectInventoryRequestTooLarge(t *testing.T) {
@@ -112,7 +112,7 @@ func TestCollectInventoryRequestTooLarge(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	assert.Equal(t, "Request too large", response["message"])
+	assert.Equal(t, "request too large", response["message"])
 	assert.Contains(t, response["data"], "max_size_bytes")
 	assert.Contains(t, response["data"], "received_bytes")
 }
@@ -139,7 +139,7 @@ func TestCollectInventoryInvalidJSON(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	assert.Equal(t, "Invalid JSON payload", response["message"])
+	assert.Equal(t, "invalid JSON payload", response["message"])
 }
 
 func TestCollectInventoryMissingDataField(t *testing.T) {
@@ -164,7 +164,7 @@ func TestCollectInventoryMissingDataField(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	assert.Equal(t, "Invalid inventory data", response["message"])
+	assert.Equal(t, "invalid inventory data", response["message"])
 }
 
 func TestCollectInventoryRequestValidation(t *testing.T) {
@@ -184,7 +184,7 @@ func TestCollectInventoryRequestValidation(t *testing.T) {
 			requestBody:    `{"data": {"cpu": "Intel i7"}}`,
 			contentLength:  0,
 			expectedStatus: http.StatusInternalServerError,
-			expectedMsg:    "Authentication context error",
+			expectedMsg:    "authentication context error",
 		},
 		{
 			name:           "invalid system_id type",
@@ -192,7 +192,7 @@ func TestCollectInventoryRequestValidation(t *testing.T) {
 			requestBody:    `{"data": {"cpu": "Intel i7"}}`,
 			contentLength:  0,
 			expectedStatus: http.StatusInternalServerError,
-			expectedMsg:    "Authentication context error",
+			expectedMsg:    "authentication context error",
 		},
 		{
 			name:           "invalid json",
@@ -200,7 +200,7 @@ func TestCollectInventoryRequestValidation(t *testing.T) {
 			requestBody:    `{"data": {"cpu": "Intel i7"`,
 			contentLength:  0,
 			expectedStatus: http.StatusBadRequest,
-			expectedMsg:    "Invalid JSON payload",
+			expectedMsg:    "invalid JSON payload",
 		},
 		{
 			name:           "missing data field",
@@ -208,7 +208,7 @@ func TestCollectInventoryRequestValidation(t *testing.T) {
 			requestBody:    `{"other": "value"}`,
 			contentLength:  0,
 			expectedStatus: http.StatusBadRequest,
-			expectedMsg:    "Invalid inventory data",
+			expectedMsg:    "invalid inventory data",
 		},
 		{
 			name:           "invalid data json",
@@ -216,7 +216,7 @@ func TestCollectInventoryRequestValidation(t *testing.T) {
 			requestBody:    `{"data": {"cpu": "Intel i7", "memory":}}`,
 			contentLength:  0,
 			expectedStatus: http.StatusBadRequest,
-			expectedMsg:    "Invalid JSON payload",
+			expectedMsg:    "invalid JSON payload",
 		},
 	}
 

@@ -38,7 +38,7 @@ func BasicAuthMiddleware() gin.HandlerFunc {
 				Msg("Missing Authorization header")
 
 			c.Header("WWW-Authenticate", `Basic realm="System Authentication"`)
-			c.JSON(http.StatusUnauthorized, response.Unauthorized("Authentication required", nil))
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("authentication required", nil))
 			c.Abort()
 			return
 		}
@@ -52,7 +52,7 @@ func BasicAuthMiddleware() gin.HandlerFunc {
 				Msg("Invalid Authorization header format")
 
 			c.Header("WWW-Authenticate", `Basic realm="System Authentication"`)
-			c.JSON(http.StatusUnauthorized, response.Unauthorized("Invalid authentication format", nil))
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("invalid authentication format", nil))
 			c.Abort()
 			return
 		}
@@ -68,7 +68,7 @@ func BasicAuthMiddleware() gin.HandlerFunc {
 				Msg("Invalid base64 encoding in Authorization header")
 
 			c.Header("WWW-Authenticate", `Basic realm="System Authentication"`)
-			c.JSON(http.StatusUnauthorized, response.Unauthorized("Invalid authentication encoding", nil))
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("invalid authentication encoding", nil))
 			c.Abort()
 			return
 		}
@@ -80,10 +80,10 @@ func BasicAuthMiddleware() gin.HandlerFunc {
 			logger.Warn().
 				Str("client_ip", c.ClientIP()).
 				Str("path", c.Request.URL.Path).
-				Msg("Invalid credentials format")
+				Msg("invalid credentials format")
 
 			c.Header("WWW-Authenticate", `Basic realm="System Authentication"`)
-			c.JSON(http.StatusUnauthorized, response.Unauthorized("Invalid credentials format", nil))
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("invalid credentials format", nil))
 			c.Abort()
 			return
 		}
@@ -94,7 +94,7 @@ func BasicAuthMiddleware() gin.HandlerFunc {
 		// Validate system credentials
 		if !validateSystemCredentials(c, systemID, systemSecret) {
 			c.Header("WWW-Authenticate", `Basic realm="System Authentication"`)
-			c.JSON(http.StatusUnauthorized, response.Unauthorized("Invalid system credentials", nil))
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("invalid system credentials", nil))
 			c.Abort()
 			return
 		}

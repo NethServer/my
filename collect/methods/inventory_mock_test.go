@@ -46,20 +46,20 @@ func (m *MockQueueManager) EnqueueInventory(ctx context.Context, data *models.In
 func CollectInventoryWithMockQueue(c *gin.Context, queueManager interface{}) {
 	systemID, exists := c.Get("system_id")
 	if !exists {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "Authentication context error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "authentication context error"})
 		return
 	}
 
 	systemIDStr, ok := systemID.(string)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "Authentication context error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "authentication context error"})
 		return
 	}
 
 	// Check request size limit
 	if c.Request.ContentLength > configuration.Config.APIMaxRequestSize {
 		c.JSON(http.StatusRequestEntityTooLarge, gin.H{
-			"message": "Request too large",
+			"message": "request too large",
 			"data": map[string]interface{}{
 				"max_size_bytes": configuration.Config.APIMaxRequestSize,
 				"received_bytes": c.Request.ContentLength,
@@ -72,7 +72,7 @@ func CollectInventoryWithMockQueue(c *gin.Context, queueManager interface{}) {
 	var inventoryRequest models.InventorySubmissionRequest
 	if err := c.ShouldBindJSON(&inventoryRequest); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "Invalid JSON payload",
+			"message": "invalid JSON payload",
 			"data": map[string]interface{}{
 				"error": err.Error(),
 			},
@@ -90,7 +90,7 @@ func CollectInventoryWithMockQueue(c *gin.Context, queueManager interface{}) {
 	// Validate inventory data
 	if err := inventoryData.ValidateInventoryData(); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "Invalid inventory data",
+			"message": "invalid inventory data",
 			"data": map[string]interface{}{
 				"validation_error": err.Error(),
 			},
@@ -102,7 +102,7 @@ func CollectInventoryWithMockQueue(c *gin.Context, queueManager interface{}) {
 	var testData interface{}
 	if err := json.Unmarshal(inventoryData.Data, &testData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "Invalid data structure",
+			"message": "invalid data structure",
 			"data": map[string]interface{}{
 				"error": "Data field must contain valid JSON",
 			},
@@ -117,7 +117,7 @@ func CollectInventoryWithMockQueue(c *gin.Context, queueManager interface{}) {
 
 		if err := mockQueue.EnqueueInventory(ctx, &inventoryData); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"message": "Failed to process inventory",
+				"message": "failed to process inventory",
 				"data": map[string]interface{}{
 					"error": "Processing queue unavailable",
 				},
@@ -178,7 +178,7 @@ func TestCollectInventoryInvalidDataJSONWithMock(t *testing.T) {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
 
-	assert.Equal(t, "Invalid JSON payload", response["message"])
+	assert.Equal(t, "invalid JSON payload", response["message"])
 }
 
 func TestCollectInventoryValidRequestWithMock(t *testing.T) {
@@ -269,7 +269,7 @@ func TestCollectInventoryQueueFailureWithMock(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	assert.Equal(t, "Failed to process inventory", response["message"])
+	assert.Equal(t, "failed to process inventory", response["message"])
 }
 
 func TestRequestSizeValidationWithMock(t *testing.T) {
@@ -338,7 +338,7 @@ func TestRequestSizeValidationWithMock(t *testing.T) {
 				err := json.Unmarshal(w.Body.Bytes(), &response)
 				require.NoError(t, err)
 
-				assert.Equal(t, "Request too large", response["message"])
+				assert.Equal(t, "request too large", response["message"])
 			} else {
 				assert.NotEqual(t, http.StatusRequestEntityTooLarge, w.Code)
 			}
@@ -380,7 +380,7 @@ func TestCollectInventoryDataValidationWithMock(t *testing.T) {
 			name:           "missing data field",
 			requestData:    map[string]interface{}{"other": "value"},
 			expectedStatus: http.StatusBadRequest,
-			expectedMsg:    "Invalid inventory data",
+			expectedMsg:    "invalid inventory data",
 		},
 	}
 
