@@ -345,7 +345,7 @@ func CreateSystemWithCallback(c *gin.Context) {
 			Str("system_name", request.Name).
 			Msg("Failed to create system")
 
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to create system", map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to create system", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return

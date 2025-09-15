@@ -28,7 +28,7 @@ func GetUserFromContext(c *gin.Context) (*models.User, bool) {
 	}
 
 	user, ok := userInterface.(*models.User)
-	if !ok {
+	if !ok || user == nil {
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("invalid user context", nil))
 		c.Abort()
 		return nil, false
