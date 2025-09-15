@@ -18,6 +18,11 @@ CLI tool for complete Logto setup and RBAC synchronization. Provides zero-to-pro
 - **Dry Run Mode**: Preview changes before applying
 - **Cleanup Mode**: Remove resources/roles not in config
 
+### Disaster Recovery
+- **`sync pull`**: Reverse sync from Logto to local database
+- **Owner Exclusion**: Automatically excludes Owner organizations and users (Logto-only)
+- **Database Restoration**: Restores organizations and users from Logto for disaster recovery
+
 ### Enterprise Features
 - **Multiple Output Formats**: Text, JSON, and YAML
 - **Safe Operations**: Preserves system entities and validates configurations
@@ -63,6 +68,7 @@ The sync tool loads environment variables from a `.env` file by default. You can
 # Use custom environment file
 ./build/sync sync --env-file .env.production
 ./build/sync init --env-file .env.staging
+./build/sync pull --env-file .env.production
 ```
 
 #### Required Environment Variables
@@ -77,6 +83,9 @@ APP_URL=https://your-app-domain.com
 # Logto Management API (M2M app credentials)
 BACKEND_APP_ID=your-backend-m2m-app-id
 BACKEND_APP_SECRET=your-backend-m2m-app-secret
+
+# Database connection (required for pull command)
+DATABASE_URL=postgresql://user:password@localhost:5432/database
 ```
 
 ### Complete Setup (Recommended)
@@ -134,6 +143,9 @@ sync sync -c configs/config.yml
 
 # Dry run to preview changes
 sync sync --dry-run --verbose
+
+# Pull from Logto to local database (disaster recovery)
+sync pull --verbose
 
 # Output results in JSON format
 sync sync --output json
@@ -196,6 +208,36 @@ sync sync -c config.yml --cleanup
 sync sync --skip-resources --skip-roles
 ```
 
+### Pull Command
+
+Disaster recovery and reverse synchronization:
+
+```bash
+# Basic pull from Logto to local database
+sync pull
+
+# Pull with verbose output
+sync pull --verbose
+
+# Dry run to see what would be pulled
+sync pull --dry-run --verbose
+
+# Output results in JSON format
+sync pull --output json
+```
+
+**What Pull Does:**
+1. Fetches organizations from Logto (excludes Owner)
+2. Creates/updates distributors, resellers, and customers in local database
+3. Fetches users from Logto (excludes Owner users)
+4. Creates/updates users with correct organization assignments
+5. Acknowledges roles, resources, and permissions (managed in Logto)
+
+**Use Cases:**
+- **Disaster Recovery**: Restore local database from Logto after data loss
+- **Development Setup**: Populate local database with production data
+- **Environment Sync**: Keep local database consistent with Logto
+
 ### Global Flags
 
 **Common Flags:**
@@ -220,6 +262,10 @@ sync sync --skip-resources --skip-roles
 - `--cleanup`: Remove undefined resources
 - `--skip-resources`: Skip resource sync
 - `--skip-roles`: Skip role sync
+
+**Pull Command:**
+- `--dry-run`: Preview changes only
+- `DATABASE_URL`: PostgreSQL connection string (required)
 
 ## Configuration
 
@@ -399,6 +445,18 @@ sync sync -c config.yml --dry-run --verbose
 sync sync -c config.yml
 ```
 
+### Disaster Recovery
+```bash
+# Restore local database from Logto
+DATABASE_URL="postgresql://user:pass@localhost:5432/db" sync pull --verbose
+
+# Preview what would be restored
+DATABASE_URL="postgresql://user:pass@localhost:5432/db" sync pull --dry-run
+
+# Restore with structured output
+DATABASE_URL="postgresql://user:pass@localhost:5432/db" sync pull --output json
+```
+
 ### Automation
 ```bash
 # JSON output for CI/CD
@@ -410,6 +468,9 @@ sync init --output json | jq -r '.backend_app.environment_vars | to_entries[] | 
 # Use different environment files in CI/CD
 sync init --env-file .env.staging --output json
 sync sync --env-file .env.production --dry-run
+
+# Disaster recovery in CI/CD
+DATABASE_URL="$DATABASE_URL" sync pull --output json --env-file .env.production
 ```
 
 ## Project Structure

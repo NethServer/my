@@ -116,6 +116,13 @@ func Info(format string, args ...interface{}) {
 	Logger.Info().Msgf(SanitizeMessage(format), args...)
 }
 
+// SanitizeConnectionURL sanitizes database connection URLs by redacting credentials
+func SanitizeConnectionURL(url string) string {
+	// Pattern to match postgres connection URLs and hide credentials
+	pattern := regexp.MustCompile(`(?i)(postgres|postgresql)://([^:]+):([^@]+)@(.+)`)
+	return pattern.ReplaceAllString(url, "$1://***:***@$4")
+}
+
 // Warn logs a warning message
 func Warn(format string, args ...interface{}) {
 	Logger.Warn().Msgf(SanitizeMessage(format), args...)
