@@ -186,9 +186,10 @@ func (c *LogtoClient) RemoveScopeFromOrganizationRole(roleID, scopeID string) er
 
 // LogtoOrganization represents an organization in Logto
 type LogtoOrganization struct {
-	ID          string `json:"id,omitempty"`
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
+	ID          string                 `json:"id,omitempty"`
+	Name        string                 `json:"name"`
+	Description string                 `json:"description,omitempty"`
+	CustomData  map[string]interface{} `json:"customData,omitempty"`
 }
 
 // GetOrganizations retrieves all organizations

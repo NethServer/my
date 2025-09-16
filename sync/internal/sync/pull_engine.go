@@ -321,18 +321,24 @@ func (e *PullEngine) processDistributor(logtoOrg client.LogtoOrganization, resul
 			LogtoID:       &logtoOrg.ID,
 			Name:          logtoOrg.Name,
 			Description:   logtoOrg.Description,
-			CustomData:    make(map[string]interface{}),
+			CustomData:    logtoOrg.CustomData,
 			CreatedAt:     time.Now(),
 			UpdatedAt:     time.Now(),
 			LogtoSyncedAt: &time.Time{},
 		}
 		*distributor.LogtoSyncedAt = time.Now()
 
+		// Serialize custom data
+		customDataJSON, err := json.Marshal(distributor.CustomData)
+		if err != nil {
+			return fmt.Errorf("failed to marshal custom data: %w", err)
+		}
+
 		_, err = database.DB.Exec(`
 			INSERT INTO distributors (id, logto_id, name, description, custom_data, created_at, updated_at, logto_synced_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 			distributor.ID, distributor.LogtoID, distributor.Name, distributor.Description,
-			"{}", distributor.CreatedAt, distributor.UpdatedAt, distributor.LogtoSyncedAt,
+			customDataJSON, distributor.CreatedAt, distributor.UpdatedAt, distributor.LogtoSyncedAt,
 		)
 
 		if err != nil {
@@ -347,11 +353,16 @@ func (e *PullEngine) processDistributor(logtoOrg client.LogtoOrganization, resul
 		return fmt.Errorf("failed to check existing distributor: %w", err)
 	} else {
 		// Update existing distributor
+		customDataJSON, err := json.Marshal(logtoOrg.CustomData)
+		if err != nil {
+			return fmt.Errorf("failed to marshal custom data: %w", err)
+		}
+
 		_, err = database.DB.Exec(`
 			UPDATE distributors
-			SET name = $1, description = $2, updated_at = $3, logto_synced_at = $4
-			WHERE id = $5`,
-			logtoOrg.Name, logtoOrg.Description, time.Now(), time.Now(), existingID,
+			SET name = $1, description = $2, custom_data = $3, updated_at = $4, logto_synced_at = $5
+			WHERE id = $6`,
+			logtoOrg.Name, logtoOrg.Description, customDataJSON, time.Now(), time.Now(), existingID,
 		)
 
 		if err != nil {
@@ -382,18 +393,24 @@ func (e *PullEngine) processReseller(logtoOrg client.LogtoOrganization, result *
 			LogtoID:       &logtoOrg.ID,
 			Name:          logtoOrg.Name,
 			Description:   logtoOrg.Description,
-			CustomData:    make(map[string]interface{}),
+			CustomData:    logtoOrg.CustomData,
 			CreatedAt:     time.Now(),
 			UpdatedAt:     time.Now(),
 			LogtoSyncedAt: &time.Time{},
 		}
 		*reseller.LogtoSyncedAt = time.Now()
 
+		// Serialize custom data
+		customDataJSON, err := json.Marshal(reseller.CustomData)
+		if err != nil {
+			return fmt.Errorf("failed to marshal custom data: %w", err)
+		}
+
 		_, err = database.DB.Exec(`
 			INSERT INTO resellers (id, logto_id, name, description, custom_data, created_at, updated_at, logto_synced_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 			reseller.ID, reseller.LogtoID, reseller.Name, reseller.Description,
-			"{}", reseller.CreatedAt, reseller.UpdatedAt, reseller.LogtoSyncedAt,
+			customDataJSON, reseller.CreatedAt, reseller.UpdatedAt, reseller.LogtoSyncedAt,
 		)
 
 		if err != nil {
@@ -408,11 +425,16 @@ func (e *PullEngine) processReseller(logtoOrg client.LogtoOrganization, result *
 		return fmt.Errorf("failed to check existing reseller: %w", err)
 	} else {
 		// Update existing reseller
+		customDataJSON, err := json.Marshal(logtoOrg.CustomData)
+		if err != nil {
+			return fmt.Errorf("failed to marshal custom data: %w", err)
+		}
+
 		_, err = database.DB.Exec(`
 			UPDATE resellers
-			SET name = $1, description = $2, updated_at = $3, logto_synced_at = $4
-			WHERE id = $5`,
-			logtoOrg.Name, logtoOrg.Description, time.Now(), time.Now(), existingID,
+			SET name = $1, description = $2, custom_data = $3, updated_at = $4, logto_synced_at = $5
+			WHERE id = $6`,
+			logtoOrg.Name, logtoOrg.Description, customDataJSON, time.Now(), time.Now(), existingID,
 		)
 
 		if err != nil {
@@ -443,18 +465,24 @@ func (e *PullEngine) processCustomer(logtoOrg client.LogtoOrganization, result *
 			LogtoID:       &logtoOrg.ID,
 			Name:          logtoOrg.Name,
 			Description:   logtoOrg.Description,
-			CustomData:    make(map[string]interface{}),
+			CustomData:    logtoOrg.CustomData,
 			CreatedAt:     time.Now(),
 			UpdatedAt:     time.Now(),
 			LogtoSyncedAt: &time.Time{},
 		}
 		*customer.LogtoSyncedAt = time.Now()
 
+		// Serialize custom data
+		customDataJSON, err := json.Marshal(customer.CustomData)
+		if err != nil {
+			return fmt.Errorf("failed to marshal custom data: %w", err)
+		}
+
 		_, err = database.DB.Exec(`
 			INSERT INTO customers (id, logto_id, name, description, custom_data, created_at, updated_at, logto_synced_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 			customer.ID, customer.LogtoID, customer.Name, customer.Description,
-			"{}", customer.CreatedAt, customer.UpdatedAt, customer.LogtoSyncedAt,
+			customDataJSON, customer.CreatedAt, customer.UpdatedAt, customer.LogtoSyncedAt,
 		)
 
 		if err != nil {
@@ -469,11 +497,16 @@ func (e *PullEngine) processCustomer(logtoOrg client.LogtoOrganization, result *
 		return fmt.Errorf("failed to check existing customer: %w", err)
 	} else {
 		// Update existing customer
+		customDataJSON, err := json.Marshal(logtoOrg.CustomData)
+		if err != nil {
+			return fmt.Errorf("failed to marshal custom data: %w", err)
+		}
+
 		_, err = database.DB.Exec(`
 			UPDATE customers
-			SET name = $1, description = $2, updated_at = $3, logto_synced_at = $4
-			WHERE id = $5`,
-			logtoOrg.Name, logtoOrg.Description, time.Now(), time.Now(), existingID,
+			SET name = $1, description = $2, custom_data = $3, updated_at = $4, logto_synced_at = $5
+			WHERE id = $6`,
+			logtoOrg.Name, logtoOrg.Description, customDataJSON, time.Now(), time.Now(), existingID,
 		)
 
 		if err != nil {
@@ -637,6 +670,13 @@ func (e *PullEngine) processUser(logtoUser map[string]interface{}, result *PullR
 	).Scan(&existingID, &existingLogtoID)
 
 	if err == sql.ErrNoRows {
+		// Get user roles from Logto
+		userRoles, err := e.client.GetUserRoles(userID)
+		if err != nil {
+			logger.Warn("Failed to get roles for user '%s': %v", userName, err)
+			userRoles = []string{} // Default to empty roles
+		}
+
 		// Create new user
 		user := models.LocalUser{
 			ID:             uuid.New().String(),
@@ -645,7 +685,7 @@ func (e *PullEngine) processUser(logtoUser map[string]interface{}, result *PullR
 			Email:          userEmail,
 			Name:           userName,
 			OrganizationID: ownerOrgID, // Assign to Owner org for visibility
-			UserRoleIDs:    []string{}, // Empty roles for now
+			UserRoleIDs:    userRoles,  // Use actual roles from Logto
 			CustomData:     make(map[string]interface{}),
 			CreatedAt:      time.Now(),
 			UpdatedAt:      time.Now(),
@@ -658,11 +698,17 @@ func (e *PullEngine) processUser(logtoUser map[string]interface{}, result *PullR
 			user.Phone = &phone
 		}
 
+		// Serialize user roles to JSON
+		userRolesJSON, err := json.Marshal(user.UserRoleIDs)
+		if err != nil {
+			return fmt.Errorf("failed to marshal user roles: %w", err)
+		}
+
 		_, err = database.DB.Exec(`
 			INSERT INTO users (id, logto_id, username, email, name, phone, organization_id, user_role_ids, custom_data, created_at, updated_at, logto_synced_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
 			user.ID, user.LogtoID, user.Username, user.Email, user.Name, user.Phone,
-			user.OrganizationID, "[]", "{}", user.CreatedAt, user.UpdatedAt, user.LogtoSyncedAt,
+			user.OrganizationID, userRolesJSON, "{}", user.CreatedAt, user.UpdatedAt, user.LogtoSyncedAt,
 		)
 
 		if err != nil {
@@ -682,11 +728,24 @@ func (e *PullEngine) processUser(logtoUser map[string]interface{}, result *PullR
 			phone = &phoneVal
 		}
 
+		// Get user roles from Logto
+		userRoles, err := e.client.GetUserRoles(userID)
+		if err != nil {
+			logger.Warn("Failed to get roles for user '%s': %v", userName, err)
+			userRoles = []string{} // Default to empty roles
+		}
+
+		// Serialize roles to JSON
+		userRolesJSON, err := json.Marshal(userRoles)
+		if err != nil {
+			return fmt.Errorf("failed to marshal user roles: %w", err)
+		}
+
 		_, err = database.DB.Exec(`
 			UPDATE users
 			SET username = $1, email = $2, name = $3, phone = $4, organization_id = $5, user_role_ids = $6, updated_at = $7, logto_synced_at = $8
 			WHERE id = $9`,
-			userName, userEmail, userName, phone, ownerOrgID, "[]", time.Now(), time.Now(), existingID,
+			userName, userEmail, userName, phone, ownerOrgID, userRolesJSON, time.Now(), time.Now(), existingID,
 		)
 
 		if err != nil {

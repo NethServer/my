@@ -263,6 +263,27 @@ func (c *LogtoClient) GetUsers() ([]map[string]interface{}, error) {
 	return result, c.handlePaginatedResponse(resp, &result)
 }
 
+// GetUserRoles retrieves the roles for a specific user
+func (c *LogtoClient) GetUserRoles(userID string) ([]string, error) {
+	resp, err := c.makeRequest("GET", fmt.Sprintf("/api/users/%s/roles", userID), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var roles []LogtoRole
+	if err := c.handlePaginatedResponse(resp, &roles); err != nil {
+		return nil, err
+	}
+
+	// Extract role IDs
+	roleIDs := make([]string, len(roles))
+	for i, role := range roles {
+		roleIDs[i] = role.ID
+	}
+
+	return roleIDs, nil
+}
+
 // CreateUser creates a new user
 func (c *LogtoClient) CreateUser(user map[string]interface{}) (map[string]interface{}, error) {
 	resp, err := c.makeRequest("POST", "/api/users", user)
