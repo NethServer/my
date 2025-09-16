@@ -36,6 +36,11 @@ type RefreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
+// ImpersonateRequest represents the request body for user impersonation
+type ImpersonateRequest struct {
+	UserID string `json:"user_id" binding:"required"`
+}
+
 // TokenExchangeResponse represents the response for token exchange
 type TokenExchangeResponse struct {
 	Token        string      `json:"token"`
@@ -52,7 +57,7 @@ func ExchangeToken(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "parse_request", http.StatusBadRequest, "Invalid request body")
 		c.JSON(http.StatusBadRequest, response.BadRequest(
-			"Invalid request body: "+err.Error(),
+			"invalid request body: "+err.Error(),
 			nil,
 		))
 		return
@@ -63,7 +68,7 @@ func ExchangeToken(c *gin.Context) {
 	if err != nil {
 		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "get_userinfo", http.StatusUnauthorized, "Failed to get user info from Logto")
 		c.JSON(http.StatusUnauthorized, response.Unauthorized(
-			"Invalid access token: "+err.Error(),
+			"invalid access token: "+err.Error(),
 			nil,
 		))
 		return
@@ -144,7 +149,7 @@ func ExchangeToken(c *gin.Context) {
 	if err != nil {
 		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "generate_token", http.StatusInternalServerError, "Failed to generate custom token")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
-			"Failed to generate token: "+err.Error(),
+			"failed to generate token: "+err.Error(),
 			nil,
 		))
 		return
@@ -155,7 +160,7 @@ func ExchangeToken(c *gin.Context) {
 	if err != nil {
 		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "generate_refresh_token", http.StatusInternalServerError, "Failed to generate refresh token")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
-			"Failed to generate refresh token: "+err.Error(),
+			"failed to generate refresh token: "+err.Error(),
 			nil,
 		))
 		return
@@ -189,7 +194,7 @@ func RefreshToken(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "parse_refresh_request", http.StatusBadRequest, "Invalid refresh request body")
 		c.JSON(http.StatusBadRequest, response.BadRequest(
-			"Invalid request body: "+err.Error(),
+			"invalid request body: "+err.Error(),
 			nil,
 		))
 		return
@@ -200,7 +205,7 @@ func RefreshToken(c *gin.Context) {
 	if err != nil {
 		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "validate_refresh_token", http.StatusUnauthorized, "Invalid refresh token")
 		c.JSON(http.StatusUnauthorized, response.Unauthorized(
-			"Invalid refresh token: "+err.Error(),
+			"invalid refresh token: "+err.Error(),
 			nil,
 		))
 		return
@@ -214,7 +219,7 @@ func RefreshToken(c *gin.Context) {
 			Str("operation", "enrich_user_refresh").
 			Msg("Failed to enrich user during refresh")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
-			"Failed to retrieve user information: "+err.Error(),
+			"failed to retrieve user information: "+err.Error(),
 			nil,
 		))
 		return
@@ -271,7 +276,7 @@ func RefreshToken(c *gin.Context) {
 	if err != nil {
 		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "generate_new_token", http.StatusInternalServerError, "Failed to generate new access token")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
-			"Failed to generate new access token: "+err.Error(),
+			"failed to generate new access token: "+err.Error(),
 			nil,
 		))
 		return
@@ -281,7 +286,7 @@ func RefreshToken(c *gin.Context) {
 	if err != nil {
 		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "generate_new_refresh_token", http.StatusInternalServerError, "Failed to generate new refresh token")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
-			"Failed to generate new refresh token: "+err.Error(),
+			"failed to generate new refresh token: "+err.Error(),
 			nil,
 		))
 		return
@@ -361,7 +366,7 @@ func ChangePassword(c *gin.Context) {
 			Msg("User attempted password change without Logto ID")
 
 		c.JSON(http.StatusBadRequest, response.BadRequest(
-			"Password change not available for this user",
+			"password change not available for this user",
 			nil,
 		))
 		return
@@ -377,7 +382,7 @@ func ChangePassword(c *gin.Context) {
 			Msg("Invalid change password request JSON")
 
 		c.JSON(http.StatusBadRequest, response.BadRequest(
-			"Invalid request body: "+err.Error(),
+			"invalid request body: "+err.Error(),
 			nil,
 		))
 		return
@@ -488,7 +493,7 @@ func ChangePassword(c *gin.Context) {
 			Msg("Failed to update password in Logto")
 
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
-			"Failed to update password",
+			"failed to update password",
 			map[string]interface{}{
 				"error": err.Error(),
 			},
@@ -528,7 +533,7 @@ func ChangeInfo(c *gin.Context) {
 			Msg("User attempted info change without Logto ID")
 
 		c.JSON(http.StatusBadRequest, response.BadRequest(
-			"Profile update not available for this user",
+			"profile update not available for this user",
 			nil,
 		))
 		return
@@ -544,7 +549,7 @@ func ChangeInfo(c *gin.Context) {
 			Msg("Invalid change info request JSON")
 
 		c.JSON(http.StatusBadRequest, response.BadRequest(
-			"Invalid request body: "+err.Error(),
+			"invalid request body: "+err.Error(),
 			nil,
 		))
 		return
@@ -558,7 +563,7 @@ func ChangeInfo(c *gin.Context) {
 			Msg("No fields provided for info change")
 
 		c.JSON(http.StatusBadRequest, response.BadRequest(
-			"At least one field (name, email, or phone) must be provided",
+			"at least one field (name, email, or phone) must be provided",
 			nil,
 		))
 		return
@@ -641,7 +646,7 @@ func ChangeInfo(c *gin.Context) {
 			Msg("Failed to update user profile in Logto")
 
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
-			"Failed to update profile",
+			"failed to update profile",
 			map[string]interface{}{
 				"error": err.Error(),
 			},

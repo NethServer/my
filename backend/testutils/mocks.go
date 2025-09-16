@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nethesis/my/backend/models"
 	"github.com/stretchr/testify/mock"
@@ -95,4 +96,33 @@ func MockJWTToken(userID, orgID string, exp int64) string {
 	// This is a simplified mock token for testing purposes
 	// In real tests, you'd use the actual JWT library to create valid tokens
 	return "mock-jwt-token-" + userID + "-" + orgID
+}
+
+// MockRedisClient is a mock implementation of Redis client for testing
+type MockRedisClient struct {
+	mock.Mock
+}
+
+// Get mocks Redis GET operation
+func (m *MockRedisClient) Get(key string) ([]byte, error) {
+	args := m.Called(key)
+	return args.Get(0).([]byte), args.Error(1)
+}
+
+// Set mocks Redis SET operation
+func (m *MockRedisClient) Set(key string, value interface{}, expiration time.Duration) error {
+	args := m.Called(key, value, expiration)
+	return args.Error(0)
+}
+
+// Del mocks Redis DEL operation
+func (m *MockRedisClient) Del(keys ...string) (int64, error) {
+	args := m.Called(keys)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+// Info mocks Redis INFO operation
+func (m *MockRedisClient) Info() (map[string]string, error) {
+	args := m.Called()
+	return args.Get(0).(map[string]string), args.Error(1)
 }

@@ -29,7 +29,7 @@ func GetSystemsTotals(c *gin.Context) {
 	// Get current user context for hierarchical filtering
 	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
 	if userID == "" {
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
 		return
 	}
 
@@ -88,7 +88,7 @@ func GetDistributorsTotals(c *gin.Context) {
 	// Get current user context for hierarchical filtering
 	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
 	if userID == "" {
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
 		return
 	}
 
@@ -125,7 +125,7 @@ func GetResellersTotals(c *gin.Context) {
 	// Get current user context for hierarchical filtering
 	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
 	if userID == "" {
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
 		return
 	}
 
@@ -161,7 +161,7 @@ func GetResellersTotals(c *gin.Context) {
 func GetCustomersTotals(c *gin.Context) {
 	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
 	if userID == "" {
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
 		return
 	}
 
@@ -182,7 +182,7 @@ func GetCustomersTotals(c *gin.Context) {
 func GetUsersTotals(c *gin.Context) {
 	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
 	if userID == "" {
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("User context required", nil))
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
 		return
 	}
 

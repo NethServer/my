@@ -161,23 +161,29 @@ async function validateAndChangePassword() {
     <form @submit.prevent>
       <div class="space-y-6">
         <NeInlineNotification
-          v-if="isFirstAccess"
-          kind="info"
-          :title="$t('account.change_your_temporary_password')"
-          :description="$t('account.change_your_temporary_password_description')"
-        />
-        <NeInlineNotification
           v-if="loginStore.isOwner"
           kind="info"
           :title="$t('account.password_change_disabled')"
-          :description="$t('account.password_change_disabled_description')"
+          :description="$t('account.password_change_disabled_owner_description')"
+        />
+        <NeInlineNotification
+          v-else-if="loginStore.isImpersonating"
+          kind="info"
+          :title="$t('account.password_change_disabled')"
+          :description="$t('account.password_change_disabled_impersonating_description')"
+        />
+        <NeInlineNotification
+          v-else-if="isFirstAccess"
+          kind="info"
+          :title="$t('account.change_your_temporary_password')"
+          :description="$t('account.change_your_temporary_password_description')"
         />
         <!-- current password -->
         <NeTextInput
           ref="currentPasswordRef"
           v-model="currentPassword"
           is-password
-          auto-complete="current-password"
+          autocomplete="current-password"
           :label="$t('account.current_password')"
           :invalid-message="
             validationIssues.current_password?.[0] ? $t(validationIssues.current_password[0]) : ''
@@ -189,7 +195,7 @@ async function validateAndChangePassword() {
           ref="newPasswordRef"
           v-model="newPassword"
           is-password
-          auto-complete="new-password"
+          autocomplete="new-password"
           :label="$t('account.new_password')"
           :invalid-message="
             validationIssues.new_password?.[0] ? $t(validationIssues.new_password[0]) : ''
@@ -201,7 +207,7 @@ async function validateAndChangePassword() {
           ref="confirmPasswordRef"
           v-model="confirmPassword"
           is-password
-          auto-complete="confirm-password"
+          autocomplete="confirm-password"
           :label="$t('account.confirm_password')"
           :invalid-message="
             validationIssues.confirm_password?.[0] ? $t(validationIssues.confirm_password[0]) : ''
@@ -226,7 +232,7 @@ async function validateAndChangePassword() {
           type="submit"
           kind="primary"
           size="lg"
-          :disabled="changePasswordLoading || loginStore.isOwner"
+          :disabled="changePasswordLoading || loginStore.isOwner || loginStore.isImpersonating"
           :loading="changePasswordLoading"
           @click.prevent="validateAndChangePassword"
         >

@@ -14,7 +14,6 @@ export default defineConfigWithVueTs(
     files: ['**/*.{ts,mts,tsx,vue}'],
   },
 
-  // @ts-expect-error: type mismatch ////
   globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**', '**/.vite/**']),
 
   pluginVue.configs['flat/essential'],
