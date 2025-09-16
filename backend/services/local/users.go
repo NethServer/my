@@ -63,7 +63,38 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, create
 
 	// Security: Prevent creation of users with reserved username "owner"
 	if strings.ToLower(req.Username) == "owner" {
-		return nil, fmt.Errorf("username 'owner' is reserved and cannot be used")
+		return nil, &ValidationError{
+			StatusCode: 400,
+			ErrorData: response.ErrorData{
+				Errors: []response.ValidationError{
+					{
+						Key:     "username",
+						Message: "username 'owner' is reserved and cannot be used",
+						Value:   req.Username,
+					},
+				},
+			},
+		}
+	}
+
+	// Security: Prevent creation of users in Owner organization
+	if req.OrganizationID != nil {
+		if isOwnerOrg, err := s.isOwnerOrganization(*req.OrganizationID); err != nil {
+			return nil, fmt.Errorf("failed to validate organization: %w", err)
+		} else if isOwnerOrg {
+			return nil, &ValidationError{
+				StatusCode: 400,
+				ErrorData: response.ErrorData{
+					Errors: []response.ValidationError{
+						{
+							Key:     "organization_id",
+							Message: "cannot create users in the Owner organization - this is managed by the system",
+							Value:   *req.OrganizationID,
+						},
+					},
+				},
+			}
+		}
 	}
 
 	// Always generate a temporary password for new users
@@ -420,7 +451,38 @@ func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequ
 
 	// Security: Prevent updating users to reserved username "owner"
 	if req.Username != nil && strings.ToLower(*req.Username) == "owner" {
-		return nil, fmt.Errorf("username 'owner' is reserved and cannot be used")
+		return nil, &ValidationError{
+			StatusCode: 400,
+			ErrorData: response.ErrorData{
+				Errors: []response.ValidationError{
+					{
+						Key:     "username",
+						Message: "username 'owner' is reserved and cannot be used",
+						Value:   *req.Username,
+					},
+				},
+			},
+		}
+	}
+
+	// Security: Prevent updating users to Owner organization
+	if req.OrganizationID != nil {
+		if isOwnerOrg, err := s.isOwnerOrganization(*req.OrganizationID); err != nil {
+			return nil, fmt.Errorf("failed to validate organization: %w", err)
+		} else if isOwnerOrg {
+			return nil, &ValidationError{
+				StatusCode: 400,
+				ErrorData: response.ErrorData{
+					Errors: []response.ValidationError{
+						{
+							Key:     "organization_id",
+							Message: "cannot move users to the Owner organization - this is managed by the system",
+							Value:   *req.OrganizationID,
+						},
+					},
+				},
+			}
+		}
 	}
 
 	updateReq := models.UpdateUserRequest{}
@@ -1305,4 +1367,17 @@ func (s *LocalUserService) determineOrganizationRoleName(organizationID string) 
 
 	// If not found in any table, it might be the owner organization
 	return "Owner"
+}
+
+// isOwnerOrganization checks if the given organization ID belongs to the Owner organization
+// by verifying with Logto API if the organization name is "Owner"
+func (s *LocalUserService) isOwnerOrganization(organizationID string) (bool, error) {
+	// Get organization details from Logto
+	org, err := s.logtoClient.GetOrganizationByID(organizationID)
+	if err != nil {
+		return false, fmt.Errorf("failed to verify organization in Logto: %w", err)
+	}
+
+	// Check if it's the Owner organization by name
+	return strings.ToLower(org.Name) == "owner", nil
 }

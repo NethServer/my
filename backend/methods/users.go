@@ -52,17 +52,24 @@ func CreateUser(c *gin.Context) {
 	// Create user
 	account, err := service.CreateUser(&request, user.ID, user.OrganizationID)
 	if err != nil {
+		// Check if it's a validation error from service
+		if validationErr := getValidationError(err); validationErr != nil {
+			logger.Warn().
+				Str("user_id", user.ID).
+				Str("user_username", request.Username).
+				Str("validation_reason", validationErr.ErrorData.Errors[0].Message).
+				Msg("User creation validation failed")
+
+			c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", validationErr.ErrorData.Errors))
+			return
+		}
+
+		// System error - log as error
 		logger.Error().
 			Err(err).
 			Str("user_id", user.ID).
 			Str("user_username", request.Username).
 			Msg("Failed to create user")
-
-		// Check if it's a validation error from Logto
-		if validationErr := getValidationError(err); validationErr != nil {
-			c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", validationErr.ErrorData.Errors))
-			return
-		}
 
 		// Default to internal server error
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to create user", map[string]interface{}{

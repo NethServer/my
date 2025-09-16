@@ -103,7 +103,18 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 	// Security: Prevent creation of organizations with reserved type "owner"
 	if customDataType, ok := customData["type"]; ok {
 		if typeStr, ok := customDataType.(string); ok && strings.ToLower(typeStr) == "owner" {
-			return nil, fmt.Errorf("organization type 'owner' is reserved and cannot be used")
+			return nil, &ValidationError{
+				StatusCode: 400,
+				ErrorData: response.ErrorData{
+					Errors: []response.ValidationError{
+						{
+							Key:     "custom_data.type",
+							Message: "organization type 'owner' is reserved and cannot be used",
+							Value:   typeStr,
+						},
+					},
+				},
+			}
 		}
 	}
 
@@ -252,7 +263,18 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 	// Security: Prevent creation of organizations with reserved type "owner"
 	if customDataType, ok := customData["type"]; ok {
 		if typeStr, ok := customDataType.(string); ok && strings.ToLower(typeStr) == "owner" {
-			return nil, fmt.Errorf("organization type 'owner' is reserved and cannot be used")
+			return nil, &ValidationError{
+				StatusCode: 400,
+				ErrorData: response.ErrorData{
+					Errors: []response.ValidationError{
+						{
+							Key:     "custom_data.type",
+							Message: "organization type 'owner' is reserved and cannot be used",
+							Value:   typeStr,
+						},
+					},
+				},
+			}
 		}
 	}
 
@@ -401,7 +423,18 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 	// Security: Prevent creation of organizations with reserved type "owner"
 	if customDataType, ok := customData["type"]; ok {
 		if typeStr, ok := customDataType.(string); ok && strings.ToLower(typeStr) == "owner" {
-			return nil, fmt.Errorf("organization type 'owner' is reserved and cannot be used")
+			return nil, &ValidationError{
+				StatusCode: 400,
+				ErrorData: response.ErrorData{
+					Errors: []response.ValidationError{
+						{
+							Key:     "custom_data.type",
+							Message: "organization type 'owner' is reserved and cannot be used",
+							Value:   typeStr,
+						},
+					},
+				},
+			}
 		}
 	}
 
@@ -610,7 +643,18 @@ func (s *LocalOrganizationService) UpdateDistributor(id string, req *models.Upda
 	// Security: Prevent updating organizations to reserved type "owner"
 	if customDataType, ok := finalCustomData["type"]; ok {
 		if typeStr, ok := customDataType.(string); ok && strings.ToLower(typeStr) == "owner" {
-			return nil, fmt.Errorf("organization type 'owner' is reserved and cannot be used")
+			return nil, &ValidationError{
+				StatusCode: 400,
+				ErrorData: response.ErrorData{
+					Errors: []response.ValidationError{
+						{
+							Key:     "custom_data.type",
+							Message: "organization type 'owner' is reserved and cannot be used",
+							Value:   typeStr,
+						},
+					},
+				},
+			}
 		}
 	}
 
@@ -809,7 +853,18 @@ func (s *LocalOrganizationService) UpdateReseller(id string, req *models.UpdateL
 	// Security: Prevent updating organizations to reserved type "owner"
 	if customDataType, ok := finalCustomData["type"]; ok {
 		if typeStr, ok := customDataType.(string); ok && strings.ToLower(typeStr) == "owner" {
-			return nil, fmt.Errorf("organization type 'owner' is reserved and cannot be used")
+			validationErr := &ValidationError{
+				StatusCode: 400,
+				ErrorData: response.ErrorData{
+					Type: "validation_error",
+					Errors: []response.ValidationError{{
+						Key:     "custom_data.type",
+						Message: "organization type 'owner' is reserved and cannot be used",
+						Value:   typeStr,
+					}},
+				},
+			}
+			return nil, validationErr
 		}
 	}
 
@@ -1008,7 +1063,18 @@ func (s *LocalOrganizationService) UpdateCustomer(id string, req *models.UpdateL
 	// Security: Prevent updating organizations to reserved type "owner"
 	if customDataType, ok := finalCustomData["type"]; ok {
 		if typeStr, ok := customDataType.(string); ok && strings.ToLower(typeStr) == "owner" {
-			return nil, fmt.Errorf("organization type 'owner' is reserved and cannot be used")
+			validationErr := &ValidationError{
+				StatusCode: 400,
+				ErrorData: response.ErrorData{
+					Type: "validation_error",
+					Errors: []response.ValidationError{{
+						Key:     "custom_data.type",
+						Message: "organization type 'owner' is reserved and cannot be used",
+						Value:   typeStr,
+					}},
+				},
+			}
+			return nil, validationErr
 		}
 	}
 

@@ -48,17 +48,24 @@ func CreateDistributor(c *gin.Context) {
 	// Create distributor
 	distributor, err := service.CreateDistributor(&request, user.ID, user.OrganizationID)
 	if err != nil {
+		// Check if it's a validation error from service
+		if validationErr := getValidationError(err); validationErr != nil {
+			logger.Warn().
+				Str("user_id", user.ID).
+				Str("distributor_name", request.Name).
+				Str("validation_reason", validationErr.ErrorData.Errors[0].Message).
+				Msg("Distributor creation validation failed")
+
+			c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", validationErr.ErrorData.Errors))
+			return
+		}
+
+		// System error - log as error
 		logger.Error().
 			Err(err).
 			Str("user_id", user.ID).
 			Str("distributor_name", request.Name).
 			Msg("Failed to create distributor")
-
-		// Check if it's a validation error from service
-		if validationErr := getValidationError(err); validationErr != nil {
-			c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", validationErr.ErrorData.Errors))
-			return
-		}
 
 		// Default to internal server error
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("Failed to create distributor", map[string]interface{}{
