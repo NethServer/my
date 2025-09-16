@@ -1,0 +1,282 @@
+# My Nethesis - Local Development Infrastructure
+#
+# 🚀 READY! Access your application at: http://localhost:9090
+#
+# 🌐 Service URLs:
+#   - Main App:    http://localhost:9090
+#   - Backend:     http://localhost:18080/api/health
+#   - Collect:     http://localhost:18081/api/health
+#   - Frontend:    http://localhost:13000
+#
+# 💾 Databases:
+#   - PostgreSQL:  localhost:15432 (user: noc_user, db: noc)
+#   - Redis:       localhost:16379
+#
+# 🛠️ Management:
+#   - Start:       docker-compose up -d  OR  podman-compose up -d
+#   - Stop:        docker-compose down   OR  podman-compose down
+#   - Logs:        docker-compose logs -f [service]  OR  podman-compose logs -f [service]
+#   - Restart:     docker-compose restart [service]  OR  podman-compose restart [service]
+#
+# NOTE: Uses different ports than individual 'make dev-up' to avoid conflicts
+#
+
+version: '3.8'
+
+# Build defaults to reduce memory usage during parallel builds
+x-build-defaults: &build-defaults
+  shm_size: 256mb
+
+services:
+  # =============================================================================
+  # DATABASES & CACHE
+  # =============================================================================
+
+  # PostgreSQL Database (different name from individual dev containers)
+  postgres-full:
+    image: postgres:16-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-my}-postgres-full
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: noc
+      POSTGRES_USER: noc_user
+      POSTGRES_PASSWORD: noc_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_full_data:/var/lib/postgresql/data
+      - ./backend/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      - "15432:5432"  # Different port to avoid conflicts with individual dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U noc_user -d noc"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - my-full-network
+
+  # Redis Cache (different name from individual dev containers)
+  redis-full:
+    image: redis:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-my}-redis-full
+    restart: unless-stopped
+    command: redis-server --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_full_data:/data
+    ports:
+      - "16379:6379"  # Different port to avoid conflicts with individual dev
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - my-full-network
+
+  # =============================================================================
+  # BACKEND SERVICES
+  # =============================================================================
+
+  # Backend API Server
+  backend-full:
+    <<: *build-defaults
+    build:
+      context: ./backend
+      dockerfile: Containerfile
+      args:
+        VERSION: ${VERSION:-dev}
+        COMMIT: ${COMMIT:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+    container_name: ${COMPOSE_PROJECT_NAME:-my}-backend-full
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      # Override database and redis URLs for full stack containers
+      DATABASE_URL: postgresql://noc_user:noc_password@postgres-full:5432/noc?sslmode=disable
+      REDIS_URL: redis://redis-full:6379
+      REDIS_DB: 0
+      # Server configuration for container environment
+      LISTEN_ADDRESS: 0.0.0.0:8080
+      GIN_MODE: debug
+      LOG_LEVEL: trace
+      LOG_FORMAT: console
+    ports:
+      - "18080:8080"  # Different port to avoid conflicts with individual dev
+    depends_on:
+      postgres-full:
+        condition: service_healthy
+      redis-full:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - my-full-network
+
+  # Collect Service
+  collect-full:
+    build:
+      context: ./collect
+      dockerfile: Containerfile
+      args:
+        VERSION: ${VERSION:-dev}
+        COMMIT: ${COMMIT:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+    container_name: ${COMPOSE_PROJECT_NAME:-my}-collect-full
+    restart: unless-stopped
+    env_file:
+      - ./collect/.env
+    environment:
+      # Override database and redis URLs for full stack containers
+      DATABASE_URL: postgresql://noc_user:noc_password@postgres-full:5432/noc?sslmode=disable
+      REDIS_URL: redis://redis-full:6379
+      REDIS_DB: 1
+      # Server configuration for container environment
+      LISTEN_ADDRESS: 0.0.0.0:8080
+      GIN_MODE: debug
+      LOG_LEVEL: debug
+      LOG_FORMAT: console
+    ports:
+      - "18081:8080"  # Different port to avoid conflicts with individual dev
+    depends_on:
+      postgres-full:
+        condition: service_healthy
+      redis-full:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - my-full-network
+
+  # =============================================================================
+  # FRONTEND
+  # =============================================================================
+
+  # Frontend Application
+  frontend-full:
+    build:
+      context: ./frontend
+      dockerfile: Containerfile
+      target: production
+      args:
+        VITE_PRODUCT_NAME: "My Nethesis"
+        VITE_LOGTO_ENDPOINT: "https://o3izgd.logto.app"
+        VITE_LOGTO_APP_ID: "dkmw3j3ansfj0wybhhgjr"
+        VITE_API_BASE_URL: "/backend/api"
+        VITE_SIGNIN_REDIRECT_URI: "login-redirect"
+        VITE_SIGNOUT_REDIRECT_URI: "login"
+    container_name: ${COMPOSE_PROJECT_NAME:-my}-frontend-full
+    restart: unless-stopped
+    environment:
+      PORT: 8080
+    ports:
+      - "13000:8080"  # Different port to avoid conflicts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - my-full-network
+
+  # =============================================================================
+  # PROXY (NGINX)
+  # =============================================================================
+
+  # Reverse Proxy (Main Entry Point)
+  proxy-full:
+    build:
+      context: ./proxy
+      dockerfile_inline: |
+        FROM nginx:1.25-alpine
+
+        # Install curl for health checks
+        RUN apk add --no-cache curl
+
+        # Copy local nginx configuration for docker-compose
+        COPY nginx.conf.local /etc/nginx/nginx.conf
+
+        # Create log directory
+        RUN mkdir -p /var/log/nginx
+
+        # Expose port (fixed for docker-compose)
+        EXPOSE 8080
+
+        # Health check
+        HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+          CMD curl -f http://localhost:8080/health || exit 1
+
+        # Start nginx (no envsubst needed for fixed config)
+        CMD ["nginx", "-g", "daemon off;"]
+    container_name: ${COMPOSE_PROJECT_NAME:-my}-proxy-full
+    restart: unless-stopped
+    environment:
+      PORT: 8080
+      BACKEND_SERVICE_NAME: backend-full:8080
+      COLLECT_SERVICE_NAME: collect-full:8080
+      FRONTEND_SERVICE_NAME: frontend-full:8080
+    ports:
+      - "9090:8080"  # Main entry point - browser-safe port
+    depends_on:
+      - backend-full
+      - collect-full
+      - frontend-full
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - my-full-network
+
+  # =============================================================================
+  # UTILITY SERVICES
+  # =============================================================================
+
+  # sync CLI Tool (runs as one-time service)
+  sync-full:
+    build:
+      context: ./sync
+      dockerfile: Containerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-my}-sync-full
+    env_file:
+      - ./sync/.env
+    environment:
+      # Override database URL for full stack container
+      DATABASE_URL: postgresql://noc_user:noc_password@postgres-full:5432/noc?sslmode=disable
+    volumes:
+      - ./sync/configs:/app/configs:ro
+    depends_on:
+      postgres-full:
+        condition: service_healthy
+    networks:
+      - my-full-network
+    profiles:
+      - tools  # Only start when explicitly requested: docker-compose --profile tools up sync-full
+
+# =============================================================================
+# VOLUMES
+# =============================================================================
+volumes:
+  postgres_full_data:
+    driver: local
+  redis_full_data:
+    driver: local
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  my-full-network:
+    driver: bridge
+    name: ${COMPOSE_PROJECT_NAME:-my}-full-network

@@ -57,16 +57,51 @@ Web application providing centralized authentication and management using Logto 
 ## 🚀 Quick Start
 
 ### Requirements
-- **Development**: Go 1.21+ (backend requires 1.23+), Make
+- **Development**: Go 1.21+ (backend requires 1.23+), Node.js, Make
+- **Containers**: Docker OR Podman (optional, for full infrastructure)
 - **External**: Logto instance with M2M app and Management API permissions
 - **Deploy**: Render account with GitHub integration
 
+### Development Setup
+
+**Choose your preferred development approach:**
+
+#### Option 1: Full Infrastructure (Recommended)
+Complete replica of the production environment with all services containerized:
+
+```bash
+# Start all services (PostgreSQL, Redis, Backend, Collect, Frontend, Proxy)
+docker-compose up -d
+# OR
+podman-compose up -d
+
+# Access the application at: http://localhost:9090
+```
+
+All URLs and management commands are documented in the [docker-compose.yml](./docker-compose.yml) header.
+
+#### Option 2: Individual Components
+Start services individually for targeted development:
+
+```bash
+# Start shared databases (PostgreSQL + Redis)
+cd backend && make dev-up
+
+# Start individual services in separate terminals:
+cd backend && make run          # Backend API on :8080
+cd collect && make run          # Collect service on :8081
+cd frontend && npm run dev      # Frontend on :5173
+
+# Use sync tool as needed:
+cd sync && make run-example
+```
+
 ### Getting Started
-1. **Frontend Development**: [frontend/README.md](./frontend/README.md) - Vue.js setup and environment configuration
-1. **Backend Development**: [backend/README.md](./backend/README.md) - Backend setup and environment configuration
-1. **Collect Development**: [collect/README.md](./collect/README.md) - Collect setup and environment configuration
-2. **RBAC Management**: [sync/README.md](./sync/README.md) - Use `sync init` for complete setup
-3. **Production Deploy**: Use `./deploy.sh` for automated deployment
+1. **RBAC Setup**: [sync/README.md](./sync/README.md) - Use `sync init` for complete Logto configuration
+2. **Frontend Development**: [frontend/README.md](./frontend/README.md) - Vue.js setup and environment configuration
+3. **Backend Development**: [backend/README.md](./backend/README.md) - Backend setup and environment configuration
+4. **Collect Development**: [collect/README.md](./collect/README.md) - Collect setup and environment configuration
+5. **Production Deploy**: Use `./deploy.sh` for automated deployment
 
 ## 🌐 Deployment Environments
 
