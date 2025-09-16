@@ -100,6 +100,13 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 		}
 	}
 
+	// Security: Prevent creation of organizations with reserved type "owner"
+	if customDataType, ok := customData["type"]; ok {
+		if typeStr, ok := customDataType.(string); ok && strings.ToLower(typeStr) == "owner" {
+			return nil, fmt.Errorf("organization type 'owner' is reserved and cannot be used")
+		}
+	}
+
 	// System fields - these override any user-provided values and are always maintained
 	customData["type"] = "distributor"
 	customData["createdBy"] = createdByOrgID
@@ -242,6 +249,13 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 		}
 	}
 
+	// Security: Prevent creation of organizations with reserved type "owner"
+	if customDataType, ok := customData["type"]; ok {
+		if typeStr, ok := customDataType.(string); ok && strings.ToLower(typeStr) == "owner" {
+			return nil, fmt.Errorf("organization type 'owner' is reserved and cannot be used")
+		}
+	}
+
 	// System fields - these override any user-provided values and are always maintained
 	customData["type"] = "reseller"
 	customData["createdBy"] = createdByOrgID
@@ -381,6 +395,13 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 	if req.CustomData != nil {
 		for k, v := range req.CustomData {
 			customData[k] = v
+		}
+	}
+
+	// Security: Prevent creation of organizations with reserved type "owner"
+	if customDataType, ok := customData["type"]; ok {
+		if typeStr, ok := customDataType.(string); ok && strings.ToLower(typeStr) == "owner" {
+			return nil, fmt.Errorf("organization type 'owner' is reserved and cannot be used")
 		}
 	}
 
@@ -586,6 +607,13 @@ func (s *LocalOrganizationService) UpdateDistributor(id string, req *models.Upda
 		}
 	}
 
+	// Security: Prevent updating organizations to reserved type "owner"
+	if customDataType, ok := finalCustomData["type"]; ok {
+		if typeStr, ok := customDataType.(string); ok && strings.ToLower(typeStr) == "owner" {
+			return nil, fmt.Errorf("organization type 'owner' is reserved and cannot be used")
+		}
+	}
+
 	// System fields - these override any user-provided values and are always maintained
 	// CRITICAL: Preserve original type and createdBy - never change them
 	finalCustomData["type"] = "distributor"
@@ -778,6 +806,13 @@ func (s *LocalOrganizationService) UpdateReseller(id string, req *models.UpdateL
 		}
 	}
 
+	// Security: Prevent updating organizations to reserved type "owner"
+	if customDataType, ok := finalCustomData["type"]; ok {
+		if typeStr, ok := customDataType.(string); ok && strings.ToLower(typeStr) == "owner" {
+			return nil, fmt.Errorf("organization type 'owner' is reserved and cannot be used")
+		}
+	}
+
 	// System fields - these override any user-provided values and are always maintained
 	// CRITICAL: Preserve original type and createdBy - never change them
 	finalCustomData["type"] = "reseller"
@@ -967,6 +1002,13 @@ func (s *LocalOrganizationService) UpdateCustomer(id string, req *models.UpdateL
 	if req.CustomData != nil {
 		for k, v := range *req.CustomData {
 			finalCustomData[k] = v
+		}
+	}
+
+	// Security: Prevent updating organizations to reserved type "owner"
+	if customDataType, ok := finalCustomData["type"]; ok {
+		if typeStr, ok := customDataType.(string); ok && strings.ToLower(typeStr) == "owner" {
+			return nil, fmt.Errorf("organization type 'owner' is reserved and cannot be used")
 		}
 	}
 

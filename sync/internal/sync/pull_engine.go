@@ -252,8 +252,8 @@ func (e *PullEngine) pullOrganizations(result *PullResult) error {
 
 // processOrganization processes a single organization from Logto
 func (e *PullEngine) processOrganization(logtoOrg client.LogtoOrganization, result *PullResult) error {
-	// Determine organization type based on name patterns
-	orgType := e.determineOrganizationType(logtoOrg.Name)
+	// Determine organization type based on custom_data.type
+	orgType := e.determineOrganizationType(logtoOrg.CustomData)
 
 	logger.Debug("Processing organization '%s' as type '%s'", logtoOrg.Name, orgType)
 
@@ -271,37 +271,23 @@ func (e *PullEngine) processOrganization(logtoOrg client.LogtoOrganization, resu
 	}
 }
 
-// determineOrganizationType determines the type of organization based on name or other criteria
-func (e *PullEngine) determineOrganizationType(name string) string {
-	// Logic to determine organization type
-	// This could be based on naming conventions, role assignments, or other criteria
-
-	// Simple heuristic based on naming patterns
-	if name == "Owner" {
-		return "distributor" // Owner is treated as a special distributor
-	}
-
-	if len(name) >= 4 && name[:4] == "Dist" {
-		return "distributor"
-	}
-
-	if len(name) >= 8 && name[:8] == "Reseller" {
-		return "reseller"
-	}
-
-	if len(name) >= 4 && name[:4] == "Cust" {
-		return "customer"
-	}
-
-	// Check for known company names that should be customers
-	companyNames := []string{"Nethesis", "Pizzeria", "Macelleria", "Panetteria", "Pescheria"}
-	for _, company := range companyNames {
-		if len(name) >= len(company) && name[:len(company)] == company {
-			return "customer"
+// determineOrganizationType determines the type of organization based on custom_data.type
+func (e *PullEngine) determineOrganizationType(customData map[string]interface{}) string {
+	// Check custom_data.type field for organization type
+	if customData != nil {
+		if orgType, ok := customData["type"].(string); ok && orgType != "" {
+			switch orgType {
+			case "distributor", "reseller", "customer":
+				return orgType
+			default:
+				logger.Warn("Unknown organization type in custom_data: '%s', defaulting to customer", orgType)
+				return "customer"
+			}
 		}
 	}
 
-	// Default fallback - could be made configurable
+	// If custom_data.type is not available, default to customer
+	logger.Warn("Organization missing custom_data.type, defaulting to customer")
 	return "customer"
 }
 
@@ -560,7 +546,7 @@ func (e *PullEngine) pullUsers(result *PullResult) error {
 			userEmail := getUserEmail(user)
 
 			// Skip Owner users (similar to Owner organization)
-			if isOwnerUser(userName, userEmail) {
+			if isOwnerUser(userName) {
 				logger.Info("DRY RUN: Would skip user '%s' (Owner user - Logto-only)", userName)
 				continue
 			}
@@ -575,10 +561,9 @@ func (e *PullEngine) pullUsers(result *PullResult) error {
 	// Process each user
 	for _, logtoUser := range logtoUsers {
 		userName := getUserName(logtoUser)
-		userEmail := getUserEmail(logtoUser)
 
 		// Skip Owner users - they should only exist in Logto, not in local database
-		if isOwnerUser(userName, userEmail) {
+		if isOwnerUser(userName) {
 			logger.Debug("Skipping Owner user '%s' - exists only in Logto", userName)
 			result.Summary.UsersSkipped++
 			e.addPullOperation(result, "user", "skip", userName, "Owner user skipped (Logto-only)", false, nil)
@@ -623,24 +608,9 @@ func getUserEmail(user map[string]interface{}) string {
 }
 
 // isOwnerUser determines if a user is an Owner user that should be skipped
-func isOwnerUser(name, email string) bool {
-	// Check for Owner-related names
-	ownerNames := []string{"Owner", "Company Owner", "owner"}
-	for _, ownerName := range ownerNames {
-		if name == ownerName {
-			return true
-		}
-	}
-
-	// Check for Owner-related emails
-	ownerEmails := []string{"owner@example.com", "owner@nethesis.it", "company.owner@"}
-	for _, ownerEmail := range ownerEmails {
-		if email == ownerEmail || (ownerEmail[len(ownerEmail)-1] == '@' && len(email) > len(ownerEmail)-1 && email[:len(ownerEmail)-1] == ownerEmail[:len(ownerEmail)-1]) {
-			return true
-		}
-	}
-
-	return false
+func isOwnerUser(name string) bool {
+	// Check if username is "owner"
+	return name == "owner"
 }
 
 // processUser processes a single user from Logto

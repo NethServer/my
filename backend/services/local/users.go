@@ -61,6 +61,11 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, create
 		req.Username = s.generateUsernameFromEmail(req.Email)
 	}
 
+	// Security: Prevent creation of users with reserved username "owner"
+	if strings.ToLower(req.Username) == "owner" {
+		return nil, fmt.Errorf("username 'owner' is reserved and cannot be used")
+	}
+
 	// Always generate a temporary password for new users
 	tempPassword, err := helpers.GeneratePassword()
 	if err != nil {
@@ -412,6 +417,11 @@ func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequ
 	}
 
 	// 2. Validate changes in Logto FIRST (before consuming local resources)
+
+	// Security: Prevent updating users to reserved username "owner"
+	if req.Username != nil && strings.ToLower(*req.Username) == "owner" {
+		return nil, fmt.Errorf("username 'owner' is reserved and cannot be used")
+	}
 
 	updateReq := models.UpdateUserRequest{}
 	if req.Username != nil {
