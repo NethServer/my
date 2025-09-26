@@ -150,27 +150,6 @@ Templates support Go template syntax with variables:
 - `{{.SupportEmail}}` - Support contact email
 - `{{.CompanyName}}` - Company name from SMTP configuration
 
-## Callbacks
-
-The backend supports OAuth-style system creation callbacks for external applications that need to integrate system provisioning into their workflows. This feature enables a seamless "one-click" system creation experience similar to GitHub CLI token acquisition.
-
-### Key Features
-
-- **Time-based Expiration**: State tokens expire after 1 hour
-- **One-shot Protection**: Each state token can only be used once (24-hour blacklist)
-- **Dual Callback Methods**: URL parameters + PostMessage for maximum compatibility
-- **CSRF Protection**: State validation prevents cross-site request forgery
-
-### Complete Documentation
-
-**For detailed integration guides, security details, and working examples:**
-**[examples/callbacks/README.md](./examples/callbacks/README.md)**
-
-**Example Available:**
-- `test-callback-page.html` - External application simulation with complete callback integration
-
-**API Reference:** See [OpenAPI documentation](./openapi.yaml) for detailed schemas.
-
 ## Architecture
 
 ### Two-Layer Authorization

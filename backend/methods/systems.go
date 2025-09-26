@@ -14,10 +14,8 @@ import (
 
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
-	"github.com/nethesis/my/backend/middleware"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
-	"github.com/nethesis/my/backend/services/callback"
 	"github.com/nethesis/my/backend/services/local"
 )
 
@@ -295,72 +293,4 @@ func RegenerateSystemSecret(c *gin.Context) {
 
 	// Return new secret (only time it's visible)
 	c.JSON(http.StatusOK, response.OK("system secret regenerated successfully", system))
-}
-
-// CreateSystemWithCallback handles POST /api/systems/callback - creates a new system and executes callback
-func CreateSystemWithCallback(c *gin.Context) {
-	// Parse request body
-	var request models.CreateSystemWithCallbackRequest
-	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
-		return
-	}
-
-	// Validate and blacklist state token (one-shot use)
-	if err := middleware.ValidateAndBlacklistStateToken(request.CallbackState); err != nil {
-		logger.RequestLogger(c, "systems").Warn().
-			Err(err).
-			Str("state", request.CallbackState).
-			Msg("State token validation failed")
-
-		c.JSON(http.StatusBadRequest, response.BadRequest("invalid or already used state token", map[string]interface{}{
-			"error": err.Error(),
-		}))
-		return
-	}
-
-	// Get current user context
-	user, ok := helpers.GetUserFromContext(c)
-	if !ok {
-		return
-	}
-
-	// Create systems service
-	systemsService := local.NewSystemsService()
-
-	// Create SystemCreator object with detailed user information
-	creatorInfo := &models.SystemCreator{
-		UserID:           user.ID,
-		UserName:         user.Username,
-		OrganizationID:   user.OrganizationID,
-		OrganizationName: user.OrganizationName,
-	}
-
-	// Create system with automatic secret generation
-	system, err := systemsService.CreateSystem(&request.CreateSystemRequest, creatorInfo, user.OrgRole, user.OrganizationID)
-	if err != nil {
-		logger.Error().
-			Err(err).
-			Str("user_id", user.ID).
-			Str("system_name", request.Name).
-			Msg("Failed to create system")
-
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to create system", map[string]interface{}{
-			"error": err.Error(),
-		}))
-		return
-	}
-
-	// Execute callback (sync, but don't block if it fails)
-	callbackService := callback.NewCallbackService()
-	callbackSuccess := callbackService.ExecuteSystemCreationCallback(request.CallbackURL, request.CallbackState, *system)
-
-	// Log the action
-	logger.LogBusinessOperation(c, "systems", "create_with_callback", "system", system.ID, true, nil)
-
-	// Return success response with system data and callback status
-	c.JSON(http.StatusCreated, response.Created("system created successfully", map[string]interface{}{
-		"system":            system,
-		"callback_executed": callbackSuccess,
-	}))
 }

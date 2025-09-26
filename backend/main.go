@@ -189,7 +189,6 @@ func main() {
 			systemsGroup.GET("", methods.GetSystems)
 			systemsGroup.GET("/:id", methods.GetSystem)
 			systemsGroup.POST("", methods.CreateSystem)
-			systemsGroup.POST("/callback", methods.CreateSystemWithCallback) // Create system with callback
 			systemsGroup.PUT("/:id", methods.UpdateSystem)
 			systemsGroup.DELETE("/:id", methods.DeleteSystem)
 

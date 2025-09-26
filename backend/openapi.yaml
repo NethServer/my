@@ -753,13 +753,14 @@ components:
           example: "Production Server 01"
         type:
           type: string
-          description: System type
-          example: "ns8"
+          enum: [undefined, ns8, nsec, nsec-controller]
+          description: System type (auto-detected by collect service)
+          example: "undefined"
         status:
           type: string
-          enum: [online, offline, maintenance]
-          description: System operational status
-          example: "online"
+          enum: [undefined, online, offline, maintenance]
+          description: System operational status (auto-updated by collect service)
+          example: "undefined"
         fqdn:
           type: string
           description: Fully qualified domain name
@@ -776,11 +777,14 @@ components:
           type: string
           description: System version
           example: "2.1.4"
-        last_seen:
+        system_key:
           type: string
-          format: date-time
-          description: Last seen timestamp from inventory
-          example: "2025-07-10T10:30:00Z"
+          description: Auto-generated unique commercial system key
+          example: "ABC123DEF456"
+        organization_id:
+          type: string
+          description: Organization ID to which this system belongs
+          example: "org_123456789"
         custom_data:
           type: object
           description: Custom system data
@@ -789,10 +793,10 @@ components:
             datacenter: "EU-West-1"
             environment: "production"
             tier: "web"
-        secret_hint:
+        system_secret:
           type: string
-          description: Last 4 characters of system secret for identification
-          example: "a7b9"
+          description: Auto-generated system secret (only returned during creation/regeneration)
+          example: "generated-64-char-secret"
         created_at:
           type: string
           format: date-time
@@ -843,19 +847,19 @@ components:
 
     SystemInput:
       type: object
-      description: System creation/update request. The system will be associated with the creator's organization automatically.
+      description: System creation/update request. Users can create systems for organizations they can manage based on hierarchical permissions. Type and status are auto-generated and managed by the collect service.
       required:
         - name
-        - type
+        - organization_id
       properties:
         name:
           type: string
           description: System name
           example: "Production Server 01"
-        type:
+        organization_id:
           type: string
-          description: System type
-          example: "ns8"
+          description: Organization ID to associate the system with
+          example: "org_123456789"
         custom_data:
           type: object
           description: Custom system data
@@ -1070,7 +1074,7 @@ components:
       required: false
       schema:
         type: string
-        enum: ["name", "type", "status", "fqdn", "version", "created_at", "updated_at", "last_seen", "creator_name"]
+        enum: ["name", "type", "status", "fqdn", "version", "system_key", "created_at", "updated_at", "creator_name"]
         example: "name"
 
     SortDirectionParam:
@@ -3254,7 +3258,7 @@ paths:
       tags:
         - Backend - Systems
       summary: /systems - Create system
-      description: Create a new system. Any authenticated user can create systems - access control is based on the creator's organization.
+      description: Create a new system. Users can create systems for organizations they can manage based on hierarchical permissions. The organization_id must be specified in the request.
       requestBody:
         required: true
         content:
@@ -3279,121 +3283,6 @@ paths:
                     $ref: '#/components/schemas/System'
         '400':
           $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /systems/callback:
-    post:
-      operationId: createSystemWithCallback
-      tags:
-        - Backend - Systems
-      summary: /systems/callback - Create system with OAuth-style callback
-      description: |
-        Create a new system and execute an OAuth-style callback to an external URL.
-        This endpoint is designed for external applications that want to integrate system creation
-        into their workflow. The callback includes system information as query parameters.
-
-        **Security Features:**
-        - Time-based state tokens: State tokens expire after 1 hour
-        - One-shot protection: Each state token can only be used once (24-hour blacklist)
-        - CSRF protection: State validation prevents cross-site request forgery
-
-        **Callback Flow:**
-        1. External page generates time-based state token with timestamp
-        2. External page redirects user to My Nethesis frontend with parameters
-        3. User authenticates via Logto if needed
-        4. Frontend calls this endpoint with system details and callback info
-        5. Backend creates system and executes GET callback to external URL
-        6. External page receives callback with system data in query parameters
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - name
-                - type
-                - callback_url
-                - callback_state
-              properties:
-                name:
-                  type: string
-                  description: System name
-                  example: "Production Server"
-                type:
-                  type: string
-                  description: System type
-                  enum: [ns8, nsec]
-                  example: "ns8"
-                callback_url:
-                  type: string
-                  format: uri
-                  description: External URL to callback with system creation results
-                  example: "https://external-app.com/callback"
-                callback_state:
-                  type: string
-                  description: |
-                    Time-based state token for CSRF protection and replay prevention.
-                    Format: state_{base64-encoded-json}
-                    JSON contains: {timestamp: number, random: string}
-                  example: "state_eyJ0aW1lc3RhbXAiOjE3MjU1MjUxMjM0NTYsInJhbmRvbSI6ImFiYzEyM2RlZjQ1NiJ9"
-                custom_data:
-                  type: object
-                  description: Optional custom metadata for the system
-                  additionalProperties:
-                    type: string
-                  example:
-                    created_via: "callback_flow"
-                    source: "external_app"
-      responses:
-        '201':
-          description: System created successfully and callback executed
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 201
-                  message:
-                    type: string
-                    example: "system created successfully"
-                  data:
-                    type: object
-                    properties:
-                      system:
-                        $ref: '#/components/schemas/System'
-                      callback_executed:
-                        type: boolean
-                        description: Whether the callback was successfully executed
-                        example: true
-        '400':
-          description: Bad request - invalid parameters or expired state token
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 400
-                  message:
-                    type: string
-                    enum:
-                      - "invalid or already used state token"
-                      - "state token expired"
-                      - "state token already used"
-                    example: "state token expired"
-                  data:
-                    type: object
-                    properties:
-                      error:
-                        type: string
-                        example: "state token expired"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -3552,12 +3441,7 @@ paths:
                     type: string
                     example: "system secret regenerated successfully"
                   data:
-                    type: object
-                    properties:
-                      secret:
-                        type: string
-                        description: New system secret
-                        example: "new_secret_123456789"
+                    $ref: '#/components/schemas/System'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

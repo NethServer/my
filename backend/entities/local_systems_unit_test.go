@@ -30,44 +30,44 @@ func TestLocal_SystemRepository_ValidateCreateRequest(t *testing.T) {
 		{
 			name: "valid request",
 			request: &models.CreateSystemRequest{
-				Name:       "Production Server",
-				Type:       "ns8",
-				CustomData: map[string]string{"environment": "production"},
+				Name:           "Production Server",
+				OrganizationID: "org-123",
+				CustomData:     map[string]string{"environment": "production"},
 			},
 			shouldError: false,
 		},
 		{
 			name: "empty name",
 			request: &models.CreateSystemRequest{
-				Name: "",
-				Type: "ns8",
+				Name:           "",
+				OrganizationID: "org-123",
 			},
 			shouldError: true,
 			errorMsg:    "name",
 		},
 		{
-			name: "empty type",
+			name: "empty organization_id",
 			request: &models.CreateSystemRequest{
-				Name: "Test Server",
-				Type: "",
+				Name:           "Test Server",
+				OrganizationID: "",
 			},
 			shouldError: true,
-			errorMsg:    "type",
+			errorMsg:    "organization_id",
 		},
 		{
 			name: "valid minimal request",
 			request: &models.CreateSystemRequest{
-				Name: "Minimal Server",
-				Type: "nsec",
+				Name:           "Minimal Server",
+				OrganizationID: "org-456",
 			},
 			shouldError: false,
 		},
 		{
 			name: "valid with custom data",
 			request: &models.CreateSystemRequest{
-				Name:       "Custom Server",
-				Type:       "ns8",
-				CustomData: map[string]string{"location": "datacenter-1", "tier": "production"},
+				Name:           "Custom Server",
+				OrganizationID: "org-789",
+				CustomData:     map[string]string{"location": "datacenter-1", "tier": "production"},
 			},
 			shouldError: false,
 		},
@@ -98,8 +98,8 @@ func TestLocal_SystemRepository_ValidateUpdateRequest(t *testing.T) {
 		{
 			name: "valid partial update",
 			request: &models.UpdateSystemRequest{
-				Name: "Updated Server",
-				Type: "nsec",
+				Name:           "Updated Server",
+				OrganizationID: "org-456",
 			},
 			shouldError: false,
 		},
@@ -112,15 +112,15 @@ func TestLocal_SystemRepository_ValidateUpdateRequest(t *testing.T) {
 			errorMsg:    "name",
 		},
 		{
-			name: "empty type update",
+			name: "empty organization_id update",
 			request: &models.UpdateSystemRequest{
-				Type: "   ", // whitespace only
+				OrganizationID: "   ", // whitespace only
 			},
 			shouldError: true,
-			errorMsg:    "type",
+			errorMsg:    "organization_id",
 		},
 		{
-			name:        "valid reseller update",
+			name:        "valid minimal update",
 			request:     &models.UpdateSystemRequest{},
 			shouldError: false,
 		},
@@ -444,11 +444,8 @@ func validateCreateSystemRequest(req *models.CreateSystemRequest) error {
 	if req.Name == "" || strings.TrimSpace(req.Name) == "" {
 		return fmt.Errorf("name cannot be empty or whitespace")
 	}
-	if req.Type == "" {
-		return fmt.Errorf("type cannot be empty")
-	}
-	if req.Name == "" {
-		return fmt.Errorf("name cannot be empty")
+	if req.OrganizationID == "" || strings.TrimSpace(req.OrganizationID) == "" {
+		return fmt.Errorf("organization_id cannot be empty or whitespace")
 	}
 	return nil
 }
@@ -459,8 +456,8 @@ func validateUpdateSystemRequest(req *models.UpdateSystemRequest) error {
 	if req.Name != "" && strings.TrimSpace(req.Name) == "" {
 		return fmt.Errorf("name cannot be empty or whitespace")
 	}
-	if req.Type != "" && strings.TrimSpace(req.Type) == "" {
-		return fmt.Errorf("type cannot be empty or whitespace")
+	if req.OrganizationID != "" && strings.TrimSpace(req.OrganizationID) == "" {
+		return fmt.Errorf("organization_id cannot be empty or whitespace")
 	}
 	return nil
 }

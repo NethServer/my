@@ -21,7 +21,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/logger"
@@ -47,18 +46,25 @@ func NewSystemsService() *LocalSystemsService {
 
 // CreateSystem creates a new system with automatic secret generation
 func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, creatorInfo *models.SystemCreator, userOrgRole, userOrgID string) (*models.System, error) {
-	// Validate system type is allowed
-	if err := s.validateSystemType(request.Type); err != nil {
-		return nil, err
-	}
+	// System starts with undefined type - will be set by collect service on first inventory
+	systemType := "undefined"
 
-	// Systems can now be created by any user - access will be based on created_by field
+	// Validate organization access: user can only create systems for organizations they can manage
+	if canCreate, reason := s.CanCreateSystemForOrganization(userOrgRole, userOrgID, request.OrganizationID); !canCreate {
+		return nil, fmt.Errorf("access denied: %s", reason)
+	}
 
 	// Generate unique system ID
 	systemID := uuid.New().String()
 
+	// Generate system key (alphanumeric, 12 characters)
+	systemKey, err := s.generateSystemKey()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate system key: %w", err)
+	}
+
 	// Generate secure system secret (64 characters)
-	secret, err := s.generateSystemSecret()
+	systemSecret, err := s.generateSystemSecret()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate system secret: %w", err)
 	}
@@ -66,7 +72,7 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 	now := time.Now()
 
 	// Hash the secret for storage
-	hash := sha256.Sum256([]byte(secret))
+	hash := sha256.Sum256([]byte(systemSecret))
 	hashedSecret := hex.EncodeToString(hash[:])
 
 	// Convert custom_data to JSON for storage
@@ -83,33 +89,36 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 
 	// Insert system into database
 	query := `
-		INSERT INTO systems (id, name, type, status, custom_data, secret_hash, secret_hint, created_at, updated_at, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO systems (id, name, type, status, system_key, organization_id, custom_data, system_secret, created_at, updated_at, created_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 
-	_, err = database.DB.Exec(query, systemID, request.Name, request.Type, "offline",
-		customDataJSON, hashedSecret, secret[len(secret)-4:], now, now, createdByJSON)
+	_, err = database.DB.Exec(query, systemID, request.Name, systemType, "undefined", systemKey, request.OrganizationID,
+		customDataJSON, hashedSecret, now, now, createdByJSON)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create system: %w", err)
 	}
 
 	// Create system object
 	system := &models.System{
-		ID:     systemID,
-		Name:   request.Name,
-		Type:   request.Type,
-		Status: "offline",
-		// FQDN, IPv4Address, IPv6Address will be populated by collect service
-		CustomData: request.CustomData,
-		Secret:     secret,
-		CreatedAt:  now,
-		UpdatedAt:  now,
-		CreatedBy:  *creatorInfo,
+		ID:             systemID,
+		Name:           request.Name,
+		Type:           systemType,
+		Status:         "undefined",
+		SystemKey:      systemKey,
+		OrganizationID: request.OrganizationID,
+		// FQDN, IPv4Address, IPv6Address, Version will be populated by collect service
+		CustomData:   request.CustomData,
+		SystemSecret: systemSecret, // Return plain secret only during creation
+		CreatedAt:    now,
+		UpdatedAt:    now,
+		CreatedBy:    *creatorInfo,
 	}
 
 	logger.Info().
 		Str("system_id", systemID).
 		Str("system_name", system.Name).
+		Str("organization_id", request.OrganizationID).
 		Str("created_by_user", creatorInfo.UserID).
 		Str("created_by_org", creatorInfo.OrganizationID).
 		Msg("System created successfully")
@@ -120,8 +129,8 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 // GetSystemsByOrganization retrieves systems filtered by organization access
 func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRole, userRole string) ([]*models.System, error) {
 	query := `
-		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version, s.last_seen,
-		       s.custom_data, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
+		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
+		       s.system_key, s.organization_id, s.custom_data, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
 		WHERE s.deleted_at IS NULL
@@ -146,8 +155,8 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
-			&ipv4Address, &ipv6Address, &version, &system.LastSeen, &customDataJSON,
-			&system.CreatedAt, &system.UpdatedAt, &createdByJSON, &lastHeartbeat,
+			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.OrganizationID,
+			&customDataJSON, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &lastHeartbeat,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan system: %w", err)
@@ -257,12 +266,14 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 	if request.Name != "" {
 		system.Name = request.Name
 	}
-	if request.Type != "" {
-		// Validate system type is allowed
-		if err := s.validateSystemType(request.Type); err != nil {
-			return nil, err
+	// Note: Type and SystemKey are not modifiable via update API
+	// Validate organization_id change if provided
+	if request.OrganizationID != "" && request.OrganizationID != system.OrganizationID {
+		// Validate user can assign system to the new organization
+		if canCreate, reason := s.CanCreateSystemForOrganization(userOrgRole, userOrgID, request.OrganizationID); !canCreate {
+			return nil, fmt.Errorf("access denied for organization change: %s", reason)
 		}
-		system.Type = request.Type
+		system.OrganizationID = request.OrganizationID
 	}
 	// FQDN, IPv4Address, IPv6Address are managed by collect service, not via API updates
 	if request.CustomData != nil {
@@ -278,14 +289,14 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 	}
 
 	// Update system in database (FQDN and IP addresses are managed by collect service)
+	// Note: type and system_key are not modifiable
 	query := `
 		UPDATE systems
-		SET name = $2, type = $3, custom_data = $4, updated_at = $5
+		SET name = $2, organization_id = $3, custom_data = $4, updated_at = $5
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 
-	_, err = database.DB.Exec(query, systemID, system.Name, system.Type,
-		customDataJSON, now)
+	_, err = database.DB.Exec(query, systemID, system.Name, system.OrganizationID, customDataJSON, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update system: %w", err)
 	}
@@ -350,7 +361,7 @@ func (s *LocalSystemsService) RegenerateSystemSecret(systemID, userID, userOrgID
 	}
 
 	// Generate new secret
-	secret, err := s.generateSystemSecret()
+	newSystemSecret, err := s.generateSystemSecret()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate system secret: %w", err)
 	}
@@ -358,17 +369,17 @@ func (s *LocalSystemsService) RegenerateSystemSecret(systemID, userID, userOrgID
 	now := time.Now()
 
 	// Hash the secret for storage
-	hash := sha256.Sum256([]byte(secret))
+	hash := sha256.Sum256([]byte(newSystemSecret))
 	hashedSecret := hex.EncodeToString(hash[:])
 
 	// Update system secret
 	query := `
 		UPDATE systems
-		SET secret_hash = $2, secret_hint = $3, updated_at = $4
+		SET system_secret = $2, updated_at = $3
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 
-	_, err = database.DB.Exec(query, systemID, hashedSecret, secret[len(secret)-4:], now)
+	_, err = database.DB.Exec(query, systemID, hashedSecret, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update system credentials: %w", err)
 	}
@@ -380,7 +391,7 @@ func (s *LocalSystemsService) RegenerateSystemSecret(systemID, userID, userOrgID
 	}
 
 	// Set the secret for this response only
-	system.Secret = secret
+	system.SystemSecret = newSystemSecret
 
 	logger.Info().
 		Str("system_id", systemID).
@@ -524,6 +535,23 @@ func (s *LocalSystemsService) calculateHeartbeatStatus(lastHeartbeat *time.Time,
 	return "dead", &minutes
 }
 
+// generateSystemKey generates a unique alphanumeric system key
+func (s *LocalSystemsService) generateSystemKey() (string, error) {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	const length = 12
+
+	bytes := make([]byte, length)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+
+	for i, b := range bytes {
+		bytes[i] = charset[b%byte(len(charset))]
+	}
+
+	return string(bytes), nil
+}
+
 // generateSystemSecret generates a cryptographically secure random secret
 func (s *LocalSystemsService) generateSystemSecret() (string, error) {
 	// Generate 32 random bytes (will be 64 hex characters)
@@ -588,13 +616,31 @@ func (s *LocalSystemsService) GetTotalsByCreatedByOrganizations(allowedOrgIDs []
 	}, nil
 }
 
-// validateSystemType validates that the system type is in the allowed list from configuration
-func (s *LocalSystemsService) validateSystemType(systemType string) error {
-	for _, allowedType := range configuration.Config.SystemTypes {
-		if systemType == allowedType {
-			return nil
+// CanCreateSystemForOrganization validates if a user can create systems for a specific organization
+func (s *LocalSystemsService) CanCreateSystemForOrganization(userOrgRole, userOrgID, targetOrgID string) (bool, string) {
+	switch userOrgRole {
+	case "owner":
+		return true, ""
+	case "distributor":
+		// Distributor can create systems for organizations they manage hierarchically
+		userService := NewUserService()
+		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, targetOrgID) {
+			return true, ""
 		}
+		return false, "distributors can only create systems for organizations they manage"
+	case "reseller":
+		// Reseller can create systems for their own organization only
+		if targetOrgID == userOrgID {
+			return true, ""
+		}
+		return false, "resellers can only create systems for their own organization"
+	case "customer":
+		// Customers can create systems for their own organization only
+		if targetOrgID == userOrgID {
+			return true, ""
+		}
+		return false, "customers can only create systems for their own organization"
+	default:
+		return false, "insufficient permissions to create systems"
 	}
-
-	return fmt.Errorf("invalid system type '%s', allowed types: %v", systemType, configuration.Config.SystemTypes)
 }

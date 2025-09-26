@@ -109,7 +109,7 @@ CREATE INDEX IF NOT EXISTS idx_users_logto_synced ON users(logto_synced_at);
 CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_users_latest_login_at ON users(latest_login_at DESC);
 
--- Systems table - access control based on created_by organization
+-- Systems table - access control based on organization_id
 CREATE TABLE IF NOT EXISTS systems (
     id VARCHAR(255) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -119,10 +119,10 @@ CREATE TABLE IF NOT EXISTS systems (
     ipv4_address INET,
     ipv6_address INET,
     version VARCHAR(100),
-    last_seen TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    organization_id VARCHAR(255) NOT NULL,
     custom_data JSONB,
-    secret_hash VARCHAR(64) NOT NULL,
-    secret_hint VARCHAR(8),
+    system_key VARCHAR(255) UNIQUE NOT NULL,
+    system_secret VARCHAR(64) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMP WITH TIME ZONE,  -- Soft delete timestamp (NULL = active, non-NULL = deleted)
@@ -133,12 +133,13 @@ CREATE TABLE IF NOT EXISTS systems (
 COMMENT ON COLUMN systems.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted at that time.';
 
 -- Performance indexes for systems
+CREATE INDEX IF NOT EXISTS idx_systems_organization_id ON systems(organization_id);
 CREATE INDEX IF NOT EXISTS idx_systems_created_by_org ON systems((created_by->>'organization_id'));
 CREATE INDEX IF NOT EXISTS idx_systems_status ON systems(status);
 CREATE INDEX IF NOT EXISTS idx_systems_type ON systems(type);
-CREATE INDEX IF NOT EXISTS idx_systems_last_seen ON systems(last_seen DESC);
 CREATE INDEX IF NOT EXISTS idx_systems_deleted_at ON systems(deleted_at);
-CREATE INDEX IF NOT EXISTS idx_systems_secret_hash ON systems(secret_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_systems_system_key ON systems(system_key);
+CREATE INDEX IF NOT EXISTS idx_systems_system_secret ON systems(system_secret);
 CREATE INDEX IF NOT EXISTS idx_systems_fqdn ON systems(fqdn);
 CREATE INDEX IF NOT EXISTS idx_systems_ipv4_address ON systems(ipv4_address);
 CREATE INDEX IF NOT EXISTS idx_systems_ipv6_address ON systems(ipv6_address);
@@ -148,7 +149,7 @@ DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_systems_status') THEN
         ALTER TABLE systems ADD CONSTRAINT chk_systems_status
-            CHECK (status IN ('online', 'offline', 'maintenance', 'error'));
+            CHECK (status IN ('undefined', 'online', 'offline', 'maintenance'));
     END IF;
 END $$;
 
