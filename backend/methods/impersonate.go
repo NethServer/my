@@ -635,10 +635,56 @@ func GetImpersonationStatus(c *gin.Context) {
 		return
 	}
 
-	// Check if this is an impersonation token
+	// Check if this is an impersonation token first
 	isImpersonated, exists := c.Get("is_impersonated")
-	if !exists || !isImpersonated.(bool) {
-		// Not currently impersonating
+	if exists && isImpersonated.(bool) {
+		// This is an impersonation token - return session details from token
+		sessionID, _ := c.Get("session_id")
+		impersonator, _ := c.Get("impersonated_by")
+
+		sessionIDStr := ""
+		if sessionID != nil {
+			sessionIDStr = sessionID.(string)
+		}
+
+		var impersonatorUser *models.User
+		if impersonator != nil {
+			if imp, ok := impersonator.(*models.User); ok {
+				impersonatorUser = imp
+			}
+		}
+
+		c.JSON(http.StatusOK, response.OK(
+			"currently impersonating",
+			gin.H{
+				"is_impersonating":  true,
+				"session_id":        sessionIDStr,
+				"impersonated_user": user,
+				"impersonator":      impersonatorUser,
+			},
+		))
+		return
+	}
+
+	// This is a regular token - check if user has an active impersonation session
+	sessionManager := cache.NewImpersonationSessionManager()
+	activeSession, err := sessionManager.GetActiveSession(user.ID)
+	if err != nil {
+		logger.RequestLogger(c, "impersonate").Error().
+			Err(err).
+			Str("operation", "get_impersonation_status").
+			Str("user_id", user.ID).
+			Msg("Failed to check for active impersonation session")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError(
+			"failed to check impersonation status: "+err.Error(),
+			nil,
+		))
+		return
+	}
+
+	if activeSession == nil {
+		// No active impersonation session
 		c.JSON(http.StatusOK, response.OK(
 			"not currently impersonating",
 			gin.H{
@@ -648,29 +694,33 @@ func GetImpersonationStatus(c *gin.Context) {
 		return
 	}
 
-	// Get session details
-	sessionID, _ := c.Get("session_id")
-	impersonator, _ := c.Get("impersonated_by")
+	// User has an active impersonation session - get impersonated user details
+	impersonatedUser, err := logto.GetUserForImpersonation(activeSession.ImpersonatedUserID)
+	if err != nil {
+		logger.RequestLogger(c, "impersonate").Error().
+			Err(err).
+			Str("operation", "get_impersonated_user_details").
+			Str("user_id", user.ID).
+			Str("impersonated_user_id", activeSession.ImpersonatedUserID).
+			Str("session_id", activeSession.SessionID).
+			Msg("Failed to get impersonated user details")
 
-	sessionIDStr := ""
-	if sessionID != nil {
-		sessionIDStr = sessionID.(string)
-	}
-
-	var impersonatorUser *models.User
-	if impersonator != nil {
-		if imp, ok := impersonator.(*models.User); ok {
-			impersonatorUser = imp
-		}
+		c.JSON(http.StatusInternalServerError, response.InternalServerError(
+			"failed to get impersonated user details: "+err.Error(),
+			nil,
+		))
+		return
 	}
 
 	c.JSON(http.StatusOK, response.OK(
 		"currently impersonating",
 		gin.H{
 			"is_impersonating":  true,
-			"session_id":        sessionIDStr,
-			"impersonated_user": user,
-			"impersonator":      impersonatorUser,
+			"session_id":        activeSession.SessionID,
+			"impersonated_user": impersonatedUser,
+			"impersonator":      user,
+			"expires_at":        activeSession.ExpiresAt,
+			"created_at":        activeSession.CreatedAt,
 		},
 	))
 }
