@@ -1,8 +1,8 @@
 //  Copyright (C) 2025 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { getConsent } from '@/lib/impersonationConsent'
-import { IMPERSONATION_CONSENT_KEY } from '@/lib/impersonationConsent'
+import { getConsent } from '@/lib/impersonation'
+import { IMPERSONATION_CONSENT_KEY } from '@/lib/impersonation'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 

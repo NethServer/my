@@ -11,6 +11,7 @@ const READ_CUSTOMERS = 'read:customers'
 const MANAGE_CUSTOMERS = 'manage:customers'
 const READ_USERS = 'read:users'
 const MANAGE_USERS = 'manage:users'
+const IMPERSONATE_USERS = 'impersonate:users'
 
 export const canReadDistributors = () => {
   const loginStore = useLoginStore()
@@ -54,6 +55,5 @@ export const canManageUsers = () => {
 
 export const canImpersonateUsers = () => {
   const loginStore = useLoginStore()
-  // Only owner organization users can impersonate
-  return loginStore.userInfo?.org_role === 'Owner'
+  return loginStore.permissions.includes(IMPERSONATE_USERS)
 }

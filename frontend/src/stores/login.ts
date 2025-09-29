@@ -11,6 +11,7 @@ import { useStorage } from '@vueuse/core'
 import { getPreference, savePreference } from '@nethesis/vue-components'
 import { getBrowserLocale, setLocale } from '@/i18n'
 import router from '@/router'
+import { getImpersonationStatus } from '@/lib/impersonation'
 
 export const TOKEN_REFRESH_INTERVAL = 20 * 60 * 1000 // 20 minutes
 
@@ -136,18 +137,36 @@ export const useLoginStore = defineStore('login', () => {
       lastUser.value = user.email
 
       // check if we are in impersonation mode
-      const impersonatedUserId = getPreference('impersonatedUser', user.email)
 
-      if (impersonatedUserId && !isImpersonating.value) {
-        try {
-          await impersonateUser(impersonatedUserId)
-        } catch (error) {
-          console.error('Failed to start impersonation:', error)
+      const impersonationStatus = await getImpersonationStatus()
 
-          // Clear invalid impersonation state
-          savePreference('impersonatedUser', '', user.email)
-        }
-      }
+      console.log('impersonationStatus', impersonationStatus) ////
+
+      // if (impersonationStatus.is_impersonating) { ////
+      //   try {
+      //     await impersonateUser(impersonatedUserId)
+      //   } catch (error) {
+      //     console.error('Failed to start impersonation:', error)
+
+      //     // Clear invalid impersonation state
+      //     savePreference('impersonatedUser', '', user.email)
+      //   }
+      // }
+
+      //// todo do not use local storage
+
+      // const impersonatedUserId = getPreference('impersonatedUser', user.email) ////
+
+      // if (impersonatedUserId && !isImpersonating.value) {
+      //   try {
+      //     await impersonateUser(impersonatedUserId)
+      //   } catch (error) {
+      //     console.error('Failed to start impersonation:', error)
+
+      //     // Clear invalid impersonation state
+      //     savePreference('impersonatedUser', '', user.email)
+      //   }
+      // }
     } catch (error) {
       //// toast notification
       console.error('Cannot exchange token:', error)
@@ -171,6 +190,17 @@ export const useLoginStore = defineStore('login', () => {
       console.error('Cannot refresh token:', error)
     }
   }
+
+  // const getImpersonationStatus = async () => { ////
+  // try {
+  //    //// add typing
+  // const res = await  axios
+  //   .get(`${API_URL}/impersonate/status`, {
+  //     headers: { Authorization: `Bearer ${jwtToken.value}` },
+  //   })
+  //   .then((res) => res.data.data)
+  // }
+  // } ////
 
   const impersonateUser = async (userId: string) => {
     // save impersonation state to local storage
@@ -202,8 +232,10 @@ export const useLoginStore = defineStore('login', () => {
       isImpersonating.value = true
 
       ////
-      const now = new Date()
-      impersonateExpiration.value = new Date(now.getTime() + res.data.data.expires_in * 1000)
+      // const now = new Date() ////
+      // const expirationDate = new Date(res.data.data.expires_at) ////
+
+      impersonateExpiration.value = new Date(res.data.data.expires_at)
 
       //// remove
       // impersonateExpiration.value = new Date(now.getTime() + 15000)
