@@ -712,6 +712,62 @@ func GetImpersonationStatus(c *gin.Context) {
 		return
 	}
 
+	// Calculate remaining duration for the impersonation token
+	remainingDuration := time.Until(activeSession.ExpiresAt)
+	if remainingDuration <= 0 {
+		// Session has expired - clean it up
+		logger.RequestLogger(c, "impersonate").Info().
+			Str("operation", "expired_session_cleanup").
+			Str("user_id", user.ID).
+			Str("session_id", activeSession.SessionID).
+			Time("expired_at", activeSession.ExpiresAt).
+			Msg("Impersonation session expired during status check - cleaning up")
+
+		err := sessionManager.ClearSession(user.ID)
+		if err != nil {
+			logger.RequestLogger(c, "impersonate").Warn().
+				Err(err).
+				Str("user_id", user.ID).
+				Msg("Failed to clear expired session")
+		}
+
+		c.JSON(http.StatusOK, response.OK(
+			"not currently impersonating",
+			gin.H{
+				"is_impersonating": false,
+			},
+		))
+		return
+	}
+
+	// Generate a new impersonation token for the active session
+	impersonationToken, err := jwt.GenerateImpersonationTokenWithDuration(*impersonatedUser, *user, activeSession.SessionID, remainingDuration)
+	if err != nil {
+		logger.RequestLogger(c, "impersonate").Error().
+			Err(err).
+			Str("operation", "generate_impersonation_token").
+			Str("user_id", user.ID).
+			Str("session_id", activeSession.SessionID).
+			Msg("Failed to generate impersonation token for active session")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError(
+			"failed to generate impersonation token: "+err.Error(),
+			nil,
+		))
+		return
+	}
+
+	// Calculate expires_in in seconds
+	expiresIn := int64(remainingDuration.Seconds())
+
+	logger.RequestLogger(c, "impersonate").Info().
+		Str("operation", "impersonation_status_with_token").
+		Str("user_id", user.ID).
+		Str("impersonated_user_id", impersonatedUser.ID).
+		Str("session_id", activeSession.SessionID).
+		Int64("expires_in_seconds", expiresIn).
+		Msg("Returning active impersonation status with token")
+
 	c.JSON(http.StatusOK, response.OK(
 		"currently impersonating",
 		gin.H{
@@ -721,6 +777,8 @@ func GetImpersonationStatus(c *gin.Context) {
 			"impersonator":      user,
 			"expires_at":        activeSession.ExpiresAt,
 			"created_at":        activeSession.CreatedAt,
+			"token":             impersonationToken,
+			"expires_in":        expiresIn,
 		},
 	))
 }

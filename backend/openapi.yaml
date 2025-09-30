@@ -420,9 +420,9 @@ components:
           description: Phone number
           example: "+39 333 123456"
         organization:
-          $ref: '#/components/schemas/UserOrganization'
-          nullable: true
-          description: Organization information
+          description: Organization information (null when not assigned to an organization)
+          allOf:
+            - $ref: '#/components/schemas/UserOrganization'
         roles:
           type: array
           items:
@@ -1175,6 +1175,9 @@ components:
                 example: null
 
 paths:
+  # ===========================================================================
+  # USER MANAGEMENT
+  # ===========================================================================
   /users:
     get:
       operationId: getUsers
@@ -1535,6 +1538,9 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  # ===========================================================================
+  # APPLICATIONS
+  # ===========================================================================
   /applications:
     get:
       operationId: getApplications
@@ -1569,6 +1575,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  # ===========================================================================
+  # AUTHENTICATION
+  # ===========================================================================
   /auth/exchange:
     post:
       operationId: exchangeToken
@@ -1604,6 +1613,9 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  # ===========================================================================
+  # USER PROFILE (ME)
+  # ===========================================================================
   /me:
     get:
       operationId: getMe
@@ -2180,6 +2192,140 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /impersonate/status:
+    get:
+      operationId: getImpersonationStatus
+      tags:
+        - Backend - Impersonation
+      summary: /impersonate/status - Check current impersonation status
+      description: |
+        Checks if the current user has an active impersonation session.
+
+        **Works with both token types:**
+        - **Impersonation token**: Returns session details from the token
+        - **Regular token**: Checks Redis for active session and returns a new impersonation token if found
+
+        **Use case for regular token:**
+        After a page refresh, the frontend loses the impersonation token but calls `/auth/exchange`
+        to get a regular token. This endpoint allows the frontend to check if there's an active
+        impersonation session and receive a new impersonation token to continue the session.
+
+        **Response when impersonating:**
+        - `is_impersonating`: true
+        - `token`: New impersonation JWT token (with remaining duration)
+        - `expires_in`: Remaining seconds until expiration
+        - `session_id`: Session ID for audit tracking
+        - `impersonated_user`: Details of the user being impersonated
+        - `impersonator`: Details of the user doing the impersonation
+        - `expires_at`: Session expiration timestamp
+        - `created_at`: Session creation timestamp
+
+        **Response when not impersonating:**
+        - `is_impersonating`: false
+      responses:
+        '200':
+          description: Status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    enum: ["currently impersonating", "not currently impersonating"]
+                    example: "currently impersonating"
+                  data:
+                    type: object
+                    properties:
+                      is_impersonating:
+                        type: boolean
+                        description: Whether the user is currently impersonating someone
+                        example: true
+                      token:
+                        type: string
+                        description: Impersonation JWT token (only present when is_impersonating is true)
+                        example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      expires_in:
+                        type: integer
+                        description: Remaining seconds until token expiration (only present when is_impersonating is true)
+                        example: 3540
+                      session_id:
+                        type: string
+                        description: Session ID for audit tracking (only present when is_impersonating is true)
+                        example: "session-uuid-here"
+                      impersonated_user:
+                        description: Details of the user being impersonated (only present when is_impersonating is true)
+                        allOf:
+                          - $ref: '#/components/schemas/User'
+                      impersonator:
+                        description: Details of the user doing the impersonation (only present when is_impersonating is true)
+                        allOf:
+                          - $ref: '#/components/schemas/User'
+                      expires_at:
+                        type: string
+                        format: date-time
+                        description: Session expiration timestamp (only present when is_impersonating is true)
+                        example: "2025-09-29T17:33:59Z"
+                      created_at:
+                        type: string
+                        format: date-time
+                        description: Session creation timestamp (only present when is_impersonating is true)
+                        example: "2025-09-29T16:33:59Z"
+              examples:
+                impersonating:
+                  summary: Currently impersonating
+                  value:
+                    code: 200
+                    message: "currently impersonating"
+                    data:
+                      is_impersonating: true
+                      token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      expires_in: 3540
+                      session_id: "d7734c1e-bed3-4350-8992-a5e09d4d253f"
+                      impersonated_user:
+                        id: "d1e17b87-11ce-4e74-a9f8-34d9638135f1"
+                        username: "edoardo_spadoni"
+                        email: "edoardo.spadoni@nethesis.it"
+                        name: "Edoardo Support"
+                        org_role: "Reseller"
+                      impersonator:
+                        id: "c5054f56-3005-43c2-a237-07aa44e1551c"
+                        username: "owner"
+                        email: "owner@example.com"
+                        name: "Company Owner"
+                        org_role: "Owner"
+                      expires_at: "2025-09-29T17:33:59Z"
+                      created_at: "2025-09-29T16:33:59Z"
+                not_impersonating:
+                  summary: Not impersonating
+                  value:
+                    code: 200
+                    message: "not currently impersonating"
+                    data:
+                      is_impersonating: false
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: Internal server error (failed to check session or generate token)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                session_check_failed:
+                  summary: Failed to check for active session
+                  value:
+                    code: 500
+                    message: "failed to check impersonation status"
+                token_generation_failed:
+                  summary: Failed to generate impersonation token
+                  value:
+                    code: 500
+                    message: "failed to generate impersonation token"
+
   /impersonate/sessions:
     get:
       operationId: getImpersonationSessions
@@ -2372,6 +2518,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  # ===========================================================================
+  # BUSINESS HIERARCHY - CUSTOMERS
+  # ===========================================================================
   /customers:
     get:
       operationId: getCustomers
@@ -2603,6 +2752,9 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  # ===========================================================================
+  # BUSINESS HIERARCHY - DISTRIBUTORS
+  # ===========================================================================
   /distributors:
     get:
       operationId: getDistributors
@@ -2834,6 +2986,9 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  # ===========================================================================
+  # HEALTH CHECK
+  # ===========================================================================
   /health:
     get:
       operationId: getHealth
@@ -2887,6 +3042,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  # ===========================================================================
+  # ROLES & ORGANIZATIONS
+  # ===========================================================================
   /organization-roles:
     get:
       operationId: getOrganizationRoles
@@ -2949,6 +3107,9 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  # ===========================================================================
+  # BUSINESS HIERARCHY - RESELLERS
+  # ===========================================================================
   /resellers:
     get:
       operationId: getResellers
@@ -3211,7 +3372,9 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-
+  # ===========================================================================
+  # SYSTEMS MANAGEMENT
+  # ===========================================================================
   /systems:
     get:
       operationId: getSystems
@@ -3748,6 +3911,9 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  # ===========================================================================
+  # OAUTH2/OIDC STANDARD ENDPOINTS (Third-party Applications)
+  # ===========================================================================
   /user/permissions:
     get:
       operationId: getUserPermissions
@@ -4015,6 +4181,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  # ===========================================================================
+  # VALIDATORS
+  # ===========================================================================
   /validators/vat/{entity_type}:
     get:
       operationId: validateVAT
