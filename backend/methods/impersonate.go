@@ -400,16 +400,10 @@ func ImpersonateUserWithConsent(c *gin.Context) {
 		// Don't fail the request for Redis issues, but log the problem
 	}
 
-	// Get impersonator ID (use "owner" if no local DB ID)
-	impersonatorID := user.ID
-	if impersonatorID == "" && user.OrgRole == "Owner" {
-		impersonatorID = "owner"
-	}
-
 	// Log session start in audit
 	auditEntry := &models.ImpersonationAuditEntry{
 		SessionID:            sessionID,
-		ImpersonatorUserID:   impersonatorID,
+		ImpersonatorUserID:   helpers.GetEffectiveUserID(user),
 		ImpersonatedUserID:   targetUser.ID,
 		ActionType:           "session_start",
 		ImpersonatorUsername: user.Username,
@@ -542,16 +536,10 @@ func ExitImpersonationWithAudit(c *gin.Context) {
 
 	// Log session end in audit (if session ID is available)
 	if sessionIDStr != "" {
-		// Get impersonator ID (use "owner" if no local DB ID)
-		impersonatorID := impersonatorUser.ID
-		if impersonatorID == "" && impersonatorUser.OrgRole == "Owner" {
-			impersonatorID = "owner"
-		}
-
 		impersonationService := local.NewImpersonationService()
 		auditEntry := &models.ImpersonationAuditEntry{
 			SessionID:            sessionIDStr,
-			ImpersonatorUserID:   impersonatorID,
+			ImpersonatorUserID:   helpers.GetEffectiveUserID(impersonatorUser),
 			ImpersonatedUserID:   impersonatedUser.ID,
 			ActionType:           "session_end",
 			ImpersonatorUsername: impersonatorUser.Username,

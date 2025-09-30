@@ -13,8 +13,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
-	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
 )
 
@@ -24,7 +24,7 @@ import (
 // This is the main authorization middleware for the simplified RBAC system
 func RequirePermission(permission string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		user, ok := getUserFromContext(c)
+		user, ok := helpers.GetUserFromContext(c)
 		if !ok {
 			return
 		}
@@ -83,7 +83,7 @@ func RequirePermission(permission string) gin.HandlerFunc {
 // Use this when you need to ensure user has specific technical skills
 func RequireUserRole(role string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		user, ok := getUserFromContext(c)
+		user, ok := helpers.GetUserFromContext(c)
 		if !ok {
 			return
 		}
@@ -125,7 +125,7 @@ func RequireUserRole(role string) gin.HandlerFunc {
 // Use this when you need to ensure user belongs to organization with specific business level
 func RequireOrgRole(role string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		user, ok := getUserFromContext(c)
+		user, ok := helpers.GetUserFromContext(c)
 		if !ok {
 			return
 		}
@@ -171,7 +171,7 @@ func RequireOrgRole(role string) gin.HandlerFunc {
 // Useful for hierarchical access where multiple levels can access a resource
 func RequireAnyOrgRole(roles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		user, ok := getUserFromContext(c)
+		user, ok := helpers.GetUserFromContext(c)
 		if !ok {
 			return
 		}
@@ -218,7 +218,7 @@ func RequireAnyOrgRole(roles ...string) gin.HandlerFunc {
 // RequireAnyUserRole checks if user has any of the specified user roles (technical capabilities)
 func RequireAnyUserRole(roles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		user, ok := getUserFromContext(c)
+		user, ok := helpers.GetUserFromContext(c)
 		if !ok {
 			return
 		}
@@ -264,25 +264,6 @@ func RequireAnyUserRole(roles ...string) gin.HandlerFunc {
 
 // Helper functions
 
-// getUserFromContext extracts the user from the Gin context and handles common error cases
-func getUserFromContext(c *gin.Context) (*models.User, bool) {
-	userInterface, exists := c.Get("user")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("user not found in context", nil))
-		c.Abort()
-		return nil, false
-	}
-
-	user, ok := userInterface.(*models.User)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("invalid user context", nil))
-		c.Abort()
-		return nil, false
-	}
-
-	return user, true
-}
-
 func hasStringInList(list []string, target string) bool {
 	for _, item := range list {
 		if item == target {
@@ -298,7 +279,7 @@ func hasStringInList(list []string, target string) bool {
 // - POST, PUT, PATCH, DELETE requests require "manage:resource" permission
 func RequireResourcePermission(resource string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		user, ok := getUserFromContext(c)
+		user, ok := helpers.GetUserFromContext(c)
 		if !ok {
 			return
 		}
