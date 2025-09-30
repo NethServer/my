@@ -366,12 +366,31 @@ func ImpersonateUserWithConsent(c *gin.Context) {
 		return
 	}
 
+	// Calculate remaining duration from consent expiration time
+	// This ensures that multiple impersonation sessions within the same consent period
+	// all expire at the original consent expiration time, not extended durations
+	remainingDuration := time.Until(consent.ExpiresAt)
+	if remainingDuration <= 0 {
+		// Consent has expired (shouldn't happen due to earlier CanBeImpersonated check, but safety check)
+		logger.RequestLogger(c, "impersonate").Warn().
+			Str("operation", "consent_expired_during_impersonation").
+			Str("user_id", user.ID).
+			Str("target_user_id", req.UserID).
+			Time("consent_expires_at", consent.ExpiresAt).
+			Msg("Consent expired between validation and token generation")
+
+		c.JSON(http.StatusForbidden, response.Forbidden(
+			"consent has expired",
+			nil,
+		))
+		return
+	}
+
 	// Generate session ID for audit tracking
 	sessionID := uuid.New().String()
 
-	// Generate impersonation token with custom duration from consent
-	impersonationDuration := time.Duration(consent.MaxDurationMinutes) * time.Minute
-	impersonationToken, err := jwt.GenerateImpersonationTokenWithDuration(*targetUser, *user, sessionID, impersonationDuration)
+	// Generate impersonation token with remaining duration from consent
+	impersonationToken, err := jwt.GenerateImpersonationTokenWithDuration(*targetUser, *user, sessionID, remainingDuration)
 	if err != nil {
 		logger.RequestLogger(c, "impersonate").Error().
 			Err(err).
@@ -389,7 +408,7 @@ func ImpersonateUserWithConsent(c *gin.Context) {
 	}
 
 	// Create active session in Redis to prevent duplicate impersonation
-	err = sessionManager.CreateSession(user.ID, sessionID, targetUser.ID, impersonationDuration)
+	err = sessionManager.CreateSession(user.ID, sessionID, targetUser.ID, remainingDuration)
 	if err != nil {
 		logger.RequestLogger(c, "impersonate").Warn().
 			Err(err).
@@ -430,20 +449,20 @@ func ImpersonateUserWithConsent(c *gin.Context) {
 		Str("session_id", sessionID).
 		Str("impersonator_org", user.OrganizationID).
 		Str("impersonated_org", targetUser.OrganizationID).
-		Int("max_duration_minutes", consent.MaxDurationMinutes).
+		Int64("remaining_duration_seconds", int64(remainingDuration.Seconds())).
+		Time("consent_expires_at", consent.ExpiresAt).
 		Msg("User impersonation started successfully with consent")
 
 	c.JSON(http.StatusOK, response.OK(
 		"impersonation started successfully",
 		gin.H{
 			"token":             impersonationToken,
-			"expires_in":        consent.MaxDurationMinutes * 60, // Convert to seconds
-			"expires_at":        consent.ExpiresAt,               // ISO timestamp when consent expires
+			"expires_in":        int64(remainingDuration.Seconds()), // Remaining seconds until consent expires
+			"expires_at":        consent.ExpiresAt,                  // ISO timestamp when consent expires
 			"session_id":        sessionID,
 			"impersonated_user": targetUser,
 			"impersonator":      user,
 			"is_impersonated":   true,
-			"max_duration":      consent.MaxDurationMinutes,
 		},
 	))
 }
