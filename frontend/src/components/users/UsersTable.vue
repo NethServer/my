@@ -45,6 +45,7 @@ import { useUsers } from '@/queries/users'
 import { canManageUsers, canImpersonateUsers } from '@/lib/permissions'
 import { useLoginStore } from '@/stores/login'
 import ImpersonateUserModal from './ImpersonateUserModal.vue'
+import { normalize } from '@/lib/common'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -309,7 +310,7 @@ const onClosePasswordChangedModal = () => {
               <NeBadge
                 v-for="role in item.roles?.sort(sortByProperty('name'))"
                 :key="role.id"
-                :text="t(`user_roles.${role.name}`)"
+                :text="t(`user_roles.${normalize(role.name)}`)"
                 kind="custom"
                 customColorClasses="bg-indigo-100 text-indigo-800 dark:bg-indigo-700 dark:text-indigo-100"
                 class="inline-block"

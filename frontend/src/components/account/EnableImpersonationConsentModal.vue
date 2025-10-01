@@ -137,11 +137,7 @@ async function enableConsent() {
   >
     <div class="flex flex-col gap-6">
       <p>
-        {{
-          t('account.enable_impersonation_modal_message', {
-            superAdmin: $t('user_roles.Super Admin'),
-          })
-        }}
+        {{ t('account.enable_impersonation_modal_message') }}
       </p>
       <NeTextInput
         ref="durationRef"

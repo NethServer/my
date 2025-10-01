@@ -36,6 +36,7 @@ import { useLoginStore } from '@/stores/login'
 import { getOrganizations, ORGANIZATIONS_KEY } from '@/lib/organizations'
 import { getUserRoles, USER_ROLES_KEY } from '@/lib/userRoles'
 import { PRODUCT_NAME } from '@/lib/config'
+import { normalize } from '@/lib/common'
 
 const { isShown = false, currentUser = undefined } = defineProps<{
   isShown: boolean
@@ -165,8 +166,8 @@ const userRoleOptions = computed(() => {
 
   return allUserRoles.value.data?.map((role) => ({
     id: role.id,
-    label: t(`user_roles.${role.name}`),
-    description: t(`user_roles.${role.name}_description`),
+    label: t(`user_roles.${normalize(role.name)}`),
+    description: t(`user_roles.${normalize(role.name)}_description`),
   }))
 })
 
