@@ -8,6 +8,7 @@ import CustomersCounterCard from '@/components/dashboard/CustomersCounterCard.vu
 import DistributorsCounterCard from '@/components/dashboard/DistributorsCounterCard.vue'
 import ResellersCounterCard from '@/components/dashboard/ResellersCounterCard.vue'
 import UsersCounterCard from '@/components/dashboard/UsersCounterCard.vue'
+import { normalize } from '@/lib/common'
 import {
   getThirdPartyApps,
   getThirdPartyAppIcon,
@@ -73,7 +74,7 @@ const { state: thirdPartyApps } = useQuery({
                 <NeBadge
                   v-for="role in loginStore.userInfo?.user_roles.sort()"
                   :key="role"
-                  :text="$t(`user_roles.${role}`)"
+                  :text="$t(`user_roles.${normalize(role)}`)"
                   kind="custom"
                   customColorClasses="bg-indigo-100 text-indigo-800 dark:bg-indigo-700 dark:text-indigo-100"
                   class="inline-block"
