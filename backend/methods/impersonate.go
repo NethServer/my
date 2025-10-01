@@ -456,13 +456,13 @@ func ImpersonateUserWithConsent(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK(
 		"impersonation started successfully",
 		gin.H{
+			"is_impersonating":  true,
 			"token":             impersonationToken,
 			"expires_in":        int64(remainingDuration.Seconds()), // Remaining seconds until consent expires
 			"expires_at":        consent.ExpiresAt,                  // ISO timestamp when consent expires
 			"session_id":        sessionID,
 			"impersonated_user": targetUser,
 			"impersonator":      user,
-			"is_impersonated":   true,
 		},
 	))
 }

@@ -2092,14 +2092,14 @@ paths:
                         type: string
                         description: Unique session ID for audit tracking
                         example: "session-uuid-here"
+                      is_impersonating:
+                        type: boolean
+                        description: Flag indicating impersonation is active
+                        example: true
                       impersonated_user:
                         $ref: '#/components/schemas/User'
                       impersonator:
                         $ref: '#/components/schemas/User'
-                      is_impersonated:
-                        type: boolean
-                        description: Flag indicating this is an impersonation token
-                        example: true
         '400':
           description: Bad request (cannot impersonate yourself, user not found, etc.)
           content:
