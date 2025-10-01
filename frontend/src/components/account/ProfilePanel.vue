@@ -118,9 +118,6 @@ function validate(profile: ProfileInfo): boolean {
       // focus the first field with error
 
       const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-
-      console.log('firstFieldName', firstErrorFieldName) ////
-
       fieldRefs[firstErrorFieldName].value?.focus()
     }
     return false

@@ -182,7 +182,7 @@
     "impersonate_user_message_1": "Agirai temporaneamente come l'utente {user} e avrai i suoi permessi.",
     "impersonate_user_message_2": "Per tornare al tuo account, clicca sull'icona di chiusura nel badge di impersonificazione nella barra superiore.",
     "impersonation_started": "Impersonificazione avviata",
-    "you_are_now_impersonating_user": "Ora stai impersonando {user}",
+    "you_are_impersonating_user": "Stai impersonando {user}",
     "impersonation_ended": "Impersonificazione terminata",
     "impersonation_expired_message": "La sessione di impersonificazione è scaduta, sei tornato ad usare il tuo account.",
     "impersonation_timer_tooltip": "La sessione di impersonificazione terminerà automaticamente tra {timer}",

@@ -46,8 +46,6 @@ const {
     return postConsent(consent)
   },
   onSuccess(data, vars) {
-    console.log('onSuccess, vars', vars) ////
-
     // show success notification after the drawer closes
     setTimeout(() => {
       notificationsStore.createNotification({
@@ -101,9 +99,6 @@ function validate(consent: PostConsent): boolean {
       // focus the first field with error
 
       const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-
-      console.log('firstFieldName', firstErrorFieldName) ////
-
       fieldRefs[firstErrorFieldName].value?.focus()
     }
     return false
@@ -161,9 +156,6 @@ async function enableConsent() {
         min="1"
         max="168"
       />
-
-      duration {{ duration }} ////
-
       <NeInlineNotification
         v-if="postConsentError?.message"
         kind="error"

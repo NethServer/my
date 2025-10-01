@@ -10,7 +10,7 @@ import { NeButton, NeInlineNotification, NeSkeleton } from '@nethesis/vue-compon
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useI18n } from 'vue-i18n'
 import { useImpersonationConsent } from '@/queries/impersonationConsent'
-import { deleteConsent, IMPERSONATION_CONSENT_KEY, postConsent } from '@/lib/impersonation'
+import { deleteConsent, IMPERSONATION_CONSENT_KEY } from '@/lib/impersonation'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faCircleCheck, faCircleInfo } from '@fortawesome/free-solid-svg-icons'
 import { computed, ref } from 'vue'
@@ -24,41 +24,9 @@ const { state, asyncStatus } = useImpersonationConsent()
 const queryCache = useQueryCache()
 const isShownEnableConsentModal = ref(false)
 
-////
-// const {
-//   mutate: postConsentMutate,
-//   isLoading: postConsentLoading,
-//   reset: postConsentReset,
-//   error: postConsentError,
-// } = useMutation({
-//   mutation: (durationHours: number) => {
-//     return postConsent(durationHours)
-//   },
-//   onSuccess(data, vars) {
-//     notificationsStore.createNotification({
-//       kind: 'success',
-//       title: t('account.impersonation_consent_enabled'),
-//       description: t(
-//         'account.impersonation_consent_enabled_description',
-//         {
-//           hours: CONSENT_DURATION_HOURS, ////
-//         },
-//         vars.duration_hours,
-//       ),
-//     })
-//   },
-//   onError: (error) => {
-//     console.error('Error enabling impersonation consent:', error)
-//   },
-//   onSettled: () => {
-//     queryCache.invalidateQueries({ key: [IMPERSONATION_CONSENT_KEY] })
-//   },
-// })
-
 const {
   mutate: deleteConsentMutate,
   isLoading: deleteConsentLoading,
-  reset: deleteConsentReset,
   error: deleteConsentError,
 } = useMutation({
   mutation: () => {
@@ -88,30 +56,7 @@ const consentExpirationDate = computed(() => {
   }
 })
 
-//// remove clearErrors
-function clearErrors() {
-  // postConsentReset() ////
-  deleteConsentReset()
-}
-
-////
-// async function enableConsent() {
-//   clearErrors()
-
-//   const durationHours = parseInt(duration.value)
-//   const consent = {
-//     duration_hours: durationHours,
-//   }
-
-//   const isValidationOk = validate(consent)
-//   if (!isValidationOk) {
-//     return
-//   }
-//   postConsentMutate(CONSENT_DURATION_HOURS) ////
-// }
-
 async function disableConsent() {
-  clearErrors()
   deleteConsentMutate()
 }
 </script>
@@ -131,13 +76,6 @@ async function disableConsent() {
       :description="state.error.message"
     />
     <template v-else>
-      <!-- <NeInlineNotification ////
-        v-if="postConsentError?.message"
-        kind="error"
-        :title="t('users.cannot_enable_impersonation_consent')"
-        :description="postConsentError.message"
-        class="mt-4"
-      /> -->
       <!-- delete consent error notification -->
       <NeInlineNotification
         v-if="deleteConsentError?.message"
@@ -162,22 +100,6 @@ async function disableConsent() {
               }}
             </span>
           </div>
-          <!-- <div class="flex gap-4"> ////  -->
-          <!-- extend consent button -->
-          <!-- <NeButton ////
-              kind="secondary"
-              size="lg"
-              :disabled="
-                postConsentLoading ||
-                deleteConsentLoading ||
-                loginStore.isOwner ||
-                loginStore.isImpersonating
-              "
-              :loading="postConsentLoading"
-              @click.prevent="isShownEnableConsentModal = true"
-            >
-              {{ $t('account.extend_consent_to_impersonation') }}
-            </NeButton> -->
           <!-- revoke consent button -->
           <NeButton
             kind="tertiary"
@@ -189,7 +111,6 @@ async function disableConsent() {
           >
             {{ $t('account.revoke_impersonation_consent') }}
           </NeButton>
-          <!-- </div> //// -->
         </div>
       </template>
       <template v-else>

@@ -182,7 +182,7 @@
     "impersonate_user_message_1": "You will temporarily act as user {user} and have their permissions.",
     "impersonate_user_message_2": "To return to your account, click the close icon on the impersonation badge in the top bar.",
     "impersonation_started": "Impersonation started",
-    "you_are_now_impersonating_user": "You are now impersonating {user}",
+    "you_are_impersonating_user": "You are impersonating {user}",
     "impersonation_ended": "Impersonation ended",
     "impersonation_expired_message": "The impersonation session has expired, you are now logged in as yourself.",
     "impersonation_timer_tooltip": "The impersonation session will end automatically in {timer}",
@@ -272,7 +272,7 @@
     "impersonation_consent_duration_minimum": "The minimum duration for impersonation consent is 1 hour.",
     "impersonation_consent_duration_maximum": "The maximum duration for impersonation consent is 168 hours (7 days).",
     "impersonation_max_duration": "Impersonation max duration",
-    "impersonation_max_duration_helper": "Integer number of hours",
+    "impersonation_max_duration_helper": "Number of hours",
     "consent": "Consent"
   },
   "user_roles": {
@@ -316,5 +316,10 @@
     "direction": "Direction",
     "ascending": "Ascending",
     "descending": "Descending"
+  },
+  "time": {
+    "hours": "hour | hours",
+    "minutes": "minute | minutes",
+    "seconds": "second | seconds"
   }
 }

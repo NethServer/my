@@ -20,6 +20,7 @@ const notificationsStore = useNotificationsStore()
 const intervalId = ref<ReturnType<typeof setInterval> | null>(null)
 const totalSeconds = ref(0)
 const formattedTimer = ref('')
+const formattedTimerLong = ref('')
 const loadingExitImpersonation = ref(false)
 
 watch(
@@ -35,7 +36,7 @@ watch(
 const updateTimer = () => {
   if (loginStore.impersonateExpiration) {
     const now = new Date()
-    formattedTimer.value = formatAsTimer(now, new Date(loginStore.impersonateExpiration))
+    formatTimer(now, new Date(loginStore.impersonateExpiration))
   }
   return null
 }
@@ -68,36 +69,48 @@ const exitImpersonation = async (timerExpired = false) => {
     })
 }
 
-const formatAsTimer = (startDate: Date, endDate: Date) => {
+const formatTimer = (startDate: Date, endDate: Date) => {
   const diffMs = endDate.getTime() - startDate.getTime()
 
   if (diffMs <= 0) {
     totalSeconds.value = 0
-    return '00:00'
+    formattedTimer.value = '00:00'
   }
   totalSeconds.value = Math.floor(Math.abs(diffMs) / 1000)
-  const minutes = Math.floor(totalSeconds.value / 60)
+  const hours = Math.floor(totalSeconds.value / 3600)
+  const minutes = Math.floor((totalSeconds.value % 3600) / 60)
   const seconds = totalSeconds.value % 60
 
-  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+  // HH:MM format
+  formattedTimer.value = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+
+  // long format for tooltip
+  const parts = []
+  if (hours > 0) parts.push(`${hours} ${t('time.hours', hours)}`)
+  if (minutes > 0) parts.push(`${minutes} ${t('time.minutes', minutes)}`)
+  if (seconds > 0) parts.push(`${seconds} ${t('time.seconds', seconds)}`)
+  formattedTimerLong.value = parts.join(' ')
 }
 </script>
 
 <template>
   <NeBadgeV2 v-if="loginStore.isImpersonating" kind="amber">
     <div class="flex items-center gap-2">
-      <FontAwesomeIcon :icon="faUserSecret" class="size-4" aria-hidden="true" />
-      <!-- impersonated user -->
-      <span class="hidden sm:inline">
-        {{ loginStore.userDisplayName }}
-      </span>
-      <!-- timer -->
       <NeTooltip trigger-event="mouseenter focus" placement="bottom" class="relative top-px flex">
         <template #trigger>
-          <span class="font-mono">{{ formattedTimer }}</span>
+          <div class="flex items-center gap-2">
+            <FontAwesomeIcon :icon="faUserSecret" class="size-4" aria-hidden="true" />
+            <!-- impersonated user -->
+            <span class="hidden sm:inline">
+              {{ loginStore.userDisplayName }}
+            </span>
+            <!-- timer -->
+            <span class="relative top-px font-mono">{{ formattedTimer }}</span>
+          </div>
         </template>
         <template #content>
-          {{ t('users.impersonation_timer_tooltip', { timer: formattedTimer }) }}
+          {{ t('users.you_are_impersonating_user', { user: loginStore.impersonatedUser?.name }) }}.
+          {{ t('users.impersonation_timer_tooltip', { timer: formattedTimerLong }) }}
         </template>
       </NeTooltip>
       <!-- loading exit impersonation -->

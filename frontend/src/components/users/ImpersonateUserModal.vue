@@ -38,7 +38,7 @@ async function impersonateUser(user: User) {
         notificationsStore.createNotification({
           kind: 'success',
           title: t('users.impersonation_started'),
-          description: t('users.you_are_now_impersonating_user', {
+          description: t('users.you_are_impersonating_user', {
             user: user.name,
           }),
         })
