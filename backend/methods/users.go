@@ -332,7 +332,10 @@ func GetUsers(c *gin.Context) {
 		Msg("Users list requested")
 
 	// Return paginated response with enriched data
-	c.JSON(http.StatusOK, response.PaginatedWithSorting("users retrieved successfully", "users", enrichedUsers, totalCount, page, pageSize, sortBy, sortDirection))
+	c.JSON(http.StatusOK, response.OK("users retrieved successfully", gin.H{
+		"users":      enrichedUsers,
+		"pagination": helpers.BuildPaginationInfoWithSorting(page, pageSize, totalCount, sortBy, sortDirection),
+	}))
 }
 
 // UpdateUser handles PUT /api/users/:id - updates a user account locally and syncs to Logto

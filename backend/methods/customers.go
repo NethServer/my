@@ -199,7 +199,10 @@ func GetCustomers(c *gin.Context) {
 		Msg("Customers list requested")
 
 	// Return paginated response
-	c.JSON(http.StatusOK, response.PaginatedWithSorting("customers retrieved successfully", "customers", customers, totalCount, page, pageSize, sortBy, sortDirection))
+	c.JSON(http.StatusOK, response.OK("customers retrieved successfully", gin.H{
+		"customers":  customers,
+		"pagination": helpers.BuildPaginationInfoWithSorting(page, pageSize, totalCount, sortBy, sortDirection),
+	}))
 }
 
 // UpdateCustomer handles PUT /api/customers/:id - updates a customer locally and syncs to Logto

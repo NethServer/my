@@ -99,13 +99,8 @@ func GetSystemInventoryHistory(c *gin.Context) {
 
 	// Return paginated results
 	c.JSON(http.StatusOK, response.OK("inventory history retrieved successfully", gin.H{
-		"records": records,
-		"pagination": gin.H{
-			"page":        page,
-			"page_size":   pageSize,
-			"total_count": totalCount,
-			"total_pages": (totalCount + pageSize - 1) / pageSize,
-		},
+		"records":    records,
+		"pagination": helpers.BuildPaginationInfo(page, pageSize, totalCount),
 	}))
 }
 
@@ -358,13 +353,8 @@ func GetSystemInventoryDiffs(c *gin.Context) {
 
 	// Return paginated results
 	c.JSON(http.StatusOK, response.OK("inventory diffs retrieved successfully", gin.H{
-		"diffs": diffs,
-		"pagination": gin.H{
-			"page":        page,
-			"page_size":   pageSize,
-			"total_count": totalCount,
-			"total_pages": (totalCount + pageSize - 1) / pageSize,
-		},
+		"diffs":      diffs,
+		"pagination": helpers.BuildPaginationInfo(page, pageSize, totalCount),
 	}))
 }
 

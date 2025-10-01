@@ -95,3 +95,16 @@ func BuildPaginationInfo(page, pageSize, totalCount int) models.PaginationInfo {
 
 	return paginationInfo
 }
+
+// BuildPaginationInfoWithSorting creates a standard pagination info object with sorting information
+func BuildPaginationInfoWithSorting(page, pageSize, totalCount int, sortBy, sortDirection string) models.PaginationInfo {
+	paginationInfo := BuildPaginationInfo(page, pageSize, totalCount)
+
+	// Add sorting information if provided
+	if sortBy != "" {
+		paginationInfo.SortBy = &sortBy
+		paginationInfo.SortDirection = &sortDirection
+	}
+
+	return paginationInfo
+}

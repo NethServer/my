@@ -192,7 +192,10 @@ func GetResellers(c *gin.Context) {
 		Msg("Resellers list requested")
 
 	// Return paginated response
-	c.JSON(http.StatusOK, response.PaginatedWithSorting("resellers retrieved successfully", "resellers", resellers, totalCount, page, pageSize, sortBy, sortDirection))
+	c.JSON(http.StatusOK, response.OK("resellers retrieved successfully", gin.H{
+		"resellers":  resellers,
+		"pagination": helpers.BuildPaginationInfoWithSorting(page, pageSize, totalCount, sortBy, sortDirection),
+	}))
 }
 
 // UpdateReseller handles PUT /api/resellers/:id - updates a reseller locally and syncs to Logto

@@ -173,7 +173,10 @@ func GetDistributors(c *gin.Context) {
 		Msg("Distributors list requested")
 
 	// Return paginated response
-	c.JSON(http.StatusOK, response.PaginatedWithSorting("distributors retrieved successfully", "distributors", distributors, totalCount, page, pageSize, sortBy, sortDirection))
+	c.JSON(http.StatusOK, response.OK("distributors retrieved successfully", gin.H{
+		"distributors": distributors,
+		"pagination":   helpers.BuildPaginationInfoWithSorting(page, pageSize, totalCount, sortBy, sortDirection),
+	}))
 }
 
 // UpdateDistributor handles PUT /api/distributors/:id - updates a distributor locally and syncs to Logto
