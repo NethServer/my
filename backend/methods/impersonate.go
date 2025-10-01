@@ -828,11 +828,8 @@ func GetImpersonationSessions(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK(
 		"sessions retrieved successfully",
 		gin.H{
-			"sessions":  sessions,
-			"total":     total,
-			"page":      page,
-			"page_size": pageSize,
-			"has_more":  page*pageSize < total,
+			"sessions":   sessions,
+			"pagination": helpers.BuildPaginationInfo(page, pageSize, total),
 		},
 	))
 }
@@ -936,6 +933,9 @@ func GetSessionAudit(c *gin.Context) {
 		return
 	}
 
+	// Parse pagination parameters
+	page, pageSize := helpers.GetPaginationFromQuery(c)
+
 	// Create impersonation service
 	impersonationService := local.NewImpersonationService()
 
@@ -980,8 +980,8 @@ func GetSessionAudit(c *gin.Context) {
 		return
 	}
 
-	// Get session audit history
-	entries, err := impersonationService.GetSessionAuditHistory(sessionID)
+	// Get session audit history with pagination
+	entries, total, err := impersonationService.GetSessionAuditHistory(sessionID, page, pageSize)
 	if err != nil {
 		logger.RequestLogger(c, "impersonate").Error().
 			Err(err).
@@ -1002,7 +1002,7 @@ func GetSessionAudit(c *gin.Context) {
 		gin.H{
 			"session_id": sessionID,
 			"entries":    entries,
-			"total":      len(entries),
+			"pagination": helpers.BuildPaginationInfo(page, pageSize, total),
 		},
 	))
 }

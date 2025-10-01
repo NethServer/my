@@ -258,8 +258,29 @@ func (s *ImpersonationService) LogImpersonationAction(entry *models.Impersonatio
 	return nil
 }
 
-// GetSessionAuditHistory retrieves audit history for a specific impersonation session
-func (s *ImpersonationService) GetSessionAuditHistory(sessionID string) ([]models.ImpersonationAuditEntry, error) {
+// GetSessionAuditHistory retrieves audit history for a specific impersonation session with pagination
+func (s *ImpersonationService) GetSessionAuditHistory(sessionID string, page, pageSize int) ([]models.ImpersonationAuditEntry, int, error) {
+	// Get total count of audit entries
+	countQuery := `
+		SELECT COUNT(*)
+		FROM impersonation_audit
+		WHERE session_id = $1
+	`
+
+	var totalCount int
+	err := s.db.QueryRow(countQuery, sessionID).Scan(&totalCount)
+	if err != nil {
+		logger.ComponentLogger("impersonation").Error().
+			Err(err).
+			Str("session_id", sessionID).
+			Msg("Failed to get audit entry count")
+		return nil, 0, err
+	}
+
+	// Calculate offset
+	offset := (page - 1) * pageSize
+
+	// Get paginated entries
 	query := `
 		SELECT id, session_id, impersonator_user_id, impersonated_user_id, action_type,
 			   api_endpoint, http_method, request_data, response_status, timestamp,
@@ -267,15 +288,16 @@ func (s *ImpersonationService) GetSessionAuditHistory(sessionID string) ([]model
 		FROM impersonation_audit
 		WHERE session_id = $1
 		ORDER BY timestamp ASC
+		LIMIT $2 OFFSET $3
 	`
 
-	rows, err := s.db.Query(query, sessionID)
+	rows, err := s.db.Query(query, sessionID, pageSize, offset)
 	if err != nil {
 		logger.ComponentLogger("impersonation").Error().
 			Err(err).
 			Str("session_id", sessionID).
 			Msg("Failed to get session audit history")
-		return nil, err
+		return nil, 0, err
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -306,7 +328,7 @@ func (s *ImpersonationService) GetSessionAuditHistory(sessionID string) ([]model
 		entries = append(entries, entry)
 	}
 
-	return entries, nil
+	return entries, totalCount, nil
 }
 
 // GetUserSessions retrieves all impersonation sessions for a specific user (being impersonated)
