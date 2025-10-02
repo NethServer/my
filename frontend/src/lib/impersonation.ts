@@ -7,7 +7,7 @@ import { useLoginStore, type UserInfo } from '@/stores/login'
 import * as v from 'valibot'
 
 export const IMPERSONATION_CONSENT_KEY = 'impersonationConsent'
-const IMPERSONATE_PATH = 'impersonate'
+export const IMPERSONATE_PATH = 'impersonate'
 const CONSENT_PATH = `${IMPERSONATE_PATH}/consent`
 
 interface ImpersonationConsentResponse {
@@ -52,9 +52,9 @@ interface DeleteImpersonateResponse {
 export const PostConsentSchema = v.object({
   duration_hours: v.pipe(
     v.number(),
-    v.integer('account.impersonation_consent_duration_integer'),
-    v.minValue(1, 'account.impersonation_consent_duration_minimum'),
-    v.maxValue(168, 'account.impersonation_consent_duration_maximum'),
+    v.integer('account.impersonation.impersonation_consent_duration_integer'),
+    v.minValue(1, 'account.impersonation.impersonation_consent_duration_minimum'),
+    v.maxValue(168, 'account.impersonation.impersonation_consent_duration_maximum'),
   ),
 })
 

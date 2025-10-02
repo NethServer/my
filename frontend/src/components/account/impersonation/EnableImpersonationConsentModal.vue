@@ -50,9 +50,9 @@ const {
     setTimeout(() => {
       notificationsStore.createNotification({
         kind: 'success',
-        title: t('account.impersonation_consent_enabled'),
+        title: t('account.impersonation.impersonation_consent_enabled'),
         description: t(
-          'account.impersonation_consent_enabled_description',
+          'account.impersonation.impersonation_consent_enabled_description',
           {
             hours: vars.duration_hours,
           },
@@ -124,9 +124,9 @@ async function enableConsent() {
 <template>
   <NeModal
     :visible="visible"
-    :title="$t('account.consent_to_impersonation')"
+    :title="$t('account.impersonation.consent_to_impersonation')"
     kind="warning"
-    :primary-label="$t('account.consent')"
+    :primary-label="$t('account.impersonation.consent')"
     :cancel-label="$t('common.cancel')"
     :primary-button-disabled="postConsentLoading"
     :primary-button-loading="postConsentLoading"
@@ -137,13 +137,13 @@ async function enableConsent() {
   >
     <div class="flex flex-col gap-6">
       <p>
-        {{ t('account.enable_impersonation_modal_message') }}
+        {{ t('account.impersonation.enable_impersonation_modal_message') }}
       </p>
       <NeTextInput
         ref="durationRef"
         v-model.trim="duration"
-        :label="$t('account.impersonation_max_duration')"
-        :helper-text="$t('account.impersonation_max_duration_helper')"
+        :label="$t('account.impersonation.impersonation_max_duration')"
+        :helper-text="$t('account.impersonation.impersonation_max_duration_helper')"
         :invalid-message="
           validationIssues.duration_hours?.[0] ? $t(validationIssues.duration_hours[0]) : ''
         "
@@ -155,7 +155,7 @@ async function enableConsent() {
       <NeInlineNotification
         v-if="postConsentError?.message"
         kind="error"
-        :title="t('account.cannot_enable_impersonation_consent')"
+        :title="t('account.impersonation.cannot_enable_impersonation_consent')"
         :description="postConsentError.message"
         class="mt-4"
       />
