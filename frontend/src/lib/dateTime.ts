@@ -31,3 +31,38 @@ export function formatMinutes(totalMinutes: number, t: ComposerTranslation) {
 
   return `${t('time.hours', hours)}, ${t('time.minutes', minutes)}`
 }
+
+export function formatSeconds(totalSeconds: number, t: ComposerTranslation) {
+  if (totalSeconds < 60) {
+    return t('time.seconds', totalSeconds)
+  }
+
+  if (totalSeconds < 3600) {
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+
+    if (seconds === 0) {
+      return t('time.minutes', minutes)
+    }
+
+    return `${t('time.minutes', minutes)}, ${t('time.seconds', seconds)}`
+  }
+
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+
+  if (minutes === 0 && seconds === 0) {
+    return t('time.hours', hours)
+  }
+
+  if (seconds === 0) {
+    return `${t('time.hours', hours)}, ${t('time.minutes', minutes)}`
+  }
+
+  if (minutes === 0) {
+    return `${t('time.hours', hours)}, ${t('time.seconds', seconds)}`
+  }
+
+  return `${t('time.hours', hours)}, ${t('time.minutes', minutes)}, ${t('time.seconds', seconds)}`
+}
