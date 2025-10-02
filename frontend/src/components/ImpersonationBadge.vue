@@ -4,6 +4,7 @@
 -->
 
 <script setup lang="ts">
+import { formatSeconds } from '@/lib/dateTime'
 import { useLoginStore } from '@/stores/login'
 import { useNotificationsStore } from '@/stores/notifications'
 import { faUserSecret, faXmark } from '@fortawesome/free-solid-svg-icons'
@@ -85,11 +86,14 @@ const formatTimer = (startDate: Date, endDate: Date) => {
   formattedTimer.value = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
 
   // long format for tooltip
-  const parts = []
-  if (hours > 0) parts.push(`${hours} ${t('time.hours', hours)}`)
-  if (minutes > 0) parts.push(`${minutes} ${t('time.minutes', minutes)}`)
-  if (seconds > 0) parts.push(`${seconds} ${t('time.seconds', seconds)}`)
-  formattedTimerLong.value = parts.join(' ')
+  // const parts = [] ////
+  // if (hours > 0) parts.push(`${hours} ${t('time.hours', hours)}`)
+  // if (minutes > 0) parts.push(`${minutes} ${t('time.minutes', minutes)}`)
+  // if (seconds > 0) parts.push(`${seconds} ${t('time.seconds', seconds)}`)
+
+  formattedTimerLong.value = formatSeconds(totalSeconds.value, t)
+
+  // formattedTimerLong.value = parts.join(' ') ////
 }
 </script>
 
