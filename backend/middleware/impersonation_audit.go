@@ -133,6 +133,8 @@ func ImpersonationAuditMiddleware() gin.HandlerFunc {
 			ResponseStatus:       &responseStatus,
 			ImpersonatorUsername: impersonatorUser.Username,
 			ImpersonatedUsername: impersonatedUser.Username,
+			ImpersonatorName:     impersonatorUser.Name,
+			ImpersonatedName:     impersonatedUser.Name,
 		}
 
 		// Add request data if not empty

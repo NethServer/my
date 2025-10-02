@@ -919,6 +919,14 @@ components:
           type: string
           description: Username of the impersonated user
           example: "customer@example.com"
+        impersonator_name:
+          type: string
+          description: Full name of the impersonator
+          example: "John Doe"
+        impersonated_name:
+          type: string
+          description: Full name of the impersonated user
+          example: "Jane Smith"
         start_time:
           type: string
           format: date-time
@@ -972,6 +980,14 @@ components:
           type: string
           description: Username of the impersonated user
           example: "customer@example.com"
+        impersonator_name:
+          type: string
+          description: Full name of the impersonator
+          example: "John Doe"
+        impersonated_name:
+          type: string
+          description: Full name of the impersonated user
+          example: "Jane Smith"
         action_type:
           type: string
           enum: [session_start, session_end, api_call]

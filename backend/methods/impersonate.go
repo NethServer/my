@@ -427,6 +427,8 @@ func ImpersonateUserWithConsent(c *gin.Context) {
 		ActionType:           "session_start",
 		ImpersonatorUsername: user.Username,
 		ImpersonatedUsername: targetUser.Username,
+		ImpersonatorName:     user.Name,
+		ImpersonatedName:     targetUser.Name,
 	}
 
 	err = impersonationService.LogImpersonationAction(auditEntry)
@@ -563,6 +565,8 @@ func ExitImpersonationWithAudit(c *gin.Context) {
 			ActionType:           "session_end",
 			ImpersonatorUsername: impersonatorUser.Username,
 			ImpersonatedUsername: impersonatedUser.Username,
+			ImpersonatorName:     impersonatorUser.Name,
+			ImpersonatedName:     impersonatedUser.Name,
 		}
 
 		err := impersonationService.LogImpersonationAction(auditEntry)

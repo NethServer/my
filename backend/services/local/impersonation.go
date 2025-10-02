@@ -227,8 +227,8 @@ func (s *ImpersonationService) LogImpersonationAction(entry *models.Impersonatio
 		INSERT INTO impersonation_audit (
 			id, session_id, impersonator_user_id, impersonated_user_id, action_type,
 			api_endpoint, http_method, request_data, response_status, timestamp,
-			impersonator_username, impersonated_username
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			impersonator_username, impersonated_username, impersonator_name, impersonated_name
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	`
 
 	_, err := s.db.Exec(query,
@@ -244,6 +244,8 @@ func (s *ImpersonationService) LogImpersonationAction(entry *models.Impersonatio
 		entry.Timestamp,
 		entry.ImpersonatorUsername,
 		entry.ImpersonatedUsername,
+		entry.ImpersonatorName,
+		entry.ImpersonatedName,
 	)
 
 	if err != nil {
@@ -284,7 +286,7 @@ func (s *ImpersonationService) GetSessionAuditHistory(sessionID string, page, pa
 	query := `
 		SELECT id, session_id, impersonator_user_id, impersonated_user_id, action_type,
 			   api_endpoint, http_method, request_data, response_status, timestamp,
-			   impersonator_username, impersonated_username
+			   impersonator_username, impersonated_username, impersonator_name, impersonated_name
 		FROM impersonation_audit
 		WHERE session_id = $1
 		ORDER BY timestamp ASC
@@ -317,6 +319,8 @@ func (s *ImpersonationService) GetSessionAuditHistory(sessionID string, page, pa
 			&entry.Timestamp,
 			&entry.ImpersonatorUsername,
 			&entry.ImpersonatedUsername,
+			&entry.ImpersonatorName,
+			&entry.ImpersonatedName,
 		)
 		if err != nil {
 			logger.ComponentLogger("impersonation").Error().
@@ -358,6 +362,8 @@ func (s *ImpersonationService) GetUserSessions(userID string, page, pageSize int
 				impersonated_user_id,
 				impersonator_username,
 				impersonated_username,
+				MAX(impersonator_name) as impersonator_name,
+				MAX(impersonated_name) as impersonated_name,
 				MIN(timestamp) as start_time,
 				MAX(CASE WHEN action_type = 'session_end' THEN timestamp END) as end_time,
 				COUNT(*) as action_count,
@@ -376,6 +382,8 @@ func (s *ImpersonationService) GetUserSessions(userID string, page, pageSize int
 			impersonated_user_id,
 			impersonator_username,
 			impersonated_username,
+			impersonator_name,
+			impersonated_name,
 			start_time,
 			end_time,
 			CASE
@@ -414,6 +422,8 @@ func (s *ImpersonationService) GetUserSessions(userID string, page, pageSize int
 			&session.ImpersonatedUserID,
 			&session.ImpersonatorUsername,
 			&session.ImpersonatedUsername,
+			&session.ImpersonatorName,
+			&session.ImpersonatedName,
 			&session.StartTime,
 			&session.EndTime,
 			&durationMinutes,

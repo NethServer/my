@@ -274,7 +274,9 @@ CREATE TABLE IF NOT EXISTS impersonation_audit (
     response_status INTEGER,
     timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     impersonator_username VARCHAR(255) NOT NULL,
-    impersonated_username VARCHAR(255) NOT NULL
+    impersonated_username VARCHAR(255) NOT NULL,
+    impersonator_name TEXT,
+    impersonated_name TEXT
 );
 
 -- Indexes for impersonation_audit
@@ -282,6 +284,8 @@ CREATE INDEX IF NOT EXISTS idx_impersonation_audit_session_id ON impersonation_a
 CREATE INDEX IF NOT EXISTS idx_impersonation_audit_impersonator ON impersonation_audit(impersonator_user_id);
 CREATE INDEX IF NOT EXISTS idx_impersonation_audit_impersonated ON impersonation_audit(impersonated_user_id);
 CREATE INDEX IF NOT EXISTS idx_impersonation_audit_action_type ON impersonation_audit(action_type);
+CREATE INDEX IF NOT EXISTS idx_impersonation_audit_impersonator_name ON impersonation_audit(impersonator_name);
+CREATE INDEX IF NOT EXISTS idx_impersonation_audit_impersonated_name ON impersonation_audit(impersonated_name);
 
 -- Inventory records table
 CREATE TABLE IF NOT EXISTS inventory_records (
