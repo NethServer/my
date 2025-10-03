@@ -288,7 +288,20 @@
       "no_sessions_description": "You have not been impersonated yet.",
       "status_active": "Ongoing",
       "status_completed": "Completed",
-      "less_than_a_minute": "Less than a minute"
+      "less_than_a_minute": "Less than a minute",
+      "show_audit_log": "Show audit log",
+      "impersonation_audit_log": "Impersonation audit log",
+      "timestamp": "Timestamp",
+      "action_type": "Action",
+      "api_endpoint": "API endpoint",
+      "http_method": "HTTP method",
+      "request_data": "Request data",
+      "response_status": "Response status",
+      "action_session_start": "Impersonation started",
+      "action_session_end": "Impersonation ended",
+      "action_api_call": "API call",
+      "show_request_data": "Show request data",
+      "copy_request_data": "Copy request data"
     }
   },
   "user_roles": {

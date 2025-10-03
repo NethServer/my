@@ -14,14 +14,14 @@ export const getQueryStringParams = (
   pageNum: number,
   pageSize: number,
   textFilter: string | null,
-  sortBy: string,
+  sortBy: string | null,
   sortDescending: boolean,
 ) => {
   return new URLSearchParams({
     page: pageNum.toString(),
     page_size: pageSize.toString(),
     search: textFilter || '',
-    sort_by: sortBy,
+    sort_by: sortBy || '',
     sort_direction: sortDescending ? 'desc' : 'asc',
   }).toString()
 }

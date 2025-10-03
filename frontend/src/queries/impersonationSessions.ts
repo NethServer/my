@@ -1,12 +1,7 @@
 //  Copyright (C) 2025 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import {
-  getSessions,
-  SESSIONS_KEY,
-  SESSIONS_TABLE_ID,
-  type Session,
-} from '@/lib/impersonationSessions'
+import { getSessions, SESSIONS_KEY, SESSIONS_TABLE_ID } from '@/lib/impersonationSessions'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
@@ -16,8 +11,8 @@ export const useImpersonationSessions = defineQuery(() => {
   const loginStore = useLoginStore()
   const pageNum = ref(1)
   const pageSize = ref(DEFAULT_PAGE_SIZE)
-  const sortBy = ref<keyof Session>('start_time')
-  const sortDescending = ref(false)
+  // const sortBy = ref<keyof Session>('start_time') ////
+  // const sortDescending = ref(false) ////
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [
@@ -25,12 +20,12 @@ export const useImpersonationSessions = defineQuery(() => {
       {
         pageNum: pageNum.value,
         pageSize: pageSize.value,
-        sortBy: sortBy.value,
-        sortDirection: sortDescending.value,
+        // sortBy: sortBy.value, ////
+        // sortDirection: sortDescending.value, ////
       },
     ],
     enabled: () => !!loginStore.jwtToken,
-    query: () => getSessions(pageNum.value, pageSize.value, sortBy.value, sortDescending.value),
+    query: () => getSessions(pageNum.value, pageSize.value /*sortBy.value, sortDescending.value*/), ////
   })
 
   // load table page size from storage
@@ -58,7 +53,7 @@ export const useImpersonationSessions = defineQuery(() => {
     asyncStatus,
     pageNum,
     pageSize,
-    sortBy,
-    sortDescending,
+    // sortBy, ////
+    // sortDescending, ////
   }
 })

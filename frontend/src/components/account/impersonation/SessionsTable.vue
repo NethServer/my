@@ -17,17 +17,22 @@ import {
   NeEmptyState,
   NeInlineNotification,
 } from '@nethesis/vue-components'
-import { computed } from 'vue'
+import { computed, ref, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useImpersonationSessions } from '@/queries/impersonationSessions'
 import { SESSIONS_TABLE_ID, type Session } from '@/lib/impersonationSessions'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import { formatDateTimeNoSeconds, formatMinutes } from '@/lib/dateTime'
+import SessionModal from './SessionModal.vue'
+import { useImpersonationSessionAuditStore } from '@/queries/impersonationSessionAudit'
 
 const { t, locale } = useI18n()
 const { state, asyncStatus, pageNum, pageSize /*sortBy, sortDescending */ } =
   useImpersonationSessions()
+const sessionAuditStore = useImpersonationSessionAuditStore()
+const isShownSessionModal = ref(false)
+// const currentSession = ref<Session>() ////
 
 const sessionsPage = computed(() => {
   return state.value.data?.sessions || []
@@ -45,6 +50,13 @@ const pagination = computed(() => {
 
 const showSessionModal = (session: Session) => {
   console.log('showSessionModal', session) ////
+
+  sessionAuditStore.session = session
+  isShownSessionModal.value = true
+
+  nextTick(() => {
+    console.log('sessionAuditStore.session', sessionAuditStore.session) ////
+  })
 }
 </script>
 
@@ -73,7 +85,7 @@ const showSessionModal = (session: Session) => {
           { id: 'start_time', label: t('account.session_start') },
           { id: 'end_time', label: t('account.session_end') },
           { id: 'duration_minutes', label: t('account.duration') },
-          { id: 'impersonator_username', label: t('account.impersonator') },
+          { id: 'impersonator_name', label: t('account.impersonator') },
           { id: 'status', label: t('account.session_status') },
         ]"
         :open-menu-aria-label="t('ne_dropdown.open_menu')"
@@ -84,7 +96,7 @@ const showSessionModal = (session: Session) => {
         class="xl:hidden"
       /> -->
       <NeEmptyState
-        v-if="!state.data?.sessions.length && state.status !== 'pending'"
+        v-if="!state.data?.sessions?.length && state.status !== 'pending'"
         :title="$t('account.impersonation.no_sessions')"
         :description="$t('account.impersonation.no_sessions_description')"
         :icon="faUserSecret"
@@ -128,7 +140,7 @@ const showSessionModal = (session: Session) => {
               <span v-else>-</span>
             </NeTableCell>
             <NeTableCell :data-label="$t('account.impersonation.impersonator')">
-              {{ item.impersonator_username || '-' }}
+              {{ item.impersonator_name || '-' }}
             </NeTableCell>
             <NeTableCell :data-label="$t('account.impersonation.session_status')">
               {{ t(`account.impersonation.status_${item.status}`) || '-' }}
@@ -136,7 +148,7 @@ const showSessionModal = (session: Session) => {
             <NeTableCell :data-label="$t('common.actions')">
               <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
                 <NeButton kind="tertiary" @click="showSessionModal(item)">
-                  {{ $t('common.show') }}
+                  {{ $t('account.impersonation.show_audit_log') }}
                 </NeButton>
               </div>
             </NeTableCell>
@@ -168,5 +180,6 @@ const showSessionModal = (session: Session) => {
         </template>
       </NeTable>
     </div>
+    <SessionModal :visible="isShownSessionModal" @close="isShownSessionModal = false" />
   </div>
 </template>
