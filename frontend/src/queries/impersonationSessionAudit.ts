@@ -3,10 +3,8 @@
 
 import {
   getSessionAudit,
-  getSessions,
   SESSION_AUDIT_KEY,
   SESSION_AUDIT_TABLE_ID,
-  SESSIONS_TABLE_ID,
   type Session,
 } from '@/lib/impersonationSessions'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'

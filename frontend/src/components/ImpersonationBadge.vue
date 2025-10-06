@@ -80,7 +80,7 @@ const formatTimer = (startDate: Date, endDate: Date) => {
   totalSeconds.value = Math.floor(Math.abs(diffMs) / 1000)
   const hours = Math.floor(totalSeconds.value / 3600)
   const minutes = Math.floor((totalSeconds.value % 3600) / 60)
-  const seconds = totalSeconds.value % 60
+  // const seconds = totalSeconds.value % 60 ////
 
   // HH:MM format
   formattedTimer.value = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`

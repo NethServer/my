@@ -37,7 +37,6 @@ const { t, locale } = useI18n()
 const sessionAuditStore = useImpersonationSessionAuditStore()
 const {
   state,
-  asyncStatus,
   pageNum,
   pageSize,
   // sortBy, ////
@@ -78,7 +77,7 @@ const prettyPrintJsonString = (jsonString: string, truncate = false) => {
     }
     return formatted
   } catch (e) {
-    console.error('Invalid JSON')
+    console.error('Invalid JSON', e)
   }
 }
 

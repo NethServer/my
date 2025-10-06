@@ -88,6 +88,7 @@ describe('formatDateTimeNoSeconds', () => {
   })
 })
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 describe('formatMinutes', () => {
   beforeEach(() => {
     mockT.mockClear()
@@ -137,6 +138,7 @@ describe('formatMinutes', () => {
   })
 })
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 describe('formatSeconds', () => {
   beforeEach(() => {
     mockT.mockClear()

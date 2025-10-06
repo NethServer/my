@@ -5,7 +5,7 @@
 
 <script lang="ts" setup>
 import { useLoginStore } from '@/stores/login'
-import { NeButton, NeHeading, NeInlineNotification } from '@nethesis/vue-components'
+import { NeButton, NeInlineNotification } from '@nethesis/vue-components'
 import FormLayout from '@/components/FormLayout.vue'
 import ProfilePanel from '@/components/account/ProfilePanel.vue'
 import { faKey } from '@fortawesome/free-solid-svg-icons'
