@@ -19,6 +19,22 @@ organization_roles:
       permissions:
 
 user_roles:
+    - id: super
+      name: "Super Admin"
+      type: user
+      priority: 0
+      permissions:
+        - id: "impersonate:users"
+        - id: "destroy:systems"
+        - id: "read:systems"
+        - id: "manage:systems"
+        - id: "read:users"
+        - id: "manage:users"
+      # Access control: only Owner users can assign this role
+      access_control:
+        organization_roles:
+          - "owner"
+
     - id: admin
       name: "Admin"
       type: user
@@ -26,17 +42,26 @@ user_roles:
       permissions:
         - id: "read:systems"
         - id: "manage:systems"
+        - id: "read:users"
+        - id: "manage:users"
 
     - id: support
       name: "Support"
       type: user
-      priority: 1
+      priority: 2
       permissions:
         - id: "read:systems"
+        - id: "manage:systems"
 
 resources:
     - name: "systems"
-      actions: ["read", "manage"]
+      actions: ["read", "manage", "destroy"]
+
+    - name: "users"
+      actions: ["read", "manage", "impersonate"]
+
+    - name: "role-access-control"
+      actions: ["owner", "distributor", "reseller"]
 
 # Third-party applications (optional)
 third_party_apps:
@@ -44,6 +69,7 @@ third_party_apps:
     - name: "management.company.com"
       description: "Management interface for system administrators"
       display_name: "Management Console"
+      info_url: "https://management.company.com/info"
       redirect_uris:
         - "https://management.company.com/callback"
         - "https://management.company.com/auth/callback"
@@ -63,6 +89,7 @@ third_party_apps:
     - name: "support.company.com"
       description: "Support portal for customer assistance"
       display_name: "Support Portal"
+      info_url: "https://support.company.com/info"
       redirect_uris:
         - "https://support.company.com/callback"
       post_logout_redirect_uris:
@@ -78,6 +105,7 @@ third_party_apps:
     - name: "portal.company.com"
       description: "Customer portal for all users"
       display_name: "Customer Portal"
+      info_url: "https://portal.company.com/info"
       redirect_uris:
         - "https://portal.company.com/callback"
       post_logout_redirect_uris:
@@ -92,6 +120,7 @@ third_party_apps:
     - name: "api.example.com"
       description: "API service application"
       display_name: "API Service"
+      info_url: "https://api.example.com/info"
       redirect_uris:
         - "https://api.example.com/auth/callback"
       access_control:

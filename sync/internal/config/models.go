@@ -34,11 +34,12 @@ type Metadata struct {
 
 // Role represents a role with permissions
 type Role struct {
-	ID          string       `yaml:"id" json:"id"`
-	Name        string       `yaml:"name" json:"name"`
-	Type        string       `yaml:"type" json:"type"`
-	Priority    int          `yaml:"priority,omitempty" json:"priority,omitempty"`
-	Permissions []Permission `yaml:"permissions" json:"permissions"`
+	ID            string         `yaml:"id" json:"id"`
+	Name          string         `yaml:"name" json:"name"`
+	Type          string         `yaml:"type" json:"type"`
+	Priority      int            `yaml:"priority,omitempty" json:"priority,omitempty"`
+	Permissions   []Permission   `yaml:"permissions" json:"permissions"`
+	AccessControl *AccessControl `yaml:"access_control,omitempty" json:"access_control,omitempty"` // Access control for role assignment
 }
 
 // Permission represents a permission/scope
@@ -59,9 +60,11 @@ type Application struct {
 	Description            string         `yaml:"description" json:"description"`                                                 // Description of the application
 	DisplayName            string         `yaml:"display_name" json:"display_name"`                                               // Display name for branding
 	LoginURL               string         `yaml:"login_url,omitempty" json:"login_url,omitempty"`                                 // Login URL for OAuth authentication
+	InfoURL                string         `yaml:"info_url,omitempty" json:"info_url,omitempty"`                                   // Info URL for getting user data from the application
 	Scopes                 []string       `yaml:"scopes,omitempty" json:"scopes,omitempty"`                                       // Custom scopes (optional)
 	RedirectUris           []string       `yaml:"redirect_uris,omitempty" json:"redirect_uris,omitempty"`                         // Redirect URIs for OAuth flow
 	PostLogoutRedirectUris []string       `yaml:"post_logout_redirect_uris,omitempty" json:"post_logout_redirect_uris,omitempty"` // Post logout redirect URIs
+	CorsAllowed            []string       `yaml:"cors_allowed,omitempty" json:"cors_allowed,omitempty"`                           // CORS allowed origins
 	AccessControl          *AccessControl `yaml:"access_control,omitempty" json:"access_control,omitempty"`                       // Access control configuration
 }
 
@@ -170,6 +173,13 @@ func (c *Config) validateRole(role Role, roleType string) error {
 			return fmt.Errorf("duplicate permission ID %s in role %s", perm.ID, role.ID)
 		}
 		permissionIDs[perm.ID] = true
+	}
+
+	// Validate access control if provided
+	if role.AccessControl != nil {
+		if err := c.validateAccessControl(*role.AccessControl, role.ID); err != nil {
+			return fmt.Errorf("access control validation failed for role %s: %w", role.ID, err)
+		}
 	}
 
 	return nil

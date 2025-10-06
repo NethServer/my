@@ -89,6 +89,17 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 				"organization_roles": appConfig.AccessControl.OrganizationRoles,
 				"user_roles":         appConfig.AccessControl.UserRoles,
 			}
+
+			// Add user role IDs by resolving sync config IDs to Logto role IDs
+			if len(appConfig.AccessControl.UserRoles) > 0 {
+				userRoleIDs, err := e.resolveUserRoleIDs(cfg, appConfig.AccessControl.UserRoles)
+				if err != nil {
+					logger.Warn("Failed to resolve user role IDs for app %s: %v", appConfig.Name, err)
+				} else {
+					accessControlData["user_role_ids"] = userRoleIDs
+				}
+			}
+
 			// Add organization_ids if configured
 			if len(appConfig.AccessControl.OrganizationIDs) > 0 {
 				accessControlData["organization_ids"] = appConfig.AccessControl.OrganizationIDs
@@ -101,6 +112,11 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 			customData["login_url"] = appConfig.LoginURL
 		}
 
+		// Add info_url if configured
+		if appConfig.InfoURL != "" {
+			customData["info_url"] = appConfig.InfoURL
+		}
+
 		// Set custom data if we have any
 		if len(customData) > 0 {
 			updatedApp.CustomData = customData
@@ -111,6 +127,13 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 			updatedApp.OidcClientMetadata = &client.OidcClientMetadata{
 				RedirectUris:           appConfig.RedirectUris,
 				PostLogoutRedirectUris: appConfig.PostLogoutRedirectUris,
+			}
+		}
+
+		// Add custom client metadata for CORS origins if provided
+		if len(appConfig.CorsAllowed) > 0 {
+			updatedApp.CustomClientMetadata = &client.CustomClientMetadata{
+				CorsAllowedOrigins: appConfig.CorsAllowed,
 			}
 		}
 
@@ -154,6 +177,17 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 				"organization_roles": appConfig.AccessControl.OrganizationRoles,
 				"user_roles":         appConfig.AccessControl.UserRoles,
 			}
+
+			// Add user role IDs by resolving sync config IDs to Logto role IDs
+			if len(appConfig.AccessControl.UserRoles) > 0 {
+				userRoleIDs, err := e.resolveUserRoleIDs(cfg, appConfig.AccessControl.UserRoles)
+				if err != nil {
+					logger.Warn("Failed to resolve user role IDs for app %s: %v", appConfig.Name, err)
+				} else {
+					accessControlData["user_role_ids"] = userRoleIDs
+				}
+			}
+
 			// Add organization_ids if configured
 			if len(appConfig.AccessControl.OrganizationIDs) > 0 {
 				accessControlData["organization_ids"] = appConfig.AccessControl.OrganizationIDs
@@ -166,6 +200,11 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 			customData["login_url"] = appConfig.LoginURL
 		}
 
+		// Add info_url if configured
+		if appConfig.InfoURL != "" {
+			customData["info_url"] = appConfig.InfoURL
+		}
+
 		// Set custom data if we have any
 		if len(customData) > 0 {
 			newApp.CustomData = customData
@@ -176,6 +215,13 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 			newApp.OidcClientMetadata = &client.OidcClientMetadata{
 				RedirectUris:           appConfig.RedirectUris,
 				PostLogoutRedirectUris: appConfig.PostLogoutRedirectUris,
+			}
+		}
+
+		// Add custom client metadata for CORS origins if provided
+		if len(appConfig.CorsAllowed) > 0 {
+			newApp.CustomClientMetadata = &client.CustomClientMetadata{
+				CorsAllowedOrigins: appConfig.CorsAllowed,
 			}
 		}
 
@@ -245,4 +291,46 @@ func (e *Engine) cleanupThirdPartyApplications(cfg *config.Config, existingApps 
 	}
 
 	return nil
+}
+
+// resolveUserRoleIDs resolves sync config role IDs to their corresponding Logto role IDs
+func (e *Engine) resolveUserRoleIDs(cfg *config.Config, syncConfigRoleIDs []string) ([]string, error) {
+	// Get all roles from Logto
+	logtoRoles, err := e.client.GetRoles()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get roles from Logto: %w", err)
+	}
+
+	// Create a map from sync config role name to Logto role ID
+	nameToLogtoID := make(map[string]string)
+	for _, logtoRole := range logtoRoles {
+		nameToLogtoID[logtoRole.Name] = logtoRole.ID
+	}
+
+	// Resolve sync config IDs to role names, then to Logto IDs
+	var resolvedLogtoIDs []string
+	for _, syncConfigID := range syncConfigRoleIDs {
+		// Find the role name from sync config
+		var roleName string
+		for _, role := range cfg.UserRoles {
+			if role.ID == syncConfigID {
+				roleName = role.Name
+				break
+			}
+		}
+
+		if roleName == "" {
+			logger.Warn("Sync config role ID '%s' not found in configuration", syncConfigID)
+			continue
+		}
+
+		// Find the corresponding Logto role ID
+		if logtoID, exists := nameToLogtoID[roleName]; exists {
+			resolvedLogtoIDs = append(resolvedLogtoIDs, logtoID)
+		} else {
+			logger.Warn("Logto role with name '%s' not found for sync config ID '%s'", roleName, syncConfigID)
+		}
+	}
+
+	return resolvedLogtoIDs, nil
 }

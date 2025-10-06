@@ -17,23 +17,22 @@ type SystemCreator struct {
 
 // System represents a managed system in the infrastructure
 type System struct {
-	ID          string            `json:"id" structs:"id"`
-	Name        string            `json:"name" structs:"name"`
-	Type        string            `json:"type" structs:"type"`     // ns8, nsec, etc.
-	Status      string            `json:"status" structs:"status"` // online, offline, maintenance
-	FQDN        string            `json:"fqdn" structs:"fqdn"`
-	IPv4Address string            `json:"ipv4_address" structs:"ipv4_address"`
-	IPv6Address string            `json:"ipv6_address" structs:"ipv6_address"`
-	Version     string            `json:"version" structs:"version"`
-	LastSeen    time.Time         `json:"last_seen" structs:"last_seen"`
-	CustomData  map[string]string `json:"custom_data" structs:"custom_data"`
-	Secret      string            `json:"secret,omitempty" structs:"secret"`           // Only returned during creation
-	SecretHash  string            `json:"-" structs:"secret_hash"`                     // Stored in DB, never returned
-	SecretHint  string            `json:"secret_hint,omitempty" structs:"secret_hint"` // Last 4 chars for identification
-	CreatedAt   time.Time         `json:"created_at" structs:"created_at"`
-	UpdatedAt   time.Time         `json:"updated_at" structs:"updated_at"`
-	DeletedAt   *time.Time        `json:"deleted_at" structs:"deleted_at"` // Soft delete timestamp
-	CreatedBy   SystemCreator     `json:"created_by" structs:"created_by"`
+	ID             string            `json:"id" structs:"id"`
+	Name           string            `json:"name" structs:"name"`
+	Type           string            `json:"type" structs:"type"`     // ns8, nsec, etc.
+	Status         string            `json:"status" structs:"status"` // online, offline, maintenance
+	FQDN           string            `json:"fqdn" structs:"fqdn"`
+	IPv4Address    string            `json:"ipv4_address" structs:"ipv4_address"`
+	IPv6Address    string            `json:"ipv6_address" structs:"ipv6_address"`
+	Version        string            `json:"version" structs:"version"`
+	CustomData     map[string]string `json:"custom_data" structs:"custom_data"`
+	OrganizationID string            `json:"organization_id" structs:"organization_id"`
+	SystemKey      string            `json:"system_key" structs:"system_key"`
+	SystemSecret   string            `json:"system_secret,omitempty" structs:"system_secret"` // Returned during creation and regeneration
+	CreatedAt      time.Time         `json:"created_at" structs:"created_at"`
+	UpdatedAt      time.Time         `json:"updated_at" structs:"updated_at"`
+	DeletedAt      *time.Time        `json:"deleted_at" structs:"deleted_at"` // Soft delete timestamp
+	CreatedBy      SystemCreator     `json:"created_by" structs:"created_by"`
 	// Heartbeat status fields
 	HeartbeatStatus  string     `json:"heartbeat_status,omitempty"`  // alive, dead, zombie
 	LastHeartbeat    *time.Time `json:"last_heartbeat,omitempty"`    // Last heartbeat timestamp
@@ -42,28 +41,14 @@ type System struct {
 
 // CreateSystemRequest represents the request payload for creating a new system
 type CreateSystemRequest struct {
-	Name       string            `json:"name" binding:"required" structs:"name"`
-	Type       string            `json:"type" binding:"required" structs:"type"`
-	CustomData map[string]string `json:"custom_data" structs:"custom_data"`
+	Name           string            `json:"name" binding:"required" structs:"name"`
+	OrganizationID string            `json:"organization_id" binding:"required" structs:"organization_id"`
+	CustomData     map[string]string `json:"custom_data" structs:"custom_data"`
 }
 
 // UpdateSystemRequest represents the request payload for updating an existing system
 type UpdateSystemRequest struct {
-	Name       string            `json:"name" structs:"name"`
-	Type       string            `json:"type" structs:"type"`
-	CustomData map[string]string `json:"custom_data" structs:"custom_data"`
-}
-
-// CreateSystemWithCallbackRequest represents the request payload for creating a system with callback
-type CreateSystemWithCallbackRequest struct {
-	CreateSystemRequest
-	CallbackURL   string `json:"callback_url" binding:"required,url" structs:"callback_url"`
-	CallbackState string `json:"callback_state" binding:"required,min=10" structs:"callback_state"`
-}
-
-// CallbackPayload represents the data sent to the callback URL after system creation
-type CallbackPayload struct {
-	State     string    `json:"state"`
-	Timestamp time.Time `json:"timestamp"`
-	System    System    `json:"system"`
+	Name           string            `json:"name" structs:"name"`
+	OrganizationID string            `json:"organization_id" structs:"organization_id"`
+	CustomData     map[string]string `json:"custom_data" structs:"custom_data"`
 }

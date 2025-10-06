@@ -76,3 +76,59 @@ func PreventSelfModification() gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// DisableOnImpersonate disables endpoint access during impersonation
+func DisableOnImpersonate() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Check if user is in impersonation mode
+		isImpersonated, exists := c.Get("is_impersonated")
+		if !exists {
+			logger.Error().
+				Str("component", "impersonation_middleware").
+				Str("operation", "impersonation_check").
+				Bool("success", false).
+				Msg("is_impersonated not found in context")
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("authentication required", nil))
+			c.Abort()
+			return
+		}
+
+		// Block self-service operations during impersonation
+		if isImpersonated.(bool) {
+			// Get impersonator information for logging
+			impersonatorID, _ := c.Get("impersonator_id")
+			impersonatorUsername, _ := c.Get("impersonator_username")
+			currentUserID, _ := c.Get("user_id")
+			currentUsername, _ := c.Get("username")
+
+			logger.Warn().
+				Str("component", "impersonation_middleware").
+				Str("operation", "self_service_blocked").
+				Str("impersonator_id", impersonatorID.(string)).
+				Str("impersonator_username", impersonatorUsername.(string)).
+				Str("impersonated_user_id", currentUserID.(string)).
+				Str("impersonated_username", currentUsername.(string)).
+				Str("method", c.Request.Method).
+				Str("path", c.Request.URL.Path).
+				Bool("success", false).
+				Msg("self-service operation blocked during impersonation")
+
+			c.JSON(http.StatusForbidden, response.Forbidden("self-service operations are not allowed during impersonation", gin.H{
+				"reason":  "impersonation_active",
+				"message": "self-service operations like changing password or profile are disabled during impersonation for security reasons",
+			}))
+			c.Abort()
+			return
+		}
+
+		logger.Debug().
+			Str("component", "impersonation_middleware").
+			Str("operation", "self_service_allowed").
+			Str("method", c.Request.Method).
+			Str("path", c.Request.URL.Path).
+			Bool("success", true).
+			Msg("self-service operation allowed - not in impersonation mode")
+
+		c.Next()
+	}
+}

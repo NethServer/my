@@ -11,6 +11,8 @@ import { useStorage } from '@vueuse/core'
 import { getPreference } from '@nethesis/vue-components'
 import { getBrowserLocale, setLocale } from '@/i18n'
 import router from '@/router'
+import { deleteImpersonate, getImpersonationStatus, postImpersonate } from '@/lib/impersonation'
+import { canImpersonateUsers } from '@/lib/permissions'
 
 export const TOKEN_REFRESH_INTERVAL = 20 * 60 * 1000 // 20 minutes
 
@@ -39,6 +41,10 @@ export const useLoginStore = defineStore('login', () => {
   const refreshToken = ref<string>('')
   const userInfo = ref<UserInfo | undefined>()
   const loadingUserInfo = ref<boolean>(true)
+  const isImpersonating = ref<boolean>(false)
+  const impersonatedUser = ref<UserInfo | undefined>()
+  const originalUser = ref<UserInfo | undefined>()
+  const impersonateExpiration = ref<Date | undefined>()
 
   const userDisplayName = computed(() => userInfo.value?.name || '')
 
@@ -116,8 +122,6 @@ export const useLoginStore = defineStore('login', () => {
       const user = res.data.data.user as UserInfo
       userInfo.value = user
 
-      console.log('[login store] user info', userInfo.value) ////
-
       // Load user theme
       themeStore.loadTheme()
 
@@ -132,6 +136,11 @@ export const useLoginStore = defineStore('login', () => {
       // save last user to local storage: this is used to load the theme and locale before user info is fetched
       const lastUser = useStorage('lastUser', '')
       lastUser.value = user.email
+
+      if (canImpersonateUsers()) {
+        // check if we are in impersonation mode
+        checkImpersonationStatus()
+      }
     } catch (error) {
       //// toast notification
       console.error('Cannot exchange token:', error)
@@ -140,7 +149,30 @@ export const useLoginStore = defineStore('login', () => {
     }
   }
 
+  const checkImpersonationStatus = async () => {
+    const impersonationStatus = await getImpersonationStatus()
+
+    if (impersonationStatus.is_impersonating && !isImpersonating.value) {
+      // Store original user info before switching
+      if (!isImpersonating.value) {
+        originalUser.value = { ...userInfo.value! }
+      }
+
+      // Update tokens and user info with impersonated user
+      jwtToken.value = impersonationStatus.token
+      impersonatedUser.value = impersonationStatus.impersonated_user
+      userInfo.value = impersonatedUser.value
+      isImpersonating.value = true
+      impersonateExpiration.value = new Date(impersonationStatus.expires_at)
+    }
+  }
+
   const doRefreshToken = async () => {
+    // don't refresh if we are impersonating
+    if (isImpersonating.value) {
+      return
+    }
+
     try {
       const res = await axios.post(`${API_URL}/auth/refresh`, { refresh_token: refreshToken.value })
       jwtToken.value = res.data.data.token
@@ -148,6 +180,56 @@ export const useLoginStore = defineStore('login', () => {
     } catch (error) {
       //// toast notification
       console.error('Cannot refresh token:', error)
+    }
+  }
+
+  const impersonateUser = async (userId: string) => {
+    try {
+      const res = await postImpersonate(userId)
+
+      // Store original user info before switching
+      if (!isImpersonating.value) {
+        originalUser.value = { ...userInfo.value! }
+      }
+
+      // Update tokens and user info with impersonated user
+      jwtToken.value = res.token
+      impersonatedUser.value = res.impersonated_user as UserInfo
+      userInfo.value = impersonatedUser.value
+      isImpersonating.value = true
+      impersonateExpiration.value = new Date(res.expires_at)
+
+      // Navigate to dashboard or stay on current page
+      if (router.currentRoute.value.path === '/users') {
+        router.push('/dashboard')
+      }
+      return res
+    } catch (error) {
+      console.error('Cannot impersonate user:', error)
+      throw error
+    }
+  }
+
+  const exitImpersonation = async () => {
+    try {
+      const res = await deleteImpersonate()
+
+      // Restore original user info
+      jwtToken.value = res.token
+      refreshToken.value = res.refresh_token
+      userInfo.value = res.user as UserInfo
+      isImpersonating.value = false
+      impersonatedUser.value = undefined
+      originalUser.value = undefined
+
+      // Navigate to dashboard
+      if (router.currentRoute.value.path !== '/dashboard') {
+        router.push('/dashboard')
+      }
+      return res
+    } catch (error) {
+      console.error('Cannot exit impersonation:', error)
+      throw error
     }
   }
 
@@ -160,8 +242,14 @@ export const useLoginStore = defineStore('login', () => {
     loadingUserInfo,
     isOwner,
     permissions,
+    isImpersonating,
+    impersonatedUser,
+    originalUser,
+    impersonateExpiration,
     fetchTokenAndUserInfo,
     doRefreshToken,
+    impersonateUser,
+    exitImpersonation,
     login,
     logout,
   }

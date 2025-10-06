@@ -54,9 +54,9 @@ func createEssentialRoles(client *client.LogtoClient) error {
 		return fmt.Errorf("failed to create owner organization role: %w", err)
 	}
 
-	// Create user role "admin" (from config.yml)
-	if err := createUserRoleIfNotExists(client, constants.AdminRoleID, constants.AdminRoleName, "admin_role_description"); err != nil {
-		return fmt.Errorf("failed to create admin user role: %w", err)
+	// Create user role "super admin" (from config.yml) - needed for owner user
+	if err := createUserRoleIfNotExists(client, constants.SuperAdminRoleID, constants.SuperAdminRoleName, "super_role_description"); err != nil {
+		return fmt.Errorf("failed to create super admin user role: %w", err)
 	}
 
 	// Assign scopes to owner organization role
@@ -353,16 +353,16 @@ func assignRolesToOwnerUser(client *client.LogtoClient, ownerUsername string) er
 		return fmt.Errorf("owner organization not found")
 	}
 
-	// Get user roles to assign (admin)
+	// Get user roles to assign (super admin)
 	userRoles, err := client.GetRoles()
 	if err != nil {
 		return fmt.Errorf("failed to get user roles: %w", err)
 	}
 
-	var adminRoleID string
+	var superAdminRoleID string
 	for _, role := range userRoles {
-		if role.Name == "Admin" {
-			adminRoleID = role.ID
+		if role.Name == "Super Admin" {
+			superAdminRoleID = role.ID
 			break
 		}
 	}
@@ -381,12 +381,12 @@ func assignRolesToOwnerUser(client *client.LogtoClient, ownerUsername string) er
 		}
 	}
 
-	// Assign Admin user role
-	if adminRoleID != "" {
-		if err := client.AssignRoleToUser(ownerUserID, adminRoleID); err != nil {
-			logger.Warn("Failed to assign Admin user role: %v", err)
+	// Assign Super Admin user role
+	if superAdminRoleID != "" {
+		if err := client.AssignRoleToUser(ownerUserID, superAdminRoleID); err != nil {
+			logger.Warn("Failed to assign Super Admin user role: %v", err)
 		} else {
-			logger.Info("Assigned Admin user role to owner user")
+			logger.Info("Assigned Super Admin user role to owner user")
 		}
 	}
 

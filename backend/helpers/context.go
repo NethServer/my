@@ -28,7 +28,7 @@ func GetUserFromContext(c *gin.Context) (*models.User, bool) {
 	}
 
 	user, ok := userInterface.(*models.User)
-	if !ok {
+	if !ok || user == nil {
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("invalid user context", nil))
 		c.Abort()
 		return nil, false
@@ -72,4 +72,20 @@ func GetUserContextExtended(c *gin.Context) (string, string, string, string) {
 	}
 
 	return userID, userOrgID, userOrgRole, userRole
+}
+
+// GetEffectiveUserID returns the effective user ID for a user
+// For Owner users without a local database ID, returns "owner" as a fallback identifier
+// This is used for audit logging and tracking operations by Owner users
+func GetEffectiveUserID(user *models.User) string {
+	if user == nil {
+		return ""
+	}
+
+	userID := user.ID
+	if userID == "" && user.OrgRole == "Owner" {
+		return "owner"
+	}
+
+	return userID
 }

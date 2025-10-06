@@ -36,6 +36,7 @@ import { useLoginStore } from '@/stores/login'
 import { getOrganizations, ORGANIZATIONS_KEY } from '@/lib/organizations'
 import { getUserRoles, USER_ROLES_KEY } from '@/lib/userRoles'
 import { PRODUCT_NAME } from '@/lib/config'
+import { normalize } from '@/lib/common'
 
 const { isShown = false, currentUser = undefined } = defineProps<{
   isShown: boolean
@@ -165,8 +166,8 @@ const userRoleOptions = computed(() => {
 
   return allUserRoles.value.data?.map((role) => ({
     id: role.id,
-    label: t(`user_roles.${role.name}`),
-    description: t(`user_roles.${role.name}_description`),
+    label: t(`user_roles.${normalize(role.name)}`),
+    description: t(`user_roles.${normalize(role.name)}_description`),
   }))
 })
 
@@ -328,6 +329,18 @@ async function saveUser() {
     createUserMutate(userToCreate)
   }
 }
+
+function getEmailInvalidMessage(): string {
+  if (validationIssues.value.email?.[0]) {
+    return t(validationIssues.value.email[0])
+  } else if (validationIssues.value.username?.[0]) {
+    return t(validationIssues.value.username[0])
+  } else if (validationIssues.value.name?.[0]) {
+    return t(validationIssues.value.name[0])
+  } else {
+    return ''
+  }
+}
 </script>
 
 <template>
@@ -344,13 +357,6 @@ async function saveUser() {
           ref="nameRef"
           v-model.trim="name"
           :label="$t('users.name')"
-          :invalid-message="
-            validationIssues.name?.[0]
-              ? $t(validationIssues.name[0])
-              : validationIssues.username?.[0]
-                ? $t(validationIssues.username[0])
-                : ''
-          "
           :disabled="saving"
         />
         <!-- email -->
@@ -358,7 +364,7 @@ async function saveUser() {
           ref="emailRef"
           v-model.trim="email"
           :label="$t('users.email')"
-          :invalid-message="validationIssues.email?.[0] ? $t(validationIssues.email[0]) : ''"
+          :invalid-message="getEmailInvalidMessage()"
           :disabled="saving"
         />
         <!-- organization -->

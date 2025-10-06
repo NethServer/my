@@ -13,6 +13,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/nethesis/my/backend/models"
 )
 
 // GetPaginationFromQuery extracts page and pageSize from query parameters
@@ -54,4 +55,56 @@ func GetPaginationAndSortingFromQuery(c *gin.Context) (int, int, string, string)
 	sortBy, sortDirection := GetSortingFromQuery(c)
 
 	return page, pageSize, sortBy, sortDirection
+}
+
+// CalculateTotalPages calculates the total number of pages based on total count and page size
+func CalculateTotalPages(totalCount int, pageSize int) int {
+	if pageSize <= 0 {
+		return 0
+	}
+	if totalCount == 0 {
+		return 0
+	}
+	return (totalCount + pageSize - 1) / pageSize
+}
+
+// BuildPaginationInfo creates a standard pagination info object
+func BuildPaginationInfo(page, pageSize, totalCount int) models.PaginationInfo {
+	totalPages := CalculateTotalPages(totalCount, pageSize)
+	hasNext := page < totalPages
+	hasPrev := page > 1
+
+	paginationInfo := models.PaginationInfo{
+		Page:       page,
+		PageSize:   pageSize,
+		TotalCount: totalCount,
+		TotalPages: totalPages,
+		HasNext:    hasNext,
+		HasPrev:    hasPrev,
+	}
+
+	if hasNext {
+		nextPage := page + 1
+		paginationInfo.NextPage = &nextPage
+	}
+
+	if hasPrev {
+		prevPage := page - 1
+		paginationInfo.PrevPage = &prevPage
+	}
+
+	return paginationInfo
+}
+
+// BuildPaginationInfoWithSorting creates a standard pagination info object with sorting information
+func BuildPaginationInfoWithSorting(page, pageSize, totalCount int, sortBy, sortDirection string) models.PaginationInfo {
+	paginationInfo := BuildPaginationInfo(page, pageSize, totalCount)
+
+	// Add sorting information if provided
+	if sortBy != "" {
+		paginationInfo.SortBy = &sortBy
+		paginationInfo.SortDirection = &sortDirection
+	}
+
+	return paginationInfo
 }

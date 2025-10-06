@@ -7,13 +7,20 @@
 defineProps({
   title: String,
   description: String,
+  smallHeading: {
+    type: Boolean,
+    default: false,
+  },
 })
 </script>
 
 <template>
   <div class="flex flex-col md:flex-row">
     <div class="sm:mr-6 md:w-5/12">
-      <h2 v-if="title || $slots.title" class="mb-2 text-lg font-medium">
+      <h2
+        v-if="title || $slots.title"
+        :class="['mb-2 font-medium', smallHeading ? 'text-base' : 'text-lg']"
+      >
         <slot name="title">
           {{ title }}
         </slot>

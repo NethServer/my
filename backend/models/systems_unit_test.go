@@ -10,7 +10,6 @@ import (
 
 func TestSystemStructure(t *testing.T) {
 	now := time.Now()
-	lastSeen := now.Add(-1 * time.Hour)
 	creator := SystemCreator{
 		UserID:           "admin-456",
 		UserName:         "Admin User",
@@ -18,30 +17,32 @@ func TestSystemStructure(t *testing.T) {
 		OrganizationName: "Test Organization",
 	}
 	system := System{
-		ID:          "system-123",
-		Name:        "Test System",
-		Type:        "ns8",
-		Status:      "online",
-		FQDN:        "test-system.example.com",
-		IPv4Address: "192.168.1.100",
-		IPv6Address: "2001:db8::1",
-		Version:     "1.2.3",
-		LastSeen:    lastSeen,
-		CustomData:  map[string]string{"location": "datacenter1", "environment": "production"},
-		CreatedAt:   now,
-		UpdatedAt:   now,
-		CreatedBy:   creator,
+		ID:             "system-123",
+		Name:           "Test System",
+		Type:           "undefined",
+		Status:         "undefined",
+		FQDN:           "test-system.example.com",
+		IPv4Address:    "192.168.1.100",
+		IPv6Address:    "2001:db8::1",
+		Version:        "1.2.3",
+		SystemKey:      "ABC123DEF456",
+		OrganizationID: "org-123",
+		CustomData:     map[string]string{"location": "datacenter1", "environment": "production"},
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		CreatedBy:      creator,
 	}
 
 	assert.Equal(t, "system-123", system.ID)
 	assert.Equal(t, "Test System", system.Name)
-	assert.Equal(t, "ns8", system.Type)
-	assert.Equal(t, "online", system.Status)
+	assert.Equal(t, "undefined", system.Type)
+	assert.Equal(t, "undefined", system.Status)
 	assert.Equal(t, "test-system.example.com", system.FQDN)
 	assert.Equal(t, "192.168.1.100", system.IPv4Address)
 	assert.Equal(t, "2001:db8::1", system.IPv6Address)
 	assert.Equal(t, "1.2.3", system.Version)
-	assert.Equal(t, lastSeen, system.LastSeen)
+	assert.Equal(t, "ABC123DEF456", system.SystemKey)
+	assert.Equal(t, "org-123", system.OrganizationID)
 	assert.Equal(t, map[string]string{"location": "datacenter1", "environment": "production"}, system.CustomData)
 	assert.Equal(t, now, system.CreatedAt)
 	assert.Equal(t, now, system.UpdatedAt)
@@ -50,7 +51,6 @@ func TestSystemStructure(t *testing.T) {
 
 func TestSystemJSONSerialization(t *testing.T) {
 	now := time.Now()
-	lastSeen := now.Add(-2 * time.Hour)
 	creator := SystemCreator{
 		UserID:           "json-admin-123",
 		UserName:         "JSON Admin",
@@ -58,19 +58,20 @@ func TestSystemJSONSerialization(t *testing.T) {
 		OrganizationName: "JSON Organization",
 	}
 	system := System{
-		ID:          "json-system-456",
-		Name:        "JSON Test System",
-		Type:        "nsec",
-		Status:      "maintenance",
-		FQDN:        "json-test.example.com",
-		IPv4Address: "10.0.0.50",
-		IPv6Address: "2001:db8::2",
-		Version:     "2.0.1",
-		LastSeen:    lastSeen,
-		CustomData:  map[string]string{"cluster": "web-servers", "role": "frontend"},
-		CreatedAt:   now,
-		UpdatedAt:   now,
-		CreatedBy:   creator,
+		ID:             "json-system-456",
+		Name:           "JSON Test System",
+		Type:           "nsec",
+		Status:         "offline",
+		FQDN:           "json-test.example.com",
+		IPv4Address:    "10.0.0.50",
+		IPv6Address:    "2001:db8::2",
+		Version:        "2.0.1",
+		SystemKey:      "XYZ789GHI012",
+		OrganizationID: "org-456",
+		CustomData:     map[string]string{"cluster": "web-servers", "role": "frontend"},
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		CreatedBy:      creator,
 	}
 
 	jsonData, err := json.Marshal(system)
@@ -89,7 +90,8 @@ func TestSystemJSONSerialization(t *testing.T) {
 	assert.Equal(t, system.IPv4Address, unmarshaledSystem.IPv4Address)
 	assert.Equal(t, system.IPv6Address, unmarshaledSystem.IPv6Address)
 	assert.Equal(t, system.Version, unmarshaledSystem.Version)
-	assert.Equal(t, system.LastSeen.Unix(), unmarshaledSystem.LastSeen.Unix())
+	assert.Equal(t, system.SystemKey, unmarshaledSystem.SystemKey)
+	assert.Equal(t, system.OrganizationID, unmarshaledSystem.OrganizationID)
 	assert.Equal(t, system.CustomData, unmarshaledSystem.CustomData)
 	assert.Equal(t, system.CreatedAt.Unix(), unmarshaledSystem.CreatedAt.Unix())
 	assert.Equal(t, system.UpdatedAt.Unix(), unmarshaledSystem.UpdatedAt.Unix())
@@ -98,20 +100,20 @@ func TestSystemJSONSerialization(t *testing.T) {
 
 func TestCreateSystemRequestStructure(t *testing.T) {
 	req := CreateSystemRequest{
-		Name:       "New System",
-		Type:       "ns8",
-		CustomData: map[string]string{"purpose": "testing", "owner": "dev-team"},
+		Name:           "New System",
+		OrganizationID: "org-123",
+		CustomData:     map[string]string{"purpose": "testing", "owner": "dev-team"},
 	}
 
 	assert.Equal(t, "New System", req.Name)
-	assert.Equal(t, "ns8", req.Type)
+	assert.Equal(t, "org-123", req.OrganizationID)
 	assert.Equal(t, map[string]string{"purpose": "testing", "owner": "dev-team"}, req.CustomData)
 }
 
 func TestCreateSystemRequestJSONSerialization(t *testing.T) {
 	req := CreateSystemRequest{
-		Name: "JSON Create System",
-		Type: "nsec",
+		Name:           "JSON Create System",
+		OrganizationID: "org-789",
 		CustomData: map[string]string{
 			"environment": "staging",
 			"team":        "qa",
@@ -129,19 +131,19 @@ func TestCreateSystemRequestJSONSerialization(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, req.Name, unmarshaledReq.Name)
-	assert.Equal(t, req.Type, unmarshaledReq.Type)
+	assert.Equal(t, req.OrganizationID, unmarshaledReq.OrganizationID)
 	assert.Equal(t, req.CustomData, unmarshaledReq.CustomData)
 }
 
 func TestUpdateSystemRequestStructure(t *testing.T) {
 	req := UpdateSystemRequest{
-		Name:       "Updated System",
-		Type:       "ns8",
-		CustomData: map[string]string{"status": "updated", "patch_level": "latest"},
+		Name:           "Updated System",
+		OrganizationID: "org-456",
+		CustomData:     map[string]string{"status": "updated", "patch_level": "latest"},
 	}
 
 	assert.Equal(t, "Updated System", req.Name)
-	assert.Equal(t, "ns8", req.Type)
+	assert.Equal(t, "org-456", req.OrganizationID)
 	assert.Equal(t, map[string]string{"status": "updated", "patch_level": "latest"}, req.CustomData)
 }
 
@@ -153,19 +155,20 @@ func TestSystemJSONTags(t *testing.T) {
 		OrganizationName: "Tag Organization",
 	}
 	system := System{
-		ID:          "tag-system",
-		Name:        "Tag System",
-		Type:        "nsec",
-		Status:      "online",
-		FQDN:        "tag-system.example.com",
-		IPv4Address: "172.16.0.10",
-		IPv6Address: "2001:db8::3",
-		Version:     "3.0.0",
-		LastSeen:    time.Now(),
-		CustomData:  map[string]string{"test": "tags"},
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-		CreatedBy:   creator,
+		ID:             "tag-system",
+		Name:           "Tag System",
+		Type:           "nsec-controller",
+		Status:         "maintenance",
+		FQDN:           "tag-system.example.com",
+		IPv4Address:    "172.16.0.10",
+		IPv6Address:    "2001:db8::3",
+		Version:        "3.0.0",
+		SystemKey:      "TAG789XYZ012",
+		OrganizationID: "org-tags",
+		CustomData:     map[string]string{"test": "tags"},
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+		CreatedBy:      creator,
 	}
 
 	jsonData, err := json.Marshal(system)
@@ -184,7 +187,8 @@ func TestSystemJSONTags(t *testing.T) {
 	assert.Contains(t, jsonMap, "ipv4_address")
 	assert.Contains(t, jsonMap, "ipv6_address")
 	assert.Contains(t, jsonMap, "version")
-	assert.Contains(t, jsonMap, "last_seen")
+	assert.Contains(t, jsonMap, "system_key")
+	assert.Contains(t, jsonMap, "organization_id")
 	assert.Contains(t, jsonMap, "custom_data")
 	assert.Contains(t, jsonMap, "created_at")
 	assert.Contains(t, jsonMap, "updated_at")
@@ -193,12 +197,14 @@ func TestSystemJSONTags(t *testing.T) {
 	// Verify values
 	assert.Equal(t, "tag-system", jsonMap["id"])
 	assert.Equal(t, "Tag System", jsonMap["name"])
-	assert.Equal(t, "nsec", jsonMap["type"])
-	assert.Equal(t, "online", jsonMap["status"])
+	assert.Equal(t, "nsec-controller", jsonMap["type"])
+	assert.Equal(t, "maintenance", jsonMap["status"])
 	assert.Equal(t, "tag-system.example.com", jsonMap["fqdn"])
 	assert.Equal(t, "172.16.0.10", jsonMap["ipv4_address"])
 	assert.Equal(t, "2001:db8::3", jsonMap["ipv6_address"])
 	assert.Equal(t, "3.0.0", jsonMap["version"])
+	assert.Equal(t, "TAG789XYZ012", jsonMap["system_key"])
+	assert.Equal(t, "org-tags", jsonMap["organization_id"])
 
 	// Verify created_by is an object
 	createdByMap, ok := jsonMap["created_by"].(map[string]interface{})

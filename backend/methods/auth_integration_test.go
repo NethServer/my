@@ -57,13 +57,13 @@ func TestExchangeToken(t *testing.T) {
 				"wrong_field": "value",
 			},
 			expectedStatus: http.StatusBadRequest,
-			expectMessage:  "Invalid request body",
+			expectMessage:  "invalid request body:",
 		},
 		{
 			name:           "empty request body fails",
 			requestBody:    map[string]string{},
 			expectedStatus: http.StatusBadRequest,
-			expectMessage:  "Invalid request body",
+			expectMessage:  "invalid request body:",
 		},
 	}
 
@@ -100,7 +100,7 @@ func TestRefreshToken(t *testing.T) {
 				"wrong_field": "value",
 			},
 			expectedStatus: http.StatusBadRequest,
-			expectMessage:  "Invalid request body",
+			expectMessage:  "invalid request body:",
 		},
 	}
 
@@ -223,7 +223,7 @@ func TestAuthMethodsValidation(t *testing.T) {
 			path:           "/auth/exchange",
 			body:           `{"invalid": json}`,
 			expectedStatus: http.StatusBadRequest,
-			expectMessage:  "Invalid request body",
+			expectMessage:  "invalid request body:",
 		},
 		{
 			name:           "refresh with invalid JSON fails",
@@ -231,7 +231,7 @@ func TestAuthMethodsValidation(t *testing.T) {
 			path:           "/auth/refresh",
 			body:           `{"invalid": json}`,
 			expectedStatus: http.StatusBadRequest,
-			expectMessage:  "Invalid request body",
+			expectMessage:  "invalid request body:",
 		},
 		{
 			name:   "exchange with missing access_token fails",
@@ -241,7 +241,7 @@ func TestAuthMethodsValidation(t *testing.T) {
 				"wrong_field": "value",
 			},
 			expectedStatus: http.StatusBadRequest,
-			expectMessage:  "Invalid request body",
+			expectMessage:  "invalid request body:",
 		},
 		{
 			name:   "refresh with missing refresh_token fails",
@@ -251,7 +251,7 @@ func TestAuthMethodsValidation(t *testing.T) {
 				"wrong_field": "value",
 			},
 			expectedStatus: http.StatusBadRequest,
-			expectMessage:  "Invalid request body",
+			expectMessage:  "invalid request body:",
 		},
 	}
 

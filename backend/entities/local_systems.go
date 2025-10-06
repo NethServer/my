@@ -42,8 +42,8 @@ func (r *LocalSystemRepository) Create(req *models.CreateSystemRequest) (*models
 // GetByID retrieves a specific system by ID without access validation (validation is done at service level)
 func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	query := `
-		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version, s.last_seen,
-		       s.custom_data, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
+		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
+		       s.system_key, s.organization_id, s.custom_data, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
 		WHERE s.id = $1 AND s.deleted_at IS NULL
@@ -57,8 +57,8 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 
 	err := r.db.QueryRow(query, id).Scan(
 		&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
-		&ipv4Address, &ipv6Address, &version, &system.LastSeen, &customDataJSON,
-		&system.CreatedAt, &system.UpdatedAt, &createdByJSON, &lastHeartbeat,
+		&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.OrganizationID,
+		&customDataJSON, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &lastHeartbeat,
 	)
 
 	if err == sql.ErrNoRows {
@@ -160,9 +160,9 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 			"status":       "status",
 			"fqdn":         "fqdn",
 			"version":      "version",
+			"system_key":   "system_key",
 			"created_at":   "created_at",
 			"updated_at":   "updated_at",
-			"last_seen":    "last_seen",
 			"creator_name": "created_by ->> 'user_name'",
 		}
 
@@ -177,8 +177,8 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 
 	// Build main query
 	query := fmt.Sprintf(`
-		SELECT id, name, type, status, fqdn, ipv4_address, ipv6_address, version, last_seen,
-		       custom_data, created_at, updated_at, created_by
+		SELECT id, name, type, status, fqdn, ipv4_address, ipv6_address, version,
+		       system_key, organization_id, custom_data, created_at, updated_at, created_by
 		FROM systems
 		WHERE %s
 		ORDER BY %s
@@ -205,8 +205,8 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
-			&ipv4Address, &ipv6Address, &version, &system.LastSeen, &customDataJSON,
-			&system.CreatedAt, &system.UpdatedAt, &createdByJSON,
+			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.OrganizationID,
+			&customDataJSON, &system.CreatedAt, &system.UpdatedAt, &createdByJSON,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan system: %w", err)

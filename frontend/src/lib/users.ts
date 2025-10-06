@@ -36,6 +36,7 @@ export const UserSchema = v.object({
   ...EditUserSchema.entries,
   active: v.optional(v.boolean()),
   logto_id: v.optional(v.string()),
+  can_be_impersonated: v.boolean(),
   logto_synced_at: v.optional(v.string()),
   organization: v.optional(
     v.object({

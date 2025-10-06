@@ -11,6 +11,7 @@ const READ_CUSTOMERS = 'read:customers'
 const MANAGE_CUSTOMERS = 'manage:customers'
 const READ_USERS = 'read:users'
 const MANAGE_USERS = 'manage:users'
+const IMPERSONATE_USERS = 'impersonate:users'
 
 export const canReadDistributors = () => {
   const loginStore = useLoginStore()
@@ -50,4 +51,9 @@ export const canReadUsers = () => {
 export const canManageUsers = () => {
   const loginStore = useLoginStore()
   return loginStore.permissions.includes(MANAGE_USERS)
+}
+
+export const canImpersonateUsers = () => {
+  const loginStore = useLoginStore()
+  return loginStore.permissions.includes(IMPERSONATE_USERS)
 }

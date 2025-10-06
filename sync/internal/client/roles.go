@@ -18,9 +18,10 @@ import (
 
 // LogtoRole represents a user role in Logto
 type LogtoRole struct {
-	ID          string `json:"id,omitempty"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	ID          string   `json:"id,omitempty"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	ScopeIds    []string `json:"scopeIds,omitempty"`
 }
 
 // LogtoScope represents a scope/permission in Logto

@@ -9,18 +9,24 @@ export interface Pagination {
   total_pages: number
 }
 
+// utility to build query string params for pagination, filtering and sorting
 export const getQueryStringParams = (
   pageNum: number,
   pageSize: number,
-  textFilter: string,
-  sortBy: string,
+  textFilter: string | null,
+  sortBy: string | null,
   sortDescending: boolean,
 ) => {
   return new URLSearchParams({
     page: pageNum.toString(),
     page_size: pageSize.toString(),
-    search: textFilter,
-    sort_by: sortBy,
+    search: textFilter || '',
+    sort_by: sortBy || '',
     sort_direction: sortDescending ? 'desc' : 'asc',
   }).toString()
+}
+
+// normalize a string: lowercase and remove spaces
+export const normalize = (str: string) => {
+  return str.toLowerCase().replace(/\s+/g, '_')
 }

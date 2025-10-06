@@ -10,6 +10,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/nethesis/my/backend/logger"
 )
 
 // SetupTestGin configures Gin for testing
@@ -62,4 +64,14 @@ func MockHTTPServer(t *testing.T, handler http.HandlerFunc) *httptest.Server {
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 	return server
+}
+
+// SetupLogger initializes logger for testing
+func SetupLogger() {
+	_ = logger.Init(&logger.Config{
+		Level:   logger.InfoLevel,
+		Format:  logger.JSONFormat,
+		Output:  logger.StdoutOutput,
+		AppName: "[TEST]",
+	})
 }

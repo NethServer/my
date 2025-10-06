@@ -146,14 +146,37 @@ func main() {
 	// Resource-based permissions: read:resource for GET, manage:resource for POST/PUT/PATCH/DELETE
 	// ===========================================
 	customAuth := api.Group("/", middleware.JWTAuthMiddleware())
+
+	// Apply impersonation audit middleware to all routes EXCEPT the impersonation management routes
+	customAuthWithAudit := customAuth.Group("/", middleware.ImpersonationAuditMiddleware())
+
 	{
 		// Authentication endpoints
-		customAuth.POST("/auth/logout", methods.Logout)
+		customAuth.POST("/auth/logout", middleware.DisableOnImpersonate(), methods.Logout)
 
-		// User profile endpoints using custom JWT
-		customAuth.GET("/me", methods.GetCurrentUser)
-		customAuth.POST("/me/change-password", methods.ChangePassword)
-		customAuth.POST("/me/change-info", methods.ChangeInfo)
+		// Consent-based impersonation endpoints (no audit to avoid recursion)
+		impersonateGroup := customAuth.Group("/impersonate")
+		{
+			// Consent management endpoints
+			impersonateGroup.POST("/consent", methods.EnableImpersonationConsent)
+			impersonateGroup.DELETE("/consent", methods.DisableImpersonationConsent)
+			impersonateGroup.GET("/consent", methods.GetImpersonationConsentStatus)
+
+			// Impersonation endpoints
+			impersonateGroup.GET("/status", methods.GetImpersonationStatus)
+			impersonateGroup.POST("", middleware.RequirePermission("impersonate:users"), methods.ImpersonateUserWithConsent) // Only users with impersonate:users permission
+			impersonateGroup.DELETE("", methods.ExitImpersonationWithAudit)
+
+			// Session management endpoints
+			impersonateGroup.GET("/sessions", methods.GetImpersonationSessions)
+			impersonateGroup.GET("/sessions/:session_id", methods.GetImpersonationSession)
+			impersonateGroup.GET("/sessions/:session_id/audit", methods.GetSessionAudit)
+		}
+
+		// User profile endpoints using custom JWT (with audit for impersonation)
+		customAuthWithAudit.GET("/me", methods.GetCurrentUser)
+		customAuthWithAudit.POST("/me/change-password", middleware.DisableOnImpersonate(), methods.ChangePassword)
+		customAuthWithAudit.POST("/me/change-info", middleware.DisableOnImpersonate(), methods.ChangeInfo)
 
 		// Business operations
 		// ===========================================
@@ -161,12 +184,11 @@ func main() {
 		// ===========================================
 
 		// Standard CRUD operations - resource-based (read:systems for GET, manage:systems for POST/PUT/DELETE)
-		systemsGroup := customAuth.Group("/systems", middleware.RequireResourcePermission("systems"))
+		systemsGroup := customAuthWithAudit.Group("/systems", middleware.RequireResourcePermission("systems"))
 		{
 			systemsGroup.GET("", methods.GetSystems)
 			systemsGroup.GET("/:id", methods.GetSystem)
 			systemsGroup.POST("", methods.CreateSystem)
-			systemsGroup.POST("/callback", methods.CreateSystemWithCallback) // Create system with callback
 			systemsGroup.PUT("/:id", methods.UpdateSystem)
 			systemsGroup.DELETE("/:id", methods.DeleteSystem)
 
@@ -193,7 +215,7 @@ func main() {
 		// ===========================================
 
 		// Distributors - resource-based permission validation (read:distributors for GET, manage:distributors for POST/PUT/DELETE)
-		distributorsGroup := customAuth.Group("/distributors", middleware.RequireResourcePermission("distributors"))
+		distributorsGroup := customAuthWithAudit.Group("/distributors", middleware.RequireResourcePermission("distributors"))
 		{
 			distributorsGroup.POST("", methods.CreateDistributor)       // Create distributor (manage:distributors required)
 			distributorsGroup.GET("", methods.GetDistributors)          // List distributors (read:distributors required)
@@ -206,7 +228,7 @@ func main() {
 		}
 
 		// Resellers - resource-based permission validation (read:resellers for GET, manage:resellers for POST/PUT/DELETE)
-		resellersGroup := customAuth.Group("/resellers", middleware.RequireResourcePermission("resellers"))
+		resellersGroup := customAuthWithAudit.Group("/resellers", middleware.RequireResourcePermission("resellers"))
 		{
 			resellersGroup.POST("", methods.CreateReseller)       // Create reseller (manage:resellers required)
 			resellersGroup.GET("", methods.GetResellers)          // List resellers (read:resellers required)
@@ -219,7 +241,7 @@ func main() {
 		}
 
 		// Customers - resource-based permission validation (read:customers for GET, manage:customers for POST/PUT/DELETE)
-		customersGroup := customAuth.Group("/customers", middleware.RequireResourcePermission("customers"))
+		customersGroup := customAuthWithAudit.Group("/customers", middleware.RequireResourcePermission("customers"))
 		{
 			customersGroup.POST("", methods.CreateCustomer)       // Create customer (manage:customers required)
 			customersGroup.GET("", methods.GetCustomers)          // List customers (read:customers required)
@@ -236,7 +258,7 @@ func main() {
 		// ===========================================
 
 		// Users - Resource-based permission validation (read:users for GET, manage:users for POST/PUT/PATCH/DELETE)
-		usersGroup := customAuth.Group("/users", middleware.RequireResourcePermission("users"))
+		usersGroup := customAuthWithAudit.Group("/users", middleware.RequireResourcePermission("users"))
 		{
 			usersGroup.GET("", methods.GetUsers)                                                               // List users with organization filtering
 			usersGroup.GET("/:id", methods.GetUser)                                                            // Get single user with hierarchical validation
@@ -252,14 +274,14 @@ func main() {
 		}
 
 		// Roles endpoints - for role selection in user creation
-		customAuth.GET("/roles", methods.GetRoles)
-		customAuth.GET("/organization-roles", methods.GetOrganizationRoles)
+		customAuthWithAudit.GET("/roles", methods.GetRoles)
+		customAuthWithAudit.GET("/organization-roles", methods.GetOrganizationRoles)
 
 		// Organizations endpoint - for organization selection in user creation
-		customAuth.GET("/organizations", methods.GetOrganizations)
+		customAuthWithAudit.GET("/organizations", methods.GetOrganizations)
 
 		// Applications endpoint - filtered third-party applications based on user access
-		customAuth.GET("/applications", methods.GetApplications)
+		customAuthWithAudit.GET("/applications", methods.GetApplications)
 
 		// Validators group - for validation endpoints
 		validatorsGroup := customAuth.Group("/validators")
@@ -271,7 +293,7 @@ func main() {
 
 	// Handle missing endpoints
 	router.NoRoute(func(c *gin.Context) {
-		c.JSON(http.StatusNotFound, response.NotFound("API not found", nil))
+		c.JSON(http.StatusNotFound, response.NotFound("api not found", nil))
 	})
 
 	// Run server

@@ -21,6 +21,7 @@ import { ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import * as v from 'valibot'
 import { USERS_KEY } from '@/lib/users'
+import { normalize } from '@/lib/common'
 
 const { t } = useI18n()
 const loginStore = useLoginStore()
@@ -118,9 +119,6 @@ function validate(profile: ProfileInfo): boolean {
       // focus the first field with error
 
       const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-
-      console.log('firstFieldName', firstErrorFieldName) ////
-
       fieldRefs[firstErrorFieldName].value?.focus()
     }
     return false
@@ -137,7 +135,7 @@ function validate(profile: ProfileInfo): boolean {
         v-model.trim="name"
         :label="$t('users.name')"
         :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
-        :disabled="editUserLoading || loginStore.isOwner"
+        :disabled="editUserLoading || loginStore.isOwner || loginStore.isImpersonating"
       />
       <!-- email -->
       <NeTextInput
@@ -145,7 +143,7 @@ function validate(profile: ProfileInfo): boolean {
         v-model.trim="email"
         :label="$t('users.email')"
         :invalid-message="validationIssues.email?.[0] ? $t(validationIssues.email[0]) : ''"
-        :disabled="editUserLoading || loginStore.isOwner"
+        :disabled="editUserLoading || loginStore.isOwner || loginStore.isImpersonating"
       />
       <!-- phone -->
       <NeTextInput
@@ -153,7 +151,7 @@ function validate(profile: ProfileInfo): boolean {
         v-model.trim="phone"
         :label="$t('users.phone_number')"
         :invalid-message="validationIssues.phone?.[0] ? $t(validationIssues.phone[0]) : ''"
-        :disabled="editUserLoading || loginStore.isOwner"
+        :disabled="editUserLoading || loginStore.isOwner || loginStore.isImpersonating"
       />
       <!-- organization -->
       <div>
@@ -174,7 +172,7 @@ function validate(profile: ProfileInfo): boolean {
           <NeBadge
             v-for="role in loginStore.userInfo?.user_roles.sort()"
             :key="role"
-            :text="t(`user_roles.${role}`)"
+            :text="t(`user_roles.${normalize(role)}`)"
             kind="custom"
             customColorClasses="bg-indigo-100 text-indigo-800 dark:bg-indigo-700 dark:text-indigo-100"
             class="inline-block"
@@ -193,7 +191,7 @@ function validate(profile: ProfileInfo): boolean {
         type="submit"
         kind="primary"
         size="lg"
-        :disabled="editUserLoading || loginStore.isOwner"
+        :disabled="editUserLoading || loginStore.isOwner || loginStore.isImpersonating"
         :loading="editUserLoading"
         @click.prevent="saveProfile"
       >

@@ -133,5 +133,5 @@ func (w *WelcomeEmailService) getCompanyName() string {
 	}
 
 	// Fallback
-	return "Nethesis Operation Center"
+	return "My Nethesis"
 }

@@ -12,6 +12,7 @@ import {
   faPenToSquare,
   faTrash,
   faKey,
+  faUserSecret,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -41,7 +42,10 @@ import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import ResetPasswordModal from './ResetPasswordModal.vue'
 import PasswordChangedModal from './PasswordChangedModal.vue'
 import { useUsers } from '@/queries/users'
-import { canManageUsers } from '@/lib/permissions'
+import { canManageUsers, canImpersonateUsers } from '@/lib/permissions'
+import { useLoginStore } from '@/stores/login'
+import ImpersonateUserModal from './ImpersonateUserModal.vue'
+import { normalize } from '@/lib/common'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -61,12 +65,16 @@ const {
   sortDescending,
 } = useUsers()
 
+const loginStore = useLoginStore()
+
 const currentUser = ref<User | undefined>()
 const isShownCreateOrEditUserDrawer = ref(false)
 const isShownDeleteUserModal = ref(false)
 const isShownResetPasswordModal = ref(false)
 const isShownPasswordChangedModal = ref(false)
+const isShownImpersonateUserModal = ref(false)
 const newPassword = ref<string>('')
+const isImpersonating = ref(false)
 
 const usersPage = computed(() => {
   return state.value.data?.users
@@ -110,6 +118,11 @@ function showResetPasswordModal(user: User) {
   isShownResetPasswordModal.value = true
 }
 
+function showImpersonateUserModal(user: User) {
+  currentUser.value = user
+  isShownImpersonateUserModal.value = true
+}
+
 function onPasswordChanged(newPwd: string) {
   newPassword.value = newPwd
   isShownPasswordChangedModal.value = true
@@ -121,7 +134,7 @@ function onCloseDrawer() {
 }
 
 function getKebabMenuItems(user: User) {
-  return [
+  const items = [
     {
       id: 'resetPassword',
       label: t('users.reset_password'),
@@ -138,6 +151,20 @@ function getKebabMenuItems(user: User) {
       disabled: asyncStatus.value === 'loading',
     },
   ]
+
+  // Add impersonate option for owners, but not for self
+  if (canImpersonateUsers() && user.id !== loginStore.userInfo?.id) {
+    items.unshift({
+      id: 'impersonate',
+      label: t('users.impersonate_user'),
+      icon: faUserSecret,
+      action: () => showImpersonateUserModal(user),
+      disabled:
+        asyncStatus.value === 'loading' || isImpersonating.value || !user.can_be_impersonated,
+    })
+  }
+
+  return items
 }
 
 const onSort = (payload: SortEvent) => {
@@ -278,11 +305,12 @@ const onClosePasswordChangedModal = () => {
             {{ item.organization?.name || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('users.roles')">
-            <div class="flex flex-wrap gap-1">
+            <span v-if="!item.roles || item.roles.length === 0">-</span>
+            <div v-else class="flex flex-wrap gap-1">
               <NeBadge
                 v-for="role in item.roles?.sort(sortByProperty('name'))"
                 :key="role.id"
-                :text="t(`user_roles.${role.name}`)"
+                :text="t(`user_roles.${normalize(role.name)}`)"
                 kind="custom"
                 customColorClasses="bg-indigo-100 text-indigo-800 dark:bg-indigo-700 dark:text-indigo-100"
                 class="inline-block"
@@ -343,6 +371,12 @@ const onClosePasswordChangedModal = () => {
       :visible="isShownDeleteUserModal"
       :user="currentUser"
       @close="isShownDeleteUserModal = false"
+    />
+    <!-- impersonate user modal -->
+    <ImpersonateUserModal
+      :visible="isShownImpersonateUserModal"
+      :user="currentUser"
+      @close="isShownImpersonateUserModal = false"
     />
     <!-- reset password modal -->
     <ResetPasswordModal

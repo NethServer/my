@@ -341,7 +341,7 @@ func TestGetUserFromContext(t *testing.T) {
 				// Don't set user in context
 			},
 			expectedStatus: http.StatusUnauthorized,
-			expectMessage:  "user not found in context",
+			expectMessage:  "user not authenticated",
 		},
 		{
 			name: "invalid user type in context fails",

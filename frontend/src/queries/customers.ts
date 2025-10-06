@@ -3,6 +3,7 @@
 
 import { MIN_SEARCH_LENGTH } from '@/lib/common'
 import { CUSTOMERS_KEY, CUSTOMERS_TABLE_ID, getCustomers, type Customer } from '@/lib/customers'
+import { canReadCustomers } from '@/lib/permissions'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
@@ -29,7 +30,7 @@ export const useCustomers = defineQuery(() => {
         sortDirection: sortDescending.value,
       },
     ],
-    enabled: () => !!loginStore.jwtToken,
+    enabled: () => !!loginStore.jwtToken && canReadCustomers(),
     query: () =>
       getCustomers(
         pageNum.value,

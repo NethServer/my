@@ -109,7 +109,7 @@ CREATE INDEX IF NOT EXISTS idx_users_logto_synced ON users(logto_synced_at);
 CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_users_latest_login_at ON users(latest_login_at DESC);
 
--- Systems table - access control based on created_by organization
+-- Systems table - access control based on organization_id
 CREATE TABLE IF NOT EXISTS systems (
     id VARCHAR(255) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -119,10 +119,10 @@ CREATE TABLE IF NOT EXISTS systems (
     ipv4_address INET,
     ipv6_address INET,
     version VARCHAR(100),
-    last_seen TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    organization_id VARCHAR(255) NOT NULL,
     custom_data JSONB,
-    secret_hash VARCHAR(64) NOT NULL,
-    secret_hint VARCHAR(8),
+    system_key VARCHAR(255) UNIQUE NOT NULL,
+    system_secret VARCHAR(64) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMP WITH TIME ZONE,  -- Soft delete timestamp (NULL = active, non-NULL = deleted)
@@ -133,12 +133,13 @@ CREATE TABLE IF NOT EXISTS systems (
 COMMENT ON COLUMN systems.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted at that time.';
 
 -- Performance indexes for systems
+CREATE INDEX IF NOT EXISTS idx_systems_organization_id ON systems(organization_id);
 CREATE INDEX IF NOT EXISTS idx_systems_created_by_org ON systems((created_by->>'organization_id'));
 CREATE INDEX IF NOT EXISTS idx_systems_status ON systems(status);
 CREATE INDEX IF NOT EXISTS idx_systems_type ON systems(type);
-CREATE INDEX IF NOT EXISTS idx_systems_last_seen ON systems(last_seen DESC);
 CREATE INDEX IF NOT EXISTS idx_systems_deleted_at ON systems(deleted_at);
-CREATE INDEX IF NOT EXISTS idx_systems_secret_hash ON systems(secret_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_systems_system_key ON systems(system_key);
+CREATE INDEX IF NOT EXISTS idx_systems_system_secret ON systems(system_secret);
 CREATE INDEX IF NOT EXISTS idx_systems_fqdn ON systems(fqdn);
 CREATE INDEX IF NOT EXISTS idx_systems_ipv4_address ON systems(ipv4_address);
 CREATE INDEX IF NOT EXISTS idx_systems_ipv6_address ON systems(ipv6_address);
@@ -148,7 +149,7 @@ DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_systems_status') THEN
         ALTER TABLE systems ADD CONSTRAINT chk_systems_status
-            CHECK (status IN ('online', 'offline', 'maintenance', 'error'));
+            CHECK (status IN ('undefined', 'online', 'offline', 'maintenance'));
     END IF;
 END $$;
 
@@ -238,3 +239,153 @@ CREATE TRIGGER trg_check_vat_customers
 BEFORE INSERT OR UPDATE ON customers
 FOR EACH ROW
 EXECUTE FUNCTION check_unique_vat_customers();
+
+-- Impersonation consents table
+CREATE TABLE IF NOT EXISTS impersonation_consents (
+    id VARCHAR(255) PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    max_duration_minutes INTEGER NOT NULL DEFAULT 60,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    active BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+-- Foreign key constraint for impersonation_consents
+ALTER TABLE impersonation_consents
+ADD CONSTRAINT impersonation_consents_user_id_fkey
+FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+-- Indexes for impersonation_consents
+CREATE INDEX IF NOT EXISTS idx_impersonation_consents_user_id ON impersonation_consents(user_id);
+CREATE INDEX IF NOT EXISTS idx_impersonation_consents_active ON impersonation_consents(active);
+CREATE INDEX IF NOT EXISTS idx_impersonation_consents_expires_at ON impersonation_consents(expires_at);
+CREATE INDEX IF NOT EXISTS idx_impersonation_consents_user_active ON impersonation_consents(user_id, active);
+
+-- Impersonation audit table
+CREATE TABLE IF NOT EXISTS impersonation_audit (
+    id VARCHAR(255) PRIMARY KEY,
+    session_id VARCHAR(255) NOT NULL,
+    impersonator_user_id VARCHAR(255) NOT NULL,
+    impersonated_user_id VARCHAR(255) NOT NULL,
+    action_type VARCHAR(50) NOT NULL,
+    api_endpoint VARCHAR(255),
+    http_method VARCHAR(10),
+    request_data TEXT,
+    response_status INTEGER,
+    response_status_text VARCHAR(50),
+    timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    impersonator_username VARCHAR(255) NOT NULL,
+    impersonated_username VARCHAR(255) NOT NULL,
+    impersonator_name TEXT,
+    impersonated_name TEXT
+);
+
+-- Indexes for impersonation_audit
+CREATE INDEX IF NOT EXISTS idx_impersonation_audit_session_id ON impersonation_audit(session_id);
+CREATE INDEX IF NOT EXISTS idx_impersonation_audit_impersonator ON impersonation_audit(impersonator_user_id);
+CREATE INDEX IF NOT EXISTS idx_impersonation_audit_impersonated ON impersonation_audit(impersonated_user_id);
+CREATE INDEX IF NOT EXISTS idx_impersonation_audit_action_type ON impersonation_audit(action_type);
+CREATE INDEX IF NOT EXISTS idx_impersonation_audit_impersonator_name ON impersonation_audit(impersonator_name);
+CREATE INDEX IF NOT EXISTS idx_impersonation_audit_impersonated_name ON impersonation_audit(impersonated_name);
+
+-- Inventory records table
+CREATE TABLE IF NOT EXISTS inventory_records (
+    id BIGSERIAL PRIMARY KEY,
+    system_id VARCHAR(255) NOT NULL,
+    timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    data JSONB NOT NULL,
+    data_hash VARCHAR(64) NOT NULL,
+    data_size BIGINT NOT NULL,
+    processed_at TIMESTAMP WITH TIME ZONE,
+    has_changes BOOLEAN NOT NULL DEFAULT FALSE,
+    change_count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+-- Indexes for inventory_records
+CREATE INDEX IF NOT EXISTS idx_inventory_records_system_id_timestamp ON inventory_records(system_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_inventory_records_data_hash ON inventory_records(data_hash);
+CREATE INDEX IF NOT EXISTS idx_inventory_records_processed_at ON inventory_records(processed_at);
+
+-- Inventory diffs table
+CREATE TABLE IF NOT EXISTS inventory_diffs (
+    id BIGSERIAL PRIMARY KEY,
+    system_id VARCHAR(255) NOT NULL,
+    record_id BIGINT NOT NULL,
+    category VARCHAR(100) NOT NULL,
+    subcategory VARCHAR(100),
+    change_type VARCHAR(20) NOT NULL CHECK (change_type IN ('added', 'removed', 'modified')),
+    old_value JSONB,
+    new_value JSONB,
+    path VARCHAR(500),
+    timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+-- Foreign key constraint for inventory_diffs
+ALTER TABLE inventory_diffs
+ADD CONSTRAINT inventory_diffs_record_id_fkey
+FOREIGN KEY (record_id) REFERENCES inventory_records(id) ON DELETE CASCADE;
+
+-- Indexes for inventory_diffs
+CREATE INDEX IF NOT EXISTS idx_inventory_diffs_system_id ON inventory_diffs(system_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_diffs_record_id ON inventory_diffs(record_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_diffs_category ON inventory_diffs(category);
+CREATE INDEX IF NOT EXISTS idx_inventory_diffs_change_type ON inventory_diffs(change_type);
+CREATE INDEX IF NOT EXISTS idx_inventory_diffs_timestamp ON inventory_diffs(timestamp DESC);
+
+-- System heartbeats table
+CREATE TABLE IF NOT EXISTS system_heartbeats (
+    id BIGSERIAL PRIMARY KEY,
+    system_id VARCHAR(255) NOT NULL,
+    heartbeat_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'online',
+    metadata JSONB,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+-- Foreign key constraint for system_heartbeats
+ALTER TABLE system_heartbeats
+ADD CONSTRAINT system_heartbeats_system_id_fkey
+FOREIGN KEY (system_id) REFERENCES systems(id) ON DELETE CASCADE;
+
+-- Indexes for system_heartbeats
+CREATE INDEX IF NOT EXISTS idx_system_heartbeats_system_id ON system_heartbeats(system_id);
+CREATE INDEX IF NOT EXISTS idx_system_heartbeats_timestamp ON system_heartbeats(heartbeat_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_system_heartbeats_status ON system_heartbeats(status);
+
+-- Inventory alerts table
+CREATE TABLE IF NOT EXISTS inventory_alerts (
+    id BIGSERIAL PRIMARY KEY,
+    system_id VARCHAR(255) NOT NULL,
+    diff_id BIGINT,
+    alert_type VARCHAR(50) NOT NULL,
+    message TEXT NOT NULL,
+    severity VARCHAR(50) NOT NULL,
+    is_resolved BOOLEAN NOT NULL DEFAULT FALSE,
+    resolved_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+-- Foreign key constraints for inventory_alerts
+ALTER TABLE inventory_alerts
+ADD CONSTRAINT inventory_alerts_system_id_fkey
+FOREIGN KEY (system_id) REFERENCES systems(id) ON DELETE CASCADE;
+
+ALTER TABLE inventory_alerts
+ADD CONSTRAINT inventory_alerts_diff_id_fkey
+FOREIGN KEY (diff_id) REFERENCES inventory_diffs(id) ON DELETE SET NULL;
+
+-- Indexes for inventory_alerts
+CREATE INDEX IF NOT EXISTS idx_inventory_alerts_system_id_created_at ON inventory_alerts(system_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_inventory_alerts_severity ON inventory_alerts(severity);
+CREATE INDEX IF NOT EXISTS idx_inventory_alerts_resolved ON inventory_alerts(is_resolved) WHERE is_resolved = FALSE;
+
+-- Schema migrations table
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    migration_number VARCHAR(10) PRIMARY KEY,
+    applied_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    description TEXT,
+    checksum VARCHAR(64)
+);

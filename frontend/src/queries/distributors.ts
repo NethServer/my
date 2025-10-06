@@ -8,6 +8,7 @@ import {
   getDistributors,
   type Distributor,
 } from '@/lib/distributors'
+import { canReadDistributors } from '@/lib/permissions'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
@@ -34,7 +35,7 @@ export const useDistributors = defineQuery(() => {
         sortDirection: sortDescending.value,
       },
     ],
-    enabled: () => !!loginStore.jwtToken,
+    enabled: () => !!loginStore.jwtToken && canReadDistributors(),
     query: () =>
       getDistributors(
         pageNum.value,

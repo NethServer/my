@@ -62,11 +62,11 @@ func GetApplications(c *gin.Context) {
 		}
 	}
 
-	// Get user's user roles
-	var userRoles []string
-	if userRolesData, exists := c.Get("user_roles"); exists {
-		if userRolesList, ok := userRolesData.([]string); ok {
-			userRoles = userRolesList
+	// Get user's user role IDs for access control matching
+	var userRoleIDs []string
+	if userRoleIDsData, exists := c.Get("user_role_ids"); exists {
+		if userRoleIDsList, ok := userRoleIDsData.([]string); ok {
+			userRoleIDs = userRoleIDsList
 		}
 	}
 
@@ -82,11 +82,11 @@ func GetApplications(c *gin.Context) {
 		Str("user_id", userIDStr).
 		Str("organization_id", userOrganizationID).
 		Strs("organization_roles", organizationRoles).
-		Strs("user_roles", userRoles).
+		Strs("user_role_ids", userRoleIDs).
 		Msg("User context for application filtering")
 
 	// Filter applications based on user's roles and organization membership
-	filteredLogtoApps := logto.FilterApplicationsByAccess(logtoApplications, organizationRoles, userRoles, userOrganizationID)
+	filteredLogtoApps := logto.FilterApplicationsByAccess(logtoApplications, organizationRoles, userRoleIDs, userOrganizationID)
 
 	// Get cached domain validation result
 	domainValidation := cache.GetDomainValidation()

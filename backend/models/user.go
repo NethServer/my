@@ -9,6 +9,8 @@
 
 package models
 
+import "time"
+
 type User struct {
 	ID               string   `json:"id" structs:"id"`                               // Local database ID
 	LogtoID          *string  `json:"logto_id,omitempty" structs:"logto_id"`         // Logto ID for reference
@@ -37,4 +39,54 @@ type ChangeInfoRequest struct {
 	Name  *string `json:"name,omitempty"`
 	Email *string `json:"email,omitempty"`
 	Phone *string `json:"phone,omitempty"`
+}
+
+// ImpersonationConsent represents a user's consent to be impersonated
+type ImpersonationConsent struct {
+	ID                 string    `json:"id" db:"id"`
+	UserID             string    `json:"user_id" db:"user_id"`
+	ExpiresAt          time.Time `json:"expires_at" db:"expires_at"`
+	MaxDurationMinutes int       `json:"max_duration_minutes" db:"max_duration_minutes"`
+	CreatedAt          time.Time `json:"created_at" db:"created_at"`
+	Active             bool      `json:"-" db:"active"`
+}
+
+// EnableConsentRequest represents a request to enable impersonation consent
+type EnableConsentRequest struct {
+	DurationHours int `json:"duration_hours" binding:"min=0,max=168"` // Max 1 week, defaults to 1 hour if 0 or not provided
+}
+
+// ImpersonationAuditEntry represents an action performed during impersonation
+type ImpersonationAuditEntry struct {
+	ID                   string    `json:"id" db:"id"`
+	SessionID            string    `json:"session_id" db:"session_id"`
+	ImpersonatorUserID   string    `json:"impersonator_user_id" db:"impersonator_user_id"`
+	ImpersonatedUserID   string    `json:"impersonated_user_id" db:"impersonated_user_id"`
+	ActionType           string    `json:"action_type" db:"action_type"`                   // "api_call", "session_start", "session_end"
+	APIEndpoint          *string   `json:"api_endpoint" db:"api_endpoint"`                 // Only for api_call actions
+	HTTPMethod           *string   `json:"http_method" db:"http_method"`                   // Only for api_call actions
+	RequestData          *string   `json:"request_data" db:"request_data"`                 // Only for api_call actions
+	ResponseStatus       *int      `json:"response_status" db:"response_status"`           // Only for api_call actions
+	ResponseStatusText   *string   `json:"response_status_text" db:"response_status_text"` // Only for api_call actions
+	Timestamp            time.Time `json:"timestamp" db:"timestamp"`
+	ImpersonatorUsername string    `json:"impersonator_username" db:"impersonator_username"`
+	ImpersonatedUsername string    `json:"impersonated_username" db:"impersonated_username"`
+	ImpersonatorName     string    `json:"impersonator_name" db:"impersonator_name"`
+	ImpersonatedName     string    `json:"impersonated_name" db:"impersonated_name"`
+}
+
+// ImpersonationSession represents a summary of an impersonation session
+type ImpersonationSession struct {
+	SessionID            string     `json:"session_id" db:"session_id"`
+	ImpersonatorUserID   string     `json:"impersonator_user_id" db:"impersonator_user_id"`
+	ImpersonatedUserID   string     `json:"impersonated_user_id" db:"impersonated_user_id"`
+	ImpersonatorUsername string     `json:"impersonator_username" db:"impersonator_username"`
+	ImpersonatedUsername string     `json:"impersonated_username" db:"impersonated_username"`
+	ImpersonatorName     string     `json:"impersonator_name" db:"impersonator_name"`
+	ImpersonatedName     string     `json:"impersonated_name" db:"impersonated_name"`
+	StartTime            time.Time  `json:"start_time" db:"start_time"`
+	EndTime              *time.Time `json:"end_time" db:"end_time"`
+	Duration             *int       `json:"duration_minutes" db:"duration_minutes"` // Duration in minutes, null if still active
+	ActionCount          int        `json:"action_count" db:"action_count"`         // Number of actions performed in this session
+	Status               string     `json:"status"`                                 // "active", "completed"
 }

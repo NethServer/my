@@ -2,6 +2,7 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import { MIN_SEARCH_LENGTH } from '@/lib/common'
+import { canReadUsers } from '@/lib/permissions'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { getUsers, USERS_KEY, USERS_TABLE_ID, type User } from '@/lib/users'
 import { useLoginStore } from '@/stores/login'
@@ -29,7 +30,7 @@ export const useUsers = defineQuery(() => {
         sortDirection: sortDescending.value,
       },
     ],
-    enabled: () => !!loginStore.jwtToken,
+    enabled: () => !!loginStore.jwtToken && canReadUsers(),
     query: () =>
       getUsers(
         pageNum.value,

@@ -170,9 +170,9 @@ func Init() {
 
 	// System types configuration
 	if os.Getenv("SYSTEM_TYPES") != "" {
-		Config.SystemTypes = parseStringSliceWithDefault("SYSTEM_TYPES", []string{"ns8", "nsec"})
+		Config.SystemTypes = parseStringSliceWithDefault("SYSTEM_TYPES", []string{"undefined", "ns8", "nsec", "nsec-controller"})
 	} else {
-		Config.SystemTypes = []string{"ns8", "nsec"}
+		Config.SystemTypes = []string{"undefined", "ns8", "nsec", "nsec-controller"}
 	}
 
 	// SMTP configuration
@@ -183,7 +183,7 @@ func Init() {
 	Config.SMTPFrom = os.Getenv("SMTP_FROM")
 	Config.SMTPFromName = os.Getenv("SMTP_FROM_NAME")
 	if Config.SMTPFromName == "" {
-		Config.SMTPFromName = "Nethesis Operation Center"
+		Config.SMTPFromName = "My Nethesis"
 	}
 	Config.SMTPTLS = parseBoolWithDefault("SMTP_TLS", true)
 

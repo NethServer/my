@@ -36,6 +36,11 @@ type RefreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
+// ImpersonateRequest represents the request body for user impersonation
+type ImpersonateRequest struct {
+	UserID string `json:"user_id" binding:"required"`
+}
+
 // TokenExchangeResponse represents the response for token exchange
 type TokenExchangeResponse struct {
 	Token        string      `json:"token"`
@@ -44,33 +49,15 @@ type TokenExchangeResponse struct {
 	User         models.User `json:"user"`
 }
 
-// ExchangeToken converts Logto access token to custom JWT
-// POST /auth/exchange
-func ExchangeToken(c *gin.Context) {
-	var req TokenExchangeRequest
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "parse_request", http.StatusBadRequest, "Invalid request body")
-		c.JSON(http.StatusBadRequest, response.BadRequest(
-			"Invalid request body: "+err.Error(),
-			nil,
-		))
-		return
-	}
-
-	// Get user info from Logto
-	userInfo, err := logto.GetUserInfoFromLogto(req.AccessToken)
-	if err != nil {
-		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "get_userinfo", http.StatusUnauthorized, "Failed to get user info from Logto")
-		c.JSON(http.StatusUnauthorized, response.Unauthorized(
-			"Invalid access token: "+err.Error(),
-			nil,
-		))
-		return
-	}
-
+// buildUserFromLogtoID constructs a complete User object from a Logto ID
+// This helper consolidates the logic for:
+// 1. Getting user profile from Logto
+// 2. Getting user from local database
+// 3. Constructing User object with all necessary fields
+// 4. Enriching user with roles and permissions
+func buildUserFromLogtoID(c *gin.Context, logtoID string) (*models.User, error) {
 	// Get complete user profile from Management API
-	userProfile, err := logto.GetUserProfileFromLogto(userInfo.Sub)
+	userProfile, err := logto.GetUserProfileFromLogto(logtoID)
 	if err != nil {
 		logger.RequestLogger(c, "auth").Warn().
 			Err(err).
@@ -83,7 +70,7 @@ func ExchangeToken(c *gin.Context) {
 	userService := local.NewUserService()
 	var user models.User
 
-	if localUser, err := userService.GetUserByLogtoID(userInfo.Sub); err == nil {
+	if localUser, err := userService.GetUserByLogtoID(logtoID); err == nil {
 		// User exists in local DB, use local ID as primary ID
 		user = models.User{
 			ID:      localUser.ID,      // Local database ID as primary ID
@@ -102,11 +89,12 @@ func ExchangeToken(c *gin.Context) {
 	} else {
 		// User not in local DB, create temporary user with empty local ID
 		user = models.User{
-			ID:      "",            // No local ID available
-			LogtoID: &userInfo.Sub, // Logto ID for reference
+			ID:      "",       // No local ID available
+			LogtoID: &logtoID, // Logto ID for reference
 		}
 	}
 
+	// Populate basic profile information
 	if userProfile != nil {
 		user.Username = userProfile.Username
 		user.Email = userProfile.PrimaryEmail
@@ -114,37 +102,75 @@ func ExchangeToken(c *gin.Context) {
 		if userProfile.PrimaryPhone != "" {
 			user.Phone = &userProfile.PrimaryPhone
 		}
-	} else {
-		user.Username = userInfo.Username
-		user.Email = userInfo.Email
-		user.Name = userInfo.Name
-		// userInfo doesn't have phone, keep it nil
 	}
 
 	// Enrich user with roles and permissions
-	enrichedUser, err := logto.EnrichUserWithRolesAndPermissions(userInfo.Sub)
+	enrichedUser, err := logto.EnrichUserWithRolesAndPermissions(logtoID)
 	if err != nil {
 		logger.RequestLogger(c, "auth").Warn().
 			Err(err).
 			Str("operation", "enrich_user").
 			Msg("Failed to enrich user with roles")
-	} else {
-		user.UserRoles = enrichedUser.UserRoles
-		user.UserRoleIDs = enrichedUser.UserRoleIDs
-		user.UserPermissions = enrichedUser.UserPermissions
-		user.OrgRole = enrichedUser.OrgRole
-		user.OrgRoleID = enrichedUser.OrgRoleID
-		user.OrgPermissions = enrichedUser.OrgPermissions
-		user.OrganizationID = enrichedUser.OrganizationID
-		user.OrganizationName = enrichedUser.OrganizationName
+		return nil, err
+	}
+
+	user.UserRoles = enrichedUser.UserRoles
+	user.UserRoleIDs = enrichedUser.UserRoleIDs
+	user.UserPermissions = enrichedUser.UserPermissions
+	user.OrgRole = enrichedUser.OrgRole
+	user.OrgRoleID = enrichedUser.OrgRoleID
+	user.OrgPermissions = enrichedUser.OrgPermissions
+	user.OrganizationID = enrichedUser.OrganizationID
+	user.OrganizationName = enrichedUser.OrganizationName
+
+	return &user, nil
+}
+
+// ExchangeToken converts Logto access token to custom JWT
+// POST /auth/exchange
+func ExchangeToken(c *gin.Context) {
+	var req TokenExchangeRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "parse_request", http.StatusBadRequest, "Invalid request body")
+		c.JSON(http.StatusBadRequest, response.BadRequest(
+			"invalid request body: "+err.Error(),
+			nil,
+		))
+		return
+	}
+
+	// Get user info from Logto
+	userInfo, err := logto.GetUserInfoFromLogto(req.AccessToken)
+	if err != nil {
+		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "get_userinfo", http.StatusUnauthorized, "Failed to get user info from Logto")
+		c.JSON(http.StatusUnauthorized, response.Unauthorized(
+			"invalid access token: "+err.Error(),
+			nil,
+		))
+		return
+	}
+
+	// Build complete user object using helper
+	user, err := buildUserFromLogtoID(c, userInfo.Sub)
+	if err != nil {
+		logger.RequestLogger(c, "auth").Error().
+			Err(err).
+			Str("operation", "build_user").
+			Msg("Failed to build user from Logto ID")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError(
+			"failed to retrieve user information: "+err.Error(),
+			nil,
+		))
+		return
 	}
 
 	// Generate custom JWT token
-	customToken, err := jwt.GenerateCustomToken(user)
+	customToken, err := jwt.GenerateCustomToken(*user)
 	if err != nil {
 		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "generate_token", http.StatusInternalServerError, "Failed to generate custom token")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
-			"Failed to generate token: "+err.Error(),
+			"failed to generate token: "+err.Error(),
 			nil,
 		))
 		return
@@ -155,7 +181,7 @@ func ExchangeToken(c *gin.Context) {
 	if err != nil {
 		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "generate_refresh_token", http.StatusInternalServerError, "Failed to generate refresh token")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
-			"Failed to generate refresh token: "+err.Error(),
+			"failed to generate refresh token: "+err.Error(),
 			nil,
 		))
 		return
@@ -189,7 +215,7 @@ func RefreshToken(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "parse_refresh_request", http.StatusBadRequest, "Invalid refresh request body")
 		c.JSON(http.StatusBadRequest, response.BadRequest(
-			"Invalid request body: "+err.Error(),
+			"invalid request body: "+err.Error(),
 			nil,
 		))
 		return
@@ -200,78 +226,32 @@ func RefreshToken(c *gin.Context) {
 	if err != nil {
 		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "validate_refresh_token", http.StatusUnauthorized, "Invalid refresh token")
 		c.JSON(http.StatusUnauthorized, response.Unauthorized(
-			"Invalid refresh token: "+err.Error(),
+			"invalid refresh token: "+err.Error(),
 			nil,
 		))
 		return
 	}
 
-	// Get fresh user information
-	enrichedUser, err := logto.EnrichUserWithRolesAndPermissions(refreshClaims.UserID)
+	// Build complete user object using helper
+	user, err := buildUserFromLogtoID(c, refreshClaims.UserID)
 	if err != nil {
 		logger.RequestLogger(c, "auth").Error().
 			Err(err).
-			Str("operation", "enrich_user_refresh").
-			Msg("Failed to enrich user during refresh")
+			Str("operation", "build_user_refresh").
+			Msg("Failed to build user during refresh")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
-			"Failed to retrieve user information: "+err.Error(),
+			"failed to retrieve user information: "+err.Error(),
 			nil,
 		))
 		return
 	}
 
-	// Get complete user profile
-	userProfile, err := logto.GetUserProfileFromLogto(refreshClaims.UserID)
-	if err != nil {
-		logger.RequestLogger(c, "auth").Warn().
-			Err(err).
-			Str("operation", "get_profile_refresh").
-			Msg("Failed to get user profile during refresh")
-		userProfile = nil
-	}
-
-	// Try to get user from local database first
-	userService := local.NewUserService()
-	var user models.User
-
-	if localUser, err := userService.GetUserByLogtoID(refreshClaims.UserID); err == nil {
-		// User exists in local DB, use local ID as primary ID
-		user = models.User{
-			ID:      localUser.ID,      // Local database ID as primary ID
-			LogtoID: localUser.LogtoID, // Logto ID for reference
-		}
-	} else {
-		// User not in local DB, create temporary user with empty local ID
-		user = models.User{
-			ID:      "",                    // No local ID available
-			LogtoID: &refreshClaims.UserID, // Logto ID for reference
-		}
-	}
-
-	if userProfile != nil {
-		user.Username = userProfile.Username
-		user.Email = userProfile.PrimaryEmail
-		user.Name = userProfile.Name
-		if userProfile.PrimaryPhone != "" {
-			user.Phone = &userProfile.PrimaryPhone
-		}
-	}
-
-	user.UserRoles = enrichedUser.UserRoles
-	user.UserRoleIDs = enrichedUser.UserRoleIDs
-	user.UserPermissions = enrichedUser.UserPermissions
-	user.OrgRole = enrichedUser.OrgRole
-	user.OrgRoleID = enrichedUser.OrgRoleID
-	user.OrgPermissions = enrichedUser.OrgPermissions
-	user.OrganizationID = enrichedUser.OrganizationID
-	user.OrganizationName = enrichedUser.OrganizationName
-
 	// Generate new tokens
-	newAccessToken, err := jwt.GenerateCustomToken(user)
+	newAccessToken, err := jwt.GenerateCustomToken(*user)
 	if err != nil {
 		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "generate_new_token", http.StatusInternalServerError, "Failed to generate new access token")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
-			"Failed to generate new access token: "+err.Error(),
+			"failed to generate new access token: "+err.Error(),
 			nil,
 		))
 		return
@@ -281,7 +261,7 @@ func RefreshToken(c *gin.Context) {
 	if err != nil {
 		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "generate_new_refresh_token", http.StatusInternalServerError, "Failed to generate new refresh token")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
-			"Failed to generate new refresh token: "+err.Error(),
+			"failed to generate new refresh token: "+err.Error(),
 			nil,
 		))
 		return
@@ -361,7 +341,7 @@ func ChangePassword(c *gin.Context) {
 			Msg("User attempted password change without Logto ID")
 
 		c.JSON(http.StatusBadRequest, response.BadRequest(
-			"Password change not available for this user",
+			"password change not available for this user",
 			nil,
 		))
 		return
@@ -377,7 +357,7 @@ func ChangePassword(c *gin.Context) {
 			Msg("Invalid change password request JSON")
 
 		c.JSON(http.StatusBadRequest, response.BadRequest(
-			"Invalid request body: "+err.Error(),
+			"invalid request body: "+err.Error(),
 			nil,
 		))
 		return
@@ -488,7 +468,7 @@ func ChangePassword(c *gin.Context) {
 			Msg("Failed to update password in Logto")
 
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
-			"Failed to update password",
+			"failed to update password",
 			map[string]interface{}{
 				"error": err.Error(),
 			},
@@ -528,7 +508,7 @@ func ChangeInfo(c *gin.Context) {
 			Msg("User attempted info change without Logto ID")
 
 		c.JSON(http.StatusBadRequest, response.BadRequest(
-			"Profile update not available for this user",
+			"profile update not available for this user",
 			nil,
 		))
 		return
@@ -544,7 +524,7 @@ func ChangeInfo(c *gin.Context) {
 			Msg("Invalid change info request JSON")
 
 		c.JSON(http.StatusBadRequest, response.BadRequest(
-			"Invalid request body: "+err.Error(),
+			"invalid request body: "+err.Error(),
 			nil,
 		))
 		return
@@ -558,7 +538,7 @@ func ChangeInfo(c *gin.Context) {
 			Msg("No fields provided for info change")
 
 		c.JSON(http.StatusBadRequest, response.BadRequest(
-			"At least one field (name, email, or phone) must be provided",
+			"at least one field (name, email, or phone) must be provided",
 			nil,
 		))
 		return
@@ -641,7 +621,7 @@ func ChangeInfo(c *gin.Context) {
 			Msg("Failed to update user profile in Logto")
 
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
-			"Failed to update profile",
+			"failed to update profile",
 			map[string]interface{}{
 				"error": err.Error(),
 			},

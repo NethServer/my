@@ -8,6 +8,13 @@ import CustomersCounterCard from '@/components/dashboard/CustomersCounterCard.vu
 import DistributorsCounterCard from '@/components/dashboard/DistributorsCounterCard.vue'
 import ResellersCounterCard from '@/components/dashboard/ResellersCounterCard.vue'
 import UsersCounterCard from '@/components/dashboard/UsersCounterCard.vue'
+import { normalize } from '@/lib/common'
+import {
+  canReadCustomers,
+  canReadDistributors,
+  canReadResellers,
+  canReadUsers,
+} from '@/lib/permissions'
 import {
   getThirdPartyApps,
   getThirdPartyAppIcon,
@@ -73,7 +80,7 @@ const { state: thirdPartyApps } = useQuery({
                 <NeBadge
                   v-for="role in loginStore.userInfo?.user_roles.sort()"
                   :key="role"
-                  :text="$t(`user_roles.${role}`)"
+                  :text="$t(`user_roles.${normalize(role)}`)"
                   kind="custom"
                   customColorClasses="bg-indigo-100 text-indigo-800 dark:bg-indigo-700 dark:text-indigo-100"
                   class="inline-block"
@@ -90,16 +97,10 @@ const { state: thirdPartyApps } = useQuery({
         </NeCard>
       </template>
       <template v-else>
-        <DistributorsCounterCard v-if="loginStore.userInfo.org_role === 'Owner'" />
-        <ResellersCounterCard
-          v-if="['Owner', 'Distributor'].includes(loginStore.userInfo.org_role)"
-        />
-        <CustomersCounterCard
-          v-if="['Owner', 'Distributor', 'Reseller'].includes(loginStore.userInfo.org_role)"
-        />
-        <UsersCounterCard
-          v-if="loginStore.userInfo.user_roles && loginStore.userInfo.user_roles.includes('Admin')"
-        />
+        <DistributorsCounterCard v-if="canReadDistributors()" />
+        <ResellersCounterCard v-if="canReadResellers()" />
+        <CustomersCounterCard v-if="canReadCustomers()" />
+        <UsersCounterCard v-if="canReadUsers()" />
       </template>
     </div>
     <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">
