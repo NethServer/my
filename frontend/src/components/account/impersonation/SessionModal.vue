@@ -155,7 +155,7 @@ const copyRequestDataToClipboard = (jsonString: string) => {
       card-breakpoint="xl"
       :loading="state.status === 'pending'"
       :skeleton-columns="6"
-      :skeleton-rows="7"
+      :skeleton-rows="5"
     >
       <NeTableHead>
         <NeTableHeadCell>{{ $t('account.impersonation.timestamp') }}</NeTableHeadCell>
@@ -202,7 +202,11 @@ const copyRequestDataToClipboard = (jsonString: string) => {
             <span v-else>-</span>
           </NeTableCell>
           <NeTableCell :data-label="$t('account.impersonation.response_status')">
-            {{ item.response_status || '-' }}
+            <span v-if="item.response_status_text && item.response_status"
+              >{{ item.response_status_text }} ({{ item.response_status }})</span
+            >
+            <span v-else-if="item.response_status"></span>
+            <span v-else>-</span>
           </NeTableCell>
         </NeTableRow>
       </NeTableBody>

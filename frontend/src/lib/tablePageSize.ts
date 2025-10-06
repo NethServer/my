@@ -6,12 +6,12 @@ import { getPreference, savePreference } from '@nethesis/vue-components'
 
 export const DEFAULT_PAGE_SIZE = 10
 
-export const loadPageSizeFromStorage = (tableId: string) => {
+export const loadPageSizeFromStorage = (tableId: string, defaultPageSize = 0) => {
   const loginStore = useLoginStore()
 
   const username = loginStore.userInfo?.email
   if (!username) {
-    return DEFAULT_PAGE_SIZE
+    return defaultPageSize || DEFAULT_PAGE_SIZE
   }
 
   const savedPageSize = getPreference(`${tableId}PageSize`, username)
@@ -21,7 +21,7 @@ export const loadPageSizeFromStorage = (tableId: string) => {
       return parsedSize
     }
   }
-  return DEFAULT_PAGE_SIZE
+  return defaultPageSize || DEFAULT_PAGE_SIZE
 }
 
 export const savePageSizeToStorage = (tableId: string, pageSize: number) => {

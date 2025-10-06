@@ -55,6 +55,7 @@ interface ImpersonationAuditEntry {
   http_method: string | null
   request_data: string | null
   response_status: number | null
+  response_status_text: string | null
   timestamp: string
   impersonator_username: string
   impersonated_username: string

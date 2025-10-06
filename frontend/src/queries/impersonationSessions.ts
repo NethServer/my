@@ -33,7 +33,7 @@ export const useImpersonationSessions = defineQuery(() => {
     () => loginStore.userInfo?.email,
     (email) => {
       if (email) {
-        pageSize.value = loadPageSizeFromStorage(SESSIONS_TABLE_ID)
+        pageSize.value = loadPageSizeFromStorage(SESSIONS_TABLE_ID, 5)
       }
     },
     { immediate: true },

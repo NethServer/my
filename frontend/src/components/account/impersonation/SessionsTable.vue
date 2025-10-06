@@ -26,6 +26,8 @@ import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import { formatDateTimeNoSeconds, formatMinutes } from '@/lib/dateTime'
 import SessionModal from './SessionModal.vue'
 import { useImpersonationSessionAuditStore } from '@/queries/impersonationSessionAudit'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { faCircleCheck } from '@fortawesome/free-solid-svg-icons'
 
 const { t, locale } = useI18n()
 const { state, asyncStatus, pageNum, pageSize /*sortBy, sortDescending */ } =
@@ -104,6 +106,7 @@ const showSessionModal = (session: Session) => {
       />
       <!-- //// check breakpoint, skeleton-columns -->
       <NeTable
+        v-else
         :aria-label="$t('account.impersonation.sessions')"
         card-breakpoint="xl"
         :loading="state.status === 'pending'"
@@ -143,7 +146,27 @@ const showSessionModal = (session: Session) => {
               {{ item.impersonator_name || '-' }}
             </NeTableCell>
             <NeTableCell :data-label="$t('account.impersonation.session_status')">
-              {{ t(`account.impersonation.status_${item.status}`) || '-' }}
+              <!-- status icon -->
+              <div class="flex items-center gap-2">
+                <template v-if="item.status === 'active'">
+                  <span class="relative flex size-2.5">
+                    <span
+                      class="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-600 opacity-75 dark:bg-green-400"
+                    ></span>
+                    <span
+                      class="relative inline-flex size-2.5 rounded-full bg-green-700 dark:bg-green-500"
+                    ></span
+                  ></span>
+                </template>
+                <FontAwesomeIcon
+                  v-else-if="item.status === 'completed'"
+                  :icon="faCircleCheck"
+                  class="size-4 text-green-600 dark:text-green-400"
+                  aria-hidden="true"
+                />
+
+                {{ t(`account.impersonation.status_${item.status}`) || '-' }}
+              </div>
             </NeTableCell>
             <NeTableCell :data-label="$t('common.actions')">
               <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
