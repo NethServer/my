@@ -7,20 +7,19 @@ import {
   SESSION_AUDIT_TABLE_ID,
   type Session,
 } from '@/lib/impersonationSessions'
-import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
+import { loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 
+const PAGE_SIZE = 5
+
 export const useImpersonationSessionAudit = defineQuery(() => {
   const loginStore = useLoginStore()
   const pageNum = ref(1)
-  const pageSize = ref(DEFAULT_PAGE_SIZE) //// replace with 5?
-  // const sortBy = ref<keyof Session>('start_time') ////
-  // const sortDescending = ref(false) ////
-  // const { session } = useImpersonationSessionAuditStore() ////
-  const sessionAuditStore = useImpersonationSessionAuditStore() ////
+  const pageSize = ref(PAGE_SIZE)
+  const sessionAuditStore = useImpersonationSessionAuditStore()
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [
@@ -29,17 +28,11 @@ export const useImpersonationSessionAudit = defineQuery(() => {
         sessionId: sessionAuditStore.session?.session_id,
         pageNum: pageNum.value,
         pageSize: pageSize.value,
-        // sortBy: sortBy.value, ////
-        // sortDirection: sortDescending.value, ////
       },
     ],
     enabled: () => !!loginStore.jwtToken && !!sessionAuditStore.session?.session_id,
     query: () =>
-      getSessionAudit(
-        sessionAuditStore.session?.session_id || '',
-        pageNum.value,
-        pageSize.value /*, sortBy.value, sortDescending.value*/,
-      ), ////
+      getSessionAudit(sessionAuditStore.session?.session_id || '', pageNum.value, pageSize.value),
   })
 
   // load table page size from storage
@@ -47,7 +40,7 @@ export const useImpersonationSessionAudit = defineQuery(() => {
     () => loginStore.userInfo?.email,
     (email) => {
       if (email) {
-        pageSize.value = loadPageSizeFromStorage(SESSION_AUDIT_TABLE_ID)
+        pageSize.value = loadPageSizeFromStorage(SESSION_AUDIT_TABLE_ID, PAGE_SIZE)
       }
     },
     { immediate: true },
@@ -67,8 +60,6 @@ export const useImpersonationSessionAudit = defineQuery(() => {
     asyncStatus,
     pageNum,
     pageSize,
-    // sortBy, ////
-    // sortDescending, ////
   }
 })
 

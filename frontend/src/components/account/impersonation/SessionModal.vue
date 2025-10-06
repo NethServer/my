@@ -35,13 +35,7 @@ const emit = defineEmits(['close'])
 
 const { t, locale } = useI18n()
 const sessionAuditStore = useImpersonationSessionAuditStore()
-const {
-  state,
-  pageNum,
-  pageSize,
-  // sortBy, ////
-  // sortDescending, ////
-} = useImpersonationSessionAudit()
+const { state, pageNum, pageSize } = useImpersonationSessionAudit()
 const requestDataJustCopied = ref(false)
 
 const sessionsPage = computed(() => {
@@ -84,9 +78,7 @@ const prettyPrintJsonString = (jsonString: string, truncate = false) => {
 const copyRequestDataToClipboard = (jsonString: string) => {
   const formattedRequestData = prettyPrintJsonString(jsonString, false) || ''
   navigator.clipboard.writeText(formattedRequestData).then(
-    () => {
-      console.log('Request data copied to clipboard') ////
-    },
+    () => {},
     (err) => {
       console.error('Could not copy text: ', err)
       requestDataJustCopied.value = false
@@ -112,10 +104,6 @@ const copyRequestDataToClipboard = (jsonString: string) => {
     @close="emit('close')"
     @primary-click="emit('close')"
   >
-    <!-- sessionAuditStore {{ sessionAuditStore.session }} //// -->
-
-    <!-- <div>state.data {{ state.data }} ////</div> -->
-
     <div class="mt-6 mb-6 grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
       <div>
         <span class="font-medium">{{ $t('account.impersonation.session_start') }}:</span>
@@ -148,10 +136,9 @@ const copyRequestDataToClipboard = (jsonString: string) => {
       </div>
     </div>
     <!-- audit log table -->
-    <!-- //// check breakpoint, skeleton-columns -->
     <NeTable
       :aria-label="$t('account.impersonation.impersonation_audit_log')"
-      card-breakpoint="xl"
+      card-breakpoint="lg"
       :loading="state.status === 'pending'"
       :skeleton-columns="6"
       :skeleton-rows="5"

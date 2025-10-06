@@ -45,37 +45,5 @@ onMounted(() => {
     />
     <GeneralPanel v-if="selectedTab === 'general'" />
     <ImpersonationPanel v-else-if="selectedTab === 'impersonation'" />
-
-    <!-- impersonation consent  //// -->
-    <!-- <NeInlineNotification ////
-        v-if="loginStore.isOwner"
-        kind="info"
-        :title="$t('account.impersonation_consent_cant_be_modified')"
-        :description="$t('account.impersonation_consent_cant_be_modified_owner_description')"
-      /> -->
-
-    <!-- //// move inside impersonation tab -->
-    <!-- <NeInlineNotification
-        v-if="loginStore.isImpersonating"
-        kind="info"
-        :title="$t('account.impersonation.impersonation_consent_cant_be_modified')"
-        :description="
-          $t(
-            'account.impersonation.impersonation_consent_cant_be_modified_impersonating_description',
-          )
-        "
-      />
-      <FormLayout ////
-        :title="$t('account.impersonation.impersonation')"
-        :description="$t('account.impersonation.impersonation_description')"
-      >
-        <ImpersonationPanel />
-      </FormLayout> -->
-    <!-- </div> ////  -->
-    <!-- change password drawer -->
-    <!-- <ChangePasswordDrawer ////
-      :is-shown="isShownChangePasswordDrawer"
-      @close="isShownChangePasswordDrawer = false"
-    /> -->
   </div>
 </template>

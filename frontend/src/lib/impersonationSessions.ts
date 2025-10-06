@@ -63,12 +63,7 @@ interface ImpersonationAuditEntry {
   impersonated_name: string
 }
 
-export const getSessions = (
-  pageNum: number,
-  pageSize: number,
-  // sortBy: string, ////
-  // sortDescending: boolean, ////
-) => {
+export const getSessions = (pageNum: number, pageSize: number) => {
   const loginStore = useLoginStore()
   const params = getQueryStringParams(pageNum, pageSize, null, null, false)
 
@@ -79,13 +74,7 @@ export const getSessions = (
     .then((res) => res.data.data)
 }
 
-export const getSessionAudit = (
-  sessionId: string,
-  pageNum: number,
-  pageSize: number,
-  // sortBy: string, ////
-  // sortDescending: boolean, ////
-) => {
+export const getSessionAudit = (sessionId: string, pageNum: number, pageSize: number) => {
   const loginStore = useLoginStore()
   const params = getQueryStringParams(pageNum, pageSize, null, null, false)
 
@@ -93,33 +82,5 @@ export const getSessionAudit = (
     .get<SessionAuditResponse>(`${API_URL}/${SESSIONS_PATH}/${sessionId}/audit?${params}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
-    .then((res) => res.data.data) //// uncomment
-  // .then((res) => {
-  //   //// remove mock
-  //   res.data.data.entries.forEach((entry) => {
-  //     // mock big json
-  //     const bigJson = {
-  //       example: 'data',
-  //       nested: {
-  //         array: [1, 2, 3],
-  //         object: { key: 'value' },
-  //       },
-  //       anotherKey: 'anotherValue',
-  //       numbers: [10, 20, 30, 40, 50],
-  //       boolean: true,
-  //       nullValue: null,
-  //       moreData: {
-  //         level1: {
-  //           level2: {
-  //             level3: 'deepValue',
-  //           },
-  //         },
-  //       },
-  //       items: Array.from({ length: 20 }, (_, i) => `item${i + 1}`), // creates an array with 20 items
-  //     }
-  //     entry.request_data = JSON.stringify(bigJson, null, 2) ////
-  //   })
-  //   // entry.request_data =  ////
-  //   return res.data.data
-  // }) //// delete
+    .then((res) => res.data.data)
 }

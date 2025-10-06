@@ -11,8 +11,6 @@ export const useImpersonationSessions = defineQuery(() => {
   const loginStore = useLoginStore()
   const pageNum = ref(1)
   const pageSize = ref(DEFAULT_PAGE_SIZE)
-  // const sortBy = ref<keyof Session>('start_time') ////
-  // const sortDescending = ref(false) ////
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [
@@ -20,12 +18,10 @@ export const useImpersonationSessions = defineQuery(() => {
       {
         pageNum: pageNum.value,
         pageSize: pageSize.value,
-        // sortBy: sortBy.value, ////
-        // sortDirection: sortDescending.value, ////
       },
     ],
     enabled: () => !!loginStore.jwtToken,
-    query: () => getSessions(pageNum.value, pageSize.value /*sortBy.value, sortDescending.value*/), ////
+    query: () => getSessions(pageNum.value, pageSize.value),
   })
 
   // load table page size from storage
@@ -33,7 +29,7 @@ export const useImpersonationSessions = defineQuery(() => {
     () => loginStore.userInfo?.email,
     (email) => {
       if (email) {
-        pageSize.value = loadPageSizeFromStorage(SESSIONS_TABLE_ID, 5)
+        pageSize.value = loadPageSizeFromStorage(SESSIONS_TABLE_ID)
       }
     },
     { immediate: true },
@@ -53,7 +49,5 @@ export const useImpersonationSessions = defineQuery(() => {
     asyncStatus,
     pageNum,
     pageSize,
-    // sortBy, ////
-    // sortDescending, ////
   }
 })

@@ -80,20 +80,11 @@ const formatTimer = (startDate: Date, endDate: Date) => {
   totalSeconds.value = Math.floor(Math.abs(diffMs) / 1000)
   const hours = Math.floor(totalSeconds.value / 3600)
   const minutes = Math.floor((totalSeconds.value % 3600) / 60)
-  // const seconds = totalSeconds.value % 60 ////
 
   // HH:MM format
   formattedTimer.value = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
 
-  // long format for tooltip
-  // const parts = [] ////
-  // if (hours > 0) parts.push(`${hours} ${t('time.hours', hours)}`)
-  // if (minutes > 0) parts.push(`${minutes} ${t('time.minutes', minutes)}`)
-  // if (seconds > 0) parts.push(`${seconds} ${t('time.seconds', seconds)}`)
-
   formattedTimerLong.value = formatSeconds(totalSeconds.value, t)
-
-  // formattedTimerLong.value = parts.join(' ') ////
 }
 </script>
 

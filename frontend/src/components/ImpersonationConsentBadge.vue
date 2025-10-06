@@ -32,7 +32,6 @@ const goToImpersonation = () => {
 
 <template>
   <NeBadgeV2 kind="amber">
-    <!-- <div class="flex items-center gap-2"> ////  -->
     <NeTooltip trigger-event="mouseenter focus" placement="bottom" class="relative top-px flex">
       <template #trigger>
         <div class="flex items-center gap-2">
@@ -56,6 +55,5 @@ const goToImpersonation = () => {
         </div>
       </template>
     </NeTooltip>
-    <!-- </div> ////  -->
   </NeBadgeV2>
 </template>

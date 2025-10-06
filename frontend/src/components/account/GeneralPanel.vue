@@ -21,9 +21,6 @@ const isShownChangePasswordDrawer = ref(false)
 
 <template>
   <div>
-    <!-- <NeHeading tag="h4" class="mb-7"> ////
-      {{ $t('account.general') }}
-    </NeHeading> -->
     <div class="max-w-3xl space-y-8">
       <!-- ui language -->
       <FormLayout :title="$t('account.ui_language')" small-heading>

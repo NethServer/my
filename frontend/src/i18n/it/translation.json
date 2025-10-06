@@ -288,20 +288,34 @@
       "no_sessions_description": "Non sei ancora stato impersonato.",
       "status_active": "In corso",
       "status_completed": "Completata",
-      "less_than_a_minute": "Meno di un minuto"
+      "less_than_a_minute": "Meno di un minuto",
+      "show_audit_log": "Mostra audit log",
+      "impersonation_audit_log": "Audit log dell'impersonificazione",
+      "timestamp": "Data e ora",
+      "action_type": "Azione",
+      "api_endpoint": "Endpoint API",
+      "http_method": "Metodo HTTP",
+      "request_data": "Dati della richiesta",
+      "response_status": "Stato della risposta",
+      "action_session_start": "Impersonificazione avviata",
+      "action_session_end": "Impersonificazione terminata",
+      "action_api_call": "Chiamata API",
+      "show_request_data": "Mostra dati",
+      "copy_request_data": "Copia dati",
+      "manage_impersonation": "Gestisci impersonificazione"
     }
   },
   "user_roles": {
-    "Admin": "Amministratore",
-    "Admin_description": "Può gestire utenti e sistemi",
-    "Support": "Supporto",
-    "Support_description": "Può gestire i sistemi",
+    "admin": "Amministratore",
+    "admin_description": "Può gestire utenti e sistemi",
+    "support": "Supporto",
+    "support_description": "Può gestire i sistemi",
     "super_admin": "Super admin",
     "super_admin_description": "Accesso completo, impersonificazione inclusa",
-    "Backoffice": "Backoffice",
-    "Backoffice_description": "Può gestire gli utenti",
-    "Reader": "Lettore",
-    "Reader_description": "Può visualizzare utenti e sistemi"
+    "backoffice": "Backoffice",
+    "backoffice_description": "Può gestire gli utenti",
+    "reader": "Lettore",
+    "reader_description": "Può visualizzare utenti e sistemi"
   },
   "ne_table": {
     "no_items": "Nessun elemento",
@@ -332,5 +346,10 @@
     "direction": "Direzione",
     "ascending": "Crescente",
     "descending": "Decrescente"
+  },
+  "time": {
+    "seconds": "{count} secondo | {count} secondi",
+    "minutes": "{count} minuto | {count} minuti",
+    "hours": "{count} ora | {count} ore"
   }
 }

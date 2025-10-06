@@ -30,11 +30,9 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faCircleCheck } from '@fortawesome/free-solid-svg-icons'
 
 const { t, locale } = useI18n()
-const { state, asyncStatus, pageNum, pageSize /*sortBy, sortDescending */ } =
-  useImpersonationSessions()
+const { state, asyncStatus, pageNum, pageSize } = useImpersonationSessions()
 const sessionAuditStore = useImpersonationSessionAuditStore()
 const isShownSessionModal = ref(false)
-// const currentSession = ref<Session>() ////
 
 const sessionsPage = computed(() => {
   return state.value.data?.sessions || []
@@ -44,15 +42,7 @@ const pagination = computed(() => {
   return state.value.data?.pagination
 })
 
-////
-// const onSort = (payload: SortEvent) => {
-//   sortBy.value = payload.key as keyof Session
-//   sortDescending.value = payload.descending
-// }
-
 const showSessionModal = (session: Session) => {
-  console.log('showSessionModal', session) ////
-
   sessionAuditStore.session = session
   isShownSessionModal.value = true
 }
@@ -80,24 +70,6 @@ const onSessionModalClose = () => {
         :title="$t('account.impersonation.cannot_retrieve_impersonation_sessions')"
         :description="state.error.message"
       />
-      <!-- <NeSortDropdown ////
-        v-model:sort-key="sortBy"
-        v-model:sort-descending="sortDescending"
-        :label="t('sort.sort')"
-        :options="[
-          { id: 'start_time', label: t('account.session_start') },
-          { id: 'end_time', label: t('account.session_end') },
-          { id: 'duration_minutes', label: t('account.duration') },
-          { id: 'impersonator_name', label: t('account.impersonator') },
-          { id: 'status', label: t('account.session_status') },
-        ]"
-        :open-menu-aria-label="t('ne_dropdown.open_menu')"
-        :sort-by-label="t('sort.sort_by')"
-        :sort-direction-label="t('sort.direction')"
-        :ascending-label="t('sort.ascending')"
-        :descending-label="t('sort.descending')"
-        class="xl:hidden"
-      /> -->
       <NeEmptyState
         v-if="!state.data?.sessions?.length && state.status !== 'pending'"
         :title="$t('account.impersonation.no_sessions')"
@@ -105,7 +77,6 @@ const onSessionModalClose = () => {
         :icon="faUserSecret"
         class="bg-white dark:bg-gray-950"
       />
-      <!-- //// check breakpoint, skeleton-columns -->
       <NeTable
         v-else
         :aria-label="$t('account.impersonation.sessions')"
