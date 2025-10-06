@@ -226,9 +226,9 @@ func (s *ImpersonationService) LogImpersonationAction(entry *models.Impersonatio
 	query := `
 		INSERT INTO impersonation_audit (
 			id, session_id, impersonator_user_id, impersonated_user_id, action_type,
-			api_endpoint, http_method, request_data, response_status, timestamp,
+			api_endpoint, http_method, request_data, response_status, response_status_text, timestamp,
 			impersonator_username, impersonated_username, impersonator_name, impersonated_name
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 	`
 
 	_, err := s.db.Exec(query,
@@ -241,6 +241,7 @@ func (s *ImpersonationService) LogImpersonationAction(entry *models.Impersonatio
 		entry.HTTPMethod,
 		entry.RequestData,
 		entry.ResponseStatus,
+		entry.ResponseStatusText,
 		entry.Timestamp,
 		entry.ImpersonatorUsername,
 		entry.ImpersonatedUsername,
@@ -285,7 +286,7 @@ func (s *ImpersonationService) GetSessionAuditHistory(sessionID string, page, pa
 	// Get paginated entries
 	query := `
 		SELECT id, session_id, impersonator_user_id, impersonated_user_id, action_type,
-			   api_endpoint, http_method, request_data, response_status, timestamp,
+			   api_endpoint, http_method, request_data, response_status, response_status_text, timestamp,
 			   impersonator_username, impersonated_username, impersonator_name, impersonated_name
 		FROM impersonation_audit
 		WHERE session_id = $1
@@ -316,6 +317,7 @@ func (s *ImpersonationService) GetSessionAuditHistory(sessionID string, page, pa
 			&entry.HTTPMethod,
 			&entry.RequestData,
 			&entry.ResponseStatus,
+			&entry.ResponseStatusText,
 			&entry.Timestamp,
 			&entry.ImpersonatorUsername,
 			&entry.ImpersonatedUsername,

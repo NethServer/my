@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -123,6 +124,7 @@ func ImpersonationAuditMiddleware() gin.HandlerFunc {
 
 		// Create audit entry
 		responseStatus := c.Writer.Status()
+		responseStatusText := http.StatusText(responseStatus)
 		auditEntry := &models.ImpersonationAuditEntry{
 			SessionID:            sessionIDStr,
 			ImpersonatorUserID:   helpers.GetEffectiveUserID(impersonatorUser),
@@ -131,6 +133,7 @@ func ImpersonationAuditMiddleware() gin.HandlerFunc {
 			APIEndpoint:          &c.Request.URL.Path,
 			HTTPMethod:           &c.Request.Method,
 			ResponseStatus:       &responseStatus,
+			ResponseStatusText:   &responseStatusText,
 			ImpersonatorUsername: impersonatorUser.Username,
 			ImpersonatedUsername: impersonatedUser.Username,
 			ImpersonatorName:     impersonatorUser.Name,

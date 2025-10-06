@@ -272,6 +272,7 @@ CREATE TABLE IF NOT EXISTS impersonation_audit (
     http_method VARCHAR(10),
     request_data TEXT,
     response_status INTEGER,
+    response_status_text VARCHAR(50),
     timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     impersonator_username VARCHAR(255) NOT NULL,
     impersonated_username VARCHAR(255) NOT NULL,

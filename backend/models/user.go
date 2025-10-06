@@ -62,11 +62,12 @@ type ImpersonationAuditEntry struct {
 	SessionID            string    `json:"session_id" db:"session_id"`
 	ImpersonatorUserID   string    `json:"impersonator_user_id" db:"impersonator_user_id"`
 	ImpersonatedUserID   string    `json:"impersonated_user_id" db:"impersonated_user_id"`
-	ActionType           string    `json:"action_type" db:"action_type"`         // "api_call", "session_start", "session_end"
-	APIEndpoint          *string   `json:"api_endpoint" db:"api_endpoint"`       // Only for api_call actions
-	HTTPMethod           *string   `json:"http_method" db:"http_method"`         // Only for api_call actions
-	RequestData          *string   `json:"request_data" db:"request_data"`       // Only for api_call actions
-	ResponseStatus       *int      `json:"response_status" db:"response_status"` // Only for api_call actions
+	ActionType           string    `json:"action_type" db:"action_type"`                   // "api_call", "session_start", "session_end"
+	APIEndpoint          *string   `json:"api_endpoint" db:"api_endpoint"`                 // Only for api_call actions
+	HTTPMethod           *string   `json:"http_method" db:"http_method"`                   // Only for api_call actions
+	RequestData          *string   `json:"request_data" db:"request_data"`                 // Only for api_call actions
+	ResponseStatus       *int      `json:"response_status" db:"response_status"`           // Only for api_call actions
+	ResponseStatusText   *string   `json:"response_status_text" db:"response_status_text"` // Only for api_call actions
 	Timestamp            time.Time `json:"timestamp" db:"timestamp"`
 	ImpersonatorUsername string    `json:"impersonator_username" db:"impersonator_username"`
 	ImpersonatedUsername string    `json:"impersonated_username" db:"impersonated_username"`
