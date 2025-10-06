@@ -100,7 +100,7 @@ const formatTimer = (startDate: Date, endDate: Date) => {
 <template>
   <NeBadgeV2 kind="amber">
     <div class="flex items-center gap-2">
-      <NeTooltip trigger-event="mouseenter focus" placement="bottom" class="relative top-px flex">
+      <NeTooltip trigger-event="mouseenter focus" placement="bottom" class="relative flex">
         <template #trigger>
           <div class="flex items-center gap-2">
             <FontAwesomeIcon :icon="faUserSecret" class="size-4" aria-hidden="true" />

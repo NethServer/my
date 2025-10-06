@@ -220,7 +220,7 @@ const copyRequestDataToClipboard = (jsonString: string) => {
           :previous-label="$t('ne_table.go_to_previous_page')"
           :range-of-total-label="$t('ne_table.of')"
           :page-size-label="$t('ne_table.show')"
-          class="z-120"
+          listbox-options-panel-style="z-120"
           @select-page="
             (page: number) => {
               pageNum = page
