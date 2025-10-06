@@ -17,7 +17,7 @@ import {
   NeEmptyState,
   NeInlineNotification,
 } from '@nethesis/vue-components'
-import { computed, ref, nextTick } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useImpersonationSessions } from '@/queries/impersonationSessions'
@@ -55,10 +55,11 @@ const showSessionModal = (session: Session) => {
 
   sessionAuditStore.session = session
   isShownSessionModal.value = true
+}
 
-  nextTick(() => {
-    console.log('sessionAuditStore.session', sessionAuditStore.session) ////
-  })
+const onSessionModalClose = () => {
+  isShownSessionModal.value = false
+  sessionAuditStore.session = undefined
 }
 </script>
 
@@ -149,12 +150,12 @@ const showSessionModal = (session: Session) => {
               <!-- status icon -->
               <div class="flex items-center gap-2">
                 <template v-if="item.status === 'active'">
-                  <span class="relative flex size-2.5">
+                  <span class="relative mx-1 flex size-2.5">
                     <span
-                      class="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-600 opacity-75 dark:bg-green-400"
+                      class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-600 opacity-75 dark:bg-amber-400"
                     ></span>
                     <span
-                      class="relative inline-flex size-2.5 rounded-full bg-green-700 dark:bg-green-500"
+                      class="relative inline-flex size-2.5 rounded-full bg-amber-700 dark:bg-amber-500"
                     ></span
                   ></span>
                 </template>
@@ -203,6 +204,6 @@ const showSessionModal = (session: Session) => {
         </template>
       </NeTable>
     </div>
-    <SessionModal :visible="isShownSessionModal" @close="isShownSessionModal = false" />
+    <SessionModal :visible="isShownSessionModal" @close="onSessionModalClose" />
   </div>
 </template>

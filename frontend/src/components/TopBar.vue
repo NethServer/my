@@ -23,6 +23,8 @@ import { useI18n } from 'vue-i18n'
 import { useNotificationsStore } from '@/stores/notifications'
 import router from '@/router'
 import ImpersonationBadge from './ImpersonationBadge.vue'
+import { useImpersonationConsent } from '@/queries/impersonationConsent'
+import ImpersonationConsentBadge from './ImpersonationConsentBadge.vue'
 
 const emit = defineEmits(['openSidebar'])
 
@@ -30,6 +32,7 @@ const { t } = useI18n()
 const themeStore = useThemeStore()
 const loginStore = useLoginStore()
 const notificationsStore = useNotificationsStore()
+const { state: impersonationConsentState } = useImpersonationConsent()
 
 const topBarButtonsColorClasses =
   'text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-gray-50 transition-colors duration-300'
@@ -96,7 +99,10 @@ function openNotificationsDrawer() {
       <!-- right-aligned before separator -->
       <div class="flex items-center gap-x-4 lg:gap-x-6">
         <!-- impersonation badge -->
-        <ImpersonationBadge />
+        <ImpersonationBadge v-if="loginStore.isImpersonating" />
+        <ImpersonationConsentBadge
+          v-if="impersonationConsentState.data?.consent && !loginStore.isImpersonating"
+        />
         <!-- separator -->
         <div
           class="hidden lg:block lg:h-6 lg:w-px lg:bg-gray-200 dark:lg:bg-gray-700"

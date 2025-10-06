@@ -98,7 +98,7 @@ const formatTimer = (startDate: Date, endDate: Date) => {
 </script>
 
 <template>
-  <NeBadgeV2 v-if="loginStore.isImpersonating" kind="amber">
+  <NeBadgeV2 kind="amber">
     <div class="flex items-center gap-2">
       <NeTooltip trigger-event="mouseenter focus" placement="bottom" class="relative top-px flex">
         <template #trigger>

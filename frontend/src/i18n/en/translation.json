@@ -301,7 +301,8 @@
       "action_session_end": "Impersonation ended",
       "action_api_call": "API call",
       "show_request_data": "Show request data",
-      "copy_request_data": "Copy request data"
+      "copy_request_data": "Copy request data",
+      "manage_impersonation": "Manage impersonation"
     }
   },
   "user_roles": {
