@@ -865,7 +865,39 @@ func GetImpersonationSession(c *gin.Context) {
 	// Create impersonation service
 	impersonationService := local.NewImpersonationService()
 
-	// Get all sessions and find the specific one (to verify ownership)
+	// First, check if the session exists in the database at all
+	sessionExists, err := impersonationService.SessionExists(sessionID)
+	if err != nil {
+		logger.RequestLogger(c, "impersonate").Error().
+			Err(err).
+			Str("operation", "check_session_exists").
+			Str("user_id", user.ID).
+			Str("session_id", sessionID).
+			Msg("Failed to check if session exists")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError(
+			"failed to check session existence: "+err.Error(),
+			nil,
+		))
+		return
+	}
+
+	// If session doesn't exist, return 404
+	if !sessionExists {
+		logger.RequestLogger(c, "impersonate").Debug().
+			Str("operation", "session_not_found").
+			Str("user_id", user.ID).
+			Str("session_id", sessionID).
+			Msg("Session not found in database")
+
+		c.JSON(http.StatusNotFound, response.NotFound(
+			"session not found",
+			nil,
+		))
+		return
+	}
+
+	// Session exists - now verify that it belongs to the current user
 	sessions, _, err := impersonationService.GetUserSessions(user.ID, 1, 1000)
 	if err != nil {
 		logger.RequestLogger(c, "impersonate").Error().
@@ -891,15 +923,16 @@ func GetImpersonationSession(c *gin.Context) {
 		}
 	}
 
+	// Session exists but doesn't belong to user - return 403
 	if session == nil {
 		logger.RequestLogger(c, "impersonate").Warn().
-			Str("operation", "session_not_found").
+			Str("operation", "session_access_denied").
 			Str("user_id", user.ID).
 			Str("session_id", sessionID).
-			Msg("Session not found for user")
+			Msg("User attempted to access session that doesn't belong to them")
 
-		c.JSON(http.StatusNotFound, response.NotFound(
-			"session not found",
+		c.JSON(http.StatusForbidden, response.Forbidden(
+			"access denied: this session belongs to another user",
 			nil,
 		))
 		return
@@ -943,8 +976,43 @@ func GetSessionAudit(c *gin.Context) {
 	// Create impersonation service
 	impersonationService := local.NewImpersonationService()
 
-	// First, verify that this session belongs to the current user
-	// We get sessions for the current user and check if the requested session_id exists
+	// First, check if the session exists in the database at all
+	sessionExists, err := impersonationService.SessionExists(sessionID)
+	if err != nil {
+		logger.RequestLogger(c, "impersonate").Error().
+			Err(err).
+			Str("operation", "check_session_exists").
+			Str("user_id", user.ID).
+			Str("session_id", sessionID).
+			Msg("Failed to check if session exists")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError(
+			"failed to check session existence: "+err.Error(),
+			nil,
+		))
+		return
+	}
+
+	// If session doesn't exist, return 200 with empty list
+	if !sessionExists {
+		logger.RequestLogger(c, "impersonate").Debug().
+			Str("operation", "session_not_found").
+			Str("user_id", user.ID).
+			Str("session_id", sessionID).
+			Msg("Session not found in database")
+
+		c.JSON(http.StatusOK, response.OK(
+			"session audit retrieved successfully",
+			gin.H{
+				"session_id": sessionID,
+				"entries":    []models.ImpersonationAuditEntry{},
+				"pagination": helpers.BuildPaginationInfo(page, pageSize, 0),
+			},
+		))
+		return
+	}
+
+	// Session exists - now verify that it belongs to the current user
 	sessions, _, err := impersonationService.GetUserSessions(user.ID, 1, 1000) // Get all sessions (page 1, large page size)
 	if err != nil {
 		logger.RequestLogger(c, "impersonate").Error().
@@ -962,23 +1030,24 @@ func GetSessionAudit(c *gin.Context) {
 	}
 
 	// Check if the session belongs to this user
-	var sessionFound bool
+	var sessionOwned bool
 	for _, session := range sessions {
 		if session.SessionID == sessionID {
-			sessionFound = true
+			sessionOwned = true
 			break
 		}
 	}
 
-	if !sessionFound {
+	// Session exists but doesn't belong to user - return 403
+	if !sessionOwned {
 		logger.RequestLogger(c, "impersonate").Warn().
 			Str("operation", "session_access_denied").
 			Str("user_id", user.ID).
 			Str("session_id", sessionID).
 			Msg("User attempted to access session that doesn't belong to them")
 
-		c.JSON(http.StatusNotFound, response.NotFound(
-			"session not found or access denied",
+		c.JSON(http.StatusForbidden, response.Forbidden(
+			"access denied: this session belongs to another user",
 			nil,
 		))
 		return

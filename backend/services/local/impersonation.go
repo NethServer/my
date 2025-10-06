@@ -337,6 +337,23 @@ func (s *ImpersonationService) GetSessionAuditHistory(sessionID string, page, pa
 	return entries, totalCount, nil
 }
 
+// SessionExists checks if a session exists in the database (regardless of ownership)
+func (s *ImpersonationService) SessionExists(sessionID string) (bool, error) {
+	query := `SELECT EXISTS(SELECT 1 FROM impersonation_audit WHERE session_id = $1)`
+
+	var exists bool
+	err := s.db.QueryRow(query, sessionID).Scan(&exists)
+	if err != nil {
+		logger.ComponentLogger("impersonation").Error().
+			Err(err).
+			Str("session_id", sessionID).
+			Msg("Failed to check if session exists")
+		return false, err
+	}
+
+	return exists, nil
+}
+
 // GetUserSessions retrieves all impersonation sessions for a specific user (being impersonated)
 func (s *ImpersonationService) GetUserSessions(userID string, page, pageSize int) ([]models.ImpersonationSession, int, error) {
 	// Get total count of sessions
