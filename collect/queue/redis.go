@@ -42,6 +42,13 @@ func Init() error {
 	opt.ReadTimeout = configuration.Config.RedisReadTimeout
 	opt.WriteTimeout = configuration.Config.RedisWriteTimeout
 
+	// Configure connection pool to avoid exceeding Redis connection limits
+	opt.PoolSize = 15                      // Maximum 15 connections per client
+	opt.MinIdleConns = 5                   // Keep 5 connections ready
+	opt.MaxIdleConns = 10                  // Maximum 10 idle connections
+	opt.ConnMaxIdleTime = 5 * time.Minute  // Close idle connections after 5 minutes
+	opt.ConnMaxLifetime = 30 * time.Minute // Maximum connection lifetime
+
 	client = redis.NewClient(opt)
 
 	// Test connection
