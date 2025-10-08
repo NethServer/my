@@ -698,45 +698,51 @@ func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequ
 
 	// 6. Update organization assignment if provided
 	if req.OrganizationID != nil {
-		// First need to check if organization changed
-		oldOrgID := ""
-		if currentUser.OrganizationID != nil {
-			oldOrgID = *currentUser.OrganizationID
-		}
-		newOrgID := ""
-		if req.OrganizationID != nil {
-			newOrgID = *req.OrganizationID
-		}
+		newOrgID := *req.OrganizationID
 
-		if oldOrgID != newOrgID {
+		logger.Info().
+			Str("user_id", id).
+			Str("logto_user_id", *user.LogtoID).
+			Str("new_org_id", newOrgID).
+			Msg("Organization assignment update requested")
+
+		// IMPORTANT: Remove user from ALL organizations in Logto first (not just from old org in local DB)
+		// This ensures clean state even if there were inconsistencies
+		currentLogtoOrgs, err := s.logtoClient.GetUserOrganizations(*user.LogtoID)
+		if err != nil {
+			logger.Warn().
+				Err(err).
+				Str("user_id", id).
+				Str("logto_user_id", *user.LogtoID).
+				Msg("Failed to get current user organizations from Logto - attempting update anyway")
+		} else if len(currentLogtoOrgs) > 0 {
 			logger.Info().
 				Str("user_id", id).
 				Str("logto_user_id", *user.LogtoID).
-				Str("old_org_id", oldOrgID).
-				Str("new_org_id", newOrgID).
-				Msg("Organization change detected, updating Logto assignments")
+				Int("org_count", len(currentLogtoOrgs)).
+				Msg("Removing user from all current Logto organizations")
 
-			// Remove from old organization if it exists
-			if oldOrgID != "" {
+			for _, logtoOrg := range currentLogtoOrgs {
+				oldOrgLogtoID := logtoOrg.ID
 				// Get current organization roles to remove them
-				oldOrgRoles, err := s.logtoClient.GetUserOrganizationRoles(oldOrgID, *user.LogtoID)
+				oldOrgRoles, err := s.logtoClient.GetUserOrganizationRoles(oldOrgLogtoID, *user.LogtoID)
 				if err != nil {
 					logger.Warn().
 						Err(err).
 						Str("user_id", id).
 						Str("logto_user_id", *user.LogtoID).
-						Str("old_org_id", oldOrgID).
+						Str("old_org_logto_id", oldOrgLogtoID).
 						Msg("Failed to get current organization roles for removal")
 				} else if len(oldOrgRoles) > 0 {
 					// Remove organization roles first (Logto requirement)
 					for _, role := range oldOrgRoles {
-						err = s.logtoClient.RemoveUserFromOrganizationRole(oldOrgID, *user.LogtoID, role.ID)
+						err = s.logtoClient.RemoveUserFromOrganizationRole(oldOrgLogtoID, *user.LogtoID, role.ID)
 						if err != nil {
 							logger.Warn().
 								Err(err).
 								Str("user_id", id).
 								Str("logto_user_id", *user.LogtoID).
-								Str("old_org_id", oldOrgID).
+								Str("old_org_logto_id", oldOrgLogtoID).
 								Str("role_id", role.ID).
 								Msg("Failed to remove user from old organization role")
 						}
@@ -744,45 +750,57 @@ func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequ
 				}
 
 				// Remove from organization
-				err = s.logtoClient.RemoveUserFromOrganization(oldOrgID, *user.LogtoID)
+				err = s.logtoClient.RemoveUserFromOrganization(oldOrgLogtoID, *user.LogtoID)
 				if err != nil {
 					logger.Warn().
 						Err(err).
 						Str("user_id", id).
 						Str("logto_user_id", *user.LogtoID).
-						Str("old_org_id", oldOrgID).
+						Str("old_org_logto_id", oldOrgLogtoID).
 						Msg("Failed to remove user from old organization")
 				} else {
 					logger.Info().
 						Str("user_id", id).
 						Str("logto_user_id", *user.LogtoID).
-						Str("old_org_id", oldOrgID).
+						Str("old_org_logto_id", oldOrgLogtoID).
 						Msg("User removed from old organization successfully")
 				}
 			}
+		}
 
-			// Add to new organization if specified
-			if newOrgID != "" {
-				err = s.logtoClient.AssignUserToOrganization(newOrgID, *user.LogtoID)
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Str("user_id", id).
-						Str("logto_user_id", *user.LogtoID).
-						Str("new_org_id", newOrgID).
-						Msg("Failed to assign user to new organization")
-				} else {
-					logger.Info().
-						Str("user_id", id).
-						Str("logto_user_id", *user.LogtoID).
-						Str("new_org_id", newOrgID).
-						Msg("User assigned to new organization successfully")
+		// Add to new organization
+		if newOrgID != "" {
+			err = s.logtoClient.AssignUserToOrganization(newOrgID, *user.LogtoID)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("user_id", id).
+					Str("logto_user_id", *user.LogtoID).
+					Str("new_org_id", newOrgID).
+					Msg("Failed to assign user to new organization")
+			} else {
+				logger.Info().
+					Str("user_id", id).
+					Str("logto_user_id", *user.LogtoID).
+					Str("new_org_id", newOrgID).
+					Msg("User assigned to new organization successfully")
 
-					// Determine and assign new organization role
-					newOrgRoleName := s.determineOrganizationRoleName(newOrgID)
-					if newOrgRoleName != "" {
-						// Get the organization role ID from Logto by name
-						newOrgRole, err := s.logtoClient.GetOrganizationRoleByName(newOrgRoleName)
+				// Determine and assign new organization role
+				newOrgRoleName := s.determineOrganizationRoleName(newOrgID)
+				if newOrgRoleName != "" {
+					// Get the organization role ID from Logto by name
+					newOrgRole, err := s.logtoClient.GetOrganizationRoleByName(newOrgRoleName)
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Str("user_id", id).
+							Str("logto_user_id", *user.LogtoID).
+							Str("new_org_id", newOrgID).
+							Str("new_org_role_name", newOrgRoleName).
+							Msg("Failed to get new organization role from Logto")
+					} else {
+						// Assign new organization role
+						err = s.logtoClient.AssignOrganizationRolesToUser(newOrgID, *user.LogtoID, []string{newOrgRole.ID}, nil)
 						if err != nil {
 							logger.Error().
 								Err(err).
@@ -790,28 +808,16 @@ func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequ
 								Str("logto_user_id", *user.LogtoID).
 								Str("new_org_id", newOrgID).
 								Str("new_org_role_name", newOrgRoleName).
-								Msg("Failed to get new organization role from Logto")
+								Str("new_org_role_id", newOrgRole.ID).
+								Msg("Failed to assign new organization role to user")
 						} else {
-							// Assign new organization role
-							err = s.logtoClient.AssignOrganizationRolesToUser(newOrgID, *user.LogtoID, []string{newOrgRole.ID}, nil)
-							if err != nil {
-								logger.Error().
-									Err(err).
-									Str("user_id", id).
-									Str("logto_user_id", *user.LogtoID).
-									Str("new_org_id", newOrgID).
-									Str("new_org_role_name", newOrgRoleName).
-									Str("new_org_role_id", newOrgRole.ID).
-									Msg("Failed to assign new organization role to user")
-							} else {
-								logger.Info().
-									Str("user_id", id).
-									Str("logto_user_id", *user.LogtoID).
-									Str("new_org_id", newOrgID).
-									Str("new_org_role_name", newOrgRoleName).
-									Str("new_org_role_id", newOrgRole.ID).
-									Msg("New organization role assigned successfully")
-							}
+							logger.Info().
+								Str("user_id", id).
+								Str("logto_user_id", *user.LogtoID).
+								Str("new_org_id", newOrgID).
+								Str("new_org_role_name", newOrgRoleName).
+								Str("new_org_role_id", newOrgRole.ID).
+								Msg("New organization role assigned successfully")
 						}
 					}
 				}
@@ -839,7 +845,17 @@ func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequ
 		Str("updated_by", updatedByUserID).
 		Msg("User updated successfully with Logto sync")
 
-	return user, nil
+	// 9. Fetch updated user data from repository to return with fresh organization info
+	updatedUser, err := s.userRepo.GetByID(id)
+	if err != nil {
+		logger.Warn().
+			Err(err).
+			Str("user_id", id).
+			Msg("Failed to fetch updated user data - returning cached data")
+		return user, nil
+	}
+
+	return updatedUser, nil
 }
 
 // DeleteUser soft-deletes a user locally and syncs to Logto

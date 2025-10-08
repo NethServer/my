@@ -197,10 +197,9 @@ func UpdateSystem(c *gin.Context) {
 		return
 	}
 
-	// Get current user context with organization ID
-	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
 		return
 	}
 
@@ -215,7 +214,7 @@ func UpdateSystem(c *gin.Context) {
 	systemsService := local.NewSystemsService()
 
 	// Update system with access validation
-	system, err := systemsService.UpdateSystem(systemID, &request, userID, userOrgID, userOrgRole)
+	system, err := systemsService.UpdateSystem(systemID, &request, user.ID, user.OrganizationID, user.OrgRole)
 	if handleSystemAccessError(c, err, systemID) {
 		return
 	}
@@ -236,10 +235,9 @@ func DeleteSystem(c *gin.Context) {
 		return
 	}
 
-	// Get current user context with organization ID
-	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
 		return
 	}
 
@@ -247,7 +245,7 @@ func DeleteSystem(c *gin.Context) {
 	systemsService := local.NewSystemsService()
 
 	// Delete system with access validation
-	err := systemsService.DeleteSystem(systemID, userID, userOrgID, userOrgRole)
+	err := systemsService.DeleteSystem(systemID, user.ID, user.OrganizationID, user.OrgRole)
 	if handleSystemAccessError(c, err, systemID) {
 		return
 	}

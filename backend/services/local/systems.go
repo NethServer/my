@@ -435,16 +435,16 @@ func (s *LocalSystemsService) GetTotals(userOrgRole, userOrgID string, timeoutMi
 
 // CanUpdateSystemByCreator validates if a user can update a system based on created_by organization
 func (s *LocalSystemsService) CanUpdateSystemByCreator(userOrgRole, userOrgID string, creator *models.SystemCreator) (bool, string) {
-	// Normalize role to lowercase for case-insensitive comparison
-	normalizedRole := strings.ToLower(userOrgRole)
+	// Normalize organization role to lowercase for case-insensitive comparison
+	normalizedOrgRole := strings.ToLower(userOrgRole)
 
-	switch normalizedRole {
+	switch normalizedOrgRole {
 	case "owner":
 		return true, ""
 	case "distributor":
 		// Distributor can update systems created by organizations they manage hierarchically
 		userService := NewUserService()
-		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, creator.OrganizationID) {
+		if userService.IsOrganizationInHierarchy(normalizedOrgRole, userOrgID, creator.OrganizationID) {
 			return true, ""
 		}
 		return false, "distributors can only update systems created by organizations they manage"
@@ -467,16 +467,16 @@ func (s *LocalSystemsService) CanUpdateSystemByCreator(userOrgRole, userOrgID st
 
 // CanDeleteSystemByCreator validates if a user can delete a system based on created_by organization
 func (s *LocalSystemsService) CanDeleteSystemByCreator(userOrgRole, userOrgID string, creator *models.SystemCreator) (bool, string) {
-	// Normalize role to lowercase for case-insensitive comparison
-	normalizedRole := strings.ToLower(userOrgRole)
+	// Normalize organization role to lowercase for case-insensitive comparison
+	normalizedOrgRole := strings.ToLower(userOrgRole)
 
-	switch normalizedRole {
+	switch normalizedOrgRole {
 	case "owner":
 		return true, ""
 	case "distributor":
 		// Distributor can delete systems created by organizations they manage hierarchically
 		userService := NewUserService()
-		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, creator.OrganizationID) {
+		if userService.IsOrganizationInHierarchy(normalizedOrgRole, userOrgID, creator.OrganizationID) {
 			return true, ""
 		}
 		return false, "distributors can only delete systems created by organizations they manage"
@@ -632,16 +632,16 @@ func (s *LocalSystemsService) GetTotalsByCreatedByOrganizations(allowedOrgIDs []
 
 // CanCreateSystemForOrganization validates if a user can create systems for a specific organization
 func (s *LocalSystemsService) CanCreateSystemForOrganization(userOrgRole, userOrgID, targetOrgID string) (bool, string) {
-	// Normalize role to lowercase for case-insensitive comparison
-	normalizedRole := strings.ToLower(userOrgRole)
+	// Normalize organization role to lowercase for case-insensitive comparison
+	normalizedOrgRole := strings.ToLower(userOrgRole)
 
-	switch normalizedRole {
+	switch normalizedOrgRole {
 	case "owner":
 		return true, ""
 	case "distributor":
 		// Distributor can create systems for organizations they manage hierarchically
 		userService := NewUserService()
-		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, targetOrgID) {
+		if userService.IsOrganizationInHierarchy(normalizedOrgRole, userOrgID, targetOrgID) {
 			return true, ""
 		}
 		return false, "distributors can only create systems for organizations they manage"
