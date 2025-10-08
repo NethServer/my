@@ -99,14 +99,18 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 		return nil, fmt.Errorf("failed to create system: %w", err)
 	}
 
+	// Fetch organization name
+	organizationName := s.getOrganizationName(request.OrganizationID)
+
 	// Create system object
 	system := &models.System{
-		ID:             systemID,
-		Name:           request.Name,
-		Type:           systemType,
-		Status:         "undefined",
-		SystemKey:      systemKey,
-		OrganizationID: request.OrganizationID,
+		ID:               systemID,
+		Name:             request.Name,
+		Type:             systemType,
+		Status:           "undefined",
+		SystemKey:        systemKey,
+		OrganizationID:   request.OrganizationID,
+		OrganizationName: organizationName,
 		// FQDN, IPv4Address, IPv6Address, Version will be populated by collect service
 		CustomData:   request.CustomData,
 		SystemSecret: systemSecret, // Return plain secret only during creation
@@ -131,9 +135,13 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRole, userRole string) ([]*models.System, error) {
 	query := `
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
-		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
+		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, h.last_heartbeat,
+		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
+		LEFT JOIN distributors d ON s.organization_id = d.logto_id AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON s.organization_id = r.logto_id AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON s.organization_id = c.logto_id AND c.deleted_at IS NULL
 		WHERE s.deleted_at IS NULL
 		ORDER BY s.created_at DESC
 	`
@@ -153,11 +161,13 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 		var createdByJSON []byte
 		var fqdn, ipv4Address, ipv6Address, version sql.NullString
 		var lastHeartbeat sql.NullTime
+		var organizationName sql.NullString
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
 			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.OrganizationID,
 			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &lastHeartbeat,
+			&organizationName,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan system: %w", err)
@@ -168,6 +178,7 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 		system.IPv4Address = ipv4Address.String
 		system.IPv6Address = ipv6Address.String
 		system.Version = version.String
+		system.OrganizationName = organizationName.String
 
 		// Parse custom_data JSON
 		if len(customDataJSON) > 0 {
@@ -660,4 +671,27 @@ func (s *LocalSystemsService) CanCreateSystemForOrganization(userOrgRole, userOr
 	default:
 		return false, "insufficient permissions to create systems"
 	}
+}
+
+// getOrganizationName fetches organization name from distributors, resellers, or customers tables
+func (s *LocalSystemsService) getOrganizationName(logtoOrgID string) string {
+	query := `
+		SELECT COALESCE(d.name, r.name, c.name, 'Owner') as organization_name
+		FROM (SELECT $1 as logto_id) o
+		LEFT JOIN distributors d ON o.logto_id = d.logto_id AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON o.logto_id = r.logto_id AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON o.logto_id = c.logto_id AND c.deleted_at IS NULL
+	`
+
+	var orgName string
+	err := database.DB.QueryRow(query, logtoOrgID).Scan(&orgName)
+	if err != nil {
+		logger.Warn().
+			Err(err).
+			Str("organization_id", logtoOrgID).
+			Msg("Failed to fetch organization name")
+		return "Owner"
+	}
+
+	return orgName
 }
