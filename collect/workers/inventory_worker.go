@@ -13,7 +13,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -249,6 +251,18 @@ func (iw *InventoryWorker) processBatchInTransaction(ctx context.Context, conn *
 		}
 	}
 
+	// Update system fields from inventory data before committing
+	for _, record := range insertedRecords {
+		if err := iw.updateSystemFieldsFromInventory(txCtx, tx, &record, logger); err != nil {
+			logger.Warn().
+				Err(err).
+				Str("system_id", record.SystemID).
+				Int64("record_id", record.ID).
+				Msg("Failed to update system fields from inventory")
+			// Continue processing other records even if one fails
+		}
+	}
+
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit batch transaction: %w", err)
@@ -400,4 +414,110 @@ func (iw *InventoryWorker) getPreviousInventoryRecord(ctx context.Context, syste
 	}
 
 	return record, nil
+}
+
+// updateSystemFieldsFromInventory extracts relevant fields from inventory and updates the systems table
+func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, tx *sql.Tx, record *models.InventoryRecord, logger zerolog.Logger) error {
+	// Parse inventory data
+	var inventoryData map[string]interface{}
+	if err := json.Unmarshal(record.Data, &inventoryData); err != nil {
+		return fmt.Errorf("failed to unmarshal inventory data: %w", err)
+	}
+
+	// Extract system fields
+	var fqdn, version, systemType, ipv4 *string
+
+	// Extract FQDN from data.networking.fqdn
+	if networking, ok := inventoryData["networking"].(map[string]interface{}); ok {
+		if fqdnVal, ok := networking["fqdn"].(string); ok && fqdnVal != "" {
+			fqdn = &fqdnVal
+		}
+
+		// Extract IPv4 from data.networking.public_ip
+		if publicIP, ok := networking["public_ip"].(string); ok && publicIP != "" {
+			ipv4 = &publicIP
+		}
+	}
+
+	// Extract version from data.os.release.full
+	if os, ok := inventoryData["os"].(map[string]interface{}); ok {
+		if release, ok := os["release"].(map[string]interface{}); ok {
+			if fullVersion, ok := release["full"].(string); ok && fullVersion != "" {
+				version = &fullVersion
+			}
+		}
+
+		// Extract type from data.os.type and map to product name
+		if osType, ok := os["type"].(string); ok && osType != "" {
+			var productName string
+			switch osType {
+			case "nethserver":
+				productName = "ns8"
+			case "nethsecurity":
+				productName = "nsec"
+			default:
+				productName = osType
+			}
+			systemType = &productName
+		}
+	}
+
+	// Build UPDATE query dynamically for non-null fields
+	updates := []string{}
+	args := []interface{}{}
+	argPos := 1
+
+	if fqdn != nil {
+		updates = append(updates, fmt.Sprintf("fqdn = $%d", argPos))
+		args = append(args, *fqdn)
+		argPos++
+	}
+	if version != nil {
+		updates = append(updates, fmt.Sprintf("version = $%d", argPos))
+		args = append(args, *version)
+		argPos++
+	}
+	if systemType != nil {
+		updates = append(updates, fmt.Sprintf("type = $%d", argPos))
+		args = append(args, *systemType)
+		argPos++
+	}
+	if ipv4 != nil {
+		updates = append(updates, fmt.Sprintf("ipv4_address = $%d", argPos))
+		args = append(args, *ipv4)
+		argPos++
+	}
+
+	// Always update updated_at timestamp
+	updates = append(updates, "updated_at = NOW()")
+
+	// If no fields to update, skip
+	if len(updates) == 1 { // Only updated_at
+		return nil
+	}
+
+	// Add system_id as last argument
+	args = append(args, record.SystemID)
+
+	// Execute UPDATE
+	query := fmt.Sprintf(`
+		UPDATE systems
+		SET %s
+		WHERE id = $%d AND deleted_at IS NULL
+	`, strings.Join(updates, ", "), argPos)
+
+	result, err := tx.ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("failed to update system fields: %w", err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected > 0 {
+		logger.Debug().
+			Str("system_id", record.SystemID).
+			Int("fields_updated", len(updates)-1).
+			Msg("System fields updated from inventory")
+	}
+
+	return nil
 }
