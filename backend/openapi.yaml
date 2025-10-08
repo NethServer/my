@@ -797,6 +797,10 @@ components:
           type: string
           description: Auto-generated system secret (only returned during creation/regeneration)
           example: "generated-64-char-secret"
+        notes:
+          type: string
+          description: Additional notes or description for the system
+          example: "Production web server for EU region"
         created_at:
           type: string
           format: date-time
@@ -845,12 +849,38 @@ components:
           description: Organization name of the creator
           example: "Nethesis"
 
-    SystemInput:
+    CreateSystemInput:
       type: object
-      description: System creation/update request. Users can create systems for organizations they can manage based on hierarchical permissions. Type and status are auto-generated and managed by the collect service.
+      description: System creation request. Users can create systems for organizations they can manage based on hierarchical permissions.
       required:
         - name
         - organization_id
+      properties:
+        name:
+          type: string
+          description: System name
+          example: "Production Server 01"
+        organization_id:
+          type: string
+          description: Organization ID to associate the system with
+          example: "org_123456789"
+        custom_data:
+          type: object
+          description: Custom system data (optional)
+          additionalProperties:
+            type: string
+          example:
+            datacenter: "EU-West-1"
+            environment: "production"
+            tier: "web"
+        notes:
+          type: string
+          description: Additional notes or description for the system (optional)
+          example: "Production web server for EU region"
+
+    UpdateSystemInput:
+      type: object
+      description: System update request. All fields are optional. Users can update systems created by their organization based on hierarchical permissions.
       properties:
         name:
           type: string
@@ -869,6 +899,10 @@ components:
             datacenter: "EU-West-1"
             environment: "production"
             tier: "web"
+        notes:
+          type: string
+          description: Additional notes or description for the system
+          example: "Production web server for EU region"
 
     ImpersonationConsent:
       type: object
@@ -3429,7 +3463,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SystemInput'
+              $ref: '#/components/schemas/CreateSystemInput'
       responses:
         '201':
           description: System created successfully
@@ -3496,7 +3530,7 @@ paths:
       tags:
         - Backend - Systems
       summary: /systems/{id} - Update system
-      description: Update a system. Users can update systems created by their organization based on hierarchical permissions.
+      description: Update a system. All fields are optional. Users can update systems created by their organization based on hierarchical permissions.
       parameters:
         - name: id
           in: path
@@ -3510,7 +3544,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SystemInput'
+              $ref: '#/components/schemas/UpdateSystemInput'
       responses:
         '200':
           description: System updated successfully

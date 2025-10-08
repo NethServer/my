@@ -130,26 +130,51 @@ func Paginated(message string, entityName string, data interface{}, totalCount, 
 
 // getJSONFieldName extracts the JSON field name from validator.FieldError
 func getJSONFieldName(ve validator.FieldError) string {
-	// Try to get the JSON tag name from the struct field
-	if ve.StructNamespace() != "" && ve.StructField() != "" {
-		// Get the struct type and field
-		if structType := ve.Type(); structType != nil {
-			if structType.Kind() == reflect.Struct {
-				if field, found := structType.FieldByName(ve.Field()); found {
-					if jsonTag := field.Tag.Get("json"); jsonTag != "" {
-						// Parse the JSON tag to extract the field name
-						// JSON tags can be like: "fieldname" or "fieldname,omitempty"
-						if jsonName := strings.Split(jsonTag, ",")[0]; jsonName != "" && jsonName != "-" {
-							return jsonName
-						}
-					}
+	// Try to get the JSON tag name from the struct field using reflection
+	// We need to get the parent struct type, not the field type
+	namespace := ve.StructNamespace()
+	if namespace != "" {
+		// Parse the namespace to get the struct type name and field path
+		// Example: "CreateSystemRequest.OrganizationID"
+		parts := strings.Split(namespace, ".")
+		if len(parts) >= 2 {
+			// Get the field name (last part)
+			fieldName := parts[len(parts)-1]
+
+			// Try to get the struct tag by accessing the parent struct
+			// This is a workaround since ve.Type() returns the field type, not the parent struct
+			if ve.Value() != nil {
+				// Use the StructField() which should contain the JSON tag information
+				// Try reflection on the entire namespace
+				structFieldPath := ve.StructField()
+				if structFieldPath != "" {
+					// For now, we'll use a more reliable method:
+					// Check if the field error contains the tag information
+					// The validator library should provide this through the Field() method
+					// Let's try to extract from the original struct using the namespace
+
+					// Since we can't easily get the parent struct type from validator.FieldError,
+					// we'll use a heuristic: convert field name to snake_case
+					return toSnakeCase(fieldName)
 				}
 			}
 		}
 	}
 
-	// Fallback to lowercase field name if no JSON tag found
-	return strings.ToLower(ve.Field())
+	// Fallback to snake_case conversion of field name
+	return toSnakeCase(ve.Field())
+}
+
+// toSnakeCase converts a camelCase or PascalCase string to snake_case
+func toSnakeCase(s string) string {
+	var result strings.Builder
+	for i, r := range s {
+		if i > 0 && r >= 'A' && r <= 'Z' {
+			result.WriteRune('_')
+		}
+		result.WriteRune(r)
+	}
+	return strings.ToLower(result.String())
 }
 
 // ParseValidationError parses validation errors from Gin binding and returns a structured ValidationError

@@ -123,6 +123,7 @@ CREATE TABLE IF NOT EXISTS systems (
     custom_data JSONB,
     system_key VARCHAR(255) UNIQUE NOT NULL,
     system_secret VARCHAR(64) NOT NULL,
+    notes TEXT DEFAULT '',
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMP WITH TIME ZONE,  -- Soft delete timestamp (NULL = active, non-NULL = deleted)
@@ -131,6 +132,9 @@ CREATE TABLE IF NOT EXISTS systems (
 
 -- Comment for systems.deleted_at
 COMMENT ON COLUMN systems.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted at that time.';
+
+-- Comment for systems.notes
+COMMENT ON COLUMN systems.notes IS 'Additional notes or description for the system';
 
 -- Performance indexes for systems
 CREATE INDEX IF NOT EXISTS idx_systems_organization_id ON systems(organization_id);

@@ -89,12 +89,12 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 
 	// Insert system into database
 	query := `
-		INSERT INTO systems (id, name, type, status, system_key, organization_id, custom_data, system_secret, created_at, updated_at, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO systems (id, name, type, status, system_key, organization_id, custom_data, system_secret, notes, created_at, updated_at, created_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`
 
 	_, err = database.DB.Exec(query, systemID, request.Name, systemType, "undefined", systemKey, request.OrganizationID,
-		customDataJSON, hashedSecret, now, now, createdByJSON)
+		customDataJSON, hashedSecret, request.Notes, now, now, createdByJSON)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create system: %w", err)
 	}
@@ -110,6 +110,7 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 		// FQDN, IPv4Address, IPv6Address, Version will be populated by collect service
 		CustomData:   request.CustomData,
 		SystemSecret: systemSecret, // Return plain secret only during creation
+		Notes:        request.Notes,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 		CreatedBy:    *creatorInfo,
@@ -130,7 +131,7 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRole, userRole string) ([]*models.System, error) {
 	query := `
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
-		       s.system_key, s.organization_id, s.custom_data, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
+		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
 		WHERE s.deleted_at IS NULL
@@ -156,7 +157,7 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
 			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.OrganizationID,
-			&customDataJSON, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &lastHeartbeat,
+			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &lastHeartbeat,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan system: %w", err)
@@ -279,6 +280,10 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 	if request.CustomData != nil {
 		system.CustomData = request.CustomData
 	}
+	// Update notes if provided (empty string clears notes)
+	if request.Notes != "" || request.Notes == "" {
+		system.Notes = request.Notes
+	}
 
 	system.UpdatedAt = now
 
@@ -292,11 +297,11 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 	// Note: type and system_key are not modifiable
 	query := `
 		UPDATE systems
-		SET name = $2, organization_id = $3, custom_data = $4, updated_at = $5
+		SET name = $2, organization_id = $3, custom_data = $4, notes = $5, updated_at = $6
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 
-	_, err = database.DB.Exec(query, systemID, system.Name, system.OrganizationID, customDataJSON, now)
+	_, err = database.DB.Exec(query, systemID, system.Name, system.OrganizationID, customDataJSON, system.Notes, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update system: %w", err)
 	}
@@ -403,8 +408,11 @@ func (s *LocalSystemsService) RegenerateSystemSecret(systemID, userID, userOrgID
 
 // GetTotals returns total counts and status for systems based on hierarchical RBAC
 func (s *LocalSystemsService) GetTotals(userOrgRole, userOrgID string, timeoutMinutes int) (*models.SystemTotals, error) {
+	// Normalize role to lowercase for case-insensitive comparison
+	normalizedRole := strings.ToLower(userOrgRole)
+
 	// First validate that the user can access systems (basic RBAC check)
-	switch userOrgRole {
+	switch normalizedRole {
 	case "owner", "distributor", "reseller", "customer":
 		// These roles can access system totals
 	default:
@@ -413,7 +421,7 @@ func (s *LocalSystemsService) GetTotals(userOrgRole, userOrgID string, timeoutMi
 
 	// Get all organization IDs the user can access hierarchically
 	userService := NewUserService()
-	allowedOrgIDs, err := userService.GetHierarchicalOrganizationIDs(strings.ToLower(userOrgRole), userOrgID)
+	allowedOrgIDs, err := userService.GetHierarchicalOrganizationIDs(normalizedRole, userOrgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
 	}
@@ -427,7 +435,10 @@ func (s *LocalSystemsService) GetTotals(userOrgRole, userOrgID string, timeoutMi
 
 // CanUpdateSystemByCreator validates if a user can update a system based on created_by organization
 func (s *LocalSystemsService) CanUpdateSystemByCreator(userOrgRole, userOrgID string, creator *models.SystemCreator) (bool, string) {
-	switch userOrgRole {
+	// Normalize role to lowercase for case-insensitive comparison
+	normalizedRole := strings.ToLower(userOrgRole)
+
+	switch normalizedRole {
 	case "owner":
 		return true, ""
 	case "distributor":
@@ -456,7 +467,10 @@ func (s *LocalSystemsService) CanUpdateSystemByCreator(userOrgRole, userOrgID st
 
 // CanDeleteSystemByCreator validates if a user can delete a system based on created_by organization
 func (s *LocalSystemsService) CanDeleteSystemByCreator(userOrgRole, userOrgID string, creator *models.SystemCreator) (bool, string) {
-	switch userOrgRole {
+	// Normalize role to lowercase for case-insensitive comparison
+	normalizedRole := strings.ToLower(userOrgRole)
+
+	switch normalizedRole {
 	case "owner":
 		return true, ""
 	case "distributor":
@@ -618,7 +632,10 @@ func (s *LocalSystemsService) GetTotalsByCreatedByOrganizations(allowedOrgIDs []
 
 // CanCreateSystemForOrganization validates if a user can create systems for a specific organization
 func (s *LocalSystemsService) CanCreateSystemForOrganization(userOrgRole, userOrgID, targetOrgID string) (bool, string) {
-	switch userOrgRole {
+	// Normalize role to lowercase for case-insensitive comparison
+	normalizedRole := strings.ToLower(userOrgRole)
+
+	switch normalizedRole {
 	case "owner":
 		return true, ""
 	case "distributor":

@@ -29,6 +29,7 @@ type System struct {
 	OrganizationID string            `json:"organization_id" structs:"organization_id"`
 	SystemKey      string            `json:"system_key" structs:"system_key"`
 	SystemSecret   string            `json:"system_secret,omitempty" structs:"system_secret"` // Returned during creation and regeneration
+	Notes          string            `json:"notes" structs:"notes"`
 	CreatedAt      time.Time         `json:"created_at" structs:"created_at"`
 	UpdatedAt      time.Time         `json:"updated_at" structs:"updated_at"`
 	DeletedAt      *time.Time        `json:"deleted_at" structs:"deleted_at"` // Soft delete timestamp
@@ -44,6 +45,7 @@ type CreateSystemRequest struct {
 	Name           string            `json:"name" binding:"required" structs:"name"`
 	OrganizationID string            `json:"organization_id" binding:"required" structs:"organization_id"`
 	CustomData     map[string]string `json:"custom_data" structs:"custom_data"`
+	Notes          string            `json:"notes" structs:"notes"`
 }
 
 // UpdateSystemRequest represents the request payload for updating an existing system
@@ -51,4 +53,5 @@ type UpdateSystemRequest struct {
 	Name           string            `json:"name" structs:"name"`
 	OrganizationID string            `json:"organization_id" structs:"organization_id"`
 	CustomData     map[string]string `json:"custom_data" structs:"custom_data"`
+	Notes          string            `json:"notes" structs:"notes"`
 }

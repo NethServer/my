@@ -43,7 +43,7 @@ func (r *LocalSystemRepository) Create(req *models.CreateSystemRequest) (*models
 func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	query := `
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
-		       s.system_key, s.organization_id, s.custom_data, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
+		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, h.last_heartbeat
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
 		WHERE s.id = $1 AND s.deleted_at IS NULL
@@ -58,7 +58,7 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	err := r.db.QueryRow(query, id).Scan(
 		&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
 		&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.OrganizationID,
-		&customDataJSON, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &lastHeartbeat,
+		&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &lastHeartbeat,
 	)
 
 	if err == sql.ErrNoRows {
@@ -178,7 +178,7 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	// Build main query
 	query := fmt.Sprintf(`
 		SELECT id, name, type, status, fqdn, ipv4_address, ipv6_address, version,
-		       system_key, organization_id, custom_data, created_at, updated_at, created_by
+		       system_key, organization_id, custom_data, notes, created_at, updated_at, created_by
 		FROM systems
 		WHERE %s
 		ORDER BY %s
@@ -206,7 +206,7 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
 			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.OrganizationID,
-			&customDataJSON, &system.CreatedAt, &system.UpdatedAt, &createdByJSON,
+			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan system: %w", err)
