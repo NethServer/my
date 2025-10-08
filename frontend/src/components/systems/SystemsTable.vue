@@ -4,13 +4,15 @@
 -->
 
 <script setup lang="ts">
-import { RESELLERS_TABLE_ID, type Reseller } from '@/lib/resellers'
+import { USERS_TABLE_ID, type User } from '@/lib/users'
 import {
   faCircleInfo,
   faCirclePlus,
-  faCity,
+  faUserGroup,
   faPenToSquare,
   faTrash,
+  faKey,
+  faUserSecret,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -29,17 +31,28 @@ import {
   NeDropdown,
   type SortEvent,
   NeSortDropdown,
+  NeBadge,
+  sortByProperty,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
-import CreateOrEditResellerDrawer from './CreateOrEditResellerDrawer.vue'
+import CreateOrEditUserDrawer from './CreateOrEditUserDrawer.vue'
 import { useI18n } from 'vue-i18n'
-import DeleteResellerModal from './DeleteResellerModal.vue'
+import DeleteUserModal from './DeleteUserModal.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
-import { useResellers } from '@/queries/resellers'
-import { canManageResellers } from '@/lib/permissions'
+import ResetPasswordModal from './ResetPasswordModal.vue'
+import PasswordChangedModal from './PasswordChangedModal.vue'
+import { useUsers } from '@/queries/users'
+import { canManageUsers, canImpersonateUsers } from '@/lib/permissions'
+import { useLoginStore } from '@/stores/login'
+import ImpersonateUserModal from './ImpersonateUserModal.vue'
+import { normalize } from '@/lib/common'
+import { useSystems } from '@/queries/systems'
+import type { System } from '@/lib/systems'
 
-const { isShownCreateResellerDrawer = false } = defineProps<{
-  isShownCreateResellerDrawer: boolean
+//// review, search for "users"
+
+const { isShownCreateSystemDrawer = false } = defineProps<{
+  isShownCreateSystemDrawer: boolean
 }>()
 
 const emit = defineEmits(['close-drawer'])
@@ -54,14 +67,16 @@ const {
   debouncedTextFilter,
   sortBy,
   sortDescending,
-} = useResellers()
+} = useSystems()
 
-const currentReseller = ref<Reseller | undefined>()
-const isShownCreateOrEditResellerDrawer = ref(false)
-const isShownDeleteResellerDrawer = ref(false)
+const loginStore = useLoginStore()
 
-const resellersPage = computed(() => {
-  return state.value.data?.resellers
+const currentSystem = ref<System | undefined>()
+const isShownCreateOrEditSystemDrawer = ref(false)
+const isShownDeleteSystemModal = ref(false)
+
+const systemsPage = computed(() => {
+  return state.value.data?.systems
 })
 
 const pagination = computed(() => {
@@ -69,10 +84,10 @@ const pagination = computed(() => {
 })
 
 watch(
-  () => isShownCreateResellerDrawer,
+  () => isShownCreateSystemDrawer,
   () => {
-    if (isShownCreateResellerDrawer) {
-      showCreateResellerDrawer()
+    if (isShownCreateSystemDrawer) {
+      showCreateSystemDrawer()
     }
   },
   { immediate: true },
@@ -82,52 +97,60 @@ function clearFilters() {
   textFilter.value = ''
 }
 
-function showCreateResellerDrawer() {
-  currentReseller.value = undefined
-  isShownCreateOrEditResellerDrawer.value = true
+function showCreateSystemDrawer() {
+  currentSystem.value = undefined
+  isShownCreateOrEditSystemDrawer.value = true
 }
 
-function showEditResellerDrawer(reseller: Reseller) {
-  currentReseller.value = reseller
-  isShownCreateOrEditResellerDrawer.value = true
+function showEditSystemDrawer(system: System) {
+  currentSystem.value = system
+  isShownCreateOrEditSystemDrawer.value = true
 }
 
-function showDeleteResellerDrawer(reseller: Reseller) {
-  currentReseller.value = reseller
-  isShownDeleteResellerDrawer.value = true
+function showDeleteSystemModal(system: System) {
+  currentSystem.value = system
+  isShownDeleteSystemModal.value = true
 }
 
 function onCloseDrawer() {
-  isShownCreateOrEditResellerDrawer.value = false
+  isShownCreateOrEditSystemDrawer.value = false
   emit('close-drawer')
 }
 
-function getKebabMenuItems(reseller: Reseller) {
-  return [
+function getKebabMenuItems(system: System) {
+  const items = [
+    // { ////
+    //   id: 'resetPassword',
+    //   label: t('users.reset_password'),
+    //   icon: faKey,
+    //   action: () => showResetPasswordModal(system),
+    //   disabled: asyncStatus.value === 'loading',
+    // },
     {
-      id: 'deleteReseller',
+      id: 'deleteAccount',
       label: t('common.delete'),
       icon: faTrash,
       danger: true,
-      action: () => showDeleteResellerDrawer(reseller),
+      action: () => showDeleteSystemModal(system),
       disabled: asyncStatus.value === 'loading',
     },
   ]
+  return items
 }
 
 const onSort = (payload: SortEvent) => {
-  sortBy.value = payload.key as keyof Reseller
+  sortBy.value = payload.key as keyof System
   sortDescending.value = payload.descending
 }
 </script>
 
 <template>
   <div>
-    <!-- get resellers error notification -->
+    <!-- get systems error notification -->
     <NeInlineNotification
       v-if="state.status === 'error'"
       kind="error"
-      :title="$t('resellers.cannot_retrieve_resellers')"
+      :title="$t('systems.cannot_retrieve_systems')"
       :description="state.error.message"
       class="mb-6"
     />
@@ -140,17 +163,18 @@ const onSort = (payload: SortEvent) => {
           <NeTextInput
             v-model.trim="textFilter"
             is-search
-            :placeholder="$t('resellers.filter_resellers')"
+            :placeholder="$t('systems.filter_systems')"
             class="max-w-48 sm:max-w-sm"
           />
-          <!-- //// check dropdown options -->
+          <!-- //// TODO: other filters -->
           <NeSortDropdown
             v-model:sort-key="sortBy"
             v-model:sort-descending="sortDescending"
             :label="t('sort.sort')"
             :options="[
-              { id: 'name', label: t('organizations.name') },
-              { id: 'description', label: t('organizations.description') },
+              { id: 'name', label: t('systems.name') },
+              { id: 'version', label: t('systems.version') },
+              { id: 'organization_name', label: t('systems.organization') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
             :sort-by-label="t('sort.sort_by')"
@@ -176,7 +200,7 @@ const onSort = (payload: SortEvent) => {
     <NeTable
       :sort-key="sortBy"
       :sort-descending="sortDescending"
-      :aria-label="$t('resellers.title')"
+      :aria-label="$t('systems.title')"
       card-breakpoint="xl"
       :loading="state.status === 'pending'"
       :skeleton-columns="5"
@@ -184,10 +208,18 @@ const onSort = (payload: SortEvent) => {
     >
       <NeTableHead>
         <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
-          $t('organizations.name')
+          $t('systems.name')
         }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="description" @sort="onSort">{{
-          $t('organizations.description')
+        <NeTableHeadCell sortable column-key="version" @sort="onSort">{{
+          $t('systems.version')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('systems.fqdn_ip_address') }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="organization_name" @sort="onSort">{{
+          $t('systems.organization')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('systems.created_by') }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="status" @sort="onSort">{{
+          $t('systems.status')
         }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- no header for actions -->
@@ -195,34 +227,34 @@ const onSort = (payload: SortEvent) => {
       </NeTableHead>
       <NeTableBody>
         <!-- empty state -->
-        <NeTableRow v-if="!resellersPage?.length && !debouncedTextFilter">
+        <NeTableRow v-if="!systemsPage?.length && !debouncedTextFilter">
           <NeTableCell colspan="5">
             <NeEmptyState
-              :title="$t('resellers.no_reseller')"
-              :icon="faCity"
+              :title="$t('users.no_user')"
+              :icon="faUserGroup"
               class="bg-white dark:bg-gray-950"
             >
-              <!-- create reseller -->
+              <!-- create user -->
               <NeButton
-                v-if="canManageResellers()"
+                v-if="canManageUsers()"
                 kind="secondary"
                 size="lg"
                 class="shrink-0"
-                @click="showCreateResellerDrawer()"
+                @click="showCreateSystemDrawer()"
               >
                 <template #prefix>
                   <FontAwesomeIcon :icon="faCirclePlus" aria-hidden="true" />
                 </template>
-                {{ $t('resellers.create_reseller') }}
+                {{ $t('users.create_user') }}
               </NeButton>
             </NeEmptyState>
           </NeTableCell>
         </NeTableRow>
-        <!-- no reseller matching filter -->
-        <NeTableRow v-else-if="!resellersPage?.length && debouncedTextFilter">
+        <!-- no user matching filter -->
+        <NeTableRow v-else-if="!systemsPage?.length && debouncedTextFilter">
           <NeTableCell colspan="4">
             <NeEmptyState
-              :title="$t('resellers.no_reseller_found')"
+              :title="$t('users.no_user_found')"
               :description="$t('common.try_changing_search_filters')"
               :icon="faCircleInfo"
               class="bg-white dark:bg-gray-950"
@@ -233,19 +265,34 @@ const onSort = (payload: SortEvent) => {
             </NeEmptyState>
           </NeTableCell>
         </NeTableRow>
-        <NeTableRow v-for="(item, index) in resellersPage" v-else :key="index">
-          <NeTableCell :data-label="$t('organizations.name')">
+        <NeTableRow v-for="(item, index) in systemsPage" v-else :key="index">
+          <NeTableCell :data-label="$t('users.name')">
             {{ item.name }}
-            {{ item.id }} ////
           </NeTableCell>
-          <NeTableCell :data-label="$t('organizations.description')">
-            {{ item.description || '-' }}
+          <NeTableCell :data-label="$t('users.email')" class="break-all xl:break-normal">
+            {{ item.email }}
+          </NeTableCell>
+          <NeTableCell :data-label="$t('users.organization')">
+            {{ item.organization?.name || '-' }}
+          </NeTableCell>
+          <NeTableCell :data-label="$t('users.roles')">
+            <span v-if="!item.roles || item.roles.length === 0">-</span>
+            <div v-else class="flex flex-wrap gap-1">
+              <NeBadge
+                v-for="role in item.roles?.sort(sortByProperty('name'))"
+                :key="role.id"
+                :text="t(`user_roles.${normalize(role.name)}`)"
+                kind="custom"
+                customColorClasses="bg-indigo-100 text-indigo-800 dark:bg-indigo-700 dark:text-indigo-100"
+                class="inline-block"
+              ></NeBadge>
+            </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div v-if="canManageResellers()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+            <div v-if="canManageUsers()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
               <NeButton
                 kind="tertiary"
-                @click="showEditResellerDrawer(item)"
+                @click="showEditSystemDrawer(item)"
                 :disabled="asyncStatus === 'loading'"
               >
                 <template #prefix>
@@ -278,23 +325,43 @@ const onSort = (payload: SortEvent) => {
           @select-page-size="
             (size: number) => {
               pageSize = size
-              savePageSizeToStorage(RESELLERS_TABLE_ID, size)
+              savePageSizeToStorage(USERS_TABLE_ID, size)
             }
           "
         />
       </template>
     </NeTable>
     <!-- side drawer -->
-    <CreateOrEditResellerDrawer
-      :is-shown="isShownCreateOrEditResellerDrawer"
-      :current-reseller="currentReseller"
+    <CreateOrEditUserDrawer
+      :is-shown="isShownCreateOrEditSystemDrawer"
+      :current-user="currentSystem"
       @close="onCloseDrawer"
     />
-    <!-- delete reseller modal -->
-    <DeleteResellerModal
-      :visible="isShownDeleteResellerDrawer"
-      :reseller="currentReseller"
-      @close="isShownDeleteResellerDrawer = false"
+    <!-- delete user modal -->
+    <DeleteUserModal
+      :visible="isShownDeleteSystemModal"
+      :user="currentSystem"
+      @close="isShownDeleteSystemModal = false"
+    />
+    <!-- impersonate user modal -->
+    <ImpersonateUserModal
+      :visible="isShownImpersonateUserModal"
+      :user="currentSystem"
+      @close="isShownImpersonateUserModal = false"
+    />
+    <!-- reset password modal -->
+    <ResetPasswordModal
+      :visible="isShownResetPasswordModal"
+      :user="currentSystem"
+      @close="isShownResetPasswordModal = false"
+      @password-changed="onPasswordChanged"
+    />
+    <!-- password changed modal -->
+    <PasswordChangedModal
+      :visible="isShownPasswordChangedModal"
+      :user="currentSystem"
+      :new-password="newPassword"
+      @close="onClosePasswordChangedModal"
     />
   </div>
 </template>

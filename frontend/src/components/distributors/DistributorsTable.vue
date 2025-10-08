@@ -236,6 +236,7 @@ const onSort = (payload: SortEvent) => {
         <NeTableRow v-for="(item, index) in distributorsPage" v-else :key="index">
           <NeTableCell :data-label="$t('organizations.name')">
             {{ item.name }}
+            {{ item.id }} ////
           </NeTableCell>
           <NeTableCell :data-label="$t('organizations.description')">
             {{ item.description || '-' }}
