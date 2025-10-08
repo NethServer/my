@@ -80,6 +80,12 @@ func CreateSystem(c *gin.Context) {
 			Str("system_name", request.Name).
 			Msg("Failed to create system")
 
+		// Check if it's an access denied error
+		if strings.Contains(err.Error(), "access denied") {
+			c.JSON(http.StatusForbidden, response.Forbidden(err.Error(), nil))
+			return
+		}
+
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to create system", map[string]interface{}{
 			"error": err.Error(),
 		}))
@@ -113,11 +119,22 @@ func GetSystems(c *gin.Context) {
 	// Parse search parameter
 	search := c.Query("search")
 
+	// Parse filter parameters (supporting multiple values via checkbox, except name which is text input)
+	filterName := c.Query("name")                   // Name filter (single value, text input)
+	filterTypes := c.QueryArray("type")             // Product/Type filter (multiple values)
+	filterCreatedBy := c.QueryArray("created_by")   // Created By filter (multiple user IDs)
+	filterVersions := c.QueryArray("version")       // Version filter (multiple values)
+	filterOrgIDs := c.QueryArray("organization_id") // Organization filter (multiple IDs)
+	filterStatuses := c.QueryArray("status")        // Status filter (multiple values)
+
 	// Create systems service
 	systemsService := local.NewSystemsService()
 
-	// Get systems with pagination, search and sorting
-	systems, totalCount, err := systemsService.GetSystemsByOrganizationPaginated(userID, userOrgID, userOrgRole, page, pageSize, search, sortBy, sortDirection)
+	// Get systems with pagination, search, sorting and filters
+	systems, totalCount, err := systemsService.GetSystemsByOrganizationPaginated(
+		userID, userOrgID, userOrgRole, page, pageSize, search, sortBy, sortDirection,
+		filterName, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses,
+	)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -125,6 +142,12 @@ func GetSystems(c *gin.Context) {
 			Int("page", page).
 			Int("page_size", pageSize).
 			Str("search", search).
+			Str("filter_name", filterName).
+			Strs("filter_types", filterTypes).
+			Strs("filter_created_by", filterCreatedBy).
+			Strs("filter_versions", filterVersions).
+			Strs("filter_organization_ids", filterOrgIDs).
+			Strs("filter_statuses", filterStatuses).
 			Str("sort_by", sortBy).
 			Str("sort_direction", sortDirection).
 			Msg("Failed to retrieve systems")
@@ -143,6 +166,12 @@ func GetSystems(c *gin.Context) {
 		Int("page", page).
 		Int("page_size", pageSize).
 		Str("search", search).
+		Str("filter_name", filterName).
+		Strs("filter_types", filterTypes).
+		Strs("filter_created_by", filterCreatedBy).
+		Strs("filter_versions", filterVersions).
+		Strs("filter_organization_ids", filterOrgIDs).
+		Strs("filter_statuses", filterStatuses).
 		Str("sort_by", sortBy).
 		Str("sort_direction", sortDirection).
 		Msg("Systems list requested")

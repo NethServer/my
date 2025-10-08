@@ -1127,6 +1127,81 @@ components:
         enum: ["name", "type", "status", "fqdn", "version", "system_key", "created_at", "updated_at", "creator_name"]
         example: "name"
 
+    SystemNameFilterParam:
+      name: name
+      in: query
+      description: Filter systems by name (case-insensitive, partial match)
+      required: false
+      schema:
+        type: string
+        example: "backup-server"
+
+    SystemTypeFilterParam:
+      name: type
+      in: query
+      description: Filter systems by type/product (exact match). Supports multiple values for checkbox filtering.
+      required: false
+      schema:
+        type: array
+        items:
+          type: string
+        example: ["NethSecurity", "NethServer"]
+      style: form
+      explode: true
+
+    SystemCreatedByFilterParam:
+      name: created_by
+      in: query
+      description: Filter systems by creator user ID (exact match). Supports multiple values for checkbox filtering.
+      required: false
+      schema:
+        type: array
+        items:
+          type: string
+        example: ["c50541f56-3005-43c2-a237-07aa44e1551c", "d1e17b87-11ce-4e74-a9f8-34d9638135f1"]
+      style: form
+      explode: true
+
+    SystemVersionFilterParam:
+      name: version
+      in: query
+      description: Filter systems by version (exact match). Supports multiple values for checkbox filtering.
+      required: false
+      schema:
+        type: array
+        items:
+          type: string
+        example: ["8.0", "8.1", "8.2"]
+      style: form
+      explode: true
+
+    SystemOrganizationFilterParam:
+      name: organization_id
+      in: query
+      description: Filter systems by organization ID (exact match). Supports multiple values for checkbox filtering.
+      required: false
+      schema:
+        type: array
+        items:
+          type: string
+        example: ["506264e1-915a-4bd0-b721-c7a1a1abcf76", "8ec41105-648e-4730-8705-f581c3b976e5"]
+      style: form
+      explode: true
+
+    SystemStatusFilterParam:
+      name: status
+      in: query
+      description: Filter systems by status (exact match). Supports multiple values for checkbox filtering.
+      required: false
+      schema:
+        type: array
+        items:
+          type: string
+          enum: ["undefined", "online", "offline", "maintenance"]
+        example: ["online", "maintenance"]
+      style: form
+      explode: true
+
     SortDirectionParam:
       name: sort_direction
       in: query
@@ -3417,13 +3492,19 @@ paths:
       tags:
         - Backend - Systems
       summary: /systems - List systems
-      description: Get list of systems visible to the user based on hierarchical organization permissions.
+      description: Get list of systems visible to the user based on hierarchical organization permissions. Supports filtering by name, type, creator, version, organization, and status.
       parameters:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
         - $ref: '#/components/parameters/SearchParam'
         - $ref: '#/components/parameters/SystemSortByParam'
         - $ref: '#/components/parameters/SortDirectionParam'
+        - $ref: '#/components/parameters/SystemNameFilterParam'
+        - $ref: '#/components/parameters/SystemTypeFilterParam'
+        - $ref: '#/components/parameters/SystemCreatedByFilterParam'
+        - $ref: '#/components/parameters/SystemVersionFilterParam'
+        - $ref: '#/components/parameters/SystemOrganizationFilterParam'
+        - $ref: '#/components/parameters/SystemStatusFilterParam'
       responses:
         '200':
           description: Systems retrieved successfully

@@ -210,7 +210,7 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 }
 
 // GetSystemsByOrganizationPaginated retrieves systems filtered by organization with pagination, search, sorting and RBAC
-func (s *LocalSystemsService) GetSystemsByOrganizationPaginated(userID, userOrgID, userOrgRole string, page, pageSize int, search, sortBy, sortDirection string) ([]*models.System, int, error) {
+func (s *LocalSystemsService) GetSystemsByOrganizationPaginated(userID, userOrgID, userOrgRole string, page, pageSize int, search, sortBy, sortDirection, filterName string, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses []string) ([]*models.System, int, error) {
 	// Get hierarchical organization IDs using existing user service logic
 	userService := NewUserService()
 	allowedOrgIDs, err := userService.GetHierarchicalOrganizationIDs(strings.ToLower(userOrgRole), userOrgID)
@@ -218,9 +218,9 @@ func (s *LocalSystemsService) GetSystemsByOrganizationPaginated(userID, userOrgI
 		return nil, 0, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
 	}
 
-	// Use repository layer for pagination, search and sorting
+	// Use repository layer for pagination, search, sorting and filters
 	systemRepo := entities.NewLocalSystemRepository()
-	return systemRepo.ListByCreatedByOrganizations(allowedOrgIDs, page, pageSize, search, sortBy, sortDirection)
+	return systemRepo.ListByCreatedByOrganizations(allowedOrgIDs, page, pageSize, search, sortBy, sortDirection, filterName, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses)
 }
 
 // GetSystem retrieves a specific system with RBAC validation

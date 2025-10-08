@@ -112,15 +112,15 @@ func (r *LocalSystemRepository) Delete(id string) error {
 	return fmt.Errorf("Delete method not yet implemented - use SystemsService directly")
 }
 
-// ListByCreatedByOrganizations returns paginated list of systems created by users in specified organizations
-func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []string, page, pageSize int, search, sortBy, sortDirection string) ([]*models.System, int, error) {
+// ListByCreatedByOrganizations returns paginated list of systems created by users in specified organizations with filters
+func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []string, page, pageSize int, search, sortBy, sortDirection, filterName string, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses []string) ([]*models.System, int, error) {
 	if len(allowedOrgIDs) == 0 {
 		return []*models.System{}, 0, nil
 	}
 
 	offset := (page - 1) * pageSize
 
-	// Build placeholders for IN clause
+	// Build placeholders for IN clause (allowed organizations)
 	placeholders := make([]string, len(allowedOrgIDs))
 	baseArgs := make([]interface{}, len(allowedOrgIDs))
 	for i, orgID := range allowedOrgIDs {
@@ -129,16 +129,69 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	}
 	placeholdersStr := strings.Join(placeholders, ",")
 
-	// Build WHERE clause for search
+	// Build WHERE clause for search and filters
 	whereClause := fmt.Sprintf("deleted_at IS NULL AND created_by ->> 'organization_id' IN (%s)", placeholdersStr)
 	args := make([]interface{}, len(baseArgs))
 	copy(args, baseArgs)
 
+	// Add search condition
 	if search != "" {
 		searchPattern := "%" + search + "%"
 		whereClause += fmt.Sprintf(" AND (name ILIKE $%d OR type ILIKE $%d OR status ILIKE $%d OR fqdn ILIKE $%d OR version ILIKE $%d OR created_by ->> 'user_name' ILIKE $%d)",
 			len(args)+1, len(args)+2, len(args)+3, len(args)+4, len(args)+5, len(args)+6)
 		args = append(args, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
+	}
+
+	// Add filter conditions
+	if filterName != "" {
+		whereClause += fmt.Sprintf(" AND name ILIKE $%d", len(args)+1)
+		args = append(args, "%"+filterName+"%")
+	}
+
+	// Add multiple value filters with IN clauses
+	if len(filterTypes) > 0 {
+		typePlaceholders := make([]string, len(filterTypes))
+		for i, t := range filterTypes {
+			typePlaceholders[i] = fmt.Sprintf("$%d", len(args)+i+1)
+			args = append(args, t)
+		}
+		whereClause += fmt.Sprintf(" AND type IN (%s)", strings.Join(typePlaceholders, ","))
+	}
+
+	if len(filterCreatedBy) > 0 {
+		creatorPlaceholders := make([]string, len(filterCreatedBy))
+		for i, userID := range filterCreatedBy {
+			creatorPlaceholders[i] = fmt.Sprintf("$%d", len(args)+i+1)
+			args = append(args, userID)
+		}
+		whereClause += fmt.Sprintf(" AND created_by ->> 'user_id' IN (%s)", strings.Join(creatorPlaceholders, ","))
+	}
+
+	if len(filterVersions) > 0 {
+		versionPlaceholders := make([]string, len(filterVersions))
+		for i, v := range filterVersions {
+			versionPlaceholders[i] = fmt.Sprintf("$%d", len(args)+i+1)
+			args = append(args, v)
+		}
+		whereClause += fmt.Sprintf(" AND version IN (%s)", strings.Join(versionPlaceholders, ","))
+	}
+
+	if len(filterOrgIDs) > 0 {
+		orgPlaceholders := make([]string, len(filterOrgIDs))
+		for i, orgID := range filterOrgIDs {
+			orgPlaceholders[i] = fmt.Sprintf("$%d", len(args)+i+1)
+			args = append(args, orgID)
+		}
+		whereClause += fmt.Sprintf(" AND organization_id IN (%s)", strings.Join(orgPlaceholders, ","))
+	}
+
+	if len(filterStatuses) > 0 {
+		statusPlaceholders := make([]string, len(filterStatuses))
+		for i, s := range filterStatuses {
+			statusPlaceholders[i] = fmt.Sprintf("$%d", len(args)+i+1)
+			args = append(args, s)
+		}
+		whereClause += fmt.Sprintf(" AND status IN (%s)", strings.Join(statusPlaceholders, ","))
 	}
 
 	// Get total count
