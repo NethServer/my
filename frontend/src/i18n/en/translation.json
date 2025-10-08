@@ -317,6 +317,28 @@
     "reader": "Reader",
     "reader_description": "Can view users and systems"
   },
+  "systems": {
+    "title": "Systems",
+    "page_description": "List of all registered systems, including their versions and their status.",
+    "cannot_retrieve_systems": "Cannot retrieve systems",
+    "no_systems_found": "No systems found",
+    "filter_systems": "Filter systems",
+    "product": "Product",
+    "version": "Version",
+    "created_by": "Created by",
+    "organization": "Organization",
+    "status": "Status",
+    "fqdn_ip_address": "FQDN / IP address",
+    "show_details": "Show details",
+    "active": "Active",
+    "inactive": "Inactive",
+    "unknown": "Unknown",
+    "update_available": "Update available",
+    "go_to_system": "Go to system",
+    "create_system": "Create system",
+    "name_cannot_be_empty": "Name is required",
+    "organization_required": "Organization is required"
+  },
   "ne_table": {
     "no_items": "No items",
     "go_to_previous_page": "Go to previous page",
