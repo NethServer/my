@@ -341,8 +341,8 @@ CREATE INDEX IF NOT EXISTS idx_inventory_diffs_timestamp ON inventory_diffs(time
 -- System heartbeats table
 CREATE TABLE IF NOT EXISTS system_heartbeats (
     id BIGSERIAL PRIMARY KEY,
-    system_id VARCHAR(255) NOT NULL,
-    heartbeat_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    system_id VARCHAR(255) NOT NULL UNIQUE,
+    last_heartbeat TIMESTAMP WITH TIME ZONE NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'online',
     metadata JSONB,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
@@ -355,7 +355,7 @@ FOREIGN KEY (system_id) REFERENCES systems(id) ON DELETE CASCADE;
 
 -- Indexes for system_heartbeats
 CREATE INDEX IF NOT EXISTS idx_system_heartbeats_system_id ON system_heartbeats(system_id);
-CREATE INDEX IF NOT EXISTS idx_system_heartbeats_timestamp ON system_heartbeats(heartbeat_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_system_heartbeats_last_heartbeat ON system_heartbeats(last_heartbeat DESC);
 CREATE INDEX IF NOT EXISTS idx_system_heartbeats_status ON system_heartbeats(status);
 
 -- Inventory alerts table
