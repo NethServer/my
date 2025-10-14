@@ -391,7 +391,7 @@ function copyToClipboard(text: string) {
               v-model="secret"
               is-password
               :label="$t('systems.system_secret')"
-              :disabled="false"
+              :disabled="true"
               class="grow"
             />
             <!-- copy button -->
@@ -413,6 +413,7 @@ function copyToClipboard(text: string) {
       <hr class="my-8" />
       <div class="flex justify-end">
         <NeButton
+          v-if="step === 'create'"
           kind="tertiary"
           size="lg"
           :disabled="saving"

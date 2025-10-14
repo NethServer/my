@@ -12,8 +12,8 @@ const MANAGE_CUSTOMERS = 'manage:customers'
 const READ_USERS = 'read:users'
 const MANAGE_USERS = 'manage:users'
 const IMPERSONATE_USERS = 'impersonate:users'
-const READ_SYSTEMS = 'read:users'
-const MANAGE_SYSTEMS = 'manage:users'
+const READ_SYSTEMS = 'read:systems'
+const MANAGE_SYSTEMS = 'manage:systems'
 
 export const canReadDistributors = () => {
   const loginStore = useLoginStore()

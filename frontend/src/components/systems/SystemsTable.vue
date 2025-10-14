@@ -10,6 +10,7 @@ import {
   faTrash,
   faServer,
   faEye,
+  faPencil,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -92,7 +93,6 @@ function showCreateSystemDrawer() {
   isShownCreateOrEditSystemDrawer.value = true
 }
 
-////
 function showEditSystemDrawer(system: System) {
   currentSystem.value = system
   isShownCreateOrEditSystemDrawer.value = true
@@ -110,15 +110,15 @@ function onCloseDrawer() {
 
 function getKebabMenuItems(system: System) {
   const items = [
-    // { ////
-    //   id: 'resetPassword',
-    //   label: t('users.reset_password'),
-    //   icon: faKey,
-    //   action: () => showResetPasswordModal(system),
-    //   disabled: asyncStatus.value === 'loading',
-    // },
     {
-      id: 'deleteAccount',
+      id: 'editSystem',
+      label: t('common.edit'),
+      icon: faPencil,
+      action: () => showEditSystemDrawer(system),
+      disabled: asyncStatus.value === 'loading',
+    },
+    {
+      id: 'deleteSystem',
       label: t('common.delete'),
       icon: faTrash,
       danger: true,
@@ -170,6 +170,8 @@ const goToSystemDetails = (system: System) => {
               { id: 'name', label: t('systems.name') },
               { id: 'version', label: t('systems.version') },
               { id: 'organization_name', label: t('systems.organization') },
+              { id: 'creator_name', label: t('systems.created_by') },
+              { id: 'status', label: t('systems.status') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
             :sort-by-label="t('sort.sort_by')"
@@ -249,8 +251,10 @@ const goToSystemDetails = (system: System) => {
         <NeTableHeadCell sortable column-key="organization_name" @sort="onSort">{{
           $t('systems.organization')
         }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('systems.created_by') }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="status" @sort="onSort">{{
+        <NeTableHeadCell sortable column-key="creator_name" @sort="onSort">{{
+          $t('systems.created_by')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="" @sort="onSort">{{
           $t('systems.status')
         }}</NeTableHeadCell>
         <NeTableHeadCell>
