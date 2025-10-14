@@ -221,15 +221,16 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	if sortBy != "" {
 		// Map sortBy values to actual column names
 		columnMap := map[string]string{
-			"name":         "s.name",
-			"type":         "s.type",
-			"status":       "s.status",
-			"fqdn":         "s.fqdn",
-			"version":      "s.version",
-			"system_key":   "s.system_key",
-			"created_at":   "s.created_at",
-			"updated_at":   "s.updated_at",
-			"creator_name": "s.created_by ->> 'user_name'",
+			"name":              "s.name",
+			"type":              "s.type",
+			"status":            "s.status",
+			"fqdn":              "s.fqdn",
+			"version":           "s.version",
+			"system_key":        "s.system_key",
+			"created_at":        "s.created_at",
+			"updated_at":        "s.updated_at",
+			"creator_name":      "s.created_by ->> 'user_name'",
+			"organization_name": "COALESCE(d.name, r.name, c.name)",
 		}
 
 		if column, exists := columnMap[sortBy]; exists {
