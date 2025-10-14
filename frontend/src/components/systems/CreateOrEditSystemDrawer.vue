@@ -1,0 +1,446 @@
+<!--
+  Copyright (C) 2025 Nethesis S.r.l.
+  SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
+<script setup lang="ts">
+import {
+  NeButton,
+  NeSideDrawer,
+  NeTextInput,
+  NeInlineNotification,
+  focusElement,
+  NeCombobox,
+  NeTooltip,
+} from '@nethesis/vue-components'
+import { computed, ref, useTemplateRef, watch, type Ref, type ShallowRef } from 'vue'
+import {
+  CreateSystemSchema,
+  EditSystemSchema,
+  postSystem,
+  putSystem,
+  regenerateSystemSecret,
+  SYSTEMS_KEY,
+  SYSTEMS_TOTAL_KEY,
+  type CreateSystem,
+  type EditSystem,
+  type System,
+} from '@/lib/systems'
+import * as v from 'valibot'
+import { useMutation, useQueryCache } from '@pinia/colada'
+import { useNotificationsStore } from '@/stores/notifications'
+import { useI18n } from 'vue-i18n'
+import { getValidationIssues, isValidationError } from '../../lib/validation'
+import type { AxiosError } from 'axios'
+import { useQuery } from '@pinia/colada'
+import { useLoginStore } from '@/stores/login'
+import { getOrganizations, ORGANIZATIONS_KEY } from '@/lib/organizations'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { faCopy } from '@fortawesome/free-solid-svg-icons'
+
+const { isShown = false, currentSystem = undefined } = defineProps<{
+  isShown: boolean
+  currentSystem: System | undefined
+}>()
+
+const emit = defineEmits(['close'])
+
+const { t } = useI18n()
+const queryCache = useQueryCache()
+const notificationsStore = useNotificationsStore()
+const loginStore = useLoginStore()
+
+const { state: organizations } = useQuery({
+  key: [ORGANIZATIONS_KEY],
+  enabled: () => !!loginStore.jwtToken && isShown,
+  query: getOrganizations,
+})
+
+const {
+  mutate: createSystemMutate,
+  isLoading: createSystemLoading,
+  reset: createSystemReset,
+  error: createSystemError,
+} = useMutation({
+  mutation: (newSystem: CreateSystem) => {
+    return postSystem(newSystem)
+  },
+  async onSuccess(data, vars) {
+    ////
+    // show success notification after drawer closes
+    // setTimeout(() => {
+    //   notificationsStore.createNotification({
+    //     kind: 'success',
+    //     title: t('systems.system_created'),
+    //     description: t('common.object_created_successfully', {
+    //       name: vars.name,
+    //     }),
+    //   })
+    // }, 500)
+
+    // closeDrawer() ////
+
+    console.log('data', data) ////
+
+    secret.value = data.data.system_secret
+    step.value = 'secret'
+  },
+  onError: (error) => {
+    console.error('Error creating system:', error)
+    validationIssues.value = getValidationIssues(error as AxiosError, 'systems')
+  },
+  onSettled: () => {
+    queryCache.invalidateQueries({ key: [SYSTEMS_KEY] })
+    queryCache.invalidateQueries({ key: [SYSTEMS_TOTAL_KEY] })
+  },
+})
+
+const {
+  mutate: editSystemMutate,
+  isLoading: editSystemLoading,
+  reset: editSystemReset,
+  error: editSystemError,
+} = useMutation({
+  mutation: (system: EditSystem) => {
+    return putSystem(system)
+  },
+  onSuccess(data, vars) {
+    // show success notification after drawer closes
+    setTimeout(() => {
+      notificationsStore.createNotification({
+        kind: 'success',
+        title: t('systems.system_saved'),
+        description: t('common.object_saved_successfully', {
+          name: vars.name,
+        }),
+      })
+    }, 500)
+
+    closeDrawer()
+  },
+  onError: (error) => {
+    console.error('Error editing system:', error)
+    validationIssues.value = getValidationIssues(error as AxiosError, 'systems')
+  },
+  onSettled: () => queryCache.invalidateQueries({ key: [SYSTEMS_KEY] }),
+})
+
+const name = ref('')
+const nameRef = useTemplateRef<HTMLInputElement>('nameRef')
+const organizationId = ref('')
+const organizationIdRef = useTemplateRef<HTMLInputElement>('organizationIdRef')
+const notes = ref('')
+const notesRef = useTemplateRef<HTMLInputElement>('notesRef')
+const validationIssues = ref<Record<string, string[]>>({})
+const step = ref<'create' | 'secret'>('create')
+const secret = ref('')
+const secretJustCopied = ref(false)
+
+const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
+  name: nameRef,
+  organizationId: organizationIdRef,
+  notes: notesRef,
+}
+
+const saving = computed(() => {
+  return createSystemLoading.value || editSystemLoading.value
+})
+
+const organizationOptions = computed(() => {
+  if (!organizations.value.data) {
+    return []
+  }
+
+  return organizations.value.data?.map((org) => ({
+    id: org.id,
+    label: org.name,
+    description: org.type,
+  }))
+})
+
+// watch( ////
+//   () => isShown,
+//   () => {
+//     if (isShown) {
+//       clearErrors()
+//       focusElement(nameRef)
+
+//       if (currentSystem) {
+//         // editing system
+//         name.value = currentSystem.name
+//         notes.value = currentSystem.notes || ''
+//         organizationId.value = currentSystem.organization_id || ''
+//       } else {
+//         // creating system, reset form to defaults
+//         name.value = ''
+//         organizationId.value = ''
+//         notes.value = ''
+//       }
+//     }
+//   },
+// )
+
+watch(organizations, () => {
+  if (isShown && currentSystem && organizations.value.data && organizations.value.data.length > 0) {
+    // select the organization while editing a system
+    organizationId.value = currentSystem.organization_id || ''
+  }
+})
+
+function onShow() {
+  clearErrors()
+  focusElement(nameRef)
+  step.value = 'create'
+  secret.value = ''
+
+  if (currentSystem) {
+    // editing system
+    name.value = currentSystem.name
+    notes.value = currentSystem.notes || ''
+    organizationId.value = currentSystem.organization_id || ''
+  } else {
+    // creating system, reset form to defaults
+    name.value = ''
+    organizationId.value = ''
+    notes.value = ''
+  }
+}
+
+function closeDrawer() {
+  emit('close')
+}
+
+function clearErrors() {
+  createSystemReset()
+  editSystemReset()
+  validationIssues.value = {}
+}
+
+function validateCreate(system: CreateSystem): boolean {
+  validationIssues.value = {}
+  const validation = v.safeParse(CreateSystemSchema, system) //// uncomment
+  // const validation = { success: true } //// remove
+
+  if (validation.success) {
+    // no validation issues
+    return true
+  } else {
+    const issues = v.flatten(validation.issues)
+
+    if (issues.nested) {
+      validationIssues.value = issues.nested as Record<string, string[]>
+
+      console.log('validationIssues', validationIssues.value) ////
+
+      // focus the first field with error
+
+      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
+
+      console.log('firstFieldName', firstErrorFieldName) ////
+
+      fieldRefs[firstErrorFieldName]?.value?.focus()
+    }
+    return false
+  }
+}
+
+function validateEdit(system: EditSystem): boolean {
+  validationIssues.value = {}
+  const validation = v.safeParse(EditSystemSchema, system)
+
+  if (validation.success) {
+    // no validation issues
+    return true
+  } else {
+    const issues = v.flatten(validation.issues)
+
+    if (issues.nested) {
+      validationIssues.value = issues.nested as Record<string, string[]>
+
+      // focus the first field with error
+
+      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
+
+      console.log('firstFieldName', firstErrorFieldName) ////
+
+      fieldRefs[firstErrorFieldName].value?.focus()
+    }
+    return false
+  }
+}
+
+async function saveSystem() {
+  clearErrors()
+
+  const system = {
+    name: name.value,
+    organization_id: organizationId.value,
+    notes: notes.value,
+    custom_data: {},
+  }
+
+  if (currentSystem?.id) {
+    // editing system
+
+    const systemToEdit: EditSystem = {
+      ...system,
+      id: currentSystem.id,
+    }
+
+    const isValidationOk = validateEdit(systemToEdit)
+    if (!isValidationOk) {
+      return
+    }
+    editSystemMutate(systemToEdit)
+  } else {
+    // creating system
+
+    const systemToCreate: CreateSystem = {
+      ...system,
+    }
+
+    const isValidationOk = validateCreate(systemToCreate)
+    if (!isValidationOk) {
+      return
+    }
+    createSystemMutate(systemToCreate)
+  }
+}
+
+function copyToClipboard(text: string) {
+  navigator.clipboard.writeText(text).then(
+    () => {},
+    (err) => {
+      console.error('Could not copy text: ', err)
+    },
+  )
+
+  // show "Copied" for 3 seconds
+  secretJustCopied.value = true
+  setTimeout(() => {
+    secretJustCopied.value = false
+  }, 3000)
+}
+</script>
+
+<template>
+  <NeSideDrawer
+    :is-shown="isShown"
+    :title="currentSystem ? $t('systems.edit_system') : $t('systems.create_system')"
+    :close-aria-label="$t('common.shell.close_side_drawer')"
+    @show="onShow"
+    @close="closeDrawer"
+  >
+    <form @submit.prevent>
+      <div class="space-y-6">
+        <template v-if="step === 'create'">
+          <!-- name -->
+          <NeTextInput
+            ref="nameRef"
+            v-model.trim="name"
+            :label="$t('systems.name')"
+            :disabled="saving"
+            :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
+          />
+          <!-- organization -->
+          <NeCombobox
+            ref="organizationIdRef"
+            v-model="organizationId"
+            :options="organizationOptions"
+            :label="$t('systems.organization')"
+            :placeholder="
+              organizations.status === 'pending' ? $t('common.loading') : $t('ne_combobox.choose')
+            "
+            :invalid-message="
+              validationIssues.organization_id?.[0] ? $t(validationIssues.organization_id[0]) : ''
+            "
+            :disabled="organizations.status === 'pending' || saving"
+            :no-results-label="$t('ne_combobox.no_results')"
+            :limited-options-label="$t('ne_combobox.limited_options_label')"
+            :no-options-label="$t('systems.no_organizations')"
+            :selected-label="$t('ne_combobox.selected')"
+            :user-input-label="$t('ne_combobox.user_input_label')"
+            :optional-label="$t('common.optional')"
+          />
+          <!-- notes -->
+          <NeTextInput
+            ref="notesRef"
+            v-model.trim="notes"
+            :label="$t('systems.notes')"
+            :disabled="saving"
+            :invalid-message="validationIssues.notes?.[0] ? $t(validationIssues.notes[0]) : ''"
+          />
+          <!-- create system error notification -->
+          <NeInlineNotification
+            v-if="createSystemError?.message && !isValidationError(createSystemError)"
+            kind="error"
+            :title="t('systems.cannot_create_system')"
+            :description="createSystemError.message"
+          />
+          <!-- edit system error notification -->
+          <NeInlineNotification
+            v-if="editSystemError?.message && !isValidationError(editSystemError)"
+            kind="error"
+            :title="t('systems.cannot_save_system')"
+            :description="editSystemError.message"
+          />
+        </template>
+        <template v-else-if="step === 'secret'">
+          <div class="flex items-end gap-4">
+            <NeTextInput
+              v-model="secret"
+              is-password
+              :label="$t('systems.system_secret')"
+              :disabled="false"
+              class="grow"
+            />
+            <!-- copy button -->
+            <NeTooltip trigger-event="mouseenter click" placement="auto">
+              <template #trigger>
+                <NeButton kind="secondary" size="md" @click="copyToClipboard(secret)">
+                  <FontAwesomeIcon :icon="faCopy" class="h-6 w-4" aria-hidden="true" />
+                </NeButton>
+              </template>
+              <template #content>
+                {{ secretJustCopied ? t('common.copied') : t('systems.copy_system_secret') }}
+              </template>
+            </NeTooltip>
+          </div>
+          <NeInlineNotification kind="warning" :description="t('systems.system_secret_warning')" />
+        </template>
+      </div>
+      <!-- footer -->
+      <hr class="my-8" />
+      <div class="flex justify-end">
+        <NeButton
+          kind="tertiary"
+          size="lg"
+          :disabled="saving"
+          class="mr-3"
+          @click.prevent="closeDrawer"
+        >
+          {{ $t('common.cancel') }}
+        </NeButton>
+        <NeButton
+          v-if="step === 'create'"
+          type="submit"
+          kind="primary"
+          size="lg"
+          :disabled="saving"
+          :loading="saving"
+          @click.prevent="saveSystem"
+        >
+          {{ currentSystem ? t('systems.save_system') : t('systems.create_system') }}
+        </NeButton>
+        <NeButton
+          v-else-if="step === 'secret'"
+          kind="primary"
+          size="lg"
+          @click.prevent="closeDrawer"
+        >
+          {{ t('common.close') }}
+        </NeButton>
+      </div>
+    </form>
+  </NeSideDrawer>
+</template>

@@ -9,6 +9,7 @@ import { ref } from 'vue'
 import { faChevronDown, faCirclePlus } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { canManageSystems } from '@/lib/permissions'
+import SystemsTable from '@/components/systems/SystemsTable.vue'
 
 const isShownCreateSystemDrawer = ref(false)
 </script>

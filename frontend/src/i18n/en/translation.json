@@ -31,7 +31,8 @@
     "loading": "Loading...",
     "show": "Show",
     "hide": "Hide",
-    "coming_soon": "Coming soon"
+    "coming_soon": "Coming soon",
+    "view_details": "View details"
   },
   "shell": {
     "open_sidebar": "Open sidebar",
@@ -321,6 +322,7 @@
     "title": "Systems",
     "page_description": "List of all registered systems, including their versions and their status.",
     "cannot_retrieve_systems": "Cannot retrieve systems",
+    "no_systems": "No systems",
     "no_systems_found": "No systems found",
     "filter_systems": "Filter systems",
     "product": "Product",
@@ -337,7 +339,23 @@
     "go_to_system": "Go to system",
     "create_system": "Create system",
     "name_cannot_be_empty": "Name is required",
-    "organization_required": "Organization is required"
+    "organization_required": "Organization is required",
+    "system_created": "System created",
+    "system_saved": "System saved",
+    "edit_system": "Edit system",
+    "name": "Name",
+    "notes": "Notes",
+    "cannot_create_system": "Cannot create system",
+    "cannot_save_system": "Cannot save system",
+    "cannot_delete_system": "Cannot delete system",
+    "save_system": "Save system",
+    "no_organizations": "No organizations",
+    "delete_system": "Delete system",
+    "delete_system_confirmation": "Are you sure you want to delete system {name}? Lorem ispum dolor sit amet, consectetur adipiscing elit.",
+    "system_deleted": "System deleted",
+    "system_secret": "System secret",
+    "system_secret_warning": "Copy the secret and paste it into the system UI to complete the registration. You can always find it again on the system details page.",
+    "copy_system_secret": "Copy system secret"
   },
   "ne_table": {
     "no_items": "No items",

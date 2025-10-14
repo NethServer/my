@@ -4,15 +4,12 @@
 -->
 
 <script setup lang="ts">
-import { USERS_TABLE_ID, type User } from '@/lib/users'
 import {
   faCircleInfo,
   faCirclePlus,
-  faUserGroup,
-  faPenToSquare,
   faTrash,
-  faKey,
-  faUserSecret,
+  faServer,
+  faEye,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -31,25 +28,18 @@ import {
   NeDropdown,
   type SortEvent,
   NeSortDropdown,
-  NeBadge,
-  sortByProperty,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
-import CreateOrEditUserDrawer from './CreateOrEditUserDrawer.vue'
 import { useI18n } from 'vue-i18n'
-import DeleteUserModal from './DeleteUserModal.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
-import ResetPasswordModal from './ResetPasswordModal.vue'
-import PasswordChangedModal from './PasswordChangedModal.vue'
-import { useUsers } from '@/queries/users'
-import { canManageUsers, canImpersonateUsers } from '@/lib/permissions'
+import { canManageSystems } from '@/lib/permissions'
 import { useLoginStore } from '@/stores/login'
-import ImpersonateUserModal from './ImpersonateUserModal.vue'
 import { normalize } from '@/lib/common'
 import { useSystems } from '@/queries/systems'
-import type { System } from '@/lib/systems'
-
-//// review, search for "users"
+import { SYSTEMS_TABLE_ID, type System } from '@/lib/systems'
+import router from '@/router'
+import CreateOrEditSystemDrawer from './CreateOrEditSystemDrawer.vue'
+import DeleteSystemModal from './DeleteSystemModal.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -69,7 +59,7 @@ const {
   sortDescending,
 } = useSystems()
 
-const loginStore = useLoginStore()
+const loginStore = useLoginStore() //// remove?
 
 const currentSystem = ref<System | undefined>()
 const isShownCreateOrEditSystemDrawer = ref(false)
@@ -102,6 +92,7 @@ function showCreateSystemDrawer() {
   isShownCreateOrEditSystemDrawer.value = true
 }
 
+////
 function showEditSystemDrawer(system: System) {
   currentSystem.value = system
   isShownCreateOrEditSystemDrawer.value = true
@@ -141,6 +132,10 @@ function getKebabMenuItems(system: System) {
 const onSort = (payload: SortEvent) => {
   sortBy.value = payload.key as keyof System
   sortDescending.value = payload.descending
+}
+
+const goToSystemDetails = (system: System) => {
+  router.push({ name: 'system', params: { id: system.id } })
 }
 </script>
 
@@ -196,8 +191,45 @@ const onSort = (payload: SortEvent) => {
         </div>
       </div>
     </div>
+
+    state.status {{ state.status }} ////
+
+    <!-- empty state -->
+    <NeEmptyState
+      v-if="state.status === 'success' && !systemsPage?.length && !debouncedTextFilter"
+      :title="$t('systems.no_systems')"
+      :icon="faServer"
+      class="bg-white dark:bg-gray-950"
+    >
+      <!-- create system -->
+      <NeButton
+        v-if="canManageSystems()"
+        kind="secondary"
+        size="lg"
+        class="shrink-0"
+        @click="showCreateSystemDrawer()"
+      >
+        <template #prefix>
+          <FontAwesomeIcon :icon="faCirclePlus" aria-hidden="true" />
+        </template>
+        {{ $t('systems.create_system') }}
+      </NeButton>
+    </NeEmptyState>
+    <!-- no system matching filter -->
+    <NeEmptyState
+      v-else-if="state.status === 'success' && !systemsPage?.length && debouncedTextFilter"
+      :title="$t('systems.no_systems_found')"
+      :description="$t('common.try_changing_search_filters')"
+      :icon="faCircleInfo"
+      class="bg-white dark:bg-gray-950"
+    >
+      <NeButton kind="tertiary" @click="clearFilters">
+        {{ $t('common.clear_filters') }}
+      </NeButton>
+    </NeEmptyState>
     <!-- //// check breakpoint, skeleton-columns -->
     <NeTable
+      v-else
       :sort-key="sortBy"
       :sort-descending="sortDescending"
       :aria-label="$t('systems.title')"
@@ -226,82 +258,46 @@ const onSort = (payload: SortEvent) => {
         </NeTableHeadCell>
       </NeTableHead>
       <NeTableBody>
-        <!-- empty state -->
-        <NeTableRow v-if="!systemsPage?.length && !debouncedTextFilter">
-          <NeTableCell colspan="5">
-            <NeEmptyState
-              :title="$t('users.no_user')"
-              :icon="faUserGroup"
-              class="bg-white dark:bg-gray-950"
-            >
-              <!-- create user -->
-              <NeButton
-                v-if="canManageUsers()"
-                kind="secondary"
-                size="lg"
-                class="shrink-0"
-                @click="showCreateSystemDrawer()"
-              >
-                <template #prefix>
-                  <FontAwesomeIcon :icon="faCirclePlus" aria-hidden="true" />
-                </template>
-                {{ $t('users.create_user') }}
-              </NeButton>
-            </NeEmptyState>
+        <NeTableRow v-for="(item, index) in systemsPage" :key="index">
+          <NeTableCell :data-label="$t('systems.name')">
+            {{ item.name || '-' }}
           </NeTableCell>
-        </NeTableRow>
-        <!-- no user matching filter -->
-        <NeTableRow v-else-if="!systemsPage?.length && debouncedTextFilter">
-          <NeTableCell colspan="4">
-            <NeEmptyState
-              :title="$t('users.no_user_found')"
-              :description="$t('common.try_changing_search_filters')"
-              :icon="faCircleInfo"
-              class="bg-white dark:bg-gray-950"
-            >
-              <NeButton kind="tertiary" @click="clearFilters">
-                {{ $t('common.clear_filters') }}</NeButton
-              >
-            </NeEmptyState>
+          <NeTableCell :data-label="$t('systems.version')" class="break-all xl:break-normal">
+            {{ item.version || '-' }}
           </NeTableCell>
-        </NeTableRow>
-        <NeTableRow v-for="(item, index) in systemsPage" v-else :key="index">
-          <NeTableCell :data-label="$t('users.name')">
-            {{ item.name }}
+          <NeTableCell :data-label="$t('common.fqdn_ip_address')" class="break-all xl:break-normal">
+            <div v-if="item.fqdn">{{ item.fqdn }}</div>
+            <div v-if="item.ipv4_address">{{ item.ipv4_address }}</div>
+            <div v-if="item.ipv6_address">{{ item.ipv6_address }}</div>
+            <div v-if="!item.fqdn && !item.ipv4_address && !item.ipv6_address">-</div>
           </NeTableCell>
-          <NeTableCell :data-label="$t('users.email')" class="break-all xl:break-normal">
-            {{ item.email }}
+          <NeTableCell :data-label="$t('systems.organization')">
+            {{ item.organization_name || '-' }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('users.organization')">
-            {{ item.organization?.name || '-' }}
+          <NeTableCell :data-label="$t('systems.created_by')">
+            {{ item.created_by?.user_name || '-' }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('users.roles')">
-            <span v-if="!item.roles || item.roles.length === 0">-</span>
-            <div v-else class="flex flex-wrap gap-1">
-              <NeBadge
-                v-for="role in item.roles?.sort(sortByProperty('name'))"
-                :key="role.id"
-                :text="t(`user_roles.${normalize(role.name)}`)"
-                kind="custom"
-                customColorClasses="bg-indigo-100 text-indigo-800 dark:bg-indigo-700 dark:text-indigo-100"
-                class="inline-block"
-              ></NeBadge>
-            </div>
+          <NeTableCell :data-label="$t('systems.status')">
+            {{ item.status || '-' }} ////
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div v-if="canManageUsers()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+            <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
               <NeButton
                 kind="tertiary"
-                @click="showEditSystemDrawer(item)"
+                @click="goToSystemDetails(item)"
                 :disabled="asyncStatus === 'loading'"
               >
                 <template #prefix>
-                  <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
+                  <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
                 </template>
-                {{ $t('common.edit') }}
+                {{ $t('common.view_details') }}
               </NeButton>
               <!-- kebab menu -->
-              <NeDropdown :items="getKebabMenuItems(item)" :align-to-right="true" />
+              <NeDropdown
+                v-if="canManageSystems()"
+                :items="getKebabMenuItems(item)"
+                :align-to-right="true"
+              />
             </div>
           </NeTableCell>
         </NeTableRow>
@@ -325,43 +321,23 @@ const onSort = (payload: SortEvent) => {
           @select-page-size="
             (size: number) => {
               pageSize = size
-              savePageSizeToStorage(USERS_TABLE_ID, size)
+              savePageSizeToStorage(SYSTEMS_TABLE_ID, size)
             }
           "
         />
       </template>
     </NeTable>
     <!-- side drawer -->
-    <CreateOrEditUserDrawer
+    <CreateOrEditSystemDrawer
       :is-shown="isShownCreateOrEditSystemDrawer"
-      :current-user="currentSystem"
+      :current-system="currentSystem"
       @close="onCloseDrawer"
     />
-    <!-- delete user modal -->
-    <DeleteUserModal
+    <!-- delete system modal -->
+    <DeleteSystemModal
       :visible="isShownDeleteSystemModal"
-      :user="currentSystem"
+      :system="currentSystem"
       @close="isShownDeleteSystemModal = false"
-    />
-    <!-- impersonate user modal -->
-    <ImpersonateUserModal
-      :visible="isShownImpersonateUserModal"
-      :user="currentSystem"
-      @close="isShownImpersonateUserModal = false"
-    />
-    <!-- reset password modal -->
-    <ResetPasswordModal
-      :visible="isShownResetPasswordModal"
-      :user="currentSystem"
-      @close="isShownResetPasswordModal = false"
-      @password-changed="onPasswordChanged"
-    />
-    <!-- password changed modal -->
-    <PasswordChangedModal
-      :visible="isShownPasswordChangedModal"
-      :user="currentSystem"
-      :new-password="newPassword"
-      @close="onClosePasswordChangedModal"
     />
   </div>
 </template>

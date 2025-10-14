@@ -34,9 +34,11 @@ export const SystemSchema = v.object({
   ipv4_address: v.string(),
   ipv6_address: v.string(),
   version: v.string(),
+  organization_name: v.string(),
   created_at: v.string(),
   updated_at: v.string(),
-  system_key: v.string(),
+  system_key: v.optional(v.string()),
+  system_secret: v.string(),
   created_by: v.object({
     user_id: v.string(),
     user_name: v.string(),
@@ -100,15 +102,17 @@ export const getSystems = (
 export const postSystem = (system: CreateSystem) => {
   const loginStore = useLoginStore()
 
-  return axios.post(`${API_URL}/systems`, system, {
-    headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
-  })
+  return axios
+    .post<System>(`${API_URL}/systems`, system, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data)
 }
 
 export const putSystem = (system: EditSystem) => {
   const loginStore = useLoginStore()
 
-  return axios.put(`${API_URL}/systems/${system.id}`, system, {
+  return axios.put<System>(`${API_URL}/systems/${system.id}`, system, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
@@ -119,6 +123,19 @@ export const deleteSystem = (system: System) => {
   return axios.delete(`${API_URL}/systems/${system.id}`, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
+}
+
+//// used?
+export const regenerateSystemSecret = (systemId: string) => {
+  const loginStore = useLoginStore()
+
+  return axios.post<System>(
+    `${API_URL}/systems/${systemId}/regenerate-secret`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
 }
 
 export const getSystemsTotal = () => {
