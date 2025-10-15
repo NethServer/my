@@ -311,6 +311,7 @@ CREATE TABLE IF NOT EXISTS inventory_records (
 CREATE INDEX IF NOT EXISTS idx_inventory_records_system_id_timestamp ON inventory_records(system_id, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_inventory_records_data_hash ON inventory_records(data_hash);
 CREATE INDEX IF NOT EXISTS idx_inventory_records_processed_at ON inventory_records(processed_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_inventory_records_system_data_hash ON inventory_records(system_id, data_hash);
 
 -- Inventory diffs table
 CREATE TABLE IF NOT EXISTS inventory_diffs (

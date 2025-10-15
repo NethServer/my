@@ -31,39 +31,46 @@ func ReceiveHeartbeat(c *gin.Context) {
 		return
 	}
 
-	// Validate system_id
-	if req.SystemID == "" {
-		c.JSON(http.StatusBadRequest, response.BadRequest("system_id is required", nil))
+	// Validate system_key
+	if req.SystemKey == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system_key is required", nil))
 		return
 	}
 
-	// Get system_id from basic auth context (set by middleware)
+	// Get system_key and system_id from basic auth context (set by middleware)
+	authSystemKey, exists := c.Get("system_key")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("authentication required", nil))
+		return
+	}
+
 	authSystemID, exists := c.Get("system_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("authentication required", nil))
 		return
 	}
 
-	// Verify that the system_id in the request matches the authenticated system
-	if req.SystemID != authSystemID.(string) {
+	// Verify that the system_key in the request matches the authenticated system
+	if req.SystemKey != authSystemKey.(string) {
 		logger.Warn().
 			Str("component", "heartbeat").
 			Str("operation", "auth_mismatch").
-			Str("requested_system_id", req.SystemID).
-			Str("authenticated_system_id", authSystemID.(string)).
-			Msg("system_id mismatch in heartbeat")
-		c.JSON(http.StatusForbidden, response.Forbidden("system_id mismatch", nil))
+			Str("requested_system_key", req.SystemKey).
+			Str("authenticated_system_key", authSystemKey.(string)).
+			Msg("system_key mismatch in heartbeat")
+		c.JSON(http.StatusForbidden, response.Forbidden("system_key mismatch", nil))
 		return
 	}
 
-	// Update heartbeat in database - optimized single query
+	// Update heartbeat in database - optimized single query (using internal system_id)
 	now := time.Now()
-	err := updateSystemHeartbeat(req.SystemID, now)
+	err := updateSystemHeartbeat(authSystemID.(string), now)
 	if err != nil {
 		logger.Error().
 			Str("component", "heartbeat").
 			Str("operation", "database_update").
-			Str("system_id", req.SystemID).
+			Str("system_key", req.SystemKey).
+			Str("system_id", authSystemID.(string)).
 			Err(err).
 			Msg("failed to update system heartbeat")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to update heartbeat", nil))
@@ -72,7 +79,7 @@ func ReceiveHeartbeat(c *gin.Context) {
 
 	// Minimal response for efficiency
 	resp := models.HeartbeatResponse{
-		SystemID:      req.SystemID,
+		SystemKey:     req.SystemKey,
 		Acknowledged:  true,
 		LastHeartbeat: now,
 	}

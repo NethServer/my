@@ -4127,7 +4127,7 @@ paths:
       summary: /systems/inventory - Collect system inventory
       description: System inventory collection endpoint with HTTP Basic authentication
       security:
-        - BasicAuth: [system_id:system_secret]
+        - BasicAuth: [system_key:system_secret]
       requestBody:
         required: true
         content:
@@ -4181,10 +4181,10 @@ paths:
                         type: string
                         description: Queue status message
                         example: "queued"
-                      system_id:
+                      system_key:
                         type: string
-                        description: System ID
-                        example: "4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
+                        description: System KEY
+                        example: "NOC-4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
                       timestamp:
                         type: string
                         format: date-time
@@ -4249,7 +4249,7 @@ paths:
       summary: /systems/heartbeat - System heartbeat
       description: System heartbeat endpoint to track system liveness (every 10 minutes)
       security:
-        - BasicAuth: [system_id:system_secret]
+        - BasicAuth: [system_key:system_secret]
       requestBody:
         required: true
         content:
@@ -4257,12 +4257,12 @@ paths:
             schema:
               type: object
               properties:
-                system_id:
+                system_key:
                   type: string
-                  description: System ID sending the heartbeat
-                  example: "4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
+                  description: System KEY sending the heartbeat
+                  example: "NOC-4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
               required:
-                - system_id
+                - system_key
       responses:
         '200':
           description: Heartbeat acknowledged
@@ -4280,10 +4280,10 @@ paths:
                   data:
                     type: object
                     properties:
-                      system_id:
+                      system_key:
                         type: string
-                        description: System ID
-                        example: "4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
+                        description: System KEY
+                        example: "NOC-4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
                       acknowledged:
                         type: boolean
                         description: Whether heartbeat was acknowledged

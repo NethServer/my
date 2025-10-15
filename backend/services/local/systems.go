@@ -560,21 +560,27 @@ func (s *LocalSystemsService) calculateHeartbeatStatus(lastHeartbeat *time.Time,
 	return "dead", &minutes
 }
 
-// generateSystemKey generates a unique alphanumeric system key
+// generateSystemKey generates a unique UUID-based system key with prefix
+// Format: NOC-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX
 func (s *LocalSystemsService) generateSystemKey() (string, error) {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	const length = 12
+	// Generate a new UUID
+	id := uuid.New()
 
-	bytes := make([]byte, length)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
+	// Convert UUID to uppercase hex string without dashes
+	hexStr := strings.ToUpper(strings.ReplaceAll(id.String(), "-", ""))
+
+	// Format as: NOC-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX
+	// Group into 4-character segments for readability
+	var segments []string
+	for i := 0; i < len(hexStr); i += 4 {
+		end := i + 4
+		if end > len(hexStr) {
+			end = len(hexStr)
+		}
+		segments = append(segments, hexStr[i:end])
 	}
 
-	for i, b := range bytes {
-		bytes[i] = charset[b%byte(len(charset))]
-	}
-
-	return string(bytes), nil
+	return "NOC-" + strings.Join(segments, "-"), nil
 }
 
 // generateSystemSecret generates a cryptographically secure random secret
