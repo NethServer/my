@@ -663,11 +663,12 @@ func (s *LocalSystemsService) CanCreateSystemForOrganization(userOrgRole, userOr
 		}
 		return false, "distributors can only create systems for organizations they manage"
 	case "reseller":
-		// Reseller can create systems for their own organization only
-		if targetOrgID == userOrgID {
+		// Reseller can create systems for their own organization and customers they manage
+		userService := NewUserService()
+		if userService.IsOrganizationInHierarchy(normalizedOrgRole, userOrgID, targetOrgID) {
 			return true, ""
 		}
-		return false, "resellers can only create systems for their own organization"
+		return false, "resellers can only create systems for their own organization and customers they manage"
 	case "customer":
 		// Customers can create systems for their own organization only
 		if targetOrgID == userOrgID {
