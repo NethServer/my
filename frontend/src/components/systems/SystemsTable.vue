@@ -29,13 +29,14 @@ import {
   NeDropdown,
   type SortEvent,
   NeSortDropdown,
+  type FilterOption,
+  NeDropdownFilter,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { canManageSystems } from '@/lib/permissions'
 import { useLoginStore } from '@/stores/login'
-import { normalize } from '@/lib/common'
 import { useSystems } from '@/queries/systems'
 import { SYSTEMS_TABLE_ID, type System } from '@/lib/systems'
 import router from '@/router'
@@ -65,6 +66,23 @@ const loginStore = useLoginStore() //// remove?
 const currentSystem = ref<System | undefined>()
 const isShownCreateOrEditSystemDrawer = ref(false)
 const isShownDeleteSystemModal = ref(false)
+const statusFilter = ref<string[]>([]) //// narrow type
+
+const statusFilterOptions = ref<FilterOption[]>([
+  {
+    id: 'active',
+    label: t('systems.status_active'),
+  },
+  {
+    id: 'inactive',
+    label: t('systems.status_inactive'),
+  },
+  {
+    id: 'unknown',
+    label: t('systems.status_unknown'),
+  },
+  { id: 'deleted', label: t('systems.status_deleted') },
+])
 
 const systemsPage = computed(() => {
   return state.value.data?.systems
@@ -86,6 +104,7 @@ watch(
 
 function clearFilters() {
   textFilter.value = ''
+  statusFilter.value = []
 }
 
 function showCreateSystemDrawer() {
@@ -161,6 +180,17 @@ const goToSystemDetails = (system: System) => {
             :placeholder="$t('systems.filter_systems')"
             class="max-w-48 sm:max-w-sm"
           />
+          <NeDropdownFilter
+            v-model="statusFilter"
+            kind="checkbox"
+            :label="t('common.status')"
+            :options="statusFilterOptions"
+            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
+          />
           <!-- //// TODO: other filters -->
           <NeSortDropdown
             v-model:sort-key="sortBy"
@@ -180,6 +210,9 @@ const goToSystemDetails = (system: System) => {
             :descending-label="t('sort.descending')"
             class="xl:hidden"
           />
+          <NeButton kind="tertiary" @click="clearFilters">
+            {{ t('common.clear_filters') }}
+          </NeButton>
         </div>
         <!-- update indicator -->
         <div

@@ -29,7 +29,8 @@ export const SystemSchema = v.object({
   ...CreateSystemSchema.entries,
   ...EditSystemSchema.entries,
   type: v.string(),
-  status: v.string(), //// narrow type
+  status: v.optional(v.string()),
+  // status: v.optional(v.picklist(['active', 'inactive', 'pending'])), //// check values and uncomment
   fqdn: v.string(),
   ipv4_address: v.string(),
   ipv6_address: v.string(),
@@ -72,6 +73,8 @@ export const SystemSchema = v.object({
 export type CreateSystem = v.InferOutput<typeof CreateSystemSchema>
 export type EditSystem = v.InferOutput<typeof EditSystemSchema>
 export type System = v.InferOutput<typeof SystemSchema>
+
+type ObjectTypeFilter = 'host' | 'cidr'
 
 interface SystemsResponse {
   code: number

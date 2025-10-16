@@ -355,7 +355,11 @@
     "system_deleted": "System deleted",
     "system_secret": "System secret",
     "system_secret_warning": "Copy the secret and paste it into the system UI to complete the registration. You can always find it again on the system details page.",
-    "copy_system_secret": "Copy system secret"
+    "copy_system_secret": "Copy system secret",
+    "status_active": "Active",
+    "status_inactive": "Inactive",
+    "status_unknown": "Unknown",
+    "status_deleted": "Deleted"
   },
   "ne_table": {
     "no_items": "No items",
@@ -379,6 +383,14 @@
     "choose": "Choose",
     "choose_multiple": "Choose one or more",
     "num_selected": "{num} selected"
+  },
+  "ne_dropdown_filter": {
+    "clear_filter": "Clear filter",
+    "open_filter": "Open filter",
+    "no_options": "No options",
+    "more_options_hidden": "Continue typing to show more options",
+    "clear_selection": "Clear selection",
+    "clear_search": "Clear search"
   },
   "sort": {
     "sort": "Sort",
