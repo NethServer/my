@@ -36,7 +36,6 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { canManageSystems } from '@/lib/permissions'
-import { useLoginStore } from '@/stores/login'
 import { useSystems } from '@/queries/systems'
 import { SYSTEMS_TABLE_ID, type System } from '@/lib/systems'
 import router from '@/router'
@@ -60,8 +59,6 @@ const {
   sortBy,
   sortDescending,
 } = useSystems()
-
-const loginStore = useLoginStore() //// remove?
 
 const currentSystem = ref<System | undefined>()
 const isShownCreateOrEditSystemDrawer = ref(false)

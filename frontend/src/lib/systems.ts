@@ -74,8 +74,6 @@ export type CreateSystem = v.InferOutput<typeof CreateSystemSchema>
 export type EditSystem = v.InferOutput<typeof EditSystemSchema>
 export type System = v.InferOutput<typeof SystemSchema>
 
-type ObjectTypeFilter = 'host' | 'cidr'
-
 interface SystemsResponse {
   code: number
   message: string

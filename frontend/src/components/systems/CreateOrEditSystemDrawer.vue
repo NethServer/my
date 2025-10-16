@@ -13,13 +13,12 @@ import {
   NeCombobox,
   NeTooltip,
 } from '@nethesis/vue-components'
-import { computed, ref, useTemplateRef, watch, type Ref, type ShallowRef } from 'vue'
+import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import {
   CreateSystemSchema,
   EditSystemSchema,
   postSystem,
   putSystem,
-  regenerateSystemSecret,
   SYSTEMS_KEY,
   SYSTEMS_TOTAL_KEY,
   type CreateSystem,
@@ -65,7 +64,7 @@ const {
   mutation: (newSystem: CreateSystem) => {
     return postSystem(newSystem)
   },
-  async onSuccess(data, vars) {
+  async onSuccess(data) {
     ////
     // show success notification after drawer closes
     // setTimeout(() => {
@@ -80,9 +79,7 @@ const {
 
     // closeDrawer() ////
 
-    console.log('data', data) ////
-
-    secret.value = data.data.system_secret
+    secret.value = data.system_secret
     step.value = 'secret'
   },
   onError: (error) => {
