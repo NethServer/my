@@ -94,6 +94,7 @@ export const getQueryStringParams = (
   pageSize: number,
   textFilter: string | null,
   productFilter: string[],
+  createdByFilter: string[],
   statusFilter: string[], //// narrow type
   sortBy: string | null,
   sortDescending: boolean,
@@ -113,6 +114,10 @@ export const getQueryStringParams = (
     searchParams.append('type', product)
   })
 
+  createdByFilter.forEach((userId) => {
+    searchParams.append('created_by', userId)
+  })
+
   statusFilter.forEach((status) => {
     searchParams.append('status', status)
   })
@@ -124,6 +129,7 @@ export const getSystems = (
   pageSize: number,
   textFilter: string,
   productFilter: string[],
+  createdByFilter: string[],
   statusFilter: string[], //// narrow type
   sortBy: string,
   sortDescending: boolean,
@@ -135,6 +141,7 @@ export const getSystems = (
     pageSize,
     textFilter,
     productFilter,
+    createdByFilter,
     statusFilter,
     sortBy,
     sortDescending,

@@ -17,6 +17,7 @@ export const useSystems = defineQuery(() => {
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
   const productFilter = ref<string[]>([])
+  const createdByFilter = ref<string[]>([])
   const statusFilter = ref<string[]>([]) //// delete
   // const statusFilter = ref<string[]>(['active', 'inactive', 'unknown']) //// narrow type, uncomment
   const sortBy = ref<keyof System>('name')
@@ -30,6 +31,7 @@ export const useSystems = defineQuery(() => {
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
         productFilter: productFilter.value,
+        createdByFilter: createdByFilter.value,
         statusFilter: statusFilter.value,
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
@@ -42,6 +44,7 @@ export const useSystems = defineQuery(() => {
         pageSize.value,
         debouncedTextFilter.value,
         productFilter.value,
+        createdByFilter.value,
         statusFilter.value,
         sortBy.value,
         sortDescending.value,
@@ -88,6 +91,7 @@ export const useSystems = defineQuery(() => {
     pageSize,
     textFilter,
     productFilter,
+    createdByFilter,
     statusFilter,
     debouncedTextFilter,
     sortBy,

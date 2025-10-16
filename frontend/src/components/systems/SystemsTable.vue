@@ -42,6 +42,7 @@ import router from '@/router'
 import CreateOrEditSystemDrawer from './CreateOrEditSystemDrawer.vue'
 import DeleteSystemModal from './DeleteSystemModal.vue'
 import { useFilterProducts } from '@/queries/systems/filterProducts'
+import { useFilterCreatedBy } from '@/queries/systems/filterCreatedBy'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -58,11 +59,14 @@ const {
   textFilter,
   debouncedTextFilter,
   productFilter,
+  createdByFilter,
   statusFilter,
   sortBy,
   sortDescending,
 } = useSystems()
-const { state: filterProductsState, asyncStatus: filterProductsAsyncStatus } = useFilterProducts()
+const { state: filterProductState, asyncStatus: filterProductsAsyncStatus } = useFilterProducts()
+const { state: filterCreatedByState, asyncStatus: filterCreatedByAsyncStatus } =
+  useFilterCreatedBy()
 
 const currentSystem = ref<System | undefined>()
 const isShownCreateOrEditSystemDrawer = ref(false)
@@ -95,12 +99,23 @@ const pagination = computed(() => {
 })
 
 const productFilterOptions = computed(() => {
-  if (!filterProductsState.value.data) {
+  if (!filterProductState.value.data) {
     return []
   } else {
-    return filterProductsState.value.data.products.map((productId) => ({
+    return filterProductState.value.data.products.map((productId) => ({
       id: productId,
       label: getProductName(productId),
+    }))
+  }
+})
+
+const createdByFilterOptions = computed(() => {
+  if (!filterCreatedByState.value.data) {
+    return []
+  } else {
+    return filterCreatedByState.value.data.created_by.map((user) => ({
+      id: user.user_id,
+      label: user.name,
     }))
   }
 })
@@ -207,10 +222,25 @@ const goToSystemDetails = (system: System) => {
             v-model="productFilter"
             kind="checkbox"
             :disabled="
-              filterProductsAsyncStatus === 'loading' || filterProductsState.status === 'error'
+              filterProductsAsyncStatus === 'loading' || filterProductState.status === 'error'
             "
             :label="t('systems.product')"
             :options="productFilterOptions"
+            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
+          />
+          <NeDropdownFilter
+            v-model="createdByFilter"
+            kind="checkbox"
+            :disabled="
+              filterCreatedByAsyncStatus === 'loading' || filterCreatedByState.status === 'error'
+            "
+            :label="t('systems.created_by')"
+            :options="createdByFilterOptions"
+            show-options-filter
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
