@@ -184,6 +184,7 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	}
 
 	if len(filterOrgIDs) > 0 {
+		// Filter by logto_id (systems.organization_id stores logto_id)
 		orgPlaceholders := make([]string, len(filterOrgIDs))
 		for i, orgID := range filterOrgIDs {
 			orgPlaceholders[i] = fmt.Sprintf("$%d", len(args)+i+1)

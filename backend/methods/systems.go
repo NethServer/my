@@ -64,8 +64,13 @@ func CreateSystem(c *gin.Context) {
 	systemsService := local.NewSystemsService()
 
 	// Create SystemCreator object with detailed user information
+	// Use logto_id for consistency across the system (users and organizations both use logto_id)
+	userLogtoID := ""
+	if user.LogtoID != nil {
+		userLogtoID = *user.LogtoID
+	}
 	creatorInfo := &models.SystemCreator{
-		UserID:           user.ID,
+		UserID:           userLogtoID,
 		UserName:         user.Username,
 		OrganizationID:   user.OrganizationID,
 		OrganizationName: user.OrganizationName,
