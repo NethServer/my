@@ -1151,7 +1151,7 @@ components:
         type: array
         items:
           type: string
-        example: ["NethSecurity", "NethServer"]
+        example: ["nsec", "ns8"]
       style: form
       explode: true
 
@@ -1164,7 +1164,7 @@ components:
         type: array
         items:
           type: string
-        example: ["c50541f56-3005-43c2-a237-07aa44e1551c", "d1e17b87-11ce-4e74-a9f8-34d9638135f1"]
+        example: ["user_abc123xyz", "user_def456uvw"]
       style: form
       explode: true
 
@@ -1190,7 +1190,7 @@ components:
         type: array
         items:
           type: string
-        example: ["506264e1-915a-4bd0-b721-c7a1a1abcf76", "8ec41105-648e-4730-8705-f581c3b976e5"]
+        example: ["org_abc123xyz", "org_def456uvw"]
       style: form
       explode: true
 
@@ -3694,7 +3694,30 @@ paths:
       tags:
         - Backend - Systems
       summary: /systems - List systems
-      description: Get list of systems visible to the user based on hierarchical organization permissions. Supports filtering by name, type, creator, version, organization, and status.
+      description: |
+        Get list of systems visible to the user based on hierarchical organization permissions. Supports filtering by name, type, creator, version, organization, and status.
+
+        **Query String Examples:**
+
+        1. **Single type filter**: `?type=nsec`
+        2. **Multiple types filter**: `?type=nsec&type=ns8`
+        3. **Multiple filters combined**: `?type=nsec&status=online&status=maintenance&version=8.0`
+        4. **With pagination and sorting**: `?page=1&page_size=50&sort_by=name&sort_direction=asc&type=nsec`
+        5. **Search with filters**: `?search=backup&type=ns8&organization_id=org_abc123xyz`
+        6. **Creator filter**: `?created_by=user_def456abc&created_by=user_ghi789def`
+
+        **Complete Example Request:**
+        ```
+        GET /api/systems?page=1&page_size=20&sort_by=created_at&sort_direction=desc&type=nsec&type=ns8&status=online&version=8.0&version=8.1&organization_id=org_abc123xyz
+        ```
+
+        This retrieves systems that are:
+        - Type: nsec OR ns8
+        - Status: online
+        - Version: 8.0 OR 8.1
+        - Organization: org_abc123xyz
+        - Sorted by creation date (newest first)
+        - Page 1 with 20 items per page
       parameters:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
