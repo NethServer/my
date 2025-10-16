@@ -4,7 +4,7 @@
 import { MIN_SEARCH_LENGTH } from '@/lib/common'
 import { canReadSystems } from '@/lib/permissions'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
-import { getSystems, SYSTEMS_KEY, SYSTEMS_TABLE_ID, type System } from '@/lib/systems'
+import { getSystems, SYSTEMS_KEY, SYSTEMS_TABLE_ID, type System } from '@/lib/systems/systems'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { useDebounceFn } from '@vueuse/core'
@@ -16,6 +16,8 @@ export const useSystems = defineQuery(() => {
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
+  const productFilter = ref<string[]>([])
+  const statusFilter = ref<string[]>([]) //// narrow type
   const sortBy = ref<keyof System>('name')
   const sortDescending = ref(false)
 
@@ -26,6 +28,8 @@ export const useSystems = defineQuery(() => {
         pageNum: pageNum.value,
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
+        productFilter: productFilter.value,
+        statusFilter: statusFilter.value,
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
@@ -36,6 +40,8 @@ export const useSystems = defineQuery(() => {
         pageNum.value,
         pageSize.value,
         debouncedTextFilter.value,
+        productFilter.value,
+        statusFilter.value,
         sortBy.value,
         sortDescending.value,
       ),
@@ -80,6 +86,8 @@ export const useSystems = defineQuery(() => {
     pageNum,
     pageSize,
     textFilter,
+    productFilter,
+    statusFilter,
     debouncedTextFilter,
     sortBy,
     sortDescending,

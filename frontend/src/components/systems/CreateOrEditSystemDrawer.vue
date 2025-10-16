@@ -24,7 +24,7 @@ import {
   type CreateSystem,
   type EditSystem,
   type System,
-} from '@/lib/systems'
+} from '@/lib/systems/systems'
 import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -79,7 +79,9 @@ const {
 
     // closeDrawer() ////
 
-    secret.value = data.system_secret
+    // console.log('data', data) ////
+
+    secret.value = data.data.system_secret
     step.value = 'secret'
   },
   onError: (error) => {
@@ -390,6 +392,7 @@ function copyToClipboard(text: string) {
               :label="$t('systems.system_secret')"
               :disabled="true"
               class="grow"
+              autocomplete="new-password"
             />
             <!-- copy button -->
             <NeTooltip trigger-event="mouseenter click" placement="auto">

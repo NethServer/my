@@ -10,7 +10,7 @@ import {
   faTrash,
   faServer,
   faEye,
-  faPencil,
+  faPenToSquare,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -36,11 +36,12 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { canManageSystems } from '@/lib/permissions'
-import { useSystems } from '@/queries/systems'
-import { SYSTEMS_TABLE_ID, type System } from '@/lib/systems'
+import { useSystems } from '@/queries/systems/systems'
+import { SYSTEMS_TABLE_ID, type System } from '@/lib/systems/systems'
 import router from '@/router'
 import CreateOrEditSystemDrawer from './CreateOrEditSystemDrawer.vue'
 import DeleteSystemModal from './DeleteSystemModal.vue'
+import { useFilterProducts } from '@/queries/systems/filterProducts'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -56,14 +57,18 @@ const {
   pageSize,
   textFilter,
   debouncedTextFilter,
+  productFilter,
+  statusFilter,
   sortBy,
   sortDescending,
 } = useSystems()
+const { state: filterProductsState, asyncStatus: filterProductsAsyncStatus } = useFilterProducts()
 
 const currentSystem = ref<System | undefined>()
 const isShownCreateOrEditSystemDrawer = ref(false)
 const isShownDeleteSystemModal = ref(false)
-const statusFilter = ref<string[]>([]) //// narrow type
+// const productFilter = ref<string[]>([]) ////
+// const statusFilter = ref<string[]>([]) //// narrow type
 
 const statusFilterOptions = ref<FilterOption[]>([
   {
@@ -89,6 +94,17 @@ const pagination = computed(() => {
   return state.value.data?.pagination
 })
 
+const productFilterOptions = computed(() => {
+  if (!filterProductsState.value.data) {
+    return []
+  } else {
+    return filterProductsState.value.data.products.map((productId) => ({
+      id: productId,
+      label: getProductName(productId),
+    }))
+  }
+})
+
 watch(
   () => isShownCreateSystemDrawer,
   () => {
@@ -98,6 +114,16 @@ watch(
   },
   { immediate: true },
 )
+
+function getProductName(productId: string) {
+  if (productId === 'ns8') {
+    return 'NethServer'
+  } else if (productId === 'nsec') {
+    return 'NethSecurity'
+  } else {
+    return productId
+  }
+}
 
 function clearFilters() {
   textFilter.value = ''
@@ -129,7 +155,7 @@ function getKebabMenuItems(system: System) {
     {
       id: 'editSystem',
       label: t('common.edit'),
-      icon: faPencil,
+      icon: faPenToSquare,
       action: () => showEditSystemDrawer(system),
       disabled: asyncStatus.value === 'loading',
     },
@@ -176,6 +202,20 @@ const goToSystemDetails = (system: System) => {
             is-search
             :placeholder="$t('systems.filter_systems')"
             class="max-w-48 sm:max-w-sm"
+          />
+          <NeDropdownFilter
+            v-model="productFilter"
+            kind="checkbox"
+            :disabled="
+              filterProductsAsyncStatus === 'loading' || filterProductsState.status === 'error'
+            "
+            :label="t('systems.product')"
+            :options="productFilterOptions"
+            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
           />
           <NeDropdownFilter
             v-model="statusFilter"

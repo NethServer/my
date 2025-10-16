@@ -2,10 +2,10 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import axios from 'axios'
-import { API_URL } from './config'
+import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
-import { getQueryStringParams, type Pagination } from './common'
+import { type Pagination } from '../common'
 
 export const SYSTEMS_KEY = 'systems'
 export const SYSTEMS_TOTAL_KEY = 'systemsTotal' //// needed?
@@ -29,7 +29,7 @@ export const SystemSchema = v.object({
   ...CreateSystemSchema.entries,
   ...EditSystemSchema.entries,
   type: v.string(),
-  status: v.optional(v.string()),
+  status: v.optional(v.string()), //// narrow type
   // status: v.optional(v.picklist(['active', 'inactive', 'pending'])), //// check values and uncomment
   fqdn: v.string(),
   ipv4_address: v.string(),
@@ -83,15 +83,60 @@ interface SystemsResponse {
   }
 }
 
+interface PostSystemResponse {
+  code: number
+  message: string
+  data: System
+}
+
+export const getQueryStringParams = (
+  pageNum: number,
+  pageSize: number,
+  textFilter: string | null,
+  productFilter: string[],
+  statusFilter: string[], //// narrow type
+  sortBy: string | null,
+  sortDescending: boolean,
+) => {
+  const searchParams = new URLSearchParams({
+    page: pageNum.toString(),
+    page_size: pageSize.toString(),
+    search: textFilter || '',
+    sort_by: sortBy || '',
+    sort_direction: sortDescending ? 'desc' : 'asc',
+  })
+
+  productFilter.forEach((product) => {
+    searchParams.append('type', product)
+  })
+
+  statusFilter.forEach((status) => {
+    searchParams.append('status', status)
+  })
+
+  return searchParams.toString()
+}
+
 export const getSystems = (
   pageNum: number,
   pageSize: number,
   textFilter: string,
+  productFilter: string[],
+  statusFilter: string[], //// narrow type
   sortBy: string,
   sortDescending: boolean,
 ) => {
+  // convert productFilter to string using openapi format
   const loginStore = useLoginStore()
-  const params = getQueryStringParams(pageNum, pageSize, textFilter, sortBy, sortDescending)
+  const params = getQueryStringParams(
+    pageNum,
+    pageSize,
+    textFilter,
+    productFilter,
+    statusFilter,
+    sortBy,
+    sortDescending,
+  )
 
   return axios
     .get<SystemsResponse>(`${API_URL}/systems?${params}`, {
@@ -104,7 +149,7 @@ export const postSystem = (system: CreateSystem) => {
   const loginStore = useLoginStore()
 
   return axios
-    .post<System>(`${API_URL}/systems`, system, {
+    .post<PostSystemResponse>(`${API_URL}/systems`, system, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data)
@@ -113,7 +158,7 @@ export const postSystem = (system: CreateSystem) => {
 export const putSystem = (system: EditSystem) => {
   const loginStore = useLoginStore()
 
-  return axios.put<System>(`${API_URL}/systems/${system.id}`, system, {
+  return axios.put<PostSystemResponse>(`${API_URL}/systems/${system.id}`, system, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
