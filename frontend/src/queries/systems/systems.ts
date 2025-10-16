@@ -17,7 +17,8 @@ export const useSystems = defineQuery(() => {
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
   const productFilter = ref<string[]>([])
-  const statusFilter = ref<string[]>([]) //// narrow type
+  const statusFilter = ref<string[]>([]) //// delete
+  // const statusFilter = ref<string[]>(['active', 'inactive', 'unknown']) //// narrow type, uncomment
   const sortBy = ref<keyof System>('name')
   const sortDescending = ref(false)
 

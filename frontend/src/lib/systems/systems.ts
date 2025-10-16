@@ -101,10 +101,13 @@ export const getQueryStringParams = (
   const searchParams = new URLSearchParams({
     page: pageNum.toString(),
     page_size: pageSize.toString(),
-    search: textFilter || '',
     sort_by: sortBy || '',
     sort_direction: sortDescending ? 'desc' : 'asc',
   })
+
+  if (textFilter?.trim()) {
+    searchParams.append('search', textFilter)
+  }
 
   productFilter.forEach((product) => {
     searchParams.append('type', product)
@@ -113,7 +116,6 @@ export const getQueryStringParams = (
   statusFilter.forEach((status) => {
     searchParams.append('status', status)
   })
-
   return searchParams.toString()
 }
 
