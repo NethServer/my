@@ -47,16 +47,14 @@ func GetFilterProducts(c *gin.Context) {
 	case "owner":
 		// Owner sees all systems
 	case "distributor":
-		// Distributor sees systems from their organization and child organizations
+		// Distributor sees systems from their organization and child organizations (resellers + customers)
 		query += `
 			AND (
 				organization_id = $1
 				OR organization_id IN (
-					SELECT id FROM organizations
-					WHERE parent_organization_id = $1
-					OR parent_organization_id IN (
-						SELECT id FROM organizations WHERE parent_organization_id = $1
-					)
+					SELECT logto_id FROM resellers WHERE deleted_at IS NULL
+					UNION
+					SELECT logto_id FROM customers WHERE deleted_at IS NULL
 				)
 			)
 		`
@@ -66,7 +64,7 @@ func GetFilterProducts(c *gin.Context) {
 			AND (
 				organization_id = $1
 				OR organization_id IN (
-					SELECT id FROM organizations WHERE parent_organization_id = $1
+					SELECT logto_id FROM customers WHERE deleted_at IS NULL
 				)
 			)
 		`
@@ -160,16 +158,14 @@ func GetFilterCreatedBy(c *gin.Context) {
 	case "owner":
 		// Owner sees all systems
 	case "distributor":
-		// Distributor sees systems from their organization and child organizations
+		// Distributor sees systems from their organization and child organizations (resellers + customers)
 		query += `
 			AND (
 				organization_id = $1
 				OR organization_id IN (
-					SELECT id FROM organizations
-					WHERE parent_organization_id = $1
-					OR parent_organization_id IN (
-						SELECT id FROM organizations WHERE parent_organization_id = $1
-					)
+					SELECT logto_id FROM resellers WHERE deleted_at IS NULL
+					UNION
+					SELECT logto_id FROM customers WHERE deleted_at IS NULL
 				)
 			)
 		`
@@ -179,7 +175,7 @@ func GetFilterCreatedBy(c *gin.Context) {
 			AND (
 				organization_id = $1
 				OR organization_id IN (
-					SELECT id FROM organizations WHERE parent_organization_id = $1
+					SELECT logto_id FROM customers WHERE deleted_at IS NULL
 				)
 			)
 		`
@@ -282,16 +278,14 @@ func GetFilterVersions(c *gin.Context) {
 	case "owner":
 		// Owner sees all systems
 	case "distributor":
-		// Distributor sees systems from their organization and child organizations
+		// Distributor sees systems from their organization and child organizations (resellers + customers)
 		query += `
 			AND (
 				organization_id = $1
 				OR organization_id IN (
-					SELECT id FROM organizations
-					WHERE parent_organization_id = $1
-					OR parent_organization_id IN (
-						SELECT id FROM organizations WHERE parent_organization_id = $1
-					)
+					SELECT logto_id FROM resellers WHERE deleted_at IS NULL
+					UNION
+					SELECT logto_id FROM customers WHERE deleted_at IS NULL
 				)
 			)
 		`
@@ -301,7 +295,7 @@ func GetFilterVersions(c *gin.Context) {
 			AND (
 				organization_id = $1
 				OR organization_id IN (
-					SELECT id FROM organizations WHERE parent_organization_id = $1
+					SELECT logto_id FROM customers WHERE deleted_at IS NULL
 				)
 			)
 		`
