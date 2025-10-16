@@ -37,6 +37,8 @@ func GetFilterProducts(c *gin.Context) {
 		SELECT DISTINCT type
 		FROM systems
 		WHERE deleted_at IS NULL
+			AND type IS NOT NULL
+			AND type != ''
 	`
 
 	// Apply RBAC filtering based on user role
