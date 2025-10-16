@@ -46,9 +46,6 @@ func NewSystemsService() *LocalSystemsService {
 
 // CreateSystem creates a new system with automatic secret generation
 func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, creatorInfo *models.SystemCreator, userOrgRole, userOrgID string) (*models.System, error) {
-	// System starts with undefined type - will be set by collect service on first inventory
-	systemType := "undefined"
-
 	// Validate organization access: user can only create systems for organizations they can manage
 	if canCreate, reason := s.CanCreateSystemForOrganization(userOrgRole, userOrgID, request.OrganizationID); !canCreate {
 		return nil, fmt.Errorf("access denied: %s", reason)
@@ -87,13 +84,13 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 		return nil, fmt.Errorf("failed to marshal created_by: %w", err)
 	}
 
-	// Insert system into database
+	// Insert system into database (type and status start as NULL until first inventory)
 	query := `
 		INSERT INTO systems (id, name, type, status, system_key, organization_id, custom_data, system_secret, notes, created_at, updated_at, created_by)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`
 
-	_, err = database.DB.Exec(query, systemID, request.Name, systemType, "undefined", systemKey, request.OrganizationID,
+	_, err = database.DB.Exec(query, systemID, request.Name, nil, nil, systemKey, request.OrganizationID,
 		customDataJSON, hashedSecret, request.Notes, now, now, createdByJSON)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create system: %w", err)
@@ -102,12 +99,12 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 	// Fetch organization name
 	organizationName := s.getOrganizationName(request.OrganizationID)
 
-	// Create system object
+	// Create system object (type and status are nil until first inventory)
 	system := &models.System{
 		ID:               systemID,
 		Name:             request.Name,
-		Type:             systemType,
-		Status:           "undefined",
+		Type:             nil,
+		Status:           nil,
 		SystemKey:        systemKey,
 		OrganizationID:   request.OrganizationID,
 		OrganizationName: organizationName,

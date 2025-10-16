@@ -8,6 +8,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// Helper function to create a string pointer
+func strPtr(s string) *string {
+	return &s
+}
+
 func TestSystemStructure(t *testing.T) {
 	now := time.Now()
 	creator := SystemCreator{
@@ -19,8 +24,8 @@ func TestSystemStructure(t *testing.T) {
 	system := System{
 		ID:             "system-123",
 		Name:           "Test System",
-		Type:           "undefined",
-		Status:         "undefined",
+		Type:           nil,
+		Status:         nil,
 		FQDN:           "test-system.example.com",
 		IPv4Address:    "192.168.1.100",
 		IPv6Address:    "2001:db8::1",
@@ -35,8 +40,8 @@ func TestSystemStructure(t *testing.T) {
 
 	assert.Equal(t, "system-123", system.ID)
 	assert.Equal(t, "Test System", system.Name)
-	assert.Equal(t, "undefined", system.Type)
-	assert.Equal(t, "undefined", system.Status)
+	assert.Nil(t, system.Type)
+	assert.Nil(t, system.Status)
 	assert.Equal(t, "test-system.example.com", system.FQDN)
 	assert.Equal(t, "192.168.1.100", system.IPv4Address)
 	assert.Equal(t, "2001:db8::1", system.IPv6Address)
@@ -60,8 +65,8 @@ func TestSystemJSONSerialization(t *testing.T) {
 	system := System{
 		ID:             "json-system-456",
 		Name:           "JSON Test System",
-		Type:           "nsec",
-		Status:         "offline",
+		Type:           strPtr("nsec"),
+		Status:         strPtr("offline"),
 		FQDN:           "json-test.example.com",
 		IPv4Address:    "10.0.0.50",
 		IPv6Address:    "2001:db8::2",
@@ -157,8 +162,8 @@ func TestSystemJSONTags(t *testing.T) {
 	system := System{
 		ID:             "tag-system",
 		Name:           "Tag System",
-		Type:           "nsec-controller",
-		Status:         "maintenance",
+		Type:           strPtr("nsec-controller"),
+		Status:         strPtr("maintenance"),
 		FQDN:           "tag-system.example.com",
 		IPv4Address:    "172.16.0.10",
 		IPv6Address:    "2001:db8::3",
