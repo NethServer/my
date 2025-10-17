@@ -96,18 +96,17 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 		return nil, fmt.Errorf("failed to create system: %w", err)
 	}
 
-	// Fetch organization name
-	organizationName := s.getOrganizationName(request.OrganizationID)
+	// Fetch organization info (name and type)
+	organization := s.getOrganizationInfo(request.OrganizationID)
 
 	// Create system object (type is nil until first inventory, status defaults to 'unknown')
 	system := &models.System{
-		ID:               systemID,
-		Name:             request.Name,
-		Type:             nil,
-		Status:           "unknown",
-		SystemKey:        systemKey,
-		OrganizationID:   request.OrganizationID,
-		OrganizationName: organizationName,
+		ID:           systemID,
+		Name:         request.Name,
+		Type:         nil,
+		Status:       "unknown",
+		SystemKey:    systemKey,
+		Organization: organization,
 		// FQDN, IPv4Address, IPv6Address, Version will be populated by collect service
 		CustomData:   request.CustomData,
 		SystemSecret: systemSecret, // Return plain secret only during creation
@@ -133,7 +132,13 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 	query := `
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
 		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, h.last_heartbeat,
-		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name
+		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name,
+		       CASE
+		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
+		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
+		           WHEN c.logto_id IS NOT NULL THEN 'customer'
+		           ELSE 'owner'
+		       END as organization_type
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
 		LEFT JOIN distributors d ON s.organization_id = d.logto_id AND d.deleted_at IS NULL
@@ -158,13 +163,13 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 		var createdByJSON []byte
 		var fqdn, ipv4Address, ipv6Address, version sql.NullString
 		var lastHeartbeat sql.NullTime
-		var organizationName sql.NullString
+		var organizationName, organizationType sql.NullString
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
-			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.OrganizationID,
+			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.ID,
 			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &lastHeartbeat,
-			&organizationName,
+			&organizationName, &organizationType,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan system: %w", err)
@@ -175,7 +180,8 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 		system.IPv4Address = ipv4Address.String
 		system.IPv6Address = ipv6Address.String
 		system.Version = version.String
-		system.OrganizationName = organizationName.String
+		system.Organization.Name = organizationName.String
+		system.Organization.Type = organizationType.String
 
 		// Parse custom_data JSON
 		if len(customDataJSON) > 0 {
@@ -277,12 +283,13 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 	}
 	// Note: Type and SystemKey are not modifiable via update API
 	// Validate organization_id change if provided
-	if request.OrganizationID != "" && request.OrganizationID != system.OrganizationID {
+	if request.OrganizationID != "" && request.OrganizationID != system.Organization.ID {
 		// Validate user can assign system to the new organization
 		if canCreate, reason := s.CanCreateSystemForOrganization(userOrgRole, userOrgID, request.OrganizationID); !canCreate {
 			return nil, fmt.Errorf("access denied for organization change: %s", reason)
 		}
-		system.OrganizationID = request.OrganizationID
+		// Update organization with new info
+		system.Organization = s.getOrganizationInfo(request.OrganizationID)
 	}
 	// FQDN, IPv4Address, IPv6Address are managed by collect service, not via API updates
 	if request.CustomData != nil {
@@ -309,7 +316,7 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 
-	_, err = database.DB.Exec(query, systemID, system.Name, system.OrganizationID, customDataJSON, system.Notes, now)
+	_, err = database.DB.Exec(query, systemID, system.Name, system.Organization.ID, customDataJSON, system.Notes, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update system: %w", err)
 	}
@@ -677,25 +684,38 @@ func (s *LocalSystemsService) CanCreateSystemForOrganization(userOrgRole, userOr
 	}
 }
 
-// getOrganizationName fetches organization name from distributors, resellers, or customers tables
-func (s *LocalSystemsService) getOrganizationName(logtoOrgID string) string {
+// getOrganizationInfo fetches organization info (name and type) from distributors, resellers, or customers tables
+func (s *LocalSystemsService) getOrganizationInfo(logtoOrgID string) models.Organization {
 	query := `
-		SELECT COALESCE(d.name, r.name, c.name, 'Owner') as organization_name
+		SELECT
+			COALESCE(d.name, r.name, c.name, 'Owner') as name,
+			CASE
+				WHEN d.logto_id IS NOT NULL THEN 'distributor'
+				WHEN r.logto_id IS NOT NULL THEN 'reseller'
+				WHEN c.logto_id IS NOT NULL THEN 'customer'
+				ELSE 'owner'
+			END as type
 		FROM (SELECT $1 as logto_id) o
 		LEFT JOIN distributors d ON o.logto_id = d.logto_id AND d.deleted_at IS NULL
 		LEFT JOIN resellers r ON o.logto_id = r.logto_id AND r.deleted_at IS NULL
 		LEFT JOIN customers c ON o.logto_id = c.logto_id AND c.deleted_at IS NULL
 	`
 
-	var orgName string
-	err := database.DB.QueryRow(query, logtoOrgID).Scan(&orgName)
+	var org models.Organization
+	org.ID = logtoOrgID
+
+	err := database.DB.QueryRow(query, logtoOrgID).Scan(&org.Name, &org.Type)
 	if err != nil {
 		logger.Warn().
 			Err(err).
 			Str("organization_id", logtoOrgID).
-			Msg("Failed to fetch organization name")
-		return "Owner"
+			Msg("Failed to fetch organization info")
+		return models.Organization{
+			ID:   logtoOrgID,
+			Name: "Owner",
+			Type: "owner",
+		}
 	}
 
-	return orgName
+	return org
 }

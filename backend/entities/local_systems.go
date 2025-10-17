@@ -44,7 +44,13 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	query := `
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
 		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, h.last_heartbeat,
-		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name
+		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name,
+		       CASE
+		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
+		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
+		           WHEN c.logto_id IS NOT NULL THEN 'customer'
+		           ELSE 'owner'
+		       END as organization_type
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
 		LEFT JOIN distributors d ON s.organization_id = d.logto_id AND d.deleted_at IS NULL
@@ -58,13 +64,13 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	var createdByJSON []byte
 	var fqdn, ipv4Address, ipv6Address, version sql.NullString
 	var lastHeartbeat sql.NullTime
-	var organizationName sql.NullString
+	var organizationName, organizationType sql.NullString
 
 	err := r.db.QueryRow(query, id).Scan(
 		&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
-		&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.OrganizationID,
+		&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.ID,
 		&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &lastHeartbeat,
-		&organizationName,
+		&organizationName, &organizationType,
 	)
 
 	if err == sql.ErrNoRows {
@@ -79,7 +85,8 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	system.IPv4Address = ipv4Address.String
 	system.IPv6Address = ipv6Address.String
 	system.Version = version.String
-	system.OrganizationName = organizationName.String
+	system.Organization.Name = organizationName.String
+	system.Organization.Type = organizationType.String
 
 	// Parse custom_data JSON
 	if len(customDataJSON) > 0 {
@@ -274,7 +281,13 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	query := fmt.Sprintf(`
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
 		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.deleted_at, s.created_by,
-		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name
+		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name,
+		       CASE
+		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
+		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
+		           WHEN c.logto_id IS NOT NULL THEN 'customer'
+		           ELSE 'owner'
+		       END as organization_type
 		FROM systems s
 		LEFT JOIN distributors d ON s.organization_id = d.logto_id AND d.deleted_at IS NULL
 		LEFT JOIN resellers r ON s.organization_id = r.logto_id AND r.deleted_at IS NULL
@@ -302,13 +315,13 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		var customDataJSON, createdByJSON []byte
 		var fqdn, ipv4Address, ipv6Address, version sql.NullString
 		var deletedAt sql.NullTime
-		var organizationName sql.NullString
+		var organizationName, organizationType sql.NullString
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
-			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.OrganizationID,
+			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.ID,
 			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &deletedAt, &createdByJSON,
-			&organizationName,
+			&organizationName, &organizationType,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan system: %w", err)
@@ -319,7 +332,8 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		system.IPv4Address = ipv4Address.String
 		system.IPv6Address = ipv6Address.String
 		system.Version = version.String
-		system.OrganizationName = organizationName.String
+		system.Organization.Name = organizationName.String
+		system.Organization.Type = organizationType.String
 
 		// Set deleted_at if present
 		if deletedAt.Valid {
