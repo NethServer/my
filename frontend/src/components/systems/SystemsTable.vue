@@ -45,9 +45,9 @@ import { SYSTEMS_TABLE_ID, type System } from '@/lib/systems/systems'
 import router from '@/router'
 import CreateOrEditSystemDrawer from './CreateOrEditSystemDrawer.vue'
 import DeleteSystemModal from './DeleteSystemModal.vue'
-import { useFilterProduct } from '@/queries/systems/filterProduct'
-import { useFilterCreatedBy } from '@/queries/systems/filterCreatedBy'
-import { useFilterVersion } from '@/queries/systems/filterVersion'
+import { useProductFilter } from '@/queries/systems/productFilter'
+import { useCreatedByFilter } from '@/queries/systems/createdByFilter'
+import { useVersionFilter } from '@/queries/systems/versionFilter'
 import UserAvatar from '../UserAvatar.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
@@ -71,10 +71,10 @@ const {
   sortBy,
   sortDescending,
 } = useSystems()
-const { state: filterProductState, asyncStatus: filterProductAsyncStatus } = useFilterProduct()
-const { state: filterCreatedByState, asyncStatus: filterCreatedByAsyncStatus } =
-  useFilterCreatedBy()
-const { state: filterVersionState, asyncStatus: filterVersionAsyncStatus } = useFilterVersion()
+const { state: productFilterState, asyncStatus: productFilterAsyncStatus } = useProductFilter()
+const { state: createdByFilterState, asyncStatus: createdByFilterAsyncStatus } =
+  useCreatedByFilter()
+const { state: versionFilterState, asyncStatus: versionFilterAsyncStatus } = useVersionFilter()
 
 const currentSystem = ref<System | undefined>()
 const isShownCreateOrEditSystemDrawer = ref(false)
@@ -105,10 +105,10 @@ const pagination = computed(() => {
 })
 
 const productFilterOptions = computed(() => {
-  if (!filterProductState.value.data || !filterProductState.value.data.products) {
+  if (!productFilterState.value.data || !productFilterState.value.data.products) {
     return []
   } else {
-    return filterProductState.value.data.products.map((productId) => ({
+    return productFilterState.value.data.products.map((productId) => ({
       id: productId,
       label: getProductName(productId),
     }))
@@ -116,10 +116,10 @@ const productFilterOptions = computed(() => {
 })
 
 const versionFilterOptions = computed(() => {
-  if (!filterVersionState.value.data || !filterVersionState.value.data.versions) {
+  if (!versionFilterState.value.data || !versionFilterState.value.data.versions) {
     return []
   } else {
-    return filterVersionState.value.data.versions.map((version) => ({
+    return versionFilterState.value.data.versions.map((version) => ({
       id: version,
       label: version,
     }))
@@ -127,10 +127,10 @@ const versionFilterOptions = computed(() => {
 })
 
 const createdByFilterOptions = computed(() => {
-  if (!filterCreatedByState.value.data || !filterCreatedByState.value.data.created_by) {
+  if (!createdByFilterState.value.data || !createdByFilterState.value.data.created_by) {
     return []
   } else {
-    return filterCreatedByState.value.data.created_by.map((user) => ({
+    return createdByFilterState.value.data.created_by.map((user) => ({
       id: user.user_id,
       label: user.name,
     }))
@@ -159,8 +159,11 @@ function getProductName(productId: string) {
   }
 }
 
-function clearFilters() {
+function resetFilters() {
   textFilter.value = ''
+  productFilter.value = []
+  versionFilter.value = []
+  createdByFilter.value = []
   statusFilter.value = ['online', 'offline', 'unknown']
 }
 
@@ -241,7 +244,7 @@ const goToSystemDetails = (system: System) => {
             v-model="productFilter"
             kind="checkbox"
             :disabled="
-              filterProductAsyncStatus === 'loading' || filterProductState.status === 'error'
+              productFilterAsyncStatus === 'loading' || productFilterState.status === 'error'
             "
             :label="t('systems.product')"
             :options="productFilterOptions"
@@ -255,7 +258,7 @@ const goToSystemDetails = (system: System) => {
             v-model="versionFilter"
             kind="checkbox"
             :disabled="
-              filterVersionAsyncStatus === 'loading' || filterVersionState.status === 'error'
+              versionFilterAsyncStatus === 'loading' || versionFilterState.status === 'error'
             "
             :label="t('systems.version')"
             :options="versionFilterOptions"
@@ -270,7 +273,7 @@ const goToSystemDetails = (system: System) => {
             v-model="createdByFilter"
             kind="checkbox"
             :disabled="
-              filterCreatedByAsyncStatus === 'loading' || filterCreatedByState.status === 'error'
+              createdByFilterAsyncStatus === 'loading' || createdByFilterState.status === 'error'
             "
             :label="t('systems.created_by')"
             :options="createdByFilterOptions"
@@ -312,7 +315,7 @@ const goToSystemDetails = (system: System) => {
             :descending-label="t('sort.descending')"
             class="xl:hidden"
           />
-          <NeButton kind="tertiary" @click="clearFilters">
+          <NeButton kind="tertiary" @click="resetFilters">
             {{ t('systems.reset_filters') }}
           </NeButton>
         </div>
@@ -357,7 +360,7 @@ const goToSystemDetails = (system: System) => {
       :icon="faCircleInfo"
       class="bg-white dark:bg-gray-950"
     >
-      <NeButton kind="tertiary" @click="clearFilters">
+      <NeButton kind="tertiary" @click="resetFilters">
         {{ $t('systems.reset_filters') }}
       </NeButton>
     </NeEmptyState>

@@ -5,10 +5,10 @@ import axios from 'axios'
 import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 
-export const FILTER_PRODUCT_KEY = 'filterProduct'
-export const FILTER_PRODUCT_PATH = 'filters/products'
+export const PRODUCT_FILTER_KEY = 'productFilter'
+export const PRODUCT_FILTER_PATH = 'filters/products'
 
-interface FilterProductResponse {
+interface ProductFilterResponse {
   code: number
   message: string
   data: {
@@ -16,11 +16,11 @@ interface FilterProductResponse {
   }
 }
 
-export const getFilterProduct = () => {
+export const getProductFilter = () => {
   const loginStore = useLoginStore()
 
   return axios
-    .get<FilterProductResponse>(`${API_URL}/${FILTER_PRODUCT_PATH}`, {
+    .get<ProductFilterResponse>(`${API_URL}/${PRODUCT_FILTER_PATH}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data)

@@ -5,10 +5,10 @@ import axios from 'axios'
 import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 
-export const FILTER_CREATED_BY_KEY = 'filterCreatedBy'
-export const FILTER_CREATED_BY_PATH = 'filters/created-by'
+export const CREATED_BY_FILTER_KEY = 'createdByFilter'
+export const CREATED_BY_FILTER_PATH = 'filters/created-by'
 
-interface FilterCreatedByResponse {
+interface CreatedByFilterResponse {
   code: number
   message: string
   data: {
@@ -21,11 +21,11 @@ interface CreatedByItem {
   name: string
 }
 
-export const getFilterCreatedBy = () => {
+export const getCreatedByFilter = () => {
   const loginStore = useLoginStore()
 
   return axios
-    .get<FilterCreatedByResponse>(`${API_URL}/${FILTER_CREATED_BY_PATH}`, {
+    .get<CreatedByFilterResponse>(`${API_URL}/${CREATED_BY_FILTER_PATH}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data)

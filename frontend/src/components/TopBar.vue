@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { NeAvatar, NeDropdown, NeSkeleton, NeTooltip } from '@nethesis/vue-components'
+import { NeDropdown, NeSkeleton, NeTooltip } from '@nethesis/vue-components'
 import { computed, ref } from 'vue'
 import { useThemeStore } from '@/stores/theme'
 import { useLoginStore } from '@/stores/login'
@@ -13,7 +13,6 @@ import {
   faBell,
   faChevronDown,
   faCircleUser,
-  faCrown,
   faMoon,
   faRightFromBracket,
   faSun,

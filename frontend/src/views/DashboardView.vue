@@ -26,10 +26,9 @@ import {
   getButtonLabel,
 } from '@/lib/thirdPartyApps'
 import { useLoginStore } from '@/stores/login'
-import { faArrowUpRightFromSquare, faCrown } from '@fortawesome/free-solid-svg-icons'
+import { faArrowUpRightFromSquare } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
-  NeAvatar,
   NeBadge,
   NeButton,
   NeCard,
