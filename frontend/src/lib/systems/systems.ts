@@ -8,7 +8,7 @@ import * as v from 'valibot'
 import { type Pagination } from '../common'
 
 export const SYSTEMS_KEY = 'systems'
-export const SYSTEMS_TOTAL_KEY = 'systemsTotal' //// needed?
+export const SYSTEMS_TOTAL_KEY = 'systemsTotal'
 export const SYSTEMS_TABLE_ID = 'systemsTable'
 
 export type SystemStatus = 'online' | 'offline' | 'unknown' | 'deleted'
@@ -51,28 +51,6 @@ export const SystemSchema = v.object({
     organization_name: v.string(),
   }),
 })
-
-////
-// export const SystemSchema = v.object({
-//   ...CreateSystemSchema.entries,
-//   ...EditSystemSchema.entries,
-//   type: v.optional(v.string()),
-//   organization: v.optional(
-//     v.object({
-//       id: v.string(),
-//       logto_id: v.optional(v.string()),
-//       name: v.string(),
-//     }),
-//   ),
-//   roles: v.optional(
-//     v.array(
-//       v.object({
-//         id: v.string(),
-//         name: v.string(),
-//       }),
-//     ),
-//   ),
-// })
 
 export type CreateSystem = v.InferOutput<typeof CreateSystemSchema>
 export type EditSystem = v.InferOutput<typeof EditSystemSchema>
@@ -204,6 +182,7 @@ export const regenerateSystemSecret = (systemId: string) => {
   )
 }
 
+//// add typing
 export const getSystemsTotal = () => {
   const loginStore = useLoginStore()
 
@@ -211,5 +190,5 @@ export const getSystemsTotal = () => {
     .get(`${API_URL}/systems/totals`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
-    .then((res) => res.data.data.total as number)
+    .then((res) => res.data.data)
 }

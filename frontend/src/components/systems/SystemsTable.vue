@@ -382,14 +382,16 @@ const goToSystemDetails = (system: System) => {
         <NeTableHeadCell sortable column-key="version" @sort="onSort">{{
           $t('systems.version')
         }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('systems.fqdn_ip_address') }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="fqdn" @sort="onSort">{{
+          $t('systems.fqdn_ip_address')
+        }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="organization_name" @sort="onSort">{{
           $t('systems.organization')
         }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="creator_name" @sort="onSort">{{
           $t('systems.created_by')
         }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="" @sort="onSort">{{
+        <NeTableHeadCell sortable column-key="status" @sort="onSort">{{
           $t('systems.status')
         }}</NeTableHeadCell>
         <NeTableHeadCell>
@@ -400,7 +402,7 @@ const goToSystemDetails = (system: System) => {
         <NeTableRow v-for="(item, index) in systemsPage" :key="index">
           <NeTableCell :data-label="$t('systems.name')">
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
-              <div v-if="item.type">[{{ item.type }}]</div>
+              <!-- <div v-if="item.type">[{{ item.type }}]</div> ////  -->
               {{ item.name || '-' }}
             </div>
           </NeTableCell>
