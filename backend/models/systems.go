@@ -10,7 +10,8 @@ import "time"
 // SystemCreator represents the user who created the system
 type SystemCreator struct {
 	UserID           string `json:"user_id" structs:"user_id"`
-	UserName         string `json:"user_name" structs:"user_name"`
+	Name             string `json:"name" structs:"name"`
+	Email            string `json:"email" structs:"email"`
 	OrganizationID   string `json:"organization_id" structs:"organization_id"`
 	OrganizationName string `json:"organization_name" structs:"organization_name"`
 }

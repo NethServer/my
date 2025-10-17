@@ -142,14 +142,15 @@ func GetFilterCreatedBy(c *gin.Context) {
 	query := `
 		SELECT DISTINCT
 			created_by->>'user_id' as user_id,
-			created_by->>'user_name' as user_name
+			created_by->>'name' as name,
+			created_by->>'email' as email
 		FROM systems
 		WHERE deleted_at IS NULL
 			AND created_by IS NOT NULL
 			AND created_by->>'user_id' IS NOT NULL
-			AND created_by->>'user_name' IS NOT NULL
+			AND created_by->>'name' IS NOT NULL
 			AND created_by->>'user_id' != ''
-			AND created_by->>'user_name' != ''
+			AND created_by->>'name' != ''
 	`
 
 	// Apply RBAC filtering based on user role
@@ -184,7 +185,7 @@ func GetFilterCreatedBy(c *gin.Context) {
 		query += ` AND organization_id = $1`
 	}
 
-	query += ` ORDER BY user_name ASC`
+	query += ` ORDER BY name ASC`
 
 	// Execute query
 	var err error
@@ -213,12 +214,13 @@ func GetFilterCreatedBy(c *gin.Context) {
 	type Creator struct {
 		UserID string `json:"user_id"`
 		Name   string `json:"name"`
+		Email  string `json:"email"`
 	}
 	var creators []Creator
 
 	for rows.Next() {
-		var userID, name *string
-		if err := rows.Scan(&userID, &name); err != nil {
+		var userID, name, email *string
+		if err := rows.Scan(&userID, &name, &email); err != nil {
 			logger.Error().
 				Str("component", "filters").
 				Str("operation", "scan_created_by").
@@ -227,11 +229,16 @@ func GetFilterCreatedBy(c *gin.Context) {
 			continue
 		}
 
-		// Skip if either field is NULL
+		// Skip if required fields are NULL
 		if userID != nil && name != nil {
+			emailValue := ""
+			if email != nil {
+				emailValue = *email
+			}
 			creators = append(creators, Creator{
 				UserID: *userID,
 				Name:   *name,
+				Email:  emailValue,
 			})
 		}
 	}

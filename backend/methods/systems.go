@@ -71,7 +71,8 @@ func CreateSystem(c *gin.Context) {
 	}
 	creatorInfo := &models.SystemCreator{
 		UserID:           userLogtoID,
-		UserName:         user.Username,
+		Name:             user.Name,
+		Email:            user.Email,
 		OrganizationID:   user.OrganizationID,
 		OrganizationName: user.OrganizationName,
 	}

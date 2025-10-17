@@ -755,14 +755,16 @@ components:
           example: "Production Server 01"
         type:
           type: string
-          enum: [undefined, ns8, nsec, nsec-controller]
-          description: System type (auto-detected by collect service)
-          example: "undefined"
+          nullable: true
+          enum: [ns8, nsec, nsec-controller]
+          description: System type (auto-detected by collect service, null until first inventory collection)
+          example: "nsec"
         status:
           type: string
-          enum: [undefined, online, offline, maintenance]
-          description: System operational status (auto-updated by collect service)
-          example: "undefined"
+          nullable: true
+          enum: [online, offline, deleted]
+          description: System operational status (auto-updated by collect service, null until first inventory collection)
+          example: "online"
         fqdn:
           type: string
           description: Fully qualified domain name
@@ -841,19 +843,23 @@ components:
         user_id:
           type: string
           description: User ID who created the system
-          example: "usr_123456789"
-        user_name:
+          example: "53h5zxpwu4vc"
+        name:
           type: string
-          description: Username who created the system
-          example: "admin"
+          description: Full name of the user who created the system
+          example: "Edoardo Super"
+        email:
+          type: string
+          description: Email of the user who created the system
+          example: "edoardo.spadoni@nethesis.it"
         organization_id:
           type: string
           description: Organization ID of the creator
-          example: "org_123456789"
+          example: "lbswt1rxdhbz"
         organization_name:
           type: string
           description: Organization name of the creator
-          example: "Nethesis"
+          example: "Nethesis Italia"
 
     CreateSystemInput:
       type: object
@@ -1158,13 +1164,21 @@ components:
     SystemCreatedByFilterParam:
       name: created_by
       in: query
-      description: Filter systems by creator user ID (exact match). Supports multiple values for checkbox filtering.
+      description: |
+        Filter systems by creator user ID or creator organization ID (exact match).
+        Each provided ID is checked against both the user_id and organization_id fields of the system creator.
+        Supports multiple values for checkbox filtering.
+
+        Examples:
+        - `?created_by=53h5zxpwu4vc` - matches systems created by user with ID 53h5zxpwu4vc
+        - `?created_by=lbswt1rxdhbz` - matches systems created by users in organization lbswt1rxdhbz
+        - `?created_by=53h5zxpwu4vc&created_by=lbswt1rxdhbz` - matches systems created by the user OR by users in the organization
       required: false
       schema:
         type: array
         items:
           type: string
-        example: ["user_abc123xyz", "user_def456uvw"]
+        example: ["53h5zxpwu4vc", "lbswt1rxdhbz"]
       style: form
       explode: true
 
@@ -1197,14 +1211,18 @@ components:
     SystemStatusFilterParam:
       name: status
       in: query
-      description: Filter systems by status (exact match). Supports multiple values for checkbox filtering.
+      description: |
+        Filter systems by status (exact match). Supports multiple values for checkbox filtering.
+
+        Special value "deleted" shows soft-deleted systems (where deleted_at IS NOT NULL).
+        When "deleted" is combined with other statuses, both deleted and non-deleted systems matching the other statuses are returned.
       required: false
       schema:
         type: array
         items:
           type: string
-          enum: ["undefined", "online", "offline", "maintenance"]
-        example: ["online", "maintenance"]
+          enum: ["online", "offline", "undefined", "deleted"]
+        example: ["online", "undefined"]
       style: form
       explode: true
 
@@ -3701,10 +3719,12 @@ paths:
 
         1. **Single type filter**: `?type=nsec`
         2. **Multiple types filter**: `?type=nsec&type=ns8`
-        3. **Multiple filters combined**: `?type=nsec&status=online&status=maintenance&version=8.0`
+        3. **Multiple filters combined**: `?type=nsec&status=online&status=deleted&version=8.0`
         4. **With pagination and sorting**: `?page=1&page_size=50&sort_by=name&sort_direction=asc&type=nsec`
         5. **Search with filters**: `?search=backup&type=ns8&organization_id=org_abc123xyz`
-        6. **Creator filter**: `?created_by=user_def456abc&created_by=user_ghi789def`
+        6. **Creator filter (by user)**: `?created_by=53h5zxpwu4vc`
+        7. **Creator filter (by organization)**: `?created_by=lbswt1rxdhbz`
+        8. **Creator filter (multiple)**: `?created_by=53h5zxpwu4vc&created_by=lbswt1rxdhbz`
 
         **Complete Example Request:**
         ```

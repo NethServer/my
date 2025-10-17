@@ -17,7 +17,8 @@ func TestSystemStructure(t *testing.T) {
 	now := time.Now()
 	creator := SystemCreator{
 		UserID:           "admin-456",
-		UserName:         "Admin User",
+		Name:             "Admin User",
+		Email:            "admin@test.com",
 		OrganizationID:   "org-123",
 		OrganizationName: "Test Organization",
 	}
@@ -58,7 +59,8 @@ func TestSystemJSONSerialization(t *testing.T) {
 	now := time.Now()
 	creator := SystemCreator{
 		UserID:           "json-admin-123",
-		UserName:         "JSON Admin",
+		Name:             "JSON Admin",
+		Email:            "json.admin@test.com",
 		OrganizationID:   "org-456",
 		OrganizationName: "JSON Organization",
 	}
@@ -155,7 +157,8 @@ func TestUpdateSystemRequestStructure(t *testing.T) {
 func TestSystemJSONTags(t *testing.T) {
 	creator := SystemCreator{
 		UserID:           "tag-admin",
-		UserName:         "Tag Admin",
+		Name:             "Tag Admin",
+		Email:            "tag.admin@test.com",
 		OrganizationID:   "org-tags",
 		OrganizationName: "Tag Organization",
 	}
@@ -215,5 +218,6 @@ func TestSystemJSONTags(t *testing.T) {
 	createdByMap, ok := jsonMap["created_by"].(map[string]interface{})
 	assert.True(t, ok)
 	assert.Equal(t, "tag-admin", createdByMap["user_id"])
-	assert.Equal(t, "Tag Admin", createdByMap["user_name"])
+	assert.Equal(t, "Tag Admin", createdByMap["name"])
+	assert.Equal(t, "tag.admin@test.com", createdByMap["email"])
 }

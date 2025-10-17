@@ -113,8 +113,8 @@ CREATE INDEX IF NOT EXISTS idx_users_latest_login_at ON users(latest_login_at DE
 CREATE TABLE IF NOT EXISTS systems (
     id VARCHAR(255) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    type VARCHAR(100) NOT NULL,
-    status VARCHAR(50) NOT NULL DEFAULT 'offline',
+    type VARCHAR(100),  -- Populated by collect service on first inventory
+    status VARCHAR(50),  -- Populated by collect service on first inventory
     fqdn VARCHAR(255),
     ipv4_address INET,
     ipv6_address INET,
