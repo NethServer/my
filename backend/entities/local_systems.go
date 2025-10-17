@@ -138,23 +138,18 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 
 	// Check if status filter includes "deleted"
 	hasDeletedFilter := false
-	var normalStatuses []string
 	for _, status := range filterStatuses {
 		if status == "deleted" {
 			hasDeletedFilter = true
-		} else {
-			normalStatuses = append(normalStatuses, status)
+			break
 		}
 	}
 
 	// Build WHERE clause for search and filters
-	// If "deleted" is in status filter, modify the deleted_at condition
+	// By default exclude deleted systems unless explicitly requested via status filter
 	var whereClause string
-	if hasDeletedFilter && len(normalStatuses) == 0 {
-		// Only deleted systems requested
-		whereClause = fmt.Sprintf("s.deleted_at IS NOT NULL AND s.created_by ->> 'organization_id' IN (%s)", placeholdersStr)
-	} else if hasDeletedFilter && len(normalStatuses) > 0 {
-		// Both deleted and non-deleted systems requested
+	if hasDeletedFilter {
+		// Include deleted systems when status filter contains "deleted"
 		whereClause = fmt.Sprintf("s.created_by ->> 'organization_id' IN (%s)", placeholdersStr)
 	} else {
 		// Normal case: exclude deleted systems
@@ -223,20 +218,15 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		whereClause += fmt.Sprintf(" AND s.organization_id IN (%s)", strings.Join(orgPlaceholders, ","))
 	}
 
-	// Handle normal status filters (excluding "deleted")
-	if len(normalStatuses) > 0 {
-		statusPlaceholders := make([]string, len(normalStatuses))
+	// Handle status filter (treat "deleted" as a normal status value)
+	if len(filterStatuses) > 0 {
+		statusPlaceholders := make([]string, len(filterStatuses))
 		baseIndex := len(args)
-		for i, s := range normalStatuses {
+		for i, s := range filterStatuses {
 			statusPlaceholders[i] = fmt.Sprintf("$%d", baseIndex+i+1)
 			args = append(args, s)
 		}
-		if hasDeletedFilter {
-			// If both deleted and normal statuses are requested, add condition for non-deleted systems
-			whereClause += fmt.Sprintf(" AND (s.deleted_at IS NULL AND s.status IN (%s) OR s.deleted_at IS NOT NULL)", strings.Join(statusPlaceholders, ","))
-		} else {
-			whereClause += fmt.Sprintf(" AND s.status IN (%s)", strings.Join(statusPlaceholders, ","))
-		}
+		whereClause += fmt.Sprintf(" AND s.status IN (%s)", strings.Join(statusPlaceholders, ","))
 	}
 
 	// Get total count

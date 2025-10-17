@@ -335,8 +335,8 @@ func (s *LocalSystemsService) DeleteSystem(systemID, userID, userOrgID, userOrgR
 		return fmt.Errorf("access denied: %s", reason)
 	}
 
-	// Soft delete system from database (set deleted_at timestamp)
-	query := `UPDATE systems SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL`
+	// Soft delete system from database (set deleted_at timestamp and status to 'deleted')
+	query := `UPDATE systems SET deleted_at = NOW(), updated_at = NOW(), status = 'deleted' WHERE id = $1 AND deleted_at IS NULL`
 
 	result, err := database.DB.Exec(query, systemID)
 	if err != nil {
