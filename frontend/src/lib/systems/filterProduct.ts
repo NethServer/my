@@ -24,16 +24,4 @@ export const getFilterProduct = () => {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data)
-  // return res.data.data.products.map((item: string) => { ////
-  //   if (item === 'ns8') {
-  //     return 'NethServer'
-  //   } else if (item === 'nsec') {
-  //     return 'NethSecurity'
-  //   } else {
-  //     return item
-  //   }
-  // })
-  // res.data.data.products = products ////
-  // return res.data.data
-  // }) ////
 }

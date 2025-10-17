@@ -48,6 +48,7 @@ import DeleteSystemModal from './DeleteSystemModal.vue'
 import { useFilterProduct } from '@/queries/systems/filterProduct'
 import { useFilterCreatedBy } from '@/queries/systems/filterCreatedBy'
 import { useFilterVersion } from '@/queries/systems/filterVersion'
+import UserAvatar from '../UserAvatar.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -151,6 +152,8 @@ function getProductName(productId: string) {
     return 'NethServer'
   } else if (productId === 'nsec') {
     return 'NethSecurity'
+  } else if (productId === 'nsec-controller') {
+    return 'NethSecurity Controller'
   } else {
     return productId
   }
@@ -394,6 +397,7 @@ const goToSystemDetails = (system: System) => {
         <NeTableRow v-for="(item, index) in systemsPage" :key="index">
           <NeTableCell :data-label="$t('systems.name')">
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
+              <div v-if="item.type">[{{ item.type }}]</div>
               {{ item.name || '-' }}
             </div>
           </NeTableCell>
@@ -403,10 +407,14 @@ const goToSystemDetails = (system: System) => {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.fqdn_ip_address')" class="break-all xl:break-normal">
-            <div :class="{ 'opacity-50': item.status === 'deleted' }">
+            <div :class="['space-y-0.5', { 'opacity-50': item.status === 'deleted' }]">
               <div v-if="item.fqdn">{{ item.fqdn }}</div>
-              <div v-if="item.ipv4_address">{{ item.ipv4_address }}</div>
-              <div v-if="item.ipv6_address">{{ item.ipv6_address }}</div>
+              <div v-if="item.ipv4_address" class="text-gray-500 dark:text-gray-400">
+                {{ item.ipv4_address }}
+              </div>
+              <div v-if="item.ipv6_address" class="text-gray-500 dark:text-gray-400">
+                {{ item.ipv6_address }}
+              </div>
               <div v-if="!item.fqdn && !item.ipv4_address && !item.ipv6_address">-</div>
             </div>
           </NeTableCell>
@@ -417,13 +425,26 @@ const goToSystemDetails = (system: System) => {
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.created_by')">
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
-              <div>{{ item.created_by?.name || '-' }}</div>
-              <div
-                v-if="item.created_by?.organization_name"
-                class="text-gray-500 dark:text-gray-400"
-              >
-                {{ item.created_by.organization_name }}
-              </div>
+              <template v-if="item.created_by">
+                <div class="flex items-center gap-2">
+                  <!-- //// improve check -> :is-owner="item.created_by.username === 'owner'" -->
+                  <UserAvatar
+                    size="sm"
+                    :is-owner="item.created_by.name === 'Company Owner'"
+                    :name="item.created_by.name"
+                  />
+                  <div class="space-y-0.5">
+                    <div>{{ item.created_by.name || '-' }}</div>
+                    <div
+                      v-if="item.created_by.organization_name"
+                      class="text-gray-500 dark:text-gray-400"
+                    >
+                      {{ item.created_by.organization_name }}
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <template v-else>-</template>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.status')">
@@ -459,7 +480,7 @@ const goToSystemDetails = (system: System) => {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+            <div v-if="item.status !== 'deleted'" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
               <NeButton
                 kind="tertiary"
                 @click="goToSystemDetails(item)"

@@ -25,6 +25,7 @@ import router from '@/router'
 import ImpersonationBadge from './ImpersonationBadge.vue'
 import { useImpersonationConsent } from '@/queries/impersonationConsent'
 import ImpersonationConsentBadge from './ImpersonationConsentBadge.vue'
+import UserAvatar from './UserAvatar.vue'
 
 const emit = defineEmits(['openSidebar'])
 
@@ -190,24 +191,11 @@ function openNotificationsDrawer() {
               <template #button>
                 <button type="button" :class="['-m-2.5 flex p-2.5', topBarButtonsColorClasses]">
                   <div class="flex items-center gap-2">
-                    <!-- owner avatar -->
-                    <NeAvatar v-if="loginStore.isOwner" size="sm" aria-hidden="true">
-                      <template #placeholder>
-                        <div
-                          class="flex size-8 items-center justify-center rounded-full bg-gray-700 text-white dark:bg-gray-200 dark:text-gray-950"
-                        >
-                          <FontAwesomeIcon :icon="faCrown" class="size-4" />
-                        </div>
-                      </template>
-                    </NeAvatar>
-                    <!-- avatar with initials -->
-                    <NeAvatar
-                      v-else
+                    <UserAvatar
                       size="sm"
-                      :initials="loginStore.userInitial"
-                      aria-hidden="true"
+                      :is-owner="loginStore.isOwner"
+                      :name="loginStore.userDisplayName"
                     />
-
                     <FontAwesomeIcon
                       :icon="faChevronDown"
                       class="h-3 w-3 shrink-0"
