@@ -41,8 +41,9 @@ import { SYSTEMS_TABLE_ID, type System } from '@/lib/systems/systems'
 import router from '@/router'
 import CreateOrEditSystemDrawer from './CreateOrEditSystemDrawer.vue'
 import DeleteSystemModal from './DeleteSystemModal.vue'
-import { useFilterProducts } from '@/queries/systems/filterProducts'
+import { useFilterProduct } from '@/queries/systems/filterProduct'
 import { useFilterCreatedBy } from '@/queries/systems/filterCreatedBy'
+import { useFilterVersion } from '@/queries/systems/filterVersion'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -64,9 +65,10 @@ const {
   sortBy,
   sortDescending,
 } = useSystems()
-const { state: filterProductState, asyncStatus: filterProductsAsyncStatus } = useFilterProducts()
+const { state: filterProductState, asyncStatus: filterProductAsyncStatus } = useFilterProduct()
 const { state: filterCreatedByState, asyncStatus: filterCreatedByAsyncStatus } =
   useFilterCreatedBy()
+const { state: filterVersionState, asyncStatus: filterVersionAsyncStatus } = useFilterVersion()
 
 const currentSystem = ref<System | undefined>()
 const isShownCreateOrEditSystemDrawer = ref(false)
@@ -105,6 +107,17 @@ const productFilterOptions = computed(() => {
     return filterProductState.value.data.products.map((productId) => ({
       id: productId,
       label: getProductName(productId),
+    }))
+  }
+})
+
+const versionFilterOptions = computed(() => {
+  if (!filterVersionState.value.data) {
+    return []
+  } else {
+    return filterVersionState.value.data.versions.map((version) => ({
+      id: version,
+      label: version,
     }))
   }
 })
@@ -222,10 +235,25 @@ const goToSystemDetails = (system: System) => {
             v-model="productFilter"
             kind="checkbox"
             :disabled="
-              filterProductsAsyncStatus === 'loading' || filterProductState.status === 'error'
+              filterProductAsyncStatus === 'loading' || filterProductState.status === 'error'
             "
             :label="t('systems.product')"
             :options="productFilterOptions"
+            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
+          />
+          <NeDropdownFilter
+            v-model="versionFilter"
+            kind="checkbox"
+            :disabled="
+              filterVersionAsyncStatus === 'loading' || filterVersionState.status === 'error'
+            "
+            :label="t('systems.version')"
+            :options="versionFilterOptions"
+            show-options-filter
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
