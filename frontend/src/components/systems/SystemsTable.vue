@@ -11,6 +11,10 @@ import {
   faServer,
   faEye,
   faPenToSquare,
+  faCircleCheck,
+  faCircleQuestion,
+  faTriangleExclamation,
+  faCircleXmark,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -78,14 +82,14 @@ const isShownDeleteSystemModal = ref(false)
 const statusFilterOptions = ref<FilterOption[]>([
   {
     id: 'online',
-    label: t('systems.status_active'),
+    label: t('systems.status_online'),
   },
   {
     id: 'offline',
-    label: t('systems.status_inactive'),
+    label: t('systems.status_offline'),
   },
   {
-    id: 'undefined',
+    id: 'unknown',
     label: t('systems.status_unknown'),
   },
   { id: 'deleted', label: t('systems.status_deleted') },
@@ -154,7 +158,7 @@ function getProductName(productId: string) {
 
 function clearFilters() {
   textFilter.value = ''
-  statusFilter.value = []
+  statusFilter.value = ['online', 'offline', 'unknown']
 }
 
 function showCreateSystemDrawer() {
@@ -279,6 +283,7 @@ const goToSystemDetails = (system: System) => {
             kind="checkbox"
             :label="t('common.status')"
             :options="statusFilterOptions"
+            :show-clear-filter="false"
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
@@ -305,7 +310,7 @@ const goToSystemDetails = (system: System) => {
             class="xl:hidden"
           />
           <NeButton kind="tertiary" @click="clearFilters">
-            {{ t('common.clear_filters') }}
+            {{ t('systems.reset_filters') }}
           </NeButton>
         </div>
         <!-- update indicator -->
@@ -320,9 +325,6 @@ const goToSystemDetails = (system: System) => {
         </div>
       </div>
     </div>
-
-    state.status {{ state.status }} ////
-
     <!-- empty state -->
     <NeEmptyState
       v-if="state.status === 'success' && !systemsPage?.length && !debouncedTextFilter"
@@ -353,7 +355,7 @@ const goToSystemDetails = (system: System) => {
       class="bg-white dark:bg-gray-950"
     >
       <NeButton kind="tertiary" @click="clearFilters">
-        {{ $t('common.clear_filters') }}
+        {{ $t('systems.reset_filters') }}
       </NeButton>
     </NeEmptyState>
     <!-- //// check breakpoint, skeleton-columns -->
@@ -391,28 +393,70 @@ const goToSystemDetails = (system: System) => {
       <NeTableBody>
         <NeTableRow v-for="(item, index) in systemsPage" :key="index">
           <NeTableCell :data-label="$t('systems.name')">
-            {{ item.name || '-' }}
+            <div :class="{ 'opacity-50': item.status === 'deleted' }">
+              {{ item.name || '-' }}
+            </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.version')" class="break-all xl:break-normal">
-            {{ item.version || '-' }}
+            <div :class="{ 'opacity-50': item.status === 'deleted' }">
+              {{ item.version || '-' }}
+            </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.fqdn_ip_address')" class="break-all xl:break-normal">
-            <div v-if="item.fqdn">{{ item.fqdn }}</div>
-            <div v-if="item.ipv4_address">{{ item.ipv4_address }}</div>
-            <div v-if="item.ipv6_address">{{ item.ipv6_address }}</div>
-            <div v-if="!item.fqdn && !item.ipv4_address && !item.ipv6_address">-</div>
+            <div :class="{ 'opacity-50': item.status === 'deleted' }">
+              <div v-if="item.fqdn">{{ item.fqdn }}</div>
+              <div v-if="item.ipv4_address">{{ item.ipv4_address }}</div>
+              <div v-if="item.ipv6_address">{{ item.ipv6_address }}</div>
+              <div v-if="!item.fqdn && !item.ipv4_address && !item.ipv6_address">-</div>
+            </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.organization')">
-            {{ item.organization_name || '-' }}
+            <div :class="{ 'opacity-50': item.status === 'deleted' }">
+              {{ item.organization_name || '-' }}
+            </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.created_by')">
-            <div>{{ item.created_by?.name || '-' }}</div>
-            <div v-if="item.created_by?.organization_name" class="text-gray-500 dark:text-gray-400">
-              {{ item.created_by.organization_name }}
+            <div :class="{ 'opacity-50': item.status === 'deleted' }">
+              <div>{{ item.created_by?.name || '-' }}</div>
+              <div
+                v-if="item.created_by?.organization_name"
+                class="text-gray-500 dark:text-gray-400"
+              >
+                {{ item.created_by.organization_name }}
+              </div>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.status')">
-            {{ item.status || '-' }} ////
+            <div class="flex items-center gap-2">
+              <FontAwesomeIcon
+                v-if="item.status === 'online'"
+                :icon="faCircleCheck"
+                class="size-4 text-green-600 dark:text-green-400"
+                aria-hidden="true"
+              />
+              <FontAwesomeIcon
+                v-else-if="item.status === 'offline'"
+                :icon="faTriangleExclamation"
+                class="size-4 text-amber-700 dark:text-amber-500"
+                aria-hidden="true"
+              />
+              <FontAwesomeIcon
+                v-else-if="item.status === 'deleted'"
+                :icon="faCircleXmark"
+                class="size-4 text-rose-700 dark:text-rose-500"
+                aria-hidden="true"
+              />
+              <FontAwesomeIcon
+                v-else
+                :icon="faCircleQuestion"
+                class="size-4 text-gray-700 dark:text-gray-400"
+                aria-hidden="true"
+              />
+              <span v-if="item.status">
+                {{ t(`systems.status_${item.status}`) }}
+              </span>
+              <span v-else>-</span>
+            </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
             <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
