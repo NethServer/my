@@ -26,7 +26,7 @@ func TestSystemStructure(t *testing.T) {
 		ID:             "system-123",
 		Name:           "Test System",
 		Type:           nil,
-		Status:         nil,
+		Status:         "unknown",
 		FQDN:           "test-system.example.com",
 		IPv4Address:    "192.168.1.100",
 		IPv6Address:    "2001:db8::1",
@@ -42,7 +42,7 @@ func TestSystemStructure(t *testing.T) {
 	assert.Equal(t, "system-123", system.ID)
 	assert.Equal(t, "Test System", system.Name)
 	assert.Nil(t, system.Type)
-	assert.Nil(t, system.Status)
+	assert.Equal(t, "unknown", system.Status)
 	assert.Equal(t, "test-system.example.com", system.FQDN)
 	assert.Equal(t, "192.168.1.100", system.IPv4Address)
 	assert.Equal(t, "2001:db8::1", system.IPv6Address)
@@ -68,7 +68,7 @@ func TestSystemJSONSerialization(t *testing.T) {
 		ID:             "json-system-456",
 		Name:           "JSON Test System",
 		Type:           strPtr("nsec"),
-		Status:         strPtr("offline"),
+		Status:         "offline",
 		FQDN:           "json-test.example.com",
 		IPv4Address:    "10.0.0.50",
 		IPv6Address:    "2001:db8::2",
@@ -166,7 +166,7 @@ func TestSystemJSONTags(t *testing.T) {
 		ID:             "tag-system",
 		Name:           "Tag System",
 		Type:           strPtr("nsec-controller"),
-		Status:         strPtr("maintenance"),
+		Status:         "online",
 		FQDN:           "tag-system.example.com",
 		IPv4Address:    "172.16.0.10",
 		IPv6Address:    "2001:db8::3",
@@ -206,7 +206,7 @@ func TestSystemJSONTags(t *testing.T) {
 	assert.Equal(t, "tag-system", jsonMap["id"])
 	assert.Equal(t, "Tag System", jsonMap["name"])
 	assert.Equal(t, "nsec-controller", jsonMap["type"])
-	assert.Equal(t, "maintenance", jsonMap["status"])
+	assert.Equal(t, "online", jsonMap["status"])
 	assert.Equal(t, "tag-system.example.com", jsonMap["fqdn"])
 	assert.Equal(t, "172.16.0.10", jsonMap["ipv4_address"])
 	assert.Equal(t, "2001:db8::3", jsonMap["ipv6_address"])

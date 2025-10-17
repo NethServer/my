@@ -761,10 +761,9 @@ components:
           example: "nsec"
         status:
           type: string
-          nullable: true
-          enum: [online, offline, deleted]
-          description: System operational status (auto-updated by collect service, null until first inventory collection)
-          example: "online"
+          enum: [unknown, online, offline, deleted]
+          description: System operational status (defaults to 'unknown', auto-updated by collect service)
+          example: "unknown"
         fqdn:
           type: string
           description: Fully qualified domain name
@@ -1221,8 +1220,8 @@ components:
         type: array
         items:
           type: string
-          enum: ["online", "offline", "undefined", "deleted"]
-        example: ["online", "undefined"]
+          enum: ["unknown", "online", "offline", "deleted"]
+        example: ["online", "unknown"]
       style: form
       explode: true
 

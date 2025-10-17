@@ -45,9 +45,6 @@ WORKDIR /app
 # Copy the binary from builder stage
 COPY --from=builder /app/collect .
 
-# Copy database schema files
-COPY --from=builder /app/database/schema.sql database/
-
 # Change ownership of the application directory
 RUN chown -R appuser:appgroup /app
 

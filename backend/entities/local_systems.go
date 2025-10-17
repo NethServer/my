@@ -180,8 +180,9 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	// Add multiple value filters with IN clauses
 	if len(filterTypes) > 0 {
 		typePlaceholders := make([]string, len(filterTypes))
+		baseIndex := len(args)
 		for i, t := range filterTypes {
-			typePlaceholders[i] = fmt.Sprintf("$%d", len(args)+i+1)
+			typePlaceholders[i] = fmt.Sprintf("$%d", baseIndex+i+1)
 			args = append(args, t)
 		}
 		whereClause += fmt.Sprintf(" AND s.type IN (%s)", strings.Join(typePlaceholders, ","))
@@ -203,8 +204,9 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 
 	if len(filterVersions) > 0 {
 		versionPlaceholders := make([]string, len(filterVersions))
+		baseIndex := len(args)
 		for i, v := range filterVersions {
-			versionPlaceholders[i] = fmt.Sprintf("$%d", len(args)+i+1)
+			versionPlaceholders[i] = fmt.Sprintf("$%d", baseIndex+i+1)
 			args = append(args, v)
 		}
 		whereClause += fmt.Sprintf(" AND s.version IN (%s)", strings.Join(versionPlaceholders, ","))
@@ -213,8 +215,9 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	if len(filterOrgIDs) > 0 {
 		// Filter by logto_id (systems.organization_id stores logto_id)
 		orgPlaceholders := make([]string, len(filterOrgIDs))
+		baseIndex := len(args)
 		for i, orgID := range filterOrgIDs {
-			orgPlaceholders[i] = fmt.Sprintf("$%d", len(args)+i+1)
+			orgPlaceholders[i] = fmt.Sprintf("$%d", baseIndex+i+1)
 			args = append(args, orgID)
 		}
 		whereClause += fmt.Sprintf(" AND s.organization_id IN (%s)", strings.Join(orgPlaceholders, ","))
@@ -223,8 +226,9 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	// Handle normal status filters (excluding "deleted")
 	if len(normalStatuses) > 0 {
 		statusPlaceholders := make([]string, len(normalStatuses))
+		baseIndex := len(args)
 		for i, s := range normalStatuses {
-			statusPlaceholders[i] = fmt.Sprintf("$%d", len(args)+i+1)
+			statusPlaceholders[i] = fmt.Sprintf("$%d", baseIndex+i+1)
 			args = append(args, s)
 		}
 		if hasDeletedFilter {

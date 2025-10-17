@@ -114,7 +114,7 @@ CREATE TABLE IF NOT EXISTS systems (
     id VARCHAR(255) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     type VARCHAR(100),  -- Populated by collect service on first inventory
-    status VARCHAR(50),  -- Populated by collect service on first inventory
+    status VARCHAR(50) NOT NULL DEFAULT 'unknown',  -- Default: unknown, updated by collect service
     fqdn VARCHAR(255),
     ipv4_address INET,
     ipv6_address INET,
@@ -153,7 +153,7 @@ DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_systems_status') THEN
         ALTER TABLE systems ADD CONSTRAINT chk_systems_status
-            CHECK (status IN ('undefined', 'online', 'offline', 'maintenance'));
+            CHECK (status IN ('unknown', 'online', 'offline', 'deleted'));
     END IF;
 END $$;
 

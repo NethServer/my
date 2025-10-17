@@ -84,13 +84,13 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 		return nil, fmt.Errorf("failed to marshal created_by: %w", err)
 	}
 
-	// Insert system into database (type and status start as NULL until first inventory)
+	// Insert system into database (type starts as NULL, status defaults to 'unknown' until first inventory)
 	query := `
 		INSERT INTO systems (id, name, type, status, system_key, organization_id, custom_data, system_secret, notes, created_at, updated_at, created_by)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`
 
-	_, err = database.DB.Exec(query, systemID, request.Name, nil, nil, systemKey, request.OrganizationID,
+	_, err = database.DB.Exec(query, systemID, request.Name, nil, "unknown", systemKey, request.OrganizationID,
 		customDataJSON, hashedSecret, request.Notes, now, now, createdByJSON)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create system: %w", err)
@@ -99,12 +99,12 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 	// Fetch organization name
 	organizationName := s.getOrganizationName(request.OrganizationID)
 
-	// Create system object (type and status are nil until first inventory)
+	// Create system object (type is nil until first inventory, status defaults to 'unknown')
 	system := &models.System{
 		ID:               systemID,
 		Name:             request.Name,
 		Type:             nil,
-		Status:           nil,
+		Status:           "unknown",
 		SystemKey:        systemKey,
 		OrganizationID:   request.OrganizationID,
 		OrganizationName: organizationName,

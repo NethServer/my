@@ -21,7 +21,7 @@ type System struct {
 	ID               string            `json:"id" structs:"id"`
 	Name             string            `json:"name" structs:"name"`
 	Type             *string           `json:"type" structs:"type"`     // ns8, nsec, etc. - nullable until first inventory
-	Status           *string           `json:"status" structs:"status"` // online, offline, maintenance - nullable until first inventory
+	Status           string            `json:"status" structs:"status"` // unknown (default), online, offline, deleted
 	FQDN             string            `json:"fqdn" structs:"fqdn"`
 	IPv4Address      string            `json:"ipv4_address" structs:"ipv4_address"`
 	IPv6Address      string            `json:"ipv6_address" structs:"ipv6_address"`

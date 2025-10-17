@@ -513,27 +513,22 @@ func simulateGetSystemTotals(userOrgRole, userOrgID string) *models.SystemTotals
 	}
 }
 
-// strPtr helper function to create string pointers
-func strPtr(s string) *string {
-	return &s
-}
-
 func setSystemState(system *models.System, state string) {
 	switch state {
 	case "active":
-		system.Status = strPtr("online")
+		system.Status = "online"
 	case "inactive":
-		system.Status = strPtr("offline")
+		system.Status = "offline"
 	case "suspended":
-		system.Status = strPtr("maintenance")
+		system.Status = "deleted"
 	}
 }
 
 func simulateSystemStateChange(system *models.System, operation string) (bool, string) {
 	switch operation {
 	case "activate":
-		if system.Status != nil && *system.Status == "maintenance" {
-			return false, "suspended" // Cannot activate suspended system directly
+		if system.Status == "deleted" {
+			return false, "suspended" // Cannot activate deleted system directly
 		}
 		return true, "active"
 	case "deactivate":
@@ -541,7 +536,7 @@ func simulateSystemStateChange(system *models.System, operation string) (bool, s
 	case "suspend":
 		return true, "suspended"
 	case "unsuspend":
-		if system.Status != nil && *system.Status == "maintenance" {
+		if system.Status == "deleted" {
 			return true, "active"
 		}
 		return false, "active" // Already not suspended
