@@ -22,21 +22,8 @@ import (
 )
 
 // ReceiveHeartbeat handles system heartbeat requests - optimized for high throughput
+// Body is optional and ignored - authentication via HTTP Basic Auth is sufficient
 func ReceiveHeartbeat(c *gin.Context) {
-	var req models.HeartbeatRequest
-
-	// Parse JSON request
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request format", nil))
-		return
-	}
-
-	// Validate system_key
-	if req.SystemKey == "" {
-		c.JSON(http.StatusBadRequest, response.BadRequest("system_key is required", nil))
-		return
-	}
-
 	// Get system_key and system_id from basic auth context (set by middleware)
 	authSystemKey, exists := c.Get("system_key")
 	if !exists {
@@ -50,18 +37,6 @@ func ReceiveHeartbeat(c *gin.Context) {
 		return
 	}
 
-	// Verify that the system_key in the request matches the authenticated system
-	if req.SystemKey != authSystemKey.(string) {
-		logger.Warn().
-			Str("component", "heartbeat").
-			Str("operation", "auth_mismatch").
-			Str("requested_system_key", req.SystemKey).
-			Str("authenticated_system_key", authSystemKey.(string)).
-			Msg("system_key mismatch in heartbeat")
-		c.JSON(http.StatusForbidden, response.Forbidden("system_key mismatch", nil))
-		return
-	}
-
 	// Update heartbeat in database - optimized single query (using internal system_id)
 	now := time.Now()
 	err := updateSystemHeartbeat(authSystemID.(string), now)
@@ -69,7 +44,7 @@ func ReceiveHeartbeat(c *gin.Context) {
 		logger.Error().
 			Str("component", "heartbeat").
 			Str("operation", "database_update").
-			Str("system_key", req.SystemKey).
+			Str("system_key", authSystemKey.(string)).
 			Str("system_id", authSystemID.(string)).
 			Err(err).
 			Msg("failed to update system heartbeat")
@@ -79,7 +54,7 @@ func ReceiveHeartbeat(c *gin.Context) {
 
 	// Minimal response for efficiency
 	resp := models.HeartbeatResponse{
-		SystemKey:     req.SystemKey,
+		SystemKey:     authSystemKey.(string),
 		Acknowledged:  true,
 		LastHeartbeat: now,
 	}

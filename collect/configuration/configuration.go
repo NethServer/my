@@ -74,6 +74,9 @@ type Configuration struct {
 
 	// Notification configuration
 	NotificationRetryAttempts int `json:"notification_retry_attempts"`
+
+	// Heartbeat monitoring configuration
+	HeartbeatTimeoutMinutes int `json:"heartbeat_timeout_minutes"`
 }
 
 var Config = Configuration{}
@@ -148,6 +151,9 @@ func Init() {
 
 	// Notification configuration
 	Config.NotificationRetryAttempts = parseIntWithDefault("NOTIFICATION_RETRY_ATTEMPTS", 3)
+
+	// Heartbeat monitoring configuration
+	Config.HeartbeatTimeoutMinutes = parseIntWithDefault("HEARTBEAT_TIMEOUT_MINUTES", 10)
 
 	// Log successful configuration load
 	logger.LogConfigLoad("env", "configuration", true, nil)

@@ -23,6 +23,7 @@ import (
 	"github.com/joho/godotenv"
 
 	"github.com/nethesis/my/collect/configuration"
+	"github.com/nethesis/my/collect/cron"
 	"github.com/nethesis/my/collect/database"
 	"github.com/nethesis/my/collect/logger"
 	"github.com/nethesis/my/collect/methods"
@@ -90,6 +91,10 @@ func main() {
 	if err := workerManager.Start(ctx); err != nil {
 		logger.Fatal().Err(err).Msg("Failed to start worker manager")
 	}
+
+	// Start heartbeat monitor cron job
+	heartbeatMonitor := cron.NewHeartbeatMonitor()
+	go heartbeatMonitor.Start()
 
 	// Init router
 	router := gin.Default()
