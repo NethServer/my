@@ -61,6 +61,7 @@ const {
   debouncedTextFilter,
   productFilter,
   createdByFilter,
+  versionFilter,
   statusFilter,
   sortBy,
   sortDescending,
@@ -73,20 +74,18 @@ const { state: filterVersionState, asyncStatus: filterVersionAsyncStatus } = use
 const currentSystem = ref<System | undefined>()
 const isShownCreateOrEditSystemDrawer = ref(false)
 const isShownDeleteSystemModal = ref(false)
-// const productFilter = ref<string[]>([]) ////
-// const statusFilter = ref<string[]>([]) //// narrow type
 
 const statusFilterOptions = ref<FilterOption[]>([
   {
-    id: 'active',
+    id: 'online',
     label: t('systems.status_active'),
   },
   {
-    id: 'inactive',
+    id: 'offline',
     label: t('systems.status_inactive'),
   },
   {
-    id: 'unknown',
+    id: 'undefined',
     label: t('systems.status_unknown'),
   },
   { id: 'deleted', label: t('systems.status_deleted') },
@@ -101,7 +100,7 @@ const pagination = computed(() => {
 })
 
 const productFilterOptions = computed(() => {
-  if (!filterProductState.value.data) {
+  if (!filterProductState.value.data || !filterProductState.value.data.products) {
     return []
   } else {
     return filterProductState.value.data.products.map((productId) => ({
@@ -112,7 +111,7 @@ const productFilterOptions = computed(() => {
 })
 
 const versionFilterOptions = computed(() => {
-  if (!filterVersionState.value.data) {
+  if (!filterVersionState.value.data || !filterVersionState.value.data.versions) {
     return []
   } else {
     return filterVersionState.value.data.versions.map((version) => ({
@@ -123,7 +122,7 @@ const versionFilterOptions = computed(() => {
 })
 
 const createdByFilterOptions = computed(() => {
-  if (!filterCreatedByState.value.data) {
+  if (!filterCreatedByState.value.data || !filterCreatedByState.value.data.created_by) {
     return []
   } else {
     return filterCreatedByState.value.data.created_by.map((user) => ({
@@ -407,7 +406,10 @@ const goToSystemDetails = (system: System) => {
             {{ item.organization_name || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.created_by')">
-            {{ item.created_by?.user_name || '-' }}
+            <div>{{ item.created_by?.name || '-' }}</div>
+            <div v-if="item.created_by?.organization_name" class="text-gray-500 dark:text-gray-400">
+              {{ item.created_by.organization_name }}
+            </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.status')">
             {{ item.status || '-' }} ////

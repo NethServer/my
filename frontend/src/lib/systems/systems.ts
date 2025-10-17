@@ -11,7 +11,11 @@ export const SYSTEMS_KEY = 'systems'
 export const SYSTEMS_TOTAL_KEY = 'systemsTotal' //// needed?
 export const SYSTEMS_TABLE_ID = 'systemsTable'
 
-//// review, search for "systems"
+export type SystemStatus = 'online' | 'offline' | 'undefined' | 'deleted'
+
+const systemStatusOptions = ['online', 'offline', 'undefined', 'deleted']
+
+const SystemStatusSchema = v.picklist(systemStatusOptions)
 
 export const CreateSystemSchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty('systems.name_cannot_be_empty')),
@@ -29,8 +33,7 @@ export const SystemSchema = v.object({
   ...CreateSystemSchema.entries,
   ...EditSystemSchema.entries,
   type: v.string(),
-  status: v.optional(v.string()), //// narrow type
-  // status: v.optional(v.picklist(['active', 'inactive', 'pending'])), //// check values and uncomment
+  status: v.optional(SystemStatusSchema),
   fqdn: v.string(),
   ipv4_address: v.string(),
   ipv6_address: v.string(),
@@ -42,7 +45,8 @@ export const SystemSchema = v.object({
   system_secret: v.string(),
   created_by: v.object({
     user_id: v.string(),
-    user_name: v.string(),
+    name: v.string(),
+    email: v.string(),
     organization_id: v.string(),
     organization_name: v.string(),
   }),
@@ -95,7 +99,8 @@ export const getQueryStringParams = (
   textFilter: string | null,
   productFilter: string[],
   createdByFilter: string[],
-  statusFilter: string[], //// narrow type
+  versionFilter: string[],
+  statusFilter: SystemStatus[],
   sortBy: string | null,
   sortDescending: boolean,
 ) => {
@@ -118,6 +123,10 @@ export const getQueryStringParams = (
     searchParams.append('created_by', userId)
   })
 
+  versionFilter.forEach((version) => {
+    searchParams.append('version', version)
+  })
+
   statusFilter.forEach((status) => {
     searchParams.append('status', status)
   })
@@ -130,7 +139,8 @@ export const getSystems = (
   textFilter: string,
   productFilter: string[],
   createdByFilter: string[],
-  statusFilter: string[], //// narrow type
+  versionFilter: string[],
+  statusFilter: SystemStatus[],
   sortBy: string,
   sortDescending: boolean,
 ) => {
@@ -142,6 +152,7 @@ export const getSystems = (
     textFilter,
     productFilter,
     createdByFilter,
+    versionFilter,
     statusFilter,
     sortBy,
     sortDescending,
