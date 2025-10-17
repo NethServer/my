@@ -520,15 +520,15 @@ func setSystemState(system *models.System, state string) {
 	case "inactive":
 		system.Status = "offline"
 	case "suspended":
-		system.Status = "maintenance"
+		system.Status = "deleted"
 	}
 }
 
 func simulateSystemStateChange(system *models.System, operation string) (bool, string) {
 	switch operation {
 	case "activate":
-		if system.Status == "maintenance" {
-			return false, "suspended" // Cannot activate suspended system directly
+		if system.Status == "deleted" {
+			return false, "suspended" // Cannot activate deleted system directly
 		}
 		return true, "active"
 	case "deactivate":
@@ -536,7 +536,7 @@ func simulateSystemStateChange(system *models.System, operation string) (bool, s
 	case "suspend":
 		return true, "suspended"
 	case "unsuspend":
-		if system.Status == "maintenance" {
+		if system.Status == "deleted" {
 			return true, "active"
 		}
 		return false, "active" // Already not suspended

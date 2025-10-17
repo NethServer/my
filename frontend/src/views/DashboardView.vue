@@ -8,6 +8,7 @@ import CustomersCounterCard from '@/components/dashboard/CustomersCounterCard.vu
 import DistributorsCounterCard from '@/components/dashboard/DistributorsCounterCard.vue'
 import ResellersCounterCard from '@/components/dashboard/ResellersCounterCard.vue'
 import UsersCounterCard from '@/components/dashboard/UsersCounterCard.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 import { normalize } from '@/lib/common'
 import {
   canReadCustomers,
@@ -25,10 +26,9 @@ import {
   getButtonLabel,
 } from '@/lib/thirdPartyApps'
 import { useLoginStore } from '@/stores/login'
-import { faArrowUpRightFromSquare, faCrown } from '@fortawesome/free-solid-svg-icons'
+import { faArrowUpRightFromSquare } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
-  NeAvatar,
   NeBadge,
   NeButton,
   NeCard,
@@ -53,18 +53,7 @@ const { state: thirdPartyApps } = useQuery({
       <!-- logged user -->
       <NeCard>
         <div class="flex items-center gap-5 text-xs">
-          <!-- owner avatar -->
-          <NeAvatar v-if="loginStore.isOwner" size="lg" aria-hidden="true">
-            <template #placeholder>
-              <div
-                class="flex size-12 items-center justify-center rounded-full bg-gray-700 text-white dark:bg-gray-200 dark:text-gray-950"
-              >
-                <FontAwesomeIcon :icon="faCrown" class="size-6" />
-              </div>
-            </template>
-          </NeAvatar>
-          <!-- avatar with initials -->
-          <NeAvatar v-else size="lg" :initials="loginStore.userInitial" aria-hidden="true" />
+          <UserAvatar size="lg" :is-owner="loginStore.isOwner" :name="loginStore.userDisplayName" />
           <template v-if="loginStore.loadingUserInfo">
             <NeSkeleton :lines="3" class="w-full" />
           </template>

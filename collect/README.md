@@ -42,6 +42,7 @@ REDIS_PASSWORD=
 LISTEN_ADDRESS=127.0.0.1:8081
 INVENTORY_MAX_AGE=90d
 API_MAX_REQUEST_SIZE=10MB
+HEARTBEAT_TIMEOUT_MINUTES=10
 LOG_LEVEL=info
 ```
 
@@ -73,6 +74,14 @@ LOG_LEVEL=info
 - **Delayed Message Worker** handles failed jobs with exponential backoff
 - **Cleanup Worker** removes old records (90-day retention)
 - **Queue Monitor Worker** tracks system health and performance
+
+**6. Heartbeat Monitoring**
+- **Heartbeat Monitor Cron** runs every 60 seconds
+- Automatically updates system status based on heartbeat freshness:
+  - `unknown` → `online` when first heartbeat arrives
+  - `offline` → `online` when fresh heartbeat arrives (< 10 minutes)
+  - `online` → `offline` when heartbeat is stale (> 10 minutes)
+- Configurable timeout via `HEARTBEAT_TIMEOUT_MINUTES` (default: 10 minutes)
 
 ### Queue Architecture
 - `collect:inventory` → Raw inventory data
@@ -156,10 +165,15 @@ redis-cli del collect:inventory collect:processing collect:notifications
 
 ### Testing
 ```bash
+# Submit heartbeat (requires system credentials from backend API)
+# Authentication via HTTP Basic Auth: system_key:system_secret
+curl -X POST http://localhost:8081/api/systems/heartbeat \
+  -u "NOC-XXXX-XXXX-XXXX:your_system_secret"
+
 # Submit inventory (requires system credentials from backend API)
 curl -X POST http://localhost:8081/api/systems/inventory \
   -H "Content-Type: application/json" \
-  -u "system_id:system_secret" \
+  -u "system_key:system_secret" \
   -d '{"system_id": "test", "timestamp": "2025-07-13T10:00:00Z", "data": {"os": {"name": "TestOS"}}}'
 ```
 
@@ -169,6 +183,8 @@ curl -X POST http://localhost:8081/api/systems/inventory \
 collect/
 ├── main.go                 # Application entry point
 ├── configuration/          # Environment configuration
+├── cron/                  # Scheduled jobs
+│   └── heartbeat_monitor.go       # System status monitoring
 ├── database/              # PostgreSQL connection and models
 ├── methods/               # HTTP request handlers
 ├── middleware/            # Authentication middleware

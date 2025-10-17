@@ -210,6 +210,17 @@ func main() {
 		}
 
 		// ===========================================
+		// FILTERS - For UI dropdowns
+		// ===========================================
+		filtersGroup := customAuthWithAudit.Group("/filters", middleware.RequireResourcePermission("systems"))
+		{
+			filtersGroup.GET("/products", methods.GetFilterProducts)           // Get unique product types
+			filtersGroup.GET("/created-by", methods.GetFilterCreatedBy)        // Get users who created systems
+			filtersGroup.GET("/versions", methods.GetFilterVersions)           // Get unique versions
+			filtersGroup.GET("/organizations", methods.GetFilterOrganizations) // Get organizations with systems
+		}
+
+		// ===========================================
 		// BUSINESS HIERARCHY - Permission-based with org_permissions
 		// Owner > Distributor > Reseller > Customer
 		// ===========================================

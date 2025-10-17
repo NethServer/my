@@ -170,9 +170,9 @@ func Init() {
 
 	// System types configuration
 	if os.Getenv("SYSTEM_TYPES") != "" {
-		Config.SystemTypes = parseStringSliceWithDefault("SYSTEM_TYPES", []string{"undefined", "ns8", "nsec", "nsec-controller"})
+		Config.SystemTypes = parseStringSliceWithDefault("SYSTEM_TYPES", []string{"ns8", "nsec", "nsec-controller"})
 	} else {
-		Config.SystemTypes = []string{"undefined", "ns8", "nsec", "nsec-controller"}
+		Config.SystemTypes = []string{"ns8", "nsec", "nsec-controller"}
 	}
 
 	// SMTP configuration

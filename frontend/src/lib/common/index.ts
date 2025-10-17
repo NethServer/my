@@ -17,13 +17,17 @@ export const getQueryStringParams = (
   sortBy: string | null,
   sortDescending: boolean,
 ) => {
-  return new URLSearchParams({
+  const searchParams = new URLSearchParams({
     page: pageNum.toString(),
     page_size: pageSize.toString(),
-    search: textFilter || '',
     sort_by: sortBy || '',
     sort_direction: sortDescending ? 'desc' : 'asc',
-  }).toString()
+  })
+
+  if (textFilter?.trim()) {
+    searchParams.append('search', textFilter)
+  }
+  return searchParams.toString()
 }
 
 // normalize a string: lowercase and remove spaces

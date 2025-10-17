@@ -48,6 +48,7 @@ export const useLoginStore = defineStore('login', () => {
 
   const userDisplayName = computed(() => userInfo.value?.name || '')
 
+  //// needed?
   const userInitial = computed(() => {
     const name = userDisplayName.value
     return name ? name.charAt(0).toUpperCase() : ''

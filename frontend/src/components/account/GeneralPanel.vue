@@ -9,14 +9,22 @@ import { NeButton, NeInlineNotification } from '@nethesis/vue-components'
 import FormLayout from '@/components/FormLayout.vue'
 import ProfilePanel from '@/components/account/ProfilePanel.vue'
 import { faKey } from '@fortawesome/free-solid-svg-icons'
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import LanguageListbox from '@/components/account/LanguageListbox.vue'
 import ChangePasswordDrawer from './ChangePasswordDrawer.vue'
+import { useRoute } from 'vue-router'
 
 const loginStore = useLoginStore()
+const route = useRoute()
 
 const isShownChangePasswordDrawer = ref(false)
+
+onMounted(() => {
+  if (route.query['changePassword'] === 'true' && !loginStore.isOwner) {
+    isShownChangePasswordDrawer.value = true
+  }
+})
 </script>
 
 <template>

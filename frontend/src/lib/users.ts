@@ -109,6 +109,7 @@ export const deleteUser = (user: User) => {
   })
 }
 
+//// add typing
 export const getUsersTotal = () => {
   const loginStore = useLoginStore()
 
