@@ -827,39 +827,24 @@ func ResetUserPassword(c *gin.Context) {
 		return
 	}
 
-	// Apply RBAC validation - similar to update but more restrictive
+	// Apply RBAC validation - use the same hierarchical logic as CanUpdateUser
 	userOrgRole := strings.ToLower(user.OrgRole)
 	canReset := false
+
+	// Create service for hierarchical validation and password reset
+	service := local.NewUserService()
 
 	// Users can reset their own password
 	if userID == user.ID {
 		canReset = true
 	} else {
-		// Only higher-level roles can reset other users' passwords
+		// Check hierarchical permissions for resetting other users' passwords
 		targetOrgID := ""
 		if targetAccount.OrganizationID != nil {
 			targetOrgID = *targetAccount.OrganizationID
 		}
 
-		switch userOrgRole {
-		case "owner":
-			canReset = true
-		case "distributor":
-			// Distributor can reset passwords in organizations they manage
-			if targetOrgID == user.OrganizationID {
-				canReset = true
-			}
-		case "reseller":
-			// Reseller can reset passwords in their organization
-			if targetOrgID == user.OrganizationID {
-				canReset = true
-			}
-		case "customer":
-			// Customer can reset passwords in their organization
-			if targetOrgID == user.OrganizationID {
-				canReset = true
-			}
-		}
+		canReset, _ = service.CanUpdateUser(userOrgRole, user.OrganizationID, targetOrgID)
 	}
 
 	if !canReset {
@@ -873,8 +858,7 @@ func ResetUserPassword(c *gin.Context) {
 		return
 	}
 
-	// Create service and reset password using Logto ID
-	service := local.NewUserService()
+	// Reset password using Logto ID (service already created above)
 	err = service.ResetUserPassword(*targetAccount.LogtoID, request.Password)
 	if err != nil {
 		logger.Error().
