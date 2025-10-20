@@ -756,7 +756,7 @@ components:
         type:
           type: string
           nullable: true
-          enum: [ns8, nsec, nsec-controller]
+          enum: [ns8, nsec]
           description: System type (auto-detected by collect service, null until first inventory collection)
           example: "nsec"
         status:

@@ -180,7 +180,7 @@ func TestSystemJSONTags(t *testing.T) {
 	system := System{
 		ID:          "tag-system",
 		Name:        "Tag System",
-		Type:        strPtr("nsec-controller"),
+		Type:        strPtr("nsec"),
 		Status:      "online",
 		FQDN:        "tag-system.example.com",
 		IPv4Address: "172.16.0.10",
@@ -224,7 +224,7 @@ func TestSystemJSONTags(t *testing.T) {
 	// Verify values
 	assert.Equal(t, "tag-system", jsonMap["id"])
 	assert.Equal(t, "Tag System", jsonMap["name"])
-	assert.Equal(t, "nsec-controller", jsonMap["type"])
+	assert.Equal(t, "nsec", jsonMap["type"])
 	assert.Equal(t, "online", jsonMap["status"])
 	assert.Equal(t, "tag-system.example.com", jsonMap["fqdn"])
 	assert.Equal(t, "172.16.0.10", jsonMap["ipv4_address"])
