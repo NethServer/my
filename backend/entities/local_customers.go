@@ -52,7 +52,7 @@ func (r *LocalCustomerRepository) Create(req *models.CreateLocalCustomerRequest)
 	if err != nil {
 		// Check for global VAT constraint violation (from trigger function)
 		if strings.Contains(err.Error(), "VAT") && strings.Contains(err.Error(), "already exists") {
-			return nil, fmt.Errorf("VAT already exists in customers")
+			return nil, fmt.Errorf("already exists")
 		}
 		return nil, fmt.Errorf("failed to create customer: %w", err)
 	}
@@ -143,7 +143,7 @@ func (r *LocalCustomerRepository) Update(id string, req *models.UpdateLocalCusto
 	if err != nil {
 		// Check for VAT constraint violation (from trigger function)
 		if strings.Contains(err.Error(), "VAT") && strings.Contains(err.Error(), "already exists") {
-			return nil, fmt.Errorf("VAT already exists in customers")
+			return nil, fmt.Errorf("already exists")
 		}
 		return nil, fmt.Errorf("failed to update customer: %w", err)
 	}

@@ -52,7 +52,7 @@ func (r *LocalDistributorRepository) Create(req *models.CreateLocalDistributorRe
 	if err != nil {
 		// Check for VAT constraint violation (from trigger function)
 		if strings.Contains(err.Error(), "VAT") && strings.Contains(err.Error(), "already exists") {
-			return nil, fmt.Errorf("VAT already exists in distributors")
+			return nil, fmt.Errorf("already exists")
 		}
 		return nil, fmt.Errorf("failed to create distributor: %w", err)
 	}
@@ -143,7 +143,7 @@ func (r *LocalDistributorRepository) Update(id string, req *models.UpdateLocalDi
 	if err != nil {
 		// Check for VAT constraint violation (from trigger function)
 		if strings.Contains(err.Error(), "VAT") && strings.Contains(err.Error(), "already exists") {
-			return nil, fmt.Errorf("VAT already exists in distributors")
+			return nil, fmt.Errorf("already exists")
 		}
 		return nil, fmt.Errorf("failed to update distributor: %w", err)
 	}

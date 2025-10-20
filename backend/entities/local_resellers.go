@@ -52,7 +52,7 @@ func (r *LocalResellerRepository) Create(req *models.CreateLocalResellerRequest)
 	if err != nil {
 		// Check for VAT constraint violation (from trigger function)
 		if strings.Contains(err.Error(), "VAT") && strings.Contains(err.Error(), "already exists") {
-			return nil, fmt.Errorf("VAT already exists in resellers")
+			return nil, fmt.Errorf("already exists")
 		}
 		return nil, fmt.Errorf("failed to create reseller: %w", err)
 	}
@@ -143,7 +143,7 @@ func (r *LocalResellerRepository) Update(id string, req *models.UpdateLocalResel
 	if err != nil {
 		// Check for VAT constraint violation (from trigger function)
 		if strings.Contains(err.Error(), "VAT") && strings.Contains(err.Error(), "already exists") {
-			return nil, fmt.Errorf("VAT already exists in resellers")
+			return nil, fmt.Errorf("already exists")
 		}
 		return nil, fmt.Errorf("failed to update reseller: %w", err)
 	}
