@@ -12,6 +12,8 @@ import {
   focusElement,
   NeCombobox,
   NeTooltip,
+  NeBadge,
+  NeBadgeV2,
 } from '@nethesis/vue-components'
 import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import {
@@ -35,7 +37,7 @@ import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
 import { getOrganizations, ORGANIZATIONS_KEY } from '@/lib/organizations'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faCopy } from '@fortawesome/free-solid-svg-icons'
+import { faCheck, faCopy } from '@fortawesome/free-solid-svg-icons'
 
 const { isShown = false, currentSystem = undefined } = defineProps<{
   isShown: boolean
@@ -60,6 +62,7 @@ const {
   isLoading: createSystemLoading,
   reset: createSystemReset,
   error: createSystemError,
+  status: createSystemStatus,
 } = useMutation({
   mutation: (newSystem: CreateSystem) => {
     return postSystem(newSystem)
@@ -385,6 +388,10 @@ function copyToClipboard(text: string) {
           />
         </template>
         <template v-else-if="step === 'secret'">
+          <NeBadgeV2 kind="green">
+            <FontAwesomeIcon :icon="faCheck" class="size-4" />
+            {{ t('systems.system_created') }}
+          </NeBadgeV2>
           <div class="flex items-end gap-4">
             <NeTextInput
               v-model="secret"

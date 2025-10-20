@@ -35,13 +35,14 @@ import {
   NeSortDropdown,
   type FilterOption,
   NeDropdownFilter,
+  NeTooltip,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { canManageSystems } from '@/lib/permissions'
 import { useSystems } from '@/queries/systems/systems'
-import { SYSTEMS_TABLE_ID, type System } from '@/lib/systems/systems'
+import { getProductLogo, getSystemName, SYSTEMS_TABLE_ID, type System } from '@/lib/systems/systems'
 import router from '@/router'
 import CreateOrEditSystemDrawer from './CreateOrEditSystemDrawer.vue'
 import DeleteSystemModal from './DeleteSystemModal.vue'
@@ -110,7 +111,7 @@ const productFilterOptions = computed(() => {
   } else {
     return productFilterState.value.data.products.map((productId) => ({
       id: productId,
-      label: getProductName(productId),
+      label: getProductLogo(productId),
     }))
   }
 })
@@ -146,18 +147,6 @@ watch(
   },
   { immediate: true },
 )
-
-function getProductName(productId: string) {
-  if (productId === 'ns8') {
-    return 'NethServer'
-  } else if (productId === 'nsec') {
-    return 'NethSecurity'
-  } else if (productId === 'nsec-controller') {
-    return 'NethSecurity Controller'
-  } else {
-    return productId
-  }
-}
 
 function resetFilters() {
   textFilter.value = ''
@@ -402,8 +391,27 @@ const goToSystemDetails = (system: System) => {
         <NeTableRow v-for="(item, index) in systemsPage" :key="index">
           <NeTableCell :data-label="$t('systems.name')">
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
-              <!-- <div v-if="item.type">[{{ item.type }}]</div> ////  -->
-              {{ item.name || '-' }}
+              <div class="flex items-center gap-2">
+                <NeTooltip
+                  v-if="item.type"
+                  placement="top"
+                  trigger-event="mouseenter focus"
+                  class="shrink-0 cursor-pointer"
+                >
+                  <template #trigger>
+                    <img
+                      :src="getProductLogo(item.type)"
+                      :alt="getSystemName(item.type)"
+                      aria-hidden="true"
+                      class="size-8"
+                    />
+                  </template>
+                  <template #content>
+                    {{ getSystemName(item.type) }}
+                  </template>
+                </NeTooltip>
+                {{ item.name || '-' }}
+              </div>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.version')" class="break-all xl:break-normal">
