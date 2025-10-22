@@ -24,7 +24,7 @@ const isShownCreateResellerDrawer = ref(false)
       <!-- create reseller -->
       <NeButton
         v-if="canManageResellers()"
-        kind="secondary"
+        kind="primary"
         size="lg"
         class="shrink-0"
         @click="isShownCreateResellerDrawer = true"

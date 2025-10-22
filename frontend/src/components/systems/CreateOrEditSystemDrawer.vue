@@ -308,8 +308,8 @@ function copySecretAndCloseDrawer() {
   setTimeout(() => {
     notificationsStore.createNotification({
       kind: 'success',
-      title: t('systems.secret_copied_to_clipboard'),
-      description: t('systems.secret_copied_to_clipboard_description', { name: name.value }),
+      title: t('systems.system_secret_copied'),
+      description: t('systems.system_secret_copied_description', { name: name.value }),
     })
   }, 500)
 }

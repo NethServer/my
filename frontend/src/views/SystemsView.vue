@@ -5,13 +5,20 @@
 
 <script setup lang="ts">
 import { NeButton, NeDropdown, NeHeading } from '@nethesis/vue-components'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { faChevronDown, faCirclePlus } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { canManageSystems } from '@/lib/permissions'
 import SystemsTable from '@/components/systems/SystemsTable.vue'
+import { useSystems } from '@/queries/systems/systems'
+
+const { state, debouncedTextFilter } = useSystems()
 
 const isShownCreateSystemDrawer = ref(false)
+
+const systemsPage = computed(() => {
+  return state.value.data?.systems
+})
 </script>
 
 <template>
@@ -21,8 +28,11 @@ const isShownCreateSystemDrawer = ref(false)
       <div class="max-w-2xl text-gray-500 dark:text-gray-400">
         {{ $t('systems.page_description') }}
       </div>
-      <div class="flex items-center gap-4">
-        <!-- actions button //// show only if there is at least one system -->
+      <!-- v-if condition is the opposite of empty state condition in SystemsTable.vue -->
+      <div
+        v-if="!(state.status === 'success' && !systemsPage?.length && !debouncedTextFilter)"
+        class="flex items-center gap-4"
+      >
         <NeDropdown
           :items="[]"
           align-to-right

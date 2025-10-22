@@ -24,7 +24,7 @@ const isShownCreateDistributorDrawer = ref(false)
       <!-- create distributor -->
       <NeButton
         v-if="canManageDistributors()"
-        kind="secondary"
+        kind="primary"
         size="lg"
         class="shrink-0"
         @click="isShownCreateDistributorDrawer = true"

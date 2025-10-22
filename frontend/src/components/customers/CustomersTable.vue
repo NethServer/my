@@ -205,7 +205,7 @@ const onSort = (payload: SortEvent) => {
               <!-- create customer -->
               <NeButton
                 v-if="canManageCustomers()"
-                kind="secondary"
+                kind="primary"
                 size="lg"
                 class="shrink-0"
                 @click="showCreateCustomerDrawer()"

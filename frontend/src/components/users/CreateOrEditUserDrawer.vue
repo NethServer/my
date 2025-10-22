@@ -155,7 +155,7 @@ const organizationOptions = computed(() => {
   return organizations.value.data?.map((org) => ({
     id: org.id,
     label: org.name,
-    description: org.type,
+    description: t(`organizations.${org.type}`),
   }))
 })
 

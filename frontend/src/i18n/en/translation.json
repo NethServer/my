@@ -368,8 +368,8 @@
     "status_deleted": "Deleted",
     "reset_filters": "Reset filters",
     "copy_and_close": "Copy and close",
-    "secret_copied_to_clipboard": "System secret copied to clipboard",
-    "secret_copied_to_clipboard_description": "Go to the Subscription page of {name} and paste the secret to complete the subscription. You can view the secret anytime on the system details page.",
+    "system_secret_copied": "System secret copied",
+    "system_secret_copied_description": "Go to the Subscription page of {name} and paste the secret to complete the subscription.",
     "choose_product_to_view_versions": "Choose a product to view available versions"
   },
   "ne_table": {

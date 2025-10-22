@@ -205,7 +205,7 @@ const onSort = (payload: SortEvent) => {
               <!-- create distributor -->
               <NeButton
                 v-if="canManageDistributors()"
-                kind="secondary"
+                kind="primary"
                 size="lg"
                 class="shrink-0"
                 @click="showCreateDistributorDrawer()"

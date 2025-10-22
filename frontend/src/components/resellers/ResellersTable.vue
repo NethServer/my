@@ -205,7 +205,7 @@ const onSort = (payload: SortEvent) => {
               <!-- create reseller -->
               <NeButton
                 v-if="canManageResellers()"
-                kind="secondary"
+                kind="primary"
                 size="lg"
                 class="shrink-0"
                 @click="showCreateResellerDrawer()"
