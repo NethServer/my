@@ -11,9 +11,10 @@ import {
   NeInlineNotification,
   focusElement,
   NeCombobox,
-  NeTooltip,
-  NeBadge,
   NeBadgeV2,
+  NeStepper,
+  NeSkeleton,
+  NeTextArea,
 } from '@nethesis/vue-components'
 import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import {
@@ -37,7 +38,7 @@ import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
 import { getOrganizations, ORGANIZATIONS_KEY } from '@/lib/organizations'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faCheck, faCopy } from '@fortawesome/free-solid-svg-icons'
+import { faCheck } from '@fortawesome/free-solid-svg-icons'
 
 const { isShown = false, currentSystem = undefined } = defineProps<{
   isShown: boolean
@@ -62,7 +63,6 @@ const {
   isLoading: createSystemLoading,
   reset: createSystemReset,
   error: createSystemError,
-  status: createSystemStatus,
 } = useMutation({
   mutation: (newSystem: CreateSystem) => {
     return postSystem(newSystem)
@@ -136,7 +136,9 @@ const notesRef = useTemplateRef<HTMLInputElement>('notesRef')
 const validationIssues = ref<Record<string, string[]>>({})
 const step = ref<'create' | 'secret'>('create')
 const secret = ref('')
-const secretJustCopied = ref(false)
+// const secretJustCopied = ref(false) ////
+const fakeSystemCreatedLoading = ref(true)
+const isSecretShown = ref(false)
 
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
   name: nameRef,
@@ -156,8 +158,12 @@ const organizationOptions = computed(() => {
   return organizations.value.data?.map((org) => ({
     id: org.id,
     label: org.name,
-    description: org.type,
+    description: t(`organizations.${org.type}`),
   }))
+})
+
+const stepNumber = computed(() => {
+  return step.value === 'create' ? 1 : 2
 })
 
 // watch( ////
@@ -189,11 +195,29 @@ watch(organizations, () => {
   }
 })
 
+watch(
+  () => step.value,
+  () => {
+    if (step.value === 'secret') {
+      // simulate a brief loading before showing the secret (labor perception bias)
+      setTimeout(() => {
+        fakeSystemCreatedLoading.value = false
+      }, 500)
+
+      setTimeout(() => {
+        isSecretShown.value = true
+      }, 1200)
+    }
+  },
+)
+
 function onShow() {
   clearErrors()
   focusElement(nameRef)
   step.value = 'create'
   secret.value = ''
+  fakeSystemCreatedLoading.value = true
+  isSecretShown.value = false
 
   if (currentSystem) {
     // editing system
@@ -309,8 +333,8 @@ async function saveSystem() {
   }
 }
 
-function copyToClipboard(text: string) {
-  navigator.clipboard.writeText(text).then(
+function copySecretAndCloseDrawer() {
+  navigator.clipboard.writeText(secret.value).then(
     () => {},
     (err) => {
       console.error('Could not copy text: ', err)
@@ -318,10 +342,21 @@ function copyToClipboard(text: string) {
   )
 
   // show "Copied" for 3 seconds
-  secretJustCopied.value = true
+  // secretJustCopied.value = true ////
+  // setTimeout(() => {
+  //   secretJustCopied.value = false
+  // }, 3000)
+
+  closeDrawer()
+
+  // show success notification after drawer closes
   setTimeout(() => {
-    secretJustCopied.value = false
-  }, 3000)
+    notificationsStore.createNotification({
+      kind: 'success',
+      title: t('systems.secret_copied_to_clipboard'),
+      description: t('systems.secret_copied_to_clipboard_description', { name: name.value }),
+    })
+  }, 500)
 }
 </script>
 
@@ -335,12 +370,14 @@ function copyToClipboard(text: string) {
   >
     <form @submit.prevent>
       <div class="space-y-6">
+        <NeStepper :current-step="stepNumber" :total-steps="2" :step-label="t('ne_stepper.step')" />
         <template v-if="step === 'create'">
           <!-- name -->
           <NeTextInput
             ref="nameRef"
             v-model.trim="name"
             :label="$t('systems.name')"
+            :helper-text="$t('systems.name_helper')"
             :disabled="saving"
             :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
           />
@@ -353,6 +390,7 @@ function copyToClipboard(text: string) {
             :placeholder="
               organizations.status === 'pending' ? $t('common.loading') : $t('ne_combobox.choose')
             "
+            :helper-text="$t('systems.organization_helper')"
             :invalid-message="
               validationIssues.organization_id?.[0] ? $t(validationIssues.organization_id[0]) : ''
             "
@@ -365,12 +403,14 @@ function copyToClipboard(text: string) {
             :optional-label="$t('common.optional')"
           />
           <!-- notes -->
-          <NeTextInput
+          <NeTextArea
             ref="notesRef"
             v-model.trim="notes"
             :label="$t('systems.notes')"
             :disabled="saving"
             :invalid-message="validationIssues.notes?.[0] ? $t(validationIssues.notes[0]) : ''"
+            :optional="true"
+            :optional-label="t('common.optional')"
           />
           <!-- create system error notification -->
           <NeInlineNotification
@@ -388,39 +428,45 @@ function copyToClipboard(text: string) {
           />
         </template>
         <template v-else-if="step === 'secret'">
-          <NeBadgeV2 kind="green">
+          <NeBadgeV2 v-if="!fakeSystemCreatedLoading" kind="green" class="animate-fade-in-relaxed">
             <FontAwesomeIcon :icon="faCheck" class="size-4" />
             {{ t('systems.system_created') }}
           </NeBadgeV2>
-          <div class="flex items-end gap-4">
-            <NeTextInput
-              v-model="secret"
-              is-password
-              :label="$t('systems.system_secret')"
-              :disabled="true"
-              class="grow"
-              autocomplete="new-password"
+          <NeSkeleton v-if="!isSecretShown" :lines="4" />
+          <div v-else class="animate-fade-in space-y-6">
+            <div class="flex items-end gap-4">
+              <NeTextInput
+                v-model="secret"
+                is-password
+                :label="$t('systems.system_secret')"
+                :disabled="true"
+                class="grow"
+                autocomplete="new-password"
+              />
+              <!-- copy button -->
+              <!-- <NeTooltip trigger-event="mouseenter click" placement="auto"> ////
+                <template #trigger>
+                  <NeButton kind="secondary" size="md" @click="copyToClipboard(secret)">
+                    <FontAwesomeIcon :icon="faCopy" class="h-6 w-4" aria-hidden="true" />
+                  </NeButton>
+                </template>
+                <template #content>
+                  {{ secretJustCopied ? t('common.copied') : t('systems.copy_system_secret') }}
+                </template>
+              </NeTooltip> -->
+            </div>
+            <NeInlineNotification
+              kind="warning"
+              :title="t('systems.complete_the_subscription')"
+              :description="t('systems.system_secret_warning')"
             />
-            <!-- copy button -->
-            <NeTooltip trigger-event="mouseenter click" placement="auto">
-              <template #trigger>
-                <NeButton kind="secondary" size="md" @click="copyToClipboard(secret)">
-                  <FontAwesomeIcon :icon="faCopy" class="h-6 w-4" aria-hidden="true" />
-                </NeButton>
-              </template>
-              <template #content>
-                {{ secretJustCopied ? t('common.copied') : t('systems.copy_system_secret') }}
-              </template>
-            </NeTooltip>
           </div>
-          <NeInlineNotification kind="warning" :description="t('systems.system_secret_warning')" />
         </template>
       </div>
       <!-- footer -->
       <hr class="my-8" />
       <div class="flex justify-end">
         <NeButton
-          v-if="step === 'create'"
           kind="tertiary"
           size="lg"
           :disabled="saving"
@@ -444,9 +490,9 @@ function copyToClipboard(text: string) {
           v-else-if="step === 'secret'"
           kind="primary"
           size="lg"
-          @click.prevent="closeDrawer"
+          @click.prevent="copySecretAndCloseDrawer()"
         >
-          {{ t('common.close') }}
+          {{ t('systems.copy_and_close') }}
         </NeButton>
       </div>
     </form>

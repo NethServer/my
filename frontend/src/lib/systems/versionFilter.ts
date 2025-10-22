@@ -4,15 +4,22 @@
 import axios from 'axios'
 import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
+import type { FilterOption } from '@nethesis/vue-components'
+import { getProductName } from './systems'
 
 export const VERSION_FILTER_KEY = 'versionFilter'
 export const VERSION_FILTER_PATH = 'filters/versions'
+
+export interface ProductVersions {
+  product: string
+  versions: string[]
+}
 
 interface VersionFilterResponse {
   code: number
   message: string
   data: {
-    versions: string[]
+    versions: ProductVersions[]
   }
 }
 
@@ -24,4 +31,18 @@ export const getVersionFilter = () => {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data)
+}
+
+export const buildVersionFilterOptions = (productVersions: ProductVersions[]) => {
+  const options: FilterOption[] = []
+
+  productVersions.forEach((el) => {
+    el.versions.forEach((version) => {
+      options.push({
+        id: `${el.product}:${version}`,
+        label: `${getProductName(el.product)} ${version}`,
+      })
+    })
+  })
+  return options
 }

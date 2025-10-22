@@ -25,7 +25,7 @@
     "@fortawesome/vue-fontawesome": "^3.0.8",
     "@logto/vue": "^3.0.8",
     "@nethesis/nethesis-light-svg-icons": "github:nethesis/Font-Awesome#ns-light",
-    "@nethesis/vue-components": "^3.3.0",
+    "@nethesis/vue-components": "^3.4.0",
     "@pinia/colada": "^0.17.1",
     "@tailwindcss/vite": "^4.1.10",
     "@vueuse/core": "^13.4.0",

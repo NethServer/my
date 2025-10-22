@@ -42,7 +42,12 @@ import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { canManageSystems } from '@/lib/permissions'
 import { useSystems } from '@/queries/systems/systems'
-import { getProductLogo, getSystemName, SYSTEMS_TABLE_ID, type System } from '@/lib/systems/systems'
+import {
+  getProductLogo,
+  getProductName,
+  SYSTEMS_TABLE_ID,
+  type System,
+} from '@/lib/systems/systems'
 import router from '@/router'
 import CreateOrEditSystemDrawer from './CreateOrEditSystemDrawer.vue'
 import DeleteSystemModal from './DeleteSystemModal.vue'
@@ -50,6 +55,8 @@ import { useProductFilter } from '@/queries/systems/productFilter'
 import { useCreatedByFilter } from '@/queries/systems/createdByFilter'
 import { useVersionFilter } from '@/queries/systems/versionFilter'
 import UserAvatar from '../UserAvatar.vue'
+import { buildVersionFilterOptions } from '@/lib/systems/versionFilter'
+import OrganizationIcon from '../OrganizationIcon.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -80,6 +87,7 @@ const { state: versionFilterState, asyncStatus: versionFilterAsyncStatus } = use
 const currentSystem = ref<System | undefined>()
 const isShownCreateOrEditSystemDrawer = ref(false)
 const isShownDeleteSystemModal = ref(false)
+const internalVersionFilter = ref<string[]>([])
 
 const statusFilterOptions = ref<FilterOption[]>([
   {
@@ -111,7 +119,7 @@ const productFilterOptions = computed(() => {
   } else {
     return productFilterState.value.data.products.map((productId) => ({
       id: productId,
-      label: getProductLogo(productId),
+      label: getProductName(productId),
     }))
   }
 })
@@ -120,10 +128,16 @@ const versionFilterOptions = computed(() => {
   if (!versionFilterState.value.data || !versionFilterState.value.data.versions) {
     return []
   } else {
-    return versionFilterState.value.data.versions.map((version) => ({
-      id: version,
-      label: version,
-    }))
+    if (productFilter.value.length === 0) {
+      // no product selected, show all versions
+      return buildVersionFilterOptions(versionFilterState.value.data.versions)
+    }
+
+    // filter versions based on selected products
+    const productVersions = versionFilterState.value.data.versions.filter((el) =>
+      productFilter.value.includes(el.product),
+    )
+    return buildVersionFilterOptions(productVersions)
   }
 })
 
@@ -146,6 +160,23 @@ watch(
     }
   },
   { immediate: true },
+)
+
+watch(
+  () => productFilter.value,
+  () => {
+    // reset version filter when product filter changes
+    versionFilter.value = []
+  },
+)
+
+watch(
+  () => internalVersionFilter.value,
+  (newVal) => {
+    // map internalVersionFilter (which contains "product:version" ids) to versionFilter (which contains only version strings)
+    const versions = newVal.map((id) => id.split(':')[1])
+    versionFilter.value = versions
+  },
 )
 
 function resetFilters() {
@@ -243,8 +274,15 @@ const goToSystemDetails = (system: System) => {
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
           />
+          <!-- <NeTooltip ////
+            :disabled="productFilter.length > 0"
+            placement="top"
+            trigger-event="mouseenter focus"
+            class="shrink-0 cursor-pointer"
+          >
+            <template #trigger> -->
           <NeDropdownFilter
-            v-model="versionFilter"
+            v-model="internalVersionFilter"
             kind="checkbox"
             :disabled="
               versionFilterAsyncStatus === 'loading' || versionFilterState.status === 'error'
@@ -258,6 +296,11 @@ const goToSystemDetails = (system: System) => {
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
           />
+          <!-- </template> ////
+            <template #content>
+              {{ t('systems.choose_product_to_view_versions') }}
+            </template>
+          </NeTooltip> -->
           <NeDropdownFilter
             v-model="createdByFilter"
             kind="checkbox"
@@ -285,7 +328,7 @@ const goToSystemDetails = (system: System) => {
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
           />
-          <!-- //// TODO: other filters -->
+          <!-- sort dropdown for small screens -->
           <NeSortDropdown
             v-model:sort-key="sortBy"
             v-model:sort-descending="sortDescending"
@@ -302,7 +345,7 @@ const goToSystemDetails = (system: System) => {
             :sort-direction-label="t('sort.direction')"
             :ascending-label="t('sort.ascending')"
             :descending-label="t('sort.descending')"
-            class="xl:hidden"
+            class="2xl:hidden"
           />
           <NeButton kind="tertiary" @click="resetFilters">
             {{ t('systems.reset_filters') }}
@@ -359,7 +402,7 @@ const goToSystemDetails = (system: System) => {
       :sort-key="sortBy"
       :sort-descending="sortDescending"
       :aria-label="$t('systems.title')"
-      card-breakpoint="xl"
+      card-breakpoint="2xl"
       :loading="state.status === 'pending'"
       :skeleton-columns="5"
       :skeleton-rows="7"
@@ -396,30 +439,33 @@ const goToSystemDetails = (system: System) => {
                   v-if="item.type"
                   placement="top"
                   trigger-event="mouseenter focus"
-                  class="shrink-0 cursor-pointer"
+                  class="shrink-0"
                 >
                   <template #trigger>
                     <img
                       :src="getProductLogo(item.type)"
-                      :alt="getSystemName(item.type)"
+                      :alt="getProductName(item.type)"
                       aria-hidden="true"
                       class="size-8"
                     />
                   </template>
                   <template #content>
-                    {{ getSystemName(item.type) }}
+                    {{ getProductName(item.type) }}
                   </template>
                 </NeTooltip>
                 {{ item.name || '-' }}
               </div>
             </div>
           </NeTableCell>
-          <NeTableCell :data-label="$t('systems.version')" class="break-all xl:break-normal">
+          <NeTableCell :data-label="$t('systems.version')" class="break-all 2xl:break-normal">
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
               {{ item.version || '-' }}
             </div>
           </NeTableCell>
-          <NeTableCell :data-label="$t('common.fqdn_ip_address')" class="break-all xl:break-normal">
+          <NeTableCell
+            :data-label="$t('systems.fqdn_ip_address')"
+            class="break-all 2xl:break-normal"
+          >
             <div :class="['space-y-0.5', { 'opacity-50': item.status === 'deleted' }]">
               <div v-if="item.fqdn">{{ item.fqdn }}</div>
               <div v-if="item.ipv4_address" class="text-gray-500 dark:text-gray-400">
@@ -433,7 +479,22 @@ const goToSystemDetails = (system: System) => {
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.organization')">
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
-              {{ item.organization_name || '-' }}
+              <div class="flex items-center gap-2">
+                <NeTooltip
+                  v-if="item.organization.type"
+                  placement="top"
+                  trigger-event="mouseenter focus"
+                  class="shrink-0"
+                >
+                  <template #trigger>
+                    <OrganizationIcon :org-type="item.organization.type" size="sm" />
+                  </template>
+                  <template #content>
+                    {{ t(`organizations.${item.organization.type}`) }}
+                  </template>
+                </NeTooltip>
+                {{ item.organization.name || '-' }}
+              </div>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.created_by')">
@@ -493,7 +554,10 @@ const goToSystemDetails = (system: System) => {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div v-if="item.status !== 'deleted'" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+            <div
+              v-if="item.status !== 'deleted'"
+              class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end"
+            >
               <NeButton
                 kind="tertiary"
                 @click="goToSystemDetails(item)"

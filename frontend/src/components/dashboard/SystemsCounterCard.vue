@@ -22,7 +22,7 @@ const { state: systemsTotal } = useQuery({
 <template>
   <CounterCard
     :title="$t('systems.title')"
-    :counter="systemsTotal.data ?? 0"
+    :counter="systemsTotal.data?.total ?? 0"
     :icon="faServer"
     :loading="systemsTotal.status === 'pending'"
   />

@@ -7,6 +7,7 @@
 import CustomersCounterCard from '@/components/dashboard/CustomersCounterCard.vue'
 import DistributorsCounterCard from '@/components/dashboard/DistributorsCounterCard.vue'
 import ResellersCounterCard from '@/components/dashboard/ResellersCounterCard.vue'
+import SystemsCounterCard from '@/components/dashboard/SystemsCounterCard.vue'
 import UsersCounterCard from '@/components/dashboard/UsersCounterCard.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { normalize } from '@/lib/common'
@@ -14,6 +15,7 @@ import {
   canReadCustomers,
   canReadDistributors,
   canReadResellers,
+  canReadSystems,
   canReadUsers,
 } from '@/lib/permissions'
 import {
@@ -86,6 +88,7 @@ const { state: thirdPartyApps } = useQuery({
         </NeCard>
       </template>
       <template v-else>
+        <SystemsCounterCard v-if="canReadSystems()" />
         <DistributorsCounterCard v-if="canReadDistributors()" />
         <ResellersCounterCard v-if="canReadResellers()" />
         <CustomersCounterCard v-if="canReadCustomers()" />

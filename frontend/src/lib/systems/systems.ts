@@ -40,11 +40,15 @@ export const SystemSchema = v.object({
   ipv4_address: v.string(),
   ipv6_address: v.string(),
   version: v.string(),
-  organization_name: v.string(),
   created_at: v.string(),
   updated_at: v.string(),
   system_key: v.optional(v.string()),
   system_secret: v.string(),
+  organization: v.object({
+    id: v.string(),
+    name: v.string(),
+    type: v.string(),
+  }),
   created_by: v.object({
     user_id: v.string(),
     name: v.string(),
@@ -71,6 +75,18 @@ interface PostSystemResponse {
   code: number
   message: string
   data: System
+}
+
+interface SystemsTotalResponse {
+  code: number
+  message: string
+  data: {
+    alive: number
+    dead: number
+    timeout_minutes: number
+    total: number
+    zombie: number
+  }
 }
 
 export const getQueryStringParams = (
@@ -184,18 +200,17 @@ export const regenerateSystemSecret = (systemId: string) => {
   )
 }
 
-//// add typing
 export const getSystemsTotal = () => {
   const loginStore = useLoginStore()
 
   return axios
-    .get(`${API_URL}/systems/totals`, {
+    .get<SystemsTotalResponse>(`${API_URL}/systems/totals`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data)
 }
 
-export function getSystemName(systemType: string) {
+export function getProductName(systemType: string) {
   if (systemType === 'ns8') {
     return 'NethServer'
   } else if (systemType === 'nsec') {

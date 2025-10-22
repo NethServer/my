@@ -133,6 +133,9 @@
     "name": "Company name",
     "description": "Description",
     "vat_number": "VAT number",
+    "distributor": "Distributor",
+    "reseller": "Reseller",
+    "customer": "Customer",
     "name_cannot_be_empty": "Company name is required",
     "custom_data_vat_cannot_be_empty": "VAT number is required",
     "custom_data_vat_invalid": "Invalid VAT number",
@@ -329,6 +332,7 @@
     "version": "Version",
     "created_by": "Created by",
     "organization": "Organization",
+    "organization_helper": "Choose the organization this system will be assigned to",
     "status": "Status",
     "fqdn_ip_address": "FQDN / IP address",
     "show_details": "Show details",
@@ -344,6 +348,7 @@
     "system_saved": "System saved",
     "edit_system": "Edit system",
     "name": "Name",
+    "name_helper": "Enter a descriptive name so you can recognize it easily",
     "notes": "Notes",
     "cannot_create_system": "Cannot create system",
     "cannot_save_system": "Cannot save system",
@@ -354,13 +359,18 @@
     "delete_system_confirmation": "Are you sure you want to delete system {name}? Lorem ispum dolor sit amet, consectetur adipiscing elit.",
     "system_deleted": "System deleted",
     "system_secret": "System secret",
-    "system_secret_warning": "Copy the secret and paste it into the system UI to complete the registration. You can always find it again on the system details page.",
+    "complete_the_subscription": "Complete the subscription",
+    "system_secret_warning": "Copy the secret and paste it into the Subscription page of the system. You can view the secret anytime on the system details page.",
     "copy_system_secret": "Copy system secret",
     "status_online": "Active",
     "status_offline": "Inactive",
     "status_unknown": "Unknown",
     "status_deleted": "Deleted",
-    "reset_filters": "Reset filters"
+    "reset_filters": "Reset filters",
+    "copy_and_close": "Copy and close",
+    "secret_copied_to_clipboard": "System secret copied to clipboard",
+    "secret_copied_to_clipboard_description": "Go to the Subscription page of {name} and paste the secret to complete the subscription. You can view the secret anytime on the system details page.",
+    "choose_product_to_view_versions": "Choose a product to view available versions"
   },
   "ne_table": {
     "no_items": "No items",
@@ -392,6 +402,9 @@
     "more_options_hidden": "Continue typing to show more options",
     "clear_selection": "Clear selection",
     "clear_search": "Clear search"
+  },
+  "ne_stepper": {
+    "step": "Step"
   },
   "sort": {
     "sort": "Sort",
