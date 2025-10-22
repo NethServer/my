@@ -16,7 +16,7 @@ import {
   NeSkeleton,
   NeTextArea,
 } from '@nethesis/vue-components'
-import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
+import { computed, nextTick, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import {
   CreateSystemSchema,
   EditSystemSchema,
@@ -125,7 +125,7 @@ const isSecretShown = ref(false)
 
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
   name: nameRef,
-  organizationId: organizationIdRef,
+  organization_id: organizationIdRef,
   notes: notesRef,
 }
 
@@ -152,7 +152,7 @@ const stepNumber = computed(() => {
 watch(organizations, () => {
   if (isShown && currentSystem && organizations.value.data && organizations.value.data.length > 0) {
     // select the organization while editing a system
-    organizationId.value = currentSystem.organization_id || ''
+    organizationId.value = currentSystem.organization.id || ''
   }
 })
 
@@ -184,7 +184,7 @@ function onShow() {
     // editing system
     name.value = currentSystem.name
     notes.value = currentSystem.notes || ''
-    organizationId.value = currentSystem.organization_id || ''
+    organizationId.value = currentSystem.organization.id || ''
   } else {
     // creating system, reset form to defaults
     name.value = ''
