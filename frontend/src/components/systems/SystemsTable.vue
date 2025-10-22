@@ -324,6 +324,7 @@ const goToSystemDetails = (system: System) => {
             :options="[
               { id: 'name', label: t('systems.name') },
               { id: 'version', label: t('systems.version') },
+              { id: 'fqdn', label: t('systems.fqdn') },
               { id: 'organization_name', label: t('systems.organization') },
               { id: 'creator_name', label: t('systems.created_by') },
               { id: 'status', label: t('systems.status') },

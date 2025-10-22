@@ -334,6 +334,7 @@
     "organization": "Organization",
     "organization_helper": "Choose the organization this system will be assigned to",
     "status": "Status",
+    "fqdn": "FQDN",
     "fqdn_ip_address": "FQDN / IP address",
     "show_details": "Show details",
     "active": "Active",
