@@ -51,6 +51,7 @@ export const SystemSchema = v.object({
   }),
   created_by: v.object({
     user_id: v.string(),
+    username: v.string(),
     name: v.string(),
     email: v.string(),
     organization_id: v.string(),

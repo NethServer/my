@@ -68,22 +68,6 @@ const {
     return postSystem(newSystem)
   },
   async onSuccess(data) {
-    ////
-    // show success notification after drawer closes
-    // setTimeout(() => {
-    //   notificationsStore.createNotification({
-    //     kind: 'success',
-    //     title: t('systems.system_created'),
-    //     description: t('common.object_created_successfully', {
-    //       name: vars.name,
-    //     }),
-    //   })
-    // }, 500)
-
-    // closeDrawer() ////
-
-    // console.log('data', data) ////
-
     secret.value = data.data.system_secret
     step.value = 'secret'
   },
@@ -136,7 +120,6 @@ const notesRef = useTemplateRef<HTMLInputElement>('notesRef')
 const validationIssues = ref<Record<string, string[]>>({})
 const step = ref<'create' | 'secret'>('create')
 const secret = ref('')
-// const secretJustCopied = ref(false) ////
 const fakeSystemCreatedLoading = ref(true)
 const isSecretShown = ref(false)
 
@@ -165,28 +148,6 @@ const organizationOptions = computed(() => {
 const stepNumber = computed(() => {
   return step.value === 'create' ? 1 : 2
 })
-
-// watch( ////
-//   () => isShown,
-//   () => {
-//     if (isShown) {
-//       clearErrors()
-//       focusElement(nameRef)
-
-//       if (currentSystem) {
-//         // editing system
-//         name.value = currentSystem.name
-//         notes.value = currentSystem.notes || ''
-//         organizationId.value = currentSystem.organization_id || ''
-//       } else {
-//         // creating system, reset form to defaults
-//         name.value = ''
-//         organizationId.value = ''
-//         notes.value = ''
-//       }
-//     }
-//   },
-// )
 
 watch(organizations, () => {
   if (isShown && currentSystem && organizations.value.data && organizations.value.data.length > 0) {
@@ -341,12 +302,6 @@ function copySecretAndCloseDrawer() {
     },
   )
 
-  // show "Copied" for 3 seconds
-  // secretJustCopied.value = true ////
-  // setTimeout(() => {
-  //   secretJustCopied.value = false
-  // }, 3000)
-
   closeDrawer()
 
   // show success notification after drawer closes
@@ -443,17 +398,6 @@ function copySecretAndCloseDrawer() {
                 class="grow"
                 autocomplete="new-password"
               />
-              <!-- copy button -->
-              <!-- <NeTooltip trigger-event="mouseenter click" placement="auto"> ////
-                <template #trigger>
-                  <NeButton kind="secondary" size="md" @click="copyToClipboard(secret)">
-                    <FontAwesomeIcon :icon="faCopy" class="h-6 w-4" aria-hidden="true" />
-                  </NeButton>
-                </template>
-                <template #content>
-                  {{ secretJustCopied ? t('common.copied') : t('systems.copy_system_secret') }}
-                </template>
-              </NeTooltip> -->
             </div>
             <NeInlineNotification
               kind="warning"

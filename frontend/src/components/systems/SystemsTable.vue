@@ -274,13 +274,6 @@ const goToSystemDetails = (system: System) => {
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
           />
-          <!-- <NeTooltip ////
-            :disabled="productFilter.length > 0"
-            placement="top"
-            trigger-event="mouseenter focus"
-            class="shrink-0 cursor-pointer"
-          >
-            <template #trigger> -->
           <NeDropdownFilter
             v-model="internalVersionFilter"
             kind="checkbox"
@@ -296,11 +289,6 @@ const goToSystemDetails = (system: System) => {
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
           />
-          <!-- </template> ////
-            <template #content>
-              {{ t('systems.choose_product_to_view_versions') }}
-            </template>
-          </NeTooltip> -->
           <NeDropdownFilter
             v-model="createdByFilter"
             kind="checkbox"
@@ -396,7 +384,6 @@ const goToSystemDetails = (system: System) => {
         {{ $t('systems.reset_filters') }}
       </NeButton>
     </NeEmptyState>
-    <!-- //// check breakpoint, skeleton-columns -->
     <NeTable
       v-else
       :sort-key="sortBy"
@@ -501,10 +488,9 @@ const goToSystemDetails = (system: System) => {
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
               <template v-if="item.created_by">
                 <div class="flex items-center gap-2">
-                  <!-- //// improve check -> :is-owner="item.created_by.username === 'owner'" -->
                   <UserAvatar
                     size="sm"
-                    :is-owner="item.created_by.name === 'Company Owner'"
+                    :is-owner="item.created_by.username === 'owner'"
                     :name="item.created_by.name"
                   />
                   <div class="space-y-0.5">
@@ -561,7 +547,7 @@ const goToSystemDetails = (system: System) => {
               <NeButton
                 kind="tertiary"
                 @click="goToSystemDetails(item)"
-                :disabled="asyncStatus === 'loading'"
+                :disabled="asyncStatus === 'loading' || true"
               >
                 <template #prefix>
                   <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
