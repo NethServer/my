@@ -16,6 +16,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faXmark } from '@fortawesome/free-solid-svg-icons'
 import TopBar from './TopBar.vue'
 import NotificationDrawer from './NotificationDrawer.vue'
+import LoggedUserCard from './LoggedUserCard.vue'
 
 const themeStore = useThemeStore()
 
@@ -124,6 +125,7 @@ const logoFile = computed(() => {
             </li>
           </ul>
         </nav>
+        <LoggedUserCard class="absolute bottom-6 w-64 self-center" />
       </div>
     </div>
 

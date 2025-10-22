@@ -16,7 +16,7 @@ import {
   NeSkeleton,
   NeTextArea,
 } from '@nethesis/vue-components'
-import { computed, nextTick, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
+import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import {
   CreateSystemSchema,
   EditSystemSchema,

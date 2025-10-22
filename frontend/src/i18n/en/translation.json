@@ -325,7 +325,7 @@
     "title": "Systems",
     "page_description": "List of all registered systems, including their versions and their status.",
     "cannot_retrieve_systems": "Cannot retrieve systems",
-    "no_systems": "No systems",
+    "no_systems": "No systems configured",
     "no_systems_found": "No systems found",
     "filter_systems": "Filter systems",
     "product": "Product",
