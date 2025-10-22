@@ -393,13 +393,13 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, exclud
 	orderClause := "ORDER BY u.created_at DESC" // default sorting
 	if sortBy != "" {
 		validSortFields := map[string]string{
-			"name":            "u.name",
-			"email":           "u.email",
-			"username":        "u.username",
+			"name":            "LOWER(u.name)",
+			"email":           "LOWER(u.email)",
+			"username":        "LOWER(u.username)",
 			"created_at":      "u.created_at",
 			"updated_at":      "u.updated_at",
 			"latest_login_at": "u.latest_login_at",
-			"organization":    "organization_name",
+			"organization":    "LOWER(organization_name)",
 		}
 
 		if dbField, valid := validSortFields[sortBy]; valid {
@@ -474,13 +474,13 @@ func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, exc
 	orderClause := "ORDER BY u.created_at DESC" // default sorting
 	if sortBy != "" {
 		validSortFields := map[string]string{
-			"name":            "u.name",
-			"email":           "u.email",
-			"username":        "u.username",
+			"name":            "LOWER(u.name)",
+			"email":           "LOWER(u.email)",
+			"username":        "LOWER(u.username)",
 			"created_at":      "u.created_at",
 			"updated_at":      "u.updated_at",
 			"latest_login_at": "u.latest_login_at",
-			"organization":    "organization_name",
+			"organization":    "LOWER(organization_name)",
 		}
 
 		if dbField, valid := validSortFields[sortBy]; valid {
