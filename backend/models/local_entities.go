@@ -111,9 +111,9 @@ type LocalUser struct {
 // SystemTotals represents total counts and status for systems
 type SystemTotals struct {
 	Total          int `json:"total"`
-	Alive          int `json:"alive"`
-	Dead           int `json:"dead"`
-	Zombie         int `json:"zombie"`
+	Active         int `json:"active"`
+	Inactive       int `json:"inactive"`
+	Unknown        int `json:"unknown"`
 	TimeoutMinutes int `json:"timeout_minutes"`
 }
 

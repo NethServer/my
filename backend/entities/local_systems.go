@@ -369,14 +369,14 @@ func (r *LocalSystemRepository) GetTotalsByCreatedByOrganizations(allowedOrgIDs 
 	if len(allowedOrgIDs) == 0 {
 		return &models.SystemTotals{
 			Total:          0,
-			Alive:          0,
-			Dead:           0,
-			Zombie:         0,
+			Active:         0,
+			Inactive:       0,
+			Unknown:        0,
 			TimeoutMinutes: timeoutMinutes,
 		}, nil
 	}
 
-	// Calculate cutoff time for alive/dead determination
+	// Calculate cutoff time for active/inactive determination
 	timeout := time.Duration(timeoutMinutes) * time.Minute
 	cutoff := time.Now().Add(-timeout)
 
@@ -395,25 +395,25 @@ func (r *LocalSystemRepository) GetTotalsByCreatedByOrganizations(allowedOrgIDs 
 	query := fmt.Sprintf(`
 		SELECT
 			COUNT(*) as total,
-			SUM(CASE WHEN h.last_heartbeat IS NOT NULL AND h.last_heartbeat > $1 THEN 1 ELSE 0 END) as alive,
-			SUM(CASE WHEN h.last_heartbeat IS NOT NULL AND h.last_heartbeat <= $1 THEN 1 ELSE 0 END) as dead,
-			SUM(CASE WHEN h.last_heartbeat IS NULL THEN 1 ELSE 0 END) as zombie
+			COALESCE(SUM(CASE WHEN h.last_heartbeat IS NOT NULL AND h.last_heartbeat > $1 THEN 1 ELSE 0 END), 0) as active,
+			COALESCE(SUM(CASE WHEN h.last_heartbeat IS NOT NULL AND h.last_heartbeat <= $1 THEN 1 ELSE 0 END), 0) as inactive,
+			COALESCE(SUM(CASE WHEN h.last_heartbeat IS NULL THEN 1 ELSE 0 END), 0) as unknown
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
 		WHERE s.deleted_at IS NULL AND s.created_by ->> 'organization_id' IN (%s)
 	`, placeholdersStr)
 
-	var total, alive, dead, zombie int
-	err := r.db.QueryRow(query, args...).Scan(&total, &alive, &dead, &zombie)
+	var total, active, inactive, unknown int
+	err := r.db.QueryRow(query, args...).Scan(&total, &active, &inactive, &unknown)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get systems totals: %w", err)
 	}
 
 	return &models.SystemTotals{
 		Total:          total,
-		Alive:          alive,
-		Dead:           dead,
-		Zombie:         zombie,
+		Active:         active,
+		Inactive:       inactive,
+		Unknown:        unknown,
 		TimeoutMinutes: timeoutMinutes,
 	}, nil
 }

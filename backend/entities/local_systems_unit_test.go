@@ -279,10 +279,10 @@ func TestLocal_SystemRepository_SystemTotals(t *testing.T) {
 			userOrgRole: "owner",
 			userOrgID:   "org-owner",
 			expectedTotals: &models.SystemTotals{
-				Total:  100,
-				Alive:  85,
-				Dead:   10,
-				Zombie: 5,
+				Total:    100,
+				Active:   85,
+				Inactive: 10,
+				Unknown:  5,
 			},
 		},
 		{
@@ -290,10 +290,10 @@ func TestLocal_SystemRepository_SystemTotals(t *testing.T) {
 			userOrgRole: "distributor",
 			userOrgID:   "org-distributor-1",
 			expectedTotals: &models.SystemTotals{
-				Total:  25,
-				Alive:  20,
-				Dead:   3,
-				Zombie: 2,
+				Total:    25,
+				Active:   20,
+				Inactive: 3,
+				Unknown:  2,
 			},
 		},
 		{
@@ -301,10 +301,10 @@ func TestLocal_SystemRepository_SystemTotals(t *testing.T) {
 			userOrgRole: "customer",
 			userOrgID:   "org-customer-123",
 			expectedTotals: &models.SystemTotals{
-				Total:  5,
-				Alive:  4,
-				Dead:   1,
-				Zombie: 0,
+				Total:    5,
+				Active:   4,
+				Inactive: 1,
+				Unknown:  0,
 			},
 		},
 	}
@@ -314,9 +314,9 @@ func TestLocal_SystemRepository_SystemTotals(t *testing.T) {
 			totals := simulateGetSystemTotals(tt.userOrgRole, tt.userOrgID)
 
 			assert.Equal(t, tt.expectedTotals.Total, totals.Total)
-			assert.Equal(t, tt.expectedTotals.Alive, totals.Alive)
-			assert.Equal(t, tt.expectedTotals.Dead, totals.Dead)
-			assert.Equal(t, tt.expectedTotals.Zombie, totals.Zombie)
+			assert.Equal(t, tt.expectedTotals.Active, totals.Active)
+			assert.Equal(t, tt.expectedTotals.Inactive, totals.Inactive)
+			assert.Equal(t, tt.expectedTotals.Unknown, totals.Unknown)
 		})
 	}
 }
@@ -503,13 +503,13 @@ func validateSystemAccess(userOrgRole, userOrgID, systemOrgID string) (bool, err
 func simulateGetSystemTotals(userOrgRole, userOrgID string) *models.SystemTotals {
 	switch userOrgRole {
 	case "owner":
-		return &models.SystemTotals{Total: 100, Alive: 85, Dead: 10, Zombie: 5}
+		return &models.SystemTotals{Total: 100, Active: 85, Inactive: 10, Unknown: 5}
 	case "distributor":
-		return &models.SystemTotals{Total: 25, Alive: 20, Dead: 3, Zombie: 2}
+		return &models.SystemTotals{Total: 25, Active: 20, Inactive: 3, Unknown: 2}
 	case "customer":
-		return &models.SystemTotals{Total: 5, Alive: 4, Dead: 1, Zombie: 0}
+		return &models.SystemTotals{Total: 5, Active: 4, Inactive: 1, Unknown: 0}
 	default:
-		return &models.SystemTotals{Total: 0, Alive: 0, Dead: 0, Zombie: 0}
+		return &models.SystemTotals{Total: 0, Active: 0, Inactive: 0, Unknown: 0}
 	}
 }
 

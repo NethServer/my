@@ -713,25 +713,25 @@ components:
     SystemTotals:
       type: object
       properties:
-        total_systems:
+        total:
           type: integer
           description: Total number of systems
           example: 1250
-        alive_systems:
+        active:
           type: integer
           description: Number of systems that communicated within the last timeout minutes
           example: 1100
-        dead_systems:
+        inactive:
           type: integer
           description: Number of systems that communicated but not within timeout minutes
           example: 100
-        zombie_systems:
+        unknown:
           type: integer
           description: Number of systems that were created but never communicated
           example: 50
         timeout_minutes:
           type: integer
-          description: Timeout used for alive/dead determination
+          description: Timeout used for active/inactive determination
           example: 15
 
     Totals:
@@ -3983,7 +3983,7 @@ paths:
       parameters:
         - name: timeout
           in: query
-          description: Timeout in minutes for alive/dead determination
+          description: Timeout in minutes for active/inactive determination
           schema:
             type: integer
             minimum: 1

@@ -62,9 +62,9 @@ func GetSystemsTotals(c *gin.Context) {
 	// Convert to response format
 	result := map[string]interface{}{
 		"total":           totals.Total,
-		"alive":           totals.Alive,
-		"dead":            totals.Dead,
-		"zombie":          totals.Zombie,
+		"active":          totals.Active,
+		"inactive":        totals.Inactive,
+		"unknown":         totals.Unknown,
 		"timeout_minutes": totals.TimeoutMinutes,
 	}
 
@@ -74,9 +74,9 @@ func GetSystemsTotals(c *gin.Context) {
 		Str("user_org_id", userOrgID).
 		Str("user_org_role", userOrgRole).
 		Int("total", totals.Total).
-		Int("alive", totals.Alive).
-		Int("dead", totals.Dead).
-		Int("zombie", totals.Zombie).
+		Int("active", totals.Active).
+		Int("inactive", totals.Inactive).
+		Int("unknown", totals.Unknown).
 		Int("timeout_minutes", totals.TimeoutMinutes).
 		Msg("systems totals retrieved")
 

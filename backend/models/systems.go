@@ -44,7 +44,7 @@ type System struct {
 	DeletedAt    *time.Time        `json:"deleted_at" structs:"deleted_at"` // Soft delete timestamp
 	CreatedBy    SystemCreator     `json:"created_by" structs:"created_by"`
 	// Heartbeat status fields
-	HeartbeatStatus  string     `json:"heartbeat_status,omitempty"`  // alive, dead, zombie
+	HeartbeatStatus  string     `json:"heartbeat_status,omitempty"`  // active, inactive, unknown
 	LastHeartbeat    *time.Time `json:"last_heartbeat,omitempty"`    // Last heartbeat timestamp
 	HeartbeatMinutes *int       `json:"heartbeat_minutes,omitempty"` // Minutes since last heartbeat
 }
