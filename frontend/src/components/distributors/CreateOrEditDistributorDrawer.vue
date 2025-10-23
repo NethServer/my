@@ -156,8 +156,7 @@ function clearErrors() {
 
 function validateCreate(distributor: CreateDistributor): boolean {
   validationIssues.value = {}
-  const validation = v.safeParse(CreateDistributorSchema, distributor) ////
-  // const validation = { success: true } //// remove
+  const validation = v.safeParse(CreateDistributorSchema, distributor)
 
   if (validation.success) {
     // no validation issues
@@ -175,12 +174,11 @@ function validateCreate(distributor: CreateDistributor): boolean {
       }
       validationIssues.value = issues
 
+      console.debug('frontend validation issues', validationIssues.value)
+
       // focus the first field with error
 
       const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-
-      console.log('firstFieldName', firstErrorFieldName) ////
-
       fieldRefs[firstErrorFieldName]?.value?.focus()
     }
     return false
@@ -207,12 +205,11 @@ function validateEdit(distributor: Distributor): boolean {
       }
       validationIssues.value = issues
 
+      console.debug('frontend validation issues', validationIssues.value)
+
       // focus the first field with error
 
       const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-
-      console.log('firstFieldName', firstErrorFieldName) ////
-
       fieldRefs[firstErrorFieldName]?.value?.focus()
     }
     return false

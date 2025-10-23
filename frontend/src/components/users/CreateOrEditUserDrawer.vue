@@ -239,8 +239,7 @@ function clearErrors() {
 
 function validateCreate(user: CreateUser): boolean {
   validationIssues.value = {}
-  const validation = v.safeParse(CreateUserSchema, user) //// uncomment
-  // const validation = { success: true } //// remove
+  const validation = v.safeParse(CreateUserSchema, user)
 
   if (validation.success) {
     // no validation issues
@@ -251,14 +250,11 @@ function validateCreate(user: CreateUser): boolean {
     if (issues.nested) {
       validationIssues.value = issues.nested as Record<string, string[]>
 
-      console.log('validationIssues', validationIssues.value) ////
+      console.debug('frontend validation issues', validationIssues.value)
 
       // focus the first field with error
 
       const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-
-      console.log('firstFieldName', firstErrorFieldName) ////
-
       fieldRefs[firstErrorFieldName]?.value?.focus()
     }
     return false
@@ -278,12 +274,11 @@ function validateEdit(user: EditUser): boolean {
     if (issues.nested) {
       validationIssues.value = issues.nested as Record<string, string[]>
 
+      console.debug('frontend validation issues', validationIssues.value)
+
       // focus the first field with error
 
       const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-
-      console.log('firstFieldName', firstErrorFieldName) ////
-
       fieldRefs[firstErrorFieldName].value?.focus()
     }
     return false

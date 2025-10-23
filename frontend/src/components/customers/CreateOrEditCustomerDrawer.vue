@@ -154,8 +154,7 @@ function clearErrors() {
 
 function validateCreate(customer: CreateCustomer): boolean {
   validationIssues.value = {}
-  const validation = v.safeParse(CreateCustomerSchema, customer) ////
-  // const validation = { success: true } //// remove
+  const validation = v.safeParse(CreateCustomerSchema, customer)
 
   if (validation.success) {
     // no validation issues
@@ -173,12 +172,11 @@ function validateCreate(customer: CreateCustomer): boolean {
       }
       validationIssues.value = issues
 
+      console.debug('frontend validation issues', validationIssues.value)
+
       // focus the first field with error
 
       const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-
-      console.log('firstFieldName', firstErrorFieldName) ////
-
       fieldRefs[firstErrorFieldName]?.value?.focus()
     }
     return false
@@ -187,8 +185,7 @@ function validateCreate(customer: CreateCustomer): boolean {
 
 function validateEdit(customer: Customer): boolean {
   validationIssues.value = {}
-  const validation = v.safeParse(CustomerSchema, customer) ////
-  // const validation = { success: true } //// remove
+  const validation = v.safeParse(CustomerSchema, customer)
 
   if (validation.success) {
     // no validation issues
@@ -206,12 +203,11 @@ function validateEdit(customer: Customer): boolean {
       }
       validationIssues.value = issues
 
+      console.debug('frontend validation issues', validationIssues.value)
+
       // focus the first field with error
 
       const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-
-      console.log('firstFieldName', firstErrorFieldName) ////
-
       fieldRefs[firstErrorFieldName]?.value?.focus()
     }
     return false

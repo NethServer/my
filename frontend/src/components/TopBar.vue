@@ -5,7 +5,7 @@
 
 <script setup lang="ts">
 import { NeDropdown, NeSkeleton, NeTooltip } from '@nethesis/vue-components'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useThemeStore } from '@/stores/theme'
 import { useLoginStore } from '@/stores/login'
 import {
@@ -56,22 +56,21 @@ const accountMenuOptions = computed(() => {
   ]
 })
 
-//// uncomment
-// watch(
-//   () => notificationsStore.numNotifications,
-//   (newNum, oldNum) => {
-//     if (newNum > oldNum) {
-//       // briefly shake notifications icon
-//       setTimeout(() => {
-//         shakeNotificationsIcon.value = true
-//       }, 700)
+watch(
+  () => notificationsStore.numNotifications,
+  (newNum, oldNum) => {
+    if (newNum > oldNum) {
+      // briefly shake notifications icon
+      setTimeout(() => {
+        shakeNotificationsIcon.value = true
+      }, 700)
 
-//       setTimeout(() => {
-//         shakeNotificationsIcon.value = false
-//       }, 2700)
-//     }
-//   },
-// )
+      setTimeout(() => {
+        shakeNotificationsIcon.value = false
+      }, 2700)
+    }
+  },
+)
 
 function openNotificationsDrawer() {
   notificationsStore.setNotificationDrawerOpen(true)
