@@ -46,21 +46,14 @@ func CreateOwnerUser(client *client.LogtoClient, username, email, displayName st
 			logger.Warn("User 'owner' already exists")
 			logger.Info("Using existing user for configuration (password not updated)")
 
-			// Find existing user
-			users, userErr := client.GetUsers()
+			// Find existing user by username
+			existingUser, userErr := client.GetUserByUsername(username)
 			if userErr != nil {
-				return nil, fmt.Errorf("failed to get existing users: %w", userErr)
+				return nil, fmt.Errorf("failed to find existing owner user: %w", userErr)
 			}
 
-			var existingUserID string
-			for _, user := range users {
-				if userUsername, ok := user["username"].(string); ok && userUsername == "owner" {
-					existingUserID = user["id"].(string)
-					break
-				}
-			}
-
-			if existingUserID == "" {
+			existingUserID, ok := existingUser["id"].(string)
+			if !ok || existingUserID == "" {
 				return nil, fmt.Errorf("could not find existing owner user")
 			}
 

@@ -210,6 +210,34 @@ func (c *LogtoClient) GetOrganizations() ([]LogtoOrganization, error) {
 	return organizations, nil
 }
 
+// GetOrganizationByName searches for an organization by name using the q parameter
+func (c *LogtoClient) GetOrganizationByName(name string) (*LogtoOrganization, error) {
+	logger.Debug("Searching for organization with name: %s", name)
+
+	// Use q parameter as per Logto API for organizations
+	resp, err := c.makeRequest("GET", fmt.Sprintf("/api/organizations?q=%s", name), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search organizations: %w", err)
+	}
+
+	var organizations []LogtoOrganization
+	if err := c.handlePaginatedResponse(resp, &organizations); err != nil {
+		return nil, fmt.Errorf("failed to parse organizations response: %w", err)
+	}
+
+	logger.Debug("Retrieved %d organizations for search", len(organizations))
+
+	// Find exact name match
+	for _, org := range organizations {
+		if org.Name == name {
+			logger.Debug("Found organization: %s (ID: %s)", org.Name, org.ID)
+			return &org, nil
+		}
+	}
+
+	return nil, fmt.Errorf("organization with name '%s' not found", name)
+}
+
 // CreateOrganization creates a new organization
 func (c *LogtoClient) CreateOrganization(org LogtoOrganization) (*LogtoOrganization, error) {
 	logger.Debug("Creating organization: %s", org.Name)

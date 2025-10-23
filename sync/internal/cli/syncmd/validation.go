@@ -39,18 +39,10 @@ func CheckLogtoInitialization(client *client.LogtoClient) (bool, error) {
 		}
 	}
 
-	// Check if owner user exists
-	users, err := client.GetUsers()
-	if err != nil {
-		return false, err
-	}
-
+	// Check if owner user exists using search
 	ownerExists := false
-	for _, user := range users {
-		if username, ok := user["username"].(string); ok && username == "owner" {
-			ownerExists = true
-			break
-		}
+	if _, err := client.GetUserByUsername("owner"); err == nil {
+		ownerExists = true
 	}
 
 	return backendExists && frontendExists && ownerExists, nil

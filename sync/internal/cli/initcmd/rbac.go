@@ -237,20 +237,15 @@ func createOwnerOrganization(client *client.LogtoClient) error {
 	logger.Info("Creating Owner organization...")
 
 	// Check if Owner organization exists
-	organizations, err := client.GetOrganizations()
-	if err != nil {
-		return fmt.Errorf("failed to get existing organizations: %w", err)
-	}
-
 	var ownerOrgID string
 	var organizationExists bool
-	for _, org := range organizations {
-		if org.Name == "Owner" {
-			ownerOrgID = org.ID
-			organizationExists = true
-			logger.Info("Organization 'Owner' exists, configuring default role")
-			break
-		}
+
+	existingOrg, err := client.GetOrganizationByName("Owner")
+	if err == nil {
+		// Organization found
+		ownerOrgID = existingOrg.ID
+		organizationExists = true
+		logger.Info("Organization 'Owner' exists, configuring default role")
 	}
 
 	// Create organization if it doesn't exist
@@ -267,18 +262,12 @@ func createOwnerOrganization(client *client.LogtoClient) error {
 		}
 
 		// Get the created organization ID
-		orgs, err := client.GetOrganizations()
+		createdOrg, err := client.GetOrganizationByName("Owner")
 		if err != nil {
-			return fmt.Errorf("failed to get organizations after creation: %w", err)
+			return fmt.Errorf("failed to get Owner organization after creation: %w", err)
 		}
 
-		for _, org := range orgs {
-			if org.Name == "Owner" {
-				ownerOrgID = org.ID
-				break
-			}
-		}
-
+		ownerOrgID = createdOrg.ID
 		logger.Info("Created Owner organization")
 	}
 
@@ -324,31 +313,24 @@ func setOwnerOrganizationDefaultRole(client *client.LogtoClient, ownerOrgID stri
 func assignRolesToOwnerUser(client *client.LogtoClient, ownerUsername string) error {
 	logger.Info("Assigning roles and organization to owner user...")
 
-	// Get owner user ID
-	users, err := client.GetUsers()
+	// Get owner user ID by username
+	ownerUser, err := client.GetUserByUsername(ownerUsername)
 	if err != nil {
-		return fmt.Errorf("failed to get users: %w", err)
+		return fmt.Errorf("failed to find owner user: %w", err)
 	}
 
-	ownerUserID, found := client.FindEntityID(users, "username", ownerUsername)
-	if !found {
+	ownerUserID, ok := ownerUser["id"].(string)
+	if !ok || ownerUserID == "" {
 		return fmt.Errorf("owner user not found")
 	}
 
-	// Get Owner organization ID
-	organizations, err := client.GetOrganizations()
+	// Get Owner organization by name
+	ownerOrg, err := client.GetOrganizationByName("Owner")
 	if err != nil {
-		return fmt.Errorf("failed to get organizations: %w", err)
+		return fmt.Errorf("failed to find Owner organization: %w", err)
 	}
 
-	var ownerOrgID string
-	for _, org := range organizations {
-		if org.Name == "Owner" {
-			ownerOrgID = org.ID
-			break
-		}
-	}
-
+	ownerOrgID := ownerOrg.ID
 	if ownerOrgID == "" {
 		return fmt.Errorf("owner organization not found")
 	}

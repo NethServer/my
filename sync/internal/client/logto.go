@@ -263,6 +263,29 @@ func (c *LogtoClient) GetUsers() ([]map[string]interface{}, error) {
 	return result, c.handlePaginatedResponse(resp, &result)
 }
 
+// GetUserByUsername searches for a user by username using the search parameter
+func (c *LogtoClient) GetUserByUsername(username string) (map[string]interface{}, error) {
+	// Use search parameter with % wildcards as per Logto API
+	resp, err := c.makeRequest("GET", fmt.Sprintf("/api/users?search=%%%s%%", username), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var users []map[string]interface{}
+	if err := c.handlePaginatedResponse(resp, &users); err != nil {
+		return nil, err
+	}
+
+	// Find exact username match
+	for _, user := range users {
+		if userUsername, ok := user["username"].(string); ok && userUsername == username {
+			return user, nil
+		}
+	}
+
+	return nil, fmt.Errorf("user with username '%s' not found", username)
+}
+
 // GetUserRoles retrieves the roles for a specific user
 func (c *LogtoClient) GetUserRoles(userID string) ([]string, error) {
 	resp, err := c.makeRequest("GET", fmt.Sprintf("/api/users/%s/roles", userID), nil)
