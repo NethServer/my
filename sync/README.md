@@ -23,6 +23,12 @@ CLI tool for complete Logto setup and RBAC synchronization. Provides zero-to-pro
 - **Owner Exclusion**: Automatically excludes Owner organizations and users (Logto-only)
 - **Database Restoration**: Restores organizations and users from Logto for disaster recovery
 
+### Data Cleanup
+- **`sync prune`**: Complete cleanup of test data from Logto and database
+- **Interactive Mode**: Prompts for confirmation before deleting Owner/owner
+- **Force Mode**: Skip all confirmations for automated cleanup
+- **Dry Run**: Preview what would be deleted without making changes
+
 ### Enterprise Features
 - **Multiple Output Formats**: Text, JSON, and YAML
 - **Safe Operations**: Preserves system entities and validates configurations
@@ -147,6 +153,9 @@ sync sync --dry-run --verbose
 # Pull from Logto to local database (disaster recovery)
 sync pull --verbose
 
+# Clean up all test data from Logto and database
+sync prune
+
 # Output results in JSON format
 sync sync --output json
 ```
@@ -238,6 +247,47 @@ sync pull --output json
 - **Development Setup**: Populate local database with production data
 - **Environment Sync**: Keep local database consistent with Logto
 
+### Prune Command
+
+Complete cleanup of test data from both Logto and local database:
+
+```bash
+# Interactive mode - prompts for confirmations
+sync prune
+
+# Preview what would be deleted without making changes
+sync prune --dry-run
+
+# Force mode - skip all confirmations (DANGEROUS)
+sync prune --force
+```
+
+**What Prune Does:**
+1. Fetches all organizations from Logto (across all pages)
+2. Fetches all users from Logto (across all pages)
+3. Deletes all organizations and users from Logto
+   - Prompts for confirmation before deleting Owner organization
+   - Prompts for confirmation before deleting owner user
+4. Queries local database for active records
+5. Permanently deletes all records from database tables:
+   - distributors
+   - resellers
+   - customers
+   - users
+
+**Special Handling:**
+- **Owner Organization**: Prompts for confirmation (or skipped in dry-run)
+- **owner User**: Prompts for confirmation (or skipped in dry-run)
+- **Force Mode**: Deletes everything without prompts
+- **Dry Run**: Shows what would be deleted without making changes
+
+**Use Cases:**
+- **Test Cleanup**: Remove fake organizations and users after testing
+- **Environment Reset**: Clean up development/staging environments
+- **Pre-Production Setup**: Clear test data before production deployment
+
+**Warning:** This operation is **IRREVERSIBLE**. All deleted data cannot be recovered. After pruning Owner/owner, run `sync init` to reinitialize.
+
 ### Global Flags
 
 **Common Flags:**
@@ -266,6 +316,11 @@ sync pull --output json
 **Pull Command:**
 - `--dry-run`: Preview changes only
 - `DATABASE_URL`: PostgreSQL connection string (required)
+
+**Prune Command:**
+- `--dry-run`: Preview changes only (no deletions)
+- `--force`: Skip all confirmations (DANGEROUS)
+- `DATABASE_URL`: PostgreSQL connection string (optional, for database cleanup)
 
 ## Configuration
 
@@ -455,6 +510,21 @@ DATABASE_URL="postgresql://user:pass@localhost:5432/db" sync pull --dry-run
 
 # Restore with structured output
 DATABASE_URL="postgresql://user:pass@localhost:5432/db" sync pull --output json
+```
+
+### Data Cleanup
+```bash
+# Clean up test data (interactive mode)
+sync prune
+
+# Preview what would be deleted
+sync prune --dry-run
+
+# Force cleanup without confirmations
+sync prune --force
+
+# Cleanup with database connection
+DATABASE_URL="postgresql://user:pass@localhost:5432/db" sync prune
 ```
 
 ### Automation

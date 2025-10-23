@@ -252,7 +252,7 @@ func (c *LogtoClient) CreateApplication(app map[string]interface{}) (map[string]
 	return result, c.handleResponse(resp, http.StatusCreated, &result)
 }
 
-// GetUsers retrieves all users
+// GetUsers retrieves all users (first page only)
 func (c *LogtoClient) GetUsers() ([]map[string]interface{}, error) {
 	resp, err := c.makeRequest("GET", "/api/users", nil)
 	if err != nil {
@@ -261,6 +261,40 @@ func (c *LogtoClient) GetUsers() ([]map[string]interface{}, error) {
 
 	var result []map[string]interface{}
 	return result, c.handlePaginatedResponse(resp, &result)
+}
+
+// GetAllUsers retrieves all users across all pages
+func (c *LogtoClient) GetAllUsers() ([]map[string]interface{}, error) {
+	allUsers := []map[string]interface{}{}
+	page := 1
+	pageSize := 100
+
+	for {
+		resp, err := c.makeRequest("GET", fmt.Sprintf("/api/users?page=%d&page_size=%d", page, pageSize), nil)
+		if err != nil {
+			return nil, err
+		}
+
+		var users []map[string]interface{}
+		if err := c.handlePaginatedResponse(resp, &users); err != nil {
+			return nil, err
+		}
+
+		if len(users) == 0 {
+			break
+		}
+
+		allUsers = append(allUsers, users...)
+
+		// If we got fewer results than page size, we're done
+		if len(users) < pageSize {
+			break
+		}
+
+		page++
+	}
+
+	return allUsers, nil
 }
 
 // GetUserByUsername searches for a user by username using the search parameter
@@ -284,6 +318,16 @@ func (c *LogtoClient) GetUserByUsername(username string) (map[string]interface{}
 	}
 
 	return nil, fmt.Errorf("user with username '%s' not found", username)
+}
+
+// DeleteUser deletes a user by ID
+func (c *LogtoClient) DeleteUser(userID string) error {
+	resp, err := c.makeRequest("DELETE", fmt.Sprintf("/api/users/%s", userID), nil)
+	if err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+
+	return c.handleResponse(resp, http.StatusNoContent, nil)
 }
 
 // GetUserRoles retrieves the roles for a specific user

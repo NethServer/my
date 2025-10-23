@@ -192,7 +192,7 @@ type LogtoOrganization struct {
 	CustomData  map[string]interface{} `json:"customData,omitempty"`
 }
 
-// GetOrganizations retrieves all organizations
+// GetOrganizations retrieves all organizations (first page only)
 func (c *LogtoClient) GetOrganizations() ([]LogtoOrganization, error) {
 	logger.Debug("Fetching organizations")
 
@@ -208,6 +208,43 @@ func (c *LogtoClient) GetOrganizations() ([]LogtoOrganization, error) {
 
 	logger.Debug("Retrieved %d organizations", len(organizations))
 	return organizations, nil
+}
+
+// GetAllOrganizations retrieves all organizations across all pages
+func (c *LogtoClient) GetAllOrganizations() ([]LogtoOrganization, error) {
+	logger.Debug("Fetching all organizations")
+
+	allOrgs := []LogtoOrganization{}
+	page := 1
+	pageSize := 100
+
+	for {
+		resp, err := c.makeRequest("GET", fmt.Sprintf("/api/organizations?page=%d&page_size=%d", page, pageSize), nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get organizations: %w", err)
+		}
+
+		var orgs []LogtoOrganization
+		if err := c.handlePaginatedResponse(resp, &orgs); err != nil {
+			return nil, fmt.Errorf("failed to parse organizations response: %w", err)
+		}
+
+		if len(orgs) == 0 {
+			break
+		}
+
+		allOrgs = append(allOrgs, orgs...)
+
+		// If we got fewer results than page size, we're done
+		if len(orgs) < pageSize {
+			break
+		}
+
+		page++
+	}
+
+	logger.Debug("Retrieved %d organizations total", len(allOrgs))
+	return allOrgs, nil
 }
 
 // GetOrganizationByName searches for an organization by name using the q parameter
@@ -256,6 +293,18 @@ func (c *LogtoClient) CreateOrganization(org LogtoOrganization) (*LogtoOrganizat
 	}
 
 	return nil, c.handleResponse(resp, http.StatusCreated, nil)
+}
+
+// DeleteOrganization deletes an organization by ID
+func (c *LogtoClient) DeleteOrganization(organizationID string) error {
+	logger.Debug("Deleting organization: %s", organizationID)
+
+	resp, err := c.makeRequest("DELETE", "/api/organizations/"+organizationID, nil)
+	if err != nil {
+		return fmt.Errorf("failed to delete organization: %w", err)
+	}
+
+	return c.handleResponse(resp, http.StatusNoContent, nil)
 }
 
 // AddUserToOrganization adds a user to an organization
