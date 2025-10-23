@@ -27,7 +27,7 @@ const loginStore = useLoginStore()
         <UserAvatar :name="loginStore.userInfo.name" :is-owner="loginStore.isOwner" size="md" />
         <div class="flex flex-col gap-1">
           <div>{{ loginStore.userInfo.name }}</div>
-          <div>
+          <div class="flex flex-wrap gap-1">
             <NeBadgeV2
               v-for="role in loginStore.userInfo.user_roles.sort()"
               :key="role"
