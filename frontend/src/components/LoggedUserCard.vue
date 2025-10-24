@@ -8,6 +8,8 @@ import { NeBadgeV2, NeCard, NeSkeleton } from '@nethesis/vue-components'
 import { useLoginStore } from '@/stores/login'
 import UserAvatar from './UserAvatar.vue'
 import { normalize } from '@/lib/common'
+import { getOrganizationIcon } from '@/lib/organizations'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
 const loginStore = useLoginStore()
 </script>
@@ -20,8 +22,13 @@ const loginStore = useLoginStore()
       class="w-full"
     />
     <div v-else class="flex flex-col gap-2">
-      <div class="text-base text-indigo-700 dark:text-indigo-500">
+      <div class="flex items-center gap-2 text-base text-indigo-700 dark:text-indigo-500">
         {{ loginStore.userInfo.organization_name }}
+        <FontAwesomeIcon
+          :icon="getOrganizationIcon(loginStore.userInfo?.org_role)"
+          class="size-4 shrink-0"
+          aria-hidden="true"
+        />
       </div>
       <div class="flex items-center gap-2">
         <UserAvatar :name="loginStore.userInfo.name" :is-owner="loginStore.isOwner" size="md" />

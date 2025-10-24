@@ -5,7 +5,6 @@ import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
-import { faBuilding, faCity, faCrown, faGlobe, faQuestion } from '@fortawesome/free-solid-svg-icons'
 import { getQueryStringParams, type Pagination } from './common'
 
 export const USERS_KEY = 'users'
@@ -130,19 +129,4 @@ export const resetPassword = (user: User, newPassword: string) => {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     },
   )
-}
-
-export const getOrganizationIcon = (orgRole: string) => {
-  switch (orgRole) {
-    case 'Owner':
-      return faCrown
-    case 'Distributor':
-      return faGlobe
-    case 'Reseller':
-      return faCity
-    case 'Customer':
-      return faBuilding
-    default:
-      return faQuestion
-  }
 }

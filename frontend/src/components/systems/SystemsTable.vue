@@ -234,7 +234,7 @@ const onSort = (payload: SortEvent) => {
 }
 
 const goToSystemDetails = (system: System) => {
-  router.push({ name: 'system', params: { id: system.id } })
+  router.push({ name: 'system_detail', params: { systemId: system.id } })
 }
 </script>
 
@@ -548,7 +548,7 @@ const goToSystemDetails = (system: System) => {
               <NeButton
                 kind="tertiary"
                 @click="goToSystemDetails(item)"
-                :disabled="asyncStatus === 'loading' || true"
+                :disabled="asyncStatus === 'loading'"
               >
                 <template #prefix>
                   <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />

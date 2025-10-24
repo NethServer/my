@@ -141,7 +141,6 @@ export const getSystems = (
   sortBy: string,
   sortDescending: boolean,
 ) => {
-  // convert productFilter to string using openapi format
   const loginStore = useLoginStore()
   const params = getQueryStringParams(
     pageNum,

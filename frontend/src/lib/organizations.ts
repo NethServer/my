@@ -4,6 +4,7 @@
 import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
+import { faBuilding, faCity, faCrown, faGlobe, faQuestion } from '@fortawesome/free-solid-svg-icons'
 
 export type Organization = {
   id: string
@@ -22,4 +23,19 @@ export const getOrganizations = () => {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data.organizations as Organization[])
+}
+
+export function getOrganizationIcon(orgType: string) {
+  switch (orgType.toLowerCase()) {
+    case 'owner':
+      return faCrown
+    case 'distributor':
+      return faGlobe
+    case 'reseller':
+      return faCity
+    case 'customer':
+      return faBuilding
+    default:
+      return faQuestion
+  }
 }

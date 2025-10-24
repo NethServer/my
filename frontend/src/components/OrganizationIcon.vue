@@ -3,7 +3,7 @@
   SPDX-License-Identifier: GPL-3.0-or-later
 -->
 <script lang="ts" setup>
-import { faBuilding, faCity, faGlobe, faQuestion } from '@fortawesome/free-solid-svg-icons'
+import { getOrganizationIcon } from '@/lib/organizations'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { computed } from 'vue'
 
@@ -47,25 +47,12 @@ const placeholderContainerClasses = computed(
   () =>
     `flex items-center justify-center ${placeholderColorClasses} ${squared ? 'rounded-sm' : 'rounded-full'} ${avatarSizeClasses[size]}`,
 )
-
-function getOrganizationIcon() {
-  switch (orgType) {
-    case 'distributor':
-      return faGlobe
-    case 'reseller':
-      return faCity
-    case 'customer':
-      return faBuilding
-    default:
-      return faQuestion
-  }
-}
 </script>
 <template>
   <div>
     <div :class="placeholderContainerClasses">
       <FontAwesomeIcon
-        :icon="getOrganizationIcon()"
+        :icon="getOrganizationIcon(orgType)"
         :class="[placeholderColorClasses, placeholderIconSizeClasses[size]]"
       />
     </div>
