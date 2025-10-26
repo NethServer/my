@@ -1202,13 +1202,20 @@ components:
     SystemVersionFilterParam:
       name: version
       in: query
-      description: Filter systems by version (exact match). Supports multiple values for checkbox filtering.
+      description: |
+        Filter systems by version using prefixed format `product:version` (e.g., `nsec:8.0`, `ns8:1.2.3`).
+        The prefix prevents ambiguity when the same version number exists for multiple products.
+        Supports multiple values for checkbox filtering.
+
+        **Example**: `?version=nsec:8.0&version=ns8:1.2.3` matches systems with (nsec version 8.0) OR (ns8 version 1.2.3)
+
+        **Backward compatibility**: Non-prefixed versions (e.g., `8.0`) are still supported but may match multiple products.
       required: false
       schema:
         type: array
         items:
           type: string
-        example: ["8.0", "8.1", "8.2"]
+        example: ["nsec:8.0", "nsec:8.1", "ns8:1.2.3"]
       style: form
       explode: true
 
@@ -3295,7 +3302,11 @@ paths:
       description: |
         Get system versions grouped by product type for filtering (requires Support+ role).
         Returns versions organized by product, suitable for hierarchical UI display.
-        Values can be used directly in GET /systems?version= query parameter.
+
+        **Version Format**: Returns versions in prefixed format `product:version` (e.g., `"nsec:1.2.3"`, `"ns8:1.2.3"`)
+        to avoid ambiguity when the same version number exists for multiple products.
+
+        These prefixed values can be used directly in GET /systems?version= query parameter.
       responses:
         '200':
           description: Version filters retrieved successfully
@@ -3326,14 +3337,14 @@ paths:
                               type: array
                               items:
                                 type: string
-                              description: List of versions for this product
-                              example: ["8.6.0", "8.5.2", "8.4.0"]
-                        description: Versions grouped by product type
+                              description: List of versions for this product in prefixed format (product:version)
+                              example: ["nsec:8.6.0", "nsec:8.5.2", "nsec:8.4.0"]
+                        description: Versions grouped by product type (each version includes product prefix)
                         example:
-                          - product: "NethSecurity"
-                            versions: ["8.6.0", "8.5.2"]
-                          - product: "NethServer"
-                            versions: ["7.9.2009", "7.8.2003"]
+                          - product: "nsec"
+                            versions: ["nsec:8.6.0", "nsec:8.5.2"]
+                          - product: "ns8"
+                            versions: ["ns8:1.2.3", "ns8:1.1.0"]
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -3745,13 +3756,13 @@ paths:
 
         **Complete Example Request:**
         ```
-        GET /api/systems?page=1&page_size=20&sort_by=created_at&sort_direction=desc&type=nsec&type=ns8&status=online&version=8.0&version=8.1&organization_id=org_abc123xyz
+        GET /api/systems?page=1&page_size=20&sort_by=created_at&sort_direction=desc&type=nsec&type=ns8&status=online&version=nsec:8.0&version=ns8:1.2.3&organization_id=org_abc123xyz
         ```
 
         This retrieves systems that are:
         - Type: nsec OR ns8
         - Status: online
-        - Version: 8.0 OR 8.1
+        - Version: (nsec version 8.0) OR (ns8 version 1.2.3)
         - Organization: org_abc123xyz
         - Sorted by creation date (newest first)
         - Page 1 with 20 items per page

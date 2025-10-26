@@ -11,6 +11,7 @@ package methods
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -356,8 +357,12 @@ func GetFilterVersions(c *gin.Context) {
 			continue
 		}
 
-		// Group versions by product type
-		versionsByProduct[productType] = append(versionsByProduct[productType], version)
+		// Create prefixed version string (product:version) to avoid ambiguity
+		// when the same version number exists for multiple products
+		prefixedVersion := fmt.Sprintf("%s:%s", productType, version)
+
+		// Group prefixed versions by product type
+		versionsByProduct[productType] = append(versionsByProduct[productType], prefixedVersion)
 	}
 
 	// Convert map to array of ProductVersions

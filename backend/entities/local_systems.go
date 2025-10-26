@@ -233,13 +233,31 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	}
 
 	if len(filterVersions) > 0 {
-		versionPlaceholders := make([]string, len(filterVersions))
+		// Version filter now uses prefixed format "product:version" (e.g., "nsec:1.2.3")
+		// to avoid ambiguity when same version exists for multiple products
+		versionConditions := make([]string, len(filterVersions))
 		baseIndex := len(args)
-		for i, v := range filterVersions {
-			versionPlaceholders[i] = fmt.Sprintf("$%d", baseIndex+i+1)
-			args = append(args, v)
+
+		for i, prefixedVersion := range filterVersions {
+			// Split prefixed version into product and version parts
+			parts := strings.SplitN(prefixedVersion, ":", 2)
+			if len(parts) == 2 {
+				// Prefixed format: match both type and version
+				productPlaceholder := fmt.Sprintf("$%d", baseIndex+1)
+				versionPlaceholder := fmt.Sprintf("$%d", baseIndex+2)
+				versionConditions[i] = fmt.Sprintf("(s.type = %s AND s.version = %s)", productPlaceholder, versionPlaceholder)
+				args = append(args, parts[0], parts[1])
+				baseIndex += 2
+			} else {
+				// Fallback for non-prefixed format: match version only (backward compatibility)
+				versionPlaceholder := fmt.Sprintf("$%d", baseIndex+1)
+				versionConditions[i] = fmt.Sprintf("(s.version = %s)", versionPlaceholder)
+				args = append(args, prefixedVersion)
+				baseIndex += 1
+			}
 		}
-		whereClause += fmt.Sprintf(" AND s.version IN (%s)", strings.Join(versionPlaceholders, ","))
+
+		whereClause += fmt.Sprintf(" AND (%s)", strings.Join(versionConditions, " OR "))
 	}
 
 	if len(filterOrgIDs) > 0 {
