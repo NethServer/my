@@ -11,7 +11,6 @@ package local
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -23,6 +22,7 @@ import (
 
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/entities"
+	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/services/logto"
@@ -68,9 +68,11 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 
 	now := time.Now()
 
-	// Hash the secret for storage
-	hash := sha256.Sum256([]byte(systemSecret))
-	hashedSecret := hex.EncodeToString(hash[:])
+	// Encrypt the secret for storage
+	encryptedSecret, err := helpers.EncryptSecret(systemSecret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encrypt system secret: %w", err)
+	}
 
 	// Convert custom_data to JSON for storage
 	customDataJSON, err := json.Marshal(request.CustomData)
@@ -91,7 +93,7 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 	`
 
 	_, err = database.DB.Exec(query, systemID, request.Name, nil, "unknown", systemKey, request.OrganizationID,
-		customDataJSON, hashedSecret, request.Notes, now, now, createdByJSON)
+		customDataJSON, encryptedSecret, request.Notes, now, now, createdByJSON)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create system: %w", err)
 	}
@@ -262,6 +264,40 @@ func (s *LocalSystemsService) GetSystem(systemID, userOrgRole, userOrgID string)
 	return system, nil
 }
 
+// GetSystemSecret retrieves the system secret with access validation and password verification
+func (s *LocalSystemsService) GetSystemSecret(systemID, userID, userOrgRole, userOrgID, password string) (string, error) {
+	// First, verify the system exists and user has access
+	system, err := s.GetSystem(systemID, userOrgRole, userOrgID)
+	if err != nil {
+		return "", err
+	}
+
+	// Verify user's password using Logto
+	logtoClient := logto.NewManagementClient()
+	if err := logtoClient.VerifyUserPassword(userID, password); err != nil {
+		logger.Warn().
+			Str("user_id", userID).
+			Str("system_id", systemID).
+			Msg("Failed password verification for system secret retrieval")
+		return "", fmt.Errorf("invalid password")
+	}
+
+	// Password verified, now get the secret from database
+	systemRepo := entities.NewLocalSystemRepository()
+	secret, err := systemRepo.GetSecretByID(systemID)
+	if err != nil {
+		return "", err
+	}
+
+	logger.Info().
+		Str("user_id", userID).
+		Str("system_id", systemID).
+		Str("system_name", system.Name).
+		Msg("System secret retrieved with password verification")
+
+	return secret, nil
+}
+
 // UpdateSystem updates an existing system with access validation
 func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.UpdateSystemRequest, userID, userOrgID, userOrgRole string) (*models.System, error) {
 	// Get the system first to check permissions
@@ -388,9 +424,11 @@ func (s *LocalSystemsService) RegenerateSystemSecret(systemID, userID, userOrgID
 
 	now := time.Now()
 
-	// Hash the secret for storage
-	hash := sha256.Sum256([]byte(newSystemSecret))
-	hashedSecret := hex.EncodeToString(hash[:])
+	// Encrypt the secret for storage
+	encryptedSecret, err := helpers.EncryptSecret(newSystemSecret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encrypt system secret: %w", err)
+	}
 
 	// Update system secret
 	query := `
@@ -399,7 +437,7 @@ func (s *LocalSystemsService) RegenerateSystemSecret(systemID, userID, userOrgID
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 
-	_, err = database.DB.Exec(query, systemID, hashedSecret, now)
+	_, err = database.DB.Exec(query, systemID, encryptedSecret, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update system credentials: %w", err)
 	}

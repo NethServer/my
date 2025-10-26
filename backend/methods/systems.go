@@ -17,6 +17,7 @@ import (
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services/local"
+	"github.com/nethesis/my/backend/services/logto"
 )
 
 // handleSystemAccessError handles system access errors with appropriate HTTP status codes
@@ -293,7 +294,7 @@ func DeleteSystem(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("system deleted successfully", nil))
 }
 
-// RegenerateSystemSecret handles POST /api/systems/:id/regenerate-secret - regenerates system secret
+// RegenerateSystemSecret handles POST /api/systems/:id/secret/regenerate - regenerates system secret with password verification
 func RegenerateSystemSecret(c *gin.Context) {
 	// Get system ID from URL parameter
 	systemID := c.Param("id")
@@ -302,9 +303,40 @@ func RegenerateSystemSecret(c *gin.Context) {
 		return
 	}
 
+	// Parse request body for password
+	var request models.SystemSecretRequest
+	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
+		return
+	}
+
 	// Get current user context
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
+		return
+	}
+
+	// Get user's Logto ID for password verification
+	userLogtoID := ""
+	if user.LogtoID != nil {
+		userLogtoID = *user.LogtoID
+	}
+	if userLogtoID == "" {
+		logger.Error().
+			Str("user_id", user.ID).
+			Msg("User authenticated but missing Logto ID - invalid authentication state")
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("invalid authentication state", nil))
+		return
+	}
+
+	// Verify user password before regenerating
+	logtoClient := logto.NewManagementClient()
+	if err := logtoClient.VerifyUserPassword(userLogtoID, request.Password); err != nil {
+		logger.Warn().
+			Str("user_id", user.ID).
+			Str("system_id", systemID).
+			Msg("Invalid password attempt for system secret regeneration")
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("invalid password", nil))
 		return
 	}
 
@@ -322,4 +354,68 @@ func RegenerateSystemSecret(c *gin.Context) {
 
 	// Return new secret (only time it's visible)
 	c.JSON(http.StatusOK, response.OK("system secret regenerated successfully", system))
+}
+
+// GetSystemSecret handles POST /api/systems/:id/secret - retrieves system secret with password verification
+func GetSystemSecret(c *gin.Context) {
+	// Get system ID from URL parameter
+	systemID := c.Param("id")
+	if systemID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
+		return
+	}
+
+	// Parse request body for password
+	var request models.SystemSecretRequest
+	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
+		return
+	}
+
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Get user's Logto ID for password verification
+	userLogtoID := ""
+	if user.LogtoID != nil {
+		userLogtoID = *user.LogtoID
+	}
+	if userLogtoID == "" {
+		logger.Error().
+			Str("user_id", user.ID).
+			Msg("User authenticated but missing Logto ID - invalid authentication state")
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("invalid authentication state", nil))
+		return
+	}
+
+	// Create systems service
+	systemsService := local.NewSystemsService()
+
+	// Get system secret with password verification
+	secret, err := systemsService.GetSystemSecret(systemID, userLogtoID, user.OrgRole, user.OrganizationID, request.Password)
+	if err != nil {
+		if strings.Contains(err.Error(), "invalid password") {
+			logger.Warn().
+				Str("user_id", user.ID).
+				Str("system_id", systemID).
+				Msg("Invalid password attempt for system secret retrieval")
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("invalid password", nil))
+			return
+		}
+
+		if handleSystemAccessError(c, err, systemID) {
+			return
+		}
+	}
+
+	// Log the action
+	logger.LogBusinessOperation(c, "systems", "get_secret", "system", systemID, true, nil)
+
+	// Return secret
+	c.JSON(http.StatusOK, response.OK("system secret retrieved successfully", gin.H{
+		"system_secret": secret,
+	}))
 }
