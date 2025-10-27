@@ -202,6 +202,9 @@ func main() {
 			// System totals endpoint
 			systemsGroup.GET("/totals", methods.GetSystemsTotals) // Get systems totals with liveness status
 
+			// Export endpoint
+			systemsGroup.GET("/export", methods.ExportSystems) // Export systems to CSV or PDF with applied filters
+
 			// Inventory endpoints
 			systemsGroup.GET("/:id/inventory", methods.GetSystemInventoryHistory)                      // Get paginated inventory history
 			systemsGroup.GET("/:id/inventory/latest", methods.GetSystemLatestInventory)                // Get latest inventory

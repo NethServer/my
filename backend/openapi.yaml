@@ -4127,6 +4127,100 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /systems/export:
+    get:
+      operationId: exportSystems
+      tags:
+        - Backend - Systems
+      summary: /systems/export - Export systems to CSV or PDF
+      description: |
+        Export systems with applied filters to CSV or PDF format.
+
+        **Features:**
+        - Supports all filter parameters from GET /systems
+        - Maximum 10,000 systems per export (DoS protection)
+        - CSV format: Simple spreadsheet with all fields
+        - PDF format: Formatted report with metadata and filters applied
+        - File naming: `systems_export_YYYY-MM-DD_HHmmss.[csv|pdf]`
+
+        **Permissions**: Requires `read:systems` permission and respects RBAC hierarchy
+
+        **Export Fields:**
+        - Name, Type, Version, Status
+        - FQDN, IPv4 Address, IPv6 Address
+        - System Key, Notes
+        - Created At
+        - Organization Name, Organization Type
+        - Created By Name, Created By Email, Created By Organization
+      parameters:
+        - name: format
+          in: query
+          required: true
+          description: Export format (csv or pdf)
+          schema:
+            type: string
+            enum: [csv, pdf]
+            example: csv
+        - $ref: '#/components/parameters/SearchParam'
+        - $ref: '#/components/parameters/SystemSortByParam'
+        - $ref: '#/components/parameters/SortDirectionParam'
+        - $ref: '#/components/parameters/SystemNameFilterParam'
+        - $ref: '#/components/parameters/SystemTypeFilterParam'
+        - $ref: '#/components/parameters/SystemCreatedByFilterParam'
+        - $ref: '#/components/parameters/SystemVersionFilterParam'
+        - $ref: '#/components/parameters/SystemOrganizationFilterParam'
+        - $ref: '#/components/parameters/SystemStatusFilterParam'
+      responses:
+        '200':
+          description: Export file generated successfully
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+                description: CSV file with systems data
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+                description: PDF report with systems data
+          headers:
+            Content-Disposition:
+              description: Attachment filename
+              schema:
+                type: string
+                example: 'attachment; filename="systems_export_2025-01-26_153045.csv"'
+            Content-Length:
+              description: File size in bytes
+              schema:
+                type: integer
+        '400':
+          description: Bad request (invalid format or too many systems)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 400
+                  message:
+                    type: string
+                    example: "too many systems to export (15000). maximum allowed: 10000. please apply more filters"
+                  data:
+                    type: object
+                    properties:
+                      total_count:
+                        type: integer
+                        example: 15000
+                      max_limit:
+                        type: integer
+                        example: 10000
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /systems/{id}/inventory:
     get:
       operationId: getSystemInventory
