@@ -32,7 +32,8 @@
     "show": "Show",
     "hide": "Hide",
     "coming_soon": "Coming soon",
-    "view_details": "View details"
+    "view_details": "View details",
+    "ip_address": "IP address"
   },
   "shell": {
     "open_sidebar": "Open sidebar",
@@ -375,7 +376,9 @@
   },
   "system_detail": {
     "title": "System detail",
-    "overview": "Overview"
+    "overview": "Overview",
+    "product_logo": "{product} logo",
+    "unknown_product": "Unknown product"
   },
   "ne_table": {
     "no_items": "No items",

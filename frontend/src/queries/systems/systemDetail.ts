@@ -14,7 +14,7 @@ export const useSystemDetail = defineQuery(() => {
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [SYSTEMS_KEY, route.params.systemId],
-    enabled: () => !!loginStore.jwtToken && canReadSystems(),
+    enabled: () => !!loginStore.jwtToken && canReadSystems() && !!route.params.systemId,
     query: () => getSystemDetail(route.params.systemId as string),
   })
 

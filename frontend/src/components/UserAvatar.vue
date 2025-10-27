@@ -9,7 +9,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { NeAvatar } from '@nethesis/vue-components'
 import { computed } from 'vue'
 
-export type AvatarSize = 'sm' | 'md' | 'lg'
+export type AvatarSize = 'xs' | 'sm' | 'md' | 'lg'
 
 const {
   size = 'md',
@@ -22,12 +22,14 @@ const {
 }>()
 
 const circleSizeStyle: Record<AvatarSize, string> = {
+  xs: 'size-6',
   sm: 'size-8',
   md: 'size-10',
   lg: 'size-12',
 }
 
 const iconSizeStyle: Record<AvatarSize, string> = {
+  xs: 'size-3',
   sm: 'size-4',
   md: 'size-5',
   lg: 'size-6',
