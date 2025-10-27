@@ -36,12 +36,17 @@ export const getVersionFilter = () => {
 export const buildVersionFilterOptions = (productVersions: ProductVersions[]) => {
   const options: FilterOption[] = []
 
-  productVersions.forEach((el) => {
-    el.versions.forEach((version) => {
-      options.push({
-        id: `${el.product}:${version}`,
-        label: `${getProductName(el.product)} ${version}`,
-      })
+  productVersions.forEach((pv) => {
+    pv.versions.forEach((productAndVersion) => {
+      // split product and version
+      const [product, version] = productAndVersion.split(':')
+
+      if (product && version) {
+        options.push({
+          id: productAndVersion,
+          label: `${getProductName(product)} ${version}`,
+        })
+      }
     })
   })
   return options

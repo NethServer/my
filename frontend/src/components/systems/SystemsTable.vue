@@ -87,7 +87,6 @@ const { state: versionFilterState, asyncStatus: versionFilterAsyncStatus } = use
 const currentSystem = ref<System | undefined>()
 const isShownCreateOrEditSystemDrawer = ref(false)
 const isShownDeleteSystemModal = ref(false)
-const internalVersionFilter = ref<string[]>([])
 
 const statusFilterOptions = ref<FilterOption[]>([
   {
@@ -167,15 +166,6 @@ watch(
   () => {
     // reset version filter when product filter changes
     versionFilter.value = []
-  },
-)
-
-watch(
-  () => internalVersionFilter.value,
-  (newVal) => {
-    // map internalVersionFilter (which contains "product:version" ids) to versionFilter (which contains only version strings)
-    const versions = newVal.map((id) => id.split(':')[1])
-    versionFilter.value = versions
   },
 )
 
@@ -275,7 +265,7 @@ const goToSystemDetails = (system: System) => {
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
           />
           <NeDropdownFilter
-            v-model="internalVersionFilter"
+            v-model="versionFilter"
             kind="checkbox"
             :disabled="
               versionFilterAsyncStatus === 'loading' || versionFilterState.status === 'error'
