@@ -64,8 +64,3 @@ type UpdateSystemRequest struct {
 	CustomData     map[string]string `json:"custom_data" structs:"custom_data"`
 	Notes          string            `json:"notes" structs:"notes"`
 }
-
-// SystemSecretRequest represents the request payload for secret operations requiring password verification
-type SystemSecretRequest struct {
-	Password string `json:"password" binding:"required"`
-}

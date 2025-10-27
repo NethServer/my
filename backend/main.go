@@ -192,9 +192,7 @@ func main() {
 			systemsGroup.PUT("/:id", methods.UpdateSystem)
 			systemsGroup.DELETE("/:id", methods.DeleteSystem)
 
-			// Secret operations (require password verification in body)
-			systemsGroup.POST("/:id/secret", methods.GetSystemSecret)                   // Get system secret with password verification
-			systemsGroup.POST("/:id/secret/regenerate", methods.RegenerateSystemSecret) // Regenerate system secret with password verification
+			systemsGroup.POST("/:id/regenerate-secret", methods.RegenerateSystemSecret) // Regenerate system secret
 
 			// Dangerous operations requiring specific permissions
 			// systemsGroup.DELETE("/:id/destroy", middleware.RequirePermission("destroy:systems"), methods.DestroySystem) // Complete system destruction (destroy:systems required)

@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS systems (
     organization_id VARCHAR(255) NOT NULL,
     custom_data JSONB,
     system_key VARCHAR(255) UNIQUE NOT NULL,
-    system_secret VARCHAR(512) NOT NULL,
+    system_secret VARCHAR(64) NOT NULL,
     notes TEXT DEFAULT '',
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),

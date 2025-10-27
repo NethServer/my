@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/nethesis/my/backend/database"
-	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/models"
 )
 
@@ -111,33 +110,6 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	system.LastHeartbeat = heartbeatTime
 
 	return system, nil
-}
-
-// GetSecretByID retrieves only the system_secret for a specific system by ID and decrypts it
-func (r *LocalSystemRepository) GetSecretByID(id string) (string, error) {
-	query := `
-		SELECT s.system_secret
-		FROM systems s
-		WHERE s.id = $1 AND s.deleted_at IS NULL
-	`
-
-	var encryptedSecret string
-	err := r.db.QueryRow(query, id).Scan(&encryptedSecret)
-
-	if err == sql.ErrNoRows {
-		return "", fmt.Errorf("system not found")
-	}
-	if err != nil {
-		return "", fmt.Errorf("failed to query system secret: %w", err)
-	}
-
-	// Decrypt the secret before returning
-	plainSecret, err := helpers.DecryptSecret(encryptedSecret)
-	if err != nil {
-		return "", fmt.Errorf("failed to decrypt system secret: %w", err)
-	}
-
-	return plainSecret, nil
 }
 
 // Update updates an existing system with access validation
