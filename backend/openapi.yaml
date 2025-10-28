@@ -742,6 +742,59 @@ components:
           description: Total count
           example: 125
 
+    TrendResponse:
+      type: object
+      properties:
+        period:
+          type: integer
+          description: Trend period in days
+          enum: [7, 30, 180, 365]
+          example: 7
+        period_label:
+          type: string
+          description: Human-readable period label
+          example: "7 days"
+        current_total:
+          type: integer
+          description: Total count at the end of the period
+          example: 15
+        previous_total:
+          type: integer
+          description: Total count at the start of the period
+          example: 12
+        delta:
+          type: integer
+          description: Absolute change between start and end
+          example: 3
+        delta_percentage:
+          type: number
+          format: float
+          description: Percentage change between start and end
+          example: 25.0
+        trend:
+          type: string
+          enum: [up, down, stable]
+          description: Trend direction
+          example: "up"
+        data_points:
+          type: array
+          description: Time-series data points with cumulative counts
+          items:
+            $ref: '#/components/schemas/TrendDataPoint'
+
+    TrendDataPoint:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+          description: Date for this data point
+          example: "2025-10-28"
+        count:
+          type: integer
+          description: Cumulative count at this date
+          example: 15
+
     System:
       type: object
       properties:
@@ -1137,6 +1190,17 @@ components:
         type: string
         enum: ["name", "type", "status", "fqdn", "version", "system_key", "created_at", "updated_at", "creator_name", "organization_name"]
         example: "name"
+
+    TrendPeriodParam:
+      name: period
+      in: query
+      description: Trend analysis period in days
+      required: false
+      schema:
+        type: integer
+        enum: [7, 30, 180, 365]
+        default: 7
+        example: 7
 
     SystemNameFilterParam:
       name: name
@@ -1697,6 +1761,38 @@ paths:
                     example: "users totals retrieved"
                   data:
                     $ref: '#/components/schemas/Totals'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users/trend:
+    get:
+      operationId: getUsersTrend
+      tags:
+        - Backend - Users
+      summary: /users/trend - Get users trend data
+      description: Get trend analysis of users over time with cumulative counts (respects hierarchical organization filtering)
+      parameters:
+        - $ref: '#/components/parameters/TrendPeriodParam'
+      responses:
+        '200':
+          description: Users trend data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "users trend retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/TrendResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2902,6 +2998,38 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /customers/trend:
+    get:
+      operationId: getCustomersTrend
+      tags:
+        - Backend - Customers
+      summary: /customers/trend - Get customers trend data
+      description: Get trend analysis of customers over time with cumulative counts (Owner + Distributor + Reseller)
+      parameters:
+        - $ref: '#/components/parameters/TrendPeriodParam'
+      responses:
+        '200':
+          description: Customers trend data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "customers trend retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/TrendResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   # ===========================================================================
   # BUSINESS HIERARCHY - DISTRIBUTORS
   # ===========================================================================
@@ -3131,6 +3259,38 @@ paths:
                     example: "distributors totals retrieved"
                   data:
                     $ref: '#/components/schemas/Totals'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /distributors/trend:
+    get:
+      operationId: getDistributorsTrend
+      tags:
+        - Backend - Distributors
+      summary: /distributors/trend - Get distributors trend data
+      description: Get trend analysis of distributors over time with cumulative counts (Owner only)
+      parameters:
+        - $ref: '#/components/parameters/TrendPeriodParam'
+      responses:
+        '200':
+          description: Distributors trend data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "distributors trend retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/TrendResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -3691,6 +3851,38 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /resellers/trend:
+    get:
+      operationId: getResellersTrend
+      tags:
+        - Backend - Resellers
+      summary: /resellers/trend - Get resellers trend data
+      description: Get trend analysis of resellers over time with cumulative counts (Owner + Distributor)
+      parameters:
+        - $ref: '#/components/parameters/TrendPeriodParam'
+      responses:
+        '200':
+          description: Resellers trend data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "resellers trend retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/TrendResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /roles:
     get:
       operationId: getRoles
@@ -4027,6 +4219,38 @@ paths:
                     example: "system status retrieved"
                   data:
                     $ref: '#/components/schemas/SystemTotals'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /systems/trend:
+    get:
+      operationId: getSystemsTrend
+      tags:
+        - Backend - Systems
+      summary: /systems/trend - Get systems trend data
+      description: Get trend analysis of systems over time with cumulative counts
+      parameters:
+        - $ref: '#/components/parameters/TrendPeriodParam'
+      responses:
+        '200':
+          description: Systems trend data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "systems trend retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/TrendResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

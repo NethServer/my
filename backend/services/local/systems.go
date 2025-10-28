@@ -720,3 +720,176 @@ func (s *LocalSystemsService) getOrganizationInfo(logtoOrgID string) models.Orga
 
 	return org
 }
+
+// GetSystemsTrend calculates trend data for systems over a specified period
+func (s *LocalSystemsService) GetSystemsTrend(period int, userOrgRole, userOrgID string) (*models.TrendResponse, error) {
+	// Get hierarchical organization IDs
+	userService := NewUserService()
+	allowedOrgIDs, err := userService.GetHierarchicalOrganizationIDs(strings.ToLower(userOrgRole), userOrgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
+	}
+
+	if len(allowedOrgIDs) == 0 {
+		return nil, fmt.Errorf("no accessible organizations")
+	}
+
+	// Determine period label and grouping
+	var periodLabel string
+	var grouping string
+
+	switch period {
+	case 7:
+		periodLabel = "Last 7 days"
+		grouping = "daily"
+	case 30:
+		periodLabel = "Last 30 days"
+		grouping = "daily"
+	case 180:
+		periodLabel = "Last 6 months"
+		grouping = "weekly"
+	case 365:
+		periodLabel = "Last year"
+		grouping = "monthly"
+	default:
+		return nil, fmt.Errorf("invalid period: %d (supported: 7, 30, 180, 365)", period)
+	}
+
+	// Build placeholders for IN clause
+	placeholders := make([]string, len(allowedOrgIDs))
+	args := make([]interface{}, len(allowedOrgIDs)+1)
+	for i, orgID := range allowedOrgIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = orgID
+	}
+	args[len(allowedOrgIDs)] = period
+
+	placeholdersStr := strings.Join(placeholders, ",")
+
+	// Query for trend data based on grouping
+	var query string
+	switch grouping {
+	case "daily":
+		query = fmt.Sprintf(`
+			WITH date_series AS (
+				SELECT generate_series(
+					CURRENT_DATE - INTERVAL '%d days',
+					CURRENT_DATE,
+					INTERVAL '1 day'
+				)::date AS date
+			)
+			SELECT
+				ds.date::text AS period_date,
+				COALESCE(
+					(SELECT COUNT(*)
+					 FROM systems
+					 WHERE deleted_at IS NULL
+					   AND created_by ->> 'organization_id' IN (%s)
+					   AND created_at <= ds.date + INTERVAL '23 hours 59 minutes 59 seconds'),
+					0
+				) AS count
+			FROM date_series ds
+			ORDER BY ds.date
+		`, period-1, placeholdersStr)
+	case "weekly":
+		query = fmt.Sprintf(`
+			WITH week_series AS (
+				SELECT generate_series(
+					DATE_TRUNC('week', CURRENT_DATE - INTERVAL '%d days'),
+					DATE_TRUNC('week', CURRENT_DATE),
+					INTERVAL '1 week'
+				)::date AS week_start
+			)
+			SELECT
+				ws.week_start::text AS period_date,
+				COALESCE(
+					(SELECT COUNT(*)
+					 FROM systems
+					 WHERE deleted_at IS NULL
+					   AND created_by ->> 'organization_id' IN (%s)
+					   AND created_at <= ws.week_start + INTERVAL '6 days 23 hours 59 minutes 59 seconds'),
+					0
+				) AS count
+			FROM week_series ws
+			ORDER BY ws.week_start
+		`, period, placeholdersStr)
+	default: // monthly
+		query = fmt.Sprintf(`
+			WITH month_series AS (
+				SELECT generate_series(
+					DATE_TRUNC('month', CURRENT_DATE - INTERVAL '%d days'),
+					DATE_TRUNC('month', CURRENT_DATE),
+					INTERVAL '1 month'
+				)::date AS month_start
+			)
+			SELECT
+				ms.month_start::text AS period_date,
+				COALESCE(
+					(SELECT COUNT(*)
+					 FROM systems
+					 WHERE deleted_at IS NULL
+					   AND created_by ->> 'organization_id' IN (%s)
+					   AND created_at <= ms.month_start + INTERVAL '1 month' - INTERVAL '1 second'),
+					0
+				) AS count
+			FROM month_series ms
+			ORDER BY ms.month_start
+		`, period, placeholdersStr)
+	}
+
+	// Execute query
+	rows, err := database.DB.Query(query, args[:len(args)-1]...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query trend data: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	// Parse results
+	var trendData []models.TrendDataPoint
+	for rows.Next() {
+		var dp models.TrendDataPoint
+		if err := rows.Scan(&dp.Date, &dp.Count); err != nil {
+			return nil, fmt.Errorf("failed to scan trend data: %w", err)
+		}
+		trendData = append(trendData, dp)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating trend data: %w", err)
+	}
+
+	// Calculate current and previous totals
+	currentTotal := 0
+	previousTotal := 0
+	if len(trendData) > 0 {
+		currentTotal = trendData[len(trendData)-1].Count
+		if len(trendData) > 1 {
+			previousTotal = trendData[0].Count
+		}
+	}
+
+	// Calculate delta and trend
+	delta := currentTotal - previousTotal
+	deltaPercentage := 0.0
+	if previousTotal > 0 {
+		deltaPercentage = (float64(delta) / float64(previousTotal)) * 100
+	}
+
+	trend := "stable"
+	if delta > 0 {
+		trend = "up"
+	} else if delta < 0 {
+		trend = "down"
+	}
+
+	return &models.TrendResponse{
+		Period:          period,
+		PeriodLabel:     periodLabel,
+		CurrentTotal:    currentTotal,
+		PreviousTotal:   previousTotal,
+		Delta:           delta,
+		DeltaPercentage: deltaPercentage,
+		Trend:           trend,
+		DataPoints:      trendData,
+	}, nil
+}

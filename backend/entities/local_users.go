@@ -646,7 +646,10 @@ func (r *LocalUserRepository) GetTotalsByOrganizations(allowedOrgIDs []string) (
 func (r *LocalUserRepository) GetHierarchicalOrganizationIDs(userOrgRole, userOrgID string) ([]string, error) {
 	orgIDs := []string{userOrgID} // Always include own organization
 
-	switch userOrgRole {
+	// Normalize role to lowercase for case-insensitive comparison
+	normalizedRole := strings.ToLower(userOrgRole)
+
+	switch normalizedRole {
 	case "owner":
 		// Owner can manage all organizations
 		var allOrgIDs []string
@@ -787,4 +790,103 @@ func (r *LocalUserRepository) enrichUserWithRelations(user *models.LocalUser) er
 	}
 
 	return nil
+}
+
+// GetTrend returns trend data for users over a specified period
+func (r *LocalUserRepository) GetTrend(userOrgRole, userOrgID string, period int) ([]struct {
+	Date  string
+	Count int
+}, int, int, error) {
+	// Get all organization IDs the user can access hierarchically
+	allowedOrgIDs, err := r.GetHierarchicalOrganizationIDs(userOrgRole, userOrgID)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
+	}
+
+	if len(allowedOrgIDs) == 0 {
+		return []struct {
+			Date  string
+			Count int
+		}{}, 0, 0, nil
+	}
+
+	// Determine interval for date series based on period
+	var interval string
+	switch period {
+	case 7, 30:
+		interval = "1 day"
+	case 180:
+		interval = "1 week"
+	case 365:
+		interval = "1 month"
+	default:
+		return nil, 0, 0, fmt.Errorf("invalid period: %d", period)
+	}
+
+	// Build placeholders for IN clause
+	placeholders := make([]string, len(allowedOrgIDs))
+	args := make([]interface{}, len(allowedOrgIDs))
+	for i, orgID := range allowedOrgIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = orgID
+	}
+	placeholdersStr := strings.Join(placeholders, ",")
+
+	// Query to get cumulative count for each date in the period
+	query := fmt.Sprintf(`
+		WITH date_series AS (
+			SELECT generate_series(
+				CURRENT_DATE - INTERVAL '%d days',
+				CURRENT_DATE,
+				INTERVAL '%s'
+			)::date AS date
+		)
+		SELECT
+			ds.date::text,
+			COALESCE((
+				SELECT COUNT(*)
+				FROM users
+				WHERE deleted_at IS NULL
+				  AND organization_id IN (%s)
+				  AND created_at::date <= ds.date
+			), 0) AS count
+		FROM date_series ds
+		ORDER BY ds.date
+	`, period, interval, placeholdersStr)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("failed to query trend data: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var dataPoints []struct {
+		Date  string
+		Count int
+	}
+
+	for rows.Next() {
+		var date string
+		var count int
+		if err := rows.Scan(&date, &count); err != nil {
+			return nil, 0, 0, fmt.Errorf("failed to scan trend data: %w", err)
+		}
+		dataPoints = append(dataPoints, struct {
+			Date  string
+			Count int
+		}{Date: date, Count: count})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, 0, fmt.Errorf("error iterating trend data: %w", err)
+	}
+
+	// Calculate current and previous totals
+	var currentTotal, previousTotal int
+	if len(dataPoints) > 0 {
+		currentTotal = dataPoints[len(dataPoints)-1].Count
+		previousTotal = dataPoints[0].Count
+	}
+
+	return dataPoints, currentTotal, previousTotal, nil
 }

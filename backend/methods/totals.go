@@ -198,3 +198,260 @@ func GetUsersTotals(c *gin.Context) {
 	logger.Info().Str("component", "totals").Str("operation", "users_totals").Str("user_org_id", userOrgID).Str("user_org_role", userOrgRole).Int("total", count).Msg("users totals retrieved")
 	c.JSON(http.StatusOK, response.OK("users totals retrieved", result))
 }
+
+// GetSystemsTrend returns trend data for systems over a specified period
+func GetSystemsTrend(c *gin.Context) {
+	// Get current user context for hierarchical filtering
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	// Get period parameter (default: 7 days)
+	periodStr := c.DefaultQuery("period", "7")
+	period, err := strconv.Atoi(periodStr)
+	if err != nil || (period != 7 && period != 30 && period != 180 && period != 365) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid period parameter (supported: 7, 30, 180, 365)", nil))
+		return
+	}
+
+	// Get trend data
+	systemsService := local.NewSystemsService()
+	trend, err := systemsService.GetSystemsTrend(period, userOrgRole, userOrgID)
+	if err != nil {
+		logger.Error().
+			Str("component", "trend").
+			Str("operation", "get_systems_trend").
+			Err(err).
+			Int("period", period).
+			Msg("failed to retrieve systems trend")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve systems trend", nil))
+		return
+	}
+
+	logger.Info().
+		Str("component", "trend").
+		Str("operation", "systems_trend").
+		Str("user_org_id", userOrgID).
+		Str("user_org_role", userOrgRole).
+		Int("period", period).
+		Int("current_total", trend.CurrentTotal).
+		Int("delta", trend.Delta).
+		Str("trend", trend.Trend).
+		Msg("systems trend retrieved")
+
+	c.JSON(http.StatusOK, response.OK("systems trend retrieved successfully", trend))
+}
+
+// GetDistributorsTrend returns trend data for distributors over a specified period
+func GetDistributorsTrend(c *gin.Context) {
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	// Get period parameter (default: 7 days)
+	periodStr := c.DefaultQuery("period", "7")
+	period, err := strconv.Atoi(periodStr)
+	if err != nil || (period != 7 && period != 30 && period != 180 && period != 365) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid period parameter (supported: 7, 30, 180, 365)", nil))
+		return
+	}
+
+	// Get trend data from repository
+	repo := entities.NewLocalDistributorRepository()
+	dataPoints, currentTotal, previousTotal, err := repo.GetTrend(strings.ToLower(userOrgRole), userOrgID, period)
+	if err != nil {
+		logger.Error().Str("component", "trend").Str("operation", "get_distributors_trend").Err(err).Int("period", period).Msg("failed to retrieve distributors trend")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve distributors trend", nil))
+		return
+	}
+
+	// Build response
+	delta := currentTotal - previousTotal
+	deltaPercentage := 0.0
+	if previousTotal > 0 {
+		deltaPercentage = (float64(delta) / float64(previousTotal)) * 100
+	}
+
+	trend := "stable"
+	if delta > 0 {
+		trend = "up"
+	} else if delta < 0 {
+		trend = "down"
+	}
+
+	periodLabel := map[int]string{7: "7 days", 30: "30 days", 180: "180 days", 365: "365 days"}[period]
+
+	response := map[string]interface{}{
+		"period":           period,
+		"period_label":     periodLabel,
+		"current_total":    currentTotal,
+		"previous_total":   previousTotal,
+		"delta":            delta,
+		"delta_percentage": deltaPercentage,
+		"trend":            trend,
+		"data_points":      dataPoints,
+	}
+
+	logger.Info().Str("component", "trend").Str("operation", "distributors_trend").Str("user_org_id", userOrgID).Str("user_org_role", userOrgRole).Int("period", period).Int("current_total", currentTotal).Int("delta", delta).Str("trend", trend).Msg("distributors trend retrieved")
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "distributors trend retrieved successfully", "data": response})
+}
+
+// GetResellersTrend returns trend data for resellers over a specified period
+func GetResellersTrend(c *gin.Context) {
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	// Get period parameter (default: 7 days)
+	periodStr := c.DefaultQuery("period", "7")
+	period, err := strconv.Atoi(periodStr)
+	if err != nil || (period != 7 && period != 30 && period != 180 && period != 365) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid period parameter (supported: 7, 30, 180, 365)", nil))
+		return
+	}
+
+	// Get trend data from repository
+	repo := entities.NewLocalResellerRepository()
+	dataPoints, currentTotal, previousTotal, err := repo.GetTrend(strings.ToLower(userOrgRole), userOrgID, period)
+	if err != nil {
+		logger.Error().Str("component", "trend").Str("operation", "get_resellers_trend").Err(err).Int("period", period).Msg("failed to retrieve resellers trend")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve resellers trend", nil))
+		return
+	}
+
+	// Build response
+	delta := currentTotal - previousTotal
+	deltaPercentage := 0.0
+	if previousTotal > 0 {
+		deltaPercentage = (float64(delta) / float64(previousTotal)) * 100
+	}
+
+	trend := "stable"
+	if delta > 0 {
+		trend = "up"
+	} else if delta < 0 {
+		trend = "down"
+	}
+
+	periodLabel := map[int]string{7: "7 days", 30: "30 days", 180: "180 days", 365: "365 days"}[period]
+
+	response := map[string]interface{}{
+		"period":           period,
+		"period_label":     periodLabel,
+		"current_total":    currentTotal,
+		"previous_total":   previousTotal,
+		"delta":            delta,
+		"delta_percentage": deltaPercentage,
+		"trend":            trend,
+		"data_points":      dataPoints,
+	}
+
+	logger.Info().Str("component", "trend").Str("operation", "resellers_trend").Str("user_org_id", userOrgID).Str("user_org_role", userOrgRole).Int("period", period).Int("current_total", currentTotal).Int("delta", delta).Str("trend", trend).Msg("resellers trend retrieved")
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "resellers trend retrieved successfully", "data": response})
+}
+
+// GetCustomersTrend returns trend data for customers over a specified period
+func GetCustomersTrend(c *gin.Context) {
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	// Get period parameter (default: 7 days)
+	periodStr := c.DefaultQuery("period", "7")
+	period, err := strconv.Atoi(periodStr)
+	if err != nil || (period != 7 && period != 30 && period != 180 && period != 365) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid period parameter (supported: 7, 30, 180, 365)", nil))
+		return
+	}
+
+	// Get trend data from repository
+	repo := entities.NewLocalCustomerRepository()
+	dataPoints, currentTotal, previousTotal, err := repo.GetTrend(strings.ToLower(userOrgRole), userOrgID, period)
+	if err != nil {
+		logger.Error().Str("component", "trend").Str("operation", "get_customers_trend").Err(err).Int("period", period).Msg("failed to retrieve customers trend")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve customers trend", nil))
+		return
+	}
+
+	// Build response
+	delta := currentTotal - previousTotal
+	deltaPercentage := 0.0
+	if previousTotal > 0 {
+		deltaPercentage = (float64(delta) / float64(previousTotal)) * 100
+	}
+
+	trend := "stable"
+	if delta > 0 {
+		trend = "up"
+	} else if delta < 0 {
+		trend = "down"
+	}
+
+	periodLabel := map[int]string{7: "7 days", 30: "30 days", 180: "180 days", 365: "365 days"}[period]
+
+	response := map[string]interface{}{
+		"period":           period,
+		"period_label":     periodLabel,
+		"current_total":    currentTotal,
+		"previous_total":   previousTotal,
+		"delta":            delta,
+		"delta_percentage": deltaPercentage,
+		"trend":            trend,
+		"data_points":      dataPoints,
+	}
+
+	logger.Info().Str("component", "trend").Str("operation", "customers_trend").Str("user_org_id", userOrgID).Str("user_org_role", userOrgRole).Int("period", period).Int("current_total", currentTotal).Int("delta", delta).Str("trend", trend).Msg("customers trend retrieved")
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "customers trend retrieved successfully", "data": response})
+}
+
+// GetUsersTrend returns trend data for users over a specified period
+func GetUsersTrend(c *gin.Context) {
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	// Get period parameter (default: 7 days)
+	periodStr := c.DefaultQuery("period", "7")
+	period, err := strconv.Atoi(periodStr)
+	if err != nil || (period != 7 && period != 30 && period != 180 && period != 365) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid period parameter (supported: 7, 30, 180, 365)", nil))
+		return
+	}
+
+	// Get trend data
+	userService := local.NewUserService()
+	trend, err := userService.GetUsersTrend(period, userOrgRole, userOrgID)
+	if err != nil {
+		logger.Error().
+			Str("component", "trend").
+			Str("operation", "get_users_trend").
+			Err(err).
+			Int("period", period).
+			Msg("failed to retrieve users trend")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve users trend", nil))
+		return
+	}
+
+	logger.Info().
+		Str("component", "trend").
+		Str("operation", "users_trend").
+		Str("user_org_id", userOrgID).
+		Str("user_org_role", userOrgRole).
+		Int("period", period).
+		Int("current_total", trend.CurrentTotal).
+		Int("delta", trend.Delta).
+		Str("trend", trend.Trend).
+		Msg("users trend retrieved")
+
+	c.JSON(http.StatusOK, response.OK("users trend retrieved successfully", trend))
+}

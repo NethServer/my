@@ -64,3 +64,21 @@ type UpdateSystemRequest struct {
 	CustomData     map[string]string `json:"custom_data" structs:"custom_data"`
 	Notes          string            `json:"notes" structs:"notes"`
 }
+
+// TrendDataPoint represents a single data point in a trend chart
+type TrendDataPoint struct {
+	Date  string `json:"date"`
+	Count int    `json:"count"`
+}
+
+// TrendResponse represents the trend data for a given period
+type TrendResponse struct {
+	Period          int              `json:"period"`
+	PeriodLabel     string           `json:"period_label"`
+	CurrentTotal    int              `json:"current_total"`
+	PreviousTotal   int              `json:"previous_total"`
+	Delta           int              `json:"delta"`
+	DeltaPercentage float64          `json:"delta_percentage"`
+	Trend           string           `json:"trend"` // "up", "down", "stable"
+	DataPoints      []TrendDataPoint `json:"data_points"`
+}
