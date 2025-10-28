@@ -185,6 +185,7 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 			Str("distributor_id", distributor.ID).
 			Msg("Failed to mark distributor as synced")
 	}
+	distributor.LogtoID = &logtoOrg.ID
 
 	// 6. Commit transaction
 	if err := tx.Commit(); err != nil {
@@ -344,6 +345,7 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 			Str("reseller_id", reseller.ID).
 			Msg("Failed to mark reseller as synced")
 	}
+	reseller.LogtoID = &logtoOrg.ID
 
 	// 4. Commit transaction
 	if err := tx.Commit(); err != nil {
@@ -504,6 +506,7 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 			Str("customer_id", customer.ID).
 			Msg("Failed to mark customer as synced")
 	}
+	customer.LogtoID = &logtoOrg.ID
 
 	// 4. Commit transaction
 	if err := tx.Commit(); err != nil {
