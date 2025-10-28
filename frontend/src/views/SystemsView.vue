@@ -6,19 +6,78 @@
 <script setup lang="ts">
 import { NeButton, NeDropdown, NeHeading } from '@nethesis/vue-components'
 import { computed, ref } from 'vue'
-import { faChevronDown, faCirclePlus } from '@fortawesome/free-solid-svg-icons'
+import {
+  faChevronDown,
+  faCirclePlus,
+  faFileCsv,
+  faFilePdf,
+} from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { canManageSystems } from '@/lib/permissions'
+import { canManageSystems, canReadSystems } from '@/lib/permissions'
 import SystemsTable from '@/components/systems/SystemsTable.vue'
 import { useSystems } from '@/queries/systems/systems'
+import { useI18n } from 'vue-i18n'
+import { getExport } from '@/lib/systems/systems'
+import { downloadFile } from '@/lib/common'
 
-const { state, debouncedTextFilter } = useSystems()
+const { t } = useI18n()
+
+const {
+  state,
+  debouncedTextFilter,
+  productFilter,
+  createdByFilter,
+  versionFilter,
+  statusFilter,
+  sortBy,
+  sortDescending,
+} = useSystems()
 
 const isShownCreateSystemDrawer = ref(false)
 
 const systemsPage = computed(() => {
   return state.value.data?.systems
 })
+
+function getBulkActionsMenuItems() {
+  return [
+    {
+      id: 'exportFilteredToPdf',
+      label: t('systems.export_systems_to_pdf'),
+      icon: faFilePdf,
+      action: () => exportSystems('pdf'),
+      disabled: !state.value.data?.systems,
+    },
+    {
+      id: 'exportFilteredToCsv',
+      label: t('systems.export_systems_to_csv'),
+      icon: faFileCsv,
+      action: () => exportSystems('csv'),
+      disabled: !state.value.data?.systems,
+    },
+  ]
+}
+
+async function exportSystems(format: 'pdf' | 'csv') {
+  try {
+    const exportData = await getExport(
+      format,
+      null,
+      debouncedTextFilter.value,
+      productFilter.value,
+      createdByFilter.value,
+      versionFilter.value,
+      statusFilter.value,
+      sortBy.value,
+      sortDescending.value,
+    )
+    const fileName = `${t('systems.title')}.${format}`
+    downloadFile(exportData, fileName, format)
+  } catch (error) {
+    console.error('Cannot export systems to pdf:', error)
+    throw error
+  }
+}
 </script>
 
 <template>
@@ -34,10 +93,10 @@ const systemsPage = computed(() => {
         class="flex items-center gap-4"
       >
         <NeDropdown
-          :items="[]"
+          :items="getBulkActionsMenuItems()"
           align-to-right
           :openMenuAriaLabel="$t('ne_dropdown.open_menu')"
-          v-if="canManageSystems()"
+          v-if="canReadSystems()"
         >
           >
           <template #button>

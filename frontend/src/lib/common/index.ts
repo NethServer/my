@@ -34,3 +34,21 @@ export const getQueryStringParams = (
 export const normalize = (str: string) => {
   return str.toLowerCase().replace(/\s+/g, '_')
 }
+
+export const downloadFile = (fileData: string, filename: string, type: 'pdf' | 'csv') => {
+  const mimeType = type === 'pdf' ? 'application/pdf' : 'text/csv;charset=utf-8;'
+
+  // Convert the PDF string to a Blob
+  const blob = new Blob([fileData], { type: mimeType })
+
+  // Create a download link
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = filename
+
+  // Trigger the download
+  link.click()
+
+  // Clean up the URL object
+  URL.revokeObjectURL(link.href)
+}

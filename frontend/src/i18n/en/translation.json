@@ -372,7 +372,11 @@
     "copy_and_close": "Copy and close",
     "system_secret_copied": "System secret copied",
     "system_secret_copied_description": "Go to the Subscription page of {name} and paste the secret to complete the subscription.",
-    "choose_product_to_view_versions": "Choose a product to view available versions"
+    "choose_product_to_view_versions": "Choose a product to view available versions",
+    "export_systems_to_pdf": "Export systems to PDF",
+    "export_systems_to_csv": "Export systems to CSV",
+    "export_to_pdf": "Export to PDF",
+    "export_to_csv": "Export to CSV"
   },
   "system_detail": {
     "title": "System detail",

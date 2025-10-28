@@ -130,6 +130,67 @@ export const getQueryStringParams = (
   return searchParams.toString()
 }
 
+export const getQueryStringParamsForExport = (
+  format: string,
+  systemKey: string | undefined,
+  textFilter: string | undefined,
+  productFilter: string[] | undefined,
+  createdByFilter: string[] | undefined,
+  versionFilter: string[] | undefined,
+  statusFilter: SystemStatus[] | undefined,
+  sortBy: string | undefined,
+  sortDescending: boolean | undefined,
+) => {
+  const searchParams = new URLSearchParams({
+    format: format,
+  })
+
+  if (systemKey) {
+    searchParams.append('system_key', systemKey)
+  }
+
+  if (textFilter?.trim()) {
+    searchParams.append('search', textFilter)
+  }
+
+  if (productFilter) {
+    productFilter.forEach((product) => {
+      searchParams.append('type', product)
+    })
+  }
+
+  if (createdByFilter) {
+    createdByFilter.forEach((userId) => {
+      searchParams.append('created_by', userId)
+    })
+  }
+
+  if (versionFilter) {
+    versionFilter.forEach((version) => {
+      searchParams.append('version', version)
+    })
+  }
+
+  if (statusFilter) {
+    statusFilter.forEach((status) => {
+      searchParams.append('status', status)
+    })
+    return searchParams.toString()
+  }
+
+  if (sortBy) {
+    searchParams.append('sort_by', sortBy)
+  }
+
+  if (sortDescending !== undefined) {
+    searchParams.append('sort_direction', sortDescending ? 'desc' : 'asc')
+  }
+
+  console.log('asfd', searchParams.toString()) ////
+
+  return searchParams.toString()
+}
+
 export const getSystems = (
   pageNum: number,
   pageSize: number,
@@ -231,4 +292,35 @@ export const getProductLogo = (systemType: string) => {
     default:
       return undefined
   }
+}
+
+export const getExport = (
+  format: 'csv' | 'pdf',
+  systemKey: string | undefined = undefined,
+  textFilter: string | undefined = undefined,
+  productFilter: string[] | undefined = undefined,
+  createdByFilter: string[] | undefined = undefined,
+  versionFilter: string[] | undefined = undefined,
+  statusFilter: SystemStatus[] | undefined = undefined,
+  sortBy: string | undefined = undefined,
+  sortDescending: boolean | undefined = undefined,
+) => {
+  const loginStore = useLoginStore()
+  const params = getQueryStringParamsForExport(
+    format,
+    systemKey,
+    textFilter,
+    productFilter,
+    createdByFilter,
+    versionFilter,
+    statusFilter,
+    sortBy,
+    sortDescending,
+  )
+
+  return axios
+    .get(`${API_URL}/systems/export?${params}`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data)
 }

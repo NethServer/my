@@ -15,6 +15,8 @@ import {
   faCircleQuestion,
   faTriangleExclamation,
   faCircleXmark,
+  faFilePdf,
+  faFileCsv,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -43,6 +45,7 @@ import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { canManageSystems } from '@/lib/permissions'
 import { useSystems } from '@/queries/systems/systems'
 import {
+  getExport,
   getProductLogo,
   getProductName,
   SYSTEMS_TABLE_ID,
@@ -57,6 +60,7 @@ import { useVersionFilter } from '@/queries/systems/versionFilter'
 import UserAvatar from '../UserAvatar.vue'
 import { buildVersionFilterOptions } from '@/lib/systems/versionFilter'
 import OrganizationIcon from '../OrganizationIcon.vue'
+import { downloadFile } from '@/lib/common'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -207,6 +211,20 @@ function getKebabMenuItems(system: System) {
       disabled: asyncStatus.value === 'loading',
     },
     {
+      id: 'exportToPdf',
+      label: t('systems.export_to_pdf'),
+      icon: faFilePdf,
+      action: () => exportSystem(system, 'pdf'),
+      disabled: !state.value.data?.systems,
+    },
+    {
+      id: 'exportToCsv',
+      label: t('systems.export_to_csv'),
+      icon: faFileCsv,
+      action: () => exportSystem(system, 'csv'),
+      disabled: !state.value.data?.systems,
+    },
+    {
       id: 'deleteSystem',
       label: t('common.delete'),
       icon: faTrash,
@@ -225,6 +243,17 @@ const onSort = (payload: SortEvent) => {
 
 const goToSystemDetails = (system: System) => {
   router.push({ name: 'system_detail', params: { systemId: system.id } })
+}
+
+async function exportSystem(system: System, format: 'pdf' | 'csv') {
+  try {
+    const exportData = await getExport(format, system.system_key)
+    const fileName = `${system.name}.${format}`
+    downloadFile(exportData, fileName, format)
+  } catch (error) {
+    console.error('Cannot export system to pdf:', error)
+    throw error
+  }
 }
 </script>
 
