@@ -54,6 +54,7 @@ func ExportSystems(c *gin.Context) {
 	// Parse filter parameters (same as GetSystems)
 	search := c.Query("search")
 	filterName := c.Query("name")
+	filterSystemKey := c.Query("system_key")
 	filterTypes := c.QueryArray("type")
 	filterCreatedBy := c.QueryArray("created_by")
 	filterVersions := c.QueryArray("version")
@@ -71,7 +72,7 @@ func ExportSystems(c *gin.Context) {
 	// Get systems without pagination limit (but with max export limit)
 	systems, totalCount, err := systemsService.GetSystemsByOrganizationPaginated(
 		userID, userOrgID, userOrgRole, 1, MaxExportLimit, search, sortBy, sortDirection,
-		filterName, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses,
+		filterName, filterSystemKey, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses,
 	)
 
 	if err != nil {
@@ -106,7 +107,7 @@ func ExportSystems(c *gin.Context) {
 	}
 
 	// Build filters map for PDF metadata
-	filters := buildFiltersMap(search, filterName, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses)
+	filters := buildFiltersMap(search, filterName, filterSystemKey, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses)
 
 	// Create export service
 	exportService := export.NewSystemsExportService()
@@ -171,7 +172,7 @@ func ExportSystems(c *gin.Context) {
 }
 
 // buildFiltersMap builds a map of applied filters for metadata
-func buildFiltersMap(search, filterName string, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses []string) map[string]interface{} {
+func buildFiltersMap(search, filterName, filterSystemKey string, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses []string) map[string]interface{} {
 	filters := make(map[string]interface{})
 
 	if search != "" {
@@ -179,6 +180,9 @@ func buildFiltersMap(search, filterName string, filterTypes, filterCreatedBy, fi
 	}
 	if filterName != "" {
 		filters["name"] = filterName
+	}
+	if filterSystemKey != "" {
+		filters["system_key"] = filterSystemKey
 	}
 	if len(filterTypes) > 0 {
 		filters["type"] = strings.Join(filterTypes, ", ")

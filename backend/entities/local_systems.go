@@ -127,7 +127,7 @@ func (r *LocalSystemRepository) Delete(id string) error {
 }
 
 // ListByCreatedByOrganizations returns paginated list of systems created by users in specified organizations with filters
-func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []string, page, pageSize int, search, sortBy, sortDirection, filterName string, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses []string) ([]*models.System, int, error) {
+func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []string, page, pageSize int, search, sortBy, sortDirection, filterName, filterSystemKey string, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses []string) ([]*models.System, int, error) {
 	if len(allowedOrgIDs) == 0 {
 		return []*models.System{}, 0, nil
 	}
@@ -177,6 +177,11 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	if filterName != "" {
 		whereClause += fmt.Sprintf(" AND s.name ILIKE $%d", len(args)+1)
 		args = append(args, "%"+filterName+"%")
+	}
+
+	if filterSystemKey != "" {
+		whereClause += fmt.Sprintf(" AND s.system_key = $%d", len(args)+1)
+		args = append(args, filterSystemKey)
 	}
 
 	// Add multiple value filters with IN clauses

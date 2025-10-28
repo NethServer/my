@@ -1147,6 +1147,15 @@ components:
         type: string
         example: "backup-server"
 
+    SystemKeyFilterParam:
+      name: system_key
+      in: query
+      description: Filter systems by system key (exact match). Useful for exporting a single system.
+      required: false
+      schema:
+        type: string
+        example: "NOC-DD09-3DB4-76E4-42A0-A6CC-6D30-9AE7-3216"
+
     SystemTypeFilterParam:
       name: type
       in: query
@@ -3755,6 +3764,7 @@ paths:
         - $ref: '#/components/parameters/SystemSortByParam'
         - $ref: '#/components/parameters/SortDirectionParam'
         - $ref: '#/components/parameters/SystemNameFilterParam'
+        - $ref: '#/components/parameters/SystemKeyFilterParam'
         - $ref: '#/components/parameters/SystemTypeFilterParam'
         - $ref: '#/components/parameters/SystemCreatedByFilterParam'
         - $ref: '#/components/parameters/SystemVersionFilterParam'
@@ -4060,6 +4070,7 @@ paths:
         - $ref: '#/components/parameters/SystemSortByParam'
         - $ref: '#/components/parameters/SortDirectionParam'
         - $ref: '#/components/parameters/SystemNameFilterParam'
+        - $ref: '#/components/parameters/SystemKeyFilterParam'
         - $ref: '#/components/parameters/SystemTypeFilterParam'
         - $ref: '#/components/parameters/SystemCreatedByFilterParam'
         - $ref: '#/components/parameters/SystemVersionFilterParam'
