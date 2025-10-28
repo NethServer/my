@@ -263,7 +263,8 @@ async function saveCustomer() {
         <!-- name -->
         <NeTextInput
           ref="nameRef"
-          v-model.trim="name"
+          v-model="name"
+          @blur="name = name.trim()"
           :label="$t('organizations.name')"
           :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
           :disabled="saving"
@@ -271,7 +272,8 @@ async function saveCustomer() {
         <!-- description -->
         <NeTextInput
           ref="descriptionRef"
-          v-model.trim="description"
+          v-model="description"
+          @blur="description = description.trim()"
           :label="$t('organizations.description')"
           :invalid-message="
             validationIssues.description?.[0] ? $t(validationIssues.description[0]) : ''
@@ -281,13 +283,13 @@ async function saveCustomer() {
         <!-- VAT number -->
         <NeTextInput
           ref="vatNumberRef"
-          v-model.trim="vatNumber"
+          v-model="vatNumber"
+          @blur="vatNumber = vatNumber.trim()"
           :label="$t('organizations.vat_number')"
           :invalid-message="
             validationIssues.custom_data_vat?.[0] ? $t(validationIssues.custom_data_vat[0]) : ''
           "
           :disabled="saving"
-          maxlength="11"
         />
         <!-- create customer error notification -->
         <NeInlineNotification

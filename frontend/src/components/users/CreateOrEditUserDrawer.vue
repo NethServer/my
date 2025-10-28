@@ -350,14 +350,16 @@ function getEmailInvalidMessage(): string {
         <!-- name -->
         <NeTextInput
           ref="nameRef"
-          v-model.trim="name"
+          v-model="name"
+          @blur="name = name.trim()"
           :label="$t('users.name')"
           :disabled="saving"
         />
         <!-- email -->
         <NeTextInput
           ref="emailRef"
-          v-model.trim="email"
+          v-model="email"
+          @blur="email = email.trim()"
           :label="$t('users.email')"
           :invalid-message="getEmailInvalidMessage()"
           :disabled="saving"
@@ -412,7 +414,8 @@ function getEmailInvalidMessage(): string {
         <!-- phone -->
         <NeTextInput
           ref="phoneRef"
-          v-model.trim="phone"
+          v-model="phone"
+          @blur="phone = phone.trim()"
           :label="$t('users.phone_number')"
           :invalid-message="validationIssues.phone?.[0] ? $t(validationIssues.phone[0]) : ''"
           :disabled="saving"

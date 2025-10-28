@@ -62,7 +62,7 @@ async function exportSystems(format: 'pdf' | 'csv') {
   try {
     const exportData = await getExport(
       format,
-      null,
+      undefined,
       debouncedTextFilter.value,
       productFilter.value,
       createdByFilter.value,

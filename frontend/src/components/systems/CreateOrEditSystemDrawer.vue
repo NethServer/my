@@ -325,7 +325,8 @@ function copySecretAndCloseDrawer() {
           <!-- name -->
           <NeTextInput
             ref="nameRef"
-            v-model.trim="name"
+            v-model="name"
+            @blur="name = name.trim()"
             :label="$t('systems.name')"
             :helper-text="$t('systems.name_helper')"
             :disabled="saving"
@@ -355,7 +356,8 @@ function copySecretAndCloseDrawer() {
           <!-- notes -->
           <NeTextArea
             ref="notesRef"
-            v-model.trim="notes"
+            v-model="notes"
+            @blur="notes = notes.trim()"
             :label="$t('systems.notes')"
             :disabled="saving"
             :invalid-message="validationIssues.notes?.[0] ? $t(validationIssues.notes[0]) : ''"
