@@ -427,15 +427,15 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 	// Extract system fields
 	var fqdn, version, systemType, ipv4 *string
 
+	// Extract IPv4 from data.public_ip
+	if publicIP, ok := inventoryData["public_ip"].(string); ok && publicIP != "" {
+		ipv4 = &publicIP
+	}
+
 	// Extract FQDN from data.networking.fqdn
 	if networking, ok := inventoryData["networking"].(map[string]interface{}); ok {
 		if fqdnVal, ok := networking["fqdn"].(string); ok && fqdnVal != "" {
 			fqdn = &fqdnVal
-		}
-
-		// Extract IPv4 from data.networking.public_ip
-		if publicIP, ok := networking["public_ip"].(string); ok && publicIP != "" {
-			ipv4 = &publicIP
 		}
 	}
 
