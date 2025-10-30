@@ -132,7 +132,13 @@ func GetSystemLatestInventory(c *gin.Context) {
 	record, err := inventoryService.GetLatestInventory(systemID)
 	if err != nil {
 		if err.Error() == "no inventory found for system "+systemID {
-			c.JSON(http.StatusNotFound, response.NotFound("no inventory found for system", nil))
+			// Return 200 with null when no inventory exists (not an error condition)
+			logger.RequestLogger(c, "inventory").Info().
+				Str("operation", "get_latest_inventory").
+				Str("system_id", systemID).
+				Msg("No inventory available for system")
+
+			c.JSON(http.StatusOK, response.OK("no inventory available", nil))
 			return
 		}
 
@@ -186,7 +192,13 @@ func GetSystemInventoryChanges(c *gin.Context) {
 	summary, err := inventoryService.GetChangesSummary(systemID)
 	if err != nil {
 		if err.Error() == "no inventory found for system "+systemID {
-			c.JSON(http.StatusNotFound, response.NotFound("no inventory found for system", nil))
+			// Return 200 with null when no inventory exists (not an error condition)
+			logger.RequestLogger(c, "inventory").Info().
+				Str("operation", "get_changes_summary").
+				Str("system_id", systemID).
+				Msg("No inventory available for system")
+
+			c.JSON(http.StatusOK, response.OK("no inventory available", nil))
 			return
 		}
 
@@ -240,7 +252,13 @@ func GetSystemLatestInventoryChanges(c *gin.Context) {
 	summary, err := inventoryService.GetLatestInventoryChangesSummary(systemID)
 	if err != nil {
 		if err.Error() == "no inventory found for system "+systemID {
-			c.JSON(http.StatusNotFound, response.NotFound("no inventory found for system", nil))
+			// Return 200 with null when no inventory exists (not an error condition)
+			logger.RequestLogger(c, "inventory").Info().
+				Str("operation", "get_latest_inventory_changes").
+				Str("system_id", systemID).
+				Msg("No inventory available for system")
+
+			c.JSON(http.StatusOK, response.OK("no inventory available", nil))
 			return
 		}
 

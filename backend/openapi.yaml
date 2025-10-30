@@ -4416,7 +4416,7 @@ paths:
             example: "sys_123456789"
       responses:
         '200':
-          description: Latest inventory retrieved successfully
+          description: Latest inventory retrieved successfully. Returns null when no inventory is available (not an error condition).
           content:
             application/json:
               schema:
@@ -4430,13 +4430,12 @@ paths:
                     example: "latest inventory retrieved successfully"
                   data:
                     type: object
-                    description: Latest inventory data
+                    nullable: true
+                    description: Latest inventory data, or null if no inventory exists
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
 
   /systems/{id}/inventory/changes:
     get:
@@ -4457,7 +4456,7 @@ paths:
         - $ref: '#/components/parameters/PageSizeParam'
       responses:
         '200':
-          description: Inventory changes retrieved successfully
+          description: Inventory changes retrieved successfully. Returns null when no inventory is available (not an error condition).
           content:
             application/json:
               schema:
@@ -4471,6 +4470,8 @@ paths:
                     example: "inventory changes retrieved successfully"
                   data:
                     type: object
+                    nullable: true
+                    description: Inventory changes data, or null if no inventory exists
                     properties:
                       changes:
                         type: array
@@ -4483,8 +4484,6 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
 
   /systems/{id}/inventory/changes/latest:
     get:
@@ -4503,7 +4502,7 @@ paths:
             example: "sys_123456789"
       responses:
         '200':
-          description: Latest inventory changes retrieved successfully
+          description: Latest inventory changes retrieved successfully. Returns null when no inventory is available (not an error condition).
           content:
             application/json:
               schema:
@@ -4517,13 +4516,12 @@ paths:
                     example: "latest inventory changes retrieved successfully"
                   data:
                     type: object
-                    description: Latest inventory changes data
+                    nullable: true
+                    description: Latest inventory changes data, or null if no inventory exists
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
 
   /systems/{id}/inventory/diffs:
     get:
