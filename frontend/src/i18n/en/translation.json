@@ -381,7 +381,16 @@
     "title": "System detail",
     "overview": "Overview",
     "product_logo": "{product} logo",
-    "unknown_product": "Unknown product"
+    "unknown_product": "Unknown product",
+    "open_system": "Open system",
+    "open_system_tooltip": "Note: The system may be unreachable due to network settings.",
+    "uptime": "Uptime",
+    "last_inventory": "Last inventory",
+    "timezone": "Timezone",
+    "network": "Network",
+    "dns_servers": "DNS servers",
+    "cannot_retrieve_system_detail": "Cannot retrieve system detail",
+    "cannot_retrieve_latest_inventory": "Cannot retrieve latest inventory"
   },
   "ne_table": {
     "no_items": "No items",
@@ -427,6 +436,7 @@
   "time": {
     "seconds": "{count} second | {count} seconds",
     "minutes": "{count} minute | {count} minutes",
-    "hours": "{count} hour | {count} hours"
+    "hours": "{count} hour | {count} hours",
+    "days": "{count} day | {count} days"
   }
 }

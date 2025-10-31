@@ -34,7 +34,7 @@ export const EditSystemSchema = v.object({
 export const SystemSchema = v.object({
   ...CreateSystemSchema.entries,
   ...EditSystemSchema.entries,
-  type: v.string(),
+  type: v.optional(v.picklist(['ns8', 'nsec'])),
   status: v.optional(SystemStatusSchema),
   fqdn: v.string(),
   ipv4_address: v.string(),
@@ -248,7 +248,6 @@ export const deleteSystem = (system: System) => {
   })
 }
 
-//// used?
 export const regenerateSystemSecret = (systemId: string) => {
   const loginStore = useLoginStore()
 

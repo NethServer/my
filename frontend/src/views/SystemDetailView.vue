@@ -4,41 +4,96 @@
 -->
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { NeButton, NeHeading, NeSkeleton, NeTabs } from '@nethesis/vue-components'
-import router from '@/router'
+import {
+  NeButton,
+  NeHeading,
+  NeInlineNotification,
+  NeSkeleton,
+  NeTabs,
+  NeTooltip,
+} from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faArrowLeft } from '@fortawesome/free-solid-svg-icons'
+import { faArrowLeft, faArrowUpRightFromSquare } from '@fortawesome/free-solid-svg-icons'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { useTabs } from '@/composables/useTabs'
 import { useI18n } from 'vue-i18n'
 import SystemOverviewPanel from '@/components/systems/SystemOverviewPanel.vue'
 
 const { t } = useI18n()
-const { state } = useSystemDetail()
+const { state: systemDetail } = useSystemDetail()
 const { tabs, selectedTab } = useTabs([{ name: 'overview', label: t('system_detail.overview') }])
 
-onMounted(() => {
-  console.log('onMounted') ////
-})
+const canOpenSystem = () => {
+  return ['ns8', 'nsec'].includes(systemDetail.value.data?.type || '')
+}
 
-const goToSystems = () => {
-  router.push({ name: 'systems' })
+const getSystemUrl = () => {
+  if (!systemDetail.value.data?.fqdn) {
+    return ''
+  }
+
+  const fqdn = systemDetail.value.data.fqdn
+  let port = ''
+  let path = ''
+
+  if (systemDetail.value.data?.type === 'ns8') {
+    path = '/cluster-admin'
+  } else if (systemDetail.value.data?.type === 'nsec') {
+    port = ':9090'
+  }
+  const url = `https://${fqdn}${port}${path}`
+  return url
+}
+
+const openSystem = () => {
+  const url = getSystemUrl()
+
+  console.log('url', url) ////
+
+  if (url) {
+    window.open(url, '_blank')
+  }
 }
 </script>
 
 <template>
   <div>
-    <NeButton kind="tertiary" size="sm" @click="goToSystems" class="mb-4 -ml-2">
-      <template #prefix>
-        <FontAwesomeIcon :icon="faArrowLeft" />
-      </template>
-      {{ $t('systems.title') }}
-    </NeButton>
-    <NeSkeleton v-if="state.status === 'pending'" size="lg" class="mb-9 w-xs" />
-    <NeHeading v-else tag="h3" class="mb-7">
-      {{ state.data?.name }}
-    </NeHeading>
+    <router-link to="/systems">
+      <NeButton kind="tertiary" size="sm" class="mb-4 -ml-2">
+        <template #prefix>
+          <FontAwesomeIcon :icon="faArrowLeft" />
+        </template>
+        {{ $t('systems.title') }}
+      </NeButton>
+    </router-link>
+    <!-- get system detail error notification -->
+    <NeInlineNotification
+      v-if="systemDetail.status === 'error'"
+      kind="error"
+      :title="$t('system_detail.cannot_retrieve_system_detail')"
+      :description="systemDetail.error.message"
+      class="mb-6"
+    />
+    <NeSkeleton v-else-if="systemDetail.status === 'pending'" size="lg" class="mb-9 w-xs" />
+    <div v-else class="flex items-start justify-between gap-4">
+      <NeHeading tag="h3" class="mb-7">
+        {{ systemDetail.data?.name }}
+      </NeHeading>
+      <!-- open system -->
+      <NeTooltip placement="left" trigger-event="mouseenter focus" class="shrink-0">
+        <template #trigger>
+          <NeButton kind="primary" :disabled="!canOpenSystem()" @click="openSystem()">
+            <template #prefix>
+              <FontAwesomeIcon :icon="faArrowUpRightFromSquare" aria-hidden="true" />
+            </template>
+            {{ $t('system_detail.open_system') }}
+          </NeButton>
+        </template>
+        <template #content>
+          {{ $t('system_detail.open_system_tooltip') }}
+        </template>
+      </NeTooltip>
+    </div>
     <NeTabs
       :tabs="tabs"
       :selected="selectedTab"
@@ -48,6 +103,5 @@ const goToSystems = () => {
       @select-tab="selectedTab = $event"
     />
     <SystemOverviewPanel v-if="selectedTab === 'overview'" />
-    <!-- {{ state.data }} //// -->
   </div>
 </template>

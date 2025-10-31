@@ -38,6 +38,7 @@ import {
   type FilterOption,
   NeDropdownFilter,
   NeTooltip,
+  NeLink,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -48,6 +49,7 @@ import {
   getExport,
   getProductLogo,
   getProductName,
+  regenerateSystemSecret,
   SYSTEMS_TABLE_ID,
   type System,
 } from '@/lib/systems/systems'
@@ -61,6 +63,9 @@ import UserAvatar from '../UserAvatar.vue'
 import { buildVersionFilterOptions } from '@/lib/systems/versionFilter'
 import OrganizationIcon from '../OrganizationIcon.vue'
 import { downloadFile } from '@/lib/common'
+import { useMutation } from '@pinia/colada'
+import type { User } from '@/lib/users'
+import { useNotificationsStore } from '@/stores/notifications'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -87,6 +92,36 @@ const { state: productFilterState, asyncStatus: productFilterAsyncStatus } = use
 const { state: createdByFilterState, asyncStatus: createdByFilterAsyncStatus } =
   useCreatedByFilter()
 const { state: versionFilterState, asyncStatus: versionFilterAsyncStatus } = useVersionFilter()
+const notificationsStore = useNotificationsStore() ////
+
+////
+// const {
+//   mutate: regenerateSecretMutate,
+//   isLoading: regenerateSecretLoading,
+//   reset: regenerateSecretReset,
+//   error: regenerateSecretError,
+// } = useMutation({
+//   mutation: (system: System) => {
+//     return regenerateSystemSecret(system.id)
+//   },
+//   onSuccess(data, vars) {
+//     console.log('onSuccess', 'data', data, 'vars', vars) ////
+
+//     // show success notification
+//     notificationsStore.createNotification({
+//       kind: 'success',
+//       title: t('users.password_reset'),
+//       description: t('users.password_reset_description', {
+//         name: vars.name,
+//       }),
+//     })
+//     emit('password-changed', newPassword.value)
+//     emit('close')
+//   },
+//   onError: (error) => {
+//     console.error('Error resetting password:', error)
+//   },
+// })
 
 const currentSystem = ref<System | undefined>()
 const isShownCreateOrEditSystemDrawer = ref(false)
@@ -441,27 +476,34 @@ async function exportSystem(system: System, format: 'pdf' | 'csv') {
         <NeTableRow v-for="(item, index) in systemsPage" :key="index">
           <NeTableCell :data-label="$t('systems.name')">
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
-              <div class="flex items-center gap-2">
-                <NeTooltip
+              <router-link :to="{ name: 'system_detail', params: { systemId: item.id } }">
+                <div class="flex items-center gap-2">
+                  <!-- <NeTooltip ////
                   v-if="item.type"
                   placement="top"
                   trigger-event="mouseenter focus"
                   class="shrink-0"
                 >
-                  <template #trigger>
-                    <img
-                      :src="getProductLogo(item.type)"
-                      :alt="getProductName(item.type)"
-                      aria-hidden="true"
-                      class="size-8"
-                    />
-                  </template>
-                  <template #content>
-                    {{ getProductName(item.type) }}
-                  </template>
-                </NeTooltip>
-                {{ item.name || '-' }}
-              </div>
+                  <template #trigger> -->
+                  <img
+                    v-if="item.type"
+                    :src="getProductLogo(item.type)"
+                    :alt="getProductName(item.type)"
+                    aria-hidden="true"
+                    class="size-8"
+                  />
+                  <!-- </template> ////
+                  <template #content> -->
+                  <!-- {{ getProductName(item.type) }} -->
+                  <!-- </template> ////  -->
+                  <!-- </NeTooltip> ////  -->
+                  <span class="cursor-pointer font-medium hover:underline">
+                    {{ item.name || '-' }}
+                  </span>
+                </div>
+              </router-link>
+              <!-- //// remove -->
+              <div class="mt-1">{{ item.system_key }}</div>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.version')" class="break-all 2xl:break-normal">
@@ -475,10 +517,10 @@ async function exportSystem(system: System, format: 'pdf' | 'csv') {
           >
             <div :class="['space-y-0.5', { 'opacity-50': item.status === 'deleted' }]">
               <div v-if="item.fqdn">{{ item.fqdn }}</div>
-              <div v-if="item.ipv4_address" class="text-gray-500 dark:text-gray-400">
+              <div v-if="item.ipv4_address">
                 {{ item.ipv4_address }}
               </div>
-              <div v-if="item.ipv6_address" class="text-gray-500 dark:text-gray-400">
+              <div v-if="item.ipv6_address">
                 {{ item.ipv6_address }}
               </div>
               <div v-if="!item.fqdn && !item.ipv4_address && !item.ipv6_address">-</div>
@@ -567,7 +609,7 @@ async function exportSystem(system: System, format: 'pdf' | 'csv') {
               <NeButton
                 kind="tertiary"
                 @click="goToSystemDetails(item)"
-                :disabled="asyncStatus === 'loading'"
+                :disabled="asyncStatus === 'loading' || item.status === 'deleted'"
               >
                 <template #prefix>
                   <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
