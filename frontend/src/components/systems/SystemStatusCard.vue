@@ -4,7 +4,13 @@
 -->
 
 <script setup lang="ts">
-import { NeBadgeV2, NeCard, NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
+import {
+  NeBadgeV2,
+  NeCard,
+  NeHeading,
+  NeInlineNotification,
+  NeSkeleton,
+} from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 import {
@@ -17,6 +23,7 @@ import {
 import { formatDateTimeNoSeconds, formatUptime } from '@/lib/dateTime'
 import { useI18n } from 'vue-i18n'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
+import DataItem from '../DataItem.vue'
 
 const { t, locale } = useI18n()
 const { state: systemDetail } = useSystemDetail()
@@ -65,6 +72,14 @@ const getBadgeIcon = () => {
       </NeBadgeV2>
       <!-- //// kebab? -->
     </div>
+    <!-- get system detail error notification -->
+    <NeInlineNotification
+      v-if="systemDetail.status === 'error'"
+      kind="error"
+      :title="$t('system_detail.cannot_retrieve_system_detail')"
+      :description="systemDetail.error.message"
+      class="mb-6"
+    />
     <!-- get latest inventory error notification -->
     <NeInlineNotification
       v-if="latestInventory.status === 'error'"
@@ -73,43 +88,46 @@ const getBadgeIcon = () => {
       :description="latestInventory.error.message"
       class="mb-6"
     />
-    <NeSkeleton v-else-if="latestInventory.status === 'pending'" :lines="6" />
+    <NeSkeleton
+      v-else-if="latestInventory.status === 'pending' || systemDetail.status === 'pending'"
+      :lines="6"
+    />
     <div v-else className="divide-y divide-gray-200 dark:divide-gray-700">
       <!-- uptime -->
-      <div class="flex justify-between gap-2 py-4">
-        <span class="font-medium">
+      <DataItem>
+        <template #label>
           {{ $t('system_detail.uptime') }}
-        </span>
-        <span class="text-gray-600 dark:text-gray-300">
+        </template>
+        <template #data>
           {{
             latestInventory.data?.data?.system_uptime?.seconds
               ? formatUptime(latestInventory.data?.data?.system_uptime?.seconds, $t)
               : '-'
           }}
-        </span>
-      </div>
+        </template>
+      </DataItem>
       <!-- last inventory -->
-      <div class="flex justify-between gap-2 py-4">
-        <span class="font-medium">
+      <DataItem>
+        <template #label>
           {{ $t('system_detail.last_inventory') }}
-        </span>
-        <span class="text-gray-600 dark:text-gray-300">
+        </template>
+        <template #data>
           {{
             latestInventory.data?.timestamp
               ? formatDateTimeNoSeconds(new Date(latestInventory.data?.timestamp), locale)
               : '-'
           }}
-        </span>
-      </div>
+        </template>
+      </DataItem>
       <!-- timezone -->
-      <div class="flex justify-between gap-2 py-4">
-        <span class="font-medium">
+      <DataItem>
+        <template #label>
           {{ $t('system_detail.timezone') }}
-        </span>
-        <span class="text-gray-600 dark:text-gray-300">
+        </template>
+        <template #data>
           {{ latestInventory.data?.data?.timezone || '-' }}
-        </span>
-      </div>
+        </template>
+      </DataItem>
     </div>
   </NeCard>
 </template>

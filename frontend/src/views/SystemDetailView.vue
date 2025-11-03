@@ -18,9 +18,11 @@ import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { useTabs } from '@/composables/useTabs'
 import { useI18n } from 'vue-i18n'
 import SystemOverviewPanel from '@/components/systems/SystemOverviewPanel.vue'
+import { useLatestInventory } from '@/queries/systems/latestInventory'
 
 const { t } = useI18n()
 const { state: systemDetail } = useSystemDetail()
+const { state: latestInventory } = useLatestInventory()
 const { tabs, selectedTab } = useTabs([{ name: 'overview', label: t('system_detail.overview') }])
 
 const canOpenSystem = () => {
@@ -94,6 +96,14 @@ const openSystem = () => {
         </template>
       </NeTooltip>
     </div>
+    <!-- no inventory notification -->
+    <NeInlineNotification
+      v-if="latestInventory.status === 'success' && !latestInventory.data"
+      kind="warning"
+      :title="$t('system_detail.no_inventory_available')"
+      :description="$t('system_detail.no_inventory_available_description')"
+      class="mb-4"
+    />
     <NeTabs
       :tabs="tabs"
       :selected="selectedTab"

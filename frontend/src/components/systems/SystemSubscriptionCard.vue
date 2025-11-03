@@ -1,0 +1,83 @@
+<!--
+  Copyright (C) 2025 Nethesis S.r.l.
+  SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
+<script setup lang="ts">
+import { NeCard, NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { useLatestInventory } from '@/queries/systems/latestInventory'
+import { faAward } from '@fortawesome/free-solid-svg-icons'
+import { formatDateTimeNoSeconds } from '@/lib/dateTime'
+import { useI18n } from 'vue-i18n'
+import { useSystemDetail } from '@/queries/systems/systemDetail'
+import DataItem from '../DataItem.vue'
+
+const { t, locale } = useI18n()
+const { state: systemDetail } = useSystemDetail()
+const { state: latestInventory } = useLatestInventory() //// remove?
+</script>
+
+<template>
+  <NeCard>
+    <div class="mb-4 flex items-center gap-4">
+      <FontAwesomeIcon :icon="faAward" class="size-8 shrink-0" aria-hidden="true" />
+      <NeHeading tag="h4">
+        {{ $t('system_detail.subscription') }}
+      </NeHeading>
+    </div>
+    <!-- get system detail error notification -->
+    <NeInlineNotification
+      v-if="systemDetail.status === 'error'"
+      kind="error"
+      :title="$t('system_detail.cannot_retrieve_system_detail')"
+      :description="systemDetail.error.message"
+      class="mb-6"
+    />
+    <!-- get latest inventory error notification -->
+    <NeInlineNotification
+      v-if="latestInventory.status === 'error'"
+      kind="error"
+      :title="$t('system_detail.cannot_retrieve_latest_inventory')"
+      :description="latestInventory.error.message"
+      class="mb-6"
+    />
+    <!-- //// kebab? -->
+    <NeSkeleton
+      v-else-if="latestInventory.status === 'pending' || systemDetail.status === 'pending'"
+      :lines="6"
+    />
+    <div v-else className="divide-y divide-gray-200 dark:divide-gray-700">
+      <!-- system creation -->
+      <DataItem>
+        <template #label>
+          {{ $t('system_detail.system_creation') }}
+        </template>
+        <template #data>
+          {{
+            systemDetail.data?.created_at
+              ? formatDateTimeNoSeconds(new Date(systemDetail.data?.created_at), locale)
+              : '-'
+          }}
+        </template>
+      </DataItem>
+      <!-- subscription date -->
+      <DataItem>
+        <template #label>
+          {{ $t('system_detail.subscription') }}
+        </template>
+        <!-- //// TODO registration date should be sent by inventory -->
+        <template #data> - </template>
+      </DataItem>
+      <!-- system key -->
+      <DataItem>
+        <template #label>
+          {{ $t('system_detail.system_key') }}
+        </template>
+        <template #data>
+          {{ systemDetail.data?.system_key || '-' }}
+        </template>
+      </DataItem>
+    </div>
+  </NeCard>
+</template>

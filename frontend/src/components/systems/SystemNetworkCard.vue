@@ -9,6 +9,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 import {
   faEarthAmericas,
+  faEthernet,
   faLocationDot,
   faNetworkWired,
   faShield,
@@ -26,7 +27,12 @@ const dnsServers = computed(() => {
   const esmithConfig = latestInventory.value.data?.data?.esmithdb?.configuration || []
   const dnsEntry = esmithConfig.find((entry: any) => entry.name === 'dns')
   const dnsServers = dnsEntry?.props?.NameServers || ''
-  return dnsServers.split(',')
+
+  if (!dnsServers) {
+    return []
+  } else {
+    return dnsServers.split(',')
+  }
 })
 
 const networkInterfaces = computed(() => {
@@ -46,7 +52,15 @@ const getIpAddressWithCidr = (iface: InventoryNetworkInterface) => {
   }
 }
 
+const isNethsecurity = computed(() => {
+  return latestInventory.value.data?.data?.os?.type === 'nethsecurity'
+})
+
 const getNetworkRoleIcon = (role: string | undefined) => {
+  if (!isNethsecurity.value) {
+    return faEthernet
+  }
+
   switch (role) {
     case 'green':
       return faLocationDot
@@ -64,6 +78,10 @@ const getNetworkRoleIcon = (role: string | undefined) => {
 }
 
 const getNetworkRoleBackgroundStyle = (role: string | undefined) => {
+  if (!isNethsecurity.value) {
+    return 'bg-gray-100 dark:bg-gray-700'
+  }
+
   switch (role) {
     case 'green':
       return 'bg-green-100 dark:bg-green-700'
@@ -81,6 +99,10 @@ const getNetworkRoleBackgroundStyle = (role: string | undefined) => {
 }
 
 const getNetworkRoleForegroundStyle = (role: string | undefined) => {
+  if (!isNethsecurity.value) {
+    return 'text-gray-700 dark:text-gray-300'
+  }
+
   switch (role) {
     case 'green':
       return 'text-green-700 dark:text-green-50'
@@ -115,9 +137,9 @@ const getNetworkRoleForegroundStyle = (role: string | undefined) => {
       class="mb-6"
     />
     <NeSkeleton v-else-if="latestInventory.status === 'pending'" :lines="8" />
-    <template v-else>
+    <div v-else class="space-y-6">
       <!-- network interfaces -->
-      <div class="flex justify-center gap-16">
+      <div v-if="networkInterfaces.length" class="mt-8 flex flex-wrap justify-center gap-16">
         <div class="flex flex-col items-center" v-for="iface in networkInterfaces">
           <!-- icon -->
           <div
@@ -135,8 +157,11 @@ const getNetworkRoleForegroundStyle = (role: string | undefined) => {
           </div>
           <!-- type and role -->
           <div class="text-gray-600 dark:text-gray-300">
-            {{ iface?.type || '-' }} &bull;
-            {{ iface.props?.role || '-' }}
+            {{ iface?.type || '-' }}
+            <span v-if="latestInventory.data.data?.os?.type === 'nethsecurity'"
+              >&bull;
+              {{ iface.props?.role || '-' }}
+            </span>
           </div>
           <!-- ip address -->
           <div class="text-gray-600 dark:text-gray-300">
@@ -148,7 +173,7 @@ const getNetworkRoleForegroundStyle = (role: string | undefined) => {
           </div>
         </div>
       </div>
-      <div className="mt-6 divide-y divide-gray-200 dark:divide-gray-700">
+      <div className="divide-y divide-gray-200 dark:divide-gray-700">
         <!-- dns -->
         <div class="flex gap-4 py-4">
           <span class="shrink-0 font-medium">
@@ -160,6 +185,6 @@ const getNetworkRoleForegroundStyle = (role: string | undefined) => {
           <span v-else>-</span>
         </div>
       </div>
-    </template>
+    </div>
   </NeCard>
 </template>

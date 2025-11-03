@@ -10,6 +10,7 @@ import { getProductLogo, getProductName } from '@/lib/systems/systems'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { getOrganizationIcon } from '@/lib/organizations'
 import UserAvatar from '../UserAvatar.vue'
+import DataItem from '../DataItem.vue'
 
 const { state: systemDetail } = useSystemDetail()
 </script>
@@ -42,30 +43,29 @@ const { state: systemDetail } = useSystemDetail()
       <!-- system information -->
       <div className="divide-y divide-gray-200 dark:divide-gray-700">
         <!-- name -->
-        <div class="flex justify-between gap-2 py-4">
-          <span class="font-medium">
+        <DataItem>
+          <template #label>
             {{ $t('systems.name') }}
-          </span>
-          <span class="text-gray-600 dark:text-gray-300">
+          </template>
+          <template #data>
             {{ systemDetail.data.name }}
-          </span>
-        </div>
+          </template>
+        </DataItem>
         <!-- fqdn -->
-        <div class="flex justify-between gap-2 py-4">
-          <span class="font-medium">
+        <DataItem>
+          <template #label>
             {{ $t('systems.fqdn') }}
-          </span>
-          <!-- //// make clickable -->
-          <span class="text-gray-600 dark:text-gray-300">
+          </template>
+          <template #data>
             {{ systemDetail.data.fqdn || '-' }}
-          </span>
-        </div>
+          </template>
+        </DataItem>
         <!-- ip address -->
-        <div class="flex justify-between gap-2 py-4">
-          <span class="font-medium">
+        <DataItem>
+          <template #label>
             {{ $t('common.ip_address') }}
-          </span>
-          <div class="text-gray-600 dark:text-gray-300">
+          </template>
+          <template #data>
             <span v-if="systemDetail.data.ipv4_address">
               {{ systemDetail.data.ipv4_address }}
             </span>
@@ -75,47 +75,51 @@ const { state: systemDetail } = useSystemDetail()
             <span v-if="!systemDetail.data.ipv4_address && !systemDetail.data.ipv6_address">
               -
             </span>
-          </div>
-        </div>
+          </template>
+        </DataItem>
         <!-- version -->
-        <div class="flex justify-between gap-2 py-4">
-          <span class="font-medium">
+        <DataItem>
+          <template #label>
             {{ $t('systems.version') }}
-          </span>
-          <span class="text-gray-600 dark:text-gray-300">
+          </template>
+          <template #data>
             {{ systemDetail.data.version || '-' }}
-          </span>
-        </div>
+          </template>
+        </DataItem>
         <!-- organization -->
-        <div class="flex justify-between gap-2 py-4">
-          <span class="font-medium">
+        <DataItem>
+          <template #label>
             {{ $t('systems.organization') }}
-          </span>
-          <span class="flex items-center gap-2 text-gray-600 dark:text-gray-300">
-            <FontAwesomeIcon
-              :icon="getOrganizationIcon(systemDetail.data.organization.type)"
-              class="size-5 shrink-0"
-              aria-hidden="true"
-            />
-            {{ systemDetail.data.organization.name || '-' }}
-          </span>
-        </div>
-        <!-- created by -->
-        <div class="flex justify-between gap-2 py-4">
-          <span class="font-medium">
-            {{ $t('systems.created_by') }}
-          </span>
-          <div class="flex items-center gap-2">
-            <UserAvatar
-              size="xxs"
-              :is-owner="systemDetail.data.created_by.username === 'owner'"
-              :name="systemDetail.data.created_by.name"
-            />
-            <div class="space-y-0.5 text-gray-600 dark:text-gray-300">
-              <div>{{ systemDetail.data.created_by.name || '-' }}</div>
+          </template>
+          <template #data>
+            <div class="flex items-center gap-2">
+              <FontAwesomeIcon
+                :icon="getOrganizationIcon(systemDetail.data.organization.type)"
+                class="size-5 shrink-0"
+                aria-hidden="true"
+              />
+              {{ systemDetail.data.organization.name || '-' }}
             </div>
-          </div>
-        </div>
+          </template>
+        </DataItem>
+        <!-- created by -->
+        <DataItem>
+          <template #label>
+            {{ $t('systems.created_by') }}
+          </template>
+          <template #data>
+            <div class="flex items-center gap-2">
+              <UserAvatar
+                size="xxs"
+                :is-owner="systemDetail.data.created_by.username === 'owner'"
+                :name="systemDetail.data.created_by.name"
+              />
+              <div class="space-y-0.5 text-gray-600 dark:text-gray-300">
+                <div>{{ systemDetail.data.created_by.name || '-' }}</div>
+              </div>
+            </div>
+          </template>
+        </DataItem>
         <!-- notes -->
         <div v-if="systemDetail.data.notes" class="flex flex-col gap-2 py-4">
           <span class="font-medium">

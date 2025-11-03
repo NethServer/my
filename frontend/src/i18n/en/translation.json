@@ -390,7 +390,12 @@
     "network": "Network",
     "dns_servers": "DNS servers",
     "cannot_retrieve_system_detail": "Cannot retrieve system detail",
-    "cannot_retrieve_latest_inventory": "Cannot retrieve latest inventory"
+    "cannot_retrieve_latest_inventory": "Cannot retrieve latest inventory",
+    "no_inventory_available": "No inventory available",
+    "no_inventory_available_description": "The system has not sent any inventory data yet.",
+    "subscription": "Subscription",
+    "system_creation": "System creation",
+    "system_key": "System key"
   },
   "ne_table": {
     "no_items": "No items",

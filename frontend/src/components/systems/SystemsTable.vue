@@ -503,7 +503,7 @@ async function exportSystem(system: System, format: 'pdf' | 'csv') {
                 </div>
               </router-link>
               <!-- //// remove -->
-              <div class="mt-1">{{ item.system_key }}</div>
+              <!-- <div class="mt-1">{{ item.system_key }}</div> -->
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.version')" class="break-all 2xl:break-normal">
