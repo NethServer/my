@@ -323,3 +323,15 @@ export const getExport = (
     })
     .then((res) => res.data)
 }
+
+export const postRegenerateSecret = (systemId: string) => {
+  const loginStore = useLoginStore()
+
+  return axios.post<PostSystemResponse>(
+    `${API_URL}/systems/${systemId}/regenerate-secret`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}

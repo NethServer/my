@@ -4,27 +4,66 @@
 -->
 
 <script setup lang="ts">
-import { NeCard, NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
+import {
+  NeCard,
+  NeDropdown,
+  NeHeading,
+  NeInlineNotification,
+  NeSkeleton,
+} from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
-import { faAward } from '@fortawesome/free-solid-svg-icons'
+import { faAward, faKey } from '@fortawesome/free-solid-svg-icons'
 import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 import { useI18n } from 'vue-i18n'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import DataItem from '../DataItem.vue'
+import { ref } from 'vue'
+import RegenerateSecretModal from './RegenerateSecretModal.vue'
+import SecretRegeneratedModal from './SecretRegeneratedModal.vue'
 
 const { t, locale } = useI18n()
-const { state: systemDetail } = useSystemDetail()
+const { state: systemDetail, asyncStatus: systemDetailAsyncStatus } = useSystemDetail()
 const { state: latestInventory } = useLatestInventory() //// remove?
+const isShownRegenerateSecretModal = ref(false)
+const isShownSecretRegeneratedModal = ref(false)
+const newSecret = ref<string>('')
+
+function getKebabMenuItems() {
+  const items = [
+    {
+      id: 'regenerateSecret',
+      label: t('systems.regenerate_secret'),
+      icon: faKey,
+      action: () => (isShownRegenerateSecretModal.value = true),
+      disabled: systemDetailAsyncStatus.value === 'loading',
+    },
+  ]
+  return items
+}
+
+function onSecretRegenerated(secret: string) {
+  newSecret.value = secret
+  isShownSecretRegeneratedModal.value = true
+}
+
+function onCloseSecretRegeneratedModal() {
+  isShownSecretRegeneratedModal.value = false
+  newSecret.value = ''
+}
 </script>
 
 <template>
   <NeCard>
-    <div class="mb-4 flex items-center gap-4">
-      <FontAwesomeIcon :icon="faAward" class="size-8 shrink-0" aria-hidden="true" />
-      <NeHeading tag="h4">
-        {{ $t('system_detail.subscription') }}
-      </NeHeading>
+    <div class="mb-4 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-4">
+        <FontAwesomeIcon :icon="faAward" class="size-8 shrink-0" aria-hidden="true" />
+        <NeHeading tag="h4">
+          {{ $t('system_detail.subscription') }}
+        </NeHeading>
+      </div>
+      <!-- kebab menu -->
+      <NeDropdown :items="getKebabMenuItems()" :align-to-right="true" />
     </div>
     <!-- get system detail error notification -->
     <NeInlineNotification
@@ -79,5 +118,19 @@ const { state: latestInventory } = useLatestInventory() //// remove?
         </template>
       </DataItem>
     </div>
+    <!-- regenerate secret modal -->
+    <RegenerateSecretModal
+      :visible="isShownRegenerateSecretModal"
+      :system="systemDetail.data"
+      @close="isShownRegenerateSecretModal = false"
+      @secret-regenerated="onSecretRegenerated"
+    />
+    <!-- secret regenerated modal -->
+    <SecretRegeneratedModal
+      :visible="isShownSecretRegeneratedModal"
+      :system="systemDetail.data"
+      :new-secret="newSecret"
+      @close="onCloseSecretRegeneratedModal"
+    />
   </NeCard>
 </template>

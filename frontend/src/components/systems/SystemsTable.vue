@@ -17,6 +17,7 @@ import {
   faCircleXmark,
   faFilePdf,
   faFileCsv,
+  faKey,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -38,7 +39,7 @@ import {
   type FilterOption,
   NeDropdownFilter,
   NeTooltip,
-  NeLink,
+  type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -49,7 +50,6 @@ import {
   getExport,
   getProductLogo,
   getProductName,
-  regenerateSystemSecret,
   SYSTEMS_TABLE_ID,
   type System,
 } from '@/lib/systems/systems'
@@ -63,9 +63,8 @@ import UserAvatar from '../UserAvatar.vue'
 import { buildVersionFilterOptions } from '@/lib/systems/versionFilter'
 import OrganizationIcon from '../OrganizationIcon.vue'
 import { downloadFile } from '@/lib/common'
-import { useMutation } from '@pinia/colada'
-import type { User } from '@/lib/users'
-import { useNotificationsStore } from '@/stores/notifications'
+import RegenerateSecretModal from './RegenerateSecretModal.vue'
+import SecretRegeneratedModal from './SecretRegeneratedModal.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -92,40 +91,13 @@ const { state: productFilterState, asyncStatus: productFilterAsyncStatus } = use
 const { state: createdByFilterState, asyncStatus: createdByFilterAsyncStatus } =
   useCreatedByFilter()
 const { state: versionFilterState, asyncStatus: versionFilterAsyncStatus } = useVersionFilter()
-const notificationsStore = useNotificationsStore() ////
-
-////
-// const {
-//   mutate: regenerateSecretMutate,
-//   isLoading: regenerateSecretLoading,
-//   reset: regenerateSecretReset,
-//   error: regenerateSecretError,
-// } = useMutation({
-//   mutation: (system: System) => {
-//     return regenerateSystemSecret(system.id)
-//   },
-//   onSuccess(data, vars) {
-//     console.log('onSuccess', 'data', data, 'vars', vars) ////
-
-//     // show success notification
-//     notificationsStore.createNotification({
-//       kind: 'success',
-//       title: t('users.password_reset'),
-//       description: t('users.password_reset_description', {
-//         name: vars.name,
-//       }),
-//     })
-//     emit('password-changed', newPassword.value)
-//     emit('close')
-//   },
-//   onError: (error) => {
-//     console.error('Error resetting password:', error)
-//   },
-// })
 
 const currentSystem = ref<System | undefined>()
 const isShownCreateOrEditSystemDrawer = ref(false)
 const isShownDeleteSystemModal = ref(false)
+const isShownRegenerateSecretModal = ref(false)
+const isShownSecretRegeneratedModal = ref(false)
+const newSecret = ref<string>('')
 
 const statusFilterOptions = ref<FilterOption[]>([
   {
@@ -231,20 +203,31 @@ function showDeleteSystemModal(system: System) {
   isShownDeleteSystemModal.value = true
 }
 
+function showRegenerateSecretModal(system: System) {
+  currentSystem.value = system
+  isShownRegenerateSecretModal.value = true
+}
+
 function onCloseDrawer() {
   isShownCreateOrEditSystemDrawer.value = false
   emit('close-drawer')
 }
 
 function getKebabMenuItems(system: System) {
-  const items = [
-    {
+  let items: NeDropdownItem[] = []
+
+  if (canManageSystems()) {
+    items.push({
       id: 'editSystem',
       label: t('common.edit'),
       icon: faPenToSquare,
       action: () => showEditSystemDrawer(system),
       disabled: asyncStatus.value === 'loading',
-    },
+    })
+  }
+
+  items = [
+    ...items,
     {
       id: 'exportToPdf',
       label: t('systems.export_to_pdf'),
@@ -259,15 +242,28 @@ function getKebabMenuItems(system: System) {
       action: () => exportSystem(system, 'csv'),
       disabled: !state.value.data?.systems,
     },
-    {
-      id: 'deleteSystem',
-      label: t('common.delete'),
-      icon: faTrash,
-      danger: true,
-      action: () => showDeleteSystemModal(system),
-      disabled: asyncStatus.value === 'loading',
-    },
   ]
+
+  if (canManageSystems()) {
+    items = [
+      ...items,
+      {
+        id: 'regenerateSecret',
+        label: t('systems.regenerate_secret'),
+        icon: faKey,
+        action: () => showRegenerateSecretModal(system),
+        disabled: asyncStatus.value === 'loading',
+      },
+      {
+        id: 'deleteSystem',
+        label: t('common.delete'),
+        icon: faTrash,
+        danger: true,
+        action: () => showDeleteSystemModal(system),
+        disabled: asyncStatus.value === 'loading',
+      },
+    ]
+  }
   return items
 }
 
@@ -289,6 +285,16 @@ async function exportSystem(system: System, format: 'pdf' | 'csv') {
     console.error('Cannot export system to pdf:', error)
     throw error
   }
+}
+
+function onSecretRegenerated(secret: string) {
+  newSecret.value = secret
+  isShownSecretRegeneratedModal.value = true
+}
+
+function onCloseSecretRegeneratedModal() {
+  isShownSecretRegeneratedModal.value = false
+  newSecret.value = ''
 }
 </script>
 
@@ -617,11 +623,7 @@ async function exportSystem(system: System, format: 'pdf' | 'csv') {
                 {{ $t('common.view_details') }}
               </NeButton>
               <!-- kebab menu -->
-              <NeDropdown
-                v-if="canManageSystems()"
-                :items="getKebabMenuItems(item)"
-                :align-to-right="true"
-              />
+              <NeDropdown :items="getKebabMenuItems(item)" :align-to-right="true" />
             </div>
           </NeTableCell>
         </NeTableRow>
@@ -662,6 +664,20 @@ async function exportSystem(system: System, format: 'pdf' | 'csv') {
       :visible="isShownDeleteSystemModal"
       :system="currentSystem"
       @close="isShownDeleteSystemModal = false"
+    />
+    <!-- regenerate secret modal -->
+    <RegenerateSecretModal
+      :visible="isShownRegenerateSecretModal"
+      :system="currentSystem"
+      @close="isShownRegenerateSecretModal = false"
+      @secret-regenerated="onSecretRegenerated"
+    />
+    <!-- secret regenerated modal -->
+    <SecretRegeneratedModal
+      :visible="isShownSecretRegeneratedModal"
+      :system="currentSystem"
+      :new-secret="newSecret"
+      @close="onCloseSecretRegeneratedModal"
     />
   </div>
 </template>

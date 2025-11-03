@@ -15,6 +15,7 @@ import {
   NeStepper,
   NeSkeleton,
   NeTextArea,
+  NeFormItemLabel,
 } from '@nethesis/vue-components'
 import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import {
@@ -38,7 +39,7 @@ import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
 import { getOrganizations, ORGANIZATIONS_KEY } from '@/lib/organizations'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faCheck } from '@fortawesome/free-solid-svg-icons'
+import { faCheck, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
 
 const { isShown = false, currentSystem = undefined } = defineProps<{
   isShown: boolean
@@ -122,6 +123,7 @@ const step = ref<'create' | 'secret'>('create')
 const secret = ref('')
 const fakeSystemCreatedLoading = ref(true)
 const isSecretShown = ref(false)
+const isSecretRevealed = ref(false)
 
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
   name: nameRef,
@@ -386,16 +388,42 @@ function copySecretAndCloseDrawer() {
           </NeBadgeV2>
           <NeSkeleton v-if="!isSecretShown" :lines="4" />
           <div v-else class="animate-fade-in space-y-6">
-            <div class="flex items-end gap-4">
-              <NeTextInput
+            <div>
+              <NeFormItemLabel class="!mb-1">
+                {{ t('systems.system_secret') }}
+              </NeFormItemLabel>
+              <div v-if="isSecretRevealed" class="break-all">
+                {{ secret }}
+              </div>
+              <div v-else class="break-all">
+                *************************************************************************
+              </div>
+              <NeButton
+                kind="tertiary"
+                size="sm"
+                @click="isSecretRevealed = !isSecretRevealed"
+                :aria-label="isSecretRevealed ? t('common.hide') : t('common.show')"
+                class="mt-2 -ml-2"
+              >
+                <template #prefix>
+                  <FontAwesomeIcon
+                    :icon="isSecretRevealed ? faEyeSlash : faEye"
+                    aria-hidden="true"
+                  />
+                </template>
+                {{ isSecretRevealed ? t('common.hide') : t('common.show') }}
+              </NeButton>
+            </div>
+            <!-- <div class="flex items-end gap-4"> ////  -->
+            <!-- <NeTextInput ////
                 v-model="secret"
                 is-password
                 :label="$t('systems.system_secret')"
                 :disabled="true"
                 class="grow"
                 autocomplete="new-password"
-              />
-            </div>
+              /> -->
+            <!-- </div> ////  -->
             <NeInlineNotification
               kind="warning"
               :title="t('systems.complete_the_subscription')"

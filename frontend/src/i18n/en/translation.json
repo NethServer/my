@@ -361,7 +361,7 @@
     "system_deleted": "System deleted",
     "system_secret": "System secret",
     "complete_the_subscription": "Complete the subscription",
-    "system_secret_warning": "Copy the secret and paste it into the Subscription page of the system. You can view the secret anytime on the system details page.",
+    "system_secret_warning": "Copy the secret and paste it into the Subscription page of the system. You won't be able to see the secret again.",
     "copy_system_secret": "Copy system secret",
     "status_online": "Active",
     "status_offline": "Inactive",
@@ -375,7 +375,13 @@
     "export_systems_to_pdf": "Export systems to PDF",
     "export_systems_to_csv": "Export systems to CSV",
     "export_to_pdf": "Export to PDF",
-    "export_to_csv": "Export to CSV"
+    "export_to_csv": "Export to CSV",
+    "regenerate_secret": "Regenerate secret",
+    "regenerate_secret_confirmation": "Regenerate the secret for system {name}? You'll need to update the subscription on the system with the new secret.",
+    "system_secret_regenerated": "System secret regenerated",
+    "system_secret_regenerated_description": "The secret for system {name} has been regenerated.",
+    "cannot_regenerate_system_secret": "Cannot regenerate system secret",
+    "update_the_subscription": "Update the subscription"
   },
   "system_detail": {
     "title": "System detail",
