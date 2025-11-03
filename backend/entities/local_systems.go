@@ -168,9 +168,9 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	// Add search condition (handle nullable fields with COALESCE)
 	if search != "" {
 		searchPattern := "%" + search + "%"
-		whereClause += fmt.Sprintf(" AND (s.name ILIKE $%d OR COALESCE(s.type, '') ILIKE $%d OR COALESCE(s.status, '') ILIKE $%d OR s.fqdn ILIKE $%d OR s.version ILIKE $%d OR s.created_by ->> 'name' ILIKE $%d OR s.created_by ->> 'email' ILIKE $%d)",
-			len(args)+1, len(args)+2, len(args)+3, len(args)+4, len(args)+5, len(args)+6, len(args)+7)
-		args = append(args, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
+		whereClause += fmt.Sprintf(" AND (s.name ILIKE $%d OR COALESCE(s.type, '') ILIKE $%d OR COALESCE(s.status, '') ILIKE $%d OR s.fqdn ILIKE $%d OR s.version ILIKE $%d OR s.created_by ->> 'name' ILIKE $%d OR s.created_by ->> 'email' ILIKE $%d OR s.system_key ILIKE $%d)",
+			len(args)+1, len(args)+2, len(args)+3, len(args)+4, len(args)+5, len(args)+6, len(args)+7, len(args)+8)
+		args = append(args, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
 	}
 
 	// Add filter conditions
