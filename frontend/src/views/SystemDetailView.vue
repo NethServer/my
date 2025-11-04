@@ -50,8 +50,6 @@ const getSystemUrl = () => {
 const openSystem = () => {
   const url = getSystemUrl()
 
-  console.log('url', url) ////
-
   if (url) {
     window.open(url, '_blank')
   }

@@ -9,8 +9,8 @@ import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { getProductLogo, getProductName } from '@/lib/systems/systems'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { getOrganizationIcon } from '@/lib/organizations'
-import UserAvatar from '../UserAvatar.vue'
 import DataItem from '../DataItem.vue'
+import ClickToCopy from '../ClickToCopy.vue'
 
 const { state: systemDetail } = useSystemDetail()
 </script>
@@ -57,7 +57,12 @@ const { state: systemDetail } = useSystemDetail()
             {{ $t('systems.fqdn') }}
           </template>
           <template #data>
-            {{ systemDetail.data.fqdn || '-' }}
+            <ClickToCopy
+              v-if="systemDetail.data.fqdn"
+              :text="systemDetail.data.fqdn"
+              tooltip-placement="left"
+            />
+            <span v-else>-</span>
           </template>
         </DataItem>
         <!-- ip address -->
@@ -66,9 +71,11 @@ const { state: systemDetail } = useSystemDetail()
             {{ $t('common.ip_address') }}
           </template>
           <template #data>
-            <span v-if="systemDetail.data.ipv4_address">
-              {{ systemDetail.data.ipv4_address }}
-            </span>
+            <ClickToCopy
+              v-if="systemDetail.data.ipv4_address"
+              :text="systemDetail.data.ipv4_address"
+              tooltip-placement="left"
+            />
             <span v-if="systemDetail.data.ipv6_address">
               {{ systemDetail.data.ipv6_address }}
             </span>
@@ -108,15 +115,8 @@ const { state: systemDetail } = useSystemDetail()
             {{ $t('systems.created_by') }}
           </template>
           <template #data>
-            <div class="flex items-center gap-2">
-              <UserAvatar
-                size="xxs"
-                :is-owner="systemDetail.data.created_by.username === 'owner'"
-                :name="systemDetail.data.created_by.name"
-              />
-              <div class="space-y-0.5 text-gray-600 dark:text-gray-300">
-                <div>{{ systemDetail.data.created_by.name || '-' }}</div>
-              </div>
+            <div class="space-y-0.5 text-gray-600 dark:text-gray-300">
+              <div>{{ systemDetail.data.created_by.name || '-' }}</div>
             </div>
           </template>
         </DataItem>

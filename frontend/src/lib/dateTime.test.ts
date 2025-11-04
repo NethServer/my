@@ -1,7 +1,13 @@
 //  Copyright (C) 2025 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { formatDateTime, formatDateTimeNoSeconds, formatMinutes, formatSeconds, formatUptime } from './dateTime'
+import {
+  formatDateTime,
+  formatDateTimeNoSeconds,
+  formatMinutes,
+  formatSeconds,
+  formatUptime,
+} from './dateTime'
 import { expect, it, describe, vi, beforeEach } from 'vitest'
 
 // Create a simple mock function for translation

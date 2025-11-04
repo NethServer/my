@@ -11,7 +11,7 @@ export const netmaskToCIDR = (netmask: string) => {
   }
 
   // Convert each octet to binary and concatenate
-  let binaryString = octets.map((octet) => octet.toString(2).padStart(8, '0')).join('')
+  const binaryString = octets.map((octet) => octet.toString(2).padStart(8, '0')).join('')
 
   // Count the number of 1s (which gives us the CIDR prefix)
   const cidr = binaryString.split('1').length - 1

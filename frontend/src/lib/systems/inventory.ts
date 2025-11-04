@@ -11,7 +11,15 @@ interface InventoryData {
   id: number
   system_id: string
   timestamp: string
-  data: any //// add typing
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any // The structure of inventory data can be complex and varied
+}
+
+export interface EsmithConfiguration {
+  name: string
+  type: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  props: any
 }
 
 interface LatestInventoryResponse {

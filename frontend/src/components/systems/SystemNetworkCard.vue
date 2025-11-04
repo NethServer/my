@@ -18,14 +18,14 @@ import {
   faWifi,
 } from '@fortawesome/free-solid-svg-icons'
 import { computed } from 'vue'
-import type { InventoryNetworkInterface } from '@/lib/systems/inventory'
+import type { EsmithConfiguration, InventoryNetworkInterface } from '@/lib/systems/inventory'
 import { netmaskToCIDR } from '@/lib/network'
 
 const { state: latestInventory } = useLatestInventory()
 
 const dnsServers = computed(() => {
   const esmithConfig = latestInventory.value.data?.data?.esmithdb?.configuration || []
-  const dnsEntry = esmithConfig.find((entry: any) => entry.name === 'dns')
+  const dnsEntry = esmithConfig.find((entry: EsmithConfiguration) => entry.name === 'dns')
   const dnsServers = dnsEntry?.props?.NameServers || ''
 
   if (!dnsServers) {
@@ -140,7 +140,11 @@ const getNetworkRoleForegroundStyle = (role: string | undefined) => {
     <div v-else class="space-y-6">
       <!-- network interfaces -->
       <div v-if="networkInterfaces.length" class="mt-8 flex flex-wrap justify-center gap-16">
-        <div class="flex flex-col items-center" v-for="iface in networkInterfaces">
+        <div
+          class="flex flex-col items-center"
+          v-for="iface in networkInterfaces"
+          :key="iface.name"
+        >
           <!-- icon -->
           <div
             :class="`flex size-16 flex-shrink-0 items-center justify-center rounded-full ${getNetworkRoleBackgroundStyle(iface.props?.role)}`"

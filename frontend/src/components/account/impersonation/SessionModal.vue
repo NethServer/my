@@ -85,11 +85,11 @@ const copyRequestDataToClipboard = (jsonString: string) => {
     },
   )
 
-  // show "Copied" for 3 seconds
+  // show "Copied" for 2 seconds
   requestDataJustCopied.value = true
   setTimeout(() => {
     requestDataJustCopied.value = false
-  }, 3000)
+  }, 2000)
 }
 </script>
 

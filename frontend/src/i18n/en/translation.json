@@ -33,7 +33,8 @@
     "hide": "Hide",
     "coming_soon": "Coming soon",
     "view_details": "View details",
-    "ip_address": "IP address"
+    "ip_address": "IP address",
+    "click_to_copy": "Click to copy"
   },
   "shell": {
     "open_sidebar": "Open sidebar",

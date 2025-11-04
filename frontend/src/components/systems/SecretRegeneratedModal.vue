@@ -4,22 +4,13 @@
 -->
 
 <script setup lang="ts">
-import {
-  NeButton,
-  NeFormItemLabel,
-  NeInlineNotification,
-  NeModal,
-  NeTextArea,
-  NeTextInput,
-} from '@nethesis/vue-components'
+import { NeButton, NeFormItemLabel, NeInlineNotification, NeModal } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { ref } from 'vue'
 import { useNotificationsStore } from '@/stores/notifications'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
 import type { System } from '@/lib/systems/systems'
-
-//// review
 
 const {
   visible = false,
