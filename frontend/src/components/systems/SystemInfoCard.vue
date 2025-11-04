@@ -76,9 +76,11 @@ const { state: systemDetail } = useSystemDetail()
               :text="systemDetail.data.ipv4_address"
               tooltip-placement="left"
             />
-            <span v-if="systemDetail.data.ipv6_address">
-              {{ systemDetail.data.ipv6_address }}
-            </span>
+            <ClickToCopy
+              v-if="systemDetail.data.ipv6_address"
+              :text="systemDetail.data.ipv6_address"
+              tooltip-placement="left"
+            />
             <span v-if="!systemDetail.data.ipv4_address && !systemDetail.data.ipv6_address">
               -
             </span>

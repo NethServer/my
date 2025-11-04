@@ -65,6 +65,7 @@ import OrganizationIcon from '../OrganizationIcon.vue'
 import { downloadFile } from '@/lib/common'
 import RegenerateSecretModal from './RegenerateSecretModal.vue'
 import SecretRegeneratedModal from './SecretRegeneratedModal.vue'
+import ClickToCopy from '../ClickToCopy.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -521,11 +522,16 @@ function onCloseSecretRegeneratedModal() {
             :data-label="$t('systems.fqdn_ip_address')"
             class="break-all 2xl:break-normal"
           >
-            <div :class="['space-y-0.5', { 'opacity-50': item.status === 'deleted' }]">
-              <div v-if="item.fqdn">{{ item.fqdn }}</div>
-              <div v-if="item.ipv4_address">
-                {{ item.ipv4_address }}
-              </div>
+            <div
+              class="flex flex-col items-start space-y-0.5"
+              :class="{ 'opacity-50': item.status === 'deleted' }"
+            >
+              <ClickToCopy v-if="item.fqdn" :text="item.fqdn" tooltip-placement="top" />
+              <ClickToCopy
+                v-if="item.ipv4_address"
+                :text="item.ipv4_address"
+                tooltip-placement="bottom"
+              />
               <div v-if="item.ipv6_address">
                 {{ item.ipv6_address }}
               </div>

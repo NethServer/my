@@ -15,6 +15,8 @@ const { text, tooltipPlacement = 'top' } = defineProps<{
 
 const justCopied = ref(false)
 
+const documentObj = typeof document !== 'undefined' ? document : null
+
 const onClick = () => {
   if (text) {
     navigator.clipboard
@@ -38,6 +40,7 @@ const onClick = () => {
     :placement="tooltipPlacement"
     :hide-on-click="false"
     @click="onClick"
+    :append-to="() => documentObj?.body"
     class="cursor-pointer hover:underline"
   >
     <template #trigger>

@@ -324,7 +324,7 @@
   },
   "systems": {
     "title": "Systems",
-    "page_description": "List of all Nethesis systems, including their versions and their status.",
+    "page_description": "List of licensed NethServer and NethSecurity systems.",
     "cannot_retrieve_systems": "Cannot retrieve systems",
     "no_systems": "No systems configured",
     "no_systems_found": "No systems found",

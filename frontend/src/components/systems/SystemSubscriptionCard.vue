@@ -21,6 +21,7 @@ import DataItem from '../DataItem.vue'
 import { ref } from 'vue'
 import RegenerateSecretModal from './RegenerateSecretModal.vue'
 import SecretRegeneratedModal from './SecretRegeneratedModal.vue'
+import ClickToCopy from '../ClickToCopy.vue'
 
 const { t, locale } = useI18n()
 const { state: systemDetail, asyncStatus: systemDetailAsyncStatus } = useSystemDetail()
@@ -114,7 +115,12 @@ function onCloseSecretRegeneratedModal() {
           {{ $t('system_detail.system_key') }}
         </template>
         <template #data>
-          {{ systemDetail.data?.system_key || '-' }}
+          <ClickToCopy
+            v-if="systemDetail.data?.system_key"
+            :text="systemDetail.data?.system_key"
+            tooltip-placement="left"
+          />
+          <span v-else>-</span>
         </template>
       </DataItem>
     </div>
