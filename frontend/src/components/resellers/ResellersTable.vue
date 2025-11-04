@@ -143,7 +143,6 @@ const onSort = (payload: SortEvent) => {
             :placeholder="$t('resellers.filter_resellers')"
             class="max-w-48 sm:max-w-sm"
           />
-          <!-- //// check dropdown options -->
           <NeSortDropdown
             v-model:sort-key="sortBy"
             v-model:sort-descending="sortDescending"
@@ -172,7 +171,6 @@ const onSort = (payload: SortEvent) => {
         </div>
       </div>
     </div>
-    <!-- //// check breakpoint, skeleton-columns -->
     <NeTable
       :sort-key="sortBy"
       :sort-descending="sortDescending"

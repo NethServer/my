@@ -4,15 +4,52 @@
 -->
 
 <script setup lang="ts">
-import { NeCard, NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
+import {
+  NeCard,
+  NeHeading,
+  NeInlineNotification,
+  NeLink,
+  NeSkeleton,
+} from '@nethesis/vue-components'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { getProductLogo, getProductName } from '@/lib/systems/systems'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { getOrganizationIcon } from '@/lib/organizations'
 import DataItem from '../DataItem.vue'
 import ClickToCopy from '../ClickToCopy.vue'
+import { computed, ref } from 'vue'
+import SystemNotesModal from './SystemNotesModal.vue'
+
+const NOTES_MAX_LENGTH = 32
 
 const { state: systemDetail } = useSystemDetail()
+const isNotesModalShown = ref(false)
+
+const notesLengthExceeded = computed(() => {
+  if (!systemDetail.value.data?.notes) {
+    return false
+  }
+  const notes = systemDetail.value.data.notes
+  if (notes.length > NOTES_MAX_LENGTH || notes.includes('\n')) {
+    return true
+  }
+  return false
+})
+
+// truncate notes if they exceed a certain length or the contain new lines
+const truncatedNotes = computed(() => {
+  if (!systemDetail.value.data?.notes) {
+    return ''
+  }
+  const notes = systemDetail.value.data.notes
+  if (notes.length > NOTES_MAX_LENGTH) {
+    return notes.slice(0, NOTES_MAX_LENGTH) + '...'
+  }
+  if (notes.includes('\n')) {
+    return notes.split('\n')[0] + '...'
+  }
+  return notes
+})
 </script>
 
 <template>
@@ -117,23 +154,30 @@ const { state: systemDetail } = useSystemDetail()
             {{ $t('systems.created_by') }}
           </template>
           <template #data>
-            <div class="space-y-0.5 text-gray-600 dark:text-gray-300">
-              <div>{{ systemDetail.data.created_by.name || '-' }}</div>
-            </div>
+            {{ systemDetail.data.created_by.name || '-' }}
           </template>
         </DataItem>
         <!-- notes -->
-        <div v-if="systemDetail.data.notes" class="flex flex-col gap-2 py-4">
-          <span class="font-medium">
+        <DataItem v-if="systemDetail.data.notes">
+          <template #label>
             {{ $t('systems.notes') }}
-          </span>
-          <div class="text-gray-600 dark:text-gray-300">
-            <pre
-              >{{ systemDetail.data.notes }}
-            </pre>
-          </div>
-        </div>
+          </template>
+          <template #data>
+            <NeLink v-if="notesLengthExceeded" @click.prevent="isNotesModalShown = true">
+              {{ truncatedNotes }}
+            </NeLink>
+            <span v-else>
+              {{ systemDetail.data.notes }}
+            </span>
+          </template>
+        </DataItem>
       </div>
     </div>
+    <!-- notes modal -->
+    <SystemNotesModal
+      :visible="isNotesModalShown"
+      :notes="systemDetail.data?.notes"
+      @close="isNotesModalShown = false"
+    />
   </NeCard>
 </template>

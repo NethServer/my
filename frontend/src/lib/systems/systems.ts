@@ -185,9 +185,6 @@ export const getQueryStringParamsForExport = (
   if (sortDescending !== undefined) {
     searchParams.append('sort_direction', sortDescending ? 'desc' : 'asc')
   }
-
-  console.log('asfd', searchParams.toString()) ////
-
   return searchParams.toString()
 }
 

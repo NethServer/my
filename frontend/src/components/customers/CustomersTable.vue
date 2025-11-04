@@ -159,7 +159,6 @@ const onSort = (payload: SortEvent) => {
             class="xl:hidden"
           />
         </div>
-        <!-- //// separate component UpdatingSpinner? -->
         <!-- update indicator -->
         <div
           v-if="asyncStatus === 'loading' && state.status !== 'pending'"
@@ -172,7 +171,6 @@ const onSort = (payload: SortEvent) => {
         </div>
       </div>
     </div>
-    <!-- //// check breakpoint, skeleton-columns -->
     <NeTable
       :sort-key="sortBy"
       :sort-descending="sortDescending"

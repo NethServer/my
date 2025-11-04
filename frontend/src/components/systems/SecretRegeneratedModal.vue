@@ -68,16 +68,6 @@ function onShow() {
       <p>
         {{ t('systems.system_secret_regenerated_description', { name: system?.name }) }}
       </p>
-      <!-- <div class="flex items-end gap-4"> ////
-        <NeTextArea
-          :value="newSecret"
-          is-password
-          :label="$t('systems.system_secret')"
-          :disabled="true"
-          class="grow"
-          autocomplete="new-password"
-        />
-      </div> -->
       <div>
         <NeFormItemLabel class="!mb-1">
           {{ t('systems.system_secret') }}

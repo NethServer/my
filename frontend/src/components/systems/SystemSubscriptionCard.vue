@@ -12,7 +12,6 @@ import {
   NeSkeleton,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { useLatestInventory } from '@/queries/systems/latestInventory'
 import { faAward, faKey } from '@fortawesome/free-solid-svg-icons'
 import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 import { useI18n } from 'vue-i18n'
@@ -25,7 +24,6 @@ import ClickToCopy from '../ClickToCopy.vue'
 
 const { t, locale } = useI18n()
 const { state: systemDetail, asyncStatus: systemDetailAsyncStatus } = useSystemDetail()
-const { state: latestInventory } = useLatestInventory() //// remove?
 const isShownRegenerateSecretModal = ref(false)
 const isShownSecretRegeneratedModal = ref(false)
 const newSecret = ref<string>('')
@@ -74,19 +72,7 @@ function onCloseSecretRegeneratedModal() {
       :description="systemDetail.error.message"
       class="mb-6"
     />
-    <!-- get latest inventory error notification -->
-    <NeInlineNotification
-      v-if="latestInventory.status === 'error'"
-      kind="error"
-      :title="$t('system_detail.cannot_retrieve_latest_inventory')"
-      :description="latestInventory.error.message"
-      class="mb-6"
-    />
-    <!-- //// kebab? -->
-    <NeSkeleton
-      v-else-if="latestInventory.status === 'pending' || systemDetail.status === 'pending'"
-      :lines="6"
-    />
+    <NeSkeleton v-else-if="systemDetail.status === 'pending'" :lines="6" />
     <div v-else className="divide-y divide-gray-200 dark:divide-gray-700">
       <!-- system creation -->
       <DataItem>

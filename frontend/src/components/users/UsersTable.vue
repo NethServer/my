@@ -229,7 +229,6 @@ const onClosePasswordChangedModal = () => {
         </div>
       </div>
     </div>
-    <!-- //// check breakpoint, skeleton-columns -->
     <NeTable
       :sort-key="sortBy"
       :sort-descending="sortDescending"

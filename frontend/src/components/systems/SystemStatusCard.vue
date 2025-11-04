@@ -70,7 +70,6 @@ const getBadgeIcon = () => {
           {{ t(`systems.status_${systemDetail.data?.status}`) }}
         </div>
       </NeBadgeV2>
-      <!-- //// kebab? -->
     </div>
     <!-- get system detail error notification -->
     <NeInlineNotification

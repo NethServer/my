@@ -485,13 +485,6 @@ function onCloseSecretRegeneratedModal() {
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
               <router-link :to="{ name: 'system_detail', params: { systemId: item.id } }">
                 <div class="flex items-center gap-2">
-                  <!-- <NeTooltip ////
-                  v-if="item.type"
-                  placement="top"
-                  trigger-event="mouseenter focus"
-                  class="shrink-0"
-                >
-                  <template #trigger> -->
                   <img
                     v-if="item.type"
                     :src="getProductLogo(item.type)"
@@ -499,18 +492,11 @@ function onCloseSecretRegeneratedModal() {
                     aria-hidden="true"
                     class="size-8"
                   />
-                  <!-- </template> ////
-                  <template #content> -->
-                  <!-- {{ getProductName(item.type) }} -->
-                  <!-- </template> ////  -->
-                  <!-- </NeTooltip> ////  -->
                   <span class="cursor-pointer font-medium hover:underline">
                     {{ item.name || '-' }}
                   </span>
                 </div>
               </router-link>
-              <!-- //// remove -->
-              <!-- <div class="mt-1">{{ item.system_key }}</div> -->
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.version')" class="break-all 2xl:break-normal">

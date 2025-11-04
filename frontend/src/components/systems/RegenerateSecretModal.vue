@@ -22,7 +22,6 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-// const notificationsStore = useNotificationsStore() ////
 const newSecret = ref<string>('')
 
 const {
@@ -34,26 +33,8 @@ const {
   mutation: (system: System) => {
     return postRegenerateSecret(system.id)
   },
-  onSuccess(data, vars) {
-    console.log('success, data', data) ////
-    console.log('success, vars', vars) ////
-
-    console.log('DATA', data.data.data.system_secret) ////
-
+  onSuccess(data) {
     newSecret.value = data.data.data.system_secret
-
-    console.log('newSecret', newSecret) ////
-
-    // show success notification after modal closes
-    // setTimeout(() => { ////
-    //   notificationsStore.createNotification({
-    //     kind: 'success',
-    //     title: t('systems.system_secret_regenerated'),
-    //     description: t('systems.system_secret_regenerated_description', {
-    //       name: vars.name,
-    //     }),
-    //   })
-    // }, 500)
     emit('secret-regenerated', newSecret.value)
     emit('close')
   },

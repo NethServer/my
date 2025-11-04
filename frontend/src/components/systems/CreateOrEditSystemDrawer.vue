@@ -414,16 +414,6 @@ function copySecretAndCloseDrawer() {
                 {{ isSecretRevealed ? t('common.hide') : t('common.show') }}
               </NeButton>
             </div>
-            <!-- <div class="flex items-end gap-4"> ////  -->
-            <!-- <NeTextInput ////
-                v-model="secret"
-                is-password
-                :label="$t('systems.system_secret')"
-                :disabled="true"
-                class="grow"
-                autocomplete="new-password"
-              /> -->
-            <!-- </div> ////  -->
             <NeInlineNotification
               kind="warning"
               :title="t('systems.complete_the_subscription')"
