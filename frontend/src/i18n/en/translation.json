@@ -358,7 +358,7 @@
     "save_system": "Save system",
     "no_organizations": "No organizations",
     "delete_system": "Delete system",
-    "delete_system_confirmation": "Are you sure you want to delete system {name}? Lorem ispum dolor sit amet, consectetur adipiscing elit.",
+    "delete_system_confirmation": "Are you sure you want to delete system {name}? It will no longer receive updates and you will not be able to request support for it.",
     "system_deleted": "System deleted",
     "system_secret": "System secret",
     "complete_the_subscription": "Complete the subscription",
