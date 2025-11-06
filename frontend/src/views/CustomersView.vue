@@ -24,7 +24,7 @@ const isShownCreateCustomerDrawer = ref(false)
       <!-- create customer -->
       <NeButton
         v-if="canManageCustomers()"
-        kind="secondary"
+        kind="primary"
         size="lg"
         class="shrink-0"
         @click="isShownCreateCustomerDrawer = true"

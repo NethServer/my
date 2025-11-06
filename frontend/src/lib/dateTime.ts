@@ -66,3 +66,33 @@ export function formatSeconds(totalSeconds: number, t: ComposerTranslation) {
 
   return `${t('time.hours', hours)}, ${t('time.minutes', minutes)}, ${t('time.seconds', seconds)}`
 }
+
+/**
+ * Format uptime in seconds to human readable format
+ */
+export function formatUptime(uptimeSeconds: number, t: ComposerTranslation): string {
+  if (uptimeSeconds < 60) {
+    return t('time.seconds', uptimeSeconds)
+  }
+
+  if (uptimeSeconds < 3600) {
+    const minutes = Math.floor(uptimeSeconds / 60)
+    return t('time.minutes', minutes)
+  }
+
+  if (uptimeSeconds < 86400) {
+    const hours = Math.floor(uptimeSeconds / 3600)
+    const minutes = Math.floor((uptimeSeconds % 3600) / 60)
+    if (minutes === 0) {
+      return t('time.hours', hours)
+    }
+    return `${t('time.hours', hours)}, ${t('time.minutes', minutes)}`
+  }
+
+  const days = Math.floor(uptimeSeconds / 86400)
+  const hours = Math.floor((uptimeSeconds % 86400) / 3600)
+  if (hours === 0) {
+    return t('time.days', days)
+  }
+  return `${t('time.days', days)}, ${t('time.hours', hours)}`
+}

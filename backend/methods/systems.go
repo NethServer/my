@@ -64,9 +64,16 @@ func CreateSystem(c *gin.Context) {
 	systemsService := local.NewSystemsService()
 
 	// Create SystemCreator object with detailed user information
+	// Use logto_id for consistency across the system (users and organizations both use logto_id)
+	userLogtoID := ""
+	if user.LogtoID != nil {
+		userLogtoID = *user.LogtoID
+	}
 	creatorInfo := &models.SystemCreator{
-		UserID:           user.ID,
-		UserName:         user.Username,
+		UserID:           userLogtoID,
+		Username:         user.Username,
+		Name:             user.Name,
+		Email:            user.Email,
 		OrganizationID:   user.OrganizationID,
 		OrganizationName: user.OrganizationName,
 	}
@@ -121,6 +128,7 @@ func GetSystems(c *gin.Context) {
 
 	// Parse filter parameters (supporting multiple values via checkbox, except name which is text input)
 	filterName := c.Query("name")                   // Name filter (single value, text input)
+	filterSystemKey := c.Query("system_key")        // System Key filter (single value, exact match)
 	filterTypes := c.QueryArray("type")             // Product/Type filter (multiple values)
 	filterCreatedBy := c.QueryArray("created_by")   // Created By filter (multiple user IDs)
 	filterVersions := c.QueryArray("version")       // Version filter (multiple values)
@@ -133,7 +141,7 @@ func GetSystems(c *gin.Context) {
 	// Get systems with pagination, search, sorting and filters
 	systems, totalCount, err := systemsService.GetSystemsByOrganizationPaginated(
 		userID, userOrgID, userOrgRole, page, pageSize, search, sortBy, sortDirection,
-		filterName, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses,
+		filterName, filterSystemKey, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses,
 	)
 	if err != nil {
 		logger.Error().

@@ -143,7 +143,6 @@ const onSort = (payload: SortEvent) => {
             :placeholder="$t('distributors.filter_distributors')"
             class="max-w-48 sm:max-w-sm"
           />
-          <!-- //// check dropdown options -->
           <NeSortDropdown
             v-model:sort-key="sortBy"
             v-model:sort-descending="sortDescending"
@@ -172,7 +171,6 @@ const onSort = (payload: SortEvent) => {
         </div>
       </div>
     </div>
-    <!-- //// check breakpoint, skeleton-columns -->
     <NeTable
       :sort-key="sortBy"
       :sort-descending="sortDescending"
@@ -205,7 +203,7 @@ const onSort = (payload: SortEvent) => {
               <!-- create distributor -->
               <NeButton
                 v-if="canManageDistributors()"
-                kind="secondary"
+                kind="primary"
                 size="lg"
                 class="shrink-0"
                 @click="showCreateDistributorDrawer()"

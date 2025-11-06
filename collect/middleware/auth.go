@@ -22,6 +22,7 @@ import (
 
 	"github.com/nethesis/my/collect/configuration"
 	"github.com/nethesis/my/collect/database"
+	"github.com/nethesis/my/collect/helpers"
 	"github.com/nethesis/my/collect/logger"
 	"github.com/nethesis/my/collect/models"
 	"github.com/nethesis/my/collect/response"
@@ -88,22 +89,25 @@ func BasicAuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		systemID := parts[0]
+		systemKey := parts[0]
 		systemSecret := parts[1]
 
 		// Validate system credentials
-		if !validateSystemCredentials(c, systemID, systemSecret) {
+		systemID, valid := validateSystemCredentials(c, systemKey, systemSecret)
+		if !valid {
 			c.Header("WWW-Authenticate", `Basic realm="System Authentication"`)
 			c.JSON(http.StatusUnauthorized, response.Unauthorized("invalid system credentials", nil))
 			c.Abort()
 			return
 		}
 
-		// Set system context for subsequent handlers
+		// Set system context for subsequent handlers (both key and internal ID)
 		c.Set("system_id", systemID)
+		c.Set("system_key", systemKey)
 		c.Set("authenticated_system", true)
 
 		logger.Debug().
+			Str("system_key", systemKey).
 			Str("system_id", systemID).
 			Str("client_ip", c.ClientIP()).
 			Str("path", c.Request.URL.Path).
@@ -114,21 +118,22 @@ func BasicAuthMiddleware() gin.HandlerFunc {
 }
 
 // validateSystemCredentials validates system credentials against database and cache
-func validateSystemCredentials(c *gin.Context, systemID, systemSecret string) bool {
+// Returns the internal system_id and a boolean indicating success
+func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (string, bool) {
 	// Check minimum secret length
 	if len(systemSecret) < configuration.Config.SystemSecretMinLength {
 		logger.Warn().
-			Str("system_id", systemID).
+			Str("system_key", systemKey).
 			Int("secret_length", len(systemSecret)).
 			Int("min_length", configuration.Config.SystemSecretMinLength).
 			Msg("System secret too short")
-		return false
+		return "", false
 	}
 
 	// Try cache first
-	if cached := checkCredentialsCache(c, systemID, systemSecret); cached != nil {
-		if *cached {
-			return true
+	if cachedID := checkCredentialsCache(c, systemKey, systemSecret); cachedID != nil {
+		if *cachedID != "" {
+			return *cachedID, true
 		}
 		// If cached as invalid, still check database for updates
 	}
@@ -136,12 +141,12 @@ func validateSystemCredentials(c *gin.Context, systemID, systemSecret string) bo
 	// Query database for system credentials from systems table
 	var creds models.SystemCredentials
 	query := `
-		SELECT id, secret_hash, true, null, created_at, updated_at
-		FROM systems 
-		WHERE id = $1
+		SELECT id, system_secret, true, null, created_at, updated_at
+		FROM systems
+		WHERE system_key = $1 AND deleted_at IS NULL
 	`
 
-	err := database.DB.QueryRow(query, systemID).Scan(
+	err := database.DB.QueryRow(query, systemKey).Scan(
 		&creds.SystemID,
 		&creds.SecretHash,
 		&creds.IsActive,
@@ -153,35 +158,51 @@ func validateSystemCredentials(c *gin.Context, systemID, systemSecret string) bo
 	if err != nil {
 		logger.Warn().
 			Err(err).
-			Str("system_id", systemID).
+			Str("system_key", systemKey).
 			Msg("System credentials not found")
 
 		// Cache negative result for short time to prevent brute force
-		cacheCredentialsResult(c, systemID, systemSecret, false)
-		return false
+		cacheCredentialsResult(c, systemKey, systemSecret, "", false)
+		return "", false
 	}
 
-	// Verify secret hash
-	secretHash := hashSystemSecret(systemSecret)
-	if secretHash != creds.SecretHash {
+	// Verify secret hash using Argon2id
+	valid, err := helpers.VerifySystemSecret(systemSecret, creds.SecretHash)
+	if err != nil {
 		logger.Warn().
-			Str("system_id", systemID).
+			Err(err).
+			Str("system_key", systemKey).
+			Str("system_id", creds.SystemID).
+			Msg("Failed to verify system secret")
+
+		// Cache negative result
+		cacheCredentialsResult(c, systemKey, systemSecret, "", false)
+		return "", false
+	}
+
+	if !valid {
+		logger.Warn().
+			Str("system_key", systemKey).
+			Str("system_id", creds.SystemID).
 			Msg("Invalid system secret")
 
 		// Cache negative result
-		cacheCredentialsResult(c, systemID, systemSecret, false)
-		return false
+		cacheCredentialsResult(c, systemKey, systemSecret, "", false)
+		return "", false
 	}
 
 	// Cache positive result
-	cacheCredentialsResult(c, systemID, systemSecret, true)
+	cacheCredentialsResult(c, systemKey, systemSecret, creds.SystemID, true)
 
-	return true
+	return creds.SystemID, true
 }
 
 // checkCredentialsCache checks Redis cache for cached credentials
-func checkCredentialsCache(c *gin.Context, systemID, systemSecret string) *bool {
-	cacheKey := fmt.Sprintf("auth:system:%s:%s", systemID, hashSystemSecret(systemSecret))
+// Returns the cached system_id if valid, or nil if not cached
+func checkCredentialsCache(c *gin.Context, systemKey, systemSecret string) *string {
+	// Use SHA-256 hash of secret for cache key only (not for security verification)
+	hash := sha256.Sum256([]byte(systemSecret))
+	cacheKey := fmt.Sprintf("auth:system:%s:%x", systemKey, hash)
 
 	rdb := database.GetRedisClient()
 	result, err := rdb.Get(c.Request.Context(), cacheKey).Result()
@@ -193,19 +214,27 @@ func checkCredentialsCache(c *gin.Context, systemID, systemSecret string) *bool 
 		return nil
 	}
 
-	valid := result == "valid"
-	return &valid
+	if result == "invalid" {
+		empty := ""
+		return &empty
+	}
+
+	// Return the cached system_id
+	return &result
 }
 
 // cacheCredentialsResult caches the authentication result
-func cacheCredentialsResult(c *gin.Context, systemID, systemSecret string, valid bool) {
-	cacheKey := fmt.Sprintf("auth:system:%s:%s", systemID, hashSystemSecret(systemSecret))
+// If valid, caches the system_id for the given system_key
+func cacheCredentialsResult(c *gin.Context, systemKey, systemSecret, systemID string, valid bool) {
+	// Use SHA-256 hash of secret for cache key only (not for security verification)
+	hash := sha256.Sum256([]byte(systemSecret))
+	cacheKey := fmt.Sprintf("auth:system:%s:%x", systemKey, hash)
 
 	var value string
 	var ttl time.Duration
 
 	if valid {
-		value = "valid"
+		value = systemID // Store the system_id
 		ttl = configuration.Config.SystemAuthCacheTTL
 	} else {
 		value = "invalid"
@@ -217,10 +246,4 @@ func cacheCredentialsResult(c *gin.Context, systemID, systemSecret string, valid
 	if err != nil {
 		logger.Warn().Err(err).Msg("Failed to cache auth result")
 	}
-}
-
-// hashSystemSecret creates a SHA-256 hash of the system secret
-func hashSystemSecret(secret string) string {
-	hash := sha256.Sum256([]byte(secret))
-	return fmt.Sprintf("%x", hash)
 }

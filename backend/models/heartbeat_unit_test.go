@@ -71,13 +71,13 @@ func TestSystemStatusStructure(t *testing.T) {
 	status := SystemStatus{
 		SystemID:      "status-system-123",
 		LastHeartbeat: &now,
-		Status:        "alive",
+		Status:        "active",
 		MinutesAgo:    &minutesAgo,
 	}
 
 	assert.Equal(t, "status-system-123", status.SystemID)
 	assert.Equal(t, &now, status.LastHeartbeat)
-	assert.Equal(t, "alive", status.Status)
+	assert.Equal(t, "active", status.Status)
 	assert.Equal(t, &minutesAgo, status.MinutesAgo)
 }
 
@@ -88,7 +88,7 @@ func TestSystemStatusJSONSerialization(t *testing.T) {
 	status := SystemStatus{
 		SystemID:      "json-status-system-456",
 		LastHeartbeat: &now,
-		Status:        "dead",
+		Status:        "inactive",
 		MinutesAgo:    &minutesAgo,
 	}
 
@@ -112,7 +112,7 @@ func TestSystemStatusWithNilFields(t *testing.T) {
 	status := SystemStatus{
 		SystemID:      "nil-status-system-789",
 		LastHeartbeat: nil,
-		Status:        "zombie",
+		Status:        "unknown",
 		MinutesAgo:    nil,
 	}
 
@@ -133,7 +133,7 @@ func TestSystemStatusWithNilFields(t *testing.T) {
 }
 
 func TestSystemStatusTypes(t *testing.T) {
-	statusTypes := []string{"alive", "dead", "zombie"}
+	statusTypes := []string{"active", "inactive", "unknown"}
 
 	for _, statusType := range statusTypes {
 		t.Run("status_"+statusType, func(t *testing.T) {
@@ -162,30 +162,30 @@ func TestSystemsStatusSummaryStructure(t *testing.T) {
 		{
 			SystemID:      "summary-system-1",
 			LastHeartbeat: &now,
-			Status:        "alive",
+			Status:        "active",
 			MinutesAgo:    &[]int{2}[0],
 		},
 		{
 			SystemID:      "summary-system-2",
 			LastHeartbeat: nil,
-			Status:        "dead",
+			Status:        "inactive",
 			MinutesAgo:    &[]int{30}[0],
 		},
 	}
 
 	summary := SystemsStatusSummary{
-		TotalSystems:   10,
-		AliveSystems:   7,
-		DeadSystems:    2,
-		ZombieSystems:  1,
-		TimeoutMinutes: 15,
-		Systems:        systems,
+		TotalSystems:    10,
+		ActiveSystems:   7,
+		InactiveSystems: 2,
+		UnknownSystems:  1,
+		TimeoutMinutes:  15,
+		Systems:         systems,
 	}
 
 	assert.Equal(t, 10, summary.TotalSystems)
-	assert.Equal(t, 7, summary.AliveSystems)
-	assert.Equal(t, 2, summary.DeadSystems)
-	assert.Equal(t, 1, summary.ZombieSystems)
+	assert.Equal(t, 7, summary.ActiveSystems)
+	assert.Equal(t, 2, summary.InactiveSystems)
+	assert.Equal(t, 1, summary.UnknownSystems)
 	assert.Equal(t, 15, summary.TimeoutMinutes)
 	assert.Len(t, summary.Systems, 2)
 	assert.Equal(t, "summary-system-1", summary.Systems[0].SystemID)
@@ -198,18 +198,18 @@ func TestSystemsStatusSummaryJSONSerialization(t *testing.T) {
 		{
 			SystemID:      "json-summary-system-1",
 			LastHeartbeat: &now,
-			Status:        "alive",
+			Status:        "active",
 			MinutesAgo:    &[]int{5}[0],
 		},
 	}
 
 	summary := SystemsStatusSummary{
-		TotalSystems:   5,
-		AliveSystems:   4,
-		DeadSystems:    1,
-		ZombieSystems:  0,
-		TimeoutMinutes: 20,
-		Systems:        systems,
+		TotalSystems:    5,
+		ActiveSystems:   4,
+		InactiveSystems: 1,
+		UnknownSystems:  0,
+		TimeoutMinutes:  20,
+		Systems:         systems,
 	}
 
 	// Test JSON marshaling
@@ -223,9 +223,9 @@ func TestSystemsStatusSummaryJSONSerialization(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, summary.TotalSystems, unmarshaledSummary.TotalSystems)
-	assert.Equal(t, summary.AliveSystems, unmarshaledSummary.AliveSystems)
-	assert.Equal(t, summary.DeadSystems, unmarshaledSummary.DeadSystems)
-	assert.Equal(t, summary.ZombieSystems, unmarshaledSummary.ZombieSystems)
+	assert.Equal(t, summary.ActiveSystems, unmarshaledSummary.ActiveSystems)
+	assert.Equal(t, summary.InactiveSystems, unmarshaledSummary.InactiveSystems)
+	assert.Equal(t, summary.UnknownSystems, unmarshaledSummary.UnknownSystems)
 	assert.Equal(t, summary.TimeoutMinutes, unmarshaledSummary.TimeoutMinutes)
 	assert.Len(t, unmarshaledSummary.Systems, 1)
 	assert.Equal(t, "json-summary-system-1", unmarshaledSummary.Systems[0].SystemID)
@@ -233,12 +233,12 @@ func TestSystemsStatusSummaryJSONSerialization(t *testing.T) {
 
 func TestSystemsStatusSummaryWithEmptySystems(t *testing.T) {
 	summary := SystemsStatusSummary{
-		TotalSystems:   0,
-		AliveSystems:   0,
-		DeadSystems:    0,
-		ZombieSystems:  0,
-		TimeoutMinutes: 15,
-		Systems:        []SystemStatus{},
+		TotalSystems:    0,
+		ActiveSystems:   0,
+		InactiveSystems: 0,
+		UnknownSystems:  0,
+		TimeoutMinutes:  15,
+		Systems:         []SystemStatus{},
 	}
 
 	// Test JSON marshaling with empty systems
@@ -252,21 +252,21 @@ func TestSystemsStatusSummaryWithEmptySystems(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, 0, unmarshaledSummary.TotalSystems)
-	assert.Equal(t, 0, unmarshaledSummary.AliveSystems)
-	assert.Equal(t, 0, unmarshaledSummary.DeadSystems)
-	assert.Equal(t, 0, unmarshaledSummary.ZombieSystems)
+	assert.Equal(t, 0, unmarshaledSummary.ActiveSystems)
+	assert.Equal(t, 0, unmarshaledSummary.InactiveSystems)
+	assert.Equal(t, 0, unmarshaledSummary.UnknownSystems)
 	assert.Equal(t, 15, unmarshaledSummary.TimeoutMinutes)
 	assert.Empty(t, unmarshaledSummary.Systems)
 }
 
 func TestSystemsStatusSummaryJSONTags(t *testing.T) {
 	summary := SystemsStatusSummary{
-		TotalSystems:   8,
-		AliveSystems:   6,
-		DeadSystems:    1,
-		ZombieSystems:  1,
-		TimeoutMinutes: 25,
-		Systems:        []SystemStatus{},
+		TotalSystems:    8,
+		ActiveSystems:   6,
+		InactiveSystems: 1,
+		UnknownSystems:  1,
+		TimeoutMinutes:  25,
+		Systems:         []SystemStatus{},
 	}
 
 	jsonData, err := json.Marshal(summary)
@@ -279,17 +279,17 @@ func TestSystemsStatusSummaryJSONTags(t *testing.T) {
 
 	// Verify JSON field names match struct tags
 	assert.Contains(t, jsonMap, "total_systems")
-	assert.Contains(t, jsonMap, "alive_systems")
-	assert.Contains(t, jsonMap, "dead_systems")
-	assert.Contains(t, jsonMap, "zombie_systems")
+	assert.Contains(t, jsonMap, "active_systems")
+	assert.Contains(t, jsonMap, "inactive_systems")
+	assert.Contains(t, jsonMap, "unknown_systems")
 	assert.Contains(t, jsonMap, "timeout_minutes")
 	assert.Contains(t, jsonMap, "systems")
 
 	// Verify values
 	assert.Equal(t, float64(8), jsonMap["total_systems"])
-	assert.Equal(t, float64(6), jsonMap["alive_systems"])
-	assert.Equal(t, float64(1), jsonMap["dead_systems"])
-	assert.Equal(t, float64(1), jsonMap["zombie_systems"])
+	assert.Equal(t, float64(6), jsonMap["active_systems"])
+	assert.Equal(t, float64(1), jsonMap["inactive_systems"])
+	assert.Equal(t, float64(1), jsonMap["unknown_systems"])
 	assert.Equal(t, float64(25), jsonMap["timeout_minutes"])
 }
 

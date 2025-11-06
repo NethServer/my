@@ -155,7 +155,7 @@ const organizationOptions = computed(() => {
   return organizations.value.data?.map((org) => ({
     id: org.id,
     label: org.name,
-    description: org.type,
+    description: t(`organizations.${org.type}`),
   }))
 })
 
@@ -239,8 +239,7 @@ function clearErrors() {
 
 function validateCreate(user: CreateUser): boolean {
   validationIssues.value = {}
-  const validation = v.safeParse(CreateUserSchema, user) //// uncomment
-  // const validation = { success: true } //// remove
+  const validation = v.safeParse(CreateUserSchema, user)
 
   if (validation.success) {
     // no validation issues
@@ -251,14 +250,11 @@ function validateCreate(user: CreateUser): boolean {
     if (issues.nested) {
       validationIssues.value = issues.nested as Record<string, string[]>
 
-      console.log('validationIssues', validationIssues.value) ////
+      console.debug('frontend validation issues', validationIssues.value)
 
       // focus the first field with error
 
       const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-
-      console.log('firstFieldName', firstErrorFieldName) ////
-
       fieldRefs[firstErrorFieldName]?.value?.focus()
     }
     return false
@@ -278,12 +274,11 @@ function validateEdit(user: EditUser): boolean {
     if (issues.nested) {
       validationIssues.value = issues.nested as Record<string, string[]>
 
+      console.debug('frontend validation issues', validationIssues.value)
+
       // focus the first field with error
 
       const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-
-      console.log('firstFieldName', firstErrorFieldName) ////
-
       fieldRefs[firstErrorFieldName].value?.focus()
     }
     return false
@@ -355,14 +350,16 @@ function getEmailInvalidMessage(): string {
         <!-- name -->
         <NeTextInput
           ref="nameRef"
-          v-model.trim="name"
+          v-model="name"
+          @blur="name = name.trim()"
           :label="$t('users.name')"
           :disabled="saving"
         />
         <!-- email -->
         <NeTextInput
           ref="emailRef"
-          v-model.trim="email"
+          v-model="email"
+          @blur="email = email.trim()"
           :label="$t('users.email')"
           :invalid-message="getEmailInvalidMessage()"
           :disabled="saving"
@@ -417,7 +414,8 @@ function getEmailInvalidMessage(): string {
         <!-- phone -->
         <NeTextInput
           ref="phoneRef"
-          v-model.trim="phone"
+          v-model="phone"
+          @blur="phone = phone.trim()"
           :label="$t('users.phone_number')"
           :invalid-message="validationIssues.phone?.[0] ? $t(validationIssues.phone[0]) : ''"
           :disabled="saving"

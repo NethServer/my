@@ -5,29 +5,17 @@
 
 <script setup lang="ts">
 import { NeHeading, NeTabs } from '@nethesis/vue-components'
-import { useLoginStore } from '@/stores/login'
-import { onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
 import ImpersonationPanel from '@/components/account/impersonation/ImpersonationPanel.vue'
 import { useTabs } from '@/composables/useTabs'
 import { useI18n } from 'vue-i18n'
 import GeneralPanel from '@/components/account/GeneralPanel.vue'
 
 const { t } = useI18n()
-const loginStore = useLoginStore()
-const route = useRoute()
-const isShownChangePasswordDrawer = ref(false)
 
 const { tabs, selectedTab } = useTabs([
   { name: 'general', label: t('account.general') },
   { name: 'impersonation', label: t('account.impersonation.impersonation') },
 ])
-
-onMounted(() => {
-  if (route.query['changePassword'] === 'true' && !loginStore.isOwner) {
-    isShownChangePasswordDrawer.value = true
-  }
-})
 </script>
 
 <template>

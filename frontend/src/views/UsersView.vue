@@ -25,7 +25,7 @@ const isShownCreateUserDrawer = ref(false)
       <!-- create user -->
       <NeButton
         v-if="canManageUsers()"
-        kind="secondary"
+        kind="primary"
         size="lg"
         class="shrink-0"
         @click="isShownCreateUserDrawer = true"

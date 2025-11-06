@@ -52,7 +52,7 @@ func (r *LocalCustomerRepository) Create(req *models.CreateLocalCustomerRequest)
 	if err != nil {
 		// Check for global VAT constraint violation (from trigger function)
 		if strings.Contains(err.Error(), "VAT") && strings.Contains(err.Error(), "already exists") {
-			return nil, fmt.Errorf("VAT already exists in customers")
+			return nil, fmt.Errorf("already exists")
 		}
 		return nil, fmt.Errorf("failed to create customer: %w", err)
 	}
@@ -143,7 +143,7 @@ func (r *LocalCustomerRepository) Update(id string, req *models.UpdateLocalCusto
 	if err != nil {
 		// Check for VAT constraint violation (from trigger function)
 		if strings.Contains(err.Error(), "VAT") && strings.Contains(err.Error(), "already exists") {
-			return nil, fmt.Errorf("VAT already exists in customers")
+			return nil, fmt.Errorf("already exists")
 		}
 		return nil, fmt.Errorf("failed to update customer: %w", err)
 	}
@@ -542,4 +542,172 @@ func (r *LocalCustomerRepository) GetTotals(userOrgRole, userOrgID string) (int,
 	default:
 		return 0, nil
 	}
+}
+
+// GetTrend returns trend data for customers over a specified period
+func (r *LocalCustomerRepository) GetTrend(userOrgRole, userOrgID string, period int) ([]struct {
+	Date  string
+	Count int
+}, int, int, error) {
+	// Determine interval for date series based on period
+	var interval string
+	switch period {
+	case 7, 30:
+		interval = "1 day"
+	case 180:
+		interval = "1 week"
+	case 365:
+		interval = "1 month"
+	default:
+		return nil, 0, 0, fmt.Errorf("invalid period: %d", period)
+	}
+
+	var query string
+
+	switch userOrgRole {
+	case "owner":
+		// Owner sees all customers
+		query = fmt.Sprintf(`
+			WITH date_series AS (
+				SELECT generate_series(
+					CURRENT_DATE - INTERVAL '%d days',
+					CURRENT_DATE,
+					INTERVAL '%s'
+				)::date AS date
+			)
+			SELECT
+				ds.date::text,
+				COALESCE((
+					SELECT COUNT(*)
+					FROM customers
+					WHERE deleted_at IS NULL
+					  AND created_at::date <= ds.date
+				), 0) AS count
+			FROM date_series ds
+			ORDER BY ds.date
+		`, period, interval)
+
+	case "distributor":
+		// Distributor sees customers they or their resellers created
+		query = fmt.Sprintf(`
+			WITH date_series AS (
+				SELECT generate_series(
+					CURRENT_DATE - INTERVAL '%d days',
+					CURRENT_DATE,
+					INTERVAL '%s'
+				)::date AS date
+			)
+			SELECT
+				ds.date::text,
+				COALESCE((
+					SELECT COUNT(*)
+					FROM customers
+					WHERE deleted_at IS NULL
+					  AND (
+					    custom_data->>'createdBy' = '%s'
+					    OR custom_data->>'createdBy' IN (
+					      SELECT logto_id FROM resellers
+					      WHERE custom_data->>'createdBy' = '%s' AND deleted_at IS NULL
+					    )
+					  )
+					  AND created_at::date <= ds.date
+				), 0) AS count
+			FROM date_series ds
+			ORDER BY ds.date
+		`, period, interval, userOrgID, userOrgID)
+
+	case "reseller":
+		// Reseller sees customers they created
+		query = fmt.Sprintf(`
+			WITH date_series AS (
+				SELECT generate_series(
+					CURRENT_DATE - INTERVAL '%d days',
+					CURRENT_DATE,
+					INTERVAL '%s'
+				)::date AS date
+			)
+			SELECT
+				ds.date::text,
+				COALESCE((
+					SELECT COUNT(*)
+					FROM customers
+					WHERE deleted_at IS NULL
+					  AND custom_data->>'createdBy' = '%s'
+					  AND created_at::date <= ds.date
+				), 0) AS count
+			FROM date_series ds
+			ORDER BY ds.date
+		`, period, interval, userOrgID)
+
+	case "customer":
+		// Customer sees only themselves (no trend, just 0 or 1)
+		if userOrgID == "" {
+			return []struct {
+				Date  string
+				Count int
+			}{}, 0, 0, nil
+		}
+		query = fmt.Sprintf(`
+			WITH date_series AS (
+				SELECT generate_series(
+					CURRENT_DATE - INTERVAL '%d days',
+					CURRENT_DATE,
+					INTERVAL '%s'
+				)::date AS date
+			)
+			SELECT
+				ds.date::text,
+				COALESCE((
+					SELECT COUNT(*)
+					FROM customers
+					WHERE deleted_at IS NULL
+					  AND id = '%s'
+					  AND created_at::date <= ds.date
+				), 0) AS count
+			FROM date_series ds
+			ORDER BY ds.date
+		`, period, interval, userOrgID)
+
+	default:
+		return []struct {
+			Date  string
+			Count int
+		}{}, 0, 0, nil
+	}
+
+	rows, err := r.db.Query(query)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("failed to query trend data: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var dataPoints []struct {
+		Date  string
+		Count int
+	}
+
+	for rows.Next() {
+		var date string
+		var count int
+		if err := rows.Scan(&date, &count); err != nil {
+			return nil, 0, 0, fmt.Errorf("failed to scan trend data: %w", err)
+		}
+		dataPoints = append(dataPoints, struct {
+			Date  string
+			Count int
+		}{Date: date, Count: count})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, 0, fmt.Errorf("error iterating trend data: %w", err)
+	}
+
+	// Calculate current and previous totals
+	var currentTotal, previousTotal int
+	if len(dataPoints) > 0 {
+		currentTotal = dataPoints[len(dataPoints)-1].Count
+		previousTotal = dataPoints[0].Count
+	}
+
+	return dataPoints, currentTotal, previousTotal, nil
 }

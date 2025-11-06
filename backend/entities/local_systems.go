@@ -44,7 +44,13 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	query := `
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
 		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, h.last_heartbeat,
-		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name
+		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name,
+		       CASE
+		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
+		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
+		           WHEN c.logto_id IS NOT NULL THEN 'customer'
+		           ELSE 'owner'
+		       END as organization_type
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
 		LEFT JOIN distributors d ON s.organization_id = d.logto_id AND d.deleted_at IS NULL
@@ -58,13 +64,13 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	var createdByJSON []byte
 	var fqdn, ipv4Address, ipv6Address, version sql.NullString
 	var lastHeartbeat sql.NullTime
-	var organizationName sql.NullString
+	var organizationName, organizationType sql.NullString
 
 	err := r.db.QueryRow(query, id).Scan(
 		&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
-		&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.OrganizationID,
+		&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.ID,
 		&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &lastHeartbeat,
-		&organizationName,
+		&organizationName, &organizationType,
 	)
 
 	if err == sql.ErrNoRows {
@@ -79,7 +85,8 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	system.IPv4Address = ipv4Address.String
 	system.IPv6Address = ipv6Address.String
 	system.Version = version.String
-	system.OrganizationName = organizationName.String
+	system.Organization.Name = organizationName.String
+	system.Organization.Type = organizationType.String
 
 	// Parse custom_data JSON
 	if len(customDataJSON) > 0 {
@@ -120,7 +127,7 @@ func (r *LocalSystemRepository) Delete(id string) error {
 }
 
 // ListByCreatedByOrganizations returns paginated list of systems created by users in specified organizations with filters
-func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []string, page, pageSize int, search, sortBy, sortDirection, filterName string, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses []string) ([]*models.System, int, error) {
+func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []string, page, pageSize int, search, sortBy, sortDirection, filterName, filterSystemKey string, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses []string) ([]*models.System, int, error) {
 	if len(allowedOrgIDs) == 0 {
 		return []*models.System{}, 0, nil
 	}
@@ -136,17 +143,34 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	}
 	placeholdersStr := strings.Join(placeholders, ",")
 
+	// Check if status filter includes "deleted"
+	hasDeletedFilter := false
+	for _, status := range filterStatuses {
+		if status == "deleted" {
+			hasDeletedFilter = true
+			break
+		}
+	}
+
 	// Build WHERE clause for search and filters
-	whereClause := fmt.Sprintf("s.deleted_at IS NULL AND s.created_by ->> 'organization_id' IN (%s)", placeholdersStr)
+	// By default exclude deleted systems unless explicitly requested via status filter
+	var whereClause string
+	if hasDeletedFilter {
+		// Include deleted systems when status filter contains "deleted"
+		whereClause = fmt.Sprintf("s.created_by ->> 'organization_id' IN (%s)", placeholdersStr)
+	} else {
+		// Normal case: exclude deleted systems
+		whereClause = fmt.Sprintf("s.deleted_at IS NULL AND s.created_by ->> 'organization_id' IN (%s)", placeholdersStr)
+	}
 	args := make([]interface{}, len(baseArgs))
 	copy(args, baseArgs)
 
-	// Add search condition
+	// Add search condition (handle nullable fields with COALESCE)
 	if search != "" {
 		searchPattern := "%" + search + "%"
-		whereClause += fmt.Sprintf(" AND (s.name ILIKE $%d OR s.type ILIKE $%d OR s.status ILIKE $%d OR s.fqdn ILIKE $%d OR s.version ILIKE $%d OR s.created_by ->> 'user_name' ILIKE $%d)",
-			len(args)+1, len(args)+2, len(args)+3, len(args)+4, len(args)+5, len(args)+6)
-		args = append(args, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
+		whereClause += fmt.Sprintf(" AND (s.name ILIKE $%d OR COALESCE(s.type, '') ILIKE $%d OR COALESCE(s.status, '') ILIKE $%d OR s.fqdn ILIKE $%d OR s.version ILIKE $%d OR s.created_by ->> 'name' ILIKE $%d OR s.created_by ->> 'email' ILIKE $%d OR s.system_key ILIKE $%d)",
+			len(args)+1, len(args)+2, len(args)+3, len(args)+4, len(args)+5, len(args)+6, len(args)+7, len(args)+8)
+		args = append(args, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
 	}
 
 	// Add filter conditions
@@ -155,47 +179,81 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		args = append(args, "%"+filterName+"%")
 	}
 
+	if filterSystemKey != "" {
+		whereClause += fmt.Sprintf(" AND s.system_key = $%d", len(args)+1)
+		args = append(args, filterSystemKey)
+	}
+
 	// Add multiple value filters with IN clauses
 	if len(filterTypes) > 0 {
 		typePlaceholders := make([]string, len(filterTypes))
+		baseIndex := len(args)
 		for i, t := range filterTypes {
-			typePlaceholders[i] = fmt.Sprintf("$%d", len(args)+i+1)
+			typePlaceholders[i] = fmt.Sprintf("$%d", baseIndex+i+1)
 			args = append(args, t)
 		}
 		whereClause += fmt.Sprintf(" AND s.type IN (%s)", strings.Join(typePlaceholders, ","))
 	}
 
 	if len(filterCreatedBy) > 0 {
-		creatorPlaceholders := make([]string, len(filterCreatedBy))
-		for i, userID := range filterCreatedBy {
-			creatorPlaceholders[i] = fmt.Sprintf("$%d", len(args)+i+1)
-			args = append(args, userID)
+		// Build separate conditions for each ID to check both user_id and organization_id
+		// Each ID gets checked against both fields with OR logic
+		conditions := make([]string, len(filterCreatedBy))
+		for i, id := range filterCreatedBy {
+			placeholder := fmt.Sprintf("$%d", len(args)+1)
+			args = append(args, id)
+			// Match either user_id OR organization_id for this specific ID
+			conditions[i] = fmt.Sprintf("(s.created_by ->> 'user_id' = %s OR s.created_by ->> 'organization_id' = %s)", placeholder, placeholder)
 		}
-		whereClause += fmt.Sprintf(" AND s.created_by ->> 'user_id' IN (%s)", strings.Join(creatorPlaceholders, ","))
+		// Combine all conditions with OR (match any of the provided IDs)
+		whereClause += fmt.Sprintf(" AND (%s)", strings.Join(conditions, " OR "))
 	}
 
 	if len(filterVersions) > 0 {
-		versionPlaceholders := make([]string, len(filterVersions))
-		for i, v := range filterVersions {
-			versionPlaceholders[i] = fmt.Sprintf("$%d", len(args)+i+1)
-			args = append(args, v)
+		// Version filter now uses prefixed format "product:version" (e.g., "nsec:1.2.3")
+		// to avoid ambiguity when same version exists for multiple products
+		versionConditions := make([]string, len(filterVersions))
+		baseIndex := len(args)
+
+		for i, prefixedVersion := range filterVersions {
+			// Split prefixed version into product and version parts
+			parts := strings.SplitN(prefixedVersion, ":", 2)
+			if len(parts) == 2 {
+				// Prefixed format: match both type and version
+				productPlaceholder := fmt.Sprintf("$%d", baseIndex+1)
+				versionPlaceholder := fmt.Sprintf("$%d", baseIndex+2)
+				versionConditions[i] = fmt.Sprintf("(s.type = %s AND s.version = %s)", productPlaceholder, versionPlaceholder)
+				args = append(args, parts[0], parts[1])
+				baseIndex += 2
+			} else {
+				// Fallback for non-prefixed format: match version only (backward compatibility)
+				versionPlaceholder := fmt.Sprintf("$%d", baseIndex+1)
+				versionConditions[i] = fmt.Sprintf("(s.version = %s)", versionPlaceholder)
+				args = append(args, prefixedVersion)
+				baseIndex += 1
+			}
 		}
-		whereClause += fmt.Sprintf(" AND s.version IN (%s)", strings.Join(versionPlaceholders, ","))
+
+		whereClause += fmt.Sprintf(" AND (%s)", strings.Join(versionConditions, " OR "))
 	}
 
 	if len(filterOrgIDs) > 0 {
+		// Filter by logto_id (systems.organization_id stores logto_id)
 		orgPlaceholders := make([]string, len(filterOrgIDs))
+		baseIndex := len(args)
 		for i, orgID := range filterOrgIDs {
-			orgPlaceholders[i] = fmt.Sprintf("$%d", len(args)+i+1)
+			orgPlaceholders[i] = fmt.Sprintf("$%d", baseIndex+i+1)
 			args = append(args, orgID)
 		}
 		whereClause += fmt.Sprintf(" AND s.organization_id IN (%s)", strings.Join(orgPlaceholders, ","))
 	}
 
+	// Handle status filter (treat "deleted" as a normal status value)
 	if len(filterStatuses) > 0 {
 		statusPlaceholders := make([]string, len(filterStatuses))
+		baseIndex := len(args)
 		for i, s := range filterStatuses {
-			statusPlaceholders[i] = fmt.Sprintf("$%d", len(args)+i+1)
+			statusPlaceholders[i] = fmt.Sprintf("$%d", baseIndex+i+1)
 			args = append(args, s)
 		}
 		whereClause += fmt.Sprintf(" AND s.status IN (%s)", strings.Join(statusPlaceholders, ","))
@@ -219,17 +277,18 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	// Build ORDER BY clause
 	orderBy := "s.created_at DESC"
 	if sortBy != "" {
-		// Map sortBy values to actual column names
+		// Map sortBy values to actual column names (use LOWER() for case-insensitive sorting on text fields)
 		columnMap := map[string]string{
-			"name":         "s.name",
-			"type":         "s.type",
-			"status":       "s.status",
-			"fqdn":         "s.fqdn",
-			"version":      "s.version",
-			"system_key":   "s.system_key",
-			"created_at":   "s.created_at",
-			"updated_at":   "s.updated_at",
-			"creator_name": "s.created_by ->> 'user_name'",
+			"name":              "LOWER(s.name)",
+			"type":              "LOWER(s.type)",
+			"status":            "LOWER(s.status)",
+			"fqdn":              "LOWER(s.fqdn)",
+			"version":           "s.version",
+			"system_key":        "LOWER(s.system_key)",
+			"created_at":        "s.created_at",
+			"updated_at":        "s.updated_at",
+			"creator_name":      "LOWER(s.created_by ->> 'name')",
+			"organization_name": "LOWER(COALESCE(d.name, r.name, c.name))",
 		}
 
 		if column, exists := columnMap[sortBy]; exists {
@@ -244,8 +303,14 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	// Build main query
 	query := fmt.Sprintf(`
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
-		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by,
-		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name
+		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.deleted_at, s.created_by,
+		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name,
+		       CASE
+		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
+		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
+		           WHEN c.logto_id IS NOT NULL THEN 'customer'
+		           ELSE 'owner'
+		       END as organization_type
 		FROM systems s
 		LEFT JOIN distributors d ON s.organization_id = d.logto_id AND d.deleted_at IS NULL
 		LEFT JOIN resellers r ON s.organization_id = r.logto_id AND r.deleted_at IS NULL
@@ -272,13 +337,14 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		system := &models.System{}
 		var customDataJSON, createdByJSON []byte
 		var fqdn, ipv4Address, ipv6Address, version sql.NullString
-		var organizationName sql.NullString
+		var deletedAt sql.NullTime
+		var organizationName, organizationType sql.NullString
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
-			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.OrganizationID,
-			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON,
-			&organizationName,
+			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.ID,
+			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &deletedAt, &createdByJSON,
+			&organizationName, &organizationType,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan system: %w", err)
@@ -289,7 +355,13 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		system.IPv4Address = ipv4Address.String
 		system.IPv6Address = ipv6Address.String
 		system.Version = version.String
-		system.OrganizationName = organizationName.String
+		system.Organization.Name = organizationName.String
+		system.Organization.Type = organizationType.String
+
+		// Set deleted_at if present
+		if deletedAt.Valid {
+			system.DeletedAt = &deletedAt.Time
+		}
 
 		// Parse custom_data JSON
 		if len(customDataJSON) > 0 {
@@ -320,14 +392,14 @@ func (r *LocalSystemRepository) GetTotalsByCreatedByOrganizations(allowedOrgIDs 
 	if len(allowedOrgIDs) == 0 {
 		return &models.SystemTotals{
 			Total:          0,
-			Alive:          0,
-			Dead:           0,
-			Zombie:         0,
+			Active:         0,
+			Inactive:       0,
+			Unknown:        0,
 			TimeoutMinutes: timeoutMinutes,
 		}, nil
 	}
 
-	// Calculate cutoff time for alive/dead determination
+	// Calculate cutoff time for active/inactive determination
 	timeout := time.Duration(timeoutMinutes) * time.Minute
 	cutoff := time.Now().Add(-timeout)
 
@@ -346,25 +418,25 @@ func (r *LocalSystemRepository) GetTotalsByCreatedByOrganizations(allowedOrgIDs 
 	query := fmt.Sprintf(`
 		SELECT
 			COUNT(*) as total,
-			SUM(CASE WHEN h.last_heartbeat IS NOT NULL AND h.last_heartbeat > $1 THEN 1 ELSE 0 END) as alive,
-			SUM(CASE WHEN h.last_heartbeat IS NOT NULL AND h.last_heartbeat <= $1 THEN 1 ELSE 0 END) as dead,
-			SUM(CASE WHEN h.last_heartbeat IS NULL THEN 1 ELSE 0 END) as zombie
+			COALESCE(SUM(CASE WHEN h.last_heartbeat IS NOT NULL AND h.last_heartbeat > $1 THEN 1 ELSE 0 END), 0) as active,
+			COALESCE(SUM(CASE WHEN h.last_heartbeat IS NOT NULL AND h.last_heartbeat <= $1 THEN 1 ELSE 0 END), 0) as inactive,
+			COALESCE(SUM(CASE WHEN h.last_heartbeat IS NULL THEN 1 ELSE 0 END), 0) as unknown
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
 		WHERE s.deleted_at IS NULL AND s.created_by ->> 'organization_id' IN (%s)
 	`, placeholdersStr)
 
-	var total, alive, dead, zombie int
-	err := r.db.QueryRow(query, args...).Scan(&total, &alive, &dead, &zombie)
+	var total, active, inactive, unknown int
+	err := r.db.QueryRow(query, args...).Scan(&total, &active, &inactive, &unknown)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get systems totals: %w", err)
 	}
 
 	return &models.SystemTotals{
 		Total:          total,
-		Alive:          alive,
-		Dead:           dead,
-		Zombie:         zombie,
+		Active:         active,
+		Inactive:       inactive,
+		Unknown:        unknown,
 		TimeoutMinutes: timeoutMinutes,
 	}, nil
 }

@@ -267,16 +267,16 @@ func TestLocalUserActiveMethods(t *testing.T) {
 func TestSystemTotalsStructure(t *testing.T) {
 	totals := SystemTotals{
 		Total:          100,
-		Alive:          80,
-		Dead:           15,
-		Zombie:         5,
+		Active:         80,
+		Inactive:       15,
+		Unknown:        5,
 		TimeoutMinutes: 30,
 	}
 
 	assert.Equal(t, 100, totals.Total)
-	assert.Equal(t, 80, totals.Alive)
-	assert.Equal(t, 15, totals.Dead)
-	assert.Equal(t, 5, totals.Zombie)
+	assert.Equal(t, 80, totals.Active)
+	assert.Equal(t, 15, totals.Inactive)
+	assert.Equal(t, 5, totals.Unknown)
 	assert.Equal(t, 30, totals.TimeoutMinutes)
 }
 
@@ -517,8 +517,8 @@ func TestLocalEntitiesJSONSerialization(t *testing.T) {
 
 	// Test SystemTotals
 	totals := SystemTotals{
-		Total: 10,
-		Alive: 8,
+		Total:  10,
+		Active: 8,
 	}
 	totalsJSON, err := json.Marshal(totals)
 	assert.NoError(t, err)

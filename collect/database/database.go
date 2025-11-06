@@ -14,7 +14,6 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 
@@ -102,11 +101,6 @@ func initPostgreSQL() error {
 		Int("max_idle", maxIdle).
 		Dur("conn_max_age", connMaxAge).
 		Msg("PostgreSQL connection established")
-
-	// Initialize database schema
-	if err := initSchemaFromFile(); err != nil {
-		return fmt.Errorf("failed to initialize database schema: %w", err)
-	}
 
 	return nil
 }
@@ -240,34 +234,4 @@ func GetStats() map[string]interface{} {
 	}
 
 	return stats
-}
-
-// initSchemaFromFile initializes the database schema from SQL file
-func initSchemaFromFile() error {
-	logger.ComponentLogger("database").Info().Msg("Initializing collect database schema")
-
-	// Path to the schema file
-	schemaFile := filepath.Join("database", "schema.sql")
-
-	// Check if schema file exists
-	if _, err := os.Stat(schemaFile); os.IsNotExist(err) {
-		logger.ComponentLogger("database").Warn().
-			Str("schema_file", schemaFile).
-			Msg("Schema file not found, skipping schema initialization")
-		return nil
-	}
-
-	// Read schema file
-	content, err := os.ReadFile(schemaFile)
-	if err != nil {
-		return fmt.Errorf("failed to read schema file: %w", err)
-	}
-
-	// Execute schema SQL
-	if _, err := DB.Exec(string(content)); err != nil {
-		return fmt.Errorf("failed to execute schema: %w", err)
-	}
-
-	logger.ComponentLogger("database").Info().Msg("Collect database schema initialized successfully")
-	return nil
 }

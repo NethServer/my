@@ -27,7 +27,7 @@ const router = createRouter({
     },
     {
       path: '/login-redirect',
-      name: 'loginRedirect',
+      name: 'login_redirect',
       component: LoginRedirectView,
     },
     {
@@ -55,6 +55,16 @@ const router = createRouter({
       name: 'users',
       component: () => import('../views/UsersView.vue'),
     },
+    {
+      path: '/systems',
+      name: 'systems',
+      component: () => import('../views/SystemsView.vue'),
+    },
+    {
+      path: '/systems/:systemId',
+      name: 'system_detail',
+      component: () => import('../views/SystemDetailView.vue'),
+    },
   ],
 })
 
@@ -62,7 +72,7 @@ router.beforeEach(async (to) => {
   const loginStore = useLoginStore()
 
   // If the user is not logged in, redirect to the login page
-  if (to.name !== 'login' && to.name !== 'loginRedirect' && !loginStore.isAuthenticated) {
+  if (to.name !== 'login' && to.name !== 'login_redirect' && !loginStore.isAuthenticated) {
     if (!['/', '/login', '/dashboard', '/login-redirect'].includes(to.path)) {
       // save the path requested to local storage
       localStorage.setItem('pathRequested', JSON.stringify(to))
@@ -71,7 +81,7 @@ router.beforeEach(async (to) => {
   }
 
   // If the user is logged in, cannot access the login page
-  if ((to.name === 'login' || to.name === 'loginRedirect') && loginStore.isAuthenticated) {
+  if ((to.name === 'login' || to.name === 'login_redirect') && loginStore.isAuthenticated) {
     return { name: 'dashboard' }
   }
 })

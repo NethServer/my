@@ -229,7 +229,6 @@ const onClosePasswordChangedModal = () => {
         </div>
       </div>
     </div>
-    <!-- //// check breakpoint, skeleton-columns -->
     <NeTable
       :sort-key="sortBy"
       :sort-descending="sortDescending"
@@ -266,7 +265,7 @@ const onClosePasswordChangedModal = () => {
               <!-- create user -->
               <NeButton
                 v-if="canManageUsers()"
-                kind="secondary"
+                kind="primary"
                 size="lg"
                 class="shrink-0"
                 @click="showCreateUserDrawer()"

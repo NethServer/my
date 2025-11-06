@@ -154,8 +154,7 @@ function clearErrors() {
 
 function validateCreate(reseller: CreateReseller): boolean {
   validationIssues.value = {}
-  const validation = v.safeParse(CreateResellerSchema, reseller) ////
-  // const validation = { success: true } //// remove
+  const validation = v.safeParse(CreateResellerSchema, reseller)
 
   if (validation.success) {
     // no validation issues
@@ -173,12 +172,11 @@ function validateCreate(reseller: CreateReseller): boolean {
       }
       validationIssues.value = issues
 
+      console.debug('frontend validation issues', validationIssues.value)
+
       // focus the first field with error
 
       const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-
-      console.log('firstFieldName', firstErrorFieldName) ////
-
       fieldRefs[firstErrorFieldName]?.value?.focus()
     }
     return false
@@ -187,8 +185,7 @@ function validateCreate(reseller: CreateReseller): boolean {
 
 function validateEdit(reseller: Reseller): boolean {
   validationIssues.value = {}
-  const validation = v.safeParse(ResellerSchema, reseller) ////
-  // const validation = { success: true } //// remove
+  const validation = v.safeParse(ResellerSchema, reseller)
 
   if (validation.success) {
     // no validation issues
@@ -206,12 +203,11 @@ function validateEdit(reseller: Reseller): boolean {
       }
       validationIssues.value = issues
 
+      console.debug('frontend validation issues', validationIssues.value)
+
       // focus the first field with error
 
       const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-
-      console.log('firstFieldName', firstErrorFieldName) ////
-
       fieldRefs[firstErrorFieldName]?.value?.focus()
     }
     return false
@@ -268,7 +264,8 @@ async function saveReseller() {
         <!-- name -->
         <NeTextInput
           ref="nameRef"
-          v-model.trim="name"
+          v-model="name"
+          @blur="name = name.trim()"
           :label="$t('organizations.name')"
           :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
           :disabled="saving"
@@ -276,7 +273,8 @@ async function saveReseller() {
         <!-- description -->
         <NeTextInput
           ref="descriptionRef"
-          v-model.trim="description"
+          v-model="description"
+          @blur="description = description.trim()"
           :label="$t('organizations.description')"
           :invalid-message="
             validationIssues.description?.[0] ? $t(validationIssues.description[0]) : ''
@@ -286,13 +284,13 @@ async function saveReseller() {
         <!-- VAT number -->
         <NeTextInput
           ref="vatNumberRef"
-          v-model.trim="vatNumber"
+          v-model="vatNumber"
+          @blur="vatNumber = vatNumber.trim()"
           :label="$t('organizations.vat_number')"
           :invalid-message="
             validationIssues.custom_data_vat?.[0] ? $t(validationIssues.custom_data_vat[0]) : ''
           "
           :disabled="saving"
-          maxlength="11"
         />
         <!-- create reseller error notification -->
         <NeInlineNotification

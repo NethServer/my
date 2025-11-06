@@ -31,6 +31,8 @@ tags:
     description: Backend distributor management
   - name: Backend - Health
     description: Backend service health monitoring
+  - name: Backend - Filters
+    description: Backend filter data for UI dropdowns and selections
   - name: Backend - Organizations
     description: Backend organization hierarchy management
   - name: Backend - Resellers
@@ -711,25 +713,25 @@ components:
     SystemTotals:
       type: object
       properties:
-        total_systems:
+        total:
           type: integer
           description: Total number of systems
           example: 1250
-        alive_systems:
+        active:
           type: integer
           description: Number of systems that communicated within the last timeout minutes
           example: 1100
-        dead_systems:
+        inactive:
           type: integer
           description: Number of systems that communicated but not within timeout minutes
           example: 100
-        zombie_systems:
+        unknown:
           type: integer
           description: Number of systems that were created but never communicated
           example: 50
         timeout_minutes:
           type: integer
-          description: Timeout used for alive/dead determination
+          description: Timeout used for active/inactive determination
           example: 15
 
     Totals:
@@ -739,6 +741,59 @@ components:
           type: integer
           description: Total count
           example: 125
+
+    TrendResponse:
+      type: object
+      properties:
+        period:
+          type: integer
+          description: Trend period in days
+          enum: [7, 30, 180, 365]
+          example: 7
+        period_label:
+          type: string
+          description: Human-readable period label
+          example: "7 days"
+        current_total:
+          type: integer
+          description: Total count at the end of the period
+          example: 15
+        previous_total:
+          type: integer
+          description: Total count at the start of the period
+          example: 12
+        delta:
+          type: integer
+          description: Absolute change between start and end
+          example: 3
+        delta_percentage:
+          type: number
+          format: float
+          description: Percentage change between start and end
+          example: 25.0
+        trend:
+          type: string
+          enum: [up, down, stable]
+          description: Trend direction
+          example: "up"
+        data_points:
+          type: array
+          description: Time-series data points with cumulative counts
+          items:
+            $ref: '#/components/schemas/TrendDataPoint'
+
+    TrendDataPoint:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+          description: Date for this data point
+          example: "2025-10-28"
+        count:
+          type: integer
+          description: Cumulative count at this date
+          example: 15
 
     System:
       type: object
@@ -753,14 +808,15 @@ components:
           example: "Production Server 01"
         type:
           type: string
-          enum: [undefined, ns8, nsec, nsec-controller]
-          description: System type (auto-detected by collect service)
-          example: "undefined"
+          nullable: true
+          enum: [ns8, nsec]
+          description: System type (auto-detected by collect service, null until first inventory collection)
+          example: "nsec"
         status:
           type: string
-          enum: [undefined, online, offline, maintenance]
-          description: System operational status (auto-updated by collect service)
-          example: "undefined"
+          enum: [unknown, online, offline, deleted]
+          description: System operational status (defaults to 'unknown', auto-updated by collect service)
+          example: "unknown"
         fqdn:
           type: string
           description: Fully qualified domain name
@@ -785,6 +841,10 @@ components:
           type: string
           description: Organization ID to which this system belongs
           example: "org_123456789"
+        organization_name:
+          type: string
+          description: Organization name to which this system belongs (resolved from distributors, resellers, or customers)
+          example: "Acme Corporation"
         custom_data:
           type: object
           description: Custom system data
@@ -835,19 +895,23 @@ components:
         user_id:
           type: string
           description: User ID who created the system
-          example: "usr_123456789"
-        user_name:
+          example: "53h5zxpwu4vc"
+        name:
           type: string
-          description: Username who created the system
-          example: "admin"
+          description: Full name of the user who created the system
+          example: "Edoardo Super"
+        email:
+          type: string
+          description: Email of the user who created the system
+          example: "edoardo.spadoni@nethesis.it"
         organization_id:
           type: string
           description: Organization ID of the creator
-          example: "org_123456789"
+          example: "lbswt1rxdhbz"
         organization_name:
           type: string
           description: Organization name of the creator
-          example: "Nethesis"
+          example: "Nethesis Italia"
 
     CreateSystemInput:
       type: object
@@ -1124,8 +1188,19 @@ components:
       required: false
       schema:
         type: string
-        enum: ["name", "type", "status", "fqdn", "version", "system_key", "created_at", "updated_at", "creator_name"]
+        enum: ["name", "type", "status", "fqdn", "version", "system_key", "created_at", "updated_at", "creator_name", "organization_name"]
         example: "name"
+
+    TrendPeriodParam:
+      name: period
+      in: query
+      description: Trend analysis period in days
+      required: false
+      schema:
+        type: integer
+        enum: [7, 30, 180, 365]
+        default: 7
+        example: 7
 
     SystemNameFilterParam:
       name: name
@@ -1136,6 +1211,15 @@ components:
         type: string
         example: "backup-server"
 
+    SystemKeyFilterParam:
+      name: system_key
+      in: query
+      description: Filter systems by system key (exact match). Useful for exporting a single system.
+      required: false
+      schema:
+        type: string
+        example: "NOC-DD09-3DB4-76E4-42A0-A6CC-6D30-9AE7-3216"
+
     SystemTypeFilterParam:
       name: type
       in: query
@@ -1145,33 +1229,48 @@ components:
         type: array
         items:
           type: string
-        example: ["NethSecurity", "NethServer"]
+        example: ["nsec", "ns8"]
       style: form
       explode: true
 
     SystemCreatedByFilterParam:
       name: created_by
       in: query
-      description: Filter systems by creator user ID (exact match). Supports multiple values for checkbox filtering.
+      description: |
+        Filter systems by creator user ID or creator organization ID (exact match).
+        Each provided ID is checked against both the user_id and organization_id fields of the system creator.
+        Supports multiple values for checkbox filtering.
+
+        Examples:
+        - `?created_by=53h5zxpwu4vc` - matches systems created by user with ID 53h5zxpwu4vc
+        - `?created_by=lbswt1rxdhbz` - matches systems created by users in organization lbswt1rxdhbz
+        - `?created_by=53h5zxpwu4vc&created_by=lbswt1rxdhbz` - matches systems created by the user OR by users in the organization
       required: false
       schema:
         type: array
         items:
           type: string
-        example: ["c50541f56-3005-43c2-a237-07aa44e1551c", "d1e17b87-11ce-4e74-a9f8-34d9638135f1"]
+        example: ["53h5zxpwu4vc", "lbswt1rxdhbz"]
       style: form
       explode: true
 
     SystemVersionFilterParam:
       name: version
       in: query
-      description: Filter systems by version (exact match). Supports multiple values for checkbox filtering.
+      description: |
+        Filter systems by version using prefixed format `product:version` (e.g., `nsec:8.0`, `ns8:1.2.3`).
+        The prefix prevents ambiguity when the same version number exists for multiple products.
+        Supports multiple values for checkbox filtering.
+
+        **Example**: `?version=nsec:8.0&version=ns8:1.2.3` matches systems with (nsec version 8.0) OR (ns8 version 1.2.3)
+
+        **Backward compatibility**: Non-prefixed versions (e.g., `8.0`) are still supported but may match multiple products.
       required: false
       schema:
         type: array
         items:
           type: string
-        example: ["8.0", "8.1", "8.2"]
+        example: ["nsec:8.0", "nsec:8.1", "ns8:1.2.3"]
       style: form
       explode: true
 
@@ -1184,21 +1283,25 @@ components:
         type: array
         items:
           type: string
-        example: ["506264e1-915a-4bd0-b721-c7a1a1abcf76", "8ec41105-648e-4730-8705-f581c3b976e5"]
+        example: ["org_abc123xyz", "org_def456uvw"]
       style: form
       explode: true
 
     SystemStatusFilterParam:
       name: status
       in: query
-      description: Filter systems by status (exact match). Supports multiple values for checkbox filtering.
+      description: |
+        Filter systems by status (exact match). Supports multiple values for checkbox filtering.
+
+        Special value "deleted" shows soft-deleted systems (where deleted_at IS NOT NULL).
+        When "deleted" is combined with other statuses, both deleted and non-deleted systems matching the other statuses are returned.
       required: false
       schema:
         type: array
         items:
           type: string
-          enum: ["undefined", "online", "offline", "maintenance"]
-        example: ["online", "maintenance"]
+          enum: ["unknown", "online", "offline", "deleted"]
+        example: ["online", "unknown"]
       style: form
       explode: true
 
@@ -1658,6 +1761,38 @@ paths:
                     example: "users totals retrieved"
                   data:
                     $ref: '#/components/schemas/Totals'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users/trend:
+    get:
+      operationId: getUsersTrend
+      tags:
+        - Backend - Users
+      summary: /users/trend - Get users trend data
+      description: Get trend analysis of users over time with cumulative counts (respects hierarchical organization filtering)
+      parameters:
+        - $ref: '#/components/parameters/TrendPeriodParam'
+      responses:
+        '200':
+          description: Users trend data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "users trend retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/TrendResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2863,6 +2998,38 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /customers/trend:
+    get:
+      operationId: getCustomersTrend
+      tags:
+        - Backend - Customers
+      summary: /customers/trend - Get customers trend data
+      description: Get trend analysis of customers over time with cumulative counts (Owner + Distributor + Reseller)
+      parameters:
+        - $ref: '#/components/parameters/TrendPeriodParam'
+      responses:
+        '200':
+          description: Customers trend data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "customers trend retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/TrendResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   # ===========================================================================
   # BUSINESS HIERARCHY - DISTRIBUTORS
   # ===========================================================================
@@ -3097,6 +3264,38 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /distributors/trend:
+    get:
+      operationId: getDistributorsTrend
+      tags:
+        - Backend - Distributors
+      summary: /distributors/trend - Get distributors trend data
+      description: Get trend analysis of distributors over time with cumulative counts (Owner only)
+      parameters:
+        - $ref: '#/components/parameters/TrendPeriodParam'
+      responses:
+        '200':
+          description: Distributors trend data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "distributors trend retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/TrendResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   # ===========================================================================
   # HEALTH CHECK
   # ===========================================================================
@@ -3152,6 +3351,206 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  # ===========================================================================
+  # FILTERS
+  # ===========================================================================
+  /filters/products:
+    get:
+      operationId: getFilterProducts
+      tags:
+        - Backend - Filters
+      summary: /filters/products - Get available product filters
+      description: |
+        Get list of unique system products for filtering (requires Support+ role).
+        Returns product type values that can be used directly in GET /systems?type= query parameter.
+        Respects RBAC hierarchy - users only see products from systems they can access.
+      responses:
+        '200':
+          description: Product filters retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "product filters retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      products:
+                        type: array
+                        items:
+                          type: string
+                        description: List of unique product names (system types)
+                        example: ["NethSecurity", "NethServer", "nsec"]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /filters/created-by:
+    get:
+      operationId: getFilterCreatedBy
+      tags:
+        - Backend - Filters
+      summary: /filters/created-by - Get available created-by filters
+      description: |
+        Get list of users who created systems for filtering (requires Support+ role).
+        Returns user_id values that can be used directly in GET /systems?created_by= query parameter.
+        Respects RBAC hierarchy - users only see creators from systems they can access.
+      responses:
+        '200':
+          description: Created-by filters retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "created-by filters retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      created_by:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            user_id:
+                              type: string
+                              description: User logto_id from created_by JSONB field (not UUID)
+                              example: "pnqjmgmk937x"
+                            name:
+                              type: string
+                              description: User full name from created_by JSONB field
+                              example: "Company Owner"
+                        description: List of users who created systems
+                        example:
+                          - user_id: "pnqjmgmk937x"
+                            name: "Company Owner"
+                          - user_id: "yqleewq6ursf"
+                            name: "Edoardo Super"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /filters/versions:
+    get:
+      operationId: getFilterVersions
+      tags:
+        - Backend - Filters
+      summary: /filters/versions - Get version filters grouped by product
+      description: |
+        Get system versions grouped by product type for filtering (requires Support+ role).
+        Returns versions organized by product, suitable for hierarchical UI display.
+
+        **Version Format**: Returns versions in prefixed format `product:version` (e.g., `"nsec:1.2.3"`, `"ns8:1.2.3"`)
+        to avoid ambiguity when the same version number exists for multiple products.
+
+        These prefixed values can be used directly in GET /systems?version= query parameter.
+      responses:
+        '200':
+          description: Version filters retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "version filters retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      versions:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            product:
+                              type: string
+                              description: Product type name
+                              example: "NethSecurity"
+                            versions:
+                              type: array
+                              items:
+                                type: string
+                              description: List of versions for this product in prefixed format (product:version)
+                              example: ["nsec:8.6.0", "nsec:8.5.2", "nsec:8.4.0"]
+                        description: Versions grouped by product type (each version includes product prefix)
+                        example:
+                          - product: "nsec"
+                            versions: ["nsec:8.6.0", "nsec:8.5.2"]
+                          - product: "ns8"
+                            versions: ["ns8:1.2.3", "ns8:1.1.0"]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /filters/organizations:
+    get:
+      operationId: getFilterOrganizations
+      tags:
+        - Backend - Filters
+      summary: /filters/organizations - Get available organization filters
+      description: |
+        Get list of organizations with systems for filtering (requires Support+ role, filtered by RBAC).
+        Returns organization logto_id as the id field for compatibility with GET /systems?organization_id= parameter.
+        Respects RBAC hierarchy - users only see organizations they can access.
+      responses:
+        '200':
+          description: Organization filters retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "organization filters retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      organizations:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              description: Organization logto_id (not UUID)
+                              example: "ug9v4l0m6mwt"
+                            name:
+                              type: string
+                              description: Organization name
+                              example: "Customer Organization 3"
+                        description: List of organizations with systems
+                        example:
+                          - id: "ug9v4l0m6mwt"
+                            name: "Cust3"
+                          - id: "guwy6opsll17"
+                            name: "Owner"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # ===========================================================================
   # ROLES & ORGANIZATIONS
@@ -3452,6 +3851,38 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /resellers/trend:
+    get:
+      operationId: getResellersTrend
+      tags:
+        - Backend - Resellers
+      summary: /resellers/trend - Get resellers trend data
+      description: Get trend analysis of resellers over time with cumulative counts (Owner + Distributor)
+      parameters:
+        - $ref: '#/components/parameters/TrendPeriodParam'
+      responses:
+        '200':
+          description: Resellers trend data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "resellers trend retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/TrendResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /roles:
     get:
       operationId: getRoles
@@ -3492,7 +3923,32 @@ paths:
       tags:
         - Backend - Systems
       summary: /systems - List systems
-      description: Get list of systems visible to the user based on hierarchical organization permissions. Supports filtering by name, type, creator, version, organization, and status.
+      description: |
+        Get list of systems visible to the user based on hierarchical organization permissions. Supports filtering by name, type, creator, version, organization, and status.
+
+        **Query String Examples:**
+
+        1. **Single type filter**: `?type=nsec`
+        2. **Multiple types filter**: `?type=nsec&type=ns8`
+        3. **Multiple filters combined**: `?type=nsec&status=online&status=deleted&version=8.0`
+        4. **With pagination and sorting**: `?page=1&page_size=50&sort_by=name&sort_direction=asc&type=nsec`
+        5. **Search with filters**: `?search=backup&type=ns8&organization_id=org_abc123xyz`
+        6. **Creator filter (by user)**: `?created_by=53h5zxpwu4vc`
+        7. **Creator filter (by organization)**: `?created_by=lbswt1rxdhbz`
+        8. **Creator filter (multiple)**: `?created_by=53h5zxpwu4vc&created_by=lbswt1rxdhbz`
+
+        **Complete Example Request:**
+        ```
+        GET /api/systems?page=1&page_size=20&sort_by=created_at&sort_direction=desc&type=nsec&type=ns8&status=online&version=nsec:8.0&version=ns8:1.2.3&organization_id=org_abc123xyz
+        ```
+
+        This retrieves systems that are:
+        - Type: nsec OR ns8
+        - Status: online
+        - Version: (nsec version 8.0) OR (ns8 version 1.2.3)
+        - Organization: org_abc123xyz
+        - Sorted by creation date (newest first)
+        - Page 1 with 20 items per page
       parameters:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
@@ -3500,6 +3956,7 @@ paths:
         - $ref: '#/components/parameters/SystemSortByParam'
         - $ref: '#/components/parameters/SortDirectionParam'
         - $ref: '#/components/parameters/SystemNameFilterParam'
+        - $ref: '#/components/parameters/SystemKeyFilterParam'
         - $ref: '#/components/parameters/SystemTypeFilterParam'
         - $ref: '#/components/parameters/SystemCreatedByFilterParam'
         - $ref: '#/components/parameters/SystemVersionFilterParam'
@@ -3739,7 +4196,7 @@ paths:
       parameters:
         - name: timeout
           in: query
-          description: Timeout in minutes for alive/dead determination
+          description: Timeout in minutes for active/inactive determination
           schema:
             type: integer
             minimum: 1
@@ -3762,6 +4219,133 @@ paths:
                     example: "system status retrieved"
                   data:
                     $ref: '#/components/schemas/SystemTotals'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /systems/trend:
+    get:
+      operationId: getSystemsTrend
+      tags:
+        - Backend - Systems
+      summary: /systems/trend - Get systems trend data
+      description: Get trend analysis of systems over time with cumulative counts
+      parameters:
+        - $ref: '#/components/parameters/TrendPeriodParam'
+      responses:
+        '200':
+          description: Systems trend data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "systems trend retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/TrendResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /systems/export:
+    get:
+      operationId: exportSystems
+      tags:
+        - Backend - Systems
+      summary: /systems/export - Export systems to CSV or PDF
+      description: |
+        Export systems with applied filters to CSV or PDF format.
+
+        **Features:**
+        - Supports all filter parameters from GET /systems
+        - Maximum 10,000 systems per export (DoS protection)
+        - CSV format: Simple spreadsheet with all fields
+        - PDF format: Formatted report with metadata and filters applied
+        - File naming: `systems_export_YYYY-MM-DD_HHmmss.[csv|pdf]`
+
+        **Permissions**: Requires `read:systems` permission and respects RBAC hierarchy
+
+        **Export Fields:**
+        - Name, Type, Version, Status
+        - FQDN, IPv4 Address, IPv6 Address
+        - System Key, Notes
+        - Created At
+        - Organization Name, Organization Type
+        - Created By Name, Created By Email, Created By Organization
+      parameters:
+        - name: format
+          in: query
+          required: true
+          description: Export format (csv or pdf)
+          schema:
+            type: string
+            enum: [csv, pdf]
+            example: csv
+        - $ref: '#/components/parameters/SearchParam'
+        - $ref: '#/components/parameters/SystemSortByParam'
+        - $ref: '#/components/parameters/SortDirectionParam'
+        - $ref: '#/components/parameters/SystemNameFilterParam'
+        - $ref: '#/components/parameters/SystemKeyFilterParam'
+        - $ref: '#/components/parameters/SystemTypeFilterParam'
+        - $ref: '#/components/parameters/SystemCreatedByFilterParam'
+        - $ref: '#/components/parameters/SystemVersionFilterParam'
+        - $ref: '#/components/parameters/SystemOrganizationFilterParam'
+        - $ref: '#/components/parameters/SystemStatusFilterParam'
+      responses:
+        '200':
+          description: Export file generated successfully
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+                description: CSV file with systems data
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+                description: PDF report with systems data
+          headers:
+            Content-Disposition:
+              description: Attachment filename
+              schema:
+                type: string
+                example: 'attachment; filename="systems_export_2025-01-26_153045.csv"'
+            Content-Length:
+              description: File size in bytes
+              schema:
+                type: integer
+        '400':
+          description: Bad request (invalid format or too many systems)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 400
+                  message:
+                    type: string
+                    example: "too many systems to export (15000). maximum allowed: 10000. please apply more filters"
+                  data:
+                    type: object
+                    properties:
+                      total_count:
+                        type: integer
+                        example: 15000
+                      max_limit:
+                        type: integer
+                        example: 10000
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -3832,7 +4416,7 @@ paths:
             example: "sys_123456789"
       responses:
         '200':
-          description: Latest inventory retrieved successfully
+          description: Latest inventory retrieved successfully. Returns null when no inventory is available (not an error condition).
           content:
             application/json:
               schema:
@@ -3846,13 +4430,12 @@ paths:
                     example: "latest inventory retrieved successfully"
                   data:
                     type: object
-                    description: Latest inventory data
+                    nullable: true
+                    description: Latest inventory data, or null if no inventory exists
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
 
   /systems/{id}/inventory/changes:
     get:
@@ -3873,7 +4456,7 @@ paths:
         - $ref: '#/components/parameters/PageSizeParam'
       responses:
         '200':
-          description: Inventory changes retrieved successfully
+          description: Inventory changes retrieved successfully. Returns null when no inventory is available (not an error condition).
           content:
             application/json:
               schema:
@@ -3887,6 +4470,8 @@ paths:
                     example: "inventory changes retrieved successfully"
                   data:
                     type: object
+                    nullable: true
+                    description: Inventory changes data, or null if no inventory exists
                     properties:
                       changes:
                         type: array
@@ -3899,8 +4484,6 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
 
   /systems/{id}/inventory/changes/latest:
     get:
@@ -3919,7 +4502,7 @@ paths:
             example: "sys_123456789"
       responses:
         '200':
-          description: Latest inventory changes retrieved successfully
+          description: Latest inventory changes retrieved successfully. Returns null when no inventory is available (not an error condition).
           content:
             application/json:
               schema:
@@ -3933,13 +4516,12 @@ paths:
                     example: "latest inventory changes retrieved successfully"
                   data:
                     type: object
-                    description: Latest inventory changes data
+                    nullable: true
+                    description: Latest inventory changes data, or null if no inventory exists
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
 
   /systems/{id}/inventory/diffs:
     get:
@@ -4123,7 +4705,7 @@ paths:
       summary: /systems/inventory - Collect system inventory
       description: System inventory collection endpoint with HTTP Basic authentication
       security:
-        - BasicAuth: [system_id:system_secret]
+        - BasicAuth: [system_key:system_secret]
       requestBody:
         required: true
         content:
@@ -4133,19 +4715,86 @@ paths:
               properties:
                 data:
                   type: object
-                  description: System inventory data
+                  description: System inventory data (structure varies by system type)
                   additionalProperties: true
                   example: {
                     "os": {
-                        "name": "my.server",
-                        "type": "ns8",
-                        "family": "NethServer",
-                        "release": {
-                            "full": "1.3.5",
-                            "major": 1,
-                            "minor": 3,
-                            "patch": 5
-                        }
+                      "name": "NethSec",
+                      "type": "nethsecurity",
+                      "family": "OpenWRT",
+                      "release": {
+                        "full": "8.6.0-dev+859b9708e.20251014104339",
+                        "major": 7
+                      }
+                    },
+                    "kernel": "Linux",
+                    "kernelrelease": "6.6.104",
+                    "virtual": "physical",
+                    "arp_macs": "111",
+                    "dmi": {
+                      "bios": {
+                        "vendor": "American Megatrends Inc.",
+                        "version": "4.6.5"
+                      },
+                      "board": {
+                        "product": "SHARKBAY",
+                        "manufacturer": "To be filled by O.E.M."
+                      },
+                      "product": {
+                        "name": "To be filled by O.E.M.",
+                        "uuid": "03000200-0400-0500-0006-000700080009"
+                      }
+                    },
+                    "memory": {
+                      "system": {
+                        "total_bytes": 7347437568,
+                        "used_bytes": 653488128,
+                        "available_bytes": 7347683328
+                      },
+                      "swap": {
+                        "total_bytes": 0,
+                        "used_bytes": 0,
+                        "available_bytes": 0
+                      }
+                    },
+                    "processors": {
+                      "count": "4",
+                      "isa": "x86_64",
+                      "models": ["Intel(R) Core(TM) i5-4570S CPU @ 2.90GHz"]
+                    },
+                    "mountpoints": {
+                      "/": {
+                        "size_bytes": 258080768,
+                        "used_bytes": 57765888,
+                        "available_bytes": 200314880
+                      }
+                    },
+                    "networking": {
+                      "fqdn": "fw.nethesis.it"
+                    },
+                    "public_ip": "2.119.67.169",
+                    "timezone": "Europe/Rome",
+                    "system_uptime": {
+                      "seconds": "54150"
+                    },
+                    "features": {
+                      "subscription_status": {
+                        "status": "enterprise"
+                      },
+                      "ha": {
+                        "enabled": false,
+                        "vips": 0
+                      },
+                      "qos": {
+                        "count": 2,
+                        "rules": [
+                          {
+                            "enabled": true,
+                            "upload": 20,
+                            "download": 40
+                          }
+                        ]
+                      }
                     }
                   }
       responses:
@@ -4177,10 +4826,10 @@ paths:
                         type: string
                         description: Queue status message
                         example: "queued"
-                      system_id:
+                      system_key:
                         type: string
-                        description: System ID
-                        example: "4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
+                        description: System KEY
+                        example: "NOC-4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
                       timestamp:
                         type: string
                         format: date-time
@@ -4245,7 +4894,7 @@ paths:
       summary: /systems/heartbeat - System heartbeat
       description: System heartbeat endpoint to track system liveness (every 10 minutes)
       security:
-        - BasicAuth: [system_id:system_secret]
+        - BasicAuth: [system_key:system_secret]
       requestBody:
         required: true
         content:
@@ -4253,12 +4902,12 @@ paths:
             schema:
               type: object
               properties:
-                system_id:
+                system_key:
                   type: string
-                  description: System ID sending the heartbeat
-                  example: "4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
+                  description: System KEY sending the heartbeat
+                  example: "NOC-4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
               required:
-                - system_id
+                - system_key
       responses:
         '200':
           description: Heartbeat acknowledged
@@ -4276,10 +4925,10 @@ paths:
                   data:
                     type: object
                     properties:
-                      system_id:
+                      system_key:
                         type: string
-                        description: System ID
-                        example: "4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
+                        description: System KEY
+                        example: "NOC-4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
                       acknowledged:
                         type: boolean
                         description: Whether heartbeat was acknowledged

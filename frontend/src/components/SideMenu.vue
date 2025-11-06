@@ -20,6 +20,7 @@ import {
   faCity as fasCity,
   faBuilding as fasBuilding,
   faUserGroup as fasUserGroup,
+  faServer as fasServer,
 } from '@fortawesome/free-solid-svg-icons'
 import {
   faHouse as falHouse,
@@ -27,11 +28,13 @@ import {
   faCity as falCity,
   faBuilding as falBuilding,
   faUserGroup as falUserGroup,
+  faServer as falServer,
 } from '@nethesis/nethesis-light-svg-icons'
 import {
   canReadCustomers,
   canReadDistributors,
   canReadResellers,
+  canReadSystems,
   canReadUsers,
 } from '@/lib/permissions'
 
@@ -57,6 +60,15 @@ const navigation = computed(() => {
   const menuItems: MenuItem[] = [
     { name: 'dashboard.title', to: 'dashboard', solidIcon: fasHouse, lightIcon: falHouse },
   ]
+
+  if (canReadSystems()) {
+    menuItems.push({
+      name: 'systems.title',
+      to: 'systems',
+      solidIcon: fasServer,
+      lightIcon: falServer,
+    })
+  }
 
   if (canReadDistributors()) {
     menuItems.push({

@@ -197,8 +197,12 @@ func main() {
 			// Dangerous operations requiring specific permissions
 			// systemsGroup.DELETE("/:id/destroy", middleware.RequirePermission("destroy:systems"), methods.DestroySystem) // Complete system destruction (destroy:systems required)
 
-			// System totals endpoint
+			// System totals and trend endpoints
 			systemsGroup.GET("/totals", methods.GetSystemsTotals) // Get systems totals with liveness status
+			systemsGroup.GET("/trend", methods.GetSystemsTrend)   // Get systems trend data for specified period
+
+			// Export endpoint
+			systemsGroup.GET("/export", methods.ExportSystems) // Export systems to CSV or PDF with applied filters
 
 			// Inventory endpoints
 			systemsGroup.GET("/:id/inventory", methods.GetSystemInventoryHistory)                      // Get paginated inventory history
@@ -207,6 +211,17 @@ func main() {
 			systemsGroup.GET("/:id/inventory/changes/latest", methods.GetSystemLatestInventoryChanges) // Get latest batch changes summary
 			systemsGroup.GET("/:id/inventory/diffs", methods.GetSystemInventoryDiffs)                  // Get paginated diffs
 			systemsGroup.GET("/:id/inventory/diffs/latest", methods.GetSystemLatestInventoryDiff)      // Get latest diff
+		}
+
+		// ===========================================
+		// FILTERS - For UI dropdowns
+		// ===========================================
+		filtersGroup := customAuthWithAudit.Group("/filters", middleware.RequireResourcePermission("systems"))
+		{
+			filtersGroup.GET("/products", methods.GetFilterProducts)           // Get unique product types
+			filtersGroup.GET("/created-by", methods.GetFilterCreatedBy)        // Get users who created systems
+			filtersGroup.GET("/versions", methods.GetFilterVersions)           // Get unique versions
+			filtersGroup.GET("/organizations", methods.GetFilterOrganizations) // Get organizations with systems
 		}
 
 		// ===========================================
@@ -223,8 +238,9 @@ func main() {
 			distributorsGroup.PUT("/:id", methods.UpdateDistributor)    // Update distributor (manage:distributors required)
 			distributorsGroup.DELETE("/:id", methods.DeleteDistributor) // Delete distributor (manage:distributors required)
 
-			// Distributors totals endpoint (read:distributors required)
+			// Distributors totals and trend endpoints (read:distributors required)
 			distributorsGroup.GET("/totals", methods.GetDistributorsTotals)
+			distributorsGroup.GET("/trend", methods.GetDistributorsTrend)
 		}
 
 		// Resellers - resource-based permission validation (read:resellers for GET, manage:resellers for POST/PUT/DELETE)
@@ -236,8 +252,9 @@ func main() {
 			resellersGroup.PUT("/:id", methods.UpdateReseller)    // Update reseller (manage:resellers required)
 			resellersGroup.DELETE("/:id", methods.DeleteReseller) // Delete reseller (manage:resellers required)
 
-			// Resellers totals endpoint (read:resellers required)
+			// Resellers totals and trend endpoints (read:resellers required)
 			resellersGroup.GET("/totals", methods.GetResellersTotals)
+			resellersGroup.GET("/trend", methods.GetResellersTrend)
 		}
 
 		// Customers - resource-based permission validation (read:customers for GET, manage:customers for POST/PUT/DELETE)
@@ -249,8 +266,9 @@ func main() {
 			customersGroup.PUT("/:id", methods.UpdateCustomer)    // Update customer (manage:customers required)
 			customersGroup.DELETE("/:id", methods.DeleteCustomer) // Delete customer (manage:customers required)
 
-			// Customers totals endpoint (read:customers required)
+			// Customers totals and trend endpoints (read:customers required)
 			customersGroup.GET("/totals", methods.GetCustomersTotals)
+			customersGroup.GET("/trend", methods.GetCustomersTrend)
 		}
 
 		// ===========================================
@@ -269,8 +287,9 @@ func main() {
 			usersGroup.PATCH("/:id/reactivate", middleware.PreventSelfModification(), methods.ReactivateUser)  // Reactivate suspended user (prevent self-modification)
 			usersGroup.DELETE("/:id", middleware.PreventSelfModification(), methods.DeleteUser)                // Delete user (prevent self-modification)
 
-			// Users totals endpoint (read:users required)
+			// Users totals and trend endpoints (read:users required)
 			usersGroup.GET("/totals", methods.GetUsersTotals)
+			usersGroup.GET("/trend", methods.GetUsersTrend)
 		}
 
 		// Roles endpoints - for role selection in user creation

@@ -434,6 +434,58 @@ func (s *LocalUserService) GetTotals(userOrgRole, userOrgID string) (int, error)
 	return s.userRepo.GetTotals(userOrgRole, userOrgID)
 }
 
+// GetUsersTrend returns trend data for users over a specified period
+func (s *LocalUserService) GetUsersTrend(period int, userOrgRole, userOrgID string) (*models.TrendResponse, error) {
+	// Get trend data from repository
+	dataPoints, currentTotal, previousTotal, err := s.userRepo.GetTrend(userOrgRole, userOrgID, period)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert data points to model format
+	trendDataPoints := make([]models.TrendDataPoint, len(dataPoints))
+	for i, dp := range dataPoints {
+		trendDataPoints[i] = models.TrendDataPoint{
+			Date:  dp.Date,
+			Count: dp.Count,
+		}
+	}
+
+	// Calculate delta and percentage
+	delta := currentTotal - previousTotal
+	deltaPercentage := 0.0
+	if previousTotal > 0 {
+		deltaPercentage = (float64(delta) / float64(previousTotal)) * 100
+	}
+
+	// Determine trend direction
+	trend := "stable"
+	if delta > 0 {
+		trend = "up"
+	} else if delta < 0 {
+		trend = "down"
+	}
+
+	// Get period label
+	periodLabel := map[int]string{
+		7:   "7 days",
+		30:  "30 days",
+		180: "180 days",
+		365: "365 days",
+	}[period]
+
+	return &models.TrendResponse{
+		Period:          period,
+		PeriodLabel:     periodLabel,
+		CurrentTotal:    currentTotal,
+		PreviousTotal:   previousTotal,
+		Delta:           delta,
+		DeltaPercentage: deltaPercentage,
+		Trend:           trend,
+		DataPoints:      trendDataPoints,
+	}, nil
+}
+
 // UpdateUser updates a user locally and syncs to Logto
 func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequest, updatedByUserID, updatedByOrgID string) (*models.LocalUser, error) {
 	// 1. Get current user before update to detect organization changes and for validation

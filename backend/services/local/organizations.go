@@ -130,7 +130,7 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 	distributor, err := s.distributorRepo.Create(req)
 	if err != nil {
 		// Check for VAT constraint violation (from entities/database)
-		if strings.Contains(err.Error(), "VAT already exists") {
+		if strings.Contains(err.Error(), "already exists") {
 			vatValue := ""
 			if req.CustomData != nil && req.CustomData["vat"] != nil {
 				vatValue = fmt.Sprintf("%v", req.CustomData["vat"])
@@ -185,6 +185,7 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 			Str("distributor_id", distributor.ID).
 			Msg("Failed to mark distributor as synced")
 	}
+	distributor.LogtoID = &logtoOrg.ID
 
 	// 6. Commit transaction
 	if err := tx.Commit(); err != nil {
@@ -290,7 +291,7 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 	reseller, err := s.resellerRepo.Create(req)
 	if err != nil {
 		// Check for VAT constraint violation (from entities/database)
-		if strings.Contains(err.Error(), "VAT already exists") {
+		if strings.Contains(err.Error(), "already exists") {
 			vatValue := ""
 			if req.CustomData != nil && req.CustomData["vat"] != nil {
 				vatValue = fmt.Sprintf("%v", req.CustomData["vat"])
@@ -344,6 +345,7 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 			Str("reseller_id", reseller.ID).
 			Msg("Failed to mark reseller as synced")
 	}
+	reseller.LogtoID = &logtoOrg.ID
 
 	// 4. Commit transaction
 	if err := tx.Commit(); err != nil {
@@ -450,7 +452,7 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 	customer, err := s.customerRepo.Create(req)
 	if err != nil {
 		// Check for VAT constraint violation (from entities/database)
-		if strings.Contains(err.Error(), "VAT already exists") {
+		if strings.Contains(err.Error(), "already exists") {
 			vatValue := ""
 			if req.CustomData != nil && req.CustomData["vat"] != nil {
 				vatValue = fmt.Sprintf("%v", req.CustomData["vat"])
@@ -504,6 +506,7 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 			Str("customer_id", customer.ID).
 			Msg("Failed to mark customer as synced")
 	}
+	customer.LogtoID = &logtoOrg.ID
 
 	// 4. Commit transaction
 	if err := tx.Commit(); err != nil {
@@ -732,7 +735,7 @@ func (s *LocalOrganizationService) UpdateDistributor(id string, req *models.Upda
 	if err != nil {
 
 		// Check for VAT constraint violation (from entities/database)
-		if strings.Contains(err.Error(), "VAT already exists") {
+		if strings.Contains(err.Error(), "already exists") {
 			vatValue := ""
 			if req.CustomData != nil && (*req.CustomData)["vat"] != nil {
 				vatValue = fmt.Sprintf("%v", (*req.CustomData)["vat"])
@@ -942,7 +945,7 @@ func (s *LocalOrganizationService) UpdateReseller(id string, req *models.UpdateL
 	if err != nil {
 
 		// Check for VAT constraint violation (from entities/database)
-		if strings.Contains(err.Error(), "VAT already exists") {
+		if strings.Contains(err.Error(), "already exists") {
 			vatValue := ""
 			if req.CustomData != nil && (*req.CustomData)["vat"] != nil {
 				vatValue = fmt.Sprintf("%v", (*req.CustomData)["vat"])
@@ -1152,7 +1155,7 @@ func (s *LocalOrganizationService) UpdateCustomer(id string, req *models.UpdateL
 	if err != nil {
 
 		// Check for VAT constraint violation (from entities/database)
-		if strings.Contains(err.Error(), "VAT already exists") {
+		if strings.Contains(err.Error(), "already exists") {
 			vatValue := ""
 			if req.CustomData != nil && (*req.CustomData)["vat"] != nil {
 				vatValue = fmt.Sprintf("%v", (*req.CustomData)["vat"])

@@ -13,6 +13,7 @@ import {
   NeButton,
   NeFormItemLabel,
   NeInlineNotification,
+  NeSkeleton,
   NeTextInput,
 } from '@nethesis/vue-components'
 import { useMutation, useQueryCache } from '@pinia/colada'
@@ -128,7 +129,8 @@ function validate(profile: ProfileInfo): boolean {
 
 <template>
   <div>
-    <form @submit.prevent class="space-y-7">
+    <NeSkeleton v-if="loginStore.loadingUserInfo || editUserLoading" :lines="12" class="w-full" />
+    <form v-else @submit.prevent class="space-y-7">
       <!-- name -->
       <NeTextInput
         ref="nameRef"

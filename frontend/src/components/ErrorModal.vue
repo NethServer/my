@@ -61,7 +61,7 @@ function copyCommandToClipboard() {
 
     setTimeout(() => {
       justCopied.value = false
-    }, 3000)
+    }, 2000)
   }
 }
 </script>

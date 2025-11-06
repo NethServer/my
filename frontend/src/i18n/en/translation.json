@@ -31,7 +31,10 @@
     "loading": "Loading...",
     "show": "Show",
     "hide": "Hide",
-    "coming_soon": "Coming soon"
+    "coming_soon": "Coming soon",
+    "view_details": "View details",
+    "ip_address": "IP address",
+    "click_to_copy": "Click to copy"
   },
   "shell": {
     "open_sidebar": "Open sidebar",
@@ -73,7 +76,7 @@
   },
   "distributors": {
     "title": "Distributors",
-    "page_description": "List of authorized distributors, including company details.",
+    "page_description": "List of authorized Nethesis distributors, including company details.",
     "cannot_retrieve_distributors": "Cannot retrieve distributors",
     "no_distributor_found": "No distributors found",
     "filter_distributors": "Filter distributors",
@@ -92,7 +95,7 @@
   },
   "resellers": {
     "title": "Resellers",
-    "page_description": "List of authorized resellers, including company details.",
+    "page_description": "List of authorized Nethesis resellers, including company details.",
     "cannot_retrieve_resellers": "Cannot retrieve resellers",
     "no_reseller_found": "No resellers found",
     "filter_resellers": "Filter resellers",
@@ -132,9 +135,11 @@
     "name": "Company name",
     "description": "Description",
     "vat_number": "VAT number",
+    "distributor": "Distributor",
+    "reseller": "Reseller",
+    "customer": "Customer",
     "name_cannot_be_empty": "Company name is required",
     "custom_data_vat_cannot_be_empty": "VAT number is required",
-    "custom_data_vat_invalid": "Invalid VAT number",
     "custom_data_vat_already_exists": "An organization with this VAT number already exists"
   },
   "users": {
@@ -317,6 +322,88 @@
     "reader": "Reader",
     "reader_description": "Can view users and systems"
   },
+  "systems": {
+    "title": "Systems",
+    "page_description": "List of licensed NethServer and NethSecurity systems.",
+    "cannot_retrieve_systems": "Cannot retrieve systems",
+    "no_systems": "No systems configured",
+    "no_systems_found": "No systems found",
+    "filter_systems": "Filter systems",
+    "product": "Product",
+    "version": "Version",
+    "created_by": "Created by",
+    "organization": "Organization",
+    "organization_helper": "Choose the organization this system will be assigned to",
+    "status": "Status",
+    "fqdn": "FQDN",
+    "fqdn_ip_address": "FQDN / IP address",
+    "show_details": "Show details",
+    "active": "Active",
+    "inactive": "Inactive",
+    "unknown": "Unknown",
+    "update_available": "Update available",
+    "go_to_system": "Go to system",
+    "create_system": "Create system",
+    "name_cannot_be_empty": "Name is required",
+    "organization_required": "Organization is required",
+    "system_created": "System created",
+    "system_saved": "System saved",
+    "edit_system": "Edit system",
+    "name": "Name",
+    "name_helper": "Enter a descriptive name so you can recognize it easily",
+    "notes": "Notes",
+    "cannot_create_system": "Cannot create system",
+    "cannot_save_system": "Cannot save system",
+    "cannot_delete_system": "Cannot delete system",
+    "save_system": "Save system",
+    "no_organizations": "No organizations",
+    "delete_system": "Delete system",
+    "delete_system_confirmation": "Are you sure you want to delete system {name}? It will no longer receive updates and you will not be able to request support for it.",
+    "system_deleted": "System deleted",
+    "system_secret": "System secret",
+    "complete_the_subscription": "Complete the subscription",
+    "system_secret_warning": "Copy the secret and paste it into the Subscription page of the system. You won't be able to see the secret again.",
+    "copy_system_secret": "Copy system secret",
+    "status_online": "Active",
+    "status_offline": "Inactive",
+    "status_unknown": "Unknown",
+    "status_deleted": "Deleted",
+    "reset_filters": "Reset filters",
+    "copy_and_close": "Copy and close",
+    "system_secret_copied": "System secret copied",
+    "system_secret_copied_description": "Go to the Subscription page of {name} and paste the secret to complete the subscription.",
+    "choose_product_to_view_versions": "Choose a product to view available versions",
+    "export_systems_to_pdf": "Export systems to PDF",
+    "export_systems_to_csv": "Export systems to CSV",
+    "export_to_pdf": "Export to PDF",
+    "export_to_csv": "Export to CSV",
+    "regenerate_secret": "Regenerate secret",
+    "regenerate_secret_confirmation": "Regenerate the secret for system {name}? You'll need to update the subscription on the system with the new secret.",
+    "system_secret_regenerated": "System secret regenerated",
+    "system_secret_regenerated_description": "The secret for system {name} has been regenerated.",
+    "cannot_regenerate_system_secret": "Cannot regenerate system secret",
+    "update_the_subscription": "Update the subscription"
+  },
+  "system_detail": {
+    "title": "System detail",
+    "overview": "Overview",
+    "product_logo": "{product} logo",
+    "unknown_product": "Unknown product",
+    "open_system": "Open system",
+    "open_system_tooltip": "Note: The system may be unreachable due to network settings.",
+    "uptime": "Uptime",
+    "last_inventory": "Last inventory",
+    "timezone": "Timezone",
+    "network": "Network",
+    "dns_servers": "DNS servers",
+    "cannot_retrieve_system_detail": "Cannot retrieve system detail",
+    "cannot_retrieve_latest_inventory": "Cannot retrieve latest inventory",
+    "no_inventory_available": "No inventory available",
+    "no_inventory_available_description": "The system has not sent any inventory data yet.",
+    "subscription": "Subscription",
+    "system_creation": "System creation",
+    "system_key": "System key"
+  },
   "ne_table": {
     "no_items": "No items",
     "go_to_previous_page": "Go to previous page",
@@ -340,6 +427,17 @@
     "choose_multiple": "Choose one or more",
     "num_selected": "{num} selected"
   },
+  "ne_dropdown_filter": {
+    "clear_filter": "Clear filter",
+    "open_filter": "Open filter",
+    "no_options": "No options",
+    "more_options_hidden": "Continue typing to show more options",
+    "clear_selection": "Clear selection",
+    "clear_search": "Clear search"
+  },
+  "ne_stepper": {
+    "step": "Step"
+  },
   "sort": {
     "sort": "Sort",
     "sort_by": "Sort by",
@@ -350,6 +448,7 @@
   "time": {
     "seconds": "{count} second | {count} seconds",
     "minutes": "{count} minute | {count} minutes",
-    "hours": "{count} hour | {count} hours"
+    "hours": "{count} hour | {count} hours",
+    "days": "{count} day | {count} days"
   }
 }

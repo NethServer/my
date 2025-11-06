@@ -113,8 +113,8 @@ CREATE INDEX IF NOT EXISTS idx_users_latest_login_at ON users(latest_login_at DE
 CREATE TABLE IF NOT EXISTS systems (
     id VARCHAR(255) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    type VARCHAR(100) NOT NULL,
-    status VARCHAR(50) NOT NULL DEFAULT 'offline',
+    type VARCHAR(100),  -- Populated by collect service on first inventory
+    status VARCHAR(50) NOT NULL DEFAULT 'unknown',  -- Default: unknown, updated by collect service
     fqdn VARCHAR(255),
     ipv4_address INET,
     ipv6_address INET,
@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS systems (
     organization_id VARCHAR(255) NOT NULL,
     custom_data JSONB,
     system_key VARCHAR(255) UNIQUE NOT NULL,
-    system_secret VARCHAR(64) NOT NULL,
+    system_secret VARCHAR(512) NOT NULL,  -- Argon2id hash in PHC format
     notes TEXT DEFAULT '',
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -132,6 +132,9 @@ CREATE TABLE IF NOT EXISTS systems (
 
 -- Comment for systems.deleted_at
 COMMENT ON COLUMN systems.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted at that time.';
+
+-- Comment for systems.system_secret
+COMMENT ON COLUMN systems.system_secret IS 'Argon2id hashed system secret in PHC string format (max 512 chars)';
 
 -- Comment for systems.notes
 COMMENT ON COLUMN systems.notes IS 'Additional notes or description for the system';
@@ -153,7 +156,7 @@ DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_systems_status') THEN
         ALTER TABLE systems ADD CONSTRAINT chk_systems_status
-            CHECK (status IN ('undefined', 'online', 'offline', 'maintenance'));
+            CHECK (status IN ('unknown', 'online', 'offline', 'deleted'));
     END IF;
 END $$;
 
@@ -311,6 +314,7 @@ CREATE TABLE IF NOT EXISTS inventory_records (
 CREATE INDEX IF NOT EXISTS idx_inventory_records_system_id_timestamp ON inventory_records(system_id, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_inventory_records_data_hash ON inventory_records(data_hash);
 CREATE INDEX IF NOT EXISTS idx_inventory_records_processed_at ON inventory_records(processed_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_inventory_records_system_data_hash ON inventory_records(system_id, data_hash);
 
 -- Inventory diffs table
 CREATE TABLE IF NOT EXISTS inventory_diffs (
@@ -341,8 +345,8 @@ CREATE INDEX IF NOT EXISTS idx_inventory_diffs_timestamp ON inventory_diffs(time
 -- System heartbeats table
 CREATE TABLE IF NOT EXISTS system_heartbeats (
     id BIGSERIAL PRIMARY KEY,
-    system_id VARCHAR(255) NOT NULL,
-    heartbeat_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    system_id VARCHAR(255) NOT NULL UNIQUE,
+    last_heartbeat TIMESTAMP WITH TIME ZONE NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'online',
     metadata JSONB,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
@@ -355,7 +359,7 @@ FOREIGN KEY (system_id) REFERENCES systems(id) ON DELETE CASCADE;
 
 -- Indexes for system_heartbeats
 CREATE INDEX IF NOT EXISTS idx_system_heartbeats_system_id ON system_heartbeats(system_id);
-CREATE INDEX IF NOT EXISTS idx_system_heartbeats_timestamp ON system_heartbeats(heartbeat_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_system_heartbeats_last_heartbeat ON system_heartbeats(last_heartbeat DESC);
 CREATE INDEX IF NOT EXISTS idx_system_heartbeats_status ON system_heartbeats(status);
 
 -- Inventory alerts table

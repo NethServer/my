@@ -21,16 +21,16 @@ type SystemHeartbeat struct {
 type SystemStatus struct {
 	SystemID      string     `json:"system_id"`
 	LastHeartbeat *time.Time `json:"last_heartbeat,omitempty"`
-	Status        string     `json:"status"` // "alive", "dead", "zombie"
+	Status        string     `json:"status"` // "active", "inactive", "unknown"
 	MinutesAgo    *int       `json:"minutes_ago,omitempty"`
 }
 
 // SystemsStatusSummary represents the overall status summary
 type SystemsStatusSummary struct {
-	TotalSystems   int            `json:"total_systems"`
-	AliveSystems   int            `json:"alive_systems"`
-	DeadSystems    int            `json:"dead_systems"`
-	ZombieSystems  int            `json:"zombie_systems"`
-	TimeoutMinutes int            `json:"timeout_minutes"`
-	Systems        []SystemStatus `json:"systems"`
+	TotalSystems    int            `json:"total_systems"`
+	ActiveSystems   int            `json:"active_systems"`
+	InactiveSystems int            `json:"inactive_systems"`
+	UnknownSystems  int            `json:"unknown_systems"`
+	TimeoutMinutes  int            `json:"timeout_minutes"`
+	Systems         []SystemStatus `json:"systems"`
 }

@@ -2,6 +2,7 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import type { AxiosError } from 'axios'
+import { normalize } from './common'
 
 export type BackendError = {
   code: number
@@ -36,15 +37,17 @@ export const getValidationIssues = (
     const validationErrors = backendError.data.errors || []
 
     validationErrors.forEach((err: { key: string; message: string }) => {
-      // replace dots with underscores for i18n key
+      // replace dots and spaces with underscores for i18n key
       const key = err.key.replace(/\./g, '_')
 
       if (!issues[key]) {
         issues[key] = []
       }
-      issues[key].push(`${i18nPrefix}.${key}_${err.message}`)
+
+      const normalizedMessage = normalize(err.message)
+      issues[key].push(`${i18nPrefix}.${key}_${normalizedMessage}`)
     })
   }
-  console.log('issues', issues) ////
+  console.debug('backend validation issues', issues)
   return issues
 }

@@ -48,11 +48,6 @@ export const useLoginStore = defineStore('login', () => {
 
   const userDisplayName = computed(() => userInfo.value?.name || '')
 
-  const userInitial = computed(() => {
-    const name = userDisplayName.value
-    return name ? name.charAt(0).toUpperCase() : ''
-  })
-
   const isOwner = computed(() => {
     return userInfo.value?.org_role === 'Owner'
   })
@@ -98,7 +93,6 @@ export const useLoginStore = defineStore('login', () => {
       const token = await getAccessToken()
 
       if (!token) {
-        //// toast notification
         console.error('Cannot fetch access token, logout')
         loadingUserInfo.value = false
         logout()
@@ -107,7 +101,6 @@ export const useLoginStore = defineStore('login', () => {
 
       accessToken.value = token || ''
     } catch (error) {
-      //// toast notification?
       console.error('Cannot fetch access token:', error)
       loadingUserInfo.value = false
       return
@@ -142,7 +135,6 @@ export const useLoginStore = defineStore('login', () => {
         checkImpersonationStatus()
       }
     } catch (error) {
-      //// toast notification
       console.error('Cannot exchange token:', error)
     } finally {
       loadingUserInfo.value = false
@@ -178,7 +170,6 @@ export const useLoginStore = defineStore('login', () => {
       jwtToken.value = res.data.data.token
       refreshToken.value = res.data.data.refresh_token
     } catch (error) {
-      //// toast notification
       console.error('Cannot refresh token:', error)
     }
   }
@@ -237,7 +228,6 @@ export const useLoginStore = defineStore('login', () => {
     isAuthenticated,
     jwtToken,
     userDisplayName,
-    userInitial,
     userInfo,
     loadingUserInfo,
     isOwner,
