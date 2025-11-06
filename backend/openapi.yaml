@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: My Nethesis API
   description: REST API for My Nethesis with business hierarchy management and RBAC
-  version: 0.2.0
+  version: 0.3.0
   contact:
     name: Nethesis S.r.l.
     url: http://www.nethesis.it
