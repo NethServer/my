@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS systems (
     organization_id VARCHAR(255) NOT NULL,
     custom_data JSONB,
     system_key VARCHAR(255) UNIQUE NOT NULL,
-    system_secret VARCHAR(64) NOT NULL,
+    system_secret VARCHAR(512) NOT NULL,  -- Argon2id hash in PHC format
     notes TEXT DEFAULT '',
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -132,6 +132,9 @@ CREATE TABLE IF NOT EXISTS systems (
 
 -- Comment for systems.deleted_at
 COMMENT ON COLUMN systems.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted at that time.';
+
+-- Comment for systems.system_secret
+COMMENT ON COLUMN systems.system_secret IS 'Argon2id hashed system secret in PHC string format (max 512 chars)';
 
 -- Comment for systems.notes
 COMMENT ON COLUMN systems.notes IS 'Additional notes or description for the system';

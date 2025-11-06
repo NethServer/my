@@ -22,6 +22,7 @@ import (
 
 	"github.com/nethesis/my/collect/configuration"
 	"github.com/nethesis/my/collect/database"
+	"github.com/nethesis/my/collect/helpers"
 	"github.com/nethesis/my/collect/logger"
 	"github.com/nethesis/my/collect/models"
 	"github.com/nethesis/my/collect/response"
@@ -165,9 +166,21 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 		return "", false
 	}
 
-	// Verify secret hash
-	secretHash := hashSystemSecret(systemSecret)
-	if secretHash != creds.SecretHash {
+	// Verify secret hash using Argon2id
+	valid, err := helpers.VerifySystemSecret(systemSecret, creds.SecretHash)
+	if err != nil {
+		logger.Warn().
+			Err(err).
+			Str("system_key", systemKey).
+			Str("system_id", creds.SystemID).
+			Msg("Failed to verify system secret")
+
+		// Cache negative result
+		cacheCredentialsResult(c, systemKey, systemSecret, "", false)
+		return "", false
+	}
+
+	if !valid {
 		logger.Warn().
 			Str("system_key", systemKey).
 			Str("system_id", creds.SystemID).
@@ -187,7 +200,9 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 // checkCredentialsCache checks Redis cache for cached credentials
 // Returns the cached system_id if valid, or nil if not cached
 func checkCredentialsCache(c *gin.Context, systemKey, systemSecret string) *string {
-	cacheKey := fmt.Sprintf("auth:system:%s:%s", systemKey, hashSystemSecret(systemSecret))
+	// Use SHA-256 hash of secret for cache key only (not for security verification)
+	hash := sha256.Sum256([]byte(systemSecret))
+	cacheKey := fmt.Sprintf("auth:system:%s:%x", systemKey, hash)
 
 	rdb := database.GetRedisClient()
 	result, err := rdb.Get(c.Request.Context(), cacheKey).Result()
@@ -211,7 +226,9 @@ func checkCredentialsCache(c *gin.Context, systemKey, systemSecret string) *stri
 // cacheCredentialsResult caches the authentication result
 // If valid, caches the system_id for the given system_key
 func cacheCredentialsResult(c *gin.Context, systemKey, systemSecret, systemID string, valid bool) {
-	cacheKey := fmt.Sprintf("auth:system:%s:%s", systemKey, hashSystemSecret(systemSecret))
+	// Use SHA-256 hash of secret for cache key only (not for security verification)
+	hash := sha256.Sum256([]byte(systemSecret))
+	cacheKey := fmt.Sprintf("auth:system:%s:%x", systemKey, hash)
 
 	var value string
 	var ttl time.Duration
@@ -229,10 +246,4 @@ func cacheCredentialsResult(c *gin.Context, systemKey, systemSecret, systemID st
 	if err != nil {
 		logger.Warn().Err(err).Msg("Failed to cache auth result")
 	}
-}
-
-// hashSystemSecret creates a SHA-256 hash of the system secret
-func hashSystemSecret(secret string) string {
-	hash := sha256.Sum256([]byte(secret))
-	return fmt.Sprintf("%x", hash)
 }

@@ -11,7 +11,6 @@ package local
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -23,6 +22,7 @@ import (
 
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/entities"
+	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/services/logto"
@@ -68,9 +68,11 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 
 	now := time.Now()
 
-	// Hash the secret for storage
-	hash := sha256.Sum256([]byte(systemSecret))
-	hashedSecret := hex.EncodeToString(hash[:])
+	// Hash the secret for storage using Argon2id
+	hashedSecret, err := helpers.HashSystemSecret(systemSecret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash system secret: %w", err)
+	}
 
 	// Convert custom_data to JSON for storage
 	customDataJSON, err := json.Marshal(request.CustomData)
@@ -388,9 +390,11 @@ func (s *LocalSystemsService) RegenerateSystemSecret(systemID, userID, userOrgID
 
 	now := time.Now()
 
-	// Hash the secret for storage
-	hash := sha256.Sum256([]byte(newSystemSecret))
-	hashedSecret := hex.EncodeToString(hash[:])
+	// Hash the secret for storage using Argon2id
+	hashedSecret, err := helpers.HashSystemSecret(newSystemSecret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash system secret: %w", err)
+	}
 
 	// Update system secret
 	query := `
