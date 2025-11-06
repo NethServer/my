@@ -41,7 +41,8 @@ type System struct {
 	Notes        string            `json:"notes" structs:"notes"`
 	CreatedAt    time.Time         `json:"created_at" structs:"created_at"`
 	UpdatedAt    time.Time         `json:"updated_at" structs:"updated_at"`
-	DeletedAt    *time.Time        `json:"deleted_at" structs:"deleted_at"` // Soft delete timestamp
+	DeletedAt    *time.Time        `json:"deleted_at" structs:"deleted_at"`       // Soft delete timestamp
+	RegisteredAt *time.Time        `json:"registered_at" structs:"registered_at"` // Registration timestamp
 	CreatedBy    SystemCreator     `json:"created_by" structs:"created_by"`
 	// Heartbeat status fields
 	HeartbeatStatus  string     `json:"heartbeat_status,omitempty"`  // active, inactive, unknown
@@ -63,6 +64,18 @@ type UpdateSystemRequest struct {
 	OrganizationID string            `json:"organization_id" structs:"organization_id"`
 	CustomData     map[string]string `json:"custom_data" structs:"custom_data"`
 	Notes          string            `json:"notes" structs:"notes"`
+}
+
+// RegisterSystemRequest represents the request payload for registering a system
+type RegisterSystemRequest struct {
+	SystemSecret string `json:"system_secret" binding:"required" structs:"system_secret"`
+}
+
+// RegisterSystemResponse represents the response for successful system registration
+type RegisterSystemResponse struct {
+	SystemKey    string    `json:"system_key" structs:"system_key"`
+	RegisteredAt time.Time `json:"registered_at" structs:"registered_at"`
+	Message      string    `json:"message" structs:"message"`
 }
 
 // TrendDataPoint represents a single data point in a trend chart

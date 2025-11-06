@@ -43,7 +43,7 @@ func (r *LocalSystemRepository) Create(req *models.CreateSystemRequest) (*models
 func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	query := `
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
-		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, h.last_heartbeat,
+		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, s.registered_at, h.last_heartbeat,
 		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name,
 		       CASE
 		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
@@ -63,13 +63,13 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	var customDataJSON []byte
 	var createdByJSON []byte
 	var fqdn, ipv4Address, ipv6Address, version sql.NullString
-	var lastHeartbeat sql.NullTime
+	var registeredAt, lastHeartbeat sql.NullTime
 	var organizationName, organizationType sql.NullString
 
 	err := r.db.QueryRow(query, id).Scan(
 		&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
 		&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.ID,
-		&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &lastHeartbeat,
+		&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &lastHeartbeat,
 		&organizationName, &organizationType,
 	)
 
@@ -87,6 +87,11 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	system.Version = version.String
 	system.Organization.Name = organizationName.String
 	system.Organization.Type = organizationType.String
+
+	// Convert registered_at
+	if registeredAt.Valid {
+		system.RegisteredAt = &registeredAt.Time
+	}
 
 	// Parse custom_data JSON
 	if len(customDataJSON) > 0 {
@@ -303,7 +308,7 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	// Build main query
 	query := fmt.Sprintf(`
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
-		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.deleted_at, s.created_by,
+		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.deleted_at, s.registered_at, s.created_by,
 		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name,
 		       CASE
 		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
@@ -337,13 +342,13 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		system := &models.System{}
 		var customDataJSON, createdByJSON []byte
 		var fqdn, ipv4Address, ipv6Address, version sql.NullString
-		var deletedAt sql.NullTime
+		var deletedAt, registeredAt sql.NullTime
 		var organizationName, organizationType sql.NullString
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
 			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.ID,
-			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &deletedAt, &createdByJSON,
+			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &deletedAt, &registeredAt, &createdByJSON,
 			&organizationName, &organizationType,
 		)
 		if err != nil {
@@ -361,6 +366,11 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		// Set deleted_at if present
 		if deletedAt.Valid {
 			system.DeletedAt = &deletedAt.Time
+		}
+
+		// Set registered_at if present
+		if registeredAt.Valid {
+			system.RegisteredAt = &registeredAt.Time
 		}
 
 		// Parse custom_data JSON

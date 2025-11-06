@@ -324,3 +324,56 @@ func RegenerateSystemSecret(c *gin.Context) {
 	// Return new secret (only time it's visible)
 	c.JSON(http.StatusOK, response.OK("system secret regenerated successfully", system))
 }
+
+// RegisterSystem handles POST /api/systems/register - registers a system using system_secret
+func RegisterSystem(c *gin.Context) {
+	// Parse request body
+	var request models.RegisterSystemRequest
+	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
+		return
+	}
+
+	// Create systems service
+	systemsService := local.NewSystemsService()
+
+	// Register system using the secret token
+	result, err := systemsService.RegisterSystem(request.SystemSecret)
+	if err != nil {
+		errMsg := err.Error()
+
+		logger.Warn().
+			Err(err).
+			Msg("Failed system registration attempt")
+
+		// Map errors to appropriate HTTP status codes
+		switch {
+		case strings.Contains(errMsg, "invalid system secret format"):
+			c.JSON(http.StatusBadRequest, response.BadRequest("invalid system secret format", nil))
+			return
+		case strings.Contains(errMsg, "invalid system secret"):
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("invalid system secret", nil))
+			return
+		case strings.Contains(errMsg, "system has been deleted"):
+			c.JSON(http.StatusForbidden, response.Forbidden("system has been deleted", nil))
+			return
+		case strings.Contains(errMsg, "system is already registered"):
+			c.JSON(http.StatusConflict, response.Conflict("system is already registered", nil))
+			return
+		default:
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to register system", map[string]interface{}{
+				"error": errMsg,
+			}))
+			return
+		}
+	}
+
+	// Log successful registration
+	logger.Info().
+		Str("system_key", result.SystemKey).
+		Time("registered_at", result.RegisteredAt).
+		Msg("System registered successfully")
+
+	// Return system_key and registration info
+	c.JSON(http.StatusOK, response.OK("system registered successfully", result))
+}

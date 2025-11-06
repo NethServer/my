@@ -54,25 +54,25 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 	// Generate unique system ID
 	systemID := uuid.New().String()
 
-	// Generate system key (alphanumeric, 12 characters)
+	// Generate system key (NOC-XXXX-XXXX format)
 	systemKey, err := s.generateSystemKey()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate system key: %w", err)
 	}
 
-	// Generate secure system secret (64 characters)
-	systemSecret, err := s.generateSystemSecret()
+	// Generate system secret token in format: my_<public>.<secret>
+	fullToken, publicPart, secretPart, err := s.generateSystemSecretToken()
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate system secret: %w", err)
+		return nil, fmt.Errorf("failed to generate system secret token: %w", err)
 	}
 
-	now := time.Now()
-
-	// Hash the secret for storage using Argon2id
-	hashedSecret, err := helpers.HashSystemSecret(systemSecret)
+	// Hash only the secret part using Argon2id
+	hashedSecret, err := helpers.HashSystemSecret(secretPart)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash system secret: %w", err)
 	}
+
+	now := time.Now()
 
 	// Convert custom_data to JSON for storage
 	customDataJSON, err := json.Marshal(request.CustomData)
@@ -88,12 +88,12 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 
 	// Insert system into database (type starts as NULL, status defaults to 'unknown' until first inventory)
 	query := `
-		INSERT INTO systems (id, name, type, status, system_key, organization_id, custom_data, system_secret, notes, created_at, updated_at, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		INSERT INTO systems (id, name, type, status, system_key, system_secret_public, system_secret, organization_id, custom_data, notes, created_at, updated_at, created_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 	`
 
-	_, err = database.DB.Exec(query, systemID, request.Name, nil, "unknown", systemKey, request.OrganizationID,
-		customDataJSON, hashedSecret, request.Notes, now, now, createdByJSON)
+	_, err = database.DB.Exec(query, systemID, request.Name, nil, "unknown", systemKey, publicPart, hashedSecret, request.OrganizationID,
+		customDataJSON, request.Notes, now, now, createdByJSON)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create system: %w", err)
 	}
@@ -111,7 +111,7 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 		Organization: organization,
 		// FQDN, IPv4Address, IPv6Address, Version will be populated by collect service
 		CustomData:   request.CustomData,
-		SystemSecret: systemSecret, // Return plain secret only during creation
+		SystemSecret: fullToken, // Return full token only during creation (my_<public>.<secret>)
 		Notes:        request.Notes,
 		CreatedAt:    now,
 		UpdatedAt:    now,
@@ -133,7 +133,7 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRole, userRole string) ([]*models.System, error) {
 	query := `
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
-		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, h.last_heartbeat,
+		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, s.registered_at, h.last_heartbeat,
 		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name,
 		       CASE
 		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
@@ -164,13 +164,13 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 		var customDataJSON []byte
 		var createdByJSON []byte
 		var fqdn, ipv4Address, ipv6Address, version sql.NullString
-		var lastHeartbeat sql.NullTime
+		var registeredAt, lastHeartbeat sql.NullTime
 		var organizationName, organizationType sql.NullString
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
 			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.ID,
-			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &lastHeartbeat,
+			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &lastHeartbeat,
 			&organizationName, &organizationType,
 		)
 		if err != nil {
@@ -184,6 +184,11 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 		system.Version = version.String
 		system.Organization.Name = organizationName.String
 		system.Organization.Type = organizationType.String
+
+		// Convert registered_at
+		if registeredAt.Valid {
+			system.RegisteredAt = &registeredAt.Time
+		}
 
 		// Parse custom_data JSON
 		if len(customDataJSON) > 0 {
@@ -209,6 +214,11 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 		}
 		system.HeartbeatStatus, system.HeartbeatMinutes = s.calculateHeartbeatStatus(heartbeatTime, 15)
 		system.LastHeartbeat = heartbeatTime
+
+		// Hide system_key if system is not registered yet
+		if system.RegisteredAt == nil {
+			system.SystemKey = ""
+		}
 
 		systems = append(systems, system)
 	}
@@ -236,7 +246,19 @@ func (s *LocalSystemsService) GetSystemsByOrganizationPaginated(userID, userOrgI
 
 	// Use repository layer for pagination, search, sorting and filters
 	systemRepo := entities.NewLocalSystemRepository()
-	return systemRepo.ListByCreatedByOrganizations(allowedOrgIDs, page, pageSize, search, sortBy, sortDirection, filterName, filterSystemKey, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses)
+	systems, totalCount, err := systemRepo.ListByCreatedByOrganizations(allowedOrgIDs, page, pageSize, search, sortBy, sortDirection, filterName, filterSystemKey, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Hide system_key for systems that are not registered yet
+	for _, system := range systems {
+		if system.RegisteredAt == nil {
+			system.SystemKey = ""
+		}
+	}
+
+	return systems, totalCount, nil
 }
 
 // GetSystem retrieves a specific system with RBAC validation
@@ -255,6 +277,11 @@ func (s *LocalSystemsService) GetSystem(systemID, userOrgRole, userOrgID string)
 
 	// Calculate heartbeat status (15 minutes timeout)
 	system.HeartbeatStatus, system.HeartbeatMinutes = s.calculateHeartbeatStatus(system.LastHeartbeat, 15)
+
+	// Hide system_key if system is not registered yet
+	if system.RegisteredAt == nil {
+		system.SystemKey = ""
+	}
 
 	logger.Debug().
 		Str("system_id", systemID).
@@ -382,28 +409,28 @@ func (s *LocalSystemsService) RegenerateSystemSecret(systemID, userID, userOrgID
 		return nil, fmt.Errorf("access denied: %s", reason)
 	}
 
-	// Generate new secret
-	newSystemSecret, err := s.generateSystemSecret()
+	// Generate new token (format: my_<public>.<secret>)
+	fullToken, publicPart, secretPart, err := s.generateSystemSecretToken()
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate system secret: %w", err)
+		return nil, fmt.Errorf("failed to generate system secret token: %w", err)
 	}
 
 	now := time.Now()
 
-	// Hash the secret for storage using Argon2id
-	hashedSecret, err := helpers.HashSystemSecret(newSystemSecret)
+	// Hash only the secret part for storage using Argon2id
+	hashedSecret, err := helpers.HashSystemSecret(secretPart)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash system secret: %w", err)
 	}
 
-	// Update system secret
+	// Update both system_secret_public and system_secret
 	query := `
 		UPDATE systems
-		SET system_secret = $2, updated_at = $3
+		SET system_secret_public = $2, system_secret = $3, updated_at = $4
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 
-	_, err = database.DB.Exec(query, systemID, hashedSecret, now)
+	_, err = database.DB.Exec(query, systemID, publicPart, hashedSecret, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update system credentials: %w", err)
 	}
@@ -414,8 +441,8 @@ func (s *LocalSystemsService) RegenerateSystemSecret(systemID, userID, userOrgID
 		return nil, fmt.Errorf("failed to get updated system: %w", err)
 	}
 
-	// Set the secret for this response only
-	system.SystemSecret = newSystemSecret
+	// Set the full token for this response only
+	system.SystemSecret = fullToken
 
 	logger.Info().
 		Str("system_id", systemID).
@@ -423,6 +450,87 @@ func (s *LocalSystemsService) RegenerateSystemSecret(systemID, userID, userOrgID
 		Msg("System secret regenerated successfully")
 
 	return system, nil
+}
+
+// RegisterSystem registers a system using its system_secret token and returns the system_key
+func (s *LocalSystemsService) RegisterSystem(systemSecret string) (*models.RegisterSystemResponse, error) {
+	// Split token format: my_<public>.<secret>
+	parts := strings.Split(systemSecret, ".")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid system secret format")
+	}
+
+	// Extract public part (remove "my_" prefix)
+	publicPart := strings.TrimPrefix(parts[0], "my_")
+	if publicPart == parts[0] {
+		return nil, fmt.Errorf("invalid system secret format: missing 'my_' prefix")
+	}
+	secretPart := parts[1]
+
+	// Fast lookup using system_secret_public
+	query := `
+		SELECT id, system_key, system_secret, deleted_at, registered_at
+		FROM systems
+		WHERE system_secret_public = $1
+	`
+
+	var systemID, systemKey, hashedSecret string
+	var deletedAt, registeredAt sql.NullTime
+
+	err := database.DB.QueryRow(query, publicPart).Scan(&systemID, &systemKey, &hashedSecret, &deletedAt, &registeredAt)
+	if err == sql.ErrNoRows {
+		logger.Warn().Str("public_part", publicPart).Msg("System not found with provided public part")
+		return nil, fmt.Errorf("invalid system secret")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to query system: %w", err)
+	}
+
+	// Check if system is deleted
+	if deletedAt.Valid {
+		logger.Warn().Str("system_id", systemID).Msg("Attempted to register deleted system")
+		return nil, fmt.Errorf("system has been deleted")
+	}
+
+	// Check if system is already registered
+	if registeredAt.Valid {
+		logger.Warn().Str("system_id", systemID).Msg("Attempted to register already registered system")
+		return nil, fmt.Errorf("system is already registered")
+	}
+
+	// Verify the secret part using Argon2id
+	valid, err := helpers.VerifySystemSecret(secretPart, hashedSecret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify system secret: %w", err)
+	}
+	if !valid {
+		logger.Warn().Str("system_id", systemID).Msg("Invalid secret part provided during registration")
+		return nil, fmt.Errorf("invalid system secret")
+	}
+
+	// Update registered_at timestamp
+	now := time.Now()
+	updateQuery := `
+		UPDATE systems
+		SET registered_at = $1
+		WHERE id = $2
+	`
+
+	_, err = database.DB.Exec(updateQuery, now, systemID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update registration timestamp: %w", err)
+	}
+
+	logger.Info().
+		Str("system_id", systemID).
+		Str("system_key", systemKey).
+		Msg("System registered successfully")
+
+	return &models.RegisterSystemResponse{
+		SystemKey:    systemKey,
+		RegisteredAt: now,
+		Message:      "system registered successfully",
+	}, nil
 }
 
 // GetTotals returns total counts and status for systems based on hierarchical RBAC
@@ -591,14 +699,41 @@ func (s *LocalSystemsService) generateSystemKey() (string, error) {
 	return "NOC-" + strings.Join(segments, "-"), nil
 }
 
-// generateSystemSecret generates a cryptographically secure random secret
-func (s *LocalSystemsService) generateSystemSecret() (string, error) {
-	// Generate 32 random bytes (will be 64 hex characters)
-	bytes := make([]byte, 32)
+// generateSecretPublicPart generates the public part of the token (20 random characters)
+func (s *LocalSystemsService) generateSecretPublicPart() (string, error) {
+	bytes := make([]byte, 15) // 15 bytes = 20 base64 chars (raw URL encoding)
 	if _, err := rand.Read(bytes); err != nil {
 		return "", err
 	}
-	return hex.EncodeToString(bytes), nil
+	// Use RawURLEncoding (no padding, URL-safe)
+	return strings.ToLower(hex.EncodeToString(bytes)[:20]), nil
+}
+
+// generateSecretPrivatePart generates the secret part of the token (40 random characters)
+func (s *LocalSystemsService) generateSecretPrivatePart() (string, error) {
+	bytes := make([]byte, 30) // 30 bytes = 40 base64 chars
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	// Use hex encoding for simplicity
+	return strings.ToLower(hex.EncodeToString(bytes)[:40]), nil
+}
+
+// generateSystemSecretToken generates a complete token in format: my_<public>.<secret>
+// Returns: fullToken, publicPart, secretPart, error
+func (s *LocalSystemsService) generateSystemSecretToken() (string, string, string, error) {
+	publicPart, err := s.generateSecretPublicPart()
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to generate public part: %w", err)
+	}
+
+	secretPart, err := s.generateSecretPrivatePart()
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to generate secret part: %w", err)
+	}
+
+	fullToken := fmt.Sprintf("my_%s.%s", publicPart, secretPart)
+	return fullToken, publicPart, secretPart, nil
 }
 
 // GetTotalsByCreatedByOrganizations returns total counts and status for systems created by specified organizations

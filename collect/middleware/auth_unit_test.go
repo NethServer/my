@@ -62,8 +62,20 @@ func TestBasicAuthMiddleware(t *testing.T) {
 			expectedAuth:   false,
 		},
 		{
-			name:           "valid format but password too short",
-			authHeader:     "Basic " + base64.StdEncoding.EncodeToString([]byte("system1:short")),
+			name:           "valid format but token without dot separator",
+			authHeader:     "Basic " + base64.StdEncoding.EncodeToString([]byte("system1:my_abc123xyz")),
+			expectedStatus: http.StatusUnauthorized,
+			expectedAuth:   false,
+		},
+		{
+			name:           "valid format but token without my_ prefix",
+			authHeader:     "Basic " + base64.StdEncoding.EncodeToString([]byte("system1:abc123.xyz789")),
+			expectedStatus: http.StatusUnauthorized,
+			expectedAuth:   false,
+		},
+		{
+			name:           "valid format but secret part too short",
+			authHeader:     "Basic " + base64.StdEncoding.EncodeToString([]byte("system1:my_abc123.short")),
 			expectedStatus: http.StatusUnauthorized,
 			expectedAuth:   false,
 		},

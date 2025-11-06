@@ -127,6 +127,11 @@ func main() {
 	api.POST("/auth/refresh", methods.RefreshToken)
 
 	// ===========================================
+	// PUBLIC SYSTEM REGISTRATION ENDPOINT
+	// ===========================================
+	api.POST("/systems/register", methods.RegisterSystem)
+
+	// ===========================================
 	// STANDARD OAUTH2/OIDC ROUTES (for third-party apps)
 	// Uses Logto tokens directly - standard compliance
 	// ===========================================

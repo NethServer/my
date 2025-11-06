@@ -120,13 +120,32 @@ func BasicAuthMiddleware() gin.HandlerFunc {
 // validateSystemCredentials validates system credentials against database and cache
 // Returns the internal system_id and a boolean indicating success
 func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (string, bool) {
-	// Check minimum secret length
-	if len(systemSecret) < configuration.Config.SystemSecretMinLength {
+	// Validate token format: my_<public>.<secret>
+	parts := strings.Split(systemSecret, ".")
+	if len(parts) != 2 {
 		logger.Warn().
 			Str("system_key", systemKey).
-			Int("secret_length", len(systemSecret)).
+			Msg("Invalid system secret format: missing dot separator")
+		return "", false
+	}
+
+	// Extract public part (remove "my_" prefix)
+	publicPart := strings.TrimPrefix(parts[0], "my_")
+	if publicPart == parts[0] {
+		logger.Warn().
+			Str("system_key", systemKey).
+			Msg("Invalid system secret format: missing 'my_' prefix")
+		return "", false
+	}
+	secretPart := parts[1]
+
+	// Check minimum secret part length
+	if len(secretPart) < configuration.Config.SystemSecretMinLength {
+		logger.Warn().
+			Str("system_key", systemKey).
+			Int("secret_length", len(secretPart)).
 			Int("min_length", configuration.Config.SystemSecretMinLength).
-			Msg("System secret too short")
+			Msg("System secret part too short")
 		return "", false
 	}
 
@@ -138,10 +157,11 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 		// If cached as invalid, still check database for updates
 	}
 
-	// Query database for system credentials from systems table
+	// Query database for system credentials including system_secret_public
 	var creds models.SystemCredentials
+	var systemSecretPublic string
 	query := `
-		SELECT id, system_secret, true, null, created_at, updated_at
+		SELECT id, system_secret, system_secret_public, true, null, created_at, updated_at
 		FROM systems
 		WHERE system_key = $1 AND deleted_at IS NULL
 	`
@@ -149,6 +169,7 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 	err := database.DB.QueryRow(query, systemKey).Scan(
 		&creds.SystemID,
 		&creds.SecretHash,
+		&systemSecretPublic,
 		&creds.IsActive,
 		&creds.LastUsed,
 		&creds.CreatedAt,
@@ -166,14 +187,26 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 		return "", false
 	}
 
-	// Verify secret hash using Argon2id
-	valid, err := helpers.VerifySystemSecret(systemSecret, creds.SecretHash)
+	// Verify that public part matches system_secret_public in database
+	if systemSecretPublic != publicPart {
+		logger.Warn().
+			Str("system_key", systemKey).
+			Str("system_id", creds.SystemID).
+			Msg("Public part of system secret does not match")
+
+		// Cache negative result
+		cacheCredentialsResult(c, systemKey, systemSecret, "", false)
+		return "", false
+	}
+
+	// Verify secret part hash using Argon2id
+	valid, err := helpers.VerifySystemSecret(secretPart, creds.SecretHash)
 	if err != nil {
 		logger.Warn().
 			Err(err).
 			Str("system_key", systemKey).
 			Str("system_id", creds.SystemID).
-			Msg("Failed to verify system secret")
+			Msg("Failed to verify system secret part")
 
 		// Cache negative result
 		cacheCredentialsResult(c, systemKey, systemSecret, "", false)
@@ -184,7 +217,7 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 		logger.Warn().
 			Str("system_key", systemKey).
 			Str("system_id", creds.SystemID).
-			Msg("Invalid system secret")
+			Msg("Invalid system secret part")
 
 		// Cache negative result
 		cacheCredentialsResult(c, systemKey, systemSecret, "", false)

@@ -122,19 +122,27 @@ CREATE TABLE IF NOT EXISTS systems (
     organization_id VARCHAR(255) NOT NULL,
     custom_data JSONB,
     system_key VARCHAR(255) UNIQUE NOT NULL,
-    system_secret VARCHAR(512) NOT NULL,  -- Argon2id hash in PHC format
+    system_secret_public VARCHAR(64),  -- Public part of token (my_<public>.<secret>)
+    system_secret VARCHAR(512) NOT NULL,  -- Argon2id hash of secret part
     notes TEXT DEFAULT '',
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMP WITH TIME ZONE,  -- Soft delete timestamp (NULL = active, non-NULL = deleted)
+    registered_at TIMESTAMP WITH TIME ZONE,  -- Registration timestamp (NULL = not registered, non-NULL = registered)
     created_by JSONB NOT NULL
 );
 
 -- Comment for systems.deleted_at
 COMMENT ON COLUMN systems.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted at that time.';
 
+-- Comment for systems.system_secret_public
+COMMENT ON COLUMN systems.system_secret_public IS 'Public part of system secret token for fast lookup (token format: my_<public>.<secret>)';
+
 -- Comment for systems.system_secret
-COMMENT ON COLUMN systems.system_secret IS 'Argon2id hashed system secret in PHC string format (max 512 chars)';
+COMMENT ON COLUMN systems.system_secret IS 'Argon2id hash of secret part in PHC string format (max 512 chars)';
+
+-- Comment for systems.registered_at
+COMMENT ON COLUMN systems.registered_at IS 'Timestamp when system completed registration. NULL means not yet registered, non-NULL means registered at that time.';
 
 -- Comment for systems.notes
 COMMENT ON COLUMN systems.notes IS 'Additional notes or description for the system';
@@ -145,7 +153,9 @@ CREATE INDEX IF NOT EXISTS idx_systems_created_by_org ON systems((created_by->>'
 CREATE INDEX IF NOT EXISTS idx_systems_status ON systems(status);
 CREATE INDEX IF NOT EXISTS idx_systems_type ON systems(type);
 CREATE INDEX IF NOT EXISTS idx_systems_deleted_at ON systems(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_systems_registered_at ON systems(registered_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_systems_system_key ON systems(system_key);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_systems_system_secret_public ON systems(system_secret_public) WHERE system_secret_public IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_systems_system_secret ON systems(system_secret);
 CREATE INDEX IF NOT EXISTS idx_systems_fqdn ON systems(fqdn);
 CREATE INDEX IF NOT EXISTS idx_systems_ipv4_address ON systems(ipv4_address);
