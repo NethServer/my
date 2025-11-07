@@ -1,39 +1,129 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
     <url>
-         <loc>https://nethserver.github.io/my/</loc>
-         <lastmod>2025-11-07</lastmod>
+        <loc>https://nethserver.github.io/my/</loc>
+        <lastmod>2025-11-07</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nethserver.github.io/my/"/>
+        <xhtml:link rel="alternate" hreflang="it" href="https://nethserver.github.io/my/it/"/>
     </url>
     <url>
-         <loc>https://nethserver.github.io/my/01-authentication/</loc>
-         <lastmod>2025-11-07</lastmod>
+        <loc>https://nethserver.github.io/my/01-authentication/</loc>
+        <lastmod>2025-11-07</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nethserver.github.io/my/01-authentication/"/>
+        <xhtml:link rel="alternate" hreflang="it" href="https://nethserver.github.io/my/it/01-authentication/"/>
     </url>
     <url>
-         <loc>https://nethserver.github.io/my/02-organizations/</loc>
-         <lastmod>2025-11-07</lastmod>
+        <loc>https://nethserver.github.io/my/02-organizations/</loc>
+        <lastmod>2025-11-07</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nethserver.github.io/my/02-organizations/"/>
+        <xhtml:link rel="alternate" hreflang="it" href="https://nethserver.github.io/my/it/02-organizations/"/>
     </url>
     <url>
-         <loc>https://nethserver.github.io/my/03-users/</loc>
-         <lastmod>2025-11-07</lastmod>
+        <loc>https://nethserver.github.io/my/03-users/</loc>
+        <lastmod>2025-11-07</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nethserver.github.io/my/03-users/"/>
+        <xhtml:link rel="alternate" hreflang="it" href="https://nethserver.github.io/my/it/03-users/"/>
     </url>
     <url>
-         <loc>https://nethserver.github.io/my/04-systems/</loc>
-         <lastmod>2025-11-07</lastmod>
+        <loc>https://nethserver.github.io/my/04-systems/</loc>
+        <lastmod>2025-11-07</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nethserver.github.io/my/04-systems/"/>
+        <xhtml:link rel="alternate" hreflang="it" href="https://nethserver.github.io/my/it/04-systems/"/>
     </url>
     <url>
-         <loc>https://nethserver.github.io/my/05-system-registration/</loc>
-         <lastmod>2025-11-07</lastmod>
+        <loc>https://nethserver.github.io/my/05-system-registration/</loc>
+        <lastmod>2025-11-07</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nethserver.github.io/my/05-system-registration/"/>
+        <xhtml:link rel="alternate" hreflang="it" href="https://nethserver.github.io/my/it/05-system-registration/"/>
     </url>
     <url>
-         <loc>https://nethserver.github.io/my/06-inventory-heartbeat/</loc>
-         <lastmod>2025-11-07</lastmod>
+        <loc>https://nethserver.github.io/my/06-inventory-heartbeat/</loc>
+        <lastmod>2025-11-07</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nethserver.github.io/my/06-inventory-heartbeat/"/>
+        <xhtml:link rel="alternate" hreflang="it" href="https://nethserver.github.io/my/it/06-inventory-heartbeat/"/>
     </url>
     <url>
-         <loc>https://nethserver.github.io/my/07-impersonation/</loc>
-         <lastmod>2025-11-07</lastmod>
+        <loc>https://nethserver.github.io/my/07-impersonation/</loc>
+        <lastmod>2025-11-07</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nethserver.github.io/my/07-impersonation/"/>
+        <xhtml:link rel="alternate" hreflang="it" href="https://nethserver.github.io/my/it/07-impersonation/"/>
     </url>
     <url>
-         <loc>https://nethserver.github.io/my/CONTRIBUTING/</loc>
-         <lastmod>2025-11-07</lastmod>
+        <loc>https://nethserver.github.io/my/CONTRIBUTING/</loc>
+        <lastmod>2025-11-07</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nethserver.github.io/my/CONTRIBUTING/"/>
+        <xhtml:link rel="alternate" hreflang="it" href="https://nethserver.github.io/my/it/CONTRIBUTING/"/>
+    </url>
+    <url>
+        <loc>https://nethserver.github.io/my/it/</loc>
+        <lastmod>2025-11-07</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="it" href="https://nethserver.github.io/my/it/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nethserver.github.io/my/"/>
+    </url>
+    <url>
+        <loc>https://nethserver.github.io/my/it/01-authentication/</loc>
+        <lastmod>2025-11-07</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="it" href="https://nethserver.github.io/my/it/01-authentication/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nethserver.github.io/my/01-authentication/"/>
+    </url>
+    <url>
+        <loc>https://nethserver.github.io/my/it/02-organizations/</loc>
+        <lastmod>2025-11-07</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="it" href="https://nethserver.github.io/my/it/02-organizations/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nethserver.github.io/my/02-organizations/"/>
+    </url>
+    <url>
+        <loc>https://nethserver.github.io/my/it/03-users/</loc>
+        <lastmod>2025-11-07</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="it" href="https://nethserver.github.io/my/it/03-users/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nethserver.github.io/my/03-users/"/>
+    </url>
+    <url>
+        <loc>https://nethserver.github.io/my/it/04-systems/</loc>
+        <lastmod>2025-11-07</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="it" href="https://nethserver.github.io/my/it/04-systems/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nethserver.github.io/my/04-systems/"/>
+    </url>
+    <url>
+        <loc>https://nethserver.github.io/my/it/05-system-registration/</loc>
+        <lastmod>2025-11-07</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="it" href="https://nethserver.github.io/my/it/05-system-registration/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nethserver.github.io/my/05-system-registration/"/>
+    </url>
+    <url>
+        <loc>https://nethserver.github.io/my/it/06-inventory-heartbeat/</loc>
+        <lastmod>2025-11-07</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="it" href="https://nethserver.github.io/my/it/06-inventory-heartbeat/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nethserver.github.io/my/06-inventory-heartbeat/"/>
+    </url>
+    <url>
+        <loc>https://nethserver.github.io/my/it/07-impersonation/</loc>
+        <lastmod>2025-11-07</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="it" href="https://nethserver.github.io/my/it/07-impersonation/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nethserver.github.io/my/07-impersonation/"/>
+    </url>
+    <url>
+        <loc>https://nethserver.github.io/my/it/CONTRIBUTING/</loc>
+        <lastmod>2025-11-07</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="it" href="https://nethserver.github.io/my/it/CONTRIBUTING/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nethserver.github.io/my/CONTRIBUTING/"/>
     </url>
 </urlset>
