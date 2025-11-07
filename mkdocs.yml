@@ -1,0 +1,155 @@
+# MkDocs Configuration for My Documentation
+
+site_name: My - User Guide
+site_description: Complete user documentation for My management platform
+site_author: NethServer
+site_url: https://nethserver.github.io/my/
+use_directory_urls: true
+
+# Repository
+repo_name: NethServer/my
+repo_url: https://github.com/NethServer/my
+edit_uri: edit/main/docs/
+
+# Copyright
+copyright: Copyright &copy; 2025 Nethesis S.r.l.
+
+# Theme Configuration
+theme:
+  name: material
+  language: en
+  favicon: images/favicon.ico
+  logo: images/logo.svg
+
+  # Color Palette
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+  # Features
+  features:
+    - navigation.instant       # Instant loading
+    - navigation.tracking      # Anchor tracking
+    - navigation.tabs          # Top-level tabs
+    - navigation.sections      # Sections in navigation
+    - navigation.expand        # Auto-expand navigation
+    - navigation.top           # Back to top button
+    - navigation.footer        # Footer navigation
+    - search.suggest           # Search suggestions
+    - search.highlight         # Highlight search results
+    - search.share             # Share search results
+    - content.code.copy        # Copy code button
+    - content.action.edit      # Edit this page button
+    - content.action.view      # View source button
+    - toc.follow               # Follow table of contents
+    - toc.integrate            # Integrate TOC in navigation
+
+# Extensions
+markdown_extensions:
+  # Python Markdown
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+      toc_depth: 3
+
+  # Python Markdown Extensions
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+# Plugins
+plugins:
+  - search:
+      lang: en
+      separator: '[\s\-,:!=\[\]()"/]+|(?!\b)(?=[A-Z][a-z])|\.(?!\d)|&[lg]t;'
+  - minify:
+      minify_html: true
+      minify_js: true
+      minify_css: true
+      htmlmin_opts:
+        remove_comments: true
+      cache_safe: true
+
+# Extra Configuration
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/NethServer/my
+      name: GitHub Repository
+    - icon: fontawesome/solid/globe
+      link: https://www.nethesis.it
+      name: Nethesis Website
+
+  version:
+    provider: mike
+
+# Navigation Structure
+nav:
+  - Home: index.md
+  - User Guide:
+      - Getting Started:
+          - Authentication: 01-authentication.md
+      - Platform Management:
+          - Organizations: 02-organizations.md
+          - Users: 03-users.md
+          - User Impersonation: 07-impersonation.md
+      - Systems:
+          - Systems Management: 04-systems.md
+          - System Registration: 05-system-registration.md
+          - Inventory & Heartbeat: 06-inventory-heartbeat.md
+  - Developer Documentation:
+      - Main Project: https://github.com/NethServer/my/blob/main/README.md
+      - Backend API: https://github.com/NethServer/my/blob/main/backend/README.md
+      - Collect Service: https://github.com/NethServer/my/blob/main/collect/README.md
+      - Sync Tool: https://github.com/NethServer/my/blob/main/sync/README.md
+  - Contributing: CONTRIBUTING.md
+
+# Extra CSS/JS
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/extra.js

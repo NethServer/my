@@ -1,6 +1,8 @@
 # My Nethesis
 
 #### Documentation
+[![User Docs Link](https://img.shields.io/badge/docs-user%20guide-blue?style=for-the-badge&label=User%20Docs%20Link)](https://nethserver.github.io/my/)
+
 [![API Docs build](https://img.shields.io/github/actions/workflow/status/NethServer/my/docs-api.yml?style=for-the-badge&label=API%20Docs%20build)](https://github.com/NethServer/my/actions/workflows/docs-api.yml)
 [![API Docs link](https://img.shields.io/badge/docs-available-blue?style=for-the-badge&label=API%20Docs%20link)](https://api.my.nethesis.it/)
 
@@ -116,95 +118,6 @@ cd sync && make run-example
 - **Manual Control**: Deploy only when explicitly triggered
 - **Security**: Private services (Backend, Collect, Frontend) only accessible through Proxy
 
-## 🔐 Consent-Based Impersonation System
-
-The platform provides a privacy-friendly impersonation system that allows **users with impersonation permissions** (Super Admin role or Owner organization users) to temporarily access other user accounts for troubleshooting and support, with full user consent and complete audit trails.
-
-### 🎯 Key Features
-- **User-Controlled Consent**: Users explicitly enable impersonation and set duration (1-168 hours)
-- **Custom Token Duration**: Impersonation tokens match user's consent duration (not fixed)
-- **Complete Audit Trail**: Every API call during impersonation is logged for transparency
-- **Session-Based Tracking**: Unique session IDs for complete audit organization
-- **Automatic Data Sanitization**: Sensitive information redacted from audit logs
-- **Permission-Based Access**: Only users with `impersonate:users` permission (Super Admin role) or Owner organization role can initiate impersonation
-
-### 🔄 Consent-Based Flow
-
-#### 1. User Enables Consent
-```bash
-# User calls API to enable impersonation consent
-POST /api/impersonate/consent
-{
-  "duration_hours": 24  # 1-168 hours
-}
-```
-
-#### 2. Admin Initiates Impersonation
-```bash
-# User with impersonation permissions starts impersonation (only if consent is active)
-POST /api/impersonate
-{
-  "user_id": "target-user-id"
-}
-# Returns JWT token with custom duration matching user's consent
-```
-
-#### 3. Automatic Audit Logging
-- **Every API call** during impersonation is automatically logged
-- **Request/response data** captured (with sensitive data redacted)
-- **Session tracking** groups all actions for easy review
-- **Real-time logging** with no performance impact
-
-#### 4. Complete Transparency
-```bash
-# User can view complete audit of impersonation actions
-GET /api/impersonate/audit/user/{user_id}
-
-# Get audit by session for detailed review
-GET /api/impersonate/audit/session/{session_id}
-```
-
-### 🛡️ Security Features
-- **No Self-Impersonation**: Users cannot impersonate themselves
-- **No Chaining**: Cannot impersonate while already impersonating
-- **Consent Expiration**: Automatic consent expiration based on user settings
-- **Session Isolation**: Each impersonation creates unique session for audit
-- **Sensitive Data Protection**: Passwords, tokens, and secrets automatically redacted
-- **Permission-Based Restriction**: Only users with `impersonate:users` permission or Owner organization role can perform impersonation
-
-### 👑 Role-Based Access Control
-
-The impersonation system supports role-based access control:
-
-- **Super Admin Role**: Users assigned the "Super Admin" role have `impersonate:users` permission and can impersonate any user
-- **Access Control**: Super Admin role can only be assigned by Owner organization users
-- **Automatic Assignment**: During `sync init`, the Owner user is automatically assigned the Super Admin role
-- **Multiple Administrators**: Organizations can have multiple users with impersonation capabilities by assigning them the Super Admin role
-
-### 📊 API Integration
-The impersonation system integrates seamlessly with existing user management:
-
-```bash
-# User list includes impersonation status (for Owner users only)
-GET /api/users
-# Response includes: "can_be_impersonated": true/false
-
-# Complete consent management
-POST /api/impersonate/consent     # Enable consent
-GET /api/impersonate/consent      # Check status
-DELETE /api/impersonate/consent   # Disable consent
-
-# Impersonation control
-POST /api/impersonate            # Start impersonation
-DELETE /api/impersonate          # Exit impersonation
-
-# Audit and transparency
-GET /api/impersonate/audit/user/{user_id}      # User's audit history
-GET /api/impersonate/audit/session/{session}  # Session audit details
-```
-
-This system ensures complete transparency and user control while providing necessary support capabilities for troubleshooting.
-
 ## 📝 Configuration
 
 ### Local Development
@@ -222,6 +135,24 @@ See individual component documentation for setup:
 
 ## 📚 Documentation
 
+### 👥 User Documentation
+
+**Live User Guide:** https://nethserver.github.io/my/
+
+Complete guides for end users and administrators:
+
+- **[Getting Started](./docs/01-authentication.md)** - Authentication, login, and profile management
+- **[Organizations](./docs/02-organizations.md)** - Create and manage business hierarchy
+- **[Users](./docs/03-users.md)** - User creation, roles, and permissions
+- **[User Impersonation](./docs/07-impersonation.md)** - Consent-based impersonation for troubleshooting
+- **[Systems](./docs/04-systems.md)** - System creation and monitoring
+- **[Registration](./docs/05-system-registration.md)** - System registration workflow
+- **[Inventory & Heartbeat](./docs/06-inventory-heartbeat.md)** - Data collection and monitoring
+
+### 💻 Developer Documentation
+
+Component-specific technical documentation:
+
 - **[frontend](./frontend/README.md)** - UI setup, environment variables, and pages
 - **[backend](./backend/README.md)** - Server setup, environment variables, authorization architecture, and consent-based impersonation
 - **[backend OpenAPI](./backend/openapi.yaml)** - Complete API specification with authentication
@@ -232,7 +163,27 @@ See individual component documentation for setup:
 - **[DESIGN.md](./DESIGN.md)** - Architecture decisions and design patterns
 
 ### 📖 API Documentation
-**Live Documentation:** https://bump.sh/nethesis/doc/my - auto-updated on every commit.
+**Live API Docs:** https://bump.sh/nethesis/doc/my - auto-updated on every commit.
+
+### 🚀 Building Documentation Locally
+
+To preview the user documentation locally:
+
+```bash
+# Install MkDocs and dependencies
+pip install mkdocs-material mkdocs-minify-plugin
+
+# Serve locally (with hot reload)
+mkdocs serve
+
+# Build static site
+mkdocs build
+
+# Deploy to GitHub Pages
+mkdocs gh-deploy
+```
+
+The documentation is automatically deployed to GitHub Pages on every push to the `main` branch.
 
 ## 🤝 Development Workflow
 

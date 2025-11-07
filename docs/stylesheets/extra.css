@@ -1,0 +1,109 @@
+/* Extra styles for My documentation */
+
+/* Custom card grid for index page */
+.md-typeset .grid.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.md-typeset .grid.cards > * {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  transition: all 0.2s ease;
+}
+
+.md-typeset .grid.cards > *:hover {
+  border-color: var(--md-accent-fg-color);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+/* Code block improvements */
+.md-typeset pre > code {
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+/* Table improvements */
+.md-typeset table:not([class]) {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.25rem;
+  overflow: hidden;
+}
+
+.md-typeset table:not([class]) th {
+  background-color: var(--md-default-fg-color--lightest);
+  font-weight: 600;
+}
+
+/* Admonition improvements */
+.md-typeset .admonition {
+  border-radius: 0.5rem;
+}
+
+/* Status badges */
+.status-badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin: 0 0.25rem;
+}
+
+.status-alive {
+  background-color: #4caf50;
+  color: white;
+}
+
+.status-dead {
+  background-color: #f44336;
+  color: white;
+}
+
+.status-zombie {
+  background-color: #9e9e9e;
+  color: white;
+}
+
+/* Emoji sizing */
+.md-typeset .twemoji {
+  width: 1.2em;
+  height: 1.2em;
+  vertical-align: text-bottom;
+}
+
+/* Command line styling */
+.md-typeset code {
+  padding: 0.2em 0.4em;
+  border-radius: 0.2em;
+}
+
+/* Navigation improvements */
+.md-nav__link--active {
+  font-weight: 600;
+}
+
+/* Custom info boxes */
+.info-box {
+  padding: 1rem;
+  margin: 1rem 0;
+  border-left: 4px solid var(--md-accent-fg-color);
+  background-color: var(--md-default-bg-color);
+  border-radius: 0.25rem;
+}
+
+.info-box.warning {
+  border-left-color: #ff9800;
+}
+
+.info-box.danger {
+  border-left-color: #f44336;
+}
+
+.info-box.success {
+  border-left-color: #4caf50;
+}

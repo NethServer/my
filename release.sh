@@ -259,6 +259,22 @@ update_openapi_version() {
     fi
 }
 
+# Update documentation version
+update_docs_version() {
+    local new_version=$1
+
+    info "Updating documentation version..."
+
+    if [ -f "docs/index.md" ]; then
+        # Use sed to update the version in the "Current version:" line
+        sed -i.bak 's/Current version: \*\*[0-9.]*\*\*/Current version: **'"$new_version"'**/' docs/index.md
+        rm -f docs/index.md.bak
+        success "Updated docs/index.md version to $new_version"
+    else
+        warning "docs/index.md not found"
+    fi
+}
+
 # Show usage
 usage() {
     echo "Usage: $0 [patch|minor|major]"
@@ -349,9 +365,12 @@ main() {
     # Update OpenAPI specification version
     update_openapi_version "$new_version"
 
+    # Update documentation version
+    update_docs_version "$new_version"
+
     # Commit changes
     info "Creating commit..."
-    git add version.json backend/pkg/version/VERSION collect/pkg/version/VERSION sync/pkg/version/VERSION frontend/package.json frontend/package-lock.json backend/openapi.yaml
+    git add version.json backend/pkg/version/VERSION collect/pkg/version/VERSION sync/pkg/version/VERSION frontend/package.json frontend/package-lock.json backend/openapi.yaml docs/index.md
     git commit -m "release: bump version to v$new_version"
 
     # Create tag
