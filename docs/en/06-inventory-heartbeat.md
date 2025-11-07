@@ -63,7 +63,7 @@ Heartbeat is a simple signal to indicate the system is alive and reachable.
 POST https://my.nethesis.it/collect/api/systems/heartbeat
 ```
 
-**Note:** Collect service runs on **/collect** (different from main backend on **/backend/**)
+**Note:** Collect service runs on **/collect** (different from main backend on **/backend**)
 
 ### Request
 

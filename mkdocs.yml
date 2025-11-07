@@ -42,7 +42,6 @@ theme:
 
   # Features
   features:
-    - navigation.instant       # Instant loading
     - navigation.tracking      # Anchor tracking
     - navigation.tabs          # Top-level tabs
     - navigation.sections      # Sections in navigation
@@ -103,8 +102,41 @@ markdown_extensions:
 # Plugins
 plugins:
   - search:
-      lang: en
-      separator: '[\s\-,:!=\[\]()"/]+|(?!\b)(?=[A-Z][a-z])|\.(?!\d)|&[lg]t;'
+      lang:
+        - en
+        - it
+  - i18n:
+      docs_structure: folder
+      fallback_to_default: true
+      reconfigure_material: true
+      reconfigure_search: true
+      languages:
+        - locale: en
+          default: true
+          name: English
+          build: true
+        - locale: it
+          name: Italiano
+          build: true
+          nav_translations:
+            Home: Home
+            User Guide: Guida Utente
+            Getting Started: Per Iniziare
+            Authentication: Autenticazione
+            Platform Management: Gestione Piattaforma
+            Organizations: Organizzazioni
+            Users: Utenti
+            User Impersonation: Impersonificazione Utente
+            Systems: Sistemi
+            Systems Management: Gestione Sistemi
+            System Registration: Registrazione Sistema
+            Inventory & Heartbeat: Inventario e Heartbeat
+            Developer Documentation: Documentazione Sviluppatori
+            Main Project: Progetto Principale
+            Backend API: API Backend
+            Collect Service: Servizio Collect
+            Sync Tool: Tool Sync
+            Contributing: Contribuire
   - minify:
       minify_html: true
       minify_js: true
