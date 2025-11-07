@@ -456,175 +456,57 @@ jobs:
         format: cyclonedx-json
         output-file: proxy-sbom.cdx.json
 
-    # Generate changelog
-    - name: Build Changelog
-      id: build_changelog
-      run: |
-        # Get previous tag for commit range
-        CURRENT_TAG="${{ steps.version.outputs.VERSION }}"
-        PREV_TAG=$(git tag --sort=version:refname | grep -B1 "$CURRENT_TAG" | head -n1)
-
-        # Set commit range
-        if [ "$PREV_TAG" = "$CURRENT_TAG" ] || [ -z "$PREV_TAG" ]; then
-          COMMIT_RANGE="$CURRENT_TAG"
-          echo "Generating changelog from beginning to $CURRENT_TAG"
-        else
-          COMMIT_RANGE="$PREV_TAG..$CURRENT_TAG"
-          echo "Generating changelog from $PREV_TAG to $CURRENT_TAG"
-        fi
-
-        # Initialize changelog
-        CHANGELOG=""
-
-        # Features (feat, feature, with optional scope)
-        FEATURES=$(git log --oneline --grep="^feat" --grep="^feat(" --grep="^feature" "$COMMIT_RANGE" 2>/dev/null || true)
-        if [ -n "$FEATURES" ]; then
-          CHANGELOG="${CHANGELOG}## ✨ Features"$'\n'
-          while IFS= read -r line; do
-            CHANGELOG="${CHANGELOG}- ${line}"$'\n'
-          done <<< "$FEATURES"
-          CHANGELOG="${CHANGELOG}"$'\n'
-        fi
-
-        # Bug fixes (fix, bug, with optional scope)
-        FIXES=$(git log --oneline --grep="^fix" --grep="^fix(" --grep="^bug" "$COMMIT_RANGE" 2>/dev/null || true)
-        if [ -n "$FIXES" ]; then
-          CHANGELOG="${CHANGELOG}## 🐛 Bug Fixes"$'\n'
-          while IFS= read -r line; do
-            CHANGELOG="${CHANGELOG}- ${line}"$'\n'
-          done <<< "$FIXES"
-          CHANGELOG="${CHANGELOG}"$'\n'
-        fi
-
-        # Performance improvements
-        PERF=$(git log --oneline --grep="^perf" --grep="^perf(" "$COMMIT_RANGE" 2>/dev/null || true)
-        if [ -n "$PERF" ]; then
-          CHANGELOG="${CHANGELOG}## ⚡ Performance Improvements"$'\n'
-          while IFS= read -r line; do
-            CHANGELOG="${CHANGELOG}- ${line}"$'\n'
-          done <<< "$PERF"
-          CHANGELOG="${CHANGELOG}"$'\n'
-        fi
-
-        # Refactoring
-        REFACTOR=$(git log --oneline --grep="^refactor" --grep="^refactor(" "$COMMIT_RANGE" 2>/dev/null || true)
-        if [ -n "$REFACTOR" ]; then
-          CHANGELOG="${CHANGELOG}## 🔧 Refactoring"$'\n'
-          while IFS= read -r line; do
-            CHANGELOG="${CHANGELOG}- ${line}"$'\n'
-          done <<< "$REFACTOR"
-          CHANGELOG="${CHANGELOG}"$'\n'
-        fi
-
-        # Documentation
-        DOCS=$(git log --oneline --grep="^docs" --grep="^docs(" "$COMMIT_RANGE" 2>/dev/null || true)
-        if [ -n "$DOCS" ]; then
-          CHANGELOG="${CHANGELOG}## 📖 Documentation"$'\n'
-          while IFS= read -r line; do
-            CHANGELOG="${CHANGELOG}- ${line}"$'\n'
-          done <<< "$DOCS"
-          CHANGELOG="${CHANGELOG}"$'\n'
-        fi
-
-        # Tests
-        TESTS=$(git log --oneline --grep="^test" --grep="^test(" --grep="^tests" --grep="^tests(" "$COMMIT_RANGE" 2>/dev/null || true)
-        if [ -n "$TESTS" ]; then
-          CHANGELOG="${CHANGELOG}## 🧪 Tests"$'\n'
-          while IFS= read -r line; do
-            CHANGELOG="${CHANGELOG}- ${line}"$'\n'
-          done <<< "$TESTS"
-          CHANGELOG="${CHANGELOG}"$'\n'
-        fi
-
-        # Build & CI
-        BUILD=$(git log --oneline --grep="^build" --grep="^build(" --grep="^ci" --grep="^ci(" "$COMMIT_RANGE" 2>/dev/null || true)
-        if [ -n "$BUILD" ]; then
-          CHANGELOG="${CHANGELOG}## 🔨 Build & CI"$'\n'
-          while IFS= read -r line; do
-            CHANGELOG="${CHANGELOG}- ${line}"$'\n'
-          done <<< "$BUILD"
-          CHANGELOG="${CHANGELOG}"$'\n'
-        fi
-
-        # Deployment
-        DEPLOY=$(git log --oneline --grep="^deploy" --grep="^deploy(" "$COMMIT_RANGE" 2>/dev/null || true)
-        if [ -n "$DEPLOY" ]; then
-          CHANGELOG="${CHANGELOG}## 🌐 Deployment"$'\n'
-          while IFS= read -r line; do
-            CHANGELOG="${CHANGELOG}- ${line}"$'\n'
-          done <<< "$DEPLOY"
-          CHANGELOG="${CHANGELOG}"$'\n'
-        fi
-
-        # Chores
-        CHORES=$(git log --oneline --grep="^chore" --grep="^chore(" "$COMMIT_RANGE" 2>/dev/null || true)
-        if [ -n "$CHORES" ]; then
-          CHANGELOG="${CHANGELOG}## 🧹 Chores"$'\n'
-          while IFS= read -r line; do
-            CHANGELOG="${CHANGELOG}- ${line}"$'\n'
-          done <<< "$CHORES"
-          CHANGELOG="${CHANGELOG}"$'\n'
-        fi
-
-        # Release commits
-        RELEASES=$(git log --oneline --grep="^release" --grep="^release(" "$COMMIT_RANGE" 2>/dev/null || true)
-        if [ -n "$RELEASES" ]; then
-          CHANGELOG="${CHANGELOG}## 🚀 Releases"$'\n'
-          while IFS= read -r line; do
-            CHANGELOG="${CHANGELOG}- ${line}"$'\n'
-          done <<< "$RELEASES"
-          CHANGELOG="${CHANGELOG}"$'\n'
-        fi
-
-        # Other changes (everything else)
-        OTHERS=$(git log --oneline --invert-grep \
-          --grep="^feat" --grep="^feat(" --grep="^feature" \
-          --grep="^fix" --grep="^fix(" --grep="^bug" \
-          --grep="^perf" --grep="^perf(" \
-          --grep="^refactor" --grep="^refactor(" \
-          --grep="^docs" --grep="^docs(" \
-          --grep="^test" --grep="^test(" --grep="^tests" --grep="^tests(" \
-          --grep="^build" --grep="^build(" --grep="^ci" --grep="^ci(" \
-          --grep="^deploy" --grep="^deploy(" \
-          --grep="^chore" --grep="^chore(" \
-          --grep="^release" --grep="^release(" \
-          "$COMMIT_RANGE" 2>/dev/null || true)
-        if [ -n "$OTHERS" ]; then
-          CHANGELOG="${CHANGELOG}## 📝 Other Changes"$'\n'
-          while IFS= read -r line; do
-            CHANGELOG="${CHANGELOG}- ${line}"$'\n'
-          done <<< "$OTHERS"
-          CHANGELOG="${CHANGELOG}"$'\n'
-        fi
-
-        # Add container images
-        CHANGELOG="${CHANGELOG}## 🐳 Container Images"$'\n'
-        CHANGELOG="${CHANGELOG}- \`ghcr.io/nethserver/my/backend:${{ steps.version.outputs.VERSION }}\`"$'\n'
-        CHANGELOG="${CHANGELOG}- \`ghcr.io/nethserver/my/sync:${{ steps.version.outputs.VERSION }}\`"$'\n'
-        CHANGELOG="${CHANGELOG}- \`ghcr.io/nethserver/my/collect:${{ steps.version.outputs.VERSION }}\`"$'\n'
-        CHANGELOG="${CHANGELOG}- \`ghcr.io/nethserver/my/frontend:${{ steps.version.outputs.VERSION }}\`"$'\n'
-        CHANGELOG="${CHANGELOG}- \`ghcr.io/nethserver/my/proxy:${{ steps.version.outputs.VERSION }}\`"$'\n'
-
-        # Set output for next step
-        echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
-        echo "$CHANGELOG" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
-
-    # Create GitHub Release with generated changelog
+    # Create GitHub Release with auto-generated notes
     - name: Create Release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ steps.version.outputs.VERSION }}
-        name: ${{ steps.version.outputs.VERSION }}
-        draft: false
-        prerelease: ${{ contains(steps.version.outputs.VERSION, '-') }}
-        body: ${{ steps.build_changelog.outputs.CHANGELOG }}
-        files: |
-          backend/dist/*.tar.gz
-          sync/dist/*.tar.gz
-          collect/dist/*.tar.gz
-          backend-sbom.cdx.json
-          sync-sbom.cdx.json
-          collect-sbom.cdx.json
-          frontend-sbom.cdx.json
-          proxy-sbom.cdx.json
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        # Get previous tag for comparison
+        CURRENT_TAG="${{ steps.version.outputs.VERSION }}"
+        PREV_TAG=$(git tag --sort=version:refname | grep -B1 "$CURRENT_TAG" | head -n1 || echo "")
+
+        # Build additional notes with container images
+        ADDITIONAL_NOTES=$(cat <<EOF
+
+        ## 🐳 Container Images
+
+        - \`ghcr.io/nethserver/my/backend:${{ steps.version.outputs.VERSION }}\`
+        - \`ghcr.io/nethserver/my/sync:${{ steps.version.outputs.VERSION }}\`
+        - \`ghcr.io/nethserver/my/collect:${{ steps.version.outputs.VERSION }}\`
+        - \`ghcr.io/nethserver/my/frontend:${{ steps.version.outputs.VERSION }}\`
+        - \`ghcr.io/nethserver/my/proxy:${{ steps.version.outputs.VERSION }}\`
+
+        ## 📦 Artifacts
+
+        See the assets below for pre-built binaries and SBOMs.
+        EOF
+        )
+
+        # Create release with auto-generated notes
+        if [ -n "$PREV_TAG" ] && [ "$PREV_TAG" != "$CURRENT_TAG" ]; then
+          gh release create "$CURRENT_TAG" \
+            --title "$CURRENT_TAG" \
+            --generate-notes \
+            --notes "$ADDITIONAL_NOTES" \
+            backend/dist/*.tar.gz \
+            sync/dist/*.tar.gz \
+            collect/dist/*.tar.gz \
+            backend-sbom.cdx.json \
+            sync-sbom.cdx.json \
+            collect-sbom.cdx.json \
+            frontend-sbom.cdx.json \
+            proxy-sbom.cdx.json
+        else
+          # First release, no previous tag
+          gh release create "$CURRENT_TAG" \
+            --title "$CURRENT_TAG" \
+            --notes "First release 🎉$ADDITIONAL_NOTES" \
+            backend/dist/*.tar.gz \
+            sync/dist/*.tar.gz \
+            collect/dist/*.tar.gz \
+            backend-sbom.cdx.json \
+            sync-sbom.cdx.json \
+            collect-sbom.cdx.json \
+            frontend-sbom.cdx.json \
+            proxy-sbom.cdx.json
+        fi
