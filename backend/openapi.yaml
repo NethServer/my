@@ -1804,6 +1804,44 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /users/export:
+    get:
+      operationId: exportUsers
+      tags:
+        - Backend - Users
+      summary: /users/export - Export users to CSV or PDF
+      description: Export users to CSV or PDF format with applied filters (max 10,000 users)
+      parameters:
+        - name: format
+          in: query
+          required: true
+          description: Export format (csv or pdf)
+          schema:
+            type: string
+            enum: [csv, pdf]
+            example: "csv"
+        - $ref: '#/components/parameters/SearchParam'
+        - $ref: '#/components/parameters/UserSortByParam'
+        - $ref: '#/components/parameters/SortDirectionParam'
+      responses:
+        '200':
+          description: Users exported successfully
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   # ===========================================================================
   # APPLICATIONS
   # ===========================================================================
@@ -3036,6 +3074,44 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /customers/export:
+    get:
+      operationId: exportCustomers
+      tags:
+        - Backend - Customers
+      summary: /customers/export - Export customers to CSV or PDF
+      description: Export customers to CSV or PDF format with applied filters (max 10,000 customers)
+      parameters:
+        - name: format
+          in: query
+          required: true
+          description: Export format (csv or pdf)
+          schema:
+            type: string
+            enum: [csv, pdf]
+            example: "csv"
+        - $ref: '#/components/parameters/SearchParam'
+        - $ref: '#/components/parameters/CustomerSortByParam'
+        - $ref: '#/components/parameters/SortDirectionParam'
+      responses:
+        '200':
+          description: Customers exported successfully
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   # ===========================================================================
   # BUSINESS HIERARCHY - DISTRIBUTORS
   # ===========================================================================
@@ -3295,6 +3371,44 @@ paths:
                     example: "distributors trend retrieved successfully"
                   data:
                     $ref: '#/components/schemas/TrendResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /distributors/export:
+    get:
+      operationId: exportDistributors
+      tags:
+        - Backend - Distributors
+      summary: /distributors/export - Export distributors to CSV or PDF
+      description: Export distributors to CSV or PDF format with applied filters (max 10,000 distributors)
+      parameters:
+        - name: format
+          in: query
+          required: true
+          description: Export format (csv or pdf)
+          schema:
+            type: string
+            enum: [csv, pdf]
+            example: "csv"
+        - $ref: '#/components/parameters/SearchParam'
+        - $ref: '#/components/parameters/DistributorSortByParam'
+        - $ref: '#/components/parameters/SortDirectionParam'
+      responses:
+        '200':
+          description: Distributors exported successfully
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -3882,6 +3996,44 @@ paths:
                     example: "resellers trend retrieved successfully"
                   data:
                     $ref: '#/components/schemas/TrendResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /resellers/export:
+    get:
+      operationId: exportResellers
+      tags:
+        - Backend - Resellers
+      summary: /resellers/export - Export resellers to CSV or PDF
+      description: Export resellers to CSV or PDF format with applied filters (max 10,000 resellers)
+      parameters:
+        - name: format
+          in: query
+          required: true
+          description: Export format (csv or pdf)
+          schema:
+            type: string
+            enum: [csv, pdf]
+            example: "csv"
+        - $ref: '#/components/parameters/SearchParam'
+        - $ref: '#/components/parameters/ResellerSortByParam'
+        - $ref: '#/components/parameters/SortDirectionParam'
+      responses:
+        '200':
+          description: Resellers exported successfully
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':

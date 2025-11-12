@@ -246,6 +246,9 @@ func main() {
 			// Distributors totals and trend endpoints (read:distributors required)
 			distributorsGroup.GET("/totals", methods.GetDistributorsTotals)
 			distributorsGroup.GET("/trend", methods.GetDistributorsTrend)
+
+			// Export endpoint
+			distributorsGroup.GET("/export", methods.ExportDistributors) // Export distributors to CSV or PDF with applied filters
 		}
 
 		// Resellers - resource-based permission validation (read:resellers for GET, manage:resellers for POST/PUT/DELETE)
@@ -260,6 +263,9 @@ func main() {
 			// Resellers totals and trend endpoints (read:resellers required)
 			resellersGroup.GET("/totals", methods.GetResellersTotals)
 			resellersGroup.GET("/trend", methods.GetResellersTrend)
+
+			// Export endpoint
+			resellersGroup.GET("/export", methods.ExportResellers) // Export resellers to CSV or PDF with applied filters
 		}
 
 		// Customers - resource-based permission validation (read:customers for GET, manage:customers for POST/PUT/DELETE)
@@ -274,6 +280,9 @@ func main() {
 			// Customers totals and trend endpoints (read:customers required)
 			customersGroup.GET("/totals", methods.GetCustomersTotals)
 			customersGroup.GET("/trend", methods.GetCustomersTrend)
+
+			// Export endpoint
+			customersGroup.GET("/export", methods.ExportCustomers) // Export customers to CSV or PDF with applied filters
 		}
 
 		// ===========================================
@@ -295,6 +304,9 @@ func main() {
 			// Users totals and trend endpoints (read:users required)
 			usersGroup.GET("/totals", methods.GetUsersTotals)
 			usersGroup.GET("/trend", methods.GetUsersTrend)
+
+			// Export endpoint
+			usersGroup.GET("/export", methods.ExportUsers) // Export users to CSV or PDF with applied filters
 		}
 
 		// Roles endpoints - for role selection in user creation
