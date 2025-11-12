@@ -294,6 +294,67 @@ func DeleteSystem(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("system deleted successfully", nil))
 }
 
+// RestoreSystem handles PATCH /api/systems/:id/restore - restores a soft-deleted system
+func RestoreSystem(c *gin.Context) {
+	// Get system ID from URL parameter
+	systemID := c.Param("id")
+	if systemID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
+		return
+	}
+
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Create systems service
+	systemsService := local.NewSystemsService()
+
+	// Restore system with access validation
+	err := systemsService.RestoreSystem(systemID, user.ID, user.OrganizationID, user.OrgRole)
+	if err != nil {
+		errMsg := err.Error()
+
+		// Check for specific error types
+		if strings.Contains(errMsg, "system not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
+			return
+		}
+
+		if strings.Contains(errMsg, "system is not deleted") {
+			c.JSON(http.StatusBadRequest, response.BadRequest("system is not deleted", nil))
+			return
+		}
+
+		if strings.Contains(errMsg, "access denied") {
+			c.JSON(http.StatusForbidden, response.Forbidden("access denied to system", map[string]interface{}{
+				"system_id": systemID,
+			}))
+			return
+		}
+
+		// Technical error
+		logger.Error().
+			Err(err).
+			Str("system_id", systemID).
+			Str("user_id", user.ID).
+			Msg("Failed to restore system")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to restore system", map[string]interface{}{
+			"error": errMsg,
+		}))
+		return
+	}
+
+	// Log the action
+	logger.LogBusinessOperation(c, "systems", "restore", "system", systemID, true, nil)
+
+	// Return success response
+	c.JSON(http.StatusOK, response.OK("system restored successfully", nil))
+}
+
 // RegenerateSystemSecret handles POST /api/systems/:id/regenerate-secret - regenerates system secret
 func RegenerateSystemSecret(c *gin.Context) {
 	// Get system ID from URL parameter

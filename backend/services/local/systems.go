@@ -396,6 +396,112 @@ func (s *LocalSystemsService) DeleteSystem(systemID, userID, userOrgID, userOrgR
 	return nil
 }
 
+// RestoreSystem restores a soft-deleted system
+func (s *LocalSystemsService) RestoreSystem(systemID, userID, userOrgID, userOrgRole string) error {
+	// First, check if system exists and is deleted (query without deleted_at filter)
+	query := `
+		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
+		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, s.registered_at, s.deleted_at,
+		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name,
+		       CASE
+		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
+		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
+		           WHEN c.logto_id IS NOT NULL THEN 'customer'
+		           ELSE 'owner'
+		       END as organization_type
+		FROM systems s
+		LEFT JOIN distributors d ON s.organization_id = d.logto_id AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON s.organization_id = r.logto_id AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON s.organization_id = c.logto_id AND c.deleted_at IS NULL
+		WHERE s.id = $1
+	`
+
+	system := &models.System{}
+	var customDataJSON []byte
+	var createdByJSON []byte
+	var fqdn, ipv4Address, ipv6Address, version sql.NullString
+	var registeredAt, deletedAt sql.NullTime
+	var organizationName, organizationType sql.NullString
+	var systemType sql.NullString
+
+	err := database.DB.QueryRow(query, systemID).Scan(
+		&system.ID, &system.Name, &systemType, &system.Status, &fqdn,
+		&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.ID,
+		&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &deletedAt,
+		&organizationName, &organizationType,
+	)
+
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("system not found")
+	}
+	if err != nil {
+		return fmt.Errorf("failed to query system: %w", err)
+	}
+
+	// Check if system is actually deleted
+	if !deletedAt.Valid {
+		return fmt.Errorf("system is not deleted")
+	}
+
+	// Convert nullable fields
+	if systemType.Valid {
+		system.Type = &systemType.String
+	}
+	system.FQDN = fqdn.String
+	system.IPv4Address = ipv4Address.String
+	system.IPv6Address = ipv6Address.String
+	system.Version = version.String
+	system.Organization.Name = organizationName.String
+	system.Organization.Type = organizationType.String
+
+	// Convert registered_at
+	if registeredAt.Valid {
+		system.RegisteredAt = &registeredAt.Time
+	}
+
+	// Parse created_by JSON
+	if err := json.Unmarshal(createdByJSON, &system.CreatedBy); err != nil {
+		return fmt.Errorf("failed to parse created_by: %w", err)
+	}
+
+	// Parse custom_data JSON
+	if customDataJSON != nil {
+		if err := json.Unmarshal(customDataJSON, &system.CustomData); err != nil {
+			return fmt.Errorf("failed to parse custom_data: %w", err)
+		}
+	}
+
+	// Validate delete permissions based on created_by
+	// Use same permission check as delete - if user could delete it, they can restore it
+	if canDelete, reason := s.CanDeleteSystemByCreator(userOrgRole, userOrgID, &system.CreatedBy); !canDelete {
+		return fmt.Errorf("access denied: %s", reason)
+	}
+
+	// Restore system in database (set deleted_at to NULL and status to 'unknown')
+	restoreQuery := `UPDATE systems SET deleted_at = NULL, updated_at = NOW(), status = 'unknown' WHERE id = $1 AND deleted_at IS NOT NULL`
+
+	result, err := database.DB.Exec(restoreQuery, systemID)
+	if err != nil {
+		return fmt.Errorf("failed to restore system: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("system not found or already restored")
+	}
+
+	logger.Info().
+		Str("system_id", systemID).
+		Str("restored_by", userID).
+		Msg("System restored successfully")
+
+	return nil
+}
+
 // RegenerateSystemSecret generates a new secret for an existing system
 func (s *LocalSystemsService) RegenerateSystemSecret(systemID, userID, userOrgID, userOrgRole string) (*models.System, error) {
 	// Get the system first to check permissions

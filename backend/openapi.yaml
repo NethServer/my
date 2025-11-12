@@ -4306,6 +4306,61 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /systems/{id}/restore:
+    patch:
+      operationId: restoreSystem
+      tags:
+        - Backend - Systems
+      summary: /systems/{id}/restore - Restore soft-deleted system
+      description: Restore a soft-deleted system. Users can restore systems they have permission to delete based on hierarchical permissions.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: System restored successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "system restored successfully"
+                  data:
+                    type: object
+                    nullable: true
+        '400':
+          description: Bad request - System is not deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 400
+                  message:
+                    type: string
+                    example: "system is not deleted"
+                  data:
+                    type: object
+                    nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /systems/{id}/regenerate-secret:
     post:
       operationId: regenerateSystemSecret

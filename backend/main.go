@@ -196,6 +196,7 @@ func main() {
 			systemsGroup.POST("", methods.CreateSystem)
 			systemsGroup.PUT("/:id", methods.UpdateSystem)
 			systemsGroup.DELETE("/:id", methods.DeleteSystem)
+			systemsGroup.PATCH("/:id/restore", methods.RestoreSystem) // Restore soft-deleted system
 
 			systemsGroup.POST("/:id/regenerate-secret", methods.RegenerateSystemSecret) // Regenerate system secret
 
