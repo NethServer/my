@@ -742,6 +742,19 @@ components:
           description: Total count
           example: 125
 
+    OrganizationStats:
+      type: object
+      description: Statistics for an organization (users and systems count)
+      properties:
+        users_count:
+          type: integer
+          description: Number of users in the organization
+          example: 15
+        systems_count:
+          type: integer
+          description: Number of systems in the organization
+          example: 42
+
     TrendResponse:
       type: object
       properties:
@@ -3014,6 +3027,45 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /customers/{id}/stats:
+    get:
+      operationId: getCustomerStats
+      tags:
+        - Backend - Customers
+      summary: /customers/{id}/stats - Get customer statistics
+      description: Get users and systems count for a specific customer (Owner + Distributor + Reseller + own Customer)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Customer ID
+      responses:
+        '200':
+          description: Customer stats retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "customer stats retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/OrganizationStats'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /customers/totals:
     get:
       operationId: getCustomersTotals
@@ -3309,6 +3361,45 @@ paths:
                   data:
                     type: object
                     nullable: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /distributors/{id}/stats:
+    get:
+      operationId: getDistributorStats
+      tags:
+        - Backend - Distributors
+      summary: /distributors/{id}/stats - Get distributor statistics
+      description: Get users and systems count for a specific distributor (Owner only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Distributor ID
+      responses:
+        '200':
+          description: Distributor stats retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "distributor stats retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/OrganizationStats'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -3934,6 +4025,45 @@ paths:
                   data:
                     type: object
                     nullable: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /resellers/{id}/stats:
+    get:
+      operationId: getResellerStats
+      tags:
+        - Backend - Resellers
+      summary: /resellers/{id}/stats - Get reseller statistics
+      description: Get users and systems count for a specific reseller (Owner + Distributor + own Reseller)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Reseller ID
+      responses:
+        '200':
+          description: Reseller stats retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "reseller stats retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/OrganizationStats'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':

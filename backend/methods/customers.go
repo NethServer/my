@@ -383,3 +383,85 @@ func DeleteCustomer(c *gin.Context) {
 	// Return success response
 	c.JSON(http.StatusOK, response.OK("customer deleted successfully", nil))
 }
+
+// GetCustomerStats handles GET /api/customers/:id/stats - retrieves users and systems count for a customer
+func GetCustomerStats(c *gin.Context) {
+	// Get customer ID from URL parameter
+	customerID := c.Param("id")
+	if customerID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("customer ID required", nil))
+		return
+	}
+
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Get customer to obtain logto_id for hierarchy validation
+	repo := entities.NewLocalCustomerRepository()
+	customer, err := repo.GetByID(customerID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("customer not found", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("customer_id", customerID).
+			Msg("Failed to get customer for stats")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get customer", nil))
+		return
+	}
+
+	// Apply hierarchical RBAC validation
+	userService := local.NewUserService()
+	userOrgRole := strings.ToLower(user.OrgRole)
+	canAccess := false
+
+	switch userOrgRole {
+	case "owner":
+		canAccess = true
+	case "distributor", "reseller":
+		if customer.LogtoID != nil {
+			canAccess = userService.IsOrganizationInHierarchy(userOrgRole, user.OrganizationID, *customer.LogtoID)
+		}
+	case "customer":
+		if customer.LogtoID != nil && *customer.LogtoID == user.OrganizationID {
+			canAccess = true
+		}
+	}
+
+	if !canAccess {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied to customer stats", nil))
+		return
+	}
+
+	// Get stats
+	stats, err := repo.GetStats(customerID)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("customer_id", customerID).
+			Msg("Failed to get customer stats")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get customer stats", nil))
+		return
+	}
+
+	// Log the action
+	logger.RequestLogger(c, "customers").Info().
+		Str("operation", "get_customer_stats").
+		Str("customer_id", customerID).
+		Int("users_count", stats.UsersCount).
+		Int("systems_count", stats.SystemsCount).
+		Msg("Customer stats requested")
+
+	// Return stats
+	c.JSON(http.StatusOK, response.OK("customer stats retrieved successfully", stats))
+}

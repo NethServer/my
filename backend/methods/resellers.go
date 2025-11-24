@@ -376,3 +376,85 @@ func DeleteReseller(c *gin.Context) {
 	// Return success response
 	c.JSON(http.StatusOK, response.OK("reseller deleted successfully", nil))
 }
+
+// GetResellerStats handles GET /api/resellers/:id/stats - retrieves users and systems count for a reseller
+func GetResellerStats(c *gin.Context) {
+	// Get reseller ID from URL parameter
+	resellerID := c.Param("id")
+	if resellerID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("reseller ID required", nil))
+		return
+	}
+
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Get reseller to obtain logto_id for hierarchy validation
+	repo := entities.NewLocalResellerRepository()
+	reseller, err := repo.GetByID(resellerID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("reseller not found", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("reseller_id", resellerID).
+			Msg("Failed to get reseller for stats")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get reseller", nil))
+		return
+	}
+
+	// Apply hierarchical RBAC validation
+	userService := local.NewUserService()
+	userOrgRole := strings.ToLower(user.OrgRole)
+	canAccess := false
+
+	switch userOrgRole {
+	case "owner":
+		canAccess = true
+	case "distributor":
+		if reseller.LogtoID != nil {
+			canAccess = userService.IsOrganizationInHierarchy(userOrgRole, user.OrganizationID, *reseller.LogtoID)
+		}
+	case "reseller":
+		if reseller.LogtoID != nil && *reseller.LogtoID == user.OrganizationID {
+			canAccess = true
+		}
+	}
+
+	if !canAccess {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied to reseller stats", nil))
+		return
+	}
+
+	// Get stats
+	stats, err := repo.GetStats(resellerID)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("reseller_id", resellerID).
+			Msg("Failed to get reseller stats")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get reseller stats", nil))
+		return
+	}
+
+	// Log the action
+	logger.RequestLogger(c, "resellers").Info().
+		Str("operation", "get_reseller_stats").
+		Str("reseller_id", resellerID).
+		Int("users_count", stats.UsersCount).
+		Int("systems_count", stats.SystemsCount).
+		Msg("Reseller stats requested")
+
+	// Return stats
+	c.JSON(http.StatusOK, response.OK("reseller stats retrieved successfully", stats))
+}

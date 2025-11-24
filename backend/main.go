@@ -248,6 +248,9 @@ func main() {
 			distributorsGroup.GET("/totals", methods.GetDistributorsTotals)
 			distributorsGroup.GET("/trend", methods.GetDistributorsTrend)
 
+			// Stats endpoint (users and systems count)
+			distributorsGroup.GET("/:id/stats", methods.GetDistributorStats)
+
 			// Export endpoint
 			distributorsGroup.GET("/export", methods.ExportDistributors) // Export distributors to CSV or PDF with applied filters
 		}
@@ -265,6 +268,9 @@ func main() {
 			resellersGroup.GET("/totals", methods.GetResellersTotals)
 			resellersGroup.GET("/trend", methods.GetResellersTrend)
 
+			// Stats endpoint (users and systems count)
+			resellersGroup.GET("/:id/stats", methods.GetResellerStats)
+
 			// Export endpoint
 			resellersGroup.GET("/export", methods.ExportResellers) // Export resellers to CSV or PDF with applied filters
 		}
@@ -281,6 +287,9 @@ func main() {
 			// Customers totals and trend endpoints (read:customers required)
 			customersGroup.GET("/totals", methods.GetCustomersTotals)
 			customersGroup.GET("/trend", methods.GetCustomersTrend)
+
+			// Stats endpoint (users and systems count)
+			customersGroup.GET("/:id/stats", methods.GetCustomerStats)
 
 			// Export endpoint
 			customersGroup.GET("/export", methods.ExportCustomers) // Export customers to CSV or PDF with applied filters

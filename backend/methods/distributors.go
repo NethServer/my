@@ -294,3 +294,55 @@ func DeleteDistributor(c *gin.Context) {
 	// Return success response
 	c.JSON(http.StatusOK, response.OK("distributor deleted successfully", nil))
 }
+
+// GetDistributorStats handles GET /api/distributors/:id/stats - retrieves users and systems count for a distributor
+func GetDistributorStats(c *gin.Context) {
+	// Get distributor ID from URL parameter
+	distributorID := c.Param("id")
+	if distributorID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("distributor ID required", nil))
+		return
+	}
+
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Only Owner can access distributors
+	if strings.ToLower(user.OrgRole) != "owner" {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied: only owners can access distributors", nil))
+		return
+	}
+
+	// Get stats
+	repo := entities.NewLocalDistributorRepository()
+	stats, err := repo.GetStats(distributorID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("distributor not found", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("distributor_id", distributorID).
+			Msg("Failed to get distributor stats")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get distributor stats", nil))
+		return
+	}
+
+	// Log the action
+	logger.RequestLogger(c, "distributors").Info().
+		Str("operation", "get_distributor_stats").
+		Str("distributor_id", distributorID).
+		Int("users_count", stats.UsersCount).
+		Int("systems_count", stats.SystemsCount).
+		Msg("Distributor stats requested")
+
+	// Return stats
+	c.JSON(http.StatusOK, response.OK("distributor stats retrieved successfully", stats))
+}

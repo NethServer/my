@@ -117,6 +117,12 @@ type SystemTotals struct {
 	TimeoutMinutes int `json:"timeout_minutes"`
 }
 
+// OrganizationStats represents statistics for an organization (users and systems count)
+type OrganizationStats struct {
+	UsersCount   int `json:"users_count"`
+	SystemsCount int `json:"systems_count"`
+}
+
 // Create requests
 type CreateLocalDistributorRequest struct {
 	Name        string                 `json:"name" validate:"required,min=1,max=255"`

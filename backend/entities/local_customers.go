@@ -711,3 +711,34 @@ func (r *LocalCustomerRepository) GetTrend(userOrgRole, userOrgID string, period
 
 	return dataPoints, currentTotal, previousTotal, nil
 }
+
+// GetStats returns users and systems count for a specific customer
+func (r *LocalCustomerRepository) GetStats(id string) (*models.OrganizationStats, error) {
+	// First get the customer to obtain its logto_id
+	customer, err := r.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// If customer has no logto_id, return zero counts
+	if customer.LogtoID == nil {
+		return &models.OrganizationStats{
+			UsersCount:   0,
+			SystemsCount: 0,
+		}, nil
+	}
+
+	var stats models.OrganizationStats
+	query := `
+		SELECT
+			(SELECT COUNT(*) FROM users WHERE organization_id = $1 AND deleted_at IS NULL) as users_count,
+			(SELECT COUNT(*) FROM systems WHERE organization_id = $1 AND deleted_at IS NULL) as systems_count
+	`
+
+	err = r.db.QueryRow(query, *customer.LogtoID).Scan(&stats.UsersCount, &stats.SystemsCount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get customer stats: %w", err)
+	}
+
+	return &stats, nil
+}
