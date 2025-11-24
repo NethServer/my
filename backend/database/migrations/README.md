@@ -8,19 +8,7 @@ Migrations are versioned SQL scripts that allow you to evolve your database sche
 
 ## Available Migrations
 
-### Migration 001: Update VAT Constraints
-**File**: `001_update_vat_constraints.sql`  
-**Rollback**: `001_update_vat_constraints_rollback.sql`
-
-**Purpose**: Changes VAT uniqueness constraints from global to per-entity-type scope.
-
-**Changes**:
-- ✅ **Distributors**: VAT unique within distributors table only
-- ✅ **Resellers**: VAT unique within resellers table only  
-- ✅ **Customers**: No VAT uniqueness constraint (allows duplicates)
-
-**Before Migration**: VAT must be unique across all entity types (distributors, resellers, customers)  
-**After Migration**: VAT unique only within each entity type, customers can have duplicate VATs
+No migrations are currently defined. When migrations are added, they will be documented here.
 
 ## Usage
 
@@ -102,8 +90,7 @@ CREATE TABLE schema_migrations (
 
 1. **Backup First**: Always backup your database before running migrations in production
 2. **Test Environment**: Test migrations in a staging environment first
-3. **VAT Data**: Migration 001 doesn't migrate existing data, only changes constraints
-4. **Rollback Impact**: Rolling back may re-enable old validation that could fail with current data
+3. **Rollback Impact**: Rolling back may fail if current data violates old constraints
 
 ## Manual Migration (Alternative)
 
@@ -112,11 +99,11 @@ If you prefer to run migrations manually using containers:
 ```bash
 # Using Docker
 docker run --rm --network=host -v "$(pwd):/migrations:ro" postgres:16-alpine \
-  psql $DATABASE_URL -f /migrations/001_update_vat_constraints.sql
+  psql $DATABASE_URL -f /migrations/001_your_migration.sql
 
-# Using Podman  
+# Using Podman
 podman run --rm --network=host -v "$(pwd):/migrations:ro" postgres:16-alpine \
-  psql $DATABASE_URL -f /migrations/001_update_vat_constraints.sql
+  psql $DATABASE_URL -f /migrations/001_your_migration.sql
 ```
 
 ## Troubleshooting
@@ -135,41 +122,35 @@ podman run --rm --network=host -v "$(pwd):/migrations:ro" postgres:16-alpine \
 - Check status: `./run_migration.sh 001 status`
 - Force rollback first if needed
 
-### Migration Verification
-
-After running migration 001, verify the changes:
-
-```sql
--- Check that per-entity triggers exist
-SELECT tgname, tgrelid::regclass 
-FROM pg_trigger 
-WHERE tgname LIKE 'trg_check_vat_%';
-
--- Should show 3 triggers:
--- trg_check_vat_distributors | distributors
--- trg_check_vat_resellers    | resellers  
--- trg_check_vat_customers    | customers
-
--- Test VAT uniqueness (should work - same VAT in different entity types)
-INSERT INTO distributors (id, name, custom_data) VALUES ('test1', 'Test', '{"vat": "12345678901"}');
-INSERT INTO customers (id, name, custom_data) VALUES ('test2', 'Test', '{"vat": "12345678901"}');
--- This should succeed after migration 001
-
--- Cleanup test data
-DELETE FROM distributors WHERE id = 'test1';
-DELETE FROM customers WHERE id = 'test2';
-```
-
 ## Development
 
 ### Adding New Migrations
 
 1. Create new migration files with incremented number:
-   - `002_your_migration_name.sql`
-   - `002_your_migration_name_rollback.sql`
+   - `001_your_migration_name.sql`
+   - `001_your_migration_name_rollback.sql`
 
 2. Update the migration runner script if needed
 
 3. Test thoroughly in development environment
 
-4. Document the migration in this README
+4. Document the migration in this README under "Available Migrations"
+
+### Example Migration
+
+**Forward migration** (`001_add_user_status.sql`):
+```sql
+-- Migration 001: Add status column to users
+-- Description: Adds a status column to track user account state
+
+ALTER TABLE users ADD COLUMN status VARCHAR(20) DEFAULT 'active';
+CREATE INDEX idx_users_status ON users(status);
+```
+
+**Rollback migration** (`001_add_user_status_rollback.sql`):
+```sql
+-- Rollback Migration 001: Remove status column from users
+
+DROP INDEX IF EXISTS idx_users_status;
+ALTER TABLE users DROP COLUMN IF EXISTS status;
+```
