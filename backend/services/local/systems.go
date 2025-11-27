@@ -741,7 +741,7 @@ func (s *LocalSystemsService) CanAccessSystem(system *models.System, userOrgRole
 	case "distributor":
 		// Distributor can access systems created by organizations they manage hierarchically
 		userService := NewUserService()
-		if userService.IsOrganizationInHierarchy(userOrgRole, userOrgID, system.CreatedBy.OrganizationID) {
+		if userService.IsOrganizationInHierarchy(normalizedRole, userOrgID, system.CreatedBy.OrganizationID) {
 			return true, ""
 		}
 		return false, "distributors can only access systems created by organizations they manage"
