@@ -18,6 +18,7 @@ import {
   faFilePdf,
   faFileCsv,
   faKey,
+  faRotateLeft,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -67,6 +68,7 @@ import { downloadFile } from '@/lib/common'
 import RegenerateSecretModal from './RegenerateSecretModal.vue'
 import SecretRegeneratedModal from './SecretRegeneratedModal.vue'
 import ClickToCopy from '../ClickToCopy.vue'
+import RestoreSystemModal from './RestoreSystemModal.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -97,6 +99,7 @@ const { state: versionFilterState, asyncStatus: versionFilterAsyncStatus } = use
 const currentSystem = ref<System | undefined>()
 const isShownCreateOrEditSystemDrawer = ref(false)
 const isShownDeleteSystemModal = ref(false)
+const isShownRestoreSystemModal = ref(false)
 const isShownRegenerateSecretModal = ref(false)
 const isShownSecretRegeneratedModal = ref(false)
 const newSecret = ref<string>('')
@@ -205,6 +208,11 @@ function showDeleteSystemModal(system: System) {
   isShownDeleteSystemModal.value = true
 }
 
+function showRestoreSystemModal(system: System) {
+  currentSystem.value = system
+  isShownRestoreSystemModal.value = true
+}
+
 function showRegenerateSecretModal(system: System) {
   currentSystem.value = system
   isShownRegenerateSecretModal.value = true
@@ -218,7 +226,7 @@ function onCloseDrawer() {
 function getKebabMenuItems(system: System) {
   let items: NeDropdownItem[] = []
 
-  if (canManageSystems()) {
+  if (canManageSystems() && system.status !== 'deleted') {
     items.push({
       id: 'editSystem',
       label: t('common.edit'),
@@ -246,7 +254,7 @@ function getKebabMenuItems(system: System) {
     },
   ]
 
-  if (canManageSystems()) {
+  if (canManageSystems() && system.status !== 'deleted') {
     items = [
       ...items,
       {
@@ -264,9 +272,19 @@ function getKebabMenuItems(system: System) {
         action: () => showDeleteSystemModal(system),
         disabled: asyncStatus.value === 'loading',
       },
-      //// add restore deleted system action
     ]
   }
+
+  if (canManageSystems() && system.status === 'deleted') {
+    items.push({
+      id: 'restoreSystem',
+      label: t('common.restore'),
+      icon: faRotateLeft,
+      action: () => showRestoreSystemModal(system),
+      disabled: asyncStatus.value === 'loading',
+    })
+  }
+
   return items
 }
 
@@ -591,11 +609,9 @@ function onCloseSecretRegeneratedModal() {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div
-              v-if="item.status !== 'deleted'"
-              class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end"
-            >
+            <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
               <NeButton
+                v-if="item.status !== 'deleted'"
                 kind="tertiary"
                 @click="goToSystemDetails(item)"
                 :disabled="asyncStatus === 'loading' || item.status === 'deleted'"
@@ -647,6 +663,12 @@ function onCloseSecretRegeneratedModal() {
       :visible="isShownDeleteSystemModal"
       :system="currentSystem"
       @close="isShownDeleteSystemModal = false"
+    />
+    <!-- restore system modal -->
+    <RestoreSystemModal
+      :visible="isShownRestoreSystemModal"
+      :system="currentSystem"
+      @close="isShownRestoreSystemModal = false"
     />
     <!-- regenerate secret modal -->
     <RegenerateSecretModal

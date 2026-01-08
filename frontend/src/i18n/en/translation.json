@@ -7,6 +7,7 @@
     "close": "Close",
     "edit": "Edit",
     "delete": "Delete",
+    "restore": "Restore",
     "filter": "Filter",
     "advanced_settings": "Advanced settings",
     "enable": "Enable",
@@ -383,7 +384,12 @@
     "system_secret_regenerated_description": "The secret for system {name} has been regenerated.",
     "cannot_regenerate_system_secret": "Cannot regenerate system secret",
     "update_the_subscription": "Update the subscription",
-    "show_notes": "Show notes"
+    "show_notes": "Show notes",
+    "restore_system": "Restore system",
+    "restore_system_confirmation": "Are you sure you want to restore system {name}?",
+    "system_restored": "System restored",
+    "system_restored_successfully": "{name} restored successfully",
+    "cannot_restore_system": "Cannot restore system"
   },
   "system_detail": {
     "title": "System detail",
