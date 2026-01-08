@@ -395,9 +395,7 @@ function copySecretAndCloseDrawer() {
               <div v-if="isSecretRevealed" class="break-all">
                 {{ secret }}
               </div>
-              <div v-else class="break-all">
-                *************************************************************************
-              </div>
+              <div v-else class="break-all">************************</div>
               <NeButton
                 kind="tertiary"
                 size="sm"
