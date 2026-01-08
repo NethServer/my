@@ -396,8 +396,8 @@
     "overview": "Overview",
     "product_logo": "{product} logo",
     "unknown_product": "Unknown product",
-    "open_system": "Open system",
-    "open_system_tooltip": "Note: The system may be unreachable due to network settings.",
+    "go_to_system": "Go to system",
+    "go_to_system_tooltip": "Note: The system may be unreachable due to network settings.",
     "uptime": "Uptime",
     "last_inventory": "Last inventory",
     "timezone": "Timezone",
@@ -409,7 +409,8 @@
     "no_inventory_available_description": "The system has not sent any inventory data yet.",
     "subscription": "Subscription",
     "system_creation": "System creation",
-    "system_key": "System key"
+    "system_key": "System key",
+    "cannot_determine_system_url_description": "Cannot access the system because its URL cannot be determined."
   },
   "ne_table": {
     "no_items": "No items",
