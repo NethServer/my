@@ -55,7 +55,8 @@ onMounted(() => {
     <RouterView v-else />
     <ToastNotificationsArea />
   </div>
-  <PiniaColadaDevtools />
+  <!-- remove disabled attribute to hide devtools on production environment -->
+  <PiniaColadaDevtools :disabled="false" />
 </template>
 
 <style scoped></style>
