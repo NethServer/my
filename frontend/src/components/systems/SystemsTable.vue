@@ -47,6 +47,7 @@ import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { canManageSystems } from '@/lib/permissions'
 import { useSystems } from '@/queries/systems/systems'
 import {
+  exportSystem,
   getExport,
   getProductLogo,
   getProductName,
@@ -234,14 +235,14 @@ function getKebabMenuItems(system: System) {
       label: t('systems.export_to_pdf'),
       icon: faFilePdf,
       action: () => exportSystem(system, 'pdf'),
-      disabled: !state.value.data?.systems,
+      disabled: asyncStatus.value === 'loading',
     },
     {
       id: 'exportToCsv',
       label: t('systems.export_to_csv'),
       icon: faFileCsv,
       action: () => exportSystem(system, 'csv'),
-      disabled: !state.value.data?.systems,
+      disabled: asyncStatus.value === 'loading',
     },
   ]
 
@@ -263,6 +264,7 @@ function getKebabMenuItems(system: System) {
         action: () => showDeleteSystemModal(system),
         disabled: asyncStatus.value === 'loading',
       },
+      //// add restore deleted system action
     ]
   }
   return items
@@ -275,17 +277,6 @@ const onSort = (payload: SortEvent) => {
 
 const goToSystemDetails = (system: System) => {
   router.push({ name: 'system_detail', params: { systemId: system.id } })
-}
-
-async function exportSystem(system: System, format: 'pdf' | 'csv') {
-  try {
-    const exportData = await getExport(format, system.system_key)
-    const fileName = `${system.name}.${format}`
-    downloadFile(exportData, fileName, format)
-  } catch (error) {
-    console.error('Cannot export system to pdf:', error)
-    throw error
-  }
 }
 
 function onSecretRegenerated(secret: string) {

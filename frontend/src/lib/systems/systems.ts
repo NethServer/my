@@ -5,7 +5,7 @@ import axios from 'axios'
 import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
-import { type Pagination } from '../common'
+import { downloadFile, type Pagination } from '../common'
 import Ns8Logo from '@/assets/ns8_logo.svg'
 import NsecLogo from '@/assets/nsec_logo.svg'
 
@@ -287,6 +287,17 @@ export const getProductLogo = (systemType: string) => {
       return NsecLogo
     default:
       return undefined
+  }
+}
+
+export async function exportSystem(system: System, format: 'pdf' | 'csv') {
+  try {
+    const exportData = await getExport(format, system.system_key)
+    const fileName = `${system.name}.${format}`
+    downloadFile(exportData, fileName, format)
+  } catch (error) {
+    console.error(`Cannot export system to ${format}:`, error)
+    throw error
   }
 }
 
