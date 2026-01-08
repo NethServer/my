@@ -6,22 +6,64 @@
 <script setup lang="ts">
 import {
   NeCard,
+  NeDropdown,
   NeHeading,
   NeInlineNotification,
   NeLink,
   NeSkeleton,
+  type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
-import { getProductLogo, getProductName } from '@/lib/systems/systems'
+import { exportSystem, getProductLogo, getProductName } from '@/lib/systems/systems'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { getOrganizationIcon } from '@/lib/organizations'
 import DataItem from '../DataItem.vue'
 import ClickToCopy from '../ClickToCopy.vue'
 import { ref } from 'vue'
 import SystemNotesModal from './SystemNotesModal.vue'
+import { canManageSystems } from '@/lib/permissions'
+import { faFileCsv, faFilePdf, faPenToSquare } from '@fortawesome/free-solid-svg-icons'
+import { useI18n } from 'vue-i18n'
+import CreateOrEditSystemDrawer from './CreateOrEditSystemDrawer.vue'
+import router from '@/router'
 
-const { state: systemDetail } = useSystemDetail()
+const { t } = useI18n()
+const { state: systemDetail, state, asyncStatus } = useSystemDetail()
 const isNotesModalShown = ref(false)
+const isShownCreateOrEditSystemDrawer = ref(false)
+
+function getKebabMenuItems() {
+  let items: NeDropdownItem[] = []
+
+  if (canManageSystems()) {
+    items.push({
+      id: 'editSystem',
+      label: t('common.edit'),
+      icon: faPenToSquare,
+      action: () => (isShownCreateOrEditSystemDrawer.value = true),
+      disabled: asyncStatus.value === 'loading',
+    })
+  }
+
+  items = [
+    ...items,
+    {
+      id: 'exportToPdf',
+      label: t('systems.export_to_pdf'),
+      icon: faFilePdf,
+      action: () => exportSystem(systemDetail.value.data!, 'pdf'),
+      disabled: asyncStatus.value === 'loading',
+    },
+    {
+      id: 'exportToCsv',
+      label: t('systems.export_to_csv'),
+      icon: faFileCsv,
+      action: () => exportSystem(systemDetail.value.data!, 'csv'),
+      disabled: asyncStatus.value === 'loading',
+    },
+  ]
+  return items
+}
 </script>
 
 <template>
@@ -37,17 +79,23 @@ const isNotesModalShown = ref(false)
     <NeSkeleton v-else-if="systemDetail.status === 'pending'" :lines="10" />
     <div v-else-if="systemDetail.data">
       <!-- product logo and name -->
-      <div class="mb-4 flex items-center gap-4">
-        <img
-          v-if="systemDetail.data.type"
-          :src="getProductLogo(systemDetail.data.type)"
-          :alt="$t('system_detail.product_logo', { product: systemDetail.data.type })"
-          aria-hidden="true"
-          class="size-8"
-        />
-        <NeHeading tag="h4">
-          {{ getProductName(systemDetail.data.type || '') || $t('system_detail.unknown_product') }}
-        </NeHeading>
+      <div class="mb-4 flex items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+          <img
+            v-if="systemDetail.data.type"
+            :src="getProductLogo(systemDetail.data.type)"
+            :alt="$t('system_detail.product_logo', { product: systemDetail.data.type })"
+            aria-hidden="true"
+            class="size-8"
+          />
+          <NeHeading tag="h4">
+            {{
+              getProductName(systemDetail.data.type || '') || $t('system_detail.unknown_product')
+            }}
+          </NeHeading>
+        </div>
+        <!-- kebab menu -->
+        <NeDropdown :items="getKebabMenuItems()" :align-to-right="true" />
       </div>
       <!-- system information -->
       <div className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -150,6 +198,12 @@ const isNotesModalShown = ref(false)
       :visible="isNotesModalShown"
       :notes="systemDetail.data?.notes"
       @close="isNotesModalShown = false"
+    />
+    <!-- edit drawer -->
+    <CreateOrEditSystemDrawer
+      :is-shown="isShownCreateOrEditSystemDrawer"
+      :current-system="systemDetail.data!"
+      @close="isShownCreateOrEditSystemDrawer = false"
     />
   </NeCard>
 </template>
