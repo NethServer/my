@@ -75,9 +75,7 @@ function onShow() {
         <div v-if="isSecretShown" class="break-all">
           {{ newSecret }}
         </div>
-        <div v-else class="break-all">
-          *************************************************************************
-        </div>
+        <div v-else class="break-all">************************</div>
         <NeButton
           kind="tertiary"
           size="sm"
