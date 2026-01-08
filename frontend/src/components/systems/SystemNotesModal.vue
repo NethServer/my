@@ -5,6 +5,7 @@
 
 <script setup lang="ts">
 import { NeModal } from '@nethesis/vue-components'
+import { ref, onMounted, watch } from 'vue'
 
 const { visible = false, notes = undefined } = defineProps<{
   visible: boolean
@@ -25,6 +26,6 @@ const emit = defineEmits(['close'])
     @close="emit('close')"
     @primary-click="emit('close')"
   >
-    <pre>{{ notes }}</pre>
+    <pre ref="preElement" class="font-sans whitespace-pre-wrap">{{ notes }}</pre>
   </NeModal>
 </template>
