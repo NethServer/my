@@ -26,7 +26,7 @@
     "@logto/vue": "^3.0.8",
     "@nethesis/nethesis-light-svg-icons": "github:nethesis/Font-Awesome#ns-light",
     "@nethesis/vue-components": "^3.4.0",
-    "@pinia/colada": "^0.17.6",
+    "@pinia/colada": "^0.21.0",
     "@tailwindcss/vite": "^4.1.10",
     "@vueuse/core": "^13.4.0",
     "axios": "^1.11.0",
@@ -40,7 +40,7 @@
     "vue-router": "^4.5.0"
   },
   "devDependencies": {
-    "@pinia/colada-devtools": "^0.1.5",
+    "@pinia/colada-devtools": "^0.4.1",
     "@tsconfig/node22": "^22.0.1",
     "@types/lodash": "^4.17.18",
     "@types/node": "^22.14.0",
