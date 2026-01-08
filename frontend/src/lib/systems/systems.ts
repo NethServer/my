@@ -245,6 +245,18 @@ export const deleteSystem = (system: System) => {
   })
 }
 
+export const restoreSystem = (system: System) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/systems/${system.id}/restore`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
 export const regenerateSystemSecret = (systemId: string) => {
   const loginStore = useLoginStore()
 
