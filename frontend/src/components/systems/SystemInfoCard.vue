@@ -17,39 +17,11 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { getOrganizationIcon } from '@/lib/organizations'
 import DataItem from '../DataItem.vue'
 import ClickToCopy from '../ClickToCopy.vue'
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import SystemNotesModal from './SystemNotesModal.vue'
-
-const NOTES_MAX_LENGTH = 32
 
 const { state: systemDetail } = useSystemDetail()
 const isNotesModalShown = ref(false)
-
-const notesLengthExceeded = computed(() => {
-  if (!systemDetail.value.data?.notes) {
-    return false
-  }
-  const notes = systemDetail.value.data.notes
-  if (notes.length > NOTES_MAX_LENGTH || notes.includes('\n')) {
-    return true
-  }
-  return false
-})
-
-// truncate notes if they exceed a certain length or the contain new lines
-const truncatedNotes = computed(() => {
-  if (!systemDetail.value.data?.notes) {
-    return ''
-  }
-  const notes = systemDetail.value.data.notes
-  if (notes.length > NOTES_MAX_LENGTH) {
-    return notes.slice(0, NOTES_MAX_LENGTH) + '...'
-  }
-  if (notes.includes('\n')) {
-    return notes.split('\n')[0] + '...'
-  }
-  return notes
-})
 </script>
 
 <template>
@@ -158,19 +130,19 @@ const truncatedNotes = computed(() => {
           </template>
         </DataItem>
         <!-- notes -->
-        <DataItem v-if="systemDetail.data.notes">
-          <template #label>
+        <div v-if="systemDetail.data.notes">
+          <div class="py-4 font-medium">
             {{ $t('systems.notes') }}
-          </template>
-          <template #data>
-            <NeLink v-if="notesLengthExceeded" @click.prevent="isNotesModalShown = true">
-              {{ truncatedNotes }}
+          </div>
+          <pre ref="preElement" class="line-clamp-5 font-sans whitespace-pre-wrap">{{
+            systemDetail.data.notes
+          }}</pre>
+          <div class="mt-2">
+            <NeLink @click="isNotesModalShown = true">
+              {{ $t('systems.show_notes') }}
             </NeLink>
-            <span v-else>
-              {{ systemDetail.data.notes }}
-            </span>
-          </template>
-        </DataItem>
+          </div>
+        </div>
       </div>
     </div>
     <!-- notes modal -->
