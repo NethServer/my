@@ -35,7 +35,9 @@
     "coming_soon": "Coming soon",
     "view_details": "View details",
     "ip_address": "IP address",
-    "click_to_copy": "Click to copy"
+    "click_to_copy": "Click to copy",
+    "suspend": "Suspend",
+    "reactivate": "Reactivate"
   },
   "shell": {
     "open_sidebar": "Open sidebar",
@@ -207,7 +209,20 @@
     "password_changed_description": "Your password has been changed",
     "username_already_exists": "Username already exists",
     "user_email_description": "The user will receive a welcome email containing instructions on how to access {productName}, along with a temporary password that can be changed upon first login.",
-    "cannot_impersonate_user": "Cannot impersonate user"
+    "suspend": "Suspend",
+    "suspended": "Suspended",
+    "suspend_user": "Suspend user",
+    "reactivate": "Reactivate",
+    "reactivate_user": "Reactivate user",
+    "cannot_impersonate_user": "Cannot impersonate user",
+    "cannot_suspend_user": "Cannot suspend user",
+    "user_suspended": "User suspended",
+    "user_suspended_successfully": "{name} suspended successfully",
+    "suspend_user_confirmation": "Are you sure you want to suspend user {name}? The user will not be able to log in until reactivated.",
+    "cannot_reactivate_user": "Cannot reactivate user",
+    "user_reactivated": "User reactivated",
+    "user_reactivated_successfully": "{name} reactivated successfully",
+    "reactivate_user_confirmation": "Are you sure you want to reactivate user {name}? The user will be able to log in again."
   },
   "third_party_apps": {
     "description_nethshop_nethesis_it": "Browse and order Nethesis products and services.",
