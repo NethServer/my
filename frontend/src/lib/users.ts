@@ -37,6 +37,7 @@ export const UserSchema = v.object({
   logto_id: v.optional(v.string()),
   can_be_impersonated: v.boolean(),
   logto_synced_at: v.optional(v.string()),
+  suspended_at: v.optional(v.string()),
   organization: v.optional(
     v.object({
       id: v.string(),
@@ -125,6 +126,30 @@ export const resetPassword = (user: User, newPassword: string) => {
   return axios.patch(
     `${API_URL}/users/${user.id}/password`,
     { password: newPassword },
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
+export const suspendUser = (user: User) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/users/${user.id}/suspend`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
+export const reactivateUser = (user: User) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/users/${user.id}/reactivate`,
+    {},
     {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     },
