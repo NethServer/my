@@ -399,7 +399,7 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, exclud
 			"created_at":      "u.created_at",
 			"updated_at":      "u.updated_at",
 			"latest_login_at": "u.latest_login_at",
-			"organization":    "LOWER(organization_name)",
+			"organization":    "LOWER(COALESCE(d.name, r.name, c.name))",
 		}
 
 		if dbField, valid := validSortFields[sortBy]; valid {
@@ -480,7 +480,7 @@ func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, exc
 			"created_at":      "u.created_at",
 			"updated_at":      "u.updated_at",
 			"latest_login_at": "u.latest_login_at",
-			"organization":    "LOWER(organization_name)",
+			"organization":    "LOWER(COALESCE(d.name, r.name, c.name))",
 		}
 
 		if dbField, valid := validSortFields[sortBy]; valid {
