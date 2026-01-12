@@ -1064,6 +1064,17 @@ func (s *LocalUserService) CanDeleteUser(userOrgRole, userOrgID, targetUserOrgID
 
 // CanSuspendUser checks if the user can suspend another user based on RBAC hierarchy
 func (s *LocalUserService) CanSuspendUser(userOrgRole, userOrgID, targetUserOrgID string) (bool, string) {
+	// First check: verify the target organization type is manageable by the user's role
+	// This prevents users from suspending users in higher-level organizations
+	// Only perform this check if the database is available
+	if database.DB != nil {
+		targetOrgType := s.GetOrganizationType(targetUserOrgID)
+		if !s.CanAccessOrgType(userOrgRole, targetOrgType) {
+			return false, "cannot suspend users in higher-level organizations"
+		}
+	}
+
+	// Second check: verify the specific organization is in the user's hierarchy
 	switch userOrgRole {
 	case "owner":
 		return true, ""
@@ -1176,6 +1187,54 @@ func (s *LocalUserService) IsOrganizationInHierarchy(userOrgRole, userOrgID, tar
 	}
 
 	return false
+}
+
+// GetOrganizationType determines the type of organization based on its ID
+// Returns "distributor", "reseller", "customer", or "owner" (if not found in any table)
+// Uses a single optimized query with EXISTS for better performance
+func (s *LocalUserService) GetOrganizationType(orgID string) string {
+	if orgID == "" || database.DB == nil {
+		return "owner" // Empty org ID or no DB is treated as owner-level for safety
+	}
+
+	var orgType string
+	query := `
+		SELECT CASE
+			WHEN EXISTS (SELECT 1 FROM distributors WHERE logto_id = $1 AND deleted_at IS NULL) THEN 'distributor'
+			WHEN EXISTS (SELECT 1 FROM resellers WHERE logto_id = $1 AND deleted_at IS NULL) THEN 'reseller'
+			WHEN EXISTS (SELECT 1 FROM customers WHERE logto_id = $1 AND deleted_at IS NULL) THEN 'customer'
+			ELSE 'owner'
+		END
+	`
+	err := database.DB.QueryRow(query, orgID).Scan(&orgType)
+	if err != nil {
+		return "owner" // Fail-safe: treat as highest level if query fails
+	}
+	return orgType
+}
+
+// CanAccessOrgType checks if userOrgRole can manage targetOrgType based on role hierarchy
+// Hierarchy: owner > distributor > reseller > customer
+func (s *LocalUserService) CanAccessOrgType(userOrgRole, targetOrgType string) bool {
+	hierarchy := map[string]int{
+		"owner":       4,
+		"distributor": 3,
+		"reseller":    2,
+		"customer":    1,
+	}
+
+	userLevel, ok := hierarchy[userOrgRole]
+	if !ok {
+		return false
+	}
+
+	targetLevel, ok := hierarchy[targetOrgType]
+	if !ok {
+		return false
+	}
+
+	// User can manage targets at or below their level
+	return userLevel >= targetLevel
 }
 
 // GetHierarchicalOrganizationIDs returns all organization IDs that the user can manage
