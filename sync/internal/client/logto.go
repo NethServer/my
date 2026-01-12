@@ -351,6 +351,29 @@ func (c *LogtoClient) GetUserRoles(userID string) ([]string, error) {
 	return roleIDs, nil
 }
 
+// UserOrganization represents a user's organization membership from Logto
+type UserOrganization struct {
+	ID          string                 `json:"id"`
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	CustomData  map[string]interface{} `json:"customData"`
+}
+
+// GetUserOrganizations retrieves the organizations a user belongs to
+func (c *LogtoClient) GetUserOrganizations(userID string) ([]UserOrganization, error) {
+	resp, err := c.makeRequest("GET", fmt.Sprintf("/api/users/%s/organizations", userID), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var orgs []UserOrganization
+	if err := c.handlePaginatedResponse(resp, &orgs); err != nil {
+		return nil, err
+	}
+
+	return orgs, nil
+}
+
 // CreateUser creates a new user
 func (c *LogtoClient) CreateUser(user map[string]interface{}) (map[string]interface{}, error) {
 	resp, err := c.makeRequest("POST", "/api/users", user)

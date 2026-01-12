@@ -544,10 +544,17 @@ func (e *PullEngine) pullUsers(result *PullResult) error {
 		for _, user := range logtoUsers {
 			userName := getUserName(user)
 			userEmail := getUserEmail(user)
+			userID := ""
+			if id, ok := user["id"].(string); ok {
+				userID = id
+			}
 
-			// Skip Owner users (similar to Owner organization)
-			if isOwnerUser(userName) {
-				logger.Info("DRY RUN: Would skip user '%s' (Owner user - Logto-only)", userName)
+			// Check if user belongs to Owner organization
+			userOrgs, err := e.client.GetUserOrganizations(userID)
+			if err != nil {
+				logger.Warn("DRY RUN: Could not get organizations for user '%s': %v", userName, err)
+			} else if isUserInOwnerOrganization(userOrgs) {
+				logger.Info("DRY RUN: Would skip user '%s' (Owner organization - Logto-only)", userName)
 				continue
 			}
 			logger.Info("DRY RUN: Would process user '%s' (%s)", userName, userEmail)
@@ -561,16 +568,25 @@ func (e *PullEngine) pullUsers(result *PullResult) error {
 	// Process each user
 	for _, logtoUser := range logtoUsers {
 		userName := getUserName(logtoUser)
+		userID := ""
+		if id, ok := logtoUser["id"].(string); ok {
+			userID = id
+		}
 
-		// Skip Owner users - they should only exist in Logto, not in local database
-		if isOwnerUser(userName) {
-			logger.Debug("Skipping Owner user '%s' - exists only in Logto", userName)
+		// Fetch user's organizations to check if they belong to Owner organization
+		userOrgs, err := e.client.GetUserOrganizations(userID)
+		if err != nil {
+			logger.Warn("Could not get organizations for user '%s': %v", userName, err)
+		} else if isUserInOwnerOrganization(userOrgs) {
+			// Skip users in the Owner organization - they should only exist in Logto
+			logger.Debug("Skipping user '%s' - belongs to Owner organization (Logto-only)", userName)
 			result.Summary.UsersSkipped++
-			e.addPullOperation(result, "user", "skip", userName, "Owner user skipped (Logto-only)", false, nil)
+			e.addPullOperation(result, "user", "skip", userName, "Owner organization user skipped (Logto-only)", false, nil)
 			continue
 		}
 
-		if err := e.processUser(logtoUser, result); err != nil {
+		// Pass the already-fetched organizations to processUser to avoid duplicate API calls
+		if err := e.processUser(logtoUser, userOrgs, result); err != nil {
 			logger.Error("Failed to process user '%s': %v", userName, err)
 			e.addPullOperation(result, "user", "create/update", userName, fmt.Sprintf("Process user %s", userName), false, err)
 			continue
@@ -607,14 +623,19 @@ func getUserEmail(user map[string]interface{}) string {
 	return ""
 }
 
-// isOwnerUser determines if a user is an Owner user that should be skipped
-func isOwnerUser(name string) bool {
-	// Check if username is "owner"
-	return name == "owner"
+// isUserInOwnerOrganization checks if any of the user's organizations is the Owner organization
+func isUserInOwnerOrganization(orgs []client.UserOrganization) bool {
+	for _, org := range orgs {
+		if org.Name == "Owner" {
+			return true
+		}
+	}
+	return false
 }
 
 // processUser processes a single user from Logto
-func (e *PullEngine) processUser(logtoUser map[string]interface{}, result *PullResult) error {
+// userOrgs is passed from the caller to avoid duplicate API calls
+func (e *PullEngine) processUser(logtoUser map[string]interface{}, userOrgs []client.UserOrganization, result *PullResult) error {
 	userName := getUserName(logtoUser)
 	userEmail := getUserEmail(logtoUser)
 	userID := ""
@@ -624,17 +645,20 @@ func (e *PullEngine) processUser(logtoUser map[string]interface{}, result *PullR
 
 	logger.Debug("Processing user '%s' (%s)", userName, userEmail)
 
-	// For reverse sync, we'll assign users to the Owner organization so they're visible in the API
-	// This is a simplified approach - in a full implementation, we'd fetch actual organization memberships from Logto
-	ownerOrgID, err := e.getOwnerOrganizationID()
-	if err != nil {
-		logger.Warn("Could not get Owner organization ID, user may not be visible in API: %v", err)
+	// Use the provided organizations (already fetched by caller)
+	var userOrgID *string
+	if len(userOrgs) > 0 {
+		// Use the first organization (users typically belong to one organization)
+		userOrgID = &userOrgs[0].ID
+		logger.Debug("User '%s' belongs to organization '%s' (ID: %s)", userName, userOrgs[0].Name, userOrgs[0].ID)
+	} else {
+		logger.Debug("User '%s' has no organization memberships in Logto", userName)
 	}
 
 	// Check if user already exists
 	var existingID string
 	var existingLogtoID *string
-	err = database.DB.QueryRow(
+	err := database.DB.QueryRow(
 		"SELECT id, logto_id FROM users WHERE logto_id = $1 AND deleted_at IS NULL",
 		userID,
 	).Scan(&existingID, &existingLogtoID)
@@ -654,8 +678,8 @@ func (e *PullEngine) processUser(logtoUser map[string]interface{}, result *PullR
 			Username:       userName,
 			Email:          userEmail,
 			Name:           userName,
-			OrganizationID: ownerOrgID, // Assign to Owner org for visibility
-			UserRoleIDs:    userRoles,  // Use actual roles from Logto
+			OrganizationID: userOrgID, // Use actual organization from Logto
+			UserRoleIDs:    userRoles, // Use actual roles from Logto
 			CustomData:     make(map[string]interface{}),
 			CreatedAt:      time.Now(),
 			UpdatedAt:      time.Now(),
@@ -715,7 +739,7 @@ func (e *PullEngine) processUser(logtoUser map[string]interface{}, result *PullR
 			UPDATE users
 			SET username = $1, email = $2, name = $3, phone = $4, organization_id = $5, user_role_ids = $6, updated_at = $7, logto_synced_at = $8
 			WHERE id = $9`,
-			userName, userEmail, userName, phone, ownerOrgID, userRolesJSON, time.Now(), time.Now(), existingID,
+			userName, userEmail, userName, phone, userOrgID, userRolesJSON, time.Now(), time.Now(), existingID,
 		)
 
 		if err != nil {
@@ -728,22 +752,6 @@ func (e *PullEngine) processUser(logtoUser map[string]interface{}, result *PullR
 	}
 
 	return nil
-}
-
-// getOwnerOrganizationID gets the Owner organization ID from the database
-// Since Owner org is not synced to local database, we'll use the first distributor or nil
-func (e *PullEngine) getOwnerOrganizationID() (*string, error) {
-	var orgID string
-	// Try to find any distributor organization - users will be assigned there for visibility
-	// IMPORTANT: Use logto_id (not local id) because the API filters by Logto organization IDs
-	err := database.DB.QueryRow("SELECT logto_id FROM distributors WHERE logto_id IS NOT NULL AND deleted_at IS NULL LIMIT 1").Scan(&orgID)
-	if err == sql.ErrNoRows {
-		// No distributors found, return nil (users won't have organization)
-		return nil, nil
-	} else if err != nil {
-		return nil, fmt.Errorf("failed to query distributors: %w", err)
-	}
-	return &orgID, nil
 }
 
 func (e *PullEngine) pullUserRoles(result *PullResult) error {
