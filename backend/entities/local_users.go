@@ -97,7 +97,13 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
 		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at,
 		       COALESCE(d.name, r.name, c.name) as organization_name,
-		       COALESCE(d.id, r.id, c.id) as organization_local_id
+		       COALESCE(d.id, r.id, c.id) as organization_local_id,
+		       CASE
+		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
+		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
+		           WHEN c.logto_id IS NOT NULL THEN 'customer'
+		           ELSE 'owner'
+		       END as organization_type
 		FROM users u
 		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.deleted_at IS NULL
 		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.deleted_at IS NULL
@@ -113,7 +119,7 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 		&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name, &user.Phone,
 		&user.OrganizationID, &userRoleIDsJSON, &customDataJSON,
 		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt,
-		&user.OrganizationName, &user.OrganizationLocalID,
+		&user.OrganizationName, &user.OrganizationLocalID, &user.OrganizationType,
 	)
 
 	if err != nil {
@@ -153,7 +159,13 @@ func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, e
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
 		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at,
 		       COALESCE(d.name, r.name, c.name) as organization_name,
-		       COALESCE(d.id, r.id, c.id) as organization_local_id
+		       COALESCE(d.id, r.id, c.id) as organization_local_id,
+		       CASE
+		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
+		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
+		           WHEN c.logto_id IS NOT NULL THEN 'customer'
+		           ELSE 'owner'
+		       END as organization_type
 		FROM users u
 		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.deleted_at IS NULL
 		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.deleted_at IS NULL
@@ -169,7 +181,7 @@ func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, e
 		&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name, &user.Phone,
 		&user.OrganizationID, &userRoleIDsJSON, &customDataJSON,
 		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt,
-		&user.OrganizationName, &user.OrganizationLocalID,
+		&user.OrganizationName, &user.OrganizationLocalID, &user.OrganizationType,
 	)
 
 	if err != nil {
@@ -433,7 +445,13 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, exclud
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
 		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at,
 		       COALESCE(d.name, r.name, c.name) as organization_name,
-		       COALESCE(d.id, r.id, c.id) as organization_local_id
+		       COALESCE(d.id, r.id, c.id) as organization_local_id,
+		       CASE
+		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
+		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
+		           WHEN c.logto_id IS NOT NULL THEN 'customer'
+		           ELSE 'owner'
+		       END as organization_type
 		FROM users u
 		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.deleted_at IS NULL
 		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.deleted_at IS NULL
@@ -514,7 +532,13 @@ func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, exc
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
 		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at,
 		       COALESCE(d.name, r.name, c.name) as organization_name,
-		       COALESCE(d.id, r.id, c.id) as organization_local_id
+		       COALESCE(d.id, r.id, c.id) as organization_local_id,
+		       CASE
+		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
+		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
+		           WHEN c.logto_id IS NOT NULL THEN 'customer'
+		           ELSE 'owner'
+		       END as organization_type
 		FROM users u
 		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.deleted_at IS NULL
 		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.deleted_at IS NULL
@@ -570,7 +594,7 @@ func (r *LocalUserRepository) executeUserQuery(countQuery string, countArgs []in
 			&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name,
 			&user.Phone, &user.OrganizationID, &userRoleIDsJSON, &customDataJSON,
 			&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt,
-			&user.OrganizationName, &user.OrganizationLocalID,
+			&user.OrganizationName, &user.OrganizationLocalID, &user.OrganizationType,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan user: %w", err)
@@ -760,6 +784,7 @@ func (r *LocalUserRepository) enrichUserWithRelations(user *models.LocalUser) er
 		user.Organization = &models.UserOrganization{
 			LogtoID: *user.OrganizationID,
 			Name:    "",
+			Type:    "owner", // default
 		}
 		// Set the local database ID
 		if user.OrganizationLocalID != nil {
@@ -768,6 +793,10 @@ func (r *LocalUserRepository) enrichUserWithRelations(user *models.LocalUser) er
 		// Set the organization name
 		if user.OrganizationName != nil {
 			user.Organization.Name = *user.OrganizationName
+		}
+		// Set the organization type
+		if user.OrganizationType != nil {
+			user.Organization.Type = *user.OrganizationType
 		}
 	}
 

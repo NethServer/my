@@ -607,6 +607,11 @@ components:
           type: string
           description: Organization name
           example: "ACME Corp"
+        type:
+          type: string
+          description: Organization type in the business hierarchy
+          enum: ["owner", "distributor", "reseller", "customer"]
+          example: "customer"
 
     OrganizationRole:
       type: object

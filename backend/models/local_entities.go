@@ -75,6 +75,7 @@ type UserOrganization struct {
 	ID      string `json:"id"`
 	LogtoID string `json:"logto_id"`
 	Name    string `json:"name"`
+	Type    string `json:"type"`
 }
 
 // UserRole represents role info in user responses
@@ -106,6 +107,7 @@ type LocalUser struct {
 	OrganizationID      *string  `json:"-" db:"organization_id"`
 	OrganizationName    *string  `json:"-"`
 	OrganizationLocalID *string  `json:"-"`
+	OrganizationType    *string  `json:"-"`
 }
 
 // SystemTotals represents total counts and status for systems
