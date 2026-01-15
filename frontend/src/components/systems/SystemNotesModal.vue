@@ -5,7 +5,6 @@
 
 <script setup lang="ts">
 import { NeModal } from '@nethesis/vue-components'
-import { ref, onMounted, watch } from 'vue'
 
 const { visible = false, notes = undefined } = defineProps<{
   visible: boolean

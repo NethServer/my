@@ -25,10 +25,9 @@ import { canManageSystems } from '@/lib/permissions'
 import { faFileCsv, faFilePdf, faPenToSquare } from '@fortawesome/free-solid-svg-icons'
 import { useI18n } from 'vue-i18n'
 import CreateOrEditSystemDrawer from './CreateOrEditSystemDrawer.vue'
-import router from '@/router'
 
 const { t } = useI18n()
-const { state: systemDetail, state, asyncStatus } = useSystemDetail()
+const { state: systemDetail, asyncStatus } = useSystemDetail()
 const isNotesModalShown = ref(false)
 const isShownCreateOrEditSystemDrawer = ref(false)
 

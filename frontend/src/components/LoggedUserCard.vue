@@ -4,12 +4,12 @@
 -->
 
 <script setup lang="ts">
-import { NeBadgeV2, NeCard, NeSkeleton } from '@nethesis/vue-components'
+import { NeCard, NeSkeleton } from '@nethesis/vue-components'
 import { useLoginStore } from '@/stores/login'
 import UserAvatar from './UserAvatar.vue'
-import { normalize } from '@/lib/common'
 import { getOrganizationIcon } from '@/lib/organizations'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import UserRoleBadge from './UserRoleBadge.vue'
 
 const loginStore = useLoginStore()
 </script>
@@ -35,13 +35,11 @@ const loginStore = useLoginStore()
         <div class="flex flex-col gap-1">
           <div>{{ loginStore.userInfo.name }}</div>
           <div class="flex flex-wrap gap-1">
-            <NeBadgeV2
+            <UserRoleBadge
               v-for="role in loginStore.userInfo.user_roles.sort()"
               :key="role"
-              kind="indigo"
-            >
-              {{ $t(`user_roles.${normalize(role)}`) }}
-            </NeBadgeV2>
+              :role="role"
+            />
           </div>
         </div>
       </div>
