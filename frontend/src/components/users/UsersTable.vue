@@ -15,7 +15,6 @@ import {
   faUserSecret,
   faCirclePause,
   faCirclePlay,
-  faCircleXmark,
   faCircleCheck,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -35,9 +34,9 @@ import {
   NeDropdown,
   type SortEvent,
   NeSortDropdown,
-  NeBadge,
   sortByProperty,
   type NeDropdownItem,
+  NeTooltip,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import CreateOrEditUserDrawer from './CreateOrEditUserDrawer.vue'
@@ -50,9 +49,10 @@ import { useUsers } from '@/queries/users'
 import { canManageUsers, canImpersonateUsers } from '@/lib/permissions'
 import { useLoginStore } from '@/stores/login'
 import ImpersonateUserModal from './ImpersonateUserModal.vue'
-import { normalize } from '@/lib/common'
 import SuspendUserModal from './SuspendUserModal.vue'
 import ReactivateUserModal from './ReactivateUserModal.vue'
+import OrganizationIcon from '../OrganizationIcon.vue'
+import UserRoleBadge from '../UserRoleBadge.vue'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -258,6 +258,7 @@ const onClosePasswordChangedModal = () => {
               { id: 'name', label: t('users.name') },
               { id: 'email', label: t('users.email') },
               { id: 'organization', label: t('users.organization') },
+              { id: 'status', label: t('common.status') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
             :sort-by-label="t('sort.sort_by')"
@@ -299,7 +300,9 @@ const onClosePasswordChangedModal = () => {
           $t('users.organization')
         }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('users.roles') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('common.status') }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="status" @sort="onSort">{{
+          $t('common.status')
+        }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- no header for actions -->
         </NeTableHeadCell>
@@ -307,7 +310,7 @@ const onClosePasswordChangedModal = () => {
       <NeTableBody>
         <!-- empty state -->
         <NeTableRow v-if="!usersPage?.length && !debouncedTextFilter">
-          <NeTableCell colspan="5">
+          <NeTableCell colspan="6">
             <NeEmptyState
               :title="$t('users.no_user')"
               :icon="faUserGroup"
@@ -352,19 +355,31 @@ const onClosePasswordChangedModal = () => {
             {{ item.email }}
           </NeTableCell>
           <NeTableCell :data-label="$t('users.organization')">
-            {{ item.organization?.name || '-' }}
+            <div class="flex items-center gap-2">
+              <NeTooltip
+                v-if="item.organization.type"
+                placement="top"
+                trigger-event="mouseenter focus"
+                class="shrink-0"
+              >
+                <template #trigger>
+                  <OrganizationIcon :org-type="item.organization.type" size="sm" />
+                </template>
+                <template #content>
+                  {{ t(`organizations.${item.organization.type}`) }}
+                </template>
+              </NeTooltip>
+              {{ item.organization.name || '-' }}
+            </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('users.roles')">
             <span v-if="!item.roles || item.roles.length === 0">-</span>
             <div v-else class="flex flex-wrap gap-1">
-              <NeBadge
+              <UserRoleBadge
                 v-for="role in item.roles?.sort(sortByProperty('name'))"
                 :key="role.id"
-                :text="t(`user_roles.${normalize(role.name)}`)"
-                kind="custom"
-                customColorClasses="bg-indigo-100 text-indigo-800 dark:bg-indigo-700 dark:text-indigo-100"
-                class="inline-block"
-              ></NeBadge>
+                :role="role.name"
+              />
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.status')">

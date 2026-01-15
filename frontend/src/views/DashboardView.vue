@@ -9,8 +9,6 @@ import DistributorsCounterCard from '@/components/dashboard/DistributorsCounterC
 import ResellersCounterCard from '@/components/dashboard/ResellersCounterCard.vue'
 import SystemsCounterCard from '@/components/dashboard/SystemsCounterCard.vue'
 import UsersCounterCard from '@/components/dashboard/UsersCounterCard.vue'
-import UserAvatar from '@/components/UserAvatar.vue'
-import { normalize } from '@/lib/common'
 import {
   canReadCustomers,
   canReadDistributors,
@@ -30,14 +28,7 @@ import {
 import { useLoginStore } from '@/stores/login'
 import { faArrowUpRightFromSquare } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import {
-  NeBadge,
-  NeButton,
-  NeCard,
-  NeHeading,
-  NeRoundedIcon,
-  NeSkeleton,
-} from '@nethesis/vue-components'
+import { NeButton, NeCard, NeHeading, NeRoundedIcon, NeSkeleton } from '@nethesis/vue-components'
 import { useQuery } from '@pinia/colada'
 
 const loginStore = useLoginStore()
@@ -52,8 +43,8 @@ const { state: thirdPartyApps } = useQuery({
   <div>
     <NeHeading tag="h3" class="mb-7">{{ $t('dashboard.title') }}</NeHeading>
     <div class="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">
-      <!-- logged user -->
-      <NeCard>
+      <!-- logged user  //// remove -->
+      <!-- <NeCard>
         <div class="flex items-center gap-5 text-xs">
           <UserAvatar size="lg" :is-owner="loginStore.isOwner" :name="loginStore.userDisplayName" />
           <template v-if="loginStore.loadingUserInfo">
@@ -80,7 +71,7 @@ const { state: thirdPartyApps } = useQuery({
             </div>
           </template>
         </div>
-      </NeCard>
+      </NeCard> -->
       <!-- organizations and users counters -->
       <template v-if="!loginStore.userInfo">
         <NeCard v-for="i in 2" :key="i">
@@ -88,11 +79,11 @@ const { state: thirdPartyApps } = useQuery({
         </NeCard>
       </template>
       <template v-else>
-        <SystemsCounterCard v-if="canReadSystems()" />
         <DistributorsCounterCard v-if="canReadDistributors()" />
         <ResellersCounterCard v-if="canReadResellers()" />
         <CustomersCounterCard v-if="canReadCustomers()" />
         <UsersCounterCard v-if="canReadUsers()" />
+        <SystemsCounterCard v-if="canReadSystems()" />
       </template>
     </div>
     <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">
