@@ -49,7 +49,6 @@ import { canManageSystems } from '@/lib/permissions'
 import { useSystems } from '@/queries/systems/systems'
 import {
   exportSystem,
-  getExport,
   getProductLogo,
   getProductName,
   SYSTEMS_TABLE_ID,
@@ -64,7 +63,6 @@ import { useVersionFilter } from '@/queries/systems/versionFilter'
 import UserAvatar from '../UserAvatar.vue'
 import { buildVersionFilterOptions } from '@/lib/systems/versionFilter'
 import OrganizationIcon from '../OrganizationIcon.vue'
-import { downloadFile } from '@/lib/common'
 import RegenerateSecretModal from './RegenerateSecretModal.vue'
 import SecretRegeneratedModal from './SecretRegeneratedModal.vue'
 import ClickToCopy from '../ClickToCopy.vue'
