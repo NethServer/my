@@ -74,7 +74,7 @@ async function exportSystems(format: 'pdf' | 'csv') {
     const fileName = `${t('systems.title')}.${format}`
     downloadFile(exportData, fileName, format)
   } catch (error) {
-    console.error('Cannot export systems to pdf:', error)
+    console.error(`Cannot export systems to ${format}:`, error)
     throw error
   }
 }

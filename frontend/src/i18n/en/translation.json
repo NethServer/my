@@ -138,6 +138,7 @@
     "name": "Company name",
     "description": "Description",
     "vat_number": "VAT number",
+    "owner": "Owner",
     "distributor": "Distributor",
     "reseller": "Reseller",
     "customer": "Customer",
@@ -222,7 +223,9 @@
     "cannot_reactivate_user": "Cannot reactivate user",
     "user_reactivated": "User reactivated",
     "user_reactivated_successfully": "{name} reactivated successfully",
-    "reactivate_user_confirmation": "Are you sure you want to reactivate user {name}? The user will be able to log in again."
+    "reactivate_user_confirmation": "Are you sure you want to reactivate user {name}? The user will be able to log in again.",
+    "export_users_to_pdf": "Export users to PDF",
+    "export_users_to_csv": "Export users to CSV"
   },
   "third_party_apps": {
     "description_nethshop_nethesis_it": "Browse and order Nethesis products and services.",
