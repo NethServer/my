@@ -265,7 +265,6 @@ const onClosePasswordChangedModal = () => {
             :sort-direction-label="t('sort.direction')"
             :ascending-label="t('sort.ascending')"
             :descending-label="t('sort.descending')"
-            class="xl:hidden"
           />
         </div>
         <!-- update indicator -->

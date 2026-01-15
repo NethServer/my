@@ -60,6 +60,7 @@ import DeleteSystemModal from './DeleteSystemModal.vue'
 import { useProductFilter } from '@/queries/systems/productFilter'
 import { useCreatedByFilter } from '@/queries/systems/createdByFilter'
 import { useVersionFilter } from '@/queries/systems/versionFilter'
+import { useOrganizationFilter } from '@/queries/systems/organizationFilter'
 import UserAvatar from '../UserAvatar.vue'
 import { buildVersionFilterOptions } from '@/lib/systems/versionFilter'
 import OrganizationIcon from '../OrganizationIcon.vue'
@@ -86,6 +87,7 @@ const {
   createdByFilter,
   versionFilter,
   statusFilter,
+  organizationFilter,
   sortBy,
   sortDescending,
 } = useSystems()
@@ -93,6 +95,8 @@ const { state: productFilterState, asyncStatus: productFilterAsyncStatus } = use
 const { state: createdByFilterState, asyncStatus: createdByFilterAsyncStatus } =
   useCreatedByFilter()
 const { state: versionFilterState, asyncStatus: versionFilterAsyncStatus } = useVersionFilter()
+const { state: organizationFilterState, asyncStatus: organizationFilterAsyncStatus } =
+  useOrganizationFilter()
 
 const currentSystem = ref<System | undefined>()
 const isShownCreateOrEditSystemDrawer = ref(false)
@@ -161,6 +165,17 @@ const createdByFilterOptions = computed(() => {
     return createdByFilterState.value.data.created_by.map((user) => ({
       id: user.user_id,
       label: user.name,
+    }))
+  }
+})
+
+const organizationFilterOptions = computed(() => {
+  if (!organizationFilterState.value.data || !organizationFilterState.value.data.organizations) {
+    return []
+  } else {
+    return organizationFilterState.value.data.organizations.map((org) => ({
+      id: org.id,
+      label: org.name,
     }))
   }
 })
@@ -373,6 +388,22 @@ function onCloseSecretRegeneratedModal() {
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
           />
           <NeDropdownFilter
+            v-model="organizationFilter"
+            kind="checkbox"
+            :label="t('systems.organization')"
+            :options="organizationFilterOptions"
+            :disabled="
+              organizationFilterAsyncStatus === 'loading' ||
+              organizationFilterState.status === 'error'
+            "
+            show-options-filter
+            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
+          />
+          <NeDropdownFilter
             v-model="statusFilter"
             kind="checkbox"
             :label="t('common.status')"
@@ -384,7 +415,7 @@ function onCloseSecretRegeneratedModal() {
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
           />
-          <!-- sort dropdown for small screens -->
+          <!-- sort dropdown -->
           <NeSortDropdown
             v-model:sort-key="sortBy"
             v-model:sort-descending="sortDescending"
@@ -402,7 +433,6 @@ function onCloseSecretRegeneratedModal() {
             :sort-direction-label="t('sort.direction')"
             :ascending-label="t('sort.ascending')"
             :descending-label="t('sort.descending')"
-            class="2xl:hidden"
           />
           <NeButton kind="tertiary" @click="resetFilters">
             {{ t('systems.reset_filters') }}
