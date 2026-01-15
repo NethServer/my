@@ -26,6 +26,7 @@ export const useSystems = defineQuery(() => {
   const createdByFilter = ref<string[]>([])
   const versionFilter = ref<string[]>([])
   const statusFilter = ref<SystemStatus[]>(['online', 'offline', 'unknown'])
+  const organizationFilter = ref<string[]>([])
   const sortBy = ref<keyof System>('name')
   const sortDescending = ref(false)
 
@@ -40,6 +41,7 @@ export const useSystems = defineQuery(() => {
         createdByFilter: createdByFilter.value,
         versionFilter: versionFilter.value,
         statusFilter: statusFilter.value,
+        organizationFilter: organizationFilter.value,
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
@@ -54,6 +56,7 @@ export const useSystems = defineQuery(() => {
         createdByFilter.value,
         versionFilter.value,
         statusFilter.value,
+        organizationFilter.value,
         sortBy.value,
         sortDescending.value,
       ),
@@ -102,6 +105,7 @@ export const useSystems = defineQuery(() => {
     createdByFilter,
     versionFilter,
     statusFilter,
+    organizationFilter,
     debouncedTextFilter,
     sortBy,
     sortDescending,

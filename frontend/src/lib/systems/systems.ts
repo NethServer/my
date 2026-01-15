@@ -98,6 +98,7 @@ export const getQueryStringParams = (
   createdByFilter: string[],
   versionFilter: string[],
   statusFilter: SystemStatus[],
+  organizationFilter: string[],
   sortBy: string | null,
   sortDescending: boolean,
 ) => {
@@ -126,6 +127,10 @@ export const getQueryStringParams = (
 
   statusFilter.forEach((status) => {
     searchParams.append('status', status)
+  })
+
+  organizationFilter.forEach((orgId) => {
+    searchParams.append('organization_id', orgId)
   })
   return searchParams.toString()
 }
@@ -196,6 +201,7 @@ export const getSystems = (
   createdByFilter: string[],
   versionFilter: string[],
   statusFilter: SystemStatus[],
+  organizationFilter: string[],
   sortBy: string,
   sortDescending: boolean,
 ) => {
@@ -208,6 +214,7 @@ export const getSystems = (
     createdByFilter,
     versionFilter,
     statusFilter,
+    organizationFilter,
     sortBy,
     sortDescending,
   )
