@@ -5,7 +5,7 @@ import axios from 'axios'
 import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
-import { type Pagination } from '../common'
+import { downloadFile, type Pagination } from '../common'
 import Ns8Logo from '@/assets/ns8_logo.svg'
 import NsecLogo from '@/assets/nsec_logo.svg'
 
@@ -98,6 +98,7 @@ export const getQueryStringParams = (
   createdByFilter: string[],
   versionFilter: string[],
   statusFilter: SystemStatus[],
+  organizationFilter: string[],
   sortBy: string | null,
   sortDescending: boolean,
 ) => {
@@ -126,6 +127,10 @@ export const getQueryStringParams = (
 
   statusFilter.forEach((status) => {
     searchParams.append('status', status)
+  })
+
+  organizationFilter.forEach((orgId) => {
+    searchParams.append('organization_id', orgId)
   })
   return searchParams.toString()
 }
@@ -196,6 +201,7 @@ export const getSystems = (
   createdByFilter: string[],
   versionFilter: string[],
   statusFilter: SystemStatus[],
+  organizationFilter: string[],
   sortBy: string,
   sortDescending: boolean,
 ) => {
@@ -208,6 +214,7 @@ export const getSystems = (
     createdByFilter,
     versionFilter,
     statusFilter,
+    organizationFilter,
     sortBy,
     sortDescending,
   )
@@ -243,6 +250,18 @@ export const deleteSystem = (system: System) => {
   return axios.delete(`${API_URL}/systems/${system.id}`, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
+}
+
+export const restoreSystem = (system: System) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/systems/${system.id}/restore`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
 }
 
 export const regenerateSystemSecret = (systemId: string) => {
@@ -287,6 +306,17 @@ export const getProductLogo = (systemType: string) => {
       return NsecLogo
     default:
       return undefined
+  }
+}
+
+export async function exportSystem(system: System, format: 'pdf' | 'csv') {
+  try {
+    const exportData = await getExport(format, system.system_key)
+    const fileName = `${system.name}.${format}`
+    downloadFile(exportData, fileName, format)
+  } catch (error) {
+    console.error(`Cannot export system to ${format}:`, error)
+    throw error
   }
 }
 

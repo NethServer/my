@@ -18,6 +18,7 @@ import {
   faFilePdf,
   faFileCsv,
   faKey,
+  faRotateLeft,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -47,7 +48,7 @@ import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { canManageSystems } from '@/lib/permissions'
 import { useSystems } from '@/queries/systems/systems'
 import {
-  getExport,
+  exportSystem,
   getProductLogo,
   getProductName,
   SYSTEMS_TABLE_ID,
@@ -59,13 +60,14 @@ import DeleteSystemModal from './DeleteSystemModal.vue'
 import { useProductFilter } from '@/queries/systems/productFilter'
 import { useCreatedByFilter } from '@/queries/systems/createdByFilter'
 import { useVersionFilter } from '@/queries/systems/versionFilter'
+import { useOrganizationFilter } from '@/queries/systems/organizationFilter'
 import UserAvatar from '../UserAvatar.vue'
 import { buildVersionFilterOptions } from '@/lib/systems/versionFilter'
 import OrganizationIcon from '../OrganizationIcon.vue'
-import { downloadFile } from '@/lib/common'
 import RegenerateSecretModal from './RegenerateSecretModal.vue'
 import SecretRegeneratedModal from './SecretRegeneratedModal.vue'
 import ClickToCopy from '../ClickToCopy.vue'
+import RestoreSystemModal from './RestoreSystemModal.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -85,6 +87,7 @@ const {
   createdByFilter,
   versionFilter,
   statusFilter,
+  organizationFilter,
   sortBy,
   sortDescending,
 } = useSystems()
@@ -92,10 +95,13 @@ const { state: productFilterState, asyncStatus: productFilterAsyncStatus } = use
 const { state: createdByFilterState, asyncStatus: createdByFilterAsyncStatus } =
   useCreatedByFilter()
 const { state: versionFilterState, asyncStatus: versionFilterAsyncStatus } = useVersionFilter()
+const { state: organizationFilterState, asyncStatus: organizationFilterAsyncStatus } =
+  useOrganizationFilter()
 
 const currentSystem = ref<System | undefined>()
 const isShownCreateOrEditSystemDrawer = ref(false)
 const isShownDeleteSystemModal = ref(false)
+const isShownRestoreSystemModal = ref(false)
 const isShownRegenerateSecretModal = ref(false)
 const isShownSecretRegeneratedModal = ref(false)
 const newSecret = ref<string>('')
@@ -163,6 +169,17 @@ const createdByFilterOptions = computed(() => {
   }
 })
 
+const organizationFilterOptions = computed(() => {
+  if (!organizationFilterState.value.data || !organizationFilterState.value.data.organizations) {
+    return []
+  } else {
+    return organizationFilterState.value.data.organizations.map((org) => ({
+      id: org.id,
+      label: org.name,
+    }))
+  }
+})
+
 watch(
   () => isShownCreateSystemDrawer,
   () => {
@@ -204,6 +221,11 @@ function showDeleteSystemModal(system: System) {
   isShownDeleteSystemModal.value = true
 }
 
+function showRestoreSystemModal(system: System) {
+  currentSystem.value = system
+  isShownRestoreSystemModal.value = true
+}
+
 function showRegenerateSecretModal(system: System) {
   currentSystem.value = system
   isShownRegenerateSecretModal.value = true
@@ -217,7 +239,7 @@ function onCloseDrawer() {
 function getKebabMenuItems(system: System) {
   let items: NeDropdownItem[] = []
 
-  if (canManageSystems()) {
+  if (canManageSystems() && system.status !== 'deleted') {
     items.push({
       id: 'editSystem',
       label: t('common.edit'),
@@ -234,18 +256,18 @@ function getKebabMenuItems(system: System) {
       label: t('systems.export_to_pdf'),
       icon: faFilePdf,
       action: () => exportSystem(system, 'pdf'),
-      disabled: !state.value.data?.systems,
+      disabled: asyncStatus.value === 'loading',
     },
     {
       id: 'exportToCsv',
       label: t('systems.export_to_csv'),
       icon: faFileCsv,
       action: () => exportSystem(system, 'csv'),
-      disabled: !state.value.data?.systems,
+      disabled: asyncStatus.value === 'loading',
     },
   ]
 
-  if (canManageSystems()) {
+  if (canManageSystems() && system.status !== 'deleted') {
     items = [
       ...items,
       {
@@ -265,6 +287,17 @@ function getKebabMenuItems(system: System) {
       },
     ]
   }
+
+  if (canManageSystems() && system.status === 'deleted') {
+    items.push({
+      id: 'restoreSystem',
+      label: t('common.restore'),
+      icon: faRotateLeft,
+      action: () => showRestoreSystemModal(system),
+      disabled: asyncStatus.value === 'loading',
+    })
+  }
+
   return items
 }
 
@@ -275,17 +308,6 @@ const onSort = (payload: SortEvent) => {
 
 const goToSystemDetails = (system: System) => {
   router.push({ name: 'system_detail', params: { systemId: system.id } })
-}
-
-async function exportSystem(system: System, format: 'pdf' | 'csv') {
-  try {
-    const exportData = await getExport(format, system.system_key)
-    const fileName = `${system.name}.${format}`
-    downloadFile(exportData, fileName, format)
-  } catch (error) {
-    console.error('Cannot export system to pdf:', error)
-    throw error
-  }
 }
 
 function onSecretRegenerated(secret: string) {
@@ -366,6 +388,22 @@ function onCloseSecretRegeneratedModal() {
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
           />
           <NeDropdownFilter
+            v-model="organizationFilter"
+            kind="checkbox"
+            :label="t('systems.organization')"
+            :options="organizationFilterOptions"
+            :disabled="
+              organizationFilterAsyncStatus === 'loading' ||
+              organizationFilterState.status === 'error'
+            "
+            show-options-filter
+            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
+          />
+          <NeDropdownFilter
             v-model="statusFilter"
             kind="checkbox"
             :label="t('common.status')"
@@ -377,7 +415,7 @@ function onCloseSecretRegeneratedModal() {
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
           />
-          <!-- sort dropdown for small screens -->
+          <!-- sort dropdown -->
           <NeSortDropdown
             v-model:sort-key="sortBy"
             v-model:sort-descending="sortDescending"
@@ -395,7 +433,6 @@ function onCloseSecretRegeneratedModal() {
             :sort-direction-label="t('sort.direction')"
             :ascending-label="t('sort.ascending')"
             :descending-label="t('sort.descending')"
-            class="2xl:hidden"
           />
           <NeButton kind="tertiary" @click="resetFilters">
             {{ t('systems.reset_filters') }}
@@ -600,11 +637,9 @@ function onCloseSecretRegeneratedModal() {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div
-              v-if="item.status !== 'deleted'"
-              class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end"
-            >
+            <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
               <NeButton
+                v-if="item.status !== 'deleted'"
                 kind="tertiary"
                 @click="goToSystemDetails(item)"
                 :disabled="asyncStatus === 'loading' || item.status === 'deleted'"
@@ -656,6 +691,12 @@ function onCloseSecretRegeneratedModal() {
       :visible="isShownDeleteSystemModal"
       :system="currentSystem"
       @close="isShownDeleteSystemModal = false"
+    />
+    <!-- restore system modal -->
+    <RestoreSystemModal
+      :visible="isShownRestoreSystemModal"
+      :system="currentSystem"
+      @close="isShownRestoreSystemModal = false"
     />
     <!-- regenerate secret modal -->
     <RegenerateSecretModal

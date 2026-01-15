@@ -13,6 +13,9 @@ import {
   faTrash,
   faKey,
   faUserSecret,
+  faCirclePause,
+  faCirclePlay,
+  faCircleCheck,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -31,8 +34,9 @@ import {
   NeDropdown,
   type SortEvent,
   NeSortDropdown,
-  NeBadge,
   sortByProperty,
+  type NeDropdownItem,
+  NeTooltip,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import CreateOrEditUserDrawer from './CreateOrEditUserDrawer.vue'
@@ -45,7 +49,10 @@ import { useUsers } from '@/queries/users'
 import { canManageUsers, canImpersonateUsers } from '@/lib/permissions'
 import { useLoginStore } from '@/stores/login'
 import ImpersonateUserModal from './ImpersonateUserModal.vue'
-import { normalize } from '@/lib/common'
+import SuspendUserModal from './SuspendUserModal.vue'
+import ReactivateUserModal from './ReactivateUserModal.vue'
+import OrganizationIcon from '../OrganizationIcon.vue'
+import UserRoleBadge from '../UserRoleBadge.vue'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -73,6 +80,8 @@ const isShownDeleteUserModal = ref(false)
 const isShownResetPasswordModal = ref(false)
 const isShownPasswordChangedModal = ref(false)
 const isShownImpersonateUserModal = ref(false)
+const isShownSuspendUserModal = ref(false)
+const isShownReactivateUserModal = ref(false)
 const newPassword = ref<string>('')
 const isImpersonating = ref(false)
 
@@ -118,6 +127,16 @@ function showResetPasswordModal(user: User) {
   isShownResetPasswordModal.value = true
 }
 
+function showSuspendUserModal(user: User) {
+  currentUser.value = user
+  isShownSuspendUserModal.value = true
+}
+
+function showReactivateUserModal(user: User) {
+  currentUser.value = user
+  isShownReactivateUserModal.value = true
+}
+
 function showImpersonateUserModal(user: User) {
   currentUser.value = user
   isShownImpersonateUserModal.value = true
@@ -134,36 +153,67 @@ function onCloseDrawer() {
 }
 
 function getKebabMenuItems(user: User) {
-  const items = [
-    {
-      id: 'resetPassword',
-      label: t('users.reset_password'),
-      icon: faKey,
-      action: () => showResetPasswordModal(user),
-      disabled: asyncStatus.value === 'loading',
-    },
-    {
-      id: 'deleteAccount',
-      label: t('common.delete'),
-      icon: faTrash,
-      danger: true,
-      action: () => showDeleteUserModal(user),
-      disabled: asyncStatus.value === 'loading',
-    },
-  ]
+  let items: NeDropdownItem[] = []
 
   // Add impersonate option for owners, but not for self
   if (canImpersonateUsers() && user.id !== loginStore.userInfo?.id) {
-    items.unshift({
-      id: 'impersonate',
-      label: t('users.impersonate_user'),
-      icon: faUserSecret,
-      action: () => showImpersonateUserModal(user),
-      disabled:
-        asyncStatus.value === 'loading' || isImpersonating.value || !user.can_be_impersonated,
-    })
+    items = [
+      ...items,
+      {
+        id: 'impersonate',
+        label: t('users.impersonate_user'),
+        icon: faUserSecret,
+        action: () => showImpersonateUserModal(user),
+        disabled:
+          asyncStatus.value === 'loading' || isImpersonating.value || !user.can_be_impersonated,
+      },
+    ]
   }
 
+  if (canManageUsers()) {
+    if (user.suspended_at) {
+      items = [
+        ...items,
+        {
+          id: 'reactivateUser',
+          label: t('users.reactivate'),
+          icon: faCirclePlay,
+          action: () => showReactivateUserModal(user),
+          disabled: asyncStatus.value === 'loading',
+        },
+      ]
+    } else {
+      items = [
+        ...items,
+        {
+          id: 'suspendUser',
+          label: t('users.suspend'),
+          icon: faCirclePause,
+          action: () => showSuspendUserModal(user),
+          disabled: asyncStatus.value === 'loading',
+        },
+      ]
+    }
+
+    items = [
+      ...items,
+      {
+        id: 'resetPassword',
+        label: t('users.reset_password'),
+        icon: faKey,
+        action: () => showResetPasswordModal(user),
+        disabled: asyncStatus.value === 'loading',
+      },
+      {
+        id: 'deleteAccount',
+        label: t('common.delete'),
+        icon: faTrash,
+        danger: true,
+        action: () => showDeleteUserModal(user),
+        disabled: asyncStatus.value === 'loading',
+      },
+    ]
+  }
   return items
 }
 
@@ -208,13 +258,13 @@ const onClosePasswordChangedModal = () => {
               { id: 'name', label: t('users.name') },
               { id: 'email', label: t('users.email') },
               { id: 'organization', label: t('users.organization') },
+              { id: 'status', label: t('common.status') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
             :sort-by-label="t('sort.sort_by')"
             :sort-direction-label="t('sort.direction')"
             :ascending-label="t('sort.ascending')"
             :descending-label="t('sort.descending')"
-            class="xl:hidden"
           />
         </div>
         <!-- update indicator -->
@@ -249,6 +299,9 @@ const onClosePasswordChangedModal = () => {
           $t('users.organization')
         }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('users.roles') }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="status" @sort="onSort">{{
+          $t('common.status')
+        }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- no header for actions -->
         </NeTableHeadCell>
@@ -256,7 +309,7 @@ const onClosePasswordChangedModal = () => {
       <NeTableBody>
         <!-- empty state -->
         <NeTableRow v-if="!usersPage?.length && !debouncedTextFilter">
-          <NeTableCell colspan="5">
+          <NeTableCell colspan="6">
             <NeEmptyState
               :title="$t('users.no_user')"
               :icon="faUserGroup"
@@ -301,19 +354,55 @@ const onClosePasswordChangedModal = () => {
             {{ item.email }}
           </NeTableCell>
           <NeTableCell :data-label="$t('users.organization')">
-            {{ item.organization?.name || '-' }}
+            <div class="flex items-center gap-2">
+              <NeTooltip
+                v-if="item.organization.type"
+                placement="top"
+                trigger-event="mouseenter focus"
+                class="shrink-0"
+              >
+                <template #trigger>
+                  <OrganizationIcon :org-type="item.organization.type" size="sm" />
+                </template>
+                <template #content>
+                  {{ t(`organizations.${item.organization.type}`) }}
+                </template>
+              </NeTooltip>
+              {{ item.organization.name || '-' }}
+            </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('users.roles')">
             <span v-if="!item.roles || item.roles.length === 0">-</span>
             <div v-else class="flex flex-wrap gap-1">
-              <NeBadge
+              <UserRoleBadge
                 v-for="role in item.roles?.sort(sortByProperty('name'))"
                 :key="role.id"
-                :text="t(`user_roles.${normalize(role.name)}`)"
-                kind="custom"
-                customColorClasses="bg-indigo-100 text-indigo-800 dark:bg-indigo-700 dark:text-indigo-100"
-                class="inline-block"
-              ></NeBadge>
+                :role="role.name"
+              />
+            </div>
+          </NeTableCell>
+          <NeTableCell :data-label="$t('common.status')">
+            <div class="flex items-center gap-2">
+              <template v-if="item.suspended_at">
+                <FontAwesomeIcon
+                  :icon="faCirclePause"
+                  class="size-4 text-gray-700 dark:text-gray-400"
+                  aria-hidden="true"
+                />
+                <span>
+                  {{ t('users.suspended') }}
+                </span>
+              </template>
+              <template v-else>
+                <FontAwesomeIcon
+                  :icon="faCircleCheck"
+                  class="size-4 text-green-600 dark:text-green-400"
+                  aria-hidden="true"
+                />
+                <span>
+                  {{ t('common.enabled') }}
+                </span>
+              </template>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
@@ -370,6 +459,18 @@ const onClosePasswordChangedModal = () => {
       :visible="isShownDeleteUserModal"
       :user="currentUser"
       @close="isShownDeleteUserModal = false"
+    />
+    <!-- suspend user modal -->
+    <SuspendUserModal
+      :visible="isShownSuspendUserModal"
+      :user="currentUser"
+      @close="isShownSuspendUserModal = false"
+    />
+    <!-- reactivate user modal -->
+    <ReactivateUserModal
+      :visible="isShownReactivateUserModal"
+      :user="currentUser"
+      @close="isShownReactivateUserModal = false"
     />
     <!-- impersonate user modal -->
     <ImpersonateUserModal

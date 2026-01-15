@@ -7,6 +7,7 @@
     "close": "Close",
     "edit": "Edit",
     "delete": "Delete",
+    "restore": "Restore",
     "filter": "Filter",
     "advanced_settings": "Advanced settings",
     "enable": "Enable",
@@ -34,7 +35,9 @@
     "coming_soon": "Coming soon",
     "view_details": "View details",
     "ip_address": "IP address",
-    "click_to_copy": "Click to copy"
+    "click_to_copy": "Click to copy",
+    "suspend": "Suspend",
+    "reactivate": "Reactivate"
   },
   "shell": {
     "open_sidebar": "Open sidebar",
@@ -135,6 +138,7 @@
     "name": "Company name",
     "description": "Description",
     "vat_number": "VAT number",
+    "owner": "Owner",
     "distributor": "Distributor",
     "reseller": "Reseller",
     "customer": "Customer",
@@ -206,7 +210,22 @@
     "password_changed_description": "Your password has been changed",
     "username_already_exists": "Username already exists",
     "user_email_description": "The user will receive a welcome email containing instructions on how to access {productName}, along with a temporary password that can be changed upon first login.",
-    "cannot_impersonate_user": "Cannot impersonate user"
+    "suspend": "Suspend",
+    "suspended": "Suspended",
+    "suspend_user": "Suspend user",
+    "reactivate": "Reactivate",
+    "reactivate_user": "Reactivate user",
+    "cannot_impersonate_user": "Cannot impersonate user",
+    "cannot_suspend_user": "Cannot suspend user",
+    "user_suspended": "User suspended",
+    "user_suspended_successfully": "{name} suspended successfully",
+    "suspend_user_confirmation": "Are you sure you want to suspend user {name}? The user will not be able to log in until reactivated.",
+    "cannot_reactivate_user": "Cannot reactivate user",
+    "user_reactivated": "User reactivated",
+    "user_reactivated_successfully": "{name} reactivated successfully",
+    "reactivate_user_confirmation": "Are you sure you want to reactivate user {name}? The user will be able to log in again.",
+    "export_users_to_pdf": "Export users to PDF",
+    "export_users_to_csv": "Export users to CSV"
   },
   "third_party_apps": {
     "description_nethshop_nethesis_it": "Browse and order Nethesis products and services.",
@@ -382,15 +401,21 @@
     "system_secret_regenerated": "System secret regenerated",
     "system_secret_regenerated_description": "The secret for system {name} has been regenerated.",
     "cannot_regenerate_system_secret": "Cannot regenerate system secret",
-    "update_the_subscription": "Update the subscription"
+    "update_the_subscription": "Update the subscription",
+    "show_notes": "Show notes",
+    "restore_system": "Restore system",
+    "restore_system_confirmation": "Are you sure you want to restore system {name}?",
+    "system_restored": "System restored",
+    "system_restored_successfully": "{name} restored successfully",
+    "cannot_restore_system": "Cannot restore system"
   },
   "system_detail": {
     "title": "System detail",
     "overview": "Overview",
     "product_logo": "{product} logo",
     "unknown_product": "Unknown product",
-    "open_system": "Open system",
-    "open_system_tooltip": "Note: The system may be unreachable due to network settings.",
+    "go_to_system": "Go to system",
+    "go_to_system_tooltip": "Note: The system may be unreachable due to network settings.",
     "uptime": "Uptime",
     "last_inventory": "Last inventory",
     "timezone": "Timezone",
@@ -402,7 +427,8 @@
     "no_inventory_available_description": "The system has not sent any inventory data yet.",
     "subscription": "Subscription",
     "system_creation": "System creation",
-    "system_key": "System key"
+    "system_key": "System key",
+    "cannot_determine_system_url_description": "Cannot access the system because its URL cannot be determined."
   },
   "ne_table": {
     "no_items": "No items",

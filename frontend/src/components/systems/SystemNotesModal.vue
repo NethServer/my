@@ -25,6 +25,6 @@ const emit = defineEmits(['close'])
     @close="emit('close')"
     @primary-click="emit('close')"
   >
-    <pre>{{ notes }}</pre>
+    <pre ref="preElement" class="font-sans whitespace-pre-wrap">{{ notes }}</pre>
   </NeModal>
 </template>
