@@ -40,6 +40,7 @@ import { useLoginStore } from '@/stores/login'
 import { getOrganizations, ORGANIZATIONS_KEY } from '@/lib/organizations'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faCheck, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
+import { ORGANIZATION_FILTER_KEY } from '@/lib/systems/organizationFilter'
 
 const { isShown = false, currentSystem = undefined } = defineProps<{
   isShown: boolean
@@ -79,6 +80,7 @@ const {
   onSettled: () => {
     queryCache.invalidateQueries({ key: [SYSTEMS_KEY] })
     queryCache.invalidateQueries({ key: [SYSTEMS_TOTAL_KEY] })
+    queryCache.invalidateQueries({ key: [ORGANIZATION_FILTER_KEY] })
   },
 })
 
@@ -109,7 +111,10 @@ const {
     console.error('Error editing system:', error)
     validationIssues.value = getValidationIssues(error as AxiosError, 'systems')
   },
-  onSettled: () => queryCache.invalidateQueries({ key: [SYSTEMS_KEY] }),
+  onSettled: () => {
+    queryCache.invalidateQueries({ key: [SYSTEMS_KEY] })
+    queryCache.invalidateQueries({ key: [ORGANIZATION_FILTER_KEY] })
+  },
 })
 
 const name = ref('')
