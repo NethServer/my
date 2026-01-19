@@ -6,12 +6,19 @@
 <script setup lang="ts">
 import { NeButton, NeHeading } from '@nethesis/vue-components'
 import DistributorsTable from '@/components/distributors/DistributorsTable.vue'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { faCirclePlus } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { canManageDistributors } from '@/lib/permissions'
+import { useDistributors } from '@/queries/distributors'
 
 const isShownCreateDistributorDrawer = ref(false)
+
+const { state, debouncedTextFilter } = useDistributors()
+
+const distributorsPage = computed(() => {
+  return state.value.data?.distributors
+})
 </script>
 
 <template>
@@ -23,7 +30,7 @@ const isShownCreateDistributorDrawer = ref(false)
       </div>
       <!-- create distributor -->
       <NeButton
-        v-if="canManageDistributors()"
+        v-if="canManageDistributors() && (distributorsPage?.length || debouncedTextFilter)"
         kind="primary"
         size="lg"
         class="shrink-0"

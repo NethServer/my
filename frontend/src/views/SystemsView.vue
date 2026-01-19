@@ -113,7 +113,7 @@ async function exportSystems(format: 'pdf' | 'csv') {
         </NeDropdown>
         <!-- create system -->
         <NeButton
-          v-if="canManageSystems()"
+          v-if="canManageSystems() && (systemsPage?.length || debouncedTextFilter)"
           kind="primary"
           size="lg"
           class="shrink-0"
