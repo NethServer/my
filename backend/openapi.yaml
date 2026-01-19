@@ -1443,6 +1443,28 @@ paths:
         - $ref: '#/components/parameters/SearchParam'
         - $ref: '#/components/parameters/UserSortByParam'
         - $ref: '#/components/parameters/SortDirectionParam'
+        - name: organization_id
+          in: query
+          required: false
+          description: Filter by organization logto_id
+          schema:
+            type: string
+            example: "org_abc123"
+        - name: status
+          in: query
+          required: false
+          description: Filter by user status
+          schema:
+            type: string
+            enum: [active, suspended]
+            example: "active"
+        - name: role
+          in: query
+          required: false
+          description: Filter by user role ID
+          schema:
+            type: string
+            example: "role_abc123"
       responses:
         '200':
           description: Users retrieved successfully
@@ -1841,6 +1863,28 @@ paths:
         - $ref: '#/components/parameters/SearchParam'
         - $ref: '#/components/parameters/UserSortByParam'
         - $ref: '#/components/parameters/SortDirectionParam'
+        - name: organization_id
+          in: query
+          required: false
+          description: Filter by organization logto_id
+          schema:
+            type: string
+            example: "org_abc123"
+        - name: status
+          in: query
+          required: false
+          description: Filter by user status
+          schema:
+            type: string
+            enum: [active, suspended]
+            example: "active"
+        - name: role
+          in: query
+          required: false
+          description: Filter by user role ID
+          schema:
+            type: string
+            example: "role_abc123"
       responses:
         '200':
           description: Users exported successfully

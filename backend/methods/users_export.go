@@ -46,6 +46,11 @@ func ExportUsers(c *gin.Context) {
 	// Parse search parameter
 	search := c.Query("search")
 
+	// Parse filter parameters
+	organizationFilter := c.Query("organization_id")
+	statusFilter := c.Query("status")
+	roleFilter := c.Query("role")
+
 	// For export, we don't use pagination - get all matching users (with limit)
 	sortBy := c.DefaultQuery("sort_by", "created_at")
 	sortDirection := c.DefaultQuery("sort_direction", "desc")
@@ -55,7 +60,7 @@ func ExportUsers(c *gin.Context) {
 
 	// Get users based on RBAC (exclude current user) without pagination limit (but with max export limit)
 	userOrgRole := strings.ToLower(user.OrgRole)
-	users, totalCount, err := service.ListUsers(userOrgRole, user.OrganizationID, user.ID, 1, MaxUsersExportLimit, search, sortBy, sortDirection)
+	users, totalCount, err := service.ListUsers(userOrgRole, user.OrganizationID, user.ID, 1, MaxUsersExportLimit, search, sortBy, sortDirection, organizationFilter, statusFilter, roleFilter)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -91,6 +96,15 @@ func ExportUsers(c *gin.Context) {
 	filters := make(map[string]interface{})
 	if search != "" {
 		filters["search"] = search
+	}
+	if organizationFilter != "" {
+		filters["organization_id"] = organizationFilter
+	}
+	if statusFilter != "" {
+		filters["status"] = statusFilter
+	}
+	if roleFilter != "" {
+		filters["role"] = roleFilter
 	}
 
 	// Create export service
