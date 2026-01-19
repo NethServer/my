@@ -319,6 +319,26 @@ func main() {
 			usersGroup.GET("/export", methods.ExportUsers) // Export users to CSV or PDF with applied filters
 		}
 
+		// ===========================================
+		// APPLICATIONS - Applications from system inventory
+		// ===========================================
+
+		// Applications - Resource-based permission validation (read:applications for GET, manage:applications for POST/PUT/PATCH/DELETE)
+		appsGroup := customAuthWithAudit.Group("/applications", middleware.RequireResourcePermission("applications"))
+		{
+			appsGroup.GET("", methods.GetApplications)                                // List applications with pagination and filters
+			appsGroup.GET("/totals", methods.GetApplicationTotals)                    // Get application statistics
+			appsGroup.GET("/types", methods.GetApplicationTypes)                      // Get available application types for filter
+			appsGroup.GET("/versions", methods.GetApplicationVersions)                // Get available versions for filter
+			appsGroup.GET("/systems", methods.GetApplicationSystems)                  // Get available systems for filter
+			appsGroup.GET("/organizations", methods.GetApplicationOrganizations)      // Get available organizations for assignment
+			appsGroup.GET("/:id", methods.GetApplication)                             // Get single application
+			appsGroup.PUT("/:id", methods.UpdateApplication)                          // Update application (display_name, notes, url)
+			appsGroup.PATCH("/:id/assign", methods.AssignApplicationOrganization)     // Assign organization to application
+			appsGroup.PATCH("/:id/unassign", methods.UnassignApplicationOrganization) // Remove organization from application
+			appsGroup.DELETE("/:id", methods.DeleteApplication)                       // Soft-delete application
+		}
+
 		// Roles endpoints - for role selection in user creation
 		customAuthWithAudit.GET("/roles", methods.GetRoles)
 		customAuthWithAudit.GET("/organization-roles", methods.GetOrganizationRoles)
@@ -326,8 +346,8 @@ func main() {
 		// Organizations endpoint - for organization selection in user creation
 		customAuthWithAudit.GET("/organizations", methods.GetOrganizations)
 
-		// Applications endpoint - filtered third-party applications based on user access
-		customAuthWithAudit.GET("/applications", methods.GetApplications)
+		// Third-party Applications endpoint - filtered third-party applications based on user access
+		customAuthWithAudit.GET("/third-party-applications", methods.GetThirdPartyApplications)
 
 		// Validators group - for validation endpoints
 		validatorsGroup := customAuth.Group("/validators")

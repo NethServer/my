@@ -1,161 +1,442 @@
 /*
- * Copyright (C) 2025 Nethesis S.r.l.
- * http://www.nethesis.it - info@nethesis.it
- *
- * SPDX-License-Identifier: AGPL-3.0-or-later
- *
- * author: Edoardo Spadoni <edoardo.spadoni@nethesis.it>
- */
+Copyright (C) 2025 Nethesis S.r.l.
+SPDX-License-Identifier: AGPL-3.0-or-later
+*/
 
 package methods
 
 import (
 	"net/http"
-	"sync"
+	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/nethesis/my/backend/cache"
+	"github.com/gin-gonic/gin/binding"
+
+	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
-	"github.com/nethesis/my/backend/services/logto"
+	"github.com/nethesis/my/backend/services/local"
 )
 
-// GetApplications handles GET /api/applications
-// Returns third-party applications filtered by user access permissions
+// handleApplicationAccessError handles application access errors with appropriate HTTP status codes
+func handleApplicationAccessError(c *gin.Context, err error, appID string) bool {
+	if err == nil {
+		return false
+	}
+
+	errMsg := err.Error()
+	if errMsg == "application not found" {
+		c.JSON(http.StatusNotFound, response.NotFound("application not found", nil))
+		return true
+	}
+
+	if strings.Contains(errMsg, "access denied") {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied to application", map[string]interface{}{
+			"application_id": appID,
+		}))
+		return true
+	}
+
+	// Technical error
+	c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to process application request", map[string]interface{}{
+		"error": errMsg,
+	}))
+	return true
+}
+
+// GetApplications handles GET /api/applications - retrieves all applications with pagination
 func GetApplications(c *gin.Context) {
-	// Extract user context
-	userID, exists := c.Get("user_id")
-	if !exists {
-		logger.NewHTTPErrorLogger(c, "applications").LogError(nil, "missing_context", http.StatusUnauthorized, "User context not found in GetApplications")
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("authentication required", nil))
+	// Get current user context with organization ID
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
 		return
 	}
 
-	userIDStr, ok := userID.(string)
-	if !ok {
-		logger.NewHTTPErrorLogger(c, "applications").LogError(nil, "invalid_user_id", http.StatusUnauthorized, "Invalid user ID in context")
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("authentication required", nil))
-		return
+	// Parse pagination and sorting parameters
+	page, pageSize, sortBy, sortDirection := helpers.GetPaginationAndSortingFromQuery(c)
+
+	// Override default page size for applications
+	if c.Query("page_size") == "" {
+		pageSize = 50
 	}
 
-	logger.Info().
-		Str("user_id", userIDStr).
-		Msg("Fetching applications for user")
+	// Parse search parameter
+	search := c.Query("search")
 
-	// Create Logto client
-	client := logto.NewManagementClient()
+	// Parse filter parameters (supporting multiple values)
+	filterTypes := c.QueryArray("type")
+	filterVersions := c.QueryArray("version")
+	filterSystemIDs := c.QueryArray("system_id")
+	filterOrgIDs := c.QueryArray("organization_id")
+	filterStatuses := c.QueryArray("status")
 
-	// Fetch all third-party applications from Logto
-	logtoApplications, err := client.GetThirdPartyApplications()
+	// Create applications service
+	appsService := local.NewApplicationsService()
+
+	// Get applications with pagination, search, sorting and filters
+	apps, totalCount, err := appsService.GetApplications(
+		userOrgRole, userOrgID,
+		page, pageSize,
+		search, sortBy, sortDirection,
+		filterTypes, filterVersions, filterSystemIDs, filterOrgIDs, filterStatuses,
+	)
 	if err != nil {
-		logger.NewHTTPErrorLogger(c, "applications").LogError(err, "fetch_applications", http.StatusInternalServerError, "Failed to fetch applications from Logto")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch applications", err.Error()))
+		logger.Error().
+			Err(err).
+			Str("user_id", userID).
+			Int("page", page).
+			Int("page_size", pageSize).
+			Msg("Failed to get applications")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve applications", map[string]interface{}{
+			"error": err.Error(),
+		}))
 		return
 	}
 
-	// Get user's organization role
-	var organizationRoles []string
-	if orgRole, exists := c.Get("org_role"); exists {
-		if orgRoleStr, ok := orgRole.(string); ok && orgRoleStr != "" {
-			organizationRoles = append(organizationRoles, orgRoleStr)
-		}
+	// Convert to list items for response
+	items := make([]*models.ApplicationListItem, len(apps))
+	for i, app := range apps {
+		items[i] = app.ToListItem()
 	}
 
-	// Get user's user role IDs for access control matching
-	var userRoleIDs []string
-	if userRoleIDsData, exists := c.Get("user_role_ids"); exists {
-		if userRoleIDsList, ok := userRoleIDsData.([]string); ok {
-			userRoleIDs = userRoleIDsList
-		}
+	// Calculate total pages
+	totalPages := (totalCount + pageSize - 1) / pageSize
+
+	c.JSON(http.StatusOK, response.OK("applications retrieved successfully", map[string]interface{}{
+		"items":       items,
+		"total":       totalCount,
+		"page":        page,
+		"page_size":   pageSize,
+		"total_pages": totalPages,
+	}))
+}
+
+// GetApplication handles GET /api/applications/:id - retrieves a single application
+func GetApplication(c *gin.Context) {
+	appID := c.Param("id")
+	if appID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("application id is required", nil))
+		return
 	}
 
-	// Get user's organization ID
-	var userOrganizationID string
-	if orgID, exists := c.Get("organization_id"); exists {
-		if orgIDStr, ok := orgID.(string); ok {
-			userOrganizationID = orgIDStr
-		}
+	// Get current user context
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
 	}
 
-	logger.Debug().
-		Str("user_id", userIDStr).
-		Str("organization_id", userOrganizationID).
-		Strs("organization_roles", organizationRoles).
-		Strs("user_role_ids", userRoleIDs).
-		Msg("User context for application filtering")
+	// Create applications service
+	appsService := local.NewApplicationsService()
 
-	// Filter applications based on user's roles and organization membership
-	filteredLogtoApps := logto.FilterApplicationsByAccess(logtoApplications, organizationRoles, userRoleIDs, userOrganizationID)
-
-	// Get cached domain validation result
-	domainValidation := cache.GetDomainValidation()
-	isValidDomain := domainValidation.IsValid()
-
-	// Convert filtered applications to our response model using parallel processing
-	var responseApplications []models.ThirdPartyApplication
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-
-	for _, app := range filteredLogtoApps {
-		wg.Add(1)
-		go func(app models.LogtoThirdPartyApp) {
-			defer wg.Done()
-
-			// Parallel calls for branding and scopes
-			var branding *models.ApplicationSignInExperience
-			var scopes []string
-			var brandingWg sync.WaitGroup
-
-			brandingWg.Add(2)
-
-			// Get branding information in parallel
-			go func() {
-				defer brandingWg.Done()
-				var err error
-				branding, err = client.GetApplicationBranding(app.ID)
-				if err != nil {
-					logger.Warn().
-						Err(err).
-						Str("app_id", app.ID).
-						Msg("Failed to get branding for app")
-				}
-			}()
-
-			// Get scopes in parallel
-			go func() {
-				defer brandingWg.Done()
-				var err error
-				scopes, err = client.GetApplicationScopes(app.ID)
-				if err != nil {
-					logger.Warn().
-						Err(err).
-						Str("app_id", app.ID).
-						Msg("Failed to get scopes for app")
-				}
-			}()
-
-			brandingWg.Wait()
-
-			// Convert to our response model with cached domain validation
-			convertedApp := app.ToThirdPartyApplication(branding, scopes, func(appID string, redirectURI string, scopes []string, isValidDomain bool) string {
-				return logto.GenerateOAuth2LoginURL(appID, redirectURI, scopes, isValidDomain)
-			}, isValidDomain)
-
-			// Thread-safe append
-			mu.Lock()
-			responseApplications = append(responseApplications, *convertedApp)
-			mu.Unlock()
-		}(app)
+	// Get application with access validation
+	app, err := appsService.GetApplication(appID, userOrgRole, userOrgID)
+	if handleApplicationAccessError(c, err, appID) {
+		return
 	}
 
-	wg.Wait()
+	c.JSON(http.StatusOK, response.OK("application retrieved successfully", app))
+}
 
-	logger.Info().
-		Int("count", len(responseApplications)).
-		Str("user_id", userIDStr).
-		Msg("Returning applications for user")
+// UpdateApplication handles PUT /api/applications/:id - updates an application
+func UpdateApplication(c *gin.Context) {
+	appID := c.Param("id")
+	if appID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("application id is required", nil))
+		return
+	}
 
-	// Return filtered applications
-	c.JSON(http.StatusOK, response.Success(http.StatusOK, "Applications retrieved successfully", responseApplications))
+	// Parse request body
+	var request models.UpdateApplicationRequest
+	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
+		return
+	}
+
+	// Get current user context
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	// Create applications service
+	appsService := local.NewApplicationsService()
+
+	// Update application
+	err := appsService.UpdateApplication(appID, &request, userOrgRole, userOrgID)
+	if handleApplicationAccessError(c, err, appID) {
+		return
+	}
+
+	// Log the action
+	logger.LogBusinessOperation(c, "applications", "update", "application", appID, true, nil)
+
+	// Get updated application
+	app, err := appsService.GetApplication(appID, userOrgRole, userOrgID)
+	if err != nil {
+		c.JSON(http.StatusOK, response.OK("application updated successfully", nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("application updated successfully", app))
+}
+
+// AssignApplicationOrganization handles PATCH /api/applications/:id/assign - assigns organization
+func AssignApplicationOrganization(c *gin.Context) {
+	appID := c.Param("id")
+	if appID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("application id is required", nil))
+		return
+	}
+
+	// Parse request body
+	var request models.AssignApplicationRequest
+	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
+		return
+	}
+
+	// Get current user context
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	// Create applications service
+	appsService := local.NewApplicationsService()
+
+	// Assign organization
+	err := appsService.AssignOrganization(appID, &request, userOrgRole, userOrgID)
+	if handleApplicationAccessError(c, err, appID) {
+		return
+	}
+
+	// Log the action
+	logger.LogBusinessOperation(c, "applications", "assign", "application", appID, true, nil)
+
+	// Get updated application
+	app, err := appsService.GetApplication(appID, userOrgRole, userOrgID)
+	if err != nil {
+		c.JSON(http.StatusOK, response.OK("organization assigned successfully", nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("organization assigned successfully", app))
+}
+
+// UnassignApplicationOrganization handles PATCH /api/applications/:id/unassign - removes organization
+func UnassignApplicationOrganization(c *gin.Context) {
+	appID := c.Param("id")
+	if appID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("application id is required", nil))
+		return
+	}
+
+	// Get current user context
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	// Create applications service
+	appsService := local.NewApplicationsService()
+
+	// Unassign organization
+	err := appsService.UnassignOrganization(appID, userOrgRole, userOrgID)
+	if handleApplicationAccessError(c, err, appID) {
+		return
+	}
+
+	// Log the action
+	logger.LogBusinessOperation(c, "applications", "unassign", "application", appID, true, nil)
+
+	// Get updated application
+	app, err := appsService.GetApplication(appID, userOrgRole, userOrgID)
+	if err != nil {
+		c.JSON(http.StatusOK, response.OK("organization unassigned successfully", nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("organization unassigned successfully", app))
+}
+
+// DeleteApplication handles DELETE /api/applications/:id - soft deletes an application
+func DeleteApplication(c *gin.Context) {
+	appID := c.Param("id")
+	if appID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("application id is required", nil))
+		return
+	}
+
+	// Get current user context
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	// Create applications service
+	appsService := local.NewApplicationsService()
+
+	// Delete application
+	err := appsService.DeleteApplication(appID, userOrgRole, userOrgID)
+	if handleApplicationAccessError(c, err, appID) {
+		return
+	}
+
+	// Log the action
+	logger.LogBusinessOperation(c, "applications", "delete", "application", appID, true, nil)
+
+	c.JSON(http.StatusOK, response.OK("application deleted successfully", nil))
+}
+
+// GetApplicationTotals handles GET /api/applications/totals - returns statistics
+func GetApplicationTotals(c *gin.Context) {
+	// Get current user context
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	// Create applications service
+	appsService := local.NewApplicationsService()
+
+	// Get totals
+	totals, err := appsService.GetApplicationTotals(userOrgRole, userOrgID)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("user_id", userID).
+			Msg("Failed to get application totals")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve application totals", map[string]interface{}{
+			"error": err.Error(),
+		}))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("application totals retrieved successfully", totals))
+}
+
+// GetApplicationTypes handles GET /api/applications/types - returns available types
+func GetApplicationTypes(c *gin.Context) {
+	// Get current user context
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	// Create applications service
+	appsService := local.NewApplicationsService()
+
+	// Get types
+	types, err := appsService.GetApplicationTypes(userOrgRole, userOrgID)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("user_id", userID).
+			Msg("Failed to get application types")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve application types", map[string]interface{}{
+			"error": err.Error(),
+		}))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("application types retrieved successfully", types))
+}
+
+// GetApplicationVersions handles GET /api/applications/versions - returns available versions
+func GetApplicationVersions(c *gin.Context) {
+	// Get current user context
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	// Create applications service
+	appsService := local.NewApplicationsService()
+
+	// Get versions
+	versions, err := appsService.GetApplicationVersions(userOrgRole, userOrgID)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("user_id", userID).
+			Msg("Failed to get application versions")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve application versions", map[string]interface{}{
+			"error": err.Error(),
+		}))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("application versions retrieved successfully", versions))
+}
+
+// GetApplicationSystems handles GET /api/applications/systems - returns available systems for filter
+func GetApplicationSystems(c *gin.Context) {
+	// Get current user context
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	// Create applications service
+	appsService := local.NewApplicationsService()
+
+	// Get systems
+	systems, err := appsService.GetAvailableSystems(userOrgRole, userOrgID)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("user_id", userID).
+			Msg("Failed to get available systems")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve systems", map[string]interface{}{
+			"error": err.Error(),
+		}))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("systems retrieved successfully", systems))
+}
+
+// GetApplicationOrganizations handles GET /api/applications/organizations - returns available orgs for assignment
+func GetApplicationOrganizations(c *gin.Context) {
+	// Get current user context
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	// Create applications service
+	appsService := local.NewApplicationsService()
+
+	// Get organizations
+	orgs, err := appsService.GetAvailableOrganizations(userOrgRole, userOrgID)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("user_id", userID).
+			Msg("Failed to get available organizations")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve organizations", map[string]interface{}{
+			"error": err.Error(),
+		}))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("organizations retrieved successfully", orgs))
 }

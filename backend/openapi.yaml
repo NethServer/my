@@ -19,7 +19,7 @@ servers:
 
 tags:
 
-  - name: Backend - Applications
+  - name: Backend - Third-Party Applications
     description: Backend third-party application management
   - name: Backend - Authentication
     description: Backend public authentication and token management
@@ -35,6 +35,8 @@ tags:
     description: Backend filter data for UI dropdowns and selections
   - name: Backend - Organizations
     description: Backend organization hierarchy management
+  - name: Backend - Applications
+    description: Backend Application management from system inventory
   - name: Backend - Resellers
     description: Backend reseller management
   - name: Backend - Roles
@@ -664,6 +666,28 @@ components:
           description: Organization dark theme logo URL
           example: "https://cdn.example.com/logos/org-console-dark.png"
 
+    OrganizationSummary:
+      type: object
+      description: Simplified organization for selection and assignment
+      properties:
+        id:
+          type: string
+          description: Organization ID
+          example: "org_123456789"
+        name:
+          type: string
+          description: Organization name
+          example: "ACME Corp"
+        description:
+          type: string
+          description: Organization description
+          example: "Main customer organization"
+        type:
+          type: string
+          enum: [owner, distributor, reseller, customer]
+          description: Organization type
+          example: "customer"
+
     ThirdPartyApplication:
       type: object
       properties:
@@ -991,6 +1015,281 @@ components:
           type: string
           description: Additional notes or description for the system
           example: "Production web server for EU region"
+
+    # Applications schemas
+    Application:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique application identifier (system_id + module_id)
+          example: "sys_abc123_mail1"
+        system_id:
+          type: string
+          description: ID of the system hosting this application
+          example: "sys_abc123"
+        module_id:
+          type: string
+          description: Module identifier within the system
+          example: "mail1"
+        instance_of:
+          type: string
+          description: Application type (e.g., nethvoice, webtop, mail)
+          example: "mail"
+        display_name:
+          type: string
+          nullable: true
+          description: Custom display name for the application
+          example: "Corporate Email Server"
+        node_id:
+          type: integer
+          nullable: true
+          description: Node ID within the cluster
+          example: 1
+        domain_id:
+          type: string
+          nullable: true
+          description: Domain identifier
+          example: "example.com"
+        version:
+          type: string
+          nullable: true
+          description: Application version
+          example: "1.2.3"
+        organization_id:
+          type: string
+          nullable: true
+          description: Assigned organization ID
+          example: "org_xyz789"
+        organization_type:
+          type: string
+          nullable: true
+          enum: [distributor, reseller, customer]
+          description: Type of the assigned organization
+          example: "customer"
+        status:
+          type: string
+          enum: [unassigned, assigned]
+          description: Assignment status
+          example: "assigned"
+        inventory_data:
+          type: object
+          nullable: true
+          description: Raw inventory data from system
+          additionalProperties: true
+        backup_data:
+          type: object
+          nullable: true
+          description: Backup status information
+          additionalProperties: true
+        services_data:
+          type: object
+          nullable: true
+          description: Services health status
+          additionalProperties: true
+        url:
+          type: string
+          nullable: true
+          description: Application URL
+          example: "https://mail.example.com"
+        notes:
+          type: string
+          nullable: true
+          description: Additional notes
+          example: "Primary mail server for corporate domain"
+        is_user_facing:
+          type: boolean
+          description: Whether this is a user-facing application (vs system component)
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          description: Record creation timestamp
+          example: "2025-07-01T09:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: "2025-07-10T10:30:00Z"
+        first_seen_at:
+          type: string
+          format: date-time
+          description: First time the application was seen in inventory
+          example: "2025-06-15T08:00:00Z"
+        last_inventory_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last inventory collection timestamp
+          example: "2025-07-21T10:25:00Z"
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Soft delete timestamp (null if not deleted)
+          example: null
+        system:
+          $ref: '#/components/schemas/ApplicationSystemSummary'
+        organization:
+          $ref: '#/components/schemas/OrganizationSummary'
+
+    ApplicationListItem:
+      type: object
+      description: Simplified application representation for list views
+      properties:
+        id:
+          type: string
+          description: Unique application identifier
+          example: "sys_abc123_mail1"
+        module_id:
+          type: string
+          description: Module identifier
+          example: "mail1"
+        instance_of:
+          type: string
+          description: Application type
+          example: "mail"
+        display_name:
+          type: string
+          nullable: true
+          description: Custom display name
+          example: "Corporate Email Server"
+        version:
+          type: string
+          nullable: true
+          description: Application version
+          example: "1.2.3"
+        status:
+          type: string
+          enum: [unassigned, assigned]
+          description: Assignment status
+          example: "assigned"
+        node_id:
+          type: integer
+          nullable: true
+          description: Node ID within the cluster
+          example: 1
+        has_errors:
+          type: boolean
+          description: Whether the application has service errors
+          example: false
+        system:
+          $ref: '#/components/schemas/ApplicationSystemSummary'
+        organization:
+          $ref: '#/components/schemas/OrganizationSummary'
+        created_at:
+          type: string
+          format: date-time
+          description: Record creation timestamp
+          example: "2025-07-01T09:00:00Z"
+        last_inventory_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last inventory collection timestamp
+          example: "2025-07-21T10:25:00Z"
+
+    ApplicationSystemSummary:
+      type: object
+      description: Minimal system info for application responses
+      properties:
+        id:
+          type: string
+          description: System ID
+          example: "sys_abc123"
+        name:
+          type: string
+          description: System name
+          example: "Production Cluster"
+
+    ApplicationTotals:
+      type: object
+      description: Application statistics
+      properties:
+        total:
+          type: integer
+          description: Total number of applications
+          example: 150
+        unassigned:
+          type: integer
+          description: Number of unassigned applications
+          example: 25
+        assigned:
+          type: integer
+          description: Number of assigned applications
+          example: 125
+        with_errors:
+          type: integer
+          description: Number of applications with service errors
+          example: 5
+        by_type:
+          type: object
+          description: Count by application type
+          additionalProperties:
+            type: integer
+          example:
+            mail: 30
+            webtop: 25
+            nethvoice: 20
+            nextcloud: 15
+        by_status:
+          type: object
+          description: Count by status
+          additionalProperties:
+            type: integer
+          example:
+            assigned: 125
+            unassigned: 25
+
+    ApplicationType:
+      type: object
+      description: Application type metadata
+      properties:
+        instance_of:
+          type: string
+          description: Application type identifier
+          example: "mail"
+        display_name:
+          type: string
+          description: Human-readable type name
+          example: "Mail"
+        is_user_facing:
+          type: boolean
+          description: Whether this is a user-facing application type
+          example: true
+        count:
+          type: integer
+          description: Number of applications of this type
+          example: 30
+
+    AssignApplicationRequest:
+      type: object
+      required:
+        - organization_id
+      properties:
+        organization_id:
+          type: string
+          description: Organization ID to assign to the application
+          example: "org_xyz789"
+
+    UpdateApplicationRequest:
+      type: object
+      properties:
+        display_name:
+          type: string
+          nullable: true
+          description: Custom display name for the application
+          example: "Corporate Email Server"
+        notes:
+          type: string
+          nullable: true
+          description: Additional notes
+          example: "Primary mail server"
+        url:
+          type: string
+          nullable: true
+          description: Application URL
+          example: "https://mail.example.com"
 
     ImpersonationConsent:
       type: object
@@ -1326,6 +1625,83 @@ components:
           type: string
           enum: ["unknown", "online", "offline", "deleted"]
         example: ["online", "unknown"]
+      style: form
+      explode: true
+
+    # Applications parameters
+    AppSortByParam:
+      name: sort_by
+      in: query
+      description: Field to sort applications by
+      required: false
+      schema:
+        type: string
+        enum: ["instance_of", "display_name", "version", "status", "created_at", "updated_at", "last_inventory_at", "system_name", "organization_name"]
+        example: "instance_of"
+
+    AppTypeFilterParam:
+      name: type
+      in: query
+      description: Filter applications by type (instance_of). Supports multiple values.
+      required: false
+      schema:
+        type: array
+        items:
+          type: string
+        example: ["mail", "webtop", "nethvoice"]
+      style: form
+      explode: true
+
+    AppVersionFilterParam:
+      name: version
+      in: query
+      description: Filter applications by version. Supports multiple values.
+      required: false
+      schema:
+        type: array
+        items:
+          type: string
+        example: ["1.0.0", "1.2.3"]
+      style: form
+      explode: true
+
+    AppSystemFilterParam:
+      name: system_id
+      in: query
+      description: Filter applications by system ID. Supports multiple values.
+      required: false
+      schema:
+        type: array
+        items:
+          type: string
+        example: ["sys_abc123", "sys_def456"]
+      style: form
+      explode: true
+
+    AppOrganizationFilterParam:
+      name: organization_id
+      in: query
+      description: Filter applications by organization ID. Supports multiple values.
+      required: false
+      schema:
+        type: array
+        items:
+          type: string
+        example: ["org_abc123", "org_def456"]
+      style: form
+      explode: true
+
+    AppStatusFilterParam:
+      name: status
+      in: query
+      description: Filter applications by assignment status. Supports multiple values.
+      required: false
+      schema:
+        type: array
+        items:
+          type: string
+          enum: ["unassigned", "assigned"]
+        example: ["unassigned"]
       style: form
       explode: true
 
@@ -1905,18 +2281,18 @@ paths:
           $ref: '#/components/responses/Forbidden'
 
   # ===========================================================================
-  # APPLICATIONS
+  # THIRD-PARTY APPLICATIONS (from Logto)
   # ===========================================================================
-  /applications:
+  /third-party-applications:
     get:
-      operationId: getApplications
+      operationId: getThirdPartyApplications
       tags:
-        - Backend - Applications
-      summary: /applications - Get third-party applications
+        - Backend - Third-Party Applications
+      summary: /third-party-applications - Get third-party applications
       description: Get third-party applications filtered by user's organization membership, organization roles, and user roles
       responses:
         '200':
-          description: Applications retrieved successfully
+          description: Third-party applications retrieved successfully
           content:
             application/json:
               schema:
@@ -1927,7 +2303,7 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: "Applications retrieved successfully"
+                    example: "third-party applications retrieved successfully"
                   data:
                     type: array
                     items:
@@ -5113,6 +5489,433 @@ paths:
                   data:
                     type: object
                     description: Latest inventory diff data
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ===========================================================================
+  # APPLICATIONS MANAGEMENT
+  # ===========================================================================
+  /applications:
+    get:
+      operationId: getApplications
+      tags:
+        - Backend - Applications
+      summary: /applications - List applications
+      description: |
+        Get list of system applications visible to the user based on hierarchical organization permissions.
+        Supports filtering by type, version, system, organization, and status.
+
+        **Query String Examples:**
+
+        1. **Single type filter**: `?type=mail`
+        2. **Multiple types filter**: `?type=mail&type=webtop`
+        3. **Status filter**: `?status=unassigned`
+        4. **With pagination and sorting**: `?page=1&page_size=50&sort_by=instance_of&sort_direction=asc`
+        5. **Combined filters**: `?type=mail&status=assigned&organization_id=org_abc123`
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - $ref: '#/components/parameters/SearchParam'
+        - $ref: '#/components/parameters/AppSortByParam'
+        - $ref: '#/components/parameters/SortDirectionParam'
+        - $ref: '#/components/parameters/AppTypeFilterParam'
+        - $ref: '#/components/parameters/AppVersionFilterParam'
+        - $ref: '#/components/parameters/AppSystemFilterParam'
+        - $ref: '#/components/parameters/AppOrganizationFilterParam'
+        - $ref: '#/components/parameters/AppStatusFilterParam'
+      responses:
+        '200':
+          description: Applications retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "applications retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ApplicationListItem'
+                      total:
+                        type: integer
+                        description: Total number of applications
+                        example: 150
+                      page:
+                        type: integer
+                        description: Current page number
+                        example: 1
+                      page_size:
+                        type: integer
+                        description: Items per page
+                        example: 50
+                      total_pages:
+                        type: integer
+                        description: Total number of pages
+                        example: 3
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /applications/totals:
+    get:
+      operationId: getApplicationTotals
+      tags:
+        - Backend - Applications
+      summary: /applications/totals - Get application statistics
+      description: Get statistics about applications including counts by type and status
+      responses:
+        '200':
+          description: Application totals retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "application totals retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/ApplicationTotals'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /applications/types:
+    get:
+      operationId: getApplicationTypes
+      tags:
+        - Backend - Applications
+      summary: /applications/types - Get available application types
+      description: Get list of available application types for filtering
+      responses:
+        '200':
+          description: Application types retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "application types retrieved successfully"
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApplicationType'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /applications/versions:
+    get:
+      operationId: getApplicationVersions
+      tags:
+        - Backend - Applications
+      summary: /applications/versions - Get available versions
+      description: Get list of available application versions for filtering
+      responses:
+        '200':
+          description: Application versions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "application versions retrieved successfully"
+                  data:
+                    type: array
+                    items:
+                      type: string
+                    example: ["1.0.0", "1.2.3", "2.0.0"]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /applications/systems:
+    get:
+      operationId: getApplicationSystems
+      tags:
+        - Backend - Applications
+      summary: /applications/systems - Get available systems
+      description: Get list of systems that have applications for filtering
+      responses:
+        '200':
+          description: Systems retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "systems retrieved successfully"
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApplicationSystemSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /applications/organizations:
+    get:
+      operationId: getApplicationOrganizations
+      tags:
+        - Backend - Applications
+      summary: /applications/organizations - Get available organizations
+      description: Get list of organizations available for application assignment
+      responses:
+        '200':
+          description: Organizations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "organizations retrieved successfully"
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OrganizationSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /applications/{id}:
+    get:
+      operationId: getApplicationById
+      tags:
+        - Backend - Applications
+      summary: /applications/{id} - Get single application
+      description: Get a specific application by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Application ID
+          schema:
+            type: string
+            example: "sys_abc123_mail1"
+      responses:
+        '200':
+          description: Application retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "application retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/Application'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      operationId: updateApplication
+      tags:
+        - Backend - Applications
+      summary: /applications/{id} - Update application
+      description: Update an application's display name, notes, or URL
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Application ID
+          schema:
+            type: string
+            example: "sys_abc123_mail1"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateApplicationRequest'
+      responses:
+        '200':
+          description: Application updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "application updated successfully"
+                  data:
+                    $ref: '#/components/schemas/Application'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      operationId: deleteApplication
+      tags:
+        - Backend - Applications
+      summary: /applications/{id} - Delete application
+      description: Soft-delete an application
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Application ID
+          schema:
+            type: string
+            example: "sys_abc123_mail1"
+      responses:
+        '200':
+          description: Application deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "application deleted successfully"
+                  data:
+                    type: object
+                    nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /applications/{id}/assign:
+    patch:
+      operationId: assignApplicationOrganization
+      tags:
+        - Backend - Applications
+      summary: /applications/{id}/assign - Assign organization
+      description: Assign an organization to an application
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Application ID
+          schema:
+            type: string
+            example: "sys_abc123_mail1"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignApplicationRequest'
+      responses:
+        '200':
+          description: Organization assigned successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "organization assigned successfully"
+                  data:
+                    $ref: '#/components/schemas/Application'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /applications/{id}/unassign:
+    patch:
+      operationId: unassignApplicationOrganization
+      tags:
+        - Backend - Applications
+      summary: /applications/{id}/unassign - Remove organization
+      description: Remove organization assignment from an application
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Application ID
+          schema:
+            type: string
+            example: "sys_abc123_mail1"
+      responses:
+        '200':
+          description: Organization unassigned successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "organization unassigned successfully"
+                  data:
+                    $ref: '#/components/schemas/Application'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
