@@ -6,11 +6,12 @@
 <script setup lang="ts">
 import { NeButton, NeHeading } from '@nethesis/vue-components'
 import UsersTable from '@/components/users/UsersTable.vue'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { faCirclePlus } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { PRODUCT_NAME } from '@/lib/config'
 import { canManageUsers } from '@/lib/permissions'
+import { useUsers } from '@/queries/users'
 // import { useI18n } from 'vue-i18n' ////
 // import { useUsers } from '@/queries/users' ////
 // import { downloadFile } from '@/lib/common' ////
@@ -27,7 +28,13 @@ import { canManageUsers } from '@/lib/permissions'
 //   sortDescending,
 // } = useUsers() ////
 
+const { state, debouncedTextFilter } = useUsers()
+
 const isShownCreateUserDrawer = ref(false)
+
+const usersPage = computed(() => {
+  return state.value.data?.users
+})
 
 //// TODO wait for backend fix
 // function getBulkActionsMenuItems() {
@@ -81,7 +88,7 @@ const isShownCreateUserDrawer = ref(false)
       </div>
       <!-- create user -->
       <NeButton
-        v-if="canManageUsers()"
+        v-if="canManageUsers() && (usersPage?.length || debouncedTextFilter)"
         kind="primary"
         size="lg"
         class="shrink-0"
