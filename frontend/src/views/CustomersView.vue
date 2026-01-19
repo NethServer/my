@@ -6,12 +6,19 @@
 <script setup lang="ts">
 import { NeButton, NeHeading } from '@nethesis/vue-components'
 import CustomersTable from '@/components/customers/CustomersTable.vue'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { faCirclePlus } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { canManageCustomers } from '@/lib/permissions'
+import { useCustomers } from '@/queries/customers'
 
 const isShownCreateCustomerDrawer = ref(false)
+
+const { state, debouncedTextFilter } = useCustomers()
+
+const customersPage = computed(() => {
+  return state.value.data?.customers
+})
 </script>
 
 <template>
@@ -23,7 +30,7 @@ const isShownCreateCustomerDrawer = ref(false)
       </div>
       <!-- create customer -->
       <NeButton
-        v-if="canManageCustomers()"
+        v-if="canManageCustomers() && (customersPage?.length || debouncedTextFilter)"
         kind="primary"
         size="lg"
         class="shrink-0"

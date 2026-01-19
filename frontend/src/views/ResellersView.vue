@@ -6,12 +6,19 @@
 <script setup lang="ts">
 import { NeButton, NeHeading } from '@nethesis/vue-components'
 import ResellersTable from '@/components/resellers/ResellersTable.vue'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { faCirclePlus } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { canManageResellers } from '@/lib/permissions'
+import { useResellers } from '@/queries/resellers'
 
 const isShownCreateResellerDrawer = ref(false)
+
+const { state, debouncedTextFilter } = useResellers()
+
+const resellersPage = computed(() => {
+  return state.value.data?.resellers
+})
 </script>
 
 <template>
@@ -23,7 +30,7 @@ const isShownCreateResellerDrawer = ref(false)
       </div>
       <!-- create reseller -->
       <NeButton
-        v-if="canManageResellers()"
+        v-if="canManageResellers() && (resellersPage?.length || debouncedTextFilter)"
         kind="primary"
         size="lg"
         class="shrink-0"
