@@ -222,12 +222,32 @@ func main() {
 		// ===========================================
 		// FILTERS - For UI dropdowns
 		// ===========================================
-		filtersGroup := customAuthWithAudit.Group("/filters", middleware.RequireResourcePermission("systems"))
+		filtersGroup := customAuthWithAudit.Group("/filters")
 		{
-			filtersGroup.GET("/products", methods.GetFilterProducts)           // Get unique product types
-			filtersGroup.GET("/created-by", methods.GetFilterCreatedBy)        // Get users who created systems
-			filtersGroup.GET("/versions", methods.GetFilterVersions)           // Get unique versions
-			filtersGroup.GET("/organizations", methods.GetFilterOrganizations) // Get organizations with systems
+			// Systems filters (read:systems required)
+			systemsFiltersGroup := filtersGroup.Group("/systems", middleware.RequireResourcePermission("systems"))
+			{
+				systemsFiltersGroup.GET("/products", methods.GetFilterProducts)           // Get unique product types
+				systemsFiltersGroup.GET("/created-by", methods.GetFilterCreatedBy)        // Get users who created systems
+				systemsFiltersGroup.GET("/versions", methods.GetFilterVersions)           // Get unique versions
+				systemsFiltersGroup.GET("/organizations", methods.GetFilterOrganizations) // Get organizations with systems
+			}
+
+			// Applications filters (read:applications required)
+			appsFiltersGroup := filtersGroup.Group("/applications", middleware.RequireResourcePermission("applications"))
+			{
+				appsFiltersGroup.GET("/types", methods.GetApplicationTypes)                 // Get available application types
+				appsFiltersGroup.GET("/versions", methods.GetApplicationVersions)           // Get available versions
+				appsFiltersGroup.GET("/systems", methods.GetApplicationSystems)             // Get available systems
+				appsFiltersGroup.GET("/organizations", methods.GetApplicationOrganizations) // Get available organizations for assignment
+			}
+
+			// Users filters (read:users required)
+			usersFiltersGroup := filtersGroup.Group("/users", middleware.RequireResourcePermission("users"))
+			{
+				usersFiltersGroup.GET("/roles", methods.GetRoles)                            // Get available user roles
+				usersFiltersGroup.GET("/organizations", methods.GetFilterUsersOrganizations) // Get organizations for user filtering
+			}
 		}
 
 		// ===========================================
@@ -328,10 +348,6 @@ func main() {
 		{
 			appsGroup.GET("", methods.GetApplications)                                // List applications with pagination and filters
 			appsGroup.GET("/totals", methods.GetApplicationTotals)                    // Get application statistics
-			appsGroup.GET("/types", methods.GetApplicationTypes)                      // Get available application types for filter
-			appsGroup.GET("/versions", methods.GetApplicationVersions)                // Get available versions for filter
-			appsGroup.GET("/systems", methods.GetApplicationSystems)                  // Get available systems for filter
-			appsGroup.GET("/organizations", methods.GetApplicationOrganizations)      // Get available organizations for assignment
 			appsGroup.GET("/:id", methods.GetApplication)                             // Get single application
 			appsGroup.PUT("/:id", methods.UpdateApplication)                          // Update application (display_name, notes, url)
 			appsGroup.PATCH("/:id/assign", methods.AssignApplicationOrganization)     // Assign organization to application

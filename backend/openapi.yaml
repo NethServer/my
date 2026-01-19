@@ -3991,12 +3991,12 @@ paths:
   # ===========================================================================
   # FILTERS
   # ===========================================================================
-  /filters/products:
+  /filters/systems/products:
     get:
       operationId: getFilterProducts
       tags:
         - Backend - Filters
-      summary: /filters/products - Get available product filters
+      summary: /filters/systems/products - Get available product filters
       description: |
         Get list of unique system products for filtering (requires Support+ role).
         Returns product type values that can be used directly in GET /systems?type= query parameter.
@@ -4029,12 +4029,12 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /filters/created-by:
+  /filters/systems/created-by:
     get:
       operationId: getFilterCreatedBy
       tags:
         - Backend - Filters
-      summary: /filters/created-by - Get available created-by filters
+      summary: /filters/systems/created-by - Get available created-by filters
       description: |
         Get list of users who created systems for filtering (requires Support+ role).
         Returns user_id values that can be used directly in GET /systems?created_by= query parameter.
@@ -4080,12 +4080,12 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /filters/versions:
+  /filters/systems/versions:
     get:
       operationId: getFilterVersions
       tags:
         - Backend - Filters
-      summary: /filters/versions - Get version filters grouped by product
+      summary: /filters/systems/versions - Get version filters grouped by product
       description: |
         Get system versions grouped by product type for filtering (requires Support+ role).
         Returns versions organized by product, suitable for hierarchical UI display.
@@ -4137,12 +4137,12 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /filters/organizations:
+  /filters/systems/organizations:
     get:
       operationId: getFilterOrganizations
       tags:
         - Backend - Filters
-      summary: /filters/organizations - Get available organization filters
+      summary: /filters/systems/organizations - Get available organization filters
       description: |
         Get list of organizations with systems for filtering (requires Support+ role, filtered by RBAC).
         Returns organization logto_id as the id field for compatibility with GET /systems?organization_id= parameter.
@@ -5597,12 +5597,12 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /applications/types:
+  /filters/applications/types:
     get:
       operationId: getApplicationTypes
       tags:
-        - Backend - Applications
-      summary: /applications/types - Get available application types
+        - Backend - Filters
+      summary: /filters/applications/types - Get available application types
       description: Get list of available application types for filtering
       responses:
         '200':
@@ -5627,12 +5627,12 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /applications/versions:
+  /filters/applications/versions:
     get:
       operationId: getApplicationVersions
       tags:
-        - Backend - Applications
-      summary: /applications/versions - Get available versions
+        - Backend - Filters
+      summary: /filters/applications/versions - Get available versions
       description: Get list of available application versions for filtering
       responses:
         '200':
@@ -5658,12 +5658,12 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /applications/systems:
+  /filters/applications/systems:
     get:
       operationId: getApplicationSystems
       tags:
-        - Backend - Applications
-      summary: /applications/systems - Get available systems
+        - Backend - Filters
+      summary: /filters/applications/systems - Get available systems
       description: Get list of systems that have applications for filtering
       responses:
         '200':
@@ -5688,12 +5688,12 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /applications/organizations:
+  /filters/applications/organizations:
     get:
       operationId: getApplicationOrganizations
       tags:
-        - Backend - Applications
-      summary: /applications/organizations - Get available organizations
+        - Backend - Filters
+      summary: /filters/applications/organizations - Get available organizations
       description: Get list of organizations available for application assignment
       responses:
         '200':
@@ -5713,6 +5713,90 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/OrganizationSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /filters/users/roles:
+    get:
+      operationId: getFilterUsersRoles
+      tags:
+        - Backend - Filters
+      summary: /filters/users/roles - Get available user roles for filtering
+      description: Get list of user roles available for filtering users (requires read:users permission)
+      responses:
+        '200':
+          description: User roles retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "roles retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      roles:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Role'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /filters/users/organizations:
+    get:
+      operationId: getFilterUsersOrganizations
+      tags:
+        - Backend - Filters
+      summary: /filters/users/organizations - Get available organizations for filtering users
+      description: |
+        Get list of organizations available for filtering users (requires read:users permission).
+        Returns all organizations the user can access based on RBAC hierarchy.
+        Unlike /filters/systems/organizations, this returns all accessible organizations
+        regardless of whether they have systems associated.
+      responses:
+        '200':
+          description: Organizations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "organization filters retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      organizations:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              description: Organization Logto ID
+                              example: "org_abc123"
+                            name:
+                              type: string
+                              description: Organization name
+                              example: "ACME Corp"
+                            type:
+                              type: string
+                              enum: [distributor, reseller, customer]
+                              description: Organization type
+                              example: "customer"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

@@ -512,3 +512,121 @@ func GetFilterOrganizations(c *gin.Context) {
 
 	c.JSON(http.StatusOK, response.OK("organization filters retrieved successfully", result))
 }
+
+// GetFilterUsersOrganizations returns the list of organizations for filtering users
+// Respects RBAC hierarchy - users only see organizations they can access
+// Unlike GetFilterOrganizations (for systems), this returns all accessible organizations
+// regardless of whether they have systems associated
+func GetFilterUsersOrganizations(c *gin.Context) {
+	// Get current user context for hierarchical filtering
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	// Build query with RBAC filtering
+	// Returns all organizations the user can see based on their role in the hierarchy
+	userOrgRoleLower := strings.ToLower(userOrgRole)
+
+	var query string
+	var args []interface{}
+
+	switch userOrgRoleLower {
+	case "owner":
+		// Owner sees all organizations
+		query = `
+			SELECT logto_id AS id, name, 'distributor' AS type FROM distributors WHERE deleted_at IS NULL
+			UNION
+			SELECT logto_id AS id, name, 'reseller' AS type FROM resellers WHERE deleted_at IS NULL
+			UNION
+			SELECT logto_id AS id, name, 'customer' AS type FROM customers WHERE deleted_at IS NULL
+			ORDER BY name ASC
+		`
+	case "distributor":
+		// Distributor sees their org + resellers + customers
+		query = `
+			SELECT logto_id AS id, name, 'distributor' AS type FROM distributors WHERE deleted_at IS NULL AND logto_id = $1
+			UNION
+			SELECT logto_id AS id, name, 'reseller' AS type FROM resellers WHERE deleted_at IS NULL
+			UNION
+			SELECT logto_id AS id, name, 'customer' AS type FROM customers WHERE deleted_at IS NULL
+			ORDER BY name ASC
+		`
+		args = append(args, userOrgID)
+	case "reseller":
+		// Reseller sees their org + customers
+		query = `
+			SELECT logto_id AS id, name, 'reseller' AS type FROM resellers WHERE deleted_at IS NULL AND logto_id = $1
+			UNION
+			SELECT logto_id AS id, name, 'customer' AS type FROM customers WHERE deleted_at IS NULL
+			ORDER BY name ASC
+		`
+		args = append(args, userOrgID)
+	default:
+		// Customer or unknown role - only their organization
+		query = `
+			SELECT logto_id AS id, name, 'customer' AS type FROM customers WHERE deleted_at IS NULL AND logto_id = $1
+			ORDER BY name ASC
+		`
+		args = append(args, userOrgID)
+	}
+
+	// Execute query
+	var rows *sql.Rows
+	var err error
+
+	if len(args) > 0 {
+		rows, err = database.DB.Query(query, args...)
+	} else {
+		rows, err = database.DB.Query(query)
+	}
+
+	if err != nil {
+		logger.Error().
+			Str("component", "filters").
+			Str("operation", "get_users_organizations").
+			Err(err).
+			Msg("failed to retrieve users organization filters")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve organization filters", nil))
+		return
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	// Collect organizations
+	type Organization struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+		Type string `json:"type"`
+	}
+	var organizations []Organization
+
+	for rows.Next() {
+		var org Organization
+		if err := rows.Scan(&org.ID, &org.Name, &org.Type); err != nil {
+			logger.Error().
+				Str("component", "filters").
+				Str("operation", "scan_users_organizations").
+				Err(err).
+				Msg("failed to scan organization")
+			continue
+		}
+		organizations = append(organizations, org)
+	}
+
+	result := map[string]interface{}{
+		"organizations": organizations,
+	}
+
+	logger.Info().
+		Str("component", "filters").
+		Str("operation", "users_organizations_filters").
+		Str("user_org_id", userOrgID).
+		Str("user_org_role", userOrgRole).
+		Int("count", len(organizations)).
+		Msg("users organization filters retrieved")
+
+	c.JSON(http.StatusOK, response.OK("organization filters retrieved successfully", result))
+}
