@@ -357,6 +357,12 @@ components:
             email: "contact@acme-distribution.com"
             contactPerson: "John Smith"
             region: "Italy"
+        suspended_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the organization was suspended. NULL means enabled, non-NULL means blocked/suspended.
+          example: null
         branding:
           $ref: '#/components/schemas/OrganizationBranding'
 
@@ -1471,7 +1477,7 @@ components:
       required: false
       schema:
         type: string
-        enum: ["name", "description", "created_at", "updated_at"]
+        enum: ["name", "description", "created_at", "updated_at", "suspended_at"]
         example: "name"
 
     ResellerSortByParam:
@@ -1481,7 +1487,7 @@ components:
       required: false
       schema:
         type: string
-        enum: ["name", "description", "created_at", "updated_at"]
+        enum: ["name", "description", "created_at", "updated_at", "suspended_at"]
         example: "name"
 
     CustomerSortByParam:
@@ -1491,8 +1497,18 @@ components:
       required: false
       schema:
         type: string
-        enum: ["name", "description", "created_at", "updated_at"]
+        enum: ["name", "description", "created_at", "updated_at", "suspended_at"]
         example: "name"
+
+    OrganizationStatusFilterParam:
+      name: status
+      in: query
+      description: Filter organizations by status (enabled = not suspended, blocked = suspended)
+      required: false
+      schema:
+        type: string
+        enum: ["enabled", "blocked"]
+        example: "enabled"
 
     UserSortByParam:
       name: sort_by
@@ -3262,6 +3278,7 @@ paths:
         - $ref: '#/components/parameters/SearchParam'
         - $ref: '#/components/parameters/CustomerSortByParam'
         - $ref: '#/components/parameters/SortDirectionParam'
+        - $ref: '#/components/parameters/OrganizationStatusFilterParam'
       responses:
         '200':
           description: Customers retrieved successfully
@@ -3491,6 +3508,98 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /customers/{id}/suspend:
+    patch:
+      operationId: suspendCustomer
+      tags:
+        - Backend - Customers
+      summary: /customers/{id}/suspend - Suspend customer
+      description: Suspend a customer and all its users (cascade suspension). Owner, Distributor, and Reseller (hierarchical) can suspend.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Customer ID
+      responses:
+        '200':
+          description: Customer suspended successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "customer suspended successfully"
+                  data:
+                    type: object
+                    properties:
+                      customer:
+                        $ref: '#/components/schemas/Organization'
+                      suspended_users_count:
+                        type: integer
+                        example: 5
+                        description: Number of users that were cascade-suspended
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /customers/{id}/reactivate:
+    patch:
+      operationId: reactivateCustomer
+      tags:
+        - Backend - Customers
+      summary: /customers/{id}/reactivate - Reactivate customer
+      description: Reactivate a suspended customer and all its cascade-suspended users. Owner, Distributor, and Reseller (hierarchical) can reactivate.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Customer ID
+      responses:
+        '200':
+          description: Customer reactivated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "customer reactivated successfully"
+                  data:
+                    type: object
+                    properties:
+                      customer:
+                        $ref: '#/components/schemas/Organization'
+                      reactivated_users_count:
+                        type: integer
+                        example: 5
+                        description: Number of users that were cascade-reactivated
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /customers/totals:
     get:
       operationId: getCustomersTotals
@@ -3605,6 +3714,7 @@ paths:
         - $ref: '#/components/parameters/SearchParam'
         - $ref: '#/components/parameters/DistributorSortByParam'
         - $ref: '#/components/parameters/SortDirectionParam'
+        - $ref: '#/components/parameters/OrganizationStatusFilterParam'
       responses:
         '200':
           description: Distributors retrieved successfully
@@ -3825,6 +3935,98 @@ paths:
                     example: "distributor stats retrieved successfully"
                   data:
                     $ref: '#/components/schemas/OrganizationStats'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /distributors/{id}/suspend:
+    patch:
+      operationId: suspendDistributor
+      tags:
+        - Backend - Distributors
+      summary: /distributors/{id}/suspend - Suspend distributor
+      description: Suspend a distributor and all its users (cascade suspension). Owner only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Distributor ID
+      responses:
+        '200':
+          description: Distributor suspended successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "distributor suspended successfully"
+                  data:
+                    type: object
+                    properties:
+                      distributor:
+                        $ref: '#/components/schemas/Organization'
+                      suspended_users_count:
+                        type: integer
+                        example: 5
+                        description: Number of users that were cascade-suspended
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /distributors/{id}/reactivate:
+    patch:
+      operationId: reactivateDistributor
+      tags:
+        - Backend - Distributors
+      summary: /distributors/{id}/reactivate - Reactivate distributor
+      description: Reactivate a suspended distributor and all its cascade-suspended users. Owner only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Distributor ID
+      responses:
+        '200':
+          description: Distributor reactivated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "distributor reactivated successfully"
+                  data:
+                    type: object
+                    properties:
+                      distributor:
+                        $ref: '#/components/schemas/Organization'
+                      reactivated_users_count:
+                        type: integer
+                        example: 5
+                        description: Number of users that were cascade-reactivated
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -4269,6 +4471,7 @@ paths:
         - $ref: '#/components/parameters/SearchParam'
         - $ref: '#/components/parameters/ResellerSortByParam'
         - $ref: '#/components/parameters/SortDirectionParam'
+        - $ref: '#/components/parameters/OrganizationStatusFilterParam'
       responses:
         '200':
           description: Resellers retrieved successfully
@@ -4489,6 +4692,98 @@ paths:
                     example: "reseller stats retrieved successfully"
                   data:
                     $ref: '#/components/schemas/OrganizationStats'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /resellers/{id}/suspend:
+    patch:
+      operationId: suspendReseller
+      tags:
+        - Backend - Resellers
+      summary: /resellers/{id}/suspend - Suspend reseller
+      description: Suspend a reseller and all its users (cascade suspension). Owner and Distributor (hierarchical) can suspend.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Reseller ID
+      responses:
+        '200':
+          description: Reseller suspended successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "reseller suspended successfully"
+                  data:
+                    type: object
+                    properties:
+                      reseller:
+                        $ref: '#/components/schemas/Organization'
+                      suspended_users_count:
+                        type: integer
+                        example: 5
+                        description: Number of users that were cascade-suspended
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /resellers/{id}/reactivate:
+    patch:
+      operationId: reactivateReseller
+      tags:
+        - Backend - Resellers
+      summary: /resellers/{id}/reactivate - Reactivate reseller
+      description: Reactivate a suspended reseller and all its cascade-suspended users. Owner and Distributor (hierarchical) can reactivate.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Reseller ID
+      responses:
+        '200':
+          description: Reseller reactivated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "reseller reactivated successfully"
+                  data:
+                    type: object
+                    properties:
+                      reseller:
+                        $ref: '#/components/schemas/Organization'
+                      reactivated_users_count:
+                        type: integer
+                        example: 5
+                        description: Number of users that were cascade-reactivated
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':

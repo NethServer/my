@@ -142,15 +142,16 @@ func GetDistributors(c *gin.Context) {
 	// Parse pagination and sorting parameters
 	page, pageSize, sortBy, sortDirection := helpers.GetPaginationAndSortingFromQuery(c)
 
-	// Parse search parameter
+	// Parse search and status parameters
 	search := c.Query("search")
+	status := c.Query("status")
 
 	// Create service
 	service := local.NewOrganizationService()
 
 	// Get distributors based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
-	distributors, totalCount, err := service.ListDistributors(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection)
+	distributors, totalCount, err := service.ListDistributors(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, status)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -345,4 +346,112 @@ func GetDistributorStats(c *gin.Context) {
 
 	// Return stats
 	c.JSON(http.StatusOK, response.OK("distributor stats retrieved successfully", stats))
+}
+
+// SuspendDistributor handles PATCH /api/distributors/:id/suspend - suspends a distributor and all its users
+func SuspendDistributor(c *gin.Context) {
+	// Get distributor ID from URL parameter
+	distributorID := c.Param("id")
+	if distributorID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("distributor ID required", nil))
+		return
+	}
+
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Only Owner can suspend distributors
+	if strings.ToLower(user.OrgRole) != "owner" {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied: only owners can suspend distributors", nil))
+		return
+	}
+
+	// Suspend distributor
+	service := local.NewOrganizationService()
+	distributor, suspendedUsersCount, err := service.SuspendDistributor(distributorID, user.ID, user.OrganizationID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("distributor not found", nil))
+			return
+		}
+		if strings.Contains(err.Error(), "already suspended") {
+			c.JSON(http.StatusBadRequest, response.BadRequest("distributor is already suspended", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("distributor_id", distributorID).
+			Msg("Failed to suspend distributor")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to suspend distributor", nil))
+		return
+	}
+
+	// Log the action
+	logger.LogBusinessOperation(c, "distributors", "suspend", "distributor", distributorID, true, nil)
+
+	// Return success response
+	c.JSON(http.StatusOK, response.OK("distributor suspended successfully", map[string]interface{}{
+		"distributor":           distributor,
+		"suspended_users_count": suspendedUsersCount,
+	}))
+}
+
+// ReactivateDistributor handles PATCH /api/distributors/:id/reactivate - reactivates a distributor and its cascade-suspended users
+func ReactivateDistributor(c *gin.Context) {
+	// Get distributor ID from URL parameter
+	distributorID := c.Param("id")
+	if distributorID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("distributor ID required", nil))
+		return
+	}
+
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Only Owner can reactivate distributors
+	if strings.ToLower(user.OrgRole) != "owner" {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied: only owners can reactivate distributors", nil))
+		return
+	}
+
+	// Reactivate distributor
+	service := local.NewOrganizationService()
+	distributor, reactivatedUsersCount, err := service.ReactivateDistributor(distributorID, user.ID, user.OrganizationID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("distributor not found", nil))
+			return
+		}
+		if strings.Contains(err.Error(), "not suspended") {
+			c.JSON(http.StatusBadRequest, response.BadRequest("distributor is not suspended", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("distributor_id", distributorID).
+			Msg("Failed to reactivate distributor")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to reactivate distributor", nil))
+		return
+	}
+
+	// Log the action
+	logger.LogBusinessOperation(c, "distributors", "reactivate", "distributor", distributorID, true, nil)
+
+	// Return success response
+	c.JSON(http.StatusOK, response.OK("distributor reactivated successfully", map[string]interface{}{
+		"distributor":             distributor,
+		"reactivated_users_count": reactivatedUsersCount,
+	}))
 }

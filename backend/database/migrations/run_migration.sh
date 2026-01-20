@@ -65,19 +65,38 @@ check_database_url() {
     fi
 }
 
+# Find migration file by number
+find_migration_file() {
+    local migration_number=$1
+    local pattern="${MIGRATION_DIR}/${migration_number}_*.sql"
+
+    # Find migration file (exclude rollback files)
+    local migration_file=$(ls $pattern 2>/dev/null | grep -v "_rollback.sql" | head -1)
+    echo "$migration_file"
+}
+
+# Find rollback file by number
+find_rollback_file() {
+    local migration_number=$1
+    local pattern="${MIGRATION_DIR}/${migration_number}_*_rollback.sql"
+
+    local rollback_file=$(ls $pattern 2>/dev/null | head -1)
+    echo "$rollback_file"
+}
+
 # Check if migration files exist
 check_migration_files() {
     local migration_number=$1
-    local migration_file="${MIGRATION_DIR}/${migration_number}_update_vat_constraints.sql"
-    local rollback_file="${MIGRATION_DIR}/${migration_number}_update_vat_constraints_rollback.sql"
+    local migration_file=$(find_migration_file "$migration_number")
+    local rollback_file=$(find_rollback_file "$migration_number")
 
-    if [ ! -f "$migration_file" ]; then
-        log_error "Migration file not found: $migration_file"
+    if [ -z "$migration_file" ] || [ ! -f "$migration_file" ]; then
+        log_error "Migration file not found for migration $migration_number"
         exit 1
     fi
 
-    if [ ! -f "$rollback_file" ]; then
-        log_error "Rollback file not found: $rollback_file"
+    if [ -z "$rollback_file" ] || [ ! -f "$rollback_file" ]; then
+        log_error "Rollback file not found for migration $migration_number"
         exit 1
     fi
 }
@@ -188,7 +207,7 @@ check_migration_status() {
 # Apply migration
 apply_migration() {
     local migration_number=$1
-    local migration_file="${MIGRATION_DIR}/${migration_number}_update_vat_constraints.sql"
+    local migration_file=$(find_migration_file "$migration_number")
 
     # Check if already applied
     if check_migration_status "$migration_number" > /dev/null 2>&1; then
@@ -201,6 +220,9 @@ apply_migration() {
     # Calculate checksum
     local checksum=$(get_file_checksum "$migration_file")
 
+    # Extract description from filename (e.g., 001_add_applications.sql -> add_applications)
+    local description=$(basename "$migration_file" .sql | sed "s/^${migration_number}_//")
+
     # Create temporary transaction script
     local temp_script=$(mktemp)
     cat > "$temp_script" <<EOF
@@ -211,7 +233,7 @@ BEGIN;
 
 -- Record migration
 INSERT INTO schema_migrations (migration_number, description, checksum)
-VALUES ('$migration_number', 'Update VAT constraints to be scoped by organization role', '$checksum');
+VALUES ('$migration_number', '$description', '$checksum');
 
 COMMIT;
 EOF
@@ -233,7 +255,7 @@ EOF
 # Rollback migration
 rollback_migration() {
     local migration_number=$1
-    local rollback_file="${MIGRATION_DIR}/${migration_number}_update_vat_constraints_rollback.sql"
+    local rollback_file=$(find_rollback_file "$migration_number")
 
     # Check if applied
     if ! check_migration_status "$migration_number" > /dev/null 2>&1; then

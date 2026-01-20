@@ -73,7 +73,7 @@ func (r *LocalDistributorRepository) Create(req *models.CreateLocalDistributorRe
 func (r *LocalDistributorRepository) GetByID(id string) (*models.LocalDistributor, error) {
 	query := `
 		SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
-		       logto_synced_at, logto_sync_error, deleted_at
+		       logto_synced_at, logto_sync_error, deleted_at, suspended_at
 		FROM distributors
 		WHERE id = $1 AND deleted_at IS NULL
 	`
@@ -85,6 +85,7 @@ func (r *LocalDistributorRepository) GetByID(id string) (*models.LocalDistributo
 		&distributor.ID, &distributor.LogtoID, &distributor.Name, &distributor.Description,
 		&customDataJSON, &distributor.CreatedAt, &distributor.UpdatedAt,
 		&distributor.LogtoSyncedAt, &distributor.LogtoSyncError, &distributor.DeletedAt,
+		&distributor.SuspendedAt,
 	)
 
 	if err != nil {
@@ -172,8 +173,50 @@ func (r *LocalDistributorRepository) Delete(id string) error {
 	return nil
 }
 
+// Suspend suspends a distributor in local database
+func (r *LocalDistributorRepository) Suspend(id string) error {
+	query := `UPDATE distributors SET suspended_at = $2, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL AND suspended_at IS NULL`
+
+	result, err := r.db.Exec(query, id, time.Now())
+	if err != nil {
+		return fmt.Errorf("failed to suspend distributor: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("distributor not found or already suspended")
+	}
+
+	return nil
+}
+
+// Reactivate reactivates a suspended distributor in local database
+func (r *LocalDistributorRepository) Reactivate(id string) error {
+	query := `UPDATE distributors SET suspended_at = NULL, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL AND suspended_at IS NOT NULL`
+
+	result, err := r.db.Exec(query, id, time.Now())
+	if err != nil {
+		return fmt.Errorf("failed to reactivate distributor: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("distributor not found or not suspended")
+	}
+
+	return nil
+}
+
 // List returns paginated list of distributors visible to the user
-func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string) ([]*models.LocalDistributor, int, error) {
+func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection, status string) ([]*models.LocalDistributor, int, error) {
 	// Only Owner can see distributors
 	if userOrgRole != "owner" {
 		return []*models.LocalDistributor{}, 0, nil
@@ -185,10 +228,11 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
 		validSortFields := map[string]string{
-			"name":        "name",
-			"description": "description",
-			"created_at":  "created_at",
-			"updated_at":  "updated_at",
+			"name":         "name",
+			"description":  "description",
+			"created_at":   "created_at",
+			"updated_at":   "updated_at",
+			"suspended_at": "suspended_at",
 		}
 
 		if dbField, valid := validSortFields[sortBy]; valid {
@@ -200,37 +244,46 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 		}
 	}
 
-	// Build queries with optional search
+	// Build status filter clause
+	statusClause := ""
+	switch status {
+	case "enabled":
+		statusClause = " AND suspended_at IS NULL"
+	case "blocked":
+		statusClause = " AND suspended_at IS NOT NULL"
+	}
+
+	// Build queries with optional search and status filter
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
 
 	if search != "" {
 		// With search
-		countQuery = `SELECT COUNT(*) FROM distributors WHERE deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%' || $1 || '%') OR LOWER(description) LIKE LOWER('%' || $1 || '%'))`
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM distributors WHERE deleted_at IS NULL%s AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%'))`, statusClause)
 		countArgs = []interface{}{search}
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
-			       logto_synced_at, logto_sync_error, deleted_at
+			       logto_synced_at, logto_sync_error, deleted_at, suspended_at
 			FROM distributors
-			WHERE deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%'))
+			WHERE deleted_at IS NULL%s AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%'))
 			%s
 			LIMIT $2 OFFSET $3
-		`, orderClause)
+		`, statusClause, orderClause)
 		queryArgs = []interface{}{search, pageSize, offset}
 	} else {
 		// Without search
-		countQuery = `SELECT COUNT(*) FROM distributors WHERE deleted_at IS NULL`
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM distributors WHERE deleted_at IS NULL%s`, statusClause)
 		countArgs = []interface{}{}
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
-			       logto_synced_at, logto_sync_error, deleted_at
+			       logto_synced_at, logto_sync_error, deleted_at, suspended_at
 			FROM distributors
-			WHERE deleted_at IS NULL
+			WHERE deleted_at IS NULL%s
 			%s
 			LIMIT $1 OFFSET $2
-		`, orderClause)
+		`, statusClause, orderClause)
 		queryArgs = []interface{}{pageSize, offset}
 	}
 
@@ -264,6 +317,7 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 			&distributor.ID, &distributor.LogtoID, &distributor.Name, &distributor.Description,
 			&customDataJSON, &distributor.CreatedAt, &distributor.UpdatedAt,
 			&distributor.LogtoSyncedAt, &distributor.LogtoSyncError, &distributor.DeletedAt,
+			&distributor.SuspendedAt,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan distributor: %w", err)

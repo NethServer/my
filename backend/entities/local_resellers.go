@@ -72,8 +72,8 @@ func (r *LocalResellerRepository) Create(req *models.CreateLocalResellerRequest)
 // GetByID retrieves a reseller by ID from local database
 func (r *LocalResellerRepository) GetByID(id string) (*models.LocalReseller, error) {
 	query := `
-		SELECT id, logto_id, name, description,  custom_data, created_at, updated_at,
-		       logto_synced_at, logto_sync_error, deleted_at
+		SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
+		       logto_synced_at, logto_sync_error, deleted_at, suspended_at
 		FROM resellers
 		WHERE id = $1 AND deleted_at IS NULL
 	`
@@ -85,6 +85,7 @@ func (r *LocalResellerRepository) GetByID(id string) (*models.LocalReseller, err
 		&reseller.ID, &reseller.LogtoID, &reseller.Name, &reseller.Description,
 		&customDataJSON, &reseller.CreatedAt, &reseller.UpdatedAt,
 		&reseller.LogtoSyncedAt, &reseller.LogtoSyncError, &reseller.DeletedAt,
+		&reseller.SuspendedAt,
 	)
 
 	if err != nil {
@@ -172,15 +173,57 @@ func (r *LocalResellerRepository) Delete(id string) error {
 	return nil
 }
 
+// Suspend suspends a reseller in local database
+func (r *LocalResellerRepository) Suspend(id string) error {
+	query := `UPDATE resellers SET suspended_at = $2, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL AND suspended_at IS NULL`
+
+	result, err := r.db.Exec(query, id, time.Now())
+	if err != nil {
+		return fmt.Errorf("failed to suspend reseller: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("reseller not found or already suspended")
+	}
+
+	return nil
+}
+
+// Reactivate reactivates a suspended reseller in local database
+func (r *LocalResellerRepository) Reactivate(id string) error {
+	query := `UPDATE resellers SET suspended_at = NULL, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL AND suspended_at IS NOT NULL`
+
+	result, err := r.db.Exec(query, id, time.Now())
+	if err != nil {
+		return fmt.Errorf("failed to reactivate reseller: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("reseller not found or not suspended")
+	}
+
+	return nil
+}
+
 // List returns paginated list of resellers visible to the user
-func (r *LocalResellerRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string) ([]*models.LocalReseller, int, error) {
+func (r *LocalResellerRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection, status string) ([]*models.LocalReseller, int, error) {
 	offset := (page - 1) * pageSize
 
 	switch userOrgRole {
 	case "owner":
-		return r.listForOwner(page, pageSize, offset, search, sortBy, sortDirection)
+		return r.listForOwner(page, pageSize, offset, search, sortBy, sortDirection, status)
 	case "distributor":
-		return r.listForDistributor(userOrgID, page, pageSize, offset, search, sortBy, sortDirection)
+		return r.listForDistributor(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, status)
 	default:
 		// Resellers and customers can't see other resellers
 		return []*models.LocalReseller{}, 0, nil
@@ -188,15 +231,16 @@ func (r *LocalResellerRepository) List(userOrgRole, userOrgID string, page, page
 }
 
 // listForOwner handles reseller listing for owner role
-func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, search, sortBy, sortDirection string) ([]*models.LocalReseller, int, error) {
+func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, search, sortBy, sortDirection, status string) ([]*models.LocalReseller, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
 		validSortFields := map[string]string{
-			"name":        "name",
-			"description": "description",
-			"created_at":  "created_at",
-			"updated_at":  "updated_at",
+			"name":         "name",
+			"description":  "description",
+			"created_at":   "created_at",
+			"updated_at":   "updated_at",
+			"suspended_at": "suspended_at",
 		}
 
 		if dbField, valid := validSortFields[sortBy]; valid {
@@ -208,36 +252,45 @@ func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, searc
 		}
 	}
 
+	// Build status filter clause
+	statusClause := ""
+	switch status {
+	case "enabled":
+		statusClause = " AND suspended_at IS NULL"
+	case "blocked":
+		statusClause = " AND suspended_at IS NOT NULL"
+	}
+
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
 
 	if search != "" {
 		// With search
-		countQuery = `SELECT COUNT(*) FROM resellers WHERE deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%' || $1 || '%') OR LOWER(description) LIKE LOWER('%' || $1 || '%'))`
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM resellers WHERE deleted_at IS NULL%s AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%'))`, statusClause)
 		countArgs = []interface{}{search}
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
-			       logto_synced_at, logto_sync_error, deleted_at
+			       logto_synced_at, logto_sync_error, deleted_at, suspended_at
 			FROM resellers
-			WHERE deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%'))
+			WHERE deleted_at IS NULL%s AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%'))
 			%s
 			LIMIT $2 OFFSET $3
-		`, orderClause)
+		`, statusClause, orderClause)
 		queryArgs = []interface{}{search, pageSize, offset}
 	} else {
 		// Without search
-		countQuery = `SELECT COUNT(*) FROM resellers WHERE deleted_at IS NULL`
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM resellers WHERE deleted_at IS NULL%s`, statusClause)
 		countArgs = []interface{}{}
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
-			       logto_synced_at, logto_sync_error, deleted_at
+			       logto_synced_at, logto_sync_error, deleted_at, suspended_at
 			FROM resellers
-			WHERE deleted_at IS NULL
+			WHERE deleted_at IS NULL%s
 			%s
 			LIMIT $1 OFFSET $2
-		`, orderClause)
+		`, statusClause, orderClause)
 		queryArgs = []interface{}{pageSize, offset}
 	}
 
@@ -245,15 +298,16 @@ func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, searc
 }
 
 // listForDistributor handles reseller listing for distributor role
-func (r *LocalResellerRepository) listForDistributor(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string) ([]*models.LocalReseller, int, error) {
+func (r *LocalResellerRepository) listForDistributor(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection, status string) ([]*models.LocalReseller, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
 		validSortFields := map[string]string{
-			"name":        "name",
-			"description": "description",
-			"created_at":  "created_at",
-			"updated_at":  "updated_at",
+			"name":         "name",
+			"description":  "description",
+			"created_at":   "created_at",
+			"updated_at":   "updated_at",
+			"suspended_at": "suspended_at",
 		}
 
 		if dbField, valid := validSortFields[sortBy]; valid {
@@ -265,36 +319,45 @@ func (r *LocalResellerRepository) listForDistributor(userOrgID string, page, pag
 		}
 	}
 
+	// Build status filter clause
+	statusClause := ""
+	switch status {
+	case "enabled":
+		statusClause = " AND suspended_at IS NULL"
+	case "blocked":
+		statusClause = " AND suspended_at IS NOT NULL"
+	}
+
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
 
 	if search != "" {
 		// With search
-		countQuery = `SELECT COUNT(*) FROM resellers WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1 AND (LOWER(name) LIKE LOWER('%' || $2 || '%') OR LOWER(description) LIKE LOWER('%' || $2 || '%'))`
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM resellers WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))`, statusClause)
 		countArgs = []interface{}{userOrgID, search}
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
-			       logto_synced_at, logto_sync_error, deleted_at
+			       logto_synced_at, logto_sync_error, deleted_at, suspended_at
 			FROM resellers
-			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1 AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))
+			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))
 			%s
 			LIMIT $3 OFFSET $4
-		`, orderClause)
+		`, statusClause, orderClause)
 		queryArgs = []interface{}{userOrgID, search, pageSize, offset}
 	} else {
 		// Without search
-		countQuery = `SELECT COUNT(*) FROM resellers WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1`
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM resellers WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1%s`, statusClause)
 		countArgs = []interface{}{userOrgID}
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
-			       logto_synced_at, logto_sync_error, deleted_at
+			       logto_synced_at, logto_sync_error, deleted_at, suspended_at
 			FROM resellers
-			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1
+			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1%s
 			%s
 			LIMIT $2 OFFSET $3
-		`, orderClause)
+		`, statusClause, orderClause)
 		queryArgs = []interface{}{userOrgID, pageSize, offset}
 	}
 
@@ -333,6 +396,7 @@ func (r *LocalResellerRepository) executeResellerQuery(countQuery string, countA
 			&reseller.ID, &reseller.LogtoID, &reseller.Name, &reseller.Description,
 			&customDataJSON, &reseller.CreatedAt, &reseller.UpdatedAt,
 			&reseller.LogtoSyncedAt, &reseller.LogtoSyncError, &reseller.DeletedAt,
+			&reseller.SuspendedAt,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan reseller: %w", err)

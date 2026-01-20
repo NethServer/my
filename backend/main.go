@@ -271,6 +271,10 @@ func main() {
 			// Stats endpoint (users and systems count)
 			distributorsGroup.GET("/:id/stats", methods.GetDistributorStats)
 
+			// Suspend and reactivate endpoints (cascade to users)
+			distributorsGroup.PATCH("/:id/suspend", methods.SuspendDistributor)       // Suspend distributor and all its users
+			distributorsGroup.PATCH("/:id/reactivate", methods.ReactivateDistributor) // Reactivate distributor and cascade-suspended users
+
 			// Export endpoint
 			distributorsGroup.GET("/export", methods.ExportDistributors) // Export distributors to CSV or PDF with applied filters
 		}
@@ -291,6 +295,10 @@ func main() {
 			// Stats endpoint (users and systems count)
 			resellersGroup.GET("/:id/stats", methods.GetResellerStats)
 
+			// Suspend and reactivate endpoints (cascade to users)
+			resellersGroup.PATCH("/:id/suspend", methods.SuspendReseller)       // Suspend reseller and all its users
+			resellersGroup.PATCH("/:id/reactivate", methods.ReactivateReseller) // Reactivate reseller and cascade-suspended users
+
 			// Export endpoint
 			resellersGroup.GET("/export", methods.ExportResellers) // Export resellers to CSV or PDF with applied filters
 		}
@@ -310,6 +318,10 @@ func main() {
 
 			// Stats endpoint (users and systems count)
 			customersGroup.GET("/:id/stats", methods.GetCustomerStats)
+
+			// Suspend and reactivate endpoints (cascade to users)
+			customersGroup.PATCH("/:id/suspend", methods.SuspendCustomer)       // Suspend customer and all its users
+			customersGroup.PATCH("/:id/reactivate", methods.ReactivateCustomer) // Reactivate customer and cascade-suspended users
 
 			// Export endpoint
 			customersGroup.GET("/export", methods.ExportCustomers) // Export customers to CSV or PDF with applied filters

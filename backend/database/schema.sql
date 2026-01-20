@@ -12,15 +12,18 @@ CREATE TABLE IF NOT EXISTS distributors (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     logto_synced_at TIMESTAMP WITH TIME ZONE,
     logto_sync_error TEXT,
-    deleted_at TIMESTAMP WITH TIME ZONE  -- Soft delete timestamp (NULL = active, non-NULL = deleted)
+    deleted_at TIMESTAMP WITH TIME ZONE,   -- Soft delete timestamp (NULL = active, non-NULL = deleted)
+    suspended_at TIMESTAMP WITH TIME ZONE  -- Suspension timestamp (NULL = enabled, non-NULL = blocked)
 );
 
--- Comment for distributors.deleted_at
+-- Comments for distributors
 COMMENT ON COLUMN distributors.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted at that time.';
+COMMENT ON COLUMN distributors.suspended_at IS 'Suspension timestamp. NULL means enabled, non-NULL means blocked/suspended at that time.';
 
 -- Performance indexes for distributors
 CREATE UNIQUE INDEX IF NOT EXISTS idx_distributors_logto_id ON distributors(logto_id) WHERE logto_id IS NOT NULL AND deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_distributors_deleted_at ON distributors(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_distributors_suspended_at ON distributors(suspended_at);
 CREATE INDEX IF NOT EXISTS idx_distributors_logto_synced ON distributors(logto_synced_at);
 CREATE INDEX IF NOT EXISTS idx_distributors_created_at ON distributors(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_distributors_name ON distributors(name);
@@ -37,15 +40,18 @@ CREATE TABLE IF NOT EXISTS resellers (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     logto_synced_at TIMESTAMP WITH TIME ZONE,
     logto_sync_error TEXT,
-    deleted_at TIMESTAMP WITH TIME ZONE  -- Soft delete timestamp (NULL = active, non-NULL = deleted)
+    deleted_at TIMESTAMP WITH TIME ZONE,   -- Soft delete timestamp (NULL = active, non-NULL = deleted)
+    suspended_at TIMESTAMP WITH TIME ZONE  -- Suspension timestamp (NULL = enabled, non-NULL = blocked)
 );
 
--- Comment for resellers.deleted_at
+-- Comments for resellers
 COMMENT ON COLUMN resellers.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted at that time.';
+COMMENT ON COLUMN resellers.suspended_at IS 'Suspension timestamp. NULL means enabled, non-NULL means blocked/suspended at that time.';
 
 -- Performance indexes for resellers
 CREATE UNIQUE INDEX IF NOT EXISTS idx_resellers_logto_id ON resellers(logto_id) WHERE logto_id IS NOT NULL AND deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_resellers_deleted_at ON resellers(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_resellers_suspended_at ON resellers(suspended_at);
 CREATE INDEX IF NOT EXISTS idx_resellers_logto_synced ON resellers(logto_synced_at);
 CREATE INDEX IF NOT EXISTS idx_resellers_created_at ON resellers(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_resellers_name ON resellers(name);
@@ -62,15 +68,18 @@ CREATE TABLE IF NOT EXISTS customers (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     logto_synced_at TIMESTAMP WITH TIME ZONE,
     logto_sync_error TEXT,
-    deleted_at TIMESTAMP WITH TIME ZONE  -- Soft delete timestamp (NULL = active, non-NULL = deleted)
+    deleted_at TIMESTAMP WITH TIME ZONE,   -- Soft delete timestamp (NULL = active, non-NULL = deleted)
+    suspended_at TIMESTAMP WITH TIME ZONE  -- Suspension timestamp (NULL = enabled, non-NULL = blocked)
 );
 
--- Comment for customers.deleted_at
+-- Comments for customers
 COMMENT ON COLUMN customers.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted at that time.';
+COMMENT ON COLUMN customers.suspended_at IS 'Suspension timestamp. NULL means enabled, non-NULL means blocked/suspended at that time.';
 
 -- Performance indexes for customers
 CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_logto_id ON customers(logto_id) WHERE logto_id IS NOT NULL AND deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_customers_deleted_at ON customers(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_customers_suspended_at ON customers(suspended_at);
 CREATE INDEX IF NOT EXISTS idx_customers_logto_synced ON customers(logto_synced_at);
 CREATE INDEX IF NOT EXISTS idx_customers_created_at ON customers(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);
@@ -95,8 +104,12 @@ CREATE TABLE IF NOT EXISTS users (
     logto_synced_at TIMESTAMP WITH TIME ZONE,
     latest_login_at TIMESTAMP WITH TIME ZONE,
     deleted_at TIMESTAMP WITH TIME ZONE,        -- Soft delete timestamp (NULL = not deleted)
-    suspended_at TIMESTAMP WITH TIME ZONE       -- Suspension timestamp (NULL = not suspended)
+    suspended_at TIMESTAMP WITH TIME ZONE,      -- Suspension timestamp (NULL = not suspended)
+    suspended_by_org_id VARCHAR(255)            -- Organization ID that caused cascade suspension
 );
+
+-- Comment for users.suspended_by_org_id
+COMMENT ON COLUMN users.suspended_by_org_id IS 'Organization ID that caused this user to be suspended (for cascade reactivation)';
 
 -- Performance indexes for users
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_logto_id ON users(logto_id) WHERE logto_id IS NOT NULL AND deleted_at IS NULL;
@@ -105,6 +118,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE deleted_
 CREATE INDEX IF NOT EXISTS idx_users_organization_id ON users(organization_id);
 CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_users_suspended_at ON users(suspended_at);
+CREATE INDEX IF NOT EXISTS idx_users_suspended_by_org_id ON users(suspended_by_org_id) WHERE suspended_by_org_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_users_logto_synced ON users(logto_synced_at);
 CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_users_latest_login_at ON users(latest_login_at DESC);

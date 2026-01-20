@@ -168,15 +168,16 @@ func GetCustomers(c *gin.Context) {
 	// Parse pagination and sorting parameters
 	page, pageSize, sortBy, sortDirection := helpers.GetPaginationAndSortingFromQuery(c)
 
-	// Parse search parameter
+	// Parse search and status parameters
 	search := c.Query("search")
+	status := c.Query("status")
 
 	// Create service
 	service := local.NewOrganizationService()
 
 	// Get customers based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
-	customers, totalCount, err := service.ListCustomers(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection)
+	customers, totalCount, err := service.ListCustomers(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, status)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -464,4 +465,168 @@ func GetCustomerStats(c *gin.Context) {
 
 	// Return stats
 	c.JSON(http.StatusOK, response.OK("customer stats retrieved successfully", stats))
+}
+
+// SuspendCustomer handles PATCH /api/customers/:id/suspend - suspends a customer and all its users
+func SuspendCustomer(c *gin.Context) {
+	// Get customer ID from URL parameter
+	customerID := c.Param("id")
+	if customerID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("customer ID required", nil))
+		return
+	}
+
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Get customer to obtain logto_id for hierarchy validation
+	repo := entities.NewLocalCustomerRepository()
+	customer, err := repo.GetByID(customerID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("customer not found", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("customer_id", customerID).
+			Msg("Failed to get customer for suspension validation")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get customer", nil))
+		return
+	}
+
+	// Apply hierarchical RBAC validation - Owner, Distributor, Reseller can suspend
+	userService := local.NewUserService()
+	userOrgRole := strings.ToLower(user.OrgRole)
+	canSuspend := false
+
+	switch userOrgRole {
+	case "owner":
+		canSuspend = true
+	case "distributor", "reseller":
+		if customer.LogtoID != nil {
+			canSuspend = userService.IsOrganizationInHierarchy(userOrgRole, user.OrganizationID, *customer.LogtoID)
+		}
+	}
+
+	if !canSuspend {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied to suspend customer", nil))
+		return
+	}
+
+	// Suspend customer
+	service := local.NewOrganizationService()
+	customer, suspendedUsersCount, err := service.SuspendCustomer(customerID, user.ID, user.OrganizationID)
+	if err != nil {
+		if strings.Contains(err.Error(), "already suspended") {
+			c.JSON(http.StatusBadRequest, response.BadRequest("customer is already suspended", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("customer_id", customerID).
+			Msg("Failed to suspend customer")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to suspend customer", nil))
+		return
+	}
+
+	// Log the action
+	logger.LogBusinessOperation(c, "customers", "suspend", "customer", customerID, true, nil)
+
+	// Return success response
+	c.JSON(http.StatusOK, response.OK("customer suspended successfully", map[string]interface{}{
+		"customer":              customer,
+		"suspended_users_count": suspendedUsersCount,
+	}))
+}
+
+// ReactivateCustomer handles PATCH /api/customers/:id/reactivate - reactivates a customer and its cascade-suspended users
+func ReactivateCustomer(c *gin.Context) {
+	// Get customer ID from URL parameter
+	customerID := c.Param("id")
+	if customerID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("customer ID required", nil))
+		return
+	}
+
+	// Get current user context
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Get customer to obtain logto_id for hierarchy validation
+	repo := entities.NewLocalCustomerRepository()
+	customer, err := repo.GetByID(customerID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("customer not found", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("customer_id", customerID).
+			Msg("Failed to get customer for reactivation validation")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get customer", nil))
+		return
+	}
+
+	// Apply hierarchical RBAC validation - Owner, Distributor, Reseller can reactivate
+	userService := local.NewUserService()
+	userOrgRole := strings.ToLower(user.OrgRole)
+	canReactivate := false
+
+	switch userOrgRole {
+	case "owner":
+		canReactivate = true
+	case "distributor", "reseller":
+		if customer.LogtoID != nil {
+			canReactivate = userService.IsOrganizationInHierarchy(userOrgRole, user.OrganizationID, *customer.LogtoID)
+		}
+	}
+
+	if !canReactivate {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied to reactivate customer", nil))
+		return
+	}
+
+	// Reactivate customer
+	service := local.NewOrganizationService()
+	customer, reactivatedUsersCount, err := service.ReactivateCustomer(customerID, user.ID, user.OrganizationID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not suspended") {
+			c.JSON(http.StatusBadRequest, response.BadRequest("customer is not suspended", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("customer_id", customerID).
+			Msg("Failed to reactivate customer")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to reactivate customer", nil))
+		return
+	}
+
+	// Log the action
+	logger.LogBusinessOperation(c, "customers", "reactivate", "customer", customerID, true, nil)
+
+	// Return success response
+	c.JSON(http.StatusOK, response.OK("customer reactivated successfully", map[string]interface{}{
+		"customer":                customer,
+		"reactivated_users_count": reactivatedUsersCount,
+	}))
 }
