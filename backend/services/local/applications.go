@@ -292,7 +292,8 @@ func (s *LocalApplicationsService) getAllowedSystemIDs(userOrgRole, userOrgID st
 func (s *LocalApplicationsService) getAllowedOrganizationIDs(userOrgRole, userOrgID string) ([]string, error) {
 	var allowedOrgIDs []string
 
-	switch userOrgRole {
+	// Normalize role to lowercase for comparison (JWT contains "Owner", "Distributor", etc.)
+	switch strings.ToLower(userOrgRole) {
 	case "owner":
 		// Owner can access all organizations
 		// Get all distributor, reseller, customer logto_ids
