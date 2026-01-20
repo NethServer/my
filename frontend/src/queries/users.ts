@@ -16,6 +16,7 @@ export const useUsers = defineQuery(() => {
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
+  const organizationFilter = ref<string[]>([])
   const sortBy = ref<keyof User>('name')
   const sortDescending = ref(false)
 
@@ -26,6 +27,7 @@ export const useUsers = defineQuery(() => {
         pageNum: pageNum.value,
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
+        organizationFilter: organizationFilter.value,
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
@@ -36,6 +38,7 @@ export const useUsers = defineQuery(() => {
         pageNum.value,
         pageSize.value,
         debouncedTextFilter.value,
+        organizationFilter.value,
         sortBy.value,
         sortDescending.value,
       ),
@@ -81,6 +84,7 @@ export const useUsers = defineQuery(() => {
     pageSize,
     textFilter,
     debouncedTextFilter,
+    organizationFilter,
     sortBy,
     sortDescending,
   }

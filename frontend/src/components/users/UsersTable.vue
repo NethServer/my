@@ -53,6 +53,7 @@ import SuspendUserModal from './SuspendUserModal.vue'
 import ReactivateUserModal from './ReactivateUserModal.vue'
 import OrganizationIcon from '../OrganizationIcon.vue'
 import UserRoleBadge from '../UserRoleBadge.vue'
+import { useOrganizationFilter } from '@/queries/systems/organizationFilter'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -68,11 +69,15 @@ const {
   pageSize,
   textFilter,
   debouncedTextFilter,
+  organizationFilter,
   sortBy,
   sortDescending,
 } = useUsers()
-
 const loginStore = useLoginStore()
+const { state: organizationFilterState, asyncStatus: organizationFilterAsyncStatus } =
+  useOrganizationFilter()
+// const { state: userRoleFilterState, asyncStatus: userRoleFilterAsyncStatus } =
+//   useUserRoleFilter() ////
 
 const currentUser = ref<User | undefined>()
 const isShownCreateOrEditUserDrawer = ref(false)
@@ -104,6 +109,31 @@ const isNoMatchEmptyStateShown = computed(() => {
 const noEmptyStateShown = computed(() => {
   return !isNoDataEmptyStateShown.value && !isNoMatchEmptyStateShown.value
 })
+
+////
+const organizationFilterOptions = computed(() => {
+  if (!organizationFilterState.value.data || !organizationFilterState.value.data.organizations) {
+    return []
+  } else {
+    return organizationFilterState.value.data.organizations.map((org) => ({
+      id: org.id,
+      label: org.name,
+    }))
+  }
+})
+
+////
+// const userRoleOptions = computed(() => {
+//   if (!allUserRoles.value.data) {
+//     return []
+//   }
+
+//   return allUserRoles.value.data?.map((role) => ({
+//     id: role.id,
+//     label: t(`user_roles.${normalize(role.name)}`),
+//     description: t(`user_roles.${normalize(role.name)}_description`),
+//   }))
+// })
 
 watch(
   () => isShownCreateUserDrawer,
@@ -284,6 +314,23 @@ const onClosePasswordChangedModal = () => {
               :placeholder="$t('users.filter_users')"
               class="max-w-48 sm:max-w-sm"
             />
+            <!-- <NeDropdownFilter ////
+              v-model="organizationFilter"
+              kind="checkbox"
+              :label="t('organizations.organization')"
+              :options="organizationFilterOptions"
+              :disabled="
+                organizationFilterAsyncStatus === 'loading' ||
+                organizationFilterState.status === 'error'
+              "
+              show-options-filter
+              :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+              :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+              :no-options-label="t('ne_dropdown_filter.no_options')"
+              :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+              :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            /> -->
+            <!-- sort dropdown -->
             <NeSortDropdown
               v-model:sort-key="sortBy"
               v-model:sort-descending="sortDescending"
