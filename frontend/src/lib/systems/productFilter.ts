@@ -6,7 +6,7 @@ import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 
 export const PRODUCT_FILTER_KEY = 'productFilter'
-export const PRODUCT_FILTER_PATH = 'filters/products'
+export const PRODUCT_FILTER_PATH = 'filters/systems/products'
 
 interface ProductFilterResponse {
   code: number
