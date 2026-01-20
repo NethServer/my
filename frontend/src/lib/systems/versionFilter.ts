@@ -8,7 +8,7 @@ import type { FilterOption } from '@nethesis/vue-components'
 import { getProductName } from './systems'
 
 export const VERSION_FILTER_KEY = 'versionFilter'
-export const VERSION_FILTER_PATH = 'filters/versions'
+export const VERSION_FILTER_PATH = 'filters/systems/versions'
 
 export interface ProductVersions {
   product: string
