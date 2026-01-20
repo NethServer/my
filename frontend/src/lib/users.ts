@@ -5,7 +5,7 @@ import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
-import { getQueryStringParams, type Pagination } from './common'
+import { type Pagination } from './common'
 
 export const USERS_KEY = 'users'
 export const USERS_TOTAL_KEY = 'usersTotal'
@@ -67,15 +67,48 @@ interface UsersResponse {
   }
 }
 
+export const getQueryStringParams = (
+  pageNum: number,
+  pageSize: number,
+  textFilter: string | null,
+  organizationFilter: string[],
+  sortBy: string | null,
+  sortDescending: boolean,
+) => {
+  const searchParams = new URLSearchParams({
+    page: pageNum.toString(),
+    page_size: pageSize.toString(),
+    sort_by: sortBy || '',
+    sort_direction: sortDescending ? 'desc' : 'asc',
+  })
+
+  if (textFilter?.trim()) {
+    searchParams.append('search', textFilter)
+  }
+
+  organizationFilter.forEach((orgId) => {
+    searchParams.append('organization_id', orgId)
+  })
+  return searchParams.toString()
+}
+
 export const getUsers = (
   pageNum: number,
   pageSize: number,
   textFilter: string,
+  organizationFilter: string[],
   sortBy: string,
   sortDescending: boolean,
 ) => {
   const loginStore = useLoginStore()
-  const params = getQueryStringParams(pageNum, pageSize, textFilter, sortBy, sortDescending)
+  const params = getQueryStringParams(
+    pageNum,
+    pageSize,
+    textFilter,
+    organizationFilter,
+    sortBy,
+    sortDescending,
+  )
 
   return axios
     .get<UsersResponse>(`${API_URL}/users?${params}`, {
