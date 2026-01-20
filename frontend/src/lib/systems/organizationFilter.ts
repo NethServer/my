@@ -6,7 +6,7 @@ import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 
 export const ORGANIZATION_FILTER_KEY = 'organizationFilter'
-export const ORGANIZATION_FILTER_PATH = 'filters/organizations'
+export const ORGANIZATION_FILTER_PATH = 'filters/systems/organizations'
 
 interface OrganizationFilterResponse {
   code: number
