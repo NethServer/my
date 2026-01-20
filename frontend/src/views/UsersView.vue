@@ -12,19 +12,19 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { PRODUCT_NAME } from '@/lib/config'
 import { canManageUsers } from '@/lib/permissions'
 import { useUsers } from '@/queries/users'
-import { useI18n } from 'vue-i18n'
+// import { useI18n } from 'vue-i18n' ////
 // import { getExport } from '@/lib/users' ////
 
-const { t } = useI18n()
+// const { t } = useI18n() ////
 const {
   state,
-  asyncStatus,
-  pageNum,
-  pageSize,
-  textFilter,
+  // asyncStatus, ////
+  // pageNum,
+  // pageSize,
+  // textFilter,
   debouncedTextFilter,
-  sortBy,
-  sortDescending,
+  // sortBy, ////
+  // sortDescending,
 } = useUsers()
 
 const isShownCreateUserDrawer = ref(false)
