@@ -94,7 +94,9 @@
     "cannot_delete_distributor": "Cannot delete distributor",
     "delete_distributor": "Delete distributor",
     "delete_distributor_confirmation": "Are you sure you want to delete distributor {name}? All users associated with this organization will also be deleted. This action cannot be undone.",
-    "no_distributor": "No distributors"
+    "no_distributor": "No distributors",
+    "export_distributors_to_pdf": "Export distributors to PDF",
+    "export_distributors_to_csv": "Export distributors to CSV"
   },
   "resellers": {
     "title": "Resellers",
