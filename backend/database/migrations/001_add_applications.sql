@@ -101,8 +101,3 @@ ALTER TABLE applications ADD CONSTRAINT chk_applications_status
 -- Organization type validation
 ALTER TABLE applications ADD CONSTRAINT chk_applications_org_type
     CHECK (organization_type IS NULL OR organization_type IN ('owner', 'distributor', 'reseller', 'customer'));
-
--- Record migration
-INSERT INTO schema_migrations (migration_number, description, checksum)
-VALUES ('001', 'Add applications table for tracking NS8 cluster applications', 'initial')
-ON CONFLICT (migration_number) DO NOTHING;
