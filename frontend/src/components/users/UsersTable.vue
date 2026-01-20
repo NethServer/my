@@ -53,7 +53,7 @@ import SuspendUserModal from './SuspendUserModal.vue'
 import ReactivateUserModal from './ReactivateUserModal.vue'
 import OrganizationIcon from '../OrganizationIcon.vue'
 import UserRoleBadge from '../UserRoleBadge.vue'
-import { useOrganizationFilter } from '@/queries/systems/organizationFilter'
+// import { useOrganizationFilter } from '@/queries/systems/organizationFilter' ////
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -69,13 +69,11 @@ const {
   pageSize,
   textFilter,
   debouncedTextFilter,
-  organizationFilter,
   sortBy,
   sortDescending,
 } = useUsers()
 const loginStore = useLoginStore()
-const { state: organizationFilterState, asyncStatus: organizationFilterAsyncStatus } =
-  useOrganizationFilter()
+// const { state: organizationFilterState } = useOrganizationFilter() ////
 // const { state: userRoleFilterState, asyncStatus: userRoleFilterAsyncStatus } =
 //   useUserRoleFilter() ////
 
@@ -111,16 +109,16 @@ const noEmptyStateShown = computed(() => {
 })
 
 ////
-const organizationFilterOptions = computed(() => {
-  if (!organizationFilterState.value.data || !organizationFilterState.value.data.organizations) {
-    return []
-  } else {
-    return organizationFilterState.value.data.organizations.map((org) => ({
-      id: org.id,
-      label: org.name,
-    }))
-  }
-})
+// const organizationFilterOptions = computed(() => {
+//   if (!organizationFilterState.value.data || !organizationFilterState.value.data.organizations) {
+//     return []
+//   } else {
+//     return organizationFilterState.value.data.organizations.map((org) => ({
+//       id: org.id,
+//       label: org.name,
+//     }))
+//   }
+// })
 
 ////
 // const userRoleOptions = computed(() => {
