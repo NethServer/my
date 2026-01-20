@@ -556,8 +556,8 @@ func (r *LocalResellerRepository) GetTrend(userOrgRole, userOrgID string, period
 	return dataPoints, currentTotal, previousTotal, nil
 }
 
-// GetStats returns users and systems count for a specific reseller
-func (r *LocalResellerRepository) GetStats(id string) (*models.OrganizationStats, error) {
+// GetStats returns users, systems, customers and applications count for a specific reseller
+func (r *LocalResellerRepository) GetStats(id string) (*models.ResellerStats, error) {
 	// First get the reseller to obtain its logto_id
 	reseller, err := r.GetByID(id)
 	if err != nil {
@@ -566,20 +566,32 @@ func (r *LocalResellerRepository) GetStats(id string) (*models.OrganizationStats
 
 	// If reseller has no logto_id, return zero counts
 	if reseller.LogtoID == nil {
-		return &models.OrganizationStats{
-			UsersCount:   0,
-			SystemsCount: 0,
+		return &models.ResellerStats{
+			UsersCount:                 0,
+			SystemsCount:               0,
+			CustomersCount:             0,
+			ApplicationsCount:          0,
+			ApplicationsHierarchyCount: 0,
 		}, nil
 	}
 
-	var stats models.OrganizationStats
+	var stats models.ResellerStats
 	query := `
 		SELECT
 			(SELECT COUNT(*) FROM users WHERE organization_id = $1 AND deleted_at IS NULL) as users_count,
-			(SELECT COUNT(*) FROM systems WHERE organization_id = $1 AND deleted_at IS NULL) as systems_count
+			(SELECT COUNT(*) FROM systems WHERE organization_id = $1 AND deleted_at IS NULL) as systems_count,
+			(SELECT COUNT(*) FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL) as customers_count,
+			(SELECT COUNT(*) FROM applications WHERE organization_id = $1 AND deleted_at IS NULL) as applications_count,
+			(SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (
+				a.organization_id = $1
+				OR a.organization_id IN (SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL)
+			)) as applications_hierarchy_count
 	`
 
-	err = r.db.QueryRow(query, *reseller.LogtoID).Scan(&stats.UsersCount, &stats.SystemsCount)
+	err = r.db.QueryRow(query, *reseller.LogtoID).Scan(
+		&stats.UsersCount, &stats.SystemsCount, &stats.CustomersCount,
+		&stats.ApplicationsCount, &stats.ApplicationsHierarchyCount,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get reseller stats: %w", err)
 	}

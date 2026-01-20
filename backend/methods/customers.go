@@ -385,7 +385,7 @@ func DeleteCustomer(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("customer deleted successfully", nil))
 }
 
-// GetCustomerStats handles GET /api/customers/:id/stats - retrieves users and systems count for a customer
+// GetCustomerStats handles GET /api/customers/:id/stats - retrieves users, systems and applications count for a customer
 func GetCustomerStats(c *gin.Context) {
 	// Get customer ID from URL parameter
 	customerID := c.Param("id")
@@ -461,6 +461,7 @@ func GetCustomerStats(c *gin.Context) {
 		Str("customer_id", customerID).
 		Int("users_count", stats.UsersCount).
 		Int("systems_count", stats.SystemsCount).
+		Int("applications_count", stats.ApplicationsCount).
 		Msg("Customer stats requested")
 
 	// Return stats

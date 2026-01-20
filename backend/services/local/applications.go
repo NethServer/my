@@ -228,6 +228,19 @@ func (s *LocalApplicationsService) GetApplicationVersions(userOrgRole, userOrgID
 	return s.repo.GetDistinctVersions(allowedSystemIDs, true)
 }
 
+// GetApplicationsTrend returns trend data for applications over a specified period
+func (s *LocalApplicationsService) GetApplicationsTrend(userOrgRole, userOrgID string, period int) ([]struct {
+	Date  string
+	Count int
+}, int, int, error) {
+	allowedSystemIDs, err := s.getAllowedSystemIDs(userOrgRole, userOrgID)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("failed to get allowed systems: %w", err)
+	}
+
+	return s.repo.GetTrend(allowedSystemIDs, period)
+}
+
 // =============================================================================
 // PRIVATE HELPER METHODS
 // =============================================================================

@@ -796,8 +796,8 @@ func (r *LocalCustomerRepository) GetTrend(userOrgRole, userOrgID string, period
 	return dataPoints, currentTotal, previousTotal, nil
 }
 
-// GetStats returns users and systems count for a specific customer
-func (r *LocalCustomerRepository) GetStats(id string) (*models.OrganizationStats, error) {
+// GetStats returns users, systems and applications count for a specific customer
+func (r *LocalCustomerRepository) GetStats(id string) (*models.CustomerStats, error) {
 	// First get the customer to obtain its logto_id
 	customer, err := r.GetByID(id)
 	if err != nil {
@@ -806,20 +806,22 @@ func (r *LocalCustomerRepository) GetStats(id string) (*models.OrganizationStats
 
 	// If customer has no logto_id, return zero counts
 	if customer.LogtoID == nil {
-		return &models.OrganizationStats{
-			UsersCount:   0,
-			SystemsCount: 0,
+		return &models.CustomerStats{
+			UsersCount:        0,
+			SystemsCount:      0,
+			ApplicationsCount: 0,
 		}, nil
 	}
 
-	var stats models.OrganizationStats
+	var stats models.CustomerStats
 	query := `
 		SELECT
 			(SELECT COUNT(*) FROM users WHERE organization_id = $1 AND deleted_at IS NULL) as users_count,
-			(SELECT COUNT(*) FROM systems WHERE organization_id = $1 AND deleted_at IS NULL) as systems_count
+			(SELECT COUNT(*) FROM systems WHERE organization_id = $1 AND deleted_at IS NULL) as systems_count,
+			(SELECT COUNT(*) FROM applications WHERE organization_id = $1 AND deleted_at IS NULL) as applications_count
 	`
 
-	err = r.db.QueryRow(query, *customer.LogtoID).Scan(&stats.UsersCount, &stats.SystemsCount)
+	err = r.db.QueryRow(query, *customer.LogtoID).Scan(&stats.UsersCount, &stats.SystemsCount, &stats.ApplicationsCount)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get customer stats: %w", err)
 	}

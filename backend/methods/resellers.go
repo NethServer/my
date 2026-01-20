@@ -454,6 +454,9 @@ func GetResellerStats(c *gin.Context) {
 		Str("reseller_id", resellerID).
 		Int("users_count", stats.UsersCount).
 		Int("systems_count", stats.SystemsCount).
+		Int("customers_count", stats.CustomersCount).
+		Int("applications_count", stats.ApplicationsCount).
+		Int("applications_hierarchy_count", stats.ApplicationsHierarchyCount).
 		Msg("Reseller stats requested")
 
 	// Return stats

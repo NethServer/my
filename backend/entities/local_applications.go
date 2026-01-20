@@ -31,7 +31,7 @@ func NewLocalApplicationRepository() *LocalApplicationRepository {
 // GetByID retrieves a specific application by ID
 func (r *LocalApplicationRepository) GetByID(id string) (*models.Application, error) {
 	query := `
-		SELECT a.id, a.system_id, a.module_id, a.instance_of, a.display_name, a.node_id, a.domain_id,
+		SELECT a.id, a.system_id, a.module_id, a.instance_of, a.display_name, a.node_id, a.node_label, a.domain_id,
 		       a.version, a.organization_id, a.organization_type, a.status, a.inventory_data,
 		       a.backup_data, a.services_data, a.url, a.notes, a.is_user_facing,
 		       a.created_at, a.updated_at, a.first_seen_at, a.last_inventory_at, a.deleted_at,
@@ -46,14 +46,14 @@ func (r *LocalApplicationRepository) GetByID(id string) (*models.Application, er
 	`
 
 	app := &models.Application{}
-	var displayName, domainID, version, orgID, orgType, url, notes sql.NullString
+	var displayName, nodeLabel, domainID, version, orgID, orgType, url, notes sql.NullString
 	var nodeID sql.NullInt32
 	var lastInventoryAt, deletedAt sql.NullTime
 	var systemName, orgName sql.NullString
 	var inventoryData, backupData, servicesData []byte
 
 	err := r.db.QueryRow(query, id).Scan(
-		&app.ID, &app.SystemID, &app.ModuleID, &app.InstanceOf, &displayName, &nodeID, &domainID,
+		&app.ID, &app.SystemID, &app.ModuleID, &app.InstanceOf, &displayName, &nodeID, &nodeLabel, &domainID,
 		&version, &orgID, &orgType, &app.Status, &inventoryData,
 		&backupData, &servicesData, &url, &notes, &app.IsUserFacing,
 		&app.CreatedAt, &app.UpdatedAt, &app.FirstSeenAt, &lastInventoryAt, &deletedAt,
@@ -74,6 +74,9 @@ func (r *LocalApplicationRepository) GetByID(id string) (*models.Application, er
 	if nodeID.Valid {
 		nodeIDInt := int(nodeID.Int32)
 		app.NodeID = &nodeIDInt
+	}
+	if nodeLabel.Valid {
+		app.NodeLabel = &nodeLabel.String
 	}
 	if domainID.Valid {
 		app.DomainID = &domainID.String
@@ -300,7 +303,7 @@ func (r *LocalApplicationRepository) List(
 
 	// Build main query
 	query := fmt.Sprintf(`
-		SELECT a.id, a.system_id, a.module_id, a.instance_of, a.display_name, a.node_id, a.domain_id,
+		SELECT a.id, a.system_id, a.module_id, a.instance_of, a.display_name, a.node_id, a.node_label, a.domain_id,
 		       a.version, a.organization_id, a.organization_type, a.status, a.inventory_data,
 		       a.backup_data, a.services_data, a.url, a.notes, a.is_user_facing,
 		       a.created_at, a.updated_at, a.first_seen_at, a.last_inventory_at,
@@ -330,14 +333,14 @@ func (r *LocalApplicationRepository) List(
 	var apps []*models.Application
 	for rows.Next() {
 		app := &models.Application{}
-		var displayName, domainID, version, orgID, orgType, url, notes sql.NullString
+		var displayName, nodeLabel, domainID, version, orgID, orgType, url, notes sql.NullString
 		var nodeID sql.NullInt32
 		var lastInventoryAt sql.NullTime
 		var systemName, orgName sql.NullString
 		var inventoryData, backupData, servicesData []byte
 
 		err := rows.Scan(
-			&app.ID, &app.SystemID, &app.ModuleID, &app.InstanceOf, &displayName, &nodeID, &domainID,
+			&app.ID, &app.SystemID, &app.ModuleID, &app.InstanceOf, &displayName, &nodeID, &nodeLabel, &domainID,
 			&version, &orgID, &orgType, &app.Status, &inventoryData,
 			&backupData, &servicesData, &url, &notes, &app.IsUserFacing,
 			&app.CreatedAt, &app.UpdatedAt, &app.FirstSeenAt, &lastInventoryAt,
@@ -354,6 +357,9 @@ func (r *LocalApplicationRepository) List(
 		if nodeID.Valid {
 			nodeIDInt := int(nodeID.Int32)
 			app.NodeID = &nodeIDInt
+		}
+		if nodeLabel.Valid {
+			app.NodeLabel = &nodeLabel.String
 		}
 		if domainID.Valid {
 			app.DomainID = &domainID.String
@@ -508,6 +514,100 @@ func (r *LocalApplicationRepository) GetTotals(allowedSystemIDs []string, userFa
 	return totals, nil
 }
 
+// GetTrend returns trend data for applications over a specified period
+func (r *LocalApplicationRepository) GetTrend(allowedSystemIDs []string, period int) ([]struct {
+	Date  string
+	Count int
+}, int, int, error) {
+	// If no allowed systems, return empty data
+	if len(allowedSystemIDs) == 0 {
+		return []struct {
+			Date  string
+			Count int
+		}{}, 0, 0, nil
+	}
+
+	// Determine interval for date series based on period
+	var interval string
+	switch period {
+	case 7, 30:
+		interval = "1 day"
+	case 180:
+		interval = "1 week"
+	case 365:
+		interval = "1 month"
+	default:
+		return nil, 0, 0, fmt.Errorf("invalid period: %d", period)
+	}
+
+	// Build placeholders for allowed system IDs
+	placeholders := make([]string, len(allowedSystemIDs))
+	args := make([]interface{}, len(allowedSystemIDs))
+	for i, sysID := range allowedSystemIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = sysID
+	}
+	placeholdersStr := strings.Join(placeholders, ",")
+
+	// Query to get cumulative count for each date in the period
+	query := fmt.Sprintf(`
+		WITH date_series AS (
+			SELECT generate_series(
+				CURRENT_DATE - INTERVAL '%d days',
+				CURRENT_DATE,
+				INTERVAL '%s'
+			)::date AS date
+		)
+		SELECT
+			ds.date::text,
+			COALESCE((
+				SELECT COUNT(*)
+				FROM applications
+				WHERE deleted_at IS NULL
+				  AND system_id IN (%s)
+				  AND created_at::date <= ds.date
+			), 0) AS count
+		FROM date_series ds
+		ORDER BY ds.date
+	`, period, interval, placeholdersStr)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("failed to query applications trend data: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var dataPoints []struct {
+		Date  string
+		Count int
+	}
+
+	for rows.Next() {
+		var date string
+		var count int
+		if err := rows.Scan(&date, &count); err != nil {
+			return nil, 0, 0, fmt.Errorf("failed to scan applications trend data: %w", err)
+		}
+		dataPoints = append(dataPoints, struct {
+			Date  string
+			Count int
+		}{Date: date, Count: count})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, 0, fmt.Errorf("error iterating applications trend data: %w", err)
+	}
+
+	// Calculate current and previous totals
+	var currentTotal, previousTotal int
+	if len(dataPoints) > 0 {
+		currentTotal = dataPoints[len(dataPoints)-1].Count
+		previousTotal = dataPoints[0].Count
+	}
+
+	return dataPoints, currentTotal, previousTotal, nil
+}
+
 // GetDistinctTypes returns distinct application types
 func (r *LocalApplicationRepository) GetDistinctTypes(allowedSystemIDs []string, userFacingOnly bool) ([]string, error) {
 	if len(allowedSystemIDs) == 0 {
@@ -600,17 +700,17 @@ func (r *LocalApplicationRepository) GetDistinctVersions(allowedSystemIDs []stri
 func (r *LocalApplicationRepository) Create(app *models.Application) error {
 	query := `
 		INSERT INTO applications (
-			id, system_id, module_id, instance_of, display_name, node_id, domain_id,
+			id, system_id, module_id, instance_of, display_name, node_id, node_label, domain_id,
 			version, organization_id, organization_type, status, inventory_data,
 			backup_data, services_data, url, notes, is_user_facing,
 			created_at, updated_at, first_seen_at, last_inventory_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
 		)
 	`
 
 	_, err := r.db.Exec(query,
-		app.ID, app.SystemID, app.ModuleID, app.InstanceOf, app.DisplayName, app.NodeID, app.DomainID,
+		app.ID, app.SystemID, app.ModuleID, app.InstanceOf, app.DisplayName, app.NodeID, app.NodeLabel, app.DomainID,
 		app.Version, app.OrganizationID, app.OrganizationType, app.Status, app.InventoryData,
 		app.BackupData, app.ServicesData, app.URL, app.Notes, app.IsUserFacing,
 		app.CreatedAt, app.UpdatedAt, app.FirstSeenAt, app.LastInventoryAt,
@@ -720,24 +820,25 @@ func (r *LocalApplicationRepository) Delete(id string) error {
 func (r *LocalApplicationRepository) UpdateFromInventory(
 	systemID, moduleID string,
 	nodeID *int,
-	domainID, version *string,
+	nodeLabel, domainID, version *string,
 	inventoryData json.RawMessage,
 	isUserFacing bool,
 ) error {
 	query := `
 		UPDATE applications
 		SET node_id = $3,
-		    domain_id = $4,
-		    version = $5,
-		    inventory_data = $6,
-		    is_user_facing = $7,
-		    last_inventory_at = $8,
-		    updated_at = $8
+		    node_label = $4,
+		    domain_id = $5,
+		    version = $6,
+		    inventory_data = $7,
+		    is_user_facing = $8,
+		    last_inventory_at = $9,
+		    updated_at = $9
 		WHERE system_id = $1 AND module_id = $2 AND deleted_at IS NULL
 	`
 
 	now := time.Now()
-	result, err := r.db.Exec(query, systemID, moduleID, nodeID, domainID, version, inventoryData, isUserFacing, now)
+	result, err := r.db.Exec(query, systemID, moduleID, nodeID, nodeLabel, domainID, version, inventoryData, isUserFacing, now)
 	if err != nil {
 		return fmt.Errorf("failed to update application from inventory: %w", err)
 	}
@@ -754,21 +855,22 @@ func (r *LocalApplicationRepository) UpdateFromInventory(
 func (r *LocalApplicationRepository) UpsertFromInventory(
 	id, systemID, moduleID, instanceOf string,
 	nodeID *int,
-	domainID, version *string,
+	nodeLabel, domainID, version *string,
 	inventoryData json.RawMessage,
 	isUserFacing bool,
 ) error {
 	query := `
 		INSERT INTO applications (
-			id, system_id, module_id, instance_of, node_id, domain_id, version,
+			id, system_id, module_id, instance_of, node_id, node_label, domain_id, version,
 			inventory_data, is_user_facing, status,
 			created_at, updated_at, first_seen_at, last_inventory_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, 'unassigned', $10, $10, $10, $10
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'unassigned', $11, $11, $11, $11
 		)
 		ON CONFLICT (system_id, module_id) WHERE deleted_at IS NULL
 		DO UPDATE SET
 			node_id = EXCLUDED.node_id,
+			node_label = EXCLUDED.node_label,
 			domain_id = EXCLUDED.domain_id,
 			version = EXCLUDED.version,
 			inventory_data = EXCLUDED.inventory_data,
@@ -778,7 +880,7 @@ func (r *LocalApplicationRepository) UpsertFromInventory(
 	`
 
 	now := time.Now()
-	_, err := r.db.Exec(query, id, systemID, moduleID, instanceOf, nodeID, domainID, version, inventoryData, isUserFacing, now)
+	_, err := r.db.Exec(query, id, systemID, moduleID, instanceOf, nodeID, nodeLabel, domainID, version, inventoryData, isUserFacing, now)
 	if err != nil {
 		return fmt.Errorf("failed to upsert application: %w", err)
 	}

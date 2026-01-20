@@ -430,6 +430,7 @@ CREATE TABLE IF NOT EXISTS applications (
 
     -- From inventory
     node_id INTEGER,                        -- Cluster node ID where the app runs
+    node_label VARCHAR(255),                -- Node label (e.g., "Leader Node", "Worker Node")
     domain_id VARCHAR(255),                 -- User domain associated with the app (can be null)
     version VARCHAR(100),                   -- Application version (when available from inventory)
 
@@ -470,6 +471,7 @@ COMMENT ON COLUMN applications.module_id IS 'Unique module identifier from inven
 COMMENT ON COLUMN applications.instance_of IS 'Application type from inventory (e.g., nethvoice, webtop, mail, nextcloud)';
 COMMENT ON COLUMN applications.display_name IS 'Custom display name for UI. Falls back to module_id if NULL';
 COMMENT ON COLUMN applications.node_id IS 'Cluster node ID where the application runs';
+COMMENT ON COLUMN applications.node_label IS 'Node label from inventory (e.g., Leader Node, Worker Node)';
 COMMENT ON COLUMN applications.domain_id IS 'User domain associated with the application (from inventory)';
 COMMENT ON COLUMN applications.organization_id IS 'Assigned organization ID. NULL means unassigned';
 COMMENT ON COLUMN applications.organization_type IS 'Denormalized organization type for efficient filtering';

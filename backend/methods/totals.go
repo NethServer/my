@@ -455,3 +455,59 @@ func GetUsersTrend(c *gin.Context) {
 
 	c.JSON(http.StatusOK, response.OK("users trend retrieved successfully", trend))
 }
+
+// GetApplicationsTrend returns trend data for applications over a specified period
+func GetApplicationsTrend(c *gin.Context) {
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	// Get period parameter (default: 7 days)
+	periodStr := c.DefaultQuery("period", "7")
+	period, err := strconv.Atoi(periodStr)
+	if err != nil || (period != 7 && period != 30 && period != 180 && period != 365) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid period parameter (supported: 7, 30, 180, 365)", nil))
+		return
+	}
+
+	// Get trend data from service
+	appsService := local.NewApplicationsService()
+	dataPoints, currentTotal, previousTotal, err := appsService.GetApplicationsTrend(strings.ToLower(userOrgRole), userOrgID, period)
+	if err != nil {
+		logger.Error().Str("component", "trend").Str("operation", "get_applications_trend").Err(err).Int("period", period).Msg("failed to retrieve applications trend")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve applications trend", nil))
+		return
+	}
+
+	// Build response
+	delta := currentTotal - previousTotal
+	deltaPercentage := 0.0
+	if previousTotal > 0 {
+		deltaPercentage = (float64(delta) / float64(previousTotal)) * 100
+	}
+
+	trend := "stable"
+	if delta > 0 {
+		trend = "up"
+	} else if delta < 0 {
+		trend = "down"
+	}
+
+	periodLabel := map[int]string{7: "7 days", 30: "30 days", 180: "180 days", 365: "365 days"}[period]
+
+	trendResponse := map[string]interface{}{
+		"period":           period,
+		"period_label":     periodLabel,
+		"current_total":    currentTotal,
+		"previous_total":   previousTotal,
+		"delta":            delta,
+		"delta_percentage": deltaPercentage,
+		"trend":            trend,
+		"data_points":      dataPoints,
+	}
+
+	logger.Info().Str("component", "trend").Str("operation", "applications_trend").Str("user_org_id", userOrgID).Str("user_org_role", userOrgRole).Int("period", period).Int("current_total", currentTotal).Int("delta", delta).Str("trend", trend).Msg("applications trend retrieved")
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "applications trend retrieved successfully", "data": trendResponse})
+}

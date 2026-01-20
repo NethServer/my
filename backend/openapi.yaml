@@ -777,18 +777,76 @@ components:
           description: Total count
           example: 125
 
-    OrganizationStats:
+    DistributorStats:
       type: object
-      description: Statistics for an organization (users and systems count)
+      description: Statistics for a distributor (users, systems, resellers, customers and applications count)
       properties:
         users_count:
           type: integer
-          description: Number of users in the organization
-          example: 15
+          description: Number of users in the distributor organization
+          example: 980
         systems_count:
           type: integer
-          description: Number of systems in the organization
-          example: 42
+          description: Number of systems in the distributor organization
+          example: 32
+        resellers_count:
+          type: integer
+          description: Number of resellers created by this distributor
+          example: 25
+        customers_count:
+          type: integer
+          description: Number of customers in the distributor hierarchy (via resellers)
+          example: 420
+        applications_count:
+          type: integer
+          description: Number of applications directly associated with this distributor
+          example: 50
+        applications_hierarchy_count:
+          type: integer
+          description: Total number of applications in the distributor hierarchy (distributor + resellers + customers)
+          example: 3246
+
+    ResellerStats:
+      type: object
+      description: Statistics for a reseller (users, systems, customers and applications count)
+      properties:
+        users_count:
+          type: integer
+          description: Number of users in the reseller organization
+          example: 8
+        systems_count:
+          type: integer
+          description: Number of systems in the reseller organization
+          example: 32
+        customers_count:
+          type: integer
+          description: Number of customers created by this reseller
+          example: 252
+        applications_count:
+          type: integer
+          description: Number of applications directly associated with this reseller
+          example: 20
+        applications_hierarchy_count:
+          type: integer
+          description: Total number of applications in the reseller hierarchy (reseller + customers)
+          example: 500
+
+    CustomerStats:
+      type: object
+      description: Statistics for a customer (users, systems and applications count)
+      properties:
+        users_count:
+          type: integer
+          description: Number of users in the customer organization
+          example: 2
+        systems_count:
+          type: integer
+          description: Number of systems in the customer organization
+          example: 2
+        applications_count:
+          type: integer
+          description: Number of applications directly associated with this customer
+          example: 22
 
     TrendResponse:
       type: object
@@ -1052,6 +1110,11 @@ components:
           nullable: true
           description: Node ID within the cluster
           example: 1
+        node_label:
+          type: string
+          nullable: true
+          description: Node label from inventory (e.g., Leader Node, Worker Node)
+          example: "Leader Node"
         domain_id:
           type: string
           nullable: true
@@ -1175,6 +1238,11 @@ components:
           nullable: true
           description: Node ID within the cluster
           example: 1
+        node_label:
+          type: string
+          nullable: true
+          description: Node label from inventory (e.g., Leader Node, Worker Node)
+          example: "Worker Node"
         has_errors:
           type: boolean
           description: Whether the application has service errors
@@ -3475,7 +3543,7 @@ paths:
       tags:
         - Backend - Customers
       summary: /customers/{id}/stats - Get customer statistics
-      description: Get users and systems count for a specific customer (Owner + Distributor + Reseller + own Customer)
+      description: Get users, systems and applications count for a specific customer (Owner + Distributor + Reseller + own Customer)
       parameters:
         - name: id
           in: path
@@ -3498,7 +3566,7 @@ paths:
                     type: string
                     example: "customer stats retrieved successfully"
                   data:
-                    $ref: '#/components/schemas/OrganizationStats'
+                    $ref: '#/components/schemas/CustomerStats'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -3911,7 +3979,7 @@ paths:
       tags:
         - Backend - Distributors
       summary: /distributors/{id}/stats - Get distributor statistics
-      description: Get users and systems count for a specific distributor (Owner only)
+      description: Get users, systems, resellers and customers count for a specific distributor (Owner only)
       parameters:
         - name: id
           in: path
@@ -3934,7 +4002,7 @@ paths:
                     type: string
                     example: "distributor stats retrieved successfully"
                   data:
-                    $ref: '#/components/schemas/OrganizationStats'
+                    $ref: '#/components/schemas/DistributorStats'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -4668,7 +4736,7 @@ paths:
       tags:
         - Backend - Resellers
       summary: /resellers/{id}/stats - Get reseller statistics
-      description: Get users and systems count for a specific reseller (Owner + Distributor + own Reseller)
+      description: Get users, systems and customers count for a specific reseller (Owner + Distributor + own Reseller)
       parameters:
         - name: id
           in: path
@@ -4691,7 +4759,7 @@ paths:
                     type: string
                     example: "reseller stats retrieved successfully"
                   data:
-                    $ref: '#/components/schemas/OrganizationStats'
+                    $ref: '#/components/schemas/ResellerStats'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -5887,6 +5955,44 @@ paths:
                     example: "application totals retrieved successfully"
                   data:
                     $ref: '#/components/schemas/ApplicationTotals'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /applications/trend:
+    get:
+      operationId: getApplicationsTrend
+      tags:
+        - Backend - Applications
+      summary: /applications/trend - Get applications trend data
+      description: Get trend data for applications over a specified period showing daily counts
+      parameters:
+        - name: period
+          in: query
+          required: false
+          description: Number of days to include in trend data (default 7, max 365)
+          schema:
+            type: integer
+            default: 7
+            minimum: 1
+            maximum: 365
+      responses:
+        '200':
+          description: Applications trend data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "applications trend retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/TrendResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

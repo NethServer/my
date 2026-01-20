@@ -342,6 +342,10 @@ func GetDistributorStats(c *gin.Context) {
 		Str("distributor_id", distributorID).
 		Int("users_count", stats.UsersCount).
 		Int("systems_count", stats.SystemsCount).
+		Int("resellers_count", stats.ResellersCount).
+		Int("customers_count", stats.CustomersCount).
+		Int("applications_count", stats.ApplicationsCount).
+		Int("applications_hierarchy_count", stats.ApplicationsHierarchyCount).
 		Msg("Distributor stats requested")
 
 	// Return stats

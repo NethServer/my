@@ -132,6 +132,32 @@ type OrganizationStats struct {
 	SystemsCount int `json:"systems_count"`
 }
 
+// DistributorStats represents statistics for a distributor (includes resellers, customers, and applications)
+type DistributorStats struct {
+	UsersCount                 int `json:"users_count"`
+	SystemsCount               int `json:"systems_count"`
+	ResellersCount             int `json:"resellers_count"`
+	CustomersCount             int `json:"customers_count"`
+	ApplicationsCount          int `json:"applications_count"`           // direct applications
+	ApplicationsHierarchyCount int `json:"applications_hierarchy_count"` // applications in hierarchy
+}
+
+// ResellerStats represents statistics for a reseller (includes customers and applications)
+type ResellerStats struct {
+	UsersCount                 int `json:"users_count"`
+	SystemsCount               int `json:"systems_count"`
+	CustomersCount             int `json:"customers_count"`
+	ApplicationsCount          int `json:"applications_count"`           // direct applications
+	ApplicationsHierarchyCount int `json:"applications_hierarchy_count"` // applications in hierarchy
+}
+
+// CustomerStats represents statistics for a customer (includes applications)
+type CustomerStats struct {
+	UsersCount        int `json:"users_count"`
+	SystemsCount      int `json:"systems_count"`
+	ApplicationsCount int `json:"applications_count"` // direct applications only (leaf node)
+}
+
 // Create requests
 type CreateLocalDistributorRequest struct {
 	Name        string                 `json:"name" validate:"required,min=1,max=255"`
