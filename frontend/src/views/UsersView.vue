@@ -12,23 +12,20 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { PRODUCT_NAME } from '@/lib/config'
 import { canManageUsers } from '@/lib/permissions'
 import { useUsers } from '@/queries/users'
-// import { useI18n } from 'vue-i18n' ////
-// import { useUsers } from '@/queries/users' ////
-// import { downloadFile } from '@/lib/common' ////
+import { useI18n } from 'vue-i18n'
+// import { getExport } from '@/lib/users' ////
 
-// const { t } = useI18n()
-// const {
-//   state,
-//   asyncStatus,
-//   pageNum,
-//   pageSize,
-//   textFilter,
-//   debouncedTextFilter,
-//   sortBy,
-//   sortDescending,
-// } = useUsers() ////
-
-const { state, debouncedTextFilter } = useUsers()
+const { t } = useI18n()
+const {
+  state,
+  asyncStatus,
+  pageNum,
+  pageSize,
+  textFilter,
+  debouncedTextFilter,
+  sortBy,
+  sortDescending,
+} = useUsers()
 
 const isShownCreateUserDrawer = ref(false)
 
@@ -43,14 +40,14 @@ const usersPage = computed(() => {
 //       id: 'exportFilteredToPdf',
 //       label: t('users.export_users_to_pdf'),
 //       icon: faFilePdf,
-//       action: () => exportUsers('pdf'),
+//       // action: () => exportUsers('pdf'), ////
 //       disabled: !state.value.data?.users,
 //     },
 //     {
 //       id: 'exportFilteredToCsv',
 //       label: t('users.export_users_to_csv'),
 //       icon: faFileCsv,
-//       action: () => exportUsers('csv'),
+//       // action: () => exportUsers('csv'), ////
 //       disabled: !state.value.data?.users,
 //     },
 //   ]
@@ -61,7 +58,6 @@ const usersPage = computed(() => {
 //   try {
 //     const exportData = await getExport(
 //       format,
-//       undefined,
 //       debouncedTextFilter.value,
 //       productFilter.value,
 //       createdByFilter.value,
