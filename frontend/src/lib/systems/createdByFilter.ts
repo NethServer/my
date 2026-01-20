@@ -6,7 +6,7 @@ import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 
 export const CREATED_BY_FILTER_KEY = 'createdByFilter'
-export const CREATED_BY_FILTER_PATH = 'filters/created-by'
+export const CREATED_BY_FILTER_PATH = 'filters/systems/created-by'
 
 interface CreatedByFilterResponse {
   code: number
