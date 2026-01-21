@@ -33,7 +33,7 @@
     "show": "Show",
     "hide": "Hide",
     "coming_soon": "Coming soon",
-    "view_details": "View details",
+    "view": "View",
     "ip_address": "IP address",
     "click_to_copy": "Click to copy",
     "suspend": "Suspend",
@@ -347,6 +347,7 @@
   "systems": {
     "title": "Systems",
     "page_description": "List of licensed NethServer and NethSecurity systems.",
+    "system": "System",
     "cannot_retrieve_systems": "Cannot retrieve systems",
     "no_systems": "No systems configured",
     "no_systems_found": "No systems found",
@@ -432,6 +433,19 @@
     "system_creation": "System creation",
     "system_key": "System key",
     "cannot_determine_system_url_description": "Cannot access the system because its URL cannot be determined."
+  },
+  "applications": {
+    "title": "Applications",
+    "page_description": "List of applications installed on licensed NethServer systems.",
+    "cannot_retrieve_applications": "Cannot retrieve applications",
+    "no_applications": "No applications yet",
+    "no_applications_description": "Applications will appear here when they are installed on your NethServer systems.",
+    "no_applications_found": "No applications found",
+    "filter_applications": "Filter applications",
+    "version": "Version",
+    "type": "Type",
+    "assign_organization": "Assign organization",
+    "name": "Name"
   },
   "ne_table": {
     "no_items": "No items",
