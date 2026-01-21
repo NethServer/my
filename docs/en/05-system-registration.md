@@ -323,7 +323,7 @@ MY_SYSTEM_SECRET=my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d
 Administrators can view registration status:
 
 1. Navigate to **Systems**
-2. Find the system and click **View details**
+2. Find the system and click **View**
 3. Check fields:
    - **System_key**: Now visible (was hidden before)
    - **Subscription**: Shows timestamp
