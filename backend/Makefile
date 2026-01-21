@@ -1,3 +1,6 @@
+# Use bash for shell commands (required for 'source' command on Linux)
+SHELL := /bin/bash
+
 # Variables
 BINARY_NAME=backend
 BUILD_DIR=build

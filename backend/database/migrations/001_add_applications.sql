@@ -89,15 +89,42 @@ CREATE INDEX IF NOT EXISTS idx_applications_org_type_status
 CREATE INDEX IF NOT EXISTS idx_applications_system_user_facing
     ON applications(system_id, is_user_facing) WHERE deleted_at IS NULL;
 
--- Foreign key to systems
-ALTER TABLE applications
-ADD CONSTRAINT applications_system_id_fkey
-FOREIGN KEY (system_id) REFERENCES systems(id) ON DELETE CASCADE;
+-- Foreign key to systems (idempotent)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'applications_system_id_fkey'
+        AND table_name = 'applications'
+    ) THEN
+        ALTER TABLE applications
+        ADD CONSTRAINT applications_system_id_fkey
+        FOREIGN KEY (system_id) REFERENCES systems(id) ON DELETE CASCADE;
+    END IF;
+END $$;
 
--- Status validation
-ALTER TABLE applications ADD CONSTRAINT chk_applications_status
-    CHECK (status IN ('unassigned', 'assigned', 'error'));
+-- Status validation (idempotent)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'chk_applications_status'
+        AND table_name = 'applications'
+    ) THEN
+        ALTER TABLE applications ADD CONSTRAINT chk_applications_status
+            CHECK (status IN ('unassigned', 'assigned', 'error'));
+    END IF;
+END $$;
 
--- Organization type validation
-ALTER TABLE applications ADD CONSTRAINT chk_applications_org_type
-    CHECK (organization_type IS NULL OR organization_type IN ('owner', 'distributor', 'reseller', 'customer'));
+-- Organization type validation (idempotent)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'chk_applications_org_type'
+        AND table_name = 'applications'
+    ) THEN
+        ALTER TABLE applications ADD CONSTRAINT chk_applications_org_type
+            CHECK (organization_type IS NULL OR organization_type IN ('owner', 'distributor', 'reseller', 'customer'));
+    END IF;
+END $$;

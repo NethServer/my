@@ -20,11 +20,11 @@ make dev-setup
 # Start PostgreSQL and Redis containers
 make dev-up
 
-# Run database migrations
-make db-migrate
-
-# Start the application
+# Start the application (initializes database with schema.sql on first run)
 make run
+
+# Run database migrations (applies incremental changes on top of base schema)
+make db-migrate
 
 # Stop PostgreSQL and Redis when done
 make dev-down
