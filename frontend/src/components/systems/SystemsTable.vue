@@ -662,7 +662,7 @@ function onCloseSecretRegeneratedModal() {
                   <template #prefix>
                     <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
                   </template>
-                  {{ $t('common.view_details') }}
+                  {{ $t('common.view') }}
                 </NeButton>
                 <!-- kebab menu -->
                 <NeDropdown :items="getKebabMenuItems(item)" :align-to-right="true" />
