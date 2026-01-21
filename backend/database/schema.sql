@@ -1,26 +1,49 @@
--- New Database Schema - Local-first approach with separate entity tables
--- This file replaces the old schema with a cleaner, performance-oriented structure
+-- =============================================================================
+-- Nethesis Operation Center - Database Schema
+-- =============================================================================
+-- This schema implements a local-first approach with separate entity tables
+-- for distributors, resellers, customers, users, systems, and applications.
+-- All organization tables sync with Logto identity provider.
+-- =============================================================================
 
--- Distributors table - local mirror of distributor organizations
+-- =============================================================================
+-- DISTRIBUTORS TABLE
+-- =============================================================================
+-- Top-level business partners in the hierarchy (Owner > Distributor > Reseller > Customer)
+-- Synced with Logto organizations
+
 CREATE TABLE IF NOT EXISTS distributors (
-    id VARCHAR(255) PRIMARY KEY,
-    logto_id VARCHAR(255),
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    custom_data JSONB,
+    id VARCHAR(255) PRIMARY KEY,            -- Local unique identifier
+
+    -- Logto synchronization
+    logto_id VARCHAR(255),                  -- Logto organization ID (synced from Logto)
+    logto_synced_at TIMESTAMP WITH TIME ZONE,  -- Last successful sync timestamp
+    logto_sync_error TEXT,                  -- Last sync error message (if any)
+
+    -- Business information
+    name VARCHAR(255) NOT NULL,             -- Display name (e.g., "Acme Distribution")
+    description TEXT,                       -- Optional description
+
+    -- Flexible metadata (VAT, address, contact, etc.)
+    custom_data JSONB,                      -- {vat, address, city, contact, email, phone, language, notes, createdBy}
+
+    -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    logto_synced_at TIMESTAMP WITH TIME ZONE,
-    logto_sync_error TEXT,
-    deleted_at TIMESTAMP WITH TIME ZONE,   -- Soft delete timestamp (NULL = active, non-NULL = deleted)
-    suspended_at TIMESTAMP WITH TIME ZONE  -- Suspension timestamp (NULL = enabled, non-NULL = blocked)
+
+    -- Soft delete and suspension
+    deleted_at TIMESTAMP WITH TIME ZONE,    -- NULL = active, non-NULL = soft deleted
+    suspended_at TIMESTAMP WITH TIME ZONE   -- NULL = active, non-NULL = suspended/blocked
 );
 
--- Comments for distributors
-COMMENT ON COLUMN distributors.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted at that time.';
-COMMENT ON COLUMN distributors.suspended_at IS 'Suspension timestamp. NULL means enabled, non-NULL means blocked/suspended at that time.';
+-- Table documentation
+COMMENT ON TABLE distributors IS 'Top-level business partners that can have resellers and customers';
+COMMENT ON COLUMN distributors.logto_id IS 'Logto organization ID for identity provider sync';
+COMMENT ON COLUMN distributors.custom_data IS 'Flexible JSON: {vat, address, city, contact, email, phone, language, notes, createdBy}';
+COMMENT ON COLUMN distributors.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted';
+COMMENT ON COLUMN distributors.suspended_at IS 'Suspension timestamp. NULL means active, non-NULL means blocked';
 
--- Performance indexes for distributors
+-- Performance indexes
 CREATE UNIQUE INDEX IF NOT EXISTS idx_distributors_logto_id ON distributors(logto_id) WHERE logto_id IS NOT NULL AND deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_distributors_deleted_at ON distributors(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_distributors_suspended_at ON distributors(suspended_at);
@@ -29,26 +52,44 @@ CREATE INDEX IF NOT EXISTS idx_distributors_created_at ON distributors(created_a
 CREATE INDEX IF NOT EXISTS idx_distributors_name ON distributors(name);
 CREATE INDEX IF NOT EXISTS idx_distributors_vat_jsonb ON distributors((custom_data->>'vat'));
 
--- Resellers table - local mirror of reseller organizations
+-- =============================================================================
+-- RESELLERS TABLE
+-- =============================================================================
+-- Mid-level partners in hierarchy, belong to a distributor
+-- Synced with Logto organizations
+
 CREATE TABLE IF NOT EXISTS resellers (
-    id VARCHAR(255) PRIMARY KEY,
-    logto_id VARCHAR(255),
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    custom_data JSONB,
+    id VARCHAR(255) PRIMARY KEY,            -- Local unique identifier
+
+    -- Logto synchronization
+    logto_id VARCHAR(255),                  -- Logto organization ID (synced from Logto)
+    logto_synced_at TIMESTAMP WITH TIME ZONE,  -- Last successful sync timestamp
+    logto_sync_error TEXT,                  -- Last sync error message (if any)
+
+    -- Business information
+    name VARCHAR(255) NOT NULL,             -- Display name (e.g., "TechReseller Inc")
+    description TEXT,                       -- Optional description
+
+    -- Flexible metadata (VAT, address, contact, parent reference, etc.)
+    custom_data JSONB,                      -- {vat, address, city, contact, email, phone, language, notes, createdBy}
+
+    -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    logto_synced_at TIMESTAMP WITH TIME ZONE,
-    logto_sync_error TEXT,
-    deleted_at TIMESTAMP WITH TIME ZONE,   -- Soft delete timestamp (NULL = active, non-NULL = deleted)
-    suspended_at TIMESTAMP WITH TIME ZONE  -- Suspension timestamp (NULL = enabled, non-NULL = blocked)
+
+    -- Soft delete and suspension
+    deleted_at TIMESTAMP WITH TIME ZONE,    -- NULL = active, non-NULL = soft deleted
+    suspended_at TIMESTAMP WITH TIME ZONE   -- NULL = active, non-NULL = suspended/blocked
 );
 
--- Comments for resellers
-COMMENT ON COLUMN resellers.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted at that time.';
-COMMENT ON COLUMN resellers.suspended_at IS 'Suspension timestamp. NULL means enabled, non-NULL means blocked/suspended at that time.';
+-- Table documentation
+COMMENT ON TABLE resellers IS 'Mid-level partners belonging to distributors, can have customers';
+COMMENT ON COLUMN resellers.logto_id IS 'Logto organization ID for identity provider sync';
+COMMENT ON COLUMN resellers.custom_data IS 'Flexible JSON: {vat, address, city, contact, email, phone, language, notes, createdBy}';
+COMMENT ON COLUMN resellers.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted';
+COMMENT ON COLUMN resellers.suspended_at IS 'Suspension timestamp. NULL means active, non-NULL means blocked';
 
--- Performance indexes for resellers
+-- Performance indexes
 CREATE UNIQUE INDEX IF NOT EXISTS idx_resellers_logto_id ON resellers(logto_id) WHERE logto_id IS NOT NULL AND deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_resellers_deleted_at ON resellers(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_resellers_suspended_at ON resellers(suspended_at);
@@ -57,26 +98,44 @@ CREATE INDEX IF NOT EXISTS idx_resellers_created_at ON resellers(created_at DESC
 CREATE INDEX IF NOT EXISTS idx_resellers_name ON resellers(name);
 CREATE INDEX IF NOT EXISTS idx_resellers_vat_jsonb ON resellers((custom_data->>'vat'));
 
--- Customers table - local mirror of customer organizations
+-- =============================================================================
+-- CUSTOMERS TABLE
+-- =============================================================================
+-- End customers in hierarchy, belong to a distributor or reseller
+-- Synced with Logto organizations
+
 CREATE TABLE IF NOT EXISTS customers (
-    id VARCHAR(255) PRIMARY KEY,
-    logto_id VARCHAR(255),
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    custom_data JSONB,
+    id VARCHAR(255) PRIMARY KEY,            -- Local unique identifier
+
+    -- Logto synchronization
+    logto_id VARCHAR(255),                  -- Logto organization ID (synced from Logto)
+    logto_synced_at TIMESTAMP WITH TIME ZONE,  -- Last successful sync timestamp
+    logto_sync_error TEXT,                  -- Last sync error message (if any)
+
+    -- Business information
+    name VARCHAR(255) NOT NULL,             -- Display name (e.g., "Example Corp")
+    description TEXT,                       -- Optional description
+
+    -- Flexible metadata (VAT, address, contact, parent reference, etc.)
+    custom_data JSONB,                      -- {vat, address, city, contact, email, phone, language, notes, createdBy}
+
+    -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    logto_synced_at TIMESTAMP WITH TIME ZONE,
-    logto_sync_error TEXT,
-    deleted_at TIMESTAMP WITH TIME ZONE,   -- Soft delete timestamp (NULL = active, non-NULL = deleted)
-    suspended_at TIMESTAMP WITH TIME ZONE  -- Suspension timestamp (NULL = enabled, non-NULL = blocked)
+
+    -- Soft delete and suspension
+    deleted_at TIMESTAMP WITH TIME ZONE,    -- NULL = active, non-NULL = soft deleted
+    suspended_at TIMESTAMP WITH TIME ZONE   -- NULL = active, non-NULL = suspended/blocked
 );
 
--- Comments for customers
-COMMENT ON COLUMN customers.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted at that time.';
-COMMENT ON COLUMN customers.suspended_at IS 'Suspension timestamp. NULL means enabled, non-NULL means blocked/suspended at that time.';
+-- Table documentation
+COMMENT ON TABLE customers IS 'End customers belonging to distributors or resellers';
+COMMENT ON COLUMN customers.logto_id IS 'Logto organization ID for identity provider sync';
+COMMENT ON COLUMN customers.custom_data IS 'Flexible JSON: {vat, address, city, contact, email, phone, language, notes, createdBy}';
+COMMENT ON COLUMN customers.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted';
+COMMENT ON COLUMN customers.suspended_at IS 'Suspension timestamp. NULL means active, non-NULL means blocked';
 
--- Performance indexes for customers
+-- Performance indexes
 CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_logto_id ON customers(logto_id) WHERE logto_id IS NOT NULL AND deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_customers_deleted_at ON customers(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_customers_suspended_at ON customers(suspended_at);
@@ -85,33 +144,55 @@ CREATE INDEX IF NOT EXISTS idx_customers_created_at ON customers(created_at DESC
 CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);
 CREATE INDEX IF NOT EXISTS idx_customers_vat_jsonb ON customers((custom_data->>'vat'));
 
--- Users table - local mirror with organization membership (Approach 2)
+-- =============================================================================
+-- USERS TABLE
+-- =============================================================================
+-- User accounts with organization membership (1 user = 1 organization)
+-- Synced with Logto users
+
 CREATE TABLE IF NOT EXISTS users (
-    id VARCHAR(255) PRIMARY KEY,
-    logto_id VARCHAR(255),
-    username VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL,
-    name VARCHAR(255),
-    phone VARCHAR(20),
+    id VARCHAR(255) PRIMARY KEY,            -- Local unique identifier
+
+    -- Logto synchronization
+    logto_id VARCHAR(255),                  -- Logto user ID (synced from Logto)
+    logto_synced_at TIMESTAMP WITH TIME ZONE,  -- Last successful sync timestamp
+
+    -- User identity
+    username VARCHAR(255) NOT NULL,         -- Unique username
+    email VARCHAR(255) NOT NULL,            -- Unique email address
+    name VARCHAR(255),                      -- Display name (e.g., "John Doe")
+    phone VARCHAR(20),                      -- Phone number (optional)
 
     -- Organization membership (1 user = 1 organization)
-    organization_id VARCHAR(255),
-    user_role_ids JSONB DEFAULT '[]',      -- Technical role IDs (e.g., ['role1', 'role2'])
-    custom_data JSONB,
+    organization_id VARCHAR(255),           -- Logto organization ID the user belongs to
 
+    -- Role assignment
+    user_role_ids JSONB DEFAULT '[]',       -- Array of technical role IDs (e.g., ["admin-role-id", "support-role-id"])
+
+    -- Flexible metadata
+    custom_data JSONB,                      -- Additional user metadata
+
+    -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    logto_synced_at TIMESTAMP WITH TIME ZONE,
-    latest_login_at TIMESTAMP WITH TIME ZONE,
-    deleted_at TIMESTAMP WITH TIME ZONE,        -- Soft delete timestamp (NULL = not deleted)
-    suspended_at TIMESTAMP WITH TIME ZONE,      -- Suspension timestamp (NULL = not suspended)
-    suspended_by_org_id VARCHAR(255)            -- Organization ID that caused cascade suspension
+    latest_login_at TIMESTAMP WITH TIME ZONE,  -- Last login timestamp
+
+    -- Soft delete and suspension
+    deleted_at TIMESTAMP WITH TIME ZONE,    -- NULL = active, non-NULL = soft deleted
+    suspended_at TIMESTAMP WITH TIME ZONE,  -- NULL = active, non-NULL = suspended/blocked
+    suspended_by_org_id VARCHAR(255)        -- Organization ID that caused cascade suspension
 );
 
--- Comment for users.suspended_by_org_id
-COMMENT ON COLUMN users.suspended_by_org_id IS 'Organization ID that caused this user to be suspended (for cascade reactivation)';
+-- Table documentation
+COMMENT ON TABLE users IS 'User accounts with organization membership, synced with Logto';
+COMMENT ON COLUMN users.logto_id IS 'Logto user ID for identity provider sync';
+COMMENT ON COLUMN users.organization_id IS 'Logto organization ID the user belongs to';
+COMMENT ON COLUMN users.user_role_ids IS 'Array of Logto role IDs assigned to user';
+COMMENT ON COLUMN users.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted';
+COMMENT ON COLUMN users.suspended_at IS 'Suspension timestamp. NULL means active, non-NULL means blocked';
+COMMENT ON COLUMN users.suspended_by_org_id IS 'Organization ID that caused cascade suspension (for automatic reactivation)';
 
--- Performance indexes for users
+-- Performance indexes
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_logto_id ON users(logto_id) WHERE logto_id IS NOT NULL AND deleted_at IS NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE deleted_at IS NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE deleted_at IS NULL;
@@ -123,45 +204,60 @@ CREATE INDEX IF NOT EXISTS idx_users_logto_synced ON users(logto_synced_at);
 CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_users_latest_login_at ON users(latest_login_at DESC);
 
--- Systems table - access control based on organization_id
+-- =============================================================================
+-- SYSTEMS TABLE
+-- =============================================================================
+-- NS8/NethSecurity systems registered for monitoring
+-- Systems authenticate via system_key + system_secret for inventory/heartbeat
+
 CREATE TABLE IF NOT EXISTS systems (
-    id VARCHAR(255) PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    type VARCHAR(100),  -- Populated by collect service on first inventory
-    status VARCHAR(50) NOT NULL DEFAULT 'unknown',  -- Default: unknown, updated by collect service
-    fqdn VARCHAR(255),
-    ipv4_address INET,
-    ipv6_address INET,
-    version VARCHAR(100),
-    organization_id VARCHAR(255) NOT NULL,
-    custom_data JSONB,
-    system_key VARCHAR(255) UNIQUE NOT NULL,
-    system_secret_public VARCHAR(64),  -- Public part of token (my_<public>.<secret>)
-    system_secret VARCHAR(512) NOT NULL,  -- Argon2id hash of secret part
-    notes TEXT DEFAULT '',
+    id VARCHAR(255) PRIMARY KEY,            -- Local unique identifier
+
+    -- System identity
+    name VARCHAR(255) NOT NULL,             -- Display name (e.g., "Milan Office Server")
+    type VARCHAR(100),                      -- System type: "ns8", "nsec" (populated by collect on first inventory)
+    fqdn VARCHAR(255),                      -- Fully qualified domain name (from inventory)
+    ipv4_address INET,                      -- Public IPv4 address (from inventory)
+    ipv6_address INET,                      -- Public IPv6 address (from inventory)
+    version VARCHAR(100),                   -- OS/system version (from inventory)
+
+    -- Status (managed by collect service heartbeat monitor)
+    status VARCHAR(50) NOT NULL DEFAULT 'unknown',  -- unknown, online, offline, deleted
+
+    -- Organization ownership
+    organization_id VARCHAR(255) NOT NULL,  -- Logto organization ID that owns this system
+
+    -- Authentication credentials
+    system_key VARCHAR(255) UNIQUE NOT NULL,     -- Unique system key for identification
+    system_secret_public VARCHAR(64),            -- Public part of token (my_<public>.<secret>) for fast lookup
+    system_secret VARCHAR(512) NOT NULL,         -- Argon2id hash of secret part in PHC format
+
+    -- Metadata
+    custom_data JSONB,                      -- Additional system metadata
+    notes TEXT DEFAULT '',                  -- User notes/description
+    created_by JSONB NOT NULL,              -- {user_id, username, organization_id} who created the system
+
+    -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    deleted_at TIMESTAMP WITH TIME ZONE,  -- Soft delete timestamp (NULL = active, non-NULL = deleted)
-    registered_at TIMESTAMP WITH TIME ZONE,  -- Registration timestamp (NULL = not registered, non-NULL = registered)
-    created_by JSONB NOT NULL
+    registered_at TIMESTAMP WITH TIME ZONE, -- When system completed registration (NULL = not registered)
+
+    -- Soft delete
+    deleted_at TIMESTAMP WITH TIME ZONE     -- NULL = active, non-NULL = soft deleted
 );
 
--- Comment for systems.deleted_at
-COMMENT ON COLUMN systems.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted at that time.';
+-- Table documentation
+COMMENT ON TABLE systems IS 'NS8/NethSecurity systems registered for monitoring and inventory collection';
+COMMENT ON COLUMN systems.type IS 'System type from inventory: ns8 (NethServer 8), nsec (NethSecurity)';
+COMMENT ON COLUMN systems.status IS 'Heartbeat status: unknown (no data), online (active), offline (no heartbeat), deleted';
+COMMENT ON COLUMN systems.system_key IS 'Unique system key for identification (used with secret for auth)';
+COMMENT ON COLUMN systems.system_secret_public IS 'Public part of token (my_<public>.<secret>) for fast DB lookup';
+COMMENT ON COLUMN systems.system_secret IS 'Argon2id hash of secret part in PHC string format';
+COMMENT ON COLUMN systems.registered_at IS 'Timestamp when system first sent inventory. NULL = not yet registered';
+COMMENT ON COLUMN systems.created_by IS 'JSON object: {user_id, username, organization_id} who created the system';
+COMMENT ON COLUMN systems.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted';
 
--- Comment for systems.system_secret_public
-COMMENT ON COLUMN systems.system_secret_public IS 'Public part of system secret token for fast lookup (token format: my_<public>.<secret>)';
-
--- Comment for systems.system_secret
-COMMENT ON COLUMN systems.system_secret IS 'Argon2id hash of secret part in PHC string format (max 512 chars)';
-
--- Comment for systems.registered_at
-COMMENT ON COLUMN systems.registered_at IS 'Timestamp when system completed registration. NULL means not yet registered, non-NULL means registered at that time.';
-
--- Comment for systems.notes
-COMMENT ON COLUMN systems.notes IS 'Additional notes or description for the system';
-
--- Performance indexes for systems
+-- Performance indexes
 CREATE INDEX IF NOT EXISTS idx_systems_organization_id ON systems(organization_id);
 CREATE INDEX IF NOT EXISTS idx_systems_created_by_org ON systems((created_by->>'organization_id'));
 CREATE INDEX IF NOT EXISTS idx_systems_status ON systems(status);
@@ -175,7 +271,7 @@ CREATE INDEX IF NOT EXISTS idx_systems_fqdn ON systems(fqdn);
 CREATE INDEX IF NOT EXISTS idx_systems_ipv4_address ON systems(ipv4_address);
 CREATE INDEX IF NOT EXISTS idx_systems_ipv6_address ON systems(ipv6_address);
 
--- System status validation
+-- Status validation constraint
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_systems_status') THEN
@@ -184,303 +280,82 @@ BEGIN
     END IF;
 END $$;
 
--- VAT uniqueness constraint per organization role
--- This prevents the same VAT from being used within the same organization type
--- Only applies to active records (deleted_at IS NULL)
+-- =============================================================================
+-- APPLICATIONS TABLE
+-- =============================================================================
+-- Applications/modules extracted from NS8 cluster inventory
+-- Each row represents a module instance (e.g., nethvoice1, webtop3, mail1)
+-- Can be assigned to organizations for billing/management
 
--- VAT uniqueness function for distributors
-CREATE OR REPLACE FUNCTION check_unique_vat_distributors()
-RETURNS TRIGGER AS $$
-DECLARE
-    new_vat TEXT;
-BEGIN
-    new_vat := TRIM(NEW.custom_data->>'vat');
-
-    IF new_vat IS NULL OR new_vat = '' OR NEW.deleted_at IS NOT NULL THEN
-        RETURN NEW;
-    END IF;
-
-    -- Check in distributors only, excluding same id (for updates)
-    IF EXISTS (
-        SELECT 1 FROM distributors
-        WHERE TRIM(custom_data->>'vat') = new_vat
-          AND deleted_at IS NULL
-          AND (id IS DISTINCT FROM NEW.id)
-    ) THEN
-        RAISE EXCEPTION 'VAT "%" already exists in distributors', new_vat;
-    END IF;
-
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- VAT uniqueness function for resellers
-CREATE OR REPLACE FUNCTION check_unique_vat_resellers()
-RETURNS TRIGGER AS $$
-DECLARE
-    new_vat TEXT;
-BEGIN
-    new_vat := TRIM(NEW.custom_data->>'vat');
-
-    IF new_vat IS NULL OR new_vat = '' OR NEW.deleted_at IS NOT NULL THEN
-        RETURN NEW;
-    END IF;
-
-    -- Check in resellers only, excluding same id (for updates)
-    IF EXISTS (
-        SELECT 1 FROM resellers
-        WHERE TRIM(custom_data->>'vat') = new_vat
-          AND deleted_at IS NULL
-          AND (id IS DISTINCT FROM NEW.id)
-    ) THEN
-        RAISE EXCEPTION 'VAT "%" already exists in resellers', new_vat;
-    END IF;
-
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- VAT uniqueness function for customers (no uniqueness constraint)
-CREATE OR REPLACE FUNCTION check_unique_vat_customers()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- No VAT uniqueness constraint for customers
-    -- VAT is optional for customers and can be duplicate
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Distributors
-DROP TRIGGER IF EXISTS trg_check_vat_distributors ON distributors;
-CREATE TRIGGER trg_check_vat_distributors
-BEFORE INSERT OR UPDATE ON distributors
-FOR EACH ROW
-EXECUTE FUNCTION check_unique_vat_distributors();
-
--- Resellers
-DROP TRIGGER IF EXISTS trg_check_vat_resellers ON resellers;
-CREATE TRIGGER trg_check_vat_resellers
-BEFORE INSERT OR UPDATE ON resellers
-FOR EACH ROW
-EXECUTE FUNCTION check_unique_vat_resellers();
-
--- Customers
-DROP TRIGGER IF EXISTS trg_check_vat_customers ON customers;
-CREATE TRIGGER trg_check_vat_customers
-BEFORE INSERT OR UPDATE ON customers
-FOR EACH ROW
-EXECUTE FUNCTION check_unique_vat_customers();
-
--- Impersonation consents table
-CREATE TABLE IF NOT EXISTS impersonation_consents (
-    id VARCHAR(255) PRIMARY KEY,
-    user_id VARCHAR(255) NOT NULL,
-    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    max_duration_minutes INTEGER NOT NULL DEFAULT 60,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    active BOOLEAN NOT NULL DEFAULT TRUE
-);
-
--- Foreign key constraint for impersonation_consents
-ALTER TABLE impersonation_consents
-ADD CONSTRAINT impersonation_consents_user_id_fkey
-FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-
--- Indexes for impersonation_consents
-CREATE INDEX IF NOT EXISTS idx_impersonation_consents_user_id ON impersonation_consents(user_id);
-CREATE INDEX IF NOT EXISTS idx_impersonation_consents_active ON impersonation_consents(active);
-CREATE INDEX IF NOT EXISTS idx_impersonation_consents_expires_at ON impersonation_consents(expires_at);
-CREATE INDEX IF NOT EXISTS idx_impersonation_consents_user_active ON impersonation_consents(user_id, active);
-
--- Impersonation audit table
-CREATE TABLE IF NOT EXISTS impersonation_audit (
-    id VARCHAR(255) PRIMARY KEY,
-    session_id VARCHAR(255) NOT NULL,
-    impersonator_user_id VARCHAR(255) NOT NULL,
-    impersonated_user_id VARCHAR(255) NOT NULL,
-    action_type VARCHAR(50) NOT NULL,
-    api_endpoint VARCHAR(255),
-    http_method VARCHAR(10),
-    request_data TEXT,
-    response_status INTEGER,
-    response_status_text VARCHAR(50),
-    timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    impersonator_username VARCHAR(255) NOT NULL,
-    impersonated_username VARCHAR(255) NOT NULL,
-    impersonator_name TEXT,
-    impersonated_name TEXT
-);
-
--- Indexes for impersonation_audit
-CREATE INDEX IF NOT EXISTS idx_impersonation_audit_session_id ON impersonation_audit(session_id);
-CREATE INDEX IF NOT EXISTS idx_impersonation_audit_impersonator ON impersonation_audit(impersonator_user_id);
-CREATE INDEX IF NOT EXISTS idx_impersonation_audit_impersonated ON impersonation_audit(impersonated_user_id);
-CREATE INDEX IF NOT EXISTS idx_impersonation_audit_action_type ON impersonation_audit(action_type);
-CREATE INDEX IF NOT EXISTS idx_impersonation_audit_impersonator_name ON impersonation_audit(impersonator_name);
-CREATE INDEX IF NOT EXISTS idx_impersonation_audit_impersonated_name ON impersonation_audit(impersonated_name);
-
--- Inventory records table
-CREATE TABLE IF NOT EXISTS inventory_records (
-    id BIGSERIAL PRIMARY KEY,
-    system_id VARCHAR(255) NOT NULL,
-    timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
-    data JSONB NOT NULL,
-    data_hash VARCHAR(64) NOT NULL,
-    data_size BIGINT NOT NULL,
-    processed_at TIMESTAMP WITH TIME ZONE,
-    has_changes BOOLEAN NOT NULL DEFAULT FALSE,
-    change_count INTEGER NOT NULL DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
-
--- Indexes for inventory_records
-CREATE INDEX IF NOT EXISTS idx_inventory_records_system_id_timestamp ON inventory_records(system_id, timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_inventory_records_data_hash ON inventory_records(data_hash);
-CREATE INDEX IF NOT EXISTS idx_inventory_records_processed_at ON inventory_records(processed_at);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_inventory_records_system_data_hash ON inventory_records(system_id, data_hash);
-
--- Inventory diffs table
-CREATE TABLE IF NOT EXISTS inventory_diffs (
-    id BIGSERIAL PRIMARY KEY,
-    system_id VARCHAR(255) NOT NULL,
-    record_id BIGINT NOT NULL,
-    category VARCHAR(100) NOT NULL,
-    subcategory VARCHAR(100),
-    change_type VARCHAR(20) NOT NULL CHECK (change_type IN ('added', 'removed', 'modified')),
-    old_value JSONB,
-    new_value JSONB,
-    path VARCHAR(500),
-    timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
-
--- Foreign key constraint for inventory_diffs
-ALTER TABLE inventory_diffs
-ADD CONSTRAINT inventory_diffs_record_id_fkey
-FOREIGN KEY (record_id) REFERENCES inventory_records(id) ON DELETE CASCADE;
-
--- Indexes for inventory_diffs
-CREATE INDEX IF NOT EXISTS idx_inventory_diffs_system_id ON inventory_diffs(system_id);
-CREATE INDEX IF NOT EXISTS idx_inventory_diffs_record_id ON inventory_diffs(record_id);
-CREATE INDEX IF NOT EXISTS idx_inventory_diffs_category ON inventory_diffs(category);
-CREATE INDEX IF NOT EXISTS idx_inventory_diffs_change_type ON inventory_diffs(change_type);
-CREATE INDEX IF NOT EXISTS idx_inventory_diffs_timestamp ON inventory_diffs(timestamp DESC);
-
--- System heartbeats table
-CREATE TABLE IF NOT EXISTS system_heartbeats (
-    id BIGSERIAL PRIMARY KEY,
-    system_id VARCHAR(255) NOT NULL UNIQUE,
-    last_heartbeat TIMESTAMP WITH TIME ZONE NOT NULL,
-    status VARCHAR(20) NOT NULL DEFAULT 'online',
-    metadata JSONB,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
-
--- Foreign key constraint for system_heartbeats
-ALTER TABLE system_heartbeats
-ADD CONSTRAINT system_heartbeats_system_id_fkey
-FOREIGN KEY (system_id) REFERENCES systems(id) ON DELETE CASCADE;
-
--- Indexes for system_heartbeats
-CREATE INDEX IF NOT EXISTS idx_system_heartbeats_system_id ON system_heartbeats(system_id);
-CREATE INDEX IF NOT EXISTS idx_system_heartbeats_last_heartbeat ON system_heartbeats(last_heartbeat DESC);
-CREATE INDEX IF NOT EXISTS idx_system_heartbeats_status ON system_heartbeats(status);
-
--- Inventory alerts table
-CREATE TABLE IF NOT EXISTS inventory_alerts (
-    id BIGSERIAL PRIMARY KEY,
-    system_id VARCHAR(255) NOT NULL,
-    diff_id BIGINT,
-    alert_type VARCHAR(50) NOT NULL,
-    message TEXT NOT NULL,
-    severity VARCHAR(50) NOT NULL,
-    is_resolved BOOLEAN NOT NULL DEFAULT FALSE,
-    resolved_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
-
--- Foreign key constraints for inventory_alerts
-ALTER TABLE inventory_alerts
-ADD CONSTRAINT inventory_alerts_system_id_fkey
-FOREIGN KEY (system_id) REFERENCES systems(id) ON DELETE CASCADE;
-
-ALTER TABLE inventory_alerts
-ADD CONSTRAINT inventory_alerts_diff_id_fkey
-FOREIGN KEY (diff_id) REFERENCES inventory_diffs(id) ON DELETE SET NULL;
-
--- Indexes for inventory_alerts
-CREATE INDEX IF NOT EXISTS idx_inventory_alerts_system_id_created_at ON inventory_alerts(system_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_inventory_alerts_severity ON inventory_alerts(severity);
-CREATE INDEX IF NOT EXISTS idx_inventory_alerts_resolved ON inventory_alerts(is_resolved) WHERE is_resolved = FALSE;
-
--- Applications table - extracted from NS8 cluster inventory, with organization assignment
 CREATE TABLE IF NOT EXISTS applications (
-    id VARCHAR(255) PRIMARY KEY,
+    id VARCHAR(255) PRIMARY KEY,            -- Composite key: {system_id}-{module_id}
 
     -- Relationship to system (source of the application)
-    system_id VARCHAR(255) NOT NULL,
+    system_id VARCHAR(255) NOT NULL,        -- FK to systems table
 
     -- Identity from inventory (cluster_module_domain_table)
     module_id VARCHAR(255) NOT NULL,        -- Inventory identifier (e.g., "nethvoice1", "webtop3", "mail1")
-    instance_of VARCHAR(100) NOT NULL,      -- Application type from inventory (e.g., "nethvoice", "webtop", "mail")
+    instance_of VARCHAR(100) NOT NULL,      -- Application type (e.g., "nethvoice", "webtop", "mail", "nextcloud")
 
     -- Display name (for UI customization)
     display_name VARCHAR(255),              -- Custom name like "Milan Office PBX" (nullable, falls back to module_id)
 
-    -- From inventory
-    node_id INTEGER,                        -- Cluster node ID where the app runs
+    -- From inventory (cluster_module_domain_table entry)
+    node_id INTEGER,                        -- Cluster node ID where the app runs (1, 2, 3...)
     node_label VARCHAR(255),                -- Node label (e.g., "Leader Node", "Worker Node")
-    domain_id VARCHAR(255),                 -- User domain associated with the app (can be null)
+    domain_id VARCHAR(255),                 -- User domain associated with the app (can be null for system apps)
     version VARCHAR(100),                   -- Application version (when available from inventory)
 
     -- Organization assignment (core business requirement)
-    organization_id VARCHAR(255),           -- FK to org (NULL = unassigned)
+    organization_id VARCHAR(255),           -- Logto org ID assigned to this app (NULL = unassigned)
     organization_type VARCHAR(50),          -- owner, distributor, reseller, customer (denormalized for queries)
 
     -- Status tracking
     status VARCHAR(50) NOT NULL DEFAULT 'unassigned',  -- unassigned, assigned, error
 
     -- Flexible JSONB for type-specific data from inventory
-    inventory_data JSONB,                   -- All raw data from cluster_module_domain_table entry
+    inventory_data JSONB,                   -- Complete raw data from cluster_module_domain_table entry
     backup_data JSONB,                      -- Backup status from inventory (when available)
-    services_data JSONB,                    -- Services health status (when available)
+    services_data JSONB,                    -- Services health status from inventory (when available)
 
-    -- App URL (extracted from traefik name_module_map or configured manually)
-    url VARCHAR(500),
+    -- App URL (extracted from traefik or configured manually)
+    url VARCHAR(500),                       -- Public URL to access the application
 
     -- Notes/description
-    notes TEXT,
+    notes TEXT,                             -- User notes about the application
 
     -- Flags
-    is_user_facing BOOLEAN NOT NULL DEFAULT TRUE,  -- FALSE for system components like traefik, loki
+    is_user_facing BOOLEAN NOT NULL DEFAULT TRUE,  -- FALSE for system components (traefik, loki, promtail)
 
     -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    first_seen_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    last_inventory_at TIMESTAMP WITH TIME ZONE,
-    deleted_at TIMESTAMP WITH TIME ZONE      -- Soft delete
+    first_seen_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),  -- When app first appeared in inventory
+    last_inventory_at TIMESTAMP WITH TIME ZONE,  -- Last inventory update for this app
+
+    -- Soft delete
+    deleted_at TIMESTAMP WITH TIME ZONE     -- NULL = active, non-NULL = soft deleted (app removed from cluster)
 );
 
--- Comment for applications table
-COMMENT ON TABLE applications IS 'Applications extracted from NS8 cluster inventory with organization assignment';
-
--- Comments for key columns
+-- Table documentation
+COMMENT ON TABLE applications IS 'Applications/modules extracted from NS8 cluster inventory with organization assignment';
+COMMENT ON COLUMN applications.id IS 'Composite key: {system_id}-{module_id} for uniqueness';
 COMMENT ON COLUMN applications.module_id IS 'Unique module identifier from inventory (e.g., nethvoice1, webtop3)';
-COMMENT ON COLUMN applications.instance_of IS 'Application type from inventory (e.g., nethvoice, webtop, mail, nextcloud)';
+COMMENT ON COLUMN applications.instance_of IS 'Application type: nethvoice, webtop, mail, nextcloud, samba, traefik, etc.';
 COMMENT ON COLUMN applications.display_name IS 'Custom display name for UI. Falls back to module_id if NULL';
-COMMENT ON COLUMN applications.node_id IS 'Cluster node ID where the application runs';
-COMMENT ON COLUMN applications.node_label IS 'Node label from inventory (e.g., Leader Node, Worker Node)';
-COMMENT ON COLUMN applications.domain_id IS 'User domain associated with the application (from inventory)';
-COMMENT ON COLUMN applications.organization_id IS 'Assigned organization ID. NULL means unassigned';
-COMMENT ON COLUMN applications.organization_type IS 'Denormalized organization type for efficient filtering';
+COMMENT ON COLUMN applications.node_id IS 'Cluster node ID where the application runs (1=leader, 2+=workers)';
+COMMENT ON COLUMN applications.node_label IS 'Human-readable node label from inventory (e.g., Leader Node, Worker Node)';
+COMMENT ON COLUMN applications.domain_id IS 'User domain ID for apps with user authentication (NULL for system apps)';
+COMMENT ON COLUMN applications.organization_id IS 'Assigned organization Logto ID. NULL means unassigned';
+COMMENT ON COLUMN applications.organization_type IS 'Denormalized org type for efficient filtering: owner, distributor, reseller, customer';
 COMMENT ON COLUMN applications.status IS 'Application status: unassigned (no org), assigned (has org), error (has issues)';
-COMMENT ON COLUMN applications.inventory_data IS 'Raw application data from cluster_module_domain_table';
-COMMENT ON COLUMN applications.backup_data IS 'Backup status information from inventory';
-COMMENT ON COLUMN applications.services_data IS 'Services health status from inventory';
-COMMENT ON COLUMN applications.is_user_facing IS 'FALSE for system components (traefik, loki) that should be hidden in UI';
-COMMENT ON COLUMN applications.deleted_at IS 'Soft delete timestamp. NULL means active';
+COMMENT ON COLUMN applications.inventory_data IS 'Complete raw JSON from cluster_module_domain_table entry';
+COMMENT ON COLUMN applications.backup_data IS 'Backup status information extracted from inventory';
+COMMENT ON COLUMN applications.services_data IS 'Services health status extracted from inventory';
+COMMENT ON COLUMN applications.is_user_facing IS 'FALSE for system components (traefik, loki, promtail) hidden in UI';
+COMMENT ON COLUMN applications.first_seen_at IS 'Timestamp when app first appeared in inventory';
+COMMENT ON COLUMN applications.last_inventory_at IS 'Timestamp of last inventory update containing this app';
+COMMENT ON COLUMN applications.deleted_at IS 'Soft delete timestamp. Set when app disappears from inventory';
 
 -- Unique constraint: one application per module_id per system
 CREATE UNIQUE INDEX IF NOT EXISTS idx_applications_system_module
@@ -517,10 +392,366 @@ ALTER TABLE applications ADD CONSTRAINT chk_applications_status
 ALTER TABLE applications ADD CONSTRAINT chk_applications_org_type
     CHECK (organization_type IS NULL OR organization_type IN ('owner', 'distributor', 'reseller', 'customer'));
 
--- Schema migrations table
-CREATE TABLE IF NOT EXISTS schema_migrations (
-    migration_number VARCHAR(10) PRIMARY KEY,
-    applied_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    description TEXT,
-    checksum VARCHAR(64)
+-- =============================================================================
+-- IMPERSONATION CONSENTS TABLE
+-- =============================================================================
+-- User consents for allowing impersonation by Owner users
+-- Required for GDPR compliance and audit trail
+
+CREATE TABLE IF NOT EXISTS impersonation_consents (
+    id VARCHAR(255) PRIMARY KEY,            -- Unique consent ID
+
+    -- User who gave consent
+    user_id VARCHAR(255) NOT NULL,          -- FK to users table
+
+    -- Consent validity
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,  -- When consent expires
+    max_duration_minutes INTEGER NOT NULL DEFAULT 60,  -- Max impersonation session duration
+
+    -- Status
+    active BOOLEAN NOT NULL DEFAULT TRUE,   -- Whether consent is currently active
+
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
+
+-- Table documentation
+COMMENT ON TABLE impersonation_consents IS 'User consents for allowing impersonation by Owner users';
+COMMENT ON COLUMN impersonation_consents.user_id IS 'User who granted consent for impersonation';
+COMMENT ON COLUMN impersonation_consents.expires_at IS 'Timestamp when consent expires and must be renewed';
+COMMENT ON COLUMN impersonation_consents.max_duration_minutes IS 'Maximum duration of impersonation session in minutes';
+COMMENT ON COLUMN impersonation_consents.active IS 'Whether consent is currently active (can be revoked)';
+
+-- Foreign key constraint
+ALTER TABLE impersonation_consents
+ADD CONSTRAINT impersonation_consents_user_id_fkey
+FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+-- Performance indexes
+CREATE INDEX IF NOT EXISTS idx_impersonation_consents_user_id ON impersonation_consents(user_id);
+CREATE INDEX IF NOT EXISTS idx_impersonation_consents_active ON impersonation_consents(active);
+CREATE INDEX IF NOT EXISTS idx_impersonation_consents_expires_at ON impersonation_consents(expires_at);
+CREATE INDEX IF NOT EXISTS idx_impersonation_consents_user_active ON impersonation_consents(user_id, active);
+
+-- =============================================================================
+-- IMPERSONATION AUDIT TABLE
+-- =============================================================================
+-- Audit log of all impersonation activities for compliance and security
+
+CREATE TABLE IF NOT EXISTS impersonation_audit (
+    id VARCHAR(255) PRIMARY KEY,            -- Unique audit record ID
+
+    -- Session identification
+    session_id VARCHAR(255) NOT NULL,       -- Impersonation session ID
+
+    -- Actors
+    impersonator_user_id VARCHAR(255) NOT NULL,   -- Owner user doing the impersonation
+    impersonator_username VARCHAR(255) NOT NULL,  -- Username for display
+    impersonator_name TEXT,                       -- Display name for display
+    impersonated_user_id VARCHAR(255) NOT NULL,   -- User being impersonated
+    impersonated_username VARCHAR(255) NOT NULL,  -- Username for display
+    impersonated_name TEXT,                       -- Display name for display
+
+    -- Action details
+    action_type VARCHAR(50) NOT NULL,       -- start, end, api_call, error
+    api_endpoint VARCHAR(255),              -- API endpoint accessed (for api_call actions)
+    http_method VARCHAR(10),                -- HTTP method used
+    request_data TEXT,                      -- Request body (sanitized)
+    response_status INTEGER,                -- HTTP response status code
+    response_status_text VARCHAR(50),       -- HTTP status text
+
+    -- Timestamps
+    timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+-- Table documentation
+COMMENT ON TABLE impersonation_audit IS 'Audit log of all impersonation activities for compliance';
+COMMENT ON COLUMN impersonation_audit.session_id IS 'Unique impersonation session ID for grouping related actions';
+COMMENT ON COLUMN impersonation_audit.action_type IS 'Action type: start, end, api_call, error';
+COMMENT ON COLUMN impersonation_audit.api_endpoint IS 'API endpoint accessed during impersonation';
+COMMENT ON COLUMN impersonation_audit.request_data IS 'Sanitized request body (sensitive data redacted)';
+
+-- Performance indexes
+CREATE INDEX IF NOT EXISTS idx_impersonation_audit_session_id ON impersonation_audit(session_id);
+CREATE INDEX IF NOT EXISTS idx_impersonation_audit_impersonator ON impersonation_audit(impersonator_user_id);
+CREATE INDEX IF NOT EXISTS idx_impersonation_audit_impersonated ON impersonation_audit(impersonated_user_id);
+CREATE INDEX IF NOT EXISTS idx_impersonation_audit_action_type ON impersonation_audit(action_type);
+CREATE INDEX IF NOT EXISTS idx_impersonation_audit_impersonator_name ON impersonation_audit(impersonator_name);
+CREATE INDEX IF NOT EXISTS idx_impersonation_audit_impersonated_name ON impersonation_audit(impersonated_name);
+
+-- =============================================================================
+-- INVENTORY RECORDS TABLE
+-- =============================================================================
+-- Raw inventory snapshots from systems (collected by collect service)
+-- Used for diff calculation and historical analysis
+
+CREATE TABLE IF NOT EXISTS inventory_records (
+    id BIGSERIAL PRIMARY KEY,               -- Auto-incrementing record ID
+
+    -- System identification
+    system_id VARCHAR(255) NOT NULL,        -- System that sent this inventory
+
+    -- Inventory data
+    timestamp TIMESTAMP WITH TIME ZONE NOT NULL,  -- When inventory was collected on system
+    data JSONB NOT NULL,                    -- Complete raw inventory JSON
+    data_hash VARCHAR(64) NOT NULL,         -- SHA-256 hash for deduplication
+    data_size BIGINT NOT NULL,              -- Size in bytes
+
+    -- Processing status
+    processed_at TIMESTAMP WITH TIME ZONE,  -- When diff processing completed
+    has_changes BOOLEAN NOT NULL DEFAULT FALSE,  -- Whether changes were detected vs previous
+    change_count INTEGER NOT NULL DEFAULT 0,     -- Number of significant changes
+
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+-- Table documentation
+COMMENT ON TABLE inventory_records IS 'Raw inventory snapshots from systems for diff calculation';
+COMMENT ON COLUMN inventory_records.data IS 'Complete raw inventory JSON from system';
+COMMENT ON COLUMN inventory_records.data_hash IS 'SHA-256 hash of data for deduplication';
+COMMENT ON COLUMN inventory_records.processed_at IS 'Timestamp when diff processing completed';
+COMMENT ON COLUMN inventory_records.has_changes IS 'TRUE if changes detected vs previous inventory';
+COMMENT ON COLUMN inventory_records.change_count IS 'Number of significant changes detected';
+
+-- Performance indexes
+CREATE INDEX IF NOT EXISTS idx_inventory_records_system_id_timestamp ON inventory_records(system_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_inventory_records_data_hash ON inventory_records(data_hash);
+CREATE INDEX IF NOT EXISTS idx_inventory_records_processed_at ON inventory_records(processed_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_inventory_records_system_data_hash ON inventory_records(system_id, data_hash);
+
+-- =============================================================================
+-- INVENTORY DIFFS TABLE
+-- =============================================================================
+-- Computed differences between inventory snapshots
+-- Categorized by type (os, hardware, network, etc.) with severity levels
+
+CREATE TABLE IF NOT EXISTS inventory_diffs (
+    id BIGSERIAL PRIMARY KEY,               -- Auto-incrementing diff ID
+
+    -- References
+    system_id VARCHAR(255) NOT NULL,        -- System this diff belongs to
+    record_id BIGINT NOT NULL,              -- FK to inventory_records
+
+    -- Change classification
+    category VARCHAR(100) NOT NULL,         -- os, hardware, network, features, security, performance, system
+    subcategory VARCHAR(100),               -- More specific category (optional)
+    change_type VARCHAR(20) NOT NULL,       -- added, removed, modified
+
+    -- Change data
+    path VARCHAR(500),                      -- JSON path of the changed field
+    old_value JSONB,                        -- Previous value (NULL for added)
+    new_value JSONB,                        -- New value (NULL for removed)
+
+    -- Timestamps
+    timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+-- Table documentation
+COMMENT ON TABLE inventory_diffs IS 'Computed differences between inventory snapshots';
+COMMENT ON COLUMN inventory_diffs.category IS 'Change category: os, hardware, network, features, security, performance, system';
+COMMENT ON COLUMN inventory_diffs.change_type IS 'Type of change: added, removed, modified';
+COMMENT ON COLUMN inventory_diffs.path IS 'JSON path of the changed field (e.g., os.release.full)';
+
+-- Change type validation
+ALTER TABLE inventory_diffs ADD CONSTRAINT chk_inventory_diffs_change_type
+    CHECK (change_type IN ('added', 'removed', 'modified'));
+
+-- Foreign key constraint
+ALTER TABLE inventory_diffs
+ADD CONSTRAINT inventory_diffs_record_id_fkey
+FOREIGN KEY (record_id) REFERENCES inventory_records(id) ON DELETE CASCADE;
+
+-- Performance indexes
+CREATE INDEX IF NOT EXISTS idx_inventory_diffs_system_id ON inventory_diffs(system_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_diffs_record_id ON inventory_diffs(record_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_diffs_category ON inventory_diffs(category);
+CREATE INDEX IF NOT EXISTS idx_inventory_diffs_change_type ON inventory_diffs(change_type);
+CREATE INDEX IF NOT EXISTS idx_inventory_diffs_timestamp ON inventory_diffs(timestamp DESC);
+
+-- =============================================================================
+-- SYSTEM HEARTBEATS TABLE
+-- =============================================================================
+-- Tracks system liveness via heartbeat pings
+-- Used by collect service to determine online/offline status
+
+CREATE TABLE IF NOT EXISTS system_heartbeats (
+    id BIGSERIAL PRIMARY KEY,               -- Auto-incrementing ID
+
+    -- System identification
+    system_id VARCHAR(255) NOT NULL UNIQUE, -- FK to systems (one heartbeat record per system)
+
+    -- Heartbeat data
+    last_heartbeat TIMESTAMP WITH TIME ZONE NOT NULL,  -- Last heartbeat timestamp
+    status VARCHAR(20) NOT NULL DEFAULT 'online',       -- online, offline (based on heartbeat freshness)
+    metadata JSONB,                         -- Additional heartbeat metadata
+
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+-- Table documentation
+COMMENT ON TABLE system_heartbeats IS 'Tracks system liveness via heartbeat pings';
+COMMENT ON COLUMN system_heartbeats.last_heartbeat IS 'Timestamp of last heartbeat received';
+COMMENT ON COLUMN system_heartbeats.status IS 'Current status based on heartbeat: online, offline';
+COMMENT ON COLUMN system_heartbeats.metadata IS 'Additional metadata sent with heartbeat';
+
+-- Foreign key constraint
+ALTER TABLE system_heartbeats
+ADD CONSTRAINT system_heartbeats_system_id_fkey
+FOREIGN KEY (system_id) REFERENCES systems(id) ON DELETE CASCADE;
+
+-- Performance indexes
+CREATE INDEX IF NOT EXISTS idx_system_heartbeats_system_id ON system_heartbeats(system_id);
+CREATE INDEX IF NOT EXISTS idx_system_heartbeats_last_heartbeat ON system_heartbeats(last_heartbeat DESC);
+CREATE INDEX IF NOT EXISTS idx_system_heartbeats_status ON system_heartbeats(status);
+
+-- =============================================================================
+-- INVENTORY ALERTS TABLE
+-- =============================================================================
+-- Alerts generated from inventory changes
+-- Used for notifications and monitoring
+
+CREATE TABLE IF NOT EXISTS inventory_alerts (
+    id BIGSERIAL PRIMARY KEY,               -- Auto-incrementing alert ID
+
+    -- References
+    system_id VARCHAR(255) NOT NULL,        -- System this alert is for
+    diff_id BIGINT,                         -- FK to inventory_diffs (optional)
+
+    -- Alert details
+    alert_type VARCHAR(50) NOT NULL,        -- Type of alert
+    message TEXT NOT NULL,                  -- Human-readable alert message
+    severity VARCHAR(50) NOT NULL,          -- critical, high, medium, low
+
+    -- Resolution status
+    is_resolved BOOLEAN NOT NULL DEFAULT FALSE,
+    resolved_at TIMESTAMP WITH TIME ZONE,
+
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+-- Table documentation
+COMMENT ON TABLE inventory_alerts IS 'Alerts generated from inventory changes';
+COMMENT ON COLUMN inventory_alerts.alert_type IS 'Type of alert (e.g., security_change, version_update)';
+COMMENT ON COLUMN inventory_alerts.severity IS 'Alert severity: critical, high, medium, low';
+COMMENT ON COLUMN inventory_alerts.is_resolved IS 'Whether alert has been acknowledged/resolved';
+
+-- Foreign key constraints
+ALTER TABLE inventory_alerts
+ADD CONSTRAINT inventory_alerts_system_id_fkey
+FOREIGN KEY (system_id) REFERENCES systems(id) ON DELETE CASCADE;
+
+ALTER TABLE inventory_alerts
+ADD CONSTRAINT inventory_alerts_diff_id_fkey
+FOREIGN KEY (diff_id) REFERENCES inventory_diffs(id) ON DELETE SET NULL;
+
+-- Performance indexes
+CREATE INDEX IF NOT EXISTS idx_inventory_alerts_system_id_created_at ON inventory_alerts(system_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_inventory_alerts_severity ON inventory_alerts(severity);
+CREATE INDEX IF NOT EXISTS idx_inventory_alerts_resolved ON inventory_alerts(is_resolved) WHERE is_resolved = FALSE;
+
+-- =============================================================================
+-- SCHEMA MIGRATIONS TABLE
+-- =============================================================================
+-- Tracks applied database migrations
+
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    migration_number VARCHAR(10) PRIMARY KEY,  -- Migration identifier (001, 002, etc.)
+    applied_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),  -- When migration was applied
+    description TEXT,                          -- Human-readable description
+    checksum VARCHAR(64)                       -- Optional checksum for validation
+);
+
+-- Table documentation
+COMMENT ON TABLE schema_migrations IS 'Tracks applied database migrations for version control';
+
+-- =============================================================================
+-- VAT UNIQUENESS CONSTRAINTS
+-- =============================================================================
+-- Prevents duplicate VAT numbers within same organization type
+-- Only distributors and resellers have VAT uniqueness; customers can have duplicates
+
+-- VAT uniqueness function for distributors
+CREATE OR REPLACE FUNCTION check_unique_vat_distributors()
+RETURNS TRIGGER AS $$
+DECLARE
+    new_vat TEXT;
+BEGIN
+    new_vat := TRIM(NEW.custom_data->>'vat');
+
+    IF new_vat IS NULL OR new_vat = '' OR NEW.deleted_at IS NOT NULL THEN
+        RETURN NEW;
+    END IF;
+
+    -- Check for duplicate VAT in active distributors (excluding self for updates)
+    IF EXISTS (
+        SELECT 1 FROM distributors
+        WHERE TRIM(custom_data->>'vat') = new_vat
+          AND deleted_at IS NULL
+          AND (id IS DISTINCT FROM NEW.id)
+    ) THEN
+        RAISE EXCEPTION 'VAT "%" already exists in distributors', new_vat;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- VAT uniqueness function for resellers
+CREATE OR REPLACE FUNCTION check_unique_vat_resellers()
+RETURNS TRIGGER AS $$
+DECLARE
+    new_vat TEXT;
+BEGIN
+    new_vat := TRIM(NEW.custom_data->>'vat');
+
+    IF new_vat IS NULL OR new_vat = '' OR NEW.deleted_at IS NOT NULL THEN
+        RETURN NEW;
+    END IF;
+
+    -- Check for duplicate VAT in active resellers (excluding self for updates)
+    IF EXISTS (
+        SELECT 1 FROM resellers
+        WHERE TRIM(custom_data->>'vat') = new_vat
+          AND deleted_at IS NULL
+          AND (id IS DISTINCT FROM NEW.id)
+    ) THEN
+        RAISE EXCEPTION 'VAT "%" already exists in resellers', new_vat;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- VAT function for customers (no uniqueness constraint)
+CREATE OR REPLACE FUNCTION check_unique_vat_customers()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- No VAT uniqueness constraint for customers
+    -- VAT is optional and can be duplicate
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create triggers
+DROP TRIGGER IF EXISTS trg_check_vat_distributors ON distributors;
+CREATE TRIGGER trg_check_vat_distributors
+BEFORE INSERT OR UPDATE ON distributors
+FOR EACH ROW
+EXECUTE FUNCTION check_unique_vat_distributors();
+
+DROP TRIGGER IF EXISTS trg_check_vat_resellers ON resellers;
+CREATE TRIGGER trg_check_vat_resellers
+BEFORE INSERT OR UPDATE ON resellers
+FOR EACH ROW
+EXECUTE FUNCTION check_unique_vat_resellers();
+
+DROP TRIGGER IF EXISTS trg_check_vat_customers ON customers;
+CREATE TRIGGER trg_check_vat_customers
+BEFORE INSERT OR UPDATE ON customers
+FOR EACH ROW
+EXECUTE FUNCTION check_unique_vat_customers();
