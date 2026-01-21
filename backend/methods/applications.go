@@ -97,20 +97,14 @@ func GetApplications(c *gin.Context) {
 	}
 
 	// Convert to list items for response
-	items := make([]*models.ApplicationListItem, len(apps))
+	applications := make([]*models.ApplicationListItem, len(apps))
 	for i, app := range apps {
-		items[i] = app.ToListItem()
+		applications[i] = app.ToListItem()
 	}
 
-	// Calculate total pages
-	totalPages := (totalCount + pageSize - 1) / pageSize
-
-	c.JSON(http.StatusOK, response.OK("applications retrieved successfully", map[string]interface{}{
-		"items":       items,
-		"total":       totalCount,
-		"page":        page,
-		"page_size":   pageSize,
-		"total_pages": totalPages,
+	c.JSON(http.StatusOK, response.OK("applications retrieved successfully", gin.H{
+		"applications": applications,
+		"pagination":   helpers.BuildPaginationInfoWithSorting(page, pageSize, totalCount, sortBy, sortDirection),
 	}))
 }
 

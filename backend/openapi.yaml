@@ -5907,26 +5907,12 @@ paths:
                   data:
                     type: object
                     properties:
-                      items:
+                      applications:
                         type: array
                         items:
                           $ref: '#/components/schemas/ApplicationListItem'
-                      total:
-                        type: integer
-                        description: Total number of applications
-                        example: 150
-                      page:
-                        type: integer
-                        description: Current page number
-                        example: 1
-                      page_size:
-                        type: integer
-                        description: Items per page
-                        example: 50
-                      total_pages:
-                        type: integer
-                        description: Total number of pages
-                        example: 3
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
