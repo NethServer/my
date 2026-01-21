@@ -280,9 +280,9 @@ func (r *LocalApplicationRepository) List(
 	orderBy := "a.created_at DESC"
 	if sortBy != "" {
 		columnMap := map[string]string{
-			"name":              "LOWER(COALESCE(NULLIF(TRIM(a.display_name), ''), a.module_id))",
+			"display_name":      "LOWER(COALESCE(NULLIF(TRIM(a.display_name), ''), a.module_id))",
 			"module_id":         "LOWER(a.module_id)",
-			"type":              "LOWER(a.instance_of)",
+			"instance_of":       "LOWER(a.instance_of)",
 			"version":           "a.version",
 			"status":            "a.status",
 			"system_name":       "LOWER(s.name)",
