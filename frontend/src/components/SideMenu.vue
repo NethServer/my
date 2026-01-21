@@ -22,6 +22,7 @@ import {
   faUserGroup as fasUserGroup,
   faServer as fasServer,
 } from '@fortawesome/free-solid-svg-icons'
+import { faGridOne as fasGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import {
   faHouse as falHouse,
   faGlobe as falGlobe,
@@ -29,8 +30,10 @@ import {
   faBuilding as falBuilding,
   faUserGroup as falUserGroup,
   faServer as falServer,
+  faGrid2 as falGrid2,
 } from '@nethesis/nethesis-light-svg-icons'
 import {
+  canReadApplications,
   canReadCustomers,
   canReadDistributors,
   canReadResellers,
@@ -67,6 +70,15 @@ const navigation = computed(() => {
       to: 'systems',
       solidIcon: fasServer,
       lightIcon: falServer,
+    })
+  }
+
+  if (canReadApplications()) {
+    menuItems.push({
+      name: 'applications.title',
+      to: 'applications',
+      solidIcon: fasGridOne,
+      lightIcon: falGrid2,
     })
   }
 
