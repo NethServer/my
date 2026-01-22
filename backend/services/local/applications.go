@@ -571,16 +571,15 @@ func (s *LocalApplicationsService) GetAvailableOrganizations(userOrgRole, userOr
 	var orgs []models.OrganizationSummary
 
 	// Query each organization table
-	for _, orgID := range allowedOrgIDs {
-		var name string
-		var orgType string
+	for _, logtoID := range allowedOrgIDs {
+		var dbID, name string
 
 		// Try distributors
 		err := database.DB.QueryRow(`
-			SELECT name FROM distributors WHERE logto_id = $1 AND deleted_at IS NULL
-		`, orgID).Scan(&name)
+			SELECT id, name FROM distributors WHERE logto_id = $1 AND deleted_at IS NULL
+		`, logtoID).Scan(&dbID, &name)
 		if err == nil {
-			orgs = append(orgs, models.OrganizationSummary{ID: orgID, Name: name, Type: "distributor"})
+			orgs = append(orgs, models.OrganizationSummary{ID: dbID, LogtoID: logtoID, Name: name, Type: "distributor"})
 			continue
 		}
 		if err != sql.ErrNoRows {
@@ -589,10 +588,10 @@ func (s *LocalApplicationsService) GetAvailableOrganizations(userOrgRole, userOr
 
 		// Try resellers
 		err = database.DB.QueryRow(`
-			SELECT name FROM resellers WHERE logto_id = $1 AND deleted_at IS NULL
-		`, orgID).Scan(&name)
+			SELECT id, name FROM resellers WHERE logto_id = $1 AND deleted_at IS NULL
+		`, logtoID).Scan(&dbID, &name)
 		if err == nil {
-			orgs = append(orgs, models.OrganizationSummary{ID: orgID, Name: name, Type: "reseller"})
+			orgs = append(orgs, models.OrganizationSummary{ID: dbID, LogtoID: logtoID, Name: name, Type: "reseller"})
 			continue
 		}
 		if err != sql.ErrNoRows {
@@ -601,22 +600,20 @@ func (s *LocalApplicationsService) GetAvailableOrganizations(userOrgRole, userOr
 
 		// Try customers
 		err = database.DB.QueryRow(`
-			SELECT name FROM customers WHERE logto_id = $1 AND deleted_at IS NULL
-		`, orgID).Scan(&name)
+			SELECT id, name FROM customers WHERE logto_id = $1 AND deleted_at IS NULL
+		`, logtoID).Scan(&dbID, &name)
 		if err == nil {
-			orgs = append(orgs, models.OrganizationSummary{ID: orgID, Name: name, Type: "customer"})
+			orgs = append(orgs, models.OrganizationSummary{ID: dbID, LogtoID: logtoID, Name: name, Type: "customer"})
 			continue
 		}
 		if err != sql.ErrNoRows {
 			return nil, err
 		}
 
-		// Check if it's owner org
-		if orgID == userOrgID && userOrgRole == "owner" {
-			orgs = append(orgs, models.OrganizationSummary{ID: orgID, Name: "Owner", Type: "owner"})
+		// Check if it's owner org (owner has no DB entry, use logto_id for both)
+		if logtoID == userOrgID && strings.ToLower(userOrgRole) == "owner" {
+			orgs = append(orgs, models.OrganizationSummary{ID: logtoID, LogtoID: logtoID, Name: "Owner", Type: "owner"})
 		}
-
-		_ = orgType // suppress unused variable warning
 	}
 
 	return orgs, nil

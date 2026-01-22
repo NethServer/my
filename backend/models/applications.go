@@ -89,7 +89,12 @@ type ApplicationListItem struct {
 	Status          string               `json:"status"`
 	NodeID          *int                 `json:"node_id"`
 	NodeLabel       *string              `json:"node_label"`
+	URL             *string              `json:"url"`
+	Notes           *string              `json:"notes"`
 	HasErrors       bool                 `json:"has_errors"`
+	InventoryData   json.RawMessage      `json:"inventory_data"`
+	BackupData      json.RawMessage      `json:"backup_data"`
+	ServicesData    json.RawMessage      `json:"services_data"`
 	System          *SystemSummary       `json:"system,omitempty"`
 	Organization    *OrganizationSummary `json:"organization,omitempty"`
 	CreatedAt       time.Time            `json:"created_at"`
@@ -101,11 +106,9 @@ type AssignApplicationRequest struct {
 	OrganizationID string `json:"organization_id" binding:"required"`
 }
 
-// UpdateApplicationRequest represents the request to update an application
+// UpdateApplicationRequest represents the request to update an application (only notes is editable, other fields come from inventory)
 type UpdateApplicationRequest struct {
-	DisplayName *string `json:"display_name"`
-	Notes       *string `json:"notes"`
-	URL         *string `json:"url"`
+	Notes *string `json:"notes"`
 }
 
 // ApplicationTotals represents statistics for applications
@@ -233,7 +236,12 @@ func (a *Application) ToListItem() *ApplicationListItem {
 		Status:          a.Status,
 		NodeID:          a.NodeID,
 		NodeLabel:       a.NodeLabel,
+		URL:             a.URL,
+		Notes:           a.Notes,
 		HasErrors:       a.HasServiceErrors(),
+		InventoryData:   a.InventoryData,
+		BackupData:      a.BackupData,
+		ServicesData:    a.ServicesData,
 		System:          a.System,
 		Organization:    a.Organization,
 		CreatedAt:       a.CreatedAt,

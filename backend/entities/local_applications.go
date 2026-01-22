@@ -36,7 +36,8 @@ func (r *LocalApplicationRepository) GetByID(id string) (*models.Application, er
 		       a.backup_data, a.services_data, a.url, a.notes, a.is_user_facing,
 		       a.created_at, a.updated_at, a.first_seen_at, a.last_inventory_at, a.deleted_at,
 		       s.name as system_name,
-		       COALESCE(d.name, re.name, c.name, 'Owner') as organization_name
+		       COALESCE(d.name, re.name, c.name, 'Owner') as organization_name,
+		       COALESCE(d.id::text, re.id::text, c.id::text) as organization_db_id
 		FROM applications a
 		LEFT JOIN systems s ON a.system_id = s.id
 		LEFT JOIN distributors d ON a.organization_id = d.logto_id AND d.deleted_at IS NULL
@@ -49,7 +50,7 @@ func (r *LocalApplicationRepository) GetByID(id string) (*models.Application, er
 	var displayName, nodeLabel, domainID, version, orgID, orgType, url, notes sql.NullString
 	var nodeID sql.NullInt32
 	var lastInventoryAt, deletedAt sql.NullTime
-	var systemName, orgName sql.NullString
+	var systemName, orgName, orgDbID sql.NullString
 	var inventoryData, backupData, servicesData []byte
 
 	err := r.db.QueryRow(query, id).Scan(
@@ -57,7 +58,7 @@ func (r *LocalApplicationRepository) GetByID(id string) (*models.Application, er
 		&version, &orgID, &orgType, &app.Status, &inventoryData,
 		&backupData, &servicesData, &url, &notes, &app.IsUserFacing,
 		&app.CreatedAt, &app.UpdatedAt, &app.FirstSeenAt, &lastInventoryAt, &deletedAt,
-		&systemName, &orgName,
+		&systemName, &orgName, &orgDbID,
 	)
 
 	if err == sql.ErrNoRows {
@@ -119,9 +120,10 @@ func (r *LocalApplicationRepository) GetByID(id string) (*models.Application, er
 	// Set organization summary
 	if orgID.Valid && orgName.Valid {
 		app.Organization = &models.OrganizationSummary{
-			ID:   orgID.String,
-			Name: orgName.String,
-			Type: orgType.String,
+			ID:      orgDbID.String,
+			LogtoID: orgID.String,
+			Name:    orgName.String,
+			Type:    orgType.String,
 		}
 	}
 
@@ -308,7 +310,8 @@ func (r *LocalApplicationRepository) List(
 		       a.backup_data, a.services_data, a.url, a.notes, a.is_user_facing,
 		       a.created_at, a.updated_at, a.first_seen_at, a.last_inventory_at,
 		       s.name as system_name,
-		       COALESCE(d.name, re.name, c.name, 'Owner') as organization_name
+		       COALESCE(d.name, re.name, c.name, 'Owner') as organization_name,
+		       COALESCE(d.id::text, re.id::text, c.id::text) as organization_db_id
 		FROM applications a
 		LEFT JOIN systems s ON a.system_id = s.id
 		LEFT JOIN distributors d ON a.organization_id = d.logto_id AND d.deleted_at IS NULL
@@ -336,7 +339,7 @@ func (r *LocalApplicationRepository) List(
 		var displayName, nodeLabel, domainID, version, orgID, orgType, url, notes sql.NullString
 		var nodeID sql.NullInt32
 		var lastInventoryAt sql.NullTime
-		var systemName, orgName sql.NullString
+		var systemName, orgName, orgDbID sql.NullString
 		var inventoryData, backupData, servicesData []byte
 
 		err := rows.Scan(
@@ -344,7 +347,7 @@ func (r *LocalApplicationRepository) List(
 			&version, &orgID, &orgType, &app.Status, &inventoryData,
 			&backupData, &servicesData, &url, &notes, &app.IsUserFacing,
 			&app.CreatedAt, &app.UpdatedAt, &app.FirstSeenAt, &lastInventoryAt,
-			&systemName, &orgName,
+			&systemName, &orgName, &orgDbID,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan application: %w", err)
@@ -398,9 +401,10 @@ func (r *LocalApplicationRepository) List(
 		// Set organization summary
 		if orgID.Valid && orgName.Valid {
 			app.Organization = &models.OrganizationSummary{
-				ID:   orgID.String,
-				Name: orgName.String,
-				Type: orgType.String,
+				ID:      orgDbID.String,
+				LogtoID: orgID.String,
+				Name:    orgName.String,
+				Type:    orgType.String,
 			}
 		}
 
@@ -722,18 +726,16 @@ func (r *LocalApplicationRepository) Create(app *models.Application) error {
 	return nil
 }
 
-// Update updates an existing application
+// Update updates an existing application (only notes is editable, other fields come from inventory)
 func (r *LocalApplicationRepository) Update(id string, req *models.UpdateApplicationRequest) error {
 	query := `
 		UPDATE applications
-		SET display_name = COALESCE($2, display_name),
-		    notes = COALESCE($3, notes),
-		    url = COALESCE($4, url),
-		    updated_at = $5
+		SET notes = COALESCE($2, notes),
+		    updated_at = $3
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 
-	result, err := r.db.Exec(query, id, req.DisplayName, req.Notes, req.URL, time.Now())
+	result, err := r.db.Exec(query, id, req.Notes, time.Now())
 	if err != nil {
 		return fmt.Errorf("failed to update application: %w", err)
 	}
