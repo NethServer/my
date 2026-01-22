@@ -24,10 +24,19 @@ func TestConfigurableDiffer_DetermineSeverity(t *testing.T) {
 		to          interface{}
 		expectedSev string
 	}{
-		// Critical severity tests
+		// Critical severity tests (NS8/NSEC structure)
+		// Note: modules delete is now high severity, not critical
 		{
-			name:        "critical processor delete",
-			fieldPath:   "processors.count",
+			name:        "critical nodes delete",
+			fieldPath:   "facts.nodes[0].id",
+			changeType:  "delete",
+			from:        1,
+			to:          nil,
+			expectedSev: "critical",
+		},
+		{
+			name:        "critical processors delete",
+			fieldPath:   "facts.processors.count",
 			changeType:  "delete",
 			from:        4,
 			to:          nil,
@@ -35,15 +44,15 @@ func TestConfigurableDiffer_DetermineSeverity(t *testing.T) {
 		},
 		{
 			name:        "critical memory delete",
-			fieldPath:   "memory.total",
+			fieldPath:   "facts.memory.total",
 			changeType:  "delete",
 			from:        8192,
 			to:          nil,
 			expectedSev: "critical",
 		},
 		{
-			name:        "critical networking delete",
-			fieldPath:   "networking.interfaces",
+			name:        "critical network delete",
+			fieldPath:   "facts.network.interfaces",
 			changeType:  "delete",
 			from:        "eth0",
 			to:          nil,
@@ -51,7 +60,7 @@ func TestConfigurableDiffer_DetermineSeverity(t *testing.T) {
 		},
 		{
 			name:        "critical features delete",
-			fieldPath:   "features.essential",
+			fieldPath:   "facts.features.essential",
 			changeType:  "delete",
 			from:        true,
 			to:          nil,
@@ -66,26 +75,42 @@ func TestConfigurableDiffer_DetermineSeverity(t *testing.T) {
 			expectedSev: "critical",
 		},
 
-		// High severity tests
+		// High severity tests (NS8/NSEC structure)
 		{
-			name:        "high OS version update",
-			fieldPath:   "os.version",
+			name:        "high distro version update",
+			fieldPath:   "facts.distro.version",
 			changeType:  "update",
-			from:        "20.04",
-			to:          "22.04",
+			from:        "23.05.4",
+			to:          "24.10",
 			expectedSev: "high",
 		},
 		{
-			name:        "high kernel update",
-			fieldPath:   "kernel.version",
+			name:        "high module version update",
+			fieldPath:   "facts.modules[0].version",
 			changeType:  "update",
-			from:        "5.4.0",
-			to:          "5.15.0",
+			from:        "1.0.0",
+			to:          "2.0.0",
 			expectedSev: "high",
 		},
 		{
-			name:        "high public IP update",
-			fieldPath:   "public_ip",
+			name:        "high node version update",
+			fieldPath:   "facts.nodes[0].version",
+			changeType:  "update",
+			from:        "8.2.0",
+			to:          "8.3.0",
+			expectedSev: "high",
+		},
+		{
+			name:        "high cluster fqdn update",
+			fieldPath:   "facts.cluster.fqdn",
+			changeType:  "update",
+			from:        "old.example.com",
+			to:          "new.example.com",
+			expectedSev: "high",
+		},
+		{
+			name:        "high cluster public_ip update",
+			fieldPath:   "facts.cluster.public_ip",
 			changeType:  "update",
 			from:        "1.2.3.4",
 			to:          "5.6.7.8",
@@ -93,10 +118,18 @@ func TestConfigurableDiffer_DetermineSeverity(t *testing.T) {
 		},
 		{
 			name:        "high certificates update",
-			fieldPath:   "certificates.ssl",
+			fieldPath:   "facts.features.certificates.count",
 			changeType:  "update",
-			from:        "old-cert",
-			to:          "new-cert",
+			from:        5,
+			to:          10,
+			expectedSev: "high",
+		},
+		{
+			name:        "high modules create",
+			fieldPath:   "facts.modules[1]",
+			changeType:  "create",
+			from:        nil,
+			to:          map[string]interface{}{"id": "newmodule1"},
 			expectedSev: "high",
 		},
 		{
@@ -107,30 +140,23 @@ func TestConfigurableDiffer_DetermineSeverity(t *testing.T) {
 			to:          "system warning message",
 			expectedSev: "high",
 		},
+		// Note: facts.modules delete matches high severity pattern
 
-		// Medium severity tests
-		{
-			name:        "medium configuration update",
-			fieldPath:   "configuration.service",
-			changeType:  "update",
-			from:        "disabled",
-			to:          "enabled",
-			expectedSev: "medium",
-		},
-		{
-			name:        "medium services update",
-			fieldPath:   "services.nginx.status",
-			changeType:  "update",
-			from:        "stopped",
-			to:          "running",
-			expectedSev: "medium",
-		},
+		// Medium severity tests (NS8/NSEC structure)
 		{
 			name:        "medium features update",
-			fieldPath:   "features.docker.enabled",
+			fieldPath:   "facts.features.docker.enabled",
 			changeType:  "update",
 			from:        false,
 			to:          true,
+			expectedSev: "medium",
+		},
+		{
+			name:        "medium cluster update",
+			fieldPath:   "facts.cluster.label",
+			changeType:  "update",
+			from:        "old-label",
+			to:          "new-label",
 			expectedSev: "medium",
 		},
 		{
@@ -142,29 +168,21 @@ func TestConfigurableDiffer_DetermineSeverity(t *testing.T) {
 			expectedSev: "medium",
 		},
 
-		// Low severity tests
+		// Low severity tests (NS8/NSEC structure)
 		{
-			name:        "low metrics update",
-			fieldPath:   "metrics.cpu_usage",
+			name:        "low memory used_bytes update",
+			fieldPath:   "facts.memory.swap.used_bytes",
 			changeType:  "update",
-			from:        50.0,
-			to:          60.0,
+			from:        1024000,
+			to:          2048000,
 			expectedSev: "low",
 		},
 		{
-			name:        "low performance update",
-			fieldPath:   "performance.memory_usage",
+			name:        "low memory available_bytes update",
+			fieldPath:   "facts.memory.ram.available_bytes",
 			changeType:  "update",
-			from:        "70%",
-			to:          "75%",
-			expectedSev: "low",
-		},
-		{
-			name:        "low monitoring update",
-			fieldPath:   "monitoring.heartbeat",
-			changeType:  "update",
-			from:        1640995200,
-			to:          1640995260,
+			from:        8000000,
+			to:          7500000,
 			expectedSev: "low",
 		},
 		{
@@ -187,29 +205,29 @@ func TestConfigurableDiffer_DetermineSeverity(t *testing.T) {
 		},
 		{
 			name:        "unknown change type",
-			fieldPath:   "os.version",
+			fieldPath:   "facts.distro.version",
 			changeType:  "unknown",
-			from:        "20.04",
-			to:          "22.04",
+			from:        "23.05.4",
+			to:          "24.10",
 			expectedSev: "medium", // Default severity
 		},
 
 		// Case insensitive tests
 		{
 			name:        "uppercase field path",
-			fieldPath:   "OS.VERSION",
+			fieldPath:   "FACTS.DISTRO.VERSION",
 			changeType:  "UPDATE",
-			from:        "20.04",
-			to:          "22.04",
+			from:        "23.05.4",
+			to:          "24.10",
 			expectedSev: "high",
 		},
 		{
 			name:        "mixed case field path",
-			fieldPath:   "ProCessors.Count",
-			changeType:  "Delete",
-			from:        4,
-			to:          nil,
-			expectedSev: "critical",
+			fieldPath:   "Facts.Modules[0].Version",
+			changeType:  "Update",
+			from:        "1.0.0",
+			to:          "2.0.0",
+			expectedSev: "high",
 		},
 
 		// Numeric significance tests

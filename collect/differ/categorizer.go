@@ -19,10 +19,10 @@ import (
 // 3. Check if field path matches any pattern in each category
 // 4. Return first matching category or default if no match
 //
-// Example:
-//   - "os.version" → "os" category
-//   - "processors.cpu0.model" → "hardware" category
-//   - "networking.interfaces.eth0.ip" → "network" category
+// Example (NS8/NSEC structure):
+//   - "facts.distro.version" → "os" category
+//   - "facts.modules[0].id" → "modules" category
+//   - "facts.cluster.fqdn" → "cluster" category
 func (cd *ConfigurableDiffer) CategorizeField(fieldPath string) string {
 	// Step 1: Normalize field path for pattern matching
 	pathLower := strings.ToLower(fieldPath)
@@ -105,13 +105,13 @@ func (cd *ConfigurableDiffer) ValidateCategoryPatterns() error {
 				continue
 			}
 
-			// Test pattern with sample data
+			// Test pattern with sample data (NS8/NSEC structure)
 			testPaths := []string{
-				"os.version",
-				"processors.cpu0.model",
-				"networking.interfaces.eth0.ip",
-				"features.module.status",
-				"dmi.system.manufacturer",
+				"facts.distro.version",
+				"facts.modules[0].id",
+				"facts.cluster.fqdn",
+				"facts.features.docker",
+				"facts.nodes[0].version",
 			}
 
 			for _, testPath := range testPaths {

@@ -26,9 +26,9 @@ import (
 //   - Low: Minor changes for reference (metrics, performance data)
 //
 // Example:
-//   - "delete" + "processors" → "critical"
-//   - "update" + "os.version" → "high"
-//   - "create" + "features.module" → "medium"
+//   - "delete" + "facts.nodes" → "critical"
+//   - "update" + "facts.distro.version" → "high"
+//   - "create" + "facts.modules" → "high"
 func (cd *ConfigurableDiffer) DetermineSeverity(fieldPath, changeType string, from, to interface{}) string {
 	// Step 1: Normalize inputs for pattern matching
 	pathLower := strings.ToLower(fieldPath)
@@ -254,13 +254,13 @@ func (cd *ConfigurableDiffer) ValidateSeverityPatterns() error {
 					continue
 				}
 
-				// Test pattern with sample data
+				// Test pattern with sample data (NS8/NSEC structure)
 				testPaths := []string{
-					"os.version",
-					"processors.cpu0.model",
-					"networking.interfaces.eth0.ip",
-					"features.module.status",
-					"dmi.system.manufacturer",
+					"facts.distro.version",
+					"facts.modules[0].id",
+					"facts.cluster.fqdn",
+					"facts.features.docker",
+					"facts.nodes[0].version",
 				}
 
 				for _, testPath := range testPaths {

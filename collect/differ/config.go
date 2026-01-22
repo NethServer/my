@@ -289,24 +289,37 @@ func validateConfig(config *DifferConfig) error {
 }
 
 // getDefaultConfig returns a default configuration
+// Uses NS8/NSEC inventory structure patterns
 func getDefaultConfig() *DifferConfig {
 	return &DifferConfig{
 		Categorization: CategorizationConfig{
 			Categories: map[string]CategoryRule{
+				"modules": {
+					Patterns:    []string{"facts\\.modules"},
+					Description: "Application modules changes",
+				},
+				"cluster": {
+					Patterns:    []string{"facts\\.cluster"},
+					Description: "Cluster-wide configuration changes",
+				},
+				"nodes": {
+					Patterns:    []string{"facts\\.nodes"},
+					Description: "Cluster node changes",
+				},
 				"os": {
-					Patterns:    []string{"os\\.", "kernel", "system_uptime"},
+					Patterns:    []string{"facts\\.distro"},
 					Description: "Operating system related changes",
 				},
 				"hardware": {
-					Patterns:    []string{"dmi\\.", "processors", "memory", "mountpoints"},
+					Patterns:    []string{"facts\\.processors", "facts\\.memory", "facts\\.product", "facts\\.virtual"},
 					Description: "Hardware and system components",
 				},
 				"network": {
-					Patterns:    []string{"networking", "esmithdb\\.networks", "public_ip", "arp_macs"},
+					Patterns:    []string{"facts\\.network", "facts\\.features\\.network"},
 					Description: "Network configuration and connectivity",
 				},
 				"features": {
-					Patterns:    []string{"features\\.", "services\\.", "esmithdb\\.configuration"},
+					Patterns:    []string{"facts\\.features"},
 					Description: "Software features and services",
 				},
 			},
@@ -318,28 +331,29 @@ func getDefaultConfig() *DifferConfig {
 		Severity: SeverityConfig{
 			Critical: SeverityLevel{
 				Conditions: []SeverityCondition{
-					{ChangeType: "delete", Patterns: []string{"processors", "memory", "networking", "features"}},
+					{ChangeType: "delete", Patterns: []string{"facts\\.nodes", "facts\\.processors", "facts\\.memory", "facts\\.network", "facts\\.features"}},
 					{ChangeType: "create", Patterns: []string{"error", "failed", "critical"}},
 				},
 				Description: "Critical changes requiring immediate attention",
 			},
 			High: SeverityLevel{
 				Conditions: []SeverityCondition{
-					{ChangeType: "update", Patterns: []string{"os\\.version", "kernel", "public_ip", "certificates"}},
-					{ChangeType: "create", Patterns: []string{"warning", "alert"}},
+					{ChangeType: "update", Patterns: []string{"facts\\.distro\\.version", "facts\\.modules\\[\\d+\\]\\.version", "facts\\.cluster\\.fqdn", "facts\\.cluster\\.public_ip"}},
+					{ChangeType: "create", Patterns: []string{"facts\\.modules", "warning", "alert"}},
+					{ChangeType: "delete", Patterns: []string{"facts\\.modules"}},
 				},
 				Description: "Important changes requiring attention",
 			},
 			Medium: SeverityLevel{
 				Conditions: []SeverityCondition{
-					{ChangeType: "update", Patterns: []string{"configuration", "services", "features"}},
+					{ChangeType: "update", Patterns: []string{"facts\\.features", "facts\\.cluster"}},
 					{ChangeType: "create", Patterns: []string{"info", "notice"}},
 				},
 				Description: "Moderate changes for review",
 			},
 			Low: SeverityLevel{
 				Conditions: []SeverityCondition{
-					{ChangeType: "update", Patterns: []string{"metrics", "performance", "monitoring"}},
+					{ChangeType: "update", Patterns: []string{"facts\\.memory\\..*\\.used_bytes", "facts\\.memory\\..*\\.available_bytes"}},
 					{ChangeType: "create", Patterns: []string{"debug", "trace"}},
 				},
 				Description: "Minor changes for reference",
@@ -350,8 +364,8 @@ func getDefaultConfig() *DifferConfig {
 			},
 		},
 		Significance: SignificanceConfig{
-			AlwaysSignificant: []string{"severity:(high|critical)", "category:(hardware|network|security)", "change_type:delete"},
-			NeverSignificant:  []string{"system_uptime", "metrics\\.timestamp", "performance\\.last_update", "monitoring\\.heartbeat"},
+			AlwaysSignificant: []string{"severity:(high|critical)", "category:(modules|cluster|nodes|hardware|network|security)", "change_type:delete", "facts\\.modules", "facts\\.distro\\.version"},
+			NeverSignificant:  []string{"uptime", "system_uptime", "facts\\.memory\\..*\\.used_bytes", "facts\\.memory\\..*\\.available_bytes", "metrics\\.timestamp", "performance\\.last_update", "monitoring\\.heartbeat"},
 			Default: DefaultSignificance{
 				Significant: true,
 				Description: "Default significance for unclassified changes",

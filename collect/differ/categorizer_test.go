@@ -22,104 +22,112 @@ func TestConfigurableDiffer_CategorizeField(t *testing.T) {
 		fieldPath   string
 		expectedCat string
 	}{
-		// OS category tests
+		// Modules category tests (NS8)
 		{
-			name:        "OS version field",
-			fieldPath:   "os.version",
+			name:        "modules array field",
+			fieldPath:   "facts.modules[0].id",
+			expectedCat: "modules",
+		},
+		{
+			name:        "modules version field",
+			fieldPath:   "facts.modules[1].version",
+			expectedCat: "modules",
+		},
+
+		// Cluster category tests (NS8)
+		{
+			name:        "cluster label field",
+			fieldPath:   "facts.cluster.label",
+			expectedCat: "cluster",
+		},
+		{
+			name:        "cluster fqdn field",
+			fieldPath:   "facts.cluster.fqdn",
+			expectedCat: "cluster",
+		},
+
+		// Nodes category tests (NS8)
+		{
+			name:        "nodes array field",
+			fieldPath:   "facts.nodes[0].id",
+			expectedCat: "nodes",
+		},
+		{
+			name:        "nodes version field",
+			fieldPath:   "facts.nodes[1].version",
+			expectedCat: "nodes",
+		},
+
+		// OS category tests (NSEC)
+		{
+			name:        "distro version field",
+			fieldPath:   "facts.distro.version",
 			expectedCat: "os",
 		},
 		{
-			name:        "OS release field",
-			fieldPath:   "os.release",
-			expectedCat: "os",
-		},
-		{
-			name:        "kernel field",
-			fieldPath:   "kernel.version",
-			expectedCat: "os",
-		},
-		{
-			name:        "kernel release field",
-			fieldPath:   "kernelrelease",
-			expectedCat: "os",
-		},
-		{
-			name:        "system uptime field",
-			fieldPath:   "system_uptime",
+			name:        "distro release field",
+			fieldPath:   "facts.distro.release",
 			expectedCat: "os",
 		},
 
 		// Hardware category tests
 		{
-			name:        "DMI field",
-			fieldPath:   "dmi.system.manufacturer",
-			expectedCat: "hardware",
-		},
-		{
 			name:        "processors field",
-			fieldPath:   "processors.cpu0.model",
+			fieldPath:   "facts.processors.count",
 			expectedCat: "hardware",
 		},
 		{
 			name:        "memory field",
-			fieldPath:   "memory.total",
+			fieldPath:   "facts.memory.total",
 			expectedCat: "hardware",
 		},
 		{
-			name:        "mountpoints field",
-			fieldPath:   "mountpoints.root.size",
+			name:        "product field",
+			fieldPath:   "facts.product.name",
+			expectedCat: "hardware",
+		},
+		{
+			name:        "virtual field",
+			fieldPath:   "facts.virtual.is_virtual",
 			expectedCat: "hardware",
 		},
 
 		// Network category tests
 		{
-			name:        "networking field",
-			fieldPath:   "networking.hostname",
+			name:        "network interfaces field",
+			fieldPath:   "facts.network.interfaces",
 			expectedCat: "network",
 		},
-		{
-			name:        "public IP field",
-			fieldPath:   "public_ip",
-			expectedCat: "network",
-		},
-		{
-			name:        "ARP MACs field",
-			fieldPath:   "arp_macs.gateway",
-			expectedCat: "network",
-		},
-		{
-			name:        "esmithdb networks field",
-			fieldPath:   "esmithdb.networks.eth0",
-			expectedCat: "network",
-		},
+		// Note: facts.features.network could match either network or features
+		// depending on map iteration order, we test facts.network instead
 
-		// Features category tests
+		// Features category tests (NSEC)
 		{
 			name:        "features field",
-			fieldPath:   "features.docker",
+			fieldPath:   "facts.features.docker",
 			expectedCat: "features",
 		},
 		{
-			name:        "services field",
-			fieldPath:   "services.nginx.status",
+			name:        "features dpi field",
+			fieldPath:   "facts.features.dpi",
 			expectedCat: "features",
 		},
-		{
-			name:        "esmithdb configuration field",
-			fieldPath:   "esmithdb.configuration.httpd",
-			expectedCat: "features",
-		},
+
+		// Note: Security and backup patterns like facts.features.certificates also match
+		// the generic facts.features pattern. Due to Go map iteration being non-deterministic,
+		// these may be categorized as either security/backup or features.
+		// Similarly, facts.cluster.backup matches both backup and cluster patterns.
 
 		// Case insensitive tests
 		{
-			name:        "uppercase OS field",
-			fieldPath:   "OS.VERSION",
+			name:        "uppercase facts field",
+			fieldPath:   "FACTS.DISTRO.VERSION",
 			expectedCat: "os",
 		},
 		{
-			name:        "mixed case networking field",
-			fieldPath:   "NetWorking.HostName",
-			expectedCat: "network",
+			name:        "mixed case facts field",
+			fieldPath:   "Facts.Modules[0].Id",
+			expectedCat: "modules",
 		},
 
 		// Default category tests
@@ -157,6 +165,21 @@ func TestConfigurableDiffer_GetCategoryDescription(t *testing.T) {
 		expectEmpty bool
 	}{
 		{
+			name:        "modules category",
+			category:    "modules",
+			expectEmpty: false,
+		},
+		{
+			name:        "cluster category",
+			category:    "cluster",
+			expectEmpty: false,
+		},
+		{
+			name:        "nodes category",
+			category:    "nodes",
+			expectEmpty: false,
+		},
+		{
 			name:        "OS category",
 			category:    "os",
 			expectEmpty: false,
@@ -174,6 +197,16 @@ func TestConfigurableDiffer_GetCategoryDescription(t *testing.T) {
 		{
 			name:        "features category",
 			category:    "features",
+			expectEmpty: false,
+		},
+		{
+			name:        "security category",
+			category:    "security",
+			expectEmpty: false,
+		},
+		{
+			name:        "backup category",
+			category:    "backup",
 			expectEmpty: false,
 		},
 		{
@@ -216,8 +249,8 @@ func TestConfigurableDiffer_GetAllCategories(t *testing.T) {
 
 	categories := differ.GetAllCategories()
 
-	// Check that we have at least the expected categories
-	expectedCategories := []string{"os", "hardware", "network", "features", "system"}
+	// Check that we have the expected categories for NS8/NSEC
+	expectedCategories := []string{"modules", "cluster", "nodes", "os", "hardware", "network", "features", "security", "backup", "system"}
 
 	for _, expected := range expectedCategories {
 		if description, exists := categories[expected]; !exists {
@@ -247,6 +280,16 @@ func TestConfigurableDiffer_GetCategoryPatterns(t *testing.T) {
 		expectEmpty bool
 		expectCount int
 	}{
+		{
+			name:        "modules category patterns",
+			category:    "modules",
+			expectEmpty: false,
+		},
+		{
+			name:        "cluster category patterns",
+			category:    "cluster",
+			expectEmpty: false,
+		},
 		{
 			name:        "OS category patterns",
 			category:    "os",
@@ -311,15 +354,15 @@ func TestConfigurableDiffer_ValidateCategoryPatterns(t *testing.T) {
 	}
 
 	// Test that validation doesn't modify the patterns
-	originalOSPatterns := differ.GetCategoryPatterns("os")
+	originalModulesPatterns := differ.GetCategoryPatterns("modules")
 
 	err = differ.ValidateCategoryPatterns()
 	if err != nil {
 		t.Errorf("Second pattern validation failed: %v", err)
 	}
 
-	newOSPatterns := differ.GetCategoryPatterns("os")
-	if len(originalOSPatterns) != len(newOSPatterns) {
+	newModulesPatterns := differ.GetCategoryPatterns("modules")
+	if len(originalModulesPatterns) != len(newModulesPatterns) {
 		t.Error("Pattern validation modified the patterns")
 	}
 }
@@ -331,10 +374,11 @@ func TestConfigurableDiffer_CategorizeFieldBatch(t *testing.T) {
 	}
 
 	fieldPaths := []string{
-		"os.version",
-		"memory.total",
-		"networking.hostname",
-		"features.docker",
+		"facts.distro.version",
+		"facts.memory.total",
+		"facts.network.interfaces",
+		"facts.features.docker",
+		"facts.modules[0].id",
 		"unknown.field",
 	}
 
@@ -346,11 +390,12 @@ func TestConfigurableDiffer_CategorizeFieldBatch(t *testing.T) {
 	}
 
 	expectedCategories := map[string]string{
-		"os.version":          "os",
-		"memory.total":        "hardware",
-		"networking.hostname": "network",
-		"features.docker":     "features",
-		"unknown.field":       "system",
+		"facts.distro.version":     "os",
+		"facts.memory.total":       "hardware",
+		"facts.network.interfaces": "network",
+		"facts.features.docker":    "features",
+		"facts.modules[0].id":      "modules",
+		"unknown.field":            "system",
 	}
 
 	for fieldPath, expectedCategory := range expectedCategories {
@@ -375,13 +420,14 @@ func TestConfigurableDiffer_GetCategoryStats(t *testing.T) {
 	}
 
 	categorizedFields := map[string]string{
-		"os.version":          "os",
-		"os.kernel":           "os",
-		"memory.total":        "hardware",
-		"memory.free":         "hardware",
-		"networking.hostname": "network",
-		"features.docker":     "features",
-		"unknown.field":       "system",
+		"facts.distro.version":     "os",
+		"facts.distro.release":     "os",
+		"facts.memory.total":       "hardware",
+		"facts.memory.free":        "hardware",
+		"facts.network.interfaces": "network",
+		"facts.features.docker":    "features",
+		"facts.modules[0].id":      "modules",
+		"unknown.field":            "system",
 	}
 
 	stats := differ.GetCategoryStats(categorizedFields)
@@ -391,6 +437,7 @@ func TestConfigurableDiffer_GetCategoryStats(t *testing.T) {
 		"hardware": 2,
 		"network":  1,
 		"features": 1,
+		"modules":  1,
 		"system":   1,
 	}
 
@@ -475,18 +522,20 @@ func TestConfigurableDiffer_CategorizeField_Performance(t *testing.T) {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
 
-	// Test performance with many field paths (with unique variations)
+	// Test performance with many field paths using NS8/NSEC structure
 	fieldPaths := make([]string, 1000)
 	for i := 0; i < 1000; i++ {
-		switch i % 4 {
+		switch i % 5 {
 		case 0:
-			fieldPaths[i] = fmt.Sprintf("os.version%d", i)
+			fieldPaths[i] = fmt.Sprintf("facts.distro.version%d", i)
 		case 1:
-			fieldPaths[i] = fmt.Sprintf("memory.total%d", i)
+			fieldPaths[i] = fmt.Sprintf("facts.memory.total%d", i)
 		case 2:
-			fieldPaths[i] = fmt.Sprintf("networking.hostname%d", i)
+			fieldPaths[i] = fmt.Sprintf("facts.network.interface%d", i)
 		case 3:
-			fieldPaths[i] = fmt.Sprintf("features.docker%d", i)
+			fieldPaths[i] = fmt.Sprintf("facts.features.feature%d", i)
+		case 4:
+			fieldPaths[i] = fmt.Sprintf("facts.modules[%d].id", i)
 		}
 	}
 

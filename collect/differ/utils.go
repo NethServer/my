@@ -172,10 +172,10 @@ func CalculateNoisiness(diffs []models.InventoryDiff) float64 {
 	noisyPatterns := []string{
 		"timestamp",
 		"uptime",
-		"memory.used",
-		"arp_macs",
+		"memory.*bytes",
 		"performance",
 		"metrics",
+		"heartbeat",
 	}
 
 	for _, diff := range diffs {

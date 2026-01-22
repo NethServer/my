@@ -1,0 +1,65 @@
+# Collect Service Configuration
+# This file configures the collect service behavior
+
+# Module visibility configuration
+# Determines which modules are shown in the UI (is_user_facing)
+modules:
+  # System modules - NOT shown in the UI (infrastructure components)
+  system_modules:
+    - traefik
+    - loki
+    - ldapproxy
+    - metrics
+    - crowdsec
+    - openldap
+    - nethvoice-proxy
+    - promtail
+    - prometheus
+    - grafana
+
+  # User-facing modules - shown in the UI (applications)
+  # All modules NOT in system_modules are considered user-facing by default
+  # This list is for documentation purposes and explicit overrides
+  user_facing_modules:
+    - nethvoice
+    - webtop
+    - mail
+    - nextcloud
+    - samba
+    - nethsecurity-controller
+    - odoo
+    - mattermost
+    - collabora
+    - roundcube
+    - dokuwiki
+    - ejabberd
+    - imapsync
+    - sogo
+    - kickstart
+
+# Application URL configuration
+# Pattern for generating application URLs
+application_url:
+  # URL pattern: https://{fqdn}/cluster-admin/#/apps/{module_id}
+  pattern: "https://{fqdn}/cluster-admin/#/apps/{module_id}"
+  # Fallback if FQDN not available
+  fallback_pattern: ""
+
+# Inventory processing configuration
+inventory:
+  # Installation types
+  types:
+    ns8: "nethserver"      # NS8 cluster - has modules/applications
+    nsec: "nethsecurity"   # NethSecurity - no modules
+
+  # Fields to extract for system record updates
+  system_fields:
+    ns8:
+      name: "facts.cluster.label"           # System name from cluster label
+      version: "facts.nodes.{leader}.version"  # Version from leader node
+      fqdn: "facts.cluster.fqdn"            # When available
+      public_ip: "facts.cluster.public_ip"  # When available
+    nsec:
+      name: "facts.distro.name"
+      version: "facts.distro.version"
+      # fqdn and public_ip will be added when available in inventory
