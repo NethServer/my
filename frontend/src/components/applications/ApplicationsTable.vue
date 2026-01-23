@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { faCircleInfo, faEye, faPenToSquare } from '@fortawesome/free-solid-svg-icons'
+import { faCircleInfo, faEye, faPenToSquare, faServer } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   NeTable,
@@ -32,8 +32,9 @@ import { SYSTEMS_TABLE_ID } from '@/lib/systems/systems'
 import router from '@/router'
 import OrganizationIcon from '../OrganizationIcon.vue'
 import { useApplications } from '@/queries/applications'
-import type { Application } from '@/lib/applications'
+import { getDisplayName, type Application } from '@/lib/applications'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
+import AssignOrganizationDrawer from './AssignOrganizationDrawer.vue'
 
 //// review (search "system")
 
@@ -372,7 +373,7 @@ const goToApplicationDetails = (application: Application) => {
         <NeTableBody>
           <NeTableRow v-for="(item, index) in applicationsPage" :key="index">
             <NeTableCell :data-label="$t('applications.name')">
-              {{ item.display_name ? `${item.display_name} (${item.module_id})` : item.module_id }}
+              {{ getDisplayName(item) }}
               <!-- <div> ////
                 <router-link
                   :to="{ name: 'application_detail', params: { applicationId: item.id } }"
@@ -404,7 +405,16 @@ const goToApplicationDetails = (application: Application) => {
               </div>
             </NeTableCell>
             <NeTableCell :data-label="$t('systems.system')">
-              {{ item.system.id || '-' }}
+              <div>
+                <router-link :to="{ name: 'system_detail', params: { systemId: item.system.id } }">
+                  <div class="flex items-center gap-2">
+                    <FontAwesomeIcon :icon="faServer" class="h-4 w-4" aria-hidden="true" />
+                    <span class="cursor-pointer font-medium hover:underline">
+                      {{ item.system.name || '-' }}
+                    </span>
+                  </div>
+                </router-link>
+              </div>
             </NeTableCell>
             <NeTableCell :data-label="$t('organizations.organization')">
               <div>
