@@ -29,6 +29,14 @@ export type ApplicationStatus = 'online' | 'offline' | 'unknown' | 'deleted'
 //   ...CreateApplicationSchema.entries,
 // })
 
+export const OrganizationSchema = v.object({
+  logto_id: v.string(),
+  id: v.string(),
+  name: v.string(),
+  description: v.string(),
+  type: v.string(),
+})
+
 export const ApplicationSchema = v.object({
   id: v.string(),
   module_id: v.string(),
@@ -38,19 +46,15 @@ export const ApplicationSchema = v.object({
   status: v.string(),
   node_id: v.number(),
   node_label: v.optional(v.string()),
+  url: v.optional(v.string()),
+  notes: v.optional(v.string()),
   has_errors: v.boolean(),
+  inventory_data: v.record(v.string(), v.any()),
   system: v.object({
     id: v.string(),
     name: v.string(),
   }),
-  organization: v.optional(
-    v.object({
-      id: v.string(),
-      name: v.string(),
-      description: v.string(),
-      type: v.string(),
-    }),
-  ),
+  organization: v.optional(OrganizationSchema),
   created_at: v.string(),
   last_inventory_at: v.string(),
 })
@@ -60,6 +64,8 @@ export const ApplicationSchema = v.object({
 // export type EditApplication = v.InferOutput<typeof EditApplicationSchema>
 
 export type Application = v.InferOutput<typeof ApplicationSchema>
+
+export type Organization = v.InferOutput<typeof OrganizationSchema>
 
 interface ApplicationsResponse {
   code: number
@@ -134,6 +140,14 @@ export const getQueryStringParams = (
     searchParams.append('organization_id', orgId)
   })
   return searchParams.toString()
+}
+
+export const getDisplayName = (app: Application) => {
+  if (app.display_name) {
+    return `${app.display_name} (${app.module_id})`
+  } else {
+    return app.module_id
+  }
 }
 
 ////
@@ -232,7 +246,7 @@ export const assignOrganization = (organizationId: string, applicationId: string
   const loginStore = useLoginStore()
 
   return axios.patch<Application>(
-    `${API_URL}/applications/${applicationId}`,
+    `${API_URL}/applications/${applicationId}/assign`,
     { organization_id: organizationId },
     {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
