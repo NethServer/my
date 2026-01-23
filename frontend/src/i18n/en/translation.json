@@ -147,7 +147,9 @@
     "name_cannot_be_empty": "Company name is required",
     "custom_data_vat_cannot_be_empty": "VAT number is required",
     "custom_data_vat_already_exists": "An organization with this VAT number already exists",
-    "organization": "Organization"
+    "organization": "Organization",
+    "choose_organization": "Choose organization",
+    "no_organizations": "No organizations"
   },
   "users": {
     "title": "Users",
@@ -445,7 +447,11 @@
     "version": "Version",
     "type": "Type",
     "assign_organization": "Assign organization",
-    "name": "Name"
+    "name": "Name",
+    "application_name": "Application name",
+    "organization_assigned": "Organization assigned",
+    "organization_assigned_description": "The organization {organization} has been assigned to application {application}.",
+    "cannot_assign_organization": "Cannot assign organization"
   },
   "ne_table": {
     "no_items": "No items",
