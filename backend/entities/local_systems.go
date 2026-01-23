@@ -54,9 +54,9 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 		       COALESCE(d.id::text, r.id::text, c.id::text, '') as organization_db_id
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
-		LEFT JOIN distributors d ON s.organization_id = d.logto_id AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON s.organization_id = r.logto_id AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON s.organization_id = c.logto_id AND c.deleted_at IS NULL
+		LEFT JOIN distributors d ON (s.organization_id = d.logto_id OR s.organization_id = d.id::text) AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON (s.organization_id = r.logto_id OR s.organization_id = r.id::text) AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON (s.organization_id = c.logto_id OR s.organization_id = c.id::text) AND c.deleted_at IS NULL
 		WHERE s.id = $1 AND s.deleted_at IS NULL
 	`
 
@@ -271,9 +271,9 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	countQuery := fmt.Sprintf(`
 		SELECT COUNT(*)
 		FROM systems s
-		LEFT JOIN distributors d ON s.organization_id = d.logto_id AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON s.organization_id = r.logto_id AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON s.organization_id = c.logto_id AND c.deleted_at IS NULL
+		LEFT JOIN distributors d ON (s.organization_id = d.logto_id OR s.organization_id = d.id::text) AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON (s.organization_id = r.logto_id OR s.organization_id = r.id::text) AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON (s.organization_id = c.logto_id OR s.organization_id = c.id::text) AND c.deleted_at IS NULL
 		WHERE %s`, whereClause)
 
 	err := r.db.QueryRow(countQuery, args...).Scan(&totalCount)
@@ -320,9 +320,9 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		       END as organization_type,
 		       COALESCE(d.id::text, r.id::text, c.id::text, '') as organization_db_id
 		FROM systems s
-		LEFT JOIN distributors d ON s.organization_id = d.logto_id AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON s.organization_id = r.logto_id AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON s.organization_id = c.logto_id AND c.deleted_at IS NULL
+		LEFT JOIN distributors d ON (s.organization_id = d.logto_id OR s.organization_id = d.id::text) AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON (s.organization_id = r.logto_id OR s.organization_id = r.id::text) AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON (s.organization_id = c.logto_id OR s.organization_id = c.id::text) AND c.deleted_at IS NULL
 		WHERE %s
 		ORDER BY %s
 		LIMIT $%d OFFSET $%d

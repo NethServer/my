@@ -105,9 +105,9 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 		           ELSE 'owner'
 		       END as organization_type
 		FROM users u
-		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON u.organization_id = c.logto_id AND c.deleted_at IS NULL
+		LEFT JOIN distributors d ON (u.organization_id = d.logto_id OR u.organization_id = d.id::text) AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON (u.organization_id = r.logto_id OR u.organization_id = r.id::text) AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON (u.organization_id = c.logto_id OR u.organization_id = c.id::text) AND c.deleted_at IS NULL
 		WHERE u.id = $1 AND u.deleted_at IS NULL
 	`
 
@@ -167,9 +167,9 @@ func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, e
 		           ELSE 'owner'
 		       END as organization_type
 		FROM users u
-		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON u.organization_id = c.logto_id AND c.deleted_at IS NULL
+		LEFT JOIN distributors d ON (u.organization_id = d.logto_id OR u.organization_id = d.id::text) AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON (u.organization_id = r.logto_id OR u.organization_id = r.id::text) AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON (u.organization_id = c.logto_id OR u.organization_id = c.id::text) AND c.deleted_at IS NULL
 		WHERE u.logto_id = $1 AND u.deleted_at IS NULL
 	`
 
@@ -609,9 +609,9 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, exclud
 		           ELSE 'owner'
 		       END as organization_type
 		FROM users u
-		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON u.organization_id = c.logto_id AND c.deleted_at IS NULL
+		LEFT JOIN distributors d ON (u.organization_id = d.logto_id OR u.organization_id = d.id::text) AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON (u.organization_id = r.logto_id OR u.organization_id = r.id::text) AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON (u.organization_id = c.logto_id OR u.organization_id = c.id::text) AND c.deleted_at IS NULL
 		WHERE u.deleted_at IS NULL
 		  AND u.organization_id IN (%s)
 		  AND u.id != $%d
@@ -720,9 +720,9 @@ func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, exc
 		           ELSE 'owner'
 		       END as organization_type
 		FROM users u
-		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON u.organization_id = c.logto_id AND c.deleted_at IS NULL
+		LEFT JOIN distributors d ON (u.organization_id = d.logto_id OR u.organization_id = d.id::text) AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON (u.organization_id = r.logto_id OR u.organization_id = r.id::text) AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON (u.organization_id = c.logto_id OR u.organization_id = c.id::text) AND c.deleted_at IS NULL
 		WHERE u.deleted_at IS NULL
 		  AND u.organization_id IN (%s)
 		  AND u.id != $%d%s%s

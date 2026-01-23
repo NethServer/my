@@ -144,9 +144,9 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 		       COALESCE(d.id::text, r.id::text, c.id::text, '') as organization_db_id
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
-		LEFT JOIN distributors d ON s.organization_id = d.logto_id AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON s.organization_id = r.logto_id AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON s.organization_id = c.logto_id AND c.deleted_at IS NULL
+		LEFT JOIN distributors d ON (s.organization_id = d.logto_id OR s.organization_id = d.id::text) AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON (s.organization_id = r.logto_id OR s.organization_id = r.id::text) AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON (s.organization_id = c.logto_id OR s.organization_id = c.id::text) AND c.deleted_at IS NULL
 		WHERE s.deleted_at IS NULL
 		ORDER BY s.created_at DESC
 	`
@@ -413,9 +413,9 @@ func (s *LocalSystemsService) RestoreSystem(systemID, userID, userOrgID, userOrg
 		       END as organization_type,
 		       COALESCE(d.id::text, r.id::text, c.id::text, '') as organization_db_id
 		FROM systems s
-		LEFT JOIN distributors d ON s.organization_id = d.logto_id AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON s.organization_id = r.logto_id AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON s.organization_id = c.logto_id AND c.deleted_at IS NULL
+		LEFT JOIN distributors d ON (s.organization_id = d.logto_id OR s.organization_id = d.id::text) AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON (s.organization_id = r.logto_id OR s.organization_id = r.id::text) AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON (s.organization_id = c.logto_id OR s.organization_id = c.id::text) AND c.deleted_at IS NULL
 		WHERE s.id = $1
 	`
 
@@ -947,9 +947,9 @@ func (s *LocalSystemsService) getOrganizationInfo(logtoOrgID string) models.Orga
 			END as type,
 			COALESCE(d.id::text, r.id::text, c.id::text, '') as db_id
 		FROM (SELECT $1 as logto_id) o
-		LEFT JOIN distributors d ON o.logto_id = d.logto_id AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON o.logto_id = r.logto_id AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON o.logto_id = c.logto_id AND c.deleted_at IS NULL
+		LEFT JOIN distributors d ON (o.logto_id = d.logto_id OR o.logto_id = d.id::text) AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON (o.logto_id = r.logto_id OR o.logto_id = r.id::text) AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON (o.logto_id = c.logto_id OR o.logto_id = c.id::text) AND c.deleted_at IS NULL
 	`
 
 	var org models.Organization
