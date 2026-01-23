@@ -9,9 +9,10 @@ import "time"
 
 // Organization represents an organization with its type
 type Organization struct {
-	ID   string `json:"id" structs:"id"`
-	Name string `json:"name" structs:"name"`
-	Type string `json:"type" structs:"type"` // owner, distributor, reseller, customer
+	ID      string `json:"id" structs:"id"`             // Database UUID
+	LogtoID string `json:"logto_id" structs:"logto_id"` // Logto organization ID
+	Name    string `json:"name" structs:"name"`
+	Type    string `json:"type" structs:"type"` // owner, distributor, reseller, customer
 }
 
 // SystemCreator represents the user who created the system

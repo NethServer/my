@@ -698,6 +698,28 @@ components:
           description: Organization type
           example: "customer"
 
+    SystemOrganization:
+      type: object
+      description: Organization information embedded in system response
+      properties:
+        id:
+          type: string
+          description: Database UUID of the organization (empty string for owner organization)
+          example: "4405ffd0-0aca-44ef-bae2-c8545bce94f4"
+        logto_id:
+          type: string
+          description: Logto organization ID (used for identity/auth purposes)
+          example: "akkbs6x2wo82"
+        name:
+          type: string
+          description: Organization name
+          example: "ACME Corp"
+        type:
+          type: string
+          enum: [owner, distributor, reseller, customer]
+          description: Organization type
+          example: "customer"
+
     ThirdPartyApplication:
       type: object
       properties:
@@ -947,14 +969,8 @@ components:
           type: string
           description: Auto-generated unique commercial system key. Hidden (empty string) until system is registered.
           example: "ABC123DEF456"
-        organization_id:
-          type: string
-          description: Organization ID to which this system belongs
-          example: "org_123456789"
-        organization_name:
-          type: string
-          description: Organization name to which this system belongs (resolved from distributors, resellers, or customers)
-          example: "Acme Corporation"
+        organization:
+          $ref: '#/components/schemas/SystemOrganization'
         custom_data:
           type: object
           description: Custom system data
