@@ -1661,7 +1661,7 @@ components:
       required: false
       schema:
         type: string
-        example: "NOC-DD09-3DB4-76E4-42A0-A6CC-6D30-9AE7-3216"
+        example: "NETH-DD09-3DB4-76E4-42A0-A6CC-6D30-9AE7-3216"
 
     SystemTypeFilterParam:
       name: type
@@ -6649,7 +6649,7 @@ paths:
                       system_key:
                         type: string
                         description: System KEY
-                        example: "NOC-4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
+                        example: "NETH-4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
                       timestamp:
                         type: string
                         format: date-time
@@ -6725,7 +6725,7 @@ paths:
                 system_key:
                   type: string
                   description: System KEY sending the heartbeat
-                  example: "NOC-4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
+                  example: "NETH-4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
               required:
                 - system_key
       responses:
@@ -6748,7 +6748,7 @@ paths:
                       system_key:
                         type: string
                         description: System KEY
-                        example: "NOC-4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
+                        example: "NETH-4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
                       acknowledged:
                         type: boolean
                         description: Whether heartbeat was acknowledged

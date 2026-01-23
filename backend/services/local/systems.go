@@ -54,7 +54,7 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 	// Generate unique system ID
 	systemID := uuid.New().String()
 
-	// Generate system key (NOC-XXXX-XXXX format)
+	// Generate system key (NETH-XXXX-XXXX format)
 	systemKey, err := s.generateSystemKey()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate system key: %w", err)
@@ -787,7 +787,7 @@ func (s *LocalSystemsService) calculateHeartbeatStatus(lastHeartbeat *time.Time,
 }
 
 // generateSystemKey generates a unique UUID-based system key with prefix
-// Format: NOC-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX
+// Format: NETH-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX
 func (s *LocalSystemsService) generateSystemKey() (string, error) {
 	// Generate a new UUID
 	id := uuid.New()
@@ -795,7 +795,7 @@ func (s *LocalSystemsService) generateSystemKey() (string, error) {
 	// Convert UUID to uppercase hex string without dashes
 	hexStr := strings.ToUpper(strings.ReplaceAll(id.String(), "-", ""))
 
-	// Format as: NOC-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX
+	// Format as: NETH-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX
 	// Group into 4-character segments for readability
 	var segments []string
 	for i := 0; i < len(hexStr); i += 4 {
@@ -806,7 +806,7 @@ func (s *LocalSystemsService) generateSystemKey() (string, error) {
 		segments = append(segments, hexStr[i:end])
 	}
 
-	return "NOC-" + strings.Join(segments, "-"), nil
+	return "NETH-" + strings.Join(segments, "-"), nil
 }
 
 // generateSecretPublicPart generates the public part of the token (20 random characters)
