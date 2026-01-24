@@ -612,10 +612,10 @@ func (r *LocalApplicationRepository) GetTrend(allowedSystemIDs []string, period 
 	return dataPoints, currentTotal, previousTotal, nil
 }
 
-// GetDistinctTypes returns distinct application types
-func (r *LocalApplicationRepository) GetDistinctTypes(allowedSystemIDs []string, userFacingOnly bool) ([]string, error) {
+// GetDistinctTypes returns distinct application types with is_user_facing from database
+func (r *LocalApplicationRepository) GetDistinctTypes(allowedSystemIDs []string, userFacingOnly bool) ([]models.ApplicationType, error) {
 	if len(allowedSystemIDs) == 0 {
-		return []string{}, nil
+		return []models.ApplicationType{}, nil
 	}
 
 	placeholders := make([]string, len(allowedSystemIDs))
@@ -632,9 +632,10 @@ func (r *LocalApplicationRepository) GetDistinctTypes(allowedSystemIDs []string,
 	}
 
 	query := fmt.Sprintf(`
-		SELECT DISTINCT instance_of
+		SELECT instance_of, is_user_facing, COUNT(*) as count
 		FROM applications
 		WHERE deleted_at IS NULL AND system_id IN (%s)%s
+		GROUP BY instance_of, is_user_facing
 		ORDER BY instance_of
 	`, placeholdersStr, userFacingClause)
 
@@ -644,10 +645,10 @@ func (r *LocalApplicationRepository) GetDistinctTypes(allowedSystemIDs []string,
 	}
 	defer func() { _ = rows.Close() }()
 
-	var types []string
+	var types []models.ApplicationType
 	for rows.Next() {
-		var t string
-		if err := rows.Scan(&t); err != nil {
+		var t models.ApplicationType
+		if err := rows.Scan(&t.InstanceOf, &t.IsUserFacing, &t.Count); err != nil {
 			return nil, fmt.Errorf("failed to scan type: %w", err)
 		}
 		types = append(types, t)

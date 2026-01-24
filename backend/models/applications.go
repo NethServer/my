@@ -106,7 +106,7 @@ type AssignApplicationRequest struct {
 	OrganizationID string `json:"organization_id" binding:"required"`
 }
 
-// UpdateApplicationRequest represents the request to update an application (only notes is editable, other fields come from inventory)
+// UpdateApplicationRequest represents the request to update an application (only notes is editable)
 type UpdateApplicationRequest struct {
 	Notes *string `json:"notes"`
 }
@@ -129,51 +129,11 @@ type ApplicationFilters struct {
 	SystemIDs []string `json:"system_ids"`
 }
 
-// ApplicationType represents application type metadata
+// ApplicationType represents application type metadata for filter dropdowns
 type ApplicationType struct {
 	InstanceOf   string `json:"instance_of"`
-	DisplayName  string `json:"display_name"`
 	IsUserFacing bool   `json:"is_user_facing"`
 	Count        int64  `json:"count"`
-}
-
-// ApplicationTypeMapping maps instance_of values to display names and user-facing flag
-var ApplicationTypeMapping = map[string]struct {
-	DisplayName  string
-	IsUserFacing bool
-}{
-	"nethvoice":               {DisplayName: "NethVoice", IsUserFacing: true},
-	"webtop":                  {DisplayName: "WebTop", IsUserFacing: true},
-	"mail":                    {DisplayName: "Mail", IsUserFacing: true},
-	"nextcloud":               {DisplayName: "Nextcloud", IsUserFacing: true},
-	"roundcubemail":           {DisplayName: "Roundcube", IsUserFacing: true},
-	"mattermost":              {DisplayName: "Mattermost", IsUserFacing: true},
-	"nethsecurity-controller": {DisplayName: "NethSecurity", IsUserFacing: true},
-	"onlyoffice":              {DisplayName: "OnlyOffice", IsUserFacing: true},
-	"samba":                   {DisplayName: "Samba", IsUserFacing: true},
-	"imapsync":                {DisplayName: "Imapsync", IsUserFacing: true},
-	"traefik":                 {DisplayName: "Traefik", IsUserFacing: false},
-	"loki":                    {DisplayName: "Loki", IsUserFacing: false},
-	"promtail":                {DisplayName: "Promtail", IsUserFacing: false},
-	"prometheus":              {DisplayName: "Prometheus", IsUserFacing: false},
-	"grafana":                 {DisplayName: "Grafana", IsUserFacing: false},
-}
-
-// GetDisplayName returns the display name for an application type
-func GetApplicationDisplayName(instanceOf string) string {
-	if mapping, exists := ApplicationTypeMapping[instanceOf]; exists {
-		return mapping.DisplayName
-	}
-	return instanceOf
-}
-
-// IsUserFacingApplication checks if an application type is user-facing
-func IsUserFacingApplication(instanceOf string) bool {
-	if mapping, exists := ApplicationTypeMapping[instanceOf]; exists {
-		return mapping.IsUserFacing
-	}
-	// Default to true for unknown types
-	return true
 }
 
 // GetEffectiveDisplayName returns the display name or falls back to module_id
@@ -182,11 +142,6 @@ func (a *Application) GetEffectiveDisplayName() string {
 		return *a.DisplayName
 	}
 	return a.ModuleID
-}
-
-// GetTypeDisplayName returns the human-readable type name
-func (a *Application) GetTypeDisplayName() string {
-	return GetApplicationDisplayName(a.InstanceOf)
 }
 
 // HasServiceErrors checks if the application has service errors from services_data

@@ -1123,8 +1123,8 @@ components:
         display_name:
           type: string
           nullable: true
-          description: Custom display name for the application
-          example: "Corporate Email Server"
+          description: User-friendly name set in NS8 and inherited from inventory (e.g., "Milan Office PBX")
+          example: "Milan Office PBX"
         node_id:
           type: integer
           nullable: true
@@ -1241,8 +1241,8 @@ components:
         display_name:
           type: string
           nullable: true
-          description: Custom display name
-          example: "Corporate Email Server"
+          description: User-friendly name set in NS8 and inherited from inventory
+          example: "Milan Office PBX"
         version:
           type: string
           nullable: true
@@ -1366,12 +1366,8 @@ components:
       properties:
         instance_of:
           type: string
-          description: Application type identifier
-          example: "mail"
-        display_name:
-          type: string
-          description: Human-readable type name
-          example: "Mail"
+          description: Application type identifier (lowercase, e.g., nethvoice, webtop, mail)
+          example: "nethvoice"
         is_user_facing:
           type: boolean
           description: Whether this is a user-facing application type
@@ -1398,7 +1394,7 @@ components:
         notes:
           type: string
           nullable: true
-          description: Custom notes for the application (only editable field)
+          description: Custom notes for the application
           example: "Server di posta aziendale per il reparto marketing"
 
     ImpersonationConsent:
@@ -6268,7 +6264,7 @@ paths:
       tags:
         - Backend - Applications
       summary: /applications/{id} - Update application
-      description: Update an application's display name, notes, or URL
+      description: Update an application's notes (other fields are read-only and populated from inventory)
       parameters:
         - name: id
           in: path

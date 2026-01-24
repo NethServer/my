@@ -1464,18 +1464,18 @@ func (s *LocalOrganizationService) GetAllOrganizationsPaginated(userOrgRole, use
 		return nil, fmt.Errorf("failed to get distributors: %w", err)
 	}
 	for _, d := range distributors {
-		// Use logto_id if available, otherwise fallback to local ID
-		orgID := d.ID
+		logtoID := ""
 		if d.LogtoID != nil {
-			orgID = *d.LogtoID
+			logtoID = *d.LogtoID
 		}
 
 		allOrganizations = append(allOrganizations, models.LogtoOrganization{
-			ID:          orgID,
+			ID:          logtoID,
 			Name:        d.Name,
 			Description: d.Description,
 			CustomData: map[string]interface{}{
-				"type": "distributor",
+				"type":        "distributor",
+				"database_id": d.ID,
 			},
 		})
 	}
@@ -1486,18 +1486,25 @@ func (s *LocalOrganizationService) GetAllOrganizationsPaginated(userOrgRole, use
 		return nil, fmt.Errorf("failed to get resellers: %w", err)
 	}
 	for _, r := range resellers {
-		// Use logto_id if available, otherwise fallback to local ID
-		orgID := r.ID
+		logtoID := ""
 		if r.LogtoID != nil {
-			orgID = *r.LogtoID
+			logtoID = *r.LogtoID
 		}
 
-		customData := r.CustomData
-		if customData == nil {
-			customData = map[string]interface{}{"type": "reseller"}
+		customData := map[string]interface{}{
+			"type":        "reseller",
+			"database_id": r.ID,
+		}
+		// Preserve other custom data fields
+		if r.CustomData != nil {
+			for k, v := range r.CustomData {
+				if k != "type" && k != "database_id" {
+					customData[k] = v
+				}
+			}
 		}
 		allOrganizations = append(allOrganizations, models.LogtoOrganization{
-			ID:          orgID,
+			ID:          logtoID,
 			Name:        r.Name,
 			Description: r.Description,
 			CustomData:  customData,
@@ -1510,19 +1517,26 @@ func (s *LocalOrganizationService) GetAllOrganizationsPaginated(userOrgRole, use
 		return nil, fmt.Errorf("failed to get customers: %w", err)
 	}
 	for _, c := range customers {
-		// Use logto_id if available, otherwise fallback to local ID
-		orgID := c.ID
+		logtoID := ""
 		if c.LogtoID != nil {
-			orgID = *c.LogtoID
+			logtoID = *c.LogtoID
 		}
 
-		customData := c.CustomData
-		if customData == nil {
-			customData = map[string]interface{}{"type": "customer"}
+		customData := map[string]interface{}{
+			"type":        "customer",
+			"database_id": c.ID,
+		}
+		// Preserve other custom data fields
+		if c.CustomData != nil {
+			for k, v := range c.CustomData {
+				if k != "type" && k != "database_id" {
+					customData[k] = v
+				}
+			}
 		}
 
 		allOrganizations = append(allOrganizations, models.LogtoOrganization{
-			ID:          orgID,
+			ID:          logtoID,
 			Name:        c.Name,
 			Description: c.Description,
 			CustomData:  customData,
@@ -1693,7 +1707,8 @@ func (s *LocalOrganizationService) getUserOwnOrganization(userOrgRole, userOrgID
 			Name:        distributor.Name,
 			Description: distributor.Description,
 			CustomData: map[string]interface{}{
-				"type": "distributor",
+				"type":        "distributor",
+				"database_id": distributor.ID,
 			},
 		}, nil
 
@@ -1720,9 +1735,17 @@ func (s *LocalOrganizationService) getUserOwnOrganization(userOrgRole, userOrgID
 			}
 		}
 
-		customData := reseller.CustomData
-		if customData == nil {
-			customData = map[string]interface{}{"type": "reseller"}
+		customData := map[string]interface{}{
+			"type":        "reseller",
+			"database_id": reseller.ID,
+		}
+		// Preserve other custom data fields
+		if reseller.CustomData != nil {
+			for k, v := range reseller.CustomData {
+				if k != "type" && k != "database_id" {
+					customData[k] = v
+				}
+			}
 		}
 
 		return &models.LogtoOrganization{
@@ -1755,9 +1778,17 @@ func (s *LocalOrganizationService) getUserOwnOrganization(userOrgRole, userOrgID
 			}
 		}
 
-		customData := customer.CustomData
-		if customData == nil {
-			customData = map[string]interface{}{"type": "customer"}
+		customData := map[string]interface{}{
+			"type":        "customer",
+			"database_id": customer.ID,
+		}
+		// Preserve other custom data fields
+		if customer.CustomData != nil {
+			for k, v := range customer.CustomData {
+				if k != "type" && k != "database_id" {
+					customData[k] = v
+				}
+			}
 		}
 
 		return &models.LogtoOrganization{

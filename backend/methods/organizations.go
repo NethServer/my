@@ -73,8 +73,17 @@ func GetOrganizations(c *gin.Context) {
 	// Convert to response format (no additional filtering needed - RBAC already applied by repositories)
 	organizations := make([]models.OrganizationSummary, len(result.Data))
 	for i, org := range result.Data {
+		// Extract database_id from CustomData
+		databaseID := ""
+		if org.CustomData != nil {
+			if dbID, ok := org.CustomData["database_id"].(string); ok {
+				databaseID = dbID
+			}
+		}
+
 		organizations[i] = models.OrganizationSummary{
-			ID:          org.ID,
+			ID:          databaseID, // Database UUID
+			LogtoID:     org.ID,     // Logto ID
 			Name:        org.Name,
 			Description: org.Description,
 			Type:        getOrganizationType(org),

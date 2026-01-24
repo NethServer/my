@@ -200,22 +200,7 @@ func (s *LocalApplicationsService) GetApplicationTypes(userOrgRole, userOrgID st
 		return nil, fmt.Errorf("failed to get allowed systems: %w", err)
 	}
 
-	types, err := s.repo.GetDistinctTypes(allowedSystemIDs, true)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert to ApplicationType with display names
-	result := make([]models.ApplicationType, len(types))
-	for i, t := range types {
-		result[i] = models.ApplicationType{
-			InstanceOf:   t,
-			DisplayName:  models.GetApplicationDisplayName(t),
-			IsUserFacing: models.IsUserFacingApplication(t),
-		}
-	}
-
-	return result, nil
+	return s.repo.GetDistinctTypes(allowedSystemIDs, true)
 }
 
 // GetApplicationVersions returns distinct application versions
