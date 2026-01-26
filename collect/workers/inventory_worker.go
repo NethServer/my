@@ -441,7 +441,7 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 	installation, _ := inventoryData["installation"].(string)
 
 	// Extract system fields based on installation type
-	var name, fqdn, version, systemType, ipv4 *string
+	var name, fqdn, version, systemType, ipv4, ipv6 *string
 
 	switch installation {
 	case "nethserver": // NS8
@@ -453,38 +453,47 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 			return nil // No facts, nothing to extract
 		}
 
-		// Extract cluster info
+		// Extract cluster info (only ui_name for system name)
 		if cluster, ok := facts["cluster"].(map[string]interface{}); ok {
-			// System name from cluster.label (when available)
-			if label, ok := cluster["label"].(string); ok && label != "" {
-				name = &label
-			}
-			// FQDN from cluster.fqdn (when available)
-			if fqdnVal, ok := cluster["fqdn"].(string); ok && fqdnVal != "" {
-				fqdn = &fqdnVal
-			}
-			// Public IP from cluster.public_ip (when available)
-			if publicIP, ok := cluster["public_ip"].(string); ok && publicIP != "" {
-				ipv4 = &publicIP
+			// System name from cluster.ui_name
+			if uiName, ok := cluster["ui_name"].(string); ok && uiName != "" {
+				name = &uiName
 			}
 		}
 
-		// Extract version from leader node (node "1" or first available)
+		// Extract fqdn, ipv4, ipv6, version from leader node
 		if nodes, ok := facts["nodes"].(map[string]interface{}); ok {
-			// Try node "1" first (leader), then any available node
-			nodeIDs := []string{"1"}
-			for nodeID := range nodes {
-				if nodeID != "1" {
-					nodeIDs = append(nodeIDs, nodeID)
+			// Find the leader node (cluster_leader: true)
+			var leaderNode map[string]interface{}
+			for _, nodeInfo := range nodes {
+				if nodeData, ok := nodeInfo.(map[string]interface{}); ok {
+					if isLeader, ok := nodeData["cluster_leader"].(bool); ok && isLeader {
+						leaderNode = nodeData
+						break
+					}
 				}
 			}
 
-			for _, nodeID := range nodeIDs {
-				if nodeData, ok := nodes[nodeID].(map[string]interface{}); ok {
-					if nodeVersion, ok := nodeData["version"].(string); ok && nodeVersion != "" {
-						version = &nodeVersion
-						break
-					}
+			// If no explicit leader found, try node "1" as fallback
+			if leaderNode == nil {
+				if nodeData, ok := nodes["1"].(map[string]interface{}); ok {
+					leaderNode = nodeData
+				}
+			}
+
+			// Extract data from leader node
+			if leaderNode != nil {
+				if nodeFQDN, ok := leaderNode["fqdn"].(string); ok && nodeFQDN != "" {
+					fqdn = &nodeFQDN
+				}
+				if nodeIPv4, ok := leaderNode["default_ipv4"].(string); ok && nodeIPv4 != "" {
+					ipv4 = &nodeIPv4
+				}
+				if nodeIPv6, ok := leaderNode["default_ipv6"].(string); ok && nodeIPv6 != "" {
+					ipv6 = &nodeIPv6
+				}
+				if nodeVersion, ok := leaderNode["version"].(string); ok && nodeVersion != "" {
+					version = &nodeVersion
 				}
 			}
 		}
@@ -551,7 +560,8 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 	argPos := 1
 
 	if name != nil {
-		updates = append(updates, fmt.Sprintf("name = $%d", argPos))
+		// Only update name if it's currently NULL (preserve user-modified names)
+		updates = append(updates, fmt.Sprintf("name = COALESCE(systems.name, $%d)", argPos))
 		args = append(args, *name)
 		argPos++
 	}
@@ -573,6 +583,11 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 	if ipv4 != nil {
 		updates = append(updates, fmt.Sprintf("ipv4_address = $%d", argPos))
 		args = append(args, *ipv4)
+		argPos++
+	}
+	if ipv6 != nil {
+		updates = append(updates, fmt.Sprintf("ipv6_address = $%d", argPos))
+		args = append(args, *ipv6)
 		argPos++
 	}
 
@@ -667,6 +682,20 @@ func (iw *InventoryWorker) extractApplicationsFromInventory(ctx context.Context,
 		}
 	}
 
+	// Get cluster domains for enrichment (map domain name -> full domain data)
+	clusterDomains := make(map[string]map[string]interface{})
+	if cluster, ok := facts["cluster"].(map[string]interface{}); ok {
+		if userDomains, ok := cluster["user_domains"].([]interface{}); ok {
+			for _, domainRaw := range userDomains {
+				if domain, ok := domainRaw.(map[string]interface{}); ok {
+					if domainName, ok := domain["name"].(string); ok && domainName != "" {
+						clusterDomains[domainName] = domain
+					}
+				}
+			}
+		}
+	}
+
 	// Track which module IDs we've seen in this inventory
 	seenModuleIDs := make(map[string]bool)
 
@@ -682,7 +711,7 @@ func (iw *InventoryWorker) extractApplicationsFromInventory(ctx context.Context,
 		moduleName, _ := module["name"].(string) // This is instance_of
 		moduleVersion, _ := module["version"].(string)
 		moduleNodeStr, _ := module["node"].(string)
-		moduleLabel, _ := module["label"].(string) // display_name (when available)
+		moduleUIName, _ := module["ui_name"].(string) // display_name
 
 		if moduleID == "" || moduleName == "" {
 			continue // Skip invalid modules
@@ -698,12 +727,12 @@ func (iw *InventoryWorker) extractApplicationsFromInventory(ctx context.Context,
 			}
 		}
 
-		// Get node label from nodes data
+		// Get node label from nodes data (ui_name field)
 		var nodeLabel *string
 		if moduleNodeStr != "" {
 			if nodeInfo, ok := nodesData[moduleNodeStr]; ok {
-				if label, ok := nodeInfo["label"].(string); ok && label != "" {
-					nodeLabel = &label
+				if uiName, ok := nodeInfo["ui_name"].(string); ok && uiName != "" {
+					nodeLabel = &uiName
 				}
 			}
 		}
@@ -724,10 +753,30 @@ func (iw *InventoryWorker) extractApplicationsFromInventory(ctx context.Context,
 		// Remove fixed fields and keep everything else
 		inventoryDataJSON := make(map[string]interface{})
 		fixedFields := map[string]bool{
-			"id": true, "name": true, "version": true, "node": true, "label": true,
+			"id": true, "name": true, "version": true, "node": true, "ui_name": true,
 		}
 		for key, value := range module {
 			if !fixedFields[key] {
+				// Enrich user_domains with full domain data from cluster
+				if key == "user_domains" {
+					if domainNames, ok := value.([]interface{}); ok {
+						enrichedDomains := make([]map[string]interface{}, 0, len(domainNames))
+						for _, domainNameRaw := range domainNames {
+							if domainName, ok := domainNameRaw.(string); ok {
+								if fullDomain, exists := clusterDomains[domainName]; exists {
+									enrichedDomains = append(enrichedDomains, fullDomain)
+								} else {
+									// Domain not found in cluster, keep just the name
+									enrichedDomains = append(enrichedDomains, map[string]interface{}{
+										"name": domainName,
+									})
+								}
+							}
+						}
+						inventoryDataJSON[key] = enrichedDomains
+						continue
+					}
+				}
 				inventoryDataJSON[key] = value
 			}
 		}
@@ -771,7 +820,7 @@ func (iw *InventoryWorker) extractApplicationsFromInventory(ctx context.Context,
 			record.SystemID,           // $2
 			moduleID,                  // $3
 			moduleName,                // $4 (instance_of)
-			nilIfEmpty(moduleLabel),   // $5 (display_name)
+			nilIfEmpty(moduleUIName),  // $5 (display_name from ui_name)
 			nodeID,                    // $6
 			nodeLabel,                 // $7
 			nilIfEmpty(moduleVersion), // $8
