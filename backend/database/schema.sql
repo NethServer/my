@@ -529,43 +529,62 @@ CREATE TABLE IF NOT EXISTS inventory_diffs (
 
     -- References
     system_id VARCHAR(255) NOT NULL,        -- System this diff belongs to
-    record_id BIGINT NOT NULL,              -- FK to inventory_records
+    previous_id BIGINT,                     -- FK to inventory_records (previous snapshot, NULL for first)
+    current_id BIGINT NOT NULL,             -- FK to inventory_records (current snapshot)
 
     -- Change classification
-    category VARCHAR(100) NOT NULL,         -- os, hardware, network, features, security, performance, system
-    subcategory VARCHAR(100),               -- More specific category (optional)
-    change_type VARCHAR(20) NOT NULL,       -- added, removed, modified
+    diff_type VARCHAR(20) NOT NULL,         -- create, update, delete
+    category VARCHAR(100),                  -- os, hardware, network, features, security, performance, system, nodes, modules
+    severity VARCHAR(20) NOT NULL DEFAULT 'medium',  -- low, medium, high, critical
 
     -- Change data
-    path VARCHAR(500),                      -- JSON path of the changed field
-    old_value JSONB,                        -- Previous value (NULL for added)
-    new_value JSONB,                        -- New value (NULL for removed)
+    field_path VARCHAR(500),                -- JSON path of the changed field (e.g., facts.nodes.1.version)
+    previous_value JSONB,                   -- Previous value (NULL for create)
+    current_value JSONB,                    -- New value (NULL for delete)
+
+    -- Notification tracking
+    notification_sent BOOLEAN NOT NULL DEFAULT false,  -- Whether notification was sent for this diff
 
     -- Timestamps
-    timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 -- Table documentation
 COMMENT ON TABLE inventory_diffs IS 'Computed differences between inventory snapshots';
-COMMENT ON COLUMN inventory_diffs.category IS 'Change category: os, hardware, network, features, security, performance, system';
-COMMENT ON COLUMN inventory_diffs.change_type IS 'Type of change: added, removed, modified';
-COMMENT ON COLUMN inventory_diffs.path IS 'JSON path of the changed field (e.g., os.release.full)';
+COMMENT ON COLUMN inventory_diffs.previous_id IS 'Reference to previous inventory record (NULL for first inventory)';
+COMMENT ON COLUMN inventory_diffs.current_id IS 'Reference to current inventory record';
+COMMENT ON COLUMN inventory_diffs.diff_type IS 'Type of change: create, update, delete';
+COMMENT ON COLUMN inventory_diffs.category IS 'Change category: os, hardware, network, features, security, performance, system, nodes, modules';
+COMMENT ON COLUMN inventory_diffs.severity IS 'Change severity: low, medium, high, critical';
+COMMENT ON COLUMN inventory_diffs.field_path IS 'JSON path of the changed field (e.g., facts.nodes.1.version)';
+COMMENT ON COLUMN inventory_diffs.notification_sent IS 'Whether notification was sent for this diff';
 
--- Change type validation
-ALTER TABLE inventory_diffs ADD CONSTRAINT chk_inventory_diffs_change_type
-    CHECK (change_type IN ('added', 'removed', 'modified'));
+-- Diff type validation
+ALTER TABLE inventory_diffs ADD CONSTRAINT chk_inventory_diffs_diff_type
+    CHECK (diff_type IN ('create', 'update', 'delete'));
 
--- Foreign key constraint
+-- Severity validation
+ALTER TABLE inventory_diffs ADD CONSTRAINT chk_inventory_diffs_severity
+    CHECK (severity IN ('low', 'medium', 'high', 'critical'));
+
+-- Foreign key constraints
 ALTER TABLE inventory_diffs
-ADD CONSTRAINT inventory_diffs_record_id_fkey
-FOREIGN KEY (record_id) REFERENCES inventory_records(id) ON DELETE CASCADE;
+ADD CONSTRAINT inventory_diffs_previous_id_fkey
+FOREIGN KEY (previous_id) REFERENCES inventory_records(id) ON DELETE CASCADE;
+
+ALTER TABLE inventory_diffs
+ADD CONSTRAINT inventory_diffs_current_id_fkey
+FOREIGN KEY (current_id) REFERENCES inventory_records(id) ON DELETE CASCADE;
 
 -- Performance indexes
 CREATE INDEX IF NOT EXISTS idx_inventory_diffs_system_id ON inventory_diffs(system_id);
-CREATE INDEX IF NOT EXISTS idx_inventory_diffs_record_id ON inventory_diffs(record_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_diffs_previous_id ON inventory_diffs(previous_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_diffs_current_id ON inventory_diffs(current_id);
 CREATE INDEX IF NOT EXISTS idx_inventory_diffs_category ON inventory_diffs(category);
-CREATE INDEX IF NOT EXISTS idx_inventory_diffs_change_type ON inventory_diffs(change_type);
-CREATE INDEX IF NOT EXISTS idx_inventory_diffs_timestamp ON inventory_diffs(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_inventory_diffs_diff_type ON inventory_diffs(diff_type);
+CREATE INDEX IF NOT EXISTS idx_inventory_diffs_severity ON inventory_diffs(severity);
+CREATE INDEX IF NOT EXISTS idx_inventory_diffs_created_at ON inventory_diffs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_inventory_diffs_notification_sent ON inventory_diffs(notification_sent) WHERE notification_sent = false;
 
 -- =============================================================================
 -- SYSTEM HEARTBEATS TABLE

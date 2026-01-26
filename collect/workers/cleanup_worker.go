@@ -181,11 +181,10 @@ func (cw *CleanupWorker) cleanupOldInventoryDiffs(ctx context.Context, workerLog
 	maxAge := configuration.Config.InventoryMaxAge
 	maxAgeHours := int(maxAge.Hours())
 
-	// Remove low/medium severity diffs after configured period
+	// Remove old diffs after configured period
 	query := fmt.Sprintf(`
-		DELETE FROM inventory_diffs 
+		DELETE FROM inventory_diffs
 		WHERE created_at < NOW() - INTERVAL '%d hours'
-		AND severity IN ('low', 'medium')
 	`, maxAgeHours)
 
 	result, err := database.DB.ExecContext(ctx, query)
@@ -201,31 +200,7 @@ func (cw *CleanupWorker) cleanupOldInventoryDiffs(ctx context.Context, workerLog
 	if rowsAffected > 0 {
 		workerLogger.Info().
 			Int64("rows_deleted", rowsAffected).
-			Msg("Cleaned up old inventory diffs (low/medium severity)")
-	}
-
-	// Remove high/critical severity diffs after longer period
-	extendedAgeHours := maxAgeHours * 2 // Keep high/critical diffs twice as long
-	extendedQuery := fmt.Sprintf(`
-		DELETE FROM inventory_diffs 
-		WHERE created_at < NOW() - INTERVAL '%d hours'
-		AND severity IN ('high', 'critical')
-	`, extendedAgeHours)
-
-	result, err = database.DB.ExecContext(ctx, extendedQuery)
-	if err != nil {
-		return err
-	}
-
-	rowsAffected, err = result.RowsAffected()
-	if err != nil {
-		return err
-	}
-
-	if rowsAffected > 0 {
-		workerLogger.Info().
-			Int64("rows_deleted", rowsAffected).
-			Msg("Cleaned up old inventory diffs (high/critical severity)")
+			Msg("Cleaned up old inventory diffs")
 	}
 
 	return nil
