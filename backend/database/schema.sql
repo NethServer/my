@@ -293,17 +293,16 @@ CREATE TABLE IF NOT EXISTS applications (
     -- Relationship to system (source of the application)
     system_id VARCHAR(255) NOT NULL,        -- FK to systems table
 
-    -- Identity from inventory (cluster_module_domain_table)
-    module_id VARCHAR(255) NOT NULL,        -- Inventory identifier (e.g., "nethvoice1", "webtop3", "mail1")
-    instance_of VARCHAR(100) NOT NULL,      -- Application type (e.g., "nethvoice", "webtop", "mail", "nextcloud")
+    -- Identity from inventory (facts.modules[])
+    module_id VARCHAR(255) NOT NULL,        -- Module ID from inventory (e.g., "nethvoice1", "webtop3", "mail1")
+    instance_of VARCHAR(100) NOT NULL,      -- Module type/name (e.g., "nethvoice", "webtop", "mail", "nextcloud")
 
     -- Display name (for UI customization)
-    display_name VARCHAR(255),              -- Custom name like "Milan Office PBX" (nullable, falls back to module_id)
+    display_name VARCHAR(255),              -- From modules[].ui_name or custom name (nullable, falls back to module_id)
 
-    -- From inventory (cluster_module_domain_table entry)
-    node_id INTEGER,                        -- Cluster node ID where the app runs (1, 2, 3...)
-    node_label VARCHAR(255),                -- Node label (e.g., "Leader Node", "Worker Node")
-    domain_id VARCHAR(255),                 -- User domain associated with the app (can be null for system apps)
+    -- From inventory (facts.modules[] and facts.nodes[])
+    node_id INTEGER,                        -- Cluster node ID where the app runs (from modules[].node)
+    node_label VARCHAR(255),                -- Node label from nodes[].ui_name
     version VARCHAR(100),                   -- Application version (when available from inventory)
 
     -- Organization assignment (core business requirement)
@@ -314,7 +313,7 @@ CREATE TABLE IF NOT EXISTS applications (
     status VARCHAR(50) NOT NULL DEFAULT 'unassigned',  -- unassigned, assigned, error
 
     -- Flexible JSONB for type-specific data from inventory
-    inventory_data JSONB,                   -- Complete raw data from cluster_module_domain_table entry
+    inventory_data JSONB,                   -- Module data from facts.modules[] (excludes id, name, version, node, ui_name)
     backup_data JSONB,                      -- Backup status from inventory (when available)
     services_data JSONB,                    -- Services health status from inventory (when available)
 
@@ -345,11 +344,10 @@ COMMENT ON COLUMN applications.instance_of IS 'Application type: nethvoice, webt
 COMMENT ON COLUMN applications.display_name IS 'Custom display name for UI. Falls back to module_id if NULL';
 COMMENT ON COLUMN applications.node_id IS 'Cluster node ID where the application runs (1=leader, 2+=workers)';
 COMMENT ON COLUMN applications.node_label IS 'Human-readable node label from inventory (e.g., Leader Node, Worker Node)';
-COMMENT ON COLUMN applications.domain_id IS 'User domain ID for apps with user authentication (NULL for system apps)';
 COMMENT ON COLUMN applications.organization_id IS 'Assigned organization Logto ID. NULL means unassigned';
 COMMENT ON COLUMN applications.organization_type IS 'Denormalized org type for efficient filtering: owner, distributor, reseller, customer';
 COMMENT ON COLUMN applications.status IS 'Application status: unassigned (no org), assigned (has org), error (has issues)';
-COMMENT ON COLUMN applications.inventory_data IS 'Complete raw JSON from cluster_module_domain_table entry';
+COMMENT ON COLUMN applications.inventory_data IS 'Module-specific data from facts.modules[] with enriched user_domains from cluster';
 COMMENT ON COLUMN applications.backup_data IS 'Backup status information extracted from inventory';
 COMMENT ON COLUMN applications.services_data IS 'Services health status extracted from inventory';
 COMMENT ON COLUMN applications.is_user_facing IS 'FALSE for system components (traefik, loki, promtail) hidden in UI';
@@ -371,7 +369,6 @@ CREATE INDEX IF NOT EXISTS idx_applications_is_user_facing ON applications(is_us
 CREATE INDEX IF NOT EXISTS idx_applications_deleted_at ON applications(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_applications_created_at ON applications(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_applications_node_id ON applications(node_id);
-CREATE INDEX IF NOT EXISTS idx_applications_domain_id ON applications(domain_id);
 
 -- Composite indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_applications_org_type_status

@@ -1135,11 +1135,6 @@ components:
           nullable: true
           description: Node label from inventory (e.g., Leader Node, Worker Node)
           example: "Leader Node"
-        domain_id:
-          type: string
-          nullable: true
-          description: Domain identifier
-          example: "example.com"
         version:
           type: string
           nullable: true

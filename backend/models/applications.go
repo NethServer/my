@@ -19,7 +19,6 @@ type Application struct {
 	DisplayName      *string         `json:"display_name" db:"display_name"`
 	NodeID           *int            `json:"node_id" db:"node_id"`
 	NodeLabel        *string         `json:"node_label" db:"node_label"`
-	DomainID         *string         `json:"domain_id" db:"domain_id"`
 	Version          *string         `json:"version" db:"version"`
 	OrganizationID   *string         `json:"organization_id" db:"organization_id"`
 	OrganizationType *string         `json:"organization_type" db:"organization_type"`

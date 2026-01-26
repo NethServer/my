@@ -12,7 +12,6 @@ DROP INDEX IF EXISTS idx_applications_is_user_facing;
 DROP INDEX IF EXISTS idx_applications_deleted_at;
 DROP INDEX IF EXISTS idx_applications_created_at;
 DROP INDEX IF EXISTS idx_applications_node_id;
-DROP INDEX IF EXISTS idx_applications_domain_id;
 DROP INDEX IF EXISTS idx_applications_org_type_status;
 DROP INDEX IF EXISTS idx_applications_system_user_facing;
 
