@@ -99,11 +99,7 @@ const organizationOptions = computed(() => {
 
 function onShow() {
   clearErrors()
-
-  if (currentApplication) {
-    // editing application
-    organizationId.value = currentApplication.organization?.logto_id || ''
-  }
+  organizationId.value = currentApplication?.organization?.logto_id || ''
 }
 
 function closeDrawer() {
