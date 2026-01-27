@@ -164,13 +164,10 @@ func LoadConfig(configPath string) (*DifferConfig, error) {
 
 	if configPath != "" {
 		// Explicit path provided
-		if _, err := os.Stat(configPath); os.IsNotExist(err) {
-			return getDefaultConfig(), nil
-		}
 		var err error
 		data, err = os.ReadFile(configPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read config file: %w", err)
+			return nil, fmt.Errorf("failed to read config file %s: %w", configPath, err)
 		}
 	} else {
 		// Search for config.yml in standard locations
@@ -193,7 +190,7 @@ func LoadConfig(configPath string) (*DifferConfig, error) {
 		}
 
 		if data == nil {
-			return getDefaultConfig(), nil
+			return nil, fmt.Errorf("config.yml not found in any of the search paths")
 		}
 	}
 
@@ -325,114 +322,6 @@ func validateConfig(config *DifferConfig) error {
 	}
 
 	return nil
-}
-
-// getDefaultConfig returns a default configuration
-// Uses NS8/NSEC inventory structure patterns
-func getDefaultConfig() *DifferConfig {
-	return &DifferConfig{
-		Categorization: CategorizationConfig{
-			Categories: map[string]CategoryRule{
-				"modules": {
-					Patterns:    []string{"facts\\.modules"},
-					Description: "Application modules changes",
-				},
-				"cluster": {
-					Patterns:    []string{"facts\\.cluster"},
-					Description: "Cluster-wide configuration changes",
-				},
-				"nodes": {
-					Patterns:    []string{"facts\\.nodes"},
-					Description: "Cluster node changes",
-				},
-				"os": {
-					Patterns:    []string{"facts\\.distro"},
-					Description: "Operating system related changes",
-				},
-				"hardware": {
-					Patterns:    []string{"facts\\.processors", "facts\\.memory", "facts\\.product", "facts\\.virtual"},
-					Description: "Hardware and system components",
-				},
-				"network": {
-					Patterns:    []string{"facts\\.network", "facts\\.features\\.network"},
-					Description: "Network configuration and connectivity",
-				},
-				"features": {
-					Patterns:    []string{"facts\\.features"},
-					Description: "Software features and services",
-				},
-			},
-			Default: DefaultCategory{
-				Name:        "system",
-				Description: "General system changes",
-			},
-		},
-		Severity: SeverityConfig{
-			Critical: SeverityLevel{
-				Conditions: []SeverityCondition{
-					{ChangeType: "delete", Patterns: []string{"facts\\.nodes", "facts\\.processors", "facts\\.memory", "facts\\.network", "facts\\.features"}},
-					{ChangeType: "create", Patterns: []string{"error", "failed", "critical"}},
-				},
-				Description: "Critical changes requiring immediate attention",
-			},
-			High: SeverityLevel{
-				Conditions: []SeverityCondition{
-					{ChangeType: "update", Patterns: []string{"facts\\.distro\\.version", "facts\\.modules\\[\\d+\\]\\.version", "facts\\.cluster\\.fqdn", "facts\\.cluster\\.public_ip"}},
-					{ChangeType: "create", Patterns: []string{"facts\\.modules", "warning", "alert"}},
-					{ChangeType: "delete", Patterns: []string{"facts\\.modules"}},
-				},
-				Description: "Important changes requiring attention",
-			},
-			Medium: SeverityLevel{
-				Conditions: []SeverityCondition{
-					{ChangeType: "update", Patterns: []string{"facts\\.features", "facts\\.cluster"}},
-					{ChangeType: "create", Patterns: []string{"info", "notice"}},
-				},
-				Description: "Moderate changes for review",
-			},
-			Low: SeverityLevel{
-				Conditions: []SeverityCondition{
-					{ChangeType: "update", Patterns: []string{"facts\\.memory\\..*\\.used_bytes", "facts\\.memory\\..*\\.available_bytes"}},
-					{ChangeType: "create", Patterns: []string{"debug", "trace"}},
-				},
-				Description: "Minor changes for reference",
-			},
-			Default: DefaultSeverity{
-				Level:       "medium",
-				Description: "Default severity for unclassified changes",
-			},
-		},
-		Significance: SignificanceConfig{
-			AlwaysSignificant: []string{"severity:(high|critical)", "category:(modules|cluster|nodes|hardware|network|security)", "change_type:delete", "facts\\.modules", "facts\\.distro\\.version"},
-			NeverSignificant:  []string{"uptime_seconds", "facts\\.memory\\..*\\.used_bytes", "facts\\.memory\\..*\\.available_bytes", "facts\\.nodes\\.\\d+\\.memory\\..*\\.used_bytes", "facts\\.nodes\\.\\d+\\.memory\\..*\\.available_bytes", "metrics\\.timestamp", "performance\\.last_update", "monitoring\\.heartbeat"},
-			Default: DefaultSignificance{
-				Significant: true,
-				Description: "Default significance for unclassified changes",
-			},
-		},
-		Limits: LimitsConfig{
-			MaxDiffDepth:       10,
-			MaxDiffsPerRun:     1000,
-			MaxFieldPathLength: 500,
-		},
-		Trends: TrendsConfig{
-			Enabled:        true,
-			WindowHours:    24,
-			MinOccurrences: 3,
-		},
-		Notifications: NotificationsConfig{
-			Grouping: GroupingConfig{
-				Enabled:           true,
-				TimeWindowMinutes: 30,
-				MaxGroupSize:      10,
-			},
-			RateLimiting: RateLimitingConfig{
-				Enabled:                 true,
-				MaxNotificationsPerHour: 50,
-				MaxCriticalPerHour:      10,
-			},
-		},
-	}
 }
 
 // GetConfig returns the current configuration

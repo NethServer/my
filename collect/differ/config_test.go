@@ -23,14 +23,15 @@ func TestLoadConfig(t *testing.T) {
 		cleanup       func(path string)
 	}{
 		{
-			name:        "default config when no file",
+			name:        "loads config from search path",
 			configPath:  "",
 			expectError: false,
 		},
 		{
-			name:        "default config when file doesn't exist",
-			configPath:  "/nonexistent/config.yml",
-			expectError: false,
+			name:          "error when file doesn't exist",
+			configPath:    "/nonexistent/config.yml",
+			expectError:   true,
+			errorContains: "failed to read config file",
 		},
 		{
 			name:        "valid YAML config",
@@ -211,9 +212,10 @@ func TestNewConfigurableDiffer(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:        "valid nonexistent path",
-			configPath:  "/nonexistent/config.yml",
-			expectError: false,
+			name:          "error for nonexistent path",
+			configPath:    "/nonexistent/config.yml",
+			expectError:   true,
+			errorContains: "failed to read config file",
 		},
 	}
 
@@ -359,8 +361,18 @@ func TestValidateConfigFunc(t *testing.T) {
 		errorContains string
 	}{
 		{
-			name:        "valid config",
-			config:      getDefaultConfig(),
+			name: "valid config",
+			config: &DifferConfig{
+				Limits: LimitsConfig{
+					MaxDiffDepth:       10,
+					MaxDiffsPerRun:     1000,
+					MaxFieldPathLength: 500,
+				},
+				Trends: TrendsConfig{
+					WindowHours:    24,
+					MinOccurrences: 3,
+				},
+			},
 			expectError: false,
 		},
 		{
@@ -427,34 +439,6 @@ func TestValidateConfigFunc(t *testing.T) {
 				t.Errorf("Unexpected error: %v", err)
 			}
 		})
-	}
-}
-
-func TestGetDefaultConfig(t *testing.T) {
-	config := getDefaultConfig()
-
-	if config == nil {
-		t.Fatal("Expected non-nil default config")
-	}
-
-	// Validate the default config
-	validateTestConfig(t, config)
-
-	// Check specific default values
-	if config.Categorization.Default.Name != "system" {
-		t.Errorf("Expected default category 'system', got '%s'", config.Categorization.Default.Name)
-	}
-
-	if config.Severity.Default.Level != "medium" {
-		t.Errorf("Expected default severity 'medium', got '%s'", config.Severity.Default.Level)
-	}
-
-	if !config.Significance.Default.Significant {
-		t.Error("Expected default significance to be true")
-	}
-
-	if !config.Trends.Enabled {
-		t.Error("Expected trends to be enabled by default")
 	}
 }
 

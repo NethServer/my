@@ -27,9 +27,10 @@ func TestNewDiffEngine(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:        "invalid config path",
-			configPath:  "/nonexistent/config.yml",
-			expectError: false, // Should fall back to default config
+			name:          "invalid config path",
+			configPath:    "/nonexistent/config.yml",
+			expectError:   true,
+			errorContains: "failed to read config file",
 		},
 	}
 

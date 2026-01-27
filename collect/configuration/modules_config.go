@@ -8,6 +8,7 @@
 package configuration
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -47,7 +48,7 @@ func LoadModulesConfig() (*ModulesConfig, error) {
 	modulesConfigOnce.Do(func() {
 		modulesConfig = &ModulesConfig{}
 
-		// Try to find config.yml in various locations
+		// Search for config.yml in standard locations
 		configPaths := []string{
 			"config.yml",
 			"./config.yml",
@@ -71,15 +72,14 @@ func LoadModulesConfig() (*ModulesConfig, error) {
 		}
 
 		if configData == nil {
-			// Use defaults if no config file found
-			logger.Info().Msg("No config.yml found, using default module configuration")
-			setDefaultModulesConfig()
+			loadErr = fmt.Errorf("config.yml not found in any of the search paths")
+			logger.Error().Msg("config.yml not found: the file is required")
 			return
 		}
 
 		if err := yaml.Unmarshal(configData, modulesConfig); err != nil {
-			logger.Error().Err(err).Str("path", configPath).Msg("Failed to parse config.yml, using defaults")
-			setDefaultModulesConfig()
+			loadErr = fmt.Errorf("failed to parse config.yml: %w", err)
+			logger.Error().Err(err).Str("path", configPath).Msg("Failed to parse config.yml")
 			return
 		}
 
@@ -96,33 +96,6 @@ func LoadModulesConfig() (*ModulesConfig, error) {
 	})
 
 	return modulesConfig, loadErr
-}
-
-// setDefaultModulesConfig sets default values when no config is available
-func setDefaultModulesConfig() {
-	modulesConfig.Modules.SystemModules = []string{
-		"traefik",
-		"loki",
-		"ldapproxy",
-		"metrics",
-		"crowdsec",
-		"openldap",
-		"nethvoice-proxy",
-		"promtail",
-		"prometheus",
-		"grafana",
-	}
-
-	modulesConfig.ApplicationURL.Pattern = "https://{fqdn}/cluster-admin/#/apps/{module_id}"
-
-	modulesConfig.Inventory.Types.NS8 = "nethserver"
-	modulesConfig.Inventory.Types.NSEC = "nethsecurity"
-
-	// Build system modules set
-	systemModulesSet = make(map[string]bool)
-	for _, module := range modulesConfig.Modules.SystemModules {
-		systemModulesSet[module] = true
-	}
 }
 
 // GetModulesConfig returns the loaded modules configuration
