@@ -339,8 +339,12 @@ components:
       properties:
         id:
           type: string
-          description: Organization ID
-          example: "org_123456789"
+          description: Database UUID of the organization
+          example: "4405ffd0-0aca-44ef-bae2-c8545bce94f4"
+        logto_id:
+          type: string
+          description: Logto organization ID (use this value for assignment operations)
+          example: "akkbs6x2wo82"
         name:
           type: string
           description: Organization name
@@ -512,8 +516,8 @@ components:
           example: ["rol_abc123def456", "rol_xyz789abc123"]
         organization_id:
           type: string
-          description: Organization ID to assign user to
-          example: "org_xyz789"
+          description: Organization Logto ID to assign user to (use the logto_id from organization responses)
+          example: "akkbs6x2wo82"
         phone:
           type: string
           description: Phone number
@@ -642,8 +646,12 @@ components:
       properties:
         id:
           type: string
-          description: Organization ID
-          example: "org_123456789"
+          description: Database UUID of the organization
+          example: "4405ffd0-0aca-44ef-bae2-c8545bce94f4"
+        logto_id:
+          type: string
+          description: Logto organization ID (use this value for assignment operations)
+          example: "akkbs6x2wo82"
         name:
           type: string
           description: Organization name
@@ -1058,8 +1066,8 @@ components:
           example: "Production Server 01"
         organization_id:
           type: string
-          description: Organization ID to associate the system with
-          example: "org_123456789"
+          description: Organization Logto ID to associate the system with (use the logto_id from organization responses)
+          example: "akkbs6x2wo82"
         custom_data:
           type: object
           description: Custom system data (optional)
@@ -1084,8 +1092,8 @@ components:
           example: "Production Server 01"
         organization_id:
           type: string
-          description: Organization ID to associate the system with
-          example: "org_123456789"
+          description: Organization Logto ID to associate the system with (use the logto_id from organization responses)
+          example: "akkbs6x2wo82"
         custom_data:
           type: object
           description: Custom system data
@@ -1379,8 +1387,8 @@ components:
       properties:
         organization_id:
           type: string
-          description: Organization ID to assign to the application
-          example: "org_xyz789"
+          description: Organization Logto ID to assign to the application (use the logto_id from organization responses)
+          example: "akkbs6x2wo82"
 
     UpdateApplicationRequest:
       type: object
@@ -4547,6 +4555,8 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/OrganizationReference'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
