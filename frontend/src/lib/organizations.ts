@@ -7,7 +7,7 @@ import { useLoginStore } from '@/stores/login'
 import { faBuilding, faCity, faCrown, faGlobe, faQuestion } from '@fortawesome/free-solid-svg-icons'
 
 export type Organization = {
-  id: string //// or logto_id?
+  logto_id: string
   name: string
   description: string
   type: string
