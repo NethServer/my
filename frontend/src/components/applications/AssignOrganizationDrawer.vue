@@ -1,5 +1,5 @@
 <!--
-  Copyright (C) 2025 Nethesis S.r.l.
+  Copyright (C) 2026 Nethesis S.r.l.
   SPDX-License-Identifier: GPL-3.0-or-later
 -->
 
@@ -15,7 +15,7 @@ import { computed, ref } from 'vue'
 import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
-import { isValidationError } from '@/lib/validation'
+import { getValidationIssues, isValidationError } from '@/lib/validation'
 import {
   APPLICATIONS_KEY,
   assignOrganization,
@@ -25,9 +25,7 @@ import {
 } from '@/lib/applications'
 import { getOrganizations, ORGANIZATIONS_KEY } from '@/lib/organizations'
 import { useLoginStore } from '@/stores/login'
-import { get } from 'lodash'
-
-//// review (search "distributor")
+import type { AxiosError } from 'axios'
 
 const { isShown = false, currentApplication = undefined } = defineProps<{
   isShown: boolean
@@ -61,7 +59,10 @@ const {
       notificationsStore.createNotification({
         kind: 'success',
         title: t('applications.organization_assigned'),
-        description: t('applications.organization_assigned_description', {}), //// fix description with vars
+        description: t('applications.organization_assigned_description', {
+          application: getDisplayName(vars),
+          organization: vars.organization?.name,
+        }),
       })
     }, 500)
 
@@ -69,6 +70,7 @@ const {
   },
   onError: (error) => {
     console.error('Error assigning organization:', error)
+    validationIssues.value = getValidationIssues(error as AxiosError, 'applications')
   },
   onSettled: () => {
     queryCache.invalidateQueries({ key: [APPLICATIONS_KEY] })
@@ -81,12 +83,6 @@ const { state: organizations } = useQuery({
   query: getOrganizations,
 })
 
-// const name = ref('') ////
-// const nameRef = useTemplateRef<HTMLInputElement>('nameRef')
-// const description = ref('')
-// const descriptionRef = useTemplateRef<HTMLInputElement>('descriptionRef')
-// const vatNumber = ref('')
-// const vatNumberRef = useTemplateRef<HTMLInputElement>('vatNumberRef')
 const validationIssues = ref<Record<string, string[]>>({})
 
 const organizationOptions = computed(() => {
@@ -95,7 +91,7 @@ const organizationOptions = computed(() => {
   }
 
   return organizations.value.data?.map((org) => ({
-    id: org.id,
+    id: org.logto_id,
     label: org.name,
     description: t(`organizations.${org.type}`),
   }))
@@ -119,51 +115,8 @@ function clearErrors() {
   validationIssues.value = {}
 }
 
-////
-// function validateEdit(application: Application): boolean {
-//   validationIssues.value = {}
-//   const validation = v.safeParse(ApplicationSchema, application)
-
-//   if (validation.success) {
-//     // no validation issues
-//     return true
-//   } else {
-//     const flattenedIssues = v.flatten(validation.issues)
-
-//     if (flattenedIssues.nested) {
-//       const issues: Record<string, string[]> = {}
-
-//       for (const key in flattenedIssues.nested) {
-//         // replace dots with underscores for i18n key
-//         const newKey = key.replace(/\./g, '_')
-//         issues[newKey] = flattenedIssues.nested[key] ?? []
-//       }
-//       validationIssues.value = issues
-
-//       console.debug('frontend validation issues', validationIssues.value)
-
-//       // focus the first field with error
-
-//       const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-//       fieldRefs[firstErrorFieldName]?.value?.focus()
-//     }
-//     return false
-//   }
-// }
-
 async function saveApplication() {
   clearErrors()
-
-  // const application = { ////
-  //   name: name.value,
-  //   description: description.value,
-  //   custom_data: {
-  //     vat: vatNumber.value,
-  //   },
-  // }
-
-  // if (currentApplication?.id) { ////
-  // editing application
 
   if (!currentApplication) {
     return
@@ -180,25 +133,7 @@ async function saveApplication() {
     ...currentApplication,
     organization,
   }
-
-  ////
-  // const isValidationOk = validateEdit(distributorToEdit)
-  // if (!isValidationOk) {
-  //   return
-  // }
-
   assignOrganizationMutate(application)
-
-  // } else { ////
-  //   // creating application
-
-  //   const distributorToCreate: CreateApplication = application
-  //   const isValidationOk = validateCreate(distributorToCreate)
-  //   if (!isValidationOk) {
-  //     return
-  //   }
-  //   createApplicationMutate(distributorToCreate)
-  // }
 }
 </script>
 
@@ -216,12 +151,6 @@ async function saveApplication() {
         <NeTextInput
           :value="currentApplication ? getDisplayName(currentApplication) : ''"
           :label="$t('applications.application_name')"
-          readonly
-        />
-        <!-- type -->
-        <NeTextInput
-          :value="currentApplication?.instance_of"
-          :label="$t('applications.type')"
           readonly
         />
         <!-- organization -->
