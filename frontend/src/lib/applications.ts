@@ -31,7 +31,7 @@ export type ApplicationStatus = 'online' | 'offline' | 'unknown' | 'deleted'
 
 export const OrganizationSchema = v.object({
   logto_id: v.string(),
-  id: v.string(),
+  // id: v.optional(v.string()), ////
   name: v.string(),
   description: v.string(),
   type: v.string(),
@@ -248,6 +248,18 @@ export const assignOrganization = (organizationId: string, applicationId: string
   return axios.patch<Application>(
     `${API_URL}/applications/${applicationId}/assign`,
     { organization_id: organizationId },
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
+export const putApplication = (notes: string, applicationId: string) => {
+  const loginStore = useLoginStore()
+
+  return axios.put<Application>(
+    `${API_URL}/applications/${applicationId}`,
+    { notes },
     {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     },

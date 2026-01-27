@@ -170,7 +170,9 @@ function getKebabMenuItems(application: Application) {
   if (canManageApplications()) {
     items.push({
       id: 'assignOrganization',
-      label: t('applications.assign_organization'),
+      label: application.organization?.logto_id
+        ? t('applications.reassign_organization')
+        : t('applications.assign_organization'),
       icon: faPenToSquare,
       action: () => showAssignOrgDrawer(application),
       disabled: asyncStatus.value === 'loading',
