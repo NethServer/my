@@ -254,16 +254,12 @@ export const assignOrganization = (organizationId: string, applicationId: string
   )
 }
 
-export const putApplication = (notes: string, applicationId: string) => {
+export const putApplication = (application: Application) => {
   const loginStore = useLoginStore()
 
-  return axios.put<Application>(
-    `${API_URL}/applications/${applicationId}`,
-    { notes },
-    {
-      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
-    },
-  )
+  return axios.put<Application>(`${API_URL}/applications/${application.id}`, application, {
+    headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+  })
 }
 
 export const getApplicationsTotal = () => {
