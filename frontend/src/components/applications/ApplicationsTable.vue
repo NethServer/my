@@ -4,7 +4,13 @@
 -->
 
 <script setup lang="ts">
-import { faCircleInfo, faEye, faPenToSquare, faServer } from '@fortawesome/free-solid-svg-icons'
+import {
+  faBuilding,
+  faCircleInfo,
+  faEye,
+  faPenToSquare,
+  faServer,
+} from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   NeTable,
@@ -35,6 +41,7 @@ import { useApplications } from '@/queries/applications'
 import { getDisplayName, type Application } from '@/lib/applications'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import AssignOrganizationDrawer from './AssignOrganizationDrawer.vue'
+import SetNotesDrawer from './SetNotesDrawer.vue'
 
 //// review (search "system")
 
@@ -64,6 +71,7 @@ const {
 
 const currentApplication = ref<Application | undefined>()
 const isShownAssignOrgDrawer = ref(false)
+const isShownSetNotesDrawer = ref(false)
 
 const applicationsPage = computed(() => {
   return state.value.data?.applications || []
@@ -164,6 +172,11 @@ function showAssignOrgDrawer(application: Application) {
   isShownAssignOrgDrawer.value = true
 }
 
+function showSetNotesDrawer(application: Application) {
+  currentApplication.value = application
+  isShownSetNotesDrawer.value = true
+}
+
 function getKebabMenuItems(application: Application) {
   let items: NeDropdownItem[] = []
 
@@ -173,8 +186,16 @@ function getKebabMenuItems(application: Application) {
       label: application.organization?.logto_id
         ? t('applications.reassign_organization')
         : t('applications.assign_organization'),
-      icon: faPenToSquare,
+      icon: faBuilding,
       action: () => showAssignOrgDrawer(application),
+      disabled: asyncStatus.value === 'loading',
+    })
+
+    items.push({
+      id: 'setNotes',
+      label: application?.notes ? t('applications.edit_notes') : t('applications.add_notes'),
+      icon: faPenToSquare,
+      action: () => showSetNotesDrawer(application),
       disabled: asyncStatus.value === 'loading',
     })
   }
@@ -492,6 +513,12 @@ const goToApplicationDetails = (application: Application) => {
       :is-shown="isShownAssignOrgDrawer"
       :current-application="currentApplication"
       @close="isShownAssignOrgDrawer = false"
+    />
+    <!-- set notes drawer -->
+    <SetNotesDrawer
+      :is-shown="isShownSetNotesDrawer"
+      :current-application="currentApplication"
+      @close="isShownSetNotesDrawer = false"
     />
   </div>
 </template>

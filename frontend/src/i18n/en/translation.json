@@ -451,8 +451,14 @@
     "name": "Name",
     "application_name": "Application name",
     "organization_assigned": "Application assigned to organization",
-    "organization_assigned_description": "The application {application} has been assigned to organization {organization}.",
-    "cannot_assign_organization": "Cannot assign organization"
+    "organization_assigned_description": "The application {application} has been assigned to organization {organization}",
+    "cannot_assign_organization": "Cannot assign organization",
+    "notes": "Notes",
+    "add_notes": "Add notes",
+    "edit_notes": "Edit notes",
+    "set_application_notes": "Set application notes",
+    "set_application_notes_description": "The notes for application {application} have been set",
+    "cannot_set_notes": "Cannot set application notes"
   },
   "ne_table": {
     "no_items": "No items",
