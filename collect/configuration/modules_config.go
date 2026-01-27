@@ -20,8 +20,7 @@ import (
 // ModulesConfig holds the module visibility configuration
 type ModulesConfig struct {
 	Modules struct {
-		SystemModules     []string `yaml:"system_modules"`
-		UserFacingModules []string `yaml:"user_facing_modules"`
+		SystemModules []string `yaml:"system_modules"`
 	} `yaml:"modules"`
 	ApplicationURL struct {
 		Pattern         string `yaml:"pattern"`
@@ -32,18 +31,6 @@ type ModulesConfig struct {
 			NS8  string `yaml:"ns8"`
 			NSEC string `yaml:"nsec"`
 		} `yaml:"types"`
-		SystemFields struct {
-			NS8 struct {
-				Name     string `yaml:"name"`
-				Version  string `yaml:"version"`
-				FQDN     string `yaml:"fqdn"`
-				PublicIP string `yaml:"public_ip"`
-			} `yaml:"ns8"`
-			NSEC struct {
-				Name    string `yaml:"name"`
-				Version string `yaml:"version"`
-			} `yaml:"nsec"`
-		} `yaml:"system_fields"`
 	} `yaml:"inventory"`
 }
 

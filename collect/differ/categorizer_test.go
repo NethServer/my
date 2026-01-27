@@ -12,7 +12,7 @@ import (
 )
 
 func TestConfigurableDiffer_CategorizeField(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestConfigurableDiffer_CategorizeField(t *testing.T) {
 }
 
 func TestConfigurableDiffer_GetCategoryDescription(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -242,7 +242,7 @@ func TestConfigurableDiffer_GetCategoryDescription(t *testing.T) {
 }
 
 func TestConfigurableDiffer_GetAllCategories(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -269,7 +269,7 @@ func TestConfigurableDiffer_GetAllCategories(t *testing.T) {
 }
 
 func TestConfigurableDiffer_GetCategoryPatterns(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -343,7 +343,7 @@ func TestConfigurableDiffer_GetCategoryPatterns(t *testing.T) {
 }
 
 func TestConfigurableDiffer_ValidateCategoryPatterns(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -368,7 +368,7 @@ func TestConfigurableDiffer_ValidateCategoryPatterns(t *testing.T) {
 }
 
 func TestConfigurableDiffer_CategorizeFieldBatch(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -414,7 +414,7 @@ func TestConfigurableDiffer_CategorizeFieldBatch(t *testing.T) {
 }
 
 func TestConfigurableDiffer_GetCategoryStats(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -457,7 +457,7 @@ func TestConfigurableDiffer_GetCategoryStats(t *testing.T) {
 }
 
 func TestConfigurableDiffer_CategorizeField_EdgeCases(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -517,7 +517,7 @@ func TestConfigurableDiffer_CategorizeField_EdgeCases(t *testing.T) {
 }
 
 func TestConfigurableDiffer_CategorizeField_Performance(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}

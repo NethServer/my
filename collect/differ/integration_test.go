@@ -77,7 +77,7 @@ func TestDifferIntegration(t *testing.T) {
 				}
 			}
 		},
-		"system_uptime": 1640995200,
+		"uptime_seconds": 1640995200,
 		"metrics": {
 			"timestamp": "2023-01-01T10:00:00Z"
 		}
@@ -148,7 +148,7 @@ func TestDifferIntegration(t *testing.T) {
 				}
 			}
 		},
-		"system_uptime": 1640995500,
+		"uptime_seconds": 1640995500,
 		"metrics": {
 			"timestamp": "2023-01-01T10:05:00Z"
 		}
@@ -220,8 +220,8 @@ func TestDifferIntegration(t *testing.T) {
 		}
 
 		// Validate that non-significant changes are filtered out
-		if diff.FieldPath == "system_uptime" {
-			t.Error("system_uptime should be filtered out as non-significant")
+		if diff.FieldPath == "uptime_seconds" {
+			t.Error("uptime_seconds should be filtered out as non-significant")
 		}
 
 		if diff.FieldPath == "metrics.timestamp" {

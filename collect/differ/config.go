@@ -26,6 +26,12 @@ type DifferConfig struct {
 	Notifications  NotificationsConfig  `yaml:"notifications"`
 }
 
+// unifiedConfig represents the top-level config.yml structure
+// The differ section is nested under the "differ" key
+type unifiedConfig struct {
+	Differ DifferConfig `yaml:"differ"`
+}
+
 // CategorizationConfig defines how fields are categorized
 type CategorizationConfig struct {
 	Categories map[string]CategoryRule `yaml:",inline"`
@@ -152,27 +158,60 @@ type ConfigurableDiffer struct {
 }
 
 // LoadConfig loads the differ configuration from YAML file
+// Supports the unified config.yml format where differ config is nested under the "differ" key
 func LoadConfig(configPath string) (*DifferConfig, error) {
-	// If no path provided, use default
-	if configPath == "" {
-		configPath = filepath.Join("differ", "config.yml")
+	var data []byte
+
+	if configPath != "" {
+		// Explicit path provided
+		if _, err := os.Stat(configPath); os.IsNotExist(err) {
+			return getDefaultConfig(), nil
+		}
+		var err error
+		data, err = os.ReadFile(configPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read config file: %w", err)
+		}
+	} else {
+		// Search for config.yml in standard locations
+		searchPaths := []string{
+			"config.yml",
+			"../config.yml",
+			"/etc/collect/config.yml",
+		}
+
+		// Add path relative to executable
+		if execPath, err := os.Executable(); err == nil {
+			searchPaths = append(searchPaths, filepath.Join(filepath.Dir(execPath), "config.yml"))
+		}
+
+		for _, path := range searchPaths {
+			if d, err := os.ReadFile(path); err == nil {
+				data = d
+				break
+			}
+		}
+
+		if data == nil {
+			return getDefaultConfig(), nil
+		}
 	}
 
-	// Check if file exists
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		return getDefaultConfig(), nil
-	}
-
-	// Read configuration file
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	// Parse YAML
-	var config DifferConfig
-	if err := yaml.Unmarshal(data, &config); err != nil {
+	// Try parsing as unified config (with "differ:" key)
+	var unified unifiedConfig
+	if err := yaml.Unmarshal(data, &unified); err != nil {
 		return nil, fmt.Errorf("failed to parse config YAML: %w", err)
+	}
+
+	config := unified.Differ
+
+	// If unified parsing resulted in empty config, try direct format
+	if config.Limits.MaxDiffDepth == 0 && config.Limits.MaxDiffsPerRun == 0 {
+		var direct DifferConfig
+		if err := yaml.Unmarshal(data, &direct); err != nil {
+			return nil, fmt.Errorf("failed to parse config YAML: %w", err)
+		}
+		config = direct
 	}
 
 	// Validate configuration
@@ -365,7 +404,7 @@ func getDefaultConfig() *DifferConfig {
 		},
 		Significance: SignificanceConfig{
 			AlwaysSignificant: []string{"severity:(high|critical)", "category:(modules|cluster|nodes|hardware|network|security)", "change_type:delete", "facts\\.modules", "facts\\.distro\\.version"},
-			NeverSignificant:  []string{"uptime", "system_uptime", "facts\\.memory\\..*\\.used_bytes", "facts\\.memory\\..*\\.available_bytes", "metrics\\.timestamp", "performance\\.last_update", "monitoring\\.heartbeat"},
+			NeverSignificant:  []string{"uptime_seconds", "facts\\.memory\\..*\\.used_bytes", "facts\\.memory\\..*\\.available_bytes", "facts\\.nodes\\.\\d+\\.memory\\..*\\.used_bytes", "facts\\.nodes\\.\\d+\\.memory\\..*\\.available_bytes", "metrics\\.timestamp", "performance\\.last_update", "monitoring\\.heartbeat"},
 			Default: DefaultSignificance{
 				Significant: true,
 				Description: "Default significance for unclassified changes",

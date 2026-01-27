@@ -314,8 +314,10 @@ func (de *DiffEngine) validateInventoryData(previous, current json.RawMessage) e
 		return fmt.Errorf("invalid current inventory JSON structure: %w", err)
 	}
 
-	// Check for expected top-level fields
-	expectedFields := []string{"os", "networking", "processors", "memory"}
+	// Both NS8 (nethserver) and NSEC (nethsecurity) use the same top-level structure:
+	// $schema, uuid, installation, facts
+	expectedFields := []string{"facts", "uuid", "installation"}
+
 	for _, field := range expectedFields {
 		if _, exists := prevParsed[field]; !exists {
 			logger.ComponentLogger("differ-engine").Warn().

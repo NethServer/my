@@ -11,7 +11,7 @@ import (
 )
 
 func TestConfigurableDiffer_DetermineSeverity(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -260,7 +260,7 @@ func TestConfigurableDiffer_DetermineSeverity(t *testing.T) {
 }
 
 func TestConfigurableDiffer_IsSignificantNumericChange(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -375,7 +375,7 @@ func TestConfigurableDiffer_IsSignificantNumericChange(t *testing.T) {
 }
 
 func TestConfigurableDiffer_ToFloat64(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -501,7 +501,7 @@ func TestConfigurableDiffer_ToFloat64(t *testing.T) {
 }
 
 func TestConfigurableDiffer_ParseFloat(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -595,7 +595,7 @@ func TestConfigurableDiffer_ParseFloat(t *testing.T) {
 }
 
 func TestConfigurableDiffer_GetSeverityDescription(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -658,7 +658,7 @@ func TestConfigurableDiffer_GetSeverityDescription(t *testing.T) {
 }
 
 func TestConfigurableDiffer_GetAllSeverityLevels(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -684,7 +684,7 @@ func TestConfigurableDiffer_GetAllSeverityLevels(t *testing.T) {
 }
 
 func TestConfigurableDiffer_GetSeverityConditions(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -749,7 +749,7 @@ func TestConfigurableDiffer_GetSeverityConditions(t *testing.T) {
 }
 
 func TestConfigurableDiffer_ValidateSeverityPatterns(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -761,7 +761,7 @@ func TestConfigurableDiffer_ValidateSeverityPatterns(t *testing.T) {
 }
 
 func TestConfigurableDiffer_AnalyzeSeverityDistribution(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}

@@ -42,8 +42,9 @@ RUN addgroup -g 1001 -S appgroup && \
 
 WORKDIR /app
 
-# Copy the binary from builder stage
+# Copy the binary and configuration from builder stage
 COPY --from=builder /app/collect .
+COPY --from=builder /app/config.yml .
 
 # Change ownership of the application directory
 RUN chown -R appuser:appgroup /app

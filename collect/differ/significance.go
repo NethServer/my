@@ -28,7 +28,7 @@ import (
 //
 // Example:
 //   - "severity:critical" → always significant
-//   - "system_uptime" → never significant
+//   - "uptime_seconds" → never significant
 //   - "metrics" within 5 minutes → filtered out
 func (cd *ConfigurableDiffer) IsSignificantChange(fieldPath, changeType, category, severity string, from, to interface{}) bool {
 	pathLower := strings.ToLower(fieldPath)

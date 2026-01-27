@@ -14,11 +14,6 @@ import (
 	"time"
 )
 
-// InventorySubmissionRequest represents the inventory payload from a system (without auto-populated fields)
-type InventorySubmissionRequest struct {
-	Data json.RawMessage `json:"data" validate:"required"` // Only the inventory data is required
-}
-
 // InventoryData represents the complete inventory payload from a system (with auto-populated fields)
 type InventoryData struct {
 	SystemID  string          `json:"system_id" validate:"required"`

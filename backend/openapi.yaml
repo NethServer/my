@@ -6519,95 +6519,45 @@ paths:
         - BasicAuth: [system_key:system_secret]
       requestBody:
         required: true
+        description: Raw inventory JSON from the system (structure varies by system type)
         content:
           application/json:
             schema:
               type: object
-              properties:
-                data:
-                  type: object
-                  description: System inventory data (structure varies by system type)
-                  additionalProperties: true
-                  example: {
-                    "os": {
-                      "name": "NethSec",
-                      "type": "nethsecurity",
-                      "family": "OpenWRT",
-                      "release": {
-                        "full": "8.6.0-dev+859b9708e.20251014104339",
-                        "major": 7
-                      }
-                    },
-                    "kernel": "Linux",
-                    "kernelrelease": "6.6.104",
-                    "virtual": "physical",
-                    "arp_macs": "111",
-                    "dmi": {
-                      "bios": {
-                        "vendor": "American Megatrends Inc.",
-                        "version": "4.6.5"
-                      },
-                      "board": {
-                        "product": "SHARKBAY",
-                        "manufacturer": "To be filled by O.E.M."
-                      },
-                      "product": {
-                        "name": "To be filled by O.E.M.",
-                        "uuid": "03000200-0400-0500-0006-000700080009"
-                      }
-                    },
-                    "memory": {
-                      "system": {
-                        "total_bytes": 7347437568,
-                        "used_bytes": 653488128,
-                        "available_bytes": 7347683328
-                      },
-                      "swap": {
-                        "total_bytes": 0,
-                        "used_bytes": 0,
-                        "available_bytes": 0
-                      }
-                    },
-                    "processors": {
-                      "count": "4",
-                      "isa": "x86_64",
-                      "models": ["Intel(R) Core(TM) i5-4570S CPU @ 2.90GHz"]
-                    },
-                    "mountpoints": {
-                      "/": {
-                        "size_bytes": 258080768,
-                        "used_bytes": 57765888,
-                        "available_bytes": 200314880
-                      }
-                    },
-                    "networking": {
-                      "fqdn": "fw.nethesis.it"
-                    },
-                    "public_ip": "2.119.67.169",
-                    "timezone": "Europe/Rome",
-                    "system_uptime": {
-                      "seconds": "54150"
-                    },
-                    "features": {
-                      "subscription_status": {
-                        "status": "enterprise"
-                      },
-                      "ha": {
-                        "enabled": false,
-                        "vips": 0
-                      },
-                      "qos": {
-                        "count": 2,
-                        "rules": [
-                          {
-                            "enabled": true,
-                            "upload": 20,
-                            "download": 40
-                          }
-                        ]
-                      }
+              description: Raw inventory data sent directly from the system
+              additionalProperties: true
+              example: {
+                "$schema": "https://schema.nethserver.org/facts/2022-12.json",
+                "uuid": "659d2fbe-792f-4a0d-ae58-f278304d4f7f",
+                "installation": "nethserver",
+                "facts": {
+                  "cluster": {
+                    "leader_node_id": "1",
+                    "user_domains": [],
+                    "subscription": "community",
+                    "ui_name": "MyNethServer 8"
+                  },
+                  "nodes": {
+                    "1": {
+                      "cluster_leader": true,
+                      "fqdn": "rl1.dp.nethserver.net",
+                      "default_ipv4": "165.22.17.26",
+                      "default_ipv6": "2a03:b0c0:3:f0:0:1:dbfe:3000",
+                      "version": "3.17.0-dev.6",
+                      "ui_name": "MyNodeRl1"
                     }
-                  }
+                  },
+                  "modules": [
+                    {
+                      "id": "mail1",
+                      "version": "1.7.4",
+                      "name": "mail",
+                      "node": "1",
+                      "ui_name": "MyMail"
+                    }
+                  ]
+                }
+              }
       responses:
         '202':
           description: Inventory received and queued for processing
