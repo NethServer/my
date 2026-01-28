@@ -5,8 +5,9 @@ import axios from 'axios'
 import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 
-export const ORGANIZATION_FILTER_KEY = 'organizationFilter'
-export const ORGANIZATION_FILTER_PATH = 'filters/systems/organizations'
+export const SYSTEM_ORGANIZATION_FILTER_KEY = 'systemOrganizationFilter'
+
+const SYSTEM_ORGANIZATION_FILTER_PATH = 'filters/systems/organizations'
 
 interface OrganizationFilterResponse {
   code: number
@@ -25,7 +26,7 @@ export const getOrganizationFilter = () => {
   const loginStore = useLoginStore()
 
   return axios
-    .get<OrganizationFilterResponse>(`${API_URL}/${ORGANIZATION_FILTER_PATH}`, {
+    .get<OrganizationFilterResponse>(`${API_URL}/${SYSTEM_ORGANIZATION_FILTER_PATH}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data)
