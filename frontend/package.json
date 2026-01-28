@@ -26,7 +26,7 @@
     "@logto/vue": "^3.0.8",
     "@nethesis/nethesis-light-svg-icons": "github:nethesis/Font-Awesome#ns-light",
     "@nethesis/nethesis-solid-svg-icons": "github:nethesis/Font-Awesome#ns-solid",
-    "@nethesis/vue-components": "^3.4.0",
+    "@nethesis/vue-components": "^3.5.0",
     "@pinia/colada": "^0.21.0",
     "@tailwindcss/vite": "^4.1.10",
     "@vueuse/core": "^13.4.0",
