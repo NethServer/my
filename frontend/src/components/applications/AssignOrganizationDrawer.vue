@@ -146,7 +146,7 @@ async function saveApplication() {
         <!-- name -->
         <NeTextInput
           :value="currentApplication ? getDisplayName(currentApplication) : ''"
-          :label="$t('applications.application_name')"
+          :label="$t('applications.application')"
           readonly
         />
         <!-- organization -->
