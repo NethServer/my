@@ -19,7 +19,7 @@ servers:
 
 tags:
 
-  - name: Backend - Applications
+  - name: Backend - Third-Party Applications
     description: Backend third-party application management
   - name: Backend - Authentication
     description: Backend public authentication and token management
@@ -35,6 +35,8 @@ tags:
     description: Backend filter data for UI dropdowns and selections
   - name: Backend - Organizations
     description: Backend organization hierarchy management
+  - name: Backend - Applications
+    description: Backend Application management from system inventory
   - name: Backend - Resellers
     description: Backend reseller management
   - name: Backend - Roles
@@ -337,8 +339,12 @@ components:
       properties:
         id:
           type: string
-          description: Organization ID
-          example: "org_123456789"
+          description: Database UUID of the organization
+          example: "4405ffd0-0aca-44ef-bae2-c8545bce94f4"
+        logto_id:
+          type: string
+          description: Logto organization ID (use this value for assignment operations)
+          example: "akkbs6x2wo82"
         name:
           type: string
           description: Organization name
@@ -355,6 +361,12 @@ components:
             email: "contact@acme-distribution.com"
             contactPerson: "John Smith"
             region: "Italy"
+        suspended_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the organization was suspended. NULL means enabled, non-NULL means blocked/suspended.
+          example: null
         branding:
           $ref: '#/components/schemas/OrganizationBranding'
 
@@ -504,8 +516,8 @@ components:
           example: ["rol_abc123def456", "rol_xyz789abc123"]
         organization_id:
           type: string
-          description: Organization ID to assign user to
-          example: "org_xyz789"
+          description: Organization Logto ID to assign user to (use the logto_id from organization responses)
+          example: "akkbs6x2wo82"
         phone:
           type: string
           description: Phone number
@@ -634,8 +646,12 @@ components:
       properties:
         id:
           type: string
-          description: Organization ID
-          example: "org_123456789"
+          description: Database UUID of the organization
+          example: "4405ffd0-0aca-44ef-bae2-c8545bce94f4"
+        logto_id:
+          type: string
+          description: Logto organization ID (use this value for assignment operations)
+          example: "akkbs6x2wo82"
         name:
           type: string
           description: Organization name
@@ -663,6 +679,54 @@ components:
           type: string
           description: Organization dark theme logo URL
           example: "https://cdn.example.com/logos/org-console-dark.png"
+
+    OrganizationSummary:
+      type: object
+      description: Simplified organization for selection and assignment
+      properties:
+        id:
+          type: string
+          description: Database UUID of the organization
+          example: "4405ffd0-0aca-44ef-bae2-c8545bce94f4"
+        logto_id:
+          type: string
+          description: Logto organization ID (used for identity/auth purposes)
+          example: "akkbs6x2wo82"
+        name:
+          type: string
+          description: Organization name
+          example: "ACME Corp"
+        description:
+          type: string
+          description: Organization description
+          example: "Main customer organization"
+        type:
+          type: string
+          enum: [owner, distributor, reseller, customer]
+          description: Organization type
+          example: "customer"
+
+    SystemOrganization:
+      type: object
+      description: Organization information embedded in system response
+      properties:
+        id:
+          type: string
+          description: Database UUID of the organization (empty string for owner organization)
+          example: "4405ffd0-0aca-44ef-bae2-c8545bce94f4"
+        logto_id:
+          type: string
+          description: Logto organization ID (used for identity/auth purposes)
+          example: "akkbs6x2wo82"
+        name:
+          type: string
+          description: Organization name
+          example: "ACME Corp"
+        type:
+          type: string
+          enum: [owner, distributor, reseller, customer]
+          description: Organization type
+          example: "customer"
 
     ThirdPartyApplication:
       type: object
@@ -747,18 +811,76 @@ components:
           description: Total count
           example: 125
 
-    OrganizationStats:
+    DistributorStats:
       type: object
-      description: Statistics for an organization (users and systems count)
+      description: Statistics for a distributor (users, systems, resellers, customers and applications count)
       properties:
         users_count:
           type: integer
-          description: Number of users in the organization
-          example: 15
+          description: Number of users in the distributor organization
+          example: 980
         systems_count:
           type: integer
-          description: Number of systems in the organization
-          example: 42
+          description: Number of systems in the distributor organization
+          example: 32
+        resellers_count:
+          type: integer
+          description: Number of resellers created by this distributor
+          example: 25
+        customers_count:
+          type: integer
+          description: Number of customers in the distributor hierarchy (via resellers)
+          example: 420
+        applications_count:
+          type: integer
+          description: Number of applications directly associated with this distributor
+          example: 50
+        applications_hierarchy_count:
+          type: integer
+          description: Total number of applications in the distributor hierarchy (distributor + resellers + customers)
+          example: 3246
+
+    ResellerStats:
+      type: object
+      description: Statistics for a reseller (users, systems, customers and applications count)
+      properties:
+        users_count:
+          type: integer
+          description: Number of users in the reseller organization
+          example: 8
+        systems_count:
+          type: integer
+          description: Number of systems in the reseller organization
+          example: 32
+        customers_count:
+          type: integer
+          description: Number of customers created by this reseller
+          example: 252
+        applications_count:
+          type: integer
+          description: Number of applications directly associated with this reseller
+          example: 20
+        applications_hierarchy_count:
+          type: integer
+          description: Total number of applications in the reseller hierarchy (reseller + customers)
+          example: 500
+
+    CustomerStats:
+      type: object
+      description: Statistics for a customer (users, systems and applications count)
+      properties:
+        users_count:
+          type: integer
+          description: Number of users in the customer organization
+          example: 2
+        systems_count:
+          type: integer
+          description: Number of systems in the customer organization
+          example: 2
+        applications_count:
+          type: integer
+          description: Number of applications directly associated with this customer
+          example: 22
 
     TrendResponse:
       type: object
@@ -855,14 +977,8 @@ components:
           type: string
           description: Auto-generated unique commercial system key. Hidden (empty string) until system is registered.
           example: "ABC123DEF456"
-        organization_id:
-          type: string
-          description: Organization ID to which this system belongs
-          example: "org_123456789"
-        organization_name:
-          type: string
-          description: Organization name to which this system belongs (resolved from distributors, resellers, or customers)
-          example: "Acme Corporation"
+        organization:
+          $ref: '#/components/schemas/SystemOrganization'
         custom_data:
           type: object
           description: Custom system data
@@ -950,8 +1066,8 @@ components:
           example: "Production Server 01"
         organization_id:
           type: string
-          description: Organization ID to associate the system with
-          example: "org_123456789"
+          description: Organization Logto ID to associate the system with (use the logto_id from organization responses)
+          example: "akkbs6x2wo82"
         custom_data:
           type: object
           description: Custom system data (optional)
@@ -976,8 +1092,8 @@ components:
           example: "Production Server 01"
         organization_id:
           type: string
-          description: Organization ID to associate the system with
-          example: "org_123456789"
+          description: Organization Logto ID to associate the system with (use the logto_id from organization responses)
+          example: "akkbs6x2wo82"
         custom_data:
           type: object
           description: Custom system data
@@ -991,6 +1107,298 @@ components:
           type: string
           description: Additional notes or description for the system
           example: "Production web server for EU region"
+
+    # Applications schemas
+    Application:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique application identifier (system_id + module_id)
+          example: "sys_abc123_mail1"
+        system_id:
+          type: string
+          description: ID of the system hosting this application
+          example: "sys_abc123"
+        module_id:
+          type: string
+          description: Module identifier within the system
+          example: "mail1"
+        instance_of:
+          type: string
+          description: Application type (e.g., nethvoice, webtop, mail)
+          example: "mail"
+        display_name:
+          type: string
+          nullable: true
+          description: User-friendly name set in NS8 and inherited from inventory (e.g., "Milan Office PBX")
+          example: "Milan Office PBX"
+        node_id:
+          type: integer
+          nullable: true
+          description: Node ID within the cluster
+          example: 1
+        node_label:
+          type: string
+          nullable: true
+          description: Node label from inventory (e.g., Leader Node, Worker Node)
+          example: "Leader Node"
+        version:
+          type: string
+          nullable: true
+          description: Application version
+          example: "1.2.3"
+        organization_id:
+          type: string
+          nullable: true
+          description: Assigned organization ID
+          example: "org_xyz789"
+        organization_type:
+          type: string
+          nullable: true
+          enum: [distributor, reseller, customer]
+          description: Type of the assigned organization
+          example: "customer"
+        status:
+          type: string
+          enum: [unassigned, assigned]
+          description: Assignment status
+          example: "assigned"
+        inventory_data:
+          type: object
+          nullable: true
+          description: Raw inventory data from system
+          additionalProperties: true
+        backup_data:
+          type: object
+          nullable: true
+          description: Backup status information
+          additionalProperties: true
+        services_data:
+          type: object
+          nullable: true
+          description: Services health status
+          additionalProperties: true
+        url:
+          type: string
+          nullable: true
+          description: Application URL
+          example: "https://cluster.example.com/cluster-admin/#/apps/mail1"
+        notes:
+          type: string
+          nullable: true
+          description: Additional notes
+          example: "Primary mail server for corporate domain"
+        is_user_facing:
+          type: boolean
+          description: Whether this is a user-facing application (vs system component)
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          description: Record creation timestamp
+          example: "2025-07-01T09:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: "2025-07-10T10:30:00Z"
+        first_seen_at:
+          type: string
+          format: date-time
+          description: First time the application was seen in inventory
+          example: "2025-06-15T08:00:00Z"
+        last_inventory_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last inventory collection timestamp
+          example: "2025-07-21T10:25:00Z"
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Soft delete timestamp (null if not deleted)
+          example: null
+        system:
+          $ref: '#/components/schemas/ApplicationSystemSummary'
+        organization:
+          $ref: '#/components/schemas/OrganizationSummary'
+
+    ApplicationListItem:
+      type: object
+      description: Simplified application representation for list views
+      properties:
+        id:
+          type: string
+          description: Unique application identifier
+          example: "sys_abc123_mail1"
+        module_id:
+          type: string
+          description: Module identifier
+          example: "mail1"
+        instance_of:
+          type: string
+          description: Application type
+          example: "mail"
+        display_name:
+          type: string
+          nullable: true
+          description: User-friendly name set in NS8 and inherited from inventory
+          example: "Milan Office PBX"
+        version:
+          type: string
+          nullable: true
+          description: Application version
+          example: "1.2.3"
+        status:
+          type: string
+          enum: [unassigned, assigned]
+          description: Assignment status
+          example: "assigned"
+        node_id:
+          type: integer
+          nullable: true
+          description: Node ID within the cluster
+          example: 1
+        node_label:
+          type: string
+          nullable: true
+          description: Node label from inventory (e.g., Leader Node, Worker Node)
+          example: "Worker Node"
+        url:
+          type: string
+          nullable: true
+          description: Custom URL for the application
+          example: "https://cluster.example.com/cluster-admin/#/apps/mail1"
+        notes:
+          type: string
+          nullable: true
+          description: Custom notes or description for the application
+          example: "Corporate email server for marketing department"
+        has_errors:
+          type: boolean
+          description: Whether the application has service errors
+          example: false
+        inventory_data:
+          type: object
+          nullable: true
+          description: Raw inventory data from the module (e.g., NethVoice proxy, Open LDAP domain, etc.)
+          example: {"nethvoice_proxy": "nethvoice-proxy1", "internal_openldap": "mydomain.com"}
+        backup_data:
+          type: object
+          nullable: true
+          description: Backup status information
+          example: {"status": "success", "destination": "BlackBlaze B1", "completed_at": "2025-09-16T12:30:00Z", "duration_seconds": 106, "total_size_bytes": 9185231897, "total_files": 5759}
+        services_data:
+          type: object
+          nullable: true
+          description: Service health status information with errors list
+          example: {"has_errors": true, "error_count": 1, "services": [{"name": "NethVoice CTI server", "status": "error", "error": "is not running", "since": "2025-09-16T23:10:00Z"}]}
+        system:
+          $ref: '#/components/schemas/ApplicationSystemSummary'
+        organization:
+          $ref: '#/components/schemas/OrganizationSummary'
+        created_at:
+          type: string
+          format: date-time
+          description: Record creation timestamp
+          example: "2025-07-01T09:00:00Z"
+        last_inventory_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last inventory collection timestamp
+          example: "2025-07-21T10:25:00Z"
+
+    ApplicationSystemSummary:
+      type: object
+      description: Minimal system info for application responses
+      properties:
+        id:
+          type: string
+          description: System ID
+          example: "sys_abc123"
+        name:
+          type: string
+          description: System name
+          example: "Production Cluster"
+
+    ApplicationTotals:
+      type: object
+      description: Application statistics
+      properties:
+        total:
+          type: integer
+          description: Total number of applications
+          example: 150
+        unassigned:
+          type: integer
+          description: Number of unassigned applications
+          example: 25
+        assigned:
+          type: integer
+          description: Number of assigned applications
+          example: 125
+        with_errors:
+          type: integer
+          description: Number of applications with service errors
+          example: 5
+        by_type:
+          type: object
+          description: Count by application type
+          additionalProperties:
+            type: integer
+          example:
+            mail: 30
+            webtop: 25
+            nethvoice: 20
+            nextcloud: 15
+        by_status:
+          type: object
+          description: Count by status
+          additionalProperties:
+            type: integer
+          example:
+            assigned: 125
+            unassigned: 25
+
+    ApplicationType:
+      type: object
+      description: Application type metadata
+      properties:
+        instance_of:
+          type: string
+          description: Application type identifier (lowercase, e.g., nethvoice, webtop, mail)
+          example: "nethvoice"
+        is_user_facing:
+          type: boolean
+          description: Whether this is a user-facing application type
+          example: true
+        count:
+          type: integer
+          description: Number of applications of this type
+          example: 30
+
+    AssignApplicationRequest:
+      type: object
+      required:
+        - organization_id
+      properties:
+        organization_id:
+          type: string
+          description: Organization Logto ID to assign to the application (use the logto_id from organization responses)
+          example: "akkbs6x2wo82"
+
+    UpdateApplicationRequest:
+      type: object
+      description: Request to update application notes (other fields are read-only and populated from inventory)
+      properties:
+        notes:
+          type: string
+          nullable: true
+          description: Custom notes for the application
+          example: "Server di posta aziendale per il reparto marketing"
 
     ImpersonationConsent:
       type: object
@@ -1172,7 +1580,7 @@ components:
       required: false
       schema:
         type: string
-        enum: ["name", "description", "created_at", "updated_at"]
+        enum: ["name", "description", "created_at", "updated_at", "suspended_at"]
         example: "name"
 
     ResellerSortByParam:
@@ -1182,7 +1590,7 @@ components:
       required: false
       schema:
         type: string
-        enum: ["name", "description", "created_at", "updated_at"]
+        enum: ["name", "description", "created_at", "updated_at", "suspended_at"]
         example: "name"
 
     CustomerSortByParam:
@@ -1192,8 +1600,18 @@ components:
       required: false
       schema:
         type: string
-        enum: ["name", "description", "created_at", "updated_at"]
+        enum: ["name", "description", "created_at", "updated_at", "suspended_at"]
         example: "name"
+
+    OrganizationStatusFilterParam:
+      name: status
+      in: query
+      description: Filter organizations by status (enabled = not suspended, blocked = suspended)
+      required: false
+      schema:
+        type: string
+        enum: ["enabled", "blocked"]
+        example: "enabled"
 
     UserSortByParam:
       name: sort_by
@@ -1242,7 +1660,7 @@ components:
       required: false
       schema:
         type: string
-        example: "NOC-DD09-3DB4-76E4-42A0-A6CC-6D30-9AE7-3216"
+        example: "NETH-DD09-3DB4-76E4-42A0-A6CC-6D30-9AE7-3216"
 
     SystemTypeFilterParam:
       name: type
@@ -1326,6 +1744,83 @@ components:
           type: string
           enum: ["unknown", "online", "offline", "deleted"]
         example: ["online", "unknown"]
+      style: form
+      explode: true
+
+    # Applications parameters
+    AppSortByParam:
+      name: sort_by
+      in: query
+      description: Field to sort applications by
+      required: false
+      schema:
+        type: string
+        enum: ["display_name", "module_id", "instance_of", "version", "status", "created_at", "updated_at", "last_inventory_at", "system_name", "organization_name"]
+        example: "instance_of"
+
+    AppTypeFilterParam:
+      name: type
+      in: query
+      description: Filter applications by type (instance_of). Supports multiple values.
+      required: false
+      schema:
+        type: array
+        items:
+          type: string
+        example: ["mail", "webtop", "nethvoice"]
+      style: form
+      explode: true
+
+    AppVersionFilterParam:
+      name: version
+      in: query
+      description: Filter applications by version. Supports multiple values.
+      required: false
+      schema:
+        type: array
+        items:
+          type: string
+        example: ["1.0.0", "1.2.3"]
+      style: form
+      explode: true
+
+    AppSystemFilterParam:
+      name: system_id
+      in: query
+      description: Filter applications by system ID. Supports multiple values.
+      required: false
+      schema:
+        type: array
+        items:
+          type: string
+        example: ["sys_abc123", "sys_def456"]
+      style: form
+      explode: true
+
+    AppOrganizationFilterParam:
+      name: organization_id
+      in: query
+      description: Filter applications by organization ID. Supports multiple values.
+      required: false
+      schema:
+        type: array
+        items:
+          type: string
+        example: ["org_abc123", "org_def456"]
+      style: form
+      explode: true
+
+    AppStatusFilterParam:
+      name: status
+      in: query
+      description: Filter applications by assignment status. Supports multiple values.
+      required: false
+      schema:
+        type: array
+        items:
+          type: string
+          enum: ["unassigned", "assigned"]
+        example: ["unassigned"]
       style: form
       explode: true
 
@@ -1905,18 +2400,18 @@ paths:
           $ref: '#/components/responses/Forbidden'
 
   # ===========================================================================
-  # APPLICATIONS
+  # THIRD-PARTY APPLICATIONS (from Logto)
   # ===========================================================================
-  /applications:
+  /third-party-applications:
     get:
-      operationId: getApplications
+      operationId: getThirdPartyApplications
       tags:
-        - Backend - Applications
-      summary: /applications - Get third-party applications
+        - Backend - Third-Party Applications
+      summary: /third-party-applications - Get third-party applications
       description: Get third-party applications filtered by user's organization membership, organization roles, and user roles
       responses:
         '200':
-          description: Applications retrieved successfully
+          description: Third-party applications retrieved successfully
           content:
             application/json:
               schema:
@@ -1927,7 +2422,7 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: "Applications retrieved successfully"
+                    example: "third-party applications retrieved successfully"
                   data:
                     type: array
                     items:
@@ -2886,6 +3381,7 @@ paths:
         - $ref: '#/components/parameters/SearchParam'
         - $ref: '#/components/parameters/CustomerSortByParam'
         - $ref: '#/components/parameters/SortDirectionParam'
+        - $ref: '#/components/parameters/OrganizationStatusFilterParam'
       responses:
         '200':
           description: Customers retrieved successfully
@@ -3082,7 +3578,7 @@ paths:
       tags:
         - Backend - Customers
       summary: /customers/{id}/stats - Get customer statistics
-      description: Get users and systems count for a specific customer (Owner + Distributor + Reseller + own Customer)
+      description: Get users, systems and applications count for a specific customer (Owner + Distributor + Reseller + own Customer)
       parameters:
         - name: id
           in: path
@@ -3105,7 +3601,99 @@ paths:
                     type: string
                     example: "customer stats retrieved successfully"
                   data:
-                    $ref: '#/components/schemas/OrganizationStats'
+                    $ref: '#/components/schemas/CustomerStats'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /customers/{id}/suspend:
+    patch:
+      operationId: suspendCustomer
+      tags:
+        - Backend - Customers
+      summary: /customers/{id}/suspend - Suspend customer
+      description: Suspend a customer and all its users (cascade suspension). Owner, Distributor, and Reseller (hierarchical) can suspend.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Customer ID
+      responses:
+        '200':
+          description: Customer suspended successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "customer suspended successfully"
+                  data:
+                    type: object
+                    properties:
+                      customer:
+                        $ref: '#/components/schemas/Organization'
+                      suspended_users_count:
+                        type: integer
+                        example: 5
+                        description: Number of users that were cascade-suspended
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /customers/{id}/reactivate:
+    patch:
+      operationId: reactivateCustomer
+      tags:
+        - Backend - Customers
+      summary: /customers/{id}/reactivate - Reactivate customer
+      description: Reactivate a suspended customer and all its cascade-suspended users. Owner, Distributor, and Reseller (hierarchical) can reactivate.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Customer ID
+      responses:
+        '200':
+          description: Customer reactivated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "customer reactivated successfully"
+                  data:
+                    type: object
+                    properties:
+                      customer:
+                        $ref: '#/components/schemas/Organization'
+                      reactivated_users_count:
+                        type: integer
+                        example: 5
+                        description: Number of users that were cascade-reactivated
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -3229,6 +3817,7 @@ paths:
         - $ref: '#/components/parameters/SearchParam'
         - $ref: '#/components/parameters/DistributorSortByParam'
         - $ref: '#/components/parameters/SortDirectionParam'
+        - $ref: '#/components/parameters/OrganizationStatusFilterParam'
       responses:
         '200':
           description: Distributors retrieved successfully
@@ -3425,7 +4014,7 @@ paths:
       tags:
         - Backend - Distributors
       summary: /distributors/{id}/stats - Get distributor statistics
-      description: Get users and systems count for a specific distributor (Owner only)
+      description: Get users, systems, resellers and customers count for a specific distributor (Owner only)
       parameters:
         - name: id
           in: path
@@ -3448,7 +4037,99 @@ paths:
                     type: string
                     example: "distributor stats retrieved successfully"
                   data:
-                    $ref: '#/components/schemas/OrganizationStats'
+                    $ref: '#/components/schemas/DistributorStats'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /distributors/{id}/suspend:
+    patch:
+      operationId: suspendDistributor
+      tags:
+        - Backend - Distributors
+      summary: /distributors/{id}/suspend - Suspend distributor
+      description: Suspend a distributor and all its users (cascade suspension). Owner only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Distributor ID
+      responses:
+        '200':
+          description: Distributor suspended successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "distributor suspended successfully"
+                  data:
+                    type: object
+                    properties:
+                      distributor:
+                        $ref: '#/components/schemas/Organization'
+                      suspended_users_count:
+                        type: integer
+                        example: 5
+                        description: Number of users that were cascade-suspended
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /distributors/{id}/reactivate:
+    patch:
+      operationId: reactivateDistributor
+      tags:
+        - Backend - Distributors
+      summary: /distributors/{id}/reactivate - Reactivate distributor
+      description: Reactivate a suspended distributor and all its cascade-suspended users. Owner only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Distributor ID
+      responses:
+        '200':
+          description: Distributor reactivated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "distributor reactivated successfully"
+                  data:
+                    type: object
+                    properties:
+                      distributor:
+                        $ref: '#/components/schemas/Organization'
+                      reactivated_users_count:
+                        type: integer
+                        example: 5
+                        description: Number of users that were cascade-reactivated
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -3615,12 +4296,12 @@ paths:
   # ===========================================================================
   # FILTERS
   # ===========================================================================
-  /filters/products:
+  /filters/systems/products:
     get:
       operationId: getFilterProducts
       tags:
         - Backend - Filters
-      summary: /filters/products - Get available product filters
+      summary: /filters/systems/products - Get available product filters
       description: |
         Get list of unique system products for filtering (requires Support+ role).
         Returns product type values that can be used directly in GET /systems?type= query parameter.
@@ -3653,12 +4334,12 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /filters/created-by:
+  /filters/systems/created-by:
     get:
       operationId: getFilterCreatedBy
       tags:
         - Backend - Filters
-      summary: /filters/created-by - Get available created-by filters
+      summary: /filters/systems/created-by - Get available created-by filters
       description: |
         Get list of users who created systems for filtering (requires Support+ role).
         Returns user_id values that can be used directly in GET /systems?created_by= query parameter.
@@ -3704,12 +4385,12 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /filters/versions:
+  /filters/systems/versions:
     get:
       operationId: getFilterVersions
       tags:
         - Backend - Filters
-      summary: /filters/versions - Get version filters grouped by product
+      summary: /filters/systems/versions - Get version filters grouped by product
       description: |
         Get system versions grouped by product type for filtering (requires Support+ role).
         Returns versions organized by product, suitable for hierarchical UI display.
@@ -3761,12 +4442,12 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /filters/organizations:
+  /filters/systems/organizations:
     get:
       operationId: getFilterOrganizations
       tags:
         - Backend - Filters
-      summary: /filters/organizations - Get available organization filters
+      summary: /filters/systems/organizations - Get available organization filters
       description: |
         Get list of organizations with systems for filtering (requires Support+ role, filtered by RBAC).
         Returns organization logto_id as the id field for compatibility with GET /systems?organization_id= parameter.
@@ -3874,6 +4555,8 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/OrganizationReference'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -3893,6 +4576,7 @@ paths:
         - $ref: '#/components/parameters/SearchParam'
         - $ref: '#/components/parameters/ResellerSortByParam'
         - $ref: '#/components/parameters/SortDirectionParam'
+        - $ref: '#/components/parameters/OrganizationStatusFilterParam'
       responses:
         '200':
           description: Resellers retrieved successfully
@@ -4089,7 +4773,7 @@ paths:
       tags:
         - Backend - Resellers
       summary: /resellers/{id}/stats - Get reseller statistics
-      description: Get users and systems count for a specific reseller (Owner + Distributor + own Reseller)
+      description: Get users, systems and customers count for a specific reseller (Owner + Distributor + own Reseller)
       parameters:
         - name: id
           in: path
@@ -4112,7 +4796,99 @@ paths:
                     type: string
                     example: "reseller stats retrieved successfully"
                   data:
-                    $ref: '#/components/schemas/OrganizationStats'
+                    $ref: '#/components/schemas/ResellerStats'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /resellers/{id}/suspend:
+    patch:
+      operationId: suspendReseller
+      tags:
+        - Backend - Resellers
+      summary: /resellers/{id}/suspend - Suspend reseller
+      description: Suspend a reseller and all its users (cascade suspension). Owner and Distributor (hierarchical) can suspend.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Reseller ID
+      responses:
+        '200':
+          description: Reseller suspended successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "reseller suspended successfully"
+                  data:
+                    type: object
+                    properties:
+                      reseller:
+                        $ref: '#/components/schemas/Organization'
+                      suspended_users_count:
+                        type: integer
+                        example: 5
+                        description: Number of users that were cascade-suspended
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /resellers/{id}/reactivate:
+    patch:
+      operationId: reactivateReseller
+      tags:
+        - Backend - Resellers
+      summary: /resellers/{id}/reactivate - Reactivate reseller
+      description: Reactivate a suspended reseller and all its cascade-suspended users. Owner and Distributor (hierarchical) can reactivate.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Reseller ID
+      responses:
+        '200':
+          description: Reseller reactivated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "reseller reactivated successfully"
+                  data:
+                    type: object
+                    properties:
+                      reseller:
+                        $ref: '#/components/schemas/Organization'
+                      reactivated_users_count:
+                        type: integer
+                        example: 5
+                        description: Number of users that were cascade-reactivated
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -5121,6 +5897,541 @@ paths:
           $ref: '#/components/responses/NotFound'
 
   # ===========================================================================
+  # APPLICATIONS MANAGEMENT
+  # ===========================================================================
+  /applications:
+    get:
+      operationId: getApplications
+      tags:
+        - Backend - Applications
+      summary: /applications - List applications
+      description: |
+        Get list of system applications visible to the user based on hierarchical organization permissions.
+        Supports filtering by type, version, system, organization, and status.
+
+        **Query String Examples:**
+
+        1. **Single type filter**: `?type=mail`
+        2. **Multiple types filter**: `?type=mail&type=webtop`
+        3. **Status filter**: `?status=unassigned`
+        4. **With pagination and sorting**: `?page=1&page_size=50&sort_by=instance_of&sort_direction=asc`
+        5. **Combined filters**: `?type=mail&status=assigned&organization_id=org_abc123`
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - $ref: '#/components/parameters/SearchParam'
+        - $ref: '#/components/parameters/AppSortByParam'
+        - $ref: '#/components/parameters/SortDirectionParam'
+        - $ref: '#/components/parameters/AppTypeFilterParam'
+        - $ref: '#/components/parameters/AppVersionFilterParam'
+        - $ref: '#/components/parameters/AppSystemFilterParam'
+        - $ref: '#/components/parameters/AppOrganizationFilterParam'
+        - $ref: '#/components/parameters/AppStatusFilterParam'
+      responses:
+        '200':
+          description: Applications retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "applications retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      applications:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ApplicationListItem'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /applications/totals:
+    get:
+      operationId: getApplicationTotals
+      tags:
+        - Backend - Applications
+      summary: /applications/totals - Get application statistics
+      description: Get statistics about applications including counts by type and status
+      responses:
+        '200':
+          description: Application totals retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "application totals retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/ApplicationTotals'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /applications/trend:
+    get:
+      operationId: getApplicationsTrend
+      tags:
+        - Backend - Applications
+      summary: /applications/trend - Get applications trend data
+      description: Get trend data for applications over a specified period showing daily counts
+      parameters:
+        - name: period
+          in: query
+          required: false
+          description: Number of days to include in trend data (default 7, max 365)
+          schema:
+            type: integer
+            default: 7
+            minimum: 1
+            maximum: 365
+      responses:
+        '200':
+          description: Applications trend data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "applications trend retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/TrendResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /filters/applications/types:
+    get:
+      operationId: getApplicationTypes
+      tags:
+        - Backend - Filters
+      summary: /filters/applications/types - Get available application types
+      description: Get list of available application types for filtering
+      responses:
+        '200':
+          description: Application types retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "application types retrieved successfully"
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApplicationType'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /filters/applications/versions:
+    get:
+      operationId: getApplicationVersions
+      tags:
+        - Backend - Filters
+      summary: /filters/applications/versions - Get available versions
+      description: Get list of available application versions for filtering
+      responses:
+        '200':
+          description: Application versions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "application versions retrieved successfully"
+                  data:
+                    type: array
+                    items:
+                      type: string
+                    example: ["1.0.0", "1.2.3", "2.0.0"]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /filters/applications/systems:
+    get:
+      operationId: getApplicationSystems
+      tags:
+        - Backend - Filters
+      summary: /filters/applications/systems - Get available systems
+      description: Get list of systems that have applications for filtering
+      responses:
+        '200':
+          description: Systems retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "systems retrieved successfully"
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApplicationSystemSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /filters/applications/organizations:
+    get:
+      operationId: getApplicationOrganizations
+      tags:
+        - Backend - Filters
+      summary: /filters/applications/organizations - Get available organizations
+      description: Get list of organizations available for application assignment
+      responses:
+        '200':
+          description: Organizations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "organizations retrieved successfully"
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OrganizationSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /filters/users/roles:
+    get:
+      operationId: getFilterUsersRoles
+      tags:
+        - Backend - Filters
+      summary: /filters/users/roles - Get available user roles for filtering
+      description: Get list of user roles available for filtering users (requires read:users permission)
+      responses:
+        '200':
+          description: User roles retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "roles retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      roles:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Role'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /filters/users/organizations:
+    get:
+      operationId: getFilterUsersOrganizations
+      tags:
+        - Backend - Filters
+      summary: /filters/users/organizations - Get available organizations for filtering users
+      description: |
+        Get list of organizations available for filtering users (requires read:users permission).
+        Returns all organizations the user can access based on RBAC hierarchy.
+        Unlike /filters/systems/organizations, this returns all accessible organizations
+        regardless of whether they have systems associated.
+      responses:
+        '200':
+          description: Organizations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "organization filters retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      organizations:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              description: Organization Logto ID
+                              example: "org_abc123"
+                            name:
+                              type: string
+                              description: Organization name
+                              example: "ACME Corp"
+                            type:
+                              type: string
+                              enum: [distributor, reseller, customer]
+                              description: Organization type
+                              example: "customer"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /applications/{id}:
+    get:
+      operationId: getApplicationById
+      tags:
+        - Backend - Applications
+      summary: /applications/{id} - Get single application
+      description: Get a specific application by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Application ID
+          schema:
+            type: string
+            example: "sys_abc123_mail1"
+      responses:
+        '200':
+          description: Application retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "application retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/Application'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      operationId: updateApplication
+      tags:
+        - Backend - Applications
+      summary: /applications/{id} - Update application
+      description: Update an application's notes (other fields are read-only and populated from inventory)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Application ID
+          schema:
+            type: string
+            example: "sys_abc123_mail1"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateApplicationRequest'
+      responses:
+        '200':
+          description: Application updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "application updated successfully"
+                  data:
+                    $ref: '#/components/schemas/Application'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      operationId: deleteApplication
+      tags:
+        - Backend - Applications
+      summary: /applications/{id} - Delete application
+      description: Soft-delete an application
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Application ID
+          schema:
+            type: string
+            example: "sys_abc123_mail1"
+      responses:
+        '200':
+          description: Application deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "application deleted successfully"
+                  data:
+                    type: object
+                    nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /applications/{id}/assign:
+    patch:
+      operationId: assignApplicationOrganization
+      tags:
+        - Backend - Applications
+      summary: /applications/{id}/assign - Assign organization
+      description: Assign an organization to an application
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Application ID
+          schema:
+            type: string
+            example: "sys_abc123_mail1"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignApplicationRequest'
+      responses:
+        '200':
+          description: Organization assigned successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "organization assigned successfully"
+                  data:
+                    $ref: '#/components/schemas/Application'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /applications/{id}/unassign:
+    patch:
+      operationId: unassignApplicationOrganization
+      tags:
+        - Backend - Applications
+      summary: /applications/{id}/unassign - Remove organization
+      description: Remove organization assignment from an application
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Application ID
+          schema:
+            type: string
+            example: "sys_abc123_mail1"
+      responses:
+        '200':
+          description: Organization unassigned successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "organization unassigned successfully"
+                  data:
+                    $ref: '#/components/schemas/Application'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ===========================================================================
   # OAUTH2/OIDC STANDARD ENDPOINTS (Third-party Applications)
   # ===========================================================================
   /user/permissions:
@@ -5218,95 +6529,45 @@ paths:
         - BasicAuth: [system_key:system_secret]
       requestBody:
         required: true
+        description: Raw inventory JSON from the system (structure varies by system type)
         content:
           application/json:
             schema:
               type: object
-              properties:
-                data:
-                  type: object
-                  description: System inventory data (structure varies by system type)
-                  additionalProperties: true
-                  example: {
-                    "os": {
-                      "name": "NethSec",
-                      "type": "nethsecurity",
-                      "family": "OpenWRT",
-                      "release": {
-                        "full": "8.6.0-dev+859b9708e.20251014104339",
-                        "major": 7
-                      }
-                    },
-                    "kernel": "Linux",
-                    "kernelrelease": "6.6.104",
-                    "virtual": "physical",
-                    "arp_macs": "111",
-                    "dmi": {
-                      "bios": {
-                        "vendor": "American Megatrends Inc.",
-                        "version": "4.6.5"
-                      },
-                      "board": {
-                        "product": "SHARKBAY",
-                        "manufacturer": "To be filled by O.E.M."
-                      },
-                      "product": {
-                        "name": "To be filled by O.E.M.",
-                        "uuid": "03000200-0400-0500-0006-000700080009"
-                      }
-                    },
-                    "memory": {
-                      "system": {
-                        "total_bytes": 7347437568,
-                        "used_bytes": 653488128,
-                        "available_bytes": 7347683328
-                      },
-                      "swap": {
-                        "total_bytes": 0,
-                        "used_bytes": 0,
-                        "available_bytes": 0
-                      }
-                    },
-                    "processors": {
-                      "count": "4",
-                      "isa": "x86_64",
-                      "models": ["Intel(R) Core(TM) i5-4570S CPU @ 2.90GHz"]
-                    },
-                    "mountpoints": {
-                      "/": {
-                        "size_bytes": 258080768,
-                        "used_bytes": 57765888,
-                        "available_bytes": 200314880
-                      }
-                    },
-                    "networking": {
-                      "fqdn": "fw.nethesis.it"
-                    },
-                    "public_ip": "2.119.67.169",
-                    "timezone": "Europe/Rome",
-                    "system_uptime": {
-                      "seconds": "54150"
-                    },
-                    "features": {
-                      "subscription_status": {
-                        "status": "enterprise"
-                      },
-                      "ha": {
-                        "enabled": false,
-                        "vips": 0
-                      },
-                      "qos": {
-                        "count": 2,
-                        "rules": [
-                          {
-                            "enabled": true,
-                            "upload": 20,
-                            "download": 40
-                          }
-                        ]
-                      }
+              description: Raw inventory data sent directly from the system
+              additionalProperties: true
+              example: {
+                "$schema": "https://schema.nethserver.org/facts/2022-12.json",
+                "uuid": "659d2fbe-792f-4a0d-ae58-f278304d4f7f",
+                "installation": "nethserver",
+                "facts": {
+                  "cluster": {
+                    "leader_node_id": "1",
+                    "user_domains": [],
+                    "subscription": "community",
+                    "ui_name": "MyNethServer 8"
+                  },
+                  "nodes": {
+                    "1": {
+                      "cluster_leader": true,
+                      "fqdn": "rl1.dp.nethserver.net",
+                      "default_ipv4": "165.22.17.26",
+                      "default_ipv6": "2a03:b0c0:3:f0:0:1:dbfe:3000",
+                      "version": "3.17.0-dev.6",
+                      "ui_name": "MyNodeRl1"
                     }
-                  }
+                  },
+                  "modules": [
+                    {
+                      "id": "mail1",
+                      "version": "1.7.4",
+                      "name": "mail",
+                      "node": "1",
+                      "ui_name": "MyMail"
+                    }
+                  ]
+                }
+              }
       responses:
         '202':
           description: Inventory received and queued for processing
@@ -5339,7 +6600,7 @@ paths:
                       system_key:
                         type: string
                         description: System KEY
-                        example: "NOC-4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
+                        example: "NETH-4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
                       timestamp:
                         type: string
                         format: date-time
@@ -5415,7 +6676,7 @@ paths:
                 system_key:
                   type: string
                   description: System KEY sending the heartbeat
-                  example: "NOC-4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
+                  example: "NETH-4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
               required:
                 - system_key
       responses:
@@ -5438,7 +6699,7 @@ paths:
                       system_key:
                         type: string
                         description: System KEY
-                        example: "NOC-4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
+                        example: "NETH-4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
                       acknowledged:
                         type: boolean
                         description: Whether heartbeat was acknowledged

@@ -314,8 +314,10 @@ func (de *DiffEngine) validateInventoryData(previous, current json.RawMessage) e
 		return fmt.Errorf("invalid current inventory JSON structure: %w", err)
 	}
 
-	// Check for expected top-level fields
-	expectedFields := []string{"os", "networking", "processors", "memory"}
+	// Both NS8 (nethserver) and NSEC (nethsecurity) use the same top-level structure:
+	// $schema, uuid, installation, facts
+	expectedFields := []string{"facts", "uuid", "installation"}
+
 	for _, field := range expectedFields {
 		if _, exists := prevParsed[field]; !exists {
 			logger.ComponentLogger("differ-engine").Warn().
@@ -355,36 +357,41 @@ func (de *DiffEngine) GroupRelatedChanges(diffs []models.InventoryDiff) map[stri
 }
 
 // getGroupKey determines the grouping key for a field path
+// Supports NS8/NSEC inventory structure (facts.*)
 func (de *DiffEngine) getGroupKey(fieldPath string) string {
 	parts := strings.Split(fieldPath, ".")
 	if len(parts) == 0 {
 		return "general"
 	}
 
-	// Group by top-level categories
-	topLevel := parts[0]
-	switch topLevel {
-	case "os", "kernel", "kernelrelease":
-		return "operating_system"
-	case "dmi", "processors", "memory", "mountpoints":
-		return "hardware"
-	case "networking", "public_ip", "arp_macs":
-		return "network"
-	case "features":
-		if len(parts) > 1 {
-			return fmt.Sprintf("features_%s", parts[1])
+	// Handle NS8/NSEC structure (facts.*)
+	if parts[0] == "facts" && len(parts) > 1 {
+		secondLevel := parts[1]
+		switch {
+		case strings.HasPrefix(secondLevel, "modules"):
+			return "modules"
+		case secondLevel == "cluster":
+			return "cluster"
+		case strings.HasPrefix(secondLevel, "nodes"):
+			return "nodes"
+		case secondLevel == "distro":
+			return "operating_system"
+		case secondLevel == "processors" || secondLevel == "memory" || secondLevel == "product" || secondLevel == "virtual" || secondLevel == "pci":
+			return "hardware"
+		case secondLevel == "network":
+			return "network"
+		case secondLevel == "features":
+			if len(parts) > 2 {
+				return fmt.Sprintf("features_%s", parts[2])
+			}
+			return "features"
+		default:
+			return secondLevel
 		}
-		return "features"
-	case "esmithdb":
-		if len(parts) > 1 {
-			return fmt.Sprintf("configuration_%s", parts[1])
-		}
-		return "configuration"
-	case "rpms":
-		return "packages"
-	default:
-		return topLevel
 	}
+
+	// Fallback for non-facts paths
+	return parts[0]
 }
 
 // AnalyzeTrends analyzes trends in inventory changes over time

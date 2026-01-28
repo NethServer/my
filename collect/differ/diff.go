@@ -18,15 +18,14 @@ import (
 
 // NewDefaultDiffEngine creates a new configurable diff engine with default configuration
 func NewDefaultDiffEngine() (*DiffEngine, error) {
-	// Use default config path - config.yml in the differ directory
 	return NewDiffEngine("")
 }
 
 // NewDiffEngineWithConfig creates a diff engine with custom configuration
 func NewDiffEngineWithConfig(configPath string) (*DiffEngine, error) {
 	if configPath == "" {
-		// Use default configuration path
-		configPath = "differ/config.yml"
+		// Use default configuration path (auto-search in LoadConfig)
+		configPath = "config.yml"
 	}
 
 	engine, err := NewDiffEngine(configPath)

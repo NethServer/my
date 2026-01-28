@@ -34,9 +34,10 @@ func TestSystemStructure(t *testing.T) {
 		Version:     "1.2.3",
 		SystemKey:   "ABC123DEF456",
 		Organization: Organization{
-			ID:   "org-123",
-			Name: "Test Organization",
-			Type: "owner",
+			ID:      "db-uuid-123",
+			LogtoID: "org-123",
+			Name:    "Test Organization",
+			Type:    "owner",
 		},
 		CustomData: map[string]string{"location": "datacenter1", "environment": "production"},
 		CreatedAt:  now,
@@ -53,7 +54,8 @@ func TestSystemStructure(t *testing.T) {
 	assert.Equal(t, "2001:db8::1", system.IPv6Address)
 	assert.Equal(t, "1.2.3", system.Version)
 	assert.Equal(t, "ABC123DEF456", system.SystemKey)
-	assert.Equal(t, "org-123", system.Organization.ID)
+	assert.Equal(t, "db-uuid-123", system.Organization.ID)
+	assert.Equal(t, "org-123", system.Organization.LogtoID)
 	assert.Equal(t, "Test Organization", system.Organization.Name)
 	assert.Equal(t, "owner", system.Organization.Type)
 	assert.Equal(t, map[string]string{"location": "datacenter1", "environment": "production"}, system.CustomData)
@@ -83,9 +85,10 @@ func TestSystemJSONSerialization(t *testing.T) {
 		Version:     "2.0.1",
 		SystemKey:   "XYZ789GHI012",
 		Organization: Organization{
-			ID:   "org-456",
-			Name: "JSON Organization",
-			Type: "distributor",
+			ID:      "db-uuid-456",
+			LogtoID: "org-456",
+			Name:    "JSON Organization",
+			Type:    "distributor",
 		},
 		CustomData: map[string]string{"cluster": "web-servers", "role": "frontend"},
 		CreatedAt:  now,
@@ -111,6 +114,7 @@ func TestSystemJSONSerialization(t *testing.T) {
 	assert.Equal(t, system.Version, unmarshaledSystem.Version)
 	assert.Equal(t, system.SystemKey, unmarshaledSystem.SystemKey)
 	assert.Equal(t, system.Organization.ID, unmarshaledSystem.Organization.ID)
+	assert.Equal(t, system.Organization.LogtoID, unmarshaledSystem.Organization.LogtoID)
 	assert.Equal(t, system.Organization.Name, unmarshaledSystem.Organization.Name)
 	assert.Equal(t, system.Organization.Type, unmarshaledSystem.Organization.Type)
 	assert.Equal(t, system.CustomData, unmarshaledSystem.CustomData)
@@ -188,9 +192,10 @@ func TestSystemJSONTags(t *testing.T) {
 		Version:     "3.0.0",
 		SystemKey:   "TAG789XYZ012",
 		Organization: Organization{
-			ID:   "org-tags",
-			Name: "Tag Organization",
-			Type: "customer",
+			ID:      "db-uuid-tags",
+			LogtoID: "org-tags",
+			Name:    "Tag Organization",
+			Type:    "customer",
 		},
 		CustomData: map[string]string{"test": "tags"},
 		CreatedAt:  time.Now(),
@@ -235,7 +240,8 @@ func TestSystemJSONTags(t *testing.T) {
 	// Verify organization is an object
 	orgMap, ok := jsonMap["organization"].(map[string]interface{})
 	assert.True(t, ok)
-	assert.Equal(t, "org-tags", orgMap["id"])
+	assert.Equal(t, "db-uuid-tags", orgMap["id"])
+	assert.Equal(t, "org-tags", orgMap["logto_id"])
 	assert.Equal(t, "Tag Organization", orgMap["name"])
 	assert.Equal(t, "customer", orgMap["type"])
 

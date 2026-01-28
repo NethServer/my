@@ -221,7 +221,7 @@ func TestValidateFieldPath(t *testing.T) {
 		},
 		{
 			name:        "field path with underscores",
-			fieldPath:   "system_uptime",
+			fieldPath:   "uptime_seconds",
 			expectError: false,
 		},
 		{

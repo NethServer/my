@@ -54,7 +54,7 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 	// Generate unique system ID
 	systemID := uuid.New().String()
 
-	// Generate system key (NOC-XXXX-XXXX format)
+	// Generate system key (NETH-XXXX-XXXX format)
 	systemKey, err := s.generateSystemKey()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate system key: %w", err)
@@ -140,12 +140,13 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
 		           WHEN c.logto_id IS NOT NULL THEN 'customer'
 		           ELSE 'owner'
-		       END as organization_type
+		       END as organization_type,
+		       COALESCE(d.id::text, r.id::text, c.id::text, '') as organization_db_id
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
-		LEFT JOIN distributors d ON s.organization_id = d.logto_id AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON s.organization_id = r.logto_id AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON s.organization_id = c.logto_id AND c.deleted_at IS NULL
+		LEFT JOIN distributors d ON (s.organization_id = d.logto_id OR s.organization_id = d.id::text) AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON (s.organization_id = r.logto_id OR s.organization_id = r.id::text) AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON (s.organization_id = c.logto_id OR s.organization_id = c.id::text) AND c.deleted_at IS NULL
 		WHERE s.deleted_at IS NULL
 		ORDER BY s.created_at DESC
 	`
@@ -165,13 +166,13 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 		var createdByJSON []byte
 		var fqdn, ipv4Address, ipv6Address, version sql.NullString
 		var registeredAt, lastHeartbeat sql.NullTime
-		var organizationName, organizationType sql.NullString
+		var organizationName, organizationType, organizationDBID sql.NullString
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
-			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.ID,
+			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.LogtoID,
 			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &lastHeartbeat,
-			&organizationName, &organizationType,
+			&organizationName, &organizationType, &organizationDBID,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan system: %w", err)
@@ -182,6 +183,7 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 		system.IPv4Address = ipv4Address.String
 		system.IPv6Address = ipv6Address.String
 		system.Version = version.String
+		system.Organization.ID = organizationDBID.String
 		system.Organization.Name = organizationName.String
 		system.Organization.Type = organizationType.String
 
@@ -312,7 +314,7 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 	}
 	// Note: Type and SystemKey are not modifiable via update API
 	// Validate organization_id change if provided
-	if request.OrganizationID != "" && request.OrganizationID != system.Organization.ID {
+	if request.OrganizationID != "" && request.OrganizationID != system.Organization.LogtoID {
 		// Validate user can assign system to the new organization
 		if canCreate, reason := s.CanCreateSystemForOrganization(userOrgRole, userOrgID, request.OrganizationID); !canCreate {
 			return nil, fmt.Errorf("access denied for organization change: %s", reason)
@@ -345,7 +347,7 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 
-	_, err = database.DB.Exec(query, systemID, system.Name, system.Organization.ID, customDataJSON, system.Notes, now)
+	_, err = database.DB.Exec(query, systemID, system.Name, system.Organization.LogtoID, customDataJSON, system.Notes, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update system: %w", err)
 	}
@@ -408,11 +410,12 @@ func (s *LocalSystemsService) RestoreSystem(systemID, userID, userOrgID, userOrg
 		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
 		           WHEN c.logto_id IS NOT NULL THEN 'customer'
 		           ELSE 'owner'
-		       END as organization_type
+		       END as organization_type,
+		       COALESCE(d.id::text, r.id::text, c.id::text, '') as organization_db_id
 		FROM systems s
-		LEFT JOIN distributors d ON s.organization_id = d.logto_id AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON s.organization_id = r.logto_id AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON s.organization_id = c.logto_id AND c.deleted_at IS NULL
+		LEFT JOIN distributors d ON (s.organization_id = d.logto_id OR s.organization_id = d.id::text) AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON (s.organization_id = r.logto_id OR s.organization_id = r.id::text) AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON (s.organization_id = c.logto_id OR s.organization_id = c.id::text) AND c.deleted_at IS NULL
 		WHERE s.id = $1
 	`
 
@@ -421,14 +424,14 @@ func (s *LocalSystemsService) RestoreSystem(systemID, userID, userOrgID, userOrg
 	var createdByJSON []byte
 	var fqdn, ipv4Address, ipv6Address, version sql.NullString
 	var registeredAt, deletedAt sql.NullTime
-	var organizationName, organizationType sql.NullString
+	var organizationName, organizationType, organizationDBID sql.NullString
 	var systemType sql.NullString
 
 	err := database.DB.QueryRow(query, systemID).Scan(
 		&system.ID, &system.Name, &systemType, &system.Status, &fqdn,
-		&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.ID,
+		&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.LogtoID,
 		&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &deletedAt,
-		&organizationName, &organizationType,
+		&organizationName, &organizationType, &organizationDBID,
 	)
 
 	if err == sql.ErrNoRows {
@@ -451,6 +454,7 @@ func (s *LocalSystemsService) RestoreSystem(systemID, userID, userOrgID, userOrg
 	system.IPv4Address = ipv4Address.String
 	system.IPv6Address = ipv6Address.String
 	system.Version = version.String
+	system.Organization.ID = organizationDBID.String
 	system.Organization.Name = organizationName.String
 	system.Organization.Type = organizationType.String
 
@@ -783,7 +787,7 @@ func (s *LocalSystemsService) calculateHeartbeatStatus(lastHeartbeat *time.Time,
 }
 
 // generateSystemKey generates a unique UUID-based system key with prefix
-// Format: NOC-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX
+// Format: NETH-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX
 func (s *LocalSystemsService) generateSystemKey() (string, error) {
 	// Generate a new UUID
 	id := uuid.New()
@@ -791,7 +795,7 @@ func (s *LocalSystemsService) generateSystemKey() (string, error) {
 	// Convert UUID to uppercase hex string without dashes
 	hexStr := strings.ToUpper(strings.ReplaceAll(id.String(), "-", ""))
 
-	// Format as: NOC-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX
+	// Format as: NETH-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX
 	// Group into 4-character segments for readability
 	var segments []string
 	for i := 0; i < len(hexStr); i += 4 {
@@ -802,7 +806,7 @@ func (s *LocalSystemsService) generateSystemKey() (string, error) {
 		segments = append(segments, hexStr[i:end])
 	}
 
-	return "NOC-" + strings.Join(segments, "-"), nil
+	return "NETH-" + strings.Join(segments, "-"), nil
 }
 
 // generateSecretPublicPart generates the public part of the token (20 random characters)
@@ -930,7 +934,7 @@ func (s *LocalSystemsService) CanCreateSystemForOrganization(userOrgRole, userOr
 	}
 }
 
-// getOrganizationInfo fetches organization info (name and type) from distributors, resellers, or customers tables
+// getOrganizationInfo fetches organization info (name, type and IDs) from distributors, resellers, or customers tables
 func (s *LocalSystemsService) getOrganizationInfo(logtoOrgID string) models.Organization {
 	query := `
 		SELECT
@@ -940,26 +944,28 @@ func (s *LocalSystemsService) getOrganizationInfo(logtoOrgID string) models.Orga
 				WHEN r.logto_id IS NOT NULL THEN 'reseller'
 				WHEN c.logto_id IS NOT NULL THEN 'customer'
 				ELSE 'owner'
-			END as type
+			END as type,
+			COALESCE(d.id::text, r.id::text, c.id::text, '') as db_id
 		FROM (SELECT $1 as logto_id) o
-		LEFT JOIN distributors d ON o.logto_id = d.logto_id AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON o.logto_id = r.logto_id AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON o.logto_id = c.logto_id AND c.deleted_at IS NULL
+		LEFT JOIN distributors d ON (o.logto_id = d.logto_id OR o.logto_id = d.id::text) AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON (o.logto_id = r.logto_id OR o.logto_id = r.id::text) AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON (o.logto_id = c.logto_id OR o.logto_id = c.id::text) AND c.deleted_at IS NULL
 	`
 
 	var org models.Organization
-	org.ID = logtoOrgID
+	org.LogtoID = logtoOrgID
 
-	err := database.DB.QueryRow(query, logtoOrgID).Scan(&org.Name, &org.Type)
+	err := database.DB.QueryRow(query, logtoOrgID).Scan(&org.Name, &org.Type, &org.ID)
 	if err != nil {
 		logger.Warn().
 			Err(err).
 			Str("organization_id", logtoOrgID).
 			Msg("Failed to fetch organization info")
 		return models.Organization{
-			ID:   logtoOrgID,
-			Name: "Owner",
-			Type: "owner",
+			ID:      "",
+			LogtoID: logtoOrgID,
+			Name:    "Owner",
+			Type:    "owner",
 		}
 	}
 

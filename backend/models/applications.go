@@ -1,186 +1,204 @@
 /*
- * Copyright (C) 2025 Nethesis S.r.l.
- * http://www.nethesis.it - info@nethesis.it
- *
- * SPDX-License-Identifier: AGPL-3.0-or-later
- *
- * author: Edoardo Spadoni <edoardo.spadoni@nethesis.it>
- */
+Copyright (C) 2025 Nethesis S.r.l.
+SPDX-License-Identifier: AGPL-3.0-or-later
+*/
 
 package models
 
-// ThirdPartyApplication represents a third-party application from Logto
-type ThirdPartyApplication struct {
-	ID                     string               `json:"id"`
-	Name                   string               `json:"name"`
-	Description            string               `json:"description"`
-	RedirectUris           []string             `json:"redirect_uris"`
-	PostLogoutRedirectUris []string             `json:"post_logout_redirect_uris"`
-	LoginURL               string               `json:"login_url"`
-	InfoURL                string               `json:"info_url,omitempty"`
-	Branding               *ApplicationBranding `json:"branding,omitempty"`
+import (
+	"encoding/json"
+	"time"
+)
+
+// Application represents an application instance extracted from system inventory
+type Application struct {
+	ID               string          `json:"id" db:"id"`
+	SystemID         string          `json:"system_id" db:"system_id"`
+	ModuleID         string          `json:"module_id" db:"module_id"`
+	InstanceOf       string          `json:"instance_of" db:"instance_of"`
+	DisplayName      *string         `json:"display_name" db:"display_name"`
+	NodeID           *int            `json:"node_id" db:"node_id"`
+	NodeLabel        *string         `json:"node_label" db:"node_label"`
+	Version          *string         `json:"version" db:"version"`
+	OrganizationID   *string         `json:"organization_id" db:"organization_id"`
+	OrganizationType *string         `json:"organization_type" db:"organization_type"`
+	Status           string          `json:"status" db:"status"`
+	InventoryData    json.RawMessage `json:"inventory_data" db:"inventory_data"`
+	BackupData       json.RawMessage `json:"backup_data" db:"backup_data"`
+	ServicesData     json.RawMessage `json:"services_data" db:"services_data"`
+	URL              *string         `json:"url" db:"url"`
+	Notes            *string         `json:"notes" db:"notes"`
+	IsUserFacing     bool            `json:"is_user_facing" db:"is_user_facing"`
+	CreatedAt        time.Time       `json:"created_at" db:"created_at"`
+	UpdatedAt        time.Time       `json:"updated_at" db:"updated_at"`
+	FirstSeenAt      time.Time       `json:"first_seen_at" db:"first_seen_at"`
+	LastInventoryAt  *time.Time      `json:"last_inventory_at" db:"last_inventory_at"`
+	DeletedAt        *time.Time      `json:"deleted_at,omitempty" db:"deleted_at"`
+
+	// Joined data for responses
+	System       *SystemSummary       `json:"system,omitempty"`
+	Organization *OrganizationSummary `json:"organization,omitempty"`
 }
 
-// ApplicationBranding represents branding information for an application
-type ApplicationBranding struct {
-	DisplayName string `json:"display_name"`
-	LogoURL     string `json:"logo_url,omitempty"`
-	DarkLogoURL string `json:"dark_logo_url,omitempty"`
+// SystemSummary represents a minimal system info for application responses
+type SystemSummary struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
-// AccessControl defines which roles and organizations can access a third-party application
-type AccessControl struct {
-	OrganizationRoles []string `json:"organization_roles,omitempty"`
-	UserRoles         []string `json:"user_roles,omitempty"`
-	UserRoleIDs       []string `json:"user_role_ids,omitempty"`
-	OrganizationIDs   []string `json:"organization_ids,omitempty"`
+// Note: OrganizationSummary is defined in organizations.go
+
+// BackupInfo represents backup status information from inventory
+type BackupInfo struct {
+	Status          string     `json:"status"` // success, failed, not_run_yet, disabled
+	Destination     *string    `json:"destination,omitempty"`
+	CompletedAt     *time.Time `json:"completed_at,omitempty"`
+	DurationSeconds *int       `json:"duration_seconds,omitempty"`
+	TotalSizeBytes  *int64     `json:"total_size_bytes,omitempty"`
+	TotalFiles      *int       `json:"total_files,omitempty"`
 }
 
-// LogtoThirdPartyApp represents the raw application data from Logto API
-type LogtoThirdPartyApp struct {
-	ID                 string                 `json:"id"`
-	Name               string                 `json:"name"`
-	Description        string                 `json:"description"`
-	Type               string                 `json:"type"`
-	IsThirdParty       bool                   `json:"isThirdParty"`
-	CustomData         map[string]interface{} `json:"customData,omitempty"`
-	OidcClientMetadata *OidcClientMetadata    `json:"oidcClientMetadata,omitempty"`
+// ModuleInfo represents additional module status
+type ModuleInfo struct {
+	Enabled bool `json:"enabled"`
 }
 
-// OidcClientMetadata represents OIDC client metadata from Logto
-type OidcClientMetadata struct {
-	RedirectUris           []string `json:"redirectUris,omitempty"`
-	PostLogoutRedirectUris []string `json:"postLogoutRedirectUris,omitempty"`
+// ServicesInfo represents services health status from inventory
+type ServicesInfo struct {
+	Services   []ServiceStatus `json:"services"`
+	HasErrors  bool            `json:"has_errors"`
+	ErrorCount int             `json:"error_count"`
 }
 
-// ApplicationSignInExperience represents application branding from Logto
-type ApplicationSignInExperience struct {
-	DisplayName string                    `json:"displayName"`
-	Branding    *LogtoApplicationBranding `json:"branding,omitempty"`
+// ServiceStatus represents individual service status
+type ServiceStatus struct {
+	Name   string     `json:"name"`
+	Status string     `json:"status"` // running, error, stopped
+	Error  *string    `json:"error,omitempty"`
+	Since  *time.Time `json:"since,omitempty"`
 }
 
-// LogtoApplicationBranding represents branding data from Logto API
-type LogtoApplicationBranding struct {
-	LogoURL     string `json:"logoUrl,omitempty"`
-	DarkLogoURL string `json:"darkLogoUrl,omitempty"`
+// ApplicationListItem represents a simplified application for list views
+type ApplicationListItem struct {
+	ID              string               `json:"id"`
+	ModuleID        string               `json:"module_id"`
+	InstanceOf      string               `json:"instance_of"`
+	DisplayName     *string              `json:"display_name"`
+	Version         *string              `json:"version"`
+	Status          string               `json:"status"`
+	NodeID          *int                 `json:"node_id"`
+	NodeLabel       *string              `json:"node_label"`
+	URL             *string              `json:"url"`
+	Notes           *string              `json:"notes"`
+	HasErrors       bool                 `json:"has_errors"`
+	InventoryData   json.RawMessage      `json:"inventory_data"`
+	BackupData      json.RawMessage      `json:"backup_data"`
+	ServicesData    json.RawMessage      `json:"services_data"`
+	System          *SystemSummary       `json:"system,omitempty"`
+	Organization    *OrganizationSummary `json:"organization,omitempty"`
+	CreatedAt       time.Time            `json:"created_at"`
+	LastInventoryAt *time.Time           `json:"last_inventory_at"`
 }
 
-// ToThirdPartyApplication converts a LogtoThirdPartyApp to a ThirdPartyApplication
-func (l *LogtoThirdPartyApp) ToThirdPartyApplication(branding *ApplicationSignInExperience, scopes []string, loginURLGenerator func(string, string, []string, bool) string, isValidDomain bool) *ThirdPartyApplication {
-	app := &ThirdPartyApplication{
-		ID:          l.ID,
-		Name:        l.Name,
-		Description: l.Description,
+// AssignApplicationRequest represents the request to assign an organization to an application
+type AssignApplicationRequest struct {
+	OrganizationID string `json:"organization_id" binding:"required"`
+}
+
+// UpdateApplicationRequest represents the request to update an application (only notes is editable)
+type UpdateApplicationRequest struct {
+	Notes *string `json:"notes"`
+}
+
+// ApplicationTotals represents statistics for applications
+type ApplicationTotals struct {
+	Total      int64            `json:"total"`
+	Unassigned int64            `json:"unassigned"`
+	Assigned   int64            `json:"assigned"`
+	WithErrors int64            `json:"with_errors"`
+	ByType     map[string]int64 `json:"by_type"`
+	ByStatus   map[string]int64 `json:"by_status"`
+}
+
+// ApplicationFilters represents available filter options
+type ApplicationFilters struct {
+	Types     []string `json:"types"`
+	Versions  []string `json:"versions"`
+	Statuses  []string `json:"statuses"`
+	SystemIDs []string `json:"system_ids"`
+}
+
+// ApplicationType represents application type metadata for filter dropdowns
+type ApplicationType struct {
+	InstanceOf   string `json:"instance_of"`
+	IsUserFacing bool   `json:"is_user_facing"`
+	Count        int64  `json:"count"`
+}
+
+// GetEffectiveDisplayName returns the display name or falls back to module_id
+func (a *Application) GetEffectiveDisplayName() string {
+	if a.DisplayName != nil && *a.DisplayName != "" {
+		return *a.DisplayName
 	}
-
-	// Set branding information
-	if branding != nil {
-		// Include branding details if available
-		if branding.Branding != nil {
-			app.Branding = &ApplicationBranding{
-				DisplayName: branding.DisplayName,
-				LogoURL:     branding.Branding.LogoURL,
-				DarkLogoURL: branding.Branding.DarkLogoURL,
-			}
-		} else {
-			// Create basic branding with just display name
-			app.Branding = &ApplicationBranding{
-				DisplayName: branding.DisplayName,
-			}
-		}
-	}
-
-	// Extract OIDC metadata
-	if l.OidcClientMetadata != nil {
-		app.RedirectUris = l.OidcClientMetadata.RedirectUris
-		app.PostLogoutRedirectUris = l.OidcClientMetadata.PostLogoutRedirectUris
-	}
-
-	// Use login URL from custom_data if available, otherwise generate it using redirect URI
-	if l.CustomData != nil {
-		if loginURLData, exists := l.CustomData["login_url"]; exists {
-			if loginURLStr, ok := loginURLData.(string); ok && loginURLStr != "" {
-				app.LoginURL = loginURLStr
-			}
-		}
-
-		// Extract info_url from custom_data if available
-		if infoURLData, exists := l.CustomData["info_url"]; exists {
-			if infoURLStr, ok := infoURLData.(string); ok && infoURLStr != "" {
-				app.InfoURL = infoURLStr
-			}
-		}
-	}
-
-	// Fallback: Generate login URL using the first redirect URI if not provided in custom_data
-	if app.LoginURL == "" && len(app.RedirectUris) > 0 && loginURLGenerator != nil {
-		app.LoginURL = loginURLGenerator(l.ID, app.RedirectUris[0], scopes, isValidDomain)
-	}
-
-	return app
+	return a.ModuleID
 }
 
-// ExtractAccessControlFromCustomData extracts access control configuration from Logto custom data
-func (l *LogtoThirdPartyApp) ExtractAccessControlFromCustomData() *AccessControl {
-	if l.CustomData == nil {
+// HasServiceErrors checks if the application has service errors from services_data
+func (a *Application) HasServiceErrors() bool {
+	if a.ServicesData == nil {
+		return false
+	}
+	var info ServicesInfo
+	if err := json.Unmarshal(a.ServicesData, &info); err != nil {
+		return false
+	}
+	return info.HasErrors
+}
+
+// GetBackupInfo parses and returns backup information
+func (a *Application) GetBackupInfo() *BackupInfo {
+	if a.BackupData == nil {
 		return nil
 	}
-
-	accessControlData, exists := l.CustomData["access_control"]
-	if !exists {
+	var info BackupInfo
+	if err := json.Unmarshal(a.BackupData, &info); err != nil {
 		return nil
 	}
+	return &info
+}
 
-	accessControlMap, ok := accessControlData.(map[string]interface{})
-	if !ok {
+// GetServicesInfo parses and returns services information
+func (a *Application) GetServicesInfo() *ServicesInfo {
+	if a.ServicesData == nil {
 		return nil
 	}
-
-	accessControl := &AccessControl{}
-
-	if orgRoles, exists := accessControlMap["organization_roles"]; exists {
-		if orgRolesList, ok := orgRoles.([]interface{}); ok {
-			accessControl.OrganizationRoles = make([]string, 0, len(orgRolesList))
-			for _, role := range orgRolesList {
-				if roleStr, ok := role.(string); ok {
-					accessControl.OrganizationRoles = append(accessControl.OrganizationRoles, roleStr)
-				}
-			}
-		}
+	var info ServicesInfo
+	if err := json.Unmarshal(a.ServicesData, &info); err != nil {
+		return nil
 	}
+	return &info
+}
 
-	if userRoles, exists := accessControlMap["user_roles"]; exists {
-		if userRolesList, ok := userRoles.([]interface{}); ok {
-			accessControl.UserRoles = make([]string, 0, len(userRolesList))
-			for _, role := range userRolesList {
-				if roleStr, ok := role.(string); ok {
-					accessControl.UserRoles = append(accessControl.UserRoles, roleStr)
-				}
-			}
-		}
+// ToListItem converts a full application to a list item
+func (a *Application) ToListItem() *ApplicationListItem {
+	return &ApplicationListItem{
+		ID:              a.ID,
+		ModuleID:        a.ModuleID,
+		InstanceOf:      a.InstanceOf,
+		DisplayName:     a.DisplayName,
+		Version:         a.Version,
+		Status:          a.Status,
+		NodeID:          a.NodeID,
+		NodeLabel:       a.NodeLabel,
+		URL:             a.URL,
+		Notes:           a.Notes,
+		HasErrors:       a.HasServiceErrors(),
+		InventoryData:   a.InventoryData,
+		BackupData:      a.BackupData,
+		ServicesData:    a.ServicesData,
+		System:          a.System,
+		Organization:    a.Organization,
+		CreatedAt:       a.CreatedAt,
+		LastInventoryAt: a.LastInventoryAt,
 	}
-
-	if userRoleIDs, exists := accessControlMap["user_role_ids"]; exists {
-		if userRoleIDsList, ok := userRoleIDs.([]interface{}); ok {
-			accessControl.UserRoleIDs = make([]string, 0, len(userRoleIDsList))
-			for _, roleID := range userRoleIDsList {
-				if roleIDStr, ok := roleID.(string); ok {
-					accessControl.UserRoleIDs = append(accessControl.UserRoleIDs, roleIDStr)
-				}
-			}
-		}
-	}
-
-	if orgIDs, exists := accessControlMap["organization_ids"]; exists {
-		if orgIDsList, ok := orgIDs.([]interface{}); ok {
-			accessControl.OrganizationIDs = make([]string, 0, len(orgIDsList))
-			for _, orgID := range orgIDsList {
-				if orgIDStr, ok := orgID.(string); ok {
-					accessControl.OrganizationIDs = append(accessControl.OrganizationIDs, orgIDStr)
-				}
-			}
-		}
-	}
-
-	return accessControl
 }

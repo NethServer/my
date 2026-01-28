@@ -68,11 +68,11 @@ func CollectInventoryWithMockQueue(c *gin.Context, queueManager interface{}) {
 		return
 	}
 
-	// Parse request body
-	var inventoryRequest models.InventorySubmissionRequest
-	if err := c.ShouldBindJSON(&inventoryRequest); err != nil {
+	// Read raw JSON body directly
+	rawBody, err := c.GetRawData()
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "invalid JSON payload",
+			"message": "failed to read request body",
 			"data": map[string]interface{}{
 				"error": err.Error(),
 			},
@@ -84,7 +84,7 @@ func CollectInventoryWithMockQueue(c *gin.Context, queueManager interface{}) {
 	inventoryData := models.InventoryData{
 		SystemID:  systemIDStr,
 		Timestamp: time.Now(),
-		Data:      inventoryRequest.Data,
+		Data:      rawBody,
 	}
 
 	// Validate inventory data
@@ -161,8 +161,8 @@ func TestCollectInventoryInvalidDataJSONWithMock(t *testing.T) {
 		CollectInventoryWithMockQueue(c, mockQueue)
 	})
 
-	// Send data field with invalid JSON - this should fail JSON parsing
-	invalidJSON := `{"data": invalid json}`
+	// Send invalid JSON - this should fail JSON validation
+	invalidJSON := `{"cpu": invalid json}`
 
 	req := httptest.NewRequest("POST", "/inventory", bytes.NewBuffer([]byte(invalidJSON)))
 	req.Header.Set("Content-Type", "application/json")
@@ -178,7 +178,7 @@ func TestCollectInventoryInvalidDataJSONWithMock(t *testing.T) {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
 
-	assert.Equal(t, "invalid JSON payload", response["message"])
+	assert.Equal(t, "invalid inventory data", response["message"])
 }
 
 func TestCollectInventoryValidRequestWithMock(t *testing.T) {
@@ -199,13 +199,8 @@ func TestCollectInventoryValidRequestWithMock(t *testing.T) {
 		CollectInventoryWithMockQueue(c, mockQueue)
 	})
 
-	// Send valid data
-	requestData := models.InventorySubmissionRequest{
-		Data: json.RawMessage(`{"cpu": "Intel i7", "memory": "16GB", "disk": "1TB SSD"}`),
-	}
-
-	jsonData, err := json.Marshal(requestData)
-	require.NoError(t, err)
+	// Send valid raw JSON data
+	jsonData := []byte(`{"cpu": "Intel i7", "memory": "16GB", "disk": "1TB SSD"}`)
 
 	req := httptest.NewRequest("POST", "/inventory", bytes.NewBuffer(jsonData))
 	req.Header.Set("Content-Type", "application/json")
@@ -217,7 +212,7 @@ func TestCollectInventoryValidRequestWithMock(t *testing.T) {
 	assert.Equal(t, http.StatusAccepted, w.Code)
 
 	var response map[string]interface{}
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
 	assert.Equal(t, "Inventory received and queued for processing", response["message"])
@@ -248,13 +243,8 @@ func TestCollectInventoryQueueFailureWithMock(t *testing.T) {
 		CollectInventoryWithMockQueue(c, mockQueue)
 	})
 
-	// Send valid data
-	requestData := models.InventorySubmissionRequest{
-		Data: json.RawMessage(`{"cpu": "Intel i7", "memory": "16GB"}`),
-	}
-
-	jsonData, err := json.Marshal(requestData)
-	require.NoError(t, err)
+	// Send valid raw JSON data
+	jsonData := []byte(`{"cpu": "Intel i7", "memory": "16GB"}`)
 
 	req := httptest.NewRequest("POST", "/inventory", bytes.NewBuffer(jsonData))
 	req.Header.Set("Content-Type", "application/json")
@@ -266,7 +256,7 @@ func TestCollectInventoryQueueFailureWithMock(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 
 	var response map[string]interface{}
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
 	assert.Equal(t, "failed to process inventory", response["message"])
@@ -324,7 +314,7 @@ func TestRequestSizeValidationWithMock(t *testing.T) {
 				CollectInventoryWithMockQueue(c, mockQueue)
 			})
 
-			req := httptest.NewRequest("POST", "/inventory", bytes.NewBuffer([]byte(`{"data": {"cpu": "Intel i7"}}`)))
+			req := httptest.NewRequest("POST", "/inventory", bytes.NewBuffer([]byte(`{"cpu": "Intel i7"}`)))
 			req.Header.Set("Content-Type", "application/json")
 			req.ContentLength = tt.contentLength
 
@@ -366,19 +356,19 @@ func TestCollectInventoryDataValidationWithMock(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		requestData    interface{}
+		requestBody    string
 		expectedStatus int
 		expectedMsg    string
 	}{
 		{
 			name:           "valid data",
-			requestData:    map[string]interface{}{"data": json.RawMessage(`{"cpu": "Intel i7"}`)},
+			requestBody:    `{"cpu": "Intel i7"}`,
 			expectedStatus: http.StatusAccepted,
 			expectedMsg:    "Inventory received and queued for processing",
 		},
 		{
-			name:           "missing data field",
-			requestData:    map[string]interface{}{"other": "value"},
+			name:           "empty body",
+			requestBody:    ``,
 			expectedStatus: http.StatusBadRequest,
 			expectedMsg:    "invalid inventory data",
 		},
@@ -386,12 +376,9 @@ func TestCollectInventoryDataValidationWithMock(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			jsonData, err := json.Marshal(tt.requestData)
-			require.NoError(t, err)
-
-			req := httptest.NewRequest("POST", "/inventory", bytes.NewBuffer(jsonData))
+			req := httptest.NewRequest("POST", "/inventory", bytes.NewBuffer([]byte(tt.requestBody)))
 			req.Header.Set("Content-Type", "application/json")
-			req.ContentLength = int64(len(jsonData))
+			req.ContentLength = int64(len(tt.requestBody))
 
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
@@ -399,7 +386,7 @@ func TestCollectInventoryDataValidationWithMock(t *testing.T) {
 			assert.Equal(t, tt.expectedStatus, w.Code)
 
 			var response map[string]interface{}
-			err = json.Unmarshal(w.Body.Bytes(), &response)
+			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.expectedMsg, response["message"])

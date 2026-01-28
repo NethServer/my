@@ -50,12 +50,13 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
 		           WHEN c.logto_id IS NOT NULL THEN 'customer'
 		           ELSE 'owner'
-		       END as organization_type
+		       END as organization_type,
+		       COALESCE(d.id::text, r.id::text, c.id::text, '') as organization_db_id
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
-		LEFT JOIN distributors d ON s.organization_id = d.logto_id AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON s.organization_id = r.logto_id AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON s.organization_id = c.logto_id AND c.deleted_at IS NULL
+		LEFT JOIN distributors d ON (s.organization_id = d.logto_id OR s.organization_id = d.id::text) AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON (s.organization_id = r.logto_id OR s.organization_id = r.id::text) AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON (s.organization_id = c.logto_id OR s.organization_id = c.id::text) AND c.deleted_at IS NULL
 		WHERE s.id = $1 AND s.deleted_at IS NULL
 	`
 
@@ -64,13 +65,13 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	var createdByJSON []byte
 	var fqdn, ipv4Address, ipv6Address, version sql.NullString
 	var registeredAt, lastHeartbeat sql.NullTime
-	var organizationName, organizationType sql.NullString
+	var organizationName, organizationType, organizationDBID sql.NullString
 
 	err := r.db.QueryRow(query, id).Scan(
 		&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
-		&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.ID,
+		&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.LogtoID,
 		&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &lastHeartbeat,
-		&organizationName, &organizationType,
+		&organizationName, &organizationType, &organizationDBID,
 	)
 
 	if err == sql.ErrNoRows {
@@ -85,6 +86,7 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	system.IPv4Address = ipv4Address.String
 	system.IPv6Address = ipv6Address.String
 	system.Version = version.String
+	system.Organization.ID = organizationDBID.String
 	system.Organization.Name = organizationName.String
 	system.Organization.Type = organizationType.String
 
@@ -269,9 +271,9 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	countQuery := fmt.Sprintf(`
 		SELECT COUNT(*)
 		FROM systems s
-		LEFT JOIN distributors d ON s.organization_id = d.logto_id AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON s.organization_id = r.logto_id AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON s.organization_id = c.logto_id AND c.deleted_at IS NULL
+		LEFT JOIN distributors d ON (s.organization_id = d.logto_id OR s.organization_id = d.id::text) AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON (s.organization_id = r.logto_id OR s.organization_id = r.id::text) AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON (s.organization_id = c.logto_id OR s.organization_id = c.id::text) AND c.deleted_at IS NULL
 		WHERE %s`, whereClause)
 
 	err := r.db.QueryRow(countQuery, args...).Scan(&totalCount)
@@ -315,11 +317,12 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
 		           WHEN c.logto_id IS NOT NULL THEN 'customer'
 		           ELSE 'owner'
-		       END as organization_type
+		       END as organization_type,
+		       COALESCE(d.id::text, r.id::text, c.id::text, '') as organization_db_id
 		FROM systems s
-		LEFT JOIN distributors d ON s.organization_id = d.logto_id AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON s.organization_id = r.logto_id AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON s.organization_id = c.logto_id AND c.deleted_at IS NULL
+		LEFT JOIN distributors d ON (s.organization_id = d.logto_id OR s.organization_id = d.id::text) AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON (s.organization_id = r.logto_id OR s.organization_id = r.id::text) AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON (s.organization_id = c.logto_id OR s.organization_id = c.id::text) AND c.deleted_at IS NULL
 		WHERE %s
 		ORDER BY %s
 		LIMIT $%d OFFSET $%d
@@ -343,13 +346,13 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		var customDataJSON, createdByJSON []byte
 		var fqdn, ipv4Address, ipv6Address, version sql.NullString
 		var deletedAt, registeredAt sql.NullTime
-		var organizationName, organizationType sql.NullString
+		var organizationName, organizationType, organizationDBID sql.NullString
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
-			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.ID,
+			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.LogtoID,
 			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &deletedAt, &registeredAt, &createdByJSON,
-			&organizationName, &organizationType,
+			&organizationName, &organizationType, &organizationDBID,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan system: %w", err)
@@ -360,6 +363,7 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		system.IPv4Address = ipv4Address.String
 		system.IPv6Address = ipv6Address.String
 		system.Version = version.String
+		system.Organization.ID = organizationDBID.String
 		system.Organization.Name = organizationName.String
 		system.Organization.Type = organizationType.String
 

@@ -91,32 +91,6 @@ func TestInventoryDataValidation(t *testing.T) {
 	}
 }
 
-func TestInventorySubmissionRequest(t *testing.T) {
-	validJSON := json.RawMessage(`{"cpu": "Intel i7", "memory": "16GB", "disk": "1TB SSD"}`)
-
-	request := InventorySubmissionRequest{
-		Data: validJSON,
-	}
-
-	assert.NotEmpty(t, request.Data)
-
-	// Test JSON marshaling/unmarshaling
-	jsonData, err := json.Marshal(request)
-	require.NoError(t, err)
-
-	var unmarshaledRequest InventorySubmissionRequest
-	err = json.Unmarshal(jsonData, &unmarshaledRequest)
-	require.NoError(t, err)
-
-	// Validate that both are valid JSON with same content
-	var originalJSON, unmarshaledJSON interface{}
-	err = json.Unmarshal(request.Data, &originalJSON)
-	require.NoError(t, err)
-	err = json.Unmarshal(unmarshaledRequest.Data, &unmarshaledJSON)
-	require.NoError(t, err)
-	assert.Equal(t, originalJSON, unmarshaledJSON)
-}
-
 func TestInventoryRecord(t *testing.T) {
 	now := time.Now()
 	processedTime := now.Add(time.Minute)

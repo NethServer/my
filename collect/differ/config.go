@@ -26,6 +26,12 @@ type DifferConfig struct {
 	Notifications  NotificationsConfig  `yaml:"notifications"`
 }
 
+// unifiedConfig represents the top-level config.yml structure
+// The differ section is nested under the "differ" key
+type unifiedConfig struct {
+	Differ DifferConfig `yaml:"differ"`
+}
+
 // CategorizationConfig defines how fields are categorized
 type CategorizationConfig struct {
 	Categories map[string]CategoryRule `yaml:",inline"`
@@ -152,27 +158,57 @@ type ConfigurableDiffer struct {
 }
 
 // LoadConfig loads the differ configuration from YAML file
+// Supports the unified config.yml format where differ config is nested under the "differ" key
 func LoadConfig(configPath string) (*DifferConfig, error) {
-	// If no path provided, use default
-	if configPath == "" {
-		configPath = filepath.Join("differ", "config.yml")
+	var data []byte
+
+	if configPath != "" {
+		// Explicit path provided
+		var err error
+		data, err = os.ReadFile(configPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read config file %s: %w", configPath, err)
+		}
+	} else {
+		// Search for config.yml in standard locations
+		searchPaths := []string{
+			"config.yml",
+			"../config.yml",
+			"/etc/collect/config.yml",
+		}
+
+		// Add path relative to executable
+		if execPath, err := os.Executable(); err == nil {
+			searchPaths = append(searchPaths, filepath.Join(filepath.Dir(execPath), "config.yml"))
+		}
+
+		for _, path := range searchPaths {
+			if d, err := os.ReadFile(path); err == nil {
+				data = d
+				break
+			}
+		}
+
+		if data == nil {
+			return nil, fmt.Errorf("config.yml not found in any of the search paths")
+		}
 	}
 
-	// Check if file exists
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		return getDefaultConfig(), nil
-	}
-
-	// Read configuration file
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	// Parse YAML
-	var config DifferConfig
-	if err := yaml.Unmarshal(data, &config); err != nil {
+	// Try parsing as unified config (with "differ:" key)
+	var unified unifiedConfig
+	if err := yaml.Unmarshal(data, &unified); err != nil {
 		return nil, fmt.Errorf("failed to parse config YAML: %w", err)
+	}
+
+	config := unified.Differ
+
+	// If unified parsing resulted in empty config, try direct format
+	if config.Limits.MaxDiffDepth == 0 && config.Limits.MaxDiffsPerRun == 0 {
+		var direct DifferConfig
+		if err := yaml.Unmarshal(data, &direct); err != nil {
+			return nil, fmt.Errorf("failed to parse config YAML: %w", err)
+		}
+		config = direct
 	}
 
 	// Validate configuration
@@ -286,100 +322,6 @@ func validateConfig(config *DifferConfig) error {
 	}
 
 	return nil
-}
-
-// getDefaultConfig returns a default configuration
-func getDefaultConfig() *DifferConfig {
-	return &DifferConfig{
-		Categorization: CategorizationConfig{
-			Categories: map[string]CategoryRule{
-				"os": {
-					Patterns:    []string{"os\\.", "kernel", "system_uptime"},
-					Description: "Operating system related changes",
-				},
-				"hardware": {
-					Patterns:    []string{"dmi\\.", "processors", "memory", "mountpoints"},
-					Description: "Hardware and system components",
-				},
-				"network": {
-					Patterns:    []string{"networking", "esmithdb\\.networks", "public_ip", "arp_macs"},
-					Description: "Network configuration and connectivity",
-				},
-				"features": {
-					Patterns:    []string{"features\\.", "services\\.", "esmithdb\\.configuration"},
-					Description: "Software features and services",
-				},
-			},
-			Default: DefaultCategory{
-				Name:        "system",
-				Description: "General system changes",
-			},
-		},
-		Severity: SeverityConfig{
-			Critical: SeverityLevel{
-				Conditions: []SeverityCondition{
-					{ChangeType: "delete", Patterns: []string{"processors", "memory", "networking", "features"}},
-					{ChangeType: "create", Patterns: []string{"error", "failed", "critical"}},
-				},
-				Description: "Critical changes requiring immediate attention",
-			},
-			High: SeverityLevel{
-				Conditions: []SeverityCondition{
-					{ChangeType: "update", Patterns: []string{"os\\.version", "kernel", "public_ip", "certificates"}},
-					{ChangeType: "create", Patterns: []string{"warning", "alert"}},
-				},
-				Description: "Important changes requiring attention",
-			},
-			Medium: SeverityLevel{
-				Conditions: []SeverityCondition{
-					{ChangeType: "update", Patterns: []string{"configuration", "services", "features"}},
-					{ChangeType: "create", Patterns: []string{"info", "notice"}},
-				},
-				Description: "Moderate changes for review",
-			},
-			Low: SeverityLevel{
-				Conditions: []SeverityCondition{
-					{ChangeType: "update", Patterns: []string{"metrics", "performance", "monitoring"}},
-					{ChangeType: "create", Patterns: []string{"debug", "trace"}},
-				},
-				Description: "Minor changes for reference",
-			},
-			Default: DefaultSeverity{
-				Level:       "medium",
-				Description: "Default severity for unclassified changes",
-			},
-		},
-		Significance: SignificanceConfig{
-			AlwaysSignificant: []string{"severity:(high|critical)", "category:(hardware|network|security)", "change_type:delete"},
-			NeverSignificant:  []string{"system_uptime", "metrics\\.timestamp", "performance\\.last_update", "monitoring\\.heartbeat"},
-			Default: DefaultSignificance{
-				Significant: true,
-				Description: "Default significance for unclassified changes",
-			},
-		},
-		Limits: LimitsConfig{
-			MaxDiffDepth:       10,
-			MaxDiffsPerRun:     1000,
-			MaxFieldPathLength: 500,
-		},
-		Trends: TrendsConfig{
-			Enabled:        true,
-			WindowHours:    24,
-			MinOccurrences: 3,
-		},
-		Notifications: NotificationsConfig{
-			Grouping: GroupingConfig{
-				Enabled:           true,
-				TimeWindowMinutes: 30,
-				MaxGroupSize:      10,
-			},
-			RateLimiting: RateLimitingConfig{
-				Enabled:                 true,
-				MaxNotificationsPerHour: 50,
-				MaxCriticalPerHour:      10,
-			},
-		},
-	}
 }
 
 // GetConfig returns the current configuration

@@ -33,7 +33,7 @@ func TestCollectInventoryNoSystemID(t *testing.T) {
 	router := gin.New()
 	router.POST("/inventory", CollectInventory)
 
-	req := httptest.NewRequest("POST", "/inventory", bytes.NewBuffer([]byte(`{"data": {"cpu": "Intel i7"}}`)))
+	req := httptest.NewRequest("POST", "/inventory", bytes.NewBuffer([]byte(`{"cpu": "Intel i7"}`)))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -58,7 +58,7 @@ func TestCollectInventoryInvalidSystemIDType(t *testing.T) {
 	})
 	router.POST("/inventory", CollectInventory)
 
-	req := httptest.NewRequest("POST", "/inventory", bytes.NewBuffer([]byte(`{"data": {"cpu": "Intel i7"}}`)))
+	req := httptest.NewRequest("POST", "/inventory", bytes.NewBuffer([]byte(`{"cpu": "Intel i7"}`)))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -86,17 +86,13 @@ func TestCollectInventoryRequestTooLarge(t *testing.T) {
 	})
 	router.POST("/inventory", CollectInventory)
 
-	// Create a large request that exceeds the limit
+	// Create a large request that exceeds the limit (raw JSON, no wrapper)
 	largeData := make(map[string]string)
 	for i := 0; i < 100; i++ {
 		largeData[fmt.Sprintf("key%d", i)] = "very long value that makes the request exceed the size limit"
 	}
 
-	requestData := map[string]interface{}{
-		"data": largeData,
-	}
-
-	jsonData, err := json.Marshal(requestData)
+	jsonData, err := json.Marshal(largeData)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest("POST", "/inventory", bytes.NewBuffer(jsonData))
@@ -139,10 +135,11 @@ func TestCollectInventoryInvalidJSON(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	assert.Equal(t, "invalid JSON payload", response["message"])
+	// Invalid JSON is caught by ValidateInventoryData which checks JSON validity
+	assert.Equal(t, "invalid inventory data", response["message"])
 }
 
-func TestCollectInventoryMissingDataField(t *testing.T) {
+func TestCollectInventoryEmptyBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	router := gin.New()
@@ -152,7 +149,7 @@ func TestCollectInventoryMissingDataField(t *testing.T) {
 	})
 	router.POST("/inventory", CollectInventory)
 
-	req := httptest.NewRequest("POST", "/inventory", bytes.NewBuffer([]byte(`{}`)))
+	req := httptest.NewRequest("POST", "/inventory", bytes.NewBuffer([]byte(``)))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -181,7 +178,7 @@ func TestCollectInventoryRequestValidation(t *testing.T) {
 		{
 			name:           "missing system_id in context",
 			systemID:       nil,
-			requestBody:    `{"data": {"cpu": "Intel i7"}}`,
+			requestBody:    `{"cpu": "Intel i7"}`,
 			contentLength:  0,
 			expectedStatus: http.StatusInternalServerError,
 			expectedMsg:    "authentication context error",
@@ -189,7 +186,7 @@ func TestCollectInventoryRequestValidation(t *testing.T) {
 		{
 			name:           "invalid system_id type",
 			systemID:       12345,
-			requestBody:    `{"data": {"cpu": "Intel i7"}}`,
+			requestBody:    `{"cpu": "Intel i7"}`,
 			contentLength:  0,
 			expectedStatus: http.StatusInternalServerError,
 			expectedMsg:    "authentication context error",
@@ -197,26 +194,26 @@ func TestCollectInventoryRequestValidation(t *testing.T) {
 		{
 			name:           "invalid json",
 			systemID:       "test-system-001",
-			requestBody:    `{"data": {"cpu": "Intel i7"`,
-			contentLength:  0,
-			expectedStatus: http.StatusBadRequest,
-			expectedMsg:    "invalid JSON payload",
-		},
-		{
-			name:           "missing data field",
-			systemID:       "test-system-001",
-			requestBody:    `{"other": "value"}`,
+			requestBody:    `{"cpu": "Intel i7"`,
 			contentLength:  0,
 			expectedStatus: http.StatusBadRequest,
 			expectedMsg:    "invalid inventory data",
 		},
 		{
-			name:           "invalid data json",
+			name:           "empty body",
 			systemID:       "test-system-001",
-			requestBody:    `{"data": {"cpu": "Intel i7", "memory":}}`,
+			requestBody:    ``,
 			contentLength:  0,
 			expectedStatus: http.StatusBadRequest,
-			expectedMsg:    "invalid JSON payload",
+			expectedMsg:    "invalid inventory data",
+		},
+		{
+			name:           "invalid json syntax",
+			systemID:       "test-system-001",
+			requestBody:    `{"cpu": "Intel i7", "memory":}`,
+			contentLength:  0,
+			expectedStatus: http.StatusBadRequest,
+			expectedMsg:    "invalid inventory data",
 		},
 	}
 
@@ -255,22 +252,20 @@ func TestCollectInventoryRequestValidation(t *testing.T) {
 func TestInventoryDataCreation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	// Test that InventoryData is created correctly from request
+	// Test that InventoryData is created correctly from raw JSON body
 	systemID := "test-system-001"
-	requestData := models.InventorySubmissionRequest{
-		Data: json.RawMessage(`{"cpu": "Intel i7", "memory": "16GB"}`),
-	}
+	rawBody := json.RawMessage(`{"cpu": "Intel i7", "memory": "16GB"}`)
 
 	// Simulate the data creation logic from the handler
 	now := time.Now()
 	inventoryData := models.InventoryData{
 		SystemID:  systemID,
 		Timestamp: now,
-		Data:      requestData.Data,
+		Data:      rawBody,
 	}
 
 	assert.Equal(t, systemID, inventoryData.SystemID)
-	assert.Equal(t, requestData.Data, inventoryData.Data)
+	assert.Equal(t, rawBody, inventoryData.Data)
 	assert.False(t, inventoryData.Timestamp.IsZero())
 
 	// Test validation

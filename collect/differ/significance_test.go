@@ -11,7 +11,7 @@ import (
 )
 
 func TestConfigurableDiffer_IsSignificantChange(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestConfigurableDiffer_IsSignificantChange(t *testing.T) {
 		// Never significant tests
 		{
 			name:       "never significant system uptime",
-			fieldPath:  "system_uptime",
+			fieldPath:  "uptime_seconds",
 			changeType: "update",
 			category:   "system",
 			severity:   "low",
@@ -177,7 +177,7 @@ func TestConfigurableDiffer_IsSignificantChange(t *testing.T) {
 		// Case insensitive tests
 		{
 			name:       "uppercase field path",
-			fieldPath:  "SYSTEM_UPTIME",
+			fieldPath:  "UPTIME_SECONDS",
 			changeType: "UPDATE",
 			category:   "SYSTEM",
 			severity:   "LOW",
@@ -199,7 +199,7 @@ func TestConfigurableDiffer_IsSignificantChange(t *testing.T) {
 }
 
 func TestConfigurableDiffer_MatchesAlwaysSignificant(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -300,7 +300,7 @@ func TestConfigurableDiffer_MatchesAlwaysSignificant(t *testing.T) {
 }
 
 func TestConfigurableDiffer_MatchesNeverSignificant(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -316,7 +316,7 @@ func TestConfigurableDiffer_MatchesNeverSignificant(t *testing.T) {
 		// Never significant patterns
 		{
 			name:       "system uptime matches",
-			fieldPath:  "system_uptime",
+			fieldPath:  "uptime_seconds",
 			changeType: "update",
 			category:   "system",
 			severity:   "low",
@@ -373,7 +373,7 @@ func TestConfigurableDiffer_MatchesNeverSignificant(t *testing.T) {
 }
 
 func TestConfigurableDiffer_MatchesMetaPattern(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -468,8 +468,8 @@ func TestConfigurableDiffer_MatchesMetaPattern(t *testing.T) {
 		// Field path patterns
 		{
 			name:       "direct field path match",
-			pattern:    "system_uptime",
-			fieldPath:  "system_uptime",
+			pattern:    "uptime_seconds",
+			fieldPath:  "uptime_seconds",
 			changeType: "update",
 			category:   "system",
 			severity:   "low",
@@ -477,7 +477,7 @@ func TestConfigurableDiffer_MatchesMetaPattern(t *testing.T) {
 		},
 		{
 			name:       "direct field path no match",
-			pattern:    "system_uptime",
+			pattern:    "uptime_seconds",
 			fieldPath:  "other.field",
 			changeType: "update",
 			category:   "system",
@@ -498,7 +498,7 @@ func TestConfigurableDiffer_MatchesMetaPattern(t *testing.T) {
 }
 
 func TestConfigurableDiffer_MatchesRegexPattern(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -588,7 +588,7 @@ func TestConfigurableDiffer_MatchesRegexPattern(t *testing.T) {
 }
 
 func TestConfigurableDiffer_IsFilteredByTime(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -626,7 +626,7 @@ func TestConfigurableDiffer_IsFilteredByTime(t *testing.T) {
 		},
 		{
 			name:      "uptime field filtered",
-			fieldPath: "system_uptime",
+			fieldPath: "uptime_seconds",
 			expected:  true,
 		},
 
@@ -660,7 +660,7 @@ func TestConfigurableDiffer_IsFilteredByTime(t *testing.T) {
 }
 
 func TestConfigurableDiffer_IsBelowThreshold(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -763,7 +763,7 @@ func TestConfigurableDiffer_IsBelowThreshold(t *testing.T) {
 }
 
 func TestConfigurableDiffer_FilterSignificantChanges(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -797,7 +797,7 @@ func TestConfigurableDiffer_FilterSignificantChanges(t *testing.T) {
 
 		// Should be filtered out
 		{
-			FieldPath:  "system_uptime",
+			FieldPath:  "uptime_seconds",
 			ChangeType: "update",
 			Category:   "system",
 			Severity:   "low",
@@ -843,7 +843,7 @@ func TestConfigurableDiffer_FilterSignificantChanges(t *testing.T) {
 		}
 	}
 
-	expectedFiltered := []string{"system_uptime", "metrics.timestamp", "monitoring.heartbeat"}
+	expectedFiltered := []string{"uptime_seconds", "metrics.timestamp", "monitoring.heartbeat"}
 	for _, path := range expectedFiltered {
 		if significantPaths[path] {
 			t.Errorf("Expected %s to be filtered out", path)
@@ -852,7 +852,7 @@ func TestConfigurableDiffer_FilterSignificantChanges(t *testing.T) {
 }
 
 func TestConfigurableDiffer_GetSignificanceFilters(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -893,7 +893,7 @@ func TestConfigurableDiffer_GetSignificanceFilters(t *testing.T) {
 }
 
 func TestConfigurableDiffer_AnalyzeSignificanceDistribution(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}
@@ -917,9 +917,9 @@ func TestConfigurableDiffer_AnalyzeSignificanceDistribution(t *testing.T) {
 			From:       8192,
 			To:         16384,
 		},
-		// Never significant (system_uptime)
+		// Never significant (uptime_seconds)
 		{
-			FieldPath:  "system_uptime",
+			FieldPath:  "uptime_seconds",
 			ChangeType: "update",
 			Category:   "system",
 			Severity:   "low",
@@ -1008,7 +1008,7 @@ func TestConfigurableDiffer_AnalyzeSignificanceDistribution(t *testing.T) {
 }
 
 func TestConfigurableDiffer_ValidateSignificancePatterns(t *testing.T) {
-	differ, err := NewConfigurableDiffer("config.yml")
+	differ, err := NewConfigurableDiffer("")
 	if err != nil {
 		t.Fatalf("Failed to create differ: %v", err)
 	}

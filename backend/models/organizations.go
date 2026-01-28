@@ -7,7 +7,8 @@ package models
 
 // OrganizationSummary represents a simplified organization for selection/assignment
 type OrganizationSummary struct {
-	ID          string `json:"id" structs:"id"`
+	ID          string `json:"id" structs:"id"`             // Database UUID
+	LogtoID     string `json:"logto_id" structs:"logto_id"` // Logto organization ID
 	Name        string `json:"name" structs:"name"`
 	Description string `json:"description" structs:"description"`
 	Type        string `json:"type" structs:"type"` // "owner", "distributor", "reseller", "customer"

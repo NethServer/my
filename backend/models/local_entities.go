@@ -25,6 +25,7 @@ type LocalDistributor struct {
 	LogtoSyncedAt  *time.Time             `json:"logto_synced_at" db:"logto_synced_at"`
 	LogtoSyncError *string                `json:"logto_sync_error" db:"logto_sync_error"`
 	DeletedAt      *time.Time             `json:"deleted_at" db:"deleted_at"`
+	SuspendedAt    *time.Time             `json:"suspended_at" db:"suspended_at"`
 }
 
 // LocalReseller represents a reseller stored in local database
@@ -39,6 +40,7 @@ type LocalReseller struct {
 	LogtoSyncedAt  *time.Time             `json:"logto_synced_at" db:"logto_synced_at"`
 	LogtoSyncError *string                `json:"logto_sync_error" db:"logto_sync_error"`
 	DeletedAt      *time.Time             `json:"deleted_at" db:"deleted_at"`
+	SuspendedAt    *time.Time             `json:"suspended_at" db:"suspended_at"`
 }
 
 // LocalCustomer represents a customer stored in local database
@@ -53,21 +55,25 @@ type LocalCustomer struct {
 	LogtoSyncedAt  *time.Time             `json:"logto_synced_at" db:"logto_synced_at"`
 	LogtoSyncError *string                `json:"logto_sync_error" db:"logto_sync_error"`
 	DeletedAt      *time.Time             `json:"deleted_at" db:"deleted_at"`
+	SuspendedAt    *time.Time             `json:"suspended_at" db:"suspended_at"`
 }
 
 // CustomerFilters represents filters for customer queries
 type CustomerFilters struct {
 	Search string `json:"search,omitempty"` // general search term
+	Status string `json:"status,omitempty"` // enabled, blocked, or empty for all
 }
 
 // DistributorFilters represents filters for distributor queries
 type DistributorFilters struct {
 	Search string `json:"search,omitempty"` // general search term
+	Status string `json:"status,omitempty"` // enabled, blocked, or empty for all
 }
 
 // ResellerFilters represents filters for reseller queries
 type ResellerFilters struct {
 	Search string `json:"search,omitempty"` // general search term
+	Status string `json:"status,omitempty"` // enabled, blocked, or empty for all
 }
 
 // UserOrganization represents organization info in user responses
@@ -86,21 +92,22 @@ type UserRole struct {
 
 // LocalUser represents a user stored in local database
 type LocalUser struct {
-	ID            string                 `json:"id" db:"id"`
-	LogtoID       *string                `json:"logto_id" db:"logto_id"`
-	Username      string                 `json:"username" db:"username"`
-	Email         string                 `json:"email" db:"email"`
-	Name          string                 `json:"name" db:"name"`
-	Phone         *string                `json:"phone" db:"phone"`
-	Organization  *UserOrganization      `json:"organization,omitempty"`
-	Roles         []UserRole             `json:"roles,omitempty"`
-	CustomData    map[string]interface{} `json:"custom_data" db:"custom_data"`
-	CreatedAt     time.Time              `json:"created_at" db:"created_at"`
-	UpdatedAt     time.Time              `json:"updated_at" db:"updated_at"`
-	LogtoSyncedAt *time.Time             `json:"logto_synced_at" db:"logto_synced_at"`
-	LatestLoginAt *time.Time             `json:"latest_login_at" db:"latest_login_at"`
-	DeletedAt     *time.Time             `json:"deleted_at" db:"deleted_at"`     // Soft delete timestamp
-	SuspendedAt   *time.Time             `json:"suspended_at" db:"suspended_at"` // Suspension timestamp
+	ID               string                 `json:"id" db:"id"`
+	LogtoID          *string                `json:"logto_id" db:"logto_id"`
+	Username         string                 `json:"username" db:"username"`
+	Email            string                 `json:"email" db:"email"`
+	Name             string                 `json:"name" db:"name"`
+	Phone            *string                `json:"phone" db:"phone"`
+	Organization     *UserOrganization      `json:"organization,omitempty"`
+	Roles            []UserRole             `json:"roles,omitempty"`
+	CustomData       map[string]interface{} `json:"custom_data" db:"custom_data"`
+	CreatedAt        time.Time              `json:"created_at" db:"created_at"`
+	UpdatedAt        time.Time              `json:"updated_at" db:"updated_at"`
+	LogtoSyncedAt    *time.Time             `json:"logto_synced_at" db:"logto_synced_at"`
+	LatestLoginAt    *time.Time             `json:"latest_login_at" db:"latest_login_at"`
+	DeletedAt        *time.Time             `json:"deleted_at" db:"deleted_at"`                   // Soft delete timestamp
+	SuspendedAt      *time.Time             `json:"suspended_at" db:"suspended_at"`               // Suspension timestamp
+	SuspendedByOrgID *string                `json:"suspended_by_org_id" db:"suspended_by_org_id"` // Organization that caused cascade suspension
 
 	// Internal fields for database operations (not serialized to JSON)
 	UserRoleIDs         []string `json:"-" db:"user_role_ids"`
@@ -123,6 +130,32 @@ type SystemTotals struct {
 type OrganizationStats struct {
 	UsersCount   int `json:"users_count"`
 	SystemsCount int `json:"systems_count"`
+}
+
+// DistributorStats represents statistics for a distributor (includes resellers, customers, and applications)
+type DistributorStats struct {
+	UsersCount                 int `json:"users_count"`
+	SystemsCount               int `json:"systems_count"`
+	ResellersCount             int `json:"resellers_count"`
+	CustomersCount             int `json:"customers_count"`
+	ApplicationsCount          int `json:"applications_count"`           // direct applications
+	ApplicationsHierarchyCount int `json:"applications_hierarchy_count"` // applications in hierarchy
+}
+
+// ResellerStats represents statistics for a reseller (includes customers and applications)
+type ResellerStats struct {
+	UsersCount                 int `json:"users_count"`
+	SystemsCount               int `json:"systems_count"`
+	CustomersCount             int `json:"customers_count"`
+	ApplicationsCount          int `json:"applications_count"`           // direct applications
+	ApplicationsHierarchyCount int `json:"applications_hierarchy_count"` // applications in hierarchy
+}
+
+// CustomerStats represents statistics for a customer (includes applications)
+type CustomerStats struct {
+	UsersCount        int `json:"users_count"`
+	SystemsCount      int `json:"systems_count"`
+	ApplicationsCount int `json:"applications_count"` // direct applications only (leaf node)
 }
 
 // Create requests
@@ -208,9 +241,9 @@ func (u *LocalUser) IsSuspended() bool {
 	return u.SuspendedAt != nil
 }
 
-// Active returns true if the distributor is not deleted
+// Active returns true if the distributor is not deleted and not suspended
 func (d *LocalDistributor) Active() bool {
-	return d.DeletedAt == nil
+	return d.DeletedAt == nil && d.SuspendedAt == nil
 }
 
 // IsDeleted returns true if the distributor is soft-deleted
@@ -218,9 +251,14 @@ func (d *LocalDistributor) IsDeleted() bool {
 	return d.DeletedAt != nil
 }
 
-// Active returns true if the reseller is not deleted
+// IsSuspended returns true if the distributor is suspended
+func (d *LocalDistributor) IsSuspended() bool {
+	return d.SuspendedAt != nil
+}
+
+// Active returns true if the reseller is not deleted and not suspended
 func (r *LocalReseller) Active() bool {
-	return r.DeletedAt == nil
+	return r.DeletedAt == nil && r.SuspendedAt == nil
 }
 
 // IsDeleted returns true if the reseller is soft-deleted
@@ -228,14 +266,24 @@ func (r *LocalReseller) IsDeleted() bool {
 	return r.DeletedAt != nil
 }
 
-// Active returns true if the customer is not deleted
+// IsSuspended returns true if the reseller is suspended
+func (r *LocalReseller) IsSuspended() bool {
+	return r.SuspendedAt != nil
+}
+
+// Active returns true if the customer is not deleted and not suspended
 func (c *LocalCustomer) Active() bool {
-	return c.DeletedAt == nil
+	return c.DeletedAt == nil && c.SuspendedAt == nil
 }
 
 // IsDeleted returns true if the customer is soft-deleted
 func (c *LocalCustomer) IsDeleted() bool {
 	return c.DeletedAt != nil
+}
+
+// IsSuspended returns true if the customer is suspended
+func (c *LocalCustomer) IsSuspended() bool {
+	return c.SuspendedAt != nil
 }
 
 // VATValidationResponse represents a VAT validation response

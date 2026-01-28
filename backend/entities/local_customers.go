@@ -72,8 +72,8 @@ func (r *LocalCustomerRepository) Create(req *models.CreateLocalCustomerRequest)
 // GetByID retrieves a customer by ID from local database
 func (r *LocalCustomerRepository) GetByID(id string) (*models.LocalCustomer, error) {
 	query := `
-		SELECT id, logto_id, name, description,  custom_data,
-		       created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
+		SELECT id, logto_id, name, description, custom_data,
+		       created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at
 		FROM customers
 		WHERE id = $1 AND deleted_at IS NULL
 	`
@@ -85,6 +85,7 @@ func (r *LocalCustomerRepository) GetByID(id string) (*models.LocalCustomer, err
 		&customer.ID, &customer.LogtoID, &customer.Name, &customer.Description,
 		&customDataJSON, &customer.CreatedAt, &customer.UpdatedAt,
 		&customer.LogtoSyncedAt, &customer.LogtoSyncError, &customer.DeletedAt,
+		&customer.SuspendedAt,
 	)
 
 	if err != nil {
@@ -172,34 +173,77 @@ func (r *LocalCustomerRepository) Delete(id string) error {
 	return nil
 }
 
+// Suspend suspends a customer in local database
+func (r *LocalCustomerRepository) Suspend(id string) error {
+	query := `UPDATE customers SET suspended_at = $2, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL AND suspended_at IS NULL`
+
+	result, err := r.db.Exec(query, id, time.Now())
+	if err != nil {
+		return fmt.Errorf("failed to suspend customer: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("customer not found or already suspended")
+	}
+
+	return nil
+}
+
+// Reactivate reactivates a suspended customer in local database
+func (r *LocalCustomerRepository) Reactivate(id string) error {
+	query := `UPDATE customers SET suspended_at = NULL, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL AND suspended_at IS NOT NULL`
+
+	result, err := r.db.Exec(query, id, time.Now())
+	if err != nil {
+		return fmt.Errorf("failed to reactivate customer: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("customer not found or not suspended")
+	}
+
+	return nil
+}
+
 // List returns paginated list of customers visible to the user
-func (r *LocalCustomerRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection, status string) ([]*models.LocalCustomer, int, error) {
 	offset := (page - 1) * pageSize
 
 	switch userOrgRole {
 	case "owner":
-		return r.listForOwner(page, pageSize, offset, search, sortBy, sortDirection)
+		return r.listForOwner(page, pageSize, offset, search, sortBy, sortDirection, status)
 	case "distributor":
-		return r.listForDistributor(userOrgID, page, pageSize, offset, search, sortBy, sortDirection)
+		return r.listForDistributor(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, status)
 	case "reseller":
-		return r.listForReseller(userOrgID, page, pageSize, offset, search, sortBy, sortDirection)
+		return r.listForReseller(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, status)
 	case "customer":
-		return r.listForCustomer(userOrgID, page, pageSize, offset, search, sortBy, sortDirection)
+		return r.listForCustomer(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, status)
 	default:
 		return []*models.LocalCustomer{}, 0, nil
 	}
 }
 
 // listForOwner handles customer listing for owner role
-func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, search, sortBy, sortDirection string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, search, sortBy, sortDirection, status string) ([]*models.LocalCustomer, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
 		validSortFields := map[string]string{
-			"name":        "name",
-			"description": "description",
-			"created_at":  "created_at",
-			"updated_at":  "updated_at",
+			"name":         "name",
+			"description":  "description",
+			"created_at":   "created_at",
+			"updated_at":   "updated_at",
+			"suspended_at": "suspended_at",
 		}
 
 		if dbField, valid := validSortFields[sortBy]; valid {
@@ -211,36 +255,45 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 		}
 	}
 
+	// Build status filter clause
+	statusClause := ""
+	switch status {
+	case "enabled":
+		statusClause = " AND suspended_at IS NULL"
+	case "blocked":
+		statusClause = " AND suspended_at IS NOT NULL"
+	}
+
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
 
 	if search != "" {
 		// With search
-		countQuery = `SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%' || $1 || '%') OR LOWER(description) LIKE LOWER('%' || $1 || '%'))`
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL%s AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%'))`, statusClause)
 		countArgs = []interface{}{search}
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
+			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at
 			FROM customers
-			WHERE deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%'))
+			WHERE deleted_at IS NULL%s AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%'))
 			%s
 			LIMIT $2 OFFSET $3
-		`, orderClause)
+		`, statusClause, orderClause)
 		queryArgs = []interface{}{search, pageSize, offset}
 	} else {
 		// Without search
-		countQuery = `SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL`
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL%s`, statusClause)
 		countArgs = []interface{}{}
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
+			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at
 			FROM customers
-			WHERE deleted_at IS NULL
+			WHERE deleted_at IS NULL%s
 			%s
 			LIMIT $1 OFFSET $2
-		`, orderClause)
+		`, statusClause, orderClause)
 		queryArgs = []interface{}{pageSize, offset}
 	}
 
@@ -248,15 +301,16 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 }
 
 // listForDistributor handles customer listing for distributor role
-func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection, status string) ([]*models.LocalCustomer, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
 		validSortFields := map[string]string{
-			"name":        "name",
-			"description": "description",
-			"created_at":  "created_at",
-			"updated_at":  "updated_at",
+			"name":         "name",
+			"description":  "description",
+			"created_at":   "created_at",
+			"updated_at":   "updated_at",
+			"suspended_at": "suspended_at",
 		}
 
 		if dbField, valid := validSortFields[sortBy]; valid {
@@ -268,12 +322,21 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 		}
 	}
 
+	// Build status filter clause
+	statusClause := ""
+	switch status {
+	case "enabled":
+		statusClause = " AND suspended_at IS NULL"
+	case "blocked":
+		statusClause = " AND suspended_at IS NOT NULL"
+	}
+
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
 
 	if search != "" {
 		// With search
-		countQuery = `
+		countQuery = fmt.Sprintf(`
 			SELECT COUNT(*) FROM customers
 			WHERE deleted_at IS NULL AND (
 				custom_data->>'createdBy' = $1 OR
@@ -281,12 +344,12 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 					SELECT logto_id FROM resellers
 					WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 				)
-			) AND (LOWER(name) LIKE LOWER('%' || $2 || '%') OR LOWER(description) LIKE LOWER('%' || $2 || '%'))`
+			)%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))`, statusClause)
 		countArgs = []interface{}{userOrgID, search}
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
+			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at
 			FROM customers
 			WHERE deleted_at IS NULL AND (
 				custom_data->>'createdBy' = $1 OR
@@ -294,14 +357,14 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 					SELECT logto_id FROM resellers
 					WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 				)
-			) AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))
+			)%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))
 			%s
 			LIMIT $3 OFFSET $4
-		`, orderClause)
+		`, statusClause, orderClause)
 		queryArgs = []interface{}{userOrgID, search, pageSize, offset}
 	} else {
 		// Without search
-		countQuery = `
+		countQuery = fmt.Sprintf(`
 			SELECT COUNT(*) FROM customers
 			WHERE deleted_at IS NULL AND (
 				custom_data->>'createdBy' = $1 OR
@@ -309,12 +372,12 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 					SELECT logto_id FROM resellers
 					WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 				)
-			)`
+			)%s`, statusClause)
 		countArgs = []interface{}{userOrgID}
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
+			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at
 			FROM customers
 			WHERE deleted_at IS NULL AND (
 				custom_data->>'createdBy' = $1 OR
@@ -322,10 +385,10 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 					SELECT logto_id FROM resellers
 					WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 				)
-			)
+			)%s
 			%s
 			LIMIT $2 OFFSET $3
-		`, orderClause)
+		`, statusClause, orderClause)
 		queryArgs = []interface{}{userOrgID, pageSize, offset}
 	}
 
@@ -333,15 +396,16 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 }
 
 // listForReseller handles customer listing for reseller role
-func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection, status string) ([]*models.LocalCustomer, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
 		validSortFields := map[string]string{
-			"name":        "name",
-			"description": "description",
-			"created_at":  "created_at",
-			"updated_at":  "updated_at",
+			"name":         "name",
+			"description":  "description",
+			"created_at":   "created_at",
+			"updated_at":   "updated_at",
+			"suspended_at": "suspended_at",
 		}
 
 		if dbField, valid := validSortFields[sortBy]; valid {
@@ -353,36 +417,45 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 		}
 	}
 
+	// Build status filter clause
+	statusClause := ""
+	switch status {
+	case "enabled":
+		statusClause = " AND suspended_at IS NULL"
+	case "blocked":
+		statusClause = " AND suspended_at IS NOT NULL"
+	}
+
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
 
 	if search != "" {
 		// With search
-		countQuery = `SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1 AND (LOWER(name) LIKE LOWER('%' || $2 || '%') OR LOWER(description) LIKE LOWER('%' || $2 || '%'))`
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))`, statusClause)
 		countArgs = []interface{}{userOrgID, search}
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
+			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at
 			FROM customers
-			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1 AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))
+			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))
 			%s
 			LIMIT $3 OFFSET $4
-		`, orderClause)
+		`, statusClause, orderClause)
 		queryArgs = []interface{}{userOrgID, search, pageSize, offset}
 	} else {
 		// Without search
-		countQuery = `SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1`
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1%s`, statusClause)
 		countArgs = []interface{}{userOrgID}
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
+			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at
 			FROM customers
-			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1
+			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1%s
 			%s
 			LIMIT $2 OFFSET $3
-		`, orderClause)
+		`, statusClause, orderClause)
 		queryArgs = []interface{}{userOrgID, pageSize, offset}
 	}
 
@@ -390,7 +463,7 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 }
 
 // listForCustomer handles customer listing for customer role
-func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection, status string) ([]*models.LocalCustomer, int, error) {
 	if userOrgID == "" {
 		return []*models.LocalCustomer{}, 0, nil
 	}
@@ -399,10 +472,11 @@ func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSi
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
 		validSortFields := map[string]string{
-			"name":        "name",
-			"description": "description",
-			"created_at":  "created_at",
-			"updated_at":  "updated_at",
+			"name":         "name",
+			"description":  "description",
+			"created_at":   "created_at",
+			"updated_at":   "updated_at",
+			"suspended_at": "suspended_at",
 		}
 
 		if dbField, valid := validSortFields[sortBy]; valid {
@@ -414,36 +488,45 @@ func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSi
 		}
 	}
 
+	// Build status filter clause
+	statusClause := ""
+	switch status {
+	case "enabled":
+		statusClause = " AND suspended_at IS NULL"
+	case "blocked":
+		statusClause = " AND suspended_at IS NOT NULL"
+	}
+
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
 
 	if search != "" {
 		// With search
-		countQuery = `SELECT COUNT(*) FROM customers WHERE id = $1 AND deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%' || $2 || '%') OR LOWER(description) LIKE LOWER('%' || $2 || '%'))`
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE id = $1 AND deleted_at IS NULL%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))`, statusClause)
 		countArgs = []interface{}{userOrgID, search}
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
+			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at
 			FROM customers
-			WHERE id = $1 AND deleted_at IS NULL AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))
+			WHERE id = $1 AND deleted_at IS NULL%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))
 			%s
 			LIMIT $3 OFFSET $4
-		`, orderClause)
+		`, statusClause, orderClause)
 		queryArgs = []interface{}{userOrgID, search, pageSize, offset}
 	} else {
 		// Without search
-		countQuery = `SELECT COUNT(*) FROM customers WHERE id = $1 AND deleted_at IS NULL`
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE id = $1 AND deleted_at IS NULL%s`, statusClause)
 		countArgs = []interface{}{userOrgID}
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
+			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at
 			FROM customers
-			WHERE id = $1 AND deleted_at IS NULL
+			WHERE id = $1 AND deleted_at IS NULL%s
 			%s
 			LIMIT $2 OFFSET $3
-		`, orderClause)
+		`, statusClause, orderClause)
 		queryArgs = []interface{}{userOrgID, pageSize, offset}
 	}
 
@@ -482,6 +565,7 @@ func (r *LocalCustomerRepository) executeCustomerQuery(countQuery string, countA
 			&customer.ID, &customer.LogtoID, &customer.Name, &customer.Description,
 			&customDataJSON, &customer.CreatedAt, &customer.UpdatedAt,
 			&customer.LogtoSyncedAt, &customer.LogtoSyncError, &customer.DeletedAt,
+			&customer.SuspendedAt,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan customer: %w", err)
@@ -712,8 +796,8 @@ func (r *LocalCustomerRepository) GetTrend(userOrgRole, userOrgID string, period
 	return dataPoints, currentTotal, previousTotal, nil
 }
 
-// GetStats returns users and systems count for a specific customer
-func (r *LocalCustomerRepository) GetStats(id string) (*models.OrganizationStats, error) {
+// GetStats returns users, systems and applications count for a specific customer
+func (r *LocalCustomerRepository) GetStats(id string) (*models.CustomerStats, error) {
 	// First get the customer to obtain its logto_id
 	customer, err := r.GetByID(id)
 	if err != nil {
@@ -722,20 +806,22 @@ func (r *LocalCustomerRepository) GetStats(id string) (*models.OrganizationStats
 
 	// If customer has no logto_id, return zero counts
 	if customer.LogtoID == nil {
-		return &models.OrganizationStats{
-			UsersCount:   0,
-			SystemsCount: 0,
+		return &models.CustomerStats{
+			UsersCount:        0,
+			SystemsCount:      0,
+			ApplicationsCount: 0,
 		}, nil
 	}
 
-	var stats models.OrganizationStats
+	var stats models.CustomerStats
 	query := `
 		SELECT
 			(SELECT COUNT(*) FROM users WHERE organization_id = $1 AND deleted_at IS NULL) as users_count,
-			(SELECT COUNT(*) FROM systems WHERE organization_id = $1 AND deleted_at IS NULL) as systems_count
+			(SELECT COUNT(*) FROM systems WHERE organization_id = $1 AND deleted_at IS NULL) as systems_count,
+			(SELECT COUNT(*) FROM applications WHERE organization_id = $1 AND deleted_at IS NULL) as applications_count
 	`
 
-	err = r.db.QueryRow(query, *customer.LogtoID).Scan(&stats.UsersCount, &stats.SystemsCount)
+	err = r.db.QueryRow(query, *customer.LogtoID).Scan(&stats.UsersCount, &stats.SystemsCount, &stats.ApplicationsCount)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get customer stats: %w", err)
 	}

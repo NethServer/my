@@ -15,10 +15,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/nethesis/my/collect/configuration"
 	"github.com/nethesis/my/collect/database"
 	"github.com/nethesis/my/collect/logger"
 	"github.com/nethesis/my/collect/models"
@@ -251,7 +253,7 @@ func (iw *InventoryWorker) processBatchInTransaction(ctx context.Context, conn *
 		}
 	}
 
-	// Update system fields from inventory data before committing
+	// Update system fields and extract applications from inventory data before committing
 	for _, record := range insertedRecords {
 		if err := iw.updateSystemFieldsFromInventory(txCtx, tx, &record, logger); err != nil {
 			logger.Warn().
@@ -259,6 +261,16 @@ func (iw *InventoryWorker) processBatchInTransaction(ctx context.Context, conn *
 				Str("system_id", record.SystemID).
 				Int64("record_id", record.ID).
 				Msg("Failed to update system fields from inventory")
+			// Continue processing other records even if one fails
+		}
+
+		// Extract applications from NS8 inventory
+		if err := iw.extractApplicationsFromInventory(txCtx, tx, &record, logger); err != nil {
+			logger.Warn().
+				Err(err).
+				Str("system_id", record.SystemID).
+				Int64("record_id", record.ID).
+				Msg("Failed to extract applications from inventory")
 			// Continue processing other records even if one fails
 		}
 	}
@@ -417,6 +429,7 @@ func (iw *InventoryWorker) getPreviousInventoryRecord(ctx context.Context, syste
 }
 
 // updateSystemFieldsFromInventory extracts relevant fields from inventory and updates the systems table
+// Supports both NS8 (nethserver) and NSEC (nethsecurity) inventory structures
 func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, tx *sql.Tx, record *models.InventoryRecord, logger zerolog.Logger) error {
 	// Parse inventory data
 	var inventoryData map[string]interface{}
@@ -424,41 +437,120 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 		return fmt.Errorf("failed to unmarshal inventory data: %w", err)
 	}
 
-	// Extract system fields
-	var fqdn, version, systemType, ipv4 *string
+	// Detect installation type
+	installation, _ := inventoryData["installation"].(string)
 
-	// Extract IPv4 from data.public_ip
-	if publicIP, ok := inventoryData["public_ip"].(string); ok && publicIP != "" {
-		ipv4 = &publicIP
-	}
+	// Extract system fields based on installation type
+	var name, fqdn, version, systemType, ipv4, ipv6 *string
 
-	// Extract FQDN from data.networking.fqdn
-	if networking, ok := inventoryData["networking"].(map[string]interface{}); ok {
-		if fqdnVal, ok := networking["fqdn"].(string); ok && fqdnVal != "" {
-			fqdn = &fqdnVal
+	switch installation {
+	case "nethserver": // NS8
+		systemType = strPtr("ns8")
+
+		// Get facts object
+		facts, ok := inventoryData["facts"].(map[string]interface{})
+		if !ok {
+			return nil // No facts, nothing to extract
 		}
-	}
 
-	// Extract version from data.os.release.full
-	if os, ok := inventoryData["os"].(map[string]interface{}); ok {
-		if release, ok := os["release"].(map[string]interface{}); ok {
-			if fullVersion, ok := release["full"].(string); ok && fullVersion != "" {
-				version = &fullVersion
+		// Extract cluster info (only ui_name for system name)
+		if cluster, ok := facts["cluster"].(map[string]interface{}); ok {
+			// System name from cluster.ui_name
+			if uiName, ok := cluster["ui_name"].(string); ok && uiName != "" {
+				name = &uiName
 			}
 		}
 
-		// Extract type from data.os.type and map to product name
-		if osType, ok := os["type"].(string); ok && osType != "" {
-			var productName string
-			switch osType {
-			case "nethserver":
-				productName = "ns8"
-			case "nethsecurity":
-				productName = "nsec"
-			default:
-				productName = osType
+		// Extract fqdn, ipv4, ipv6, version from leader node
+		if nodes, ok := facts["nodes"].(map[string]interface{}); ok {
+			// Find the leader node (cluster_leader: true)
+			var leaderNode map[string]interface{}
+			for _, nodeInfo := range nodes {
+				if nodeData, ok := nodeInfo.(map[string]interface{}); ok {
+					if isLeader, ok := nodeData["cluster_leader"].(bool); ok && isLeader {
+						leaderNode = nodeData
+						break
+					}
+				}
 			}
-			systemType = &productName
+
+			// If no explicit leader found, try node "1" as fallback
+			if leaderNode == nil {
+				if nodeData, ok := nodes["1"].(map[string]interface{}); ok {
+					leaderNode = nodeData
+				}
+			}
+
+			// Extract data from leader node
+			if leaderNode != nil {
+				if nodeFQDN, ok := leaderNode["fqdn"].(string); ok && nodeFQDN != "" {
+					fqdn = &nodeFQDN
+				}
+				if nodeIPv4, ok := leaderNode["default_ipv4"].(string); ok && nodeIPv4 != "" {
+					ipv4 = &nodeIPv4
+				}
+				if nodeIPv6, ok := leaderNode["default_ipv6"].(string); ok && nodeIPv6 != "" {
+					ipv6 = &nodeIPv6
+				}
+				if nodeVersion, ok := leaderNode["version"].(string); ok && nodeVersion != "" {
+					version = &nodeVersion
+				}
+			}
+		}
+
+	case "nethsecurity": // NSEC
+		systemType = strPtr("nsec")
+
+		// Get facts object
+		facts, ok := inventoryData["facts"].(map[string]interface{})
+		if !ok {
+			return nil
+		}
+
+		// Extract from distro
+		if distro, ok := facts["distro"].(map[string]interface{}); ok {
+			if distroVersion, ok := distro["version"].(string); ok && distroVersion != "" {
+				version = &distroVersion
+			}
+		}
+
+		// FQDN and public_ip will be added when available in NSEC inventory
+
+	default:
+		// Unknown installation type, try legacy structure
+		// Extract IPv4 from data.public_ip (legacy)
+		if publicIP, ok := inventoryData["public_ip"].(string); ok && publicIP != "" {
+			ipv4 = &publicIP
+		}
+
+		// Extract FQDN from data.networking.fqdn (legacy)
+		if networking, ok := inventoryData["networking"].(map[string]interface{}); ok {
+			if fqdnVal, ok := networking["fqdn"].(string); ok && fqdnVal != "" {
+				fqdn = &fqdnVal
+			}
+		}
+
+		// Extract version from data.os.release.full (legacy)
+		if os, ok := inventoryData["os"].(map[string]interface{}); ok {
+			if release, ok := os["release"].(map[string]interface{}); ok {
+				if fullVersion, ok := release["full"].(string); ok && fullVersion != "" {
+					version = &fullVersion
+				}
+			}
+
+			// Extract type from data.os.type (legacy)
+			if osType, ok := os["type"].(string); ok && osType != "" {
+				var productName string
+				switch osType {
+				case "nethserver":
+					productName = "ns8"
+				case "nethsecurity":
+					productName = "nsec"
+				default:
+					productName = osType
+				}
+				systemType = &productName
+			}
 		}
 	}
 
@@ -467,6 +559,12 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 	args := []interface{}{}
 	argPos := 1
 
+	if name != nil {
+		// Only update name if it's currently NULL (preserve user-modified names)
+		updates = append(updates, fmt.Sprintf("name = COALESCE(systems.name, $%d)", argPos))
+		args = append(args, *name)
+		argPos++
+	}
 	if fqdn != nil {
 		updates = append(updates, fmt.Sprintf("fqdn = $%d", argPos))
 		args = append(args, *fqdn)
@@ -485,6 +583,11 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 	if ipv4 != nil {
 		updates = append(updates, fmt.Sprintf("ipv4_address = $%d", argPos))
 		args = append(args, *ipv4)
+		argPos++
+	}
+	if ipv6 != nil {
+		updates = append(updates, fmt.Sprintf("ipv6_address = $%d", argPos))
+		args = append(args, *ipv6)
 		argPos++
 	}
 
@@ -520,4 +623,273 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 	}
 
 	return nil
+}
+
+// strPtr returns a pointer to a string
+func strPtr(s string) *string {
+	return &s
+}
+
+// extractApplicationsFromInventory extracts modules from NS8 inventory and upserts them into applications table
+func (iw *InventoryWorker) extractApplicationsFromInventory(ctx context.Context, tx *sql.Tx, record *models.InventoryRecord, logger zerolog.Logger) error {
+	// Parse inventory data
+	var inventoryData map[string]interface{}
+	if err := json.Unmarshal(record.Data, &inventoryData); err != nil {
+		return fmt.Errorf("failed to unmarshal inventory data: %w", err)
+	}
+
+	// Only process NS8 inventories (nethserver)
+	installation, _ := inventoryData["installation"].(string)
+	if installation != "nethserver" {
+		return nil // NSEC doesn't have modules
+	}
+
+	// Get facts object
+	facts, ok := inventoryData["facts"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	// Get modules array
+	modulesRaw, ok := facts["modules"].([]interface{})
+	if !ok || len(modulesRaw) == 0 {
+		return nil
+	}
+
+	// Get FQDN for URL generation (from cluster or system record)
+	var systemFQDN string
+	if cluster, ok := facts["cluster"].(map[string]interface{}); ok {
+		if fqdn, ok := cluster["fqdn"].(string); ok {
+			systemFQDN = fqdn
+		}
+	}
+	// If no FQDN in cluster, try to get from system record
+	if systemFQDN == "" {
+		var fqdn sql.NullString
+		err := tx.QueryRowContext(ctx, "SELECT fqdn FROM systems WHERE id = $1", record.SystemID).Scan(&fqdn)
+		if err == nil && fqdn.Valid {
+			systemFQDN = fqdn.String
+		}
+	}
+
+	// Get nodes info for node_label lookup
+	nodesData := make(map[string]map[string]interface{})
+	if nodes, ok := facts["nodes"].(map[string]interface{}); ok {
+		for nodeID, nodeInfo := range nodes {
+			if nodeMap, ok := nodeInfo.(map[string]interface{}); ok {
+				nodesData[nodeID] = nodeMap
+			}
+		}
+	}
+
+	// Get cluster domains for enrichment (map domain name -> full domain data)
+	clusterDomains := make(map[string]map[string]interface{})
+	if cluster, ok := facts["cluster"].(map[string]interface{}); ok {
+		if userDomains, ok := cluster["user_domains"].([]interface{}); ok {
+			for _, domainRaw := range userDomains {
+				if domain, ok := domainRaw.(map[string]interface{}); ok {
+					if domainName, ok := domain["name"].(string); ok && domainName != "" {
+						clusterDomains[domainName] = domain
+					}
+				}
+			}
+		}
+	}
+
+	// Track which module IDs we've seen in this inventory
+	seenModuleIDs := make(map[string]bool)
+
+	// Process each module
+	for _, moduleRaw := range modulesRaw {
+		module, ok := moduleRaw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		// Extract fixed fields
+		moduleID, _ := module["id"].(string)
+		moduleName, _ := module["name"].(string) // This is instance_of
+		moduleVersion, _ := module["version"].(string)
+		moduleNodeStr, _ := module["node"].(string)
+		moduleUIName, _ := module["ui_name"].(string) // display_name
+
+		if moduleID == "" || moduleName == "" {
+			continue // Skip invalid modules
+		}
+
+		seenModuleIDs[moduleID] = true
+
+		// Parse node ID
+		var nodeID *int
+		if moduleNodeStr != "" {
+			if n, err := strconv.Atoi(moduleNodeStr); err == nil {
+				nodeID = &n
+			}
+		}
+
+		// Get node label from nodes data (ui_name field)
+		var nodeLabel *string
+		if moduleNodeStr != "" {
+			if nodeInfo, ok := nodesData[moduleNodeStr]; ok {
+				if uiName, ok := nodeInfo["ui_name"].(string); ok && uiName != "" {
+					nodeLabel = &uiName
+				}
+			}
+		}
+
+		// Determine if user-facing
+		isUserFacing := configuration.IsUserFacingModule(moduleName)
+
+		// Generate application URL
+		var appURL *string
+		if systemFQDN != "" && isUserFacing {
+			url := configuration.GetApplicationURL(systemFQDN, moduleID)
+			if url != "" {
+				appURL = &url
+			}
+		}
+
+		// Extract dynamic fields for inventory_data JSONB
+		// Remove fixed fields and keep everything else
+		inventoryDataJSON := make(map[string]interface{})
+		fixedFields := map[string]bool{
+			"id": true, "name": true, "version": true, "node": true, "ui_name": true,
+		}
+		for key, value := range module {
+			if !fixedFields[key] {
+				// Enrich user_domains with full domain data from cluster
+				if key == "user_domains" {
+					if domainNames, ok := value.([]interface{}); ok {
+						enrichedDomains := make([]map[string]interface{}, 0, len(domainNames))
+						for _, domainNameRaw := range domainNames {
+							if domainName, ok := domainNameRaw.(string); ok {
+								if fullDomain, exists := clusterDomains[domainName]; exists {
+									enrichedDomains = append(enrichedDomains, fullDomain)
+								} else {
+									// Domain not found in cluster, keep just the name
+									enrichedDomains = append(enrichedDomains, map[string]interface{}{
+										"name": domainName,
+									})
+								}
+							}
+						}
+						inventoryDataJSON[key] = enrichedDomains
+						continue
+					}
+				}
+				inventoryDataJSON[key] = value
+			}
+		}
+
+		inventoryDataBytes, err := json.Marshal(inventoryDataJSON)
+		if err != nil {
+			logger.Warn().Err(err).Str("module_id", moduleID).Msg("Failed to marshal inventory_data")
+			inventoryDataBytes = []byte("{}")
+		}
+
+		// Generate application ID
+		appID := fmt.Sprintf("%s-%s", record.SystemID, moduleID)
+
+		// Upsert application
+		query := `
+			INSERT INTO applications (
+				id, system_id, module_id, instance_of, display_name,
+				node_id, node_label, version, url, inventory_data,
+				is_user_facing, status, first_seen_at, last_inventory_at, created_at, updated_at
+			) VALUES (
+				$1, $2, $3, $4, $5,
+				$6, $7, $8, $9, $10,
+				$11, 'unassigned', NOW(), NOW(), NOW(), NOW()
+			)
+			ON CONFLICT (id) DO UPDATE SET
+				instance_of = EXCLUDED.instance_of,
+				display_name = COALESCE(EXCLUDED.display_name, applications.display_name),
+				node_id = EXCLUDED.node_id,
+				node_label = COALESCE(EXCLUDED.node_label, applications.node_label),
+				version = EXCLUDED.version,
+				url = COALESCE(EXCLUDED.url, applications.url),
+				inventory_data = EXCLUDED.inventory_data,
+				is_user_facing = EXCLUDED.is_user_facing,
+				last_inventory_at = NOW(),
+				updated_at = NOW(),
+				deleted_at = NULL
+		`
+
+		_, err = tx.ExecContext(ctx, query,
+			appID,                     // $1
+			record.SystemID,           // $2
+			moduleID,                  // $3
+			moduleName,                // $4 (instance_of)
+			nilIfEmpty(moduleUIName),  // $5 (display_name from ui_name)
+			nodeID,                    // $6
+			nodeLabel,                 // $7
+			nilIfEmpty(moduleVersion), // $8
+			appURL,                    // $9
+			inventoryDataBytes,        // $10
+			isUserFacing,              // $11
+		)
+		if err != nil {
+			logger.Warn().
+				Err(err).
+				Str("app_id", appID).
+				Str("module_id", moduleID).
+				Msg("Failed to upsert application")
+			continue
+		}
+	}
+
+	// Soft-delete applications that are no longer in inventory
+	if len(seenModuleIDs) > 0 {
+		// Build list of module IDs we've seen
+		moduleIDList := make([]string, 0, len(seenModuleIDs))
+		for moduleID := range seenModuleIDs {
+			moduleIDList = append(moduleIDList, moduleID)
+		}
+
+		// Create placeholders for the IN clause
+		placeholders := make([]string, len(moduleIDList))
+		args := make([]interface{}, len(moduleIDList)+1)
+		args[0] = record.SystemID
+		for i, moduleID := range moduleIDList {
+			placeholders[i] = fmt.Sprintf("$%d", i+2)
+			args[i+1] = moduleID
+		}
+
+		// Soft-delete applications not in the current inventory
+		softDeleteQuery := fmt.Sprintf(`
+			UPDATE applications
+			SET deleted_at = NOW(), updated_at = NOW()
+			WHERE system_id = $1
+			  AND module_id NOT IN (%s)
+			  AND deleted_at IS NULL
+		`, strings.Join(placeholders, ", "))
+
+		result, err := tx.ExecContext(ctx, softDeleteQuery, args...)
+		if err != nil {
+			logger.Warn().
+				Err(err).
+				Str("system_id", record.SystemID).
+				Msg("Failed to soft-delete removed applications")
+		} else if rowsAffected, _ := result.RowsAffected(); rowsAffected > 0 {
+			logger.Info().
+				Str("system_id", record.SystemID).
+				Int64("deleted_count", rowsAffected).
+				Msg("Soft-deleted applications no longer in inventory")
+		}
+	}
+
+	logger.Debug().
+		Str("system_id", record.SystemID).
+		Int("modules_count", len(seenModuleIDs)).
+		Msg("Applications extracted from inventory")
+
+	return nil
+}
+
+// nilIfEmpty returns nil if the string is empty, otherwise returns a pointer to the string
+func nilIfEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }

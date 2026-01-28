@@ -43,8 +43,9 @@ func ExportCustomers(c *gin.Context) {
 		return
 	}
 
-	// Parse search parameter
+	// Parse search and status parameters
 	search := c.Query("search")
+	status := c.Query("status")
 
 	// For export, we don't use pagination - get all matching customers (with limit)
 	sortBy := c.DefaultQuery("sort_by", "created_at")
@@ -55,7 +56,7 @@ func ExportCustomers(c *gin.Context) {
 
 	// Get customers based on RBAC without pagination limit (but with max export limit)
 	userOrgRole := strings.ToLower(user.OrgRole)
-	customers, totalCount, err := service.ListCustomers(userOrgRole, user.OrganizationID, 1, MaxCustomersExportLimit, search, sortBy, sortDirection)
+	customers, totalCount, err := service.ListCustomers(userOrgRole, user.OrganizationID, 1, MaxCustomersExportLimit, search, sortBy, sortDirection, status)
 	if err != nil {
 		logger.Error().
 			Err(err).

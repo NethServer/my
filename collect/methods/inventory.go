@@ -55,15 +55,15 @@ func CollectInventory(c *gin.Context) {
 		return
 	}
 
-	// Parse request body using the simplified request model
-	var inventoryRequest models.InventorySubmissionRequest
-	if err := c.ShouldBindJSON(&inventoryRequest); err != nil {
+	// Read raw JSON body directly (inventory is sent as-is from the system)
+	rawBody, err := c.GetRawData()
+	if err != nil {
 		logger.Warn().
 			Err(err).
 			Str("system_id", systemIDStr).
-			Msg("Failed to parse inventory data")
+			Msg("Failed to read request body")
 
-		c.JSON(http.StatusBadRequest, response.BadRequest("invalid JSON payload", map[string]interface{}{
+		c.JSON(http.StatusBadRequest, response.BadRequest("failed to read request body", map[string]interface{}{
 			"error": err.Error(),
 		}))
 		return
@@ -74,7 +74,7 @@ func CollectInventory(c *gin.Context) {
 	inventoryData := models.InventoryData{
 		SystemID:  systemIDStr,
 		Timestamp: now,
-		Data:      inventoryRequest.Data,
+		Data:      rawBody,
 	}
 
 	// Validate inventory data

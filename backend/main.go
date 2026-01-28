@@ -183,29 +183,25 @@ func main() {
 		customAuthWithAudit.POST("/me/change-password", middleware.DisableOnImpersonate(), methods.ChangePassword)
 		customAuthWithAudit.POST("/me/change-info", middleware.DisableOnImpersonate(), methods.ChangeInfo)
 
-		// Business operations
 		// ===========================================
-		// SYSTEMS - Hybrid approach
+		// SYSTEMS - resource-based permission validation (read:systems for GET, manage:systems for POST/PUT/DELETE)
 		// ===========================================
-
-		// Standard CRUD operations - resource-based (read:systems for GET, manage:systems for POST/PUT/DELETE)
 		systemsGroup := customAuthWithAudit.Group("/systems", middleware.RequireResourcePermission("systems"))
 		{
-			systemsGroup.GET("", methods.GetSystems)
-			systemsGroup.GET("/:id", methods.GetSystem)
-			systemsGroup.POST("", methods.CreateSystem)
-			systemsGroup.PUT("/:id", methods.UpdateSystem)
-			systemsGroup.DELETE("/:id", methods.DeleteSystem)
-			systemsGroup.PATCH("/:id/restore", methods.RestoreSystem) // Restore soft-deleted system
+			// CRUD operations
+			systemsGroup.POST("", methods.CreateSystem)               // Create system (manage:systems required)
+			systemsGroup.GET("", methods.GetSystems)                  // List systems (read:systems required)
+			systemsGroup.GET("/:id", methods.GetSystem)               // Get system (read:systems required)
+			systemsGroup.PUT("/:id", methods.UpdateSystem)            // Update system (manage:systems required)
+			systemsGroup.DELETE("/:id", methods.DeleteSystem)         // Soft-delete system (manage:systems required)
+			systemsGroup.PATCH("/:id/restore", methods.RestoreSystem) // Restore soft-deleted system (manage:systems required)
 
+			// Systems totals and trend endpoints (read:systems required)
+			systemsGroup.GET("/totals", methods.GetSystemsTotals)
+			systemsGroup.GET("/trend", methods.GetSystemsTrend)
+
+			// System actions
 			systemsGroup.POST("/:id/regenerate-secret", methods.RegenerateSystemSecret) // Regenerate system secret
-
-			// Dangerous operations requiring specific permissions
-			// systemsGroup.DELETE("/:id/destroy", middleware.RequirePermission("destroy:systems"), methods.DestroySystem) // Complete system destruction (destroy:systems required)
-
-			// System totals and trend endpoints
-			systemsGroup.GET("/totals", methods.GetSystemsTotals) // Get systems totals with liveness status
-			systemsGroup.GET("/trend", methods.GetSystemsTrend)   // Get systems trend data for specified period
 
 			// Export endpoint
 			systemsGroup.GET("/export", methods.ExportSystems) // Export systems to CSV or PDF with applied filters
@@ -222,12 +218,32 @@ func main() {
 		// ===========================================
 		// FILTERS - For UI dropdowns
 		// ===========================================
-		filtersGroup := customAuthWithAudit.Group("/filters", middleware.RequireResourcePermission("systems"))
+		filtersGroup := customAuthWithAudit.Group("/filters")
 		{
-			filtersGroup.GET("/products", methods.GetFilterProducts)           // Get unique product types
-			filtersGroup.GET("/created-by", methods.GetFilterCreatedBy)        // Get users who created systems
-			filtersGroup.GET("/versions", methods.GetFilterVersions)           // Get unique versions
-			filtersGroup.GET("/organizations", methods.GetFilterOrganizations) // Get organizations with systems
+			// Systems filters (read:systems required)
+			systemsFiltersGroup := filtersGroup.Group("/systems", middleware.RequireResourcePermission("systems"))
+			{
+				systemsFiltersGroup.GET("/products", methods.GetFilterProducts)           // Get unique product types
+				systemsFiltersGroup.GET("/created-by", methods.GetFilterCreatedBy)        // Get users who created systems
+				systemsFiltersGroup.GET("/versions", methods.GetFilterVersions)           // Get unique versions
+				systemsFiltersGroup.GET("/organizations", methods.GetFilterOrganizations) // Get organizations with systems
+			}
+
+			// Applications filters (read:applications required)
+			appsFiltersGroup := filtersGroup.Group("/applications", middleware.RequireResourcePermission("applications"))
+			{
+				appsFiltersGroup.GET("/types", methods.GetApplicationTypes)                 // Get available application types
+				appsFiltersGroup.GET("/versions", methods.GetApplicationVersions)           // Get available versions
+				appsFiltersGroup.GET("/systems", methods.GetApplicationSystems)             // Get available systems
+				appsFiltersGroup.GET("/organizations", methods.GetApplicationOrganizations) // Get available organizations for assignment
+			}
+
+			// Users filters (read:users required)
+			usersFiltersGroup := filtersGroup.Group("/users", middleware.RequireResourcePermission("users"))
+			{
+				usersFiltersGroup.GET("/roles", methods.GetRoles)                            // Get available user roles
+				usersFiltersGroup.GET("/organizations", methods.GetFilterUsersOrganizations) // Get organizations for user filtering
+			}
 		}
 
 		// ===========================================
@@ -251,6 +267,10 @@ func main() {
 			// Stats endpoint (users and systems count)
 			distributorsGroup.GET("/:id/stats", methods.GetDistributorStats)
 
+			// Suspend and reactivate endpoints (cascade to users)
+			distributorsGroup.PATCH("/:id/suspend", methods.SuspendDistributor)       // Suspend distributor and all its users
+			distributorsGroup.PATCH("/:id/reactivate", methods.ReactivateDistributor) // Reactivate distributor and cascade-suspended users
+
 			// Export endpoint
 			distributorsGroup.GET("/export", methods.ExportDistributors) // Export distributors to CSV or PDF with applied filters
 		}
@@ -270,6 +290,10 @@ func main() {
 
 			// Stats endpoint (users and systems count)
 			resellersGroup.GET("/:id/stats", methods.GetResellerStats)
+
+			// Suspend and reactivate endpoints (cascade to users)
+			resellersGroup.PATCH("/:id/suspend", methods.SuspendReseller)       // Suspend reseller and all its users
+			resellersGroup.PATCH("/:id/reactivate", methods.ReactivateReseller) // Reactivate reseller and cascade-suspended users
 
 			// Export endpoint
 			resellersGroup.GET("/export", methods.ExportResellers) // Export resellers to CSV or PDF with applied filters
@@ -291,48 +315,73 @@ func main() {
 			// Stats endpoint (users and systems count)
 			customersGroup.GET("/:id/stats", methods.GetCustomerStats)
 
+			// Suspend and reactivate endpoints (cascade to users)
+			customersGroup.PATCH("/:id/suspend", methods.SuspendCustomer)       // Suspend customer and all its users
+			customersGroup.PATCH("/:id/reactivate", methods.ReactivateCustomer) // Reactivate customer and cascade-suspended users
+
 			// Export endpoint
 			customersGroup.GET("/export", methods.ExportCustomers) // Export customers to CSV or PDF with applied filters
 		}
 
 		// ===========================================
-		// USERS MANAGEMENT - Permission-based
+		// USERS - resource-based permission validation (read:users for GET, manage:users for POST/PUT/PATCH/DELETE)
 		// ===========================================
-
-		// Users - Resource-based permission validation (read:users for GET, manage:users for POST/PUT/PATCH/DELETE)
 		usersGroup := customAuthWithAudit.Group("/users", middleware.RequireResourcePermission("users"))
 		{
-			usersGroup.GET("", methods.GetUsers)                                                               // List users with organization filtering
-			usersGroup.GET("/:id", methods.GetUser)                                                            // Get single user with hierarchical validation
-			usersGroup.POST("", methods.CreateUser)                                                            // Create new user with hierarchical validation
-			usersGroup.PUT("/:id", middleware.PreventSelfModification(), methods.UpdateUser)                   // Update existing user (prevent self-modification)
-			usersGroup.PATCH("/:id/password", middleware.PreventSelfModification(), methods.ResetUserPassword) // Reset user password (prevent self-modification)
-			usersGroup.PATCH("/:id/suspend", middleware.PreventSelfModification(), methods.SuspendUser)        // Suspend user (prevent self-modification)
-			usersGroup.PATCH("/:id/reactivate", middleware.PreventSelfModification(), methods.ReactivateUser)  // Reactivate suspended user (prevent self-modification)
-			usersGroup.DELETE("/:id", middleware.PreventSelfModification(), methods.DeleteUser)                // Delete user (prevent self-modification)
+			// CRUD operations
+			usersGroup.POST("", methods.CreateUser)                                             // Create user (manage:users required)
+			usersGroup.GET("", methods.GetUsers)                                                // List users (read:users required)
+			usersGroup.GET("/:id", methods.GetUser)                                             // Get user (read:users required)
+			usersGroup.PUT("/:id", middleware.PreventSelfModification(), methods.UpdateUser)    // Update user (manage:users required, prevent self-modification)
+			usersGroup.DELETE("/:id", middleware.PreventSelfModification(), methods.DeleteUser) // Delete user (manage:users required, prevent self-modification)
 
 			// Users totals and trend endpoints (read:users required)
 			usersGroup.GET("/totals", methods.GetUsersTotals)
 			usersGroup.GET("/trend", methods.GetUsersTrend)
 
+			// User actions (manage:users required, prevent self-modification)
+			usersGroup.PATCH("/:id/password", middleware.PreventSelfModification(), methods.ResetUserPassword) // Reset user password
+			usersGroup.PATCH("/:id/suspend", middleware.PreventSelfModification(), methods.SuspendUser)        // Suspend user
+			usersGroup.PATCH("/:id/reactivate", middleware.PreventSelfModification(), methods.ReactivateUser)  // Reactivate suspended user
+
 			// Export endpoint
 			usersGroup.GET("/export", methods.ExportUsers) // Export users to CSV or PDF with applied filters
 		}
 
-		// Roles endpoints - for role selection in user creation
-		customAuthWithAudit.GET("/roles", methods.GetRoles)
-		customAuthWithAudit.GET("/organization-roles", methods.GetOrganizationRoles)
+		// ===========================================
+		// APPLICATIONS - resource-based permission validation (read:applications for GET, manage:applications for POST/PUT/PATCH/DELETE)
+		// ===========================================
+		appsGroup := customAuthWithAudit.Group("/applications", middleware.RequireResourcePermission("applications"))
+		{
+			// CRUD operations
+			appsGroup.GET("", methods.GetApplications)          // List applications (read:applications required)
+			appsGroup.GET("/:id", methods.GetApplication)       // Get application (read:applications required)
+			appsGroup.PUT("/:id", methods.UpdateApplication)    // Update application (manage:applications required)
+			appsGroup.DELETE("/:id", methods.DeleteApplication) // Soft-delete application (manage:applications required)
 
-		// Organizations endpoint - for organization selection in user creation
-		customAuthWithAudit.GET("/organizations", methods.GetOrganizations)
+			// Applications totals and trend endpoints (read:applications required)
+			appsGroup.GET("/totals", methods.GetApplicationTotals)
+			appsGroup.GET("/trend", methods.GetApplicationsTrend)
 
-		// Applications endpoint - filtered third-party applications based on user access
-		customAuthWithAudit.GET("/applications", methods.GetApplications)
+			// Application actions (manage:applications required)
+			appsGroup.PATCH("/:id/assign", methods.AssignApplicationOrganization)     // Assign organization to application
+			appsGroup.PATCH("/:id/unassign", methods.UnassignApplicationOrganization) // Remove organization from application
+		}
 
-		// Validators group - for validation endpoints
+		// ===========================================
+		// METADATA - roles, organizations, third-party apps
+		// ===========================================
+		customAuthWithAudit.GET("/roles", methods.GetRoles)                                     // Get available user roles
+		customAuthWithAudit.GET("/organization-roles", methods.GetOrganizationRoles)            // Get available organization roles
+		customAuthWithAudit.GET("/organizations", methods.GetOrganizations)                     // Get organizations for user assignment
+		customAuthWithAudit.GET("/third-party-applications", methods.GetThirdPartyApplications) // Get third-party applications filtered by user access
+
+		// ===========================================
+		// VALIDATORS - validation endpoints
+		// ===========================================
 		validatorsGroup := customAuth.Group("/validators")
 		{
-			validatorsGroup.GET("/vat/:entity_type", validators.ValidateVAT)
+			validatorsGroup.GET("/vat/:entity_type", validators.ValidateVAT) // Validate VAT number for entity type
 		}
 
 	}

@@ -95,7 +95,7 @@ func (r *LocalUserRepository) Create(req *models.CreateLocalUserRequest) (*model
 func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 	query := `
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
-		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at,
+		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at, u.suspended_by_org_id,
 		       COALESCE(d.name, r.name, c.name) as organization_name,
 		       COALESCE(d.id, r.id, c.id) as organization_local_id,
 		       CASE
@@ -105,9 +105,9 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 		           ELSE 'owner'
 		       END as organization_type
 		FROM users u
-		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON u.organization_id = c.logto_id AND c.deleted_at IS NULL
+		LEFT JOIN distributors d ON (u.organization_id = d.logto_id OR u.organization_id = d.id::text) AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON (u.organization_id = r.logto_id OR u.organization_id = r.id::text) AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON (u.organization_id = c.logto_id OR u.organization_id = c.id::text) AND c.deleted_at IS NULL
 		WHERE u.id = $1 AND u.deleted_at IS NULL
 	`
 
@@ -118,7 +118,7 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 	err := r.db.QueryRow(query, id).Scan(
 		&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name, &user.Phone,
 		&user.OrganizationID, &userRoleIDsJSON, &customDataJSON,
-		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt,
+		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt, &user.SuspendedByOrgID,
 		&user.OrganizationName, &user.OrganizationLocalID, &user.OrganizationType,
 	)
 
@@ -157,7 +157,7 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, error) {
 	query := `
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
-		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at,
+		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at, u.suspended_by_org_id,
 		       COALESCE(d.name, r.name, c.name) as organization_name,
 		       COALESCE(d.id, r.id, c.id) as organization_local_id,
 		       CASE
@@ -167,9 +167,9 @@ func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, e
 		           ELSE 'owner'
 		       END as organization_type
 		FROM users u
-		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON u.organization_id = c.logto_id AND c.deleted_at IS NULL
+		LEFT JOIN distributors d ON (u.organization_id = d.logto_id OR u.organization_id = d.id::text) AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON (u.organization_id = r.logto_id OR u.organization_id = r.id::text) AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON (u.organization_id = c.logto_id OR u.organization_id = c.id::text) AND c.deleted_at IS NULL
 		WHERE u.logto_id = $1 AND u.deleted_at IS NULL
 	`
 
@@ -180,7 +180,7 @@ func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, e
 	err := r.db.QueryRow(query, logtoID).Scan(
 		&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name, &user.Phone,
 		&user.OrganizationID, &userRoleIDsJSON, &customDataJSON,
-		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt,
+		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt, &user.SuspendedByOrgID,
 		&user.OrganizationName, &user.OrganizationLocalID, &user.OrganizationType,
 	)
 
@@ -329,10 +329,10 @@ func (r *LocalUserRepository) SuspendUser(id string) error {
 	return nil
 }
 
-// ReactivateUser reactivates a suspended user by clearing suspended_at timestamp
+// ReactivateUser reactivates a suspended user by clearing suspended_at and suspended_by_org_id
 func (r *LocalUserRepository) ReactivateUser(id string) error {
 	now := time.Now()
-	query := `UPDATE users SET suspended_at = NULL, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL AND suspended_at IS NOT NULL`
+	query := `UPDATE users SET suspended_at = NULL, suspended_by_org_id = NULL, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL AND suspended_at IS NOT NULL`
 
 	result, err := r.db.Exec(query, id, now)
 	if err != nil {
@@ -349,6 +349,116 @@ func (r *LocalUserRepository) ReactivateUser(id string) error {
 	}
 
 	return nil
+}
+
+// SuspendUsersByOrgID suspends all active users belonging to an organization (cascade suspension)
+// Returns the list of suspended users (for Logto sync) and count
+func (r *LocalUserRepository) SuspendUsersByOrgID(orgID string) ([]*models.LocalUser, int, error) {
+	now := time.Now()
+
+	// First, get all active users that will be suspended (for Logto sync)
+	selectQuery := `
+		SELECT id, logto_id, username, email, name
+		FROM users
+		WHERE organization_id = $1 AND deleted_at IS NULL AND suspended_at IS NULL
+	`
+
+	rows, err := r.db.Query(selectQuery, orgID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to query users for cascade suspension: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var users []*models.LocalUser
+	for rows.Next() {
+		user := &models.LocalUser{}
+		if err := rows.Scan(&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name); err != nil {
+			return nil, 0, fmt.Errorf("failed to scan user: %w", err)
+		}
+		users = append(users, user)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("error iterating users: %w", err)
+	}
+
+	if len(users) == 0 {
+		return users, 0, nil
+	}
+
+	// Now suspend all these users
+	updateQuery := `
+		UPDATE users
+		SET suspended_at = $2, suspended_by_org_id = $1, updated_at = $2
+		WHERE organization_id = $1 AND deleted_at IS NULL AND suspended_at IS NULL
+	`
+
+	result, err := r.db.Exec(updateQuery, orgID, now)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to cascade suspend users: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return users, int(rowsAffected), nil
+}
+
+// ReactivateUsersByOrgID reactivates users that were cascade-suspended by this organization
+// Returns the list of reactivated users (for Logto sync) and count
+func (r *LocalUserRepository) ReactivateUsersByOrgID(orgID string) ([]*models.LocalUser, int, error) {
+	now := time.Now()
+
+	// First, get all users that were cascade-suspended by this org (for Logto sync)
+	selectQuery := `
+		SELECT id, logto_id, username, email, name
+		FROM users
+		WHERE suspended_by_org_id = $1 AND deleted_at IS NULL AND suspended_at IS NOT NULL
+	`
+
+	rows, err := r.db.Query(selectQuery, orgID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to query users for cascade reactivation: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var users []*models.LocalUser
+	for rows.Next() {
+		user := &models.LocalUser{}
+		if err := rows.Scan(&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name); err != nil {
+			return nil, 0, fmt.Errorf("failed to scan user: %w", err)
+		}
+		users = append(users, user)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("error iterating users: %w", err)
+	}
+
+	if len(users) == 0 {
+		return users, 0, nil
+	}
+
+	// Now reactivate all these users
+	updateQuery := `
+		UPDATE users
+		SET suspended_at = NULL, suspended_by_org_id = NULL, updated_at = $2
+		WHERE suspended_by_org_id = $1 AND deleted_at IS NULL AND suspended_at IS NOT NULL
+	`
+
+	result, err := r.db.Exec(updateQuery, orgID, now)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to cascade reactivate users: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return users, int(rowsAffected), nil
 }
 
 // UpdateLatestLogin updates the latest_login_at field for a user
@@ -489,7 +599,7 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, exclud
 	// Build main query
 	mainQuery := fmt.Sprintf(`
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
-		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at,
+		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at, u.suspended_by_org_id,
 		       COALESCE(d.name, r.name, c.name) as organization_name,
 		       COALESCE(d.id, r.id, c.id) as organization_local_id,
 		       CASE
@@ -499,9 +609,9 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, exclud
 		           ELSE 'owner'
 		       END as organization_type
 		FROM users u
-		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON u.organization_id = c.logto_id AND c.deleted_at IS NULL
+		LEFT JOIN distributors d ON (u.organization_id = d.logto_id OR u.organization_id = d.id::text) AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON (u.organization_id = r.logto_id OR u.organization_id = r.id::text) AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON (u.organization_id = c.logto_id OR u.organization_id = c.id::text) AND c.deleted_at IS NULL
 		WHERE u.deleted_at IS NULL
 		  AND u.organization_id IN (%s)
 		  AND u.id != $%d
@@ -600,7 +710,7 @@ func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, exc
 	// Build main query
 	mainQuery := fmt.Sprintf(`
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
-		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at,
+		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at, u.suspended_by_org_id,
 		       COALESCE(d.name, r.name, c.name) as organization_name,
 		       COALESCE(d.id, r.id, c.id) as organization_local_id,
 		       CASE
@@ -610,9 +720,9 @@ func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, exc
 		           ELSE 'owner'
 		       END as organization_type
 		FROM users u
-		LEFT JOIN distributors d ON u.organization_id = d.logto_id AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON u.organization_id = r.logto_id AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON u.organization_id = c.logto_id AND c.deleted_at IS NULL
+		LEFT JOIN distributors d ON (u.organization_id = d.logto_id OR u.organization_id = d.id::text) AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON (u.organization_id = r.logto_id OR u.organization_id = r.id::text) AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON (u.organization_id = c.logto_id OR u.organization_id = c.id::text) AND c.deleted_at IS NULL
 		WHERE u.deleted_at IS NULL
 		  AND u.organization_id IN (%s)
 		  AND u.id != $%d%s%s
@@ -668,7 +778,7 @@ func (r *LocalUserRepository) executeUserQuery(countQuery string, countArgs []in
 		err := rows.Scan(
 			&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name,
 			&user.Phone, &user.OrganizationID, &userRoleIDsJSON, &customDataJSON,
-			&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt,
+			&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt, &user.SuspendedByOrgID,
 			&user.OrganizationName, &user.OrganizationLocalID, &user.OrganizationType,
 		)
 		if err != nil {
