@@ -76,7 +76,7 @@ const validationIssues = ref<Record<string, string[]>>({})
 function onShow() {
   clearErrors()
   notes.value = currentApplication?.notes || ''
-  // focusElement(notesRef) //// NeTextArea does not support focus() yet
+  focusElement(notesRef)
 }
 
 function closeDrawer() {
@@ -118,7 +118,7 @@ async function saveApplication() {
         <!-- name -->
         <NeTextInput
           :value="currentApplication ? getDisplayName(currentApplication) : ''"
-          :label="$t('applications.application_name')"
+          :label="$t('applications.application')"
           readonly
         />
         <!-- notes -->

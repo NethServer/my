@@ -5,7 +5,7 @@ import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
-import { downloadFile, type Pagination } from './common'
+import { type Pagination } from './common'
 import Ns8Logo from '@/assets/ns8_logo.svg'
 import NsecLogo from '@/assets/nsec_logo.svg'
 

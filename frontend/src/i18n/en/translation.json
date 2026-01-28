@@ -449,7 +449,7 @@
     "assign_organization": "Assign to organization",
     "reassign_organization": "Reassign to organization",
     "name": "Name",
-    "application_name": "Application name",
+    "application": "Application",
     "organization_assigned": "Application assigned to organization",
     "organization_assigned_description": "The application {application} has been assigned to organization {organization}",
     "cannot_assign_organization": "Cannot assign organization",
