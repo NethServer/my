@@ -29,6 +29,7 @@ import {
   type SortEvent,
   NeTooltip,
   type NeDropdownItem,
+  NeDropdownFilter,
 } from '@nethesis/vue-components'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -42,6 +43,7 @@ import { getDisplayName, type Application } from '@/lib/applications/application
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import AssignOrganizationDrawer from './AssignOrganizationDrawer.vue'
 import SetNotesDrawer from './SetNotesDrawer.vue'
+import { useTypeFilter } from '@/queries/applications/typeFilter'
 
 //// review (search "system")
 
@@ -53,15 +55,12 @@ const {
   pageSize,
   textFilter,
   debouncedTextFilter,
+  typeFilter,
   sortBy,
   sortDescending,
 } = useApplications()
-// const { state: productFilterState, asyncStatus:  //// productFilterAsyncStatus } = useProductFilter()
-// const { state: createdByFilterState, asyncStatus: createdByFilterAsyncStatus } =
-//   useCreatedByFilter()
-// const { state: versionFilterState, asyncStatus: versionFilterAsyncStatus } = useVersionFilter()
-// const { state: organizationFilterState, asyncStatus: organizationFilterAsyncStatus } =
-//   useOrganizationFilter()
+
+const { state: typeFilterState, asyncStatus: typeFilterAsyncStatus } = useTypeFilter()
 
 const currentApplication = ref<Application | undefined>()
 const isShownAssignOrgDrawer = ref(false)
@@ -73,6 +72,18 @@ const applicationsPage = computed(() => {
 
 const pagination = computed(() => {
   return state.value.data?.pagination
+})
+
+const typeFilterOptions = computed(() => {
+  if (!typeFilterState.value.data || !typeFilterState.value.data) {
+    return []
+  } else {
+    //// need to filter user_facing apps only?
+    return typeFilterState.value.data.map((appType) => ({
+      id: appType.instance_of,
+      label: appType.instance_of, //// app pretty name will be put inside inventory
+    }))
+  }
 })
 
 ////
@@ -154,8 +165,9 @@ const noEmptyStateShown = computed(() => {
 ////
 function clearFilters() {
   console.log('clearFilters, todo') ////
-  //   textFilter.value = ''
-  //   productFilter.value = []
+
+  textFilter.value = ''
+  typeFilter.value = []
   //   versionFilter.value = []
   //   createdByFilter.value = []
   //   statusFilter.value = ['online', 'offline', 'unknown']
@@ -237,28 +249,12 @@ const goToApplicationDetails = (application: Application) => {
               :placeholder="$t('applications.filter_applications')"
               class="max-w-48 sm:max-w-sm"
             />
-            <!-- <NeDropdownFilter ////
-              v-model="productFilter"
-              kind="checkbox"
-              :disabled="
-                productFilterAsyncStatus === 'loading' || productFilterState.status === 'error'
-              "
-              :label="t('systems.product')"
-              :options="productFilterOptions"
-              :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
-              :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-              :no-options-label="t('ne_dropdown_filter.no_options')"
-              :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-              :clear-search-label="t('ne_dropdown_filter.clear_search')"
-            />
             <NeDropdownFilter
-              v-model="versionFilter"
+              v-model="typeFilter"
               kind="checkbox"
-              :disabled="
-                versionFilterAsyncStatus === 'loading' || versionFilterState.status === 'error'
-              "
-              :label="t('systems.version')"
-              :options="versionFilterOptions"
+              :disabled="typeFilterAsyncStatus === 'loading' || typeFilterState.status === 'error'"
+              :label="t('applications.type')"
+              :options="typeFilterOptions"
               show-options-filter
               :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
               :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
@@ -266,51 +262,8 @@ const goToApplicationDetails = (application: Application) => {
               :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
               :clear-search-label="t('ne_dropdown_filter.clear_search')"
             />
-            <NeDropdownFilter
-              v-model="createdByFilter"
-              kind="checkbox"
-              :disabled="
-                createdByFilterAsyncStatus === 'loading' || createdByFilterState.status === 'error'
-              "
-              :label="t('systems.created_by')"
-              :options="createdByFilterOptions"
-              show-options-filter
-              :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
-              :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-              :no-options-label="t('ne_dropdown_filter.no_options')"
-              :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-              :clear-search-label="t('ne_dropdown_filter.clear_search')"
-            />
-            <NeDropdownFilter
-              v-model="organizationFilter"
-              kind="checkbox"
-              :label="t('systems.organization')"
-              :options="organizationFilterOptions"
-              :disabled="
-                organizationFilterAsyncStatus === 'loading' ||
-                organizationFilterState.status === 'error'
-              "
-              show-options-filter
-              :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
-              :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-              :no-options-label="t('ne_dropdown_filter.no_options')"
-              :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-              :clear-search-label="t('ne_dropdown_filter.clear_search')"
-            />
-            <NeDropdownFilter
-              v-model="statusFilter"
-              kind="checkbox"
-              :label="t('common.status')"
-              :options="statusFilterOptions"
-              :show-clear-filter="false"
-              :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
-              :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-              :no-options-label="t('ne_dropdown_filter.no_options')"
-              :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-              :clear-search-label="t('ne_dropdown_filter.clear_search')"
-            /> -->
             <!-- sort dropdown -->
-            <!-- <NeSortDropdown ////
+            <!-- <NeSortDropdown //// todo
               v-model:sort-key="sortBy"
               v-model:sort-descending="sortDescending"
               :label="t('sort.sort')"
@@ -328,9 +281,9 @@ const goToApplicationDetails = (application: Application) => {
               :ascending-label="t('sort.ascending')"
               :descending-label="t('sort.descending')"
             /> -->
-            <!-- <NeButton kind="tertiary" @click="clearFilters"> ////
+            <NeButton kind="tertiary" @click="clearFilters">
               {{ t('common.clear_filters') }}
-            </NeButton> -->
+            </NeButton>
           </div>
           <!-- update indicator -->
           <div
