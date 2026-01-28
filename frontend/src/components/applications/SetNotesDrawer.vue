@@ -22,7 +22,7 @@ import {
   getDisplayName,
   type Application,
   putApplication,
-} from '@/lib/applications'
+} from '@/lib/applications/applications'
 import type { AxiosError } from 'axios'
 
 const { isShown = false, currentApplication = undefined } = defineProps<{
