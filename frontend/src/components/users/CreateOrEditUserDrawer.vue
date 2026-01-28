@@ -160,7 +160,7 @@ const organizationOptions = computed(() => {
   }
 
   return organizations.value.data?.map((org) => ({
-    id: org.id,
+    id: org.logto_id,
     label: org.name,
     description: t(`organizations.${org.type}`),
   }))

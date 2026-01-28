@@ -7,7 +7,6 @@ import { useLoginStore } from '@/stores/login'
 import { faBuilding, faCity, faCrown, faGlobe, faQuestion } from '@fortawesome/free-solid-svg-icons'
 
 export type Organization = {
-  id: string //// remove if/when backend will accept logto_id when creating systems
   logto_id: string
   name: string
   description: string
