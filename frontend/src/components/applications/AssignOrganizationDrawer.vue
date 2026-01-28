@@ -22,7 +22,7 @@ import {
   getDisplayName,
   type Application,
   type Organization,
-} from '@/lib/applications'
+} from '@/lib/applications/applications'
 import { getOrganizations, ORGANIZATIONS_KEY } from '@/lib/organizations'
 import { useLoginStore } from '@/stores/login'
 import type { AxiosError } from 'axios'
