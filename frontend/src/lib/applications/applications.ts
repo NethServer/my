@@ -2,40 +2,19 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import axios from 'axios'
-import { API_URL } from './config'
+import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
-import { type Pagination } from './common'
+import { type Pagination } from '../common'
 import Ns8Logo from '@/assets/ns8_logo.svg'
 import NsecLogo from '@/assets/nsec_logo.svg'
-
-//// review (search "system")
+import { OrganizationSchema } from '../organizations'
 
 export const APPLICATIONS_KEY = 'applications'
 export const APPLICATIONS_TOTAL_KEY = 'applicationsTotal'
 export const APPLICATIONS_TABLE_ID = 'applicationsTable'
 
 export type ApplicationStatus = 'online' | 'offline' | 'unknown' | 'deleted'
-
-//// remove
-// export const CreateApplicationSchema = v.object({
-//   organization_id: v.pipe(v.string(), v.nonEmpty('applications.organization_required')),
-//   notes: v.pipe(v.string()),
-//   custom_data: v.optional(v.record(v.string(), v.string())), //// use correct types
-// })
-
-//// remove
-// export const EditApplicationSchema = v.object({
-//   ...CreateApplicationSchema.entries,
-// })
-
-export const OrganizationSchema = v.object({
-  logto_id: v.string(),
-  // id: v.optional(v.string()), ////
-  name: v.string(),
-  description: v.string(),
-  type: v.string(),
-})
 
 export const ApplicationSchema = v.object({
   id: v.string(),
@@ -59,13 +38,7 @@ export const ApplicationSchema = v.object({
   last_inventory_at: v.string(),
 })
 
-////
-// export type CreateApplication = v.InferOutput<typeof CreateApplicationSchema>
-// export type EditApplication = v.InferOutput<typeof EditApplicationSchema>
-
 export type Application = v.InferOutput<typeof ApplicationSchema>
-
-export type Organization = v.InferOutput<typeof OrganizationSchema>
 
 interface ApplicationsResponse {
   code: number
@@ -103,7 +76,6 @@ export const getQueryStringParams = (
   textFilter: string | null,
   typeFilter: string[],
   versionFilter: string[],
-  // statusFilter: SystemStatus[], ////
   systemFilter: string[],
   organizationFilter: string[],
   sortBy: string | null,
@@ -128,10 +100,6 @@ export const getQueryStringParams = (
     searchParams.append('version', version)
   })
 
-  // statusFilter.forEach((status) => { ////
-  //   searchParams.append('status', status)
-  // })
-
   systemFilter.forEach((systemId) => {
     searchParams.append('system_id', systemId)
   })
@@ -150,72 +118,12 @@ export const getDisplayName = (app: Application) => {
   }
 }
 
-////
-// export const getQueryStringParamsForExport = (
-//   format: string,
-//   systemKey: string | undefined,
-//   textFilter: string | undefined,
-//   productFilter: string[] | undefined,
-//   createdByFilter: string[] | undefined,
-//   versionFilter: string[] | undefined,
-//   statusFilter: SystemStatus[] | undefined,
-//   sortBy: string | undefined,
-//   sortDescending: boolean | undefined,
-// ) => {
-//   const searchParams = new URLSearchParams({
-//     format: format,
-//   })
-
-//   if (systemKey) {
-//     searchParams.append('system_key', systemKey)
-//   }
-
-//   if (textFilter?.trim()) {
-//     searchParams.append('search', textFilter)
-//   }
-
-//   if (productFilter) {
-//     productFilter.forEach((product) => {
-//       searchParams.append('type', product)
-//     })
-//   }
-
-//   if (createdByFilter) {
-//     createdByFilter.forEach((userId) => {
-//       searchParams.append('created_by', userId)
-//     })
-//   }
-
-//   if (versionFilter) {
-//     versionFilter.forEach((version) => {
-//       searchParams.append('version', version)
-//     })
-//   }
-
-//   if (statusFilter) {
-//     statusFilter.forEach((status) => {
-//       searchParams.append('status', status)
-//     })
-//     return searchParams.toString()
-//   }
-
-//   if (sortBy) {
-//     searchParams.append('sort_by', sortBy)
-//   }
-
-//   if (sortDescending !== undefined) {
-//     searchParams.append('sort_direction', sortDescending ? 'desc' : 'asc')
-//   }
-//   return searchParams.toString()
-// }
-
 export const getApplications = (
   pageNum: number,
   pageSize: number,
   textFilter: string,
   typeFilter: string[],
   versionFilter: string[],
-  // statusFilter: SystemStatus[], //// ?
   systemFilter: string[],
   organizationFilter: string[],
   sortBy: string,
@@ -228,7 +136,6 @@ export const getApplications = (
     textFilter,
     typeFilter,
     versionFilter,
-    // statusFilter, ////
     systemFilter,
     organizationFilter,
     sortBy,
@@ -270,29 +177,4 @@ export const getApplicationsTotal = () => {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data)
-}
-
-//// ?
-export function getProductName(systemType: string) {
-  if (systemType === 'ns8') {
-    return 'NethServer'
-  } else if (systemType === 'nsec') {
-    return 'NethSecurity'
-  } else if (systemType === 'nsec-controller') {
-    return 'NethSecurity Controller'
-  } else {
-    return systemType
-  }
-}
-
-//// fix
-export const getProductLogo = (systemType: string) => {
-  switch (systemType) {
-    case 'ns8':
-      return Ns8Logo
-    case 'nsec':
-      return NsecLogo
-    default:
-      return undefined
-  }
 }
