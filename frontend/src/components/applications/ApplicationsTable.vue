@@ -45,8 +45,6 @@ import SetNotesDrawer from './SetNotesDrawer.vue'
 
 //// review (search "system")
 
-const emit = defineEmits(['close-drawer'])
-
 const { t } = useI18n()
 const {
   state,
@@ -55,10 +53,6 @@ const {
   pageSize,
   textFilter,
   debouncedTextFilter,
-  typeFilter,
-  systemFilter,
-  versionFilter,
-  organizationFilter,
   sortBy,
   sortDescending,
 } = useApplications()
@@ -178,7 +172,7 @@ function showSetNotesDrawer(application: Application) {
 }
 
 function getKebabMenuItems(application: Application) {
-  let items: NeDropdownItem[] = []
+  const items: NeDropdownItem[] = []
 
   if (canManageApplications()) {
     items.push({
