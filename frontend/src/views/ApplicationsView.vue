@@ -6,11 +6,8 @@
 <script setup lang="ts">
 import ApplicationsTable from '@/components/applications/ApplicationsTable.vue'
 import { NeHeading } from '@nethesis/vue-components'
-import { useI18n } from 'vue-i18n'
 
 //// review (search "system")
-
-const { t } = useI18n()
 
 // const { ////
 //   state,
