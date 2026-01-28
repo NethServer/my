@@ -36,7 +36,7 @@ import { useLoginStore } from '@/stores/login'
 import { getOrganizations, ORGANIZATIONS_KEY } from '@/lib/organizations'
 import { PRODUCT_NAME } from '@/lib/config'
 import { normalize } from '@/lib/common'
-import { ORGANIZATION_FILTER_KEY } from '@/lib/systems/organizationFilter'
+import { SYSTEM_ORGANIZATION_FILTER_KEY } from '@/lib/systems/organizationFilter'
 import { getUserRoles, USER_ROLES_KEY } from '@/lib/userRoles'
 
 const { isShown = false, currentUser = undefined } = defineProps<{
@@ -93,7 +93,7 @@ const {
   onSettled: () => {
     queryCache.invalidateQueries({ key: [USERS_KEY] })
     queryCache.invalidateQueries({ key: [USERS_TOTAL_KEY] })
-    queryCache.invalidateQueries({ key: [ORGANIZATION_FILTER_KEY] })
+    queryCache.invalidateQueries({ key: [SYSTEM_ORGANIZATION_FILTER_KEY] })
   },
 })
 

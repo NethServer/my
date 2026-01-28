@@ -21,9 +21,8 @@ import {
   assignOrganization,
   getDisplayName,
   type Application,
-  type Organization,
 } from '@/lib/applications/applications'
-import { getOrganizations, ORGANIZATIONS_KEY } from '@/lib/organizations'
+import { getOrganizations, ORGANIZATIONS_KEY, type Organization } from '@/lib/organizations'
 import { useLoginStore } from '@/stores/login'
 import type { AxiosError } from 'axios'
 

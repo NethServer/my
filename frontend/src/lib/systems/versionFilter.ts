@@ -7,8 +7,9 @@ import { useLoginStore } from '@/stores/login'
 import type { FilterOption } from '@nethesis/vue-components'
 import { getProductName } from './systems'
 
-export const VERSION_FILTER_KEY = 'versionFilter'
-export const VERSION_FILTER_PATH = 'filters/systems/versions'
+export const SYSTEM_VERSION_FILTER_KEY = 'systemVersionFilter'
+
+const SYSTEM_VERSION_FILTER_PATH = 'filters/systems/versions'
 
 export interface ProductVersions {
   product: string
@@ -27,7 +28,7 @@ export const getVersionFilter = () => {
   const loginStore = useLoginStore()
 
   return axios
-    .get<VersionFilterResponse>(`${API_URL}/${VERSION_FILTER_PATH}`, {
+    .get<VersionFilterResponse>(`${API_URL}/${SYSTEM_VERSION_FILTER_PATH}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data)
