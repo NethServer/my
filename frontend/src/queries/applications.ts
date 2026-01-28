@@ -13,7 +13,7 @@ import {
   APPLICATIONS_TABLE_ID,
   getApplications,
   type Application,
-} from '@/lib/applications'
+} from '@/lib/applications/applications'
 
 //// review (search "system")
 
