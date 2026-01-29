@@ -7,6 +7,7 @@ package methods
 
 import (
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -348,7 +349,7 @@ func GetApplicationTypes(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("application types retrieved successfully", types))
 }
 
-// GetApplicationVersions handles GET /api/applications/versions - returns available versions
+// GetApplicationVersions handles GET /api/filters/applications/versions - returns available versions grouped by application type
 func GetApplicationVersions(c *gin.Context) {
 	// Get current user context
 	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
@@ -360,8 +361,8 @@ func GetApplicationVersions(c *gin.Context) {
 	// Create applications service
 	appsService := local.NewApplicationsService()
 
-	// Get versions
-	versions, err := appsService.GetApplicationVersions(userOrgRole, userOrgID)
+	// Get versions grouped by instance_of
+	versionsByProduct, err := appsService.GetApplicationVersions(userOrgRole, userOrgID)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -374,7 +375,38 @@ func GetApplicationVersions(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, response.OK("application versions retrieved successfully", versions))
+	// Convert map to array of ProductVersions
+	type ProductVersions struct {
+		Product  string   `json:"product"`
+		Versions []string `json:"versions"`
+	}
+
+	var groupedVersions []ProductVersions
+	for product, versions := range versionsByProduct {
+		groupedVersions = append(groupedVersions, ProductVersions{
+			Product:  product,
+			Versions: versions,
+		})
+	}
+
+	// Sort by product name for consistent output
+	sort.Slice(groupedVersions, func(i, j int) bool {
+		return groupedVersions[i].Product < groupedVersions[j].Product
+	})
+
+	result := gin.H{
+		"versions": groupedVersions,
+	}
+
+	logger.Info().
+		Str("component", "filters").
+		Str("operation", "application_versions_filters").
+		Str("user_org_id", userOrgID).
+		Str("user_org_role", userOrgRole).
+		Int("product_count", len(groupedVersions)).
+		Msg("application version filters retrieved")
+
+	c.JSON(http.StatusOK, response.OK("application versions retrieved successfully", result))
 }
 
 // GetApplicationSystems handles GET /api/applications/systems - returns available systems for filter

@@ -626,10 +626,10 @@ func (r *LocalApplicationRepository) GetDistinctTypes(allowedSystemIDs []string,
 	}
 
 	query := fmt.Sprintf(`
-		SELECT instance_of, is_user_facing, COUNT(*) as count
+		SELECT instance_of, COUNT(*) as count
 		FROM applications
 		WHERE deleted_at IS NULL AND system_id IN (%s)%s
-		GROUP BY instance_of, is_user_facing
+		GROUP BY instance_of
 		ORDER BY instance_of
 	`, placeholdersStr, userFacingClause)
 
@@ -642,7 +642,7 @@ func (r *LocalApplicationRepository) GetDistinctTypes(allowedSystemIDs []string,
 	var types []models.ApplicationType
 	for rows.Next() {
 		var t models.ApplicationType
-		if err := rows.Scan(&t.InstanceOf, &t.IsUserFacing, &t.Count); err != nil {
+		if err := rows.Scan(&t.InstanceOf, &t.Count); err != nil {
 			return nil, fmt.Errorf("failed to scan type: %w", err)
 		}
 		types = append(types, t)
@@ -651,10 +651,10 @@ func (r *LocalApplicationRepository) GetDistinctTypes(allowedSystemIDs []string,
 	return types, nil
 }
 
-// GetDistinctVersions returns distinct application versions
-func (r *LocalApplicationRepository) GetDistinctVersions(allowedSystemIDs []string, userFacingOnly bool) ([]string, error) {
+// GetDistinctVersions returns distinct application versions grouped by instance_of
+func (r *LocalApplicationRepository) GetDistinctVersions(allowedSystemIDs []string, userFacingOnly bool) (map[string][]string, error) {
 	if len(allowedSystemIDs) == 0 {
-		return []string{}, nil
+		return map[string][]string{}, nil
 	}
 
 	placeholders := make([]string, len(allowedSystemIDs))
@@ -671,10 +671,10 @@ func (r *LocalApplicationRepository) GetDistinctVersions(allowedSystemIDs []stri
 	}
 
 	query := fmt.Sprintf(`
-		SELECT DISTINCT version
+		SELECT DISTINCT instance_of, version
 		FROM applications
 		WHERE deleted_at IS NULL AND version IS NOT NULL AND system_id IN (%s)%s
-		ORDER BY version DESC
+		ORDER BY instance_of ASC, version DESC
 	`, placeholdersStr, userFacingClause)
 
 	rows, err := r.db.Query(query, args...)
@@ -683,16 +683,17 @@ func (r *LocalApplicationRepository) GetDistinctVersions(allowedSystemIDs []stri
 	}
 	defer func() { _ = rows.Close() }()
 
-	var versions []string
+	versionsByProduct := make(map[string][]string)
 	for rows.Next() {
-		var v string
-		if err := rows.Scan(&v); err != nil {
+		var instanceOf, version string
+		if err := rows.Scan(&instanceOf, &version); err != nil {
 			return nil, fmt.Errorf("failed to scan version: %w", err)
 		}
-		versions = append(versions, v)
+		prefixedVersion := fmt.Sprintf("%s:%s", instanceOf, version)
+		versionsByProduct[instanceOf] = append(versionsByProduct[instanceOf], prefixedVersion)
 	}
 
-	return versions, nil
+	return versionsByProduct, nil
 }
 
 // Create creates a new application

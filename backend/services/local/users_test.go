@@ -422,11 +422,18 @@ func TestLocalUserService_IsOrganizationInHierarchy(t *testing.T) {
 		expectedResult bool
 	}{
 		{
-			name:           "owner can access any organization",
+			name:           "owner can access own organization",
+			userOrgRole:    "owner",
+			userOrgID:      "org-owner",
+			targetOrgID:    "org-owner",
+			expectedResult: true,
+		},
+		{
+			name:           "owner cannot access non-existent organization without database",
 			userOrgRole:    "owner",
 			userOrgID:      "org-owner",
 			targetOrgID:    "any-org",
-			expectedResult: true,
+			expectedResult: false,
 		},
 		{
 			name:           "same organization always accessible",

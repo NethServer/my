@@ -130,9 +130,8 @@ type ApplicationFilters struct {
 
 // ApplicationType represents application type metadata for filter dropdowns
 type ApplicationType struct {
-	InstanceOf   string `json:"instance_of"`
-	IsUserFacing bool   `json:"is_user_facing"`
-	Count        int64  `json:"count"`
+	InstanceOf string `json:"instance_of"`
+	Count      int64  `json:"count"`
 }
 
 // GetEffectiveDisplayName returns the display name or falls back to module_id

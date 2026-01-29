@@ -1140,8 +1140,27 @@ func (s *LocalUserService) IsOrganizationInHierarchy(userOrgRole, userOrgID, tar
 
 	switch userOrgRole {
 	case "owner":
-		// Owner can manage everything
-		return true
+		// Owner can manage everything, but validate the organization exists
+		if database.DB == nil {
+			return false
+		}
+		var count int
+		query := `
+			SELECT COUNT(*) FROM (
+				SELECT 1 FROM distributors WHERE logto_id = $1 AND deleted_at IS NULL
+				UNION ALL
+				SELECT 1 FROM resellers WHERE logto_id = $1 AND deleted_at IS NULL
+				UNION ALL
+				SELECT 1 FROM customers WHERE logto_id = $1 AND deleted_at IS NULL
+			) orgs
+		`
+		err := database.DB.QueryRow(query, targetOrgID).Scan(&count)
+		if err == nil && count > 0 {
+			return true
+		}
+		// Also allow Owner's own organization (direct match already handled above,
+		// but the owner org is not in distributors/resellers/customers tables)
+		return targetOrgID == userOrgID
 
 	case "distributor":
 		// Distributor can manage:

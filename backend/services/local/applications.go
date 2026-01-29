@@ -203,8 +203,8 @@ func (s *LocalApplicationsService) GetApplicationTypes(userOrgRole, userOrgID st
 	return s.repo.GetDistinctTypes(allowedSystemIDs, true)
 }
 
-// GetApplicationVersions returns distinct application versions
-func (s *LocalApplicationsService) GetApplicationVersions(userOrgRole, userOrgID string) ([]string, error) {
+// GetApplicationVersions returns distinct application versions grouped by instance_of
+func (s *LocalApplicationsService) GetApplicationVersions(userOrgRole, userOrgID string) (map[string][]string, error) {
 	allowedSystemIDs, err := s.getAllowedSystemIDs(userOrgRole, userOrgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get allowed systems: %w", err)

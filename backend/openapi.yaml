@@ -1365,16 +1365,12 @@ components:
 
     ApplicationType:
       type: object
-      description: Application type metadata
+      description: Application type metadata (only user-facing types are returned)
       properties:
         instance_of:
           type: string
           description: Application type identifier (lowercase, e.g., nethvoice, webtop, mail)
           example: "nethvoice"
-        is_user_facing:
-          type: boolean
-          description: Whether this is a user-facing application type
-          example: true
         count:
           type: integer
           description: Number of applications of this type
@@ -5359,6 +5355,7 @@ paths:
       operationId: registerSystem
       tags:
         - Backend - Systems
+      security: []
       summary: /systems/register - Register system with system_secret
       description: |
         Public endpoint for external systems to register themselves using their system_secret token.
@@ -6056,8 +6053,12 @@ paths:
       operationId: getApplicationVersions
       tags:
         - Backend - Filters
-      summary: /filters/applications/versions - Get available versions
-      description: Get list of available application versions for filtering
+      summary: /filters/applications/versions - Get version filters grouped by application type
+      description: |
+        Get application versions grouped by application type (instance_of) for filtering (requires read:applications permission).
+        Returns versions organized by application type, suitable for hierarchical UI display.
+
+        **Version Format**: Returns versions in prefixed format `type:version` (e.g., `"nethvoice:1.5.3"`, `"mail:1.7.4"`)
       responses:
         '200':
           description: Application versions retrieved successfully
@@ -6073,10 +6074,31 @@ paths:
                     type: string
                     example: "application versions retrieved successfully"
                   data:
-                    type: array
-                    items:
-                      type: string
-                    example: ["1.0.0", "1.2.3", "2.0.0"]
+                    type: object
+                    properties:
+                      versions:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            product:
+                              type: string
+                              description: Application type (instance_of)
+                              example: "nethvoice"
+                            versions:
+                              type: array
+                              items:
+                                type: string
+                              description: Prefixed versions (type:version)
+                              example: ["nethvoice:1.5.4", "nethvoice:1.5.3"]
+                    example:
+                      versions:
+                        - product: "mail"
+                          versions: ["mail:1.7.4"]
+                        - product: "nethvoice"
+                          versions: ["nethvoice:1.5.4", "nethvoice:1.5.3"]
+                        - product: "webtop"
+                          versions: ["webtop:1.5.4"]
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
