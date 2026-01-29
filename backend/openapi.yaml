@@ -2952,8 +2952,8 @@ paths:
               properties:
                 user_id:
                   type: string
-                  description: ID of the user to impersonate
-                  example: "user-uuid-here"
+                  description: Logto ID of the user to impersonate
+                  example: "jf584cz36kce"
               required:
                 - user_id
       responses:
