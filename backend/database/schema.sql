@@ -296,6 +296,8 @@ CREATE TABLE IF NOT EXISTS applications (
     -- Identity from inventory (facts.modules[])
     module_id VARCHAR(255) NOT NULL,        -- Module ID from inventory (e.g., "nethvoice1", "webtop3", "mail1")
     instance_of VARCHAR(100) NOT NULL,      -- Module type/name (e.g., "nethvoice", "webtop", "mail", "nextcloud")
+    name VARCHAR(255),                      -- Human-readable label from inventory (e.g., "Nextcloud")
+    source VARCHAR(500),                    -- Image source from inventory (e.g., "ghcr.io/nethserver/nextcloud")
 
     -- Display name (for UI customization)
     display_name VARCHAR(255),              -- From modules[].ui_name or custom name (nullable, falls back to module_id)

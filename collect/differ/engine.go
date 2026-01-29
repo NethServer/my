@@ -275,7 +275,12 @@ func (de *DiffEngine) valueToString(value interface{}) string {
 
 	switch v := value.(type) {
 	case string:
-		return v
+		// JSON-encode string so it's valid JSONB when stored in PostgreSQL
+		jsonBytes, err := json.Marshal(v)
+		if err != nil {
+			return v
+		}
+		return string(jsonBytes)
 	case bool:
 		if v {
 			return "true"

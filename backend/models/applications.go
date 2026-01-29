@@ -16,6 +16,8 @@ type Application struct {
 	SystemID         string          `json:"system_id" db:"system_id"`
 	ModuleID         string          `json:"module_id" db:"module_id"`
 	InstanceOf       string          `json:"instance_of" db:"instance_of"`
+	Name             *string         `json:"name" db:"name"`
+	Source           *string         `json:"source" db:"source"`
 	DisplayName      *string         `json:"display_name" db:"display_name"`
 	NodeID           *int            `json:"node_id" db:"node_id"`
 	NodeLabel        *string         `json:"node_label" db:"node_label"`
@@ -83,6 +85,8 @@ type ApplicationListItem struct {
 	ID              string               `json:"id"`
 	ModuleID        string               `json:"module_id"`
 	InstanceOf      string               `json:"instance_of"`
+	Name            *string              `json:"name"`
+	Source          *string              `json:"source"`
 	DisplayName     *string              `json:"display_name"`
 	Version         *string              `json:"version"`
 	Status          string               `json:"status"`
@@ -184,6 +188,8 @@ func (a *Application) ToListItem() *ApplicationListItem {
 		ID:              a.ID,
 		ModuleID:        a.ModuleID,
 		InstanceOf:      a.InstanceOf,
+		Name:            a.Name,
+		Source:          a.Source,
 		DisplayName:     a.DisplayName,
 		Version:         a.Version,
 		Status:          a.Status,

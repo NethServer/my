@@ -31,7 +31,7 @@ func NewLocalApplicationRepository() *LocalApplicationRepository {
 // GetByID retrieves a specific application by ID
 func (r *LocalApplicationRepository) GetByID(id string) (*models.Application, error) {
 	query := `
-		SELECT a.id, a.system_id, a.module_id, a.instance_of, a.display_name, a.node_id, a.node_label,
+		SELECT a.id, a.system_id, a.module_id, a.instance_of, a.name, a.source, a.display_name, a.node_id, a.node_label,
 		       a.version, a.organization_id, a.organization_type, a.status, a.inventory_data,
 		       a.backup_data, a.services_data, a.url, a.notes, a.is_user_facing,
 		       a.created_at, a.updated_at, a.first_seen_at, a.last_inventory_at, a.deleted_at,
@@ -47,14 +47,14 @@ func (r *LocalApplicationRepository) GetByID(id string) (*models.Application, er
 	`
 
 	app := &models.Application{}
-	var displayName, nodeLabel, version, orgID, orgType, url, notes sql.NullString
+	var appName, appSource, displayName, nodeLabel, version, orgID, orgType, url, notes sql.NullString
 	var nodeID sql.NullInt32
 	var lastInventoryAt, deletedAt sql.NullTime
 	var systemName, orgName, orgDbID sql.NullString
 	var inventoryData, backupData, servicesData []byte
 
 	err := r.db.QueryRow(query, id).Scan(
-		&app.ID, &app.SystemID, &app.ModuleID, &app.InstanceOf, &displayName, &nodeID, &nodeLabel,
+		&app.ID, &app.SystemID, &app.ModuleID, &app.InstanceOf, &appName, &appSource, &displayName, &nodeID, &nodeLabel,
 		&version, &orgID, &orgType, &app.Status, &inventoryData,
 		&backupData, &servicesData, &url, &notes, &app.IsUserFacing,
 		&app.CreatedAt, &app.UpdatedAt, &app.FirstSeenAt, &lastInventoryAt, &deletedAt,
@@ -69,6 +69,12 @@ func (r *LocalApplicationRepository) GetByID(id string) (*models.Application, er
 	}
 
 	// Convert nullable fields
+	if appName.Valid {
+		app.Name = &appName.String
+	}
+	if appSource.Valid {
+		app.Source = &appSource.String
+	}
 	if displayName.Valid {
 		app.DisplayName = &displayName.String
 	}
@@ -302,7 +308,7 @@ func (r *LocalApplicationRepository) List(
 
 	// Build main query
 	query := fmt.Sprintf(`
-		SELECT a.id, a.system_id, a.module_id, a.instance_of, a.display_name, a.node_id, a.node_label,
+		SELECT a.id, a.system_id, a.module_id, a.instance_of, a.name, a.source, a.display_name, a.node_id, a.node_label,
 		       a.version, a.organization_id, a.organization_type, a.status, a.inventory_data,
 		       a.backup_data, a.services_data, a.url, a.notes, a.is_user_facing,
 		       a.created_at, a.updated_at, a.first_seen_at, a.last_inventory_at,
@@ -333,14 +339,14 @@ func (r *LocalApplicationRepository) List(
 	var apps []*models.Application
 	for rows.Next() {
 		app := &models.Application{}
-		var displayName, nodeLabel, version, orgID, orgType, url, notes sql.NullString
+		var appName, appSource, displayName, nodeLabel, version, orgID, orgType, url, notes sql.NullString
 		var nodeID sql.NullInt32
 		var lastInventoryAt sql.NullTime
 		var systemName, orgName, orgDbID sql.NullString
 		var inventoryData, backupData, servicesData []byte
 
 		err := rows.Scan(
-			&app.ID, &app.SystemID, &app.ModuleID, &app.InstanceOf, &displayName, &nodeID, &nodeLabel,
+			&app.ID, &app.SystemID, &app.ModuleID, &app.InstanceOf, &appName, &appSource, &displayName, &nodeID, &nodeLabel,
 			&version, &orgID, &orgType, &app.Status, &inventoryData,
 			&backupData, &servicesData, &url, &notes, &app.IsUserFacing,
 			&app.CreatedAt, &app.UpdatedAt, &app.FirstSeenAt, &lastInventoryAt,
@@ -351,6 +357,12 @@ func (r *LocalApplicationRepository) List(
 		}
 
 		// Convert nullable fields
+		if appName.Valid {
+			app.Name = &appName.String
+		}
+		if appSource.Valid {
+			app.Source = &appSource.String
+		}
 		if displayName.Valid {
 			app.DisplayName = &displayName.String
 		}
@@ -700,17 +712,17 @@ func (r *LocalApplicationRepository) GetDistinctVersions(allowedSystemIDs []stri
 func (r *LocalApplicationRepository) Create(app *models.Application) error {
 	query := `
 		INSERT INTO applications (
-			id, system_id, module_id, instance_of, display_name, node_id, node_label,
+			id, system_id, module_id, instance_of, name, source, display_name, node_id, node_label,
 			version, organization_id, organization_type, status, inventory_data,
 			backup_data, services_data, url, notes, is_user_facing,
 			created_at, updated_at, first_seen_at, last_inventory_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
 		)
 	`
 
 	_, err := r.db.Exec(query,
-		app.ID, app.SystemID, app.ModuleID, app.InstanceOf, app.DisplayName, app.NodeID, app.NodeLabel,
+		app.ID, app.SystemID, app.ModuleID, app.InstanceOf, app.Name, app.Source, app.DisplayName, app.NodeID, app.NodeLabel,
 		app.Version, app.OrganizationID, app.OrganizationType, app.Status, app.InventoryData,
 		app.BackupData, app.ServicesData, app.URL, app.Notes, app.IsUserFacing,
 		app.CreatedAt, app.UpdatedAt, app.FirstSeenAt, app.LastInventoryAt,
@@ -852,23 +864,25 @@ func (r *LocalApplicationRepository) UpdateFromInventory(
 func (r *LocalApplicationRepository) UpsertFromInventory(
 	id, systemID, moduleID, instanceOf string,
 	nodeID *int,
-	nodeLabel, version *string,
+	nodeLabel, version, name, source *string,
 	inventoryData json.RawMessage,
 	isUserFacing bool,
 ) error {
 	query := `
 		INSERT INTO applications (
 			id, system_id, module_id, instance_of, node_id, node_label, version,
-			inventory_data, is_user_facing, status,
+			name, source, inventory_data, is_user_facing, status,
 			created_at, updated_at, first_seen_at, last_inventory_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, 'unassigned', $10, $10, $10, $10
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'unassigned', $12, $12, $12, $12
 		)
 		ON CONFLICT (system_id, module_id) WHERE deleted_at IS NULL
 		DO UPDATE SET
 			node_id = EXCLUDED.node_id,
 			node_label = EXCLUDED.node_label,
 			version = EXCLUDED.version,
+			name = COALESCE(EXCLUDED.name, applications.name),
+			source = COALESCE(EXCLUDED.source, applications.source),
 			inventory_data = EXCLUDED.inventory_data,
 			is_user_facing = EXCLUDED.is_user_facing,
 			last_inventory_at = EXCLUDED.last_inventory_at,
@@ -876,7 +890,7 @@ func (r *LocalApplicationRepository) UpsertFromInventory(
 	`
 
 	now := time.Now()
-	_, err := r.db.Exec(query, id, systemID, moduleID, instanceOf, nodeID, nodeLabel, version, inventoryData, isUserFacing, now)
+	_, err := r.db.Exec(query, id, systemID, moduleID, instanceOf, nodeID, nodeLabel, version, name, source, inventoryData, isUserFacing, now)
 	if err != nil {
 		return fmt.Errorf("failed to upsert application: %w", err)
 	}

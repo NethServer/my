@@ -318,7 +318,7 @@ func TestDiffEngine_ValueToString(t *testing.T) {
 		{
 			name:     "string value",
 			value:    "test",
-			expected: "test",
+			expected: `"test"`,
 		},
 		{
 			name:     "bool true",

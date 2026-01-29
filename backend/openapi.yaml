@@ -1128,6 +1128,16 @@ components:
           type: string
           description: Application type (e.g., nethvoice, webtop, mail)
           example: "mail"
+        name:
+          type: string
+          nullable: true
+          description: Human-readable label from inventory (e.g., "Nextcloud")
+          example: "Nextcloud"
+        source:
+          type: string
+          nullable: true
+          description: Image source from inventory (e.g., "ghcr.io/nethserver/nextcloud")
+          example: "ghcr.io/nethserver/nextcloud"
         display_name:
           type: string
           nullable: true
@@ -1241,6 +1251,16 @@ components:
           type: string
           description: Application type
           example: "mail"
+        name:
+          type: string
+          nullable: true
+          description: Human-readable label from inventory (e.g., "Nextcloud")
+          example: "Nextcloud"
+        source:
+          type: string
+          nullable: true
+          description: Image source from inventory (e.g., "ghcr.io/nethserver/nextcloud")
+          example: "ghcr.io/nethserver/nextcloud"
         display_name:
           type: string
           nullable: true

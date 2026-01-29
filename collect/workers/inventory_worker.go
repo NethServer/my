@@ -708,10 +708,15 @@ func (iw *InventoryWorker) extractApplicationsFromInventory(ctx context.Context,
 
 		// Extract fixed fields
 		moduleID, _ := module["id"].(string)
-		moduleName, _ := module["name"].(string) // This is instance_of
+		// "module" field contains the module type (e.g., "mattermost"), used as instance_of
+		moduleName, _ := module["module"].(string)
 		moduleVersion, _ := module["version"].(string)
 		moduleNodeStr, _ := module["node"].(string)
 		moduleUIName, _ := module["ui_name"].(string) // display_name
+		// "name" is the human-readable label (e.g., "Nextcloud")
+		moduleHumanName, _ := module["name"].(string)
+		// "source" is the image source (e.g., "ghcr.io/nethserver/nextcloud")
+		moduleSource, _ := module["source"].(string)
 
 		if moduleID == "" || moduleName == "" {
 			continue // Skip invalid modules
@@ -753,7 +758,7 @@ func (iw *InventoryWorker) extractApplicationsFromInventory(ctx context.Context,
 		// Remove fixed fields and keep everything else
 		inventoryDataJSON := make(map[string]interface{})
 		fixedFields := map[string]bool{
-			"id": true, "name": true, "version": true, "node": true, "ui_name": true,
+			"id": true, "module": true, "name": true, "version": true, "node": true, "ui_name": true, "source": true,
 		}
 		for key, value := range module {
 			if !fixedFields[key] {
@@ -795,11 +800,13 @@ func (iw *InventoryWorker) extractApplicationsFromInventory(ctx context.Context,
 			INSERT INTO applications (
 				id, system_id, module_id, instance_of, display_name,
 				node_id, node_label, version, url, inventory_data,
-				is_user_facing, status, first_seen_at, last_inventory_at, created_at, updated_at
+				is_user_facing, name, source,
+				status, first_seen_at, last_inventory_at, created_at, updated_at
 			) VALUES (
 				$1, $2, $3, $4, $5,
 				$6, $7, $8, $9, $10,
-				$11, 'unassigned', NOW(), NOW(), NOW(), NOW()
+				$11, $12, $13,
+				'unassigned', NOW(), NOW(), NOW(), NOW()
 			)
 			ON CONFLICT (id) DO UPDATE SET
 				instance_of = EXCLUDED.instance_of,
@@ -810,23 +817,27 @@ func (iw *InventoryWorker) extractApplicationsFromInventory(ctx context.Context,
 				url = COALESCE(EXCLUDED.url, applications.url),
 				inventory_data = EXCLUDED.inventory_data,
 				is_user_facing = EXCLUDED.is_user_facing,
+				name = COALESCE(EXCLUDED.name, applications.name),
+				source = COALESCE(EXCLUDED.source, applications.source),
 				last_inventory_at = NOW(),
 				updated_at = NOW(),
 				deleted_at = NULL
 		`
 
 		_, err = tx.ExecContext(ctx, query,
-			appID,                     // $1
-			record.SystemID,           // $2
-			moduleID,                  // $3
-			moduleName,                // $4 (instance_of)
-			nilIfEmpty(moduleUIName),  // $5 (display_name from ui_name)
-			nodeID,                    // $6
-			nodeLabel,                 // $7
-			nilIfEmpty(moduleVersion), // $8
-			appURL,                    // $9
-			inventoryDataBytes,        // $10
-			isUserFacing,              // $11
+			appID,                       // $1
+			record.SystemID,             // $2
+			moduleID,                    // $3
+			moduleName,                  // $4 (instance_of)
+			nilIfEmpty(moduleUIName),    // $5 (display_name from ui_name)
+			nodeID,                      // $6
+			nodeLabel,                   // $7
+			nilIfEmpty(moduleVersion),   // $8
+			appURL,                      // $9
+			inventoryDataBytes,          // $10
+			isUserFacing,                // $11
+			nilIfEmpty(moduleHumanName), // $12 (name)
+			nilIfEmpty(moduleSource),    // $13 (source)
 		)
 		if err != nil {
 			logger.Warn().
