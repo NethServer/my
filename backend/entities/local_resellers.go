@@ -73,9 +73,9 @@ func (r *LocalResellerRepository) Create(req *models.CreateLocalResellerRequest)
 func (r *LocalResellerRepository) GetByID(id string) (*models.LocalReseller, error) {
 	query := `
 		SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
-		       logto_synced_at, logto_sync_error, deleted_at, suspended_at
+		       logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
 		FROM resellers
-		WHERE id = $1 AND deleted_at IS NULL
+		WHERE logto_id = $1 AND deleted_at IS NULL
 	`
 
 	reseller := &models.LocalReseller{}
@@ -85,7 +85,7 @@ func (r *LocalResellerRepository) GetByID(id string) (*models.LocalReseller, err
 		&reseller.ID, &reseller.LogtoID, &reseller.Name, &reseller.Description,
 		&customDataJSON, &reseller.CreatedAt, &reseller.UpdatedAt,
 		&reseller.LogtoSyncedAt, &reseller.LogtoSyncError, &reseller.DeletedAt,
-		&reseller.SuspendedAt,
+		&reseller.SuspendedAt, &reseller.SuspendedByOrgID,
 	)
 
 	if err != nil {
@@ -175,7 +175,7 @@ func (r *LocalResellerRepository) Delete(id string) error {
 
 // Suspend suspends a reseller in local database
 func (r *LocalResellerRepository) Suspend(id string) error {
-	query := `UPDATE resellers SET suspended_at = $2, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL AND suspended_at IS NULL`
+	query := `UPDATE resellers SET suspended_at = $2, updated_at = $2 WHERE logto_id = $1 AND deleted_at IS NULL AND suspended_at IS NULL`
 
 	result, err := r.db.Exec(query, id, time.Now())
 	if err != nil {
@@ -196,7 +196,7 @@ func (r *LocalResellerRepository) Suspend(id string) error {
 
 // Reactivate reactivates a suspended reseller in local database
 func (r *LocalResellerRepository) Reactivate(id string) error {
-	query := `UPDATE resellers SET suspended_at = NULL, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL AND suspended_at IS NOT NULL`
+	query := `UPDATE resellers SET suspended_at = NULL, suspended_by_org_id = NULL, updated_at = $2 WHERE logto_id = $1 AND deleted_at IS NULL AND suspended_at IS NOT NULL`
 
 	result, err := r.db.Exec(query, id, time.Now())
 	if err != nil {
@@ -271,7 +271,7 @@ func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, searc
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
-			       logto_synced_at, logto_sync_error, deleted_at, suspended_at
+			       logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
 			FROM resellers
 			WHERE deleted_at IS NULL%s AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%'))
 			%s
@@ -285,7 +285,7 @@ func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, searc
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
-			       logto_synced_at, logto_sync_error, deleted_at, suspended_at
+			       logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
 			FROM resellers
 			WHERE deleted_at IS NULL%s
 			%s
@@ -338,7 +338,7 @@ func (r *LocalResellerRepository) listForDistributor(userOrgID string, page, pag
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
-			       logto_synced_at, logto_sync_error, deleted_at, suspended_at
+			       logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
 			FROM resellers
 			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))
 			%s
@@ -352,7 +352,7 @@ func (r *LocalResellerRepository) listForDistributor(userOrgID string, page, pag
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
-			       logto_synced_at, logto_sync_error, deleted_at, suspended_at
+			       logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
 			FROM resellers
 			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1%s
 			%s
@@ -396,7 +396,7 @@ func (r *LocalResellerRepository) executeResellerQuery(countQuery string, countA
 			&reseller.ID, &reseller.LogtoID, &reseller.Name, &reseller.Description,
 			&customDataJSON, &reseller.CreatedAt, &reseller.UpdatedAt,
 			&reseller.LogtoSyncedAt, &reseller.LogtoSyncError, &reseller.DeletedAt,
-			&reseller.SuspendedAt,
+			&reseller.SuspendedAt, &reseller.SuspendedByOrgID,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan reseller: %w", err)
@@ -597,4 +597,95 @@ func (r *LocalResellerRepository) GetStats(id string) (*models.ResellerStats, er
 	}
 
 	return &stats, nil
+}
+
+// SuspendWithCascadeOrigin suspends a reseller and records the originating org for cascade tracking
+func (r *LocalResellerRepository) SuspendWithCascadeOrigin(id, suspendedByOrgID string) error {
+	query := `UPDATE resellers SET suspended_at = $2, suspended_by_org_id = $3, updated_at = $2 WHERE logto_id = $1 AND deleted_at IS NULL AND suspended_at IS NULL`
+
+	result, err := r.db.Exec(query, id, time.Now(), suspendedByOrgID)
+	if err != nil {
+		return fmt.Errorf("failed to suspend reseller: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("reseller not found or already suspended")
+	}
+
+	return nil
+}
+
+// SuspendByCreatedBy suspends all resellers created by a specific org, setting suspended_by_org_id
+// Returns the logto_ids of suspended resellers for cascade propagation
+func (r *LocalResellerRepository) SuspendByCreatedBy(createdByOrgID, suspendedByOrgID string) ([]string, int, error) {
+	now := time.Now()
+
+	// Get logto_ids of resellers that will be suspended
+	selectQuery := `
+		SELECT logto_id FROM resellers
+		WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL AND suspended_at IS NULL AND logto_id IS NOT NULL
+	`
+	rows, err := r.db.Query(selectQuery, createdByOrgID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to query resellers for cascade suspension: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var logtoIDs []string
+	for rows.Next() {
+		var logtoID string
+		if err := rows.Scan(&logtoID); err != nil {
+			return nil, 0, fmt.Errorf("failed to scan reseller logto_id: %w", err)
+		}
+		logtoIDs = append(logtoIDs, logtoID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("error iterating resellers: %w", err)
+	}
+
+	// Suspend all matching resellers
+	updateQuery := `
+		UPDATE resellers
+		SET suspended_at = $3, suspended_by_org_id = $2, updated_at = $3
+		WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL AND suspended_at IS NULL
+	`
+	result, err := r.db.Exec(updateQuery, createdByOrgID, suspendedByOrgID, now)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to cascade suspend resellers: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return logtoIDs, int(rowsAffected), nil
+}
+
+// ReactivateBySuspendedByOrgID reactivates all resellers that were cascade-suspended by a specific org
+func (r *LocalResellerRepository) ReactivateBySuspendedByOrgID(suspendedByOrgID string) (int, error) {
+	now := time.Now()
+
+	query := `
+		UPDATE resellers
+		SET suspended_at = NULL, suspended_by_org_id = NULL, updated_at = $2
+		WHERE suspended_by_org_id = $1 AND deleted_at IS NULL AND suspended_at IS NOT NULL
+	`
+
+	result, err := r.db.Exec(query, suspendedByOrgID, now)
+	if err != nil {
+		return 0, fmt.Errorf("failed to cascade reactivate resellers: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return int(rowsAffected), nil
 }

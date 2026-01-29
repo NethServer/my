@@ -30,32 +30,34 @@ type LocalDistributor struct {
 
 // LocalReseller represents a reseller stored in local database
 type LocalReseller struct {
-	ID             string                 `json:"id" db:"id"`
-	LogtoID        *string                `json:"logto_id" db:"logto_id"`
-	Name           string                 `json:"name" db:"name"`
-	Description    string                 `json:"description" db:"description"`
-	CustomData     map[string]interface{} `json:"custom_data" db:"custom_data"`
-	CreatedAt      time.Time              `json:"created_at" db:"created_at"`
-	UpdatedAt      time.Time              `json:"updated_at" db:"updated_at"`
-	LogtoSyncedAt  *time.Time             `json:"logto_synced_at" db:"logto_synced_at"`
-	LogtoSyncError *string                `json:"logto_sync_error" db:"logto_sync_error"`
-	DeletedAt      *time.Time             `json:"deleted_at" db:"deleted_at"`
-	SuspendedAt    *time.Time             `json:"suspended_at" db:"suspended_at"`
+	ID               string                 `json:"id" db:"id"`
+	LogtoID          *string                `json:"logto_id" db:"logto_id"`
+	Name             string                 `json:"name" db:"name"`
+	Description      string                 `json:"description" db:"description"`
+	CustomData       map[string]interface{} `json:"custom_data" db:"custom_data"`
+	CreatedAt        time.Time              `json:"created_at" db:"created_at"`
+	UpdatedAt        time.Time              `json:"updated_at" db:"updated_at"`
+	LogtoSyncedAt    *time.Time             `json:"logto_synced_at" db:"logto_synced_at"`
+	LogtoSyncError   *string                `json:"logto_sync_error" db:"logto_sync_error"`
+	DeletedAt        *time.Time             `json:"deleted_at" db:"deleted_at"`
+	SuspendedAt      *time.Time             `json:"suspended_at" db:"suspended_at"`
+	SuspendedByOrgID *string                `json:"suspended_by_org_id" db:"suspended_by_org_id"`
 }
 
 // LocalCustomer represents a customer stored in local database
 type LocalCustomer struct {
-	ID             string                 `json:"id" db:"id"`
-	LogtoID        *string                `json:"logto_id" db:"logto_id"`
-	Name           string                 `json:"name" db:"name"`
-	Description    string                 `json:"description" db:"description"`
-	CustomData     map[string]interface{} `json:"custom_data" db:"custom_data"`
-	CreatedAt      time.Time              `json:"created_at" db:"created_at"`
-	UpdatedAt      time.Time              `json:"updated_at" db:"updated_at"`
-	LogtoSyncedAt  *time.Time             `json:"logto_synced_at" db:"logto_synced_at"`
-	LogtoSyncError *string                `json:"logto_sync_error" db:"logto_sync_error"`
-	DeletedAt      *time.Time             `json:"deleted_at" db:"deleted_at"`
-	SuspendedAt    *time.Time             `json:"suspended_at" db:"suspended_at"`
+	ID               string                 `json:"id" db:"id"`
+	LogtoID          *string                `json:"logto_id" db:"logto_id"`
+	Name             string                 `json:"name" db:"name"`
+	Description      string                 `json:"description" db:"description"`
+	CustomData       map[string]interface{} `json:"custom_data" db:"custom_data"`
+	CreatedAt        time.Time              `json:"created_at" db:"created_at"`
+	UpdatedAt        time.Time              `json:"updated_at" db:"updated_at"`
+	LogtoSyncedAt    *time.Time             `json:"logto_synced_at" db:"logto_synced_at"`
+	LogtoSyncError   *string                `json:"logto_sync_error" db:"logto_sync_error"`
+	DeletedAt        *time.Time             `json:"deleted_at" db:"deleted_at"`
+	SuspendedAt      *time.Time             `json:"suspended_at" db:"suspended_at"`
+	SuspendedByOrgID *string                `json:"suspended_by_org_id" db:"suspended_by_org_id"`
 }
 
 // CustomerFilters represents filters for customer queries

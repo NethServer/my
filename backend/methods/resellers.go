@@ -518,7 +518,7 @@ func SuspendReseller(c *gin.Context) {
 
 	// Suspend reseller
 	service := local.NewOrganizationService()
-	reseller, suspendedUsersCount, err := service.SuspendReseller(resellerID, user.ID, user.OrganizationID)
+	reseller, suspendedCustomersCount, suspendedUsersCount, suspendedSystemsCount, err := service.SuspendReseller(resellerID, user.ID, user.OrganizationID)
 	if err != nil {
 		if strings.Contains(err.Error(), "already suspended") {
 			c.JSON(http.StatusBadRequest, response.BadRequest("reseller is already suspended", nil))
@@ -540,8 +540,10 @@ func SuspendReseller(c *gin.Context) {
 
 	// Return success response
 	c.JSON(http.StatusOK, response.OK("reseller suspended successfully", map[string]interface{}{
-		"reseller":              reseller,
-		"suspended_users_count": suspendedUsersCount,
+		"reseller":                  reseller,
+		"suspended_customers_count": suspendedCustomersCount,
+		"suspended_users_count":     suspendedUsersCount,
+		"suspended_systems_count":   suspendedSystemsCount,
 	}))
 }
 
@@ -598,9 +600,15 @@ func ReactivateReseller(c *gin.Context) {
 		return
 	}
 
+	// Guard: if reseller was cascade-suspended by a higher org, only that org's authority can reactivate
+	if reseller.SuspendedByOrgID != nil && *reseller.SuspendedByOrgID != "" {
+		c.JSON(http.StatusForbidden, response.Forbidden("reseller is suspended by a parent organization and cannot be reactivated directly", nil))
+		return
+	}
+
 	// Reactivate reseller
 	service := local.NewOrganizationService()
-	reseller, reactivatedUsersCount, err := service.ReactivateReseller(resellerID, user.ID, user.OrganizationID)
+	reseller, reactivatedCustomersCount, reactivatedUsersCount, reactivatedSystemsCount, err := service.ReactivateReseller(resellerID, user.ID, user.OrganizationID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not suspended") {
 			c.JSON(http.StatusBadRequest, response.BadRequest("reseller is not suspended", nil))
@@ -622,7 +630,9 @@ func ReactivateReseller(c *gin.Context) {
 
 	// Return success response
 	c.JSON(http.StatusOK, response.OK("reseller reactivated successfully", map[string]interface{}{
-		"reseller":                reseller,
-		"reactivated_users_count": reactivatedUsersCount,
+		"reseller":                    reseller,
+		"reactivated_customers_count": reactivatedCustomersCount,
+		"reactivated_users_count":     reactivatedUsersCount,
+		"reactivated_systems_count":   reactivatedSystemsCount,
 	}))
 }

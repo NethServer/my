@@ -29,6 +29,7 @@ type LocalOrganizationService struct {
 	resellerRepo    *entities.LocalResellerRepository
 	customerRepo    *entities.LocalCustomerRepository
 	userRepo        *entities.LocalUserRepository
+	systemRepo      *entities.LocalSystemRepository
 	logtoClient     *logto.LogtoManagementClient
 }
 
@@ -39,6 +40,7 @@ func NewOrganizationService() *LocalOrganizationService {
 		resellerRepo:    entities.NewLocalResellerRepository(),
 		customerRepo:    entities.NewLocalCustomerRepository(),
 		userRepo:        entities.NewLocalUserRepository(),
+		systemRepo:      entities.NewLocalSystemRepository(),
 		logtoClient:     logto.NewManagementClient(),
 	}
 }
@@ -1909,194 +1911,305 @@ func (s *LocalOrganizationService) deleteOrganizationUsers(organizationLogtoID, 
 	return nil
 }
 
-// SuspendDistributor suspends a distributor and all its users
-func (s *LocalOrganizationService) SuspendDistributor(id, suspendedByUserID, suspendedByOrgID string) (*models.LocalDistributor, int, error) {
+// SuspendDistributor suspends a distributor and all its users and systems
+func (s *LocalOrganizationService) SuspendDistributor(id, suspendedByUserID, suspendedByOrgID string) (*models.LocalDistributor, int, int, int, int, error) {
 	// Get distributor to verify it exists and get logto_id
 	distributor, err := s.distributorRepo.GetByID(id)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get distributor: %w", err)
+		return nil, 0, 0, 0, 0, fmt.Errorf("failed to get distributor: %w", err)
 	}
 
 	// Suspend the distributor locally
 	err = s.distributorRepo.Suspend(id)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to suspend distributor: %w", err)
+		return nil, 0, 0, 0, 0, fmt.Errorf("failed to suspend distributor: %w", err)
 	}
 
-	// Cascade suspend users if distributor has logto_id
+	suspendedResellersCount := 0
+	suspendedCustomersCount := 0
 	suspendedUsersCount := 0
+	suspendedSystemsCount := 0
+
 	if distributor.LogtoID != nil && *distributor.LogtoID != "" {
-		suspendedUsersCount, err = s.cascadeSuspendUsers(*distributor.LogtoID, "distributor", distributor.Name)
+		distLogtoID := *distributor.LogtoID
+
+		// 1. Suspend child resellers (created by this distributor)
+		childResellerLogtoIDs, resellersCount, err := s.resellerRepo.SuspendByCreatedBy(distLogtoID, distLogtoID)
 		if err != nil {
-			logger.Warn().
-				Err(err).
-				Str("distributor_id", id).
-				Str("logto_id", *distributor.LogtoID).
-				Msg("Failed to cascade suspend users for distributor")
+			logger.Warn().Err(err).Str("distributor_id", id).Msg("Failed to cascade suspend resellers")
 		}
+		suspendedResellersCount = resellersCount
+
+		// 2. Suspend child customers (created by distributor OR by child resellers)
+		createdByOrgIDs := []string{distLogtoID}
+		createdByOrgIDs = append(createdByOrgIDs, childResellerLogtoIDs...)
+		childCustomerLogtoIDs, customersCount, err := s.customerRepo.SuspendByCreatedByMultiple(createdByOrgIDs, distLogtoID)
+		if err != nil {
+			logger.Warn().Err(err).Str("distributor_id", id).Msg("Failed to cascade suspend customers")
+		}
+		suspendedCustomersCount = customersCount
+
+		// 3. Collect ALL org IDs involved (distributor + resellers + customers) for user/system suspension
+		allOrgIDs := []string{distLogtoID}
+		allOrgIDs = append(allOrgIDs, childResellerLogtoIDs...)
+		allOrgIDs = append(allOrgIDs, childCustomerLogtoIDs...)
+
+		// 4. Cascade suspend users across all orgs
+		users, usersCount, err := s.userRepo.SuspendUsersByMultipleOrgIDs(allOrgIDs, distLogtoID)
+		if err != nil {
+			logger.Warn().Err(err).Str("distributor_id", id).Msg("Failed to cascade suspend users")
+		}
+		suspendedUsersCount = usersCount
+
+		// Sync user suspensions to Logto
+		for _, user := range users {
+			if user.LogtoID != nil && *user.LogtoID != "" {
+				if syncErr := s.logtoClient.SuspendUser(*user.LogtoID); syncErr != nil {
+					logger.Warn().Err(syncErr).Str("user_id", user.ID).Msg("Failed to suspend user in Logto")
+				}
+			}
+		}
+
+		// 5. Cascade suspend systems across all orgs
+		systemsCount, err := s.systemRepo.SuspendSystemsByMultipleOrgIDs(allOrgIDs, distLogtoID)
+		if err != nil {
+			logger.Warn().Err(err).Str("distributor_id", id).Msg("Failed to cascade suspend systems")
+		}
+		suspendedSystemsCount = systemsCount
 	}
 
 	logger.Info().
 		Str("distributor_id", id).
 		Str("distributor_name", distributor.Name).
+		Int("suspended_resellers_count", suspendedResellersCount).
+		Int("suspended_customers_count", suspendedCustomersCount).
 		Int("suspended_users_count", suspendedUsersCount).
+		Int("suspended_systems_count", suspendedSystemsCount).
 		Str("suspended_by_user_id", suspendedByUserID).
 		Str("suspended_by_org_id", suspendedByOrgID).
-		Msg("Distributor suspended successfully")
+		Msg("Distributor suspended successfully with full hierarchy cascade")
 
 	// Return updated distributor
 	updatedDistributor, err := s.distributorRepo.GetByID(id)
 	if err != nil {
-		return nil, suspendedUsersCount, fmt.Errorf("failed to get updated distributor: %w", err)
+		return nil, suspendedResellersCount, suspendedCustomersCount, suspendedUsersCount, suspendedSystemsCount, fmt.Errorf("failed to get updated distributor: %w", err)
 	}
-	return updatedDistributor, suspendedUsersCount, nil
+	return updatedDistributor, suspendedResellersCount, suspendedCustomersCount, suspendedUsersCount, suspendedSystemsCount, nil
 }
 
-// ReactivateDistributor reactivates a distributor and all its cascade-suspended users
-func (s *LocalOrganizationService) ReactivateDistributor(id, reactivatedByUserID, reactivatedByOrgID string) (*models.LocalDistributor, int, error) {
+// ReactivateDistributor reactivates a distributor and all entities cascade-suspended by it
+func (s *LocalOrganizationService) ReactivateDistributor(id, reactivatedByUserID, reactivatedByOrgID string) (*models.LocalDistributor, int, int, int, int, error) {
 	// Get distributor to verify it exists and get logto_id
 	distributor, err := s.distributorRepo.GetByID(id)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get distributor: %w", err)
+		return nil, 0, 0, 0, 0, fmt.Errorf("failed to get distributor: %w", err)
 	}
 
 	// Reactivate the distributor locally
 	err = s.distributorRepo.Reactivate(id)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to reactivate distributor: %w", err)
+		return nil, 0, 0, 0, 0, fmt.Errorf("failed to reactivate distributor: %w", err)
 	}
 
-	// Cascade reactivate users if distributor has logto_id
+	reactivatedResellersCount := 0
+	reactivatedCustomersCount := 0
 	reactivatedUsersCount := 0
+	reactivatedSystemsCount := 0
+
 	if distributor.LogtoID != nil && *distributor.LogtoID != "" {
-		reactivatedUsersCount, err = s.cascadeReactivateUsers(*distributor.LogtoID, "distributor", distributor.Name)
+		distLogtoID := *distributor.LogtoID
+
+		// Reactivate all entities with suspended_by_org_id = distributor.logto_id
+		resellersCount, err := s.resellerRepo.ReactivateBySuspendedByOrgID(distLogtoID)
 		if err != nil {
-			logger.Warn().
-				Err(err).
-				Str("distributor_id", id).
-				Str("logto_id", *distributor.LogtoID).
-				Msg("Failed to cascade reactivate users for distributor")
+			logger.Warn().Err(err).Str("distributor_id", id).Msg("Failed to cascade reactivate resellers")
+		}
+		reactivatedResellersCount = resellersCount
+
+		customersCount, err := s.customerRepo.ReactivateBySuspendedByOrgID(distLogtoID)
+		if err != nil {
+			logger.Warn().Err(err).Str("distributor_id", id).Msg("Failed to cascade reactivate customers")
+		}
+		reactivatedCustomersCount = customersCount
+
+		reactivatedUsersCount, err = s.cascadeReactivateUsers(distLogtoID, "distributor", distributor.Name)
+		if err != nil {
+			logger.Warn().Err(err).Str("distributor_id", id).Msg("Failed to cascade reactivate users")
+		}
+
+		reactivatedSystemsCount, err = s.cascadeReactivateSystems(distLogtoID, "distributor", distributor.Name)
+		if err != nil {
+			logger.Warn().Err(err).Str("distributor_id", id).Msg("Failed to cascade reactivate systems")
 		}
 	}
 
 	logger.Info().
 		Str("distributor_id", id).
 		Str("distributor_name", distributor.Name).
+		Int("reactivated_resellers_count", reactivatedResellersCount).
+		Int("reactivated_customers_count", reactivatedCustomersCount).
 		Int("reactivated_users_count", reactivatedUsersCount).
+		Int("reactivated_systems_count", reactivatedSystemsCount).
 		Str("reactivated_by_user_id", reactivatedByUserID).
 		Str("reactivated_by_org_id", reactivatedByOrgID).
-		Msg("Distributor reactivated successfully")
+		Msg("Distributor reactivated successfully with full hierarchy cascade")
 
 	// Return updated distributor
 	updatedDistributor, err := s.distributorRepo.GetByID(id)
 	if err != nil {
-		return nil, reactivatedUsersCount, fmt.Errorf("failed to get updated distributor: %w", err)
+		return nil, reactivatedResellersCount, reactivatedCustomersCount, reactivatedUsersCount, reactivatedSystemsCount, fmt.Errorf("failed to get updated distributor: %w", err)
 	}
-	return updatedDistributor, reactivatedUsersCount, nil
+	return updatedDistributor, reactivatedResellersCount, reactivatedCustomersCount, reactivatedUsersCount, reactivatedSystemsCount, nil
 }
 
-// SuspendReseller suspends a reseller and all its users
-func (s *LocalOrganizationService) SuspendReseller(id, suspendedByUserID, suspendedByOrgID string) (*models.LocalReseller, int, error) {
+// SuspendReseller suspends a reseller and all its child customers, users and systems
+func (s *LocalOrganizationService) SuspendReseller(id, suspendedByUserID, suspendedByOrgID string) (*models.LocalReseller, int, int, int, error) {
 	// Get reseller to verify it exists and get logto_id
 	reseller, err := s.resellerRepo.GetByID(id)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get reseller: %w", err)
+		return nil, 0, 0, 0, fmt.Errorf("failed to get reseller: %w", err)
 	}
 
 	// Suspend the reseller locally
 	err = s.resellerRepo.Suspend(id)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to suspend reseller: %w", err)
+		return nil, 0, 0, 0, fmt.Errorf("failed to suspend reseller: %w", err)
 	}
 
-	// Cascade suspend users if reseller has logto_id
+	suspendedCustomersCount := 0
 	suspendedUsersCount := 0
+	suspendedSystemsCount := 0
+
 	if reseller.LogtoID != nil && *reseller.LogtoID != "" {
-		suspendedUsersCount, err = s.cascadeSuspendUsers(*reseller.LogtoID, "reseller", reseller.Name)
+		resLogtoID := *reseller.LogtoID
+
+		// 1. Suspend child customers (created by this reseller)
+		childCustomerLogtoIDs, customersCount, err := s.customerRepo.SuspendByCreatedByMultiple([]string{resLogtoID}, resLogtoID)
 		if err != nil {
-			logger.Warn().
-				Err(err).
-				Str("reseller_id", id).
-				Str("logto_id", *reseller.LogtoID).
-				Msg("Failed to cascade suspend users for reseller")
+			logger.Warn().Err(err).Str("reseller_id", id).Msg("Failed to cascade suspend customers")
 		}
+		suspendedCustomersCount = customersCount
+
+		// 2. Collect ALL org IDs (reseller + customers) for user/system suspension
+		allOrgIDs := []string{resLogtoID}
+		allOrgIDs = append(allOrgIDs, childCustomerLogtoIDs...)
+
+		// 3. Cascade suspend users across all orgs
+		users, usersCount, err := s.userRepo.SuspendUsersByMultipleOrgIDs(allOrgIDs, resLogtoID)
+		if err != nil {
+			logger.Warn().Err(err).Str("reseller_id", id).Msg("Failed to cascade suspend users")
+		}
+		suspendedUsersCount = usersCount
+
+		// Sync user suspensions to Logto
+		for _, user := range users {
+			if user.LogtoID != nil && *user.LogtoID != "" {
+				if syncErr := s.logtoClient.SuspendUser(*user.LogtoID); syncErr != nil {
+					logger.Warn().Err(syncErr).Str("user_id", user.ID).Msg("Failed to suspend user in Logto")
+				}
+			}
+		}
+
+		// 4. Cascade suspend systems across all orgs
+		systemsCount, err := s.systemRepo.SuspendSystemsByMultipleOrgIDs(allOrgIDs, resLogtoID)
+		if err != nil {
+			logger.Warn().Err(err).Str("reseller_id", id).Msg("Failed to cascade suspend systems")
+		}
+		suspendedSystemsCount = systemsCount
 	}
 
 	logger.Info().
 		Str("reseller_id", id).
 		Str("reseller_name", reseller.Name).
+		Int("suspended_customers_count", suspendedCustomersCount).
 		Int("suspended_users_count", suspendedUsersCount).
+		Int("suspended_systems_count", suspendedSystemsCount).
 		Str("suspended_by_user_id", suspendedByUserID).
 		Str("suspended_by_org_id", suspendedByOrgID).
-		Msg("Reseller suspended successfully")
+		Msg("Reseller suspended successfully with hierarchy cascade")
 
 	// Return updated reseller
 	updatedReseller, err := s.resellerRepo.GetByID(id)
 	if err != nil {
-		return nil, suspendedUsersCount, fmt.Errorf("failed to get updated reseller: %w", err)
+		return nil, suspendedCustomersCount, suspendedUsersCount, suspendedSystemsCount, fmt.Errorf("failed to get updated reseller: %w", err)
 	}
-	return updatedReseller, suspendedUsersCount, nil
+	return updatedReseller, suspendedCustomersCount, suspendedUsersCount, suspendedSystemsCount, nil
 }
 
-// ReactivateReseller reactivates a reseller and all its cascade-suspended users
-func (s *LocalOrganizationService) ReactivateReseller(id, reactivatedByUserID, reactivatedByOrgID string) (*models.LocalReseller, int, error) {
+// ReactivateReseller reactivates a reseller and all entities cascade-suspended by it
+func (s *LocalOrganizationService) ReactivateReseller(id, reactivatedByUserID, reactivatedByOrgID string) (*models.LocalReseller, int, int, int, error) {
 	// Get reseller to verify it exists and get logto_id
 	reseller, err := s.resellerRepo.GetByID(id)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get reseller: %w", err)
+		return nil, 0, 0, 0, fmt.Errorf("failed to get reseller: %w", err)
 	}
 
 	// Reactivate the reseller locally
 	err = s.resellerRepo.Reactivate(id)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to reactivate reseller: %w", err)
+		return nil, 0, 0, 0, fmt.Errorf("failed to reactivate reseller: %w", err)
 	}
 
-	// Cascade reactivate users if reseller has logto_id
+	reactivatedCustomersCount := 0
 	reactivatedUsersCount := 0
+	reactivatedSystemsCount := 0
+
 	if reseller.LogtoID != nil && *reseller.LogtoID != "" {
-		reactivatedUsersCount, err = s.cascadeReactivateUsers(*reseller.LogtoID, "reseller", reseller.Name)
+		resLogtoID := *reseller.LogtoID
+
+		// Reactivate all entities with suspended_by_org_id = reseller.logto_id
+		customersCount, err := s.customerRepo.ReactivateBySuspendedByOrgID(resLogtoID)
 		if err != nil {
-			logger.Warn().
-				Err(err).
-				Str("reseller_id", id).
-				Str("logto_id", *reseller.LogtoID).
-				Msg("Failed to cascade reactivate users for reseller")
+			logger.Warn().Err(err).Str("reseller_id", id).Msg("Failed to cascade reactivate customers")
+		}
+		reactivatedCustomersCount = customersCount
+
+		reactivatedUsersCount, err = s.cascadeReactivateUsers(resLogtoID, "reseller", reseller.Name)
+		if err != nil {
+			logger.Warn().Err(err).Str("reseller_id", id).Msg("Failed to cascade reactivate users")
+		}
+
+		reactivatedSystemsCount, err = s.cascadeReactivateSystems(resLogtoID, "reseller", reseller.Name)
+		if err != nil {
+			logger.Warn().Err(err).Str("reseller_id", id).Msg("Failed to cascade reactivate systems")
 		}
 	}
 
 	logger.Info().
 		Str("reseller_id", id).
 		Str("reseller_name", reseller.Name).
+		Int("reactivated_customers_count", reactivatedCustomersCount).
 		Int("reactivated_users_count", reactivatedUsersCount).
+		Int("reactivated_systems_count", reactivatedSystemsCount).
 		Str("reactivated_by_user_id", reactivatedByUserID).
 		Str("reactivated_by_org_id", reactivatedByOrgID).
-		Msg("Reseller reactivated successfully")
+		Msg("Reseller reactivated successfully with hierarchy cascade")
 
 	// Return updated reseller
 	updatedReseller, err := s.resellerRepo.GetByID(id)
 	if err != nil {
-		return nil, reactivatedUsersCount, fmt.Errorf("failed to get updated reseller: %w", err)
+		return nil, reactivatedCustomersCount, reactivatedUsersCount, reactivatedSystemsCount, fmt.Errorf("failed to get updated reseller: %w", err)
 	}
-	return updatedReseller, reactivatedUsersCount, nil
+	return updatedReseller, reactivatedCustomersCount, reactivatedUsersCount, reactivatedSystemsCount, nil
 }
 
-// SuspendCustomer suspends a customer and all its users
-func (s *LocalOrganizationService) SuspendCustomer(id, suspendedByUserID, suspendedByOrgID string) (*models.LocalCustomer, int, error) {
+// SuspendCustomer suspends a customer and all its users and systems
+func (s *LocalOrganizationService) SuspendCustomer(id, suspendedByUserID, suspendedByOrgID string) (*models.LocalCustomer, int, int, error) {
 	// Get customer to verify it exists and get logto_id
 	customer, err := s.customerRepo.GetByID(id)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get customer: %w", err)
+		return nil, 0, 0, fmt.Errorf("failed to get customer: %w", err)
 	}
 
 	// Suspend the customer locally
 	err = s.customerRepo.Suspend(id)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to suspend customer: %w", err)
+		return nil, 0, 0, fmt.Errorf("failed to suspend customer: %w", err)
 	}
 
-	// Cascade suspend users if customer has logto_id
+	// Cascade suspend users and systems if customer has logto_id
 	suspendedUsersCount := 0
+	suspendedSystemsCount := 0
 	if customer.LogtoID != nil && *customer.LogtoID != "" {
 		suspendedUsersCount, err = s.cascadeSuspendUsers(*customer.LogtoID, "customer", customer.Name)
 		if err != nil {
@@ -2106,12 +2219,21 @@ func (s *LocalOrganizationService) SuspendCustomer(id, suspendedByUserID, suspen
 				Str("logto_id", *customer.LogtoID).
 				Msg("Failed to cascade suspend users for customer")
 		}
+		suspendedSystemsCount, err = s.cascadeSuspendSystems(*customer.LogtoID, "customer", customer.Name)
+		if err != nil {
+			logger.Warn().
+				Err(err).
+				Str("customer_id", id).
+				Str("logto_id", *customer.LogtoID).
+				Msg("Failed to cascade suspend systems for customer")
+		}
 	}
 
 	logger.Info().
 		Str("customer_id", id).
 		Str("customer_name", customer.Name).
 		Int("suspended_users_count", suspendedUsersCount).
+		Int("suspended_systems_count", suspendedSystemsCount).
 		Str("suspended_by_user_id", suspendedByUserID).
 		Str("suspended_by_org_id", suspendedByOrgID).
 		Msg("Customer suspended successfully")
@@ -2119,27 +2241,28 @@ func (s *LocalOrganizationService) SuspendCustomer(id, suspendedByUserID, suspen
 	// Return updated customer
 	updatedCustomer, err := s.customerRepo.GetByID(id)
 	if err != nil {
-		return nil, suspendedUsersCount, fmt.Errorf("failed to get updated customer: %w", err)
+		return nil, suspendedUsersCount, suspendedSystemsCount, fmt.Errorf("failed to get updated customer: %w", err)
 	}
-	return updatedCustomer, suspendedUsersCount, nil
+	return updatedCustomer, suspendedUsersCount, suspendedSystemsCount, nil
 }
 
-// ReactivateCustomer reactivates a customer and all its cascade-suspended users
-func (s *LocalOrganizationService) ReactivateCustomer(id, reactivatedByUserID, reactivatedByOrgID string) (*models.LocalCustomer, int, error) {
+// ReactivateCustomer reactivates a customer and all its cascade-suspended users and systems
+func (s *LocalOrganizationService) ReactivateCustomer(id, reactivatedByUserID, reactivatedByOrgID string) (*models.LocalCustomer, int, int, error) {
 	// Get customer to verify it exists and get logto_id
 	customer, err := s.customerRepo.GetByID(id)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get customer: %w", err)
+		return nil, 0, 0, fmt.Errorf("failed to get customer: %w", err)
 	}
 
 	// Reactivate the customer locally
 	err = s.customerRepo.Reactivate(id)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to reactivate customer: %w", err)
+		return nil, 0, 0, fmt.Errorf("failed to reactivate customer: %w", err)
 	}
 
-	// Cascade reactivate users if customer has logto_id
+	// Cascade reactivate users and systems if customer has logto_id
 	reactivatedUsersCount := 0
+	reactivatedSystemsCount := 0
 	if customer.LogtoID != nil && *customer.LogtoID != "" {
 		reactivatedUsersCount, err = s.cascadeReactivateUsers(*customer.LogtoID, "customer", customer.Name)
 		if err != nil {
@@ -2149,12 +2272,21 @@ func (s *LocalOrganizationService) ReactivateCustomer(id, reactivatedByUserID, r
 				Str("logto_id", *customer.LogtoID).
 				Msg("Failed to cascade reactivate users for customer")
 		}
+		reactivatedSystemsCount, err = s.cascadeReactivateSystems(*customer.LogtoID, "customer", customer.Name)
+		if err != nil {
+			logger.Warn().
+				Err(err).
+				Str("customer_id", id).
+				Str("logto_id", *customer.LogtoID).
+				Msg("Failed to cascade reactivate systems for customer")
+		}
 	}
 
 	logger.Info().
 		Str("customer_id", id).
 		Str("customer_name", customer.Name).
 		Int("reactivated_users_count", reactivatedUsersCount).
+		Int("reactivated_systems_count", reactivatedSystemsCount).
 		Str("reactivated_by_user_id", reactivatedByUserID).
 		Str("reactivated_by_org_id", reactivatedByOrgID).
 		Msg("Customer reactivated successfully")
@@ -2162,9 +2294,9 @@ func (s *LocalOrganizationService) ReactivateCustomer(id, reactivatedByUserID, r
 	// Return updated customer
 	updatedCustomer, err := s.customerRepo.GetByID(id)
 	if err != nil {
-		return nil, reactivatedUsersCount, fmt.Errorf("failed to get updated customer: %w", err)
+		return nil, reactivatedUsersCount, reactivatedSystemsCount, fmt.Errorf("failed to get updated customer: %w", err)
 	}
-	return updatedCustomer, reactivatedUsersCount, nil
+	return updatedCustomer, reactivatedUsersCount, reactivatedSystemsCount, nil
 }
 
 // cascadeSuspendUsers suspends all active users of an organization and syncs to Logto
@@ -2249,6 +2381,40 @@ func (s *LocalOrganizationService) cascadeReactivateUsers(orgLogtoID, orgType, o
 		Str("org_type", orgType).
 		Str("org_name", orgName).
 		Msg("Completed cascade user reactivation for organization")
+
+	return count, nil
+}
+
+// cascadeSuspendSystems suspends all active systems of an organization
+func (s *LocalOrganizationService) cascadeSuspendSystems(orgLogtoID, orgType, orgName string) (int, error) {
+	count, err := s.systemRepo.SuspendSystemsByOrgID(orgLogtoID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to suspend systems locally: %w", err)
+	}
+
+	logger.Info().
+		Int("suspended_systems", count).
+		Str("organization_logto_id", orgLogtoID).
+		Str("org_type", orgType).
+		Str("org_name", orgName).
+		Msg("Completed cascade system suspension for organization")
+
+	return count, nil
+}
+
+// cascadeReactivateSystems reactivates all cascade-suspended systems of an organization
+func (s *LocalOrganizationService) cascadeReactivateSystems(orgLogtoID, orgType, orgName string) (int, error) {
+	count, err := s.systemRepo.ReactivateSystemsByOrgID(orgLogtoID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to reactivate systems locally: %w", err)
+	}
+
+	logger.Info().
+		Int("reactivated_systems", count).
+		Str("organization_logto_id", orgLogtoID).
+		Str("org_type", orgType).
+		Str("org_name", orgName).
+		Msg("Completed cascade system reactivation for organization")
 
 	return count, nil
 }

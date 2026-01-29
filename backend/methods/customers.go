@@ -523,7 +523,7 @@ func SuspendCustomer(c *gin.Context) {
 
 	// Suspend customer
 	service := local.NewOrganizationService()
-	customer, suspendedUsersCount, err := service.SuspendCustomer(customerID, user.ID, user.OrganizationID)
+	customer, suspendedUsersCount, suspendedSystemsCount, err := service.SuspendCustomer(customerID, user.ID, user.OrganizationID)
 	if err != nil {
 		if strings.Contains(err.Error(), "already suspended") {
 			c.JSON(http.StatusBadRequest, response.BadRequest("customer is already suspended", nil))
@@ -545,8 +545,9 @@ func SuspendCustomer(c *gin.Context) {
 
 	// Return success response
 	c.JSON(http.StatusOK, response.OK("customer suspended successfully", map[string]interface{}{
-		"customer":              customer,
-		"suspended_users_count": suspendedUsersCount,
+		"customer":                customer,
+		"suspended_users_count":   suspendedUsersCount,
+		"suspended_systems_count": suspendedSystemsCount,
 	}))
 }
 
@@ -603,9 +604,15 @@ func ReactivateCustomer(c *gin.Context) {
 		return
 	}
 
+	// Guard: if customer was cascade-suspended by a higher org, only that org's authority can reactivate
+	if customer.SuspendedByOrgID != nil && *customer.SuspendedByOrgID != "" {
+		c.JSON(http.StatusForbidden, response.Forbidden("customer is suspended by a parent organization and cannot be reactivated directly", nil))
+		return
+	}
+
 	// Reactivate customer
 	service := local.NewOrganizationService()
-	customer, reactivatedUsersCount, err := service.ReactivateCustomer(customerID, user.ID, user.OrganizationID)
+	customer, reactivatedUsersCount, reactivatedSystemsCount, err := service.ReactivateCustomer(customerID, user.ID, user.OrganizationID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not suspended") {
 			c.JSON(http.StatusBadRequest, response.BadRequest("customer is not suspended", nil))
@@ -627,7 +634,8 @@ func ReactivateCustomer(c *gin.Context) {
 
 	// Return success response
 	c.JSON(http.StatusOK, response.OK("customer reactivated successfully", map[string]interface{}{
-		"customer":                customer,
-		"reactivated_users_count": reactivatedUsersCount,
+		"customer":                  customer,
+		"reactivated_users_count":   reactivatedUsersCount,
+		"reactivated_systems_count": reactivatedSystemsCount,
 	}))
 }

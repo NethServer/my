@@ -75,7 +75,7 @@ func (r *LocalDistributorRepository) GetByID(id string) (*models.LocalDistributo
 		SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
 		       logto_synced_at, logto_sync_error, deleted_at, suspended_at
 		FROM distributors
-		WHERE id = $1 AND deleted_at IS NULL
+		WHERE logto_id = $1 AND deleted_at IS NULL
 	`
 
 	distributor := &models.LocalDistributor{}
@@ -175,7 +175,7 @@ func (r *LocalDistributorRepository) Delete(id string) error {
 
 // Suspend suspends a distributor in local database
 func (r *LocalDistributorRepository) Suspend(id string) error {
-	query := `UPDATE distributors SET suspended_at = $2, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL AND suspended_at IS NULL`
+	query := `UPDATE distributors SET suspended_at = $2, updated_at = $2 WHERE logto_id = $1 AND deleted_at IS NULL AND suspended_at IS NULL`
 
 	result, err := r.db.Exec(query, id, time.Now())
 	if err != nil {
@@ -196,7 +196,7 @@ func (r *LocalDistributorRepository) Suspend(id string) error {
 
 // Reactivate reactivates a suspended distributor in local database
 func (r *LocalDistributorRepository) Reactivate(id string) error {
-	query := `UPDATE distributors SET suspended_at = NULL, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL AND suspended_at IS NOT NULL`
+	query := `UPDATE distributors SET suspended_at = NULL, updated_at = $2 WHERE logto_id = $1 AND deleted_at IS NULL AND suspended_at IS NOT NULL`
 
 	result, err := r.db.Exec(query, id, time.Now())
 	if err != nil {

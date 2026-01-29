@@ -43,7 +43,7 @@ func (r *LocalSystemRepository) Create(req *models.CreateSystemRequest) (*models
 func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	query := `
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
-		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, s.registered_at, h.last_heartbeat,
+		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, s.registered_at, s.suspended_at, s.suspended_by_org_id, h.last_heartbeat,
 		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name,
 		       CASE
 		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
@@ -64,13 +64,14 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	var customDataJSON []byte
 	var createdByJSON []byte
 	var fqdn, ipv4Address, ipv6Address, version sql.NullString
-	var registeredAt, lastHeartbeat sql.NullTime
+	var registeredAt, suspendedAt, lastHeartbeat sql.NullTime
+	var suspendedByOrgID sql.NullString
 	var organizationName, organizationType, organizationDBID sql.NullString
 
 	err := r.db.QueryRow(query, id).Scan(
 		&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
 		&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.LogtoID,
-		&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &lastHeartbeat,
+		&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &suspendedAt, &suspendedByOrgID, &lastHeartbeat,
 		&organizationName, &organizationType, &organizationDBID,
 	)
 
@@ -93,6 +94,14 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	// Convert registered_at
 	if registeredAt.Valid {
 		system.RegisteredAt = &registeredAt.Time
+	}
+
+	// Convert suspended_at
+	if suspendedAt.Valid {
+		system.SuspendedAt = &suspendedAt.Time
+	}
+	if suspendedByOrgID.Valid {
+		system.SuspendedByOrgID = &suspendedByOrgID.String
 	}
 
 	// Parse custom_data JSON
@@ -310,7 +319,7 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	// Build main query
 	query := fmt.Sprintf(`
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
-		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.deleted_at, s.registered_at, s.created_by,
+		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.deleted_at, s.registered_at, s.suspended_at, s.suspended_by_org_id, s.created_by,
 		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name,
 		       CASE
 		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
@@ -345,13 +354,14 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		system := &models.System{}
 		var customDataJSON, createdByJSON []byte
 		var fqdn, ipv4Address, ipv6Address, version sql.NullString
-		var deletedAt, registeredAt sql.NullTime
+		var deletedAt, registeredAt, suspendedAt sql.NullTime
+		var suspendedByOrgID sql.NullString
 		var organizationName, organizationType, organizationDBID sql.NullString
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
 			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.LogtoID,
-			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &deletedAt, &registeredAt, &createdByJSON,
+			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &deletedAt, &registeredAt, &suspendedAt, &suspendedByOrgID, &createdByJSON,
 			&organizationName, &organizationType, &organizationDBID,
 		)
 		if err != nil {
@@ -375,6 +385,14 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		// Set registered_at if present
 		if registeredAt.Valid {
 			system.RegisteredAt = &registeredAt.Time
+		}
+
+		// Set suspended_at if present
+		if suspendedAt.Valid {
+			system.SuspendedAt = &suspendedAt.Time
+		}
+		if suspendedByOrgID.Valid {
+			system.SuspendedByOrgID = &suspendedByOrgID.String
 		}
 
 		// Parse custom_data JSON
@@ -453,4 +471,138 @@ func (r *LocalSystemRepository) GetTotalsByCreatedByOrganizations(allowedOrgIDs 
 		Unknown:        unknown,
 		TimeoutMinutes: timeoutMinutes,
 	}, nil
+}
+
+// SuspendSystem suspends a single system by ID
+func (r *LocalSystemRepository) SuspendSystem(id string) error {
+	now := time.Now()
+	query := `UPDATE systems SET suspended_at = $2, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL AND suspended_at IS NULL`
+
+	result, err := r.db.Exec(query, id, now)
+	if err != nil {
+		return fmt.Errorf("failed to suspend system: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("system not found or already suspended/deleted")
+	}
+
+	return nil
+}
+
+// ReactivateSystem reactivates a suspended system by clearing suspended_at and suspended_by_org_id
+func (r *LocalSystemRepository) ReactivateSystem(id string) error {
+	now := time.Now()
+	query := `UPDATE systems SET suspended_at = NULL, suspended_by_org_id = NULL, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL AND suspended_at IS NOT NULL`
+
+	result, err := r.db.Exec(query, id, now)
+	if err != nil {
+		return fmt.Errorf("failed to reactivate system: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("system not found or not suspended")
+	}
+
+	return nil
+}
+
+// SuspendSystemsByOrgID suspends all active systems belonging to an organization (cascade suspension)
+// Returns the count of suspended systems
+func (r *LocalSystemRepository) SuspendSystemsByOrgID(orgID string) (int, error) {
+	now := time.Now()
+
+	query := `
+		UPDATE systems
+		SET suspended_at = $2, suspended_by_org_id = $1, updated_at = $2
+		WHERE organization_id = $1 AND deleted_at IS NULL AND suspended_at IS NULL
+	`
+
+	result, err := r.db.Exec(query, orgID, now)
+	if err != nil {
+		return 0, fmt.Errorf("failed to cascade suspend systems: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return int(rowsAffected), nil
+}
+
+// SuspendSystemsByMultipleOrgIDs suspends all active systems belonging to any of the given organizations
+// The suspendedByOrgID is the org that initiated the cascade
+func (r *LocalSystemRepository) SuspendSystemsByMultipleOrgIDs(orgIDs []string, suspendedByOrgID string) (int, error) {
+	if len(orgIDs) == 0 {
+		return 0, nil
+	}
+
+	now := time.Now()
+
+	placeholders := make([]string, len(orgIDs))
+	args := make([]interface{}, len(orgIDs))
+	for i, id := range orgIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	inClause := strings.Join(placeholders, ",")
+
+	suspendedByIdx := len(orgIDs) + 1
+	nowIdx := len(orgIDs) + 2
+	query := fmt.Sprintf(`
+		UPDATE systems
+		SET suspended_at = $%d, suspended_by_org_id = $%d, updated_at = $%d
+		WHERE organization_id IN (%s) AND deleted_at IS NULL AND suspended_at IS NULL
+	`, nowIdx, suspendedByIdx, nowIdx, inClause)
+
+	updateArgs := make([]interface{}, 0, len(orgIDs)+2)
+	updateArgs = append(updateArgs, args...)
+	updateArgs = append(updateArgs, suspendedByOrgID, now)
+
+	result, err := r.db.Exec(query, updateArgs...)
+	if err != nil {
+		return 0, fmt.Errorf("failed to cascade suspend systems: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return int(rowsAffected), nil
+}
+
+// ReactivateSystemsByOrgID reactivates systems that were cascade-suspended by this organization
+// Returns the count of reactivated systems
+func (r *LocalSystemRepository) ReactivateSystemsByOrgID(orgID string) (int, error) {
+	now := time.Now()
+
+	query := `
+		UPDATE systems
+		SET suspended_at = NULL, suspended_by_org_id = NULL, updated_at = $2
+		WHERE suspended_by_org_id = $1 AND deleted_at IS NULL AND suspended_at IS NOT NULL
+	`
+
+	result, err := r.db.Exec(query, orgID, now)
+	if err != nil {
+		return 0, fmt.Errorf("failed to cascade reactivate systems: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return int(rowsAffected), nil
 }

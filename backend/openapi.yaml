@@ -367,6 +367,11 @@ components:
           nullable: true
           description: Timestamp when the organization was suspended. NULL means enabled, non-NULL means blocked/suspended.
           example: null
+        suspended_by_org_id:
+          type: string
+          nullable: true
+          description: Organization ID that caused cascade suspension (for resellers and customers only). NULL means directly suspended or not suspended. When set, the entity can only be reactivated by the parent organization that initiated the cascade.
+          example: null
         branding:
           $ref: '#/components/schemas/OrganizationBranding'
 
@@ -1028,6 +1033,17 @@ components:
           nullable: true
           description: Registration timestamp. NULL means not yet registered, non-NULL means system registered at that time. When NULL, system_key is hidden.
           example: "2025-11-06T10:30:00Z"
+        suspended_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Suspension timestamp. NULL means active, non-NULL means suspended.
+          example: "2025-11-10T14:00:00Z"
+        suspended_by_org_id:
+          type: string
+          nullable: true
+          description: Organization ID that caused cascade suspension (for targeted reactivation).
+          example: "org_abc123"
 
     SystemCreator:
       type: object
@@ -3664,6 +3680,10 @@ paths:
                         type: integer
                         example: 5
                         description: Number of users that were cascade-suspended
+                      suspended_systems_count:
+                        type: integer
+                        example: 3
+                        description: Number of systems that were cascade-suspended
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -3710,6 +3730,10 @@ paths:
                         type: integer
                         example: 5
                         description: Number of users that were cascade-reactivated
+                      reactivated_systems_count:
+                        type: integer
+                        example: 3
+                        description: Number of systems that were cascade-reactivated
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -4096,10 +4120,22 @@ paths:
                     properties:
                       distributor:
                         $ref: '#/components/schemas/Organization'
+                      suspended_resellers_count:
+                        type: integer
+                        example: 3
+                        description: Number of resellers that were cascade-suspended
+                      suspended_customers_count:
+                        type: integer
+                        example: 10
+                        description: Number of customers that were cascade-suspended
                       suspended_users_count:
                         type: integer
-                        example: 5
+                        example: 25
                         description: Number of users that were cascade-suspended
+                      suspended_systems_count:
+                        type: integer
+                        example: 15
+                        description: Number of systems that were cascade-suspended
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -4142,10 +4178,22 @@ paths:
                     properties:
                       distributor:
                         $ref: '#/components/schemas/Organization'
+                      reactivated_resellers_count:
+                        type: integer
+                        example: 3
+                        description: Number of resellers that were cascade-reactivated
+                      reactivated_customers_count:
+                        type: integer
+                        example: 10
+                        description: Number of customers that were cascade-reactivated
                       reactivated_users_count:
                         type: integer
-                        example: 5
+                        example: 25
                         description: Number of users that were cascade-reactivated
+                      reactivated_systems_count:
+                        type: integer
+                        example: 15
+                        description: Number of systems that were cascade-reactivated
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -4855,10 +4903,18 @@ paths:
                     properties:
                       reseller:
                         $ref: '#/components/schemas/Organization'
-                      suspended_users_count:
+                      suspended_customers_count:
                         type: integer
                         example: 5
+                        description: Number of customers that were cascade-suspended
+                      suspended_users_count:
+                        type: integer
+                        example: 15
                         description: Number of users that were cascade-suspended
+                      suspended_systems_count:
+                        type: integer
+                        example: 10
+                        description: Number of systems that were cascade-suspended
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -4901,10 +4957,18 @@ paths:
                     properties:
                       reseller:
                         $ref: '#/components/schemas/Organization'
-                      reactivated_users_count:
+                      reactivated_customers_count:
                         type: integer
                         example: 5
+                        description: Number of customers that were cascade-reactivated
+                      reactivated_users_count:
+                        type: integer
+                        example: 15
                         description: Number of users that were cascade-reactivated
+                      reactivated_systems_count:
+                        type: integer
+                        example: 10
+                        description: Number of systems that were cascade-reactivated
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -5325,6 +5389,88 @@ paths:
                   data:
                     type: object
                     nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/suspend:
+    patch:
+      operationId: suspendSystem
+      tags:
+        - Backend - Systems
+      summary: /systems/{id}/suspend - Suspend system
+      description: Suspend a system (requires manage:systems permission and hierarchical validation)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: System suspended successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "system suspended successfully"
+                  data:
+                    type: object
+                    nullable: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/reactivate:
+    patch:
+      operationId: reactivateSystem
+      tags:
+        - Backend - Systems
+      summary: /systems/{id}/reactivate - Reactivate suspended system
+      description: Reactivate a suspended system (requires manage:systems permission and hierarchical validation)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: System reactivated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "system reactivated successfully"
+                  data:
+                    type: object
+                    nullable: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

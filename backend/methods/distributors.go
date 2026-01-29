@@ -375,7 +375,7 @@ func SuspendDistributor(c *gin.Context) {
 
 	// Suspend distributor
 	service := local.NewOrganizationService()
-	distributor, suspendedUsersCount, err := service.SuspendDistributor(distributorID, user.ID, user.OrganizationID)
+	distributor, suspendedResellersCount, suspendedCustomersCount, suspendedUsersCount, suspendedSystemsCount, err := service.SuspendDistributor(distributorID, user.ID, user.OrganizationID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			c.JSON(http.StatusNotFound, response.NotFound("distributor not found", nil))
@@ -401,8 +401,11 @@ func SuspendDistributor(c *gin.Context) {
 
 	// Return success response
 	c.JSON(http.StatusOK, response.OK("distributor suspended successfully", map[string]interface{}{
-		"distributor":           distributor,
-		"suspended_users_count": suspendedUsersCount,
+		"distributor":               distributor,
+		"suspended_resellers_count": suspendedResellersCount,
+		"suspended_customers_count": suspendedCustomersCount,
+		"suspended_users_count":     suspendedUsersCount,
+		"suspended_systems_count":   suspendedSystemsCount,
 	}))
 }
 
@@ -429,7 +432,7 @@ func ReactivateDistributor(c *gin.Context) {
 
 	// Reactivate distributor
 	service := local.NewOrganizationService()
-	distributor, reactivatedUsersCount, err := service.ReactivateDistributor(distributorID, user.ID, user.OrganizationID)
+	distributor, reactivatedResellersCount, reactivatedCustomersCount, reactivatedUsersCount, reactivatedSystemsCount, err := service.ReactivateDistributor(distributorID, user.ID, user.OrganizationID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			c.JSON(http.StatusNotFound, response.NotFound("distributor not found", nil))
@@ -455,7 +458,10 @@ func ReactivateDistributor(c *gin.Context) {
 
 	// Return success response
 	c.JSON(http.StatusOK, response.OK("distributor reactivated successfully", map[string]interface{}{
-		"distributor":             distributor,
-		"reactivated_users_count": reactivatedUsersCount,
+		"distributor":                 distributor,
+		"reactivated_resellers_count": reactivatedResellersCount,
+		"reactivated_customers_count": reactivatedCustomersCount,
+		"reactivated_users_count":     reactivatedUsersCount,
+		"reactivated_systems_count":   reactivatedSystemsCount,
 	}))
 }

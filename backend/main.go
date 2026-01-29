@@ -189,12 +189,14 @@ func main() {
 		systemsGroup := customAuthWithAudit.Group("/systems", middleware.RequireResourcePermission("systems"))
 		{
 			// CRUD operations
-			systemsGroup.POST("", methods.CreateSystem)               // Create system (manage:systems required)
-			systemsGroup.GET("", methods.GetSystems)                  // List systems (read:systems required)
-			systemsGroup.GET("/:id", methods.GetSystem)               // Get system (read:systems required)
-			systemsGroup.PUT("/:id", methods.UpdateSystem)            // Update system (manage:systems required)
-			systemsGroup.DELETE("/:id", methods.DeleteSystem)         // Soft-delete system (manage:systems required)
-			systemsGroup.PATCH("/:id/restore", methods.RestoreSystem) // Restore soft-deleted system (manage:systems required)
+			systemsGroup.POST("", methods.CreateSystem)                     // Create system (manage:systems required)
+			systemsGroup.GET("", methods.GetSystems)                        // List systems (read:systems required)
+			systemsGroup.GET("/:id", methods.GetSystem)                     // Get system (read:systems required)
+			systemsGroup.PUT("/:id", methods.UpdateSystem)                  // Update system (manage:systems required)
+			systemsGroup.DELETE("/:id", methods.DeleteSystem)               // Soft-delete system (manage:systems required)
+			systemsGroup.PATCH("/:id/restore", methods.RestoreSystem)       // Restore soft-deleted system (manage:systems required)
+			systemsGroup.PATCH("/:id/suspend", methods.SuspendSystem)       // Suspend system (manage:systems required)
+			systemsGroup.PATCH("/:id/reactivate", methods.ReactivateSystem) // Reactivate suspended system (manage:systems required)
 
 			// Systems totals and trend endpoints (read:systems required)
 			systemsGroup.GET("/totals", methods.GetSystemsTotals)

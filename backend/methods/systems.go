@@ -438,3 +438,93 @@ func RegisterSystem(c *gin.Context) {
 	// Return system_key and registration info
 	c.JSON(http.StatusOK, response.OK("system registered successfully", result))
 }
+
+// SuspendSystem handles PATCH /api/systems/:id/suspend - suspends a system
+func SuspendSystem(c *gin.Context) {
+	systemID := c.Param("id")
+	if systemID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
+		return
+	}
+
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	systemsService := local.NewSystemsService()
+	err := systemsService.SuspendSystem(systemID, user.OrgRole, user.OrganizationID)
+	if err != nil {
+		errMsg := err.Error()
+		if errMsg == "system not found" {
+			c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
+			return
+		}
+		if strings.Contains(errMsg, "access denied") {
+			c.JSON(http.StatusForbidden, response.Forbidden("access denied to system", nil))
+			return
+		}
+		if strings.Contains(errMsg, "already suspended") {
+			c.JSON(http.StatusBadRequest, response.BadRequest("system is already suspended", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("system_id", systemID).
+			Str("user_id", user.ID).
+			Msg("Failed to suspend system")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to suspend system", nil))
+		return
+	}
+
+	logger.LogBusinessOperation(c, "systems", "suspend", "system", systemID, true, nil)
+
+	c.JSON(http.StatusOK, response.OK("system suspended successfully", nil))
+}
+
+// ReactivateSystem handles PATCH /api/systems/:id/reactivate - reactivates a suspended system
+func ReactivateSystem(c *gin.Context) {
+	systemID := c.Param("id")
+	if systemID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
+		return
+	}
+
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	systemsService := local.NewSystemsService()
+	err := systemsService.ReactivateSystem(systemID, user.OrgRole, user.OrganizationID)
+	if err != nil {
+		errMsg := err.Error()
+		if errMsg == "system not found" {
+			c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
+			return
+		}
+		if strings.Contains(errMsg, "access denied") {
+			c.JSON(http.StatusForbidden, response.Forbidden("access denied to system", nil))
+			return
+		}
+		if strings.Contains(errMsg, "not suspended") {
+			c.JSON(http.StatusBadRequest, response.BadRequest("system is not suspended", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("system_id", systemID).
+			Str("user_id", user.ID).
+			Msg("Failed to reactivate system")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to reactivate system", nil))
+		return
+	}
+
+	logger.LogBusinessOperation(c, "systems", "reactivate", "system", systemID, true, nil)
+
+	c.JSON(http.StatusOK, response.OK("system reactivated successfully", nil))
+}

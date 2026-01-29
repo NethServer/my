@@ -461,6 +461,80 @@ func (r *LocalUserRepository) ReactivateUsersByOrgID(orgID string) ([]*models.Lo
 	return users, int(rowsAffected), nil
 }
 
+// SuspendUsersByMultipleOrgIDs suspends all active users belonging to any of the given organizations
+// The suspendedByOrgID is the org that initiated the cascade (not necessarily the user's org)
+// Returns the list of suspended users (for Logto sync) and count
+func (r *LocalUserRepository) SuspendUsersByMultipleOrgIDs(orgIDs []string, suspendedByOrgID string) ([]*models.LocalUser, int, error) {
+	if len(orgIDs) == 0 {
+		return nil, 0, nil
+	}
+
+	now := time.Now()
+
+	// Build placeholders for IN clause
+	placeholders := make([]string, len(orgIDs))
+	args := make([]interface{}, len(orgIDs))
+	for i, id := range orgIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	inClause := strings.Join(placeholders, ",")
+
+	// Get all active users that will be suspended (for Logto sync)
+	selectQuery := fmt.Sprintf(`
+		SELECT id, logto_id, username, email, name
+		FROM users
+		WHERE organization_id IN (%s) AND deleted_at IS NULL AND suspended_at IS NULL
+	`, inClause)
+
+	rows, err := r.db.Query(selectQuery, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to query users for cascade suspension: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var users []*models.LocalUser
+	for rows.Next() {
+		user := &models.LocalUser{}
+		if err := rows.Scan(&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name); err != nil {
+			return nil, 0, fmt.Errorf("failed to scan user: %w", err)
+		}
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("error iterating users: %w", err)
+	}
+
+	if len(users) == 0 {
+		return users, 0, nil
+	}
+
+	// Suspend all these users
+	suspendedByIdx := len(orgIDs) + 1
+	nowIdx := len(orgIDs) + 2
+	updateQuery := fmt.Sprintf(`
+		UPDATE users
+		SET suspended_at = $%d, suspended_by_org_id = $%d, updated_at = $%d
+		WHERE organization_id IN (%s) AND deleted_at IS NULL AND suspended_at IS NULL
+	`, nowIdx, suspendedByIdx, nowIdx, inClause)
+
+	updateArgs := make([]interface{}, 0, len(orgIDs)+2)
+	updateArgs = append(updateArgs, args...)
+	updateArgs = append(updateArgs, suspendedByOrgID, now)
+
+	result, err := r.db.Exec(updateQuery, updateArgs...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to cascade suspend users: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return users, int(rowsAffected), nil
+}
+
 // UpdateLatestLogin updates the latest_login_at field for a user
 func (r *LocalUserRepository) UpdateLatestLogin(userID string) error {
 	query := `UPDATE users SET latest_login_at = $2, updated_at = $2 WHERE id = $1`

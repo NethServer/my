@@ -7,6 +7,7 @@ package methods
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -297,6 +298,7 @@ func GetUsers(c *gin.Context) {
 				"latest_login_at":     account.LatestLoginAt,
 				"deleted_at":          account.DeletedAt,
 				"suspended_at":        account.SuspendedAt,
+				"suspended_by_org_id": account.SuspendedByOrgID,
 				"can_be_impersonated": canBeImpersonated,
 			}
 			enrichedUsers = append(enrichedUsers, userMap)
@@ -305,21 +307,22 @@ func GetUsers(c *gin.Context) {
 		// For non-Owner users, just convert to gin.H without impersonation field
 		for _, account := range accounts {
 			userMap := gin.H{
-				"id":              account.ID,
-				"logto_id":        account.LogtoID,
-				"username":        account.Username,
-				"email":           account.Email,
-				"name":            account.Name,
-				"phone":           account.Phone,
-				"organization":    account.Organization,
-				"roles":           account.Roles,
-				"custom_data":     account.CustomData,
-				"created_at":      account.CreatedAt,
-				"updated_at":      account.UpdatedAt,
-				"logto_synced_at": account.LogtoSyncedAt,
-				"latest_login_at": account.LatestLoginAt,
-				"deleted_at":      account.DeletedAt,
-				"suspended_at":    account.SuspendedAt,
+				"id":                  account.ID,
+				"logto_id":            account.LogtoID,
+				"username":            account.Username,
+				"email":               account.Email,
+				"name":                account.Name,
+				"phone":               account.Phone,
+				"organization":        account.Organization,
+				"roles":               account.Roles,
+				"custom_data":         account.CustomData,
+				"created_at":          account.CreatedAt,
+				"updated_at":          account.UpdatedAt,
+				"logto_synced_at":     account.LogtoSyncedAt,
+				"latest_login_at":     account.LatestLoginAt,
+				"deleted_at":          account.DeletedAt,
+				"suspended_at":        account.SuspendedAt,
+				"suspended_by_org_id": account.SuspendedByOrgID,
 			}
 			enrichedUsers = append(enrichedUsers, userMap)
 		}
@@ -736,6 +739,16 @@ func ReactivateUser(c *gin.Context) {
 	if !canSuspend {
 		c.JSON(http.StatusForbidden, response.Forbidden(reason, nil))
 		return
+	}
+
+	// If user was cascade-suspended, check authority over the suspending org
+	if targetUser.SuspendedByOrgID != nil && *targetUser.SuspendedByOrgID != "" {
+		canReactivate, cascadeReason := userService.CanSuspendUser(userOrgRole, user.OrganizationID, *targetUser.SuspendedByOrgID)
+		if !canReactivate {
+			c.JSON(http.StatusForbidden, response.Forbidden(
+				fmt.Sprintf("user was suspended by organization cascade, %s", cascadeReason), nil))
+			return
+		}
 	}
 
 	// Reactivate user

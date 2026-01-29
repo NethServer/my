@@ -133,7 +133,7 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRole, userRole string) ([]*models.System, error) {
 	query := `
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
-		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, s.registered_at, h.last_heartbeat,
+		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, s.registered_at, s.suspended_at, s.suspended_by_org_id, h.last_heartbeat,
 		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name,
 		       CASE
 		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
@@ -165,13 +165,14 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 		var customDataJSON []byte
 		var createdByJSON []byte
 		var fqdn, ipv4Address, ipv6Address, version sql.NullString
-		var registeredAt, lastHeartbeat sql.NullTime
+		var registeredAt, suspendedAt, lastHeartbeat sql.NullTime
+		var suspendedByOrgID sql.NullString
 		var organizationName, organizationType, organizationDBID sql.NullString
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
 			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.LogtoID,
-			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &lastHeartbeat,
+			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &suspendedAt, &suspendedByOrgID, &lastHeartbeat,
 			&organizationName, &organizationType, &organizationDBID,
 		)
 		if err != nil {
@@ -190,6 +191,14 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 		// Convert registered_at
 		if registeredAt.Valid {
 			system.RegisteredAt = &registeredAt.Time
+		}
+
+		// Convert suspended_at
+		if suspendedAt.Valid {
+			system.SuspendedAt = &suspendedAt.Time
+		}
+		if suspendedByOrgID.Valid {
+			system.SuspendedByOrgID = &suspendedByOrgID.String
 		}
 
 		// Parse custom_data JSON
@@ -1143,4 +1152,79 @@ func (s *LocalSystemsService) GetSystemsTrend(period int, userOrgRole, userOrgID
 		Trend:           trend,
 		DataPoints:      trendData,
 	}, nil
+}
+
+// CanSuspendSystem validates if a user can suspend/reactivate a system based on hierarchical permissions
+func (s *LocalSystemsService) CanSuspendSystem(userOrgRole, userOrgID, systemOrgID string) (bool, string) {
+	normalizedRole := strings.ToLower(userOrgRole)
+
+	// Check the target organization type is manageable by the user's role
+	if database.DB != nil {
+		userService := NewUserService()
+		targetOrgType := userService.GetOrganizationType(systemOrgID)
+		if !userService.CanAccessOrgType(normalizedRole, targetOrgType) {
+			return false, "cannot suspend systems in higher-level organizations"
+		}
+	}
+
+	switch normalizedRole {
+	case "owner":
+		return true, ""
+	case "distributor":
+		userService := NewUserService()
+		if userService.IsOrganizationInHierarchy(normalizedRole, userOrgID, systemOrgID) {
+			return true, ""
+		}
+		return false, "distributors can only suspend systems in organizations they manage"
+	case "reseller":
+		userService := NewUserService()
+		if userService.IsOrganizationInHierarchy(normalizedRole, userOrgID, systemOrgID) {
+			return true, ""
+		}
+		return false, "resellers can only suspend systems in their own organization or customers they manage"
+	case "customer":
+		if systemOrgID == userOrgID {
+			return true, ""
+		}
+		return false, "customers can only suspend systems in their own organization"
+	default:
+		return false, "insufficient permissions to suspend systems"
+	}
+}
+
+// SuspendSystem suspends a single system
+func (s *LocalSystemsService) SuspendSystem(systemID, userOrgRole, userOrgID string) error {
+	systemRepo := entities.NewLocalSystemRepository()
+	system, err := systemRepo.GetByID(systemID)
+	if err != nil {
+		return err
+	}
+
+	if canSuspend, reason := s.CanSuspendSystem(userOrgRole, userOrgID, system.Organization.LogtoID); !canSuspend {
+		return fmt.Errorf("access denied: %s", reason)
+	}
+
+	return systemRepo.SuspendSystem(systemID)
+}
+
+// ReactivateSystem reactivates a suspended system
+func (s *LocalSystemsService) ReactivateSystem(systemID, userOrgRole, userOrgID string) error {
+	systemRepo := entities.NewLocalSystemRepository()
+	system, err := systemRepo.GetByID(systemID)
+	if err != nil {
+		return err
+	}
+
+	if canSuspend, reason := s.CanSuspendSystem(userOrgRole, userOrgID, system.Organization.LogtoID); !canSuspend {
+		return fmt.Errorf("access denied: %s", reason)
+	}
+
+	// If the system was cascade-suspended by an org, the user must have authority over that org to reactivate
+	if system.SuspendedByOrgID != nil && *system.SuspendedByOrgID != "" {
+		if canReactivate, reason := s.CanSuspendSystem(userOrgRole, userOrgID, *system.SuspendedByOrgID); !canReactivate {
+			return fmt.Errorf("access denied: system was suspended by organization cascade, %s", reason)
+		}
+	}
+
+	return systemRepo.ReactivateSystem(systemID)
 }

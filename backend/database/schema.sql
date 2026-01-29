@@ -79,7 +79,8 @@ CREATE TABLE IF NOT EXISTS resellers (
 
     -- Soft delete and suspension
     deleted_at TIMESTAMP WITH TIME ZONE,    -- NULL = active, non-NULL = soft deleted
-    suspended_at TIMESTAMP WITH TIME ZONE   -- NULL = active, non-NULL = suspended/blocked
+    suspended_at TIMESTAMP WITH TIME ZONE,  -- NULL = active, non-NULL = suspended/blocked
+    suspended_by_org_id VARCHAR(255)        -- Organization ID that caused cascade suspension
 );
 
 -- Table documentation
@@ -88,6 +89,7 @@ COMMENT ON COLUMN resellers.logto_id IS 'Logto organization ID for identity prov
 COMMENT ON COLUMN resellers.custom_data IS 'Flexible JSON: {vat, address, city, contact, email, phone, language, notes, createdBy}';
 COMMENT ON COLUMN resellers.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted';
 COMMENT ON COLUMN resellers.suspended_at IS 'Suspension timestamp. NULL means active, non-NULL means blocked';
+COMMENT ON COLUMN resellers.suspended_by_org_id IS 'Organization ID that caused cascade suspension (for targeted reactivation)';
 
 -- Performance indexes
 CREATE UNIQUE INDEX IF NOT EXISTS idx_resellers_logto_id ON resellers(logto_id) WHERE logto_id IS NOT NULL AND deleted_at IS NULL;
@@ -97,6 +99,7 @@ CREATE INDEX IF NOT EXISTS idx_resellers_logto_synced ON resellers(logto_synced_
 CREATE INDEX IF NOT EXISTS idx_resellers_created_at ON resellers(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_resellers_name ON resellers(name);
 CREATE INDEX IF NOT EXISTS idx_resellers_vat_jsonb ON resellers((custom_data->>'vat'));
+CREATE INDEX IF NOT EXISTS idx_resellers_suspended_by_org_id ON resellers(suspended_by_org_id) WHERE suspended_by_org_id IS NOT NULL;
 
 -- =============================================================================
 -- CUSTOMERS TABLE
@@ -125,7 +128,8 @@ CREATE TABLE IF NOT EXISTS customers (
 
     -- Soft delete and suspension
     deleted_at TIMESTAMP WITH TIME ZONE,    -- NULL = active, non-NULL = soft deleted
-    suspended_at TIMESTAMP WITH TIME ZONE   -- NULL = active, non-NULL = suspended/blocked
+    suspended_at TIMESTAMP WITH TIME ZONE,  -- NULL = active, non-NULL = suspended/blocked
+    suspended_by_org_id VARCHAR(255)        -- Organization ID that caused cascade suspension
 );
 
 -- Table documentation
@@ -134,6 +138,7 @@ COMMENT ON COLUMN customers.logto_id IS 'Logto organization ID for identity prov
 COMMENT ON COLUMN customers.custom_data IS 'Flexible JSON: {vat, address, city, contact, email, phone, language, notes, createdBy}';
 COMMENT ON COLUMN customers.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted';
 COMMENT ON COLUMN customers.suspended_at IS 'Suspension timestamp. NULL means active, non-NULL means blocked';
+COMMENT ON COLUMN customers.suspended_by_org_id IS 'Organization ID that caused cascade suspension (for targeted reactivation)';
 
 -- Performance indexes
 CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_logto_id ON customers(logto_id) WHERE logto_id IS NOT NULL AND deleted_at IS NULL;
@@ -143,6 +148,7 @@ CREATE INDEX IF NOT EXISTS idx_customers_logto_synced ON customers(logto_synced_
 CREATE INDEX IF NOT EXISTS idx_customers_created_at ON customers(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);
 CREATE INDEX IF NOT EXISTS idx_customers_vat_jsonb ON customers((custom_data->>'vat'));
+CREATE INDEX IF NOT EXISTS idx_customers_suspended_by_org_id ON customers(suspended_by_org_id) WHERE suspended_by_org_id IS NOT NULL;
 
 -- =============================================================================
 -- USERS TABLE
@@ -242,6 +248,10 @@ CREATE TABLE IF NOT EXISTS systems (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     registered_at TIMESTAMP WITH TIME ZONE, -- When system completed registration (NULL = not registered)
 
+    -- Suspension
+    suspended_at TIMESTAMP WITH TIME ZONE,      -- NULL = active, non-NULL = suspended
+    suspended_by_org_id VARCHAR(255),            -- Organization that caused cascade suspension
+
     -- Soft delete
     deleted_at TIMESTAMP WITH TIME ZONE     -- NULL = active, non-NULL = soft deleted
 );
@@ -250,6 +260,8 @@ CREATE TABLE IF NOT EXISTS systems (
 COMMENT ON TABLE systems IS 'NS8/NethSecurity systems registered for monitoring and inventory collection';
 COMMENT ON COLUMN systems.type IS 'System type from inventory: ns8 (NethServer 8), nsec (NethSecurity)';
 COMMENT ON COLUMN systems.status IS 'Heartbeat status: unknown (no data), online (active), offline (no heartbeat), deleted';
+COMMENT ON COLUMN systems.suspended_at IS 'Suspension timestamp: NULL = active, non-NULL = suspended';
+COMMENT ON COLUMN systems.suspended_by_org_id IS 'Organization that caused cascade suspension (for targeted reactivation)';
 COMMENT ON COLUMN systems.system_key IS 'Unique system key for identification (used with secret for auth)';
 COMMENT ON COLUMN systems.system_secret_public IS 'Public part of token (my_<public>.<secret>) for fast DB lookup';
 COMMENT ON COLUMN systems.system_secret IS 'Argon2id hash of secret part in PHC string format';

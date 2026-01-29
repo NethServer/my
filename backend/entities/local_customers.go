@@ -73,9 +73,9 @@ func (r *LocalCustomerRepository) Create(req *models.CreateLocalCustomerRequest)
 func (r *LocalCustomerRepository) GetByID(id string) (*models.LocalCustomer, error) {
 	query := `
 		SELECT id, logto_id, name, description, custom_data,
-		       created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at
+		       created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
 		FROM customers
-		WHERE id = $1 AND deleted_at IS NULL
+		WHERE logto_id = $1 AND deleted_at IS NULL
 	`
 
 	customer := &models.LocalCustomer{}
@@ -85,7 +85,7 @@ func (r *LocalCustomerRepository) GetByID(id string) (*models.LocalCustomer, err
 		&customer.ID, &customer.LogtoID, &customer.Name, &customer.Description,
 		&customDataJSON, &customer.CreatedAt, &customer.UpdatedAt,
 		&customer.LogtoSyncedAt, &customer.LogtoSyncError, &customer.DeletedAt,
-		&customer.SuspendedAt,
+		&customer.SuspendedAt, &customer.SuspendedByOrgID,
 	)
 
 	if err != nil {
@@ -175,7 +175,7 @@ func (r *LocalCustomerRepository) Delete(id string) error {
 
 // Suspend suspends a customer in local database
 func (r *LocalCustomerRepository) Suspend(id string) error {
-	query := `UPDATE customers SET suspended_at = $2, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL AND suspended_at IS NULL`
+	query := `UPDATE customers SET suspended_at = $2, updated_at = $2 WHERE logto_id = $1 AND deleted_at IS NULL AND suspended_at IS NULL`
 
 	result, err := r.db.Exec(query, id, time.Now())
 	if err != nil {
@@ -196,7 +196,7 @@ func (r *LocalCustomerRepository) Suspend(id string) error {
 
 // Reactivate reactivates a suspended customer in local database
 func (r *LocalCustomerRepository) Reactivate(id string) error {
-	query := `UPDATE customers SET suspended_at = NULL, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL AND suspended_at IS NOT NULL`
+	query := `UPDATE customers SET suspended_at = NULL, suspended_by_org_id = NULL, updated_at = $2 WHERE logto_id = $1 AND deleted_at IS NULL AND suspended_at IS NOT NULL`
 
 	result, err := r.db.Exec(query, id, time.Now())
 	if err != nil {
@@ -274,7 +274,7 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at
+			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
 			FROM customers
 			WHERE deleted_at IS NULL%s AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%'))
 			%s
@@ -288,7 +288,7 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at
+			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
 			FROM customers
 			WHERE deleted_at IS NULL%s
 			%s
@@ -349,7 +349,7 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at
+			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
 			FROM customers
 			WHERE deleted_at IS NULL AND (
 				custom_data->>'createdBy' = $1 OR
@@ -377,7 +377,7 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at
+			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
 			FROM customers
 			WHERE deleted_at IS NULL AND (
 				custom_data->>'createdBy' = $1 OR
@@ -436,7 +436,7 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at
+			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
 			FROM customers
 			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))
 			%s
@@ -450,7 +450,7 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at
+			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
 			FROM customers
 			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1%s
 			%s
@@ -507,7 +507,7 @@ func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSi
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at
+			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
 			FROM customers
 			WHERE id = $1 AND deleted_at IS NULL%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))
 			%s
@@ -521,7 +521,7 @@ func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSi
 
 		query = fmt.Sprintf(`
 			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at
+			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
 			FROM customers
 			WHERE id = $1 AND deleted_at IS NULL%s
 			%s
@@ -565,7 +565,7 @@ func (r *LocalCustomerRepository) executeCustomerQuery(countQuery string, countA
 			&customer.ID, &customer.LogtoID, &customer.Name, &customer.Description,
 			&customDataJSON, &customer.CreatedAt, &customer.UpdatedAt,
 			&customer.LogtoSyncedAt, &customer.LogtoSyncError, &customer.DeletedAt,
-			&customer.SuspendedAt,
+			&customer.SuspendedAt, &customer.SuspendedByOrgID,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan customer: %w", err)
@@ -827,4 +827,116 @@ func (r *LocalCustomerRepository) GetStats(id string) (*models.CustomerStats, er
 	}
 
 	return &stats, nil
+}
+
+// SuspendWithCascadeOrigin suspends a customer and records the originating org for cascade tracking
+func (r *LocalCustomerRepository) SuspendWithCascadeOrigin(id, suspendedByOrgID string) error {
+	query := `UPDATE customers SET suspended_at = $2, suspended_by_org_id = $3, updated_at = $2 WHERE logto_id = $1 AND deleted_at IS NULL AND suspended_at IS NULL`
+
+	result, err := r.db.Exec(query, id, time.Now(), suspendedByOrgID)
+	if err != nil {
+		return fmt.Errorf("failed to suspend customer: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("customer not found or already suspended")
+	}
+
+	return nil
+}
+
+// SuspendByCreatedByMultiple suspends all customers created by any of the given org IDs, setting suspended_by_org_id
+// Returns the logto_ids of suspended customers for cascade propagation
+func (r *LocalCustomerRepository) SuspendByCreatedByMultiple(createdByOrgIDs []string, suspendedByOrgID string) ([]string, int, error) {
+	if len(createdByOrgIDs) == 0 {
+		return nil, 0, nil
+	}
+
+	now := time.Now()
+
+	// Build placeholders for IN clause
+	placeholders := make([]string, len(createdByOrgIDs))
+	args := make([]interface{}, len(createdByOrgIDs))
+	for i, id := range createdByOrgIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	inClause := strings.Join(placeholders, ",")
+
+	// Get logto_ids of customers that will be suspended
+	selectQuery := fmt.Sprintf(`
+		SELECT logto_id FROM customers
+		WHERE custom_data->>'createdBy' IN (%s) AND deleted_at IS NULL AND suspended_at IS NULL AND logto_id IS NOT NULL
+	`, inClause)
+
+	rows, err := r.db.Query(selectQuery, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to query customers for cascade suspension: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var logtoIDs []string
+	for rows.Next() {
+		var logtoID string
+		if err := rows.Scan(&logtoID); err != nil {
+			return nil, 0, fmt.Errorf("failed to scan customer logto_id: %w", err)
+		}
+		logtoIDs = append(logtoIDs, logtoID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("error iterating customers: %w", err)
+	}
+
+	// Suspend all matching customers
+	suspendedByIdx := len(createdByOrgIDs) + 1
+	nowIdx := len(createdByOrgIDs) + 2
+	updateQuery := fmt.Sprintf(`
+		UPDATE customers
+		SET suspended_at = $%d, suspended_by_org_id = $%d, updated_at = $%d
+		WHERE custom_data->>'createdBy' IN (%s) AND deleted_at IS NULL AND suspended_at IS NULL
+	`, nowIdx, suspendedByIdx, nowIdx, inClause)
+
+	updateArgs := make([]interface{}, 0, len(createdByOrgIDs)+2)
+	updateArgs = append(updateArgs, args...)
+	updateArgs = append(updateArgs, suspendedByOrgID, now)
+
+	result, err := r.db.Exec(updateQuery, updateArgs...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to cascade suspend customers: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return logtoIDs, int(rowsAffected), nil
+}
+
+// ReactivateBySuspendedByOrgID reactivates all customers that were cascade-suspended by a specific org
+func (r *LocalCustomerRepository) ReactivateBySuspendedByOrgID(suspendedByOrgID string) (int, error) {
+	now := time.Now()
+
+	query := `
+		UPDATE customers
+		SET suspended_at = NULL, suspended_by_org_id = NULL, updated_at = $2
+		WHERE suspended_by_org_id = $1 AND deleted_at IS NULL AND suspended_at IS NOT NULL
+	`
+
+	result, err := r.db.Exec(query, suspendedByOrgID, now)
+	if err != nil {
+		return 0, fmt.Errorf("failed to cascade reactivate customers: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return int(rowsAffected), nil
 }
