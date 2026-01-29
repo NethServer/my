@@ -51,6 +51,10 @@ type System struct {
 	HeartbeatStatus  string     `json:"heartbeat_status,omitempty"`  // active, inactive, unknown
 	LastHeartbeat    *time.Time `json:"last_heartbeat,omitempty"`    // Last heartbeat timestamp
 	HeartbeatMinutes *int       `json:"heartbeat_minutes,omitempty"` // Minutes since last heartbeat
+
+	// Rebranding info (populated by handler)
+	RebrandingEnabled bool    `json:"rebranding_enabled"`
+	RebrandingOrgID   *string `json:"rebranding_org_id,omitempty"`
 }
 
 // IsSuspended returns true if the system is suspended

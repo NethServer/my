@@ -1049,6 +1049,15 @@ components:
           nullable: true
           description: Organization ID that caused cascade suspension (for targeted reactivation).
           example: "org_abc123"
+        rebranding_enabled:
+          type: boolean
+          description: Whether rebranding is active for this system (direct or inherited)
+          example: true
+        rebranding_org_id:
+          type: string
+          nullable: true
+          description: Logto organization ID (logto_id) that provides the rebranding assets (the org itself or an ancestor). Use this value as the :org_id parameter in /api/rebranding/:org_id/* endpoints.
+          example: "org_dist001"
 
     SystemCreator:
       type: object
@@ -1251,6 +1260,15 @@ components:
           nullable: true
           description: Soft delete timestamp (null if not deleted)
           example: null
+        rebranding_enabled:
+          type: boolean
+          description: Whether rebranding is active for this application (direct or inherited)
+          example: true
+        rebranding_org_id:
+          type: string
+          nullable: true
+          description: Logto organization ID (logto_id) that provides the rebranding assets (the org itself or an ancestor). Use this value as the :org_id parameter in /api/rebranding/:org_id/* endpoints.
+          example: "org_dist001"
         system:
           $ref: '#/components/schemas/ApplicationSystemSummary'
         organization:
@@ -7220,7 +7238,7 @@ paths:
           required: true
           schema:
             type: string
-          description: Logto organization ID
+          description: Logto organization ID (logto_id, not the database UUID)
       responses:
         '200':
           description: Rebranding enabled
@@ -7244,6 +7262,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Logto organization ID (logto_id, not the database UUID)
       responses:
         '200':
           description: Rebranding disabled
@@ -7264,6 +7283,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Logto organization ID (logto_id, not the database UUID)
       responses:
         '200':
           description: Rebranding status retrieved
@@ -7295,6 +7315,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Logto organization ID (logto_id, not the database UUID)
       responses:
         '200':
           description: Rebranding products retrieved
@@ -7330,6 +7351,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Logto organization ID (logto_id, not the database UUID)
         - name: product_id
           in: path
           required: true
@@ -7382,6 +7404,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Logto organization ID (logto_id, not the database UUID)
         - name: product_id
           in: path
           required: true
@@ -7407,6 +7430,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Logto organization ID (logto_id, not the database UUID)
         - name: product_id
           in: path
           required: true
@@ -7441,6 +7465,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Logto organization ID (logto_id, not the database UUID)
         - name: product_id
           in: path
           required: true

@@ -133,6 +133,16 @@ func GetApplication(c *gin.Context) {
 		return
 	}
 
+	// Resolve rebranding info
+	if app.OrganizationID != nil && *app.OrganizationID != "" {
+		rebrandingService := local.NewRebrandingService()
+		enabled, resolvedOrgID, err := rebrandingService.ResolveRebranding(*app.OrganizationID)
+		if err == nil && enabled {
+			app.RebrandingEnabled = true
+			app.RebrandingOrgID = &resolvedOrgID
+		}
+	}
+
 	c.JSON(http.StatusOK, response.OK("application retrieved successfully", app))
 }
 

@@ -436,6 +436,19 @@ func (s *RebrandingService) GetSystemAssetBinary(systemID, productID, assetName 
 	return s.GetAssetBinary(resolvedOrgID, productID, assetName)
 }
 
+// ResolveRebranding checks if rebranding is active for an organization (directly or inherited)
+// and returns the organization ID that provides the rebranding assets
+func (s *RebrandingService) ResolveRebranding(orgID string) (bool, string, error) {
+	resolvedOrgID, _, err := s.resolveRebrandingOrg(orgID)
+	if err != nil {
+		return false, "", err
+	}
+	if resolvedOrgID == "" {
+		return false, "", nil
+	}
+	return true, resolvedOrgID, nil
+}
+
 // resolveRebrandingOrg walks up the hierarchy to find the first org with rebranding enabled
 // Returns (resolved_org_id, inherited_from_label, error)
 func (s *RebrandingService) resolveRebrandingOrg(orgID string) (string, *string, error) {

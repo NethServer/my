@@ -40,6 +40,10 @@ type Application struct {
 	// Joined data for responses
 	System       *SystemSummary       `json:"system,omitempty"`
 	Organization *OrganizationSummary `json:"organization,omitempty"`
+
+	// Rebranding info (populated by handler)
+	RebrandingEnabled bool    `json:"rebranding_enabled"`
+	RebrandingOrgID   *string `json:"rebranding_org_id,omitempty"`
 }
 
 // SystemSummary represents a minimal system info for application responses
