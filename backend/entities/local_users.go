@@ -108,7 +108,7 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 		LEFT JOIN distributors d ON (u.organization_id = d.logto_id OR u.organization_id = d.id::text) AND d.deleted_at IS NULL
 		LEFT JOIN resellers r ON (u.organization_id = r.logto_id OR u.organization_id = r.id::text) AND r.deleted_at IS NULL
 		LEFT JOIN customers c ON (u.organization_id = c.logto_id OR u.organization_id = c.id::text) AND c.deleted_at IS NULL
-		WHERE u.id = $1 AND u.deleted_at IS NULL
+		WHERE u.logto_id = $1 AND u.deleted_at IS NULL
 	`
 
 	user := &models.LocalUser{}
@@ -264,7 +264,7 @@ func (r *LocalUserRepository) Update(id string, req *models.UpdateLocalUserReque
 		UPDATE users
 		SET username = $2, email = $3, name = $4, phone = $5, organization_id = $6,
 		    user_role_ids = $7, custom_data = $8, updated_at = $9, logto_synced_at = NULL
-		WHERE id = $1
+		WHERE logto_id = $1
 	`
 
 	_, err = r.db.Exec(query,
@@ -288,7 +288,7 @@ func (r *LocalUserRepository) Update(id string, req *models.UpdateLocalUserReque
 // Delete soft-deletes a user in local database
 func (r *LocalUserRepository) Delete(id string) error {
 	now := time.Now()
-	query := `UPDATE users SET deleted_at = $2, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL`
+	query := `UPDATE users SET deleted_at = $2, updated_at = $2 WHERE logto_id = $1 AND deleted_at IS NULL`
 
 	result, err := r.db.Exec(query, id, now)
 	if err != nil {
@@ -310,7 +310,7 @@ func (r *LocalUserRepository) Delete(id string) error {
 // SuspendUser suspends a user by setting suspended_at timestamp
 func (r *LocalUserRepository) SuspendUser(id string) error {
 	now := time.Now()
-	query := `UPDATE users SET suspended_at = $2, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL AND suspended_at IS NULL`
+	query := `UPDATE users SET suspended_at = $2, updated_at = $2 WHERE logto_id = $1 AND deleted_at IS NULL AND suspended_at IS NULL`
 
 	result, err := r.db.Exec(query, id, now)
 	if err != nil {
@@ -332,7 +332,7 @@ func (r *LocalUserRepository) SuspendUser(id string) error {
 // ReactivateUser reactivates a suspended user by clearing suspended_at and suspended_by_org_id
 func (r *LocalUserRepository) ReactivateUser(id string) error {
 	now := time.Now()
-	query := `UPDATE users SET suspended_at = NULL, suspended_by_org_id = NULL, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL AND suspended_at IS NOT NULL`
+	query := `UPDATE users SET suspended_at = NULL, suspended_by_org_id = NULL, updated_at = $2 WHERE logto_id = $1 AND deleted_at IS NULL AND suspended_at IS NOT NULL`
 
 	result, err := r.db.Exec(query, id, now)
 	if err != nil {

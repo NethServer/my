@@ -2068,10 +2068,10 @@ paths:
         - name: id
           in: path
           required: true
-          description: User ID
+          description: User Logto ID
           schema:
             type: string
-            example: "usr_123456789"
+            example: "jf584cz36kce"
       responses:
         '200':
           description: User retrieved successfully
@@ -2105,10 +2105,10 @@ paths:
         - name: id
           in: path
           required: true
-          description: User ID
+          description: User Logto ID
           schema:
             type: string
-            example: "usr_123456789"
+            example: "jf584cz36kce"
       requestBody:
         required: true
         content:
@@ -2152,10 +2152,10 @@ paths:
         - name: id
           in: path
           required: true
-          description: User ID
+          description: User Logto ID
           schema:
             type: string
-            example: "usr_123456789"
+            example: "jf584cz36kce"
       responses:
         '200':
           description: User deleted successfully
@@ -2193,10 +2193,10 @@ paths:
         - name: id
           in: path
           required: true
-          description: User ID
+          description: User Logto ID
           schema:
             type: string
-            example: "usr_123456789"
+            example: "jf584cz36kce"
       requestBody:
         required: true
         content:
@@ -2240,10 +2240,10 @@ paths:
         - name: id
           in: path
           required: true
-          description: User ID
+          description: User Logto ID
           schema:
             type: string
-            example: "usr_123456789"
+            example: "jf584cz36kce"
       responses:
         '200':
           description: User suspended successfully
@@ -2281,10 +2281,10 @@ paths:
         - name: id
           in: path
           required: true
-          description: User ID
+          description: User Logto ID
           schema:
             type: string
-            example: "usr_123456789"
+            example: "jf584cz36kce"
       responses:
         '200':
           description: User reactivated successfully
@@ -3490,10 +3490,10 @@ paths:
         - name: id
           in: path
           required: true
-          description: Customer organization ID
+          description: Customer Logto ID
           schema:
             type: string
-            example: "org_456789123"
+            example: "jf584cz36kce"
       responses:
         '200':
           description: Customer retrieved successfully
@@ -3527,10 +3527,10 @@ paths:
         - name: id
           in: path
           required: true
-          description: Customer organization ID
+          description: Customer Logto ID
           schema:
             type: string
-            example: "org_456789123"
+            example: "jf584cz36kce"
       requestBody:
         required: true
         content:
@@ -3574,10 +3574,10 @@ paths:
         - name: id
           in: path
           required: true
-          description: Customer organization ID
+          description: Customer Logto ID
           schema:
             type: string
-            example: "org_456789123"
+            example: "jf584cz36kce"
       responses:
         '200':
           description: Customer deleted successfully
@@ -3617,7 +3617,7 @@ paths:
           required: true
           schema:
             type: string
-          description: Customer ID
+          description: Customer Logto ID
       responses:
         '200':
           description: Customer stats retrieved successfully
@@ -3656,7 +3656,7 @@ paths:
           required: true
           schema:
             type: string
-          description: Customer ID
+          description: Customer Logto ID
       responses:
         '200':
           description: Customer suspended successfully
@@ -3706,7 +3706,7 @@ paths:
           required: true
           schema:
             type: string
-          description: Customer ID
+          description: Customer Logto ID
       responses:
         '200':
           description: Customer reactivated successfully
@@ -3934,10 +3934,10 @@ paths:
         - name: id
           in: path
           required: true
-          description: Distributor organization ID
+          description: Distributor Logto ID
           schema:
             type: string
-            example: "org_123456789"
+            example: "jf584cz36kce"
       responses:
         '200':
           description: Distributor retrieved successfully
@@ -3971,10 +3971,10 @@ paths:
         - name: id
           in: path
           required: true
-          description: Distributor organization ID
+          description: Distributor Logto ID
           schema:
             type: string
-            example: "org_123456789"
+            example: "jf584cz36kce"
       requestBody:
         required: true
         content:
@@ -4018,10 +4018,10 @@ paths:
         - name: id
           in: path
           required: true
-          description: Distributor organization ID
+          description: Distributor Logto ID
           schema:
             type: string
-            example: "org_123456789"
+            example: "jf584cz36kce"
       responses:
         '200':
           description: Distributor deleted successfully
@@ -4061,7 +4061,7 @@ paths:
           required: true
           schema:
             type: string
-          description: Distributor ID
+          description: Distributor Logto ID
       responses:
         '200':
           description: Distributor stats retrieved successfully
@@ -4100,7 +4100,7 @@ paths:
           required: true
           schema:
             type: string
-          description: Distributor ID
+          description: Distributor Logto ID
       responses:
         '200':
           description: Distributor suspended successfully
@@ -4158,7 +4158,7 @@ paths:
           required: true
           schema:
             type: string
-          description: Distributor ID
+          description: Distributor Logto ID
       responses:
         '200':
           description: Distributor reactivated successfully
@@ -4717,10 +4717,10 @@ paths:
         - name: id
           in: path
           required: true
-          description: Reseller organization ID
+          description: Reseller Logto ID
           schema:
             type: string
-            example: "org_987654321"
+            example: "jf584cz36kce"
       responses:
         '200':
           description: Reseller retrieved successfully
@@ -4754,10 +4754,10 @@ paths:
         - name: id
           in: path
           required: true
-          description: Reseller organization ID
+          description: Reseller Logto ID
           schema:
             type: string
-            example: "org_987654321"
+            example: "jf584cz36kce"
       requestBody:
         required: true
         content:
@@ -4801,10 +4801,10 @@ paths:
         - name: id
           in: path
           required: true
-          description: Reseller organization ID
+          description: Reseller Logto ID
           schema:
             type: string
-            example: "org_987654321"
+            example: "jf584cz36kce"
       responses:
         '200':
           description: Reseller deleted successfully
@@ -4844,7 +4844,7 @@ paths:
           required: true
           schema:
             type: string
-          description: Reseller ID
+          description: Reseller Logto ID
       responses:
         '200':
           description: Reseller stats retrieved successfully
@@ -4883,7 +4883,7 @@ paths:
           required: true
           schema:
             type: string
-          description: Reseller ID
+          description: Reseller Logto ID
       responses:
         '200':
           description: Reseller suspended successfully
@@ -4937,7 +4937,7 @@ paths:
           required: true
           schema:
             type: string
-          description: Reseller ID
+          description: Reseller Logto ID
       responses:
         '200':
           description: Reseller reactivated successfully

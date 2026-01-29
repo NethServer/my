@@ -21,20 +21,20 @@ import (
 // PreventSelfModification prevents users from performing administrative actions on themselves
 func PreventSelfModification() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Get current user ID from JWT claims
-		currentUserID, exists := c.Get("user_id")
-		if !exists {
+		// Get current user's Logto ID from JWT claims
+		currentUserLogtoID, exists := c.Get("user_logto_id")
+		if !exists || currentUserLogtoID == nil {
 			logger.Error().
 				Str("component", "self_modification_middleware").
 				Str("operation", "user_check").
 				Bool("success", false).
-				Msg("user_id not found in JWT claims")
+				Msg("user_logto_id not found in JWT claims")
 			c.JSON(http.StatusUnauthorized, response.Unauthorized("authentication required", nil))
 			c.Abort()
 			return
 		}
 
-		// Get target user ID from URL parameter
+		// Get target user ID from URL parameter (logto_id)
 		targetUserID := c.Param("id")
 		if targetUserID == "" {
 			logger.Error().
@@ -47,12 +47,13 @@ func PreventSelfModification() gin.HandlerFunc {
 			return
 		}
 
-		// Prevent self-modification
-		if currentUserID == targetUserID {
+		// Prevent self-modification by comparing Logto IDs
+		logtoIDPtr := currentUserLogtoID.(*string)
+		if logtoIDPtr != nil && *logtoIDPtr == targetUserID {
 			logger.Warn().
 				Str("component", "self_modification_middleware").
 				Str("operation", "self_modification_blocked").
-				Str("user_id", currentUserID.(string)).
+				Str("user_logto_id", *logtoIDPtr).
 				Str("target_id", targetUserID).
 				Str("method", c.Request.Method).
 				Str("path", c.Request.URL.Path).
@@ -66,7 +67,6 @@ func PreventSelfModification() gin.HandlerFunc {
 		logger.Debug().
 			Str("component", "self_modification_middleware").
 			Str("operation", "access_granted").
-			Str("current_user_id", currentUserID.(string)).
 			Str("target_user_id", targetUserID).
 			Str("method", c.Request.Method).
 			Str("path", c.Request.URL.Path).
