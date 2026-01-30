@@ -144,6 +144,7 @@ func main() {
 	// System inventory collection with HTTP Basic authentication
 	systemsGroup := api.Group("/systems", middleware.BasicAuthMiddleware())
 	{
+		systemsGroup.GET("/info", methods.GetSystemInfo)
 		systemsGroup.POST("/inventory", methods.CollectInventory)
 		systemsGroup.POST("/heartbeat", methods.ReceiveHeartbeat)
 	}

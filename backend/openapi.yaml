@@ -6703,6 +6703,119 @@ paths:
   # COLLECT SERVICE ENDPOINTS
   # ===========================================
 
+  /systems/info:
+    get:
+      operationId: getSystemInfo
+      servers:
+        - url: https://collect.your-domain.com/api
+          description: Collect API server (port 8081)
+      tags:
+        - Collect - Systems
+      summary: /systems/info - Get system info
+      description: Returns information about the authenticated system, including suspension and organization status.
+      security:
+        - BasicAuth: [system_key:system_secret]
+      responses:
+        '200':
+          description: System info retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "system info retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      system_id:
+                        type: string
+                        example: "abc-123"
+                      system_key:
+                        type: string
+                        example: "my-system-key"
+                      name:
+                        type: string
+                        example: "Milan Office Server"
+                      type:
+                        type: string
+                        nullable: true
+                        example: "ns8"
+                      fqdn:
+                        type: string
+                        nullable: true
+                        example: "server.example.com"
+                      status:
+                        type: string
+                        example: "online"
+                      suspended:
+                        type: boolean
+                        example: false
+                      suspended_at:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      deleted:
+                        type: boolean
+                        example: false
+                      deleted_at:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      registered:
+                        type: boolean
+                        example: true
+                      registered_at:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        example: "2025-01-15T10:00:00Z"
+                      created_at:
+                        type: string
+                        format: date-time
+                        example: "2025-01-10T08:00:00Z"
+                      organization:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            description: Database UUID of the organization
+                            example: "4405ffd0-0aca-44ef-bae2-c8545bce94f4"
+                          logto_id:
+                            type: string
+                            description: Logto organization ID
+                            example: "akkbs6x2wo82"
+                          name:
+                            type: string
+                            description: Organization name
+                            example: "Owner"
+                          type:
+                            type: string
+                            description: Organization type in the hierarchy
+                            enum: [owner, distributor, reseller, customer]
+                            example: "owner"
+                          suspended:
+                            type: boolean
+                            example: false
+                          suspended_at:
+                            type: string
+                            format: date-time
+                            nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: System not found or deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /systems/inventory:
     post:
       operationId: collectSystemInventory
