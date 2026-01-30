@@ -371,6 +371,29 @@ func main() {
 		}
 
 		// ===========================================
+		// REBRANDING - per-product rebranding management
+		// ===========================================
+		rebrandingGroup := customAuthWithAudit.Group("/rebranding")
+		{
+			// Rebrandable products list (any authenticated user)
+			rebrandingGroup.GET("/products", methods.GetRebrandingProducts)
+
+			// Enable/disable rebranding (Owner only, checked in handler)
+			rebrandingGroup.PATCH("/:org_id/enable", methods.EnableRebranding)
+			rebrandingGroup.PATCH("/:org_id/disable", methods.DisableRebranding)
+
+			// Rebranding status and products for an organization
+			rebrandingGroup.GET("/:org_id/status", methods.GetRebrandingStatus)
+			rebrandingGroup.GET("/:org_id/products", methods.GetRebrandingOrgProducts)
+
+			// Asset management
+			rebrandingGroup.PUT("/:org_id/products/:product_id", methods.UploadRebrandingAssets)
+			rebrandingGroup.DELETE("/:org_id/products/:product_id", methods.DeleteRebrandingProduct)
+			rebrandingGroup.DELETE("/:org_id/products/:product_id/:asset", methods.DeleteRebrandingAsset)
+			rebrandingGroup.GET("/:org_id/products/:product_id/:asset", methods.GetRebrandingAsset)
+		}
+
+		// ===========================================
 		// METADATA - roles, organizations, third-party apps
 		// ===========================================
 		customAuthWithAudit.GET("/roles", methods.GetRoles)                                     // Get available user roles

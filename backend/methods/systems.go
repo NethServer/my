@@ -215,6 +215,16 @@ func GetSystem(c *gin.Context) {
 		return
 	}
 
+	// Resolve rebranding info
+	if system.Organization.LogtoID != "" {
+		rebrandingService := local.NewRebrandingService()
+		enabled, resolvedOrgID, err := rebrandingService.ResolveRebranding(system.Organization.LogtoID)
+		if err == nil && enabled {
+			system.RebrandingEnabled = true
+			system.RebrandingOrgID = &resolvedOrgID
+		}
+	}
+
 	// Log the action
 	logger.RequestLogger(c, "systems").Info().
 		Str("operation", "get_system").

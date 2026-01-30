@@ -53,10 +53,15 @@ tags:
     description: Backend consent-based user impersonation system
 
 
+  - name: Backend - Rebranding
+    description: Backend rebranding management for organizations and products
+
   - name: Collect - Health
     description: Collect service health and monitoring
   - name: Collect - Systems
     description: Collect service system management and inventory collection
+  - name: Collect - Rebranding
+    description: Collect service rebranding endpoints for systems
 
 security:
   - BearerAuth: []
@@ -1044,6 +1049,15 @@ components:
           nullable: true
           description: Organization ID that caused cascade suspension (for targeted reactivation).
           example: "org_abc123"
+        rebranding_enabled:
+          type: boolean
+          description: Whether rebranding is active for this system (direct or inherited)
+          example: true
+        rebranding_org_id:
+          type: string
+          nullable: true
+          description: Logto organization ID (logto_id) that provides the rebranding assets (the org itself or an ancestor). Use this value as the :org_id parameter in /api/rebranding/:org_id/* endpoints.
+          example: "org_dist001"
 
     SystemCreator:
       type: object
@@ -1246,6 +1260,15 @@ components:
           nullable: true
           description: Soft delete timestamp (null if not deleted)
           example: null
+        rebranding_enabled:
+          type: boolean
+          description: Whether rebranding is active for this application (direct or inherited)
+          example: true
+        rebranding_org_id:
+          type: string
+          nullable: true
+          description: Logto organization ID (logto_id) that provides the rebranding assets (the org itself or an ancestor). Use this value as the :org_id parameter in /api/rebranding/:org_id/* endpoints.
+          example: "org_dist001"
         system:
           $ref: '#/components/schemas/ApplicationSystemSummary'
         organization:
@@ -1580,6 +1603,95 @@ components:
           format: date-time
           description: When this action occurred
           example: "2025-09-02T14:32:15Z"
+
+    # ===========================================
+    # REBRANDING SCHEMAS
+    # ===========================================
+
+    RebrandableProduct:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "nethvoice"
+        display_name:
+          type: string
+          example: "NethVoice"
+        type:
+          type: string
+          enum: [application, system]
+          example: "application"
+        created_at:
+          type: string
+          format: date-time
+
+    RebrandingProductStatus:
+      type: object
+      properties:
+        product_id:
+          type: string
+          example: "nethvoice"
+        product_display_name:
+          type: string
+          example: "NethVoice"
+        product_type:
+          type: string
+          enum: [application, system]
+        product_name:
+          type: string
+          nullable: true
+          example: "CustomVoice"
+        assets:
+          type: array
+          items:
+            type: string
+          example: ["logo_light_rect", "logo_dark_rect", "favicon"]
+
+    RebrandingOrgStatus:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/RebrandingProductStatus'
+
+    SystemRebrandingProduct:
+      type: object
+      properties:
+        product_id:
+          type: string
+          example: "nethvoice"
+        product_name:
+          type: string
+          nullable: true
+          example: "CustomVoice"
+        assets:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            logo_light_rect: "/api/systems/rebranding/nethvoice/logo_light_rect"
+            favicon: "/api/systems/rebranding/nethvoice/favicon"
+
+    SystemRebrandingResponse:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        inherited_from:
+          type: string
+          nullable: true
+          example: "distributor:org_abc123"
+        system:
+          type: array
+          items:
+            $ref: '#/components/schemas/SystemRebrandingProduct'
+        applications:
+          type: array
+          items:
+            $ref: '#/components/schemas/SystemRebrandingProduct'
 
   parameters:
     PageParam:
@@ -6778,6 +6890,10 @@ paths:
                         type: string
                         format: date-time
                         example: "2025-01-10T08:00:00Z"
+                      rebranding_enabled:
+                        type: boolean
+                        description: Whether rebranding is enabled for this system (directly or inherited through hierarchy)
+                        example: false
                       organization:
                         type: object
                         properties:
@@ -7074,3 +7190,364 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
+
+  # ===========================================
+  # REBRANDING ENDPOINTS (Backend)
+  # ===========================================
+
+  /rebranding/products:
+    get:
+      operationId: getRebrandingProducts
+      tags:
+        - Backend - Rebranding
+      summary: List rebrandable products
+      description: Returns all products that support rebranding
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Rebrandable products retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      products:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/RebrandableProduct'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /rebranding/{org_id}/enable:
+    patch:
+      operationId: enableRebranding
+      tags:
+        - Backend - Rebranding
+      summary: Enable rebranding for an organization
+      description: Owner-only. Enables rebranding capability for a specific organization.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Logto organization ID (logto_id, not the database UUID)
+      responses:
+        '200':
+          description: Rebranding enabled
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /rebranding/{org_id}/disable:
+    patch:
+      operationId: disableRebranding
+      tags:
+        - Backend - Rebranding
+      summary: Disable rebranding for an organization
+      description: Owner-only. Disables rebranding for a specific organization.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Logto organization ID (logto_id, not the database UUID)
+      responses:
+        '200':
+          description: Rebranding disabled
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /rebranding/{org_id}/status:
+    get:
+      operationId: getRebrandingStatus
+      tags:
+        - Backend - Rebranding
+      summary: Get rebranding status for an organization
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Logto organization ID (logto_id, not the database UUID)
+      responses:
+        '200':
+          description: Rebranding status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/RebrandingOrgStatus'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /rebranding/{org_id}/products:
+    get:
+      operationId: getRebrandingOrgProducts
+      tags:
+        - Backend - Rebranding
+      summary: Get rebranding products for an organization
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Logto organization ID (logto_id, not the database UUID)
+      responses:
+        '200':
+          description: Rebranding products retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/RebrandingOrgStatus'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /rebranding/{org_id}/products/{product_id}:
+    put:
+      operationId: uploadRebrandingAssets
+      tags:
+        - Backend - Rebranding
+      summary: Upload rebranding assets for a product
+      description: |
+        Multipart upload of logos, favicon, background, and product name.
+        All fields optional. Only provided fields are updated.
+        Requires rebranding to be enabled for the organization.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Logto organization ID (logto_id, not the database UUID)
+        - name: product_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                product_name:
+                  type: string
+                  maxLength: 100
+                logo_light_rect:
+                  type: string
+                  format: binary
+                logo_dark_rect:
+                  type: string
+                  format: binary
+                logo_light_square:
+                  type: string
+                  format: binary
+                logo_dark_square:
+                  type: string
+                  format: binary
+                favicon:
+                  type: string
+                  format: binary
+                background_image:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Assets uploaded
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      operationId: deleteRebrandingProduct
+      tags:
+        - Backend - Rebranding
+      summary: Delete all rebranding assets for a product
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Logto organization ID (logto_id, not the database UUID)
+        - name: product_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Product rebranding deleted
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /rebranding/{org_id}/products/{product_id}/{asset}:
+    get:
+      operationId: getRebrandingAsset
+      tags:
+        - Backend - Rebranding
+      summary: Get a rebranding asset binary
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Logto organization ID (logto_id, not the database UUID)
+        - name: product_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: asset
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [logo_light_rect, logo_dark_rect, logo_light_square, logo_dark_square, favicon, background_image]
+      responses:
+        '200':
+          description: Asset binary
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteRebrandingAsset
+      tags:
+        - Backend - Rebranding
+      summary: Delete a single rebranding asset
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Logto organization ID (logto_id, not the database UUID)
+        - name: product_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: asset
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [logo_light_rect, logo_dark_rect, logo_light_square, logo_dark_square, favicon, background_image]
+      responses:
+        '200':
+          description: Asset deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ===========================================
+  # REBRANDING ENDPOINTS (Collect)
+  # ===========================================
+
+  /systems/rebranding:
+    get:
+      operationId: getSystemRebranding
+      tags:
+        - Collect - Rebranding
+      summary: Get system rebranding configuration
+      description: |
+        Returns rebranding configuration for the authenticated system.
+        Resolves hierarchy inheritance (customer -> reseller -> distributor).
+        Response groups products by type (system vs application).
+      security:
+        - BasicAuth: []
+      responses:
+        '200':
+          description: System rebranding configuration
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/SystemRebrandingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /systems/rebranding/{product_id}/{asset}:
+    get:
+      operationId: getSystemRebrandingAsset
+      tags:
+        - Collect - Rebranding
+      summary: Get a rebranding asset binary for the system
+      description: Serves asset binary with hierarchy resolution
+      security:
+        - BasicAuth: []
+      parameters:
+        - name: product_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: asset
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [logo_light_rect, logo_dark_rect, logo_light_square, logo_dark_square, favicon, background_image]
+      responses:
+        '200':
+          description: Asset binary
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'

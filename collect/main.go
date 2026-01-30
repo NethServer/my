@@ -147,6 +147,10 @@ func main() {
 		systemsGroup.GET("/info", methods.GetSystemInfo)
 		systemsGroup.POST("/inventory", methods.CollectInventory)
 		systemsGroup.POST("/heartbeat", methods.ReceiveHeartbeat)
+
+		// Rebranding endpoints (system fetches its own rebranding config)
+		systemsGroup.GET("/rebranding", methods.GetSystemRebranding)
+		systemsGroup.GET("/rebranding/:product_id/:asset", methods.GetSystemRebrandingAsset)
 	}
 
 	// Handle missing endpoints

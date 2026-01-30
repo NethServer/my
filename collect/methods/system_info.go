@@ -103,6 +103,13 @@ func GetSystemInfo(c *gin.Context) {
 		return
 	}
 
+	// Check if rebranding is enabled for this system's organization hierarchy
+	rebrandingEnabled := false
+	resolvedOrgID, _, resolveErr := resolveRebrandingOrg(organizationID)
+	if resolveErr == nil && resolvedOrgID != "" {
+		rebrandingEnabled = true
+	}
+
 	info := models.SystemInfo{
 		SystemID:     sysID,
 		SystemKey:    sysKey,
@@ -125,6 +132,7 @@ func GetSystemInfo(c *gin.Context) {
 			Suspended:   orgSuspendedAt != nil,
 			SuspendedAt: orgSuspendedAt,
 		},
+		RebrandingEnabled: rebrandingEnabled,
 	}
 
 	c.JSON(http.StatusOK, response.OK("system info retrieved successfully", info))
