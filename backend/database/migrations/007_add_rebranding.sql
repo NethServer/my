@@ -14,9 +14,16 @@ COMMENT ON COLUMN rebrandable_products.id IS 'Product identifier (e.g., nethvoic
 COMMENT ON COLUMN rebrandable_products.display_name IS 'Default display name for the product';
 COMMENT ON COLUMN rebrandable_products.type IS 'Product type: application or system';
 
--- Type validation
-ALTER TABLE rebrandable_products ADD CONSTRAINT chk_rebrandable_products_type
-    CHECK (type IN ('application', 'system'));
+-- Type validation (idempotent)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'chk_rebrandable_products_type'
+    ) THEN
+        ALTER TABLE rebrandable_products ADD CONSTRAINT chk_rebrandable_products_type
+            CHECK (type IN ('application', 'system'));
+    END IF;
+END $$;
 
 -- Seed rebrandable products
 INSERT INTO rebrandable_products (id, display_name, type) VALUES
@@ -37,9 +44,16 @@ COMMENT ON TABLE rebranding_enabled IS 'Tracks which organizations have rebrandi
 COMMENT ON COLUMN rebranding_enabled.organization_id IS 'Logto organization ID with rebranding enabled';
 COMMENT ON COLUMN rebranding_enabled.organization_type IS 'Organization type: distributor, reseller, customer';
 
--- Organization type validation
-ALTER TABLE rebranding_enabled ADD CONSTRAINT chk_rebranding_enabled_org_type
-    CHECK (organization_type IN ('distributor', 'reseller', 'customer'));
+-- Organization type validation (idempotent)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'chk_rebranding_enabled_org_type'
+    ) THEN
+        ALTER TABLE rebranding_enabled ADD CONSTRAINT chk_rebranding_enabled_org_type
+            CHECK (organization_type IN ('distributor', 'reseller', 'customer'));
+    END IF;
+END $$;
 
 -- Rebranding assets per organization per product
 CREATE TABLE IF NOT EXISTS rebranding_assets (
