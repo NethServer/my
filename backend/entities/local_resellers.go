@@ -137,7 +137,7 @@ func (r *LocalResellerRepository) Update(id string, req *models.UpdateLocalResel
 	query := `
 		UPDATE resellers
 		SET name = $2, description = $3, custom_data = $4, updated_at = $5, logto_synced_at = NULL
-		WHERE id = $1
+		WHERE logto_id = $1
 	`
 
 	_, err = r.db.Exec(query, id, current.Name, current.Description, customDataJSON, current.UpdatedAt)
@@ -154,7 +154,7 @@ func (r *LocalResellerRepository) Update(id string, req *models.UpdateLocalResel
 
 // Delete soft-deletes a reseller in local database
 func (r *LocalResellerRepository) Delete(id string) error {
-	query := `UPDATE resellers SET deleted_at = $2, updated_at = $2 WHERE id = $1 AND deleted_at IS NULL`
+	query := `UPDATE resellers SET deleted_at = $2, updated_at = $2 WHERE logto_id = $1 AND deleted_at IS NULL`
 
 	result, err := r.db.Exec(query, id, time.Now())
 	if err != nil {

@@ -116,33 +116,25 @@ func (c *LogtoManagementClient) RequestImpersonationToken(impersonatedUserID, im
 
 // GetUserForImpersonation fetches user information specifically for impersonation
 // Takes a local user_id and converts it to logto_id before querying Logto
-func GetUserForImpersonation(localUserID string) (*models.User, error) {
-	// First, get the logto_id from local database (direct query to avoid import cycle)
-	var logtoID string
-	query := `SELECT logto_id FROM users WHERE id = $1 AND deleted_at IS NULL`
-	err := database.DB.QueryRow(query, localUserID).Scan(&logtoID)
+func GetUserForImpersonation(logtoID string) (*models.User, error) {
+	// Get the local database ID from logto_id
+	var localUserID string
+	query := `SELECT id FROM users WHERE logto_id = $1 AND deleted_at IS NULL`
+	err := database.DB.QueryRow(query, logtoID).Scan(&localUserID)
 	if err != nil {
 		logger.ComponentLogger("logto").Error().
 			Err(err).
-			Str("operation", "get_logto_id_for_impersonation").
-			Str("local_user_id", localUserID).
-			Msg("Failed to get logto_id for impersonation")
-		return nil, fmt.Errorf("failed to get logto_id for user: %w", err)
-	}
-
-	if logtoID == "" {
-		logger.ComponentLogger("logto").Error().
-			Str("operation", "missing_logto_id").
-			Str("local_user_id", localUserID).
-			Msg("User has no Logto ID")
-		return nil, fmt.Errorf("user has no Logto ID")
+			Str("operation", "get_local_id_for_impersonation").
+			Str("logto_id", logtoID).
+			Msg("Failed to get local user ID for impersonation")
+		return nil, fmt.Errorf("failed to get local user ID for logto_id: %w", err)
 	}
 
 	logger.ComponentLogger("logto").Debug().
-		Str("operation", "id_conversion_impersonation").
-		Str("local_user_id", localUserID).
+		Str("operation", "id_resolution_impersonation").
 		Str("logto_id", logtoID).
-		Msg("Converting local user ID to Logto ID for impersonation")
+		Str("local_user_id", localUserID).
+		Msg("Resolved Logto ID to local user ID for impersonation")
 
 	client := NewManagementClient()
 
@@ -154,8 +146,8 @@ func GetUserForImpersonation(localUserID string) (*models.User, error) {
 
 	// Create user model
 	user := models.User{
-		ID:       localUserID, // Use local ID as primary ID
-		LogtoID:  &logtoID,    // Set the Logto ID
+		ID:       localUserID, // Local database ID
+		LogtoID:  &logtoID,    // Logto ID
 		Username: userProfile.Username,
 		Email:    userProfile.PrimaryEmail,
 		Name:     userProfile.Name,
@@ -171,8 +163,8 @@ func GetUserForImpersonation(localUserID string) (*models.User, error) {
 		logger.ComponentLogger("logto").Warn().
 			Err(err).
 			Str("operation", "enrich_user_impersonation").
-			Str("local_user_id", localUserID).
 			Str("logto_id", logtoID).
+			Str("local_user_id", localUserID).
 			Msg("Failed to enrich user for impersonation")
 		return &user, nil
 	}
@@ -188,8 +180,8 @@ func GetUserForImpersonation(localUserID string) (*models.User, error) {
 
 	logger.ComponentLogger("logto").Debug().
 		Str("operation", "user_impersonation_prepared").
-		Str("local_user_id", localUserID).
 		Str("logto_id", logtoID).
+		Str("local_user_id", localUserID).
 		Str("username", user.Username).
 		Str("organization_id", user.OrganizationID).
 		Str("org_role", user.OrgRole).

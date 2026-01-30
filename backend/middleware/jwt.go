@@ -162,6 +162,7 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 			// Set impersonated user context
 			c.Set("user", &impersonationClaims.User)
 			c.Set("user_id", impersonationClaims.User.ID)
+			c.Set("user_logto_id", impersonationClaims.User.LogtoID)
 			c.Set("username", impersonationClaims.User.Username)
 			c.Set("email", impersonationClaims.User.Email)
 			c.Set("name", impersonationClaims.User.Name)
@@ -237,6 +238,7 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 		// Set user context for subsequent handlers
 		c.Set("user", &claims.User)
 		c.Set("user_id", claims.User.ID)
+		c.Set("user_logto_id", claims.User.LogtoID)
 		c.Set("username", claims.User.Username)
 		c.Set("email", claims.User.Email)
 		c.Set("name", claims.User.Name)
