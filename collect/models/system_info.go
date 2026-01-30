@@ -13,20 +13,21 @@ import "time"
 
 // SystemInfo represents the system information returned by the info endpoint
 type SystemInfo struct {
-	SystemID     string        `json:"system_id"`
-	SystemKey    string        `json:"system_key"`
-	Name         string        `json:"name"`
-	Type         *string       `json:"type"`
-	FQDN         *string       `json:"fqdn"`
-	Status       string        `json:"status"`
-	Suspended    bool          `json:"suspended"`
-	SuspendedAt  *time.Time    `json:"suspended_at"`
-	Deleted      bool          `json:"deleted"`
-	DeletedAt    *time.Time    `json:"deleted_at"`
-	Registered   bool          `json:"registered"`
-	RegisteredAt *time.Time    `json:"registered_at"`
-	CreatedAt    time.Time     `json:"created_at"`
-	Organization SystemInfoOrg `json:"organization"`
+	SystemID          string        `json:"system_id"`
+	SystemKey         string        `json:"system_key"`
+	Name              string        `json:"name"`
+	Type              *string       `json:"type"`
+	FQDN              *string       `json:"fqdn"`
+	Status            string        `json:"status"`
+	Suspended         bool          `json:"suspended"`
+	SuspendedAt       *time.Time    `json:"suspended_at"`
+	Deleted           bool          `json:"deleted"`
+	DeletedAt         *time.Time    `json:"deleted_at"`
+	Registered        bool          `json:"registered"`
+	RegisteredAt      *time.Time    `json:"registered_at"`
+	CreatedAt         time.Time     `json:"created_at"`
+	Organization      SystemInfoOrg `json:"organization"`
+	RebrandingEnabled bool          `json:"rebranding_enabled"`
 }
 
 // SystemInfoOrg represents the organization information for a system

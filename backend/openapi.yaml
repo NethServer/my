@@ -6890,6 +6890,10 @@ paths:
                         type: string
                         format: date-time
                         example: "2025-01-10T08:00:00Z"
+                      rebranding_enabled:
+                        type: boolean
+                        description: Whether rebranding is enabled for this system (directly or inherited through hierarchy)
+                        example: false
                       organization:
                         type: object
                         properties:
