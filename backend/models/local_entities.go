@@ -26,6 +26,10 @@ type LocalDistributor struct {
 	LogtoSyncError *string                `json:"logto_sync_error" db:"logto_sync_error"`
 	DeletedAt      *time.Time             `json:"deleted_at" db:"deleted_at"`
 	SuspendedAt    *time.Time             `json:"suspended_at" db:"suspended_at"`
+
+	// Rebranding info (populated by handler)
+	RebrandingEnabled bool    `json:"rebranding_enabled"`
+	RebrandingOrgID   *string `json:"rebranding_org_id,omitempty"`
 }
 
 // LocalReseller represents a reseller stored in local database
@@ -42,6 +46,10 @@ type LocalReseller struct {
 	DeletedAt        *time.Time             `json:"deleted_at" db:"deleted_at"`
 	SuspendedAt      *time.Time             `json:"suspended_at" db:"suspended_at"`
 	SuspendedByOrgID *string                `json:"suspended_by_org_id" db:"suspended_by_org_id"`
+
+	// Rebranding info (populated by handler)
+	RebrandingEnabled bool    `json:"rebranding_enabled"`
+	RebrandingOrgID   *string `json:"rebranding_org_id,omitempty"`
 }
 
 // LocalCustomer represents a customer stored in local database
@@ -58,6 +66,10 @@ type LocalCustomer struct {
 	DeletedAt        *time.Time             `json:"deleted_at" db:"deleted_at"`
 	SuspendedAt      *time.Time             `json:"suspended_at" db:"suspended_at"`
 	SuspendedByOrgID *string                `json:"suspended_by_org_id" db:"suspended_by_org_id"`
+
+	// Rebranding info (populated by handler)
+	RebrandingEnabled bool    `json:"rebranding_enabled"`
+	RebrandingOrgID   *string `json:"rebranding_org_id,omitempty"`
 }
 
 // CustomerFilters represents filters for customer queries

@@ -377,8 +377,15 @@ components:
           nullable: true
           description: Organization ID that caused cascade suspension (for resellers and customers only). NULL means directly suspended or not suspended. When set, the entity can only be reactivated by the parent organization that initiated the cascade.
           example: null
-        branding:
-          $ref: '#/components/schemas/OrganizationBranding'
+        rebranding_enabled:
+          type: boolean
+          description: Whether rebranding is active for this organization (directly or inherited from parent)
+          example: false
+        rebranding_org_id:
+          type: string
+          nullable: true
+          description: The organization ID that provides the rebranding (the org where rebranding is configured). Only present when rebranding_enabled is true.
+          example: null
 
     OrganizationInput:
       type: object
@@ -675,20 +682,6 @@ components:
           enum: [owner, distributor, reseller, customer]
           description: Organization type
           example: "customer"
-        branding:
-          $ref: '#/components/schemas/OrganizationBranding'
-
-    OrganizationBranding:
-      type: object
-      properties:
-        logo_url:
-          type: string
-          description: Organization logo URL
-          example: "https://cdn.example.com/logos/org-console.png"
-        dark_logo_url:
-          type: string
-          description: Organization dark theme logo URL
-          example: "https://cdn.example.com/logos/org-console-dark.png"
 
     OrganizationSummary:
       type: object

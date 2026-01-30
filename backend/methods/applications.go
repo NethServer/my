@@ -97,6 +97,18 @@ func GetApplications(c *gin.Context) {
 		return
 	}
 
+	// Resolve rebranding info for each application
+	rebrandingService := local.NewRebrandingService()
+	for i := range apps {
+		if apps[i].OrganizationID != nil && *apps[i].OrganizationID != "" {
+			enabled, resolvedOrgID, err := rebrandingService.ResolveRebranding(*apps[i].OrganizationID)
+			if err == nil && enabled {
+				apps[i].RebrandingEnabled = true
+				apps[i].RebrandingOrgID = &resolvedOrgID
+			}
+		}
+	}
+
 	// Convert to list items for response
 	applications := make([]*models.ApplicationListItem, len(apps))
 	for i, app := range apps {

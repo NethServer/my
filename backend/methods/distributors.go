@@ -121,6 +121,16 @@ func GetDistributor(c *gin.Context) {
 		return
 	}
 
+	// Resolve rebranding info
+	if distributor.LogtoID != nil {
+		rebrandingService := local.NewRebrandingService()
+		enabled, resolvedOrgID, err := rebrandingService.ResolveRebranding(*distributor.LogtoID)
+		if err == nil && enabled {
+			distributor.RebrandingEnabled = true
+			distributor.RebrandingOrgID = &resolvedOrgID
+		}
+	}
+
 	// Log the action
 	logger.RequestLogger(c, "distributors").Info().
 		Str("operation", "get_distributor").
@@ -161,6 +171,18 @@ func GetDistributors(c *gin.Context) {
 
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to list distributors", nil))
 		return
+	}
+
+	// Resolve rebranding info for each distributor
+	rebrandingService := local.NewRebrandingService()
+	for i := range distributors {
+		if distributors[i].LogtoID != nil {
+			enabled, resolvedOrgID, err := rebrandingService.ResolveRebranding(*distributors[i].LogtoID)
+			if err == nil && enabled {
+				distributors[i].RebrandingEnabled = true
+				distributors[i].RebrandingOrgID = &resolvedOrgID
+			}
+		}
 	}
 
 	// Log the action

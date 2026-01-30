@@ -166,6 +166,18 @@ func GetSystems(c *gin.Context) {
 		return
 	}
 
+	// Resolve rebranding info for each system
+	rebrandingService := local.NewRebrandingService()
+	for i := range systems {
+		if systems[i].Organization.LogtoID != "" {
+			enabled, resolvedOrgID, err := rebrandingService.ResolveRebranding(systems[i].Organization.LogtoID)
+			if err == nil && enabled {
+				systems[i].RebrandingEnabled = true
+				systems[i].RebrandingOrgID = &resolvedOrgID
+			}
+		}
+	}
+
 	// Log the action
 	logger.RequestLogger(c, "systems").Info().
 		Str("operation", "list_systems").

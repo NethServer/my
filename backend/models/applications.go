@@ -106,6 +106,10 @@ type ApplicationListItem struct {
 	Organization    *OrganizationSummary `json:"organization,omitempty"`
 	CreatedAt       time.Time            `json:"created_at"`
 	LastInventoryAt *time.Time           `json:"last_inventory_at"`
+
+	// Rebranding info (populated by handler)
+	RebrandingEnabled bool    `json:"rebranding_enabled"`
+	RebrandingOrgID   *string `json:"rebranding_org_id,omitempty"`
 }
 
 // AssignApplicationRequest represents the request to assign an organization to an application
@@ -189,25 +193,27 @@ func (a *Application) GetServicesInfo() *ServicesInfo {
 // ToListItem converts a full application to a list item
 func (a *Application) ToListItem() *ApplicationListItem {
 	return &ApplicationListItem{
-		ID:              a.ID,
-		ModuleID:        a.ModuleID,
-		InstanceOf:      a.InstanceOf,
-		Name:            a.Name,
-		Source:          a.Source,
-		DisplayName:     a.DisplayName,
-		Version:         a.Version,
-		Status:          a.Status,
-		NodeID:          a.NodeID,
-		NodeLabel:       a.NodeLabel,
-		URL:             a.URL,
-		Notes:           a.Notes,
-		HasErrors:       a.HasServiceErrors(),
-		InventoryData:   a.InventoryData,
-		BackupData:      a.BackupData,
-		ServicesData:    a.ServicesData,
-		System:          a.System,
-		Organization:    a.Organization,
-		CreatedAt:       a.CreatedAt,
-		LastInventoryAt: a.LastInventoryAt,
+		ID:                a.ID,
+		ModuleID:          a.ModuleID,
+		InstanceOf:        a.InstanceOf,
+		Name:              a.Name,
+		Source:            a.Source,
+		DisplayName:       a.DisplayName,
+		Version:           a.Version,
+		Status:            a.Status,
+		NodeID:            a.NodeID,
+		NodeLabel:         a.NodeLabel,
+		URL:               a.URL,
+		Notes:             a.Notes,
+		HasErrors:         a.HasServiceErrors(),
+		InventoryData:     a.InventoryData,
+		BackupData:        a.BackupData,
+		ServicesData:      a.ServicesData,
+		System:            a.System,
+		Organization:      a.Organization,
+		CreatedAt:         a.CreatedAt,
+		LastInventoryAt:   a.LastInventoryAt,
+		RebrandingEnabled: a.RebrandingEnabled,
+		RebrandingOrgID:   a.RebrandingOrgID,
 	}
 }

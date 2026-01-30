@@ -147,6 +147,16 @@ func GetCustomer(c *gin.Context) {
 		return
 	}
 
+	// Resolve rebranding info
+	if customer.LogtoID != nil {
+		rebrandingService := local.NewRebrandingService()
+		enabled, resolvedOrgID, err := rebrandingService.ResolveRebranding(*customer.LogtoID)
+		if err == nil && enabled {
+			customer.RebrandingEnabled = true
+			customer.RebrandingOrgID = &resolvedOrgID
+		}
+	}
+
 	// Log the action
 	logger.RequestLogger(c, "customers").Info().
 		Str("operation", "get_customer").
@@ -187,6 +197,18 @@ func GetCustomers(c *gin.Context) {
 
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to list customers", nil))
 		return
+	}
+
+	// Resolve rebranding info for each customer
+	rebrandingService := local.NewRebrandingService()
+	for i := range customers {
+		if customers[i].LogtoID != nil {
+			enabled, resolvedOrgID, err := rebrandingService.ResolveRebranding(*customers[i].LogtoID)
+			if err == nil && enabled {
+				customers[i].RebrandingEnabled = true
+				customers[i].RebrandingOrgID = &resolvedOrgID
+			}
+		}
 	}
 
 	// Log the action
