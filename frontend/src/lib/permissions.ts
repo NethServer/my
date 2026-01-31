@@ -14,6 +14,8 @@ const MANAGE_USERS = 'manage:users'
 const IMPERSONATE_USERS = 'impersonate:users'
 const READ_SYSTEMS = 'read:systems'
 const MANAGE_SYSTEMS = 'manage:systems'
+const READ_APPLICATIONS = 'read:applications'
+const MANAGE_APPLICATIONS = 'manage:applications'
 
 export const canReadDistributors = () => {
   const loginStore = useLoginStore()
@@ -68,4 +70,14 @@ export const canReadSystems = () => {
 export const canManageSystems = () => {
   const loginStore = useLoginStore()
   return loginStore.permissions.includes(MANAGE_SYSTEMS)
+}
+
+export const canReadApplications = () => {
+  const loginStore = useLoginStore()
+  return loginStore.permissions.includes(READ_APPLICATIONS)
+}
+
+export const canManageApplications = () => {
+  const loginStore = useLoginStore()
+  return loginStore.permissions.includes(MANAGE_APPLICATIONS)
 }

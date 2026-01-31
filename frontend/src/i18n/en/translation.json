@@ -7,6 +7,7 @@
     "close": "Close",
     "edit": "Edit",
     "delete": "Delete",
+    "restore": "Restore",
     "filter": "Filter",
     "advanced_settings": "Advanced settings",
     "enable": "Enable",
@@ -32,9 +33,11 @@
     "show": "Show",
     "hide": "Hide",
     "coming_soon": "Coming soon",
-    "view_details": "View details",
+    "view": "View",
     "ip_address": "IP address",
-    "click_to_copy": "Click to copy"
+    "click_to_copy": "Click to copy",
+    "suspend": "Suspend",
+    "reactivate": "Reactivate"
   },
   "shell": {
     "open_sidebar": "Open sidebar",
@@ -91,7 +94,9 @@
     "cannot_delete_distributor": "Cannot delete distributor",
     "delete_distributor": "Delete distributor",
     "delete_distributor_confirmation": "Are you sure you want to delete distributor {name}? All users associated with this organization will also be deleted. This action cannot be undone.",
-    "no_distributor": "No distributors"
+    "no_distributor": "No distributors",
+    "export_distributors_to_pdf": "Export distributors to PDF",
+    "export_distributors_to_csv": "Export distributors to CSV"
   },
   "resellers": {
     "title": "Resellers",
@@ -135,12 +140,16 @@
     "name": "Company name",
     "description": "Description",
     "vat_number": "VAT number",
+    "owner": "Owner",
     "distributor": "Distributor",
     "reseller": "Reseller",
     "customer": "Customer",
     "name_cannot_be_empty": "Company name is required",
     "custom_data_vat_cannot_be_empty": "VAT number is required",
-    "custom_data_vat_already_exists": "An organization with this VAT number already exists"
+    "custom_data_vat_already_exists": "An organization with this VAT number already exists",
+    "organization": "Organization",
+    "choose_organization": "Choose organization",
+    "no_organizations": "No organizations"
   },
   "users": {
     "title": "Users",
@@ -206,7 +215,22 @@
     "password_changed_description": "Your password has been changed",
     "username_already_exists": "Username already exists",
     "user_email_description": "The user will receive a welcome email containing instructions on how to access {productName}, along with a temporary password that can be changed upon first login.",
-    "cannot_impersonate_user": "Cannot impersonate user"
+    "suspend": "Suspend",
+    "suspended": "Suspended",
+    "suspend_user": "Suspend user",
+    "reactivate": "Reactivate",
+    "reactivate_user": "Reactivate user",
+    "cannot_impersonate_user": "Cannot impersonate user",
+    "cannot_suspend_user": "Cannot suspend user",
+    "user_suspended": "User suspended",
+    "user_suspended_successfully": "{name} suspended successfully",
+    "suspend_user_confirmation": "Are you sure you want to suspend user {name}? The user will not be able to log in until reactivated.",
+    "cannot_reactivate_user": "Cannot reactivate user",
+    "user_reactivated": "User reactivated",
+    "user_reactivated_successfully": "{name} reactivated successfully",
+    "reactivate_user_confirmation": "Are you sure you want to reactivate user {name}? The user will be able to log in again.",
+    "export_users_to_pdf": "Export users to PDF",
+    "export_users_to_csv": "Export users to CSV"
   },
   "third_party_apps": {
     "description_nethshop_nethesis_it": "Browse and order Nethesis products and services.",
@@ -325,6 +349,7 @@
   "systems": {
     "title": "Systems",
     "page_description": "List of licensed NethServer and NethSecurity systems.",
+    "system": "System",
     "cannot_retrieve_systems": "Cannot retrieve systems",
     "no_systems": "No systems configured",
     "no_systems_found": "No systems found",
@@ -382,15 +407,21 @@
     "system_secret_regenerated": "System secret regenerated",
     "system_secret_regenerated_description": "The secret for system {name} has been regenerated.",
     "cannot_regenerate_system_secret": "Cannot regenerate system secret",
-    "update_the_subscription": "Update the subscription"
+    "update_the_subscription": "Update the subscription",
+    "show_notes": "Show notes",
+    "restore_system": "Restore system",
+    "restore_system_confirmation": "Are you sure you want to restore system {name}?",
+    "system_restored": "System restored",
+    "system_restored_successfully": "{name} restored successfully",
+    "cannot_restore_system": "Cannot restore system"
   },
   "system_detail": {
     "title": "System detail",
     "overview": "Overview",
     "product_logo": "{product} logo",
     "unknown_product": "Unknown product",
-    "open_system": "Open system",
-    "open_system_tooltip": "Note: The system may be unreachable due to network settings.",
+    "go_to_system": "Go to system",
+    "go_to_system_tooltip": "Note: The system may be unreachable due to network settings.",
     "uptime": "Uptime",
     "last_inventory": "Last inventory",
     "timezone": "Timezone",
@@ -402,7 +433,32 @@
     "no_inventory_available_description": "The system has not sent any inventory data yet.",
     "subscription": "Subscription",
     "system_creation": "System creation",
-    "system_key": "System key"
+    "system_key": "System key",
+    "cannot_determine_system_url_description": "Cannot access the system because its URL cannot be determined."
+  },
+  "applications": {
+    "title": "Applications",
+    "page_description": "List of applications installed on licensed NethServer systems.",
+    "cannot_retrieve_applications": "Cannot retrieve applications",
+    "no_applications": "No applications yet",
+    "no_applications_description": "Applications will appear here when they are installed on your NethServer systems.",
+    "no_applications_found": "No applications found",
+    "filter_applications": "Filter applications",
+    "version": "Version",
+    "type": "Type",
+    "assign_organization": "Assign to organization",
+    "reassign_organization": "Reassign to organization",
+    "name": "Name",
+    "application": "Application",
+    "organization_assigned": "Application assigned to organization",
+    "organization_assigned_description": "The application {application} has been assigned to organization {organization}",
+    "cannot_assign_organization": "Cannot assign organization",
+    "notes": "Notes",
+    "add_notes": "Add notes",
+    "edit_notes": "Edit notes",
+    "set_application_notes": "Set application notes",
+    "set_application_notes_description": "The notes for application {application} have been set",
+    "cannot_set_notes": "Cannot set application notes"
   },
   "ne_table": {
     "no_items": "No items",

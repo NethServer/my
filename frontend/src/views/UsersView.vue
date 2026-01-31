@@ -6,13 +6,73 @@
 <script setup lang="ts">
 import { NeButton, NeHeading } from '@nethesis/vue-components'
 import UsersTable from '@/components/users/UsersTable.vue'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { faCirclePlus } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { PRODUCT_NAME } from '@/lib/config'
 import { canManageUsers } from '@/lib/permissions'
+import { useUsers } from '@/queries/users'
+// import { useI18n } from 'vue-i18n' ////
+// import { getExport } from '@/lib/users' ////
+
+// const { t } = useI18n() ////
+const {
+  state,
+  // asyncStatus, ////
+  // pageNum,
+  // pageSize,
+  // textFilter,
+  debouncedTextFilter,
+  // sortBy, ////
+  // sortDescending,
+} = useUsers()
 
 const isShownCreateUserDrawer = ref(false)
+
+const usersPage = computed(() => {
+  return state.value.data?.users
+})
+
+//// TODO wait for backend fix
+// function getBulkActionsMenuItems() {
+//   return [
+//     {
+//       id: 'exportFilteredToPdf',
+//       label: t('users.export_users_to_pdf'),
+//       icon: faFilePdf,
+//       // action: () => exportUsers('pdf'), ////
+//       disabled: !state.value.data?.users,
+//     },
+//     {
+//       id: 'exportFilteredToCsv',
+//       label: t('users.export_users_to_csv'),
+//       icon: faFileCsv,
+//       // action: () => exportUsers('csv'), ////
+//       disabled: !state.value.data?.users,
+//     },
+//   ]
+// }
+
+//// TODO wait for backend fix
+// async function exportUsers(format: 'pdf' | 'csv') {
+//   try {
+//     const exportData = await getExport(
+//       format,
+//       debouncedTextFilter.value,
+//       productFilter.value,
+//       createdByFilter.value,
+//       versionFilter.value,
+//       statusFilter.value,
+//       sortBy.value,
+//       sortDescending.value,
+//     )
+//     const fileName = `${t('users.title')}.${format}`
+//     downloadFile(exportData, fileName, format)
+//   } catch (error) {
+//     console.error(`Cannot export users to ${format}:`, error)
+//     throw error
+//   }
+// }
 </script>
 
 <template>
@@ -24,7 +84,7 @@ const isShownCreateUserDrawer = ref(false)
       </div>
       <!-- create user -->
       <NeButton
-        v-if="canManageUsers()"
+        v-if="canManageUsers() && (usersPage?.length || debouncedTextFilter)"
         kind="primary"
         size="lg"
         class="shrink-0"

@@ -1,17 +1,20 @@
 //  Copyright (C) 2025 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { SYSTEM_VERSION_FILTER_KEY, getVersionFilter } from '@/lib/systems/versionFilter'
+import {
+  getOrganizationFilter,
+  SYSTEM_ORGANIZATION_FILTER_KEY,
+} from '@/lib/systems/organizationFilter'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 
-export const useVersionFilter = defineQuery(() => {
+export const useOrganizationFilter = defineQuery(() => {
   const loginStore = useLoginStore()
 
   const { state, asyncStatus, ...rest } = useQuery({
-    key: () => [SYSTEM_VERSION_FILTER_KEY],
+    key: () => [SYSTEM_ORGANIZATION_FILTER_KEY],
     enabled: () => !!loginStore.jwtToken,
-    query: () => getVersionFilter(),
+    query: () => getOrganizationFilter(),
   })
 
   return {

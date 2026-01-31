@@ -2,42 +2,63 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import { MIN_SEARCH_LENGTH } from '@/lib/common'
-import { canReadUsers } from '@/lib/permissions'
+import { canReadApplications } from '@/lib/permissions'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
-import { getUsers, USERS_KEY, USERS_TABLE_ID, type User } from '@/lib/users'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { useDebounceFn } from '@vueuse/core'
 import { ref, watch } from 'vue'
+import {
+  APPLICATIONS_KEY,
+  APPLICATIONS_TABLE_ID,
+  getApplications,
+  type Application,
+} from '@/lib/applications/applications'
 
-export const useUsers = defineQuery(() => {
+//// review (search "system")
+
+export const useApplications = defineQuery(() => {
   const loginStore = useLoginStore()
   const pageNum = ref(1)
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
+  // const productFilter = ref<string[]>([]) ////
+  // const createdByFilter = ref<string[]>([]) ////
+  const typeFilter = ref<string[]>([])
+  const versionFilter = ref<string[]>([])
+  // const statusFilter = ref<SystemStatus[]>(['online', 'offline', 'unknown']) ////
+  const systemFilter = ref<string[]>([])
   const organizationFilter = ref<string[]>([])
-  const sortBy = ref<keyof User>('name')
+  const sortBy = ref<keyof Application>('module_id')
   const sortDescending = ref(false)
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [
-      USERS_KEY,
+      APPLICATIONS_KEY,
       {
         pageNum: pageNum.value,
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
+        typeFilter: typeFilter.value,
+        versionFilter: versionFilter.value,
+        // statusFilter: statusFilter.value, ////
+        systemFilter: systemFilter.value,
         organizationFilter: organizationFilter.value,
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
     ],
-    enabled: () => !!loginStore.jwtToken && canReadUsers(),
+    enabled: () => !!loginStore.jwtToken && canReadApplications(),
     query: () =>
-      getUsers(
+      getApplications(
         pageNum.value,
         pageSize.value,
         debouncedTextFilter.value,
+        typeFilter.value,
+        versionFilter.value,
+        // statusFilter.value, ////
+        systemFilter.value,
         organizationFilter.value,
         sortBy.value,
         sortDescending.value,
@@ -49,7 +70,7 @@ export const useUsers = defineQuery(() => {
     () => loginStore.userInfo?.email,
     (email) => {
       if (email) {
-        pageSize.value = loadPageSizeFromStorage(USERS_TABLE_ID)
+        pageSize.value = loadPageSizeFromStorage(APPLICATIONS_TABLE_ID)
       }
     },
     { immediate: true },
@@ -83,8 +104,12 @@ export const useUsers = defineQuery(() => {
     pageNum,
     pageSize,
     textFilter,
-    debouncedTextFilter,
+    typeFilter,
+    versionFilter,
+    // statusFilter, ////
+    systemFilter,
     organizationFilter,
+    debouncedTextFilter,
     sortBy,
     sortDescending,
   }

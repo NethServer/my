@@ -8,13 +8,12 @@ import { NeInlineNotification } from '@nethesis/vue-components'
 import { NeModal } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
-import { deleteSystem, SYSTEMS_KEY, SYSTEMS_TOTAL_KEY, type System } from '@/lib/systems/systems'
+import { suspendUser, USERS_KEY, USERS_TOTAL_KEY, type User } from '@/lib/users'
 import { useNotificationsStore } from '@/stores/notifications'
-import { SYSTEM_ORGANIZATION_FILTER_KEY } from '@/lib/systems/organizationFilter'
 
-const { visible = false, system = undefined } = defineProps<{
+const { visible = false, user = undefined } = defineProps<{
   visible: boolean
-  system: System | undefined
+  user: User | undefined
 }>()
 
 const emit = defineEmits(['close'])
@@ -24,21 +23,21 @@ const notificationsStore = useNotificationsStore()
 const queryCache = useQueryCache()
 
 const {
-  mutate: deleteSystemMutate,
-  isLoading: deleteSystemLoading,
-  reset: deleteSystemReset,
-  error: deleteSystemError,
+  mutate: suspendUserMutate,
+  isLoading: suspendUserLoading,
+  reset: suspendUserReset,
+  error: suspendUserError,
 } = useMutation({
-  mutation: (system: System) => {
-    return deleteSystem(system)
+  mutation: (user: User) => {
+    return suspendUser(user)
   },
   onSuccess(data, vars) {
     // show success notification after modal closes
     setTimeout(() => {
       notificationsStore.createNotification({
         kind: 'success',
-        title: t('systems.system_deleted'),
-        description: t('common.object_deleted_successfully', {
+        title: t('users.user_suspended'),
+        description: t('users.user_suspended_successfully', {
           name: vars.name,
         }),
       })
@@ -47,44 +46,43 @@ const {
     emit('close')
   },
   onError: (error) => {
-    console.error('Error deleting system:', error)
+    console.error('Error suspending user:', error)
   },
   onSettled: () => {
-    queryCache.invalidateQueries({ key: [SYSTEMS_KEY] })
-    queryCache.invalidateQueries({ key: [SYSTEMS_TOTAL_KEY] })
-    queryCache.invalidateQueries({ key: [SYSTEM_ORGANIZATION_FILTER_KEY] })
+    queryCache.invalidateQueries({ key: [USERS_KEY] })
+    queryCache.invalidateQueries({ key: [USERS_TOTAL_KEY] })
   },
 })
 
 function onShow() {
   // clear error
-  deleteSystemReset()
+  suspendUserReset()
 }
 </script>
 
 <template>
   <NeModal
     :visible="visible"
-    :title="$t('systems.delete_system')"
+    :title="$t('users.suspend_user')"
     kind="warning"
-    :primary-label="$t('common.delete')"
+    :primary-label="$t('common.suspend')"
     :cancel-label="$t('common.cancel')"
     primary-button-kind="danger"
-    :primary-button-disabled="deleteSystemLoading"
-    :primary-button-loading="deleteSystemLoading"
+    :primary-button-disabled="suspendUserLoading"
+    :primary-button-loading="suspendUserLoading"
     :close-aria-label="$t('common.close')"
     @close="emit('close')"
-    @primary-click="deleteSystemMutate(system!)"
+    @primary-click="suspendUserMutate(user!)"
     @show="onShow"
   >
     <p>
-      {{ t('systems.delete_system_confirmation', { name: system?.name }) }}
+      {{ t('users.suspend_user_confirmation', { name: user?.name }) }}
     </p>
     <NeInlineNotification
-      v-if="deleteSystemError?.message"
+      v-if="suspendUserError?.message"
       kind="error"
-      :title="t('systems.cannot_delete_system')"
-      :description="deleteSystemError.message"
+      :title="t('users.cannot_suspend_user')"
+      :description="suspendUserError.message"
       class="mt-4"
     />
   </NeModal>

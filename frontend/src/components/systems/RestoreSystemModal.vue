@@ -8,7 +8,7 @@ import { NeInlineNotification } from '@nethesis/vue-components'
 import { NeModal } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
-import { deleteSystem, SYSTEMS_KEY, SYSTEMS_TOTAL_KEY, type System } from '@/lib/systems/systems'
+import { restoreSystem, SYSTEMS_KEY, SYSTEMS_TOTAL_KEY, type System } from '@/lib/systems/systems'
 import { useNotificationsStore } from '@/stores/notifications'
 import { SYSTEM_ORGANIZATION_FILTER_KEY } from '@/lib/systems/organizationFilter'
 
@@ -24,21 +24,21 @@ const notificationsStore = useNotificationsStore()
 const queryCache = useQueryCache()
 
 const {
-  mutate: deleteSystemMutate,
-  isLoading: deleteSystemLoading,
-  reset: deleteSystemReset,
-  error: deleteSystemError,
+  mutate: restoreSystemMutate,
+  isLoading: restoreSystemLoading,
+  reset: restoreSystemReset,
+  error: restoreSystemError,
 } = useMutation({
   mutation: (system: System) => {
-    return deleteSystem(system)
+    return restoreSystem(system)
   },
   onSuccess(data, vars) {
     // show success notification after modal closes
     setTimeout(() => {
       notificationsStore.createNotification({
         kind: 'success',
-        title: t('systems.system_deleted'),
-        description: t('common.object_deleted_successfully', {
+        title: t('systems.system_restored'),
+        description: t('systems.system_restored_successfully', {
           name: vars.name,
         }),
       })
@@ -47,7 +47,7 @@ const {
     emit('close')
   },
   onError: (error) => {
-    console.error('Error deleting system:', error)
+    console.error('Error restoring system:', error)
   },
   onSettled: () => {
     queryCache.invalidateQueries({ key: [SYSTEMS_KEY] })
@@ -58,33 +58,32 @@ const {
 
 function onShow() {
   // clear error
-  deleteSystemReset()
+  restoreSystemReset()
 }
 </script>
 
 <template>
   <NeModal
     :visible="visible"
-    :title="$t('systems.delete_system')"
+    :title="$t('systems.restore_system')"
     kind="warning"
-    :primary-label="$t('common.delete')"
+    :primary-label="$t('common.restore')"
     :cancel-label="$t('common.cancel')"
-    primary-button-kind="danger"
-    :primary-button-disabled="deleteSystemLoading"
-    :primary-button-loading="deleteSystemLoading"
+    :primary-button-disabled="restoreSystemLoading"
+    :primary-button-loading="restoreSystemLoading"
     :close-aria-label="$t('common.close')"
     @close="emit('close')"
-    @primary-click="deleteSystemMutate(system!)"
+    @primary-click="restoreSystemMutate(system!)"
     @show="onShow"
   >
     <p>
-      {{ t('systems.delete_system_confirmation', { name: system?.name }) }}
+      {{ t('systems.restore_system_confirmation', { name: system?.name }) }}
     </p>
     <NeInlineNotification
-      v-if="deleteSystemError?.message"
+      v-if="restoreSystemError?.message"
       kind="error"
-      :title="t('systems.cannot_delete_system')"
-      :description="deleteSystemError.message"
+      :title="t('systems.cannot_restore_system')"
+      :description="restoreSystemError.message"
       class="mt-4"
     />
   </NeModal>

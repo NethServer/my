@@ -5,7 +5,7 @@ import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
-import { getQueryStringParams, type Pagination } from './common'
+import { type Pagination } from './common'
 
 export const USERS_KEY = 'users'
 export const USERS_TOTAL_KEY = 'usersTotal'
@@ -37,13 +37,13 @@ export const UserSchema = v.object({
   logto_id: v.optional(v.string()),
   can_be_impersonated: v.boolean(),
   logto_synced_at: v.optional(v.string()),
-  organization: v.optional(
-    v.object({
-      id: v.string(),
-      logto_id: v.optional(v.string()),
-      name: v.string(),
-    }),
-  ),
+  suspended_at: v.optional(v.string()),
+  organization: v.object({
+    id: v.string(),
+    logto_id: v.optional(v.string()),
+    name: v.string(),
+    type: v.string(),
+  }),
   roles: v.optional(
     v.array(
       v.object({
@@ -67,15 +67,48 @@ interface UsersResponse {
   }
 }
 
+export const getQueryStringParams = (
+  pageNum: number,
+  pageSize: number,
+  textFilter: string | null,
+  organizationFilter: string[],
+  sortBy: string | null,
+  sortDescending: boolean,
+) => {
+  const searchParams = new URLSearchParams({
+    page: pageNum.toString(),
+    page_size: pageSize.toString(),
+    sort_by: sortBy || '',
+    sort_direction: sortDescending ? 'desc' : 'asc',
+  })
+
+  if (textFilter?.trim()) {
+    searchParams.append('search', textFilter)
+  }
+
+  organizationFilter.forEach((orgId) => {
+    searchParams.append('organization_id', orgId)
+  })
+  return searchParams.toString()
+}
+
 export const getUsers = (
   pageNum: number,
   pageSize: number,
   textFilter: string,
+  organizationFilter: string[],
   sortBy: string,
   sortDescending: boolean,
 ) => {
   const loginStore = useLoginStore()
-  const params = getQueryStringParams(pageNum, pageSize, textFilter, sortBy, sortDescending)
+  const params = getQueryStringParams(
+    pageNum,
+    pageSize,
+    textFilter,
+    organizationFilter,
+    sortBy,
+    sortDescending,
+  )
 
   return axios
     .get<UsersResponse>(`${API_URL}/users?${params}`, {
@@ -130,3 +163,55 @@ export const resetPassword = (user: User, newPassword: string) => {
     },
   )
 }
+
+export const suspendUser = (user: User) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/users/${user.id}/suspend`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
+export const reactivateUser = (user: User) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/users/${user.id}/reactivate`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
+//// TODO wait for backend fix
+// export const getExport = (
+//   format: 'csv' | 'pdf',
+//   textFilter: string | undefined = undefined,
+//   roleFilter: string[] | undefined = undefined,
+//   organizationFilter: string[] | undefined = undefined,
+//   statusFilter: SystemStatus[] | undefined = undefined,
+//   sortBy: string | undefined = undefined,
+//   sortDescending: boolean | undefined = undefined,
+// ) => {
+//   const loginStore = useLoginStore()
+//   const params = getQueryStringParamsForExport(
+//     format,
+//     textFilter,
+//     roleFilter,
+//     organizationFilter,
+//     statusFilter,
+//     sortBy,
+//     sortDescending,
+//   )
+
+//   return axios
+//     .get(`${API_URL}/systems/export?${params}`, {
+//       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+//     })
+//     .then((res) => res.data)
+// }
