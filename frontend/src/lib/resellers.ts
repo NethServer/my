@@ -21,7 +21,7 @@ export const CreateResellerSchema = v.object({
 
 export const ResellerSchema = v.object({
   ...CreateResellerSchema.entries,
-  id: v.string(),
+  logto_id: v.string(),
 })
 
 export type CreateReseller = v.InferOutput<typeof CreateResellerSchema>
@@ -64,7 +64,7 @@ export const postReseller = (reseller: CreateReseller) => {
 export const putReseller = (reseller: Reseller) => {
   const loginStore = useLoginStore()
 
-  return axios.put(`${API_URL}/resellers/${reseller.id}`, reseller, {
+  return axios.put(`${API_URL}/resellers/${reseller.logto_id}`, reseller, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
@@ -72,7 +72,7 @@ export const putReseller = (reseller: Reseller) => {
 export const deleteReseller = (reseller: Reseller) => {
   const loginStore = useLoginStore()
 
-  return axios.delete(`${API_URL}/resellers/${reseller.id}`, {
+  return axios.delete(`${API_URL}/resellers/${reseller.logto_id}`, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }

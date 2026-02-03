@@ -21,7 +21,7 @@ export const CreateCustomerSchema = v.object({
 
 export const CustomerSchema = v.object({
   ...CreateCustomerSchema.entries,
-  id: v.string(),
+  logto_id: v.string(),
 })
 
 export type CreateCustomer = v.InferOutput<typeof CreateCustomerSchema>
@@ -64,7 +64,7 @@ export const postCustomer = (customer: CreateCustomer) => {
 export const putCustomer = (customer: Customer) => {
   const loginStore = useLoginStore()
 
-  return axios.put(`${API_URL}/customers/${customer.id}`, customer, {
+  return axios.put(`${API_URL}/customers/${customer.logto_id}`, customer, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
@@ -72,7 +72,7 @@ export const putCustomer = (customer: Customer) => {
 export const deleteCustomer = (customer: Customer) => {
   const loginStore = useLoginStore()
 
-  return axios.delete(`${API_URL}/customers/${customer.id}`, {
+  return axios.delete(`${API_URL}/customers/${customer.logto_id}`, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }

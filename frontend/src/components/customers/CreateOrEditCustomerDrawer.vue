@@ -225,12 +225,12 @@ async function saveCustomer() {
     },
   }
 
-  if (currentCustomer?.id) {
+  if (currentCustomer?.logto_id) {
     // editing customer
 
     const customerToEdit: Customer = {
       ...customer,
-      id: currentCustomer.id,
+      logto_id: currentCustomer.logto_id,
     }
 
     const isValidationOk = validateEdit(customerToEdit)

@@ -227,12 +227,12 @@ async function saveDistributor() {
     },
   }
 
-  if (currentDistributor?.id) {
+  if (currentDistributor?.logto_id) {
     // editing distributor
 
     const distributorToEdit: Distributor = {
       ...distributor,
-      id: currentDistributor.id,
+      logto_id: currentDistributor.logto_id,
     }
 
     const isValidationOk = validateEdit(distributorToEdit)
