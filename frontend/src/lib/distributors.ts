@@ -21,7 +21,7 @@ export const CreateDistributorSchema = v.object({
 
 export const DistributorSchema = v.object({
   ...CreateDistributorSchema.entries,
-  id: v.string(),
+  logto_id: v.string(),
 })
 
 export type CreateDistributor = v.InferOutput<typeof CreateDistributorSchema>
@@ -64,7 +64,7 @@ export const postDistributor = (distributor: CreateDistributor) => {
 export const putDistributor = (distributor: Distributor) => {
   const loginStore = useLoginStore()
 
-  return axios.put(`${API_URL}/distributors/${distributor.id}`, distributor, {
+  return axios.put(`${API_URL}/distributors/${distributor.logto_id}`, distributor, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
@@ -72,7 +72,7 @@ export const putDistributor = (distributor: Distributor) => {
 export const deleteDistributor = (distributor: Distributor) => {
   const loginStore = useLoginStore()
 
-  return axios.delete(`${API_URL}/distributors/${distributor.id}`, {
+  return axios.delete(`${API_URL}/distributors/${distributor.logto_id}`, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
