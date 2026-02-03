@@ -31,7 +31,7 @@ import {
   type NeDropdownItem,
   NeDropdownFilter,
 } from '@nethesis/vue-components'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { canManageApplications } from '@/lib/permissions'
@@ -44,6 +44,8 @@ import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import AssignOrganizationDrawer from './AssignOrganizationDrawer.vue'
 import SetNotesDrawer from './SetNotesDrawer.vue'
 import { useTypeFilter } from '@/queries/applications/typeFilter'
+import { useVersionFilter } from '@/queries/applications/versionFilter'
+import { buildVersionFilterOptions } from '@/lib/applications/versionFilter'
 
 //// review (search "system")
 
@@ -56,11 +58,13 @@ const {
   textFilter,
   debouncedTextFilter,
   typeFilter,
+  versionFilter,
   sortBy,
   sortDescending,
 } = useApplications()
 
 const { state: typeFilterState, asyncStatus: typeFilterAsyncStatus } = useTypeFilter()
+const { state: versionFilterState, asyncStatus: versionFilterAsyncStatus } = useVersionFilter()
 
 const currentApplication = ref<Application | undefined>()
 const isShownAssignOrgDrawer = ref(false)
@@ -98,22 +102,22 @@ const typeFilterOptions = computed(() => {
 //   }
 // })
 
-// const versionFilterOptions = computed(() => {
-//   if (!versionFilterState.value.data || !versionFilterState.value.data.versions) {
-//     return []
-//   } else {
-//     if (productFilter.value.length === 0) {
-//       // no product selected, show all versions
-//       return buildVersionFilterOptions(versionFilterState.value.data.versions)
-//     }
+const versionFilterOptions = computed(() => {
+  if (!versionFilterState.value.data || !versionFilterState.value.data.versions) {
+    return []
+  } else {
+    if (typeFilter.value.length === 0) {
+      // no product selected, show all versions
+      return buildVersionFilterOptions(versionFilterState.value.data.versions)
+    }
 
-//     // filter versions based on selected products
-//     const productVersions = versionFilterState.value.data.versions.filter((el) =>
-//       productFilter.value.includes(el.product),
-//     )
-//     return buildVersionFilterOptions(productVersions)
-//   }
-// })
+    // filter versions based on selected applications
+    const applicationVersions = versionFilterState.value.data.versions.filter((el) =>
+      typeFilter.value.includes(el.application),
+    )
+    return buildVersionFilterOptions(applicationVersions)
+  }
+})
 
 // const createdByFilterOptions = computed(() => {
 //   if (!createdByFilterState.value.data || !createdByFilterState.value.data.created_by) {
@@ -153,14 +157,13 @@ const noEmptyStateShown = computed(() => {
   return !isNoDataEmptyStateShown.value && !isNoMatchEmptyStateShown.value
 })
 
-////
-// watch(
-//   () => productFilter.value,
-//   () => {
-//     // reset version filter when product filter changes
-//     versionFilter.value = []
-//   },
-// )
+watch(
+  () => typeFilter.value,
+  () => {
+    // reset version filter when product filter changes
+    versionFilter.value = []
+  },
+)
 
 ////
 function clearFilters() {
@@ -168,7 +171,7 @@ function clearFilters() {
 
   textFilter.value = ''
   typeFilter.value = []
-  //   versionFilter.value = []
+  versionFilter.value = []
   //   createdByFilter.value = []
   //   statusFilter.value = ['online', 'offline', 'unknown']
 }
@@ -255,6 +258,21 @@ const goToApplicationDetails = (application: Application) => {
               :disabled="typeFilterAsyncStatus === 'loading' || typeFilterState.status === 'error'"
               :label="t('applications.type')"
               :options="typeFilterOptions"
+              show-options-filter
+              :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+              :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+              :no-options-label="t('ne_dropdown_filter.no_options')"
+              :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+              :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            />
+            <NeDropdownFilter
+              v-model="versionFilter"
+              kind="checkbox"
+              :disabled="
+                versionFilterAsyncStatus === 'loading' || versionFilterState.status === 'error'
+              "
+              :label="t('applications.version')"
+              :options="versionFilterOptions"
               show-options-filter
               :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
               :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
