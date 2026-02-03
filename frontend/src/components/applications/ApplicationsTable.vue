@@ -46,6 +46,7 @@ import SetNotesDrawer from './SetNotesDrawer.vue'
 import { useTypeFilter } from '@/queries/applications/typeFilter'
 import { useVersionFilter } from '@/queries/applications/versionFilter'
 import { buildVersionFilterOptions } from '@/lib/applications/versionFilter'
+import { useSystemFilter } from '@/queries/applications/systemFilter'
 
 //// review (search "system")
 
@@ -59,12 +60,14 @@ const {
   debouncedTextFilter,
   typeFilter,
   versionFilter,
+  systemFilter,
   sortBy,
   sortDescending,
 } = useApplications()
 
 const { state: typeFilterState, asyncStatus: typeFilterAsyncStatus } = useTypeFilter()
 const { state: versionFilterState, asyncStatus: versionFilterAsyncStatus } = useVersionFilter()
+const { state: systemFilterState, asyncStatus: systemFilterAsyncStatus } = useSystemFilter()
 
 const currentApplication = ref<Application | undefined>()
 const isShownAssignOrgDrawer = ref(false)
@@ -82,25 +85,12 @@ const typeFilterOptions = computed(() => {
   if (!typeFilterState.value.data || !typeFilterState.value.data) {
     return []
   } else {
-    //// need to filter user_facing apps only?
     return typeFilterState.value.data.map((appType) => ({
       id: appType.instance_of,
-      label: appType.instance_of, //// app pretty name will be put inside inventory
+      label: appType.instance_of,
     }))
   }
 })
-
-////
-// const productFilterOptions = computed(() => {
-//   if (!productFilterState.value.data || !productFilterState.value.data.products) {
-//     return []
-//   } else {
-//     return productFilterState.value.data.products.map((productId) => ({
-//       id: productId,
-//       label: getProductName(productId),
-//     }))
-//   }
-// })
 
 const versionFilterOptions = computed(() => {
   if (!versionFilterState.value.data || !versionFilterState.value.data.versions) {
@@ -116,6 +106,17 @@ const versionFilterOptions = computed(() => {
       typeFilter.value.includes(el.application),
     )
     return buildVersionFilterOptions(applicationVersions)
+  }
+})
+
+const systemFilterOptions = computed(() => {
+  if (!systemFilterState.value.data || !systemFilterState.value.data) {
+    return []
+  } else {
+    return systemFilterState.value.data.map((appSystem) => ({
+      id: appSystem.id,
+      label: appSystem.name,
+    }))
   }
 })
 
@@ -141,16 +142,23 @@ const versionFilterOptions = computed(() => {
 //   }
 // })
 
-const isNoDataEmptyStateShown = computed(() => {
+const isFiltered = computed(() => {
   return (
-    !applicationsPage.value?.length &&
-    !debouncedTextFilter.value &&
-    state.value.status === 'success'
+    !!debouncedTextFilter.value ||
+    !!typeFilter.value.length ||
+    !!versionFilter.value.length ||
+    !!systemFilter.value.length
+    // || !!createdByFilter.value.length ////
+    // || !!statusFilter.value.length
   )
 })
 
+const isNoDataEmptyStateShown = computed(() => {
+  return !applicationsPage.value?.length && state.value.status === 'success' && !isFiltered.value
+})
+
 const isNoMatchEmptyStateShown = computed(() => {
-  return !applicationsPage.value?.length && !!debouncedTextFilter.value
+  return !applicationsPage.value?.length && !!isFiltered.value
 })
 
 const noEmptyStateShown = computed(() => {
@@ -172,6 +180,7 @@ function clearFilters() {
   textFilter.value = ''
   typeFilter.value = []
   versionFilter.value = []
+  systemFilter.value = []
   //   createdByFilter.value = []
   //   statusFilter.value = ['online', 'offline', 'unknown']
 }
@@ -273,6 +282,21 @@ const goToApplicationDetails = (application: Application) => {
               "
               :label="t('applications.version')"
               :options="versionFilterOptions"
+              show-options-filter
+              :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+              :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+              :no-options-label="t('ne_dropdown_filter.no_options')"
+              :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+              :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            />
+            <NeDropdownFilter
+              v-model="systemFilter"
+              kind="checkbox"
+              :disabled="
+                systemFilterAsyncStatus === 'loading' || systemFilterState.status === 'error'
+              "
+              :label="t('systems.system')"
+              :options="systemFilterOptions"
               show-options-filter
               :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
               :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
