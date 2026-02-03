@@ -5,28 +5,29 @@ import axios from 'axios'
 import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 
-export const SYSTEM_ORGANIZATION_FILTER_KEY = 'systemOrganizationFilter'
+export const APPLICATION_ORGANIZATION_FILTER_KEY = 'applicationOrganizationFilter'
 
-const SYSTEM_ORGANIZATION_FILTER_PATH = 'filters/systems/organizations'
+const APPLICATION_ORGANIZATION_FILTER_PATH = 'filters/applications/organizations'
 
 interface OrganizationFilterResponse {
   code: number
   message: string
-  data: {
-    organizations: OrganizationItem[]
-  }
+  data: ApplicationOrganization[]
 }
 
-interface OrganizationItem {
-  id: string // logto_id
+interface ApplicationOrganization {
+  id: string
+  logto_id: string
   name: string
+  description: string
+  type: string
 }
 
 export const getOrganizationFilter = () => {
   const loginStore = useLoginStore()
 
   return axios
-    .get<OrganizationFilterResponse>(`${API_URL}/${SYSTEM_ORGANIZATION_FILTER_PATH}`, {
+    .get<OrganizationFilterResponse>(`${API_URL}/${APPLICATION_ORGANIZATION_FILTER_PATH}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data)

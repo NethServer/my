@@ -30,6 +30,7 @@ import {
   NeTooltip,
   type NeDropdownItem,
   NeDropdownFilter,
+  NeSortDropdown,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -47,6 +48,7 @@ import { useTypeFilter } from '@/queries/applications/typeFilter'
 import { useVersionFilter } from '@/queries/applications/versionFilter'
 import { buildVersionFilterOptions } from '@/lib/applications/versionFilter'
 import { useSystemFilter } from '@/queries/applications/systemFilter'
+import { useOrganizationFilter } from '@/queries/applications/organizationFilter'
 
 //// review (search "system")
 
@@ -61,6 +63,7 @@ const {
   typeFilter,
   versionFilter,
   systemFilter,
+  organizationFilter,
   sortBy,
   sortDescending,
 } = useApplications()
@@ -68,6 +71,8 @@ const {
 const { state: typeFilterState, asyncStatus: typeFilterAsyncStatus } = useTypeFilter()
 const { state: versionFilterState, asyncStatus: versionFilterAsyncStatus } = useVersionFilter()
 const { state: systemFilterState, asyncStatus: systemFilterAsyncStatus } = useSystemFilter()
+const { state: organizationFilterState, asyncStatus: organizationFilterAsyncStatus } =
+  useOrganizationFilter()
 
 const currentApplication = ref<Application | undefined>()
 const isShownAssignOrgDrawer = ref(false)
@@ -120,36 +125,24 @@ const systemFilterOptions = computed(() => {
   }
 })
 
-// const createdByFilterOptions = computed(() => {
-//   if (!createdByFilterState.value.data || !createdByFilterState.value.data.created_by) {
-//     return []
-//   } else {
-//     return createdByFilterState.value.data.created_by.map((user) => ({
-//       id: user.user_id,
-//       label: user.name,
-//     }))
-//   }
-// })
-
-// const organizationFilterOptions = computed(() => {
-//   if (!organizationFilterState.value.data || !organizationFilterState.value.data.organizations) {
-//     return []
-//   } else {
-//     return organizationFilterState.value.data.organizations.map((org) => ({
-//       id: org.id,
-//       label: org.name,
-//     }))
-//   }
-// })
+const organizationFilterOptions = computed(() => {
+  if (!organizationFilterState.value.data) {
+    return []
+  } else {
+    return organizationFilterState.value.data.map((org) => ({
+      id: org.logto_id,
+      label: org.name,
+    }))
+  }
+})
 
 const isFiltered = computed(() => {
   return (
     !!debouncedTextFilter.value ||
     !!typeFilter.value.length ||
     !!versionFilter.value.length ||
-    !!systemFilter.value.length
-    // || !!createdByFilter.value.length ////
-    // || !!statusFilter.value.length
+    !!systemFilter.value.length ||
+    !!organizationFilter.value.length
   )
 })
 
@@ -181,6 +174,7 @@ function clearFilters() {
   typeFilter.value = []
   versionFilter.value = []
   systemFilter.value = []
+  organizationFilter.value = []
   //   createdByFilter.value = []
   //   statusFilter.value = ['online', 'offline', 'unknown']
 }
@@ -304,25 +298,40 @@ const goToApplicationDetails = (application: Application) => {
               :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
               :clear-search-label="t('ne_dropdown_filter.clear_search')"
             />
+            <NeDropdownFilter
+              v-model="organizationFilter"
+              kind="checkbox"
+              :disabled="
+                organizationFilterAsyncStatus === 'loading' ||
+                organizationFilterState.status === 'error'
+              "
+              :label="t('organizations.organization')"
+              :options="organizationFilterOptions"
+              show-options-filter
+              :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+              :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+              :no-options-label="t('ne_dropdown_filter.no_options')"
+              :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+              :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            />
             <!-- sort dropdown -->
-            <!-- <NeSortDropdown //// todo
+            <NeSortDropdown
               v-model:sort-key="sortBy"
               v-model:sort-descending="sortDescending"
               :label="t('sort.sort')"
               :options="[
-                { id: 'name', label: t('systems.name') },
-                { id: 'version', label: t('systems.version') },
-                { id: 'fqdn', label: t('systems.fqdn') },
-                { id: 'organization_name', label: t('systems.organization') },
-                { id: 'creator_name', label: t('systems.created_by') },
-                { id: 'status', label: t('systems.status') },
+                { id: 'display_name', label: t('applications.name') },
+                { id: 'instance_of', label: t('applications.type') },
+                { id: 'version', label: t('applications.version') },
+                { id: 'system_name', label: t('systems.system') },
+                { id: 'organization_name', label: t('organizations.organization') },
               ]"
               :open-menu-aria-label="t('ne_dropdown.open_menu')"
               :sort-by-label="t('sort.sort_by')"
               :sort-direction-label="t('sort.direction')"
               :ascending-label="t('sort.ascending')"
               :descending-label="t('sort.descending')"
-            /> -->
+            />
             <NeButton kind="tertiary" @click="clearFilters">
               {{ t('common.clear_filters') }}
             </NeButton>
@@ -362,17 +371,16 @@ const goToApplicationDetails = (application: Application) => {
         :skeleton-rows="7"
       >
         <NeTableHead>
-          <!-- //// fix sort column names -->
           <NeTableHeadCell sortable column-key="display_name" @sort="onSort">{{
             $t('applications.name')
           }}</NeTableHeadCell>
-          <NeTableHeadCell sortable column-key="type" @sort="onSort">{{
+          <NeTableHeadCell sortable column-key="instance_of" @sort="onSort">{{
             $t('applications.type')
           }}</NeTableHeadCell>
           <NeTableHeadCell sortable column-key="version" @sort="onSort">{{
             $t('applications.version')
           }}</NeTableHeadCell>
-          <NeTableHeadCell sortable column-key="system_id" @sort="onSort">{{
+          <NeTableHeadCell sortable column-key="system_name" @sort="onSort">{{
             $t('systems.system')
           }}</NeTableHeadCell>
           <NeTableHeadCell sortable column-key="organization_name" @sort="onSort">{{
