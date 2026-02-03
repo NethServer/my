@@ -23,14 +23,11 @@ export const useApplications = defineQuery(() => {
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
-  // const productFilter = ref<string[]>([]) ////
-  // const createdByFilter = ref<string[]>([]) ////
   const typeFilter = ref<string[]>([])
   const versionFilter = ref<string[]>([])
-  // const statusFilter = ref<SystemStatus[]>(['online', 'offline', 'unknown']) ////
   const systemFilter = ref<string[]>([])
   const organizationFilter = ref<string[]>([])
-  const sortBy = ref<keyof Application>('module_id')
+  const sortBy = ref<keyof Application>('display_name')
   const sortDescending = ref(false)
 
   const { state, asyncStatus, ...rest } = useQuery({
@@ -42,7 +39,6 @@ export const useApplications = defineQuery(() => {
         textFilter: debouncedTextFilter.value,
         typeFilter: typeFilter.value,
         versionFilter: versionFilter.value,
-        // statusFilter: statusFilter.value, ////
         systemFilter: systemFilter.value,
         organizationFilter: organizationFilter.value,
         sortBy: sortBy.value,
@@ -57,7 +53,6 @@ export const useApplications = defineQuery(() => {
         debouncedTextFilter.value,
         typeFilter.value,
         versionFilter.value,
-        // statusFilter.value, ////
         systemFilter.value,
         organizationFilter.value,
         sortBy.value,
@@ -106,7 +101,6 @@ export const useApplications = defineQuery(() => {
     textFilter,
     typeFilter,
     versionFilter,
-    // statusFilter, ////
     systemFilter,
     organizationFilter,
     debouncedTextFilter,
