@@ -225,12 +225,12 @@ async function saveReseller() {
     },
   }
 
-  if (currentReseller?.id) {
+  if (currentReseller?.logto_id) {
     // editing reseller
 
     const resellerToEdit: Reseller = {
       ...reseller,
-      id: currentReseller.id,
+      logto_id: currentReseller.logto_id,
     }
 
     const isValidationOk = validateEdit(resellerToEdit)
