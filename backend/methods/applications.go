@@ -397,23 +397,23 @@ func GetApplicationVersions(c *gin.Context) {
 		return
 	}
 
-	// Convert map to array of ProductVersions
-	type ProductVersions struct {
-		Product  string   `json:"product"`
-		Versions []string `json:"versions"`
+	// Convert map to array of ApplicationVersions
+	type ApplicationVersions struct {
+		Application string   `json:"application"`
+		Versions    []string `json:"versions"`
 	}
 
-	var groupedVersions []ProductVersions
-	for product, versions := range versionsByProduct {
-		groupedVersions = append(groupedVersions, ProductVersions{
-			Product:  product,
-			Versions: versions,
+	var groupedVersions []ApplicationVersions
+	for application, versions := range versionsByProduct {
+		groupedVersions = append(groupedVersions, ApplicationVersions{
+			Application: application,
+			Versions:    versions,
 		})
 	}
 
-	// Sort by product name for consistent output
+	// Sort by application name for consistent output
 	sort.Slice(groupedVersions, func(i, j int) bool {
-		return groupedVersions[i].Product < groupedVersions[j].Product
+		return groupedVersions[i].Application < groupedVersions[j].Application
 	})
 
 	result := gin.H{

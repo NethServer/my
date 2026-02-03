@@ -1911,13 +1911,16 @@ components:
     AppVersionFilterParam:
       name: version
       in: query
-      description: Filter applications by version. Supports multiple values.
+      description: |
+        Filter applications by version. Supports multiple values.
+        Uses prefixed format "application:version" (e.g., "nethvoice:1.5.3") to avoid ambiguity
+        when the same version exists for multiple application types.
       required: false
       schema:
         type: array
         items:
           type: string
-        example: ["1.0.0", "1.2.3"]
+        example: ["nethvoice:1.5.3", "mail:1.7.4"]
       style: form
       explode: true
 
@@ -6352,7 +6355,7 @@ paths:
                         items:
                           type: object
                           properties:
-                            product:
+                            application:
                               type: string
                               description: Application type (instance_of)
                               example: "nethvoice"
@@ -6364,11 +6367,11 @@ paths:
                               example: ["nethvoice:1.5.4", "nethvoice:1.5.3"]
                     example:
                       versions:
-                        - product: "mail"
+                        - application: "mail"
                           versions: ["mail:1.7.4"]
-                        - product: "nethvoice"
+                        - application: "nethvoice"
                           versions: ["nethvoice:1.5.4", "nethvoice:1.5.3"]
-                        - product: "webtop"
+                        - application: "webtop"
                           versions: ["webtop:1.5.4"]
         '401':
           $ref: '#/components/responses/Unauthorized'

@@ -203,14 +203,32 @@ func (r *LocalApplicationRepository) List(
 	}
 
 	// Filter by versions
+	// Version filter uses prefixed format "application:version" (e.g., "nethvoice:1.5.3")
+	// to avoid ambiguity when same version exists for multiple application types
 	if len(filterVersions) > 0 {
-		versionPlaceholders := make([]string, len(filterVersions))
+		versionConditions := make([]string, len(filterVersions))
 		baseIndex := len(args)
-		for i, v := range filterVersions {
-			versionPlaceholders[i] = fmt.Sprintf("$%d", baseIndex+i+1)
-			args = append(args, v)
+
+		for i, prefixedVersion := range filterVersions {
+			// Split prefixed version into application and version parts
+			parts := strings.SplitN(prefixedVersion, ":", 2)
+			if len(parts) == 2 {
+				// Prefixed format: match both instance_of and version
+				appPlaceholder := fmt.Sprintf("$%d", baseIndex+1)
+				versionPlaceholder := fmt.Sprintf("$%d", baseIndex+2)
+				versionConditions[i] = fmt.Sprintf("(a.instance_of = %s AND a.version = %s)", appPlaceholder, versionPlaceholder)
+				args = append(args, parts[0], parts[1])
+				baseIndex += 2
+			} else {
+				// Fallback for non-prefixed format: match version only
+				versionPlaceholder := fmt.Sprintf("$%d", baseIndex+1)
+				versionConditions[i] = fmt.Sprintf("(a.version = %s)", versionPlaceholder)
+				args = append(args, prefixedVersion)
+				baseIndex++
+			}
 		}
-		whereClause += fmt.Sprintf(" AND a.version IN (%s)", strings.Join(versionPlaceholders, ","))
+
+		whereClause += fmt.Sprintf(" AND (%s)", strings.Join(versionConditions, " OR "))
 	}
 
 	// Filter by system IDs (additional filter within allowed)
