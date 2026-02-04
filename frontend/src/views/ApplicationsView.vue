@@ -13,7 +13,7 @@ import {
 } from '@/lib/applications/applications'
 import { useApplications } from '@/queries/applications'
 import { useLoginStore } from '@/stores/login'
-import { getPreference, NeButton, NeHeading, NeInlineNotification } from '@nethesis/vue-components'
+import { getPreference, NeHeading, NeInlineNotification } from '@nethesis/vue-components'
 import { useQuery } from '@pinia/colada'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
