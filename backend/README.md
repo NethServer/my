@@ -5,8 +5,8 @@ Go REST API server for My Nethesis with Logto JWT authentication and Role-Based 
 ## Quick Start
 
 ### Prerequisites
-- Go 1.23+
-- Docker/Podman (for Redis)
+- Go 1.24+
+- Docker/Podman (for PostgreSQL and Redis)
 - Logto instance with M2M app configured
 
 **Note:** The Makefile automatically detects and uses Docker or Podman.
@@ -50,7 +50,7 @@ BACKEND_APP_SECRET=your-management-api-app-secret
 JWT_SECRET=your-super-secret-jwt-signing-key-min-32-chars
 
 # PostgreSQL connection string (shared 'noc' database)
-DATABASE_URL=postgresql://backend:backend@localhost:5432/noc?sslmode=disable
+DATABASE_URL=postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disable
 
 # Redis connection URL
 REDIS_URL=redis://localhost:6379
@@ -78,77 +78,21 @@ SMTP_TLS=true
 
 ## Email Configuration
 
-The backend automatically sends welcome emails to newly created users with their temporary password and login instructions. Email functionality is optional and degrades gracefully if not configured.
+Welcome emails are sent automatically when users are created via API. Email is optional and degrades gracefully if SMTP is not configured.
 
-### SMTP Setup
+Configure SMTP in your `.env` (see `.env.example` for all variables):
 
-Configure SMTP settings in your environment:
-
-```bash
-# SMTP server details
-SMTP_HOST=smtp.gmail.com          # Your SMTP server hostname
-SMTP_PORT=587                     # SMTP port (587 for TLS, 465 for SSL, 25 for plain)
-SMTP_USERNAME=your-email@gmail.com # SMTP authentication username
-SMTP_PASSWORD=your-app-password    # SMTP authentication password
-SMTP_FROM=noreply@yourdomain.com   # From email address for outgoing emails
-SMTP_FROM_NAME=Your Company Name   # Display name for sender
-SMTP_TLS=true                     # Enable TLS encryption (recommended)
-```
-
-### Supported Providers
-
-**Gmail/Google Workspace:**
 ```bash
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USERNAME=your-email@gmail.com
-SMTP_PASSWORD=your-app-password  # Use App Password, not account password
+SMTP_PASSWORD=your-app-password
+SMTP_FROM=noreply@yourdomain.com
+SMTP_FROM_NAME=Your Company Name
 SMTP_TLS=true
 ```
 
-**AWS SES:**
-```bash
-SMTP_HOST=email-smtp.us-east-1.amazonaws.com
-SMTP_PORT=587
-SMTP_USERNAME=your-ses-smtp-username
-SMTP_PASSWORD=your-ses-smtp-password
-SMTP_TLS=true
-```
-
-**SendGrid:**
-```bash
-SMTP_HOST=smtp.sendgrid.net
-SMTP_PORT=587
-SMTP_USERNAME=apikey
-SMTP_PASSWORD=your-sendgrid-api-key
-SMTP_TLS=true
-```
-
-### Email Features
-
-- **Automatic Delivery**: Welcome emails sent when users are created via API
-- **Modern Templates**: Responsive HTML and text templates with dark/light mode support
-- **Secure Password Delivery**: Auto-generated temporary passwords sent securely
-- **Smart Links**: Login URLs point directly to password change page
-- **Graceful Degradation**: User creation succeeds even if email delivery fails
-- **Security**: Passwords never logged, email content is sanitized
-
-### Template Customization
-
-Email templates are located in `services/email/templates/`:
-- `welcome.html` - Modern HTML template with dark mode support
-- `welcome.txt` - Plain text fallback template
-
-Templates support Go template syntax with variables:
-- `{{.UserName}}` - User's full name
-- `{{.UserEmail}}` - User's email address
-- `{{.OrganizationName}}` - Organization name
-- `{{.OrganizationType}}` - Organization type (Owner, Distributor, etc.)
-- `{{.UserRoles}}` - Array of user role names
-- `{{.TempPassword}}` - Generated temporary password
-- `{{.LoginURL}}` - Direct link to password change page
-- `{{.SupportEmail}}` - Support contact email
-- `{{.CompanyName}}` - Company name from SMTP configuration
+Templates are in `services/email/templates/` and support Go template syntax.
 
 ## Architecture
 
@@ -160,55 +104,21 @@ Templates support Go template syntax with variables:
 - **User Roles** (technical capabilities): Admin, Support
 - **Organization Roles** (business hierarchy): Owner, Distributor, Reseller, Customer
 
-### User Impersonation System
-Secure user impersonation allowing Owner organization users to temporarily become another user:
+### User Impersonation
+Owner-only feature: temporarily act as another user with 1-hour scoped JWT tokens. Prevents self-impersonation and token chaining. All actions are logged.
 
-#### Features
-- **Owner-Only Access**: Only users with "Owner" organization role can impersonate others
-- **Secure Tokens**: 1-hour duration impersonation JWT tokens with embedded user data
-- **Permission Filtering**: All API calls filtered by impersonated user's actual permissions
-- **Audit Trail**: Complete logging of all impersonation activities for security compliance
-- **UI Integration**: Frontend banner shows impersonation status with easy exit mechanism
+- `POST /api/auth/impersonate` - Start impersonation
+- `POST /api/auth/exit-impersonation` - Exit impersonation
 
-#### Security Controls
-- Prevents self-impersonation and token chaining
-- Strict token validation prevents regular tokens being used as impersonation tokens
-- Comprehensive security checks ensure only authorized users can initiate impersonation
-- Token blacklisting for immediate session termination
+### Redis Caching
+Multiple cache layers with graceful degradation (system works without Redis):
 
-#### API Endpoints
-- `POST /api/auth/impersonate` - Start impersonating another user
-- `POST /api/auth/exit-impersonation` - Exit impersonation and return to original user
-
-### Redis Caching System
-High-performance caching system with multiple cache types:
-
-#### Statistics Cache
-- **Auto-initialized**: Starts with server, updates every 5 minutes
-- **Cached Data**: Organization counts, user statistics, system metrics
-- **TTL**: 10 minutes
-- **Redis Keys**: `stats:*`
-
-#### JIT Roles Cache
-- **JIT-initialized**: Lazy loading on first access
-- **Cached Data**: User roles, organization roles, permissions
-- **TTL**: 5 minutes per cache entry
-- **Redis Keys**: `jit_roles:*`
-
-#### Organization Users Cache
-- **Cached Data**: User lists per organization
-- **TTL**: 3 minutes per cache entry
-- **Redis Keys**: `org_users:*`
-
-#### JWKS Cache
-- **Cached Data**: JSON Web Key Sets for token validation
-- **TTL**: 5 minutes
-- **Redis Keys**: `jwks:*`
-
-#### Cache Management
-- **Graceful Degradation**: System continues working if Redis is unavailable
-- **Background Updates**: Automatic cache refresh and cleanup
-- **Configurable TTLs**: All timeouts configurable via environment variables
+| Cache | TTL | Keys |
+|-------|-----|------|
+| Statistics | 10 min | `stats:*` |
+| JIT Roles | 5 min | `jit_roles:*` |
+| Organization Users | 3 min | `org_users:*` |
+| JWKS | 5 min | `jwks:*` |
 
 ## API Endpoints
 
@@ -289,69 +199,12 @@ curl -H "Authorization: Bearer $(cat token-reseller)" http://localhost:8080/api/
 curl -H "Authorization: Bearer $(cat token-customer)" http://localhost:8080/api/systems
 ```
 
+See [openapi.yaml](openapi.yaml) for all available endpoints and expected payloads.
+
 ### API Documentation
 ```bash
 # Validate OpenAPI documentation
 make validate-docs
-```
-
-### Testing
-
-#### Authentication Testing
-```bash
-# Test token exchange
-curl -X POST http://localhost:8080/api/auth/exchange \
-  -H "Content-Type: application/json" \
-  -d '{"access_token": "YOUR_LOGTO_TOKEN"}'
-
-# Test with custom JWT
-curl -X GET http://localhost:8080/api/me \
-  -H "Authorization: Bearer YOUR_CUSTOM_JWT"
-```
-
-#### User Impersonation Testing
-```bash
-# Impersonate a user (Owner users only)
-curl -X POST http://localhost:8080/api/auth/impersonate \
-  -H "Authorization: Bearer YOUR_OWNER_JWT" \
-  -H "Content-Type: application/json" \
-  -d '{"user_id": "target_user_id"}'
-
-# Verify impersonation is active
-curl -X GET http://localhost:8080/api/auth/me \
-  -H "Authorization: Bearer YOUR_IMPERSONATION_JWT"
-
-# Exit impersonation
-curl -X POST http://localhost:8080/api/auth/exit-impersonation \
-  -H "Authorization: Bearer YOUR_IMPERSONATION_JWT"
-```
-
-#### Email Testing
-```bash
-# Test welcome email service configuration
-curl -X POST http://localhost:8080/api/users \
-  -H "Authorization: Bearer YOUR_JWT" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "name": "Test User",
-    "userRoleIds": ["role_123"],
-    "organizationId": "org_456"
-  }'
-
-# Check logs for email delivery status
-docker logs backend-container 2>&1 | grep "Welcome email"
-```
-
-#### SMTP Connection Testing
-The backend automatically validates SMTP configuration on startup. Check logs for:
-```
-{"level":"info","message":"Welcome email service configuration test successful"}
-```
-
-If SMTP is misconfigured, you'll see:
-```
-{"level":"warn","message":"SMTP not configured, skipping welcome email"}
 ```
 
 ## Project Structure

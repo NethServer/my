@@ -12,14 +12,15 @@ Vue.js web application for My Nethesis with Logto authentication and Role-Based 
 
 ### Setup
 
+> **Note:** The frontend requires the backend API running on port 8080.
+> Start it first with `cd backend && make dev-up && make run`.
+
 ```bash
 # Install dependencies
 npm ci
 
-# Start development server
+# Start development server (port 5173)
 npm run dev
-
-# Access application at http://localhost:5173
 ```
 
 ### Required Environment Variables
@@ -189,6 +190,8 @@ ls dist/
 
 # Verify build
 podman run -p 8080:80 my-nethesis-frontend:latest
+# OR
+docker run -p 8080:80 my-nethesis-frontend:latest
 ```
 
 ## Related

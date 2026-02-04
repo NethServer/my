@@ -59,7 +59,7 @@ Web application providing centralized authentication and management using Logto 
 ## 🚀 Quick Start
 
 ### Requirements
-- **Development**: Go 1.21+ (backend requires 1.23+), Node.js, Make
+- **Development**: Go 1.24+, Node.js 20+ LTS, Make
 - **Containers**: Docker OR Podman (optional, for full infrastructure)
 - **External**: Logto instance with M2M app and Management API permissions
 - **Deploy**: Render account with GitHub integration
@@ -68,7 +68,7 @@ Web application providing centralized authentication and management using Logto 
 
 **Choose your preferred development approach:**
 
-#### Option 1: Full Infrastructure (Recommended)
+#### Option 1: Full Infrastructure with Docker Compose
 Complete replica of the production environment with all services containerized:
 
 ```bash
@@ -80,29 +80,50 @@ podman-compose up -d
 # Access the application at: http://localhost:9090
 ```
 
-All URLs and management commands are documented in the [docker-compose.yml](./docker-compose.yml) header.
+Service URLs and management commands are documented in the [docker-compose.yml](./docker-compose.yml) header.
 
-#### Option 2: Individual Components
-Start services individually for targeted development:
+> **Note:** The `sync` tool runs as an on-demand service. Use it with:
+> `docker-compose --profile tools run sync-full init ...` or
+> `docker-compose --profile tools run sync-full sync`
+
+#### Option 2: Individual Components (Step-by-Step)
+Start services individually for targeted development. Each step runs in a **separate terminal**.
+
+**Prerequisites:** A running Logto instance with an M2M app and Management API permissions.
 
 ```bash
-# Start shared databases (PostgreSQL + Redis)
-cd backend && make dev-up
+# 1. Clone and enter the project
+git clone <repo-url> && cd my
 
-# Start individual services in separate terminals:
-cd backend && make run          # Backend API on :8080
-cd collect && make run          # Collect service on :8081
-cd frontend && npm run dev      # Frontend on :5173
+# 2. Setup and start shared infrastructure (PostgreSQL + Redis)
+cd backend && make dev-setup && make dev-up
 
-# Use sync tool as needed:
-cd sync && make run-example
+# 3. Start the Backend API (port 8080)
+#    Initializes the database schema on first run
+cd backend && make run
+
+# 4. Build and run the sync tool to configure Logto RBAC
+cd sync && make dev-setup && make build
+./build/sync init \
+  --tenant-id <your-tenant-id> \
+  --backend-app-id <your-app-id> \
+  --backend-app-secret <your-secret> \
+  --logto-domain <your-domain.com> \
+  --app-url <https://your-app-url>
+./build/sync sync
+
+# 5. Start the Collect service (port 8081)
+cd collect && make dev-setup && make run
+
+# 6. Start the Frontend (port 5173)
+cd frontend && npm ci && npm run dev
 ```
 
 ### Getting Started
 1. **RBAC Setup**: [sync/README.md](./sync/README.md) - Use `sync init` for complete Logto configuration
-2. **Frontend Development**: [frontend/README.md](./frontend/README.md) - Vue.js setup and environment configuration
-3. **Backend Development**: [backend/README.md](./backend/README.md) - Backend setup and environment configuration
-4. **Collect Development**: [collect/README.md](./collect/README.md) - Collect setup and environment configuration
+2. **Backend Development**: [backend/README.md](./backend/README.md) - API server setup and environment configuration
+3. **Collect Development**: [collect/README.md](./collect/README.md) - Inventory service setup and environment configuration
+4. **Frontend Development**: [frontend/README.md](./frontend/README.md) - Vue.js setup and environment configuration
 5. **Production Deploy**: Use `./deploy.sh` for automated deployment
 
 ## 🌐 Deployment Environments
@@ -122,7 +143,7 @@ cd sync && make run-example
 
 ### Local Development
 See individual component documentation for setup:
-- **Fronted**: [frontend/README.md](./frontend/README.md) - Environment variables and setup for frontend
+- **Frontend**: [frontend/README.md](./frontend/README.md) - Environment variables and setup for frontend
 - **Backend**: [backend/README.md](./backend/README.md) - Environment variables and setup for backend
 - **Collect**: [collect/README.md](./collect/README.md) - Environment variables and setup for collect
 - **sync CLI**: [sync/README.md](./sync/README.md) - Use `sync init` to generate all required variables

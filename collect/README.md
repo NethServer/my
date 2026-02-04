@@ -5,20 +5,24 @@ High-performance inventory collection service that handles thousands of systems 
 ## Quick Start
 
 ### Prerequisites
-- Go 1.23+
+- Go 1.24+
 - PostgreSQL 15+
 - Redis 7+
 - Docker/Podman
 
 ### Setup
+
+> **Note:** Collect shares the same PostgreSQL and Redis containers with the backend.
+> If you already started them with `cd backend && make dev-up`, you can skip `make dev-up` here.
+
 ```bash
 # Setup development environment
 make dev-setup
 
-# Start PostgreSQL and Redis containers
+# Start PostgreSQL and Redis containers (skip if already running from backend)
 make dev-up
 
-# Start the application
+# Start the application (port 8081)
 make run
 
 # Stop PostgreSQL and Redis when done
@@ -28,13 +32,13 @@ make dev-down
 ### Required Environment Variables
 ```bash
 # Postgres URL
-DATABASE_URL=postgresql://collect:collect@localhost:5432/noc
+DATABASE_URL=postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disable
 
 # Redis Configuration
 REDIS_URL=redis://localhost:6379
 REDIS_DB=1
 REDIS_PASSWORD=
-# Note: REDIS_PASSWORD can be empty for Redis without
+# Note: REDIS_PASSWORD can be empty for Redis without authentication
 ```
 
 ### Optional Environment Variables
