@@ -57,19 +57,67 @@ func (e *Engine) syncThirdPartyApplications(cfg *config.Config, result *Result) 
 	return nil
 }
 
+// buildAppPayload populates CustomData, OidcClientMetadata, and CustomClientMetadata on a ThirdPartyApplication
+func (e *Engine) buildAppPayload(appConfig config.Application, cfg *config.Config, app *client.ThirdPartyApplication) {
+	customData := make(map[string]interface{})
+
+	if appConfig.AccessControl != nil {
+		accessControlData := map[string]interface{}{
+			"organization_roles": appConfig.AccessControl.OrganizationRoles,
+			"user_roles":         appConfig.AccessControl.UserRoles,
+		}
+
+		if len(appConfig.AccessControl.UserRoles) > 0 {
+			userRoleIDs, err := e.resolveUserRoleIDs(cfg, appConfig.AccessControl.UserRoles)
+			if err != nil {
+				logger.Warn("Failed to resolve user role IDs for app %s: %v", appConfig.Name, err)
+			} else {
+				accessControlData["user_role_ids"] = userRoleIDs
+			}
+		}
+
+		if len(appConfig.AccessControl.OrganizationIDs) > 0 {
+			accessControlData["organization_ids"] = appConfig.AccessControl.OrganizationIDs
+		}
+		customData["access_control"] = accessControlData
+	}
+
+	if appConfig.LoginURL != "" {
+		customData["login_url"] = appConfig.LoginURL
+	}
+
+	if appConfig.InfoURL != "" {
+		customData["info_url"] = appConfig.InfoURL
+	}
+
+	if len(customData) > 0 {
+		app.CustomData = customData
+	}
+
+	if len(appConfig.RedirectUris) > 0 || len(appConfig.PostLogoutRedirectUris) > 0 {
+		app.OidcClientMetadata = &client.OidcClientMetadata{
+			RedirectUris:           appConfig.RedirectUris,
+			PostLogoutRedirectUris: appConfig.PostLogoutRedirectUris,
+		}
+	}
+
+	if len(appConfig.CorsAllowed) > 0 {
+		app.CustomClientMetadata = &client.CustomClientMetadata{
+			CorsAllowedOrigins: appConfig.CorsAllowed,
+		}
+	}
+}
+
 // syncSingleApplication synchronizes a single third-party application
 func (e *Engine) syncSingleApplication(appConfig config.Application, existingApps map[string]client.ThirdPartyApplication, cfg *config.Config, result *Result) error {
 	logger.Info("Processing application: %s", appConfig.Name)
 
-	// Determine scopes to assign
 	scopes := cfg.GetDefaultScopes()
 	if len(appConfig.Scopes) > 0 {
 		scopes = appConfig.Scopes
 	}
 
-	// Check if application exists
 	if existingApp, exists := existingApps[appConfig.Name]; exists {
-		// Update existing application
 		logger.Info("Updating existing third-party application: %s", appConfig.Name)
 
 		updatedApp := client.ThirdPartyApplication{
@@ -79,63 +127,7 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 			Type:         existingApp.Type,
 			IsThirdParty: true,
 		}
-
-		// Add custom data (access control and login_url)
-		customData := make(map[string]interface{})
-
-		// Add access control if configured
-		if appConfig.AccessControl != nil {
-			accessControlData := map[string]interface{}{
-				"organization_roles": appConfig.AccessControl.OrganizationRoles,
-				"user_roles":         appConfig.AccessControl.UserRoles,
-			}
-
-			// Add user role IDs by resolving sync config IDs to Logto role IDs
-			if len(appConfig.AccessControl.UserRoles) > 0 {
-				userRoleIDs, err := e.resolveUserRoleIDs(cfg, appConfig.AccessControl.UserRoles)
-				if err != nil {
-					logger.Warn("Failed to resolve user role IDs for app %s: %v", appConfig.Name, err)
-				} else {
-					accessControlData["user_role_ids"] = userRoleIDs
-				}
-			}
-
-			// Add organization_ids if configured
-			if len(appConfig.AccessControl.OrganizationIDs) > 0 {
-				accessControlData["organization_ids"] = appConfig.AccessControl.OrganizationIDs
-			}
-			customData["access_control"] = accessControlData
-		}
-
-		// Add login_url if configured
-		if appConfig.LoginURL != "" {
-			customData["login_url"] = appConfig.LoginURL
-		}
-
-		// Add info_url if configured
-		if appConfig.InfoURL != "" {
-			customData["info_url"] = appConfig.InfoURL
-		}
-
-		// Set custom data if we have any
-		if len(customData) > 0 {
-			updatedApp.CustomData = customData
-		}
-
-		// Add OIDC metadata only if URIs are provided
-		if len(appConfig.RedirectUris) > 0 || len(appConfig.PostLogoutRedirectUris) > 0 {
-			updatedApp.OidcClientMetadata = &client.OidcClientMetadata{
-				RedirectUris:           appConfig.RedirectUris,
-				PostLogoutRedirectUris: appConfig.PostLogoutRedirectUris,
-			}
-		}
-
-		// Add custom client metadata for CORS origins if provided
-		if len(appConfig.CorsAllowed) > 0 {
-			updatedApp.CustomClientMetadata = &client.CustomClientMetadata{
-				CorsAllowedOrigins: appConfig.CorsAllowed,
-			}
-		}
+		e.buildAppPayload(appConfig, cfg, &updatedApp)
 
 		if !e.options.DryRun {
 			if err := e.client.UpdateThirdPartyApplication(existingApp.ID, updatedApp); err != nil {
@@ -158,7 +150,6 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 		result.Summary.ApplicationsUpdated++
 		logger.Info("Updated application: %s", appConfig.Name)
 	} else {
-		// Create new application
 		logger.Info("Creating new application: %s", appConfig.Name)
 
 		newApp := client.ThirdPartyApplication{
@@ -167,63 +158,7 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 			Type:         "Traditional",
 			IsThirdParty: true,
 		}
-
-		// Add custom data (access control and login_url)
-		customData := make(map[string]interface{})
-
-		// Add access control if configured
-		if appConfig.AccessControl != nil {
-			accessControlData := map[string]interface{}{
-				"organization_roles": appConfig.AccessControl.OrganizationRoles,
-				"user_roles":         appConfig.AccessControl.UserRoles,
-			}
-
-			// Add user role IDs by resolving sync config IDs to Logto role IDs
-			if len(appConfig.AccessControl.UserRoles) > 0 {
-				userRoleIDs, err := e.resolveUserRoleIDs(cfg, appConfig.AccessControl.UserRoles)
-				if err != nil {
-					logger.Warn("Failed to resolve user role IDs for app %s: %v", appConfig.Name, err)
-				} else {
-					accessControlData["user_role_ids"] = userRoleIDs
-				}
-			}
-
-			// Add organization_ids if configured
-			if len(appConfig.AccessControl.OrganizationIDs) > 0 {
-				accessControlData["organization_ids"] = appConfig.AccessControl.OrganizationIDs
-			}
-			customData["access_control"] = accessControlData
-		}
-
-		// Add login_url if configured
-		if appConfig.LoginURL != "" {
-			customData["login_url"] = appConfig.LoginURL
-		}
-
-		// Add info_url if configured
-		if appConfig.InfoURL != "" {
-			customData["info_url"] = appConfig.InfoURL
-		}
-
-		// Set custom data if we have any
-		if len(customData) > 0 {
-			newApp.CustomData = customData
-		}
-
-		// Add OIDC metadata only if URIs are provided
-		if len(appConfig.RedirectUris) > 0 || len(appConfig.PostLogoutRedirectUris) > 0 {
-			newApp.OidcClientMetadata = &client.OidcClientMetadata{
-				RedirectUris:           appConfig.RedirectUris,
-				PostLogoutRedirectUris: appConfig.PostLogoutRedirectUris,
-			}
-		}
-
-		// Add custom client metadata for CORS origins if provided
-		if len(appConfig.CorsAllowed) > 0 {
-			newApp.CustomClientMetadata = &client.CustomClientMetadata{
-				CorsAllowedOrigins: appConfig.CorsAllowed,
-			}
-		}
+		e.buildAppPayload(appConfig, cfg, &newApp)
 
 		if !e.options.DryRun {
 			createdApp, err := e.client.CreateThirdPartyApplication(newApp)

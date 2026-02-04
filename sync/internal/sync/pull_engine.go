@@ -259,11 +259,11 @@ func (e *PullEngine) processOrganization(logtoOrg client.LogtoOrganization, resu
 
 	switch orgType {
 	case "distributor":
-		return e.processDistributor(logtoOrg, result)
+		return e.upsertOrganizationEntity(logtoOrg, "distributors", "distributor", result)
 	case "reseller":
-		return e.processReseller(logtoOrg, result)
+		return e.upsertOrganizationEntity(logtoOrg, "resellers", "reseller", result)
 	case "customer":
-		return e.processCustomer(logtoOrg, result)
+		return e.upsertOrganizationEntity(logtoOrg, "customers", "customer", result)
 	default:
 		logger.Warn("Unknown organization type for '%s', skipping", logtoOrg.Name)
 		result.Summary.OrganizationsSkipped++
@@ -291,216 +291,58 @@ func (e *PullEngine) determineOrganizationType(customData map[string]interface{}
 	return "customer"
 }
 
-// processDistributor processes a distributor organization
-func (e *PullEngine) processDistributor(logtoOrg client.LogtoOrganization, result *PullResult) error {
-	// Check if distributor already exists
+// upsertOrganizationEntity upserts an organization entity (distributor, reseller, or customer) in the local database
+func (e *PullEngine) upsertOrganizationEntity(logtoOrg client.LogtoOrganization, tableName string, entityType string, result *PullResult) error {
 	var existingID string
 	err := database.DB.QueryRow(
-		"SELECT id FROM distributors WHERE logto_id = $1 AND deleted_at IS NULL",
+		fmt.Sprintf("SELECT id FROM %s WHERE logto_id = $1 AND deleted_at IS NULL", tableName),
 		logtoOrg.ID,
 	).Scan(&existingID)
 
 	if err == sql.ErrNoRows {
-		// Create new distributor
-		distributor := models.LocalDistributor{
-			ID:            uuid.New().String(),
-			LogtoID:       &logtoOrg.ID,
-			Name:          logtoOrg.Name,
-			Description:   logtoOrg.Description,
-			CustomData:    logtoOrg.CustomData,
-			CreatedAt:     time.Now(),
-			UpdatedAt:     time.Now(),
-			LogtoSyncedAt: &time.Time{},
-		}
-		*distributor.LogtoSyncedAt = time.Now()
+		newID := uuid.New().String()
+		now := time.Now()
 
-		// Serialize custom data
-		customDataJSON, err := json.Marshal(distributor.CustomData)
-		if err != nil {
-			return fmt.Errorf("failed to marshal custom data: %w", err)
-		}
-
-		_, err = database.DB.Exec(`
-			INSERT INTO distributors (id, logto_id, name, description, custom_data, created_at, updated_at, logto_synced_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-			distributor.ID, distributor.LogtoID, distributor.Name, distributor.Description,
-			customDataJSON, distributor.CreatedAt, distributor.UpdatedAt, distributor.LogtoSyncedAt,
-		)
-
-		if err != nil {
-			return fmt.Errorf("failed to create distributor: %w", err)
-		}
-
-		logger.Info("Created distributor '%s' with ID %s", distributor.Name, distributor.ID)
-		e.addPullOperation(result, "distributor", "create", logtoOrg.Name, fmt.Sprintf("Created distributor %s", logtoOrg.Name), false, nil)
-		result.Summary.OrganizationsCreated++
-
-	} else if err != nil {
-		return fmt.Errorf("failed to check existing distributor: %w", err)
-	} else {
-		// Update existing distributor
 		customDataJSON, err := json.Marshal(logtoOrg.CustomData)
 		if err != nil {
 			return fmt.Errorf("failed to marshal custom data: %w", err)
 		}
 
-		_, err = database.DB.Exec(`
-			UPDATE distributors
-			SET name = $1, description = $2, custom_data = $3, updated_at = $4, logto_synced_at = $5
-			WHERE id = $6`,
-			logtoOrg.Name, logtoOrg.Description, customDataJSON, time.Now(), time.Now(), existingID,
+		_, err = database.DB.Exec(fmt.Sprintf(`
+			INSERT INTO %s (id, logto_id, name, description, custom_data, created_at, updated_at, logto_synced_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, tableName),
+			newID, logtoOrg.ID, logtoOrg.Name, logtoOrg.Description,
+			customDataJSON, now, now, now,
 		)
-
 		if err != nil {
-			return fmt.Errorf("failed to update distributor: %w", err)
+			return fmt.Errorf("failed to create %s: %w", entityType, err)
 		}
 
-		logger.Info("Updated distributor '%s' with ID %s", logtoOrg.Name, existingID)
-		e.addPullOperation(result, "distributor", "update", logtoOrg.Name, fmt.Sprintf("Updated distributor %s", logtoOrg.Name), false, nil)
-		result.Summary.OrganizationsUpdated++
-	}
-
-	return nil
-}
-
-// processReseller processes a reseller organization
-func (e *PullEngine) processReseller(logtoOrg client.LogtoOrganization, result *PullResult) error {
-	// Check if reseller already exists
-	var existingID string
-	err := database.DB.QueryRow(
-		"SELECT id FROM resellers WHERE logto_id = $1 AND deleted_at IS NULL",
-		logtoOrg.ID,
-	).Scan(&existingID)
-
-	if err == sql.ErrNoRows {
-		// Create new reseller
-		reseller := models.LocalReseller{
-			ID:            uuid.New().String(),
-			LogtoID:       &logtoOrg.ID,
-			Name:          logtoOrg.Name,
-			Description:   logtoOrg.Description,
-			CustomData:    logtoOrg.CustomData,
-			CreatedAt:     time.Now(),
-			UpdatedAt:     time.Now(),
-			LogtoSyncedAt: &time.Time{},
-		}
-		*reseller.LogtoSyncedAt = time.Now()
-
-		// Serialize custom data
-		customDataJSON, err := json.Marshal(reseller.CustomData)
-		if err != nil {
-			return fmt.Errorf("failed to marshal custom data: %w", err)
-		}
-
-		_, err = database.DB.Exec(`
-			INSERT INTO resellers (id, logto_id, name, description, custom_data, created_at, updated_at, logto_synced_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-			reseller.ID, reseller.LogtoID, reseller.Name, reseller.Description,
-			customDataJSON, reseller.CreatedAt, reseller.UpdatedAt, reseller.LogtoSyncedAt,
-		)
-
-		if err != nil {
-			return fmt.Errorf("failed to create reseller: %w", err)
-		}
-
-		logger.Info("Created reseller '%s' with ID %s", reseller.Name, reseller.ID)
-		e.addPullOperation(result, "reseller", "create", logtoOrg.Name, fmt.Sprintf("Created reseller %s", logtoOrg.Name), false, nil)
+		logger.Info("Created %s '%s' with ID %s", entityType, logtoOrg.Name, newID)
+		e.addPullOperation(result, entityType, "create", logtoOrg.Name, fmt.Sprintf("Created %s %s", entityType, logtoOrg.Name), false, nil)
 		result.Summary.OrganizationsCreated++
 
 	} else if err != nil {
-		return fmt.Errorf("failed to check existing reseller: %w", err)
+		return fmt.Errorf("failed to check existing %s: %w", entityType, err)
 	} else {
-		// Update existing reseller
 		customDataJSON, err := json.Marshal(logtoOrg.CustomData)
 		if err != nil {
 			return fmt.Errorf("failed to marshal custom data: %w", err)
 		}
 
-		_, err = database.DB.Exec(`
-			UPDATE resellers
+		now := time.Now()
+		_, err = database.DB.Exec(fmt.Sprintf(`
+			UPDATE %s
 			SET name = $1, description = $2, custom_data = $3, updated_at = $4, logto_synced_at = $5
-			WHERE id = $6`,
-			logtoOrg.Name, logtoOrg.Description, customDataJSON, time.Now(), time.Now(), existingID,
+			WHERE id = $6`, tableName),
+			logtoOrg.Name, logtoOrg.Description, customDataJSON, now, now, existingID,
 		)
-
 		if err != nil {
-			return fmt.Errorf("failed to update reseller: %w", err)
+			return fmt.Errorf("failed to update %s: %w", entityType, err)
 		}
 
-		logger.Info("Updated reseller '%s' with ID %s", logtoOrg.Name, existingID)
-		e.addPullOperation(result, "reseller", "update", logtoOrg.Name, fmt.Sprintf("Updated reseller %s", logtoOrg.Name), false, nil)
-		result.Summary.OrganizationsUpdated++
-	}
-
-	return nil
-}
-
-// processCustomer processes a customer organization
-func (e *PullEngine) processCustomer(logtoOrg client.LogtoOrganization, result *PullResult) error {
-	// Check if customer already exists
-	var existingID string
-	err := database.DB.QueryRow(
-		"SELECT id FROM customers WHERE logto_id = $1 AND deleted_at IS NULL",
-		logtoOrg.ID,
-	).Scan(&existingID)
-
-	if err == sql.ErrNoRows {
-		// Create new customer
-		customer := models.LocalCustomer{
-			ID:            uuid.New().String(),
-			LogtoID:       &logtoOrg.ID,
-			Name:          logtoOrg.Name,
-			Description:   logtoOrg.Description,
-			CustomData:    logtoOrg.CustomData,
-			CreatedAt:     time.Now(),
-			UpdatedAt:     time.Now(),
-			LogtoSyncedAt: &time.Time{},
-		}
-		*customer.LogtoSyncedAt = time.Now()
-
-		// Serialize custom data
-		customDataJSON, err := json.Marshal(customer.CustomData)
-		if err != nil {
-			return fmt.Errorf("failed to marshal custom data: %w", err)
-		}
-
-		_, err = database.DB.Exec(`
-			INSERT INTO customers (id, logto_id, name, description, custom_data, created_at, updated_at, logto_synced_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-			customer.ID, customer.LogtoID, customer.Name, customer.Description,
-			customDataJSON, customer.CreatedAt, customer.UpdatedAt, customer.LogtoSyncedAt,
-		)
-
-		if err != nil {
-			return fmt.Errorf("failed to create customer: %w", err)
-		}
-
-		logger.Info("Created customer '%s' with ID %s", customer.Name, customer.ID)
-		e.addPullOperation(result, "customer", "create", logtoOrg.Name, fmt.Sprintf("Created customer %s", logtoOrg.Name), false, nil)
-		result.Summary.OrganizationsCreated++
-
-	} else if err != nil {
-		return fmt.Errorf("failed to check existing customer: %w", err)
-	} else {
-		// Update existing customer
-		customDataJSON, err := json.Marshal(logtoOrg.CustomData)
-		if err != nil {
-			return fmt.Errorf("failed to marshal custom data: %w", err)
-		}
-
-		_, err = database.DB.Exec(`
-			UPDATE customers
-			SET name = $1, description = $2, custom_data = $3, updated_at = $4, logto_synced_at = $5
-			WHERE id = $6`,
-			logtoOrg.Name, logtoOrg.Description, customDataJSON, time.Now(), time.Now(), existingID,
-		)
-
-		if err != nil {
-			return fmt.Errorf("failed to update customer: %w", err)
-		}
-
-		logger.Info("Updated customer '%s' with ID %s", logtoOrg.Name, existingID)
-		e.addPullOperation(result, "customer", "update", logtoOrg.Name, fmt.Sprintf("Updated customer %s", logtoOrg.Name), false, nil)
+		logger.Info("Updated %s '%s' with ID %s", entityType, logtoOrg.Name, existingID)
+		e.addPullOperation(result, entityType, "update", logtoOrg.Name, fmt.Sprintf("Updated %s %s", entityType, logtoOrg.Name), false, nil)
 		result.Summary.OrganizationsUpdated++
 	}
 
@@ -532,7 +374,7 @@ func (e *PullEngine) pullUsers(result *PullResult) error {
 	logger.Info("Pulling users from Logto...")
 
 	// Fetch users from Logto
-	logtoUsers, err := e.client.GetUsers()
+	logtoUsers, err := e.client.GetAllUsers()
 	if err != nil {
 		return fmt.Errorf("failed to fetch users from Logto: %w", err)
 	}

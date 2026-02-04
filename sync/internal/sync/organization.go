@@ -20,50 +20,22 @@ import (
 
 // isSystemOrganizationRole checks if an organization role is a system role that shouldn't be deleted
 func isSystemOrganizationRole(role client.LogtoOrganizationRole) bool {
-	// Preserve Logto system roles and any role that looks like a system role
-	systemRoleNames := []string{
-		"logto",
-		"admin",
-		"system",
-		"default",
-		"owner",
-		"member",
-	}
-
-	roleName := strings.ToLower(role.Name)
-	for _, systemName := range systemRoleNames {
-		if strings.Contains(roleName, systemName) {
-			return true
-		}
-	}
-
-	// Preserve roles with system-like descriptions
-	description := strings.ToLower(role.Description)
-	if strings.Contains(description, "system") ||
-		strings.Contains(description, "default") ||
-		strings.Contains(description, "logto") {
-		return true
-	}
-
-	return false
+	return IsSystemEntityByPatterns(
+		role.Name, role.Description,
+		[]string{"logto", "admin", "system", "default", "owner", "member"},
+		[]string{"system", "default", "logto"},
+	)
 }
 
 // isSystemOrganizationScope checks if an organization scope is a system scope that shouldn't be deleted
 func isSystemOrganizationScope(scope client.LogtoOrganizationScope) bool {
-	// Preserve Logto system scopes and any scope that looks like a system scope
-	systemScopeNames := []string{
-		"logto",
-		"system",
-		"default",
-		"management",
-		"api",
-	}
-
-	scopeName := strings.ToLower(scope.Name)
-	for _, systemName := range systemScopeNames {
-		if strings.Contains(scopeName, systemName) {
-			return true
-		}
+	// Use pattern matching for name
+	if IsSystemEntityByPatterns(
+		scope.Name, "",
+		[]string{"logto", "system", "default", "management", "api"},
+		nil,
+	) {
+		return true
 	}
 
 	// Preserve scopes with system-like descriptions but be more specific

@@ -76,6 +76,27 @@ func (d *SystemEntityDetector) IsSystemEntity(name, description string) bool {
 	return false
 }
 
+// IsSystemEntityByPatterns checks if an entity name or description matches system patterns.
+// namePatterns are checked against the lowercase name using Contains.
+// descriptionPatterns are checked against the lowercase description using Contains.
+func IsSystemEntityByPatterns(name, description string, namePatterns, descriptionPatterns []string) bool {
+	nameLower := strings.ToLower(name)
+	for _, pattern := range namePatterns {
+		if strings.Contains(nameLower, pattern) {
+			return true
+		}
+	}
+
+	descLower := strings.ToLower(description)
+	for _, pattern := range descriptionPatterns {
+		if strings.Contains(descLower, pattern) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // ScopeMapping represents a mapping between scope names and IDs
 type ScopeMapping struct {
 	NameToID map[string]string

@@ -214,37 +214,13 @@ func (c *LogtoClient) GetOrganizations() ([]LogtoOrganization, error) {
 func (c *LogtoClient) GetAllOrganizations() ([]LogtoOrganization, error) {
 	logger.Debug("Fetching all organizations")
 
-	allOrgs := []LogtoOrganization{}
-	page := 1
-	pageSize := 100
-
-	for {
-		resp, err := c.makeRequest("GET", fmt.Sprintf("/api/organizations?page=%d&page_size=%d", page, pageSize), nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get organizations: %w", err)
-		}
-
-		var orgs []LogtoOrganization
-		if err := c.handlePaginatedResponse(resp, &orgs); err != nil {
-			return nil, fmt.Errorf("failed to parse organizations response: %w", err)
-		}
-
-		if len(orgs) == 0 {
-			break
-		}
-
-		allOrgs = append(allOrgs, orgs...)
-
-		// If we got fewer results than page size, we're done
-		if len(orgs) < pageSize {
-			break
-		}
-
-		page++
+	orgs, err := fetchAllPages[LogtoOrganization](c, "/api/organizations")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all organizations: %w", err)
 	}
 
-	logger.Debug("Retrieved %d organizations total", len(allOrgs))
-	return allOrgs, nil
+	logger.Debug("Retrieved %d organizations total", len(orgs))
+	return orgs, nil
 }
 
 // GetOrganizationByName searches for an organization by name using the q parameter

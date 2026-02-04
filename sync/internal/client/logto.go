@@ -180,7 +180,7 @@ func (c *LogtoClient) createEntitySimple(endpoint string, entityData map[string]
 }
 
 // FindEntityByField finds an entity in a slice by matching a specific field value
-func (c *LogtoClient) FindEntityByField(entities []map[string]interface{}, fieldName string, fieldValue interface{}) (map[string]interface{}, bool) {
+func FindEntityByField(entities []map[string]interface{}, fieldName string, fieldValue interface{}) (map[string]interface{}, bool) {
 	for _, entity := range entities {
 		if value, ok := entity[fieldName]; ok && value == fieldValue {
 			return entity, true
@@ -190,8 +190,8 @@ func (c *LogtoClient) FindEntityByField(entities []map[string]interface{}, field
 }
 
 // FindEntityID finds an entity ID by matching a specific field value
-func (c *LogtoClient) FindEntityID(entities []map[string]interface{}, fieldName string, fieldValue interface{}) (string, bool) {
-	if entity, found := c.FindEntityByField(entities, fieldName, fieldValue); found {
+func FindEntityID(entities []map[string]interface{}, fieldName string, fieldValue interface{}) (string, bool) {
+	if entity, found := FindEntityByField(entities, fieldName, fieldValue); found {
 		if id, ok := entity["id"].(string); ok {
 			return id, true
 		}
@@ -244,57 +244,45 @@ func (c *LogtoClient) CreateApplication(app map[string]interface{}) (map[string]
 	}
 
 	var result map[string]interface{}
-	// Some Logto instances return 200 instead of 201 for creation
-	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
-		return result, c.handleResponse(resp, resp.StatusCode, &result)
-	}
-
-	return result, c.handleResponse(resp, http.StatusCreated, &result)
+	return result, c.handleCreationResponse(resp, &result)
 }
 
-// GetUsers retrieves all users (first page only)
-func (c *LogtoClient) GetUsers() ([]map[string]interface{}, error) {
-	resp, err := c.makeRequest("GET", "/api/users", nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var result []map[string]interface{}
-	return result, c.handlePaginatedResponse(resp, &result)
-}
-
-// GetAllUsers retrieves all users across all pages
-func (c *LogtoClient) GetAllUsers() ([]map[string]interface{}, error) {
-	allUsers := []map[string]interface{}{}
+// fetchAllPages retrieves all items from a paginated endpoint
+func fetchAllPages[T any](c *LogtoClient, endpoint string) ([]T, error) {
+	var allItems []T
 	page := 1
 	pageSize := 100
 
 	for {
-		resp, err := c.makeRequest("GET", fmt.Sprintf("/api/users?page=%d&page_size=%d", page, pageSize), nil)
+		resp, err := c.makeRequest("GET", fmt.Sprintf("%s?page=%d&page_size=%d", endpoint, page, pageSize), nil)
 		if err != nil {
 			return nil, err
 		}
 
-		var users []map[string]interface{}
-		if err := c.handlePaginatedResponse(resp, &users); err != nil {
+		var items []T
+		if err := c.handlePaginatedResponse(resp, &items); err != nil {
 			return nil, err
 		}
 
-		if len(users) == 0 {
+		if len(items) == 0 {
 			break
 		}
 
-		allUsers = append(allUsers, users...)
+		allItems = append(allItems, items...)
 
-		// If we got fewer results than page size, we're done
-		if len(users) < pageSize {
+		if len(items) < pageSize {
 			break
 		}
 
 		page++
 	}
 
-	return allUsers, nil
+	return allItems, nil
+}
+
+// GetAllUsers retrieves all users across all pages
+func (c *LogtoClient) GetAllUsers() ([]map[string]interface{}, error) {
+	return fetchAllPages[map[string]interface{}](c, "/api/users")
 }
 
 // GetUserByUsername searches for a user by username using the search parameter
@@ -382,12 +370,7 @@ func (c *LogtoClient) CreateUser(user map[string]interface{}) (map[string]interf
 	}
 
 	var result map[string]interface{}
-	// Some Logto instances return 200 instead of 201 for creation
-	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
-		return result, c.handleResponse(resp, resp.StatusCode, &result)
-	}
-
-	return result, c.handleResponse(resp, http.StatusCreated, &result)
+	return result, c.handleCreationResponse(resp, &result)
 }
 
 // SetUserPassword sets a user's password
@@ -423,12 +406,7 @@ func (c *LogtoClient) CreateDomain(domain map[string]interface{}) (map[string]in
 	}
 
 	var result map[string]interface{}
-	// Some Logto instances return 200 instead of 201 for creation
-	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
-		return result, c.handleResponse(resp, resp.StatusCode, &result)
-	}
-
-	return result, c.handleResponse(resp, http.StatusCreated, &result)
+	return result, c.handleCreationResponse(resp, &result)
 }
 
 // ThirdPartyApplication represents a third-party application
@@ -491,12 +469,7 @@ func (c *LogtoClient) CreateThirdPartyApplication(app ThirdPartyApplication) (Th
 	}
 
 	var result ThirdPartyApplication
-	// Some Logto instances return 200 instead of 201 for creation
-	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
-		return result, c.handleResponse(resp, resp.StatusCode, &result)
-	}
-
-	return result, c.handleResponse(resp, http.StatusCreated, &result)
+	return result, c.handleCreationResponse(resp, &result)
 }
 
 // UpdateThirdPartyApplication updates an existing third-party application

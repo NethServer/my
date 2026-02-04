@@ -251,7 +251,7 @@ func CheckIfAlreadyInitialized(client *client.LogtoClient, config *InitConfig) (
 	}
 
 	// Check if owner user exists
-	users, err := client.GetUsers()
+	users, err := client.GetAllUsers()
 	if err != nil {
 		return false, err
 	}

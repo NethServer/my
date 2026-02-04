@@ -20,31 +20,11 @@ import (
 
 // isSystemUserRole checks if a role is a system role that shouldn't be deleted
 func isSystemUserRole(role client.LogtoRole) bool {
-	// Preserve Logto system roles and any role that looks like a system role
-	systemRoleNames := []string{
-		"logto",
-		"admin",
-		"machine-to-machine",
-		"system",
-		"default",
-	}
-
-	roleName := strings.ToLower(role.Name)
-	for _, systemName := range systemRoleNames {
-		if strings.Contains(roleName, systemName) {
-			return true
-		}
-	}
-
-	// Preserve roles with system-like descriptions
-	description := strings.ToLower(role.Description)
-	if strings.Contains(description, "system") ||
-		strings.Contains(description, "default") ||
-		strings.Contains(description, "logto") {
-		return true
-	}
-
-	return false
+	return IsSystemEntityByPatterns(
+		role.Name, role.Description,
+		[]string{"logto", "admin", "machine-to-machine", "system", "default"},
+		[]string{"system", "default", "logto"},
+	)
 }
 
 // syncUserRoles synchronizes user roles
@@ -167,27 +147,20 @@ type UserRolePermissionMappings struct {
 
 // buildUserRolePermissionMappings builds all necessary mappings for user role permission synchronization
 func (e *Engine) buildUserRolePermissionMappings(cfg *config.Config) (*UserRolePermissionMappings, error) {
-	var roleNameToID map[string]string
-	var resourceNameToID map[string]string
-	var scopeMapping *ScopeMapping
+	existingRoles, err := e.client.GetRoles()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get existing user roles: %w", err)
+	}
+
+	existingResources, err := e.client.GetResources()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get existing resources: %w", err)
+	}
+
+	roleNameToID := CreateRoleNameToIDMapping(existingRoles)
+	resourceNameToID := CreateResourceNameToIDMapping(existingResources)
 
 	if e.options.DryRun {
-		// In dry-run mode, get real existing entities first
-		existingRoles, err := e.client.GetRoles()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get existing user roles: %w", err)
-		}
-
-		existingResources, err := e.client.GetResources()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get existing resources: %w", err)
-		}
-
-		// Start with real mappings
-		roleNameToID = CreateRoleNameToIDMapping(existingRoles)
-		resourceNameToID = CreateResourceNameToIDMapping(existingResources)
-
-		// Add simulated mappings for roles that don't exist
 		for _, role := range cfg.UserRoles {
 			roleNameLower := strings.ToLower(role.Name)
 			if _, exists := roleNameToID[roleNameLower]; !exists {
@@ -195,40 +168,16 @@ func (e *Engine) buildUserRolePermissionMappings(cfg *config.Config) (*UserRoleP
 			}
 		}
 
-		// Add simulated mappings for resources that don't exist
 		for _, resource := range cfg.Resources {
 			if _, exists := resourceNameToID[resource.Name]; !exists {
 				resourceNameToID[resource.Name] = "dry-run-resource-" + resource.Name
 			}
 		}
+	}
 
-		// Build scope mapping for dry-run (mix of real and simulated)
-		scopeMapping, err = BuildGlobalScopeMapping(e.client, cfg, resourceNameToID)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		// Get existing roles
-		existingRoles, err := e.client.GetRoles()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get existing user roles: %w", err)
-		}
-
-		// Get existing resources
-		existingResources, err := e.client.GetResources()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get existing resources: %w", err)
-		}
-
-		// Create mappings using utility functions
-		roleNameToID = CreateRoleNameToIDMapping(existingRoles)
-		resourceNameToID = CreateResourceNameToIDMapping(existingResources)
-
-		// Build global scope mapping
-		scopeMapping, err = BuildGlobalScopeMapping(e.client, cfg, resourceNameToID)
-		if err != nil {
-			return nil, err
-		}
+	scopeMapping, err := BuildGlobalScopeMapping(e.client, cfg, resourceNameToID)
+	if err != nil {
+		return nil, err
 	}
 
 	return &UserRolePermissionMappings{

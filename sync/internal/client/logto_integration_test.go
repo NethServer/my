@@ -247,9 +247,7 @@ func TestLogtoClient_handlePaginatedResponse(t *testing.T) {
 	})
 }
 
-func TestLogtoClient_FindEntityByField(t *testing.T) {
-	client := NewLogtoClient("https://example.com", "test-id", "test-secret")
-
+func TestFindEntityByField(t *testing.T) {
 	entities := []map[string]interface{}{
 		{"id": "1", "name": "entity1"},
 		{"id": "2", "name": "entity2"},
@@ -257,28 +255,26 @@ func TestLogtoClient_FindEntityByField(t *testing.T) {
 	}
 
 	t.Run("found entity", func(t *testing.T) {
-		entity, found := client.FindEntityByField(entities, "name", "entity2")
+		entity, found := FindEntityByField(entities, "name", "entity2")
 		assert.True(t, found)
 		assert.Equal(t, "2", entity["id"])
 		assert.Equal(t, "entity2", entity["name"])
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		entity, found := client.FindEntityByField(entities, "name", "nonexistent")
+		entity, found := FindEntityByField(entities, "name", "nonexistent")
 		assert.False(t, found)
 		assert.Nil(t, entity)
 	})
 
 	t.Run("field not exists", func(t *testing.T) {
-		entity, found := client.FindEntityByField(entities, "nonexistent", "value")
+		entity, found := FindEntityByField(entities, "nonexistent", "value")
 		assert.False(t, found)
 		assert.Nil(t, entity)
 	})
 }
 
-func TestLogtoClient_FindEntityID(t *testing.T) {
-	client := NewLogtoClient("https://example.com", "test-id", "test-secret")
-
+func TestFindEntityID(t *testing.T) {
 	entities := []map[string]interface{}{
 		{"id": "1", "name": "entity1"},
 		{"id": "2", "name": "entity2"},
@@ -286,19 +282,19 @@ func TestLogtoClient_FindEntityID(t *testing.T) {
 	}
 
 	t.Run("found ID", func(t *testing.T) {
-		id, found := client.FindEntityID(entities, "name", "entity2")
+		id, found := FindEntityID(entities, "name", "entity2")
 		assert.True(t, found)
 		assert.Equal(t, "2", id)
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		id, found := client.FindEntityID(entities, "name", "nonexistent")
+		id, found := FindEntityID(entities, "name", "nonexistent")
 		assert.False(t, found)
 		assert.Empty(t, id)
 	})
 
 	t.Run("non-string ID", func(t *testing.T) {
-		id, found := client.FindEntityID(entities, "name", "entity3")
+		id, found := FindEntityID(entities, "name", "entity3")
 		assert.False(t, found)
 		assert.Empty(t, id)
 	})
@@ -447,8 +443,8 @@ func TestLogtoClient_APIEndpoints(t *testing.T) {
 		assert.Equal(t, "new-app", result["name"])
 	})
 
-	t.Run("GetUsers", func(t *testing.T) {
-		users, err := client.GetUsers()
+	t.Run("GetAllUsers", func(t *testing.T) {
+		users, err := client.GetAllUsers()
 		require.NoError(t, err)
 		assert.Len(t, users, 1)
 		assert.Equal(t, "testuser", users[0]["username"])
