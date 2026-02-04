@@ -14,11 +14,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/nethesis/my/collect/configuration"
 	"github.com/nethesis/my/collect/database"
+	"github.com/nethesis/my/collect/helpers"
 	"github.com/nethesis/my/collect/logger"
 	"github.com/nethesis/my/collect/models"
 	"github.com/nethesis/my/collect/queue"
@@ -27,24 +27,15 @@ import (
 
 // NotificationWorker handles sending notifications for inventory changes
 type NotificationWorker struct {
-	id            int
-	workerCount   int
-	queueManager  *queue.QueueManager
-	isHealthy     int32
-	processedJobs int64
-	failedJobs    int64
-	lastActivity  time.Time
-	mu            sync.RWMutex
+	BaseWorker
+	queueManager *queue.QueueManager
 }
 
 // NewNotificationWorker creates a new notification worker
-func NewNotificationWorker(id, workerCount int) *NotificationWorker {
+func NewNotificationWorker(id, workerCount int, queueManager *queue.QueueManager) *NotificationWorker {
 	return &NotificationWorker{
-		id:           id,
-		workerCount:  workerCount,
-		queueManager: queue.NewQueueManager(),
-		isHealthy:    1,
-		lastActivity: time.Now(),
+		BaseWorker:   NewBaseWorker(id, fmt.Sprintf("notification-worker-%d", id), workerCount),
+		queueManager: queueManager,
 	}
 }
 
@@ -58,19 +49,9 @@ func (nw *NotificationWorker) Start(ctx context.Context, wg *sync.WaitGroup) err
 
 	// Start health monitor
 	wg.Add(1)
-	go nw.healthMonitor(ctx, wg)
+	go nw.HealthMonitor(ctx, wg)
 
 	return nil
-}
-
-// Name returns the worker name
-func (nw *NotificationWorker) Name() string {
-	return fmt.Sprintf("notification-worker-%d", nw.id)
-}
-
-// IsHealthy returns the health status
-func (nw *NotificationWorker) IsHealthy() bool {
-	return atomic.LoadInt32(&nw.isHealthy) == 1
 }
 
 // worker processes notification messages from the queue
@@ -93,7 +74,7 @@ func (nw *NotificationWorker) worker(ctx context.Context, wg *sync.WaitGroup, wo
 			// Process messages from queue
 			if err := nw.processNextMessage(ctx, &workerLogger); err != nil {
 				workerLogger.Error().Err(err).Msg("Error processing notification message")
-				atomic.AddInt64(&nw.failedJobs, 1)
+				nw.RecordFailure()
 
 				// Brief pause on error to prevent tight error loops
 				time.Sleep(1 * time.Second)
@@ -105,9 +86,7 @@ func (nw *NotificationWorker) worker(ctx context.Context, wg *sync.WaitGroup, wo
 // processNextMessage processes the next message from the notification queue
 func (nw *NotificationWorker) processNextMessage(ctx context.Context, workerLogger *zerolog.Logger) error {
 	// Update activity timestamp
-	nw.mu.Lock()
-	nw.lastActivity = time.Now()
-	nw.mu.Unlock()
+	nw.UpdateActivity()
 
 	// Get message from queue with timeout
 	message, err := nw.queueManager.DequeueMessage(ctx, configuration.Config.QueueNotificationName, 5*time.Second)
@@ -142,7 +121,7 @@ func (nw *NotificationWorker) processNextMessage(ctx context.Context, workerLogg
 		return fmt.Errorf("failed to process notification: %w", err)
 	}
 
-	atomic.AddInt64(&nw.processedJobs, 1)
+	nw.RecordSuccess()
 	workerLogger.Debug().
 		Str("system_id", job.SystemID).
 		Str("message_id", message.ID).
@@ -287,21 +266,9 @@ func (nw *NotificationWorker) markDiffsNotificationSent(ctx context.Context, dif
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	// Process in batches to avoid connection issues with large lists
-	const batchSize = 50
-	for i := 0; i < len(diffs); i += batchSize {
-		end := i + batchSize
-		if end > len(diffs) {
-			end = len(diffs)
-		}
-
-		batch := diffs[i:end]
-		if err := nw.markDiffBatch(ctx, batch); err != nil {
-			return fmt.Errorf("failed to mark diff batch %d-%d: %w", i, end, err)
-		}
-	}
-
-	return nil
+	return helpers.ProcessInBatches(diffs, 50, func(batch []models.InventoryDiff) error {
+		return nw.markDiffBatch(ctx, batch)
+	})
 }
 
 // markDiffBatch marks a batch of diffs as notified using prepared statement
@@ -343,57 +310,10 @@ func (nw *NotificationWorker) sendNotification(ctx context.Context, systemID, me
 		Str("notification_message", message).
 		Msg("Notification sent")
 
-	// Simulate some processing time
-	time.Sleep(100 * time.Millisecond)
-
 	return nil
-}
-
-// healthMonitor monitors the health of the notification worker
-func (nw *NotificationWorker) healthMonitor(ctx context.Context, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	ticker := time.NewTicker(configuration.Config.WorkerHeartbeatInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			nw.checkHealth()
-		}
-	}
-}
-
-// checkHealth checks the health of the worker
-func (nw *NotificationWorker) checkHealth() {
-	nw.mu.RLock()
-	lastActivity := nw.lastActivity
-	nw.mu.RUnlock()
-
-	// Consider unhealthy if no activity for too long
-	if time.Since(lastActivity) > 5*configuration.Config.WorkerHeartbeatInterval {
-		atomic.StoreInt32(&nw.isHealthy, 0)
-		logger.Warn().
-			Str("worker", nw.Name()).
-			Time("last_activity", lastActivity).
-			Msg("Worker marked as unhealthy due to inactivity")
-	} else {
-		atomic.StoreInt32(&nw.isHealthy, 1)
-	}
 }
 
 // GetStats returns worker statistics
 func (nw *NotificationWorker) GetStats() map[string]interface{} {
-	nw.mu.RLock()
-	defer nw.mu.RUnlock()
-
-	return map[string]interface{}{
-		"worker_count":   nw.workerCount,
-		"processed_jobs": atomic.LoadInt64(&nw.processedJobs),
-		"failed_jobs":    atomic.LoadInt64(&nw.failedJobs),
-		"last_activity":  nw.lastActivity,
-		"is_healthy":     nw.IsHealthy(),
-	}
+	return nw.GetBaseStats()
 }

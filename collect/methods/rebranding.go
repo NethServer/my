@@ -21,6 +21,15 @@ import (
 	"github.com/nethesis/my/collect/response"
 )
 
+// getSystemOrgID returns the organization_id for a system
+func getSystemOrgID(systemID string) (string, error) {
+	var orgID string
+	err := database.DB.QueryRow(
+		`SELECT organization_id FROM systems WHERE id = $1 AND deleted_at IS NULL`, systemID,
+	).Scan(&orgID)
+	return orgID, err
+}
+
 // rebrandingProduct represents a rebranded product for system consumption
 type rebrandingProduct struct {
 	ProductID   string            `json:"product_id"`
@@ -30,17 +39,16 @@ type rebrandingProduct struct {
 
 // GetSystemRebranding returns rebranding data for the authenticated system
 func GetSystemRebranding(c *gin.Context) {
-	systemID, exists := c.Get("system_id")
-	if !exists {
+	systemID, ok := getAuthenticatedSystemID(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("authentication required", nil))
 		return
 	}
 
 	// Get system's organization_id
-	var orgID string
-	err := database.DB.QueryRow(`SELECT organization_id FROM systems WHERE id = $1 AND deleted_at IS NULL`, systemID).Scan(&orgID)
+	orgID, err := getSystemOrgID(systemID)
 	if err != nil {
-		logger.Error().Err(err).Str("system_id", systemID.(string)).Msg("failed to get system organization")
+		logger.Error().Err(err).Str("system_id", systemID).Msg("failed to get system organization")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get system organization", nil))
 		return
 	}
@@ -145,8 +153,8 @@ func GetSystemRebranding(c *gin.Context) {
 
 // GetSystemRebrandingAsset serves a single rebranding asset binary for the authenticated system
 func GetSystemRebrandingAsset(c *gin.Context) {
-	systemID, exists := c.Get("system_id")
-	if !exists {
+	systemID, ok := getAuthenticatedSystemID(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("authentication required", nil))
 		return
 	}
@@ -174,10 +182,9 @@ func GetSystemRebrandingAsset(c *gin.Context) {
 	}
 
 	// Get system's organization_id
-	var orgID string
-	err := database.DB.QueryRow(`SELECT organization_id FROM systems WHERE id = $1 AND deleted_at IS NULL`, systemID).Scan(&orgID)
+	orgID, err := getSystemOrgID(systemID)
 	if err != nil {
-		logger.Error().Err(err).Str("system_id", systemID.(string)).Msg("failed to get system organization")
+		logger.Error().Err(err).Str("system_id", systemID).Msg("failed to get system organization")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get system organization", nil))
 		return
 	}
@@ -212,70 +219,71 @@ func GetSystemRebrandingAsset(c *gin.Context) {
 	c.Data(http.StatusOK, mimeType, data)
 }
 
-// resolveRebrandingOrg walks up the hierarchy to find the first org with rebranding enabled
+// resolveRebrandingOrg walks up the hierarchy to find the first org with rebranding enabled.
+// Uses a recursive CTE to traverse the organization hierarchy in a single DB round-trip.
 func resolveRebrandingOrg(orgID string) (string, *string, error) {
-	// Check if this org has rebranding enabled
-	var count int
-	err := database.DB.QueryRow(`SELECT COUNT(*) FROM rebranding_enabled WHERE organization_id = $1`, orgID).Scan(&count)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to check rebranding status: %w", err)
-	}
-	if count > 0 {
-		return orgID, nil, nil
-	}
+	query := `
+		WITH RECURSIVE org_hierarchy AS (
+			-- Start with the given org
+			SELECT $1::text AS org_id, 0 AS depth,
+				CASE
+					WHEN EXISTS (SELECT 1 FROM customers WHERE logto_id = $1 AND deleted_at IS NULL) THEN 'customer'
+					WHEN EXISTS (SELECT 1 FROM resellers WHERE logto_id = $1 AND deleted_at IS NULL) THEN 'reseller'
+					WHEN EXISTS (SELECT 1 FROM distributors WHERE logto_id = $1 AND deleted_at IS NULL) THEN 'distributor'
+					ELSE 'owner'
+				END AS org_type
 
-	// Check if org is a customer - walk up to parent
-	var parentOrgID string
-	err = database.DB.QueryRow(
-		`SELECT custom_data->>'createdBy' FROM customers WHERE logto_id = $1 AND deleted_at IS NULL`, orgID,
-	).Scan(&parentOrgID)
-	if err == nil && parentOrgID != "" {
-		err = database.DB.QueryRow(`SELECT COUNT(*) FROM rebranding_enabled WHERE organization_id = $1`, parentOrgID).Scan(&count)
-		if err == nil && count > 0 {
-			label := getOrgLabel(parentOrgID)
-			return parentOrgID, &label, nil
-		}
+			UNION ALL
 
-		// Check if parent is a reseller - go up to distributor
-		var grandparentOrgID string
-		err = database.DB.QueryRow(
-			`SELECT custom_data->>'createdBy' FROM resellers WHERE logto_id = $1 AND deleted_at IS NULL`, parentOrgID,
-		).Scan(&grandparentOrgID)
-		if err == nil && grandparentOrgID != "" {
-			err = database.DB.QueryRow(`SELECT COUNT(*) FROM rebranding_enabled WHERE organization_id = $1`, grandparentOrgID).Scan(&count)
-			if err == nil && count > 0 {
-				label := getOrgLabel(grandparentOrgID)
-				return grandparentOrgID, &label, nil
-			}
-		}
+			-- Walk up: customer -> reseller/distributor, reseller -> distributor
+			SELECT
+				COALESCE(
+					(SELECT custom_data->>'createdBy' FROM customers WHERE logto_id = oh.org_id AND deleted_at IS NULL),
+					(SELECT custom_data->>'createdBy' FROM resellers WHERE logto_id = oh.org_id AND deleted_at IS NULL)
+				) AS org_id,
+				oh.depth + 1,
+				CASE
+					WHEN EXISTS (SELECT 1 FROM resellers WHERE logto_id = COALESCE(
+						(SELECT custom_data->>'createdBy' FROM customers WHERE logto_id = oh.org_id AND deleted_at IS NULL),
+						(SELECT custom_data->>'createdBy' FROM resellers WHERE logto_id = oh.org_id AND deleted_at IS NULL)
+					) AND deleted_at IS NULL) THEN 'reseller'
+					WHEN EXISTS (SELECT 1 FROM distributors WHERE logto_id = COALESCE(
+						(SELECT custom_data->>'createdBy' FROM customers WHERE logto_id = oh.org_id AND deleted_at IS NULL),
+						(SELECT custom_data->>'createdBy' FROM resellers WHERE logto_id = oh.org_id AND deleted_at IS NULL)
+					) AND deleted_at IS NULL) THEN 'distributor'
+					ELSE 'owner'
+				END AS org_type
+			FROM org_hierarchy oh
+			WHERE oh.depth < 3
+				AND COALESCE(
+					(SELECT custom_data->>'createdBy' FROM customers WHERE logto_id = oh.org_id AND deleted_at IS NULL),
+					(SELECT custom_data->>'createdBy' FROM resellers WHERE logto_id = oh.org_id AND deleted_at IS NULL)
+				) IS NOT NULL
+		)
+		SELECT oh.org_id, oh.depth, oh.org_type
+		FROM org_hierarchy oh
+		JOIN rebranding_enabled re ON re.organization_id = oh.org_id
+		ORDER BY oh.depth ASC
+		LIMIT 1
+	`
+
+	var resolvedOrgID string
+	var depth int
+	var orgType string
+
+	err := database.DB.QueryRow(query, orgID).Scan(&resolvedOrgID, &depth, &orgType)
+	if err == sql.ErrNoRows {
 		return "", nil, nil
 	}
-
-	// Check if org is a reseller - walk up to distributor
-	err = database.DB.QueryRow(
-		`SELECT custom_data->>'createdBy' FROM resellers WHERE logto_id = $1 AND deleted_at IS NULL`, orgID,
-	).Scan(&parentOrgID)
-	if err == nil && parentOrgID != "" {
-		err = database.DB.QueryRow(`SELECT COUNT(*) FROM rebranding_enabled WHERE organization_id = $1`, parentOrgID).Scan(&count)
-		if err == nil && count > 0 {
-			label := getOrgLabel(parentOrgID)
-			return parentOrgID, &label, nil
-		}
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to resolve rebranding org: %w", err)
 	}
 
-	return "", nil, nil
-}
+	// depth == 0 means the org itself has rebranding (no inheritance)
+	if depth == 0 {
+		return resolvedOrgID, nil, nil
+	}
 
-// getOrgLabel returns a label like "distributor:org_id" for the inherited_from field
-func getOrgLabel(orgID string) string {
-	var count int
-	err := database.DB.QueryRow(`SELECT COUNT(*) FROM distributors WHERE logto_id = $1 AND deleted_at IS NULL`, orgID).Scan(&count)
-	if err == nil && count > 0 {
-		return "distributor:" + orgID
-	}
-	err = database.DB.QueryRow(`SELECT COUNT(*) FROM resellers WHERE logto_id = $1 AND deleted_at IS NULL`, orgID).Scan(&count)
-	if err == nil && count > 0 {
-		return "reseller:" + orgID
-	}
-	return "unknown:" + orgID
+	label := orgType + ":" + resolvedOrgID
+	return resolvedOrgID, &label, nil
 }

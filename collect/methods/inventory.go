@@ -13,6 +13,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -24,18 +25,24 @@ import (
 	"github.com/nethesis/my/collect/response"
 )
 
+var (
+	inventoryQueueManager     *queue.QueueManager
+	inventoryQueueManagerOnce sync.Once
+)
+
+// getInventoryQueueManager returns a singleton QueueManager for the inventory handler
+func getInventoryQueueManager() *queue.QueueManager {
+	inventoryQueueManagerOnce.Do(func() {
+		inventoryQueueManager = queue.NewQueueManager()
+	})
+	return inventoryQueueManager
+}
+
 // CollectInventory handles the POST /api/systems/inventory endpoint
 func CollectInventory(c *gin.Context) {
-	systemID, exists := c.Get("system_id")
-	if !exists {
-		logger.Error().Msg("System ID not found in context after authentication")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("authentication context error", nil))
-		return
-	}
-
-	systemIDStr, ok := systemID.(string)
+	systemIDStr, ok := getAuthenticatedSystemID(c)
 	if !ok {
-		logger.Error().Msg("System ID is not a string")
+		logger.Error().Msg("System ID not found in context after authentication")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("authentication context error", nil))
 		return
 	}
@@ -106,7 +113,7 @@ func CollectInventory(c *gin.Context) {
 
 	// Enqueue for processing with detailed timing and aggressive timeout
 	start := time.Now()
-	queueManager := queue.NewQueueManager()
+	queueManager := getInventoryQueueManager()
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second) // Very short timeout
 	defer cancel()
 

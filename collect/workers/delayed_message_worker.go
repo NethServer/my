@@ -12,6 +12,7 @@ package workers
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/nethesis/my/collect/configuration"
@@ -24,7 +25,7 @@ import (
 type DelayedMessageWorker struct {
 	id             int
 	queueManager   *queue.QueueManager
-	isHealthy      bool
+	isHealthy      int32
 	lastRun        time.Time
 	processedCount int64
 	mu             sync.RWMutex
@@ -35,7 +36,7 @@ func NewDelayedMessageWorker(id int, queueManager *queue.QueueManager) *DelayedM
 	return &DelayedMessageWorker{
 		id:           id,
 		queueManager: queueManager,
-		isHealthy:    true,
+		isHealthy:    1,
 		lastRun:      time.Now(),
 	}
 }
@@ -54,9 +55,7 @@ func (dmw *DelayedMessageWorker) Name() string {
 
 // IsHealthy returns health status
 func (dmw *DelayedMessageWorker) IsHealthy() bool {
-	dmw.mu.RLock()
-	defer dmw.mu.RUnlock()
-	return dmw.isHealthy
+	return atomic.LoadInt32(&dmw.isHealthy) == 1
 }
 
 // worker runs the delayed message processing
@@ -133,29 +132,26 @@ func (dmw *DelayedMessageWorker) processDelayedMessages(ctx context.Context, log
 
 // recordSuccess records successful processing
 func (dmw *DelayedMessageWorker) recordSuccess() {
-	dmw.mu.Lock()
-	defer dmw.mu.Unlock()
-	dmw.processedCount++
-	dmw.isHealthy = true
+	atomic.AddInt64(&dmw.processedCount, 1)
+	atomic.StoreInt32(&dmw.isHealthy, 1)
 }
 
 // recordError records processing error
 func (dmw *DelayedMessageWorker) recordError() {
-	dmw.mu.Lock()
-	defer dmw.mu.Unlock()
-	dmw.isHealthy = false
+	atomic.StoreInt32(&dmw.isHealthy, 0)
 }
 
 // GetStats returns delayed message worker statistics
 func (dmw *DelayedMessageWorker) GetStats() map[string]interface{} {
 	dmw.mu.RLock()
-	defer dmw.mu.RUnlock()
+	lastRun := dmw.lastRun
+	dmw.mu.RUnlock()
 
 	return map[string]interface{}{
 		"worker_id":       dmw.id,
-		"processed_count": dmw.processedCount,
-		"last_run":        dmw.lastRun,
-		"is_healthy":      dmw.isHealthy,
+		"processed_count": atomic.LoadInt64(&dmw.processedCount),
+		"last_run":        lastRun,
+		"is_healthy":      dmw.IsHealthy(),
 		"check_interval":  "30s",
 	}
 }

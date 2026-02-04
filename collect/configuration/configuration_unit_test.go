@@ -10,24 +10,32 @@
 package configuration
 
 import (
+	"io"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 
 	"github.com/nethesis/my/collect/logger"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestInit(t *testing.T) {
-	// Initialize logger for testing
-	_ = logger.InitFromEnv("test")
+func init() {
+	// Silent logger for tests to avoid JSON noise in test output
+	logger.Logger = zerolog.New(io.Discard)
+	log.Logger = logger.Logger
+}
 
+func TestInit(t *testing.T) {
 	// Save original env vars
 	originalEnvVars := make(map[string]string)
 	envVars := []string{
 		"LISTEN_ADDRESS", "DATABASE_URL", "DATABASE_MAX_CONNS",
 		"REDIS_URL", "REDIS_DB", "REDIS_PASSWORD", "REDIS_MAX_RETRIES",
 		"REDIS_DIAL_TIMEOUT", "REDIS_READ_TIMEOUT", "REDIS_WRITE_TIMEOUT",
+		"REDIS_POOL_SIZE", "REDIS_MIN_IDLE_CONNS", "REDIS_POOL_TIMEOUT",
 		"QUEUE_INVENTORY_NAME", "QUEUE_PROCESSING_NAME", "QUEUE_NOTIFICATION_NAME",
 		"QUEUE_BATCH_SIZE", "QUEUE_RETRY_ATTEMPTS", "QUEUE_RETRY_DELAY",
 		"WORKER_INVENTORY_COUNT", "WORKER_PROCESSING_COUNT", "WORKER_NOTIFICATION_COUNT",
@@ -72,6 +80,9 @@ func TestInit(t *testing.T) {
 	assert.Equal(t, 5*time.Second, Config.RedisDialTimeout)
 	assert.Equal(t, 3*time.Second, Config.RedisReadTimeout)
 	assert.Equal(t, 3*time.Second, Config.RedisWriteTimeout)
+	assert.Equal(t, 50, Config.RedisPoolSize)
+	assert.Equal(t, 10, Config.RedisMinIdleConns)
+	assert.Equal(t, 10*time.Second, Config.RedisPoolTimeout)
 	assert.Equal(t, "collect:inventory", Config.QueueInventoryName)
 	assert.Equal(t, "collect:processing", Config.QueueProcessingName)
 	assert.Equal(t, "collect:notifications", Config.QueueNotificationName)
@@ -100,9 +111,6 @@ func TestInit(t *testing.T) {
 }
 
 func TestInitWithEnvironmentVariables(t *testing.T) {
-	// Initialize logger for testing
-	_ = logger.InitFromEnv("test")
-
 	// Set environment variables
 	_ = os.Setenv("LISTEN_ADDRESS", "0.0.0.0:9000")
 	_ = os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/testdb")
@@ -114,6 +122,9 @@ func TestInitWithEnvironmentVariables(t *testing.T) {
 	_ = os.Setenv("REDIS_DIAL_TIMEOUT", "10s")
 	_ = os.Setenv("REDIS_READ_TIMEOUT", "5s")
 	_ = os.Setenv("REDIS_WRITE_TIMEOUT", "5s")
+	_ = os.Setenv("REDIS_POOL_SIZE", "100")
+	_ = os.Setenv("REDIS_MIN_IDLE_CONNS", "20")
+	_ = os.Setenv("REDIS_POOL_TIMEOUT", "15s")
 	_ = os.Setenv("QUEUE_INVENTORY_NAME", "test:inventory")
 	_ = os.Setenv("QUEUE_PROCESSING_NAME", "test:processing")
 	_ = os.Setenv("QUEUE_NOTIFICATION_NAME", "test:notifications")
@@ -145,6 +156,7 @@ func TestInitWithEnvironmentVariables(t *testing.T) {
 			"LISTEN_ADDRESS", "DATABASE_URL", "DATABASE_MAX_CONNS",
 			"REDIS_URL", "REDIS_DB", "REDIS_PASSWORD", "REDIS_MAX_RETRIES",
 			"REDIS_DIAL_TIMEOUT", "REDIS_READ_TIMEOUT", "REDIS_WRITE_TIMEOUT",
+			"REDIS_POOL_SIZE", "REDIS_MIN_IDLE_CONNS", "REDIS_POOL_TIMEOUT",
 			"QUEUE_INVENTORY_NAME", "QUEUE_PROCESSING_NAME", "QUEUE_NOTIFICATION_NAME",
 			"QUEUE_BATCH_SIZE", "QUEUE_RETRY_ATTEMPTS", "QUEUE_RETRY_DELAY",
 			"WORKER_INVENTORY_COUNT", "WORKER_PROCESSING_COUNT", "WORKER_NOTIFICATION_COUNT",
@@ -173,6 +185,9 @@ func TestInitWithEnvironmentVariables(t *testing.T) {
 	assert.Equal(t, 10*time.Second, Config.RedisDialTimeout)
 	assert.Equal(t, 5*time.Second, Config.RedisReadTimeout)
 	assert.Equal(t, 5*time.Second, Config.RedisWriteTimeout)
+	assert.Equal(t, 100, Config.RedisPoolSize)
+	assert.Equal(t, 20, Config.RedisMinIdleConns)
+	assert.Equal(t, 15*time.Second, Config.RedisPoolTimeout)
 	assert.Equal(t, "test:inventory", Config.QueueInventoryName)
 	assert.Equal(t, "test:processing", Config.QueueProcessingName)
 	assert.Equal(t, "test:notifications", Config.QueueNotificationName)

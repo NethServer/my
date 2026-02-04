@@ -10,7 +10,6 @@
 package database
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -18,14 +17,12 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-	"github.com/redis/go-redis/v9"
 
 	"github.com/nethesis/my/collect/logger"
 )
 
 var (
-	DB    *sql.DB
-	Redis *redis.Client
+	DB *sql.DB
 )
 
 // Init initializes the database connections
@@ -33,11 +30,6 @@ func Init() error {
 	// Initialize PostgreSQL connection
 	if err := initPostgreSQL(); err != nil {
 		return fmt.Errorf("failed to initialize PostgreSQL: %w", err)
-	}
-
-	// Initialize Redis connection
-	if err := initRedis(); err != nil {
-		return fmt.Errorf("failed to initialize Redis: %w", err)
 	}
 
 	// Initialize connection manager
@@ -63,7 +55,7 @@ func initPostgreSQL() error {
 		}
 	}
 
-	maxIdle := 5 // Increased from 2 for better connection reuse
+	maxIdle := 15 // Keep idle connections ready under concurrent load
 	if maxIdleStr := os.Getenv("DATABASE_MAX_IDLE"); maxIdleStr != "" {
 		if parsed, err := strconv.Atoi(maxIdleStr); err == nil {
 			maxIdle = parsed
@@ -105,101 +97,23 @@ func initPostgreSQL() error {
 	return nil
 }
 
-// initRedis initializes the Redis connection
-func initRedis() error {
-	// Get Redis configuration from environment
-	redisURL := os.Getenv("REDIS_URL")
-	if redisURL == "" {
-		redisURL = "redis://localhost:6379"
-	}
-
-	opt, err := redis.ParseURL(redisURL)
-	if err != nil {
-		return fmt.Errorf("failed to parse Redis URL: %w", err)
-	}
-
-	// Override with environment configuration
-	if redisDB := os.Getenv("REDIS_DB"); redisDB != "" {
-		if db, err := strconv.Atoi(redisDB); err == nil {
-			opt.DB = db
+// Close closes the database connection
+func Close() error {
+	if DB != nil {
+		if err := DB.Close(); err != nil {
+			return fmt.Errorf("failed to close PostgreSQL connection: %w", err)
 		}
 	}
 
-	if redisPassword := os.Getenv("REDIS_PASSWORD"); redisPassword != "" {
-		opt.Password = redisPassword
-	}
-
-	// Set reasonable defaults
-	opt.MaxRetries = 3
-	opt.DialTimeout = 5 * time.Second
-	opt.ReadTimeout = 3 * time.Second
-	opt.WriteTimeout = 3 * time.Second
-
-	// Configure connection pool to avoid exceeding Redis connection limits
-	opt.PoolSize = 15                      // Maximum 15 connections per client
-	opt.MinIdleConns = 5                   // Keep 5 connections ready
-	opt.MaxIdleConns = 10                  // Maximum 10 idle connections
-	opt.ConnMaxIdleTime = 5 * time.Minute  // Close idle connections after 5 minutes
-	opt.ConnMaxLifetime = 30 * time.Minute // Maximum connection lifetime
-
-	Redis = redis.NewClient(opt)
-
-	// Test connection
-	ctx := context.Background()
-	if err := Redis.Ping(ctx).Err(); err != nil {
-		return fmt.Errorf("failed to connect to Redis: %w", err)
-	}
-
-	logger.ComponentLogger("database").Info().
-		Str("redis_url", logger.SanitizeConnectionURL(redisURL)).
-		Int("redis_db", opt.DB).
-		Msg("Redis connection established")
-
+	logger.ComponentLogger("database").Info().Msg("Database connection closed successfully")
 	return nil
 }
 
-// GetRedisClient returns the Redis client instance
-func GetRedisClient() *redis.Client {
-	return Redis
-}
-
-// Close closes all database connections
-func Close() error {
-	var dbErr, redisErr error
-
-	if DB != nil {
-		dbErr = DB.Close()
-	}
-
-	if Redis != nil {
-		redisErr = Redis.Close()
-	}
-
-	if dbErr != nil {
-		return fmt.Errorf("failed to close PostgreSQL connection: %w", dbErr)
-	}
-
-	if redisErr != nil {
-		return fmt.Errorf("failed to close Redis connection: %w", redisErr)
-	}
-
-	logger.ComponentLogger("database").Info().Msg("Database connections closed successfully")
-	return nil
-}
-
-// Health checks the health of database connections
+// Health checks the health of the database connection
 func Health() error {
-	// Check PostgreSQL
 	if err := DB.Ping(); err != nil {
 		return fmt.Errorf("PostgreSQL health check failed: %w", err)
 	}
-
-	// Check Redis
-	ctx := context.Background()
-	if err := Redis.Ping(ctx).Err(); err != nil {
-		return fmt.Errorf("redis health check failed: %w", err)
-	}
-
 	return nil
 }
 
@@ -218,18 +132,6 @@ func GetStats() map[string]interface{} {
 			"max_idle_closed":      dbStats.MaxIdleClosed,
 			"max_idle_time_closed": dbStats.MaxIdleTimeClosed,
 			"max_lifetime_closed":  dbStats.MaxLifetimeClosed,
-		}
-	}
-
-	if Redis != nil {
-		poolStats := Redis.PoolStats()
-		stats["redis"] = map[string]interface{}{
-			"hits":        poolStats.Hits,
-			"misses":      poolStats.Misses,
-			"timeouts":    poolStats.Timeouts,
-			"total_conns": poolStats.TotalConns,
-			"idle_conns":  poolStats.IdleConns,
-			"stale_conns": poolStats.StaleConns,
 		}
 	}
 

@@ -33,6 +33,9 @@ type Configuration struct {
 	RedisDialTimeout  time.Duration `json:"redis_dial_timeout"`
 	RedisReadTimeout  time.Duration `json:"redis_read_timeout"`
 	RedisWriteTimeout time.Duration `json:"redis_write_timeout"`
+	RedisPoolSize     int           `json:"redis_pool_size"`
+	RedisMinIdleConns int           `json:"redis_min_idle_conns"`
+	RedisPoolTimeout  time.Duration `json:"redis_pool_timeout"`
 
 	// Queue configuration
 	QueueInventoryName    string        `json:"queue_inventory_name"`
@@ -110,6 +113,9 @@ func Init() {
 	Config.RedisDialTimeout = parseDurationWithDefault("REDIS_DIAL_TIMEOUT", 5*time.Second)
 	Config.RedisReadTimeout = parseDurationWithDefault("REDIS_READ_TIMEOUT", 3*time.Second)
 	Config.RedisWriteTimeout = parseDurationWithDefault("REDIS_WRITE_TIMEOUT", 3*time.Second)
+	Config.RedisPoolSize = parseIntWithDefault("REDIS_POOL_SIZE", 50)
+	Config.RedisMinIdleConns = parseIntWithDefault("REDIS_MIN_IDLE_CONNS", 10)
+	Config.RedisPoolTimeout = parseDurationWithDefault("REDIS_POOL_TIMEOUT", 10*time.Second)
 
 	// Queue configuration
 	Config.QueueInventoryName = getStringWithDefault("QUEUE_INVENTORY_NAME", "collect:inventory")

@@ -42,10 +42,11 @@ func Init() error {
 	opt.ReadTimeout = configuration.Config.RedisReadTimeout
 	opt.WriteTimeout = configuration.Config.RedisWriteTimeout
 
-	// Configure connection pool to avoid exceeding Redis connection limits
-	opt.PoolSize = 15                      // Maximum 15 connections per client
-	opt.MinIdleConns = 5                   // Keep 5 connections ready
-	opt.MaxIdleConns = 10                  // Maximum 10 idle connections
+	// Configure connection pool - sizes from configuration for tunability
+	opt.PoolSize = configuration.Config.RedisPoolSize
+	opt.MinIdleConns = configuration.Config.RedisMinIdleConns
+	opt.MaxIdleConns = configuration.Config.RedisPoolSize / 2 // Half of pool size
+	opt.PoolTimeout = configuration.Config.RedisPoolTimeout
 	opt.ConnMaxIdleTime = 5 * time.Minute  // Close idle connections after 5 minutes
 	opt.ConnMaxLifetime = 30 * time.Minute // Maximum connection lifetime
 
@@ -360,6 +361,35 @@ func (qm *QueueManager) GetQueueStats(ctx context.Context) (*models.InventorySta
 	}
 
 	return stats, nil
+}
+
+// Health checks the health of the Redis connection
+func Health() error {
+	if client == nil {
+		return fmt.Errorf("redis client not initialized")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := client.Ping(ctx).Err(); err != nil {
+		return fmt.Errorf("redis health check failed: %w", err)
+	}
+	return nil
+}
+
+// GetStats returns Redis connection pool statistics
+func GetStats() map[string]interface{} {
+	if client == nil {
+		return nil
+	}
+	poolStats := client.PoolStats()
+	return map[string]interface{}{
+		"hits":        poolStats.Hits,
+		"misses":      poolStats.Misses,
+		"timeouts":    poolStats.Timeouts,
+		"total_conns": poolStats.TotalConns,
+		"idle_conns":  poolStats.IdleConns,
+		"stale_conns": poolStats.StaleConns,
+	}
 }
 
 // Close closes the Redis connection

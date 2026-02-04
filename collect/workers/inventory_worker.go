@@ -18,10 +18,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/nethesis/my/collect/configuration"
 	"github.com/nethesis/my/collect/database"
+	"github.com/nethesis/my/collect/helpers"
 	"github.com/nethesis/my/collect/logger"
 	"github.com/nethesis/my/collect/models"
 	"github.com/nethesis/my/collect/queue"
@@ -34,7 +36,7 @@ type InventoryWorker struct {
 	batchSize      int
 	flushInterval  time.Duration
 	stopCh         chan struct{}
-	isHealthy      bool
+	isHealthy      int32
 	mu             sync.RWMutex
 	processedCount int64
 	failedCount    int64
@@ -43,15 +45,15 @@ type InventoryWorker struct {
 }
 
 // NewInventoryWorker creates a new inventory worker
-func NewInventoryWorker(batchSize int, flushInterval time.Duration) *InventoryWorker {
+func NewInventoryWorker(batchSize int, flushInterval time.Duration, queueManager *queue.QueueManager) *InventoryWorker {
 	return &InventoryWorker{
 		inventoryBatch: make(chan *models.InventoryData, batchSize*2), // Buffer 2x batch size
 		batchSize:      batchSize,
 		flushInterval:  flushInterval,
 		stopCh:         make(chan struct{}),
-		isHealthy:      true,
+		isHealthy:      1,
 		lastFlush:      time.Now(),
-		queueManager:   queue.NewQueueManager(),
+		queueManager:   queueManager,
 	}
 }
 
@@ -69,9 +71,7 @@ func (iw *InventoryWorker) Name() string {
 
 // IsHealthy returns health status
 func (iw *InventoryWorker) IsHealthy() bool {
-	iw.mu.RLock()
-	defer iw.mu.RUnlock()
-	return iw.isHealthy
+	return atomic.LoadInt32(&iw.isHealthy) == 1
 }
 
 // AddInventory adds inventory data to the batch for processing
@@ -301,32 +301,29 @@ func (iw *InventoryWorker) updateLastFlush() {
 
 // recordSuccess records successful batch processing
 func (iw *InventoryWorker) recordSuccess(count int64) {
-	iw.mu.Lock()
-	defer iw.mu.Unlock()
-	iw.processedCount += count
-	iw.isHealthy = true
+	atomic.AddInt64(&iw.processedCount, count)
+	atomic.StoreInt32(&iw.isHealthy, 1)
 }
 
 // recordFailure records failed batch processing
 func (iw *InventoryWorker) recordFailure(count int64) {
-	iw.mu.Lock()
-	defer iw.mu.Unlock()
-	iw.failedCount += count
-	iw.isHealthy = false
+	atomic.AddInt64(&iw.failedCount, count)
+	atomic.StoreInt32(&iw.isHealthy, 0)
 }
 
 // GetStats returns inventory worker statistics
 func (iw *InventoryWorker) GetStats() map[string]interface{} {
 	iw.mu.RLock()
-	defer iw.mu.RUnlock()
+	lastFlush := iw.lastFlush
+	iw.mu.RUnlock()
 
 	return map[string]interface{}{
-		"processed_count": iw.processedCount,
-		"failed_count":    iw.failedCount,
+		"processed_count": atomic.LoadInt64(&iw.processedCount),
+		"failed_count":    atomic.LoadInt64(&iw.failedCount),
 		"queue_length":    len(iw.inventoryBatch),
 		"queue_capacity":  cap(iw.inventoryBatch),
-		"last_flush":      iw.lastFlush,
-		"is_healthy":      iw.isHealthy,
+		"last_flush":      lastFlush,
+		"is_healthy":      iw.IsHealthy(),
 		"batch_size":      iw.batchSize,
 		"flush_interval":  iw.flushInterval,
 	}
@@ -343,7 +340,7 @@ func (iw *InventoryWorker) triggerDiffProcessingAsync(ctx context.Context, inser
 
 	for _, record := range insertedRecords {
 		// Check if there's a previous record for this system
-		previousRecord, err := iw.getPreviousInventoryRecord(asyncCtx, record.SystemID, record.ID)
+		previousRecord, err := GetPreviousInventoryRecord(asyncCtx, record.SystemID, record.ID)
 		if err != nil {
 			logger.Warn().
 				Err(err).
@@ -392,42 +389,6 @@ func (iw *InventoryWorker) triggerDiffProcessingAsync(ctx context.Context, inser
 		Msg("Async diff processing completed")
 }
 
-// getPreviousInventoryRecord gets the most recent previous inventory record for a system
-func (iw *InventoryWorker) getPreviousInventoryRecord(ctx context.Context, systemID string, currentID int64) (*models.InventoryRecord, error) {
-	query := `
-		SELECT id, system_id, timestamp, data, data_hash, data_size,
-		       processed_at, has_changes, change_count, created_at, updated_at
-		FROM inventory_records
-		WHERE system_id = $1 AND id < $2
-		ORDER BY timestamp DESC, id DESC
-		LIMIT 1
-	`
-
-	record := &models.InventoryRecord{}
-	err := database.DB.QueryRowContext(ctx, query, systemID, currentID).Scan(
-		&record.ID,
-		&record.SystemID,
-		&record.Timestamp,
-		&record.Data,
-		&record.DataHash,
-		&record.DataSize,
-		&record.ProcessedAt,
-		&record.HasChanges,
-		&record.ChangeCount,
-		&record.CreatedAt,
-		&record.UpdatedAt,
-	)
-
-	if err == sql.ErrNoRows {
-		return nil, nil // No previous record found
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get previous inventory record: %w", err)
-	}
-
-	return record, nil
-}
-
 // updateSystemFieldsFromInventory extracts relevant fields from inventory and updates the systems table
 // Supports both NS8 (nethserver) and NSEC (nethsecurity) inventory structures
 func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, tx *sql.Tx, record *models.InventoryRecord, logger zerolog.Logger) error {
@@ -445,7 +406,7 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 
 	switch installation {
 	case "nethserver": // NS8
-		systemType = strPtr("ns8")
+		systemType = helpers.StrPtr("ns8")
 
 		// Get facts object
 		facts, ok := inventoryData["facts"].(map[string]interface{})
@@ -499,7 +460,7 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 		}
 
 	case "nethsecurity": // NSEC
-		systemType = strPtr("nsec")
+		systemType = helpers.StrPtr("nsec")
 
 		// Get facts object
 		facts, ok := inventoryData["facts"].(map[string]interface{})
@@ -623,11 +584,6 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 	}
 
 	return nil
-}
-
-// strPtr returns a pointer to a string
-func strPtr(s string) *string {
-	return &s
 }
 
 // extractApplicationsFromInventory extracts modules from NS8 inventory and upserts them into applications table
@@ -825,19 +781,19 @@ func (iw *InventoryWorker) extractApplicationsFromInventory(ctx context.Context,
 		`
 
 		_, err = tx.ExecContext(ctx, query,
-			appID,                       // $1
-			record.SystemID,             // $2
-			moduleID,                    // $3
-			moduleName,                  // $4 (instance_of)
-			nilIfEmpty(moduleUIName),    // $5 (display_name from ui_name)
-			nodeID,                      // $6
-			nodeLabel,                   // $7
-			nilIfEmpty(moduleVersion),   // $8
-			appURL,                      // $9
-			inventoryDataBytes,          // $10
-			isUserFacing,                // $11
-			nilIfEmpty(moduleHumanName), // $12 (name)
-			nilIfEmpty(moduleSource),    // $13 (source)
+			appID,                               // $1
+			record.SystemID,                     // $2
+			moduleID,                            // $3
+			moduleName,                          // $4 (instance_of)
+			helpers.NilIfEmpty(moduleUIName),    // $5 (display_name from ui_name)
+			nodeID,                              // $6
+			nodeLabel,                           // $7
+			helpers.NilIfEmpty(moduleVersion),   // $8
+			appURL,                              // $9
+			inventoryDataBytes,                  // $10
+			isUserFacing,                        // $11
+			helpers.NilIfEmpty(moduleHumanName), // $12 (name)
+			helpers.NilIfEmpty(moduleSource),    // $13 (source)
 		)
 		if err != nil {
 			logger.Warn().
@@ -895,12 +851,4 @@ func (iw *InventoryWorker) extractApplicationsFromInventory(ctx context.Context,
 		Msg("Applications extracted from inventory")
 
 	return nil
-}
-
-// nilIfEmpty returns nil if the string is empty, otherwise returns a pointer to the string
-func nilIfEmpty(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
 }

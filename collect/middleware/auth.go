@@ -25,6 +25,7 @@ import (
 	"github.com/nethesis/my/collect/helpers"
 	"github.com/nethesis/my/collect/logger"
 	"github.com/nethesis/my/collect/models"
+	"github.com/nethesis/my/collect/queue"
 	"github.com/nethesis/my/collect/response"
 )
 
@@ -237,7 +238,7 @@ func checkCredentialsCache(c *gin.Context, systemKey, systemSecret string) *stri
 	hash := sha256.Sum256([]byte(systemSecret))
 	cacheKey := fmt.Sprintf("auth:system:%s:%x", systemKey, hash)
 
-	rdb := database.GetRedisClient()
+	rdb := queue.GetClient()
 	result, err := rdb.Get(c.Request.Context(), cacheKey).Result()
 	if err == redis.Nil {
 		return nil // Not in cache
@@ -274,7 +275,7 @@ func cacheCredentialsResult(c *gin.Context, systemKey, systemSecret, systemID st
 		ttl = 1 * time.Minute // Short cache for failed attempts
 	}
 
-	rdb := database.GetRedisClient()
+	rdb := queue.GetClient()
 	err := rdb.Set(c.Request.Context(), cacheKey, value, ttl).Err()
 	if err != nil {
 		logger.Warn().Err(err).Msg("Failed to cache auth result")

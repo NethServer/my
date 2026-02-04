@@ -78,13 +78,13 @@ const (
 
 // NewManager creates a new worker manager
 func NewManager() *Manager {
-	inventoryWorker := NewInventoryWorker(100, 5*time.Second)
 	queueManager := queue.NewQueueManager()
+	inventoryWorker := NewInventoryWorker(100, 5*time.Second, queueManager)
 
 	return &Manager{
 		inventoryWorker:      inventoryWorker,
-		diffWorker:           NewDiffWorker(2, 1),                                     // 2 ID, 1 worker for diff processing
-		notificationWorker:   NewNotificationWorker(3, 2),                             // 3 ID, 2 workers for notifications
+		diffWorker:           NewDiffWorker(2, 1, queueManager),                       // 2 ID, 1 worker for diff processing
+		notificationWorker:   NewNotificationWorker(3, 2, queueManager),               // 3 ID, 2 workers for notifications
 		cleanupWorker:        NewCleanupWorker(4),                                     // 4 ID for cleanup operations
 		queueMonitorWorker:   NewQueueMonitorWorker(5, queueManager, inventoryWorker), // 5 ID for queue monitoring
 		delayedMessageWorker: NewDelayedMessageWorker(6, queueManager),                // 6 ID for delayed message processing

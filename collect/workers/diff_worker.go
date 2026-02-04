@@ -14,12 +14,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/nethesis/my/collect/configuration"
 	"github.com/nethesis/my/collect/database"
 	"github.com/nethesis/my/collect/differ"
+	"github.com/nethesis/my/collect/helpers"
 	"github.com/nethesis/my/collect/logger"
 	"github.com/nethesis/my/collect/models"
 	"github.com/nethesis/my/collect/queue"
@@ -28,15 +28,9 @@ import (
 
 // DiffWorker processes inventory diffs and detects changes
 type DiffWorker struct {
-	id            int
-	workerCount   int
-	queueManager  *queue.QueueManager
-	diffEngine    *differ.DiffEngine
-	isHealthy     int32
-	processedJobs int64
-	failedJobs    int64
-	lastActivity  time.Time
-	mu            sync.RWMutex
+	BaseWorker
+	queueManager *queue.QueueManager
+	diffEngine   *differ.DiffEngine
 }
 
 // createDiffEngine creates a new diff engine with error handling
@@ -54,14 +48,11 @@ func createDiffEngine() *differ.DiffEngine {
 }
 
 // NewDiffWorker creates a new diff worker
-func NewDiffWorker(id, workerCount int) *DiffWorker {
+func NewDiffWorker(id, workerCount int, queueManager *queue.QueueManager) *DiffWorker {
 	return &DiffWorker{
-		id:           id,
-		workerCount:  workerCount,
-		queueManager: queue.NewQueueManager(),
+		BaseWorker:   NewBaseWorker(id, fmt.Sprintf("diff-worker-%d", id), workerCount),
+		queueManager: queueManager,
 		diffEngine:   createDiffEngine(),
-		isHealthy:    1,
-		lastActivity: time.Now(),
 	}
 }
 
@@ -75,19 +66,9 @@ func (dw *DiffWorker) Start(ctx context.Context, wg *sync.WaitGroup) error {
 
 	// Start health monitor
 	wg.Add(1)
-	go dw.healthMonitor(ctx, wg)
+	go dw.HealthMonitor(ctx, wg)
 
 	return nil
-}
-
-// Name returns the worker name
-func (dw *DiffWorker) Name() string {
-	return fmt.Sprintf("diff-worker-%d", dw.id)
-}
-
-// IsHealthy returns the health status
-func (dw *DiffWorker) IsHealthy() bool {
-	return atomic.LoadInt32(&dw.isHealthy) == 1
 }
 
 // worker processes diff computation messages from the queue
@@ -110,7 +91,7 @@ func (dw *DiffWorker) worker(ctx context.Context, wg *sync.WaitGroup, workerID i
 			// Process messages from queue
 			if err := dw.processNextMessage(ctx, &workerLogger); err != nil {
 				workerLogger.Error().Err(err).Msg("Error processing diff message")
-				atomic.AddInt64(&dw.failedJobs, 1)
+				dw.RecordFailure()
 
 				// Brief pause on error to prevent tight error loops
 				time.Sleep(1 * time.Second)
@@ -122,9 +103,7 @@ func (dw *DiffWorker) worker(ctx context.Context, wg *sync.WaitGroup, workerID i
 // processNextMessage processes the next message from the processing queue
 func (dw *DiffWorker) processNextMessage(ctx context.Context, workerLogger *zerolog.Logger) error {
 	// Update activity timestamp
-	dw.mu.Lock()
-	dw.lastActivity = time.Now()
-	dw.mu.Unlock()
+	dw.UpdateActivity()
 
 	// Get message from queue with timeout
 	message, err := dw.queueManager.DequeueMessage(ctx, configuration.Config.QueueProcessingName, 5*time.Second)
@@ -159,7 +138,7 @@ func (dw *DiffWorker) processNextMessage(ctx context.Context, workerLogger *zero
 		return fmt.Errorf("failed to process inventory diff: %w", err)
 	}
 
-	atomic.AddInt64(&dw.processedJobs, 1)
+	dw.RecordSuccess()
 	workerLogger.Debug().
 		Str("system_id", job.SystemID).
 		Str("message_id", message.ID).
@@ -185,7 +164,7 @@ func (dw *DiffWorker) processInventoryDiff(ctx context.Context, job *models.Inve
 	}()
 
 	// Get previous inventory record
-	previousRecord, err := dw.getPreviousInventoryRecord(ctx, job.SystemID, job.InventoryRecord.ID)
+	previousRecord, err := GetPreviousInventoryRecord(ctx, job.SystemID, job.InventoryRecord.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get previous inventory record: %w", err)
 	}
@@ -259,57 +238,16 @@ func (dw *DiffWorker) processInventoryDiff(ctx context.Context, job *models.Inve
 	return nil
 }
 
-// getPreviousInventoryRecord gets the most recent previous inventory record
-func (dw *DiffWorker) getPreviousInventoryRecord(ctx context.Context, systemID string, currentID int64) (*models.InventoryRecord, error) {
-	query := `
-		SELECT id, system_id, timestamp, data, data_hash, data_size,
-		       processed_at, has_changes, change_count, created_at, updated_at
-		FROM inventory_records 
-		WHERE system_id = $1 AND id < $2 
-		ORDER BY timestamp DESC, id DESC 
-		LIMIT 1
-	`
-
-	record := &models.InventoryRecord{}
-	err := database.DB.QueryRowContext(ctx, query, systemID, currentID).Scan(
-		&record.ID,
-		&record.SystemID,
-		&record.Timestamp,
-		&record.Data,
-		&record.DataHash,
-		&record.DataSize,
-		&record.ProcessedAt,
-		&record.HasChanges,
-		&record.ChangeCount,
-		&record.CreatedAt,
-		&record.UpdatedAt,
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return record, nil
-}
-
 // storeDifferences stores the computed differences in the database using batch inserts
 func (dw *DiffWorker) storeDifferences(ctx context.Context, diffs []models.InventoryDiff) ([]models.InventoryDiff, error) {
 	if len(diffs) == 0 {
 		return diffs, nil
 	}
 
-	// Process in batches to reduce transaction time and prevent timeouts
-	const batchSize = 100
-	for i := 0; i < len(diffs); i += batchSize {
-		end := i + batchSize
-		if end > len(diffs) {
-			end = len(diffs)
-		}
-
-		batch := diffs[i:end]
-		if err := dw.storeDiffBatch(ctx, batch); err != nil {
-			return nil, fmt.Errorf("failed to store diff batch %d-%d: %w", i, end, err)
-		}
+	if err := helpers.ProcessInBatches(diffs, 100, func(batch []models.InventoryDiff) error {
+		return dw.storeDiffBatch(ctx, batch)
+	}); err != nil {
+		return nil, err
 	}
 
 	return diffs, nil
@@ -414,51 +352,7 @@ func (dw *DiffWorker) determineDiffSeverity(diffs []models.InventoryDiff) string
 	return maxSeverity
 }
 
-// healthMonitor monitors the health of the diff worker
-func (dw *DiffWorker) healthMonitor(ctx context.Context, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	ticker := time.NewTicker(configuration.Config.WorkerHeartbeatInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			dw.checkHealth()
-		}
-	}
-}
-
-// checkHealth checks the health of the worker
-func (dw *DiffWorker) checkHealth() {
-	dw.mu.RLock()
-	lastActivity := dw.lastActivity
-	dw.mu.RUnlock()
-
-	// Consider unhealthy if no activity for too long
-	if time.Since(lastActivity) > 5*configuration.Config.WorkerHeartbeatInterval {
-		atomic.StoreInt32(&dw.isHealthy, 0)
-		logger.Warn().
-			Str("worker", dw.Name()).
-			Time("last_activity", lastActivity).
-			Msg("Worker marked as unhealthy due to inactivity")
-	} else {
-		atomic.StoreInt32(&dw.isHealthy, 1)
-	}
-}
-
 // GetStats returns worker statistics
 func (dw *DiffWorker) GetStats() map[string]interface{} {
-	dw.mu.RLock()
-	defer dw.mu.RUnlock()
-
-	return map[string]interface{}{
-		"worker_count":   dw.workerCount,
-		"processed_jobs": atomic.LoadInt64(&dw.processedJobs),
-		"failed_jobs":    atomic.LoadInt64(&dw.failedJobs),
-		"last_activity":  dw.lastActivity,
-		"is_healthy":     dw.IsHealthy(),
-	}
+	return dw.GetBaseStats()
 }

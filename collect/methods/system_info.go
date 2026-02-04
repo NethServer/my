@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/nethesis/my/collect/database"
+	"github.com/nethesis/my/collect/helpers"
 	"github.com/nethesis/my/collect/logger"
 	"github.com/nethesis/my/collect/models"
 	"github.com/nethesis/my/collect/response"
@@ -24,17 +25,13 @@ import (
 
 // GetSystemInfo returns information about the authenticated system
 func GetSystemInfo(c *gin.Context) {
-	systemID, exists := c.Get("system_id")
-	if !exists {
+	systemID, ok := getAuthenticatedSystemID(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("authentication required", nil))
 		return
 	}
 
-	systemKey, exists := c.Get("system_key")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("authentication required", nil))
-		return
-	}
+	systemKey, _ := c.Get("system_key")
 
 	query := `
 		SELECT s.id, s.system_key, s.name, s.type, s.fqdn, s.status,
@@ -76,7 +73,7 @@ func GetSystemInfo(c *gin.Context) {
 		orgSuspendedAt *time.Time
 	)
 
-	err := database.DB.QueryRow(query, systemID.(string)).Scan(
+	err := database.DB.QueryRow(query, systemID).Scan(
 		&sysID, &sysKey, &name, &sysType, &fqdn, &status,
 		&suspendedAt, &deletedAt, &registeredAt, &createdAt,
 		&organizationID, &orgDBID, &orgLogtoID, &orgName, &orgType, &orgSuspendedAt,
@@ -89,7 +86,7 @@ func GetSystemInfo(c *gin.Context) {
 		logger.Error().
 			Str("component", "system_info").
 			Str("operation", "database_query").
-			Str("system_id", systemID.(string)).
+			Str("system_id", systemID).
 			Str("system_key", systemKey.(string)).
 			Err(err).
 			Msg("failed to query system info")
@@ -125,8 +122,8 @@ func GetSystemInfo(c *gin.Context) {
 		RegisteredAt: registeredAt,
 		CreatedAt:    createdAt,
 		Organization: models.SystemInfoOrg{
-			ID:          derefString(orgDBID),
-			LogtoID:     derefString(orgLogtoID),
+			ID:          helpers.DerefString(orgDBID),
+			LogtoID:     helpers.DerefString(orgLogtoID),
 			Name:        orgName,
 			Type:        orgType,
 			Suspended:   orgSuspendedAt != nil,
@@ -136,12 +133,4 @@ func GetSystemInfo(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response.OK("system info retrieved successfully", info))
-}
-
-// derefString returns the value of a string pointer or empty string if nil
-func derefString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
 }

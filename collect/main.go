@@ -121,11 +121,16 @@ func main() {
 
 	// Health check endpoint with detailed metrics
 	api.GET("/health", func(c *gin.Context) {
+		dbStats := database.GetStats()
+		if redisStats := queue.GetStats(); redisStats != nil {
+			dbStats["redis"] = redisStats
+		}
+
 		healthData := map[string]interface{}{
 			"service":  "collect",
 			"status":   "healthy",
 			"workers":  workerManager.GetStatus(),
-			"database": database.GetStats(),
+			"database": dbStats,
 			"version":  version.Get(),
 		}
 
@@ -193,6 +198,16 @@ func main() {
 
 	if err := srv.Shutdown(ctx); err != nil {
 		logger.Fatal().Err(err).Msg("Server forced to shutdown")
+	}
+
+	// Close Redis connection
+	if err := queue.Close(); err != nil {
+		logger.Error().Err(err).Msg("Failed to close Redis connection")
+	}
+
+	// Close database connection
+	if err := database.Close(); err != nil {
+		logger.Error().Err(err).Msg("Failed to close database connection")
 	}
 
 	logger.Info().Msg("Server exited")
