@@ -18,6 +18,7 @@ export const ApplicationSchema = v.object({
   id: v.string(),
   module_id: v.string(),
   instance_of: v.string(),
+  name: v.string(),
   display_name: v.string(),
   version: v.string(),
   status: v.string(),
@@ -113,6 +114,14 @@ export const getDisplayName = (app: Application) => {
     return `${app.display_name} (${app.module_id})`
   } else {
     return app.module_id
+  }
+}
+
+export const getApplicationLogo = (appId: string) => {
+  try {
+    return new URL(`../../assets/application_logos/${appId}.svg`, import.meta.url).href
+  } catch {
+    return undefined
   }
 }
 
