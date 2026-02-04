@@ -363,14 +363,16 @@ func GetApplicationVersions(c *gin.Context) {
 	// Convert map to array of ApplicationVersions
 	type ApplicationVersions struct {
 		Application string   `json:"application"`
+		Name        string   `json:"name"`
 		Versions    []string `json:"versions"`
 	}
 
 	var groupedVersions []ApplicationVersions
-	for application, versions := range versionsByProduct {
+	for application, group := range versionsByProduct {
 		groupedVersions = append(groupedVersions, ApplicationVersions{
 			Application: application,
-			Versions:    versions,
+			Name:        group.Name,
+			Versions:    group.Versions,
 		})
 	}
 

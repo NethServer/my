@@ -6359,6 +6359,10 @@ paths:
                               type: string
                               description: Application type (instance_of)
                               example: "nethvoice"
+                            name:
+                              type: string
+                              description: Human-readable application name
+                              example: "NethVoice"
                             versions:
                               type: array
                               items:
@@ -6368,10 +6372,13 @@ paths:
                     example:
                       versions:
                         - application: "mail"
+                          name: "Mail"
                           versions: ["mail:1.7.4"]
                         - application: "nethvoice"
+                          name: "NethVoice"
                           versions: ["nethvoice:1.5.4", "nethvoice:1.5.3"]
                         - application: "webtop"
+                          name: "WebTop"
                           versions: ["webtop:1.5.4"]
         '401':
           $ref: '#/components/responses/Unauthorized'

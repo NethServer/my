@@ -203,7 +203,7 @@ func (s *LocalApplicationsService) GetApplicationTypes(userOrgRole, userOrgID st
 }
 
 // GetApplicationVersions returns distinct application versions grouped by instance_of
-func (s *LocalApplicationsService) GetApplicationVersions(userOrgRole, userOrgID string) (map[string][]string, error) {
+func (s *LocalApplicationsService) GetApplicationVersions(userOrgRole, userOrgID string) (map[string]entities.ApplicationVersionGroup, error) {
 	allowedSystemIDs, err := s.getAllowedSystemIDs(userOrgRole, userOrgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get allowed systems: %w", err)

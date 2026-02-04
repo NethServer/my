@@ -681,10 +681,16 @@ func (r *LocalApplicationRepository) GetDistinctTypes(allowedSystemIDs []string,
 	return types, nil
 }
 
+// ApplicationVersionGroup holds versions and human-readable name for an application type
+type ApplicationVersionGroup struct {
+	Name     string
+	Versions []string
+}
+
 // GetDistinctVersions returns distinct application versions grouped by instance_of
-func (r *LocalApplicationRepository) GetDistinctVersions(allowedSystemIDs []string, userFacingOnly bool) (map[string][]string, error) {
+func (r *LocalApplicationRepository) GetDistinctVersions(allowedSystemIDs []string, userFacingOnly bool) (map[string]ApplicationVersionGroup, error) {
 	if len(allowedSystemIDs) == 0 {
-		return map[string][]string{}, nil
+		return map[string]ApplicationVersionGroup{}, nil
 	}
 
 	placeholders := make([]string, len(allowedSystemIDs))
@@ -701,7 +707,7 @@ func (r *LocalApplicationRepository) GetDistinctVersions(allowedSystemIDs []stri
 	}
 
 	query := fmt.Sprintf(`
-		SELECT DISTINCT instance_of, version
+		SELECT DISTINCT instance_of, name, version
 		FROM applications
 		WHERE deleted_at IS NULL AND version IS NOT NULL AND system_id IN (%s)%s
 		ORDER BY instance_of ASC, version DESC
@@ -713,14 +719,20 @@ func (r *LocalApplicationRepository) GetDistinctVersions(allowedSystemIDs []stri
 	}
 	defer func() { _ = rows.Close() }()
 
-	versionsByProduct := make(map[string][]string)
+	versionsByProduct := make(map[string]ApplicationVersionGroup)
 	for rows.Next() {
 		var instanceOf, version string
-		if err := rows.Scan(&instanceOf, &version); err != nil {
+		var name *string
+		if err := rows.Scan(&instanceOf, &name, &version); err != nil {
 			return nil, fmt.Errorf("failed to scan version: %w", err)
 		}
 		prefixedVersion := fmt.Sprintf("%s:%s", instanceOf, version)
-		versionsByProduct[instanceOf] = append(versionsByProduct[instanceOf], prefixedVersion)
+		group := versionsByProduct[instanceOf]
+		if name != nil && group.Name == "" {
+			group.Name = *name
+		}
+		group.Versions = append(group.Versions, prefixedVersion)
+		versionsByProduct[instanceOf] = group
 	}
 
 	return versionsByProduct, nil
