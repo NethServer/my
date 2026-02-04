@@ -12,6 +12,7 @@ const APPLICATION_VERSION_FILTER_PATH = 'filters/applications/versions'
 
 export interface ApplicationVersions {
   application: string
+  name: string
   versions: string[]
 }
 
@@ -36,15 +37,17 @@ export const getVersionFilter = () => {
 export const buildVersionFilterOptions = (applicationVersions: ApplicationVersions[]) => {
   const options: FilterOption[] = []
 
-  applicationVersions.forEach((pv) => {
-    pv.versions.forEach((appAndVersion) => {
-      // split application and version
-      const [application, version] = appAndVersion.split(':')
+  applicationVersions.forEach((av) => {
+    const appName = av.name
 
-      if (application && version) {
+    av.versions.forEach((appAndVersion) => {
+      // split application and version
+      const [_, version] = appAndVersion.split(':')
+
+      if (appName && version) {
         options.push({
           id: appAndVersion,
-          label: `${application} ${version}`,
+          label: `${appName} ${version}`,
         })
       }
     })
