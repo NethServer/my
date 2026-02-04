@@ -4,12 +4,14 @@
 -->
 
 <script setup lang="ts">
+import ApplicationsCounterCard from '@/components/dashboard/ApplicationsCounterCard.vue'
 import CustomersCounterCard from '@/components/dashboard/CustomersCounterCard.vue'
 import DistributorsCounterCard from '@/components/dashboard/DistributorsCounterCard.vue'
 import ResellersCounterCard from '@/components/dashboard/ResellersCounterCard.vue'
 import SystemsCounterCard from '@/components/dashboard/SystemsCounterCard.vue'
 import UsersCounterCard from '@/components/dashboard/UsersCounterCard.vue'
 import {
+  canReadApplications,
   canReadCustomers,
   canReadDistributors,
   canReadResellers,
@@ -84,6 +86,7 @@ const { state: thirdPartyApps } = useQuery({
         <CustomersCounterCard v-if="canReadCustomers()" />
         <UsersCounterCard v-if="canReadUsers()" />
         <SystemsCounterCard v-if="canReadSystems()" />
+        <ApplicationsCounterCard v-if="canReadApplications()" />
       </template>
     </div>
     <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">
