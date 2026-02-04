@@ -10,8 +10,12 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
@@ -416,9 +420,44 @@ func main() {
 		c.JSON(http.StatusNotFound, response.NotFound("api not found", nil))
 	})
 
-	// Run server
-	logger.LogServiceStart("backend", version.Version, configuration.Config.ListenAddress)
-	if err := router.Run(configuration.Config.ListenAddress); err != nil {
-		logger.Fatal().Err(err).Msg("Failed to start server")
+	// Create HTTP server for graceful shutdown support
+	srv := &http.Server{
+		Addr:    configuration.Config.ListenAddress,
+		Handler: router,
 	}
+
+	// Start server in a goroutine
+	go func() {
+		logger.LogServiceStart("backend", version.Version, configuration.Config.ListenAddress)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Fatal().Err(err).Msg("Failed to start server")
+		}
+	}()
+
+	// Wait for interrupt signal for graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	logger.Info().Msg("Shutting down server...")
+
+	// Give outstanding requests 30 seconds to complete
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		logger.Error().Err(err).Msg("Server forced to shutdown")
+	}
+
+	// Close Redis connections
+	if err := cache.CloseRedis(); err != nil {
+		logger.Error().Err(err).Msg("Failed to close Redis connection")
+	}
+
+	// Close database connections
+	if err := database.Close(); err != nil {
+		logger.Error().Err(err).Msg("Failed to close database connection")
+	}
+
+	logger.Info().Msg("Server exited")
 }

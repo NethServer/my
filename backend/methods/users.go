@@ -6,7 +6,6 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package methods
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -904,13 +903,4 @@ func ResetUserPassword(c *gin.Context) {
 
 	// Return success response
 	c.JSON(http.StatusOK, response.OK("password reset successfully", nil))
-}
-
-// getValidationError checks if the error chain contains a ValidationError and returns it
-func getValidationError(err error) *local.ValidationError {
-	var validationErr *local.ValidationError
-	if errors.As(err, &validationErr) {
-		return validationErr
-	}
-	return nil
 }

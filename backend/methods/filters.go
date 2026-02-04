@@ -43,48 +43,14 @@ func GetFilterProducts(c *gin.Context) {
 	`
 
 	// Apply RBAC filtering based on user role
-	userOrgRoleLower := strings.ToLower(userOrgRole)
-	switch userOrgRoleLower {
-	case "owner":
-		// Owner sees all systems
-	case "distributor":
-		// Distributor sees systems from their organization and child organizations (resellers + customers)
-		query += `
-			AND (
-				organization_id = $1
-				OR organization_id IN (
-					SELECT logto_id FROM resellers WHERE deleted_at IS NULL
-					UNION
-					SELECT logto_id FROM customers WHERE deleted_at IS NULL
-				)
-			)
-		`
-	case "reseller":
-		// Reseller sees systems from their organization and child customers
-		query += `
-			AND (
-				organization_id = $1
-				OR organization_id IN (
-					SELECT logto_id FROM customers WHERE deleted_at IS NULL
-				)
-			)
-		`
-	default:
-		// Customer or unknown role - only their organization
-		query += ` AND organization_id = $1`
-	}
+	var args []interface{}
+	query, args, _ = helpers.AppendOrgFilter(query, userOrgRole, userOrgID, "", args, 1)
 
 	query += ` ORDER BY type ASC`
 
 	// Execute query
 	var err error
-	var rows *sql.Rows
-
-	if userOrgRoleLower == "owner" {
-		rows, err = database.DB.Query(query)
-	} else {
-		rows, err = database.DB.Query(query, userOrgID)
-	}
+	rows, err := database.DB.Query(query, args...)
 
 	if err != nil {
 		logger.Error().
@@ -155,48 +121,14 @@ func GetFilterCreatedBy(c *gin.Context) {
 	`
 
 	// Apply RBAC filtering based on user role
-	userOrgRoleLower := strings.ToLower(userOrgRole)
-	switch userOrgRoleLower {
-	case "owner":
-		// Owner sees all systems
-	case "distributor":
-		// Distributor sees systems from their organization and child organizations (resellers + customers)
-		query += `
-			AND (
-				organization_id = $1
-				OR organization_id IN (
-					SELECT logto_id FROM resellers WHERE deleted_at IS NULL
-					UNION
-					SELECT logto_id FROM customers WHERE deleted_at IS NULL
-				)
-			)
-		`
-	case "reseller":
-		// Reseller sees systems from their organization and child customers
-		query += `
-			AND (
-				organization_id = $1
-				OR organization_id IN (
-					SELECT logto_id FROM customers WHERE deleted_at IS NULL
-				)
-			)
-		`
-	default:
-		// Customer or unknown role - only their organization
-		query += ` AND organization_id = $1`
-	}
+	var args []interface{}
+	query, args, _ = helpers.AppendOrgFilter(query, userOrgRole, userOrgID, "", args, 1)
 
 	query += ` ORDER BY name ASC`
 
 	// Execute query
 	var err error
-	var rows *sql.Rows
-
-	if userOrgRoleLower == "owner" {
-		rows, err = database.DB.Query(query)
-	} else {
-		rows, err = database.DB.Query(query, userOrgID)
-	}
+	rows, err := database.DB.Query(query, args...)
 
 	if err != nil {
 		logger.Error().
@@ -281,48 +213,14 @@ func GetFilterVersions(c *gin.Context) {
 	`
 
 	// Apply RBAC filtering based on user role
-	userOrgRoleLower := strings.ToLower(userOrgRole)
-	switch userOrgRoleLower {
-	case "owner":
-		// Owner sees all systems
-	case "distributor":
-		// Distributor sees systems from their organization and child organizations (resellers + customers)
-		query += `
-			AND (
-				organization_id = $1
-				OR organization_id IN (
-					SELECT logto_id FROM resellers WHERE deleted_at IS NULL
-					UNION
-					SELECT logto_id FROM customers WHERE deleted_at IS NULL
-				)
-			)
-		`
-	case "reseller":
-		// Reseller sees systems from their organization and child customers
-		query += `
-			AND (
-				organization_id = $1
-				OR organization_id IN (
-					SELECT logto_id FROM customers WHERE deleted_at IS NULL
-				)
-			)
-		`
-	default:
-		// Customer or unknown role - only their organization
-		query += ` AND organization_id = $1`
-	}
+	var args []interface{}
+	query, args, _ = helpers.AppendOrgFilter(query, userOrgRole, userOrgID, "", args, 1)
 
 	query += ` ORDER BY type ASC, version DESC`
 
 	// Execute query
 	var err error
-	var rows *sql.Rows
-
-	if userOrgRoleLower == "owner" {
-		rows, err = database.DB.Query(query)
-	} else {
-		rows, err = database.DB.Query(query, userOrgID)
-	}
+	rows, err := database.DB.Query(query, args...)
 
 	if err != nil {
 		logger.Error().
@@ -420,50 +318,15 @@ func GetFilterOrganizations(c *gin.Context) {
 	`
 
 	// Apply RBAC filtering based on user role
-	userOrgRoleLower := strings.ToLower(userOrgRole)
 	query := baseQuery
-
-	switch userOrgRoleLower {
-	case "owner":
-		// Owner sees all organizations
-	case "distributor":
-		// Distributor sees systems from their organization and child organizations (resellers + customers)
-		query += `
-			AND (
-				s.organization_id = $1
-				OR s.organization_id IN (
-					SELECT logto_id FROM resellers WHERE deleted_at IS NULL
-					UNION
-					SELECT logto_id FROM customers WHERE deleted_at IS NULL
-				)
-			)
-		`
-	case "reseller":
-		// Reseller sees systems from their organization and child customers
-		query += `
-			AND (
-				s.organization_id = $1
-				OR s.organization_id IN (
-					SELECT logto_id FROM customers WHERE deleted_at IS NULL
-				)
-			)
-		`
-	default:
-		// Customer or unknown role - only their organization
-		query += ` AND s.organization_id = $1`
-	}
+	var args []interface{}
+	query, args, _ = helpers.AppendOrgFilter(query, userOrgRole, userOrgID, "s.", args, 1)
 
 	query += ` ORDER BY o.name ASC`
 
 	// Execute query
 	var err error
-	var rows *sql.Rows
-
-	if userOrgRoleLower == "owner" {
-		rows, err = database.DB.Query(query)
-	} else {
-		rows, err = database.DB.Query(query, userOrgID)
-	}
+	rows, err := database.DB.Query(query, args...)
 
 	if err != nil {
 		logger.Error().

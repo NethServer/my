@@ -149,12 +149,7 @@ func GetCustomer(c *gin.Context) {
 
 	// Resolve rebranding info
 	if customer.LogtoID != nil {
-		rebrandingService := local.NewRebrandingService()
-		enabled, resolvedOrgID, err := rebrandingService.ResolveRebranding(*customer.LogtoID)
-		if err == nil && enabled {
-			customer.RebrandingEnabled = true
-			customer.RebrandingOrgID = &resolvedOrgID
-		}
+		customer.RebrandingEnabled, customer.RebrandingOrgID = resolveRebranding(*customer.LogtoID)
 	}
 
 	// Log the action
@@ -200,14 +195,9 @@ func GetCustomers(c *gin.Context) {
 	}
 
 	// Resolve rebranding info for each customer
-	rebrandingService := local.NewRebrandingService()
 	for i := range customers {
 		if customers[i].LogtoID != nil {
-			enabled, resolvedOrgID, err := rebrandingService.ResolveRebranding(*customers[i].LogtoID)
-			if err == nil && enabled {
-				customers[i].RebrandingEnabled = true
-				customers[i].RebrandingOrgID = &resolvedOrgID
-			}
+			customers[i].RebrandingEnabled, customers[i].RebrandingOrgID = resolveRebranding(*customers[i].LogtoID)
 		}
 	}
 

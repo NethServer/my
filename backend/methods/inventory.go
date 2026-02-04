@@ -41,7 +41,7 @@ func GetSystemInventoryHistory(c *gin.Context) {
 	// Validate system access
 	systemsService := local.NewSystemsService()
 	_, err := systemsService.GetSystem(systemID, userOrgRole, userOrgID)
-	if handleSystemAccessError(c, err, systemID) {
+	if helpers.HandleAccessError(c, err, "system", systemID) {
 		return
 	}
 
@@ -123,7 +123,7 @@ func GetSystemLatestInventory(c *gin.Context) {
 	// Validate system access
 	systemsService := local.NewSystemsService()
 	_, err := systemsService.GetSystem(systemID, userOrgRole, userOrgID)
-	if handleSystemAccessError(c, err, systemID) {
+	if helpers.HandleAccessError(c, err, "system", systemID) {
 		return
 	}
 
@@ -183,7 +183,7 @@ func GetSystemInventoryChanges(c *gin.Context) {
 	// Validate system access
 	systemsService := local.NewSystemsService()
 	_, err := systemsService.GetSystem(systemID, userOrgRole, userOrgID)
-	if handleSystemAccessError(c, err, systemID) {
+	if helpers.HandleAccessError(c, err, "system", systemID) {
 		return
 	}
 
@@ -243,7 +243,7 @@ func GetSystemLatestInventoryChanges(c *gin.Context) {
 	// Validate system access
 	systemsService := local.NewSystemsService()
 	_, err := systemsService.GetSystem(systemID, userOrgRole, userOrgID)
-	if handleSystemAccessError(c, err, systemID) {
+	if helpers.HandleAccessError(c, err, "system", systemID) {
 		return
 	}
 
@@ -303,7 +303,7 @@ func GetSystemInventoryDiffs(c *gin.Context) {
 	// Validate system access
 	systemsService := local.NewSystemsService()
 	_, err := systemsService.GetSystem(systemID, userOrgRole, userOrgID)
-	if handleSystemAccessError(c, err, systemID) {
+	if helpers.HandleAccessError(c, err, "system", systemID) {
 		return
 	}
 
@@ -395,7 +395,7 @@ func GetSystemLatestInventoryDiff(c *gin.Context) {
 	// Validate system access
 	systemsService := local.NewSystemsService()
 	_, err := systemsService.GetSystem(systemID, userOrgRole, userOrgID)
-	if handleSystemAccessError(c, err, systemID) {
+	if helpers.HandleAccessError(c, err, "system", systemID) {
 		return
 	}
 

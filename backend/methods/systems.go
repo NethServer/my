@@ -19,32 +19,6 @@ import (
 	"github.com/nethesis/my/backend/services/local"
 )
 
-// handleSystemAccessError handles system access errors with appropriate HTTP status codes
-func handleSystemAccessError(c *gin.Context, err error, systemID string) bool {
-	if err == nil {
-		return false
-	}
-
-	errMsg := err.Error()
-	if errMsg == "system not found" {
-		c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
-		return true
-	}
-
-	if strings.Contains(errMsg, "access denied") {
-		c.JSON(http.StatusForbidden, response.Forbidden("access denied to system", map[string]interface{}{
-			"system_id": systemID,
-		}))
-		return true
-	}
-
-	// Technical error
-	c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to validate system access", map[string]interface{}{
-		"error": errMsg,
-	}))
-	return true
-}
-
 // CreateSystem handles POST /api/systems - creates a new system
 func CreateSystem(c *gin.Context) {
 	// Parse request body
@@ -167,14 +141,9 @@ func GetSystems(c *gin.Context) {
 	}
 
 	// Resolve rebranding info for each system
-	rebrandingService := local.NewRebrandingService()
 	for i := range systems {
 		if systems[i].Organization.LogtoID != "" {
-			enabled, resolvedOrgID, err := rebrandingService.ResolveRebranding(systems[i].Organization.LogtoID)
-			if err == nil && enabled {
-				systems[i].RebrandingEnabled = true
-				systems[i].RebrandingOrgID = &resolvedOrgID
-			}
+			systems[i].RebrandingEnabled, systems[i].RebrandingOrgID = resolveRebranding(systems[i].Organization.LogtoID)
 		}
 	}
 
@@ -223,18 +192,13 @@ func GetSystem(c *gin.Context) {
 
 	// Get system with access validation
 	system, err := systemsService.GetSystem(systemID, user.OrgRole, user.OrganizationID)
-	if handleSystemAccessError(c, err, systemID) {
+	if helpers.HandleAccessError(c, err, "system", systemID) {
 		return
 	}
 
 	// Resolve rebranding info
 	if system.Organization.LogtoID != "" {
-		rebrandingService := local.NewRebrandingService()
-		enabled, resolvedOrgID, err := rebrandingService.ResolveRebranding(system.Organization.LogtoID)
-		if err == nil && enabled {
-			system.RebrandingEnabled = true
-			system.RebrandingOrgID = &resolvedOrgID
-		}
+		system.RebrandingEnabled, system.RebrandingOrgID = resolveRebranding(system.Organization.LogtoID)
 	}
 
 	// Log the action
@@ -274,7 +238,7 @@ func UpdateSystem(c *gin.Context) {
 
 	// Update system with access validation
 	system, err := systemsService.UpdateSystem(systemID, &request, user.ID, user.OrganizationID, user.OrgRole)
-	if handleSystemAccessError(c, err, systemID) {
+	if helpers.HandleAccessError(c, err, "system", systemID) {
 		return
 	}
 
@@ -305,7 +269,7 @@ func DeleteSystem(c *gin.Context) {
 
 	// Delete system with access validation
 	err := systemsService.DeleteSystem(systemID, user.ID, user.OrganizationID, user.OrgRole)
-	if handleSystemAccessError(c, err, systemID) {
+	if helpers.HandleAccessError(c, err, "system", systemID) {
 		return
 	}
 
@@ -397,7 +361,7 @@ func RegenerateSystemSecret(c *gin.Context) {
 
 	// Regenerate system secret
 	system, err := systemsService.RegenerateSystemSecret(systemID, user.ID, user.OrganizationID, user.OrgRole)
-	if handleSystemAccessError(c, err, systemID) {
+	if helpers.HandleAccessError(c, err, "system", systemID) {
 		return
 	}
 

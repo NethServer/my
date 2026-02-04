@@ -13,7 +13,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/nethesis/my/backend/logger"
@@ -30,19 +29,8 @@ func (c *LogtoManagementClient) GetUserRoles(userID string) ([]models.LogtoRole,
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user roles: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to fetch user roles, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var roles []models.LogtoRole
-	if err := json.NewDecoder(resp.Body).Decode(&roles); err != nil {
-		return nil, fmt.Errorf("failed to decode user roles: %w", err)
-	}
-
-	return roles, nil
+	return decodeSliceResponse[models.LogtoRole](resp, []int{http.StatusOK}, "fetch user roles")
 }
 
 // GetRoleScopes fetches scopes for a role
@@ -51,19 +39,8 @@ func (c *LogtoManagementClient) GetRoleScopes(roleID string) ([]models.LogtoScop
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch role scopes: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to fetch role scopes, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var scopes []models.LogtoScope
-	if err := json.NewDecoder(resp.Body).Decode(&scopes); err != nil {
-		return nil, fmt.Errorf("failed to decode role scopes: %w", err)
-	}
-
-	return scopes, nil
+	return decodeSliceResponse[models.LogtoScope](resp, []int{http.StatusOK}, "fetch role scopes")
 }
 
 // GetUserOrganizationRoles fetches user's roles in an organization
@@ -72,19 +49,8 @@ func (c *LogtoManagementClient) GetUserOrganizationRoles(orgID, userID string) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user organization roles: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to fetch user organization roles, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var roles []models.LogtoOrganizationRole
-	if err := json.NewDecoder(resp.Body).Decode(&roles); err != nil {
-		return nil, fmt.Errorf("failed to decode user organization roles: %w", err)
-	}
-
-	return roles, nil
+	return decodeSliceResponse[models.LogtoOrganizationRole](resp, []int{http.StatusOK}, "fetch user organization roles")
 }
 
 // GetOrganizationRoleScopes fetches scopes for an organization role
@@ -93,19 +59,8 @@ func (c *LogtoManagementClient) GetOrganizationRoleScopes(roleID string) ([]mode
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch organization role scopes: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to fetch organization role scopes, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var scopes []models.LogtoScope
-	if err := json.NewDecoder(resp.Body).Decode(&scopes); err != nil {
-		return nil, fmt.Errorf("failed to decode organization role scopes: %w", err)
-	}
-
-	return scopes, nil
+	return decodeSliceResponse[models.LogtoScope](resp, []int{http.StatusOK}, "fetch organization role scopes")
 }
 
 // GetAllRoles fetches all roles from Logto Management API
@@ -114,19 +69,8 @@ func (c *LogtoManagementClient) GetAllRoles() ([]models.LogtoRole, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch roles: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to fetch roles, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var roles []models.LogtoRole
-	if err := json.NewDecoder(resp.Body).Decode(&roles); err != nil {
-		return nil, fmt.Errorf("failed to decode roles: %w", err)
-	}
-
-	return roles, nil
+	return decodeSliceResponse[models.LogtoRole](resp, []int{http.StatusOK}, "fetch roles")
 }
 
 // GetRoleByName finds a role by name
@@ -167,19 +111,8 @@ func (c *LogtoManagementClient) GetAllOrganizationRoles() ([]models.LogtoOrganiz
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch organization roles: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to fetch organization roles, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var roles []models.LogtoOrganizationRole
-	if err := json.NewDecoder(resp.Body).Decode(&roles); err != nil {
-		return nil, fmt.Errorf("failed to decode organization roles: %w", err)
-	}
-
-	return roles, nil
+	return decodeSliceResponse[models.LogtoOrganizationRole](resp, []int{http.StatusOK}, "fetch organization roles")
 }
 
 // GetOrganizationRoleByName finds an organization role by name
@@ -213,14 +146,8 @@ func (c *LogtoManagementClient) AssignUserRoles(userID string, roleIDs []string)
 	if err != nil {
 		return fmt.Errorf("failed to assign user roles: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to assign user roles, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
+	return checkStatus(resp, []int{http.StatusCreated, http.StatusOK}, "assign user roles")
 }
 
 // RemoveUserRoles removes roles from a user
@@ -231,11 +158,9 @@ func (c *LogtoManagementClient) RemoveUserRoles(userID string, roleIDs []string)
 		if err != nil {
 			return fmt.Errorf("failed to remove user role %s: %w", roleID, err)
 		}
-		defer func() { _ = resp.Body.Close() }()
 
-		if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(resp.Body)
-			return fmt.Errorf("failed to remove user role %s, status %d: %s", roleID, resp.StatusCode, string(body))
+		if err := checkStatus(resp, []int{http.StatusNoContent, http.StatusOK}, fmt.Sprintf("remove user role %s", roleID)); err != nil {
+			return err
 		}
 	}
 
@@ -266,14 +191,8 @@ func (c *LogtoManagementClient) AssignOrganizationRolesToUser(orgID, userID stri
 	if err != nil {
 		return fmt.Errorf("failed to assign organization roles to user: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to assign organization roles to user, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
+	return checkStatus(resp, []int{http.StatusCreated, http.StatusOK}, "assign organization roles to user")
 }
 
 // EnrichUserWithRolesAndPermissions fetches complete roles and permissions from Logto Management API

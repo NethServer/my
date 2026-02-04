@@ -34,20 +34,14 @@ func (c *LogtoManagementClient) GetApplications() ([]models.LogtoThirdPartyApp, 
 		Str("operation", "get_all_applications").
 		Msg("Fetching all applications from Logto")
 
-	// Use makeRequest which handles token refresh automatically
 	resp, err := c.makeRequest("GET", "/applications", nil)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to get applications: status %d", resp.StatusCode)
-	}
-
-	var logtoApps []models.LogtoThirdPartyApp
-	if err := json.NewDecoder(resp.Body).Decode(&logtoApps); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
+	logtoApps, err := decodeSliceResponse[models.LogtoThirdPartyApp](resp, []int{http.StatusOK}, "get applications")
+	if err != nil {
+		return nil, err
 	}
 
 	logger.ComponentLogger("logto").Debug().
@@ -85,56 +79,40 @@ func (c *LogtoManagementClient) GetThirdPartyApplications() ([]models.LogtoThird
 
 // GetApplicationBranding retrieves branding information for an application
 func (c *LogtoManagementClient) GetApplicationBranding(appID string) (*models.ApplicationSignInExperience, error) {
-	// Use makeRequest which handles token refresh automatically
 	resp, err := c.makeRequest("GET", "/applications/"+appID+"/sign-in-experience", nil)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMethodNotAllowed {
-		// Branding not available for this app type
+		_ = resp.Body.Close()
 		return nil, nil
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to get branding: status %d", resp.StatusCode)
-	}
-
-	var branding models.ApplicationSignInExperience
-	if err := json.NewDecoder(resp.Body).Decode(&branding); err != nil {
-		return nil, fmt.Errorf("failed to decode branding response: %w", err)
-	}
-
-	return &branding, nil
+	return decodeResponse[models.ApplicationSignInExperience](resp, []int{http.StatusOK}, "get application branding")
 }
 
 // GetApplicationScopes retrieves scopes for an application
 func (c *LogtoManagementClient) GetApplicationScopes(appID string) ([]string, error) {
-	// Use makeRequest which handles token refresh automatically
 	resp, err := c.makeRequest("GET", "/applications/"+appID+"/user-consent-scopes", nil)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMethodNotAllowed {
-		// Scopes not available for this app type
+		_ = resp.Body.Close()
 		return nil, nil
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to get scopes: status %d", resp.StatusCode)
-	}
-
-	var scopeResponse struct {
+	type scopeResponse struct {
 		UserScopes []string `json:"userScopes"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&scopeResponse); err != nil {
-		return nil, fmt.Errorf("failed to decode scopes response: %w", err)
+	result, err := decodeResponse[scopeResponse](resp, []int{http.StatusOK}, "get application scopes")
+	if err != nil {
+		return nil, err
 	}
 
-	return scopeResponse.UserScopes, nil
+	return result.UserScopes, nil
 }
 
 // FilterApplicationsByAccess filters applications based on user's organization and user roles

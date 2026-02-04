@@ -95,10 +95,11 @@ func InitRedis() error {
 			opts.WriteTimeout = config.WriteTimeout
 		}
 
-		// Configure connection pool to avoid exceeding Redis connection limits
-		opts.PoolSize = 15                      // Maximum 15 connections per client
-		opts.MinIdleConns = 5                   // Keep 5 connections ready
-		opts.MaxIdleConns = 10                  // Maximum 10 idle connections
+		// Configure connection pool using values from configuration
+		opts.PoolSize = configuration.Config.RedisPoolSize
+		opts.MinIdleConns = configuration.Config.RedisMinIdleConns
+		opts.MaxIdleConns = configuration.Config.RedisPoolSize / 2
+		opts.PoolTimeout = configuration.Config.RedisPoolTimeout
 		opts.ConnMaxIdleTime = 5 * time.Minute  // Close idle connections after 5 minutes
 		opts.ConnMaxLifetime = 30 * time.Minute // Maximum connection lifetime
 
@@ -476,6 +477,14 @@ func (r *RedisClient) Close() error {
 			Str("component", "redis").
 			Str("operation", "close").
 			Msg("Redis client closed")
+	}
+	return nil
+}
+
+// CloseRedis closes the singleton Redis client connection
+func CloseRedis() error {
+	if redisClient != nil {
+		return redisClient.Close()
 	}
 	return nil
 }

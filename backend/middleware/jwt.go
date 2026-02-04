@@ -23,6 +23,37 @@ import (
 	"github.com/nethesis/my/backend/services/local"
 )
 
+// setUserContext sets user-related context values on the gin context
+func setUserContext(c *gin.Context, user *models.User, isImpersonated bool, impersonator *models.User, sessionID string) {
+	c.Set("user", user)
+	c.Set("user_id", user.ID)
+	c.Set("user_logto_id", user.LogtoID)
+	c.Set("username", user.Username)
+	c.Set("email", user.Email)
+	c.Set("name", user.Name)
+	c.Set("phone", user.Phone)
+	c.Set("user_roles", user.UserRoles)
+	c.Set("user_role_ids", user.UserRoleIDs)
+	c.Set("user_permissions", user.UserPermissions)
+	c.Set("org_role", user.OrgRole)
+	c.Set("org_role_id", user.OrgRoleID)
+	c.Set("org_permissions", user.OrgPermissions)
+	c.Set("organization_id", user.OrganizationID)
+	c.Set("organization_name", user.OrganizationName)
+
+	c.Set("is_impersonated", isImpersonated)
+	if isImpersonated && impersonator != nil {
+		c.Set("impersonated_by", impersonator)
+		c.Set("impersonator_id", impersonator.ID)
+		c.Set("impersonator_username", impersonator.Username)
+		c.Set("session_id", sessionID)
+	} else {
+		c.Set("impersonated_by", (*models.User)(nil))
+		c.Set("impersonator_id", "")
+		c.Set("impersonator_username", "")
+	}
+}
+
 // JWTAuthMiddleware validates custom JWT tokens and sets user context
 func JWTAuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -160,28 +191,7 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 				Msg("Impersonation JWT token validated successfully")
 
 			// Set impersonated user context
-			c.Set("user", &impersonationClaims.User)
-			c.Set("user_id", impersonationClaims.User.ID)
-			c.Set("user_logto_id", impersonationClaims.User.LogtoID)
-			c.Set("username", impersonationClaims.User.Username)
-			c.Set("email", impersonationClaims.User.Email)
-			c.Set("name", impersonationClaims.User.Name)
-			c.Set("phone", impersonationClaims.User.Phone)
-			c.Set("user_roles", impersonationClaims.User.UserRoles)
-			c.Set("user_role_ids", impersonationClaims.User.UserRoleIDs)
-			c.Set("user_permissions", impersonationClaims.User.UserPermissions)
-			c.Set("org_role", impersonationClaims.User.OrgRole)
-			c.Set("org_role_id", impersonationClaims.User.OrgRoleID)
-			c.Set("org_permissions", impersonationClaims.User.OrgPermissions)
-			c.Set("organization_id", impersonationClaims.User.OrganizationID)
-			c.Set("organization_name", impersonationClaims.User.OrganizationName)
-
-			// Set impersonation context
-			c.Set("is_impersonated", true)
-			c.Set("impersonated_by", &impersonationClaims.ImpersonatedBy)
-			c.Set("impersonator_id", impersonationClaims.ImpersonatedBy.ID)
-			c.Set("impersonator_username", impersonationClaims.ImpersonatedBy.Username)
-			c.Set("session_id", impersonationClaims.SessionID)
+			setUserContext(c, &impersonationClaims.User, true, &impersonationClaims.ImpersonatedBy, impersonationClaims.SessionID)
 
 			c.Next()
 			return
@@ -236,27 +246,7 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 			Msg("Custom JWT token validated successfully")
 
 		// Set user context for subsequent handlers
-		c.Set("user", &claims.User)
-		c.Set("user_id", claims.User.ID)
-		c.Set("user_logto_id", claims.User.LogtoID)
-		c.Set("username", claims.User.Username)
-		c.Set("email", claims.User.Email)
-		c.Set("name", claims.User.Name)
-		c.Set("phone", claims.User.Phone)
-		c.Set("user_roles", claims.User.UserRoles)
-		c.Set("user_role_ids", claims.User.UserRoleIDs)
-		c.Set("user_permissions", claims.User.UserPermissions)
-		c.Set("org_role", claims.User.OrgRole)
-		c.Set("org_role_id", claims.User.OrgRoleID)
-		c.Set("org_permissions", claims.User.OrgPermissions)
-		c.Set("organization_id", claims.User.OrganizationID)
-		c.Set("organization_name", claims.User.OrganizationName)
-
-		// Set impersonation context (false for regular tokens)
-		c.Set("is_impersonated", false)
-		c.Set("impersonated_by", (*models.User)(nil))
-		c.Set("impersonator_id", "")
-		c.Set("impersonator_username", "")
+		setUserContext(c, &claims.User, false, nil, "")
 
 		c.Next()
 	}

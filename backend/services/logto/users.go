@@ -13,7 +13,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/nethesis/my/backend/models"
@@ -29,23 +28,13 @@ func (c *LogtoManagementClient) GetUserByID(userID string) (*models.LogtoUser, e
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
+		_ = resp.Body.Close()
 		return nil, fmt.Errorf("user not found")
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to fetch user, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var user models.LogtoUser
-	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
-		return nil, fmt.Errorf("failed to decode user: %w", err)
-	}
-
-	return &user, nil
+	return decodeResponse[models.LogtoUser](resp, []int{http.StatusOK}, "fetch user")
 }
 
 // CreateUser creates a new account in Logto
@@ -59,19 +48,8 @@ func (c *LogtoManagementClient) CreateUser(request models.CreateUserRequest) (*m
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to create user, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var user models.LogtoUser
-	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
-		return nil, fmt.Errorf("failed to decode created user: %w", err)
-	}
-
-	return &user, nil
+	return decodeResponse[models.LogtoUser](resp, []int{http.StatusCreated, http.StatusOK}, "create user")
 }
 
 // UpdateUser updates an existing user in Logto
@@ -85,19 +63,8 @@ func (c *LogtoManagementClient) UpdateUser(userID string, request models.UpdateU
 	if err != nil {
 		return nil, fmt.Errorf("failed to update user: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to update user, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var user models.LogtoUser
-	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
-		return nil, fmt.Errorf("failed to decode updated user: %w", err)
-	}
-
-	return &user, nil
+	return decodeResponse[models.LogtoUser](resp, []int{http.StatusOK}, "update user")
 }
 
 // DeleteUser deletes a user from Logto
@@ -106,14 +73,8 @@ func (c *LogtoManagementClient) DeleteUser(userID string) error {
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to delete user, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
+	return checkStatus(resp, []int{http.StatusNoContent, http.StatusOK}, "delete user")
 }
 
 // AssignUserToOrganization assigns a user to an organization without any roles
@@ -121,7 +82,6 @@ func (c *LogtoManagementClient) DeleteUser(userID string) error {
 func (c *LogtoManagementClient) AssignUserToOrganization(orgID, userID string) error {
 	requestBody := map[string]interface{}{
 		"userIds": []string{userID},
-		// No organizationRoleIds - roles assigned separately
 	}
 
 	reqBody, err := json.Marshal(requestBody)
@@ -133,14 +93,8 @@ func (c *LogtoManagementClient) AssignUserToOrganization(orgID, userID string) e
 	if err != nil {
 		return fmt.Errorf("failed to assign user to organization: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to assign user to organization, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
+	return checkStatus(resp, []int{http.StatusCreated, http.StatusOK}, "assign user to organization")
 }
 
 // RemoveUserFromOrganization removes a user from an organization
@@ -149,14 +103,8 @@ func (c *LogtoManagementClient) RemoveUserFromOrganization(orgID, userID string)
 	if err != nil {
 		return fmt.Errorf("failed to remove user from organization: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to remove user from organization, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
+	return checkStatus(resp, []int{http.StatusNoContent, http.StatusOK}, "remove user from organization")
 }
 
 // RemoveUserFromOrganizationRole removes a specific organization role from a user
@@ -165,14 +113,8 @@ func (c *LogtoManagementClient) RemoveUserFromOrganizationRole(orgID, userID, ro
 	if err != nil {
 		return fmt.Errorf("failed to remove user from organization role: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to remove user from organization role, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
+	return checkStatus(resp, []int{http.StatusNoContent, http.StatusOK}, "remove user from organization role")
 }
 
 // ResetUserPassword resets a user's password in Logto (admin function)
@@ -190,14 +132,8 @@ func (c *LogtoManagementClient) ResetUserPassword(userID string, password string
 	if err != nil {
 		return fmt.Errorf("failed to update user password: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to update user password, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
+	return checkStatus(resp, []int{http.StatusOK, http.StatusNoContent}, "update user password")
 }
 
 // VerifyUserPassword verifies a user's current password using Logto API
@@ -215,18 +151,13 @@ func (c *LogtoManagementClient) VerifyUserPassword(userID, password string) erro
 	if err != nil {
 		return fmt.Errorf("failed to verify user password: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		_ = resp.Body.Close()
 		return fmt.Errorf("invalid current password")
 	}
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to verify password, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
+	return checkStatus(resp, []int{http.StatusOK, http.StatusNoContent}, "verify password")
 }
 
 // UpdateUserPassword updates a user's password using Logto API (user self-service)
@@ -244,14 +175,8 @@ func (c *LogtoManagementClient) UpdateUserPassword(userID, newPassword string) e
 	if err != nil {
 		return fmt.Errorf("failed to update user password: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to update user password, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
+	return checkStatus(resp, []int{http.StatusOK, http.StatusNoContent}, "update user password")
 }
 
 // SuspendUser suspends a user in Logto
@@ -269,14 +194,8 @@ func (c *LogtoManagementClient) SuspendUser(userID string) error {
 	if err != nil {
 		return fmt.Errorf("failed to suspend user: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to suspend user, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
+	return checkStatus(resp, []int{http.StatusOK, http.StatusNoContent}, "suspend user")
 }
 
 // ReactivateUser reactivates a suspended user in Logto
@@ -294,12 +213,6 @@ func (c *LogtoManagementClient) ReactivateUser(userID string) error {
 	if err != nil {
 		return fmt.Errorf("failed to reactivate user: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to reactivate user, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
+	return checkStatus(resp, []int{http.StatusOK, http.StatusNoContent}, "reactivate user")
 }

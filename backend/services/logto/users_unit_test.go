@@ -15,10 +15,20 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nethesis/my/backend/models"
 	"github.com/stretchr/testify/assert"
 )
+
+// seedTestTokenCache pre-populates the global token cache so unit tests
+// bypass the OIDC token endpoint and reach the mock API server directly.
+func seedTestTokenCache() {
+	globalTokenCache.mu.Lock()
+	globalTokenCache.accessToken = "unit-test-token"
+	globalTokenCache.tokenExpiry = time.Now().Add(1 * time.Hour)
+	globalTokenCache.mu.Unlock()
+}
 
 // TestLogtoManagementClient_GetUserByID_Unit tests fetching a user by ID (unit test)
 func TestLogtoManagementClient_GetUserByID_Unit(t *testing.T) {
@@ -81,13 +91,15 @@ func TestLogtoManagementClient_GetUserByID_Unit(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte(`{invalid json`))
 			},
-			expectedError: "failed to decode user",
+			expectedError: "failed to decode fetch user response",
 			expectedUser:  nil,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			seedTestTokenCache()
+
 			server := httptest.NewServer(http.HandlerFunc(tt.serverResponse))
 			defer server.Close()
 
@@ -199,6 +211,8 @@ func TestLogtoManagementClient_CreateUser_Unit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			seedTestTokenCache()
+
 			server := httptest.NewServer(http.HandlerFunc(tt.serverResponse))
 			defer server.Close()
 
@@ -301,6 +315,8 @@ func TestLogtoManagementClient_UpdateUser_Unit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			seedTestTokenCache()
+
 			server := httptest.NewServer(http.HandlerFunc(tt.serverResponse))
 			defer server.Close()
 
@@ -365,6 +381,8 @@ func TestLogtoManagementClient_DeleteUser_Unit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			seedTestTokenCache()
+
 			server := httptest.NewServer(http.HandlerFunc(tt.serverResponse))
 			defer server.Close()
 
@@ -438,6 +456,8 @@ func TestLogtoManagementClient_ResetUserPassword(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			seedTestTokenCache()
+
 			server := httptest.NewServer(http.HandlerFunc(tt.serverResponse))
 			defer server.Close()
 
@@ -507,6 +527,8 @@ func TestLogtoManagementClient_SuspendUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			seedTestTokenCache()
+
 			server := httptest.NewServer(http.HandlerFunc(tt.serverResponse))
 			defer server.Close()
 
@@ -576,6 +598,8 @@ func TestLogtoManagementClient_ReactivateUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			seedTestTokenCache()
+
 			server := httptest.NewServer(http.HandlerFunc(tt.serverResponse))
 			defer server.Close()
 
@@ -645,6 +669,8 @@ func TestLogtoManagementClient_AssignUserToOrganization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			seedTestTokenCache()
+
 			server := httptest.NewServer(http.HandlerFunc(tt.serverResponse))
 			defer server.Close()
 
@@ -708,6 +734,8 @@ func TestLogtoManagementClient_RemoveUserFromOrganization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			seedTestTokenCache()
+
 			server := httptest.NewServer(http.HandlerFunc(tt.serverResponse))
 			defer server.Close()
 
@@ -763,6 +791,8 @@ func TestLogtoManagementClient_makeRequest_ErrorHandling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			seedTestTokenCache()
+
 			server := httptest.NewServer(http.HandlerFunc(tt.serverResponse))
 			defer server.Close()
 
@@ -781,6 +811,8 @@ func TestLogtoManagementClient_makeRequest_ErrorHandling(t *testing.T) {
 
 // TestLogtoManagementClient_RequestHeaders tests that proper headers are sent
 func TestLogtoManagementClient_RequestHeaders(t *testing.T) {
+	seedTestTokenCache()
+
 	headerChecked := false
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -13,7 +13,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/nethesis/my/backend/models"
@@ -28,19 +27,8 @@ func (c *LogtoManagementClient) GetUserOrganizations(userID string) ([]models.Lo
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user organizations: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to fetch user organizations, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var orgs []models.LogtoOrganization
-	if err := json.NewDecoder(resp.Body).Decode(&orgs); err != nil {
-		return nil, fmt.Errorf("failed to decode user organizations: %w", err)
-	}
-
-	return orgs, nil
+	return decodeSliceResponse[models.LogtoOrganization](resp, []int{http.StatusOK}, "fetch user organizations")
 }
 
 func (c *LogtoManagementClient) GetAllOrganizations() ([]models.LogtoOrganization, error) {
@@ -48,19 +36,8 @@ func (c *LogtoManagementClient) GetAllOrganizations() ([]models.LogtoOrganizatio
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch organizations: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to fetch organizations, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var orgs []models.LogtoOrganization
-	if err := json.NewDecoder(resp.Body).Decode(&orgs); err != nil {
-		return nil, fmt.Errorf("failed to decode organizations: %w", err)
-	}
-
-	return orgs, nil
+	return decodeSliceResponse[models.LogtoOrganization](resp, []int{http.StatusOK}, "fetch organizations")
 }
 
 func (c *LogtoManagementClient) GetOrganizationByID(orgID string) (*models.LogtoOrganization, error) {
@@ -68,23 +45,13 @@ func (c *LogtoManagementClient) GetOrganizationByID(orgID string) (*models.Logto
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch organization: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
+		_ = resp.Body.Close()
 		return nil, fmt.Errorf("organization not found")
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to fetch organization, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var org models.LogtoOrganization
-	if err := json.NewDecoder(resp.Body).Decode(&org); err != nil {
-		return nil, fmt.Errorf("failed to decode organization: %w", err)
-	}
-
-	return &org, nil
+	return decodeResponse[models.LogtoOrganization](resp, []int{http.StatusOK}, "fetch organization")
 }
 
 func (c *LogtoManagementClient) CreateOrganization(request models.CreateOrganizationRequest) (*models.LogtoOrganization, error) {
@@ -97,19 +64,8 @@ func (c *LogtoManagementClient) CreateOrganization(request models.CreateOrganiza
 	if err != nil {
 		return nil, fmt.Errorf("failed to create organization: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to create organization, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var org models.LogtoOrganization
-	if err := json.NewDecoder(resp.Body).Decode(&org); err != nil {
-		return nil, fmt.Errorf("failed to decode created organization: %w", err)
-	}
-
-	return &org, nil
+	return decodeResponse[models.LogtoOrganization](resp, []int{http.StatusCreated}, "create organization")
 }
 
 func (c *LogtoManagementClient) UpdateOrganization(orgID string, request models.UpdateOrganizationRequest) (*models.LogtoOrganization, error) {
@@ -122,19 +78,8 @@ func (c *LogtoManagementClient) UpdateOrganization(orgID string, request models.
 	if err != nil {
 		return nil, fmt.Errorf("failed to update organization: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to update organization, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var org models.LogtoOrganization
-	if err := json.NewDecoder(resp.Body).Decode(&org); err != nil {
-		return nil, fmt.Errorf("failed to decode updated organization: %w", err)
-	}
-
-	return &org, nil
+	return decodeResponse[models.LogtoOrganization](resp, []int{http.StatusOK}, "update organization")
 }
 
 func (c *LogtoManagementClient) DeleteOrganization(orgID string) error {
@@ -142,14 +87,8 @@ func (c *LogtoManagementClient) DeleteOrganization(orgID string) error {
 	if err != nil {
 		return fmt.Errorf("failed to delete organization: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusNoContent {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to delete organization, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
+	return checkStatus(resp, []int{http.StatusNoContent}, "delete organization")
 }
 
 // SetOrganizationJitRoles configures JIT roles for an organization
@@ -167,12 +106,6 @@ func (c *LogtoManagementClient) SetOrganizationJitRoles(orgID string, roleIDs []
 	if err != nil {
 		return fmt.Errorf("failed to set organization JIT roles: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to set organization JIT roles, status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
+	return checkStatus(resp, []int{http.StatusCreated}, "set organization JIT roles")
 }

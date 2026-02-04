@@ -24,6 +24,18 @@ import (
 	"github.com/nethesis/my/backend/models"
 )
 
+// sharedHTTPClient is a package-level HTTP client with connection pooling.
+// Reused across all Logto API calls to avoid creating a new TCP connection per request.
+var sharedHTTPClient = &http.Client{
+	Timeout: 30 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:          50,
+		MaxIdleConnsPerHost:   20,
+		IdleConnTimeout:       90 * time.Second,
+		ResponseHeaderTimeout: 15 * time.Second,
+	},
+}
+
 // TokenCache holds Management API token with thread safety
 type TokenCache struct {
 	mu          sync.RWMutex
@@ -105,16 +117,7 @@ func (c *LogtoManagementClient) getAccessToken() (string, error) {
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-		Transport: &http.Transport{
-			DisableKeepAlives:     true, // Disable connection reuse to handle network changes
-			MaxIdleConnsPerHost:   0,    // No idle connections
-			IdleConnTimeout:       0,    // No idle timeout
-			ResponseHeaderTimeout: 15 * time.Second,
-		},
-	}
-	resp, err := client.Do(req)
+	resp, err := sharedHTTPClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to request token: %w", err)
 	}
@@ -192,16 +195,7 @@ func (c *LogtoManagementClient) makeRequestWithRetry(method, endpoint string, bo
 		Bool("is_retry", isRetry).
 		Msg("Starting Logto Management API call")
 
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-		Transport: &http.Transport{
-			DisableKeepAlives:     true, // Disable connection reuse to handle network changes
-			MaxIdleConnsPerHost:   0,    // No idle connections
-			IdleConnTimeout:       0,    // No idle timeout
-			ResponseHeaderTimeout: 15 * time.Second,
-		},
-	}
-	resp, err := client.Do(req)
+	resp, err := sharedHTTPClient.Do(req)
 
 	duration := time.Since(start)
 

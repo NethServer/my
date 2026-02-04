@@ -8,7 +8,6 @@ package methods
 import (
 	"net/http"
 	"sort"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
@@ -19,32 +18,6 @@ import (
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services/local"
 )
-
-// handleApplicationAccessError handles application access errors with appropriate HTTP status codes
-func handleApplicationAccessError(c *gin.Context, err error, appID string) bool {
-	if err == nil {
-		return false
-	}
-
-	errMsg := err.Error()
-	if errMsg == "application not found" {
-		c.JSON(http.StatusNotFound, response.NotFound("application not found", nil))
-		return true
-	}
-
-	if strings.Contains(errMsg, "access denied") {
-		c.JSON(http.StatusForbidden, response.Forbidden("access denied to application", map[string]interface{}{
-			"application_id": appID,
-		}))
-		return true
-	}
-
-	// Technical error
-	c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to process application request", map[string]interface{}{
-		"error": errMsg,
-	}))
-	return true
-}
 
 // GetApplications handles GET /api/applications - retrieves all applications with pagination
 func GetApplications(c *gin.Context) {
@@ -98,14 +71,9 @@ func GetApplications(c *gin.Context) {
 	}
 
 	// Resolve rebranding info for each application
-	rebrandingService := local.NewRebrandingService()
 	for i := range apps {
 		if apps[i].OrganizationID != nil && *apps[i].OrganizationID != "" {
-			enabled, resolvedOrgID, err := rebrandingService.ResolveRebranding(*apps[i].OrganizationID)
-			if err == nil && enabled {
-				apps[i].RebrandingEnabled = true
-				apps[i].RebrandingOrgID = &resolvedOrgID
-			}
+			apps[i].RebrandingEnabled, apps[i].RebrandingOrgID = resolveRebranding(*apps[i].OrganizationID)
 		}
 	}
 
@@ -141,18 +109,13 @@ func GetApplication(c *gin.Context) {
 
 	// Get application with access validation
 	app, err := appsService.GetApplication(appID, userOrgRole, userOrgID)
-	if handleApplicationAccessError(c, err, appID) {
+	if helpers.HandleAccessError(c, err, "application", appID) {
 		return
 	}
 
 	// Resolve rebranding info
 	if app.OrganizationID != nil && *app.OrganizationID != "" {
-		rebrandingService := local.NewRebrandingService()
-		enabled, resolvedOrgID, err := rebrandingService.ResolveRebranding(*app.OrganizationID)
-		if err == nil && enabled {
-			app.RebrandingEnabled = true
-			app.RebrandingOrgID = &resolvedOrgID
-		}
+		app.RebrandingEnabled, app.RebrandingOrgID = resolveRebranding(*app.OrganizationID)
 	}
 
 	c.JSON(http.StatusOK, response.OK("application retrieved successfully", app))
@@ -185,7 +148,7 @@ func UpdateApplication(c *gin.Context) {
 
 	// Update application
 	err := appsService.UpdateApplication(appID, &request, userOrgRole, userOrgID)
-	if handleApplicationAccessError(c, err, appID) {
+	if helpers.HandleAccessError(c, err, "application", appID) {
 		return
 	}
 
@@ -229,7 +192,7 @@ func AssignApplicationOrganization(c *gin.Context) {
 
 	// Assign organization
 	err := appsService.AssignOrganization(appID, &request, userOrgRole, userOrgID)
-	if handleApplicationAccessError(c, err, appID) {
+	if helpers.HandleAccessError(c, err, "application", appID) {
 		return
 	}
 
@@ -266,7 +229,7 @@ func UnassignApplicationOrganization(c *gin.Context) {
 
 	// Unassign organization
 	err := appsService.UnassignOrganization(appID, userOrgRole, userOrgID)
-	if handleApplicationAccessError(c, err, appID) {
+	if helpers.HandleAccessError(c, err, "application", appID) {
 		return
 	}
 
@@ -303,7 +266,7 @@ func DeleteApplication(c *gin.Context) {
 
 	// Delete application
 	err := appsService.DeleteApplication(appID, userOrgRole, userOrgID)
-	if handleApplicationAccessError(c, err, appID) {
+	if helpers.HandleAccessError(c, err, "application", appID) {
 		return
 	}
 

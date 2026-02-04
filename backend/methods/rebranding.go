@@ -430,3 +430,15 @@ func GetRebrandingAsset(c *gin.Context) {
 
 	c.Data(http.StatusOK, mimeType, data)
 }
+
+// resolveRebranding resolves rebranding status for a given organization ID.
+// Returns (enabled, rebrandingOrgID). If rebranding is not enabled or an error occurs,
+// returns (false, nil).
+func resolveRebranding(orgID string) (bool, *string) {
+	rebrandingService := local.NewRebrandingService()
+	enabled, resolvedOrgID, err := rebrandingService.ResolveRebranding(orgID)
+	if err == nil && enabled {
+		return true, &resolvedOrgID
+	}
+	return false, nil
+}

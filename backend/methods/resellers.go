@@ -142,12 +142,7 @@ func GetReseller(c *gin.Context) {
 
 	// Resolve rebranding info
 	if reseller.LogtoID != nil {
-		rebrandingService := local.NewRebrandingService()
-		enabled, resolvedOrgID, err := rebrandingService.ResolveRebranding(*reseller.LogtoID)
-		if err == nil && enabled {
-			reseller.RebrandingEnabled = true
-			reseller.RebrandingOrgID = &resolvedOrgID
-		}
+		reseller.RebrandingEnabled, reseller.RebrandingOrgID = resolveRebranding(*reseller.LogtoID)
 	}
 
 	// Log the action
@@ -193,14 +188,9 @@ func GetResellers(c *gin.Context) {
 	}
 
 	// Resolve rebranding info for each reseller
-	rebrandingService := local.NewRebrandingService()
 	for i := range resellers {
 		if resellers[i].LogtoID != nil {
-			enabled, resolvedOrgID, err := rebrandingService.ResolveRebranding(*resellers[i].LogtoID)
-			if err == nil && enabled {
-				resellers[i].RebrandingEnabled = true
-				resellers[i].RebrandingOrgID = &resolvedOrgID
-			}
+			resellers[i].RebrandingEnabled, resellers[i].RebrandingOrgID = resolveRebranding(*resellers[i].LogtoID)
 		}
 	}
 
