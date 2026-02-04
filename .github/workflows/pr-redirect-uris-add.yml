@@ -8,9 +8,6 @@ jobs:
   add-redirect-uris:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Extract PR number
         id: pr
         run: echo "number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT

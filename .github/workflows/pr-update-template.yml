@@ -84,52 +84,41 @@ jobs:
                   const status = job.conclusion || job.status || 'pending';
 
                   // Map GitHub status to badge colors
-                  let color, statusText;
-                  switch (status) {
-                    case 'success':
-                      color = 'brightgreen';
-                      statusText = 'passing';
-                      break;
-                    case 'failure':
-                      color = 'red';
-                      statusText = 'failing';
-                      break;
-                    case 'cancelled':
-                      color = 'lightgrey';
-                      statusText = 'cancelled';
-                      break;
-                    case 'skipped':
-                      color = 'yellow';
-                      statusText = 'skipped';
-                      break;
-                    default:
-                      color = 'blue';
-                      statusText = 'running';
-                  }
+                  const statusMap = {
+                    success: { color: 'brightgreen', text: 'passing' },
+                    failure: { color: 'red', text: 'failing' },
+                    cancelled: { color: 'lightgrey', text: 'cancelled' },
+                    skipped: { color: 'yellow', text: 'skipped' },
+                  };
+                  const { color, text: statusText } = statusMap[status] || { color: 'blue', text: 'running' };
 
                   jobData[jobName] = {
                     url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${workflowRunId}/job/${job.id}`,
-                    status
+                    status,
+                    color,
+                    statusText,
                   };
                 }
 
                 // Replace badges with job-specific ones
+                // Job names match ci-main.yml matrix strategy: "go-tests (component)" and "build (component)"
                 const badgeReplacements = [
-                  { name: 'Backend Tests', jobKey: 'backend-tests' },
-                  { name: 'Collect Tests', jobKey: 'collect-tests' },
-                  { name: 'Sync Tests', jobKey: 'sync-tests' },
+                  { name: 'Backend Tests', jobKey: 'go-tests (backend)' },
+                  { name: 'Collect Tests', jobKey: 'go-tests (collect)' },
+                  { name: 'Sync Tests', jobKey: 'go-tests (sync)' },
                   { name: 'Frontend Tests', jobKey: 'frontend-tests' },
-                  { name: 'Backend Build', jobKey: 'backend-build' },
-                  { name: 'Collect Build', jobKey: 'collect-build' },
-                  { name: 'Sync Build', jobKey: 'sync-build' },
-                  { name: 'Frontend Build', jobKey: 'frontend-build' }
+                  { name: 'Backend Build', jobKey: 'build (backend)' },
+                  { name: 'Collect Build', jobKey: 'build (collect)' },
+                  { name: 'Sync Build', jobKey: 'build (sync)' },
+                  { name: 'Frontend Build', jobKey: 'build (frontend)' },
+                  { name: 'Proxy Build', jobKey: 'build (proxy)' }
                 ];
 
                 for (const { name, jobKey } of badgeReplacements) {
                   const job = jobData[jobKey];
                   if (job) {
                     // Create badge with proper display name
-                    const badgeUrl = `https://img.shields.io/badge/${encodeURIComponent(name)}-${job.status === 'success' ? 'passing' : job.status === 'failure' ? 'failing' : job.status === 'cancelled' ? 'cancelled' : job.status === 'skipped' ? 'skipped' : 'running'}-${job.status === 'success' ? 'brightgreen' : job.status === 'failure' ? 'red' : job.status === 'cancelled' ? 'lightgrey' : job.status === 'skipped' ? 'yellow' : 'blue'}`;
+                    const badgeUrl = `https://img.shields.io/badge/${encodeURIComponent(name)}-${job.statusText}-${job.color}`;
                     
                     // Replace the specific badge line
                     const badgeRegex = new RegExp(`- \\[!\\[${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]\\([^\\)]+\\)\\]\\([^\\)]+\\)`, 'g');

@@ -7,11 +7,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  BACKEND_IMAGE_NAME: nethserver/my/backend
-  SYNC_IMAGE_NAME: nethserver/my/sync
-  COLLECT_IMAGE_NAME: nethserver/my/collect
-  FRONTEND_IMAGE_NAME: nethserver/my/frontend
-  PROXY_IMAGE_NAME: nethserver/my/proxy
 
 jobs:
   build-and-release:
@@ -28,8 +23,8 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23'
-        cache: false  # Disable automatic cache, we'll handle it manually
+        go-version: '1.24'
+        cache: false
 
     - name: Cache Go modules
       uses: actions/cache@v4
@@ -94,7 +89,7 @@ jobs:
 
     - name: Run sync tests
       working-directory: sync
-      run: make test
+      run: go test ./...
 
     - name: Run collect tests
       working-directory: collect
@@ -149,7 +144,6 @@ jobs:
     - name: Build backend binary
       working-directory: backend
       run: |
-        # Build for multiple platforms
         mkdir -p dist
 
         VERSION="${{ steps.version.outputs.VERSION }}"
@@ -157,19 +151,11 @@ jobs:
         BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
         LDFLAGS="-s -w -X github.com/nethesis/my/backend/pkg/version.Version=${VERSION} -X github.com/nethesis/my/backend/pkg/version.Commit=${COMMIT} -X github.com/nethesis/my/backend/pkg/version.BuildTime=${BUILD_TIME}"
 
-        # Linux AMD64
         GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/backend-linux-amd64 main.go
-
-        # Linux ARM64
         GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/backend-linux-arm64 main.go
-
-        # macOS AMD64
         GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/backend-darwin-amd64 main.go
-
-        # macOS ARM64
         GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/backend-darwin-arm64 main.go
 
-        # Create archives
         cd dist
         tar -czf backend-linux-amd64.tar.gz backend-linux-amd64
         tar -czf backend-linux-arm64.tar.gz backend-linux-arm64
@@ -180,7 +166,6 @@ jobs:
     - name: Build collect binary
       working-directory: collect
       run: |
-        # Build for multiple platforms
         mkdir -p dist
 
         VERSION="${{ steps.version.outputs.VERSION }}"
@@ -188,19 +173,11 @@ jobs:
         BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
         LDFLAGS="-s -w -X github.com/nethesis/my/collect/pkg/version.Version=${VERSION} -X github.com/nethesis/my/collect/pkg/version.Commit=${COMMIT} -X github.com/nethesis/my/collect/pkg/version.BuildTime=${BUILD_TIME}"
 
-        # Linux AMD64
         GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/collect-linux-amd64 main.go
-
-        # Linux ARM64
         GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/collect-linux-arm64 main.go
-
-        # macOS AMD64
         GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/collect-darwin-amd64 main.go
-
-        # macOS ARM64
         GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/collect-darwin-arm64 main.go
 
-        # Create archives
         cd dist
         tar -czf collect-linux-amd64.tar.gz collect-linux-amd64
         tar -czf collect-linux-arm64.tar.gz collect-linux-arm64
@@ -211,7 +188,6 @@ jobs:
     - name: Build sync binary
       working-directory: sync
       run: |
-        # Build for multiple platforms
         mkdir -p dist
 
         VERSION="${{ steps.version.outputs.VERSION }}"
@@ -219,19 +195,11 @@ jobs:
         BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
         LDFLAGS="-s -w -X github.com/nethesis/my/sync/pkg/version.Version=${VERSION} -X github.com/nethesis/my/sync/pkg/version.Commit=${COMMIT} -X github.com/nethesis/my/sync/pkg/version.BuildTime=${BUILD_TIME}"
 
-        # Linux AMD64
         GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/sync-linux-amd64 ./cmd/sync/main.go
-
-        # Linux ARM64
         GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/sync-linux-arm64 ./cmd/sync/main.go
-
-        # macOS AMD64
         GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/sync-darwin-amd64 ./cmd/sync/main.go
-
-        # macOS ARM64
         GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/sync-darwin-arm64 ./cmd/sync/main.go
 
-        # Create archives with configs
         cd dist
         for binary in sync-*; do
           if [[ "$binary" != *.tar.gz ]]; then
@@ -248,7 +216,7 @@ jobs:
       id: backend_meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}
+        images: ${{ env.REGISTRY }}/${{ github.repository }}/backend
         tags: |
           type=semver,pattern=v{{version}},value=${{ steps.version.outputs.VERSION }}
           type=raw,value=latest
@@ -262,29 +230,30 @@ jobs:
         push: true
         tags: ${{ steps.backend_meta.outputs.tags }}
         labels: |
+          ${{ steps.backend_meta.outputs.labels }}
           org.opencontainers.image.title=My Nethesis Backend
           org.opencontainers.image.description=Backend API for My Nethesis
-          org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
-          org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          org.opencontainers.image.revision=${{ github.sha }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        cache-from: type=gha,scope=backend
+        cache-to: type=gha,mode=max,scope=backend
         build-args: |
           VERSION=${{ steps.version.outputs.VERSION }}
           COMMIT=${{ github.sha }}
           BUILD_TIME=${{ steps.backend_meta.outputs.labels['org.opencontainers.image.created'] }}
 
-    # Wait for image to be available in registry
     - name: Wait for backend image availability
       run: |
-        echo "Waiting for image to be available in registry..."
-        sleep 30
+        IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/backend:${{ steps.version.outputs.VERSION }}"
+        for i in $(seq 1 10); do
+          docker manifest inspect "$IMAGE" > /dev/null 2>&1 && { echo "Image available"; exit 0; }
+          echo "Waiting for image... (attempt $i/10)"
+          sleep 5
+        done
+        echo "Image not available after 50s, proceeding anyway"
 
-    # Generate SBOM for backend
     - name: Generate backend SBOM
       uses: anchore/sbom-action@v0
       with:
-        image: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
+        image: ${{ env.REGISTRY }}/${{ github.repository }}/backend:${{ steps.version.outputs.VERSION }}
         format: cyclonedx-json
         output-file: backend-sbom.cdx.json
 
@@ -292,7 +261,7 @@ jobs:
       id: sync_meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ env.REGISTRY }}/${{ env.SYNC_IMAGE_NAME }}
+        images: ${{ env.REGISTRY }}/${{ github.repository }}/sync
         tags: |
           type=semver,pattern=v{{version}},value=${{ steps.version.outputs.VERSION }}
           type=raw,value=latest
@@ -306,29 +275,30 @@ jobs:
         push: true
         tags: ${{ steps.sync_meta.outputs.tags }}
         labels: |
+          ${{ steps.sync_meta.outputs.labels }}
           org.opencontainers.image.title=My Nethesis Sync
           org.opencontainers.image.description=CLI tool for syncing RBAC configuration with Logto
-          org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
-          org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          org.opencontainers.image.revision=${{ github.sha }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        cache-from: type=gha,scope=sync
+        cache-to: type=gha,mode=max,scope=sync
         build-args: |
           VERSION=${{ steps.version.outputs.VERSION }}
           COMMIT=${{ github.sha }}
           BUILD_TIME=${{ steps.sync_meta.outputs.labels['org.opencontainers.image.created'] }}
 
-    # Wait for image to be available in registry
     - name: Wait for sync image availability
       run: |
-        echo "Waiting for image to be available in registry..."
-        sleep 30
+        IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/sync:${{ steps.version.outputs.VERSION }}"
+        for i in $(seq 1 10); do
+          docker manifest inspect "$IMAGE" > /dev/null 2>&1 && { echo "Image available"; exit 0; }
+          echo "Waiting for image... (attempt $i/10)"
+          sleep 5
+        done
+        echo "Image not available after 50s, proceeding anyway"
 
-    # Generate SBOM for sync
     - name: Generate sync SBOM
       uses: anchore/sbom-action@v0
       with:
-        image: ${{ env.REGISTRY }}/${{ env.SYNC_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
+        image: ${{ env.REGISTRY }}/${{ github.repository }}/sync:${{ steps.version.outputs.VERSION }}
         format: cyclonedx-json
         output-file: sync-sbom.cdx.json
 
@@ -336,7 +306,7 @@ jobs:
       id: collect_meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ env.REGISTRY }}/${{ env.COLLECT_IMAGE_NAME }}
+        images: ${{ env.REGISTRY }}/${{ github.repository }}/collect
         tags: |
           type=semver,pattern=v{{version}},value=${{ steps.version.outputs.VERSION }}
           type=raw,value=latest
@@ -350,29 +320,30 @@ jobs:
         push: true
         tags: ${{ steps.collect_meta.outputs.tags }}
         labels: |
+          ${{ steps.collect_meta.outputs.labels }}
           org.opencontainers.image.title=My Nethesis Collect
           org.opencontainers.image.description=Collection service for My Nethesis
-          org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
-          org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          org.opencontainers.image.revision=${{ github.sha }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        cache-from: type=gha,scope=collect
+        cache-to: type=gha,mode=max,scope=collect
         build-args: |
           VERSION=${{ steps.version.outputs.VERSION }}
           COMMIT=${{ github.sha }}
           BUILD_TIME=${{ steps.collect_meta.outputs.labels['org.opencontainers.image.created'] }}
 
-    # Wait for image to be available in registry
     - name: Wait for collect image availability
       run: |
-        echo "Waiting for image to be available in registry..."
-        sleep 30
+        IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/collect:${{ steps.version.outputs.VERSION }}"
+        for i in $(seq 1 10); do
+          docker manifest inspect "$IMAGE" > /dev/null 2>&1 && { echo "Image available"; exit 0; }
+          echo "Waiting for image... (attempt $i/10)"
+          sleep 5
+        done
+        echo "Image not available after 50s, proceeding anyway"
 
-    # Generate SBOM for collect
     - name: Generate collect SBOM
       uses: anchore/sbom-action@v0
       with:
-        image: ${{ env.REGISTRY }}/${{ env.COLLECT_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
+        image: ${{ env.REGISTRY }}/${{ github.repository }}/collect:${{ steps.version.outputs.VERSION }}
         format: cyclonedx-json
         output-file: collect-sbom.cdx.json
 
@@ -380,7 +351,7 @@ jobs:
       id: frontend_meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}
+        images: ${{ env.REGISTRY }}/${{ github.repository }}/frontend
         tags: |
           type=semver,pattern=v{{version}},value=${{ steps.version.outputs.VERSION }}
           type=raw,value=latest
@@ -394,25 +365,26 @@ jobs:
         push: true
         tags: ${{ steps.frontend_meta.outputs.tags }}
         labels: |
+          ${{ steps.frontend_meta.outputs.labels }}
           org.opencontainers.image.title=My Nethesis Frontend
           org.opencontainers.image.description=Frontend web application for My Nethesis
-          org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
-          org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          org.opencontainers.image.revision=${{ github.sha }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        cache-from: type=gha,scope=frontend
+        cache-to: type=gha,mode=max,scope=frontend
 
-    # Wait for image to be available in registry
     - name: Wait for frontend image availability
       run: |
-        echo "Waiting for image to be available in registry..."
-        sleep 30
+        IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/frontend:${{ steps.version.outputs.VERSION }}"
+        for i in $(seq 1 10); do
+          docker manifest inspect "$IMAGE" > /dev/null 2>&1 && { echo "Image available"; exit 0; }
+          echo "Waiting for image... (attempt $i/10)"
+          sleep 5
+        done
+        echo "Image not available after 50s, proceeding anyway"
 
-    # Generate SBOM for frontend
     - name: Generate frontend SBOM
       uses: anchore/sbom-action@v0
       with:
-        image: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
+        image: ${{ env.REGISTRY }}/${{ github.repository }}/frontend:${{ steps.version.outputs.VERSION }}
         format: cyclonedx-json
         output-file: frontend-sbom.cdx.json
 
@@ -420,7 +392,7 @@ jobs:
       id: proxy_meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ env.REGISTRY }}/${{ env.PROXY_IMAGE_NAME }}
+        images: ${{ env.REGISTRY }}/${{ github.repository }}/proxy
         tags: |
           type=semver,pattern=v{{version}},value=${{ steps.version.outputs.VERSION }}
           type=raw,value=latest
@@ -434,79 +406,40 @@ jobs:
         push: true
         tags: ${{ steps.proxy_meta.outputs.tags }}
         labels: |
+          ${{ steps.proxy_meta.outputs.labels }}
           org.opencontainers.image.title=My Nethesis Proxy
           org.opencontainers.image.description=Reverse proxy for My Nethesis
-          org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
-          org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          org.opencontainers.image.revision=${{ github.sha }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        cache-from: type=gha,scope=proxy
+        cache-to: type=gha,mode=max,scope=proxy
 
-    # Wait for image to be available in registry
     - name: Wait for proxy image availability
       run: |
-        echo "Waiting for image to be available in registry..."
-        sleep 30
+        IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/proxy:${{ steps.version.outputs.VERSION }}"
+        for i in $(seq 1 10); do
+          docker manifest inspect "$IMAGE" > /dev/null 2>&1 && { echo "Image available"; exit 0; }
+          echo "Waiting for image... (attempt $i/10)"
+          sleep 5
+        done
+        echo "Image not available after 50s, proceeding anyway"
 
-    # Generate SBOM for proxy
     - name: Generate proxy SBOM
       uses: anchore/sbom-action@v0
       with:
-        image: ${{ env.REGISTRY }}/${{ env.PROXY_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
+        image: ${{ env.REGISTRY }}/${{ github.repository }}/proxy:${{ steps.version.outputs.VERSION }}
         format: cyclonedx-json
         output-file: proxy-sbom.cdx.json
 
-    # Create GitHub Release with auto-generated notes
+    # Create GitHub Release
     - name: Create Release
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        # Get previous tag for comparison
-        CURRENT_TAG="${{ steps.version.outputs.VERSION }}"
-        PREV_TAG=$(git tag --sort=version:refname | grep -B1 "$CURRENT_TAG" | head -n1 || echo "")
-
-        # Build additional notes with container images
-        ADDITIONAL_NOTES=$(cat <<EOF
-
-        ## 🐳 Container Images
-
-        - \`ghcr.io/nethserver/my/backend:${{ steps.version.outputs.VERSION }}\`
-        - \`ghcr.io/nethserver/my/sync:${{ steps.version.outputs.VERSION }}\`
-        - \`ghcr.io/nethserver/my/collect:${{ steps.version.outputs.VERSION }}\`
-        - \`ghcr.io/nethserver/my/frontend:${{ steps.version.outputs.VERSION }}\`
-        - \`ghcr.io/nethserver/my/proxy:${{ steps.version.outputs.VERSION }}\`
-
-        ## 📦 Artifacts
-
-        See the assets below for pre-built binaries and SBOMs.
-        EOF
-        )
-
-        # Create release with auto-generated notes
-        if [ -n "$PREV_TAG" ] && [ "$PREV_TAG" != "$CURRENT_TAG" ]; then
-          gh release create "$CURRENT_TAG" \
-            --title "$CURRENT_TAG" \
-            --generate-notes \
-            --notes "$ADDITIONAL_NOTES" \
-            backend/dist/*.tar.gz \
-            sync/dist/*.tar.gz \
-            collect/dist/*.tar.gz \
-            backend-sbom.cdx.json \
-            sync-sbom.cdx.json \
-            collect-sbom.cdx.json \
-            frontend-sbom.cdx.json \
-            proxy-sbom.cdx.json
-        else
-          # First release, no previous tag
-          gh release create "$CURRENT_TAG" \
-            --title "$CURRENT_TAG" \
-            --notes "First release 🎉$ADDITIONAL_NOTES" \
-            backend/dist/*.tar.gz \
-            sync/dist/*.tar.gz \
-            collect/dist/*.tar.gz \
-            backend-sbom.cdx.json \
-            sync-sbom.cdx.json \
-            collect-sbom.cdx.json \
-            frontend-sbom.cdx.json \
-            proxy-sbom.cdx.json
-        fi
+      uses: softprops/action-gh-release@v2
+      with:
+        generate_release_notes: true
+        files: |
+          backend/dist/*.tar.gz
+          sync/dist/*.tar.gz
+          collect/dist/*.tar.gz
+          backend-sbom.cdx.json
+          sync-sbom.cdx.json
+          collect-sbom.cdx.json
+          frontend-sbom.cdx.json
+          proxy-sbom.cdx.json
