@@ -42,7 +42,7 @@ export const buildVersionFilterOptions = (applicationVersions: ApplicationVersio
 
     av.versions.forEach((appAndVersion) => {
       // split application and version
-      const [_, version] = appAndVersion.split(':')
+      const [, version] = appAndVersion.split(':')
 
       if (appName && version) {
         options.push({
