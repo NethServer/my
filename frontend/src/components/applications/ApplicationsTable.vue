@@ -40,7 +40,11 @@ import { SYSTEMS_TABLE_ID } from '@/lib/systems/systems'
 import router from '@/router'
 import OrganizationIcon from '../OrganizationIcon.vue'
 import { useApplications } from '@/queries/applications'
-import { getDisplayName, type Application } from '@/lib/applications/applications'
+import {
+  getApplicationLogo,
+  getDisplayName,
+  type Application,
+} from '@/lib/applications/applications'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import AssignOrganizationDrawer from './AssignOrganizationDrawer.vue'
 import SetNotesDrawer from './SetNotesDrawer.vue'
@@ -394,27 +398,22 @@ const goToApplicationDetails = (application: Application) => {
           <NeTableRow v-for="(item, index) in applicationsPage" :key="index">
             <NeTableCell :data-label="$t('applications.name')">
               {{ getDisplayName(item) }}
-              <!-- <div> ////
-                <router-link
-                  :to="{ name: 'application_detail', params: { applicationId: item.id } }"
-                >
-                  <div class="flex items-center gap-2">
-                    <img
-                      v-if="item.type"
-                      :src="getProductLogo(item.type)"
-                      :alt="getProductName(item.type)"
-                      aria-hidden="true"
-                      class="size-8"
-                    />
-                    <span class="cursor-pointer font-medium hover:underline">
-                      {{ item.name || '-' }}
-                    </span>
-                  </div>
-                </router-link>
-              </div> -->
             </NeTableCell>
             <NeTableCell :data-label="$t('applications.type')">
-              {{ item.instance_of }}
+              <!-- <router-link :to="{ name: 'application_detail', params: { applicationId: item.id } }"> //// uncomment -->
+              <div class="flex items-center gap-2">
+                <img
+                  v-if="item.instance_of"
+                  :src="getApplicationLogo(item.instance_of)"
+                  :alt="item.instance_of"
+                  aria-hidden="true"
+                  class="size-8"
+                />
+                <span class="cursor-pointer font-medium hover:underline">
+                  {{ item.name || '-' }}
+                </span>
+              </div>
+              <!-- </router-link> //// -->
             </NeTableCell>
             <NeTableCell
               :data-label="$t('applications.version')"
