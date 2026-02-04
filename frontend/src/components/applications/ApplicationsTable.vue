@@ -106,7 +106,7 @@ const versionFilterOptions = computed(() => {
     return []
   } else {
     if (typeFilter.value.length === 0) {
-      // no product selected, show all versions
+      // no application selected, show all versions
       return buildVersionFilterOptions(versionFilterState.value.data.versions)
     }
 
@@ -135,7 +135,7 @@ const organizationFilterOptions = computed(() => {
   } else {
     return organizationFilterState.value.data.map((org) => ({
       id: org.logto_id,
-      label: org.name,
+      label: org.logto_id === 'no_org' ? t('applications.no_organization') : org.name,
     }))
   }
 })

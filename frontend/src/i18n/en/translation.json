@@ -453,6 +453,7 @@
     "organization_assigned": "Application assigned to organization",
     "organization_assigned_description": "The application {application} has been assigned to organization {organization}",
     "cannot_assign_organization": "Cannot assign organization",
+    "no_organization": "No organization",
     "notes": "Notes",
     "add_notes": "Add notes",
     "edit_notes": "Edit notes",
