@@ -291,6 +291,18 @@ db-migration:
 	set -a && source $$ENV_FILE && set +a && \
 	cd database/migrations && ./run_migration.sh $(MIGRATION) $(ACTION)
 
+# Generate test tokens for all RBAC roles
+.PHONY: gen-tokens
+gen-tokens:
+	@echo "Generating test tokens for all RBAC roles..."
+	@set -a && source .env && set +a && \
+		go run cmd/gentoken/main.go
+	@echo "Tokens generated:"
+	@echo "  token-owner        (Owner / Super Admin)"
+	@echo "  token-distributor  (Distributor / Admin)"
+	@echo "  token-reseller     (Reseller / Admin)"
+	@echo "  token-customer     (Customer / Admin)"
+
 # Pre-commit checks
 .PHONY: pre-commit
 pre-commit: fmt lint test validate-docs
@@ -315,6 +327,7 @@ help:
 	@echo "  test          - Run tests"
 	@echo "  test-coverage - Run tests with coverage"
 	@echo "  tidy          - Tidy dependencies"
+	@echo "  gen-tokens    - Generate test tokens for all RBAC roles"
 	@echo ""
 	@echo "Database commands:"
 	@echo "  db-up         - Start PostgreSQL container"

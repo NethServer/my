@@ -277,6 +277,18 @@ make redis-flush
 make redis-cli
 ```
 
+### Test Tokens
+```bash
+# Generate JWT tokens for all 4 RBAC roles (Owner, Distributor, Reseller, Customer)
+make gen-tokens
+
+# Use tokens for manual API testing
+curl -H "Authorization: Bearer $(cat token-owner)" http://localhost:8080/api/users
+curl -H "Authorization: Bearer $(cat token-distributor)" http://localhost:8080/api/resellers
+curl -H "Authorization: Bearer $(cat token-reseller)" http://localhost:8080/api/customers
+curl -H "Authorization: Bearer $(cat token-customer)" http://localhost:8080/api/systems
+```
+
 ### API Documentation
 ```bash
 # Validate OpenAPI documentation
