@@ -6,7 +6,6 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package local
 
 import (
-	"database/sql"
 	"fmt"
 	"strings"
 
@@ -500,7 +499,7 @@ func (s *LocalApplicationsService) getOrganizationType(orgID string) (string, er
 	return "owner", nil
 }
 
-// GetAvailableSystems returns list of systems user can see (for filter dropdown)
+// GetAvailableSystems returns list of systems that have applications (for filter dropdown)
 func (s *LocalApplicationsService) GetAvailableSystems(userOrgRole, userOrgID string) ([]models.SystemSummary, error) {
 	allowedSystemIDs, err := s.getAllowedSystemIDs(userOrgRole, userOrgID)
 	if err != nil {
@@ -518,10 +517,12 @@ func (s *LocalApplicationsService) GetAvailableSystems(userOrgRole, userOrgID st
 		args[i] = sysID
 	}
 
+	// Only return systems that have at least one application
 	query := fmt.Sprintf(`
-		SELECT id, name FROM systems
-		WHERE id IN (%s) AND deleted_at IS NULL
-		ORDER BY name
+		SELECT DISTINCT s.id, s.name FROM systems s
+		INNER JOIN applications a ON s.id = a.system_id
+		WHERE s.id IN (%s) AND s.deleted_at IS NULL
+		ORDER BY s.name
 	`, strings.Join(placeholders, ","))
 
 	rows, err := database.DB.Query(query, args...)
@@ -542,63 +543,86 @@ func (s *LocalApplicationsService) GetAvailableSystems(userOrgRole, userOrgID st
 	return systems, nil
 }
 
-// GetAvailableOrganizations returns list of organizations user can assign to (for filter/assign dropdown)
+// GetAvailableOrganizations returns list of organizations that have applications (for filter dropdown)
 func (s *LocalApplicationsService) GetAvailableOrganizations(userOrgRole, userOrgID string) ([]models.OrganizationSummary, error) {
 	allowedOrgIDs, err := s.getAllowedOrganizationIDs(userOrgRole, userOrgID)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(allowedOrgIDs) == 0 {
-		return []models.OrganizationSummary{}, nil
-	}
-
 	var orgs []models.OrganizationSummary
 
-	// Query each organization table
-	for _, logtoID := range allowedOrgIDs {
-		var dbID, name string
+	// Check if there are applications without organization (for "No organization" option)
+	var hasUnassigned bool
+	err = database.DB.QueryRow(`
+		SELECT EXISTS(SELECT 1 FROM applications WHERE organization_id IS NULL OR organization_id = '')
+	`).Scan(&hasUnassigned)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check unassigned applications: %w", err)
+	}
 
-		// Try distributors
-		err := database.DB.QueryRow(`
-			SELECT id, name FROM distributors WHERE logto_id = $1 AND deleted_at IS NULL
-		`, logtoID).Scan(&dbID, &name)
-		if err == nil {
-			orgs = append(orgs, models.OrganizationSummary{ID: dbID, LogtoID: logtoID, Name: name, Type: "distributor"})
-			continue
-		}
-		if err != sql.ErrNoRows {
-			return nil, err
-		}
+	// Add "No organization" option first if there are unassigned applications
+	if hasUnassigned {
+		orgs = append(orgs, models.OrganizationSummary{
+			ID:      "no_org",
+			LogtoID: "no_org",
+			Name:    "No organization",
+			Type:    "unassigned",
+		})
+	}
 
-		// Try resellers
-		err = database.DB.QueryRow(`
-			SELECT id, name FROM resellers WHERE logto_id = $1 AND deleted_at IS NULL
-		`, logtoID).Scan(&dbID, &name)
-		if err == nil {
-			orgs = append(orgs, models.OrganizationSummary{ID: dbID, LogtoID: logtoID, Name: name, Type: "reseller"})
-			continue
-		}
-		if err != sql.ErrNoRows {
-			return nil, err
-		}
+	if len(allowedOrgIDs) == 0 {
+		return orgs, nil
+	}
 
-		// Try customers
-		err = database.DB.QueryRow(`
-			SELECT id, name FROM customers WHERE logto_id = $1 AND deleted_at IS NULL
-		`, logtoID).Scan(&dbID, &name)
-		if err == nil {
-			orgs = append(orgs, models.OrganizationSummary{ID: dbID, LogtoID: logtoID, Name: name, Type: "customer"})
-			continue
-		}
-		if err != sql.ErrNoRows {
-			return nil, err
-		}
+	// Build placeholders for allowed org IDs - need different placeholders for each UNION part
+	n := len(allowedOrgIDs)
+	placeholders1 := make([]string, n)
+	placeholders2 := make([]string, n)
+	placeholders3 := make([]string, n)
+	allArgs := make([]interface{}, 0, n*3)
 
-		// Check if it's owner org (owner has no DB entry, use logto_id for both)
-		if logtoID == userOrgID && strings.ToLower(userOrgRole) == "owner" {
-			orgs = append(orgs, models.OrganizationSummary{ID: logtoID, LogtoID: logtoID, Name: "Owner", Type: "owner"})
+	for i, orgID := range allowedOrgIDs {
+		placeholders1[i] = fmt.Sprintf("$%d", i+1)
+		placeholders2[i] = fmt.Sprintf("$%d", n+i+1)
+		placeholders3[i] = fmt.Sprintf("$%d", 2*n+i+1)
+		allArgs = append(allArgs, orgID)
+	}
+	for _, orgID := range allowedOrgIDs {
+		allArgs = append(allArgs, orgID)
+	}
+	for _, orgID := range allowedOrgIDs {
+		allArgs = append(allArgs, orgID)
+	}
+
+	// Query organizations that have at least one application assigned
+	// UNION all organization tables, then INNER JOIN with applications
+	query := fmt.Sprintf(`
+		WITH all_orgs AS (
+			SELECT id::text, logto_id, name, 'distributor' AS type FROM distributors WHERE deleted_at IS NULL AND logto_id IN (%s)
+			UNION ALL
+			SELECT id::text, logto_id, name, 'reseller' AS type FROM resellers WHERE deleted_at IS NULL AND logto_id IN (%s)
+			UNION ALL
+			SELECT id::text, logto_id, name, 'customer' AS type FROM customers WHERE deleted_at IS NULL AND logto_id IN (%s)
+		)
+		SELECT DISTINCT o.id, o.logto_id, o.name, o.type
+		FROM all_orgs o
+		INNER JOIN applications a ON a.organization_id = o.logto_id
+		ORDER BY o.name
+	`, strings.Join(placeholders1, ","), strings.Join(placeholders2, ","), strings.Join(placeholders3, ","))
+
+	rows, err := database.DB.Query(query, allArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query organizations: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var org models.OrganizationSummary
+		if err := rows.Scan(&org.ID, &org.LogtoID, &org.Name, &org.Type); err != nil {
+			return nil, fmt.Errorf("failed to scan organization: %w", err)
 		}
+		orgs = append(orgs, org)
 	}
 
 	return orgs, nil

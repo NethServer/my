@@ -689,11 +689,11 @@ components:
       properties:
         id:
           type: string
-          description: Database UUID of the organization
+          description: Database UUID of the organization (or "no_org" for unassigned filter)
           example: "4405ffd0-0aca-44ef-bae2-c8545bce94f4"
         logto_id:
           type: string
-          description: Logto organization ID (used for identity/auth purposes)
+          description: Logto organization ID (or "no_org" for unassigned filter)
           example: "akkbs6x2wo82"
         name:
           type: string
@@ -705,8 +705,8 @@ components:
           example: "Main customer organization"
         type:
           type: string
-          enum: [owner, distributor, reseller, customer]
-          description: Organization type
+          enum: [owner, distributor, reseller, customer, unassigned]
+          description: Organization type ("unassigned" is the special "No organization" filter entry)
           example: "customer"
 
     SystemOrganization:
@@ -6384,7 +6384,9 @@ paths:
       tags:
         - Backend - Filters
       summary: /filters/applications/systems - Get available systems
-      description: Get list of systems that have applications for filtering
+      description: |
+        Get list of systems that have at least one application for filtering.
+        Only returns systems with applications - systems without applications are excluded.
       responses:
         '200':
           description: Systems retrieved successfully
@@ -6403,6 +6405,14 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/ApplicationSystemSummary'
+              example:
+                code: 200
+                message: "systems retrieved successfully"
+                data:
+                  - id: "abc123-system-uuid"
+                    name: "Production Server"
+                  - id: "def456-system-uuid"
+                    name: "Development Server"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -6414,7 +6424,15 @@ paths:
       tags:
         - Backend - Filters
       summary: /filters/applications/organizations - Get available organizations
-      description: Get list of organizations available for application assignment
+      description: |
+        Get list of organizations for application filtering.
+
+        **Special value**: If there are applications without an assigned organization, the response includes
+        a special "No organization" entry as the first item with `id: "null"` and `type: "unassigned"`.
+        Use this value (`no_org`) to filter applications that have no organization assigned.
+
+        Only returns organizations that have at least one application assigned - organizations without
+        applications are excluded (except for the special "No organization" entry).
       responses:
         '200':
           description: Organizations retrieved successfully
@@ -6433,6 +6451,25 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/OrganizationSummary'
+              example:
+                code: 200
+                message: "organizations retrieved successfully"
+                data:
+                  - id: "no_org"
+                    logto_id: "no_org"
+                    name: "No organization"
+                    description: ""
+                    type: "unassigned"
+                  - id: "8b04e253-d408-4218-a30e-b048196847e5"
+                    logto_id: "fso3biosnaqp"
+                    name: "Acme Corp"
+                    description: ""
+                    type: "customer"
+                  - id: "83d2f8c3-31be-4878-891e-98f2a363e683"
+                    logto_id: "akkbs6x2wo82"
+                    name: "TechStart Inc"
+                    description: ""
+                    type: "reseller"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

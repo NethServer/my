@@ -242,22 +242,22 @@ func (r *LocalApplicationRepository) List(
 		whereClause += fmt.Sprintf(" AND a.system_id IN (%s)", strings.Join(sysPlaceholders, ","))
 	}
 
-	// Filter by organization IDs (handle "null" for unassigned)
+	// Filter by organization IDs (handle "no_org" for unassigned applications)
 	if len(filterOrgIDs) > 0 {
 		var orgConditions []string
-		var hasNull bool
+		var hasNoOrg bool
 		var nonNullOrgIDs []string
 
 		for _, orgID := range filterOrgIDs {
-			if orgID == "null" || orgID == "" {
-				hasNull = true
+			if orgID == "no_org" {
+				hasNoOrg = true
 			} else {
 				nonNullOrgIDs = append(nonNullOrgIDs, orgID)
 			}
 		}
 
-		if hasNull {
-			orgConditions = append(orgConditions, "a.organization_id IS NULL")
+		if hasNoOrg {
+			orgConditions = append(orgConditions, "(a.organization_id IS NULL OR a.organization_id = '')")
 		}
 
 		if len(nonNullOrgIDs) > 0 {
