@@ -304,12 +304,12 @@ async function saveUser() {
     custom_data: {},
   }
 
-  if (currentUser?.id) {
+  if (currentUser?.logto_id) {
     // editing user
 
     const userToEdit: EditUser = {
       ...user,
-      id: currentUser.id,
+      logto_id: currentUser.logto_id,
     }
 
     const isValidationOk = validateEdit(userToEdit)
