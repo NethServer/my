@@ -149,7 +149,8 @@
     "custom_data_vat_already_exists": "An organization with this VAT number already exists",
     "organization": "Organization",
     "choose_organization": "Choose organization",
-    "no_organizations": "No organizations"
+    "no_organizations": "No organizations",
+    "notes": "Notes"
   },
   "users": {
     "title": "Users",

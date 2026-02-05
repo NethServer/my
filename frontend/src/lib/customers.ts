@@ -16,6 +16,7 @@ export const CreateCustomerSchema = v.object({
   description: v.optional(v.string()),
   custom_data: v.object({
     vat: v.pipe(v.string(), v.nonEmpty('organizations.custom_data_vat_cannot_be_empty')),
+    notes: v.optional(v.string()),
   }),
 })
 
