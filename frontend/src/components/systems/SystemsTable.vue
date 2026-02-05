@@ -19,6 +19,8 @@ import {
   faFileCsv,
   faKey,
   faRotateLeft,
+  faCirclePause,
+  faCirclePlay,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -68,6 +70,8 @@ import RegenerateSecretModal from './RegenerateSecretModal.vue'
 import SecretRegeneratedModal from './SecretRegeneratedModal.vue'
 import ClickToCopy from '../ClickToCopy.vue'
 import RestoreSystemModal from './RestoreSystemModal.vue'
+import SuspendSystemModal from './SuspendSystemModal.vue'
+import ReactivateSystemModal from './ReactivateSystemModal.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -104,6 +108,8 @@ const isShownDeleteSystemModal = ref(false)
 const isShownRestoreSystemModal = ref(false)
 const isShownRegenerateSecretModal = ref(false)
 const isShownSecretRegeneratedModal = ref(false)
+const isShownSuspendSystemModal = ref(false)
+const isShownReactivateSystemModal = ref(false)
 const newSecret = ref<string>('')
 
 const statusFilterOptions = ref<FilterOption[]>([
@@ -245,6 +251,16 @@ function showRegenerateSecretModal(system: System) {
   isShownRegenerateSecretModal.value = true
 }
 
+function showSuspendSystemModal(system: System) {
+  currentSystem.value = system
+  isShownSuspendSystemModal.value = true
+}
+
+function showReactivateSystemModal(system: System) {
+  currentSystem.value = system
+  isShownReactivateSystemModal.value = true
+}
+
 function onCloseDrawer() {
   isShownCreateOrEditSystemDrawer.value = false
   emit('close-drawer')
@@ -282,15 +298,39 @@ function getKebabMenuItems(system: System) {
   ]
 
   if (canManageSystems() && system.status !== 'deleted') {
+    if (system.suspended_at) {
+      items = [
+        ...items,
+        {
+          id: 'reactivateSystem',
+          label: t('common.reactivate'),
+          icon: faCirclePlay,
+          action: () => showReactivateSystemModal(system),
+          disabled: asyncStatus.value === 'loading',
+        },
+      ]
+    } else {
+      items = [
+        ...items,
+        {
+          id: 'regenerateSecret',
+          label: t('systems.regenerate_secret'),
+          icon: faKey,
+          action: () => showRegenerateSecretModal(system),
+          disabled: asyncStatus.value === 'loading',
+        },
+        {
+          id: 'suspendSystem',
+          label: t('common.suspend'),
+          icon: faCirclePause,
+          action: () => showSuspendSystemModal(system),
+          disabled: asyncStatus.value === 'loading',
+        },
+      ]
+    }
+
     items = [
       ...items,
-      {
-        id: 'regenerateSecret',
-        label: t('systems.regenerate_secret'),
-        icon: faKey,
-        action: () => showRegenerateSecretModal(system),
-        disabled: asyncStatus.value === 'loading',
-      },
       {
         id: 'deleteSystem',
         label: t('common.delete'),
@@ -622,7 +662,13 @@ function onCloseSecretRegeneratedModal() {
             <NeTableCell :data-label="$t('systems.status')">
               <div class="flex items-center gap-2">
                 <FontAwesomeIcon
-                  v-if="item.status === 'online'"
+                  v-if="item.suspended_at"
+                  :icon="faCirclePause"
+                  class="size-4 text-gray-700 dark:text-gray-400"
+                  aria-hidden="true"
+                />
+                <FontAwesomeIcon
+                  v-else-if="item.status === 'online'"
                   :icon="faCircleCheck"
                   class="size-4 text-green-600 dark:text-green-400"
                   aria-hidden="true"
@@ -645,7 +691,10 @@ function onCloseSecretRegeneratedModal() {
                   class="size-4 text-gray-700 dark:text-gray-400"
                   aria-hidden="true"
                 />
-                <span v-if="item.status">
+                <span v-if="item.suspended_at">
+                  {{ t('common.suspended') }}
+                </span>
+                <span v-else-if="item.status">
                   {{ t(`systems.status_${item.status}`) }}
                 </span>
                 <span v-else>-</span>
@@ -713,6 +762,18 @@ function onCloseSecretRegeneratedModal() {
       :visible="isShownRestoreSystemModal"
       :system="currentSystem"
       @close="isShownRestoreSystemModal = false"
+    />
+    <!-- suspend system modal -->
+    <SuspendSystemModal
+      :visible="isShownSuspendSystemModal"
+      :system="currentSystem"
+      @close="isShownSuspendSystemModal = false"
+    />
+    <!-- reactivate system modal -->
+    <ReactivateSystemModal
+      :visible="isShownReactivateSystemModal"
+      :system="currentSystem"
+      @close="isShownReactivateSystemModal = false"
     />
     <!-- regenerate secret modal -->
     <RegenerateSecretModal
