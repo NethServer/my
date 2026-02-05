@@ -27,7 +27,7 @@ export const CreateUserSchema = v.object({
 
 export const EditUserSchema = v.object({
   ...CreateUserSchema.entries,
-  id: v.string(),
+  logto_id: v.string(),
 })
 
 export const UserSchema = v.object({
@@ -128,7 +128,7 @@ export const postUser = (user: CreateUser) => {
 export const putUser = (user: EditUser) => {
   const loginStore = useLoginStore()
 
-  return axios.put(`${API_URL}/users/${user.id}`, user, {
+  return axios.put(`${API_URL}/users/${user.logto_id}`, user, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
@@ -136,7 +136,7 @@ export const putUser = (user: EditUser) => {
 export const deleteUser = (user: User) => {
   const loginStore = useLoginStore()
 
-  return axios.delete(`${API_URL}/users/${user.id}`, {
+  return axios.delete(`${API_URL}/users/${user.logto_id}`, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
@@ -156,7 +156,7 @@ export const resetPassword = (user: User, newPassword: string) => {
   const loginStore = useLoginStore()
 
   return axios.patch(
-    `${API_URL}/users/${user.id}/password`,
+    `${API_URL}/users/${user.logto_id}/password`,
     { password: newPassword },
     {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
@@ -168,7 +168,7 @@ export const suspendUser = (user: User) => {
   const loginStore = useLoginStore()
 
   return axios.patch(
-    `${API_URL}/users/${user.id}/suspend`,
+    `${API_URL}/users/${user.logto_id}/suspend`,
     {},
     {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
@@ -180,7 +180,7 @@ export const reactivateUser = (user: User) => {
   const loginStore = useLoginStore()
 
   return axios.patch(
-    `${API_URL}/users/${user.id}/reactivate`,
+    `${API_URL}/users/${user.logto_id}/reactivate`,
     {},
     {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
