@@ -37,6 +37,7 @@
     "ip_address": "IP address",
     "click_to_copy": "Click to copy",
     "suspend": "Suspend",
+    "suspended": "Suspended",
     "reactivate": "Reactivate"
   },
   "shell": {
@@ -150,7 +151,17 @@
     "organization": "Organization",
     "choose_organization": "Choose organization",
     "no_organizations": "No organizations",
-    "notes": "Notes"
+    "notes": "Notes",
+    "suspend_organization": "Suspend organization",
+    "reactivate_organization": "Reactivate organization",
+    "cannot_suspend_organization": "Cannot suspend organization",
+    "organization_suspended": "Organization suspended",
+    "organization_suspended_successfully": "{name} suspended successfully",
+    "suspend_organization_confirmation": "Are you sure you want to suspend {name}? This will suspend all users and systems associated with this organization.",
+    "cannot_reactivate_organization": "Cannot reactivate organization",
+    "organization_reactivated": "Organization reactivated",
+    "organization_reactivated_successfully": "{name} reactivated successfully",
+    "reactivate_organization_confirmation": "Are you sure you want to reactivate {name}? This will reactivate all users and systems associated with this organization."
   },
   "users": {
     "title": "Users",
@@ -229,7 +240,7 @@
     "cannot_reactivate_user": "Cannot reactivate user",
     "user_reactivated": "User reactivated",
     "user_reactivated_successfully": "{name} reactivated successfully",
-    "reactivate_user_confirmation": "Are you sure you want to reactivate user {name}? The user will be able to log in again.",
+    "reactivate_user_confirmation": "Are you sure you want to reactivate {name}? The user will be able to log in again.",
     "export_users_to_pdf": "Export users to PDF",
     "export_users_to_csv": "Export users to CSV"
   },
@@ -414,7 +425,17 @@
     "restore_system_confirmation": "Are you sure you want to restore system {name}?",
     "system_restored": "System restored",
     "system_restored_successfully": "{name} restored successfully",
-    "cannot_restore_system": "Cannot restore system"
+    "cannot_restore_system": "Cannot restore system",
+    "suspend_system": "Suspend system",
+    "reactivate_system": "Reactivate system",
+    "cannot_suspend_system": "Cannot suspend system",
+    "system_suspended": "System suspended",
+    "system_suspended_successfully": "{name} suspended successfully",
+    "suspend_system_confirmation": "Are you sure you want to suspend {name}? The system will not be able to receive updates or support until reactivated.",
+    "cannot_reactivate_system": "Cannot reactivate system",
+    "system_reactivated": "System reactivated",
+    "system_reactivated_successfully": "{name} reactivated successfully",
+    "reactivate_system_confirmation": "Are you sure you want to reactivate {name}? The system will be able to receive updates and support again."
   },
   "system_detail": {
     "title": "System detail",
