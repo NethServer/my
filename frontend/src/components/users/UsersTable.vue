@@ -227,7 +227,7 @@ function getKebabMenuItems(user: User) {
         ...items,
         {
           id: 'suspendUser',
-          label: t('users.suspend'),
+          label: t('common.suspend'),
           icon: faCirclePause,
           action: () => showSuspendUserModal(user),
           disabled: asyncStatus.value === 'loading',
