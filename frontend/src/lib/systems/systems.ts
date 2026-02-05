@@ -44,6 +44,7 @@ export const SystemSchema = v.object({
   updated_at: v.string(),
   system_key: v.optional(v.string()),
   system_secret: v.string(),
+  suspended_at: v.optional(v.string()),
   organization: v.object({
     id: v.string(),
     name: v.string(),
@@ -356,6 +357,30 @@ export const postRegenerateSecret = (systemId: string) => {
 
   return axios.post<PostSystemResponse>(
     `${API_URL}/systems/${systemId}/regenerate-secret`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
+export const suspendSystem = (system: System) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/systems/${system.id}/suspend`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
+export const reactivateSystem = (system: System) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/systems/${system.id}/reactivate`,
     {},
     {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
