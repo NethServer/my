@@ -10,8 +10,9 @@ import {
   NeTextInput,
   focusElement,
   NeInlineNotification,
+  NeTextArea,
 } from '@nethesis/vue-components'
-import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
+import { computed, ref, useTemplateRef, type ShallowRef } from 'vue'
 import {
   CreateResellerSchema,
   RESELLERS_KEY,
@@ -108,39 +109,39 @@ const description = ref('')
 const descriptionRef = useTemplateRef<HTMLInputElement>('descriptionRef')
 const vatNumber = ref('')
 const vatNumberRef = useTemplateRef<HTMLInputElement>('vatNumberRef')
+const notes = ref('')
+const notesRef = useTemplateRef<HTMLInputElement>('notesRef')
 const validationIssues = ref<Record<string, string[]>>({})
 
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
   name: nameRef,
   description: descriptionRef,
   custom_data_vat: vatNumberRef,
+  custom_data_notes: notesRef,
 }
 
 const saving = computed(() => {
   return createResellerLoading.value || editResellerLoading.value
 })
 
-watch(
-  () => isShown,
-  () => {
-    if (isShown) {
-      clearErrors()
-      focusElement(nameRef)
+function onShow() {
+  clearErrors()
+  focusElement(nameRef)
 
-      if (currentReseller) {
-        // editing reseller
-        name.value = currentReseller.name
-        description.value = currentReseller.description || ''
-        vatNumber.value = currentReseller.custom_data?.vat || ''
-      } else {
-        // creating reseller, reset form to defaults
-        name.value = ''
-        description.value = ''
-        vatNumber.value = ''
-      }
-    }
-  },
-)
+  if (currentReseller) {
+    // editing reseller
+    name.value = currentReseller.name
+    description.value = currentReseller.description || ''
+    vatNumber.value = currentReseller.custom_data?.vat || ''
+    notes.value = currentReseller.custom_data?.notes || ''
+  } else {
+    // creating reseller, reset form to defaults
+    name.value = ''
+    description.value = ''
+    vatNumber.value = ''
+    notes.value = ''
+  }
+}
 
 function closeDrawer() {
   emit('close')
@@ -222,6 +223,7 @@ async function saveReseller() {
     description: description.value,
     custom_data: {
       vat: vatNumber.value,
+      notes: notes.value,
     },
   }
 
@@ -257,6 +259,7 @@ async function saveReseller() {
     :is-shown="isShown"
     :title="currentReseller ? $t('resellers.edit_reseller') : $t('resellers.create_reseller')"
     :close-aria-label="$t('common.shell.close_side_drawer')"
+    @show="onShow"
     @close="closeDrawer"
   >
     <form @submit.prevent>
@@ -291,6 +294,17 @@ async function saveReseller() {
             validationIssues.custom_data_vat?.[0] ? $t(validationIssues.custom_data_vat[0]) : ''
           "
           :disabled="saving"
+        />
+        <!-- notes -->
+        <NeTextArea
+          ref="notesRef"
+          v-model="notes"
+          @blur="notes = notes.trim()"
+          :label="$t('organizations.notes')"
+          :disabled="saving"
+          :invalid-message="validationIssues.notes?.[0] ? $t(validationIssues.notes[0]) : ''"
+          :optional="true"
+          :optional-label="t('common.optional')"
         />
         <!-- create reseller error notification -->
         <NeInlineNotification

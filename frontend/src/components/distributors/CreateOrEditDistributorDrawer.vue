@@ -10,8 +10,9 @@ import {
   NeTextInput,
   focusElement,
   NeInlineNotification,
+  NeTextArea,
 } from '@nethesis/vue-components'
-import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
+import { computed, ref, useTemplateRef, type ShallowRef } from 'vue'
 import {
   CreateDistributorSchema,
   DISTRIBUTORS_KEY,
@@ -110,39 +111,39 @@ const description = ref('')
 const descriptionRef = useTemplateRef<HTMLInputElement>('descriptionRef')
 const vatNumber = ref('')
 const vatNumberRef = useTemplateRef<HTMLInputElement>('vatNumberRef')
+const notes = ref('')
+const notesRef = useTemplateRef<HTMLInputElement>('notesRef')
 const validationIssues = ref<Record<string, string[]>>({})
 
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
   name: nameRef,
   description: descriptionRef,
   custom_data_vat: vatNumberRef,
+  custom_data_notes: notesRef,
 }
 
 const saving = computed(() => {
   return createDistributorLoading.value || editDistributorLoading.value
 })
 
-watch(
-  () => isShown,
-  () => {
-    if (isShown) {
-      clearErrors()
-      focusElement(nameRef)
+function onShow() {
+  clearErrors()
+  focusElement(nameRef)
 
-      if (currentDistributor) {
-        // editing distributor
-        name.value = currentDistributor.name
-        description.value = currentDistributor.description || ''
-        vatNumber.value = currentDistributor.custom_data?.vat || ''
-      } else {
-        // creating distributor, reset form to defaults
-        name.value = ''
-        description.value = ''
-        vatNumber.value = ''
-      }
-    }
-  },
-)
+  if (currentDistributor) {
+    // editing distributor
+    name.value = currentDistributor.name
+    description.value = currentDistributor.description || ''
+    vatNumber.value = currentDistributor.custom_data?.vat || ''
+    notes.value = currentDistributor.custom_data?.notes || ''
+  } else {
+    // creating distributor, reset form to defaults
+    name.value = ''
+    description.value = ''
+    vatNumber.value = ''
+    notes.value = ''
+  }
+}
 
 function closeDrawer() {
   emit('close')
@@ -224,6 +225,7 @@ async function saveDistributor() {
     description: description.value,
     custom_data: {
       vat: vatNumber.value,
+      notes: notes.value,
     },
   }
 
@@ -262,6 +264,7 @@ async function saveDistributor() {
         : $t('distributors.create_distributor')
     "
     :close-aria-label="$t('common.shell.close_side_drawer')"
+    @show="onShow"
     @close="closeDrawer"
   >
     <form @submit.prevent>
@@ -296,6 +299,17 @@ async function saveDistributor() {
             validationIssues.custom_data_vat?.[0] ? $t(validationIssues.custom_data_vat[0]) : ''
           "
           :disabled="saving"
+        />
+        <!-- notes -->
+        <NeTextArea
+          ref="notesRef"
+          v-model="notes"
+          @blur="notes = notes.trim()"
+          :label="$t('organizations.notes')"
+          :disabled="saving"
+          :invalid-message="validationIssues.notes?.[0] ? $t(validationIssues.notes[0]) : ''"
+          :optional="true"
+          :optional-label="t('common.optional')"
         />
         <!-- create distributor error notification -->
         <NeInlineNotification
