@@ -23,6 +23,7 @@ export const CreateResellerSchema = v.object({
 export const ResellerSchema = v.object({
   ...CreateResellerSchema.entries,
   logto_id: v.string(),
+  suspended_at: v.optional(v.string()),
 })
 
 export type CreateReseller = v.InferOutput<typeof CreateResellerSchema>
@@ -86,4 +87,28 @@ export const getResellersTotal = () => {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data.total as number)
+}
+
+export const suspendReseller = (reseller: Reseller) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/resellers/${reseller.logto_id}/suspend`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
+export const reactivateReseller = (reseller: Reseller) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/resellers/${reseller.logto_id}/reactivate`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
 }

@@ -11,6 +11,9 @@ import {
   faCity,
   faPenToSquare,
   faTrash,
+  faCirclePause,
+  faCirclePlay,
+  faCircleCheck,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -34,6 +37,8 @@ import { computed, ref, watch } from 'vue'
 import CreateOrEditResellerDrawer from './CreateOrEditResellerDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteResellerModal from './DeleteResellerModal.vue'
+import SuspendResellerModal from './SuspendResellerModal.vue'
+import ReactivateResellerModal from './ReactivateResellerModal.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useResellers } from '@/queries/resellers'
 import { canManageResellers } from '@/lib/permissions'
@@ -59,6 +64,8 @@ const {
 const currentReseller = ref<Reseller | undefined>()
 const isShownCreateOrEditResellerDrawer = ref(false)
 const isShownDeleteResellerDrawer = ref(false)
+const isShownSuspendResellerModal = ref(false)
+const isShownReactivateResellerModal = ref(false)
 
 const resellersPage = computed(() => {
   return state.value.data?.resellers
@@ -111,22 +118,53 @@ function showDeleteResellerDrawer(reseller: Reseller) {
   isShownDeleteResellerDrawer.value = true
 }
 
+function showSuspendResellerModal(reseller: Reseller) {
+  currentReseller.value = reseller
+  isShownSuspendResellerModal.value = true
+}
+
+function showReactivateResellerModal(reseller: Reseller) {
+  currentReseller.value = reseller
+  isShownReactivateResellerModal.value = true
+}
+
 function onCloseDrawer() {
   isShownCreateOrEditResellerDrawer.value = false
   emit('close-drawer')
 }
 
 function getKebabMenuItems(reseller: Reseller) {
-  return [
-    {
+  const items = []
+
+  if (canManageResellers()) {
+    if (reseller.suspended_at) {
+      items.push({
+        id: 'reactivateReseller',
+        label: t('common.reactivate'),
+        icon: faCirclePlay,
+        action: () => showReactivateResellerModal(reseller),
+        disabled: asyncStatus.value === 'loading',
+      })
+    } else {
+      items.push({
+        id: 'suspendReseller',
+        label: t('common.suspend'),
+        icon: faCirclePause,
+        action: () => showSuspendResellerModal(reseller),
+        disabled: asyncStatus.value === 'loading',
+      })
+    }
+
+    items.push({
       id: 'deleteReseller',
       label: t('common.delete'),
       icon: faTrash,
       danger: true,
       action: () => showDeleteResellerDrawer(reseller),
       disabled: asyncStatus.value === 'loading',
-    },
-  ]
+    })
+  }
+  return items
 }
 
 const onSort = (payload: SortEvent) => {
@@ -186,6 +224,7 @@ const onSort = (payload: SortEvent) => {
               :options="[
                 { id: 'name', label: t('organizations.name') },
                 { id: 'description', label: t('organizations.description') },
+                { id: 'suspended_at', label: t('common.status') },
               ]"
               :open-menu-aria-label="t('ne_dropdown.open_menu')"
               :sort-by-label="t('sort.sort_by')"
@@ -233,6 +272,9 @@ const onSort = (payload: SortEvent) => {
           <NeTableHeadCell sortable column-key="description" @sort="onSort">{{
             $t('organizations.description')
           }}</NeTableHeadCell>
+          <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
+            $t('common.status')
+          }}</NeTableHeadCell>
           <NeTableHeadCell>
             <!-- no header for actions -->
           </NeTableHeadCell>
@@ -244,6 +286,30 @@ const onSort = (payload: SortEvent) => {
             </NeTableCell>
             <NeTableCell :data-label="$t('organizations.description')">
               {{ item.description || '-' }}
+            </NeTableCell>
+            <NeTableCell :data-label="$t('common.status')">
+              <div class="flex items-center gap-2">
+                <template v-if="item.suspended_at">
+                  <FontAwesomeIcon
+                    :icon="faCirclePause"
+                    class="size-4 text-gray-700 dark:text-gray-400"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {{ t('common.suspended') }}
+                  </span>
+                </template>
+                <template v-else>
+                  <FontAwesomeIcon
+                    :icon="faCircleCheck"
+                    class="size-4 text-green-600 dark:text-green-400"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {{ t('common.enabled') }}
+                  </span>
+                </template>
+              </div>
             </NeTableCell>
             <NeTableCell :data-label="$t('common.actions')">
               <div v-if="canManageResellers()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
@@ -300,6 +366,18 @@ const onSort = (payload: SortEvent) => {
       :visible="isShownDeleteResellerDrawer"
       :reseller="currentReseller"
       @close="isShownDeleteResellerDrawer = false"
+    />
+    <!-- suspend reseller modal -->
+    <SuspendResellerModal
+      :visible="isShownSuspendResellerModal"
+      :reseller="currentReseller"
+      @close="isShownSuspendResellerModal = false"
+    />
+    <!-- reactivate reseller modal -->
+    <ReactivateResellerModal
+      :visible="isShownReactivateResellerModal"
+      :reseller="currentReseller"
+      @close="isShownReactivateResellerModal = false"
     />
   </div>
 </template>

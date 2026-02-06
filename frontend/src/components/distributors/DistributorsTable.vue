@@ -42,7 +42,6 @@ import ReactivateDistributorModal from './ReactivateDistributorModal.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useDistributors } from '@/queries/distributors'
 import { canManageDistributors } from '@/lib/permissions'
-import { useLoginStore } from '@/stores/login'
 
 const { isShownCreateDistributorDrawer = false } = defineProps<{
   isShownCreateDistributorDrawer: boolean
@@ -51,7 +50,6 @@ const { isShownCreateDistributorDrawer = false } = defineProps<{
 const emit = defineEmits(['close-drawer'])
 
 const { t } = useI18n()
-const loginStore = useLoginStore()
 const {
   state,
   asyncStatus,
