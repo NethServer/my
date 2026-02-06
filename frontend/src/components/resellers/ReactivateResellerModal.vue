@@ -9,16 +9,16 @@ import { NeModal } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import {
-  reactivateSystem,
-  SYSTEMS_KEY,
-  SYSTEMS_TOTAL_KEY,
-  type System,
-} from '@/lib/systems/systems'
+  reactivateReseller,
+  RESELLERS_KEY,
+  RESELLERS_TOTAL_KEY,
+  type Reseller,
+} from '@/lib/resellers'
 import { useNotificationsStore } from '@/stores/notifications'
 
-const { visible = false, system = undefined } = defineProps<{
+const { visible = false, reseller = undefined } = defineProps<{
   visible: boolean
-  system: System | undefined
+  reseller: Reseller | undefined
 }>()
 
 const emit = defineEmits(['close'])
@@ -28,21 +28,21 @@ const notificationsStore = useNotificationsStore()
 const queryCache = useQueryCache()
 
 const {
-  mutate: reactivateSystemMutate,
-  isLoading: reactivateSystemLoading,
-  reset: reactivateSystemReset,
-  error: reactivateSystemError,
+  mutate: reactivateResellerMutate,
+  isLoading: reactivateResellerLoading,
+  reset: reactivateResellerReset,
+  error: reactivateResellerError,
 } = useMutation({
-  mutation: (system: System) => {
-    return reactivateSystem(system)
+  mutation: (reseller: Reseller) => {
+    return reactivateReseller(reseller)
   },
   onSuccess(data, vars) {
     // show success notification after modal closes
     setTimeout(() => {
       notificationsStore.createNotification({
         kind: 'success',
-        title: t('systems.system_reactivated'),
-        description: t('systems.system_reactivated_successfully', {
+        title: t('organizations.organization_reactivated'),
+        description: t('organizations.organization_reactivated_successfully', {
           name: vars.name,
         }),
       })
@@ -51,42 +51,42 @@ const {
     emit('close')
   },
   onError: (error) => {
-    console.error('Error reactivating system:', error)
+    console.error('Error reactivating reseller:', error)
   },
   onSettled: () => {
-    queryCache.invalidateQueries({ key: [SYSTEMS_KEY] })
-    queryCache.invalidateQueries({ key: [SYSTEMS_TOTAL_KEY] })
+    queryCache.invalidateQueries({ key: [RESELLERS_KEY] })
+    queryCache.invalidateQueries({ key: [RESELLERS_TOTAL_KEY] })
   },
 })
 
 function onShow() {
   // clear error
-  reactivateSystemReset()
+  reactivateResellerReset()
 }
 </script>
 
 <template>
   <NeModal
     :visible="visible"
-    :title="$t('systems.reactivate_system')"
+    :title="$t('organizations.reactivate_organization')"
     kind="warning"
     :primary-label="$t('common.reactivate')"
     :cancel-label="$t('common.cancel')"
-    :primary-button-disabled="reactivateSystemLoading"
-    :primary-button-loading="reactivateSystemLoading"
+    :primary-button-disabled="reactivateResellerLoading"
+    :primary-button-loading="reactivateResellerLoading"
     :close-aria-label="$t('common.close')"
     @close="emit('close')"
-    @primary-click="reactivateSystemMutate(system!)"
+    @primary-click="reactivateResellerMutate(reseller!)"
     @show="onShow"
   >
     <p>
-      {{ t('systems.reactivate_system_confirmation', { name: system?.name }) }}
+      {{ t('organizations.reactivate_organization_confirmation', { name: reseller?.name }) }}
     </p>
     <NeInlineNotification
-      v-if="reactivateSystemError?.message"
+      v-if="reactivateResellerError?.message"
       kind="error"
-      :title="t('systems.cannot_reactivate_system')"
-      :description="reactivateSystemError.message"
+      :title="t('organizations.cannot_reactivate_organization')"
+      :description="reactivateResellerError.message"
       class="mt-4"
     />
   </NeModal>
