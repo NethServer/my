@@ -23,6 +23,7 @@ export const CreateDistributorSchema = v.object({
 export const DistributorSchema = v.object({
   ...CreateDistributorSchema.entries,
   logto_id: v.string(),
+  suspended_at: v.optional(v.string()),
 })
 
 export type CreateDistributor = v.InferOutput<typeof CreateDistributorSchema>
@@ -86,4 +87,28 @@ export const getDistributorsTotal = () => {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data.total as number)
+}
+
+export const suspendDistributor = (distributor: Distributor) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/distributors/${distributor.logto_id}/suspend`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
+export const reactivateDistributor = (distributor: Distributor) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/distributors/${distributor.logto_id}/reactivate`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
 }
