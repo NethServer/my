@@ -11,6 +11,9 @@ import {
   faPenToSquare,
   faTrash,
   faBuilding,
+  faCirclePause,
+  faCirclePlay,
+  faCircleCheck,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -34,6 +37,8 @@ import { computed, ref, watch } from 'vue'
 import CreateOrEditCustomerDrawer from './CreateOrEditCustomerDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteCustomerModal from './DeleteCustomerModal.vue'
+import SuspendCustomerModal from './SuspendCustomerModal.vue'
+import ReactivateCustomerModal from './ReactivateCustomerModal.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useCustomers } from '@/queries/customers'
 import { canManageCustomers } from '@/lib/permissions'
@@ -59,6 +64,8 @@ const {
 const currentCustomer = ref<Customer | undefined>()
 const isShownCreateOrEditCustomerDrawer = ref(false)
 const isShownDeleteCustomerDrawer = ref(false)
+const isShownSuspendCustomerModal = ref(false)
+const isShownReactivateCustomerModal = ref(false)
 
 const customersPage = computed(() => {
   return state.value.data?.customers
@@ -111,22 +118,53 @@ function showDeleteCustomerDrawer(customer: Customer) {
   isShownDeleteCustomerDrawer.value = true
 }
 
+function showSuspendCustomerModal(customer: Customer) {
+  currentCustomer.value = customer
+  isShownSuspendCustomerModal.value = true
+}
+
+function showReactivateCustomerModal(customer: Customer) {
+  currentCustomer.value = customer
+  isShownReactivateCustomerModal.value = true
+}
+
 function onCloseDrawer() {
   isShownCreateOrEditCustomerDrawer.value = false
   emit('close-drawer')
 }
 
 function getKebabMenuItems(customer: Customer) {
-  return [
-    {
+  const items = []
+
+  if (canManageCustomers()) {
+    if (customer.suspended_at) {
+      items.push({
+        id: 'reactivateCustomer',
+        label: t('common.reactivate'),
+        icon: faCirclePlay,
+        action: () => showReactivateCustomerModal(customer),
+        disabled: asyncStatus.value === 'loading',
+      })
+    } else {
+      items.push({
+        id: 'suspendCustomer',
+        label: t('common.suspend'),
+        icon: faCirclePause,
+        action: () => showSuspendCustomerModal(customer),
+        disabled: asyncStatus.value === 'loading',
+      })
+    }
+
+    items.push({
       id: 'deleteCustomer',
       label: t('common.delete'),
       icon: faTrash,
       danger: true,
       action: () => showDeleteCustomerDrawer(customer),
       disabled: asyncStatus.value === 'loading',
-    },
-  ]
+    })
+  }
+  return items
 }
 
 const onSort = (payload: SortEvent) => {
@@ -186,6 +224,7 @@ const onSort = (payload: SortEvent) => {
               :options="[
                 { id: 'name', label: t('organizations.name') },
                 { id: 'description', label: t('organizations.description') },
+                { id: 'suspended_at', label: t('common.status') },
               ]"
               :open-menu-aria-label="t('ne_dropdown.open_menu')"
               :sort-by-label="t('sort.sort_by')"
@@ -233,6 +272,9 @@ const onSort = (payload: SortEvent) => {
           <NeTableHeadCell sortable column-key="description" @sort="onSort">{{
             $t('organizations.description')
           }}</NeTableHeadCell>
+          <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
+            $t('common.status')
+          }}</NeTableHeadCell>
           <NeTableHeadCell>
             <!-- no header for actions -->
           </NeTableHeadCell>
@@ -244,6 +286,30 @@ const onSort = (payload: SortEvent) => {
             </NeTableCell>
             <NeTableCell :data-label="$t('organizations.description')">
               {{ item.description || '-' }}
+            </NeTableCell>
+            <NeTableCell :data-label="$t('common.status')">
+              <div class="flex items-center gap-2">
+                <template v-if="item.suspended_at">
+                  <FontAwesomeIcon
+                    :icon="faCirclePause"
+                    class="size-4 text-gray-700 dark:text-gray-400"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {{ t('common.suspended') }}
+                  </span>
+                </template>
+                <template v-else>
+                  <FontAwesomeIcon
+                    :icon="faCircleCheck"
+                    class="size-4 text-green-600 dark:text-green-400"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {{ t('common.enabled') }}
+                  </span>
+                </template>
+              </div>
             </NeTableCell>
             <NeTableCell :data-label="$t('common.actions')">
               <div v-if="canManageCustomers()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
@@ -300,6 +366,18 @@ const onSort = (payload: SortEvent) => {
       :visible="isShownDeleteCustomerDrawer"
       :customer="currentCustomer"
       @close="isShownDeleteCustomerDrawer = false"
+    />
+    <!-- suspend customer modal -->
+    <SuspendCustomerModal
+      :visible="isShownSuspendCustomerModal"
+      :customer="currentCustomer"
+      @close="isShownSuspendCustomerModal = false"
+    />
+    <!-- reactivate customer modal -->
+    <ReactivateCustomerModal
+      :visible="isShownReactivateCustomerModal"
+      :customer="currentCustomer"
+      @close="isShownReactivateCustomerModal = false"
     />
   </div>
 </template>
