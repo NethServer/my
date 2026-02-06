@@ -23,6 +23,7 @@ export const CreateCustomerSchema = v.object({
 export const CustomerSchema = v.object({
   ...CreateCustomerSchema.entries,
   logto_id: v.string(),
+  suspended_at: v.optional(v.string()),
 })
 
 export type CreateCustomer = v.InferOutput<typeof CreateCustomerSchema>
@@ -86,4 +87,28 @@ export const getCustomersTotal = () => {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data.total as number)
+}
+
+export const suspendCustomer = (customer: Customer) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/customers/${customer.logto_id}/suspend`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
+export const reactivateCustomer = (customer: Customer) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/customers/${customer.logto_id}/reactivate`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
 }
