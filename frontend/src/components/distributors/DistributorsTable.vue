@@ -11,6 +11,9 @@ import {
   faGlobe,
   faPenToSquare,
   faTrash,
+  faCirclePause,
+  faCirclePlay,
+  faCircleCheck,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -34,9 +37,12 @@ import { computed, ref, watch } from 'vue'
 import CreateOrEditDistributorDrawer from './CreateOrEditDistributorDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteDistributorModal from './DeleteDistributorModal.vue'
+import SuspendDistributorModal from './SuspendDistributorModal.vue'
+import ReactivateDistributorModal from './ReactivateDistributorModal.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useDistributors } from '@/queries/distributors'
 import { canManageDistributors } from '@/lib/permissions'
+import { useLoginStore } from '@/stores/login'
 
 const { isShownCreateDistributorDrawer = false } = defineProps<{
   isShownCreateDistributorDrawer: boolean
@@ -45,6 +51,7 @@ const { isShownCreateDistributorDrawer = false } = defineProps<{
 const emit = defineEmits(['close-drawer'])
 
 const { t } = useI18n()
+const loginStore = useLoginStore()
 const {
   state,
   asyncStatus,
@@ -59,6 +66,8 @@ const {
 const currentDistributor = ref<Distributor | undefined>()
 const isShownCreateOrEditDistributorDrawer = ref(false)
 const isShownDeleteDistributorDrawer = ref(false)
+const isShownSuspendDistributorModal = ref(false)
+const isShownReactivateDistributorModal = ref(false)
 
 const distributorsPage = computed(() => {
   return state.value.data?.distributors
@@ -113,22 +122,53 @@ function showDeleteDistributorDrawer(distributor: Distributor) {
   isShownDeleteDistributorDrawer.value = true
 }
 
+function showSuspendDistributorModal(distributor: Distributor) {
+  currentDistributor.value = distributor
+  isShownSuspendDistributorModal.value = true
+}
+
+function showReactivateDistributorModal(distributor: Distributor) {
+  currentDistributor.value = distributor
+  isShownReactivateDistributorModal.value = true
+}
+
 function onCloseDrawer() {
   isShownCreateOrEditDistributorDrawer.value = false
   emit('close-drawer')
 }
 
 function getKebabMenuItems(distributor: Distributor) {
-  return [
-    {
+  const items = []
+
+  if (canManageDistributors()) {
+    if (distributor.suspended_at) {
+      items.push({
+        id: 'reactivateDistributor',
+        label: t('common.reactivate'),
+        icon: faCirclePlay,
+        action: () => showReactivateDistributorModal(distributor),
+        disabled: asyncStatus.value === 'loading',
+      })
+    } else {
+      items.push({
+        id: 'suspendDistributor',
+        label: t('common.suspend'),
+        icon: faCirclePause,
+        action: () => showSuspendDistributorModal(distributor),
+        disabled: asyncStatus.value === 'loading',
+      })
+    }
+
+    items.push({
       id: 'deleteDistributor',
       label: t('common.delete'),
       icon: faTrash,
       danger: true,
       action: () => showDeleteDistributorDrawer(distributor),
       disabled: asyncStatus.value === 'loading',
-    },
-  ]
+    })
+  }
+  return items
 }
 
 const onSort = (payload: SortEvent) => {
@@ -188,6 +228,7 @@ const onSort = (payload: SortEvent) => {
               :options="[
                 { id: 'name', label: t('organizations.name') },
                 { id: 'description', label: t('organizations.description') },
+                { id: 'suspended_at', label: t('common.status') },
               ]"
               :open-menu-aria-label="t('ne_dropdown.open_menu')"
               :sort-by-label="t('sort.sort_by')"
@@ -235,6 +276,9 @@ const onSort = (payload: SortEvent) => {
           <NeTableHeadCell sortable column-key="description" @sort="onSort">{{
             $t('organizations.description')
           }}</NeTableHeadCell>
+          <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
+            $t('common.status')
+          }}</NeTableHeadCell>
           <NeTableHeadCell>
             <!-- no header for actions -->
           </NeTableHeadCell>
@@ -246,6 +290,30 @@ const onSort = (payload: SortEvent) => {
             </NeTableCell>
             <NeTableCell :data-label="$t('organizations.description')">
               {{ item.description || '-' }}
+            </NeTableCell>
+            <NeTableCell :data-label="$t('common.status')">
+              <div class="flex items-center gap-2">
+                <template v-if="item.suspended_at">
+                  <FontAwesomeIcon
+                    :icon="faCirclePause"
+                    class="size-4 text-gray-700 dark:text-gray-400"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {{ t('common.suspended') }}
+                  </span>
+                </template>
+                <template v-else>
+                  <FontAwesomeIcon
+                    :icon="faCircleCheck"
+                    class="size-4 text-green-600 dark:text-green-400"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {{ t('common.enabled') }}
+                  </span>
+                </template>
+              </div>
             </NeTableCell>
             <NeTableCell :data-label="$t('common.actions')">
               <div v-if="canManageDistributors()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
@@ -302,6 +370,18 @@ const onSort = (payload: SortEvent) => {
       :visible="isShownDeleteDistributorDrawer"
       :distributor="currentDistributor"
       @close="isShownDeleteDistributorDrawer = false"
+    />
+    <!-- suspend distributor modal -->
+    <SuspendDistributorModal
+      :visible="isShownSuspendDistributorModal"
+      :distributor="currentDistributor"
+      @close="isShownSuspendDistributorModal = false"
+    />
+    <!-- reactivate distributor modal -->
+    <ReactivateDistributorModal
+      :visible="isShownReactivateDistributorModal"
+      :distributor="currentDistributor"
+      @close="isShownReactivateDistributorModal = false"
     />
   </div>
 </template>
