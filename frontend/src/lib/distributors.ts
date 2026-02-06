@@ -16,12 +16,14 @@ export const CreateDistributorSchema = v.object({
   description: v.optional(v.string()),
   custom_data: v.object({
     vat: v.pipe(v.string(), v.nonEmpty('organizations.custom_data_vat_cannot_be_empty')),
+    notes: v.optional(v.string()),
   }),
 })
 
 export const DistributorSchema = v.object({
   ...CreateDistributorSchema.entries,
-  id: v.string(),
+  logto_id: v.string(),
+  suspended_at: v.optional(v.string()),
 })
 
 export type CreateDistributor = v.InferOutput<typeof CreateDistributorSchema>
@@ -64,7 +66,7 @@ export const postDistributor = (distributor: CreateDistributor) => {
 export const putDistributor = (distributor: Distributor) => {
   const loginStore = useLoginStore()
 
-  return axios.put(`${API_URL}/distributors/${distributor.id}`, distributor, {
+  return axios.put(`${API_URL}/distributors/${distributor.logto_id}`, distributor, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
@@ -72,7 +74,7 @@ export const putDistributor = (distributor: Distributor) => {
 export const deleteDistributor = (distributor: Distributor) => {
   const loginStore = useLoginStore()
 
-  return axios.delete(`${API_URL}/distributors/${distributor.id}`, {
+  return axios.delete(`${API_URL}/distributors/${distributor.logto_id}`, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
@@ -85,4 +87,28 @@ export const getDistributorsTotal = () => {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data.total as number)
+}
+
+export const suspendDistributor = (distributor: Distributor) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/distributors/${distributor.logto_id}/suspend`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
+export const reactivateDistributor = (distributor: Distributor) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/distributors/${distributor.logto_id}/reactivate`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
 }

@@ -34,9 +34,10 @@ import type { AxiosError } from 'axios'
 import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
 import { getOrganizations, ORGANIZATIONS_KEY } from '@/lib/organizations'
-import { getUserRoles, USER_ROLES_KEY } from '@/lib/userRoles'
 import { PRODUCT_NAME } from '@/lib/config'
 import { normalize } from '@/lib/common'
+import { SYSTEM_ORGANIZATION_FILTER_KEY } from '@/lib/systems/organizationFilter'
+import { getUserRoles, USER_ROLES_KEY } from '@/lib/userRoles'
 
 const { isShown = false, currentUser = undefined } = defineProps<{
   isShown: boolean
@@ -59,6 +60,8 @@ const { state: allUserRoles } = useQuery({
   enabled: () => !!loginStore.jwtToken && isShown,
   query: getUserRoles,
 })
+
+// const { state: allUserRoles } = useUserRoles() ////
 
 const {
   mutate: createUserMutate,
@@ -90,6 +93,7 @@ const {
   onSettled: () => {
     queryCache.invalidateQueries({ key: [USERS_KEY] })
     queryCache.invalidateQueries({ key: [USERS_TOTAL_KEY] })
+    queryCache.invalidateQueries({ key: [SYSTEM_ORGANIZATION_FILTER_KEY] })
   },
 })
 
@@ -120,7 +124,10 @@ const {
     console.error('Error editing user:', error)
     validationIssues.value = getValidationIssues(error as AxiosError, 'users')
   },
-  onSettled: () => queryCache.invalidateQueries({ key: [USERS_KEY] }),
+  onSettled: () => {
+    queryCache.invalidateQueries({ key: [USERS_KEY] })
+    // queryCache.invalidateQueries({ key: [ORGANIZATION_FILTER_KEY] }) ////
+  },
 })
 
 const email = ref('')
@@ -153,7 +160,7 @@ const organizationOptions = computed(() => {
   }
 
   return organizations.value.data?.map((org) => ({
-    id: org.id,
+    id: org.logto_id,
     label: org.name,
     description: t(`organizations.${org.type}`),
   }))
@@ -297,12 +304,12 @@ async function saveUser() {
     custom_data: {},
   }
 
-  if (currentUser?.id) {
+  if (currentUser?.logto_id) {
     // editing user
 
     const userToEdit: EditUser = {
       ...user,
-      id: currentUser.id,
+      logto_id: currentUser.logto_id,
     }
 
     const isValidationOk = validateEdit(userToEdit)

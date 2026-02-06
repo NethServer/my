@@ -16,12 +16,14 @@ export const CreateResellerSchema = v.object({
   description: v.optional(v.string()),
   custom_data: v.object({
     vat: v.pipe(v.string(), v.nonEmpty('organizations.custom_data_vat_cannot_be_empty')),
+    notes: v.optional(v.string()),
   }),
 })
 
 export const ResellerSchema = v.object({
   ...CreateResellerSchema.entries,
-  id: v.string(),
+  logto_id: v.string(),
+  suspended_at: v.optional(v.string()),
 })
 
 export type CreateReseller = v.InferOutput<typeof CreateResellerSchema>
@@ -64,7 +66,7 @@ export const postReseller = (reseller: CreateReseller) => {
 export const putReseller = (reseller: Reseller) => {
   const loginStore = useLoginStore()
 
-  return axios.put(`${API_URL}/resellers/${reseller.id}`, reseller, {
+  return axios.put(`${API_URL}/resellers/${reseller.logto_id}`, reseller, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
@@ -72,7 +74,7 @@ export const putReseller = (reseller: Reseller) => {
 export const deleteReseller = (reseller: Reseller) => {
   const loginStore = useLoginStore()
 
-  return axios.delete(`${API_URL}/resellers/${reseller.id}`, {
+  return axios.delete(`${API_URL}/resellers/${reseller.logto_id}`, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
@@ -85,4 +87,28 @@ export const getResellersTotal = () => {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data.total as number)
+}
+
+export const suspendReseller = (reseller: Reseller) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/resellers/${reseller.logto_id}/suspend`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
+export const reactivateReseller = (reseller: Reseller) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/resellers/${reseller.logto_id}/reactivate`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
 }

@@ -16,12 +16,14 @@ export const CreateCustomerSchema = v.object({
   description: v.optional(v.string()),
   custom_data: v.object({
     vat: v.pipe(v.string(), v.nonEmpty('organizations.custom_data_vat_cannot_be_empty')),
+    notes: v.optional(v.string()),
   }),
 })
 
 export const CustomerSchema = v.object({
   ...CreateCustomerSchema.entries,
-  id: v.string(),
+  logto_id: v.string(),
+  suspended_at: v.optional(v.string()),
 })
 
 export type CreateCustomer = v.InferOutput<typeof CreateCustomerSchema>
@@ -64,7 +66,7 @@ export const postCustomer = (customer: CreateCustomer) => {
 export const putCustomer = (customer: Customer) => {
   const loginStore = useLoginStore()
 
-  return axios.put(`${API_URL}/customers/${customer.id}`, customer, {
+  return axios.put(`${API_URL}/customers/${customer.logto_id}`, customer, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
@@ -72,7 +74,7 @@ export const putCustomer = (customer: Customer) => {
 export const deleteCustomer = (customer: Customer) => {
   const loginStore = useLoginStore()
 
-  return axios.delete(`${API_URL}/customers/${customer.id}`, {
+  return axios.delete(`${API_URL}/customers/${customer.logto_id}`, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
@@ -85,4 +87,28 @@ export const getCustomersTotal = () => {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data.total as number)
+}
+
+export const suspendCustomer = (customer: Customer) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/customers/${customer.logto_id}/suspend`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
+export const reactivateCustomer = (customer: Customer) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/customers/${customer.logto_id}/reactivate`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
 }

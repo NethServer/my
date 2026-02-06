@@ -65,6 +65,16 @@ const router = createRouter({
       name: 'system_detail',
       component: () => import('../views/SystemDetailView.vue'),
     },
+    {
+      path: '/applications',
+      name: 'applications',
+      component: () => import('../views/ApplicationsView.vue'),
+    },
+    // { ////
+    //   path: '/applications/:applicationId',
+    //   name: 'application_detail',
+    //   component: () => import('../views/ApplicationDetailView.vue'),
+    // },
   ],
 })
 

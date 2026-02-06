@@ -74,7 +74,7 @@ async function exportSystems(format: 'pdf' | 'csv') {
     const fileName = `${t('systems.title')}.${format}`
     downloadFile(exportData, fileName, format)
   } catch (error) {
-    console.error('Cannot export systems to pdf:', error)
+    console.error(`Cannot export systems to ${format}:`, error)
     throw error
   }
 }
@@ -113,7 +113,7 @@ async function exportSystems(format: 'pdf' | 'csv') {
         </NeDropdown>
         <!-- create system -->
         <NeButton
-          v-if="canManageSystems()"
+          v-if="canManageSystems() && (systemsPage?.length || debouncedTextFilter)"
           kind="primary"
           size="lg"
           class="shrink-0"

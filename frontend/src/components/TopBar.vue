@@ -12,6 +12,7 @@ import {
   faBars,
   faBell,
   faChevronDown,
+  faCircleQuestion,
   faCircleUser,
   faMoon,
   faRightFromBracket,
@@ -109,10 +110,10 @@ function openNotificationsDrawer() {
         />
 
         <!-- help -->
-        <!-- <NeTooltip trigger-event="mouseenter focus" placement="bottom">
+        <NeTooltip trigger-event="mouseenter focus" placement="bottom">
           <template #trigger>
             <a
-              href="https://docs.nethsecurity.org/"
+              href="https://nethserver.github.io/my/"
               target="_blank"
               rel="noreferrer"
               :class="['-m-2.5 flex items-center gap-3 p-2.5', topBarButtonsColorClasses]"
@@ -127,7 +128,7 @@ function openNotificationsDrawer() {
           <template #content>
             {{ $t('shell.help') }}
           </template>
-        </NeTooltip> //// -->
+        </NeTooltip>
 
         <!-- toggle theme -->
         <NeTooltip trigger-event="mouseenter focus" placement="bottom">
