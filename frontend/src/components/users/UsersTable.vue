@@ -196,7 +196,7 @@ function getKebabMenuItems(user: User) {
   let items: NeDropdownItem[] = []
 
   // Add impersonate option for owners, but not for self
-  if (canImpersonateUsers() && user.id !== loginStore.userInfo?.id) {
+  if (canImpersonateUsers() && user.logto_id !== loginStore.userInfo?.logto_id) {
     items = [
       ...items,
       {
