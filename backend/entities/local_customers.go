@@ -273,10 +273,11 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 		countArgs = []interface{}{search}
 
 		query = fmt.Sprintf(`
-			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
-			FROM customers
-			WHERE deleted_at IS NULL%s AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%'))
+			SELECT c.id, c.logto_id, c.name, c.description,
+			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
+			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count
+			FROM customers c
+			WHERE c.deleted_at IS NULL%s AND (LOWER(c.name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $1 || '%%'))
 			%s
 			LIMIT $2 OFFSET $3
 		`, statusClause, orderClause)
@@ -287,10 +288,11 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 		countArgs = []interface{}{}
 
 		query = fmt.Sprintf(`
-			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
-			FROM customers
-			WHERE deleted_at IS NULL%s
+			SELECT c.id, c.logto_id, c.name, c.description,
+			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
+			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count
+			FROM customers c
+			WHERE c.deleted_at IS NULL%s
 			%s
 			LIMIT $1 OFFSET $2
 		`, statusClause, orderClause)
@@ -348,16 +350,17 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 		countArgs = []interface{}{userOrgID, search}
 
 		query = fmt.Sprintf(`
-			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
-			FROM customers
-			WHERE deleted_at IS NULL AND (
-				custom_data->>'createdBy' = $1 OR
-				custom_data->>'createdBy' IN (
+			SELECT c.id, c.logto_id, c.name, c.description,
+			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
+			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count
+			FROM customers c
+			WHERE c.deleted_at IS NULL AND (
+				c.custom_data->>'createdBy' = $1 OR
+				c.custom_data->>'createdBy' IN (
 					SELECT logto_id FROM resellers
 					WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 				)
-			)%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))
+			)%s AND (LOWER(c.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $2 || '%%'))
 			%s
 			LIMIT $3 OFFSET $4
 		`, statusClause, orderClause)
@@ -376,12 +379,13 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 		countArgs = []interface{}{userOrgID}
 
 		query = fmt.Sprintf(`
-			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
-			FROM customers
-			WHERE deleted_at IS NULL AND (
-				custom_data->>'createdBy' = $1 OR
-				custom_data->>'createdBy' IN (
+			SELECT c.id, c.logto_id, c.name, c.description,
+			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
+			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count
+			FROM customers c
+			WHERE c.deleted_at IS NULL AND (
+				c.custom_data->>'createdBy' = $1 OR
+				c.custom_data->>'createdBy' IN (
 					SELECT logto_id FROM resellers
 					WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 				)
@@ -435,10 +439,11 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 		countArgs = []interface{}{userOrgID, search}
 
 		query = fmt.Sprintf(`
-			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
-			FROM customers
-			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))
+			SELECT c.id, c.logto_id, c.name, c.description,
+			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
+			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count
+			FROM customers c
+			WHERE c.deleted_at IS NULL AND c.custom_data->>'createdBy' = $1%s AND (LOWER(c.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $2 || '%%'))
 			%s
 			LIMIT $3 OFFSET $4
 		`, statusClause, orderClause)
@@ -449,10 +454,11 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 		countArgs = []interface{}{userOrgID}
 
 		query = fmt.Sprintf(`
-			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
-			FROM customers
-			WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1%s
+			SELECT c.id, c.logto_id, c.name, c.description,
+			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
+			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count
+			FROM customers c
+			WHERE c.deleted_at IS NULL AND c.custom_data->>'createdBy' = $1%s
 			%s
 			LIMIT $2 OFFSET $3
 		`, statusClause, orderClause)
@@ -506,10 +512,11 @@ func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSi
 		countArgs = []interface{}{userOrgID, search}
 
 		query = fmt.Sprintf(`
-			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
-			FROM customers
-			WHERE id = $1 AND deleted_at IS NULL%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))
+			SELECT c.id, c.logto_id, c.name, c.description,
+			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
+			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count
+			FROM customers c
+			WHERE c.id = $1 AND c.deleted_at IS NULL%s AND (LOWER(c.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $2 || '%%'))
 			%s
 			LIMIT $3 OFFSET $4
 		`, statusClause, orderClause)
@@ -520,10 +527,11 @@ func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSi
 		countArgs = []interface{}{userOrgID}
 
 		query = fmt.Sprintf(`
-			SELECT id, logto_id, name, description,
-			       custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
-			FROM customers
-			WHERE id = $1 AND deleted_at IS NULL%s
+			SELECT c.id, c.logto_id, c.name, c.description,
+			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
+			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count
+			FROM customers c
+			WHERE c.id = $1 AND c.deleted_at IS NULL%s
 			%s
 			LIMIT $2 OFFSET $3
 		`, statusClause, orderClause)
@@ -560,12 +568,14 @@ func (r *LocalCustomerRepository) executeCustomerQuery(countQuery string, countA
 	for rows.Next() {
 		customer := &models.LocalCustomer{}
 		var customDataJSON []byte
+		var systemsCount int
 
 		err := rows.Scan(
 			&customer.ID, &customer.LogtoID, &customer.Name, &customer.Description,
 			&customDataJSON, &customer.CreatedAt, &customer.UpdatedAt,
 			&customer.LogtoSyncedAt, &customer.LogtoSyncError, &customer.DeletedAt,
 			&customer.SuspendedAt, &customer.SuspendedByOrgID,
+			&systemsCount,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan customer: %w", err)
@@ -579,6 +589,8 @@ func (r *LocalCustomerRepository) executeCustomerQuery(countQuery string, countA
 		} else {
 			customer.CustomData = make(map[string]interface{})
 		}
+
+		customer.SystemsCount = &systemsCount
 
 		customers = append(customers, customer)
 	}

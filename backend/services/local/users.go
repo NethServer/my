@@ -331,7 +331,7 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, create
 
 			// Get enriched user data using existing repository logic
 			userRepo := entities.NewLocalUserRepository()
-			user, err := userRepo.GetByID(user.ID)
+			enrichedUser, err := userRepo.GetByID(user.ID)
 			if err != nil {
 				logger.Error().
 					Err(err).
@@ -345,24 +345,24 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, create
 			// Extract organization data from enriched user object
 			orgName := "the organization" // fallback
 			orgType := ""
-			if user.Organization != nil {
-				if user.Organization.Name != "" {
-					orgName = user.Organization.Name
+			if enrichedUser.Organization != nil {
+				if enrichedUser.Organization.Name != "" {
+					orgName = enrichedUser.Organization.Name
 				}
 				// Determine organization type from the organization ID
-				orgType = s.determineOrganizationRoleName(user.Organization.LogtoID)
+				orgType = s.determineOrganizationRoleName(enrichedUser.Organization.LogtoID)
 			}
 
 			// Extract user roles data from enriched user object
-			userRoles := make([]string, len(user.Roles))
-			for i, role := range user.Roles {
+			userRoles := make([]string, len(enrichedUser.Roles))
+			for i, role := range enrichedUser.Roles {
 				userRoles[i] = role.Name
 			}
 
 			// Send welcome email using existing method
 			err = welcomeService.SendWelcomeEmail(
-				user.Email,
-				user.Name,
+				enrichedUser.Email,
+				enrichedUser.Name,
 				orgName,
 				orgType,
 				userRoles,
@@ -372,16 +372,16 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, create
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Str("user_id", user.ID).
-					Str("username", user.Username).
+					Str("user_id", enrichedUser.ID).
+					Str("username", enrichedUser.Username).
 					Str("email", req.Email).
 					Str("organization_name", orgName).
 					Strs("user_roles", userRoles).
 					Msg("Failed to send welcome email to user")
 			} else {
 				logger.Info().
-					Str("user_id", user.ID).
-					Str("username", user.Username).
+					Str("user_id", enrichedUser.ID).
+					Str("username", enrichedUser.Username).
 					Str("email", req.Email).
 					Str("organization_name", orgName).
 					Strs("user_roles", userRoles).

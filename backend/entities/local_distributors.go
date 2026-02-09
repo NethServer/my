@@ -263,10 +263,15 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 		countArgs = []interface{}{search}
 
 		query = fmt.Sprintf(`
-			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
-			       logto_synced_at, logto_sync_error, deleted_at, suspended_at
-			FROM distributors
-			WHERE deleted_at IS NULL%s AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%'))
+			SELECT d.id, d.logto_id, d.name, d.description, d.custom_data, d.created_at, d.updated_at,
+			       d.logto_synced_at, d.logto_sync_error, d.deleted_at, d.suspended_at,
+			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = d.logto_id AND s.deleted_at IS NULL) as systems_count,
+			       (SELECT COUNT(*) FROM resellers r WHERE r.custom_data->>'createdBy' = d.logto_id AND r.deleted_at IS NULL) as resellers_count,
+			       (SELECT COUNT(*) FROM customers c WHERE c.deleted_at IS NULL AND EXISTS (
+			           SELECT 1 FROM resellers r WHERE r.logto_id = c.custom_data->>'createdBy' AND r.custom_data->>'createdBy' = d.logto_id AND r.deleted_at IS NULL
+			       )) as customers_count
+			FROM distributors d
+			WHERE d.deleted_at IS NULL%s AND (LOWER(d.name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(d.description) LIKE LOWER('%%' || $1 || '%%'))
 			%s
 			LIMIT $2 OFFSET $3
 		`, statusClause, orderClause)
@@ -277,10 +282,15 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 		countArgs = []interface{}{}
 
 		query = fmt.Sprintf(`
-			SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
-			       logto_synced_at, logto_sync_error, deleted_at, suspended_at
-			FROM distributors
-			WHERE deleted_at IS NULL%s
+			SELECT d.id, d.logto_id, d.name, d.description, d.custom_data, d.created_at, d.updated_at,
+			       d.logto_synced_at, d.logto_sync_error, d.deleted_at, d.suspended_at,
+			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = d.logto_id AND s.deleted_at IS NULL) as systems_count,
+			       (SELECT COUNT(*) FROM resellers r WHERE r.custom_data->>'createdBy' = d.logto_id AND r.deleted_at IS NULL) as resellers_count,
+			       (SELECT COUNT(*) FROM customers c WHERE c.deleted_at IS NULL AND EXISTS (
+			           SELECT 1 FROM resellers r WHERE r.logto_id = c.custom_data->>'createdBy' AND r.custom_data->>'createdBy' = d.logto_id AND r.deleted_at IS NULL
+			       )) as customers_count
+			FROM distributors d
+			WHERE d.deleted_at IS NULL%s
 			%s
 			LIMIT $1 OFFSET $2
 		`, statusClause, orderClause)
@@ -312,12 +322,14 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 	for rows.Next() {
 		distributor := &models.LocalDistributor{}
 		var customDataJSON []byte
+		var systemsCount, resellersCount, customersCount int
 
 		err := rows.Scan(
 			&distributor.ID, &distributor.LogtoID, &distributor.Name, &distributor.Description,
 			&customDataJSON, &distributor.CreatedAt, &distributor.UpdatedAt,
 			&distributor.LogtoSyncedAt, &distributor.LogtoSyncError, &distributor.DeletedAt,
 			&distributor.SuspendedAt,
+			&systemsCount, &resellersCount, &customersCount,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan distributor: %w", err)
@@ -331,6 +343,10 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 		} else {
 			distributor.CustomData = make(map[string]interface{})
 		}
+
+		distributor.SystemsCount = &systemsCount
+		distributor.ResellersCount = &resellersCount
+		distributor.CustomersCount = &customersCount
 
 		distributors = append(distributors, distributor)
 	}
