@@ -283,6 +283,8 @@ async function saveReseller() {
             validationIssues.description?.[0] ? $t(validationIssues.description[0]) : ''
           "
           :disabled="saving"
+          :optional="true"
+          :optional-label="t('common.optional')"
         />
         <!-- VAT number -->
         <NeTextInput

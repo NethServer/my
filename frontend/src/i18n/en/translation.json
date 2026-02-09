@@ -94,7 +94,7 @@
     "cannot_save_distributor": "Cannot save distributor",
     "cannot_delete_distributor": "Cannot delete distributor",
     "delete_distributor": "Delete distributor",
-    "delete_distributor_confirmation": "Are you sure you want to delete distributor {name}? All users associated with this organization will also be deleted. This action cannot be undone.",
+    "delete_distributor_confirmation": "Are you sure you want to delete distributor {name}? All users and systems associated with this organization will also be deleted. This action cannot be undone.",
     "no_distributor": "No distributors",
     "export_distributors_to_pdf": "Export distributors to PDF",
     "export_distributors_to_csv": "Export distributors to CSV"
@@ -115,7 +115,7 @@
     "cannot_save_reseller": "Cannot save reseller",
     "cannot_delete_reseller": "Cannot delete reseller",
     "delete_reseller": "Delete reseller",
-    "delete_reseller_confirmation": "Are you sure you want to delete reseller {name}? All users associated with this organization will also be deleted. This action cannot be undone.",
+    "delete_reseller_confirmation": "Are you sure you want to delete reseller {name}? All users and systems associated with this organization will also be deleted. This action cannot be undone.",
     "no_reseller": "No resellers"
   },
   "customers": {
@@ -134,7 +134,7 @@
     "cannot_save_customer": "Cannot save customer",
     "cannot_delete_customer": "Cannot delete customer",
     "delete_customer": "Delete customer",
-    "delete_customer_confirmation": "Are you sure you want to delete customer {name}? All users associated with this organization will also be deleted. This action cannot be undone.",
+    "delete_customer_confirmation": "Are you sure you want to delete customer {name}? All users and systems associated with this organization will also be deleted. This action cannot be undone.",
     "no_customer": "No customers"
   },
   "organizations": {
@@ -533,5 +533,9 @@
     "minutes": "{count} minute | {count} minutes",
     "hours": "{count} hour | {count} hours",
     "days": "{count} day | {count} days"
+  },
+  "delete_object_modal": {
+    "type_to_confirm_deletion": "Type '{confirmationText}' to confirm deletion",
+    "confirmation_text_does_not_match": "Enter '{confirmationText}' to confirm deletion"
   }
 }
