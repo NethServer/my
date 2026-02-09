@@ -4,12 +4,11 @@
 -->
 
 <script setup lang="ts">
-import { NeInlineNotification } from '@nethesis/vue-components'
-import { NeModal } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { deleteUser, USERS_KEY, USERS_TOTAL_KEY, type User } from '@/lib/users'
 import { useNotificationsStore } from '@/stores/notifications'
+import DeleteObjectModal from '../DeleteObjectModal.vue'
 
 const { visible = false, user = undefined } = defineProps<{
   visible: boolean
@@ -61,29 +60,16 @@ function onShow() {
 </script>
 
 <template>
-  <NeModal
+  <DeleteObjectModal
     :visible="visible"
     :title="$t('users.delete_user')"
-    kind="warning"
-    :primary-label="$t('common.delete')"
-    :cancel-label="$t('common.cancel')"
-    primary-button-kind="danger"
-    :primary-button-disabled="deleteAccountLoading"
-    :primary-button-loading="deleteAccountLoading"
-    :close-aria-label="$t('common.close')"
+    :deleting="deleteAccountLoading"
+    :confirmation-message="t('users.delete_user_confirmation', { name: user?.name })"
+    :confirmation-input="user?.name"
+    :error-title="t('users.cannot_delete_user')"
+    :error-description="deleteAccountError?.message"
+    @show="onShow"
     @close="emit('close')"
     @primary-click="deleteAccountMutate(user!)"
-    @show="onShow"
-  >
-    <p>
-      {{ t('users.delete_user_confirmation', { name: user?.name }) }}
-    </p>
-    <NeInlineNotification
-      v-if="deleteAccountError?.message"
-      kind="error"
-      :title="t('users.cannot_delete_user')"
-      :description="deleteAccountError.message"
-      class="mt-4"
-    />
-  </NeModal>
+  />
 </template>
