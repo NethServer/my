@@ -155,7 +155,7 @@ const isNoDataEmptyStateShown = computed(() => {
 })
 
 const isNoMatchEmptyStateShown = computed(() => {
-  return !applicationsPage.value?.length && !!isFiltered.value
+  return !applicationsPage.value?.length && state.value.status === 'success' && !!isFiltered.value
 })
 
 const noEmptyStateShown = computed(() => {
