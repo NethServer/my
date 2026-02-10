@@ -2,7 +2,13 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import { MIN_SEARCH_LENGTH } from '@/lib/common'
-import { CUSTOMERS_KEY, CUSTOMERS_TABLE_ID, getCustomers, type Customer } from '@/lib/customers'
+import {
+  CUSTOMERS_KEY,
+  CUSTOMERS_TABLE_ID,
+  getCustomers,
+  type Customer,
+  type CustomerStatus,
+} from '@/lib/customers'
 import { canReadCustomers } from '@/lib/permissions'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
@@ -16,6 +22,7 @@ export const useCustomers = defineQuery(() => {
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
+  const statusFilter = ref<CustomerStatus[]>(['enabled', 'suspended'])
   const sortBy = ref<keyof Customer>('name')
   const sortDescending = ref(false)
 
@@ -26,6 +33,7 @@ export const useCustomers = defineQuery(() => {
         pageNum: pageNum.value,
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
+        statusFilter: statusFilter.value,
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
@@ -36,6 +44,7 @@ export const useCustomers = defineQuery(() => {
         pageNum.value,
         pageSize.value,
         debouncedTextFilter.value,
+        statusFilter.value,
         sortBy.value,
         sortDescending.value,
       ),
@@ -81,6 +90,7 @@ export const useCustomers = defineQuery(() => {
     pageSize,
     textFilter,
     debouncedTextFilter,
+    statusFilter,
     sortBy,
     sortDescending,
   }
