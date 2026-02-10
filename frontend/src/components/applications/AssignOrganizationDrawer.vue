@@ -76,6 +76,7 @@ const {
   },
 })
 
+//// defineQuery! asdf
 const { state: organizations } = useQuery({
   key: [ORGANIZATIONS_KEY],
   enabled: () => !!loginStore.jwtToken && isShown,
