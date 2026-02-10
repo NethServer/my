@@ -7,6 +7,7 @@ import {
   DISTRIBUTORS_TABLE_ID,
   getDistributors,
   type Distributor,
+  type DistributorStatus,
 } from '@/lib/distributors'
 import { canReadDistributors } from '@/lib/permissions'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
@@ -21,6 +22,7 @@ export const useDistributors = defineQuery(() => {
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
+  const statusFilter = ref<DistributorStatus[]>(['any'])
   const sortBy = ref<keyof Distributor>('name')
   const sortDescending = ref(false)
 
@@ -31,6 +33,7 @@ export const useDistributors = defineQuery(() => {
         pageNum: pageNum.value,
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
+        statusFilter: statusFilter.value,
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
@@ -41,6 +44,7 @@ export const useDistributors = defineQuery(() => {
         pageNum.value,
         pageSize.value,
         debouncedTextFilter.value,
+        statusFilter.value,
         sortBy.value,
         sortDescending.value,
       ),
@@ -86,6 +90,7 @@ export const useDistributors = defineQuery(() => {
     pageSize,
     textFilter,
     debouncedTextFilter,
+    statusFilter,
     sortBy,
     sortDescending,
   }

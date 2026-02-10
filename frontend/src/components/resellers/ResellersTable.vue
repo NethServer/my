@@ -75,14 +75,24 @@ const pagination = computed(() => {
   return state.value.data?.pagination
 })
 
+const areDefaultFiltersApplied = computed(() => {
+  return !debouncedTextFilter.value
+})
+
 const isNoDataEmptyStateShown = computed(() => {
   return (
-    !resellersPage.value?.length && !debouncedTextFilter.value && state.value.status === 'success'
+    !resellersPage.value?.length &&
+    state.value.status === 'success' &&
+    areDefaultFiltersApplied.value
   )
 })
 
 const isNoMatchEmptyStateShown = computed(() => {
-  return !resellersPage.value?.length && !!debouncedTextFilter.value
+  return (
+    !resellersPage.value?.length &&
+    state.value.status === 'success' &&
+    !areDefaultFiltersApplied.value
+  )
 })
 
 const noEmptyStateShown = computed(() => {

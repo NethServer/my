@@ -5,11 +5,13 @@ import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
-import { getQueryStringParams, type Pagination } from './common'
+import { type Pagination } from './common'
 
 export const DISTRIBUTORS_KEY = 'distributors'
 export const DISTRIBUTORS_TOTAL_KEY = 'distributorsTotal'
 export const DISTRIBUTORS_TABLE_ID = 'distributorsTable'
+
+export type DistributorStatus = 'any' | 'enabled' | 'suspended'
 
 export const CreateDistributorSchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty('organizations.name_cannot_be_empty')),
@@ -38,15 +40,50 @@ interface DistributorsResponse {
   }
 }
 
+export const getQueryStringParams = (
+  pageNum: number,
+  pageSize: number,
+  textFilter: string | null,
+  statusFilter: DistributorStatus[],
+  sortBy: string | null,
+  sortDescending: boolean,
+) => {
+  const searchParams = new URLSearchParams({
+    page: pageNum.toString(),
+    page_size: pageSize.toString(),
+    sort_by: sortBy || '',
+    sort_direction: sortDescending ? 'desc' : 'asc',
+  })
+
+  if (textFilter?.trim()) {
+    searchParams.append('search', textFilter)
+  }
+
+  statusFilter.forEach((status) => {
+    if (status !== 'any') {
+      searchParams.append('status', status)
+    }
+  })
+  return searchParams.toString()
+}
+
 export const getDistributors = (
   pageNum: number,
   pageSize: number,
   textFilter: string,
+  statusFilter: DistributorStatus[],
   sortBy: string,
   sortDescending: boolean,
 ) => {
   const loginStore = useLoginStore()
-  const params = getQueryStringParams(pageNum, pageSize, textFilter, sortBy, sortDescending)
+  const params = getQueryStringParams(
+    pageNum,
+    pageSize,
+    textFilter,
+    statusFilter,
+    sortBy,
+    sortDescending,
+  )
 
   return axios
     .get<DistributorsResponse>(`${API_URL}/distributors?${params}`, {
