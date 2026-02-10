@@ -14,6 +14,8 @@ import {
   faCirclePause,
   faCirclePlay,
   faCircleCheck,
+  faCircleXmark,
+  faRotateLeft,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -32,6 +34,8 @@ import {
   NeDropdown,
   type SortEvent,
   NeSortDropdown,
+  NeDropdownFilter,
+  type FilterOption,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import CreateOrEditResellerDrawer from './CreateOrEditResellerDrawer.vue'
@@ -39,6 +43,7 @@ import { useI18n } from 'vue-i18n'
 import DeleteResellerModal from './DeleteResellerModal.vue'
 import SuspendResellerModal from './SuspendResellerModal.vue'
 import ReactivateResellerModal from './ReactivateResellerModal.vue'
+import RestoreResellerModal from './RestoreResellerModal.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useResellers } from '@/queries/resellers'
 import { canManageResellers } from '@/lib/permissions'
@@ -57,6 +62,7 @@ const {
   pageSize,
   textFilter,
   debouncedTextFilter,
+  statusFilter,
   sortBy,
   sortDescending,
 } = useResellers()
@@ -66,6 +72,22 @@ const isShownCreateOrEditResellerDrawer = ref(false)
 const isShownDeleteResellerDrawer = ref(false)
 const isShownSuspendResellerModal = ref(false)
 const isShownReactivateResellerModal = ref(false)
+const isShownRestoreResellerModal = ref(false)
+
+const statusFilterOptions = ref<FilterOption[]>([
+  {
+    id: 'enabled',
+    label: t('common.enabled'),
+  },
+  {
+    id: 'suspended',
+    label: t('common.suspended'),
+  },
+  {
+    id: 'deleted',
+    label: t('common.deleted'),
+  },
+])
 
 const resellersPage = computed(() => {
   return state.value.data?.resellers
@@ -76,7 +98,13 @@ const pagination = computed(() => {
 })
 
 const areDefaultFiltersApplied = computed(() => {
-  return !debouncedTextFilter.value
+  return (
+    !debouncedTextFilter.value &&
+    statusFilter.value.length === 2 &&
+    statusFilter.value.includes('enabled') &&
+    statusFilter.value.includes('suspended') &&
+    !statusFilter.value.includes('deleted')
+  )
 })
 
 const isNoDataEmptyStateShown = computed(() => {
@@ -109,8 +137,9 @@ watch(
   { immediate: true },
 )
 
-function clearFilters() {
+function resetFilters() {
   textFilter.value = ''
+  statusFilter.value = ['enabled', 'suspended']
 }
 
 function showCreateResellerDrawer() {
@@ -126,6 +155,11 @@ function showEditResellerDrawer(reseller: Reseller) {
 function showDeleteResellerDrawer(reseller: Reseller) {
   currentReseller.value = reseller
   isShownDeleteResellerDrawer.value = true
+}
+
+function showRestoreResellerModal(reseller: Reseller) {
+  currentReseller.value = reseller
+  isShownRestoreResellerModal.value = true
 }
 
 function showSuspendResellerModal(reseller: Reseller) {
@@ -155,6 +189,14 @@ function getKebabMenuItems(reseller: Reseller) {
         action: () => showReactivateResellerModal(reseller),
         disabled: asyncStatus.value === 'loading',
       })
+    } else if (reseller.deleted_at) {
+      items.push({
+        id: 'restoreReseller',
+        label: t('common.restore'),
+        icon: faRotateLeft,
+        action: () => showRestoreResellerModal(reseller),
+        disabled: asyncStatus.value === 'loading',
+      })
     } else {
       items.push({
         id: 'suspendReseller',
@@ -163,16 +205,16 @@ function getKebabMenuItems(reseller: Reseller) {
         action: () => showSuspendResellerModal(reseller),
         disabled: asyncStatus.value === 'loading',
       })
-    }
 
-    items.push({
-      id: 'deleteReseller',
-      label: t('common.delete'),
-      icon: faTrash,
-      danger: true,
-      action: () => showDeleteResellerDrawer(reseller),
-      disabled: asyncStatus.value === 'loading',
-    })
+      items.push({
+        id: 'deleteReseller',
+        label: t('common.delete'),
+        icon: faTrash,
+        danger: true,
+        action: () => showDeleteResellerDrawer(reseller),
+        disabled: asyncStatus.value === 'loading',
+      })
+    }
   }
   return items
 }
@@ -227,6 +269,19 @@ const onSort = (payload: SortEvent) => {
               :placeholder="$t('resellers.filter_resellers')"
               class="max-w-48 sm:max-w-sm"
             />
+            <!-- status filter -->
+            <NeDropdownFilter
+              v-model="statusFilter"
+              kind="checkbox"
+              :label="t('common.status')"
+              :options="statusFilterOptions"
+              :show-clear-filter="false"
+              :clear-filter-label="t('ne_dropdown_filter.reset_filter')"
+              :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+              :no-options-label="t('ne_dropdown_filter.no_options')"
+              :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+              :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            />
             <NeSortDropdown
               v-model:sort-key="sortBy"
               v-model:sort-descending="sortDescending"
@@ -242,6 +297,9 @@ const onSort = (payload: SortEvent) => {
               :ascending-label="t('sort.ascending')"
               :descending-label="t('sort.descending')"
             />
+            <NeButton kind="tertiary" @click="resetFilters">
+              {{ t('common.reset_filters') }}
+            </NeButton>
           </div>
           <!-- update indicator -->
           <div
@@ -263,7 +321,9 @@ const onSort = (payload: SortEvent) => {
         :icon="faCircleInfo"
         class="bg-white dark:bg-gray-950"
       >
-        <NeButton kind="tertiary" @click="clearFilters"> {{ $t('common.clear_filters') }}</NeButton>
+        <NeButton kind="tertiary" @click="resetFilters">
+          {{ $t('common.reset_filters') }}
+        </NeButton>
       </NeEmptyState>
       <NeTable
         v-if="noEmptyStateShown"
@@ -299,7 +359,17 @@ const onSort = (payload: SortEvent) => {
             </NeTableCell>
             <NeTableCell :data-label="$t('common.status')">
               <div class="flex items-center gap-2">
-                <template v-if="item.suspended_at">
+                <template v-if="item.deleted_at">
+                  <FontAwesomeIcon
+                    :icon="faCircleXmark"
+                    class="size-4 text-rose-700 dark:text-rose-500"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {{ t('common.deleted') }}
+                  </span>
+                </template>
+                <template v-else-if="item.suspended_at">
                   <FontAwesomeIcon
                     :icon="faCirclePause"
                     class="size-4 text-gray-700 dark:text-gray-400"
@@ -324,6 +394,7 @@ const onSort = (payload: SortEvent) => {
             <NeTableCell :data-label="$t('common.actions')">
               <div v-if="canManageResellers()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
                 <NeButton
+                  v-if="!item.deleted_at"
                   kind="tertiary"
                   @click="showEditResellerDrawer(item)"
                   :disabled="asyncStatus === 'loading'"
@@ -388,6 +459,12 @@ const onSort = (payload: SortEvent) => {
       :visible="isShownReactivateResellerModal"
       :reseller="currentReseller"
       @close="isShownReactivateResellerModal = false"
+    />
+    <!-- restore reseller modal -->
+    <RestoreResellerModal
+      :visible="isShownRestoreResellerModal"
+      :reseller="currentReseller"
+      @close="isShownRestoreResellerModal = false"
     />
   </div>
 </template>

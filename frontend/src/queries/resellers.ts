@@ -3,7 +3,13 @@
 
 import { MIN_SEARCH_LENGTH } from '@/lib/common'
 import { canReadResellers } from '@/lib/permissions'
-import { getResellers, RESELLERS_KEY, RESELLERS_TABLE_ID, type Reseller } from '@/lib/resellers'
+import {
+  getResellers,
+  RESELLERS_KEY,
+  RESELLERS_TABLE_ID,
+  type Reseller,
+  type ResellerStatus,
+} from '@/lib/resellers'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
@@ -16,6 +22,7 @@ export const useResellers = defineQuery(() => {
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
+  const statusFilter = ref<ResellerStatus[]>(['enabled', 'suspended'])
   const sortBy = ref<keyof Reseller>('name')
   const sortDescending = ref(false)
 
@@ -26,6 +33,7 @@ export const useResellers = defineQuery(() => {
         pageNum: pageNum.value,
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
+        statusFilter: statusFilter.value,
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
@@ -36,6 +44,7 @@ export const useResellers = defineQuery(() => {
         pageNum.value,
         pageSize.value,
         debouncedTextFilter.value,
+        statusFilter.value,
         sortBy.value,
         sortDescending.value,
       ),
@@ -81,6 +90,7 @@ export const useResellers = defineQuery(() => {
     pageSize,
     textFilter,
     debouncedTextFilter,
+    statusFilter,
     sortBy,
     sortDescending,
   }

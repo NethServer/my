@@ -5,11 +5,13 @@ import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
-import { getQueryStringParams, type Pagination } from './common'
+import { type Pagination } from './common'
 
 export const RESELLERS_KEY = 'resellers'
 export const RESELLERS_TOTAL_KEY = 'resellersTotal'
 export const RESELLERS_TABLE_ID = 'resellersTable'
+
+export type ResellerStatus = 'enabled' | 'suspended' | 'deleted'
 
 export const CreateResellerSchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty('organizations.name_cannot_be_empty')),
@@ -24,6 +26,7 @@ export const ResellerSchema = v.object({
   ...CreateResellerSchema.entries,
   logto_id: v.string(),
   suspended_at: v.optional(v.string()),
+  deleted_at: v.optional(v.string()),
 })
 
 export type CreateReseller = v.InferOutput<typeof CreateResellerSchema>
@@ -38,15 +41,49 @@ interface ResellersResponse {
   }
 }
 
+export const getQueryStringParams = (
+  pageNum: number,
+  pageSize: number,
+  textFilter: string | null,
+  statusFilter: ResellerStatus[],
+  sortBy: string | null,
+  sortDescending: boolean,
+) => {
+  const searchParams = new URLSearchParams({
+    page: pageNum.toString(),
+    page_size: pageSize.toString(),
+    sort_by: sortBy || '',
+    sort_direction: sortDescending ? 'desc' : 'asc',
+  })
+
+  if (textFilter?.trim()) {
+    searchParams.append('search', textFilter)
+  }
+
+  statusFilter.forEach((status) => {
+    searchParams.append('status', status)
+  })
+
+  return searchParams.toString()
+}
+
 export const getResellers = (
   pageNum: number,
   pageSize: number,
   textFilter: string,
+  statusFilter: ResellerStatus[],
   sortBy: string,
   sortDescending: boolean,
 ) => {
   const loginStore = useLoginStore()
-  const params = getQueryStringParams(pageNum, pageSize, textFilter, sortBy, sortDescending)
+  const params = getQueryStringParams(
+    pageNum,
+    pageSize,
+    textFilter,
+    statusFilter,
+    sortBy,
+    sortDescending,
+  )
 
   return axios
     .get<ResellersResponse>(`${API_URL}/resellers?${params}`, {
@@ -106,6 +143,18 @@ export const reactivateReseller = (reseller: Reseller) => {
 
   return axios.patch(
     `${API_URL}/resellers/${reseller.logto_id}/reactivate`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
+export const restoreReseller = (reseller: Reseller) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/resellers/${reseller.logto_id}/restore`,
     {},
     {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
