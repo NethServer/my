@@ -4,13 +4,12 @@
 -->
 
 <script setup lang="ts">
-import { NeInlineNotification } from '@nethesis/vue-components'
-import { NeModal } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { deleteSystem, SYSTEMS_KEY, SYSTEMS_TOTAL_KEY, type System } from '@/lib/systems/systems'
 import { useNotificationsStore } from '@/stores/notifications'
 import { SYSTEM_ORGANIZATION_FILTER_KEY } from '@/lib/systems/organizationFilter'
+import DeleteObjectModal from '../DeleteObjectModal.vue'
 
 const { visible = false, system = undefined } = defineProps<{
   visible: boolean
@@ -63,29 +62,16 @@ function onShow() {
 </script>
 
 <template>
-  <NeModal
+  <DeleteObjectModal
     :visible="visible"
     :title="$t('systems.delete_system')"
-    kind="warning"
-    :primary-label="$t('common.delete')"
-    :cancel-label="$t('common.cancel')"
-    primary-button-kind="danger"
-    :primary-button-disabled="deleteSystemLoading"
-    :primary-button-loading="deleteSystemLoading"
-    :close-aria-label="$t('common.close')"
+    :deleting="deleteSystemLoading"
+    :confirmation-message="t('systems.delete_system_confirmation', { name: system?.name })"
+    :confirmation-input="system?.name"
+    :error-title="t('systems.cannot_delete_system')"
+    :error-description="deleteSystemError?.message"
+    @show="onShow"
     @close="emit('close')"
     @primary-click="deleteSystemMutate(system!)"
-    @show="onShow"
-  >
-    <p>
-      {{ t('systems.delete_system_confirmation', { name: system?.name }) }}
-    </p>
-    <NeInlineNotification
-      v-if="deleteSystemError?.message"
-      kind="error"
-      :title="t('systems.cannot_delete_system')"
-      :description="deleteSystemError.message"
-      class="mt-4"
-    />
-  </NeModal>
+  />
 </template>
