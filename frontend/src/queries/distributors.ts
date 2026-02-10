@@ -22,7 +22,7 @@ export const useDistributors = defineQuery(() => {
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
-  const statusFilter = ref<DistributorStatus[]>(['any'])
+  const statusFilter = ref<DistributorStatus[]>(['enabled', 'suspended'])
   const sortBy = ref<keyof Distributor>('name')
   const sortDescending = ref(false)
 

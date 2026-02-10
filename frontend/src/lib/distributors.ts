@@ -11,7 +11,7 @@ export const DISTRIBUTORS_KEY = 'distributors'
 export const DISTRIBUTORS_TOTAL_KEY = 'distributorsTotal'
 export const DISTRIBUTORS_TABLE_ID = 'distributorsTable'
 
-export type DistributorStatus = 'any' | 'enabled' | 'suspended'
+export type DistributorStatus = 'enabled' | 'suspended' | 'deleted'
 
 export const CreateDistributorSchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty('organizations.name_cannot_be_empty')),
@@ -26,6 +26,7 @@ export const DistributorSchema = v.object({
   ...CreateDistributorSchema.entries,
   logto_id: v.string(),
   suspended_at: v.optional(v.string()),
+  deleted_at: v.optional(v.string()),
 })
 
 export type CreateDistributor = v.InferOutput<typeof CreateDistributorSchema>
@@ -60,9 +61,7 @@ export const getQueryStringParams = (
   }
 
   statusFilter.forEach((status) => {
-    if (status !== 'any') {
-      searchParams.append('status', status)
-    }
+    searchParams.append('status', status)
   })
   return searchParams.toString()
 }
@@ -143,6 +142,18 @@ export const reactivateDistributor = (distributor: Distributor) => {
 
   return axios.patch(
     `${API_URL}/distributors/${distributor.logto_id}/reactivate`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
+export const restoreDistributor = (distributor: Distributor) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/distributors/${distributor.logto_id}/restore`,
     {},
     {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
