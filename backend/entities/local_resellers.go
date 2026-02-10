@@ -257,7 +257,7 @@ func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, searc
 	switch status {
 	case "enabled":
 		statusClause = " AND suspended_at IS NULL"
-	case "blocked":
+	case "suspended":
 		statusClause = " AND suspended_at IS NOT NULL"
 	}
 
@@ -328,7 +328,7 @@ func (r *LocalResellerRepository) listForDistributor(userOrgID string, page, pag
 	switch status {
 	case "enabled":
 		statusClause = " AND suspended_at IS NULL"
-	case "blocked":
+	case "suspended":
 		statusClause = " AND suspended_at IS NOT NULL"
 	}
 

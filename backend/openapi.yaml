@@ -1755,11 +1755,11 @@ components:
     OrganizationStatusFilterParam:
       name: status
       in: query
-      description: Filter organizations by status (enabled = not suspended, blocked = suspended)
+      description: Filter organizations by status (enabled = not suspended, suspended = suspended)
       required: false
       schema:
         type: string
-        enum: ["enabled", "blocked"]
+        enum: ["enabled", "suspended"]
         example: "enabled"
 
     UserSortByParam:

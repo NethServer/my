@@ -249,7 +249,7 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 	switch status {
 	case "enabled":
 		statusClause = " AND suspended_at IS NULL"
-	case "blocked":
+	case "suspended":
 		statusClause = " AND suspended_at IS NOT NULL"
 	}
 
