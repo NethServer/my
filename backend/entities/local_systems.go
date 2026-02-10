@@ -264,15 +264,35 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		whereClause += fmt.Sprintf(" AND s.organization_id IN (%s)", strings.Join(orgPlaceholders, ","))
 	}
 
-	// Handle status filter (treat "deleted" as a normal status value)
-	if len(filterStatuses) > 0 {
-		statusPlaceholders := make([]string, len(filterStatuses))
-		baseIndex := len(args)
-		for i, s := range filterStatuses {
-			statusPlaceholders[i] = fmt.Sprintf("$%d", baseIndex+i+1)
-			args = append(args, s)
+	// Handle status filter (treat "deleted" as a normal status value, "suspended" as virtual status)
+	hasSuspendedFilter := false
+	var dbStatuses []string
+	for _, s := range filterStatuses {
+		if s == "suspended" {
+			hasSuspendedFilter = true
+		} else {
+			dbStatuses = append(dbStatuses, s)
 		}
-		whereClause += fmt.Sprintf(" AND s.status IN (%s)", strings.Join(statusPlaceholders, ","))
+	}
+
+	if len(dbStatuses) > 0 || hasSuspendedFilter {
+		var statusParts []string
+
+		if len(dbStatuses) > 0 {
+			statusPlaceholders := make([]string, len(dbStatuses))
+			baseIndex := len(args)
+			for i, s := range dbStatuses {
+				statusPlaceholders[i] = fmt.Sprintf("$%d", baseIndex+i+1)
+				args = append(args, s)
+			}
+			statusParts = append(statusParts, fmt.Sprintf("s.status IN (%s)", strings.Join(statusPlaceholders, ",")))
+		}
+
+		if hasSuspendedFilter {
+			statusParts = append(statusParts, "s.suspended_at IS NOT NULL")
+		}
+
+		whereClause += " AND (" + strings.Join(statusParts, " OR ") + ")"
 	}
 
 	// Get total count

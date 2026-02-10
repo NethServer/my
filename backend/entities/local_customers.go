@@ -216,25 +216,25 @@ func (r *LocalCustomerRepository) Reactivate(id string) error {
 }
 
 // List returns paginated list of customers visible to the user
-func (r *LocalCustomerRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection, status string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses []string) ([]*models.LocalCustomer, int, error) {
 	offset := (page - 1) * pageSize
 
 	switch userOrgRole {
 	case "owner":
-		return r.listForOwner(page, pageSize, offset, search, sortBy, sortDirection, status)
+		return r.listForOwner(page, pageSize, offset, search, sortBy, sortDirection, statuses)
 	case "distributor":
-		return r.listForDistributor(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, status)
+		return r.listForDistributor(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses)
 	case "reseller":
-		return r.listForReseller(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, status)
+		return r.listForReseller(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses)
 	case "customer":
-		return r.listForCustomer(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, status)
+		return r.listForCustomer(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses)
 	default:
 		return []*models.LocalCustomer{}, 0, nil
 	}
 }
 
 // listForOwner handles customer listing for owner role
-func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, search, sortBy, sortDirection, status string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, search, sortBy, sortDirection string, statuses []string) ([]*models.LocalCustomer, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
@@ -255,13 +255,29 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 		}
 	}
 
-	// Build status filter clause
+	// Build status filter clauses
+	hasDeletedFilter := false
+	var statusConditions []string
+	for _, s := range statuses {
+		switch strings.ToLower(s) {
+		case "enabled":
+			statusConditions = append(statusConditions, "(deleted_at IS NULL AND suspended_at IS NULL)")
+		case "suspended":
+			statusConditions = append(statusConditions, "(deleted_at IS NULL AND suspended_at IS NOT NULL)")
+		case "deleted":
+			hasDeletedFilter = true
+			statusConditions = append(statusConditions, "(deleted_at IS NOT NULL)")
+		}
+	}
+
+	deletedClause := " AND deleted_at IS NULL"
+	if hasDeletedFilter {
+		deletedClause = ""
+	}
+
 	statusClause := ""
-	switch status {
-	case "enabled":
-		statusClause = " AND suspended_at IS NULL"
-	case "suspended":
-		statusClause = " AND suspended_at IS NOT NULL"
+	if len(statusConditions) > 0 {
+		statusClause = " AND (" + strings.Join(statusConditions, " OR ") + ")"
 	}
 
 	var countQuery, query string
@@ -269,7 +285,7 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 
 	if search != "" {
 		// With search
-		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL%s AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%'))`, statusClause)
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE 1=1%s%s AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%'))`, deletedClause, statusClause)
 		countArgs = []interface{}{search}
 
 		query = fmt.Sprintf(`
@@ -277,14 +293,14 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
 			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count
 			FROM customers c
-			WHERE c.deleted_at IS NULL%s AND (LOWER(c.name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $1 || '%%'))
+			WHERE 1=1%s%s AND (LOWER(c.name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $1 || '%%'))
 			%s
 			LIMIT $2 OFFSET $3
-		`, statusClause, orderClause)
+		`, deletedClause, statusClause, orderClause)
 		queryArgs = []interface{}{search, pageSize, offset}
 	} else {
 		// Without search
-		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL%s`, statusClause)
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE 1=1%s%s`, deletedClause, statusClause)
 		countArgs = []interface{}{}
 
 		query = fmt.Sprintf(`
@@ -292,10 +308,10 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
 			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count
 			FROM customers c
-			WHERE c.deleted_at IS NULL%s
+			WHERE 1=1%s%s
 			%s
 			LIMIT $1 OFFSET $2
-		`, statusClause, orderClause)
+		`, deletedClause, statusClause, orderClause)
 		queryArgs = []interface{}{pageSize, offset}
 	}
 
@@ -303,7 +319,7 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 }
 
 // listForDistributor handles customer listing for distributor role
-func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection, status string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses []string) ([]*models.LocalCustomer, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
@@ -324,13 +340,29 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 		}
 	}
 
-	// Build status filter clause
+	// Build status filter clauses
+	hasDeletedFilter := false
+	var statusConditions []string
+	for _, s := range statuses {
+		switch strings.ToLower(s) {
+		case "enabled":
+			statusConditions = append(statusConditions, "(c.deleted_at IS NULL AND c.suspended_at IS NULL)")
+		case "suspended":
+			statusConditions = append(statusConditions, "(c.deleted_at IS NULL AND c.suspended_at IS NOT NULL)")
+		case "deleted":
+			hasDeletedFilter = true
+			statusConditions = append(statusConditions, "(c.deleted_at IS NOT NULL)")
+		}
+	}
+
+	deletedClause := " AND c.deleted_at IS NULL"
+	if hasDeletedFilter {
+		deletedClause = ""
+	}
+
 	statusClause := ""
-	switch status {
-	case "enabled":
-		statusClause = " AND suspended_at IS NULL"
-	case "suspended":
-		statusClause = " AND suspended_at IS NOT NULL"
+	if len(statusConditions) > 0 {
+		statusClause = " AND (" + strings.Join(statusConditions, " OR ") + ")"
 	}
 
 	var countQuery, query string
@@ -339,14 +371,14 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 	if search != "" {
 		// With search
 		countQuery = fmt.Sprintf(`
-			SELECT COUNT(*) FROM customers
-			WHERE deleted_at IS NULL AND (
-				custom_data->>'createdBy' = $1 OR
-				custom_data->>'createdBy' IN (
+			SELECT COUNT(*) FROM customers c
+			WHERE (
+				c.custom_data->>'createdBy' = $1 OR
+				c.custom_data->>'createdBy' IN (
 					SELECT logto_id FROM resellers
 					WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 				)
-			)%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))`, statusClause)
+			)%s%s AND (LOWER(c.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $2 || '%%'))`, deletedClause, statusClause)
 		countArgs = []interface{}{userOrgID, search}
 
 		query = fmt.Sprintf(`
@@ -354,28 +386,28 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
 			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count
 			FROM customers c
-			WHERE c.deleted_at IS NULL AND (
+			WHERE (
 				c.custom_data->>'createdBy' = $1 OR
 				c.custom_data->>'createdBy' IN (
 					SELECT logto_id FROM resellers
 					WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 				)
-			)%s AND (LOWER(c.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $2 || '%%'))
+			)%s%s AND (LOWER(c.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $2 || '%%'))
 			%s
 			LIMIT $3 OFFSET $4
-		`, statusClause, orderClause)
+		`, deletedClause, statusClause, orderClause)
 		queryArgs = []interface{}{userOrgID, search, pageSize, offset}
 	} else {
 		// Without search
 		countQuery = fmt.Sprintf(`
-			SELECT COUNT(*) FROM customers
-			WHERE deleted_at IS NULL AND (
-				custom_data->>'createdBy' = $1 OR
-				custom_data->>'createdBy' IN (
+			SELECT COUNT(*) FROM customers c
+			WHERE (
+				c.custom_data->>'createdBy' = $1 OR
+				c.custom_data->>'createdBy' IN (
 					SELECT logto_id FROM resellers
 					WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 				)
-			)%s`, statusClause)
+			)%s%s`, deletedClause, statusClause)
 		countArgs = []interface{}{userOrgID}
 
 		query = fmt.Sprintf(`
@@ -383,16 +415,16 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
 			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count
 			FROM customers c
-			WHERE c.deleted_at IS NULL AND (
+			WHERE (
 				c.custom_data->>'createdBy' = $1 OR
 				c.custom_data->>'createdBy' IN (
 					SELECT logto_id FROM resellers
 					WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 				)
-			)%s
+			)%s%s
 			%s
 			LIMIT $2 OFFSET $3
-		`, statusClause, orderClause)
+		`, deletedClause, statusClause, orderClause)
 		queryArgs = []interface{}{userOrgID, pageSize, offset}
 	}
 
@@ -400,7 +432,7 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 }
 
 // listForReseller handles customer listing for reseller role
-func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection, status string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses []string) ([]*models.LocalCustomer, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
@@ -421,13 +453,29 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 		}
 	}
 
-	// Build status filter clause
+	// Build status filter clauses
+	hasDeletedFilter := false
+	var statusConditions []string
+	for _, s := range statuses {
+		switch strings.ToLower(s) {
+		case "enabled":
+			statusConditions = append(statusConditions, "(deleted_at IS NULL AND suspended_at IS NULL)")
+		case "suspended":
+			statusConditions = append(statusConditions, "(deleted_at IS NULL AND suspended_at IS NOT NULL)")
+		case "deleted":
+			hasDeletedFilter = true
+			statusConditions = append(statusConditions, "(deleted_at IS NOT NULL)")
+		}
+	}
+
+	deletedClause := " AND deleted_at IS NULL"
+	if hasDeletedFilter {
+		deletedClause = ""
+	}
+
 	statusClause := ""
-	switch status {
-	case "enabled":
-		statusClause = " AND suspended_at IS NULL"
-	case "suspended":
-		statusClause = " AND suspended_at IS NOT NULL"
+	if len(statusConditions) > 0 {
+		statusClause = " AND (" + strings.Join(statusConditions, " OR ") + ")"
 	}
 
 	var countQuery, query string
@@ -435,7 +483,7 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 
 	if search != "" {
 		// With search
-		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))`, statusClause)
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE custom_data->>'createdBy' = $1%s%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))`, deletedClause, statusClause)
 		countArgs = []interface{}{userOrgID, search}
 
 		query = fmt.Sprintf(`
@@ -443,14 +491,14 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
 			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count
 			FROM customers c
-			WHERE c.deleted_at IS NULL AND c.custom_data->>'createdBy' = $1%s AND (LOWER(c.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $2 || '%%'))
+			WHERE c.custom_data->>'createdBy' = $1%s%s AND (LOWER(c.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $2 || '%%'))
 			%s
 			LIMIT $3 OFFSET $4
-		`, statusClause, orderClause)
+		`, deletedClause, statusClause, orderClause)
 		queryArgs = []interface{}{userOrgID, search, pageSize, offset}
 	} else {
 		// Without search
-		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL AND custom_data->>'createdBy' = $1%s`, statusClause)
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE custom_data->>'createdBy' = $1%s%s`, deletedClause, statusClause)
 		countArgs = []interface{}{userOrgID}
 
 		query = fmt.Sprintf(`
@@ -458,10 +506,10 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
 			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count
 			FROM customers c
-			WHERE c.deleted_at IS NULL AND c.custom_data->>'createdBy' = $1%s
+			WHERE c.custom_data->>'createdBy' = $1%s%s
 			%s
 			LIMIT $2 OFFSET $3
-		`, statusClause, orderClause)
+		`, deletedClause, statusClause, orderClause)
 		queryArgs = []interface{}{userOrgID, pageSize, offset}
 	}
 
@@ -469,7 +517,7 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 }
 
 // listForCustomer handles customer listing for customer role
-func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection, status string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses []string) ([]*models.LocalCustomer, int, error) {
 	if userOrgID == "" {
 		return []*models.LocalCustomer{}, 0, nil
 	}
@@ -494,13 +542,29 @@ func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSi
 		}
 	}
 
-	// Build status filter clause
+	// Build status filter clauses
+	hasDeletedFilter := false
+	var statusConditions []string
+	for _, s := range statuses {
+		switch strings.ToLower(s) {
+		case "enabled":
+			statusConditions = append(statusConditions, "(deleted_at IS NULL AND suspended_at IS NULL)")
+		case "suspended":
+			statusConditions = append(statusConditions, "(deleted_at IS NULL AND suspended_at IS NOT NULL)")
+		case "deleted":
+			hasDeletedFilter = true
+			statusConditions = append(statusConditions, "(deleted_at IS NOT NULL)")
+		}
+	}
+
+	deletedClause := " AND deleted_at IS NULL"
+	if hasDeletedFilter {
+		deletedClause = ""
+	}
+
 	statusClause := ""
-	switch status {
-	case "enabled":
-		statusClause = " AND suspended_at IS NULL"
-	case "suspended":
-		statusClause = " AND suspended_at IS NOT NULL"
+	if len(statusConditions) > 0 {
+		statusClause = " AND (" + strings.Join(statusConditions, " OR ") + ")"
 	}
 
 	var countQuery, query string
@@ -508,7 +572,7 @@ func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSi
 
 	if search != "" {
 		// With search
-		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE id = $1 AND deleted_at IS NULL%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))`, statusClause)
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE id = $1%s%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%'))`, deletedClause, statusClause)
 		countArgs = []interface{}{userOrgID, search}
 
 		query = fmt.Sprintf(`
@@ -516,14 +580,14 @@ func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSi
 			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
 			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count
 			FROM customers c
-			WHERE c.id = $1 AND c.deleted_at IS NULL%s AND (LOWER(c.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $2 || '%%'))
+			WHERE c.id = $1%s%s AND (LOWER(c.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $2 || '%%'))
 			%s
 			LIMIT $3 OFFSET $4
-		`, statusClause, orderClause)
+		`, deletedClause, statusClause, orderClause)
 		queryArgs = []interface{}{userOrgID, search, pageSize, offset}
 	} else {
 		// Without search
-		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE id = $1 AND deleted_at IS NULL%s`, statusClause)
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE id = $1%s%s`, deletedClause, statusClause)
 		countArgs = []interface{}{userOrgID}
 
 		query = fmt.Sprintf(`
@@ -531,10 +595,10 @@ func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSi
 			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
 			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count
 			FROM customers c
-			WHERE c.id = $1 AND c.deleted_at IS NULL%s
+			WHERE c.id = $1%s%s
 			%s
 			LIMIT $2 OFFSET $3
-		`, statusClause, orderClause)
+		`, deletedClause, statusClause, orderClause)
 		queryArgs = []interface{}{userOrgID, pageSize, offset}
 	}
 

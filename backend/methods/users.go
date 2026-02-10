@@ -231,7 +231,7 @@ func GetUsers(c *gin.Context) {
 
 	// Parse filter parameters
 	organizationFilter := c.Query("organization_id")
-	statusFilter := c.Query("status")
+	statuses := c.QueryArray("status")
 	roleFilter := c.Query("role")
 
 	// Create service
@@ -239,7 +239,7 @@ func GetUsers(c *gin.Context) {
 
 	// Get users based on RBAC (exclude current user)
 	userOrgRole := strings.ToLower(user.OrgRole)
-	accounts, totalCount, err := service.ListUsers(userOrgRole, user.OrganizationID, user.ID, page, pageSize, search, sortBy, sortDirection, organizationFilter, statusFilter, roleFilter)
+	accounts, totalCount, err := service.ListUsers(userOrgRole, user.OrganizationID, user.ID, page, pageSize, search, sortBy, sortDirection, organizationFilter, statuses, roleFilter)
 	if err != nil {
 		logger.Error().
 			Err(err).

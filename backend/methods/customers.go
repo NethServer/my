@@ -175,14 +175,14 @@ func GetCustomers(c *gin.Context) {
 
 	// Parse search and status parameters
 	search := c.Query("search")
-	status := c.Query("status")
+	statuses := c.QueryArray("status")
 
 	// Create service
 	service := local.NewOrganizationService()
 
 	// Get customers based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
-	customers, totalCount, err := service.ListCustomers(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, status)
+	customers, totalCount, err := service.ListCustomers(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, statuses)
 	if err != nil {
 		logger.Error().
 			Err(err).

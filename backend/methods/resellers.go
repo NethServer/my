@@ -168,14 +168,14 @@ func GetResellers(c *gin.Context) {
 
 	// Parse search and status parameters
 	search := c.Query("search")
-	status := c.Query("status")
+	statuses := c.QueryArray("status")
 
 	// Create service
 	service := local.NewOrganizationService()
 
 	// Get resellers based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
-	resellers, totalCount, err := service.ListResellers(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, status)
+	resellers, totalCount, err := service.ListResellers(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, statuses)
 	if err != nil {
 		logger.Error().
 			Err(err).

@@ -45,7 +45,7 @@ func ExportDistributors(c *gin.Context) {
 
 	// Parse search and status parameters
 	search := c.Query("search")
-	status := c.Query("status")
+	statuses := c.QueryArray("status")
 
 	// For export, we don't use pagination - get all matching distributors (with limit)
 	sortBy := c.DefaultQuery("sort_by", "created_at")
@@ -56,7 +56,7 @@ func ExportDistributors(c *gin.Context) {
 
 	// Get distributors based on RBAC without pagination limit (but with max export limit)
 	userOrgRole := strings.ToLower(user.OrgRole)
-	distributors, totalCount, err := service.ListDistributors(userOrgRole, user.OrganizationID, 1, MaxDistributorsExportLimit, search, sortBy, sortDirection, status)
+	distributors, totalCount, err := service.ListDistributors(userOrgRole, user.OrganizationID, 1, MaxDistributorsExportLimit, search, sortBy, sortDirection, statuses)
 	if err != nil {
 		logger.Error().
 			Err(err).

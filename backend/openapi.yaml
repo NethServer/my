@@ -1755,12 +1755,23 @@ components:
     OrganizationStatusFilterParam:
       name: status
       in: query
-      description: Filter organizations by status (enabled = not suspended, suspended = suspended)
+      description: |
+        Filter organizations by status. Supports multiple values.
+
+        - enabled: not suspended and not deleted
+        - suspended: suspended but not deleted
+        - deleted: soft-deleted
+
+        When "deleted" is combined with other statuses, both deleted and non-deleted matching records are returned.
       required: false
       schema:
-        type: string
-        enum: ["enabled", "suspended"]
-        example: "enabled"
+        type: array
+        items:
+          type: string
+          enum: ["enabled", "suspended", "deleted"]
+        example: ["enabled"]
+      style: form
+      explode: true
 
     UserSortByParam:
       name: sort_by
@@ -1882,7 +1893,10 @@ components:
       name: status
       in: query
       description: |
-        Filter systems by status (exact match). Supports multiple values for checkbox filtering.
+        Filter systems by status. Supports multiple values.
+
+        - unknown, online, offline, deleted: match the system status column
+        - suspended: virtual status matching systems with suspended_at IS NOT NULL
 
         Special value "deleted" shows soft-deleted systems (where deleted_at IS NOT NULL).
         When "deleted" is combined with other statuses, both deleted and non-deleted systems matching the other statuses are returned.
@@ -1891,7 +1905,7 @@ components:
         type: array
         items:
           type: string
-          enum: ["unknown", "online", "offline", "deleted"]
+          enum: ["unknown", "online", "offline", "suspended", "deleted"]
         example: ["online", "unknown"]
       style: form
       explode: true
@@ -2100,11 +2114,20 @@ paths:
         - name: status
           in: query
           required: false
-          description: Filter by user status
+          description: |
+            Filter by user status. Supports multiple values.
+
+            - enabled: not suspended and not deleted
+            - suspended: suspended but not deleted
+            - deleted: soft-deleted
           schema:
-            type: string
-            enum: [active, suspended]
-            example: "active"
+            type: array
+            items:
+              type: string
+              enum: [enabled, suspended, deleted]
+            example: ["enabled"]
+          style: form
+          explode: true
         - name: role
           in: query
           required: false
@@ -2520,11 +2543,20 @@ paths:
         - name: status
           in: query
           required: false
-          description: Filter by user status
+          description: |
+            Filter by user status. Supports multiple values.
+
+            - enabled: not suspended and not deleted
+            - suspended: suspended but not deleted
+            - deleted: soft-deleted
           schema:
-            type: string
-            enum: [active, suspended]
-            example: "active"
+            type: array
+            items:
+              type: string
+              enum: [enabled, suspended, deleted]
+            example: ["enabled"]
+          style: form
+          explode: true
         - name: role
           in: query
           required: false

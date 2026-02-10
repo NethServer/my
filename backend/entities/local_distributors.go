@@ -216,7 +216,7 @@ func (r *LocalDistributorRepository) Reactivate(id string) error {
 }
 
 // List returns paginated list of distributors visible to the user
-func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection, status string) ([]*models.LocalDistributor, int, error) {
+func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses []string) ([]*models.LocalDistributor, int, error) {
 	// Only Owner can see distributors
 	if userOrgRole != "owner" {
 		return []*models.LocalDistributor{}, 0, nil
@@ -244,13 +244,29 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 		}
 	}
 
-	// Build status filter clause
+	// Build status filter clauses
+	hasDeletedFilter := false
+	var statusConditions []string
+	for _, s := range statuses {
+		switch strings.ToLower(s) {
+		case "enabled":
+			statusConditions = append(statusConditions, "(deleted_at IS NULL AND suspended_at IS NULL)")
+		case "suspended":
+			statusConditions = append(statusConditions, "(deleted_at IS NULL AND suspended_at IS NOT NULL)")
+		case "deleted":
+			hasDeletedFilter = true
+			statusConditions = append(statusConditions, "(deleted_at IS NOT NULL)")
+		}
+	}
+
+	deletedClause := " AND deleted_at IS NULL"
+	if hasDeletedFilter {
+		deletedClause = ""
+	}
+
 	statusClause := ""
-	switch status {
-	case "enabled":
-		statusClause = " AND suspended_at IS NULL"
-	case "suspended":
-		statusClause = " AND suspended_at IS NOT NULL"
+	if len(statusConditions) > 0 {
+		statusClause = " AND (" + strings.Join(statusConditions, " OR ") + ")"
 	}
 
 	// Build queries with optional search and status filter
@@ -259,7 +275,7 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 
 	if search != "" {
 		// With search
-		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM distributors WHERE deleted_at IS NULL%s AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%'))`, statusClause)
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM distributors WHERE 1=1%s%s AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%'))`, deletedClause, statusClause)
 		countArgs = []interface{}{search}
 
 		query = fmt.Sprintf(`
@@ -271,14 +287,14 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 			           SELECT 1 FROM resellers r WHERE r.logto_id = c.custom_data->>'createdBy' AND r.custom_data->>'createdBy' = d.logto_id AND r.deleted_at IS NULL
 			       )) as customers_count
 			FROM distributors d
-			WHERE d.deleted_at IS NULL%s AND (LOWER(d.name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(d.description) LIKE LOWER('%%' || $1 || '%%'))
+			WHERE 1=1%s%s AND (LOWER(d.name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(d.description) LIKE LOWER('%%' || $1 || '%%'))
 			%s
 			LIMIT $2 OFFSET $3
-		`, statusClause, orderClause)
+		`, deletedClause, statusClause, orderClause)
 		queryArgs = []interface{}{search, pageSize, offset}
 	} else {
 		// Without search
-		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM distributors WHERE deleted_at IS NULL%s`, statusClause)
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM distributors WHERE 1=1%s%s`, deletedClause, statusClause)
 		countArgs = []interface{}{}
 
 		query = fmt.Sprintf(`
@@ -290,10 +306,10 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 			           SELECT 1 FROM resellers r WHERE r.logto_id = c.custom_data->>'createdBy' AND r.custom_data->>'createdBy' = d.logto_id AND r.deleted_at IS NULL
 			       )) as customers_count
 			FROM distributors d
-			WHERE d.deleted_at IS NULL%s
+			WHERE 1=1%s%s
 			%s
 			LIMIT $1 OFFSET $2
-		`, statusClause, orderClause)
+		`, deletedClause, statusClause, orderClause)
 		queryArgs = []interface{}{pageSize, offset}
 	}
 

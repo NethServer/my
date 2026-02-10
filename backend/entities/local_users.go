@@ -558,24 +558,18 @@ func (r *LocalUserRepository) UpdateLatestLogin(userID string) error {
 }
 
 // List returns paginated list of users based on hierarchical RBAC (matches other repository patterns)
-// organizationFilter: filter by specific organization logto_id (empty = no filter)
-// statusFilter: "active" (suspended_at IS NULL), "suspended" (suspended_at IS NOT NULL), empty = no filter
-// roleFilter: filter by user role ID (empty = no filter)
-func (r *LocalUserRepository) List(userOrgRole, userOrgID, excludeUserID string, page, pageSize int, search, sortBy, sortDirection, organizationFilter, statusFilter, roleFilter string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) List(userOrgRole, userOrgID, excludeUserID string, page, pageSize int, search, sortBy, sortDirection, organizationFilter string, statuses []string, roleFilter string) ([]*models.LocalUser, int, error) {
 	// Get all organization IDs the user can access hierarchically
 	allowedOrgIDs, err := r.GetHierarchicalOrganizationIDs(userOrgRole, userOrgID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
 	}
 
-	return r.ListByOrganizations(allowedOrgIDs, excludeUserID, page, pageSize, search, sortBy, sortDirection, organizationFilter, statusFilter, roleFilter)
+	return r.ListByOrganizations(allowedOrgIDs, excludeUserID, page, pageSize, search, sortBy, sortDirection, organizationFilter, statuses, roleFilter)
 }
 
 // ListByOrganizations returns paginated list of users in specified organizations (excluding specified user)
-// organizationFilter: filter by specific organization logto_id (empty = no filter)
-// statusFilter: "active" (suspended_at IS NULL), "suspended" (suspended_at IS NOT NULL), empty = no filter
-// roleFilter: filter by user role ID (empty = no filter)
-func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, excludeUserID string, page, pageSize int, search, sortBy, sortDirection, organizationFilter, statusFilter, roleFilter string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, excludeUserID string, page, pageSize int, search, sortBy, sortDirection, organizationFilter string, statuses []string, roleFilter string) ([]*models.LocalUser, int, error) {
 	if len(allowedOrgIDs) == 0 {
 		return []*models.LocalUser{}, 0, nil
 	}
@@ -600,16 +594,14 @@ func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, exclud
 	offset := (page - 1) * pageSize
 
 	if search != "" {
-		return r.listUsersWithSearch(allowedOrgIDs, excludeUserID, pageSize, offset, search, sortBy, sortDirection, statusFilter, roleFilter)
+		return r.listUsersWithSearch(allowedOrgIDs, excludeUserID, pageSize, offset, search, sortBy, sortDirection, statuses, roleFilter)
 	} else {
-		return r.listUsersWithoutSearch(allowedOrgIDs, excludeUserID, pageSize, offset, sortBy, sortDirection, statusFilter, roleFilter)
+		return r.listUsersWithoutSearch(allowedOrgIDs, excludeUserID, pageSize, offset, sortBy, sortDirection, statuses, roleFilter)
 	}
 }
 
 // listUsersWithSearch handles user listing with search functionality
-// statusFilter: "active" (suspended_at IS NULL), "suspended" (suspended_at IS NOT NULL), empty = no filter
-// roleFilter: filter by user role ID (empty = no filter)
-func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, excludeUserID string, pageSize, offset int, search, sortBy, sortDirection, statusFilter, roleFilter string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, excludeUserID string, pageSize, offset int, search, sortBy, sortDirection string, statuses []string, roleFilter string) ([]*models.LocalUser, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY u.created_at DESC" // default sorting
 	if sortBy != "" {
@@ -633,13 +625,29 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, exclud
 		}
 	}
 
-	// Build status filter clause
+	// Build status filter clauses
+	hasDeletedFilter := false
+	var statusConditions []string
+	for _, s := range statuses {
+		switch strings.ToLower(s) {
+		case "enabled":
+			statusConditions = append(statusConditions, "(u.deleted_at IS NULL AND u.suspended_at IS NULL)")
+		case "suspended":
+			statusConditions = append(statusConditions, "(u.deleted_at IS NULL AND u.suspended_at IS NOT NULL)")
+		case "deleted":
+			hasDeletedFilter = true
+			statusConditions = append(statusConditions, "(u.deleted_at IS NOT NULL)")
+		}
+	}
+
+	deletedClause := " AND u.deleted_at IS NULL"
+	if hasDeletedFilter {
+		deletedClause = ""
+	}
+
 	statusClause := ""
-	switch strings.ToLower(statusFilter) {
-	case "active":
-		statusClause = " AND u.suspended_at IS NULL"
-	case "suspended":
-		statusClause = " AND u.suspended_at IS NOT NULL"
+	if len(statusConditions) > 0 {
+		statusClause = " AND (" + strings.Join(statusConditions, " OR ") + ")"
 	}
 
 	// Build placeholders for organization IDs
@@ -664,11 +672,11 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, exclud
 	// Build count query
 	countQuery := fmt.Sprintf(`
 		SELECT COUNT(*) FROM users u
-		WHERE u.deleted_at IS NULL
+		WHERE 1=1%s
 		  AND u.organization_id IN (%s)
 		  AND u.id != $%d
 		  AND (LOWER(u.name) LIKE LOWER('%%' || $%d || '%%') OR LOWER(u.email) LIKE LOWER('%%' || $%d || '%%'))%s%s
-	`, orgPlaceholders, len(allowedOrgIDs)+1, len(allowedOrgIDs)+2, len(allowedOrgIDs)+3, statusClause, roleClause)
+	`, deletedClause, orgPlaceholders, len(allowedOrgIDs)+1, len(allowedOrgIDs)+2, len(allowedOrgIDs)+3, statusClause, roleClause)
 
 	// Build main query
 	mainQuery := fmt.Sprintf(`
@@ -686,13 +694,13 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, exclud
 		LEFT JOIN distributors d ON (u.organization_id = d.logto_id OR u.organization_id = d.id::text) AND d.deleted_at IS NULL
 		LEFT JOIN resellers r ON (u.organization_id = r.logto_id OR u.organization_id = r.id::text) AND r.deleted_at IS NULL
 		LEFT JOIN customers c ON (u.organization_id = c.logto_id OR u.organization_id = c.id::text) AND c.deleted_at IS NULL
-		WHERE u.deleted_at IS NULL
+		WHERE 1=1%s
 		  AND u.organization_id IN (%s)
 		  AND u.id != $%d
 		  AND (LOWER(u.name) LIKE LOWER('%%' || $%d || '%%') OR LOWER(u.email) LIKE LOWER('%%' || $%d || '%%'))%s%s
 		%s
 		LIMIT $%d OFFSET $%d
-	`, orgPlaceholders, len(allowedOrgIDs)+1, len(allowedOrgIDs)+2, len(allowedOrgIDs)+3, statusClause, roleClause, orderClause, paramIdx, paramIdx+1)
+	`, deletedClause, orgPlaceholders, len(allowedOrgIDs)+1, len(allowedOrgIDs)+2, len(allowedOrgIDs)+3, statusClause, roleClause, orderClause, paramIdx, paramIdx+1)
 
 	// Prepare arguments for count query
 	countArgs := make([]interface{}, 0, len(allowedOrgIDs)+5)
@@ -719,9 +727,7 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, exclud
 }
 
 // listUsersWithoutSearch handles user listing without search functionality
-// statusFilter: "active" (suspended_at IS NULL), "suspended" (suspended_at IS NOT NULL), empty = no filter
-// roleFilter: filter by user role ID (empty = no filter)
-func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, excludeUserID string, pageSize, offset int, sortBy, sortDirection, statusFilter, roleFilter string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, excludeUserID string, pageSize, offset int, sortBy, sortDirection string, statuses []string, roleFilter string) ([]*models.LocalUser, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY u.created_at DESC" // default sorting
 	if sortBy != "" {
@@ -745,13 +751,29 @@ func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, exc
 		}
 	}
 
-	// Build status filter clause
+	// Build status filter clauses
+	hasDeletedFilter := false
+	var statusConditions []string
+	for _, s := range statuses {
+		switch strings.ToLower(s) {
+		case "enabled":
+			statusConditions = append(statusConditions, "(u.deleted_at IS NULL AND u.suspended_at IS NULL)")
+		case "suspended":
+			statusConditions = append(statusConditions, "(u.deleted_at IS NULL AND u.suspended_at IS NOT NULL)")
+		case "deleted":
+			hasDeletedFilter = true
+			statusConditions = append(statusConditions, "(u.deleted_at IS NOT NULL)")
+		}
+	}
+
+	deletedClause := " AND u.deleted_at IS NULL"
+	if hasDeletedFilter {
+		deletedClause = ""
+	}
+
 	statusClause := ""
-	switch strings.ToLower(statusFilter) {
-	case "active":
-		statusClause = " AND u.suspended_at IS NULL"
-	case "suspended":
-		statusClause = " AND u.suspended_at IS NOT NULL"
+	if len(statusConditions) > 0 {
+		statusClause = " AND (" + strings.Join(statusConditions, " OR ") + ")"
 	}
 
 	// Build placeholders for organization IDs
@@ -776,10 +798,10 @@ func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, exc
 	// Build count query
 	countQuery := fmt.Sprintf(`
 		SELECT COUNT(*) FROM users u
-		WHERE u.deleted_at IS NULL
+		WHERE 1=1%s
 		  AND u.organization_id IN (%s)
 		  AND u.id != $%d%s%s
-	`, orgPlaceholders, len(allowedOrgIDs)+1, statusClause, roleClause)
+	`, deletedClause, orgPlaceholders, len(allowedOrgIDs)+1, statusClause, roleClause)
 
 	// Build main query
 	mainQuery := fmt.Sprintf(`
@@ -797,12 +819,12 @@ func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, exc
 		LEFT JOIN distributors d ON (u.organization_id = d.logto_id OR u.organization_id = d.id::text) AND d.deleted_at IS NULL
 		LEFT JOIN resellers r ON (u.organization_id = r.logto_id OR u.organization_id = r.id::text) AND r.deleted_at IS NULL
 		LEFT JOIN customers c ON (u.organization_id = c.logto_id OR u.organization_id = c.id::text) AND c.deleted_at IS NULL
-		WHERE u.deleted_at IS NULL
+		WHERE 1=1%s
 		  AND u.organization_id IN (%s)
 		  AND u.id != $%d%s%s
 		%s
 		LIMIT $%d OFFSET $%d
-	`, orgPlaceholders, len(allowedOrgIDs)+1, statusClause, roleClause, orderClause, paramIdx, paramIdx+1)
+	`, deletedClause, orgPlaceholders, len(allowedOrgIDs)+1, statusClause, roleClause, orderClause, paramIdx, paramIdx+1)
 
 	// Prepare arguments for count query
 	countArgs := make([]interface{}, 0, len(allowedOrgIDs)+3)

@@ -149,14 +149,14 @@ func GetDistributors(c *gin.Context) {
 
 	// Parse search and status parameters
 	search := c.Query("search")
-	status := c.Query("status")
+	statuses := c.QueryArray("status")
 
 	// Create service
 	service := local.NewOrganizationService()
 
 	// Get distributors based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
-	distributors, totalCount, err := service.ListDistributors(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, status)
+	distributors, totalCount, err := service.ListDistributors(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, statuses)
 	if err != nil {
 		logger.Error().
 			Err(err).

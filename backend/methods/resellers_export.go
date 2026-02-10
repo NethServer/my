@@ -45,7 +45,7 @@ func ExportResellers(c *gin.Context) {
 
 	// Parse search and status parameters
 	search := c.Query("search")
-	status := c.Query("status")
+	statuses := c.QueryArray("status")
 
 	// For export, we don't use pagination - get all matching resellers (with limit)
 	sortBy := c.DefaultQuery("sort_by", "created_at")
@@ -56,7 +56,7 @@ func ExportResellers(c *gin.Context) {
 
 	// Get resellers based on RBAC without pagination limit (but with max export limit)
 	userOrgRole := strings.ToLower(user.OrgRole)
-	resellers, totalCount, err := service.ListResellers(userOrgRole, user.OrganizationID, 1, MaxResellersExportLimit, search, sortBy, sortDirection, status)
+	resellers, totalCount, err := service.ListResellers(userOrgRole, user.OrganizationID, 1, MaxResellersExportLimit, search, sortBy, sortDirection, statuses)
 	if err != nil {
 		logger.Error().
 			Err(err).
