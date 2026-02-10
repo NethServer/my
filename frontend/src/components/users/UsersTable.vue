@@ -102,17 +102,13 @@ const areDefaultFiltersApplied = computed(() => {
 
 const isNoDataEmptyStateShown = computed(() => {
   return (
-    !usersPage.value?.length &&
-    state.value.status === 'success' &&
-    areDefaultFiltersApplied.value
+    !usersPage.value?.length && state.value.status === 'success' && areDefaultFiltersApplied.value
   )
 })
 
 const isNoMatchEmptyStateShown = computed(() => {
   return (
-    !usersPage.value?.length &&
-    state.value.status === 'success' &&
-    !areDefaultFiltersApplied.value
+    !usersPage.value?.length && state.value.status === 'success' && !areDefaultFiltersApplied.value
   )
 })
 
