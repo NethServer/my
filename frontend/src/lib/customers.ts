@@ -5,11 +5,13 @@ import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
-import { getQueryStringParams, type Pagination } from './common'
+import { type Pagination } from './common'
 
 export const CUSTOMERS_KEY = 'customers'
 export const CUSTOMERS_TOTAL_KEY = 'customersTotal'
 export const CUSTOMERS_TABLE_ID = 'customersTable'
+
+export type CustomerStatus = 'enabled' | 'suspended' | 'deleted'
 
 export const CreateCustomerSchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty('organizations.name_cannot_be_empty')),
@@ -24,6 +26,7 @@ export const CustomerSchema = v.object({
   ...CreateCustomerSchema.entries,
   logto_id: v.string(),
   suspended_at: v.optional(v.string()),
+  deleted_at: v.optional(v.string()),
 })
 
 export type CreateCustomer = v.InferOutput<typeof CreateCustomerSchema>
@@ -38,15 +41,49 @@ interface CustomersResponse {
   }
 }
 
+export const getQueryStringParams = (
+  pageNum: number,
+  pageSize: number,
+  textFilter: string | null,
+  statusFilter: CustomerStatus[],
+  sortBy: string | null,
+  sortDescending: boolean,
+) => {
+  const searchParams = new URLSearchParams({
+    page: pageNum.toString(),
+    page_size: pageSize.toString(),
+    sort_by: sortBy || '',
+    sort_direction: sortDescending ? 'desc' : 'asc',
+  })
+
+  if (textFilter?.trim()) {
+    searchParams.append('search', textFilter)
+  }
+
+  statusFilter.forEach((status) => {
+    searchParams.append('status', status)
+  })
+
+  return searchParams.toString()
+}
+
 export const getCustomers = (
   pageNum: number,
   pageSize: number,
   textFilter: string,
+  statusFilter: CustomerStatus[],
   sortBy: string,
   sortDescending: boolean,
 ) => {
   const loginStore = useLoginStore()
-  const params = getQueryStringParams(pageNum, pageSize, textFilter, sortBy, sortDescending)
+  const params = getQueryStringParams(
+    pageNum,
+    pageSize,
+    textFilter,
+    statusFilter,
+    sortBy,
+    sortDescending,
+  )
 
   return axios
     .get<CustomersResponse>(`${API_URL}/customers?${params}`, {
@@ -106,6 +143,18 @@ export const reactivateCustomer = (customer: Customer) => {
 
   return axios.patch(
     `${API_URL}/customers/${customer.logto_id}/reactivate`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
+export const restoreCustomer = (customer: Customer) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/customers/${customer.logto_id}/restore`,
     {},
     {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
