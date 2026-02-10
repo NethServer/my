@@ -125,6 +125,10 @@ const statusFilterOptions = ref<FilterOption[]>([
     id: 'unknown',
     label: t('systems.status_unknown'),
   },
+  {
+    id: 'suspended',
+    label: t('common.suspended'),
+  },
   { id: 'deleted', label: t('systems.status_deleted') },
 ])
 

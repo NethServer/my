@@ -13,9 +13,9 @@ export const SYSTEMS_KEY = 'systems'
 export const SYSTEMS_TOTAL_KEY = 'systemsTotal'
 export const SYSTEMS_TABLE_ID = 'systemsTable'
 
-export type SystemStatus = 'online' | 'offline' | 'unknown' | 'deleted'
+export type SystemStatus = 'online' | 'offline' | 'unknown' | 'deleted' | 'suspended'
 
-const systemStatusOptions = ['online', 'offline', 'unknown', 'deleted']
+const systemStatusOptions = ['online', 'offline', 'unknown', 'deleted', 'suspended']
 
 const SystemStatusSchema = v.picklist(systemStatusOptions)
 
