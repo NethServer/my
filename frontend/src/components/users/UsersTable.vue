@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { USERS_TABLE_ID, type User } from '@/lib/users'
+import { USERS_TABLE_ID, type User, type UserStatus } from '@/lib/users'
 import {
   faCircleInfo,
   faCirclePlus,
@@ -16,6 +16,7 @@ import {
   faCirclePause,
   faCirclePlay,
   faCircleCheck,
+  faCircleXmark,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -38,6 +39,7 @@ import {
   type NeDropdownItem,
   NeTooltip,
   NeDropdownFilter,
+  type FilterOption,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import CreateOrEditUserDrawer from './CreateOrEditUserDrawer.vue'
@@ -71,6 +73,7 @@ const {
   textFilter,
   debouncedTextFilter,
   organizationFilter,
+  statusFilter,
   sortBy,
   sortDescending,
 } = useUsers()
@@ -91,6 +94,21 @@ const isShownReactivateUserModal = ref(false)
 const newPassword = ref<string>('')
 const isImpersonating = ref(false)
 
+const statusFilterOptions = ref<FilterOption[]>([
+  {
+    id: 'enabled',
+    label: t('common.enabled'),
+  },
+  {
+    id: 'suspended',
+    label: t('common.suspended'),
+  },
+  {
+    id: 'deleted',
+    label: t('common.deleted'),
+  },
+])
+
 const usersPage = computed(() => {
   return state.value.data?.users
 })
@@ -100,7 +118,14 @@ const pagination = computed(() => {
 })
 
 const areDefaultFiltersApplied = computed(() => {
-  return !debouncedTextFilter.value && organizationFilter.value.length === 0
+  return (
+    !debouncedTextFilter.value &&
+    organizationFilter.value.length === 0 &&
+    statusFilter.value.length === 2 &&
+    statusFilter.value.includes('enabled') &&
+    statusFilter.value.includes('suspended') &&
+    !statusFilter.value.includes('deleted')
+  )
 })
 
 const isNoDataEmptyStateShown = computed(() => {
@@ -153,9 +178,10 @@ watch(
   { immediate: true },
 )
 
-function clearFilters() {
+function resetFilters() {
   textFilter.value = ''
   organizationFilter.value = []
+  statusFilter.value = ['enabled', 'suspended']
 }
 
 function showCreateUserDrawer() {
@@ -206,8 +232,12 @@ function onCloseDrawer() {
 function getKebabMenuItems(user: User) {
   let items: NeDropdownItem[] = []
 
-  // Add impersonate option for owners, but not for self
-  if (canImpersonateUsers() && user.logto_id !== loginStore.userInfo?.logto_id) {
+  // Hide impersonate option for yourself
+  if (
+    canImpersonateUsers() &&
+    user.logto_id !== loginStore.userInfo?.logto_id &&
+    !user.deleted_at
+  ) {
     items = [
       ...items,
       {
@@ -233,7 +263,7 @@ function getKebabMenuItems(user: User) {
           disabled: asyncStatus.value === 'loading',
         },
       ]
-    } else {
+    } else if (!user.deleted_at) {
       items = [
         ...items,
         {
@@ -244,26 +274,26 @@ function getKebabMenuItems(user: User) {
           disabled: asyncStatus.value === 'loading',
         },
       ]
-    }
 
-    items = [
-      ...items,
-      {
-        id: 'resetPassword',
-        label: t('users.reset_password'),
-        icon: faKey,
-        action: () => showResetPasswordModal(user),
-        disabled: asyncStatus.value === 'loading',
-      },
-      {
-        id: 'deleteAccount',
-        label: t('common.delete'),
-        icon: faTrash,
-        danger: true,
-        action: () => showDeleteUserModal(user),
-        disabled: asyncStatus.value === 'loading',
-      },
-    ]
+      items = [
+        ...items,
+        {
+          id: 'resetPassword',
+          label: t('users.reset_password'),
+          icon: faKey,
+          action: () => showResetPasswordModal(user),
+          disabled: asyncStatus.value === 'loading',
+        },
+        {
+          id: 'deleteAccount',
+          label: t('common.delete'),
+          icon: faTrash,
+          danger: true,
+          action: () => showDeleteUserModal(user),
+          disabled: asyncStatus.value === 'loading',
+        },
+      ]
+    }
   }
   return items
 }
@@ -340,6 +370,19 @@ const onClosePasswordChangedModal = () => {
               :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
               :clear-search-label="t('ne_dropdown_filter.clear_search')"
             />
+            <!-- status filter -->
+            <NeDropdownFilter
+              v-model="statusFilter"
+              kind="checkbox"
+              :label="t('common.status')"
+              :options="statusFilterOptions"
+              :show-clear-filter="false"
+              :clear-filter-label="t('ne_dropdown_filter.reset_filter')"
+              :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+              :no-options-label="t('ne_dropdown_filter.no_options')"
+              :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+              :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            />
             <!-- sort dropdown -->
             <NeSortDropdown
               v-model:sort-key="sortBy"
@@ -357,6 +400,9 @@ const onClosePasswordChangedModal = () => {
               :ascending-label="t('sort.ascending')"
               :descending-label="t('sort.descending')"
             />
+            <NeButton kind="tertiary" @click="resetFilters">
+              {{ t('common.reset_filters') }}
+            </NeButton>
           </div>
           <!-- update indicator -->
           <div
@@ -378,7 +424,7 @@ const onClosePasswordChangedModal = () => {
         :icon="faCircleInfo"
         class="bg-white dark:bg-gray-950"
       >
-        <NeButton kind="tertiary" @click="clearFilters"> {{ $t('common.clear_filters') }}</NeButton>
+        <NeButton kind="tertiary" @click="resetFilters"> {{ $t('common.clear_filters') }}</NeButton>
       </NeEmptyState>
       <NeTable
         v-if="noEmptyStateShown"
@@ -446,7 +492,17 @@ const onClosePasswordChangedModal = () => {
             </NeTableCell>
             <NeTableCell :data-label="$t('common.status')">
               <div class="flex items-center gap-2">
-                <template v-if="item.suspended_at">
+                <template v-if="item.deleted_at">
+                  <FontAwesomeIcon
+                    :icon="faCircleXmark"
+                    class="size-4 text-rose-700 dark:text-rose-500"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {{ t('common.deleted') }}
+                  </span>
+                </template>
+                <template v-else-if="item.suspended_at">
                   <FontAwesomeIcon
                     :icon="faCirclePause"
                     class="size-4 text-gray-700 dark:text-gray-400"
@@ -471,6 +527,7 @@ const onClosePasswordChangedModal = () => {
             <NeTableCell :data-label="$t('common.actions')">
               <div v-if="canManageUsers()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
                 <NeButton
+                  v-if="!item.deleted_at"
                   kind="tertiary"
                   @click="showEditUserDrawer(item)"
                   :disabled="asyncStatus === 'loading'"

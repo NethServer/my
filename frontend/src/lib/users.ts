@@ -11,6 +11,8 @@ export const USERS_KEY = 'users'
 export const USERS_TOTAL_KEY = 'usersTotal'
 export const USERS_TABLE_ID = 'usersTable'
 
+export type UserStatus = 'enabled' | 'suspended' | 'deleted'
+
 export const CreateUserSchema = v.object({
   email: v.pipe(v.string(), v.nonEmpty('users.email_required'), v.email('users.email_invalid')),
   name: v.pipe(v.string(), v.nonEmpty('users.name_cannot_be_empty')),
@@ -38,6 +40,7 @@ export const UserSchema = v.object({
   can_be_impersonated: v.boolean(),
   logto_synced_at: v.optional(v.string()),
   suspended_at: v.optional(v.string()),
+  deleted_at: v.optional(v.string()),
   organization: v.object({
     id: v.string(),
     logto_id: v.optional(v.string()),
@@ -72,6 +75,7 @@ export const getQueryStringParams = (
   pageSize: number,
   textFilter: string | null,
   organizationFilter: string[],
+  statusFilter: UserStatus[],
   sortBy: string | null,
   sortDescending: boolean,
 ) => {
@@ -89,6 +93,10 @@ export const getQueryStringParams = (
   organizationFilter.forEach((orgId) => {
     searchParams.append('organization_id', orgId)
   })
+
+  statusFilter.forEach((status) => {
+    searchParams.append('status', status)
+  })
   return searchParams.toString()
 }
 
@@ -97,6 +105,7 @@ export const getUsers = (
   pageSize: number,
   textFilter: string,
   organizationFilter: string[],
+  statusFilter: UserStatus[],
   sortBy: string,
   sortDescending: boolean,
 ) => {
@@ -106,6 +115,7 @@ export const getUsers = (
     pageSize,
     textFilter,
     organizationFilter,
+    statusFilter,
     sortBy,
     sortDescending,
   )

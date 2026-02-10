@@ -54,6 +54,7 @@ const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
 const loginStore = useLoginStore()
 
+//// defineQuery! asdf
 const { state: organizations } = useQuery({
   key: [ORGANIZATIONS_KEY],
   enabled: () => !!loginStore.jwtToken && isShown,

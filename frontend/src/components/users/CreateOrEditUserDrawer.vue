@@ -50,11 +50,15 @@ const { t } = useI18n()
 const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
 const loginStore = useLoginStore()
+
+//// defineQuery! asdf
 const { state: organizations } = useQuery({
   key: [ORGANIZATIONS_KEY],
   enabled: () => !!loginStore.jwtToken && isShown,
   query: getOrganizations,
 })
+
+//// defineQuery! asdf
 const { state: allUserRoles } = useQuery({
   key: [USER_ROLES_KEY],
   enabled: () => !!loginStore.jwtToken && isShown,
