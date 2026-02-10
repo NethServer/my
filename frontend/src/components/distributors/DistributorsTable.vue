@@ -32,6 +32,8 @@ import {
   NeDropdown,
   type SortEvent,
   NeSortDropdown,
+  NeDropdownFilter,
+  type FilterOption,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import CreateOrEditDistributorDrawer from './CreateOrEditDistributorDrawer.vue'
@@ -57,6 +59,7 @@ const {
   pageSize,
   textFilter,
   debouncedTextFilter,
+  statusFilter,
   sortBy,
   sortDescending,
 } = useDistributors()
@@ -67,6 +70,21 @@ const isShownDeleteDistributorDrawer = ref(false)
 const isShownSuspendDistributorModal = ref(false)
 const isShownReactivateDistributorModal = ref(false)
 
+const statusFilterOptions = ref<FilterOption[]>([
+  {
+    id: 'any',
+    label: t('common.any'),
+  },
+  {
+    id: 'enabled',
+    label: t('common.enabled'),
+  },
+  {
+    id: 'suspended',
+    label: t('common.suspended'),
+  },
+])
+
 const distributorsPage = computed(() => {
   return state.value.data?.distributors
 })
@@ -75,16 +93,26 @@ const pagination = computed(() => {
   return state.value.data?.pagination
 })
 
+const areDefaultFiltersApplied = computed(() => {
+  return (
+    !debouncedTextFilter.value && statusFilter.value.length === 1 && statusFilter.value[0] === 'any'
+  )
+})
+
 const isNoDataEmptyStateShown = computed(() => {
   return (
     !distributorsPage.value?.length &&
-    !debouncedTextFilter.value &&
-    state.value.status === 'success'
+    state.value.status === 'success' &&
+    areDefaultFiltersApplied.value
   )
 })
 
 const isNoMatchEmptyStateShown = computed(() => {
-  return !distributorsPage.value?.length && !!debouncedTextFilter.value
+  return (
+    !distributorsPage.value?.length &&
+    state.value.status === 'success' &&
+    !areDefaultFiltersApplied.value
+  )
 })
 
 const noEmptyStateShown = computed(() => {
@@ -103,6 +131,7 @@ watch(
 
 function clearFilters() {
   textFilter.value = ''
+  statusFilter.value = ['any']
 }
 
 function showCreateDistributorDrawer() {
@@ -219,6 +248,18 @@ const onSort = (payload: SortEvent) => {
               :placeholder="$t('distributors.filter_distributors')"
               class="max-w-48 sm:max-w-sm"
             />
+            <!-- status filter -->
+            <NeDropdownFilter
+              v-model="statusFilter"
+              kind="radio"
+              :label="t('common.status')"
+              :options="statusFilterOptions"
+              :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+              :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+              :no-options-label="t('ne_dropdown_filter.no_options')"
+              :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+              :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            />
             <NeSortDropdown
               v-model:sort-key="sortBy"
               v-model:sort-descending="sortDescending"
@@ -234,6 +275,9 @@ const onSort = (payload: SortEvent) => {
               :ascending-label="t('sort.ascending')"
               :descending-label="t('sort.descending')"
             />
+            <NeButton kind="tertiary" @click="clearFilters">
+              {{ t('common.clear_filters') }}
+            </NeButton>
           </div>
           <!-- update indicator -->
           <div

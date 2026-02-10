@@ -186,14 +186,29 @@ const organizationFilterOptions = computed(() => {
   }
 })
 
+const areDefaultFiltersApplied = computed(() => {
+  return (
+    !debouncedTextFilter.value &&
+    productFilter.value.length === 0 &&
+    versionFilter.value.length === 0 &&
+    createdByFilter.value.length === 0 &&
+    organizationFilter.value.length === 0 &&
+    statusFilter.value.length === 3 &&
+    statusFilter.value.includes('online') &&
+    statusFilter.value.includes('offline') &&
+    statusFilter.value.includes('unknown') &&
+    !statusFilter.value.includes('deleted')
+  )
+})
+
 const isNoDataEmptyStateShown = computed(() => {
   return (
-    !systemsPage.value?.length && !debouncedTextFilter.value && state.value.status === 'success'
+    !systemsPage.value?.length && areDefaultFiltersApplied.value && state.value.status === 'success'
   )
 })
 
 const isNoMatchEmptyStateShown = computed(() => {
-  return !systemsPage.value?.length && !!debouncedTextFilter.value
+  return !systemsPage.value?.length && !areDefaultFiltersApplied.value
 })
 
 const noEmptyStateShown = computed(() => {
@@ -479,6 +494,7 @@ function onCloseSecretRegeneratedModal() {
               :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
               :clear-search-label="t('ne_dropdown_filter.clear_search')"
             />
+            <!-- status filter -->
             <NeDropdownFilter
               v-model="statusFilter"
               kind="checkbox"
@@ -509,6 +525,7 @@ function onCloseSecretRegeneratedModal() {
               :sort-direction-label="t('sort.direction')"
               :ascending-label="t('sort.ascending')"
               :descending-label="t('sort.descending')"
+              align-to-right
             />
             <NeButton kind="tertiary" @click="resetFilters">
               {{ t('systems.reset_filters') }}
