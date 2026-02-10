@@ -282,7 +282,7 @@ func DeleteDistributor(c *gin.Context) {
 	service := local.NewOrganizationService()
 
 	// Delete distributor
-	err := service.DeleteDistributor(distributorID, user.ID, user.OrganizationID)
+	deletedSystemsCount, err := service.DeleteDistributor(distributorID, user.ID, user.OrganizationID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			c.JSON(http.StatusNotFound, response.NotFound("distributor not found", nil))
@@ -305,7 +305,9 @@ func DeleteDistributor(c *gin.Context) {
 	logger.LogBusinessOperation(c, "distributors", "delete", "distributor", distributorID, true, nil)
 
 	// Return success response
-	c.JSON(http.StatusOK, response.OK("distributor deleted successfully", nil))
+	c.JSON(http.StatusOK, response.OK("distributor deleted successfully", map[string]interface{}{
+		"deleted_systems_count": deletedSystemsCount,
+	}))
 }
 
 // GetDistributorStats handles GET /api/distributors/:id/stats - retrieves users and systems count for a distributor

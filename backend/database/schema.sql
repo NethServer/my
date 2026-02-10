@@ -253,7 +253,8 @@ CREATE TABLE IF NOT EXISTS systems (
     suspended_by_org_id VARCHAR(255),            -- Organization that caused cascade suspension
 
     -- Soft delete
-    deleted_at TIMESTAMP WITH TIME ZONE     -- NULL = active, non-NULL = soft deleted
+    deleted_at TIMESTAMP WITH TIME ZONE,    -- NULL = active, non-NULL = soft deleted
+    deleted_by_org_id VARCHAR(255)           -- Organization that caused cascade soft-deletion
 );
 
 -- Table documentation
@@ -268,6 +269,7 @@ COMMENT ON COLUMN systems.system_secret IS 'Argon2id hash of secret part in PHC 
 COMMENT ON COLUMN systems.registered_at IS 'Timestamp when system first sent inventory. NULL = not yet registered';
 COMMENT ON COLUMN systems.created_by IS 'JSON object: {user_id, username, organization_id} who created the system';
 COMMENT ON COLUMN systems.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted';
+COMMENT ON COLUMN systems.deleted_by_org_id IS 'Organization that caused cascade soft-deletion (for tracking cascade source)';
 
 -- Performance indexes
 CREATE INDEX IF NOT EXISTS idx_systems_organization_id ON systems(organization_id);
@@ -282,6 +284,7 @@ CREATE INDEX IF NOT EXISTS idx_systems_system_secret ON systems(system_secret);
 CREATE INDEX IF NOT EXISTS idx_systems_fqdn ON systems(fqdn);
 CREATE INDEX IF NOT EXISTS idx_systems_ipv4_address ON systems(ipv4_address);
 CREATE INDEX IF NOT EXISTS idx_systems_ipv6_address ON systems(ipv6_address);
+CREATE INDEX IF NOT EXISTS idx_systems_deleted_by_org_id ON systems(deleted_by_org_id) WHERE deleted_by_org_id IS NOT NULL;
 
 -- Status validation constraint
 DO $$

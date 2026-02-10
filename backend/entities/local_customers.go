@@ -841,6 +841,46 @@ func (r *LocalCustomerRepository) GetStats(id string) (*models.CustomerStats, er
 	return &stats, nil
 }
 
+// GetLogtoIDsByCreatedByMultiple returns logto_ids of active customers created by any of the given organizations
+func (r *LocalCustomerRepository) GetLogtoIDsByCreatedByMultiple(createdByOrgIDs []string) ([]string, error) {
+	if len(createdByOrgIDs) == 0 {
+		return nil, nil
+	}
+
+	placeholders := make([]string, len(createdByOrgIDs))
+	args := make([]interface{}, len(createdByOrgIDs))
+	for i, id := range createdByOrgIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	inClause := strings.Join(placeholders, ",")
+
+	query := fmt.Sprintf(`
+		SELECT logto_id FROM customers
+		WHERE custom_data->>'createdBy' IN (%s) AND deleted_at IS NULL AND logto_id IS NOT NULL
+	`, inClause)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query customer logto_ids: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var logtoIDs []string
+	for rows.Next() {
+		var logtoID string
+		if err := rows.Scan(&logtoID); err != nil {
+			return nil, fmt.Errorf("failed to scan customer logto_id: %w", err)
+		}
+		logtoIDs = append(logtoIDs, logtoID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating customer logto_ids: %w", err)
+	}
+
+	return logtoIDs, nil
+}
+
 // SuspendWithCascadeOrigin suspends a customer and records the originating org for cascade tracking
 func (r *LocalCustomerRepository) SuspendWithCascadeOrigin(id, suspendedByOrgID string) error {
 	query := `UPDATE customers SET suspended_at = $2, suspended_by_org_id = $3, updated_at = $2 WHERE logto_id = $1 AND deleted_at IS NULL AND suspended_at IS NULL`

@@ -612,6 +612,34 @@ func (r *LocalResellerRepository) GetStats(id string) (*models.ResellerStats, er
 	return &stats, nil
 }
 
+// GetLogtoIDsByCreatedBy returns logto_ids of active resellers created by a specific organization
+func (r *LocalResellerRepository) GetLogtoIDsByCreatedBy(createdByOrgID string) ([]string, error) {
+	query := `
+		SELECT logto_id FROM resellers
+		WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL AND logto_id IS NOT NULL
+	`
+
+	rows, err := r.db.Query(query, createdByOrgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query reseller logto_ids: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var logtoIDs []string
+	for rows.Next() {
+		var logtoID string
+		if err := rows.Scan(&logtoID); err != nil {
+			return nil, fmt.Errorf("failed to scan reseller logto_id: %w", err)
+		}
+		logtoIDs = append(logtoIDs, logtoID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating reseller logto_ids: %w", err)
+	}
+
+	return logtoIDs, nil
+}
+
 // SuspendWithCascadeOrigin suspends a reseller and records the originating org for cascade tracking
 func (r *LocalResellerRepository) SuspendWithCascadeOrigin(id, suspendedByOrgID string) error {
 	query := `UPDATE resellers SET suspended_at = $2, suspended_by_org_id = $3, updated_at = $2 WHERE logto_id = $1 AND deleted_at IS NULL AND suspended_at IS NULL`

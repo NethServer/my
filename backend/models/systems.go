@@ -46,6 +46,7 @@ type System struct {
 	RegisteredAt     *time.Time        `json:"registered_at" structs:"registered_at"`             // Registration timestamp
 	SuspendedAt      *time.Time        `json:"suspended_at" structs:"suspended_at"`               // Suspension timestamp
 	SuspendedByOrgID *string           `json:"suspended_by_org_id" structs:"suspended_by_org_id"` // Organization that caused cascade suspension
+	DeletedByOrgID   *string           `json:"deleted_by_org_id" structs:"deleted_by_org_id"`     // Organization that caused cascade soft-deletion
 	CreatedBy        SystemCreator     `json:"created_by" structs:"created_by"`
 	// Heartbeat status fields
 	HeartbeatStatus  string     `json:"heartbeat_status,omitempty"`  // active, inactive, unknown

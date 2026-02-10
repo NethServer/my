@@ -606,3 +606,69 @@ func (r *LocalSystemRepository) ReactivateSystemsByOrgID(orgID string) (int, err
 
 	return int(rowsAffected), nil
 }
+
+// SoftDeleteSystemsByOrgID soft-deletes all active systems belonging to an organization (cascade deletion)
+// Returns the count of deleted systems
+func (r *LocalSystemRepository) SoftDeleteSystemsByOrgID(orgID string) (int, error) {
+	now := time.Now()
+
+	query := `
+		UPDATE systems
+		SET deleted_at = $2, deleted_by_org_id = $1, status = 'deleted', updated_at = $2
+		WHERE organization_id = $1 AND deleted_at IS NULL
+	`
+
+	result, err := r.db.Exec(query, orgID, now)
+	if err != nil {
+		return 0, fmt.Errorf("failed to cascade soft-delete systems: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return int(rowsAffected), nil
+}
+
+// SoftDeleteSystemsByMultipleOrgIDs soft-deletes all active systems belonging to any of the given organizations
+// The deletedByOrgID is the org that initiated the cascade
+func (r *LocalSystemRepository) SoftDeleteSystemsByMultipleOrgIDs(orgIDs []string, deletedByOrgID string) (int, error) {
+	if len(orgIDs) == 0 {
+		return 0, nil
+	}
+
+	now := time.Now()
+
+	placeholders := make([]string, len(orgIDs))
+	args := make([]interface{}, len(orgIDs))
+	for i, id := range orgIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	inClause := strings.Join(placeholders, ",")
+
+	deletedByIdx := len(orgIDs) + 1
+	nowIdx := len(orgIDs) + 2
+	query := fmt.Sprintf(`
+		UPDATE systems
+		SET deleted_at = $%d, deleted_by_org_id = $%d, status = 'deleted', updated_at = $%d
+		WHERE organization_id IN (%s) AND deleted_at IS NULL
+	`, nowIdx, deletedByIdx, nowIdx, inClause)
+
+	updateArgs := make([]interface{}, 0, len(orgIDs)+2)
+	updateArgs = append(updateArgs, args...)
+	updateArgs = append(updateArgs, deletedByOrgID, now)
+
+	result, err := r.db.Exec(query, updateArgs...)
+	if err != nil {
+		return 0, fmt.Errorf("failed to cascade soft-delete systems: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return int(rowsAffected), nil
+}

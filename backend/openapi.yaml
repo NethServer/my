@@ -3714,7 +3714,11 @@ paths:
                     example: "customer deleted successfully"
                   data:
                     type: object
-                    nullable: true
+                    properties:
+                      deleted_systems_count:
+                        type: integer
+                        description: Number of systems cascade soft-deleted for this customer
+                        example: 2
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -4158,7 +4162,11 @@ paths:
                     example: "distributor deleted successfully"
                   data:
                     type: object
-                    nullable: true
+                    properties:
+                      deleted_systems_count:
+                        type: integer
+                        description: Number of systems cascade soft-deleted across the distributor hierarchy
+                        example: 5
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -4941,7 +4949,11 @@ paths:
                     example: "reseller deleted successfully"
                   data:
                     type: object
-                    nullable: true
+                    properties:
+                      deleted_systems_count:
+                        type: integer
+                        description: Number of systems cascade soft-deleted across the reseller hierarchy
+                        example: 3
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':

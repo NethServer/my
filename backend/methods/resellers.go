@@ -369,7 +369,7 @@ func DeleteReseller(c *gin.Context) {
 	service := local.NewOrganizationService()
 
 	// Delete reseller
-	err = service.DeleteReseller(resellerID, user.ID, user.OrganizationID)
+	deletedSystemsCount, err := service.DeleteReseller(resellerID, user.ID, user.OrganizationID)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -387,7 +387,9 @@ func DeleteReseller(c *gin.Context) {
 	logger.LogBusinessOperation(c, "resellers", "delete", "reseller", resellerID, true, nil)
 
 	// Return success response
-	c.JSON(http.StatusOK, response.OK("reseller deleted successfully", nil))
+	c.JSON(http.StatusOK, response.OK("reseller deleted successfully", map[string]interface{}{
+		"deleted_systems_count": deletedSystemsCount,
+	}))
 }
 
 // GetResellerStats handles GET /api/resellers/:id/stats - retrieves users and systems count for a reseller

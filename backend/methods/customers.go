@@ -376,7 +376,7 @@ func DeleteCustomer(c *gin.Context) {
 	service := local.NewOrganizationService()
 
 	// Delete customer
-	err = service.DeleteCustomer(customerID, user.ID, user.OrganizationID)
+	deletedSystemsCount, err := service.DeleteCustomer(customerID, user.ID, user.OrganizationID)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -394,7 +394,9 @@ func DeleteCustomer(c *gin.Context) {
 	logger.LogBusinessOperation(c, "customers", "delete", "customer", customerID, true, nil)
 
 	// Return success response
-	c.JSON(http.StatusOK, response.OK("customer deleted successfully", nil))
+	c.JSON(http.StatusOK, response.OK("customer deleted successfully", map[string]interface{}{
+		"deleted_systems_count": deletedSystemsCount,
+	}))
 }
 
 // GetCustomerStats handles GET /api/customers/:id/stats - retrieves users, systems and applications count for a customer
