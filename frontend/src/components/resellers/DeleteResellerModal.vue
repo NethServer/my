@@ -6,7 +6,12 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
-import { deleteReseller, RESELLERS_KEY, RESELLERS_TOTAL_KEY, type Reseller } from '@/lib/resellers'
+import {
+  deleteReseller,
+  RESELLERS_KEY,
+  RESELLERS_TOTAL_KEY,
+  type Reseller,
+} from '@/lib/organizations/resellers'
 import { useNotificationsStore } from '@/stores/notifications'
 import DeleteObjectModal from '../DeleteObjectModal.vue'
 

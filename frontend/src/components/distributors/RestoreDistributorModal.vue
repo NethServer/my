@@ -13,7 +13,7 @@ import {
   DISTRIBUTORS_KEY,
   DISTRIBUTORS_TOTAL_KEY,
   type Distributor,
-} from '@/lib/distributors'
+} from '@/lib/organizations/distributors'
 import { useNotificationsStore } from '@/stores/notifications'
 
 const { visible = false, distributor = undefined } = defineProps<{

@@ -7,7 +7,7 @@
 import { faCity } from '@fortawesome/free-solid-svg-icons'
 import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
-import { getResellersTotal, RESELLERS_TOTAL_KEY } from '@/lib/resellers'
+import { getResellersTotal, RESELLERS_TOTAL_KEY } from '@/lib/organizations/resellers'
 import CounterCard from '../CounterCard.vue'
 
 const loginStore = useLoginStore()

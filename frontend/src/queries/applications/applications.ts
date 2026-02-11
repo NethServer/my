@@ -1,50 +1,58 @@
-//  Copyright (C) 2025 Nethesis S.r.l.
+//  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import { MIN_SEARCH_LENGTH } from '@/lib/common'
-import { canReadResellers } from '@/lib/permissions'
-import {
-  getResellers,
-  RESELLERS_KEY,
-  RESELLERS_TABLE_ID,
-  type Reseller,
-  type ResellerStatus,
-} from '@/lib/resellers'
+import { canReadApplications } from '@/lib/permissions'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { useDebounceFn } from '@vueuse/core'
 import { ref, watch } from 'vue'
+import {
+  APPLICATIONS_KEY,
+  APPLICATIONS_TABLE_ID,
+  getApplications,
+  type Application,
+} from '@/lib/applications/applications'
 
-export const useResellers = defineQuery(() => {
+export const useApplications = defineQuery(() => {
   const loginStore = useLoginStore()
   const pageNum = ref(1)
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
-  const statusFilter = ref<ResellerStatus[]>(['enabled', 'suspended'])
-  const sortBy = ref<keyof Reseller>('name')
+  const typeFilter = ref<string[]>([])
+  const versionFilter = ref<string[]>([])
+  const systemFilter = ref<string[]>([])
+  const organizationFilter = ref<string[]>([])
+  const sortBy = ref<keyof Application>('display_name')
   const sortDescending = ref(false)
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [
-      RESELLERS_KEY,
+      APPLICATIONS_KEY,
       {
         pageNum: pageNum.value,
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
-        statusFilter: statusFilter.value,
+        typeFilter: typeFilter.value,
+        versionFilter: versionFilter.value,
+        systemFilter: systemFilter.value,
+        organizationFilter: organizationFilter.value,
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
     ],
-    enabled: () => !!loginStore.jwtToken && canReadResellers(),
+    enabled: () => !!loginStore.jwtToken && canReadApplications(),
     query: () =>
-      getResellers(
+      getApplications(
         pageNum.value,
         pageSize.value,
         debouncedTextFilter.value,
-        statusFilter.value,
+        typeFilter.value,
+        versionFilter.value,
+        systemFilter.value,
+        organizationFilter.value,
         sortBy.value,
         sortDescending.value,
       ),
@@ -55,7 +63,7 @@ export const useResellers = defineQuery(() => {
     () => loginStore.userInfo?.email,
     (email) => {
       if (email) {
-        pageSize.value = loadPageSizeFromStorage(RESELLERS_TABLE_ID)
+        pageSize.value = loadPageSizeFromStorage(APPLICATIONS_TABLE_ID)
       }
     },
     { immediate: true },
@@ -89,8 +97,11 @@ export const useResellers = defineQuery(() => {
     pageNum,
     pageSize,
     textFilter,
+    typeFilter,
+    versionFilter,
+    systemFilter,
+    organizationFilter,
     debouncedTextFilter,
-    statusFilter,
     sortBy,
     sortDescending,
   }

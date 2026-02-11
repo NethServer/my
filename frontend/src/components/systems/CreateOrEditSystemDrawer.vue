@@ -37,11 +37,10 @@ import { getValidationIssues, isValidationError } from '../../lib/validation'
 import type { AxiosError } from 'axios'
 import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
-import { getOrganizations, ORGANIZATIONS_KEY } from '@/lib/organizations'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faCheck, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
 import { SYSTEM_ORGANIZATION_FILTER_KEY } from '@/lib/systems/organizationFilter'
-import { organizationsQuery } from '@/queries/organizations'
+import { organizationsQuery } from '@/queries/organizations/organizations'
 
 const { isShown = false, currentSystem = undefined } = defineProps<{
   isShown: boolean
