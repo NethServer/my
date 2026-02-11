@@ -5,7 +5,7 @@ import axios from 'axios'
 import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
-import { type Pagination } from '../common'
+import { downloadFile, type Pagination } from '../common'
 
 export const USERS_KEY = 'users'
 export const USERS_TOTAL_KEY = 'usersTotal'
@@ -217,30 +217,86 @@ export const restoreUser = (user: User) => {
   )
 }
 
-//// TODO wait for backend fix
-// export const getExport = (
-//   format: 'csv' | 'pdf',
-//   textFilter: string | undefined = undefined,
-//   roleFilter: string[] | undefined = undefined,
-//   organizationFilter: string[] | undefined = undefined,
-//   statusFilter: SystemStatus[] | undefined = undefined,
-//   sortBy: string | undefined = undefined,
-//   sortDescending: boolean | undefined = undefined,
-// ) => {
-//   const loginStore = useLoginStore()
-//   const params = getQueryStringParamsForExport(
-//     format,
-//     textFilter,
-//     roleFilter,
-//     organizationFilter,
-//     statusFilter,
-//     sortBy,
-//     sortDescending,
-//   )
+export const getQueryStringParamsForExport = (
+  format: string,
+  textFilter: string | undefined,
+  organizationFilter: string[] | undefined,
+  roleFilter: string[] | undefined,
+  statusFilter: UserStatus[] | undefined,
+  sortBy: string | undefined,
+  sortDescending: boolean | undefined,
+) => {
+  const searchParams = new URLSearchParams({
+    format: format,
+  })
 
-//   return axios
-//     .get(`${API_URL}/systems/export?${params}`, {
-//       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
-//     })
-//     .then((res) => res.data)
-// }
+  if (textFilter?.trim()) {
+    searchParams.append('search', textFilter)
+  }
+
+  if (organizationFilter) {
+    organizationFilter.forEach((orgId) => {
+      searchParams.append('organization_id', orgId)
+    })
+  }
+
+  if (roleFilter) {
+    roleFilter.forEach((roleId) => {
+      searchParams.append('role', roleId)
+    })
+  }
+
+  if (statusFilter) {
+    statusFilter.forEach((status) => {
+      searchParams.append('status', status)
+    })
+  }
+
+  if (sortBy) {
+    searchParams.append('sort_by', sortBy)
+  }
+
+  if (sortDescending !== undefined) {
+    searchParams.append('sort_direction', sortDescending ? 'desc' : 'asc')
+  }
+
+  return searchParams.toString()
+}
+
+export const getExport = (
+  format: 'csv' | 'pdf',
+  textFilter: string | undefined = undefined,
+  organizationFilter: string[] | undefined = undefined,
+  roleFilter: string[] | undefined = undefined,
+  statusFilter: UserStatus[] | undefined = undefined,
+  sortBy: string | undefined = undefined,
+  sortDescending: boolean | undefined = undefined,
+) => {
+  const loginStore = useLoginStore()
+  const params = getQueryStringParamsForExport(
+    format,
+    textFilter,
+    organizationFilter,
+    roleFilter,
+    statusFilter,
+    sortBy,
+    sortDescending,
+  )
+
+  return axios
+    .get(`${API_URL}/users/export?${params}`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data)
+}
+
+export async function exportUser(user: User, format: 'pdf' | 'csv') {
+  try {
+    const exportData = await getExport(format, user.email)
+    const fileName = `${user.name}.${format}`
+    downloadFile(exportData, fileName, format)
+  } catch (error) {
+    console.error(`Cannot export user to ${format}:`, error)
+    throw error
+  }
+}
