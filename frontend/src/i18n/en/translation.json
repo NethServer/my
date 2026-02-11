@@ -165,6 +165,7 @@
     "notes": "Notes",
     "email": "Email",
     "phone_number": "Phone number",
+    "language": "Language",
     "suspend_organization": "Suspend organization",
     "reactivate_organization": "Reactivate organization",
     "cannot_suspend_organization": "Cannot suspend organization",
