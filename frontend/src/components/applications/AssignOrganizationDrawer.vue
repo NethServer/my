@@ -25,6 +25,7 @@ import {
 import { getOrganizations, ORGANIZATIONS_KEY, type Organization } from '@/lib/organizations'
 import { useLoginStore } from '@/stores/login'
 import type { AxiosError } from 'axios'
+import { organizationsQuery, useOrganizations } from '@/queries/organizations'
 
 const { isShown = false, currentApplication = undefined } = defineProps<{
   isShown: boolean
@@ -76,11 +77,9 @@ const {
   },
 })
 
-//// defineQuery! asdf
 const { state: organizations } = useQuery({
-  key: [ORGANIZATIONS_KEY],
+  ...organizationsQuery,
   enabled: () => !!loginStore.jwtToken && isShown,
-  query: getOrganizations,
 })
 
 const validationIssues = ref<Record<string, string[]>>({})
