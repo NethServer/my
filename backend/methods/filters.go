@@ -10,10 +10,8 @@
 package methods
 
 import (
-	"database/sql"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -376,10 +374,9 @@ func GetFilterOrganizations(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("organization filters retrieved successfully", result))
 }
 
-// GetFilterUsersOrganizations returns the list of organizations for filtering users
+// GetFilterUsersOrganizations returns the list of organizations that have users for filtering
 // Respects RBAC hierarchy - users only see organizations they can access
-// Unlike GetFilterOrganizations (for systems), this returns all accessible organizations
-// regardless of whether they have systems associated
+// Only returns organizations with at least one associated user
 func GetFilterUsersOrganizations(c *gin.Context) {
 	// Get current user context for hierarchical filtering
 	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
@@ -389,61 +386,33 @@ func GetFilterUsersOrganizations(c *gin.Context) {
 	}
 
 	// Build query with RBAC filtering
-	// Returns all organizations the user can see based on their role in the hierarchy
-	userOrgRoleLower := strings.ToLower(userOrgRole)
+	// Only returns organizations that have at least one user associated
+	baseQuery := `
+		WITH all_organizations AS (
+			SELECT logto_id, name, 'distributor' AS type FROM distributors WHERE deleted_at IS NULL
+			UNION
+			SELECT logto_id, name, 'reseller' AS type FROM resellers WHERE deleted_at IS NULL
+			UNION
+			SELECT logto_id, name, 'customer' AS type FROM customers WHERE deleted_at IS NULL
+		)
+		SELECT DISTINCT
+			o.logto_id AS id,
+			o.name,
+			o.type
+		FROM users u
+		INNER JOIN all_organizations o ON u.organization_id = o.logto_id
+		WHERE u.deleted_at IS NULL
+	`
 
-	var query string
+	// Apply RBAC filtering based on user role
+	query := baseQuery
 	var args []interface{}
+	query, args, _ = helpers.AppendOrgFilter(query, userOrgRole, userOrgID, "u.", args, 1)
 
-	switch userOrgRoleLower {
-	case "owner":
-		// Owner sees all organizations
-		query = `
-			SELECT logto_id AS id, name, 'distributor' AS type FROM distributors WHERE deleted_at IS NULL
-			UNION
-			SELECT logto_id AS id, name, 'reseller' AS type FROM resellers WHERE deleted_at IS NULL
-			UNION
-			SELECT logto_id AS id, name, 'customer' AS type FROM customers WHERE deleted_at IS NULL
-			ORDER BY name ASC
-		`
-	case "distributor":
-		// Distributor sees their org + resellers + customers
-		query = `
-			SELECT logto_id AS id, name, 'distributor' AS type FROM distributors WHERE deleted_at IS NULL AND logto_id = $1
-			UNION
-			SELECT logto_id AS id, name, 'reseller' AS type FROM resellers WHERE deleted_at IS NULL
-			UNION
-			SELECT logto_id AS id, name, 'customer' AS type FROM customers WHERE deleted_at IS NULL
-			ORDER BY name ASC
-		`
-		args = append(args, userOrgID)
-	case "reseller":
-		// Reseller sees their org + customers
-		query = `
-			SELECT logto_id AS id, name, 'reseller' AS type FROM resellers WHERE deleted_at IS NULL AND logto_id = $1
-			UNION
-			SELECT logto_id AS id, name, 'customer' AS type FROM customers WHERE deleted_at IS NULL
-			ORDER BY name ASC
-		`
-		args = append(args, userOrgID)
-	default:
-		// Customer or unknown role - only their organization
-		query = `
-			SELECT logto_id AS id, name, 'customer' AS type FROM customers WHERE deleted_at IS NULL AND logto_id = $1
-			ORDER BY name ASC
-		`
-		args = append(args, userOrgID)
-	}
+	query += ` ORDER BY o.name ASC`
 
 	// Execute query
-	var rows *sql.Rows
-	var err error
-
-	if len(args) > 0 {
-		rows, err = database.DB.Query(query, args...)
-	} else {
-		rows, err = database.DB.Query(query)
-	}
+	rows, err := database.DB.Query(query, args...)
 
 	if err != nil {
 		logger.Error().
