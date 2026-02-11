@@ -41,6 +41,7 @@ import { getOrganizations, ORGANIZATIONS_KEY } from '@/lib/organizations'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faCheck, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
 import { SYSTEM_ORGANIZATION_FILTER_KEY } from '@/lib/systems/organizationFilter'
+import { organizationsQuery } from '@/queries/organizations'
 
 const { isShown = false, currentSystem = undefined } = defineProps<{
   isShown: boolean
@@ -54,11 +55,9 @@ const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
 const loginStore = useLoginStore()
 
-//// defineQuery! asdf
 const { state: organizations } = useQuery({
-  key: [ORGANIZATIONS_KEY],
+  ...organizationsQuery,
   enabled: () => !!loginStore.jwtToken && isShown,
-  query: getOrganizations,
 })
 
 const {

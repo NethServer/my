@@ -38,6 +38,8 @@ import { PRODUCT_NAME } from '@/lib/config'
 import { normalize } from '@/lib/common'
 import { SYSTEM_ORGANIZATION_FILTER_KEY } from '@/lib/systems/organizationFilter'
 import { getUserRoles, USER_ROLES_KEY } from '@/lib/userRoles'
+import { organizationsQuery } from '@/queries/organizations'
+import { userRolesQuery } from '@/queries/userRoles'
 
 const { isShown = false, currentUser = undefined } = defineProps<{
   isShown: boolean
@@ -51,21 +53,15 @@ const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
 const loginStore = useLoginStore()
 
-//// defineQuery! asdf
 const { state: organizations } = useQuery({
-  key: [ORGANIZATIONS_KEY],
+  ...organizationsQuery,
   enabled: () => !!loginStore.jwtToken && isShown,
-  query: getOrganizations,
 })
 
-//// defineQuery! asdf
 const { state: allUserRoles } = useQuery({
-  key: [USER_ROLES_KEY],
+  ...userRolesQuery,
   enabled: () => !!loginStore.jwtToken && isShown,
-  query: getUserRoles,
 })
-
-// const { state: allUserRoles } = useUserRoles() ////
 
 const {
   mutate: createUserMutate,
