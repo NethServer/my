@@ -249,6 +249,11 @@
     "user_reactivated": "User reactivated",
     "user_reactivated_successfully": "{name} reactivated successfully",
     "reactivate_user_confirmation": "Are you sure you want to reactivate {name}? The user will be able to log in again.",
+    "restore_user": "Restore user",
+    "cannot_restore_user": "Cannot restore user",
+    "user_restored": "User restored",
+    "user_restored_successfully": "{name} restored successfully",
+    "restore_user_confirmation": "Are you sure you want to restore {name}?",
     "export_users_to_pdf": "Export users to PDF",
     "export_users_to_csv": "Export users to CSV"
   },
