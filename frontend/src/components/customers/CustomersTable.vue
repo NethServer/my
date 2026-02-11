@@ -61,10 +61,10 @@ const {
   pageNum,
   pageSize,
   textFilter,
-  debouncedTextFilter,
   statusFilter,
   sortBy,
   sortDescending,
+  areDefaultFiltersApplied,
 } = useCustomers()
 
 const currentCustomer = ref<Customer | undefined>()
@@ -95,16 +95,6 @@ const customersPage = computed(() => {
 
 const pagination = computed(() => {
   return state.value.data?.pagination
-})
-
-const areDefaultFiltersApplied = computed(() => {
-  return (
-    !debouncedTextFilter.value &&
-    statusFilter.value.length === 2 &&
-    statusFilter.value.includes('enabled') &&
-    statusFilter.value.includes('suspended') &&
-    !statusFilter.value.includes('deleted')
-  )
 })
 
 const isNoDataEmptyStateShown = computed(() => {
@@ -187,6 +177,15 @@ function getKebabMenuItems(customer: Customer) {
         label: t('common.reactivate'),
         icon: faCirclePlay,
         action: () => showReactivateCustomerModal(customer),
+        disabled: asyncStatus.value === 'loading',
+      })
+
+      items.push({
+        id: 'deleteCustomer',
+        label: t('common.delete'),
+        icon: faTrash,
+        danger: true,
+        action: () => showDeleteCustomerDrawer(customer),
         disabled: asyncStatus.value === 'loading',
       })
     } else if (customer.deleted_at) {

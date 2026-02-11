@@ -21,7 +21,14 @@ import { getExport } from '@/lib/organizations/resellers'
 import { downloadFile } from '@/lib/common'
 
 const { t } = useI18n()
-const { state, debouncedTextFilter, statusFilter, sortBy, sortDescending } = useResellers()
+const {
+  state,
+  debouncedTextFilter,
+  statusFilter,
+  sortBy,
+  sortDescending,
+  areDefaultFiltersApplied,
+} = useResellers()
 
 const isShownCreateResellerDrawer = ref(false)
 
@@ -73,9 +80,8 @@ async function exportResellers(format: 'pdf' | 'csv') {
       <div class="max-w-2xl text-gray-500 dark:text-gray-400">
         {{ $t('resellers.page_description') }}
       </div>
-      <!-- v-if condition is the opposite of empty state condition in ResellersTable.vue -->
       <div
-        v-if="!(state.status === 'success' && !resellersPage?.length && !debouncedTextFilter)"
+        v-if="!(state.status === 'success' && !resellersPage?.length && areDefaultFiltersApplied)"
         class="flex items-center gap-4"
       >
         <NeDropdown

@@ -21,7 +21,14 @@ import { getExport } from '@/lib/organizations/customers'
 import { downloadFile } from '@/lib/common'
 
 const { t } = useI18n()
-const { state, debouncedTextFilter, statusFilter, sortBy, sortDescending } = useCustomers()
+const {
+  state,
+  debouncedTextFilter,
+  statusFilter,
+  sortBy,
+  sortDescending,
+  areDefaultFiltersApplied,
+} = useCustomers()
 
 const isShownCreateCustomerDrawer = ref(false)
 
@@ -73,9 +80,8 @@ async function exportCustomers(format: 'pdf' | 'csv') {
       <div class="max-w-2xl text-gray-500 dark:text-gray-400">
         {{ $t('customers.page_description') }}
       </div>
-      <!-- v-if condition is the opposite of empty state condition in CustomersTable.vue -->
       <div
-        v-if="!(state.status === 'success' && !customersPage?.length && !debouncedTextFilter)"
+        v-if="!(state.status === 'success' && !customersPage?.length && areDefaultFiltersApplied)"
         class="flex items-center gap-4"
       >
         <NeDropdown
