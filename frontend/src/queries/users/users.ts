@@ -8,7 +8,7 @@ import { getUsers, USERS_KEY, USERS_TABLE_ID, type User, type UserStatus } from 
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { useDebounceFn } from '@vueuse/core'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 export const useUsers = defineQuery(() => {
   const loginStore = useLoginStore()
@@ -48,6 +48,18 @@ export const useUsers = defineQuery(() => {
         sortBy.value,
         sortDescending.value,
       ),
+  })
+
+  const areDefaultFiltersApplied = computed(() => {
+    return (
+      !debouncedTextFilter.value &&
+      organizationFilter.value.length === 0 &&
+      roleFilter.value.length === 0 &&
+      statusFilter.value.length === 2 &&
+      statusFilter.value.includes('enabled') &&
+      statusFilter.value.includes('suspended') &&
+      !statusFilter.value.includes('deleted')
+    )
   })
 
   // load table page size from storage
@@ -95,5 +107,6 @@ export const useUsers = defineQuery(() => {
     statusFilter,
     sortBy,
     sortDescending,
+    areDefaultFiltersApplied,
   }
 })
