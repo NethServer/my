@@ -476,6 +476,15 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 		}
 
 		// FQDN and public_ip will be added when available in NSEC inventory
+		if fqdnVal, ok := inventoryData["fqdn"].(string); ok && fqdnVal != "" {
+			fqdn = &fqdnVal
+		}
+		if publicIPv4, ok := inventoryData["default_ipv4"].(string); ok && publicIPv4 != "" {
+			ipv4 = &publicIPv4
+		}
+		if publicIPv6, ok := inventoryData["default_ipv6"].(string); ok && publicIPv6 != "" {
+			ipv6 = &publicIPv6
+		}
 
 	default:
 		// Unknown installation type, try legacy structure
