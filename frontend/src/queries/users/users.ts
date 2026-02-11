@@ -17,6 +17,7 @@ export const useUsers = defineQuery(() => {
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
   const organizationFilter = ref<string[]>([])
+  const roleFilter = ref<string[]>([])
   const statusFilter = ref<UserStatus[]>(['enabled', 'suspended'])
   const sortBy = ref<keyof User>('name')
   const sortDescending = ref(false)
@@ -29,6 +30,7 @@ export const useUsers = defineQuery(() => {
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
         organizationFilter: organizationFilter.value,
+        roleFilter: roleFilter.value,
         statusFilter: statusFilter.value,
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
@@ -41,6 +43,7 @@ export const useUsers = defineQuery(() => {
         pageSize.value,
         debouncedTextFilter.value,
         organizationFilter.value,
+        roleFilter.value,
         statusFilter.value,
         sortBy.value,
         sortDescending.value,
@@ -88,6 +91,7 @@ export const useUsers = defineQuery(() => {
     textFilter,
     debouncedTextFilter,
     organizationFilter,
+    roleFilter,
     statusFilter,
     sortBy,
     sortDescending,

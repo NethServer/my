@@ -57,6 +57,9 @@ import ReactivateUserModal from './ReactivateUserModal.vue'
 import OrganizationIcon from '../OrganizationIcon.vue'
 import UserRoleBadge from '../UserRoleBadge.vue'
 import { useOrganizationFilter } from '@/queries/users/organizationFilter'
+import { userRolesQuery } from '@/queries/users/userRoles'
+import { useQuery } from '@pinia/colada'
+import { normalize } from '@/lib/common'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -73,6 +76,7 @@ const {
   textFilter,
   debouncedTextFilter,
   organizationFilter,
+  roleFilter,
   statusFilter,
   sortBy,
   sortDescending,
@@ -80,8 +84,10 @@ const {
 const loginStore = useLoginStore()
 const { state: organizationFilterState, asyncStatus: organizationFilterAsyncStatus } =
   useOrganizationFilter()
-// const { state: userRoleFilterState, asyncStatus: userRoleFilterAsyncStatus } =
-//   useUserRoleFilter() ////
+const { state: roleFilterState, asyncStatus: roleFilterAsyncStatus } = useQuery({
+  ...userRolesQuery,
+  enabled: () => !!loginStore.jwtToken,
+})
 
 const currentUser = ref<User | undefined>()
 const isShownCreateOrEditUserDrawer = ref(false)
@@ -121,6 +127,7 @@ const areDefaultFiltersApplied = computed(() => {
   return (
     !debouncedTextFilter.value &&
     organizationFilter.value.length === 0 &&
+    roleFilter.value.length === 0 &&
     statusFilter.value.length === 2 &&
     statusFilter.value.includes('enabled') &&
     statusFilter.value.includes('suspended') &&
@@ -155,18 +162,17 @@ const organizationFilterOptions = computed(() => {
   }
 })
 
-////
-// const userRoleOptions = computed(() => {
-//   if (!allUserRoles.value.data) {
-//     return []
-//   }
+const roleFilterOptions = computed(() => {
+  if (!roleFilterState.value.data) {
+    return []
+  }
 
-//   return allUserRoles.value.data?.map((role) => ({
-//     id: role.id,
-//     label: t(`user_roles.${normalize(role.name)}`),
-//     description: t(`user_roles.${normalize(role.name)}_description`),
-//   }))
-// })
+  return roleFilterState.value.data?.map((role) => ({
+    id: role.id,
+    label: t(`user_roles.${normalize(role.name)}`),
+    description: t(`user_roles.${normalize(role.name)}_description`),
+  }))
+})
 
 watch(
   () => isShownCreateUserDrawer,
@@ -181,6 +187,7 @@ watch(
 function resetFilters() {
   textFilter.value = ''
   organizationFilter.value = []
+  roleFilter.value = []
   statusFilter.value = ['enabled', 'suspended']
 }
 
@@ -364,6 +371,19 @@ const onClosePasswordChangedModal = () => {
                 organizationFilterState.status === 'error'
               "
               show-options-filter
+              :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+              :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+              :no-options-label="t('ne_dropdown_filter.no_options')"
+              :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+              :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            />
+            <!-- role filter -->
+            <NeDropdownFilter
+              v-model="roleFilter"
+              kind="checkbox"
+              :label="t('users.role')"
+              :options="roleFilterOptions"
+              :disabled="roleFilterAsyncStatus === 'loading' || roleFilterState.status === 'error'"
               :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
               :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
               :no-options-label="t('ne_dropdown_filter.no_options')"

@@ -75,6 +75,7 @@ export const getQueryStringParams = (
   pageSize: number,
   textFilter: string | null,
   organizationFilter: string[],
+  roleFilter: string[],
   statusFilter: UserStatus[],
   sortBy: string | null,
   sortDescending: boolean,
@@ -94,6 +95,10 @@ export const getQueryStringParams = (
     searchParams.append('organization_id', orgId)
   })
 
+  roleFilter.forEach((roleId) => {
+    searchParams.append('role', roleId)
+  })
+
   statusFilter.forEach((status) => {
     searchParams.append('status', status)
   })
@@ -105,6 +110,7 @@ export const getUsers = (
   pageSize: number,
   textFilter: string,
   organizationFilter: string[],
+  roleFilter: string[],
   statusFilter: UserStatus[],
   sortBy: string,
   sortDescending: boolean,
@@ -115,6 +121,7 @@ export const getUsers = (
     pageSize,
     textFilter,
     organizationFilter,
+    roleFilter,
     statusFilter,
     sortBy,
     sortDescending,
