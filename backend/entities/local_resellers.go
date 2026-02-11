@@ -601,6 +601,86 @@ func (r *LocalResellerRepository) GetTrend(userOrgRole, userOrgID string, period
 	return dataPoints, currentTotal, previousTotal, nil
 }
 
+// GetByIDIncludeDeleted retrieves a reseller by logto_id including soft-deleted ones
+func (r *LocalResellerRepository) GetByIDIncludeDeleted(id string) (*models.LocalReseller, error) {
+	query := `
+		SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
+		       logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
+		FROM resellers
+		WHERE logto_id = $1
+	`
+
+	reseller := &models.LocalReseller{}
+	var customDataJSON []byte
+
+	err := r.db.QueryRow(query, id).Scan(
+		&reseller.ID, &reseller.LogtoID, &reseller.Name, &reseller.Description,
+		&customDataJSON, &reseller.CreatedAt, &reseller.UpdatedAt,
+		&reseller.LogtoSyncedAt, &reseller.LogtoSyncError, &reseller.DeletedAt,
+		&reseller.SuspendedAt, &reseller.SuspendedByOrgID,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("reseller not found")
+		}
+		return nil, fmt.Errorf("failed to get reseller: %w", err)
+	}
+
+	// Parse custom_data JSON
+	if len(customDataJSON) > 0 {
+		if err := json.Unmarshal(customDataJSON, &reseller.CustomData); err != nil {
+			reseller.CustomData = make(map[string]interface{})
+		}
+	} else {
+		reseller.CustomData = make(map[string]interface{})
+	}
+
+	return reseller, nil
+}
+
+// Restore restores a soft-deleted reseller
+func (r *LocalResellerRepository) Restore(logtoID string) error {
+	query := `UPDATE resellers SET deleted_at = NULL, updated_at = $2 WHERE logto_id = $1 AND deleted_at IS NOT NULL`
+
+	result, err := r.db.Exec(query, logtoID, time.Now())
+	if err != nil {
+		return fmt.Errorf("failed to restore reseller: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("reseller not found or not deleted")
+	}
+
+	return nil
+}
+
+// HardDelete permanently removes a reseller from the database
+func (r *LocalResellerRepository) HardDelete(logtoID string) error {
+	query := `DELETE FROM resellers WHERE logto_id = $1`
+
+	result, err := r.db.Exec(query, logtoID)
+	if err != nil {
+		return fmt.Errorf("failed to hard-delete reseller: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("reseller not found")
+	}
+
+	return nil
+}
+
 // GetStats returns users, systems, customers and applications count for a specific reseller
 func (r *LocalResellerRepository) GetStats(id string) (*models.ResellerStats, error) {
 	// First get the reseller to obtain its logto_id

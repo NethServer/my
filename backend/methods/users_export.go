@@ -47,7 +47,7 @@ func ExportUsers(c *gin.Context) {
 	search := c.Query("search")
 
 	// Parse filter parameters
-	organizationFilter := c.Query("organization_id")
+	organizationFilter := c.QueryArray("organization_id")
 	statuses := c.QueryArray("status")
 	roleFilter := c.Query("role")
 
@@ -97,8 +97,8 @@ func ExportUsers(c *gin.Context) {
 	if search != "" {
 		filters["search"] = search
 	}
-	if organizationFilter != "" {
-		filters["organization_id"] = organizationFilter
+	if len(organizationFilter) > 0 {
+		filters["organization_id"] = strings.Join(organizationFilter, ",")
 	}
 	if len(statuses) > 0 {
 		filters["status"] = strings.Join(statuses, ",")

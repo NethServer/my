@@ -369,7 +369,7 @@ func DeleteReseller(c *gin.Context) {
 	service := local.NewOrganizationService()
 
 	// Delete reseller
-	deletedSystemsCount, err := service.DeleteReseller(resellerID, user.ID, user.OrganizationID)
+	deletedSystemsCount, deletedUsersCount, err := service.DeleteReseller(resellerID, user.ID, user.OrganizationID)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -389,7 +389,142 @@ func DeleteReseller(c *gin.Context) {
 	// Return success response
 	c.JSON(http.StatusOK, response.OK("reseller deleted successfully", map[string]interface{}{
 		"deleted_systems_count": deletedSystemsCount,
+		"deleted_users_count":   deletedUsersCount,
 	}))
+}
+
+// RestoreReseller handles PATCH /api/resellers/:id/restore - restores a soft-deleted reseller
+func RestoreReseller(c *gin.Context) {
+	resellerID := c.Param("id")
+	if resellerID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("reseller ID required", nil))
+		return
+	}
+
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Get reseller (including deleted) for hierarchy validation
+	repo := entities.NewLocalResellerRepository()
+	reseller, err := repo.GetByIDIncludeDeleted(resellerID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("reseller not found", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get reseller", nil))
+		return
+	}
+
+	// RBAC: owner can always, distributor checks hierarchy
+	userOrgRole := strings.ToLower(user.OrgRole)
+	canRestore := false
+	switch userOrgRole {
+	case "owner":
+		canRestore = true
+	case "distributor":
+		if reseller.LogtoID != nil {
+			userService := local.NewUserService()
+			canRestore = userService.IsOrganizationInHierarchy(userOrgRole, user.OrganizationID, *reseller.LogtoID)
+		}
+	}
+
+	if !canRestore {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied to restore reseller", nil))
+		return
+	}
+
+	service := local.NewOrganizationService()
+
+	restoredSystemsCount, restoredUsersCount, err := service.RestoreReseller(resellerID, user.ID, user.OrganizationID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not deleted") {
+			c.JSON(http.StatusBadRequest, response.BadRequest("reseller is not deleted", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("reseller_id", resellerID).
+			Msg("Failed to restore reseller")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to restore reseller", nil))
+		return
+	}
+
+	logger.LogBusinessOperation(c, "resellers", "restore", "reseller", resellerID, true, nil)
+
+	c.JSON(http.StatusOK, response.OK("reseller restored successfully", map[string]interface{}{
+		"restored_systems_count": restoredSystemsCount,
+		"restored_users_count":   restoredUsersCount,
+	}))
+}
+
+// DestroyReseller handles DELETE /api/resellers/:id/destroy - permanently deletes a reseller
+func DestroyReseller(c *gin.Context) {
+	resellerID := c.Param("id")
+	if resellerID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("reseller ID required", nil))
+		return
+	}
+
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Get reseller (including deleted) for hierarchy validation
+	repo := entities.NewLocalResellerRepository()
+	reseller, err := repo.GetByIDIncludeDeleted(resellerID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("reseller not found", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get reseller", nil))
+		return
+	}
+
+	// RBAC: owner can always, distributor checks hierarchy
+	userOrgRole := strings.ToLower(user.OrgRole)
+	canDestroy := false
+	switch userOrgRole {
+	case "owner":
+		canDestroy = true
+	case "distributor":
+		if reseller.LogtoID != nil {
+			userService := local.NewUserService()
+			canDestroy = userService.IsOrganizationInHierarchy(userOrgRole, user.OrganizationID, *reseller.LogtoID)
+		}
+	}
+
+	if !canDestroy {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied to destroy reseller", nil))
+		return
+	}
+
+	service := local.NewOrganizationService()
+
+	err = service.DestroyReseller(resellerID, user.ID, user.OrganizationID)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("reseller_id", resellerID).
+			Msg("Failed to destroy reseller")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to destroy reseller", map[string]interface{}{
+			"error": err.Error(),
+		}))
+		return
+	}
+
+	logger.LogBusinessOperation(c, "resellers", "destroy", "reseller", resellerID, true, nil)
+
+	c.JSON(http.StatusOK, response.OK("reseller permanently destroyed", nil))
 }
 
 // GetResellerStats handles GET /api/resellers/:id/stats - retrieves users and systems count for a reseller

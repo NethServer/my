@@ -265,6 +265,8 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	}
 
 	// Handle status filter (treat "deleted" as a normal status value, "suspended" as virtual status)
+	// When filtering by normal statuses (unknown, online, offline) WITHOUT "suspended",
+	// exclude suspended systems to avoid overlap
 	hasSuspendedFilter := false
 	var dbStatuses []string
 	for _, s := range filterStatuses {
@@ -285,7 +287,12 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 				statusPlaceholders[i] = fmt.Sprintf("$%d", baseIndex+i+1)
 				args = append(args, s)
 			}
-			statusParts = append(statusParts, fmt.Sprintf("s.status IN (%s)", strings.Join(statusPlaceholders, ",")))
+			statusCondition := fmt.Sprintf("s.status IN (%s)", strings.Join(statusPlaceholders, ","))
+			// Exclude suspended systems from normal status filters unless "suspended" is also selected
+			if !hasSuspendedFilter {
+				statusCondition = fmt.Sprintf("(%s AND s.suspended_at IS NULL)", statusCondition)
+			}
+			statusParts = append(statusParts, statusCondition)
 		}
 
 		if hasSuspendedFilter {
@@ -641,6 +648,96 @@ func (r *LocalSystemRepository) SoftDeleteSystemsByOrgID(orgID string) (int, err
 	result, err := r.db.Exec(query, orgID, now)
 	if err != nil {
 		return 0, fmt.Errorf("failed to cascade soft-delete systems: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return int(rowsAffected), nil
+}
+
+// RestoreSystemsByDeletedByOrgID restores systems that were cascade-deleted by a specific organization
+func (r *LocalSystemRepository) RestoreSystemsByDeletedByOrgID(deletedByOrgID string) (int, error) {
+	now := time.Now()
+
+	query := `
+		UPDATE systems
+		SET deleted_at = NULL, deleted_by_org_id = NULL, status = 'unknown', updated_at = $2
+		WHERE deleted_by_org_id = $1 AND deleted_at IS NOT NULL
+	`
+
+	result, err := r.db.Exec(query, deletedByOrgID, now)
+	if err != nil {
+		return 0, fmt.Errorf("failed to cascade restore systems: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return int(rowsAffected), nil
+}
+
+// HardDelete permanently removes a system from the database
+func (r *LocalSystemRepository) HardDelete(id string) error {
+	query := `DELETE FROM systems WHERE id = $1`
+
+	result, err := r.db.Exec(query, id)
+	if err != nil {
+		return fmt.Errorf("failed to hard-delete system: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("system not found")
+	}
+
+	return nil
+}
+
+// HardDeleteByOrgID permanently removes all systems belonging to an organization
+func (r *LocalSystemRepository) HardDeleteByOrgID(orgID string) (int, error) {
+	query := `DELETE FROM systems WHERE organization_id = $1`
+
+	result, err := r.db.Exec(query, orgID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to hard-delete systems by org: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return int(rowsAffected), nil
+}
+
+// HardDeleteByMultipleOrgIDs permanently removes all systems belonging to any of the given organizations
+func (r *LocalSystemRepository) HardDeleteByMultipleOrgIDs(orgIDs []string) (int, error) {
+	if len(orgIDs) == 0 {
+		return 0, nil
+	}
+
+	placeholders := make([]string, len(orgIDs))
+	args := make([]interface{}, len(orgIDs))
+	for i, id := range orgIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	inClause := strings.Join(placeholders, ",")
+
+	query := fmt.Sprintf(`DELETE FROM systems WHERE organization_id IN (%s)`, inClause)
+
+	result, err := r.db.Exec(query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("failed to hard-delete systems by multiple orgs: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()

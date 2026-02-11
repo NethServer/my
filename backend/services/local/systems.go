@@ -515,6 +515,74 @@ func (s *LocalSystemsService) RestoreSystem(systemID, userID, userOrgID, userOrg
 	return nil
 }
 
+// DestroySystem permanently deletes a system from the database
+func (s *LocalSystemsService) DestroySystem(systemID, userID, userOrgID, userOrgRole string) error {
+	// Query system including deleted (same pattern as RestoreSystem)
+	query := `
+		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
+		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, s.registered_at, s.deleted_at,
+		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name,
+		       CASE
+		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
+		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
+		           WHEN c.logto_id IS NOT NULL THEN 'customer'
+		           ELSE 'owner'
+		       END as organization_type,
+		       COALESCE(d.id::text, r.id::text, c.id::text, '') as organization_db_id
+		FROM systems s
+		LEFT JOIN distributors d ON (s.organization_id = d.logto_id OR s.organization_id = d.id::text) AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON (s.organization_id = r.logto_id OR s.organization_id = r.id::text) AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON (s.organization_id = c.logto_id OR s.organization_id = c.id::text) AND c.deleted_at IS NULL
+		WHERE s.id = $1
+	`
+
+	system := &models.System{}
+	var customDataJSON []byte
+	var createdByJSON []byte
+	var fqdn, ipv4Address, ipv6Address, version sql.NullString
+	var registeredAt, deletedAt sql.NullTime
+	var organizationName, organizationType, organizationDBID sql.NullString
+	var systemType sql.NullString
+
+	err := database.DB.QueryRow(query, systemID).Scan(
+		&system.ID, &system.Name, &systemType, &system.Status, &fqdn,
+		&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.LogtoID,
+		&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &deletedAt,
+		&organizationName, &organizationType, &organizationDBID,
+	)
+
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("system not found")
+	}
+	if err != nil {
+		return fmt.Errorf("failed to query system: %w", err)
+	}
+
+	// Parse created_by JSON for permission check
+	if err := json.Unmarshal(createdByJSON, &system.CreatedBy); err != nil {
+		return fmt.Errorf("failed to parse created_by: %w", err)
+	}
+
+	// Validate permissions based on created_by
+	if canDelete, reason := s.CanDeleteSystemByCreator(userOrgRole, userOrgID, &system.CreatedBy); !canDelete {
+		return fmt.Errorf("access denied: %s", reason)
+	}
+
+	// Hard-delete system from DB
+	systemRepo := entities.NewLocalSystemRepository()
+	err = systemRepo.HardDelete(systemID)
+	if err != nil {
+		return fmt.Errorf("failed to hard-delete system: %w", err)
+	}
+
+	logger.Info().
+		Str("system_id", systemID).
+		Str("destroyed_by", userID).
+		Msg("System permanently destroyed")
+
+	return nil
+}
+
 // RegenerateSystemSecret generates a new secret for an existing system
 func (s *LocalSystemsService) RegenerateSystemSecret(systemID, userID, userOrgID, userOrgRole string) (*models.System, error) {
 	// Get the system first to check permissions

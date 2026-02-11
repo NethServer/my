@@ -193,12 +193,17 @@ func main() {
 		systemsGroup := customAuthWithAudit.Group("/systems", middleware.RequireResourcePermission("systems"))
 		{
 			// CRUD operations
-			systemsGroup.POST("", methods.CreateSystem)                     // Create system (manage:systems required)
-			systemsGroup.GET("", methods.GetSystems)                        // List systems (read:systems required)
-			systemsGroup.GET("/:id", methods.GetSystem)                     // Get system (read:systems required)
-			systemsGroup.PUT("/:id", methods.UpdateSystem)                  // Update system (manage:systems required)
-			systemsGroup.DELETE("/:id", methods.DeleteSystem)               // Soft-delete system (manage:systems required)
-			systemsGroup.PATCH("/:id/restore", methods.RestoreSystem)       // Restore soft-deleted system (manage:systems required)
+			systemsGroup.POST("", methods.CreateSystem)       // Create system (manage:systems required)
+			systemsGroup.GET("", methods.GetSystems)          // List systems (read:systems required)
+			systemsGroup.GET("/:id", methods.GetSystem)       // Get system (read:systems required)
+			systemsGroup.PUT("/:id", methods.UpdateSystem)    // Update system (manage:systems required)
+			systemsGroup.DELETE("/:id", methods.DeleteSystem) // Soft-delete system (manage:systems required)
+
+			// Restore and destroy endpoints
+			systemsGroup.PATCH("/:id/restore", methods.RestoreSystem)                                                   // Restore soft-deleted system (manage:systems required)
+			systemsGroup.DELETE("/:id/destroy", middleware.RequirePermission("destroy:systems"), methods.DestroySystem) // Permanently delete system (destroy:systems required)
+
+			// Suspend and reactivate endpoints
 			systemsGroup.PATCH("/:id/suspend", methods.SuspendSystem)       // Suspend system (manage:systems required)
 			systemsGroup.PATCH("/:id/reactivate", methods.ReactivateSystem) // Reactivate suspended system (manage:systems required)
 
@@ -260,11 +265,20 @@ func main() {
 		// Distributors - resource-based permission validation (read:distributors for GET, manage:distributors for POST/PUT/DELETE)
 		distributorsGroup := customAuthWithAudit.Group("/distributors", middleware.RequireResourcePermission("distributors"))
 		{
+			// CRUD operations
 			distributorsGroup.POST("", methods.CreateDistributor)       // Create distributor (manage:distributors required)
 			distributorsGroup.GET("", methods.GetDistributors)          // List distributors (read:distributors required)
 			distributorsGroup.GET("/:id", methods.GetDistributor)       // Get distributor (read:distributors required)
 			distributorsGroup.PUT("/:id", methods.UpdateDistributor)    // Update distributor (manage:distributors required)
-			distributorsGroup.DELETE("/:id", methods.DeleteDistributor) // Delete distributor (manage:distributors required)
+			distributorsGroup.DELETE("/:id", methods.DeleteDistributor) // Soft-delete distributor (manage:distributors required)
+
+			// Restore and destroy endpoints (cascade to users and systems)
+			distributorsGroup.PATCH("/:id/restore", methods.RestoreDistributor)                                                        // Restore soft-deleted distributor and cascade-deleted users/systems
+			distributorsGroup.DELETE("/:id/destroy", middleware.RequirePermission("destroy:distributors"), methods.DestroyDistributor) // Permanently delete distributor and all hierarchy (destroy:distributors required)
+
+			// Suspend and reactivate endpoints (cascade to users)
+			distributorsGroup.PATCH("/:id/suspend", methods.SuspendDistributor)       // Suspend distributor and all its users
+			distributorsGroup.PATCH("/:id/reactivate", methods.ReactivateDistributor) // Reactivate distributor and cascade-suspended users
 
 			// Distributors totals and trend endpoints (read:distributors required)
 			distributorsGroup.GET("/totals", methods.GetDistributorsTotals)
@@ -273,10 +287,6 @@ func main() {
 			// Stats endpoint (users and systems count)
 			distributorsGroup.GET("/:id/stats", methods.GetDistributorStats)
 
-			// Suspend and reactivate endpoints (cascade to users)
-			distributorsGroup.PATCH("/:id/suspend", methods.SuspendDistributor)       // Suspend distributor and all its users
-			distributorsGroup.PATCH("/:id/reactivate", methods.ReactivateDistributor) // Reactivate distributor and cascade-suspended users
-
 			// Export endpoint
 			distributorsGroup.GET("/export", methods.ExportDistributors) // Export distributors to CSV or PDF with applied filters
 		}
@@ -284,11 +294,20 @@ func main() {
 		// Resellers - resource-based permission validation (read:resellers for GET, manage:resellers for POST/PUT/DELETE)
 		resellersGroup := customAuthWithAudit.Group("/resellers", middleware.RequireResourcePermission("resellers"))
 		{
+			// CRUD operations
 			resellersGroup.POST("", methods.CreateReseller)       // Create reseller (manage:resellers required)
 			resellersGroup.GET("", methods.GetResellers)          // List resellers (read:resellers required)
 			resellersGroup.GET("/:id", methods.GetReseller)       // Get reseller (read:resellers required)
 			resellersGroup.PUT("/:id", methods.UpdateReseller)    // Update reseller (manage:resellers required)
-			resellersGroup.DELETE("/:id", methods.DeleteReseller) // Delete reseller (manage:resellers required)
+			resellersGroup.DELETE("/:id", methods.DeleteReseller) // Soft-delete reseller (manage:resellers required)
+
+			// Restore and destroy endpoints (cascade to users and systems)
+			resellersGroup.PATCH("/:id/restore", methods.RestoreReseller)                                                     // Restore soft-deleted reseller and cascade-deleted users/systems
+			resellersGroup.DELETE("/:id/destroy", middleware.RequirePermission("destroy:resellers"), methods.DestroyReseller) // Permanently delete reseller and all hierarchy (destroy:resellers required)
+
+			// Suspend and reactivate endpoints (cascade to users)
+			resellersGroup.PATCH("/:id/suspend", methods.SuspendReseller)       // Suspend reseller and all its users
+			resellersGroup.PATCH("/:id/reactivate", methods.ReactivateReseller) // Reactivate reseller and cascade-suspended users
 
 			// Resellers totals and trend endpoints (read:resellers required)
 			resellersGroup.GET("/totals", methods.GetResellersTotals)
@@ -297,10 +316,6 @@ func main() {
 			// Stats endpoint (users and systems count)
 			resellersGroup.GET("/:id/stats", methods.GetResellerStats)
 
-			// Suspend and reactivate endpoints (cascade to users)
-			resellersGroup.PATCH("/:id/suspend", methods.SuspendReseller)       // Suspend reseller and all its users
-			resellersGroup.PATCH("/:id/reactivate", methods.ReactivateReseller) // Reactivate reseller and cascade-suspended users
-
 			// Export endpoint
 			resellersGroup.GET("/export", methods.ExportResellers) // Export resellers to CSV or PDF with applied filters
 		}
@@ -308,11 +323,20 @@ func main() {
 		// Customers - resource-based permission validation (read:customers for GET, manage:customers for POST/PUT/DELETE)
 		customersGroup := customAuthWithAudit.Group("/customers", middleware.RequireResourcePermission("customers"))
 		{
+			// CRUD operations
 			customersGroup.POST("", methods.CreateCustomer)       // Create customer (manage:customers required)
 			customersGroup.GET("", methods.GetCustomers)          // List customers (read:customers required)
 			customersGroup.GET("/:id", methods.GetCustomer)       // Get customer (read:customers required)
 			customersGroup.PUT("/:id", methods.UpdateCustomer)    // Update customer (manage:customers required)
-			customersGroup.DELETE("/:id", methods.DeleteCustomer) // Delete customer (manage:customers required)
+			customersGroup.DELETE("/:id", methods.DeleteCustomer) // Soft-delete customer (manage:customers required)
+
+			// Restore and destroy endpoints (cascade to users and systems)
+			customersGroup.PATCH("/:id/restore", methods.RestoreCustomer)                                                     // Restore soft-deleted customer and cascade-deleted users/systems
+			customersGroup.DELETE("/:id/destroy", middleware.RequirePermission("destroy:customers"), methods.DestroyCustomer) // Permanently delete customer and all hierarchy (destroy:customers required)
+
+			// Suspend and reactivate endpoints (cascade to users)
+			customersGroup.PATCH("/:id/suspend", methods.SuspendCustomer)       // Suspend customer and all its users
+			customersGroup.PATCH("/:id/reactivate", methods.ReactivateCustomer) // Reactivate customer and cascade-suspended users
 
 			// Customers totals and trend endpoints (read:customers required)
 			customersGroup.GET("/totals", methods.GetCustomersTotals)
@@ -320,10 +344,6 @@ func main() {
 
 			// Stats endpoint (users and systems count)
 			customersGroup.GET("/:id/stats", methods.GetCustomerStats)
-
-			// Suspend and reactivate endpoints (cascade to users)
-			customersGroup.PATCH("/:id/suspend", methods.SuspendCustomer)       // Suspend customer and all its users
-			customersGroup.PATCH("/:id/reactivate", methods.ReactivateCustomer) // Reactivate customer and cascade-suspended users
 
 			// Export endpoint
 			customersGroup.GET("/export", methods.ExportCustomers) // Export customers to CSV or PDF with applied filters
@@ -339,7 +359,15 @@ func main() {
 			usersGroup.GET("", methods.GetUsers)                                                // List users (read:users required)
 			usersGroup.GET("/:id", methods.GetUser)                                             // Get user (read:users required)
 			usersGroup.PUT("/:id", middleware.PreventSelfModification(), methods.UpdateUser)    // Update user (manage:users required, prevent self-modification)
-			usersGroup.DELETE("/:id", middleware.PreventSelfModification(), methods.DeleteUser) // Delete user (manage:users required, prevent self-modification)
+			usersGroup.DELETE("/:id", middleware.PreventSelfModification(), methods.DeleteUser) // Soft-delete user (manage:users required, prevent self-modification)
+
+			// Restore and destroy endpoints
+			usersGroup.PATCH("/:id/restore", middleware.PreventSelfModification(), methods.RestoreUser)                                                 // Restore soft-deleted user (manage:users required, prevent self-modification)
+			usersGroup.DELETE("/:id/destroy", middleware.RequirePermission("destroy:users"), middleware.PreventSelfModification(), methods.DestroyUser) // Permanently delete user (destroy:users required, prevent self-modification)
+
+			// Suspend and reactivate endpoints (manage:users required, prevent self-modification)
+			usersGroup.PATCH("/:id/suspend", middleware.PreventSelfModification(), methods.SuspendUser)       // Suspend user
+			usersGroup.PATCH("/:id/reactivate", middleware.PreventSelfModification(), methods.ReactivateUser) // Reactivate suspended user
 
 			// Users totals and trend endpoints (read:users required)
 			usersGroup.GET("/totals", methods.GetUsersTotals)
@@ -347,8 +375,6 @@ func main() {
 
 			// User actions (manage:users required, prevent self-modification)
 			usersGroup.PATCH("/:id/password", middleware.PreventSelfModification(), methods.ResetUserPassword) // Reset user password
-			usersGroup.PATCH("/:id/suspend", middleware.PreventSelfModification(), methods.SuspendUser)        // Suspend user
-			usersGroup.PATCH("/:id/reactivate", middleware.PreventSelfModification(), methods.ReactivateUser)  // Reactivate suspended user
 
 			// Export endpoint
 			usersGroup.GET("/export", methods.ExportUsers) // Export users to CSV or PDF with applied filters

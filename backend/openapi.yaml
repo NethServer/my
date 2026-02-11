@@ -2454,6 +2454,100 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /users/{id}/restore:
+    patch:
+      operationId: restoreUser
+      tags:
+        - Backend - Users
+      summary: /users/{id}/restore - Restore soft-deleted user
+      description: Restore a soft-deleted user (requires manage:users permission and hierarchical validation)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User Logto ID
+          schema:
+            type: string
+            example: "jf584cz36kce"
+      responses:
+        '200':
+          description: User restored successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "user restored successfully"
+                  data:
+                    type: object
+                    nullable: true
+        '400':
+          description: Bad request - User is not deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 400
+                  message:
+                    type: string
+                    example: "user is not deleted"
+                  data:
+                    type: object
+                    nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/{id}/destroy:
+    delete:
+      operationId: destroyUser
+      tags:
+        - Backend - Users
+      summary: /users/{id}/destroy - Permanently delete user
+      description: Permanently delete a user (requires destroy:users permission and hierarchical validation)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User Logto ID
+          schema:
+            type: string
+            example: "jf584cz36kce"
+      responses:
+        '200':
+          description: User permanently destroyed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "user permanently destroyed"
+                  data:
+                    type: object
+                    nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /users/totals:
     get:
       operationId: getUsersTotals
@@ -3751,6 +3845,10 @@ paths:
                         type: integer
                         description: Number of systems cascade soft-deleted for this customer
                         example: 2
+                      deleted_users_count:
+                        type: integer
+                        description: Number of users cascade soft-deleted for this customer
+                        example: 3
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -3892,6 +3990,108 @@ paths:
                         description: Number of systems that were cascade-reactivated
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /customers/{id}/restore:
+    patch:
+      operationId: restoreCustomer
+      tags:
+        - Backend - Customers
+      summary: /customers/{id}/restore - Restore soft-deleted customer
+      description: Restore a soft-deleted customer (requires manage:customers permission and hierarchical validation)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Customer Logto ID
+          schema:
+            type: string
+            example: "jf584cz36kce"
+      responses:
+        '200':
+          description: Customer restored successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "customer restored successfully"
+                  data:
+                    type: object
+                    properties:
+                      restored_systems_count:
+                        type: integer
+                        description: Number of systems cascade restored for this customer
+                        example: 2
+                      restored_users_count:
+                        type: integer
+                        description: Number of users cascade restored for this customer
+                        example: 3
+        '400':
+          description: Bad request - Customer is not deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 400
+                  message:
+                    type: string
+                    example: "customer is not deleted"
+                  data:
+                    type: object
+                    nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /customers/{id}/destroy:
+    delete:
+      operationId: destroyCustomer
+      tags:
+        - Backend - Customers
+      summary: /customers/{id}/destroy - Permanently delete customer
+      description: Permanently delete a customer organization (requires destroy:customers permission and hierarchical validation)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Customer Logto ID
+          schema:
+            type: string
+            example: "jf584cz36kce"
+      responses:
+        '200':
+          description: Customer permanently destroyed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "customer permanently destroyed"
+                  data:
+                    type: object
+                    nullable: true
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -4199,6 +4399,10 @@ paths:
                         type: integer
                         description: Number of systems cascade soft-deleted across the distributor hierarchy
                         example: 5
+                      deleted_users_count:
+                        type: integer
+                        description: Number of users cascade soft-deleted across the distributor hierarchy
+                        example: 12
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -4356,6 +4560,108 @@ paths:
                         description: Number of systems that were cascade-reactivated
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /distributors/{id}/restore:
+    patch:
+      operationId: restoreDistributor
+      tags:
+        - Backend - Distributors
+      summary: /distributors/{id}/restore - Restore soft-deleted distributor
+      description: Restore a soft-deleted distributor (requires manage:distributors permission and hierarchical validation)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Distributor Logto ID
+          schema:
+            type: string
+            example: "jf584cz36kce"
+      responses:
+        '200':
+          description: Distributor restored successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "distributor restored successfully"
+                  data:
+                    type: object
+                    properties:
+                      restored_systems_count:
+                        type: integer
+                        description: Number of systems cascade restored across the distributor hierarchy
+                        example: 5
+                      restored_users_count:
+                        type: integer
+                        description: Number of users cascade restored across the distributor hierarchy
+                        example: 12
+        '400':
+          description: Bad request - Distributor is not deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 400
+                  message:
+                    type: string
+                    example: "distributor is not deleted"
+                  data:
+                    type: object
+                    nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /distributors/{id}/destroy:
+    delete:
+      operationId: destroyDistributor
+      tags:
+        - Backend - Distributors
+      summary: /distributors/{id}/destroy - Permanently delete distributor
+      description: Permanently delete a distributor organization (requires destroy:distributors permission and hierarchical validation)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Distributor Logto ID
+          schema:
+            type: string
+            example: "jf584cz36kce"
+      responses:
+        '200':
+          description: Distributor permanently destroyed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "distributor permanently destroyed"
+                  data:
+                    type: object
+                    nullable: true
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -4986,6 +5292,10 @@ paths:
                         type: integer
                         description: Number of systems cascade soft-deleted across the reseller hierarchy
                         example: 3
+                      deleted_users_count:
+                        type: integer
+                        description: Number of users cascade soft-deleted across the reseller hierarchy
+                        example: 8
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -5135,6 +5445,108 @@ paths:
                         description: Number of systems that were cascade-reactivated
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /resellers/{id}/restore:
+    patch:
+      operationId: restoreReseller
+      tags:
+        - Backend - Resellers
+      summary: /resellers/{id}/restore - Restore soft-deleted reseller
+      description: Restore a soft-deleted reseller (requires manage:resellers permission and hierarchical validation)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Reseller Logto ID
+          schema:
+            type: string
+            example: "jf584cz36kce"
+      responses:
+        '200':
+          description: Reseller restored successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "reseller restored successfully"
+                  data:
+                    type: object
+                    properties:
+                      restored_systems_count:
+                        type: integer
+                        description: Number of systems cascade restored across the reseller hierarchy
+                        example: 3
+                      restored_users_count:
+                        type: integer
+                        description: Number of users cascade restored across the reseller hierarchy
+                        example: 8
+        '400':
+          description: Bad request - Reseller is not deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 400
+                  message:
+                    type: string
+                    example: "reseller is not deleted"
+                  data:
+                    type: object
+                    nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /resellers/{id}/destroy:
+    delete:
+      operationId: destroyReseller
+      tags:
+        - Backend - Resellers
+      summary: /resellers/{id}/destroy - Permanently delete reseller
+      description: Permanently delete a reseller organization (requires destroy:resellers permission and hierarchical validation)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Reseller Logto ID
+          schema:
+            type: string
+            example: "jf584cz36kce"
+      responses:
+        '200':
+          description: Reseller permanently destroyed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "reseller permanently destroyed"
+                  data:
+                    type: object
+                    nullable: true
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -5550,6 +5962,45 @@ paths:
                   message:
                     type: string
                     example: "system is not deleted"
+                  data:
+                    type: object
+                    nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/destroy:
+    delete:
+      operationId: destroySystem
+      tags:
+        - Backend - Systems
+      summary: /systems/{id}/destroy - Permanently delete system
+      description: Permanently delete a system (requires destroy:systems permission and hierarchical validation)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: System permanently destroyed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "system permanently destroyed"
                   data:
                     type: object
                     nullable: true

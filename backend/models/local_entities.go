@@ -134,6 +134,7 @@ type LocalUser struct {
 	DeletedAt        *time.Time             `json:"deleted_at" db:"deleted_at"`                   // Soft delete timestamp
 	SuspendedAt      *time.Time             `json:"suspended_at" db:"suspended_at"`               // Suspension timestamp
 	SuspendedByOrgID *string                `json:"suspended_by_org_id" db:"suspended_by_org_id"` // Organization that caused cascade suspension
+	DeletedByOrgID   *string                `json:"deleted_by_org_id" db:"deleted_by_org_id"`     // Organization that caused cascade soft-deletion
 
 	// Internal fields for database operations (not serialized to JSON)
 	UserRoleIDs         []string `json:"-" db:"user_role_ids"`

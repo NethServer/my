@@ -872,6 +872,86 @@ func (r *LocalCustomerRepository) GetTrend(userOrgRole, userOrgID string, period
 	return dataPoints, currentTotal, previousTotal, nil
 }
 
+// GetByIDIncludeDeleted retrieves a customer by logto_id including soft-deleted ones
+func (r *LocalCustomerRepository) GetByIDIncludeDeleted(id string) (*models.LocalCustomer, error) {
+	query := `
+		SELECT id, logto_id, name, description, custom_data,
+		       created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at, suspended_at, suspended_by_org_id
+		FROM customers
+		WHERE logto_id = $1
+	`
+
+	customer := &models.LocalCustomer{}
+	var customDataJSON []byte
+
+	err := r.db.QueryRow(query, id).Scan(
+		&customer.ID, &customer.LogtoID, &customer.Name, &customer.Description,
+		&customDataJSON, &customer.CreatedAt, &customer.UpdatedAt,
+		&customer.LogtoSyncedAt, &customer.LogtoSyncError, &customer.DeletedAt,
+		&customer.SuspendedAt, &customer.SuspendedByOrgID,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("customer not found")
+		}
+		return nil, fmt.Errorf("failed to get customer: %w", err)
+	}
+
+	// Parse custom_data JSON
+	if len(customDataJSON) > 0 {
+		if err := json.Unmarshal(customDataJSON, &customer.CustomData); err != nil {
+			customer.CustomData = make(map[string]interface{})
+		}
+	} else {
+		customer.CustomData = make(map[string]interface{})
+	}
+
+	return customer, nil
+}
+
+// Restore restores a soft-deleted customer
+func (r *LocalCustomerRepository) Restore(logtoID string) error {
+	query := `UPDATE customers SET deleted_at = NULL, updated_at = $2 WHERE logto_id = $1 AND deleted_at IS NOT NULL`
+
+	result, err := r.db.Exec(query, logtoID, time.Now())
+	if err != nil {
+		return fmt.Errorf("failed to restore customer: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("customer not found or not deleted")
+	}
+
+	return nil
+}
+
+// HardDelete permanently removes a customer from the database
+func (r *LocalCustomerRepository) HardDelete(logtoID string) error {
+	query := `DELETE FROM customers WHERE logto_id = $1`
+
+	result, err := r.db.Exec(query, logtoID)
+	if err != nil {
+		return fmt.Errorf("failed to hard-delete customer: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("customer not found")
+	}
+
+	return nil
+}
+
 // GetStats returns users, systems and applications count for a specific customer
 func (r *LocalCustomerRepository) GetStats(id string) (*models.CustomerStats, error) {
 	// First get the customer to obtain its logto_id

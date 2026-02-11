@@ -341,6 +341,52 @@ func RestoreSystem(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("system restored successfully", nil))
 }
 
+// DestroySystem handles DELETE /api/systems/:id/destroy - permanently deletes a system
+func DestroySystem(c *gin.Context) {
+	systemID := c.Param("id")
+	if systemID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
+		return
+	}
+
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	systemsService := local.NewSystemsService()
+
+	err := systemsService.DestroySystem(systemID, user.ID, user.OrganizationID, user.OrgRole)
+	if err != nil {
+		errMsg := err.Error()
+
+		if strings.Contains(errMsg, "system not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("system not found", nil))
+			return
+		}
+
+		if strings.Contains(errMsg, "access denied") {
+			c.JSON(http.StatusForbidden, response.Forbidden("access denied to system", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("system_id", systemID).
+			Str("user_id", user.ID).
+			Msg("Failed to destroy system")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to destroy system", map[string]interface{}{
+			"error": errMsg,
+		}))
+		return
+	}
+
+	logger.LogBusinessOperation(c, "systems", "destroy", "system", systemID, true, nil)
+
+	c.JSON(http.StatusOK, response.OK("system permanently destroyed", nil))
+}
+
 // RegenerateSystemSecret handles POST /api/systems/:id/regenerate-secret - regenerates system secret
 func RegenerateSystemSecret(c *gin.Context) {
 	// Get system ID from URL parameter

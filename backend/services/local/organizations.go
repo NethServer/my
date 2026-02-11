@@ -1252,34 +1252,16 @@ func (s *LocalOrganizationService) UpdateCustomer(id string, req *models.UpdateL
 
 // DeleteDistributor soft-deletes a distributor locally and syncs to Logto
 // Returns the count of cascade-deleted systems
-func (s *LocalOrganizationService) DeleteDistributor(id, deletedByUserID, deletedByOrgID string) (int, error) {
-	tx, err := database.DB.Begin()
-	if err != nil {
-		return 0, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
+func (s *LocalOrganizationService) DeleteDistributor(id, deletedByUserID, deletedByOrgID string) (int, int, error) {
 	// Get distributor before deletion for logging and logto_id
 	distributor, err := s.distributorRepo.GetByID(id)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get distributor: %w", err)
+		return 0, 0, fmt.Errorf("failed to get distributor: %w", err)
 	}
 
-	// 1. Delete all users associated with this organization (both locally and from Logto)
-	if distributor.LogtoID != nil {
-		err = s.deleteOrganizationUsers(*distributor.LogtoID, "distributor", distributor.Name)
-		if err != nil {
-			logger.Warn().
-				Err(err).
-				Str("distributor_id", id).
-				Str("distributor_name", distributor.Name).
-				Msg("Failed to delete some users associated with distributor organization")
-			// Continue with organization deletion even if some users failed to delete
-		}
-	}
-
-	// 2. Cascade soft-delete systems in the entire hierarchy
 	var deletedSystemsCount int
+	var deletedUsersCount int
+
 	if distributor.LogtoID != nil && *distributor.LogtoID != "" {
 		distLogtoID := *distributor.LogtoID
 
@@ -1300,7 +1282,15 @@ func (s *LocalOrganizationService) DeleteDistributor(id, deletedByUserID, delete
 		allOrgIDs := append([]string{distLogtoID}, childResellerLogtoIDs...)
 		allOrgIDs = append(allOrgIDs, childCustomerLogtoIDs...)
 
-		// Soft-delete systems across the entire hierarchy
+		// 1. Cascade soft-delete users across the entire hierarchy
+		deletedUsersCount, err = s.userRepo.SoftDeleteByMultipleOrgIDs(allOrgIDs, distLogtoID)
+		if err != nil {
+			logger.Warn().Err(err).Str("distributor_id", id).Int("org_ids_count", len(allOrgIDs)).Msg("Failed to cascade soft-delete users for distributor hierarchy")
+		} else if deletedUsersCount > 0 {
+			logger.Info().Int("deleted_users", deletedUsersCount).Str("distributor_id", id).Str("distributor_name", distributor.Name).Msg("Cascade soft-deleted users for distributor hierarchy")
+		}
+
+		// 2. Cascade soft-delete systems across the entire hierarchy
 		deletedSystemsCount, err = s.systemRepo.SoftDeleteSystemsByMultipleOrgIDs(allOrgIDs, distLogtoID)
 		if err != nil {
 			logger.Warn().Err(err).Str("distributor_id", id).Int("org_ids_count", len(allOrgIDs)).Msg("Failed to cascade soft-delete systems for distributor hierarchy")
@@ -1309,31 +1299,10 @@ func (s *LocalOrganizationService) DeleteDistributor(id, deletedByUserID, delete
 		}
 	}
 
-	// 3. Soft delete in local DB
+	// 3. Soft delete the distributor locally
 	err = s.distributorRepo.Delete(id)
 	if err != nil {
-		return 0, fmt.Errorf("failed to delete distributor locally: %w", err)
-	}
-
-	// 4. Delete from Logto using logto_id
-	if distributor.LogtoID != nil {
-		err = s.logtoClient.DeleteOrganization(*distributor.LogtoID)
-	} else {
-		logger.Warn().Str("distributor_id", id).Msg("Distributor has no logto_id, skipping Logto deletion")
-		err = nil // Don't fail if not synced to Logto
-	}
-	if err != nil {
-		logger.Error().
-			Err(err).
-			Str("distributor_id", id).
-			Str("distributor_name", distributor.Name).
-			Msg("Failed to sync distributor deletion to Logto")
-		return 0, fmt.Errorf("failed to sync distributor deletion to Logto: %w", err)
-	}
-
-	// 5. Commit transaction
-	if err := tx.Commit(); err != nil {
-		return 0, fmt.Errorf("failed to commit transaction: %w", err)
+		return 0, 0, fmt.Errorf("failed to delete distributor locally: %w", err)
 	}
 
 	logger.Info().
@@ -1341,41 +1310,24 @@ func (s *LocalOrganizationService) DeleteDistributor(id, deletedByUserID, delete
 		Str("distributor_name", distributor.Name).
 		Str("deleted_by", deletedByUserID).
 		Int("deleted_systems", deletedSystemsCount).
-		Msg("Distributor deleted successfully with Logto sync")
+		Int("deleted_users", deletedUsersCount).
+		Msg("Distributor soft-deleted successfully")
 
-	return deletedSystemsCount, nil
+	return deletedSystemsCount, deletedUsersCount, nil
 }
 
-// DeleteReseller soft-deletes a reseller locally and syncs to Logto
-// Returns the count of cascade-deleted systems
-func (s *LocalOrganizationService) DeleteReseller(id, deletedByUserID, deletedByOrgID string) (int, error) {
-	tx, err := database.DB.Begin()
-	if err != nil {
-		return 0, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
+// DeleteReseller soft-deletes a reseller locally (no Logto deletion)
+// Returns the count of cascade-deleted systems and users
+func (s *LocalOrganizationService) DeleteReseller(id, deletedByUserID, deletedByOrgID string) (int, int, error) {
 	// Get reseller before deletion for logging and logto_id
 	reseller, err := s.resellerRepo.GetByID(id)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get reseller: %w", err)
+		return 0, 0, fmt.Errorf("failed to get reseller: %w", err)
 	}
 
-	// 1. Delete all users associated with this organization (both locally and from Logto)
-	if reseller.LogtoID != nil {
-		err = s.deleteOrganizationUsers(*reseller.LogtoID, "reseller", reseller.Name)
-		if err != nil {
-			logger.Warn().
-				Err(err).
-				Str("reseller_id", id).
-				Str("reseller_name", reseller.Name).
-				Msg("Failed to delete some users associated with reseller organization")
-			// Continue with organization deletion even if some users failed to delete
-		}
-	}
-
-	// 2. Cascade soft-delete systems in reseller + child customer hierarchy
 	var deletedSystemsCount int
+	var deletedUsersCount int
+
 	if reseller.LogtoID != nil && *reseller.LogtoID != "" {
 		resLogtoID := *reseller.LogtoID
 
@@ -1388,7 +1340,15 @@ func (s *LocalOrganizationService) DeleteReseller(id, deletedByUserID, deletedBy
 		// All org IDs: reseller + child customers
 		allOrgIDs := append([]string{resLogtoID}, childCustomerLogtoIDs...)
 
-		// Soft-delete systems across the hierarchy
+		// 1. Cascade soft-delete users across the hierarchy
+		deletedUsersCount, err = s.userRepo.SoftDeleteByMultipleOrgIDs(allOrgIDs, resLogtoID)
+		if err != nil {
+			logger.Warn().Err(err).Str("reseller_id", id).Int("org_ids_count", len(allOrgIDs)).Msg("Failed to cascade soft-delete users for reseller hierarchy")
+		} else if deletedUsersCount > 0 {
+			logger.Info().Int("deleted_users", deletedUsersCount).Str("reseller_id", id).Str("reseller_name", reseller.Name).Msg("Cascade soft-deleted users for reseller hierarchy")
+		}
+
+		// 2. Cascade soft-delete systems across the hierarchy
 		deletedSystemsCount, err = s.systemRepo.SoftDeleteSystemsByMultipleOrgIDs(allOrgIDs, resLogtoID)
 		if err != nil {
 			logger.Warn().Err(err).Str("reseller_id", id).Int("org_ids_count", len(allOrgIDs)).Msg("Failed to cascade soft-delete systems for reseller hierarchy")
@@ -1397,31 +1357,10 @@ func (s *LocalOrganizationService) DeleteReseller(id, deletedByUserID, deletedBy
 		}
 	}
 
-	// 3. Soft delete in local DB
+	// 3. Soft delete the reseller locally
 	err = s.resellerRepo.Delete(id)
 	if err != nil {
-		return 0, fmt.Errorf("failed to delete reseller locally: %w", err)
-	}
-
-	// 4. Delete from Logto using logto_id
-	if reseller.LogtoID != nil {
-		err = s.logtoClient.DeleteOrganization(*reseller.LogtoID)
-	} else {
-		logger.Warn().Str("reseller_id", id).Msg("Reseller has no logto_id, skipping Logto deletion")
-		err = nil // Don't fail if not synced to Logto
-	}
-	if err != nil {
-		logger.Error().
-			Err(err).
-			Str("reseller_id", id).
-			Str("reseller_name", reseller.Name).
-			Msg("Failed to sync reseller deletion to Logto")
-		return 0, fmt.Errorf("failed to sync reseller deletion to Logto: %w", err)
-	}
-
-	// 5. Commit transaction
-	if err := tx.Commit(); err != nil {
-		return 0, fmt.Errorf("failed to commit transaction: %w", err)
+		return 0, 0, fmt.Errorf("failed to delete reseller locally: %w", err)
 	}
 
 	logger.Info().
@@ -1429,73 +1368,48 @@ func (s *LocalOrganizationService) DeleteReseller(id, deletedByUserID, deletedBy
 		Str("reseller_name", reseller.Name).
 		Str("deleted_by", deletedByUserID).
 		Int("deleted_systems", deletedSystemsCount).
-		Msg("Reseller deleted successfully with Logto sync")
+		Int("deleted_users", deletedUsersCount).
+		Msg("Reseller soft-deleted successfully")
 
-	return deletedSystemsCount, nil
+	return deletedSystemsCount, deletedUsersCount, nil
 }
 
-// DeleteCustomer soft-deletes a customer locally and syncs to Logto
-// Returns the count of cascade-deleted systems
-func (s *LocalOrganizationService) DeleteCustomer(id, deletedByUserID, deletedByOrgID string) (int, error) {
-	tx, err := database.DB.Begin()
-	if err != nil {
-		return 0, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
+// DeleteCustomer soft-deletes a customer locally (no Logto deletion)
+// Returns the count of cascade-deleted systems and users
+func (s *LocalOrganizationService) DeleteCustomer(id, deletedByUserID, deletedByOrgID string) (int, int, error) {
 	// Get customer before deletion for logging and logto_id
 	customer, err := s.customerRepo.GetByID(id)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get customer: %w", err)
+		return 0, 0, fmt.Errorf("failed to get customer: %w", err)
 	}
 
-	// 1. Delete all users associated with this organization (both locally and from Logto)
-	if customer.LogtoID != nil {
-		err = s.deleteOrganizationUsers(*customer.LogtoID, "customer", customer.Name)
-		if err != nil {
-			logger.Warn().
-				Err(err).
-				Str("customer_id", id).
-				Str("customer_name", customer.Name).
-				Msg("Failed to delete some users associated with customer organization")
-			// Continue with organization deletion even if some users failed to delete
-		}
-	}
-
-	// 2. Cascade soft-delete systems for this customer
 	var deletedSystemsCount int
+	var deletedUsersCount int
+
 	if customer.LogtoID != nil && *customer.LogtoID != "" {
-		deletedSystemsCount, err = s.cascadeDeleteSystems(*customer.LogtoID, "customer", customer.Name)
+		custLogtoID := *customer.LogtoID
+
+		// 1. Cascade soft-delete users for this customer
+		deletedUsersCount, err = s.userRepo.SoftDeleteByMultipleOrgIDs([]string{custLogtoID}, custLogtoID)
+		if err != nil {
+			logger.Warn().Err(err).Str("customer_id", id).Msg("Failed to cascade soft-delete users for customer")
+		} else if deletedUsersCount > 0 {
+			logger.Info().Int("deleted_users", deletedUsersCount).Str("customer_id", id).Str("customer_name", customer.Name).Msg("Cascade soft-deleted users for customer")
+		}
+
+		// 2. Cascade soft-delete systems for this customer
+		deletedSystemsCount, err = s.systemRepo.SoftDeleteSystemsByMultipleOrgIDs([]string{custLogtoID}, custLogtoID)
 		if err != nil {
 			logger.Warn().Err(err).Str("customer_id", id).Msg("Failed to cascade soft-delete systems for customer")
+		} else if deletedSystemsCount > 0 {
+			logger.Info().Int("deleted_systems", deletedSystemsCount).Str("customer_id", id).Str("customer_name", customer.Name).Msg("Cascade soft-deleted systems for customer")
 		}
 	}
 
-	// 3. Soft delete in local DB
+	// 3. Soft delete the customer locally
 	err = s.customerRepo.Delete(id)
 	if err != nil {
-		return 0, fmt.Errorf("failed to delete customer locally: %w", err)
-	}
-
-	// 4. Delete from Logto using logto_id
-	if customer.LogtoID != nil {
-		err = s.logtoClient.DeleteOrganization(*customer.LogtoID)
-	} else {
-		logger.Warn().Str("customer_id", id).Msg("Customer has no logto_id, skipping Logto deletion")
-		err = nil // Don't fail if not synced to Logto
-	}
-	if err != nil {
-		logger.Error().
-			Err(err).
-			Str("customer_id", id).
-			Str("customer_name", customer.Name).
-			Msg("Failed to sync customer deletion to Logto")
-		return 0, fmt.Errorf("failed to sync customer deletion to Logto: %w", err)
-	}
-
-	// 5. Commit transaction
-	if err := tx.Commit(); err != nil {
-		return 0, fmt.Errorf("failed to commit transaction: %w", err)
+		return 0, 0, fmt.Errorf("failed to delete customer locally: %w", err)
 	}
 
 	logger.Info().
@@ -1503,9 +1417,373 @@ func (s *LocalOrganizationService) DeleteCustomer(id, deletedByUserID, deletedBy
 		Str("customer_name", customer.Name).
 		Str("deleted_by", deletedByUserID).
 		Int("deleted_systems", deletedSystemsCount).
-		Msg("Customer deleted successfully with Logto sync")
+		Int("deleted_users", deletedUsersCount).
+		Msg("Customer soft-deleted successfully")
 
-	return deletedSystemsCount, nil
+	return deletedSystemsCount, deletedUsersCount, nil
+}
+
+// ============================================
+// RESTORE OPERATIONS
+// ============================================
+
+// RestoreDistributor restores a soft-deleted distributor and cascade-restores users and systems
+func (s *LocalOrganizationService) RestoreDistributor(id, restoredByUserID, restoredByOrgID string) (int, int, error) {
+	// Get distributor including deleted
+	distributor, err := s.distributorRepo.GetByIDIncludeDeleted(id)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get distributor: %w", err)
+	}
+
+	if distributor.DeletedAt == nil {
+		return 0, 0, fmt.Errorf("distributor is not deleted")
+	}
+
+	// Restore the distributor
+	if distributor.LogtoID != nil {
+		err = s.distributorRepo.Restore(*distributor.LogtoID)
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to restore distributor: %w", err)
+		}
+	}
+
+	var restoredSystemsCount int
+	var restoredUsersCount int
+
+	if distributor.LogtoID != nil && *distributor.LogtoID != "" {
+		distLogtoID := *distributor.LogtoID
+
+		// Cascade restore users soft-deleted by this distributor
+		restoredUsersCount, err = s.userRepo.RestoreByDeletedByOrgID(distLogtoID)
+		if err != nil {
+			logger.Warn().Err(err).Str("distributor_id", id).Msg("Failed to cascade restore users for distributor")
+		}
+
+		// Cascade restore systems soft-deleted by this distributor
+		restoredSystemsCount, err = s.systemRepo.RestoreSystemsByDeletedByOrgID(distLogtoID)
+		if err != nil {
+			logger.Warn().Err(err).Str("distributor_id", id).Msg("Failed to cascade restore systems for distributor")
+		}
+	}
+
+	logger.Info().
+		Str("distributor_id", id).
+		Str("distributor_name", distributor.Name).
+		Str("restored_by", restoredByUserID).
+		Int("restored_systems", restoredSystemsCount).
+		Int("restored_users", restoredUsersCount).
+		Msg("Distributor restored successfully")
+
+	return restoredSystemsCount, restoredUsersCount, nil
+}
+
+// RestoreReseller restores a soft-deleted reseller and cascade-restores users and systems
+func (s *LocalOrganizationService) RestoreReseller(id, restoredByUserID, restoredByOrgID string) (int, int, error) {
+	// Get reseller including deleted
+	reseller, err := s.resellerRepo.GetByIDIncludeDeleted(id)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get reseller: %w", err)
+	}
+
+	if reseller.DeletedAt == nil {
+		return 0, 0, fmt.Errorf("reseller is not deleted")
+	}
+
+	// Restore the reseller
+	if reseller.LogtoID != nil {
+		err = s.resellerRepo.Restore(*reseller.LogtoID)
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to restore reseller: %w", err)
+		}
+	}
+
+	var restoredSystemsCount int
+	var restoredUsersCount int
+
+	if reseller.LogtoID != nil && *reseller.LogtoID != "" {
+		resLogtoID := *reseller.LogtoID
+
+		// Cascade restore users soft-deleted by this reseller
+		restoredUsersCount, err = s.userRepo.RestoreByDeletedByOrgID(resLogtoID)
+		if err != nil {
+			logger.Warn().Err(err).Str("reseller_id", id).Msg("Failed to cascade restore users for reseller")
+		}
+
+		// Cascade restore systems soft-deleted by this reseller
+		restoredSystemsCount, err = s.systemRepo.RestoreSystemsByDeletedByOrgID(resLogtoID)
+		if err != nil {
+			logger.Warn().Err(err).Str("reseller_id", id).Msg("Failed to cascade restore systems for reseller")
+		}
+	}
+
+	logger.Info().
+		Str("reseller_id", id).
+		Str("reseller_name", reseller.Name).
+		Str("restored_by", restoredByUserID).
+		Int("restored_systems", restoredSystemsCount).
+		Int("restored_users", restoredUsersCount).
+		Msg("Reseller restored successfully")
+
+	return restoredSystemsCount, restoredUsersCount, nil
+}
+
+// RestoreCustomer restores a soft-deleted customer and cascade-restores users and systems
+func (s *LocalOrganizationService) RestoreCustomer(id, restoredByUserID, restoredByOrgID string) (int, int, error) {
+	// Get customer including deleted
+	customer, err := s.customerRepo.GetByIDIncludeDeleted(id)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get customer: %w", err)
+	}
+
+	if customer.DeletedAt == nil {
+		return 0, 0, fmt.Errorf("customer is not deleted")
+	}
+
+	// Restore the customer
+	if customer.LogtoID != nil {
+		err = s.customerRepo.Restore(*customer.LogtoID)
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to restore customer: %w", err)
+		}
+	}
+
+	var restoredSystemsCount int
+	var restoredUsersCount int
+
+	if customer.LogtoID != nil && *customer.LogtoID != "" {
+		custLogtoID := *customer.LogtoID
+
+		// Cascade restore users soft-deleted by this customer
+		restoredUsersCount, err = s.userRepo.RestoreByDeletedByOrgID(custLogtoID)
+		if err != nil {
+			logger.Warn().Err(err).Str("customer_id", id).Msg("Failed to cascade restore users for customer")
+		}
+
+		// Cascade restore systems soft-deleted by this customer
+		restoredSystemsCount, err = s.systemRepo.RestoreSystemsByDeletedByOrgID(custLogtoID)
+		if err != nil {
+			logger.Warn().Err(err).Str("customer_id", id).Msg("Failed to cascade restore systems for customer")
+		}
+	}
+
+	logger.Info().
+		Str("customer_id", id).
+		Str("customer_name", customer.Name).
+		Str("restored_by", restoredByUserID).
+		Int("restored_systems", restoredSystemsCount).
+		Int("restored_users", restoredUsersCount).
+		Msg("Customer restored successfully")
+
+	return restoredSystemsCount, restoredUsersCount, nil
+}
+
+// ============================================
+// DESTROY OPERATIONS (Permanent Delete)
+// ============================================
+
+// DestroyDistributor permanently deletes a distributor and its entire hierarchy from DB and Logto
+func (s *LocalOrganizationService) DestroyDistributor(id, destroyedByUserID, destroyedByOrgID string) error {
+	// Get distributor including deleted
+	distributor, err := s.distributorRepo.GetByIDIncludeDeleted(id)
+	if err != nil {
+		return fmt.Errorf("failed to get distributor: %w", err)
+	}
+
+	if distributor.LogtoID == nil || *distributor.LogtoID == "" {
+		return fmt.Errorf("distributor has no logto_id")
+	}
+
+	distLogtoID := *distributor.LogtoID
+
+	// Find child resellers
+	childResellerLogtoIDs, err := s.resellerRepo.GetLogtoIDsByCreatedBy(distLogtoID)
+	if err != nil {
+		logger.Warn().Err(err).Str("distributor_id", id).Msg("Failed to get child reseller logto_ids for destroy")
+	}
+
+	// Find child customers (created by distributor OR by child resellers)
+	createdByOrgIDs := append([]string{distLogtoID}, childResellerLogtoIDs...)
+	childCustomerLogtoIDs, err := s.customerRepo.GetLogtoIDsByCreatedByMultiple(createdByOrgIDs)
+	if err != nil {
+		logger.Warn().Err(err).Str("distributor_id", id).Msg("Failed to get child customer logto_ids for destroy")
+	}
+
+	// All org IDs in the hierarchy
+	allOrgIDs := append([]string{distLogtoID}, childResellerLogtoIDs...)
+	allOrgIDs = append(allOrgIDs, childCustomerLogtoIDs...)
+
+	// 1. Hard-delete users from DB and Logto for each org
+	for _, orgID := range allOrgIDs {
+		userLogtoIDs, err := s.userRepo.HardDeleteByOrgID(orgID)
+		if err != nil {
+			logger.Warn().Err(err).Str("org_id", orgID).Msg("Failed to hard-delete users from DB")
+		}
+		for _, userLogtoID := range userLogtoIDs {
+			if err := s.logtoClient.DeleteUser(userLogtoID); err != nil {
+				logger.Warn().Err(err).Str("user_logto_id", userLogtoID).Msg("Failed to delete user from Logto")
+			}
+		}
+	}
+
+	// 2. Hard-delete systems from DB for entire hierarchy
+	_, err = s.systemRepo.HardDeleteByMultipleOrgIDs(allOrgIDs)
+	if err != nil {
+		logger.Warn().Err(err).Str("distributor_id", id).Msg("Failed to hard-delete systems from DB")
+	}
+
+	// 3. Hard-delete child orgs bottom-up: customers first, then resellers
+	for _, custLogtoID := range childCustomerLogtoIDs {
+		if err := s.customerRepo.HardDelete(custLogtoID); err != nil {
+			logger.Warn().Err(err).Str("customer_logto_id", custLogtoID).Msg("Failed to hard-delete customer from DB")
+		}
+		if err := s.logtoClient.DeleteOrganization(custLogtoID); err != nil {
+			logger.Warn().Err(err).Str("customer_logto_id", custLogtoID).Msg("Failed to delete customer from Logto")
+		}
+	}
+	for _, resLogtoID := range childResellerLogtoIDs {
+		if err := s.resellerRepo.HardDelete(resLogtoID); err != nil {
+			logger.Warn().Err(err).Str("reseller_logto_id", resLogtoID).Msg("Failed to hard-delete reseller from DB")
+		}
+		if err := s.logtoClient.DeleteOrganization(resLogtoID); err != nil {
+			logger.Warn().Err(err).Str("reseller_logto_id", resLogtoID).Msg("Failed to delete reseller from Logto")
+		}
+	}
+
+	// 4. Hard-delete the distributor itself
+	if err := s.distributorRepo.HardDelete(distLogtoID); err != nil {
+		return fmt.Errorf("failed to hard-delete distributor from DB: %w", err)
+	}
+	if err := s.logtoClient.DeleteOrganization(distLogtoID); err != nil {
+		logger.Warn().Err(err).Str("distributor_logto_id", distLogtoID).Msg("Failed to delete distributor from Logto")
+	}
+
+	logger.Info().
+		Str("distributor_id", id).
+		Str("distributor_name", distributor.Name).
+		Str("destroyed_by", destroyedByUserID).
+		Int("child_resellers", len(childResellerLogtoIDs)).
+		Int("child_customers", len(childCustomerLogtoIDs)).
+		Msg("Distributor permanently destroyed with entire hierarchy")
+
+	return nil
+}
+
+// DestroyReseller permanently deletes a reseller and its child hierarchy from DB and Logto
+func (s *LocalOrganizationService) DestroyReseller(id, destroyedByUserID, destroyedByOrgID string) error {
+	// Get reseller including deleted
+	reseller, err := s.resellerRepo.GetByIDIncludeDeleted(id)
+	if err != nil {
+		return fmt.Errorf("failed to get reseller: %w", err)
+	}
+
+	if reseller.LogtoID == nil || *reseller.LogtoID == "" {
+		return fmt.Errorf("reseller has no logto_id")
+	}
+
+	resLogtoID := *reseller.LogtoID
+
+	// Find child customers
+	childCustomerLogtoIDs, err := s.customerRepo.GetLogtoIDsByCreatedByMultiple([]string{resLogtoID})
+	if err != nil {
+		logger.Warn().Err(err).Str("reseller_id", id).Msg("Failed to get child customer logto_ids for destroy")
+	}
+
+	// All org IDs: reseller + child customers
+	allOrgIDs := append([]string{resLogtoID}, childCustomerLogtoIDs...)
+
+	// 1. Hard-delete users from DB and Logto for each org
+	for _, orgID := range allOrgIDs {
+		userLogtoIDs, err := s.userRepo.HardDeleteByOrgID(orgID)
+		if err != nil {
+			logger.Warn().Err(err).Str("org_id", orgID).Msg("Failed to hard-delete users from DB")
+		}
+		for _, userLogtoID := range userLogtoIDs {
+			if err := s.logtoClient.DeleteUser(userLogtoID); err != nil {
+				logger.Warn().Err(err).Str("user_logto_id", userLogtoID).Msg("Failed to delete user from Logto")
+			}
+		}
+	}
+
+	// 2. Hard-delete systems from DB for entire hierarchy
+	_, err = s.systemRepo.HardDeleteByMultipleOrgIDs(allOrgIDs)
+	if err != nil {
+		logger.Warn().Err(err).Str("reseller_id", id).Msg("Failed to hard-delete systems from DB")
+	}
+
+	// 3. Hard-delete child customers bottom-up
+	for _, custLogtoID := range childCustomerLogtoIDs {
+		if err := s.customerRepo.HardDelete(custLogtoID); err != nil {
+			logger.Warn().Err(err).Str("customer_logto_id", custLogtoID).Msg("Failed to hard-delete customer from DB")
+		}
+		if err := s.logtoClient.DeleteOrganization(custLogtoID); err != nil {
+			logger.Warn().Err(err).Str("customer_logto_id", custLogtoID).Msg("Failed to delete customer from Logto")
+		}
+	}
+
+	// 4. Hard-delete the reseller itself
+	if err := s.resellerRepo.HardDelete(resLogtoID); err != nil {
+		return fmt.Errorf("failed to hard-delete reseller from DB: %w", err)
+	}
+	if err := s.logtoClient.DeleteOrganization(resLogtoID); err != nil {
+		logger.Warn().Err(err).Str("reseller_logto_id", resLogtoID).Msg("Failed to delete reseller from Logto")
+	}
+
+	logger.Info().
+		Str("reseller_id", id).
+		Str("reseller_name", reseller.Name).
+		Str("destroyed_by", destroyedByUserID).
+		Int("child_customers", len(childCustomerLogtoIDs)).
+		Msg("Reseller permanently destroyed with child hierarchy")
+
+	return nil
+}
+
+// DestroyCustomer permanently deletes a customer from DB and Logto
+func (s *LocalOrganizationService) DestroyCustomer(id, destroyedByUserID, destroyedByOrgID string) error {
+	// Get customer including deleted
+	customer, err := s.customerRepo.GetByIDIncludeDeleted(id)
+	if err != nil {
+		return fmt.Errorf("failed to get customer: %w", err)
+	}
+
+	if customer.LogtoID == nil || *customer.LogtoID == "" {
+		return fmt.Errorf("customer has no logto_id")
+	}
+
+	custLogtoID := *customer.LogtoID
+
+	// 1. Hard-delete users from DB and Logto
+	userLogtoIDs, err := s.userRepo.HardDeleteByOrgID(custLogtoID)
+	if err != nil {
+		logger.Warn().Err(err).Str("customer_id", id).Msg("Failed to hard-delete users from DB")
+	}
+	for _, userLogtoID := range userLogtoIDs {
+		if err := s.logtoClient.DeleteUser(userLogtoID); err != nil {
+			logger.Warn().Err(err).Str("user_logto_id", userLogtoID).Msg("Failed to delete user from Logto")
+		}
+	}
+
+	// 2. Hard-delete systems from DB
+	_, err = s.systemRepo.HardDeleteByOrgID(custLogtoID)
+	if err != nil {
+		logger.Warn().Err(err).Str("customer_id", id).Msg("Failed to hard-delete systems from DB")
+	}
+
+	// 3. Hard-delete the customer itself
+	if err := s.customerRepo.HardDelete(custLogtoID); err != nil {
+		return fmt.Errorf("failed to hard-delete customer from DB: %w", err)
+	}
+	if err := s.logtoClient.DeleteOrganization(custLogtoID); err != nil {
+		logger.Warn().Err(err).Str("customer_logto_id", custLogtoID).Msg("Failed to delete customer from Logto")
+	}
+
+	logger.Info().
+		Str("customer_id", id).
+		Str("customer_name", customer.Name).
+		Str("destroyed_by", destroyedByUserID).
+		Msg("Customer permanently destroyed")
+
+	return nil
 }
 
 // ============================================
@@ -1872,112 +2150,6 @@ func (s *LocalOrganizationService) getUserOwnOrganization(userOrgRole, userOrgID
 	default:
 		return nil, fmt.Errorf("unsupported user organization role: %s", userOrgRole)
 	}
-}
-
-// deleteOrganizationUsers deletes all users associated with an organization
-// This function is called when deleting an organization to ensure user consistency
-func (s *LocalOrganizationService) deleteOrganizationUsers(organizationLogtoID, orgType, orgName string) error {
-	// 1. Find all users associated with this organization
-	query := `
-		SELECT id, logto_id, username, email, name
-		FROM users
-		WHERE organization_id = $1 AND deleted_at IS NULL
-	`
-
-	rows, err := database.DB.Query(query, organizationLogtoID)
-	if err != nil {
-		return fmt.Errorf("failed to query users for organization %s: %w", organizationLogtoID, err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	type userToDelete struct {
-		ID       string
-		LogtoID  *string
-		Username string
-		Email    string
-		Name     string
-	}
-
-	var usersToDelete []userToDelete
-	for rows.Next() {
-		var user userToDelete
-		err := rows.Scan(&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name)
-		if err != nil {
-			logger.Warn().
-				Err(err).
-				Str("organization_logto_id", organizationLogtoID).
-				Msg("Failed to scan user for deletion")
-			continue
-		}
-		usersToDelete = append(usersToDelete, user)
-	}
-
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("error iterating users for organization %s: %w", organizationLogtoID, err)
-	}
-
-	// 2. Delete each user both locally and from Logto
-	deletedCount := 0
-	failedCount := 0
-
-	for _, user := range usersToDelete {
-		// Delete from local database first (soft delete)
-		err := s.userRepo.Delete(user.ID)
-		if err != nil {
-			logger.Warn().
-				Err(err).
-				Str("user_id", user.ID).
-				Str("username", user.Username).
-				Str("organization_logto_id", organizationLogtoID).
-				Str("org_type", orgType).
-				Msg("Failed to delete user locally")
-			failedCount++
-			continue
-		}
-
-		// Delete from Logto if user has been synced
-		if user.LogtoID != nil && *user.LogtoID != "" {
-			err := s.logtoClient.DeleteUser(*user.LogtoID)
-			if err != nil {
-				logger.Warn().
-					Err(err).
-					Str("user_id", user.ID).
-					Str("logto_user_id", *user.LogtoID).
-					Str("username", user.Username).
-					Str("organization_logto_id", organizationLogtoID).
-					Str("org_type", orgType).
-					Msg("Failed to delete user from Logto (user deleted locally)")
-				// User is deleted locally but failed in Logto - this is acceptable
-				// The inconsistency will be logged but won't block the organization deletion
-			}
-		}
-
-		deletedCount++
-		logger.Info().
-			Str("user_id", user.ID).
-			Str("username", user.Username).
-			Str("email", user.Email).
-			Str("organization_logto_id", organizationLogtoID).
-			Str("org_type", orgType).
-			Str("org_name", orgName).
-			Msg("User deleted successfully due to organization deletion")
-	}
-
-	logger.Info().
-		Int("total_users", len(usersToDelete)).
-		Int("deleted_successfully", deletedCount).
-		Int("failed_deletions", failedCount).
-		Str("organization_logto_id", organizationLogtoID).
-		Str("org_type", orgType).
-		Str("org_name", orgName).
-		Msg("Completed user deletion for organization")
-
-	// Return error only if all deletions failed, otherwise log warnings and continue
-	if failedCount > 0 && deletedCount == 0 {
-		return fmt.Errorf("failed to delete any users for organization %s (%s)", orgName, orgType)
-	}
-
-	return nil
 }
 
 // SuspendDistributor suspends a distributor and all its users and systems
@@ -2484,23 +2656,6 @@ func (s *LocalOrganizationService) cascadeReactivateSystems(orgLogtoID, orgType,
 		Str("org_type", orgType).
 		Str("org_name", orgName).
 		Msg("Completed cascade system reactivation for organization")
-
-	return count, nil
-}
-
-// cascadeDeleteSystems soft-deletes all active systems of an organization
-func (s *LocalOrganizationService) cascadeDeleteSystems(orgLogtoID, orgType, orgName string) (int, error) {
-	count, err := s.systemRepo.SoftDeleteSystemsByOrgID(orgLogtoID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to soft-delete systems locally: %w", err)
-	}
-
-	logger.Info().
-		Int("deleted_systems", count).
-		Str("organization_logto_id", orgLogtoID).
-		Str("org_type", orgType).
-		Str("org_name", orgName).
-		Msg("Completed cascade system soft-deletion for organization")
 
 	return count, nil
 }

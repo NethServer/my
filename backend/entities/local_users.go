@@ -558,7 +558,7 @@ func (r *LocalUserRepository) UpdateLatestLogin(userID string) error {
 }
 
 // List returns paginated list of users based on hierarchical RBAC (matches other repository patterns)
-func (r *LocalUserRepository) List(userOrgRole, userOrgID, excludeUserID string, page, pageSize int, search, sortBy, sortDirection, organizationFilter string, statuses []string, roleFilter string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) List(userOrgRole, userOrgID, excludeUserID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses []string, roleFilter string) ([]*models.LocalUser, int, error) {
 	// Get all organization IDs the user can access hierarchically
 	allowedOrgIDs, err := r.GetHierarchicalOrganizationIDs(userOrgRole, userOrgID)
 	if err != nil {
@@ -569,26 +569,29 @@ func (r *LocalUserRepository) List(userOrgRole, userOrgID, excludeUserID string,
 }
 
 // ListByOrganizations returns paginated list of users in specified organizations (excluding specified user)
-func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, excludeUserID string, page, pageSize int, search, sortBy, sortDirection, organizationFilter string, statuses []string, roleFilter string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, excludeUserID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses []string, roleFilter string) ([]*models.LocalUser, int, error) {
 	if len(allowedOrgIDs) == 0 {
 		return []*models.LocalUser{}, 0, nil
 	}
 
-	// If organization filter is specified, verify it's in allowed orgs and use only that org
-	if organizationFilter != "" {
-		found := false
+	// If organization filter is specified, verify each is in allowed orgs
+	if len(organizationFilter) > 0 {
+		var filteredOrgIDs []string
+		allowedSet := make(map[string]bool, len(allowedOrgIDs))
 		for _, orgID := range allowedOrgIDs {
-			if orgID == organizationFilter {
-				found = true
-				break
+			allowedSet[orgID] = true
+		}
+		for _, filterOrgID := range organizationFilter {
+			if allowedSet[filterOrgID] {
+				filteredOrgIDs = append(filteredOrgIDs, filterOrgID)
 			}
 		}
-		if !found {
-			// Organization not in allowed list - return empty
+		if len(filteredOrgIDs) == 0 {
+			// None of the filtered organizations are in allowed list - return empty
 			return []*models.LocalUser{}, 0, nil
 		}
-		// Use only the filtered organization
-		allowedOrgIDs = []string{organizationFilter}
+		// Use only the filtered organizations
+		allowedOrgIDs = filteredOrgIDs
 	}
 
 	offset := (page - 1) * pageSize
@@ -1201,4 +1204,203 @@ func (r *LocalUserRepository) GetTrend(userOrgRole, userOrgID string, period int
 	}
 
 	return dataPoints, currentTotal, previousTotal, nil
+}
+
+// SoftDeleteByMultipleOrgIDs cascade soft-deletes users belonging to any of the given organizations
+func (r *LocalUserRepository) SoftDeleteByMultipleOrgIDs(orgIDs []string, deletedByOrgID string) (int, error) {
+	if len(orgIDs) == 0 {
+		return 0, nil
+	}
+
+	now := time.Now()
+
+	placeholders := make([]string, len(orgIDs))
+	args := make([]interface{}, len(orgIDs))
+	for i, id := range orgIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	inClause := strings.Join(placeholders, ",")
+
+	deletedByIdx := len(orgIDs) + 1
+	nowIdx := len(orgIDs) + 2
+	query := fmt.Sprintf(`
+		UPDATE users
+		SET deleted_at = $%d, deleted_by_org_id = $%d, updated_at = $%d
+		WHERE organization_id IN (%s) AND deleted_at IS NULL
+	`, nowIdx, deletedByIdx, nowIdx, inClause)
+
+	updateArgs := make([]interface{}, 0, len(orgIDs)+2)
+	updateArgs = append(updateArgs, args...)
+	updateArgs = append(updateArgs, deletedByOrgID, now)
+
+	result, err := r.db.Exec(query, updateArgs...)
+	if err != nil {
+		return 0, fmt.Errorf("failed to cascade soft-delete users: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return int(rowsAffected), nil
+}
+
+// RestoreByDeletedByOrgID cascade restores users that were soft-deleted by a specific organization
+func (r *LocalUserRepository) RestoreByDeletedByOrgID(deletedByOrgID string) (int, error) {
+	now := time.Now()
+
+	query := `
+		UPDATE users
+		SET deleted_at = NULL, deleted_by_org_id = NULL, updated_at = $2
+		WHERE deleted_by_org_id = $1 AND deleted_at IS NOT NULL
+	`
+
+	result, err := r.db.Exec(query, deletedByOrgID, now)
+	if err != nil {
+		return 0, fmt.Errorf("failed to cascade restore users: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return int(rowsAffected), nil
+}
+
+// Restore restores a single soft-deleted user by logto_id
+func (r *LocalUserRepository) Restore(logtoID string) error {
+	now := time.Now()
+	query := `UPDATE users SET deleted_at = NULL, deleted_by_org_id = NULL, updated_at = $2 WHERE logto_id = $1 AND deleted_at IS NOT NULL`
+
+	result, err := r.db.Exec(query, logtoID, now)
+	if err != nil {
+		return fmt.Errorf("failed to restore user: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("user not found or not deleted")
+	}
+
+	return nil
+}
+
+// HardDelete permanently deletes a user by logto_id
+func (r *LocalUserRepository) HardDelete(logtoID string) error {
+	query := `DELETE FROM users WHERE logto_id = $1`
+
+	result, err := r.db.Exec(query, logtoID)
+	if err != nil {
+		return fmt.Errorf("failed to hard-delete user: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
+
+	return nil
+}
+
+// HardDeleteByOrgID permanently deletes all users belonging to an organization
+// Returns the logto_ids of deleted users for Logto cleanup
+func (r *LocalUserRepository) HardDeleteByOrgID(orgLogtoID string) ([]string, error) {
+	// First get the logto_ids of users that will be deleted (for Logto cleanup)
+	selectQuery := `SELECT logto_id FROM users WHERE organization_id = $1 AND logto_id IS NOT NULL`
+	rows, err := r.db.Query(selectQuery, orgLogtoID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query users for hard-delete: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var logtoIDs []string
+	for rows.Next() {
+		var logtoID string
+		if err := rows.Scan(&logtoID); err != nil {
+			return nil, fmt.Errorf("failed to scan user logto_id: %w", err)
+		}
+		logtoIDs = append(logtoIDs, logtoID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating users: %w", err)
+	}
+
+	// Hard-delete all users for this org
+	deleteQuery := `DELETE FROM users WHERE organization_id = $1`
+	_, err = r.db.Exec(deleteQuery, orgLogtoID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hard-delete users by org: %w", err)
+	}
+
+	return logtoIDs, nil
+}
+
+// GetByIDIncludeDeleted retrieves a user by logto_id including soft-deleted users
+func (r *LocalUserRepository) GetByIDIncludeDeleted(id string) (*models.LocalUser, error) {
+	query := `
+		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
+		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at, u.suspended_by_org_id,
+		       COALESCE(d.name, r.name, c.name) as organization_name,
+		       COALESCE(d.id, r.id, c.id) as organization_local_id,
+		       CASE
+		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
+		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
+		           WHEN c.logto_id IS NOT NULL THEN 'customer'
+		           ELSE 'owner'
+		       END as organization_type
+		FROM users u
+		LEFT JOIN distributors d ON (u.organization_id = d.logto_id OR u.organization_id = d.id::text)
+		LEFT JOIN resellers r ON (u.organization_id = r.logto_id OR u.organization_id = r.id::text)
+		LEFT JOIN customers c ON (u.organization_id = c.logto_id OR u.organization_id = c.id::text)
+		WHERE u.logto_id = $1
+	`
+
+	user := &models.LocalUser{}
+	var customDataJSON []byte
+	var userRoleIDsJSON []byte
+
+	err := r.db.QueryRow(query, id).Scan(
+		&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name, &user.Phone,
+		&user.OrganizationID, &userRoleIDsJSON, &customDataJSON,
+		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt, &user.SuspendedByOrgID,
+		&user.OrganizationName, &user.OrganizationLocalID, &user.OrganizationType,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("user not found")
+		}
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	if len(userRoleIDsJSON) > 0 {
+		if err := json.Unmarshal(userRoleIDsJSON, &user.UserRoleIDs); err != nil {
+			user.UserRoleIDs = []string{}
+		}
+	} else {
+		user.UserRoleIDs = []string{}
+	}
+
+	if len(customDataJSON) > 0 {
+		if err := json.Unmarshal(customDataJSON, &user.CustomData); err != nil {
+			user.CustomData = make(map[string]interface{})
+		}
+	} else {
+		user.CustomData = make(map[string]interface{})
+	}
+
+	_ = r.enrichUserWithRelations(user)
+
+	return user, nil
 }

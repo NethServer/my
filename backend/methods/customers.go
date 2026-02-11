@@ -376,7 +376,7 @@ func DeleteCustomer(c *gin.Context) {
 	service := local.NewOrganizationService()
 
 	// Delete customer
-	deletedSystemsCount, err := service.DeleteCustomer(customerID, user.ID, user.OrganizationID)
+	deletedSystemsCount, deletedUsersCount, err := service.DeleteCustomer(customerID, user.ID, user.OrganizationID)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -396,7 +396,142 @@ func DeleteCustomer(c *gin.Context) {
 	// Return success response
 	c.JSON(http.StatusOK, response.OK("customer deleted successfully", map[string]interface{}{
 		"deleted_systems_count": deletedSystemsCount,
+		"deleted_users_count":   deletedUsersCount,
 	}))
+}
+
+// RestoreCustomer handles PATCH /api/customers/:id/restore - restores a soft-deleted customer
+func RestoreCustomer(c *gin.Context) {
+	customerID := c.Param("id")
+	if customerID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("customer ID required", nil))
+		return
+	}
+
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Get customer (including deleted) for hierarchy validation
+	repo := entities.NewLocalCustomerRepository()
+	customer, err := repo.GetByIDIncludeDeleted(customerID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("customer not found", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get customer", nil))
+		return
+	}
+
+	// RBAC: owner can always, distributor/reseller check hierarchy
+	userOrgRole := strings.ToLower(user.OrgRole)
+	canRestore := false
+	switch userOrgRole {
+	case "owner":
+		canRestore = true
+	case "distributor", "reseller":
+		if customer.LogtoID != nil {
+			userService := local.NewUserService()
+			canRestore = userService.IsOrganizationInHierarchy(userOrgRole, user.OrganizationID, *customer.LogtoID)
+		}
+	}
+
+	if !canRestore {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied to restore customer", nil))
+		return
+	}
+
+	service := local.NewOrganizationService()
+
+	restoredSystemsCount, restoredUsersCount, err := service.RestoreCustomer(customerID, user.ID, user.OrganizationID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not deleted") {
+			c.JSON(http.StatusBadRequest, response.BadRequest("customer is not deleted", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("customer_id", customerID).
+			Msg("Failed to restore customer")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to restore customer", nil))
+		return
+	}
+
+	logger.LogBusinessOperation(c, "customers", "restore", "customer", customerID, true, nil)
+
+	c.JSON(http.StatusOK, response.OK("customer restored successfully", map[string]interface{}{
+		"restored_systems_count": restoredSystemsCount,
+		"restored_users_count":   restoredUsersCount,
+	}))
+}
+
+// DestroyCustomer handles DELETE /api/customers/:id/destroy - permanently deletes a customer
+func DestroyCustomer(c *gin.Context) {
+	customerID := c.Param("id")
+	if customerID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("customer ID required", nil))
+		return
+	}
+
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Get customer (including deleted) for hierarchy validation
+	repo := entities.NewLocalCustomerRepository()
+	customer, err := repo.GetByIDIncludeDeleted(customerID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("customer not found", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get customer", nil))
+		return
+	}
+
+	// RBAC: owner can always, distributor/reseller check hierarchy
+	userOrgRole := strings.ToLower(user.OrgRole)
+	canDestroy := false
+	switch userOrgRole {
+	case "owner":
+		canDestroy = true
+	case "distributor", "reseller":
+		if customer.LogtoID != nil {
+			userService := local.NewUserService()
+			canDestroy = userService.IsOrganizationInHierarchy(userOrgRole, user.OrganizationID, *customer.LogtoID)
+		}
+	}
+
+	if !canDestroy {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied to destroy customer", nil))
+		return
+	}
+
+	service := local.NewOrganizationService()
+
+	err = service.DestroyCustomer(customerID, user.ID, user.OrganizationID)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("customer_id", customerID).
+			Msg("Failed to destroy customer")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to destroy customer", map[string]interface{}{
+			"error": err.Error(),
+		}))
+		return
+	}
+
+	logger.LogBusinessOperation(c, "customers", "destroy", "customer", customerID, true, nil)
+
+	c.JSON(http.StatusOK, response.OK("customer permanently destroyed", nil))
 }
 
 // GetCustomerStats handles GET /api/customers/:id/stats - retrieves users, systems and applications count for a customer

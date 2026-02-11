@@ -425,7 +425,7 @@ func (s *LocalUserService) UpdateLatestLogin(userID string) error {
 }
 
 // ListUsers returns paginated list of users based on hierarchical RBAC (excluding specified user)
-func (s *LocalUserService) ListUsers(userOrgRole, userOrgID, excludeUserID string, page, pageSize int, search, sortBy, sortDirection, organizationFilter string, statuses []string, roleFilter string) ([]*models.LocalUser, int, error) {
+func (s *LocalUserService) ListUsers(userOrgRole, userOrgID, excludeUserID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses []string, roleFilter string) ([]*models.LocalUser, int, error) {
 	return s.userRepo.List(userOrgRole, userOrgID, excludeUserID, page, pageSize, search, sortBy, sortDirection, organizationFilter, statuses, roleFilter)
 }
 
@@ -910,52 +910,107 @@ func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequ
 	return updatedUser, nil
 }
 
-// DeleteUser soft-deletes a user locally and syncs to Logto
+// DeleteUser soft-deletes a user locally (no Logto deletion)
 func (s *LocalUserService) DeleteUser(id, deletedByUserID, deletedByOrgID string) error {
-	tx, err := database.DB.Begin()
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	// Get user before deletion for logging and logto_id
+	// Get user before deletion for logging
 	user, err := s.userRepo.GetByID(id)
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
 	}
 
-	// 1. Soft delete in local DB first
+	// Soft delete in local DB
 	err = s.userRepo.Delete(id)
 	if err != nil {
 		return fmt.Errorf("failed to delete user locally: %w", err)
-	}
-
-	// 2. Delete from Logto using logto_id
-	if user.LogtoID != nil {
-		err = s.logtoClient.DeleteUser(*user.LogtoID)
-	} else {
-		logger.Warn().Str("user_id", id).Msg("User has no logto_id, skipping Logto deletion")
-		err = nil // Don't fail if not synced to Logto
-	}
-	if err != nil {
-		logger.Error().
-			Err(err).
-			Str("user_id", id).
-			Str("username", user.Username).
-			Msg("Failed to sync user deletion to Logto")
-		return fmt.Errorf("failed to sync user deletion to Logto: %w", err)
-	}
-
-	// 3. Commit transaction
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	logger.Info().
 		Str("user_id", id).
 		Str("username", user.Username).
 		Str("deleted_by", deletedByUserID).
-		Msg("User deleted successfully with Logto sync")
+		Msg("User soft-deleted successfully")
+
+	return nil
+}
+
+// RestoreUser restores a soft-deleted user locally
+func (s *LocalUserService) RestoreUser(id, restoredByUserID, restoredByOrgID, restoredByOrgRole string) error {
+	// Get user including deleted
+	user, err := s.userRepo.GetByIDIncludeDeleted(id)
+	if err != nil {
+		return fmt.Errorf("failed to get user: %w", err)
+	}
+
+	if user.DeletedAt == nil {
+		return fmt.Errorf("user is not deleted")
+	}
+
+	// Verify RBAC permissions (hierarchy check)
+	if user.OrganizationID != nil {
+		if !s.IsOrganizationInHierarchy(restoredByOrgRole, restoredByOrgID, *user.OrganizationID) {
+			return fmt.Errorf("access denied: insufficient permissions to restore this user")
+		}
+	}
+
+	if user.LogtoID == nil {
+		return fmt.Errorf("user has no logto_id")
+	}
+
+	// Restore the user locally
+	err = s.userRepo.Restore(*user.LogtoID)
+	if err != nil {
+		return fmt.Errorf("failed to restore user: %w", err)
+	}
+
+	logger.Info().
+		Str("user_id", id).
+		Str("username", user.Username).
+		Str("restored_by", restoredByUserID).
+		Msg("User restored successfully")
+
+	return nil
+}
+
+// DestroyUser permanently deletes a user from DB and Logto
+func (s *LocalUserService) DestroyUser(id, destroyedByUserID, destroyedByOrgID, destroyedByOrgRole string) error {
+	// Get user including deleted
+	user, err := s.userRepo.GetByIDIncludeDeleted(id)
+	if err != nil {
+		return fmt.Errorf("failed to get user: %w", err)
+	}
+
+	// Verify RBAC permissions (hierarchy check)
+	if user.OrganizationID != nil {
+		if !s.IsOrganizationInHierarchy(destroyedByOrgRole, destroyedByOrgID, *user.OrganizationID) {
+			return fmt.Errorf("access denied: insufficient permissions to destroy this user")
+		}
+	}
+
+	if user.LogtoID == nil {
+		return fmt.Errorf("user has no logto_id")
+	}
+
+	// 1. Hard-delete from DB
+	err = s.userRepo.HardDelete(*user.LogtoID)
+	if err != nil {
+		return fmt.Errorf("failed to hard-delete user from DB: %w", err)
+	}
+
+	// 2. Delete from Logto
+	err = s.logtoClient.DeleteUser(*user.LogtoID)
+	if err != nil {
+		logger.Warn().
+			Err(err).
+			Str("user_id", id).
+			Str("logto_id", *user.LogtoID).
+			Msg("Failed to delete user from Logto (user already removed from DB)")
+	}
+
+	logger.Info().
+		Str("user_id", id).
+		Str("username", user.Username).
+		Str("destroyed_by", destroyedByUserID).
+		Msg("User permanently destroyed")
 
 	return nil
 }

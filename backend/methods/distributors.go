@@ -282,7 +282,7 @@ func DeleteDistributor(c *gin.Context) {
 	service := local.NewOrganizationService()
 
 	// Delete distributor
-	deletedSystemsCount, err := service.DeleteDistributor(distributorID, user.ID, user.OrganizationID)
+	deletedSystemsCount, deletedUsersCount, err := service.DeleteDistributor(distributorID, user.ID, user.OrganizationID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			c.JSON(http.StatusNotFound, response.NotFound("distributor not found", nil))
@@ -307,7 +307,101 @@ func DeleteDistributor(c *gin.Context) {
 	// Return success response
 	c.JSON(http.StatusOK, response.OK("distributor deleted successfully", map[string]interface{}{
 		"deleted_systems_count": deletedSystemsCount,
+		"deleted_users_count":   deletedUsersCount,
 	}))
+}
+
+// RestoreDistributor handles PATCH /api/distributors/:id/restore - restores a soft-deleted distributor
+func RestoreDistributor(c *gin.Context) {
+	distributorID := c.Param("id")
+	if distributorID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("distributor ID required", nil))
+		return
+	}
+
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	if strings.ToLower(user.OrgRole) != "owner" {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied: only owners can restore distributors", nil))
+		return
+	}
+
+	service := local.NewOrganizationService()
+
+	restoredSystemsCount, restoredUsersCount, err := service.RestoreDistributor(distributorID, user.ID, user.OrganizationID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("distributor not found", nil))
+			return
+		}
+		if strings.Contains(err.Error(), "not deleted") {
+			c.JSON(http.StatusBadRequest, response.BadRequest("distributor is not deleted", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("distributor_id", distributorID).
+			Msg("Failed to restore distributor")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to restore distributor", nil))
+		return
+	}
+
+	logger.LogBusinessOperation(c, "distributors", "restore", "distributor", distributorID, true, nil)
+
+	c.JSON(http.StatusOK, response.OK("distributor restored successfully", map[string]interface{}{
+		"restored_systems_count": restoredSystemsCount,
+		"restored_users_count":   restoredUsersCount,
+	}))
+}
+
+// DestroyDistributor handles DELETE /api/distributors/:id/destroy - permanently deletes a distributor
+func DestroyDistributor(c *gin.Context) {
+	distributorID := c.Param("id")
+	if distributorID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("distributor ID required", nil))
+		return
+	}
+
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	if strings.ToLower(user.OrgRole) != "owner" {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied: only owners can destroy distributors", nil))
+		return
+	}
+
+	service := local.NewOrganizationService()
+
+	err := service.DestroyDistributor(distributorID, user.ID, user.OrganizationID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("distributor not found", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("distributor_id", distributorID).
+			Msg("Failed to destroy distributor")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to destroy distributor", map[string]interface{}{
+			"error": err.Error(),
+		}))
+		return
+	}
+
+	logger.LogBusinessOperation(c, "distributors", "destroy", "distributor", distributorID, true, nil)
+
+	c.JSON(http.StatusOK, response.OK("distributor permanently destroyed", nil))
 }
 
 // GetDistributorStats handles GET /api/distributors/:id/stats - retrieves users and systems count for a distributor

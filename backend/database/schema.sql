@@ -186,7 +186,8 @@ CREATE TABLE IF NOT EXISTS users (
     -- Soft delete and suspension
     deleted_at TIMESTAMP WITH TIME ZONE,    -- NULL = active, non-NULL = soft deleted
     suspended_at TIMESTAMP WITH TIME ZONE,  -- NULL = active, non-NULL = suspended/blocked
-    suspended_by_org_id VARCHAR(255)        -- Organization ID that caused cascade suspension
+    suspended_by_org_id VARCHAR(255),       -- Organization ID that caused cascade suspension
+    deleted_by_org_id VARCHAR(255)          -- Organization ID that caused cascade soft-deletion
 );
 
 -- Table documentation
@@ -197,6 +198,7 @@ COMMENT ON COLUMN users.user_role_ids IS 'Array of Logto role IDs assigned to us
 COMMENT ON COLUMN users.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted';
 COMMENT ON COLUMN users.suspended_at IS 'Suspension timestamp. NULL means active, non-NULL means blocked';
 COMMENT ON COLUMN users.suspended_by_org_id IS 'Organization ID that caused cascade suspension (for automatic reactivation)';
+COMMENT ON COLUMN users.deleted_by_org_id IS 'Organization that caused cascade soft-deletion (for tracking cascade source)';
 
 -- Performance indexes
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_logto_id ON users(logto_id) WHERE logto_id IS NOT NULL AND deleted_at IS NULL;
@@ -208,6 +210,7 @@ CREATE INDEX IF NOT EXISTS idx_users_suspended_at ON users(suspended_at);
 CREATE INDEX IF NOT EXISTS idx_users_suspended_by_org_id ON users(suspended_by_org_id) WHERE suspended_by_org_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_users_logto_synced ON users(logto_synced_at);
 CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_users_deleted_by_org_id ON users(deleted_by_org_id) WHERE deleted_by_org_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_users_latest_login_at ON users(latest_login_at DESC);
 
 -- =============================================================================

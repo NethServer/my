@@ -476,6 +476,86 @@ func (r *LocalDistributorRepository) GetTrend(userOrgRole, userOrgID string, per
 	return dataPoints, currentTotal, previousTotal, nil
 }
 
+// GetByIDIncludeDeleted retrieves a distributor by logto_id including soft-deleted ones
+func (r *LocalDistributorRepository) GetByIDIncludeDeleted(id string) (*models.LocalDistributor, error) {
+	query := `
+		SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
+		       logto_synced_at, logto_sync_error, deleted_at, suspended_at
+		FROM distributors
+		WHERE logto_id = $1
+	`
+
+	distributor := &models.LocalDistributor{}
+	var customDataJSON []byte
+
+	err := r.db.QueryRow(query, id).Scan(
+		&distributor.ID, &distributor.LogtoID, &distributor.Name, &distributor.Description,
+		&customDataJSON, &distributor.CreatedAt, &distributor.UpdatedAt,
+		&distributor.LogtoSyncedAt, &distributor.LogtoSyncError, &distributor.DeletedAt,
+		&distributor.SuspendedAt,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("distributor not found")
+		}
+		return nil, fmt.Errorf("failed to get distributor: %w", err)
+	}
+
+	// Parse custom_data JSON
+	if len(customDataJSON) > 0 {
+		if err := json.Unmarshal(customDataJSON, &distributor.CustomData); err != nil {
+			distributor.CustomData = make(map[string]interface{})
+		}
+	} else {
+		distributor.CustomData = make(map[string]interface{})
+	}
+
+	return distributor, nil
+}
+
+// Restore restores a soft-deleted distributor
+func (r *LocalDistributorRepository) Restore(logtoID string) error {
+	query := `UPDATE distributors SET deleted_at = NULL, updated_at = $2 WHERE logto_id = $1 AND deleted_at IS NOT NULL`
+
+	result, err := r.db.Exec(query, logtoID, time.Now())
+	if err != nil {
+		return fmt.Errorf("failed to restore distributor: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("distributor not found or not deleted")
+	}
+
+	return nil
+}
+
+// HardDelete permanently removes a distributor from the database
+func (r *LocalDistributorRepository) HardDelete(logtoID string) error {
+	query := `DELETE FROM distributors WHERE logto_id = $1`
+
+	result, err := r.db.Exec(query, logtoID)
+	if err != nil {
+		return fmt.Errorf("failed to hard-delete distributor: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("distributor not found")
+	}
+
+	return nil
+}
+
 // GetStats returns users, systems, resellers, customers and applications count for a specific distributor
 func (r *LocalDistributorRepository) GetStats(id string) (*models.DistributorStats, error) {
 	// First get the distributor to obtain its logto_id

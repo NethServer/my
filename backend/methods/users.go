@@ -230,7 +230,7 @@ func GetUsers(c *gin.Context) {
 	search := c.Query("search")
 
 	// Parse filter parameters
-	organizationFilter := c.Query("organization_id")
+	organizationFilter := c.QueryArray("organization_id")
 	statuses := c.QueryArray("status")
 	roleFilter := c.Query("role")
 
@@ -596,6 +596,101 @@ func DeleteUser(c *gin.Context) {
 
 	// Return success response
 	c.JSON(http.StatusOK, response.OK("user deleted successfully", nil))
+}
+
+// RestoreUser handles PATCH /api/users/:id/restore - restores a soft-deleted user
+func RestoreUser(c *gin.Context) {
+	userID := c.Param("id")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("user ID required", nil))
+		return
+	}
+
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	service := local.NewUserService()
+
+	err := service.RestoreUser(userID, user.ID, user.OrganizationID, strings.ToLower(user.OrgRole))
+	if err != nil {
+		errMsg := err.Error()
+
+		if strings.Contains(errMsg, "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("user not found", nil))
+			return
+		}
+
+		if strings.Contains(errMsg, "not deleted") {
+			c.JSON(http.StatusBadRequest, response.BadRequest("user is not deleted", nil))
+			return
+		}
+
+		if strings.Contains(errMsg, "access denied") {
+			c.JSON(http.StatusForbidden, response.Forbidden("access denied to restore user", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("current_user_id", user.ID).
+			Str("target_user_id", userID).
+			Msg("Failed to restore user")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to restore user", nil))
+		return
+	}
+
+	logger.LogBusinessOperation(c, "users", "restore", "user", userID, true, nil)
+
+	c.JSON(http.StatusOK, response.OK("user restored successfully", nil))
+}
+
+// DestroyUser handles DELETE /api/users/:id/destroy - permanently deletes a user
+func DestroyUser(c *gin.Context) {
+	userID := c.Param("id")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("user ID required", nil))
+		return
+	}
+
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	service := local.NewUserService()
+
+	err := service.DestroyUser(userID, user.ID, user.OrganizationID, strings.ToLower(user.OrgRole))
+	if err != nil {
+		errMsg := err.Error()
+
+		if strings.Contains(errMsg, "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("user not found", nil))
+			return
+		}
+
+		if strings.Contains(errMsg, "access denied") {
+			c.JSON(http.StatusForbidden, response.Forbidden("access denied to destroy user", nil))
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("current_user_id", user.ID).
+			Str("target_user_id", userID).
+			Msg("Failed to destroy user")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to destroy user", map[string]interface{}{
+			"error": errMsg,
+		}))
+		return
+	}
+
+	logger.LogBusinessOperation(c, "users", "destroy", "user", userID, true, nil)
+
+	c.JSON(http.StatusOK, response.OK("user permanently destroyed", nil))
 }
 
 // SuspendUser handles PATCH /api/users/:id/suspend - suspends a user
