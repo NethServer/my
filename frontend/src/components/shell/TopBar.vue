@@ -22,10 +22,10 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useI18n } from 'vue-i18n'
 import { useNotificationsStore } from '@/stores/notifications'
 import router from '@/router'
-import ImpersonationBadge from './ImpersonationBadge.vue'
+import ImpersonationBadge from '../ImpersonationBadge.vue'
 import { useImpersonationConsent } from '@/queries/impersonationConsent'
-import ImpersonationConsentBadge from './ImpersonationConsentBadge.vue'
-import UserAvatar from './UserAvatar.vue'
+import ImpersonationConsentBadge from '../ImpersonationConsentBadge.vue'
+import UserAvatar from '../UserAvatar.vue'
 
 const emit = defineEmits(['openSidebar'])
 

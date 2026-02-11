@@ -2,18 +2,18 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import axios from 'axios'
-import { API_URL } from './config'
+import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
-import { type Pagination } from './common'
+import { type Pagination } from '../common'
 
-export const RESELLERS_KEY = 'resellers'
-export const RESELLERS_TOTAL_KEY = 'resellersTotal'
-export const RESELLERS_TABLE_ID = 'resellersTable'
+export const DISTRIBUTORS_KEY = 'distributors'
+export const DISTRIBUTORS_TOTAL_KEY = 'distributorsTotal'
+export const DISTRIBUTORS_TABLE_ID = 'distributorsTable'
 
-export type ResellerStatus = 'enabled' | 'suspended' | 'deleted'
+export type DistributorStatus = 'enabled' | 'suspended' | 'deleted'
 
-export const CreateResellerSchema = v.object({
+export const CreateDistributorSchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty('organizations.name_cannot_be_empty')),
   description: v.optional(v.string()),
   custom_data: v.object({
@@ -22,21 +22,21 @@ export const CreateResellerSchema = v.object({
   }),
 })
 
-export const ResellerSchema = v.object({
-  ...CreateResellerSchema.entries,
+export const DistributorSchema = v.object({
+  ...CreateDistributorSchema.entries,
   logto_id: v.string(),
   suspended_at: v.optional(v.string()),
   deleted_at: v.optional(v.string()),
 })
 
-export type CreateReseller = v.InferOutput<typeof CreateResellerSchema>
-export type Reseller = v.InferOutput<typeof ResellerSchema>
+export type CreateDistributor = v.InferOutput<typeof CreateDistributorSchema>
+export type Distributor = v.InferOutput<typeof DistributorSchema>
 
-interface ResellersResponse {
+interface DistributorsResponse {
   code: number
   message: string
   data: {
-    resellers: Reseller[]
+    distributors: Distributor[]
     pagination: Pagination
   }
 }
@@ -45,7 +45,7 @@ export const getQueryStringParams = (
   pageNum: number,
   pageSize: number,
   textFilter: string | null,
-  statusFilter: ResellerStatus[],
+  statusFilter: DistributorStatus[],
   sortBy: string | null,
   sortDescending: boolean,
 ) => {
@@ -63,15 +63,14 @@ export const getQueryStringParams = (
   statusFilter.forEach((status) => {
     searchParams.append('status', status)
   })
-
   return searchParams.toString()
 }
 
-export const getResellers = (
+export const getDistributors = (
   pageNum: number,
   pageSize: number,
   textFilter: string,
-  statusFilter: ResellerStatus[],
+  statusFilter: DistributorStatus[],
   sortBy: string,
   sortDescending: boolean,
 ) => {
@@ -86,51 +85,51 @@ export const getResellers = (
   )
 
   return axios
-    .get<ResellersResponse>(`${API_URL}/resellers?${params}`, {
+    .get<DistributorsResponse>(`${API_URL}/distributors?${params}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data)
 }
 
-export const postReseller = (reseller: CreateReseller) => {
+export const postDistributor = (distributor: CreateDistributor) => {
   const loginStore = useLoginStore()
 
-  return axios.post(`${API_URL}/resellers`, reseller, {
+  return axios.post(`${API_URL}/distributors`, distributor, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
 
-export const putReseller = (reseller: Reseller) => {
+export const putDistributor = (distributor: Distributor) => {
   const loginStore = useLoginStore()
 
-  return axios.put(`${API_URL}/resellers/${reseller.logto_id}`, reseller, {
+  return axios.put(`${API_URL}/distributors/${distributor.logto_id}`, distributor, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
 
-export const deleteReseller = (reseller: Reseller) => {
+export const deleteDistributor = (distributor: Distributor) => {
   const loginStore = useLoginStore()
 
-  return axios.delete(`${API_URL}/resellers/${reseller.logto_id}`, {
+  return axios.delete(`${API_URL}/distributors/${distributor.logto_id}`, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
 
-export const getResellersTotal = () => {
+export const getDistributorsTotal = () => {
   const loginStore = useLoginStore()
 
   return axios
-    .get(`${API_URL}/resellers/totals`, {
+    .get(`${API_URL}/distributors/totals`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data.total as number)
 }
 
-export const suspendReseller = (reseller: Reseller) => {
+export const suspendDistributor = (distributor: Distributor) => {
   const loginStore = useLoginStore()
 
   return axios.patch(
-    `${API_URL}/resellers/${reseller.logto_id}/suspend`,
+    `${API_URL}/distributors/${distributor.logto_id}/suspend`,
     {},
     {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
@@ -138,11 +137,11 @@ export const suspendReseller = (reseller: Reseller) => {
   )
 }
 
-export const reactivateReseller = (reseller: Reseller) => {
+export const reactivateDistributor = (distributor: Distributor) => {
   const loginStore = useLoginStore()
 
   return axios.patch(
-    `${API_URL}/resellers/${reseller.logto_id}/reactivate`,
+    `${API_URL}/distributors/${distributor.logto_id}/reactivate`,
     {},
     {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
@@ -150,11 +149,11 @@ export const reactivateReseller = (reseller: Reseller) => {
   )
 }
 
-export const restoreReseller = (reseller: Reseller) => {
+export const restoreDistributor = (distributor: Distributor) => {
   const loginStore = useLoginStore()
 
   return axios.patch(
-    `${API_URL}/resellers/${reseller.logto_id}/restore`,
+    `${API_URL}/distributors/${distributor.logto_id}/restore`,
     {},
     {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },

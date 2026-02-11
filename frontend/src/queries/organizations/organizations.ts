@@ -1,7 +1,7 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { getOrganizations, ORGANIZATIONS_KEY } from '@/lib/organizations'
+import { getOrganizations, ORGANIZATIONS_KEY } from '@/lib/organizations/organizations'
 import { useLoginStore } from '@/stores/login'
 import { defineQueryOptions } from '@pinia/colada'
 

@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { CUSTOMERS_TABLE_ID, type Customer } from '@/lib/customers'
+import { CUSTOMERS_TABLE_ID, type Customer } from '@/lib/organizations/customers'
 import {
   faCircleInfo,
   faCirclePlus,
@@ -45,7 +45,7 @@ import SuspendCustomerModal from './SuspendCustomerModal.vue'
 import ReactivateCustomerModal from './ReactivateCustomerModal.vue'
 import RestoreCustomerModal from './RestoreCustomerModal.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
-import { useCustomers } from '@/queries/customers'
+import { useCustomers } from '@/queries/organizations/customers'
 import { canManageCustomers } from '@/lib/permissions'
 
 const { isShownCreateCustomerDrawer = false } = defineProps<{

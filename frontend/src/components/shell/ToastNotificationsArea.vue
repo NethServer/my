@@ -5,8 +5,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useNotificationsStore } from '../stores/notifications'
-import ErrorModal from './ErrorModal.vue'
+import { useNotificationsStore } from '../../stores/notifications'
+import ErrorModal from '../ErrorModal.vue'
 import { type NeNotification, NeToastNotification } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 

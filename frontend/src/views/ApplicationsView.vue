@@ -9,7 +9,7 @@ import {
   saveShowUnassignedAppsNotificationToStorage,
   SHOW_UNASSIGNED_APPS_NOTIFICATION,
 } from '@/lib/applications/applications'
-import { useApplications } from '@/queries/applications'
+import { useApplications } from '@/queries/applications/applications'
 import { useApplicationsTotal } from '@/queries/applications/applicationsTotal'
 import { useLoginStore } from '@/stores/login'
 import { getPreference, NeHeading, NeInlineNotification } from '@nethesis/vue-components'

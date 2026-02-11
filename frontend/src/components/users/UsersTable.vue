@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { USERS_TABLE_ID, type User, type UserStatus } from '@/lib/users'
+import { USERS_TABLE_ID, type User } from '@/lib/users/users'
 import {
   faCircleInfo,
   faCirclePlus,
@@ -48,7 +48,7 @@ import DeleteUserModal from './DeleteUserModal.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import ResetPasswordModal from './ResetPasswordModal.vue'
 import PasswordChangedModal from './PasswordChangedModal.vue'
-import { useUsers } from '@/queries/users'
+import { useUsers } from '@/queries/users/users'
 import { canManageUsers, canImpersonateUsers } from '@/lib/permissions'
 import { useLoginStore } from '@/stores/login'
 import ImpersonateUserModal from './ImpersonateUserModal.vue'

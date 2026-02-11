@@ -3,7 +3,7 @@
   SPDX-License-Identifier: GPL-3.0-or-later
 -->
 <script lang="ts" setup>
-import { getOrganizationIcon } from '@/lib/organizations'
+import { getOrganizationIcon } from '@/lib/organizations/organizations'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { computed } from 'vue'
 

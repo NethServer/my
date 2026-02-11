@@ -3,32 +3,32 @@
 
 import { MIN_SEARCH_LENGTH } from '@/lib/common'
 import {
-  DISTRIBUTORS_KEY,
-  DISTRIBUTORS_TABLE_ID,
-  getDistributors,
-  type Distributor,
-  type DistributorStatus,
-} from '@/lib/distributors'
-import { canReadDistributors } from '@/lib/permissions'
+  CUSTOMERS_KEY,
+  CUSTOMERS_TABLE_ID,
+  getCustomers,
+  type Customer,
+  type CustomerStatus,
+} from '@/lib/organizations/customers'
+import { canReadCustomers } from '@/lib/permissions'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { useDebounceFn } from '@vueuse/core'
 import { ref, watch } from 'vue'
 
-export const useDistributors = defineQuery(() => {
+export const useCustomers = defineQuery(() => {
   const loginStore = useLoginStore()
   const pageNum = ref(1)
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
-  const statusFilter = ref<DistributorStatus[]>(['enabled', 'suspended'])
-  const sortBy = ref<keyof Distributor>('name')
+  const statusFilter = ref<CustomerStatus[]>(['enabled', 'suspended'])
+  const sortBy = ref<keyof Customer>('name')
   const sortDescending = ref(false)
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [
-      DISTRIBUTORS_KEY,
+      CUSTOMERS_KEY,
       {
         pageNum: pageNum.value,
         pageSize: pageSize.value,
@@ -38,9 +38,9 @@ export const useDistributors = defineQuery(() => {
         sortDirection: sortDescending.value,
       },
     ],
-    enabled: () => !!loginStore.jwtToken && canReadDistributors(),
+    enabled: () => !!loginStore.jwtToken && canReadCustomers(),
     query: () =>
-      getDistributors(
+      getCustomers(
         pageNum.value,
         pageSize.value,
         debouncedTextFilter.value,
@@ -55,7 +55,7 @@ export const useDistributors = defineQuery(() => {
     () => loginStore.userInfo?.email,
     (email) => {
       if (email) {
-        pageSize.value = loadPageSizeFromStorage(DISTRIBUTORS_TABLE_ID)
+        pageSize.value = loadPageSizeFromStorage(CUSTOMERS_TABLE_ID)
       }
     },
     { immediate: true },

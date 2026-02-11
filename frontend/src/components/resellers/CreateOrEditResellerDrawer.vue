@@ -22,7 +22,7 @@ import {
   putReseller,
   type CreateReseller,
   type Reseller,
-} from '@/lib/resellers'
+} from '@/lib/organizations/resellers'
 import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'

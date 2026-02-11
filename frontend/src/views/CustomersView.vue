@@ -10,7 +10,7 @@ import { computed, ref } from 'vue'
 import { faCirclePlus } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { canManageCustomers } from '@/lib/permissions'
-import { useCustomers } from '@/queries/customers'
+import { useCustomers } from '@/queries/organizations/customers'
 
 const isShownCreateCustomerDrawer = ref(false)
 

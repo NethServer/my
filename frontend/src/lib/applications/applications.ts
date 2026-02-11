@@ -6,7 +6,7 @@ import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 import { type Pagination } from '../common'
-import { OrganizationSchema } from '../organizations'
+import { OrganizationSchema } from '../organizations/organizations'
 import { savePreference } from '@nethesis/vue-components'
 
 export const APPLICATIONS_KEY = 'applications'

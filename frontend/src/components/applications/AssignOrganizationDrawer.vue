@@ -22,10 +22,10 @@ import {
   getDisplayName,
   type Application,
 } from '@/lib/applications/applications'
-import { getOrganizations, ORGANIZATIONS_KEY, type Organization } from '@/lib/organizations'
+import { type Organization } from '@/lib/organizations/organizations'
 import { useLoginStore } from '@/stores/login'
 import type { AxiosError } from 'axios'
-import { organizationsQuery, useOrganizations } from '@/queries/organizations'
+import { organizationsQuery } from '@/queries/organizations/organizations'
 
 const { isShown = false, currentApplication = undefined } = defineProps<{
   isShown: boolean

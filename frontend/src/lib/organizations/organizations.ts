@@ -2,7 +2,7 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import axios from 'axios'
-import { API_URL } from './config'
+import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 import { faBuilding, faCity, faCrown, faGlobe, faQuestion } from '@fortawesome/free-solid-svg-icons'
 import * as v from 'valibot'
