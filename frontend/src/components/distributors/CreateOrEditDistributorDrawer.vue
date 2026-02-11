@@ -11,6 +11,8 @@ import {
   focusElement,
   NeInlineNotification,
   NeTextArea,
+  NeCombobox,
+  type NeComboboxOption,
 } from '@nethesis/vue-components'
 import { computed, ref, useTemplateRef, type ShallowRef } from 'vue'
 import {
@@ -29,6 +31,7 @@ import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
 import { getValidationIssues, isValidationError } from '@/lib/validation'
 import type { AxiosError } from 'axios'
+import { getCommonLanguagesOptions } from '@/lib/locale'
 
 const { isShown = false, currentDistributor = undefined } = defineProps<{
   isShown: boolean
@@ -119,6 +122,8 @@ const email = ref('')
 const emailRef = useTemplateRef<HTMLInputElement>('emailRef')
 const phone = ref('')
 const phoneRef = useTemplateRef<HTMLInputElement>('phoneRef')
+const language = ref('it')
+const languageRef = useTemplateRef<HTMLInputElement>('languageRef')
 const notes = ref('')
 const notesRef = useTemplateRef<HTMLInputElement>('notesRef')
 const validationIssues = ref<Record<string, string[]>>({})
@@ -131,11 +136,16 @@ const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> =
   custom_data_main_contact: mainContactRef,
   custom_data_email: emailRef,
   custom_data_phone: phoneRef,
+  custom_data_language: languageRef,
   custom_data_notes: notesRef,
 }
 
 const saving = computed(() => {
   return createDistributorLoading.value || editDistributorLoading.value
+})
+
+const languageOptions = computed((): NeComboboxOption[] => {
+  return getCommonLanguagesOptions()
 })
 
 function onShow() {
@@ -151,6 +161,7 @@ function onShow() {
     mainContact.value = currentDistributor.custom_data?.main_contact || ''
     email.value = currentDistributor.custom_data?.email || ''
     phone.value = currentDistributor.custom_data?.phone || ''
+    language.value = currentDistributor.custom_data?.language || ''
     notes.value = currentDistributor.custom_data?.notes || ''
   } else {
     // creating distributor, reset form to defaults
@@ -161,6 +172,7 @@ function onShow() {
     mainContact.value = ''
     email.value = ''
     phone.value = ''
+    language.value = 'it'
     notes.value = ''
   }
 }
@@ -249,6 +261,7 @@ async function saveDistributor() {
       main_contact: mainContact.value,
       email: email.value,
       phone: phone.value,
+      language: language.value,
       notes: notes.value,
     },
   }
@@ -381,6 +394,27 @@ async function saveDistributor() {
           :disabled="saving"
           :optional="true"
           :optional-label="t('common.optional')"
+        />
+        <!-- language -->
+        <NeCombobox
+          ref="languageRef"
+          v-model="language"
+          :options="languageOptions"
+          :label="$t('organizations.language')"
+          :placeholder="$t('ne_combobox.choose')"
+          :invalid-message="
+            validationIssues.custom_data_language?.[0]
+              ? $t(validationIssues.custom_data_language[0])
+              : ''
+          "
+          :disabled="saving"
+          :optional="true"
+          :optional-label="t('common.optional')"
+          :no-results-label="$t('ne_combobox.no_results')"
+          :limited-options-label="$t('ne_combobox.limited_options_label')"
+          :no-options-label="$t('ne_combobox.no_options_label')"
+          :selected-label="$t('ne_combobox.selected')"
+          :user-input-label="$t('ne_combobox.user_input_label')"
         />
         <!-- notes -->
         <NeTextArea
