@@ -6,26 +6,20 @@
 <script setup lang="ts">
 import ApplicationsTable from '@/components/applications/ApplicationsTable.vue'
 import {
-  APPLICATIONS_TOTAL_KEY,
-  getApplicationsTotal,
   saveShowUnassignedAppsNotificationToStorage,
   SHOW_UNASSIGNED_APPS_NOTIFICATION,
 } from '@/lib/applications/applications'
 import { useApplications } from '@/queries/applications'
+import { useApplicationsTotal } from '@/queries/applications/applicationsTotal'
 import { useLoginStore } from '@/stores/login'
 import { getPreference, NeHeading, NeInlineNotification } from '@nethesis/vue-components'
-import { useQuery } from '@pinia/colada'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 const loginStore = useLoginStore()
 
-const { state: applicationsTotal } = useQuery({
-  key: [APPLICATIONS_TOTAL_KEY],
-  enabled: () => !!loginStore.jwtToken,
-  query: getApplicationsTotal,
-})
+const { state: applicationsTotal } = useApplicationsTotal()
 
 const { organizationFilter } = useApplications()
 
