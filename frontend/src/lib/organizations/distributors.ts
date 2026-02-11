@@ -160,3 +160,58 @@ export const restoreDistributor = (distributor: Distributor) => {
     },
   )
 }
+
+export const getQueryStringParamsForExport = (
+  format: string,
+  textFilter: string | undefined,
+  statusFilter: DistributorStatus[] | undefined,
+  sortBy: string | undefined,
+  sortDescending: boolean | undefined,
+) => {
+  const searchParams = new URLSearchParams({
+    format: format,
+  })
+
+  if (textFilter?.trim()) {
+    searchParams.append('search', textFilter)
+  }
+
+  if (statusFilter) {
+    statusFilter.forEach((status) => {
+      searchParams.append('status', status)
+    })
+  }
+
+  if (sortBy) {
+    searchParams.append('sort_by', sortBy)
+  }
+
+  if (sortDescending !== undefined) {
+    searchParams.append('sort_direction', sortDescending ? 'desc' : 'asc')
+  }
+
+  return searchParams.toString()
+}
+
+export const getExport = (
+  format: 'csv' | 'pdf',
+  textFilter: string | undefined = undefined,
+  statusFilter: DistributorStatus[] | undefined = undefined,
+  sortBy: string | undefined = undefined,
+  sortDescending: boolean | undefined = undefined,
+) => {
+  const loginStore = useLoginStore()
+  const params = getQueryStringParamsForExport(
+    format,
+    textFilter,
+    statusFilter,
+    sortBy,
+    sortDescending,
+  )
+
+  return axios
+    .get(`${API_URL}/distributors/export?${params}`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data)
+}
