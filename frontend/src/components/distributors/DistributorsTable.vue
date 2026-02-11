@@ -287,7 +287,6 @@ const onSort = (payload: SortEvent) => {
               :label="t('sort.sort')"
               :options="[
                 { id: 'name', label: t('organizations.name') },
-                { id: 'description', label: t('organizations.description') },
                 { id: 'suspended_at', label: t('common.status') },
               ]"
               :open-menu-aria-label="t('ne_dropdown.open_menu')"
@@ -336,9 +335,6 @@ const onSort = (payload: SortEvent) => {
           <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
             $t('organizations.name')
           }}</NeTableHeadCell>
-          <NeTableHeadCell sortable column-key="description" @sort="onSort">{{
-            $t('organizations.description')
-          }}</NeTableHeadCell>
           <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
             $t('common.status')
           }}</NeTableHeadCell>
@@ -350,9 +346,6 @@ const onSort = (payload: SortEvent) => {
           <NeTableRow v-for="(item, index) in distributorsPage" :key="index">
             <NeTableCell :data-label="$t('organizations.name')">
               {{ item.name }}
-            </NeTableCell>
-            <NeTableCell :data-label="$t('organizations.description')">
-              {{ item.description || '-' }}
             </NeTableCell>
             <NeTableCell :data-label="$t('common.status')">
               <div class="flex items-center gap-2">
