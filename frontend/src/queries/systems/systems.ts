@@ -25,7 +25,7 @@ export const useSystems = defineQuery(() => {
   const productFilter = ref<string[]>([])
   const createdByFilter = ref<string[]>([])
   const versionFilter = ref<string[]>([])
-  const statusFilter = ref<SystemStatus[]>(['online', 'offline', 'unknown'])
+  const statusFilter = ref<SystemStatus[]>(['online', 'offline', 'unknown', 'suspended'])
   const organizationFilter = ref<string[]>([])
   const sortBy = ref<keyof System>('name')
   const sortDescending = ref(false)

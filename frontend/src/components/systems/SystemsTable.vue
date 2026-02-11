@@ -242,7 +242,7 @@ function resetFilters() {
   productFilter.value = []
   versionFilter.value = []
   createdByFilter.value = []
-  statusFilter.value = ['online', 'offline', 'unknown']
+  statusFilter.value = ['online', 'offline', 'unknown', 'suspended']
 }
 
 function showCreateSystemDrawer() {
