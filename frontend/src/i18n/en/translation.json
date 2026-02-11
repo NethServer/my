@@ -118,7 +118,9 @@
     "cannot_delete_reseller": "Cannot delete reseller",
     "delete_reseller": "Delete reseller",
     "delete_reseller_confirmation": "Are you sure you want to delete reseller {name}? All users and systems associated with this organization will also be deleted. This action cannot be undone.",
-    "no_reseller": "No resellers"
+    "no_reseller": "No resellers",
+    "export_resellers_to_pdf": "Export resellers to PDF",
+    "export_resellers_to_csv": "Export resellers to CSV"
   },
   "customers": {
     "title": "Customers",
@@ -137,7 +139,9 @@
     "cannot_delete_customer": "Cannot delete customer",
     "delete_customer": "Delete customer",
     "delete_customer_confirmation": "Are you sure you want to delete customer {name}? All users and systems associated with this organization will also be deleted. This action cannot be undone.",
-    "no_customer": "No customers"
+    "no_customer": "No customers",
+    "export_customers_to_pdf": "Export customers to PDF",
+    "export_customers_to_csv": "Export customers to CSV"
   },
   "organizations": {
     "name": "Company name",
