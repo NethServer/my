@@ -177,6 +177,7 @@
     "email": "Email",
     "name": "Name",
     "organization": "Organization",
+    "role": "Role",
     "roles": "Roles",
     "password": "Password",
     "no_user_found": "No users found",
