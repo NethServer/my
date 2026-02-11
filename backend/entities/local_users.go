@@ -558,7 +558,7 @@ func (r *LocalUserRepository) UpdateLatestLogin(userID string) error {
 }
 
 // List returns paginated list of users based on hierarchical RBAC (matches other repository patterns)
-func (r *LocalUserRepository) List(userOrgRole, userOrgID, excludeUserID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses []string, roleFilter string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) List(userOrgRole, userOrgID, excludeUserID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses, roleFilter []string) ([]*models.LocalUser, int, error) {
 	// Get all organization IDs the user can access hierarchically
 	allowedOrgIDs, err := r.GetHierarchicalOrganizationIDs(userOrgRole, userOrgID)
 	if err != nil {
@@ -569,7 +569,7 @@ func (r *LocalUserRepository) List(userOrgRole, userOrgID, excludeUserID string,
 }
 
 // ListByOrganizations returns paginated list of users in specified organizations (excluding specified user)
-func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, excludeUserID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses []string, roleFilter string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, excludeUserID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses, roleFilter []string) ([]*models.LocalUser, int, error) {
 	if len(allowedOrgIDs) == 0 {
 		return []*models.LocalUser{}, 0, nil
 	}
@@ -604,7 +604,7 @@ func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, exclud
 }
 
 // listUsersWithSearch handles user listing with search functionality
-func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, excludeUserID string, pageSize, offset int, search, sortBy, sortDirection string, statuses []string, roleFilter string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, excludeUserID string, pageSize, offset int, search, sortBy, sortDirection string, statuses, roleFilter []string) ([]*models.LocalUser, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY u.created_at DESC" // default sorting
 	if sortBy != "" {
@@ -663,13 +663,17 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, exclud
 	// Track parameter index for dynamic filters
 	paramIdx := len(allowedOrgIDs) + 4 // after orgIDs, excludeUserID, search, search
 
-	// Build role filter clause
+	// Build role filter clause (supports multiple roles with OR logic)
 	roleClause := ""
-	var roleArg interface{}
-	if roleFilter != "" {
-		roleClause = fmt.Sprintf(" AND u.user_role_ids @> jsonb_build_array($%d::text)", paramIdx)
-		roleArg = roleFilter
-		paramIdx++
+	var roleArgs []interface{}
+	if len(roleFilter) > 0 {
+		var roleConditions []string
+		for _, role := range roleFilter {
+			roleConditions = append(roleConditions, fmt.Sprintf("u.user_role_ids @> jsonb_build_array($%d::text)", paramIdx))
+			roleArgs = append(roleArgs, role)
+			paramIdx++
+		}
+		roleClause = " AND (" + strings.Join(roleConditions, " OR ") + ")"
 	}
 
 	// Build count query
@@ -706,31 +710,27 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, exclud
 	`, deletedClause, orgPlaceholders, len(allowedOrgIDs)+1, len(allowedOrgIDs)+2, len(allowedOrgIDs)+3, statusClause, roleClause, orderClause, paramIdx, paramIdx+1)
 
 	// Prepare arguments for count query
-	countArgs := make([]interface{}, 0, len(allowedOrgIDs)+5)
+	countArgs := make([]interface{}, 0, len(allowedOrgIDs)+5+len(roleArgs))
 	for _, orgID := range allowedOrgIDs {
 		countArgs = append(countArgs, orgID)
 	}
 	countArgs = append(countArgs, excludeUserID, search, search)
-	if roleArg != nil {
-		countArgs = append(countArgs, roleArg)
-	}
+	countArgs = append(countArgs, roleArgs...)
 
 	// Prepare arguments for main query
-	mainArgs := make([]interface{}, 0, len(allowedOrgIDs)+7)
+	mainArgs := make([]interface{}, 0, len(allowedOrgIDs)+7+len(roleArgs))
 	for _, orgID := range allowedOrgIDs {
 		mainArgs = append(mainArgs, orgID)
 	}
 	mainArgs = append(mainArgs, excludeUserID, search, search)
-	if roleArg != nil {
-		mainArgs = append(mainArgs, roleArg)
-	}
+	mainArgs = append(mainArgs, roleArgs...)
 	mainArgs = append(mainArgs, pageSize, offset)
 
 	return r.executeUserQuery(countQuery, countArgs, mainQuery, mainArgs)
 }
 
 // listUsersWithoutSearch handles user listing without search functionality
-func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, excludeUserID string, pageSize, offset int, sortBy, sortDirection string, statuses []string, roleFilter string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, excludeUserID string, pageSize, offset int, sortBy, sortDirection string, statuses, roleFilter []string) ([]*models.LocalUser, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY u.created_at DESC" // default sorting
 	if sortBy != "" {
@@ -789,13 +789,17 @@ func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, exc
 	// Track parameter index for dynamic filters
 	paramIdx := len(allowedOrgIDs) + 2 // after orgIDs, excludeUserID
 
-	// Build role filter clause
+	// Build role filter clause (supports multiple roles with OR logic)
 	roleClause := ""
-	var roleArg interface{}
-	if roleFilter != "" {
-		roleClause = fmt.Sprintf(" AND u.user_role_ids @> jsonb_build_array($%d::text)", paramIdx)
-		roleArg = roleFilter
-		paramIdx++
+	var roleArgs []interface{}
+	if len(roleFilter) > 0 {
+		var roleConditions []string
+		for _, role := range roleFilter {
+			roleConditions = append(roleConditions, fmt.Sprintf("u.user_role_ids @> jsonb_build_array($%d::text)", paramIdx))
+			roleArgs = append(roleArgs, role)
+			paramIdx++
+		}
+		roleClause = " AND (" + strings.Join(roleConditions, " OR ") + ")"
 	}
 
 	// Build count query
@@ -830,24 +834,20 @@ func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, exc
 	`, deletedClause, orgPlaceholders, len(allowedOrgIDs)+1, statusClause, roleClause, orderClause, paramIdx, paramIdx+1)
 
 	// Prepare arguments for count query
-	countArgs := make([]interface{}, 0, len(allowedOrgIDs)+3)
+	countArgs := make([]interface{}, 0, len(allowedOrgIDs)+3+len(roleArgs))
 	for _, orgID := range allowedOrgIDs {
 		countArgs = append(countArgs, orgID)
 	}
 	countArgs = append(countArgs, excludeUserID)
-	if roleArg != nil {
-		countArgs = append(countArgs, roleArg)
-	}
+	countArgs = append(countArgs, roleArgs...)
 
 	// Prepare arguments for main query
-	mainArgs := make([]interface{}, 0, len(allowedOrgIDs)+5)
+	mainArgs := make([]interface{}, 0, len(allowedOrgIDs)+5+len(roleArgs))
 	for _, orgID := range allowedOrgIDs {
 		mainArgs = append(mainArgs, orgID)
 	}
 	mainArgs = append(mainArgs, excludeUserID)
-	if roleArg != nil {
-		mainArgs = append(mainArgs, roleArg)
-	}
+	mainArgs = append(mainArgs, roleArgs...)
 	mainArgs = append(mainArgs, pageSize, offset)
 
 	return r.executeUserQuery(countQuery, countArgs, mainQuery, mainArgs)

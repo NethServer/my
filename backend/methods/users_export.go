@@ -49,7 +49,7 @@ func ExportUsers(c *gin.Context) {
 	// Parse filter parameters
 	organizationFilter := c.QueryArray("organization_id")
 	statuses := c.QueryArray("status")
-	roleFilter := c.Query("role")
+	roleFilter := c.QueryArray("role")
 
 	// For export, we don't use pagination - get all matching users (with limit)
 	sortBy := c.DefaultQuery("sort_by", "created_at")
@@ -103,8 +103,8 @@ func ExportUsers(c *gin.Context) {
 	if len(statuses) > 0 {
 		filters["status"] = strings.Join(statuses, ",")
 	}
-	if roleFilter != "" {
-		filters["role"] = roleFilter
+	if len(roleFilter) > 0 {
+		filters["role"] = strings.Join(roleFilter, ",")
 	}
 
 	// Create export service

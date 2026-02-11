@@ -232,7 +232,7 @@ func GetUsers(c *gin.Context) {
 	// Parse filter parameters
 	organizationFilter := c.QueryArray("organization_id")
 	statuses := c.QueryArray("status")
-	roleFilter := c.Query("role")
+	roleFilter := c.QueryArray("role")
 
 	// Create service
 	service := local.NewUserService()
