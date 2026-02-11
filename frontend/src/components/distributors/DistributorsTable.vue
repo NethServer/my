@@ -61,10 +61,10 @@ const {
   pageNum,
   pageSize,
   textFilter,
-  debouncedTextFilter,
   statusFilter,
   sortBy,
   sortDescending,
+  areDefaultFiltersApplied,
 } = useDistributors()
 
 const currentDistributor = ref<Distributor | undefined>()
@@ -95,16 +95,6 @@ const distributorsPage = computed(() => {
 
 const pagination = computed(() => {
   return state.value.data?.pagination
-})
-
-const areDefaultFiltersApplied = computed(() => {
-  return (
-    !debouncedTextFilter.value &&
-    statusFilter.value.length === 2 &&
-    statusFilter.value.includes('enabled') &&
-    statusFilter.value.includes('suspended') &&
-    !statusFilter.value.includes('deleted')
-  )
 })
 
 const isNoDataEmptyStateShown = computed(() => {
@@ -187,6 +177,15 @@ function getKebabMenuItems(distributor: Distributor) {
         label: t('common.reactivate'),
         icon: faCirclePlay,
         action: () => showReactivateDistributorModal(distributor),
+        disabled: asyncStatus.value === 'loading',
+      })
+
+      items.push({
+        id: 'deleteDistributor',
+        label: t('common.delete'),
+        icon: faTrash,
+        danger: true,
+        action: () => showDeleteDistributorDrawer(distributor),
         disabled: asyncStatus.value === 'loading',
       })
     } else if (distributor.deleted_at) {

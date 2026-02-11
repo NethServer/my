@@ -61,10 +61,10 @@ const {
   pageNum,
   pageSize,
   textFilter,
-  debouncedTextFilter,
   statusFilter,
   sortBy,
   sortDescending,
+  areDefaultFiltersApplied,
 } = useResellers()
 
 const currentReseller = ref<Reseller | undefined>()
@@ -95,16 +95,6 @@ const resellersPage = computed(() => {
 
 const pagination = computed(() => {
   return state.value.data?.pagination
-})
-
-const areDefaultFiltersApplied = computed(() => {
-  return (
-    !debouncedTextFilter.value &&
-    statusFilter.value.length === 2 &&
-    statusFilter.value.includes('enabled') &&
-    statusFilter.value.includes('suspended') &&
-    !statusFilter.value.includes('deleted')
-  )
 })
 
 const isNoDataEmptyStateShown = computed(() => {
@@ -187,6 +177,15 @@ function getKebabMenuItems(reseller: Reseller) {
         label: t('common.reactivate'),
         icon: faCirclePlay,
         action: () => showReactivateResellerModal(reseller),
+        disabled: asyncStatus.value === 'loading',
+      })
+
+      items.push({
+        id: 'deleteReseller',
+        label: t('common.delete'),
+        icon: faTrash,
+        danger: true,
+        action: () => showDeleteResellerDrawer(reseller),
         disabled: asyncStatus.value === 'loading',
       })
     } else if (reseller.deleted_at) {

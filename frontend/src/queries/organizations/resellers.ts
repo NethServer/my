@@ -14,7 +14,7 @@ import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { useDebounceFn } from '@vueuse/core'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 export const useResellers = defineQuery(() => {
   const loginStore = useLoginStore()
@@ -48,6 +48,16 @@ export const useResellers = defineQuery(() => {
         sortBy.value,
         sortDescending.value,
       ),
+  })
+
+  const areDefaultFiltersApplied = computed(() => {
+    return (
+      !debouncedTextFilter.value &&
+      statusFilter.value.length === 2 &&
+      statusFilter.value.includes('enabled') &&
+      statusFilter.value.includes('suspended') &&
+      !statusFilter.value.includes('deleted')
+    )
   })
 
   // load table page size from storage
@@ -93,5 +103,6 @@ export const useResellers = defineQuery(() => {
     statusFilter,
     sortBy,
     sortDescending,
+    areDefaultFiltersApplied,
   }
 })
