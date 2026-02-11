@@ -17,10 +17,11 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { canManageDistributors, canReadDistributors } from '@/lib/permissions'
 import { useDistributors } from '@/queries/organizations/distributors'
 import { useI18n } from 'vue-i18n'
-// import { downloadFile } from '@/lib/common' ////
+import { getExport } from '@/lib/organizations/distributors'
+import { downloadFile } from '@/lib/common'
 
 const { t } = useI18n()
-const { state, debouncedTextFilter } = useDistributors()
+const { state, debouncedTextFilter, statusFilter, sortBy, sortDescending } = useDistributors()
 
 const isShownCreateDistributorDrawer = ref(false)
 
@@ -34,40 +35,35 @@ function getBulkActionsMenuItems() {
       id: 'exportFilteredToPdf',
       label: t('distributors.export_distributors_to_pdf'),
       icon: faFilePdf,
-      // action: () => exportDistributors('pdf'), ////
+      action: () => exportDistributors('pdf'),
       disabled: !state.value.data?.distributors,
     },
     {
       id: 'exportFilteredToCsv',
       label: t('distributors.export_distributors_to_csv'),
       icon: faFileCsv,
-      // action: () => exportDistributors('csv'), ////
+      action: () => exportDistributors('csv'),
       disabled: !state.value.data?.distributors,
     },
   ]
 }
 
-//// implement after filters fix on backend
-// async function exportDistributors(format: 'pdf' | 'csv') {
-//   try {
-//     const exportData = await getExport(
-//       format,
-//       undefined,
-//       debouncedTextFilter.value,
-//       productFilter.value,
-//       createdByFilter.value,
-//       versionFilter.value,
-//       statusFilter.value,
-//       sortBy.value,
-//       sortDescending.value,
-//     )
-//     const fileName = `${t('distributors.title')}.${format}`
-//     downloadFile(exportData, fileName, format)
-//   } catch (error) {
-//     console.error(`Cannot export distributors to ${format}:`, error)
-//     throw error
-//   }
-// }
+async function exportDistributors(format: 'pdf' | 'csv') {
+  try {
+    const exportData = await getExport(
+      format,
+      debouncedTextFilter.value,
+      statusFilter.value,
+      sortBy.value,
+      sortDescending.value,
+    )
+    const fileName = `${t('distributors.title')}.${format}`
+    downloadFile(exportData, fileName, format)
+  } catch (error) {
+    console.error(`Cannot export distributors to ${format}:`, error)
+    throw error
+  }
+}
 </script>
 
 <template>
