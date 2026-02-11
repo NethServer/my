@@ -13,7 +13,7 @@ import {
   CUSTOMERS_KEY,
   CUSTOMERS_TOTAL_KEY,
   type Customer,
-} from '@/lib/customers'
+} from '@/lib/organizations/customers'
 import { useNotificationsStore } from '@/stores/notifications'
 
 const { visible = false, customer = undefined } = defineProps<{

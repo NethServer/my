@@ -22,7 +22,7 @@ import {
   putCustomer,
   type CreateCustomer,
   type Customer,
-} from '@/lib/customers'
+} from '@/lib/organizations/customers'
 import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'

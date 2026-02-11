@@ -13,7 +13,7 @@ import {
   RESELLERS_KEY,
   RESELLERS_TOTAL_KEY,
   type Reseller,
-} from '@/lib/resellers'
+} from '@/lib/organizations/resellers'
 import { useNotificationsStore } from '@/stores/notifications'
 
 const { visible = false, reseller = undefined } = defineProps<{

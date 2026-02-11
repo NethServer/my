@@ -6,7 +6,12 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
-import { CUSTOMERS_KEY, CUSTOMERS_TOTAL_KEY, deleteCustomer, type Customer } from '@/lib/customers'
+import {
+  CUSTOMERS_KEY,
+  CUSTOMERS_TOTAL_KEY,
+  deleteCustomer,
+  type Customer,
+} from '@/lib/organizations/customers'
 import { useNotificationsStore } from '@/stores/notifications'
 import DeleteObjectModal from '../DeleteObjectModal.vue'
 

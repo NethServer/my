@@ -11,7 +11,7 @@ import { useNotificationsStore } from '@/stores/notifications'
 import { useLoginStore } from '@/stores/login'
 import { ref } from 'vue'
 import { isValidationError } from '@/lib/validation'
-import type { User } from '@/lib/users'
+import type { User } from '@/lib/users/users'
 
 const { visible = false, user = undefined } = defineProps<{
   visible: boolean

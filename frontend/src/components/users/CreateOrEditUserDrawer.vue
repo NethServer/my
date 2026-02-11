@@ -24,7 +24,7 @@ import {
   type CreateUser,
   type EditUser,
   type User,
-} from '@/lib/users'
+} from '@/lib/users/users'
 import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -33,13 +33,11 @@ import { getValidationIssues, isValidationError } from '../../lib/validation'
 import type { AxiosError } from 'axios'
 import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
-import { getOrganizations, ORGANIZATIONS_KEY } from '@/lib/organizations'
 import { PRODUCT_NAME } from '@/lib/config'
 import { normalize } from '@/lib/common'
 import { SYSTEM_ORGANIZATION_FILTER_KEY } from '@/lib/systems/organizationFilter'
-import { getUserRoles, USER_ROLES_KEY } from '@/lib/userRoles'
-import { organizationsQuery } from '@/queries/organizations'
-import { userRolesQuery } from '@/queries/userRoles'
+import { organizationsQuery } from '@/queries/organizations/organizations'
+import { userRolesQuery } from '@/queries/users/userRoles'
 
 const { isShown = false, currentUser = undefined } = defineProps<{
   isShown: boolean

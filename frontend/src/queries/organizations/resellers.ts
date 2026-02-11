@@ -2,33 +2,33 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import { MIN_SEARCH_LENGTH } from '@/lib/common'
+import { canReadResellers } from '@/lib/permissions'
 import {
-  CUSTOMERS_KEY,
-  CUSTOMERS_TABLE_ID,
-  getCustomers,
-  type Customer,
-  type CustomerStatus,
-} from '@/lib/customers'
-import { canReadCustomers } from '@/lib/permissions'
+  getResellers,
+  RESELLERS_KEY,
+  RESELLERS_TABLE_ID,
+  type Reseller,
+  type ResellerStatus,
+} from '@/lib/organizations/resellers'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { useDebounceFn } from '@vueuse/core'
 import { ref, watch } from 'vue'
 
-export const useCustomers = defineQuery(() => {
+export const useResellers = defineQuery(() => {
   const loginStore = useLoginStore()
   const pageNum = ref(1)
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
-  const statusFilter = ref<CustomerStatus[]>(['enabled', 'suspended'])
-  const sortBy = ref<keyof Customer>('name')
+  const statusFilter = ref<ResellerStatus[]>(['enabled', 'suspended'])
+  const sortBy = ref<keyof Reseller>('name')
   const sortDescending = ref(false)
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [
-      CUSTOMERS_KEY,
+      RESELLERS_KEY,
       {
         pageNum: pageNum.value,
         pageSize: pageSize.value,
@@ -38,9 +38,9 @@ export const useCustomers = defineQuery(() => {
         sortDirection: sortDescending.value,
       },
     ],
-    enabled: () => !!loginStore.jwtToken && canReadCustomers(),
+    enabled: () => !!loginStore.jwtToken && canReadResellers(),
     query: () =>
-      getCustomers(
+      getResellers(
         pageNum.value,
         pageSize.value,
         debouncedTextFilter.value,
@@ -55,7 +55,7 @@ export const useCustomers = defineQuery(() => {
     () => loginStore.userInfo?.email,
     (email) => {
       if (email) {
-        pageSize.value = loadPageSizeFromStorage(CUSTOMERS_TABLE_ID)
+        pageSize.value = loadPageSizeFromStorage(RESELLERS_TABLE_ID)
       }
     },
     { immediate: true },

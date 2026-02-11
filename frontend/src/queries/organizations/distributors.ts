@@ -2,45 +2,48 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import { MIN_SEARCH_LENGTH } from '@/lib/common'
-import { canReadUsers } from '@/lib/permissions'
+import {
+  DISTRIBUTORS_KEY,
+  DISTRIBUTORS_TABLE_ID,
+  getDistributors,
+  type Distributor,
+  type DistributorStatus,
+} from '@/lib/organizations/distributors'
+import { canReadDistributors } from '@/lib/permissions'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
-import { getUsers, USERS_KEY, USERS_TABLE_ID, type User, type UserStatus } from '@/lib/users'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { useDebounceFn } from '@vueuse/core'
 import { ref, watch } from 'vue'
 
-export const useUsers = defineQuery(() => {
+export const useDistributors = defineQuery(() => {
   const loginStore = useLoginStore()
   const pageNum = ref(1)
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
-  const organizationFilter = ref<string[]>([])
-  const statusFilter = ref<UserStatus[]>(['enabled', 'suspended'])
-  const sortBy = ref<keyof User>('name')
+  const statusFilter = ref<DistributorStatus[]>(['enabled', 'suspended'])
+  const sortBy = ref<keyof Distributor>('name')
   const sortDescending = ref(false)
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [
-      USERS_KEY,
+      DISTRIBUTORS_KEY,
       {
         pageNum: pageNum.value,
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
-        organizationFilter: organizationFilter.value,
         statusFilter: statusFilter.value,
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
     ],
-    enabled: () => !!loginStore.jwtToken && canReadUsers(),
+    enabled: () => !!loginStore.jwtToken && canReadDistributors(),
     query: () =>
-      getUsers(
+      getDistributors(
         pageNum.value,
         pageSize.value,
         debouncedTextFilter.value,
-        organizationFilter.value,
         statusFilter.value,
         sortBy.value,
         sortDescending.value,
@@ -52,7 +55,7 @@ export const useUsers = defineQuery(() => {
     () => loginStore.userInfo?.email,
     (email) => {
       if (email) {
-        pageSize.value = loadPageSizeFromStorage(USERS_TABLE_ID)
+        pageSize.value = loadPageSizeFromStorage(DISTRIBUTORS_TABLE_ID)
       }
     },
     { immediate: true },
@@ -87,7 +90,6 @@ export const useUsers = defineQuery(() => {
     pageSize,
     textFilter,
     debouncedTextFilter,
-    organizationFilter,
     statusFilter,
     sortBy,
     sortDescending,

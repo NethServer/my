@@ -15,7 +15,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { canManageDistributors, canReadDistributors } from '@/lib/permissions'
-import { useDistributors } from '@/queries/distributors'
+import { useDistributors } from '@/queries/organizations/distributors'
 import { useI18n } from 'vue-i18n'
 // import { downloadFile } from '@/lib/common' ////
 

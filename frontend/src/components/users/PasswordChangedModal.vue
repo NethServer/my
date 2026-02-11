@@ -6,7 +6,7 @@
 <script setup lang="ts">
 import { NeButton, NeFormItemLabel, NeModal } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
-import { type User } from '@/lib/users'
+import { type User } from '@/lib/users/users'
 import { ref } from 'vue'
 import { useNotificationsStore } from '@/stores/notifications'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'

@@ -11,7 +11,7 @@ import { faCirclePlus } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { PRODUCT_NAME } from '@/lib/config'
 import { canManageUsers } from '@/lib/permissions'
-import { useUsers } from '@/queries/users'
+import { useUsers } from '@/queries/users/users'
 // import { useI18n } from 'vue-i18n' ////
 // import { getExport } from '@/lib/users' ////
 

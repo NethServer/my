@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { RESELLERS_TABLE_ID, type Reseller } from '@/lib/resellers'
+import { RESELLERS_TABLE_ID, type Reseller } from '@/lib/organizations/resellers'
 import {
   faCircleInfo,
   faCirclePlus,
@@ -45,7 +45,7 @@ import SuspendResellerModal from './SuspendResellerModal.vue'
 import ReactivateResellerModal from './ReactivateResellerModal.vue'
 import RestoreResellerModal from './RestoreResellerModal.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
-import { useResellers } from '@/queries/resellers'
+import { useResellers } from '@/queries/organizations/resellers'
 import { canManageResellers } from '@/lib/permissions'
 
 const { isShownCreateResellerDrawer = false } = defineProps<{

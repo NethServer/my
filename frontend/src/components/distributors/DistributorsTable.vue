@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { DISTRIBUTORS_TABLE_ID, type Distributor } from '@/lib/distributors'
+import { DISTRIBUTORS_TABLE_ID, type Distributor } from '@/lib/organizations/distributors'
 import {
   faCircleInfo,
   faCirclePlus,
@@ -45,7 +45,7 @@ import SuspendDistributorModal from './SuspendDistributorModal.vue'
 import ReactivateDistributorModal from './ReactivateDistributorModal.vue'
 import RestoreDistributorModal from './RestoreDistributorModal.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
-import { useDistributors } from '@/queries/distributors'
+import { useDistributors } from '@/queries/organizations/distributors'
 import { canManageDistributors } from '@/lib/permissions'
 
 const { isShownCreateDistributorDrawer = false } = defineProps<{

@@ -22,7 +22,7 @@ import {
   putDistributor,
   type CreateDistributor,
   type Distributor,
-} from '@/lib/distributors'
+} from '@/lib/organizations/distributors'
 import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'

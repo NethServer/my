@@ -10,7 +10,7 @@ import { computed, ref } from 'vue'
 import { faCirclePlus } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { canManageResellers } from '@/lib/permissions'
-import { useResellers } from '@/queries/resellers'
+import { useResellers } from '@/queries/organizations/resellers'
 
 const isShownCreateResellerDrawer = ref(false)
 

@@ -8,7 +8,12 @@ import { NeInlineNotification } from '@nethesis/vue-components'
 import { NeModal } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
-import { suspendCustomer, CUSTOMERS_KEY, CUSTOMERS_TOTAL_KEY, type Customer } from '@/lib/customers'
+import {
+  suspendCustomer,
+  CUSTOMERS_KEY,
+  CUSTOMERS_TOTAL_KEY,
+  type Customer,
+} from '@/lib/organizations/customers'
 import { useNotificationsStore } from '@/stores/notifications'
 
 const { visible = false, customer = undefined } = defineProps<{
