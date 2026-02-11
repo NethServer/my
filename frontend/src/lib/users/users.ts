@@ -205,6 +205,18 @@ export const reactivateUser = (user: User) => {
   )
 }
 
+export const restoreUser = (user: User) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/users/${user.logto_id}/restore`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
 //// TODO wait for backend fix
 // export const getExport = (
 //   format: 'csv' | 'pdf',

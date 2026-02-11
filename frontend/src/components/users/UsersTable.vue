@@ -17,6 +17,7 @@ import {
   faCirclePlay,
   faCircleCheck,
   faCircleXmark,
+  faRotateLeft,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -54,6 +55,7 @@ import { useLoginStore } from '@/stores/login'
 import ImpersonateUserModal from './ImpersonateUserModal.vue'
 import SuspendUserModal from './SuspendUserModal.vue'
 import ReactivateUserModal from './ReactivateUserModal.vue'
+import RestoreUserModal from './RestoreUserModal.vue'
 import OrganizationIcon from '../OrganizationIcon.vue'
 import UserRoleBadge from '../UserRoleBadge.vue'
 import { useOrganizationFilter } from '@/queries/users/organizationFilter'
@@ -97,6 +99,7 @@ const isShownPasswordChangedModal = ref(false)
 const isShownImpersonateUserModal = ref(false)
 const isShownSuspendUserModal = ref(false)
 const isShownReactivateUserModal = ref(false)
+const isShownRestoreUserModal = ref(false)
 const newPassword = ref<string>('')
 const isImpersonating = ref(false)
 
@@ -221,6 +224,11 @@ function showReactivateUserModal(user: User) {
   isShownReactivateUserModal.value = true
 }
 
+function showRestoreUserModal(user: User) {
+  currentUser.value = user
+  isShownRestoreUserModal.value = true
+}
+
 function showImpersonateUserModal(user: User) {
   currentUser.value = user
   isShownImpersonateUserModal.value = true
@@ -243,6 +251,7 @@ function getKebabMenuItems(user: User) {
   if (
     canImpersonateUsers() &&
     user.logto_id !== loginStore.userInfo?.logto_id &&
+    !user.suspended_at &&
     !user.deleted_at
   ) {
     items = [
@@ -259,7 +268,18 @@ function getKebabMenuItems(user: User) {
   }
 
   if (canManageUsers()) {
-    if (user.suspended_at) {
+    if (user.deleted_at) {
+      items = [
+        ...items,
+        {
+          id: 'restoreUser',
+          label: t('common.restore'),
+          icon: faRotateLeft,
+          action: () => showRestoreUserModal(user),
+          disabled: asyncStatus.value === 'loading',
+        },
+      ]
+    } else if (user.suspended_at) {
       items = [
         ...items,
         {
@@ -269,8 +289,16 @@ function getKebabMenuItems(user: User) {
           action: () => showReactivateUserModal(user),
           disabled: asyncStatus.value === 'loading',
         },
+        {
+          id: 'deleteAccount',
+          label: t('common.delete'),
+          icon: faTrash,
+          danger: true,
+          action: () => showDeleteUserModal(user),
+          disabled: asyncStatus.value === 'loading',
+        },
       ]
-    } else if (!user.deleted_at) {
+    } else {
       items = [
         ...items,
         {
@@ -280,10 +308,6 @@ function getKebabMenuItems(user: User) {
           action: () => showSuspendUserModal(user),
           disabled: asyncStatus.value === 'loading',
         },
-      ]
-
-      items = [
-        ...items,
         {
           id: 'resetPassword',
           label: t('users.reset_password'),
@@ -612,6 +636,12 @@ const onClosePasswordChangedModal = () => {
       :visible="isShownReactivateUserModal"
       :user="currentUser"
       @close="isShownReactivateUserModal = false"
+    />
+    <!-- restore user modal -->
+    <RestoreUserModal
+      :visible="isShownRestoreUserModal"
+      :user="currentUser"
+      @close="isShownRestoreUserModal = false"
     />
     <!-- impersonate user modal -->
     <ImpersonateUserModal
