@@ -36,8 +36,8 @@ const {
     setTimeout(() => {
       notificationsStore.createNotification({
         kind: 'success',
-        title: t('systems.system_deleted'),
-        description: t('common.object_deleted_successfully', {
+        title: t('systems.system_archived'),
+        description: t('common.object_archived_successfully', {
           name: vars.name,
         }),
       })
@@ -64,11 +64,12 @@ function onShow() {
 <template>
   <DeleteObjectModal
     :visible="visible"
-    :title="$t('systems.delete_system')"
+    :title="$t('systems.archive_system')"
+    :primary-label="$t('common.archive')"
     :deleting="deleteSystemLoading"
-    :confirmation-message="t('systems.delete_system_confirmation', { name: system?.name })"
+    :confirmation-message="t('systems.archive_system_confirmation', { name: system?.name })"
     :confirmation-input="system?.name"
-    :error-title="t('systems.cannot_delete_system')"
+    :error-title="t('systems.cannot_archive_system')"
     :error-description="deleteSystemError?.message"
     @show="onShow"
     @close="emit('close')"

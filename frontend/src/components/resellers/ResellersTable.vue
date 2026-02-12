@@ -10,11 +10,10 @@ import {
   faCirclePlus,
   faCity,
   faPenToSquare,
-  faTrash,
+  faBoxArchive,
   faCirclePause,
   faCirclePlay,
   faCircleCheck,
-  faCircleXmark,
   faRotateLeft,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -85,7 +84,7 @@ const statusFilterOptions = ref<FilterOption[]>([
   },
   {
     id: 'deleted',
-    label: t('common.deleted'),
+    label: t('common.archived'),
   },
 ])
 
@@ -182,8 +181,8 @@ function getKebabMenuItems(reseller: Reseller) {
 
       items.push({
         id: 'deleteReseller',
-        label: t('common.delete'),
-        icon: faTrash,
+        label: t('common.archive'),
+        icon: faBoxArchive,
         danger: true,
         action: () => showDeleteResellerDrawer(reseller),
         disabled: asyncStatus.value === 'loading',
@@ -207,8 +206,8 @@ function getKebabMenuItems(reseller: Reseller) {
 
       items.push({
         id: 'deleteReseller',
-        label: t('common.delete'),
-        icon: faTrash,
+        label: t('common.archive'),
+        icon: faBoxArchive,
         danger: true,
         action: () => showDeleteResellerDrawer(reseller),
         disabled: asyncStatus.value === 'loading',
@@ -287,7 +286,6 @@ const onSort = (payload: SortEvent) => {
               :label="t('sort.sort')"
               :options="[
                 { id: 'name', label: t('organizations.name') },
-                { id: 'description', label: t('organizations.description') },
                 { id: 'suspended_at', label: t('common.status') },
               ]"
               :open-menu-aria-label="t('ne_dropdown.open_menu')"
@@ -338,9 +336,6 @@ const onSort = (payload: SortEvent) => {
           <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
             $t('organizations.name')
           }}</NeTableHeadCell>
-          <NeTableHeadCell sortable column-key="description" @sort="onSort">{{
-            $t('organizations.description')
-          }}</NeTableHeadCell>
           <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
             $t('common.status')
           }}</NeTableHeadCell>
@@ -353,19 +348,16 @@ const onSort = (payload: SortEvent) => {
             <NeTableCell :data-label="$t('organizations.name')">
               {{ item.name }}
             </NeTableCell>
-            <NeTableCell :data-label="$t('organizations.description')">
-              {{ item.description || '-' }}
-            </NeTableCell>
             <NeTableCell :data-label="$t('common.status')">
               <div class="flex items-center gap-2">
                 <template v-if="item.deleted_at">
                   <FontAwesomeIcon
-                    :icon="faCircleXmark"
-                    class="size-4 text-rose-700 dark:text-rose-500"
+                    :icon="faBoxArchive"
+                    class="size-4 text-gray-700 dark:text-gray-400"
                     aria-hidden="true"
                   />
                   <span>
-                    {{ t('common.deleted') }}
+                    {{ t('common.archived') }}
                   </span>
                 </template>
                 <template v-else-if="item.suspended_at">

@@ -35,8 +35,8 @@ const {
     setTimeout(() => {
       notificationsStore.createNotification({
         kind: 'success',
-        title: t('users.user_deleted'),
-        description: t('common.object_deleted_successfully', {
+        title: t('users.user_archived'),
+        description: t('common.object_archived_successfully', {
           name: vars.name,
         }),
       })
@@ -62,11 +62,12 @@ function onShow() {
 <template>
   <DeleteObjectModal
     :visible="visible"
-    :title="$t('users.delete_user')"
+    :title="$t('users.archive_user')"
+    :primary-label="$t('common.archive')"
     :deleting="deleteAccountLoading"
-    :confirmation-message="t('users.delete_user_confirmation', { name: user?.name })"
+    :confirmation-message="t('users.archive_user_confirmation', { name: user?.name })"
     :confirmation-input="user?.name"
-    :error-title="t('users.cannot_delete_user')"
+    :error-title="t('users.cannot_archive_user')"
     :error-description="deleteAccountError?.message"
     @show="onShow"
     @close="emit('close')"
