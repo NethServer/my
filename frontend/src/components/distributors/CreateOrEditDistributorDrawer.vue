@@ -13,6 +13,7 @@ import {
   NeTextArea,
   NeCombobox,
   type NeComboboxOption,
+  getPreference,
 } from '@nethesis/vue-components'
 import { computed, ref, useTemplateRef, type ShallowRef } from 'vue'
 import {
@@ -32,6 +33,8 @@ import { useI18n } from 'vue-i18n'
 import { getValidationIssues, isValidationError } from '@/lib/validation'
 import type { AxiosError } from 'axios'
 import { getCommonLanguagesOptions } from '@/lib/locale'
+import { getBrowserLocale } from '@/i18n'
+import { useLoginStore } from '@/stores/login'
 
 const { isShown = false, currentDistributor = undefined } = defineProps<{
   isShown: boolean
@@ -43,6 +46,7 @@ const emit = defineEmits(['close'])
 const { t } = useI18n()
 const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
+const loginStore = useLoginStore()
 
 const {
   mutate: createDistributorMutate,
@@ -145,7 +149,12 @@ const saving = computed(() => {
 })
 
 const languageOptions = computed((): NeComboboxOption[] => {
-  return getCommonLanguagesOptions()
+  if (loginStore.userInfo?.email && getPreference('locale', loginStore.userInfo.email)) {
+    const locale = getPreference('locale', loginStore.userInfo.email)
+    return getCommonLanguagesOptions(locale)
+  } else {
+    return getCommonLanguagesOptions(getBrowserLocale())
+  }
 })
 
 function onShow() {
