@@ -7,14 +7,13 @@
 import {
   faCircleInfo,
   faCirclePlus,
-  faTrash,
+  faBoxArchive,
   faServer,
   faEye,
   faPenToSquare,
   faCircleCheck,
   faCircleQuestion,
   faTriangleExclamation,
-  faCircleXmark,
   faFilePdf,
   faFileCsv,
   faKey,
@@ -352,8 +351,8 @@ function getKebabMenuItems(system: System) {
       ...items,
       {
         id: 'deleteSystem',
-        label: t('common.delete'),
-        icon: faTrash,
+        label: t('common.archive'),
+        icon: faBoxArchive,
         danger: true,
         action: () => showDeleteSystemModal(system),
         disabled: asyncStatus.value === 'loading',
@@ -702,8 +701,8 @@ function onCloseSecretRegeneratedModal() {
                 />
                 <FontAwesomeIcon
                   v-else-if="item.status === 'deleted'"
-                  :icon="faCircleXmark"
-                  class="size-4 text-rose-700 dark:text-rose-500"
+                  :icon="faBoxArchive"
+                  class="size-4 text-gray-700 dark:text-gray-400"
                   aria-hidden="true"
                 />
                 <FontAwesomeIcon
