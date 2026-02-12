@@ -35,9 +35,9 @@ import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
 import { PRODUCT_NAME } from '@/lib/config'
 import { normalize } from '@/lib/common'
-import { SYSTEM_ORGANIZATION_FILTER_KEY } from '@/lib/systems/organizationFilter'
 import { organizationsQuery } from '@/queries/organizations/organizations'
 import { userRolesQuery } from '@/queries/users/userRoles'
+import { USER_ORGANIZATION_FILTER_KEY } from '@/lib/users/organizationFilter'
 
 const { isShown = false, currentUser = undefined } = defineProps<{
   isShown: boolean
@@ -91,7 +91,7 @@ const {
   onSettled: () => {
     queryCache.invalidateQueries({ key: [USERS_KEY] })
     queryCache.invalidateQueries({ key: [USERS_TOTAL_KEY] })
-    queryCache.invalidateQueries({ key: [SYSTEM_ORGANIZATION_FILTER_KEY] })
+    queryCache.invalidateQueries({ key: [USER_ORGANIZATION_FILTER_KEY] })
   },
 })
 
