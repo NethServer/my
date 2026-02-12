@@ -10,11 +10,10 @@ import {
   faCirclePlus,
   faGlobe,
   faPenToSquare,
-  faTrash,
+  faBoxArchive,
   faCirclePause,
   faCirclePlay,
   faCircleCheck,
-  faCircleXmark,
   faRotateLeft,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -85,7 +84,7 @@ const statusFilterOptions = ref<FilterOption[]>([
   },
   {
     id: 'deleted',
-    label: t('common.deleted'),
+    label: t('common.archived'),
   },
 ])
 
@@ -182,8 +181,8 @@ function getKebabMenuItems(distributor: Distributor) {
 
       items.push({
         id: 'deleteDistributor',
-        label: t('common.delete'),
-        icon: faTrash,
+        label: t('common.archive'),
+        icon: faBoxArchive,
         danger: true,
         action: () => showDeleteDistributorDrawer(distributor),
         disabled: asyncStatus.value === 'loading',
@@ -207,8 +206,8 @@ function getKebabMenuItems(distributor: Distributor) {
 
       items.push({
         id: 'deleteDistributor',
-        label: t('common.delete'),
-        icon: faTrash,
+        label: t('common.archive'),
+        icon: faBoxArchive,
         danger: true,
         action: () => showDeleteDistributorDrawer(distributor),
         disabled: asyncStatus.value === 'loading',
@@ -351,12 +350,12 @@ const onSort = (payload: SortEvent) => {
               <div class="flex items-center gap-2">
                 <template v-if="item.deleted_at">
                   <FontAwesomeIcon
-                    :icon="faCircleXmark"
-                    class="size-4 text-rose-700 dark:text-rose-500"
+                    :icon="faBoxArchive"
+                    class="size-4 text-gray-700 dark:text-gray-400"
                     aria-hidden="true"
                   />
                   <span>
-                    {{ t('common.deleted') }}
+                    {{ t('common.archived') }}
                   </span>
                 </template>
                 <template v-else-if="item.suspended_at">

@@ -12,6 +12,7 @@ import { useI18n } from 'vue-i18n'
 const {
   visible = false,
   title = '',
+  primaryLabel = '',
   deleting = false,
   confirmationMessage = '',
   confirmationInput = '',
@@ -20,6 +21,7 @@ const {
 } = defineProps<{
   visible: boolean
   title: string
+  primaryLabel: string
   deleting: boolean
   confirmationMessage?: string
   errorTitle?: string
@@ -65,7 +67,7 @@ function onPrimaryClick() {
     :visible="visible"
     :title="title"
     kind="warning"
-    :primary-label="$t('common.delete')"
+    :primary-label="primaryLabel"
     :cancel-label="$t('common.cancel')"
     primary-button-kind="danger"
     :primary-button-disabled="deleting"
@@ -86,7 +88,7 @@ function onPrimaryClick() {
       ref="confirmationTextRef"
       v-model="confirmationText"
       :label="
-        t('delete_object_modal.type_to_confirm_deletion', {
+        t('delete_object_modal.type_to_confirm', {
           confirmationText: confirmationInput,
         })
       "
