@@ -90,7 +90,7 @@ async function exportSystems(format: 'pdf' | 'csv') {
       <!-- v-if condition is the opposite of empty state condition in SystemsTable.vue -->
       <div
         v-if="!(state.status === 'success' && !systemsPage?.length && !debouncedTextFilter)"
-        class="flex items-center gap-4"
+        class="flex flex-row-reverse items-center gap-4 xl:flex-row"
       >
         <NeDropdown
           :items="getBulkActionsMenuItems()"

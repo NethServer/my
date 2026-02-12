@@ -84,7 +84,7 @@ async function exportDistributors(format: 'pdf' | 'csv') {
         v-if="
           !(state.status === 'success' && !distributorsPage?.length && areDefaultFiltersApplied)
         "
-        class="flex items-center gap-4"
+        class="flex flex-row-reverse items-center gap-4 xl:flex-row"
       >
         <NeDropdown
           :items="getBulkActionsMenuItems()"

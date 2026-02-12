@@ -11,6 +11,9 @@ import {
   focusElement,
   NeInlineNotification,
   NeTextArea,
+  NeCombobox,
+  type NeComboboxOption,
+  getPreference,
 } from '@nethesis/vue-components'
 import { computed, ref, useTemplateRef, type ShallowRef } from 'vue'
 import {
@@ -29,6 +32,9 @@ import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
 import { getValidationIssues, isValidationError } from '@/lib/validation'
 import type { AxiosError } from 'axios'
+import { getCommonLanguagesOptions } from '@/lib/locale'
+import { getBrowserLocale } from '@/i18n'
+import { useLoginStore } from '@/stores/login'
 
 const { isShown = false, currentReseller = undefined } = defineProps<{
   isShown: boolean
@@ -40,6 +46,7 @@ const emit = defineEmits(['close'])
 const { t } = useI18n()
 const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
+const loginStore = useLoginStore()
 
 const {
   mutate: createResellerMutate,
@@ -105,23 +112,47 @@ const {
 
 const name = ref('')
 const nameRef = useTemplateRef<HTMLInputElement>('nameRef')
-const description = ref('')
-const descriptionRef = useTemplateRef<HTMLInputElement>('descriptionRef')
 const vatNumber = ref('')
 const vatNumberRef = useTemplateRef<HTMLInputElement>('vatNumberRef')
+const address = ref('')
+const addressRef = useTemplateRef<HTMLInputElement>('addressRef')
+const city = ref('')
+const cityRef = useTemplateRef<HTMLInputElement>('cityRef')
+const mainContact = ref('')
+const mainContactRef = useTemplateRef<HTMLInputElement>('mainContactRef')
+const email = ref('')
+const emailRef = useTemplateRef<HTMLInputElement>('emailRef')
+const phone = ref('')
+const phoneRef = useTemplateRef<HTMLInputElement>('phoneRef')
+const language = ref('it')
+const languageRef = useTemplateRef<HTMLInputElement>('languageRef')
 const notes = ref('')
 const notesRef = useTemplateRef<HTMLInputElement>('notesRef')
 const validationIssues = ref<Record<string, string[]>>({})
 
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
   name: nameRef,
-  description: descriptionRef,
   custom_data_vat: vatNumberRef,
+  custom_data_address: addressRef,
+  custom_data_city: cityRef,
+  custom_data_main_contact: mainContactRef,
+  custom_data_email: emailRef,
+  custom_data_phone: phoneRef,
+  custom_data_language: languageRef,
   custom_data_notes: notesRef,
 }
 
 const saving = computed(() => {
   return createResellerLoading.value || editResellerLoading.value
+})
+
+const languageOptions = computed((): NeComboboxOption[] => {
+  if (loginStore.userInfo?.email && getPreference('locale', loginStore.userInfo.email)) {
+    const locale = getPreference('locale', loginStore.userInfo.email)
+    return getCommonLanguagesOptions(locale)
+  } else {
+    return getCommonLanguagesOptions(getBrowserLocale())
+  }
 })
 
 function onShow() {
@@ -131,14 +162,24 @@ function onShow() {
   if (currentReseller) {
     // editing reseller
     name.value = currentReseller.name
-    description.value = currentReseller.description || ''
     vatNumber.value = currentReseller.custom_data?.vat || ''
+    address.value = currentReseller.custom_data?.address || ''
+    city.value = currentReseller.custom_data?.city || ''
+    mainContact.value = currentReseller.custom_data?.main_contact || ''
+    email.value = currentReseller.custom_data?.email || ''
+    phone.value = currentReseller.custom_data?.phone || ''
+    language.value = currentReseller.custom_data?.language || ''
     notes.value = currentReseller.custom_data?.notes || ''
   } else {
     // creating reseller, reset form to defaults
     name.value = ''
-    description.value = ''
     vatNumber.value = ''
+    address.value = ''
+    city.value = ''
+    mainContact.value = ''
+    email.value = ''
+    phone.value = ''
+    language.value = 'it'
     notes.value = ''
   }
 }
@@ -220,9 +261,14 @@ async function saveReseller() {
 
   const reseller = {
     name: name.value,
-    description: description.value,
     custom_data: {
       vat: vatNumber.value,
+      address: address.value,
+      city: city.value,
+      main_contact: mainContact.value,
+      email: email.value,
+      phone: phone.value,
+      language: language.value,
       notes: notes.value,
     },
   }
@@ -273,19 +319,6 @@ async function saveReseller() {
           :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
           :disabled="saving"
         />
-        <!-- description -->
-        <NeTextInput
-          ref="descriptionRef"
-          v-model="description"
-          @blur="description = description.trim()"
-          :label="$t('organizations.description')"
-          :invalid-message="
-            validationIssues.description?.[0] ? $t(validationIssues.description[0]) : ''
-          "
-          :disabled="saving"
-          :optional="true"
-          :optional-label="t('common.optional')"
-        />
         <!-- VAT number -->
         <NeTextInput
           ref="vatNumberRef"
@@ -296,6 +329,96 @@ async function saveReseller() {
             validationIssues.custom_data_vat?.[0] ? $t(validationIssues.custom_data_vat[0]) : ''
           "
           :disabled="saving"
+        />
+        <!-- address -->
+        <NeTextInput
+          ref="addressRef"
+          v-model="address"
+          @blur="address = address.trim()"
+          :label="$t('organizations.address')"
+          :invalid-message="
+            validationIssues.custom_data_address?.[0]
+              ? $t(validationIssues.custom_data_address[0])
+              : ''
+          "
+          :disabled="saving"
+          :optional="true"
+          :optional-label="t('common.optional')"
+        />
+        <!-- city -->
+        <NeTextInput
+          ref="cityRef"
+          v-model="city"
+          @blur="city = city.trim()"
+          :label="$t('organizations.city')"
+          :invalid-message="
+            validationIssues.custom_data_city?.[0] ? $t(validationIssues.custom_data_city[0]) : ''
+          "
+          :disabled="saving"
+          :optional="true"
+          :optional-label="t('common.optional')"
+        />
+        <!-- main contact -->
+        <NeTextInput
+          ref="mainContactRef"
+          v-model="mainContact"
+          @blur="mainContact = mainContact.trim()"
+          :label="$t('organizations.main_contact')"
+          :invalid-message="
+            validationIssues.custom_data_main_contact?.[0]
+              ? $t(validationIssues.custom_data_main_contact[0])
+              : ''
+          "
+          :disabled="saving"
+          :optional="true"
+          :optional-label="t('common.optional')"
+        />
+        <!-- email -->
+        <NeTextInput
+          ref="emailRef"
+          v-model="email"
+          @blur="email = email.trim()"
+          :label="$t('organizations.email')"
+          :invalid-message="
+            validationIssues.custom_data_email?.[0] ? $t(validationIssues.custom_data_email[0]) : ''
+          "
+          :disabled="saving"
+          :optional="true"
+          :optional-label="t('common.optional')"
+        />
+        <!-- phone -->
+        <NeTextInput
+          ref="phoneRef"
+          v-model="phone"
+          @blur="phone = phone.trim()"
+          :label="$t('organizations.phone_number')"
+          :invalid-message="
+            validationIssues.custom_data_phone?.[0] ? $t(validationIssues.custom_data_phone[0]) : ''
+          "
+          :disabled="saving"
+          :optional="true"
+          :optional-label="t('common.optional')"
+        />
+        <!-- language -->
+        <NeCombobox
+          ref="languageRef"
+          v-model="language"
+          :options="languageOptions"
+          :label="$t('organizations.language')"
+          :placeholder="$t('ne_combobox.choose')"
+          :invalid-message="
+            validationIssues.custom_data_language?.[0]
+              ? $t(validationIssues.custom_data_language[0])
+              : ''
+          "
+          :disabled="saving"
+          :optional="true"
+          :optional-label="t('common.optional')"
+          :no-results-label="$t('ne_combobox.no_results')"
+          :limited-options-label="$t('ne_combobox.limited_options_label')"
+          :no-options-label="$t('ne_combobox.no_options_label')"
+          :selected-label="$t('ne_combobox.selected')"
+          :user-input-label="$t('ne_combobox.user_input_label')"
         />
         <!-- notes -->
         <NeTextArea
