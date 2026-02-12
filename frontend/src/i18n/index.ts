@@ -1,3 +1,6 @@
+//  Copyright (C) 2026 Nethesis S.r.l.
+//  SPDX-License-Identifier: GPL-3.0-or-later
+
 import { getPreference, savePreference } from '@nethesis/vue-components'
 import { useStorage } from '@vueuse/core'
 import { createI18n } from 'vue-i18n'
@@ -11,7 +14,7 @@ export function getBrowserLocale() {
   const lastUser = useStorage('lastUser', '')
 
   if (lastUser.value && getPreference('locale', lastUser.value)) {
-    return getPreference('locale', lastUser.value)
+    return getPreference('locale', lastUser.value) as string
   } else if (navigator.languages && navigator.languages.length > 0) {
     navigatorLocale = navigator.languages[0]
   } else if (navigator.language) {

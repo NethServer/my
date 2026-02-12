@@ -1,19 +1,21 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
+import capitalize from 'lodash/capitalize'
+
 // Returns a list of common languages with their ISO codes and display names.
-export const getCommonLanguagesOptions = () => {
-  const languageNames = new Intl.DisplayNames([navigator.language], { type: 'language' })
+export const getCommonLanguagesOptions = (locale: string) => {
+  const languageNames = new Intl.DisplayNames([locale], { type: 'language' })
 
   const options = commonLanguagesIsoCodes.map((code) => ({
     id: code,
-    label: languageNames.of(code) || code,
+    label: capitalize(languageNames.of(code) || code),
   }))
 
   return options.sort((a, b) => a.label.localeCompare(b.label))
 }
 
-// List of common languages to be used in the application, e.g., for language selection dropdowns.
+// List of common languages to be assigned to organizations.
 export const commonLanguagesIsoCodes = [
   'en',
   'zh',
