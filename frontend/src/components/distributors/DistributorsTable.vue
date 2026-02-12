@@ -7,7 +7,6 @@
 import { DISTRIBUTORS_TABLE_ID, type Distributor } from '@/lib/organizations/distributors'
 import {
   faCircleInfo,
-  faCirclePlus,
   faGlobe,
   faPenToSquare,
   faBoxArchive,

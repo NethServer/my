@@ -6,7 +6,7 @@
 <script setup lang="ts">
 import { NeButton, NeDropdown, NeHeading } from '@nethesis/vue-components'
 import UsersTable from '@/components/users/UsersTable.vue'
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import {
   faChevronDown,
   faCirclePlus,
@@ -30,14 +30,9 @@ const {
   statusFilter,
   sortBy,
   sortDescending,
-  areDefaultFiltersApplied,
 } = useUsers()
 
 const isShownCreateUserDrawer = ref(false)
-
-const usersPage = computed(() => {
-  return state.value.data?.users
-})
 
 function getBulkActionsMenuItems() {
   return [

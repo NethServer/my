@@ -6,7 +6,7 @@
 <script setup lang="ts">
 import { NeButton, NeDropdown, NeHeading } from '@nethesis/vue-components'
 import DistributorsTable from '@/components/distributors/DistributorsTable.vue'
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import {
   faChevronDown,
   faCirclePlus,
@@ -14,27 +14,16 @@ import {
   faFilePdf,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { canManageDistributors, canReadDistributors } from '@/lib/permissions'
+import { canManageDistributors } from '@/lib/permissions'
 import { useDistributors } from '@/queries/organizations/distributors'
 import { useI18n } from 'vue-i18n'
 import { getExport } from '@/lib/organizations/distributors'
 import { downloadFile } from '@/lib/common'
 
 const { t } = useI18n()
-const {
-  state,
-  debouncedTextFilter,
-  statusFilter,
-  sortBy,
-  sortDescending,
-  areDefaultFiltersApplied,
-} = useDistributors()
+const { state, debouncedTextFilter, statusFilter, sortBy, sortDescending } = useDistributors()
 
 const isShownCreateDistributorDrawer = ref(false)
-
-const distributorsPage = computed(() => {
-  return state.value.data?.distributors
-})
 
 function getBulkActionsMenuItems() {
   return [

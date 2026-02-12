@@ -5,7 +5,7 @@
 
 <script setup lang="ts">
 import { NeButton, NeDropdown, NeHeading } from '@nethesis/vue-components'
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import {
   faChevronDown,
   faCirclePlus,
@@ -34,10 +34,6 @@ const {
 } = useSystems()
 
 const isShownCreateSystemDrawer = ref(false)
-
-const systemsPage = computed(() => {
-  return state.value.data?.systems
-})
 
 function getBulkActionsMenuItems() {
   return [
