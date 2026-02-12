@@ -3,7 +3,7 @@
 
 import {
   getOrganizationFilter,
-  USERS_ORGANIZATION_FILTER_KEY,
+  USER_ORGANIZATION_FILTER_KEY,
 } from '@/lib/users/organizationFilter'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
@@ -12,7 +12,7 @@ export const useOrganizationFilter = defineQuery(() => {
   const loginStore = useLoginStore()
 
   const { state, asyncStatus, ...rest } = useQuery({
-    key: () => [USERS_ORGANIZATION_FILTER_KEY],
+    key: () => [USER_ORGANIZATION_FILTER_KEY],
     enabled: () => !!loginStore.jwtToken,
     query: () => getOrganizationFilter(),
   })

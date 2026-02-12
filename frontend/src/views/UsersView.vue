@@ -15,7 +15,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { PRODUCT_NAME } from '@/lib/config'
-import { canManageUsers, canReadUsers } from '@/lib/permissions'
+import { canManageUsers } from '@/lib/permissions'
 import { useUsers } from '@/queries/users/users'
 import { useI18n } from 'vue-i18n'
 import { getExport } from '@/lib/users/users'
@@ -85,15 +85,11 @@ async function exportUsers(format: 'pdf' | 'csv') {
       <div class="max-w-2xl text-gray-500 dark:text-gray-400">
         {{ $t('users.page_description', { productName: PRODUCT_NAME }) }}
       </div>
-      <div
-        v-if="!(state.status === 'success' && !usersPage?.length && areDefaultFiltersApplied)"
-        class="flex items-center gap-4"
-      >
+      <div class="flex items-center gap-4">
         <NeDropdown
           :items="getBulkActionsMenuItems()"
           align-to-right
           :openMenuAriaLabel="$t('ne_dropdown.open_menu')"
-          v-if="canReadUsers()"
         >
           <template #button>
             <NeButton>

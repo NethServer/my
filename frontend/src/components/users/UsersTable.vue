@@ -7,7 +7,6 @@
 import { USERS_TABLE_ID, type User } from '@/lib/users/users'
 import {
   faCircleInfo,
-  faCirclePlus,
   faUserGroup,
   faPenToSquare,
   faBoxArchive,
@@ -349,136 +348,121 @@ const onClosePasswordChangedModal = () => {
       :description="state.error.message"
       class="mb-6"
     />
+    <!-- table toolbar -->
+    <div class="mb-6 flex items-center gap-4">
+      <div class="flex w-full items-center justify-between gap-4">
+        <!-- filters -->
+        <div class="flex flex-wrap items-center gap-4">
+          <!-- text filter -->
+          <NeTextInput
+            v-model.trim="textFilter"
+            is-search
+            :placeholder="$t('users.filter_users')"
+            class="max-w-48 sm:max-w-sm"
+          />
+          <!-- organization filter -->
+          <NeDropdownFilter
+            v-model="organizationFilter"
+            kind="checkbox"
+            :label="t('organizations.organization')"
+            :options="organizationFilterOptions"
+            :disabled="
+              organizationFilterAsyncStatus === 'loading' ||
+              organizationFilterState.status === 'error'
+            "
+            show-options-filter
+            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
+          />
+          <!-- role filter -->
+          <NeDropdownFilter
+            v-model="roleFilter"
+            kind="checkbox"
+            :label="t('users.role')"
+            :options="roleFilterOptions"
+            :disabled="roleFilterAsyncStatus === 'loading' || roleFilterState.status === 'error'"
+            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
+          />
+          <!-- status filter -->
+          <NeDropdownFilter
+            v-model="statusFilter"
+            kind="checkbox"
+            :label="t('common.status')"
+            :options="statusFilterOptions"
+            :show-clear-filter="false"
+            :clear-filter-label="t('ne_dropdown_filter.reset_filter')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
+          />
+          <!-- sort dropdown -->
+          <NeSortDropdown
+            v-model:sort-key="sortBy"
+            v-model:sort-descending="sortDescending"
+            :label="t('sort.sort')"
+            :options="[
+              { id: 'name', label: t('users.name') },
+              { id: 'email', label: t('users.email') },
+              { id: 'organization', label: t('users.organization') },
+              { id: 'status', label: t('common.status') },
+            ]"
+            :open-menu-aria-label="t('ne_dropdown.open_menu')"
+            :sort-by-label="t('sort.sort_by')"
+            :sort-direction-label="t('sort.direction')"
+            :ascending-label="t('sort.ascending')"
+            :descending-label="t('sort.descending')"
+          />
+          <NeButton kind="tertiary" @click="resetFilters">
+            {{ t('common.reset_filters') }}
+          </NeButton>
+        </div>
+        <!-- update indicator -->
+        <div
+          v-if="asyncStatus === 'loading' && state.status !== 'pending'"
+          class="flex items-center gap-2"
+        >
+          <NeSpinner color="white" />
+          <div class="text-gray-500 dark:text-gray-400">
+            {{ $t('common.updating') }}
+          </div>
+        </div>
+      </div>
+    </div>
     <!-- empty state -->
     <NeEmptyState
       v-if="isNoDataEmptyStateShown"
       :title="$t('users.no_user')"
       :icon="faUserGroup"
       class="bg-white dark:bg-gray-950"
+    />
+    <!-- no user matching filter -->
+    <NeEmptyState
+      v-else-if="isNoMatchEmptyStateShown"
+      :title="$t('users.no_user_found')"
+      :description="$t('common.try_changing_search_filters')"
+      :icon="faCircleInfo"
+      class="bg-white dark:bg-gray-950"
     >
-      <!-- create user -->
-      <NeButton
-        v-if="canManageUsers()"
-        kind="primary"
-        size="lg"
-        class="shrink-0"
-        @click="showCreateUserDrawer()"
-      >
-        <template #prefix>
-          <FontAwesomeIcon :icon="faCirclePlus" aria-hidden="true" />
-        </template>
-        {{ $t('users.create_user') }}
-      </NeButton>
+      <NeButton kind="tertiary" @click="resetFilters"> {{ $t('common.clear_filters') }}</NeButton>
     </NeEmptyState>
-    <template v-if="!isNoDataEmptyStateShown">
-      <!-- table toolbar -->
-      <div class="mb-6 flex items-center gap-4">
-        <div class="flex w-full items-center justify-between gap-4">
-          <!-- filters -->
-          <div class="flex flex-wrap items-center gap-4">
-            <!-- text filter -->
-            <NeTextInput
-              v-model.trim="textFilter"
-              is-search
-              :placeholder="$t('users.filter_users')"
-              class="max-w-48 sm:max-w-sm"
-            />
-            <!-- organization filter -->
-            <NeDropdownFilter
-              v-model="organizationFilter"
-              kind="checkbox"
-              :label="t('organizations.organization')"
-              :options="organizationFilterOptions"
-              :disabled="
-                organizationFilterAsyncStatus === 'loading' ||
-                organizationFilterState.status === 'error'
-              "
-              show-options-filter
-              :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
-              :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-              :no-options-label="t('ne_dropdown_filter.no_options')"
-              :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-              :clear-search-label="t('ne_dropdown_filter.clear_search')"
-            />
-            <!-- role filter -->
-            <NeDropdownFilter
-              v-model="roleFilter"
-              kind="checkbox"
-              :label="t('users.role')"
-              :options="roleFilterOptions"
-              :disabled="roleFilterAsyncStatus === 'loading' || roleFilterState.status === 'error'"
-              :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
-              :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-              :no-options-label="t('ne_dropdown_filter.no_options')"
-              :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-              :clear-search-label="t('ne_dropdown_filter.clear_search')"
-            />
-            <!-- status filter -->
-            <NeDropdownFilter
-              v-model="statusFilter"
-              kind="checkbox"
-              :label="t('common.status')"
-              :options="statusFilterOptions"
-              :show-clear-filter="false"
-              :clear-filter-label="t('ne_dropdown_filter.reset_filter')"
-              :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-              :no-options-label="t('ne_dropdown_filter.no_options')"
-              :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-              :clear-search-label="t('ne_dropdown_filter.clear_search')"
-            />
-            <!-- sort dropdown -->
-            <NeSortDropdown
-              v-model:sort-key="sortBy"
-              v-model:sort-descending="sortDescending"
-              :label="t('sort.sort')"
-              :options="[
-                { id: 'name', label: t('users.name') },
-                { id: 'email', label: t('users.email') },
-                { id: 'organization', label: t('users.organization') },
-                { id: 'status', label: t('common.status') },
-              ]"
-              :open-menu-aria-label="t('ne_dropdown.open_menu')"
-              :sort-by-label="t('sort.sort_by')"
-              :sort-direction-label="t('sort.direction')"
-              :ascending-label="t('sort.ascending')"
-              :descending-label="t('sort.descending')"
-            />
-            <NeButton kind="tertiary" @click="resetFilters">
-              {{ t('common.reset_filters') }}
-            </NeButton>
-          </div>
-          <!-- update indicator -->
-          <div
-            v-if="asyncStatus === 'loading' && state.status !== 'pending'"
-            class="flex items-center gap-2"
-          >
-            <NeSpinner color="white" />
-            <div class="text-gray-500 dark:text-gray-400">
-              {{ $t('common.updating') }}
-            </div>
-          </div>
-        </div>
-      </div>
-      <!-- no user matching filter -->
-      <NeEmptyState
-        v-if="isNoMatchEmptyStateShown"
-        :title="$t('users.no_user_found')"
-        :description="$t('common.try_changing_search_filters')"
-        :icon="faCircleInfo"
-        class="bg-white dark:bg-gray-950"
-      >
-        <NeButton kind="tertiary" @click="resetFilters"> {{ $t('common.clear_filters') }}</NeButton>
-      </NeEmptyState>
-      <NeTable
-        v-if="noEmptyStateShown"
-        :sort-key="sortBy"
-        :sort-descending="sortDescending"
-        :aria-label="$t('users.title')"
-        card-breakpoint="xl"
-        :loading="state.status === 'pending'"
-        :skeleton-columns="5"
-        :skeleton-rows="7"
-      >
+    <NeTable
+      v-if="noEmptyStateShown"
+      :sort-key="sortBy"
+      :sort-descending="sortDescending"
+      :aria-label="$t('users.title')"
+      card-breakpoint="xl"
+      :loading="state.status === 'pending'"
+      :skeleton-columns="5"
+      :skeleton-rows="7"
+    >
         <NeTableHead>
           <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
             $t('users.name')
@@ -610,8 +594,7 @@ const onClosePasswordChangedModal = () => {
             "
           />
         </template>
-      </NeTable>
-    </template>
+    </NeTable>
     <!-- side drawer -->
     <CreateOrEditUserDrawer
       :is-shown="isShownCreateOrEditUserDrawer"

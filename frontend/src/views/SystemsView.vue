@@ -13,7 +13,7 @@ import {
   faFilePdf,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { canManageSystems, canReadSystems } from '@/lib/permissions'
+import { canManageSystems } from '@/lib/permissions'
 import SystemsTable from '@/components/systems/SystemsTable.vue'
 import { useSystems } from '@/queries/systems/systems'
 import { useI18n } from 'vue-i18n'
@@ -87,16 +87,11 @@ async function exportSystems(format: 'pdf' | 'csv') {
       <div class="max-w-2xl text-gray-500 dark:text-gray-400">
         {{ $t('systems.page_description') }}
       </div>
-      <!-- v-if condition is the opposite of empty state condition in SystemsTable.vue -->
-      <div
-        v-if="!(state.status === 'success' && !systemsPage?.length && !debouncedTextFilter)"
-        class="flex flex-row-reverse items-center gap-4 xl:flex-row"
-      >
+      <div class="flex flex-row-reverse items-center gap-4 xl:flex-row">
         <NeDropdown
           :items="getBulkActionsMenuItems()"
           align-to-right
           :openMenuAriaLabel="$t('ne_dropdown.open_menu')"
-          v-if="canReadSystems()"
         >
           >
           <template #button>
@@ -113,7 +108,7 @@ async function exportSystems(format: 'pdf' | 'csv') {
         </NeDropdown>
         <!-- create system -->
         <NeButton
-          v-if="canManageSystems() && (systemsPage?.length || debouncedTextFilter)"
+          v-if="canManageSystems()"
           kind="primary"
           size="lg"
           class="shrink-0"

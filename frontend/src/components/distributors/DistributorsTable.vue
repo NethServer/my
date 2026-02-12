@@ -233,198 +233,182 @@ const onSort = (payload: SortEvent) => {
       :description="state.error.message"
       class="mb-6"
     />
+    <!-- table toolbar -->
+    <div class="mb-6 flex items-center gap-4">
+      <div class="flex w-full items-center justify-between gap-4">
+        <!-- filters -->
+        <div class="flex flex-wrap items-center gap-4">
+          <!-- text filter -->
+          <NeTextInput
+            v-model.trim="textFilter"
+            is-search
+            :placeholder="$t('distributors.filter_distributors')"
+            class="max-w-48 sm:max-w-sm"
+          />
+          <!-- status filter -->
+          <NeDropdownFilter
+            v-model="statusFilter"
+            kind="checkbox"
+            :label="t('common.status')"
+            :options="statusFilterOptions"
+            :show-clear-filter="false"
+            :clear-filter-label="t('ne_dropdown_filter.reset_filter')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
+          />
+          <NeSortDropdown
+            v-model:sort-key="sortBy"
+            v-model:sort-descending="sortDescending"
+            :label="t('sort.sort')"
+            :options="[
+              { id: 'name', label: t('organizations.name') },
+              { id: 'suspended_at', label: t('common.status') },
+            ]"
+            :open-menu-aria-label="t('ne_dropdown.open_menu')"
+            :sort-by-label="t('sort.sort_by')"
+            :sort-direction-label="t('sort.direction')"
+            :ascending-label="t('sort.ascending')"
+            :descending-label="t('sort.descending')"
+          />
+          <NeButton kind="tertiary" @click="resetFilters">
+            {{ t('common.reset_filters') }}
+          </NeButton>
+        </div>
+        <!-- update indicator -->
+        <div
+          v-if="asyncStatus === 'loading' && state.status !== 'pending'"
+          class="flex items-center gap-2"
+        >
+          <NeSpinner color="white" />
+          <div class="text-gray-500 dark:text-gray-400">
+            {{ $t('common.updating') }}
+          </div>
+        </div>
+      </div>
+    </div>
     <!-- empty state -->
     <NeEmptyState
       v-if="isNoDataEmptyStateShown"
       :title="$t('distributors.no_distributor')"
       :icon="faGlobe"
       class="bg-white dark:bg-gray-950"
+    />
+    <!-- no distributor matching filter -->
+    <NeEmptyState
+      v-else-if="isNoMatchEmptyStateShown"
+      :title="$t('distributors.no_distributor_found')"
+      :description="$t('common.try_changing_search_filters')"
+      :icon="faCircleInfo"
+      class="bg-white dark:bg-gray-950"
     >
-      <!-- create distributor -->
-      <NeButton
-        v-if="canManageDistributors()"
-        kind="primary"
-        size="lg"
-        class="shrink-0"
-        @click="showCreateDistributorDrawer()"
-      >
-        <template #prefix>
-          <FontAwesomeIcon :icon="faCirclePlus" aria-hidden="true" />
-        </template>
-        {{ $t('distributors.create_distributor') }}
-      </NeButton>
+      <NeButton kind="tertiary" @click="resetFilters"> {{ $t('common.reset_filters') }}</NeButton>
     </NeEmptyState>
-    <template v-if="!isNoDataEmptyStateShown">
-      <!-- table toolbar -->
-      <div class="mb-6 flex items-center gap-4">
-        <div class="flex w-full items-center justify-between gap-4">
-          <!-- filters -->
-          <div class="flex flex-wrap items-center gap-4">
-            <!-- text filter -->
-            <NeTextInput
-              v-model.trim="textFilter"
-              is-search
-              :placeholder="$t('distributors.filter_distributors')"
-              class="max-w-48 sm:max-w-sm"
-            />
-            <!-- status filter -->
-            <NeDropdownFilter
-              v-model="statusFilter"
-              kind="checkbox"
-              :label="t('common.status')"
-              :options="statusFilterOptions"
-              :show-clear-filter="false"
-              :clear-filter-label="t('ne_dropdown_filter.reset_filter')"
-              :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-              :no-options-label="t('ne_dropdown_filter.no_options')"
-              :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-              :clear-search-label="t('ne_dropdown_filter.clear_search')"
-            />
-            <NeSortDropdown
-              v-model:sort-key="sortBy"
-              v-model:sort-descending="sortDescending"
-              :label="t('sort.sort')"
-              :options="[
-                { id: 'name', label: t('organizations.name') },
-                { id: 'suspended_at', label: t('common.status') },
-              ]"
-              :open-menu-aria-label="t('ne_dropdown.open_menu')"
-              :sort-by-label="t('sort.sort_by')"
-              :sort-direction-label="t('sort.direction')"
-              :ascending-label="t('sort.ascending')"
-              :descending-label="t('sort.descending')"
-            />
-            <NeButton kind="tertiary" @click="resetFilters">
-              {{ t('common.reset_filters') }}
-            </NeButton>
-          </div>
-          <!-- update indicator -->
-          <div
-            v-if="asyncStatus === 'loading' && state.status !== 'pending'"
-            class="flex items-center gap-2"
-          >
-            <NeSpinner color="white" />
-            <div class="text-gray-500 dark:text-gray-400">
-              {{ $t('common.updating') }}
+    <NeTable
+      v-if="noEmptyStateShown"
+      :sort-key="sortBy"
+      :sort-descending="sortDescending"
+      :aria-label="$t('distributors.title')"
+      card-breakpoint="xl"
+      :loading="state.status === 'pending'"
+      :skeleton-columns="5"
+      :skeleton-rows="7"
+    >
+      <NeTableHead>
+        <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
+          $t('organizations.name')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
+          $t('common.status')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell>
+          <!-- no header for actions -->
+        </NeTableHeadCell>
+      </NeTableHead>
+      <NeTableBody>
+        <NeTableRow v-for="(item, index) in distributorsPage" :key="index">
+          <NeTableCell :data-label="$t('organizations.name')">
+            {{ item.name }}
+          </NeTableCell>
+          <NeTableCell :data-label="$t('common.status')">
+            <div class="flex items-center gap-2">
+              <template v-if="item.deleted_at">
+                <FontAwesomeIcon
+                  :icon="faBoxArchive"
+                  class="size-4 text-gray-700 dark:text-gray-400"
+                  aria-hidden="true"
+                />
+                <span>
+                  {{ t('common.archived') }}
+                </span>
+              </template>
+              <template v-else-if="item.suspended_at">
+                <FontAwesomeIcon
+                  :icon="faCirclePause"
+                  class="size-4 text-gray-700 dark:text-gray-400"
+                  aria-hidden="true"
+                />
+                <span>
+                  {{ t('common.suspended') }}
+                </span>
+              </template>
+              <template v-else>
+                <FontAwesomeIcon
+                  :icon="faCircleCheck"
+                  class="size-4 text-green-600 dark:text-green-400"
+                  aria-hidden="true"
+                />
+                <span>
+                  {{ t('common.enabled') }}
+                </span>
+              </template>
             </div>
-          </div>
-        </div>
-      </div>
-      <!-- no distributor matching filter -->
-      <NeEmptyState
-        v-if="isNoMatchEmptyStateShown"
-        :title="$t('distributors.no_distributor_found')"
-        :description="$t('common.try_changing_search_filters')"
-        :icon="faCircleInfo"
-        class="bg-white dark:bg-gray-950"
-      >
-        <NeButton kind="tertiary" @click="resetFilters"> {{ $t('common.reset_filters') }}</NeButton>
-      </NeEmptyState>
-      <NeTable
-        v-if="noEmptyStateShown"
-        :sort-key="sortBy"
-        :sort-descending="sortDescending"
-        :aria-label="$t('distributors.title')"
-        card-breakpoint="xl"
-        :loading="state.status === 'pending'"
-        :skeleton-columns="5"
-        :skeleton-rows="7"
-      >
-        <NeTableHead>
-          <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
-            $t('organizations.name')
-          }}</NeTableHeadCell>
-          <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
-            $t('common.status')
-          }}</NeTableHeadCell>
-          <NeTableHeadCell>
-            <!-- no header for actions -->
-          </NeTableHeadCell>
-        </NeTableHead>
-        <NeTableBody>
-          <NeTableRow v-for="(item, index) in distributorsPage" :key="index">
-            <NeTableCell :data-label="$t('organizations.name')">
-              {{ item.name }}
-            </NeTableCell>
-            <NeTableCell :data-label="$t('common.status')">
-              <div class="flex items-center gap-2">
-                <template v-if="item.deleted_at">
-                  <FontAwesomeIcon
-                    :icon="faBoxArchive"
-                    class="size-4 text-gray-700 dark:text-gray-400"
-                    aria-hidden="true"
-                  />
-                  <span>
-                    {{ t('common.archived') }}
-                  </span>
+          </NeTableCell>
+          <NeTableCell :data-label="$t('common.actions')">
+            <div v-if="canManageDistributors()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+              <NeButton
+                v-if="!item.deleted_at"
+                kind="tertiary"
+                @click="showEditDistributorDrawer(item)"
+                :disabled="asyncStatus === 'loading'"
+              >
+                <template #prefix>
+                  <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
                 </template>
-                <template v-else-if="item.suspended_at">
-                  <FontAwesomeIcon
-                    :icon="faCirclePause"
-                    class="size-4 text-gray-700 dark:text-gray-400"
-                    aria-hidden="true"
-                  />
-                  <span>
-                    {{ t('common.suspended') }}
-                  </span>
-                </template>
-                <template v-else>
-                  <FontAwesomeIcon
-                    :icon="faCircleCheck"
-                    class="size-4 text-green-600 dark:text-green-400"
-                    aria-hidden="true"
-                  />
-                  <span>
-                    {{ t('common.enabled') }}
-                  </span>
-                </template>
-              </div>
-            </NeTableCell>
-            <NeTableCell :data-label="$t('common.actions')">
-              <div v-if="canManageDistributors()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
-                <NeButton
-                  v-if="!item.deleted_at"
-                  kind="tertiary"
-                  @click="showEditDistributorDrawer(item)"
-                  :disabled="asyncStatus === 'loading'"
-                >
-                  <template #prefix>
-                    <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
-                  </template>
-                  {{ $t('common.edit') }}
-                </NeButton>
-                <!-- kebab menu -->
-                <NeDropdown :items="getKebabMenuItems(item)" :align-to-right="true" />
-              </div>
-            </NeTableCell>
-          </NeTableRow>
-        </NeTableBody>
-        <template #paginator>
-          <NePaginator
-            :current-page="pageNum"
-            :total-rows="pagination?.total_count || 0"
-            :page-size="pageSize"
-            :page-sizes="[5, 10, 25, 50, 100]"
-            :nav-pagination-label="$t('ne_table.pagination')"
-            :next-label="$t('ne_table.go_to_next_page')"
-            :previous-label="$t('ne_table.go_to_previous_page')"
-            :range-of-total-label="$t('ne_table.of')"
-            :page-size-label="$t('ne_table.show')"
-            @select-page="
-              (page: number) => {
-                pageNum = page
-              }
-            "
-            @select-page-size="
-              (size: number) => {
-                pageSize = size
-                savePageSizeToStorage(DISTRIBUTORS_TABLE_ID, size)
-              }
-            "
-          />
-        </template>
-      </NeTable>
-    </template>
+                {{ $t('common.edit') }}
+              </NeButton>
+              <!-- kebab menu -->
+              <NeDropdown :items="getKebabMenuItems(item)" :align-to-right="true" />
+            </div>
+          </NeTableCell>
+        </NeTableRow>
+      </NeTableBody>
+      <template #paginator>
+        <NePaginator
+          :current-page="pageNum"
+          :total-rows="pagination?.total_count || 0"
+          :page-size="pageSize"
+          :page-sizes="[5, 10, 25, 50, 100]"
+          :nav-pagination-label="$t('ne_table.pagination')"
+          :next-label="$t('ne_table.go_to_next_page')"
+          :previous-label="$t('ne_table.go_to_previous_page')"
+          :range-of-total-label="$t('ne_table.of')"
+          :page-size-label="$t('ne_table.show')"
+          @select-page="
+            (page: number) => {
+              pageNum = page
+            }
+          "
+          @select-page-size="
+            (size: number) => {
+              pageSize = size
+              savePageSizeToStorage(DISTRIBUTORS_TABLE_ID, size)
+            }
+          "
+        />
+      </template>
+    </NeTable>
     <!-- side drawer -->
     <CreateOrEditDistributorDrawer
       :is-shown="isShownCreateOrEditDistributorDrawer"

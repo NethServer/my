@@ -5,7 +5,7 @@ import axios from 'axios'
 import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 
-export const USERS_ORGANIZATION_FILTER_KEY = 'usersOrganizationFilter'
+export const USER_ORGANIZATION_FILTER_KEY = 'usersOrganizationFilter'
 
 const USERS_ORGANIZATION_FILTER_PATH = 'filters/users/organizations'
 
