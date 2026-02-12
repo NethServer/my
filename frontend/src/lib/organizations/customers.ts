@@ -15,9 +15,27 @@ export type CustomerStatus = 'enabled' | 'suspended' | 'deleted'
 
 export const CreateCustomerSchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty('organizations.name_cannot_be_empty')),
-  description: v.optional(v.string()),
   custom_data: v.object({
     vat: v.pipe(v.string(), v.nonEmpty('organizations.custom_data_vat_cannot_be_empty')),
+    address: v.optional(v.string()),
+    city: v.optional(v.string()),
+    main_contact: v.optional(v.string()),
+    email: v.optional(
+      v.union([
+        v.literal(''),
+        v.pipe(v.string(), v.email('organizations.custom_data_email_invalid')),
+      ]),
+    ),
+    phone: v.optional(
+      v.union([
+        v.literal(''),
+        v.pipe(
+          v.string(),
+          v.regex(/^\+?[\d\s\-\(\)]{7,20}$/, 'organizations.custom_data_phone_invalid_format'),
+        ),
+      ]),
+    ),
+    language: v.optional(v.string()),
     notes: v.optional(v.string()),
   }),
 })
