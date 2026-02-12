@@ -84,7 +84,6 @@ const {
   pageNum,
   pageSize,
   textFilter,
-  debouncedTextFilter,
   productFilter,
   createdByFilter,
   versionFilter,

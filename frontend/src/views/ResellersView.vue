@@ -6,7 +6,7 @@
 <script setup lang="ts">
 import { NeButton, NeDropdown, NeHeading } from '@nethesis/vue-components'
 import ResellersTable from '@/components/resellers/ResellersTable.vue'
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import {
   faChevronDown,
   faCirclePlus,
@@ -21,20 +21,9 @@ import { getExport } from '@/lib/organizations/resellers'
 import { downloadFile } from '@/lib/common'
 
 const { t } = useI18n()
-const {
-  state,
-  debouncedTextFilter,
-  statusFilter,
-  sortBy,
-  sortDescending,
-  areDefaultFiltersApplied,
-} = useResellers()
+const { state, debouncedTextFilter, statusFilter, sortBy, sortDescending } = useResellers()
 
 const isShownCreateResellerDrawer = ref(false)
-
-const resellersPage = computed(() => {
-  return state.value.data?.resellers
-})
 
 function getBulkActionsMenuItems() {
   return [

@@ -6,7 +6,7 @@
 <script setup lang="ts">
 import { NeButton, NeDropdown, NeHeading } from '@nethesis/vue-components'
 import CustomersTable from '@/components/customers/CustomersTable.vue'
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import {
   faChevronDown,
   faCirclePlus,
@@ -21,20 +21,9 @@ import { getExport } from '@/lib/organizations/customers'
 import { downloadFile } from '@/lib/common'
 
 const { t } = useI18n()
-const {
-  state,
-  debouncedTextFilter,
-  statusFilter,
-  sortBy,
-  sortDescending,
-  areDefaultFiltersApplied,
-} = useCustomers()
+const { state, debouncedTextFilter, statusFilter, sortBy, sortDescending } = useCustomers()
 
 const isShownCreateCustomerDrawer = ref(false)
-
-const customersPage = computed(() => {
-  return state.value.data?.customers
-})
 
 function getBulkActionsMenuItems() {
   return [

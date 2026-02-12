@@ -314,99 +314,99 @@ const onSort = (payload: SortEvent) => {
       :skeleton-columns="5"
       :skeleton-rows="7"
     >
-        <NeTableHead>
-          <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
-            $t('organizations.name')
-          }}</NeTableHeadCell>
-          <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
-            $t('common.status')
-          }}</NeTableHeadCell>
-          <NeTableHeadCell>
-            <!-- no header for actions -->
-          </NeTableHeadCell>
-        </NeTableHead>
-        <NeTableBody>
-          <NeTableRow v-for="(item, index) in customersPage" :key="index">
-            <NeTableCell :data-label="$t('organizations.name')">
-              {{ item.name }}
-            </NeTableCell>
-            <NeTableCell :data-label="$t('common.status')">
-              <div class="flex items-center gap-2">
-                <template v-if="item.deleted_at">
-                  <FontAwesomeIcon
-                    :icon="faBoxArchive"
-                    class="size-4 text-gray-700 dark:text-gray-400"
-                    aria-hidden="true"
-                  />
-                  <span>
-                    {{ t('common.archived') }}
-                  </span>
+      <NeTableHead>
+        <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
+          $t('organizations.name')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
+          $t('common.status')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell>
+          <!-- no header for actions -->
+        </NeTableHeadCell>
+      </NeTableHead>
+      <NeTableBody>
+        <NeTableRow v-for="(item, index) in customersPage" :key="index">
+          <NeTableCell :data-label="$t('organizations.name')">
+            {{ item.name }}
+          </NeTableCell>
+          <NeTableCell :data-label="$t('common.status')">
+            <div class="flex items-center gap-2">
+              <template v-if="item.deleted_at">
+                <FontAwesomeIcon
+                  :icon="faBoxArchive"
+                  class="size-4 text-gray-700 dark:text-gray-400"
+                  aria-hidden="true"
+                />
+                <span>
+                  {{ t('common.archived') }}
+                </span>
+              </template>
+              <template v-else-if="item.suspended_at">
+                <FontAwesomeIcon
+                  :icon="faCirclePause"
+                  class="size-4 text-gray-700 dark:text-gray-400"
+                  aria-hidden="true"
+                />
+                <span>
+                  {{ t('common.suspended') }}
+                </span>
+              </template>
+              <template v-else>
+                <FontAwesomeIcon
+                  :icon="faCircleCheck"
+                  class="size-4 text-green-600 dark:text-green-400"
+                  aria-hidden="true"
+                />
+                <span>
+                  {{ t('common.enabled') }}
+                </span>
+              </template>
+            </div>
+          </NeTableCell>
+          <NeTableCell :data-label="$t('common.actions')">
+            <div v-if="canManageCustomers()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+              <NeButton
+                v-if="!item.deleted_at"
+                kind="tertiary"
+                @click="showEditCustomerDrawer(item)"
+                :disabled="asyncStatus === 'loading'"
+              >
+                <template #prefix>
+                  <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
                 </template>
-                <template v-else-if="item.suspended_at">
-                  <FontAwesomeIcon
-                    :icon="faCirclePause"
-                    class="size-4 text-gray-700 dark:text-gray-400"
-                    aria-hidden="true"
-                  />
-                  <span>
-                    {{ t('common.suspended') }}
-                  </span>
-                </template>
-                <template v-else>
-                  <FontAwesomeIcon
-                    :icon="faCircleCheck"
-                    class="size-4 text-green-600 dark:text-green-400"
-                    aria-hidden="true"
-                  />
-                  <span>
-                    {{ t('common.enabled') }}
-                  </span>
-                </template>
-              </div>
-            </NeTableCell>
-            <NeTableCell :data-label="$t('common.actions')">
-              <div v-if="canManageCustomers()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
-                <NeButton
-                  v-if="!item.deleted_at"
-                  kind="tertiary"
-                  @click="showEditCustomerDrawer(item)"
-                  :disabled="asyncStatus === 'loading'"
-                >
-                  <template #prefix>
-                    <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
-                  </template>
-                  {{ $t('common.edit') }}
-                </NeButton>
-                <!-- kebab menu -->
-                <NeDropdown :items="getKebabMenuItems(item)" :align-to-right="true" />
-              </div>
-            </NeTableCell>
-          </NeTableRow>
-        </NeTableBody>
-        <template #paginator>
-          <NePaginator
-            :current-page="pageNum"
-            :total-rows="pagination?.total_count || 0"
-            :page-size="pageSize"
-            :page-sizes="[5, 10, 25, 50, 100]"
-            :nav-pagination-label="$t('ne_table.pagination')"
-            :next-label="$t('ne_table.go_to_next_page')"
-            :previous-label="$t('ne_table.go_to_previous_page')"
-            :range-of-total-label="$t('ne_table.of')"
-            :page-size-label="$t('ne_table.show')"
-            @select-page="
-              (page: number) => {
-                pageNum = page
-              }
-            "
-            @select-page-size="
-              (size: number) => {
-                pageSize = size
-                savePageSizeToStorage(CUSTOMERS_TABLE_ID, size)
-              }
-            "
-          />
-        </template>
+                {{ $t('common.edit') }}
+              </NeButton>
+              <!-- kebab menu -->
+              <NeDropdown :items="getKebabMenuItems(item)" :align-to-right="true" />
+            </div>
+          </NeTableCell>
+        </NeTableRow>
+      </NeTableBody>
+      <template #paginator>
+        <NePaginator
+          :current-page="pageNum"
+          :total-rows="pagination?.total_count || 0"
+          :page-size="pageSize"
+          :page-sizes="[5, 10, 25, 50, 100]"
+          :nav-pagination-label="$t('ne_table.pagination')"
+          :next-label="$t('ne_table.go_to_next_page')"
+          :previous-label="$t('ne_table.go_to_previous_page')"
+          :range-of-total-label="$t('ne_table.of')"
+          :page-size-label="$t('ne_table.show')"
+          @select-page="
+            (page: number) => {
+              pageNum = page
+            }
+          "
+          @select-page-size="
+            (size: number) => {
+              pageSize = size
+              savePageSizeToStorage(CUSTOMERS_TABLE_ID, size)
+            }
+          "
+        />
+      </template>
     </NeTable>
     <!-- side drawer -->
     <CreateOrEditCustomerDrawer

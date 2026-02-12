@@ -318,7 +318,7 @@ async function saveCustomer() {
           :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
           :disabled="saving"
         />
-          <!-- VAT number -->
+        <!-- VAT number -->
         <NeTextInput
           ref="vatNumberRef"
           v-model="vatNumber"
