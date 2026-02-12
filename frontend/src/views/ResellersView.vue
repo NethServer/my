@@ -14,7 +14,7 @@ import {
   faFilePdf,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { canManageResellers, canReadResellers } from '@/lib/permissions'
+import { canManageResellers } from '@/lib/permissions'
 import { useResellers } from '@/queries/organizations/resellers'
 import { useI18n } from 'vue-i18n'
 import { getExport } from '@/lib/organizations/resellers'
@@ -80,15 +80,11 @@ async function exportResellers(format: 'pdf' | 'csv') {
       <div class="max-w-2xl text-gray-500 dark:text-gray-400">
         {{ $t('resellers.page_description') }}
       </div>
-      <div
-        v-if="!(state.status === 'success' && !resellersPage?.length && areDefaultFiltersApplied)"
-        class="flex flex-row-reverse items-center gap-4 xl:flex-row"
-      >
+      <div class="flex flex-row-reverse items-center gap-4 xl:flex-row">
         <NeDropdown
           :items="getBulkActionsMenuItems()"
           align-to-right
           :openMenuAriaLabel="$t('ne_dropdown.open_menu')"
-          v-if="canReadResellers()"
         >
           <template #button>
             <NeButton>
@@ -104,7 +100,7 @@ async function exportResellers(format: 'pdf' | 'csv') {
         </NeDropdown>
         <!-- create reseller -->
         <NeButton
-          v-if="canManageResellers() && (resellersPage?.length || debouncedTextFilter)"
+          v-if="canManageResellers()"
           kind="primary"
           size="lg"
           class="shrink-0"

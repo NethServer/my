@@ -14,7 +14,7 @@ import {
   faFilePdf,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { canManageCustomers, canReadCustomers } from '@/lib/permissions'
+import { canManageCustomers } from '@/lib/permissions'
 import { useCustomers } from '@/queries/organizations/customers'
 import { useI18n } from 'vue-i18n'
 import { getExport } from '@/lib/organizations/customers'
@@ -80,15 +80,11 @@ async function exportCustomers(format: 'pdf' | 'csv') {
       <div class="max-w-2xl text-gray-500 dark:text-gray-400">
         {{ $t('customers.page_description') }}
       </div>
-      <div
-        v-if="!(state.status === 'success' && !customersPage?.length && areDefaultFiltersApplied)"
-        class="flex flex-row-reverse items-center gap-4 xl:flex-row"
-      >
+      <div class="flex flex-row-reverse items-center gap-4 xl:flex-row">
         <NeDropdown
           :items="getBulkActionsMenuItems()"
           align-to-right
           :openMenuAriaLabel="$t('ne_dropdown.open_menu')"
-          v-if="canReadCustomers()"
         >
           <template #button>
             <NeButton>
@@ -104,7 +100,7 @@ async function exportCustomers(format: 'pdf' | 'csv') {
         </NeDropdown>
         <!-- create customer -->
         <NeButton
-          v-if="canManageCustomers() && (customersPage?.length || debouncedTextFilter)"
+          v-if="canManageCustomers()"
           kind="primary"
           size="lg"
           class="shrink-0"

@@ -80,17 +80,11 @@ async function exportDistributors(format: 'pdf' | 'csv') {
       <div class="max-w-2xl text-gray-500 dark:text-gray-400">
         {{ $t('distributors.page_description') }}
       </div>
-      <div
-        v-if="
-          !(state.status === 'success' && !distributorsPage?.length && areDefaultFiltersApplied)
-        "
-        class="flex flex-row-reverse items-center gap-4 xl:flex-row"
-      >
+      <div class="flex flex-row-reverse items-center gap-4 xl:flex-row">
         <NeDropdown
           :items="getBulkActionsMenuItems()"
           align-to-right
           :openMenuAriaLabel="$t('ne_dropdown.open_menu')"
-          v-if="canReadDistributors()"
         >
           >
           <template #button>
@@ -107,7 +101,7 @@ async function exportDistributors(format: 'pdf' | 'csv') {
         </NeDropdown>
         <!-- create distributor -->
         <NeButton
-          v-if="canManageDistributors() && (distributorsPage?.length || debouncedTextFilter)"
+          v-if="canManageDistributors()"
           kind="primary"
           size="lg"
           class="shrink-0"
