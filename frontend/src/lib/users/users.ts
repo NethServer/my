@@ -158,6 +158,14 @@ export const deleteUser = (user: User) => {
   })
 }
 
+export const destroyUser = (user: User) => {
+  const loginStore = useLoginStore()
+
+  return axios.delete(`${API_URL}/users/${user.logto_id}/destroy`, {
+    headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+  })
+}
+
 //// add typing
 export const getUsersTotal = () => {
   const loginStore = useLoginStore()
