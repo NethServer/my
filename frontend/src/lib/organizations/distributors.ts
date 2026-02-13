@@ -40,14 +40,23 @@ export const CreateDistributorSchema = v.object({
   }),
 })
 
-export const DistributorSchema = v.object({
+export const EditDistributorSchema = v.object({
   ...CreateDistributorSchema.entries,
   logto_id: v.string(),
+})
+
+export const DistributorSchema = v.object({
+  ...CreateDistributorSchema.entries,
+  ...EditDistributorSchema.entries,
   suspended_at: v.optional(v.string()),
   deleted_at: v.optional(v.string()),
+  systems_count: v.number(),
+  resellers_count: v.number(),
+  customers_count: v.number(),
 })
 
 export type CreateDistributor = v.InferOutput<typeof CreateDistributorSchema>
+export type EditDistributor = v.InferOutput<typeof EditDistributorSchema>
 export type Distributor = v.InferOutput<typeof DistributorSchema>
 
 interface DistributorsResponse {
@@ -117,7 +126,7 @@ export const postDistributor = (distributor: CreateDistributor) => {
   })
 }
 
-export const putDistributor = (distributor: Distributor) => {
+export const putDistributor = (distributor: EditDistributor) => {
   const loginStore = useLoginStore()
 
   return axios.put(`${API_URL}/distributors/${distributor.logto_id}`, distributor, {
@@ -129,6 +138,14 @@ export const deleteDistributor = (distributor: Distributor) => {
   const loginStore = useLoginStore()
 
   return axios.delete(`${API_URL}/distributors/${distributor.logto_id}`, {
+    headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+  })
+}
+
+export const destroyDistributor = (distributor: Distributor) => {
+  const loginStore = useLoginStore()
+
+  return axios.delete(`${API_URL}/distributors/${distributor.logto_id}/destroy`, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }

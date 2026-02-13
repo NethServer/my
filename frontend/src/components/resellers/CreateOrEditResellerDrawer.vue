@@ -20,11 +20,12 @@ import {
   CreateResellerSchema,
   RESELLERS_KEY,
   RESELLERS_TOTAL_KEY,
-  ResellerSchema,
+  EditResellerSchema,
   postReseller,
   putReseller,
   type CreateReseller,
   type Reseller,
+  type EditReseller,
 } from '@/lib/organizations/resellers'
 import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
@@ -87,7 +88,7 @@ const {
   reset: editResellerReset,
   error: editResellerError,
 } = useMutation({
-  mutation: (reseller: Reseller) => {
+  mutation: (reseller: EditReseller) => {
     return putReseller(reseller)
   },
   onSuccess(data, vars) {
@@ -225,9 +226,9 @@ function validateCreate(reseller: CreateReseller): boolean {
   }
 }
 
-function validateEdit(reseller: Reseller): boolean {
+function validateEdit(reseller: EditReseller): boolean {
   validationIssues.value = {}
-  const validation = v.safeParse(ResellerSchema, reseller)
+  const validation = v.safeParse(EditResellerSchema, reseller)
 
   if (validation.success) {
     // no validation issues
@@ -276,7 +277,7 @@ async function saveReseller() {
   if (currentReseller?.logto_id) {
     // editing reseller
 
-    const resellerToEdit: Reseller = {
+    const resellerToEdit: EditReseller = {
       ...reseller,
       logto_id: currentReseller.logto_id,
     }
@@ -290,7 +291,6 @@ async function saveReseller() {
     // creating reseller
 
     const resellerToCreate: CreateReseller = reseller
-
     const isValidationOk = validateCreate(resellerToCreate)
     if (!isValidationOk) {
       return
