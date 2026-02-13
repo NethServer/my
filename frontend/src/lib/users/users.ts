@@ -22,7 +22,10 @@ export const CreateUserSchema = v.object({
       v.pipe(v.string(), v.regex(/^\+?[\d\s\-\(\)]{7,20}$/, 'users.phone_invalid_format')),
     ]),
   ),
-  user_role_ids: v.optional(v.array(v.string())),
+  user_role_ids: v.pipe(
+    v.array(v.string()),
+    v.minLength(1, 'users.user_role_ids_at_least_one_role_is_required'),
+  ),
   organization_id: v.pipe(v.string(), v.nonEmpty('users.organization_required')),
   custom_data: v.optional(v.record(v.string(), v.string())), //// use correct types
 })
