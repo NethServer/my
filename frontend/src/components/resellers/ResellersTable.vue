@@ -14,6 +14,7 @@ import {
   faCirclePlay,
   faCircleCheck,
   faRotateLeft,
+  faBomb,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -42,9 +43,10 @@ import DeleteResellerModal from './DeleteResellerModal.vue'
 import SuspendResellerModal from './SuspendResellerModal.vue'
 import ReactivateResellerModal from './ReactivateResellerModal.vue'
 import RestoreResellerModal from './RestoreResellerModal.vue'
+import DestroyResellerModal from './DestroyResellerModal.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useResellers } from '@/queries/organizations/resellers'
-import { canManageResellers } from '@/lib/permissions'
+import { canManageResellers, canDestroyResellers } from '@/lib/permissions'
 
 const { isShownCreateResellerDrawer = false } = defineProps<{
   isShownCreateResellerDrawer: boolean
@@ -71,6 +73,7 @@ const isShownDeleteResellerDrawer = ref(false)
 const isShownSuspendResellerModal = ref(false)
 const isShownReactivateResellerModal = ref(false)
 const isShownRestoreResellerModal = ref(false)
+const isShownDestroyResellerModal = ref(false)
 
 const statusFilterOptions = ref<FilterOption[]>([
   {
@@ -160,6 +163,11 @@ function showReactivateResellerModal(reseller: Reseller) {
   isShownReactivateResellerModal.value = true
 }
 
+function showDestroyResellerModal(reseller: Reseller) {
+  currentReseller.value = reseller
+  isShownDestroyResellerModal.value = true
+}
+
 function onCloseDrawer() {
   isShownCreateOrEditResellerDrawer.value = false
   emit('close-drawer')
@@ -212,6 +220,17 @@ function getKebabMenuItems(reseller: Reseller) {
         disabled: asyncStatus.value === 'loading',
       })
     }
+  }
+
+  if (canDestroyResellers()) {
+    items.push({
+      id: 'destroyReseller',
+      label: t('common.destroy'),
+      icon: faBomb,
+      danger: true,
+      action: () => showDestroyResellerModal(reseller),
+      disabled: asyncStatus.value === 'loading',
+    })
   }
   return items
 }
@@ -439,6 +458,12 @@ const onSort = (payload: SortEvent) => {
       :visible="isShownRestoreResellerModal"
       :reseller="currentReseller"
       @close="isShownRestoreResellerModal = false"
+    />
+    <!-- destroy reseller modal -->
+    <DestroyResellerModal
+      :visible="isShownDestroyResellerModal"
+      :reseller="currentReseller"
+      @close="isShownDestroyResellerModal = false"
     />
   </div>
 </template>

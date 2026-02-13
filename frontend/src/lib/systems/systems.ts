@@ -253,6 +253,14 @@ export const deleteSystem = (system: System) => {
   })
 }
 
+export const destroySystem = (system: System) => {
+  const loginStore = useLoginStore()
+
+  return axios.delete(`${API_URL}/systems/${system.id}/destroy`, {
+    headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+  })
+}
+
 export const restoreSystem = (system: System) => {
   const loginStore = useLoginStore()
 
