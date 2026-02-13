@@ -19,6 +19,7 @@ import {
   faRotateLeft,
   faCirclePause,
   faCirclePlay,
+  faBomb,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -45,7 +46,7 @@ import {
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
-import { canManageSystems } from '@/lib/permissions'
+import { canManageSystems, canDestroySystems } from '@/lib/permissions'
 import { useSystems } from '@/queries/systems/systems'
 import {
   exportSystem,
@@ -70,6 +71,7 @@ import ClickToCopy from '../ClickToCopy.vue'
 import RestoreSystemModal from './RestoreSystemModal.vue'
 import SuspendSystemModal from './SuspendSystemModal.vue'
 import ReactivateSystemModal from './ReactivateSystemModal.vue'
+import DestroySystemModal from './DestroySystemModal.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -108,6 +110,7 @@ const isShownRegenerateSecretModal = ref(false)
 const isShownSecretRegeneratedModal = ref(false)
 const isShownSuspendSystemModal = ref(false)
 const isShownReactivateSystemModal = ref(false)
+const isShownDestroySystemModal = ref(false)
 const newSecret = ref<string>('')
 
 const statusFilterOptions = ref<FilterOption[]>([
@@ -267,6 +270,11 @@ function showReactivateSystemModal(system: System) {
   isShownReactivateSystemModal.value = true
 }
 
+function showDestroySystemModal(system: System) {
+  currentSystem.value = system
+  isShownDestroySystemModal.value = true
+}
+
 function onCloseDrawer() {
   isShownCreateOrEditSystemDrawer.value = false
   emit('close-drawer')
@@ -358,6 +366,19 @@ function getKebabMenuItems(system: System) {
     })
   }
 
+  if (canDestroySystems()) {
+    items = [
+      ...items,
+      {
+        id: 'destroySystem',
+        label: t('common.destroy'),
+        icon: faBomb,
+        danger: true,
+        action: () => showDestroySystemModal(system),
+        disabled: asyncStatus.value === 'loading',
+      },
+    ]
+  }
   return items
 }
 
@@ -766,6 +787,12 @@ function onCloseSecretRegeneratedModal() {
       :visible="isShownReactivateSystemModal"
       :system="currentSystem"
       @close="isShownReactivateSystemModal = false"
+    />
+    <!-- destroy system modal -->
+    <DestroySystemModal
+      :visible="isShownDestroySystemModal"
+      :system="currentSystem"
+      @close="isShownDestroySystemModal = false"
     />
     <!-- regenerate secret modal -->
     <RegenerateSecretModal

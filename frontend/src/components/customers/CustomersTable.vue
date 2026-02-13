@@ -14,6 +14,7 @@ import {
   faCirclePlay,
   faCircleCheck,
   faRotateLeft,
+  faBomb,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -42,9 +43,10 @@ import DeleteCustomerModal from './DeleteCustomerModal.vue'
 import SuspendCustomerModal from './SuspendCustomerModal.vue'
 import ReactivateCustomerModal from './ReactivateCustomerModal.vue'
 import RestoreCustomerModal from './RestoreCustomerModal.vue'
+import DestroyCustomerModal from './DestroyCustomerModal.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useCustomers } from '@/queries/organizations/customers'
-import { canManageCustomers } from '@/lib/permissions'
+import { canManageCustomers, canDestroyCustomers } from '@/lib/permissions'
 
 const { isShownCreateCustomerDrawer = false } = defineProps<{
   isShownCreateCustomerDrawer: boolean
@@ -71,6 +73,7 @@ const isShownDeleteCustomerDrawer = ref(false)
 const isShownSuspendCustomerModal = ref(false)
 const isShownReactivateCustomerModal = ref(false)
 const isShownRestoreCustomerModal = ref(false)
+const isShownDestroyCustomerModal = ref(false)
 
 const statusFilterOptions = ref<FilterOption[]>([
   {
@@ -160,6 +163,11 @@ function showReactivateCustomerModal(customer: Customer) {
   isShownReactivateCustomerModal.value = true
 }
 
+function showDestroyCustomerModal(customer: Customer) {
+  currentCustomer.value = customer
+  isShownDestroyCustomerModal.value = true
+}
+
 function onCloseDrawer() {
   isShownCreateOrEditCustomerDrawer.value = false
   emit('close-drawer')
@@ -212,6 +220,17 @@ function getKebabMenuItems(customer: Customer) {
         disabled: asyncStatus.value === 'loading',
       })
     }
+  }
+
+  if (canDestroyCustomers()) {
+    items.push({
+      id: 'destroyCustomer',
+      label: t('common.destroy'),
+      icon: faBomb,
+      danger: true,
+      action: () => showDestroyCustomerModal(customer),
+      disabled: asyncStatus.value === 'loading',
+    })
   }
   return items
 }
@@ -437,6 +456,12 @@ const onSort = (payload: SortEvent) => {
       :visible="isShownRestoreCustomerModal"
       :customer="currentCustomer"
       @close="isShownRestoreCustomerModal = false"
+    />
+    <!-- destroy customer modal -->
+    <DestroyCustomerModal
+      :visible="isShownDestroyCustomerModal"
+      :customer="currentCustomer"
+      @close="isShownDestroyCustomerModal = false"
     />
   </div>
 </template>

@@ -234,6 +234,7 @@
     "destroy_user_confirmation": "Are you sure you want to destroy user {name}? This action cannot be undone.",
     "archive_user_confirmation": "Are you sure you want to archive user {name}?",
     "cannot_archive_user": "Cannot archive user",
+    "cannot_destroy_user": "Cannot destroy user",
     "no_user": "No users",
     "phone_number": "Phone number",
     "no_organizations": "No organizations",
@@ -472,7 +473,11 @@
     "system_reactivated": "System reactivated",
     "system_reactivated_successfully": "{name} reactivated successfully",
     "reactivate_system_confirmation": "Are you sure you want to reactivate {name}? The system will be able to receive updates and support again.",
-    "cannot_archive_system": "Cannot archive system"
+    "cannot_archive_system": "Cannot archive system",
+    "destroy_system": "Destroy system",
+    "destroy_system_confirmation": "Are you sure you want to destroy system {name}? This action cannot be undone.",
+    "system_destroyed": "System destroyed",
+    "cannot_destroy_system": "Cannot destroy system"
   },
   "system_detail": {
     "title": "System detail",

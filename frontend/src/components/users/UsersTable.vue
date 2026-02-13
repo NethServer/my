@@ -16,6 +16,7 @@ import {
   faCirclePlay,
   faCircleCheck,
   faRotateLeft,
+  faBomb,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -44,11 +45,12 @@ import { computed, ref, watch } from 'vue'
 import CreateOrEditUserDrawer from './CreateOrEditUserDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteUserModal from './DeleteUserModal.vue'
+import DestroyUserModal from './DestroyUserModal.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import ResetPasswordModal from './ResetPasswordModal.vue'
 import PasswordChangedModal from './PasswordChangedModal.vue'
 import { useUsers } from '@/queries/users/users'
-import { canManageUsers, canImpersonateUsers } from '@/lib/permissions'
+import { canManageUsers, canImpersonateUsers, canDestroyUsers } from '@/lib/permissions'
 import { useLoginStore } from '@/stores/login'
 import ImpersonateUserModal from './ImpersonateUserModal.vue'
 import SuspendUserModal from './SuspendUserModal.vue'
@@ -98,6 +100,7 @@ const isShownImpersonateUserModal = ref(false)
 const isShownSuspendUserModal = ref(false)
 const isShownReactivateUserModal = ref(false)
 const isShownRestoreUserModal = ref(false)
+const isShownDestroyUserModal = ref(false)
 const newPassword = ref<string>('')
 const isImpersonating = ref(false)
 
@@ -227,6 +230,11 @@ function showRestoreUserModal(user: User) {
   isShownRestoreUserModal.value = true
 }
 
+function showDestroyUserModal(user: User) {
+  currentUser.value = user
+  isShownDestroyUserModal.value = true
+}
+
 function showImpersonateUserModal(user: User) {
   currentUser.value = user
   isShownImpersonateUserModal.value = true
@@ -323,6 +331,20 @@ function getKebabMenuItems(user: User) {
         },
       ]
     }
+  }
+
+  if (canDestroyUsers()) {
+    items = [
+      ...items,
+      {
+        id: 'destroyUser',
+        label: t('common.destroy'),
+        icon: faBomb,
+        danger: true,
+        action: () => showDestroyUserModal(user),
+        disabled: asyncStatus.value === 'loading',
+      },
+    ]
   }
   return items
 }
@@ -644,6 +666,12 @@ const onClosePasswordChangedModal = () => {
       :user="currentUser"
       :new-password="newPassword"
       @close="onClosePasswordChangedModal"
+    />
+    <!-- destroy user modal -->
+    <DestroyUserModal
+      :visible="isShownDestroyUserModal"
+      :user="currentUser"
+      @close="isShownDestroyUserModal = false"
     />
   </div>
 </template>
