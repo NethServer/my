@@ -4,12 +4,15 @@
 -->
 
 <script setup lang="ts">
-import { NeInlineNotification } from '@nethesis/vue-components'
-import { NeModal } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
-import { deleteDistributor, DISTRIBUTORS_KEY, type Distributor } from '@/lib/distributors'
+import {
+  deleteDistributor,
+  DISTRIBUTORS_KEY,
+  type Distributor,
+} from '@/lib/organizations/distributors'
 import { useNotificationsStore } from '@/stores/notifications'
+import DeleteObjectModal from '../DeleteObjectModal.vue'
 
 const { visible = false, distributor = undefined } = defineProps<{
   visible: boolean
@@ -36,8 +39,8 @@ const {
     setTimeout(() => {
       notificationsStore.createNotification({
         kind: 'success',
-        title: t('distributors.distributor_deleted'),
-        description: t('common.object_deleted_successfully', {
+        title: t('distributors.distributor_archived'),
+        description: t('common.object_archived_successfully', {
           name: vars.name,
         }),
       })
@@ -58,29 +61,19 @@ function onShow() {
 </script>
 
 <template>
-  <NeModal
+  <DeleteObjectModal
     :visible="visible"
-    :title="$t('distributors.delete_distributor')"
-    kind="warning"
-    :primary-label="$t('common.delete')"
-    :cancel-label="$t('common.cancel')"
-    primary-button-kind="danger"
-    :primary-button-disabled="deleteDistributorLoading"
-    :primary-button-loading="deleteDistributorLoading"
-    :close-aria-label="$t('common.close')"
+    :title="$t('distributors.archive_distributor')"
+    :primary-label="$t('common.archive')"
+    :deleting="deleteDistributorLoading"
+    :confirmation-message="
+      t('distributors.archive_distributor_confirmation', { name: distributor?.name })
+    "
+    :confirmation-input="distributor?.name"
+    :error-title="t('organizations.cannot_archive_organization')"
+    :error-description="deleteDistributorError?.message"
+    @show="onShow"
     @close="emit('close')"
     @primary-click="deleteDistributorMutate(distributor!)"
-    @show="onShow"
-  >
-    <p>
-      {{ t('distributors.delete_distributor_confirmation', { name: distributor?.name }) }}
-    </p>
-    <NeInlineNotification
-      v-if="deleteDistributorError?.message"
-      kind="error"
-      :title="t('distributors.cannot_delete_distributor')"
-      :description="deleteDistributorError.message"
-      class="mt-4"
-    />
-  </NeModal>
+  />
 </template>
