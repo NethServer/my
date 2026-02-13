@@ -15,6 +15,8 @@ import {
   faCircleCheck,
   faRotateLeft,
   faBomb,
+  faServer,
+  faBuilding,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -339,6 +341,8 @@ const onSort = (payload: SortEvent) => {
         <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
           $t('organizations.name')
         }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('customers.title') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('resellers.total_systems') }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
           $t('common.status')
         }}</NeTableHeadCell>
@@ -350,6 +354,26 @@ const onSort = (payload: SortEvent) => {
         <NeTableRow v-for="(item, index) in resellersPage" :key="index">
           <NeTableCell :data-label="$t('organizations.name')">
             {{ item.name }}
+          </NeTableCell>
+          <NeTableCell :data-label="$t('customers.title')">
+            <div class="flex items-center gap-2">
+              <FontAwesomeIcon
+                :icon="faBuilding"
+                class="size-4 text-gray-700 dark:text-gray-400"
+                aria-hidden="true"
+              />
+              {{ item.customers_count }}
+            </div>
+          </NeTableCell>
+          <NeTableCell :data-label="$t('resellers.total_systems')">
+            <div class="flex items-center gap-2">
+              <FontAwesomeIcon
+                :icon="faServer"
+                class="size-4 text-gray-700 dark:text-gray-400"
+                aria-hidden="true"
+              />
+              {{ item.systems_count }}
+            </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.status')">
             <div class="flex items-center gap-2">
