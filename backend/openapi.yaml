@@ -541,6 +541,7 @@ components:
           type: array
           items:
             type: string
+          minItems: 1
           description: User role IDs to assign
           example: ["rol_abc123def456", "rol_xyz789abc123"]
         organization_id:
@@ -570,6 +571,7 @@ components:
           type: array
           items:
             type: string
+          minItems: 1
           description: User role IDs to assign
           example: ["rol_new_role_id_here", "rol_another_id"]
         phone:
