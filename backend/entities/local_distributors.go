@@ -275,7 +275,7 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 
 	if search != "" {
 		// With search
-		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM distributors WHERE 1=1%s%s AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%'))`, deletedClause, statusClause)
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM distributors WHERE 1=1%s%s AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(custom_data) AS kv(key, value) WHERE kv.key != 'createdBy' AND LOWER(kv.value) LIKE LOWER('%%' || $1 || '%%')))`, deletedClause, statusClause)
 		countArgs = []interface{}{search}
 
 		query = fmt.Sprintf(`
@@ -287,7 +287,7 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 			           SELECT 1 FROM resellers r WHERE r.logto_id = c.custom_data->>'createdBy' AND r.custom_data->>'createdBy' = d.logto_id AND r.deleted_at IS NULL
 			       )) as customers_count
 			FROM distributors d
-			WHERE 1=1%s%s AND (LOWER(d.name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(d.description) LIKE LOWER('%%' || $1 || '%%'))
+			WHERE 1=1%s%s AND (LOWER(d.name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(d.description) LIKE LOWER('%%' || $1 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(d.custom_data) AS kv(key, value) WHERE kv.key != 'createdBy' AND LOWER(kv.value) LIKE LOWER('%%' || $1 || '%%')))
 			%s
 			LIMIT $2 OFFSET $3
 		`, deletedClause, statusClause, orderClause)

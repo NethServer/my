@@ -2006,7 +2006,7 @@ components:
     SearchParam:
       name: search
       in: query
-      description: Search term
+      description: Search term. For organizations (distributors, resellers, customers), searches across name, description, and all custom_data fields (vat, address, city, contact, email, phone, language, notes, etc.)
       required: false
       schema:
         type: string
