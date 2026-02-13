@@ -20,11 +20,12 @@ import {
   CreateCustomerSchema,
   CUSTOMERS_KEY,
   CUSTOMERS_TOTAL_KEY,
-  CustomerSchema,
+  EditCustomerSchema,
   postCustomer,
   putCustomer,
   type CreateCustomer,
   type Customer,
+  type EditCustomer,
 } from '@/lib/organizations/customers'
 import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
@@ -87,7 +88,7 @@ const {
   reset: editCustomerReset,
   error: editCustomerError,
 } = useMutation({
-  mutation: (customer: Customer) => {
+  mutation: (customer: EditCustomer) => {
     return putCustomer(customer)
   },
   onSuccess(data, vars) {
@@ -225,9 +226,9 @@ function validateCreate(customer: CreateCustomer): boolean {
   }
 }
 
-function validateEdit(customer: Customer): boolean {
+function validateEdit(customer: EditCustomer): boolean {
   validationIssues.value = {}
-  const validation = v.safeParse(CustomerSchema, customer)
+  const validation = v.safeParse(EditCustomerSchema, customer)
 
   if (validation.success) {
     // no validation issues
@@ -276,7 +277,7 @@ async function saveCustomer() {
   if (currentCustomer?.logto_id) {
     // editing customer
 
-    const customerToEdit: Customer = {
+    const customerToEdit: EditCustomer = {
       ...customer,
       logto_id: currentCustomer.logto_id,
     }
