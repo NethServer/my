@@ -16,6 +16,11 @@ export const SHOW_UNASSIGNED_APPS_NOTIFICATION = 'showUnassignedAppsNotification
 
 export type ApplicationStatus = 'online' | 'offline' | 'unknown' | 'deleted'
 
+const applicationLogos = import.meta.glob('../../assets/application_logos/*.svg', {
+  eager: true,
+  import: 'default',
+}) as Record<string, string>
+
 export const ApplicationSchema = v.object({
   id: v.string(),
   module_id: v.string(),
@@ -120,11 +125,10 @@ export const getDisplayName = (app: Application) => {
 }
 
 export const getApplicationLogo = (appId: string) => {
-  try {
-    return new URL(`../../assets/application_logos/${appId}.svg`, import.meta.url).href
-  } catch {
-    return undefined
-  }
+  return (
+    applicationLogos[`../../assets/application_logos/${appId}.svg`] ??
+    new URL(`../../assets/system_logos/nethserver.svg`, import.meta.url).href
+  )
 }
 
 export const saveShowUnassignedAppsNotificationToStorage = (show: boolean) => {
