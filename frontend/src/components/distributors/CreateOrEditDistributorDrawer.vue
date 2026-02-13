@@ -20,11 +20,12 @@ import {
   CreateDistributorSchema,
   DISTRIBUTORS_KEY,
   DISTRIBUTORS_TOTAL_KEY,
-  DistributorSchema,
+  EditDistributorSchema,
   postDistributor,
   putDistributor,
   type CreateDistributor,
   type Distributor,
+  type EditDistributor,
 } from '@/lib/organizations/distributors'
 import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
@@ -87,7 +88,7 @@ const {
   reset: editDistributorReset,
   error: editDistributorError,
 } = useMutation({
-  mutation: (distributor: Distributor) => {
+  mutation: (distributor: EditDistributor) => {
     return putDistributor(distributor)
   },
   onSuccess(data, vars) {
@@ -227,9 +228,9 @@ function validateCreate(distributor: CreateDistributor): boolean {
   }
 }
 
-function validateEdit(distributor: Distributor): boolean {
+function validateEdit(distributor: EditDistributor): boolean {
   validationIssues.value = {}
-  const validation = v.safeParse(DistributorSchema, distributor)
+  const validation = v.safeParse(EditDistributorSchema, distributor)
 
   if (validation.success) {
     // no validation issues
@@ -278,7 +279,7 @@ async function saveDistributor() {
   if (currentDistributor?.logto_id) {
     // editing distributor
 
-    const distributorToEdit: Distributor = {
+    const distributorToEdit: EditDistributor = {
       ...distributor,
       logto_id: currentDistributor.logto_id,
     }

@@ -14,6 +14,10 @@ import {
   faCirclePlay,
   faCircleCheck,
   faRotateLeft,
+  faBomb,
+  faServer,
+  faCity,
+  faBuilding,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -42,9 +46,10 @@ import DeleteDistributorModal from './DeleteDistributorModal.vue'
 import SuspendDistributorModal from './SuspendDistributorModal.vue'
 import ReactivateDistributorModal from './ReactivateDistributorModal.vue'
 import RestoreDistributorModal from './RestoreDistributorModal.vue'
+import DestroyDistributorModal from './DestroyDistributorModal.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useDistributors } from '@/queries/organizations/distributors'
-import { canManageDistributors } from '@/lib/permissions'
+import { canDestroyDistributors, canManageDistributors } from '@/lib/permissions'
 
 const { isShownCreateDistributorDrawer = false } = defineProps<{
   isShownCreateDistributorDrawer: boolean
@@ -71,6 +76,7 @@ const isShownDeleteDistributorDrawer = ref(false)
 const isShownSuspendDistributorModal = ref(false)
 const isShownReactivateDistributorModal = ref(false)
 const isShownRestoreDistributorModal = ref(false)
+const isShownDestroyDistributorModal = ref(false)
 
 const statusFilterOptions = ref<FilterOption[]>([
   {
@@ -160,6 +166,11 @@ function showReactivateDistributorModal(distributor: Distributor) {
   isShownReactivateDistributorModal.value = true
 }
 
+function showDestroyDistributorModal(distributor: Distributor) {
+  currentDistributor.value = distributor
+  isShownDestroyDistributorModal.value = true
+}
+
 function onCloseDrawer() {
   isShownCreateOrEditDistributorDrawer.value = false
   emit('close-drawer')
@@ -212,6 +223,17 @@ function getKebabMenuItems(distributor: Distributor) {
         disabled: asyncStatus.value === 'loading',
       })
     }
+  }
+
+  if (canDestroyDistributors()) {
+    items.push({
+      id: 'destroyDistributor',
+      label: t('common.destroy'),
+      icon: faBomb,
+      danger: true,
+      action: () => showDestroyDistributorModal(distributor),
+      disabled: asyncStatus.value === 'loading',
+    })
   }
   return items
 }
@@ -318,6 +340,15 @@ const onSort = (payload: SortEvent) => {
         <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
           $t('organizations.name')
         }}</NeTableHeadCell>
+        <NeTableHeadCell>
+          {{ $t('systems.title') }}
+        </NeTableHeadCell>
+        <NeTableHeadCell>
+          {{ $t('resellers.title') }}
+        </NeTableHeadCell>
+        <NeTableHeadCell>
+          {{ $t('customers.title') }}
+        </NeTableHeadCell>
         <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
           $t('common.status')
         }}</NeTableHeadCell>
@@ -329,6 +360,36 @@ const onSort = (payload: SortEvent) => {
         <NeTableRow v-for="(item, index) in distributorsPage" :key="index">
           <NeTableCell :data-label="$t('organizations.name')">
             {{ item.name }}
+          </NeTableCell>
+          <NeTableCell :data-label="$t('systems.title')">
+            <div class="flex items-center gap-2">
+              <FontAwesomeIcon
+                :icon="faServer"
+                class="size-4 text-gray-700 dark:text-gray-400"
+                aria-hidden="true"
+              />
+              {{ item.systems_count }}
+            </div>
+          </NeTableCell>
+          <NeTableCell :data-label="$t('resellers.title')">
+            <div class="flex items-center gap-2">
+              <FontAwesomeIcon
+                :icon="faCity"
+                class="size-4 text-gray-700 dark:text-gray-400"
+                aria-hidden="true"
+              />
+              {{ item.resellers_count }}
+            </div>
+          </NeTableCell>
+          <NeTableCell :data-label="$t('customers.title')">
+            <div class="flex items-center gap-2">
+              <FontAwesomeIcon
+                :icon="faBuilding"
+                class="size-4 text-gray-700 dark:text-gray-400"
+                aria-hidden="true"
+              />
+              {{ item.customers_count }}
+            </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.status')">
             <div class="flex items-center gap-2">
@@ -365,9 +426,12 @@ const onSort = (payload: SortEvent) => {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div v-if="canManageDistributors()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+            <div
+              v-if="canManageDistributors() || canDestroyDistributors()"
+              class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end"
+            >
               <NeButton
-                v-if="!item.deleted_at"
+                v-if="canManageDistributors() && !item.deleted_at"
                 kind="tertiary"
                 @click="showEditDistributorDrawer(item)"
                 :disabled="asyncStatus === 'loading'"
@@ -437,6 +501,12 @@ const onSort = (payload: SortEvent) => {
       :visible="isShownRestoreDistributorModal"
       :distributor="currentDistributor"
       @close="isShownRestoreDistributorModal = false"
+    />
+    <!-- destroy distributor modal -->
+    <DestroyDistributorModal
+      :visible="isShownDestroyDistributorModal"
+      :distributor="currentDistributor"
+      @close="isShownDestroyDistributorModal = false"
     />
   </div>
 </template>

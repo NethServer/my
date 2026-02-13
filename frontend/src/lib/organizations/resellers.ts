@@ -40,14 +40,22 @@ export const CreateResellerSchema = v.object({
   }),
 })
 
-export const ResellerSchema = v.object({
+export const EditResellerSchema = v.object({
   ...CreateResellerSchema.entries,
   logto_id: v.string(),
+})
+
+export const ResellerSchema = v.object({
+  ...CreateResellerSchema.entries,
+  ...EditResellerSchema.entries,
   suspended_at: v.optional(v.string()),
   deleted_at: v.optional(v.string()),
+  systems_count: v.number(),
+  customers_count: v.number(),
 })
 
 export type CreateReseller = v.InferOutput<typeof CreateResellerSchema>
+export type EditReseller = v.InferOutput<typeof EditResellerSchema>
 export type Reseller = v.InferOutput<typeof ResellerSchema>
 
 interface ResellersResponse {
@@ -118,7 +126,7 @@ export const postReseller = (reseller: CreateReseller) => {
   })
 }
 
-export const putReseller = (reseller: Reseller) => {
+export const putReseller = (reseller: EditReseller) => {
   const loginStore = useLoginStore()
 
   return axios.put(`${API_URL}/resellers/${reseller.logto_id}`, reseller, {
@@ -130,6 +138,14 @@ export const deleteReseller = (reseller: Reseller) => {
   const loginStore = useLoginStore()
 
   return axios.delete(`${API_URL}/resellers/${reseller.logto_id}`, {
+    headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+  })
+}
+
+export const destroyReseller = (reseller: Reseller) => {
+  const loginStore = useLoginStore()
+
+  return axios.delete(`${API_URL}/resellers/${reseller.logto_id}/destroy`, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }

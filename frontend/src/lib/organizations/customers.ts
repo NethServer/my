@@ -40,14 +40,22 @@ export const CreateCustomerSchema = v.object({
   }),
 })
 
-export const CustomerSchema = v.object({
+export const EditCustomerSchema = v.object({
   ...CreateCustomerSchema.entries,
   logto_id: v.string(),
+})
+
+export const CustomerSchema = v.object({
+  ...CreateCustomerSchema.entries,
+  ...EditCustomerSchema.entries,
   suspended_at: v.optional(v.string()),
   deleted_at: v.optional(v.string()),
+  systems_count: v.number(),
+  customers_count: v.number(),
 })
 
 export type CreateCustomer = v.InferOutput<typeof CreateCustomerSchema>
+export type EditCustomer = v.InferOutput<typeof EditCustomerSchema>
 export type Customer = v.InferOutput<typeof CustomerSchema>
 
 interface CustomersResponse {
@@ -118,7 +126,7 @@ export const postCustomer = (customer: CreateCustomer) => {
   })
 }
 
-export const putCustomer = (customer: Customer) => {
+export const putCustomer = (customer: EditCustomer) => {
   const loginStore = useLoginStore()
 
   return axios.put(`${API_URL}/customers/${customer.logto_id}`, customer, {
@@ -130,6 +138,14 @@ export const deleteCustomer = (customer: Customer) => {
   const loginStore = useLoginStore()
 
   return axios.delete(`${API_URL}/customers/${customer.logto_id}`, {
+    headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+  })
+}
+
+export const destroyCustomer = (customer: Customer) => {
+  const loginStore = useLoginStore()
+
+  return axios.delete(`${API_URL}/customers/${customer.logto_id}/destroy`, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
