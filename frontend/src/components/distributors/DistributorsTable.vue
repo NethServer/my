@@ -341,13 +341,13 @@ const onSort = (payload: SortEvent) => {
           $t('organizations.name')
         }}</NeTableHeadCell>
         <NeTableHeadCell>
-          {{ $t('systems.title') }}
-        </NeTableHeadCell>
-        <NeTableHeadCell>
           {{ $t('resellers.title') }}
         </NeTableHeadCell>
         <NeTableHeadCell>
-          {{ $t('customers.title') }}
+          {{ $t('distributors.total_customers') }}
+        </NeTableHeadCell>
+        <NeTableHeadCell>
+          {{ $t('distributors.total_systems') }}
         </NeTableHeadCell>
         <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
           $t('common.status')
@@ -361,16 +361,6 @@ const onSort = (payload: SortEvent) => {
           <NeTableCell :data-label="$t('organizations.name')">
             {{ item.name }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('systems.title')">
-            <div class="flex items-center gap-2">
-              <FontAwesomeIcon
-                :icon="faServer"
-                class="size-4 text-gray-700 dark:text-gray-400"
-                aria-hidden="true"
-              />
-              {{ item.systems_count }}
-            </div>
-          </NeTableCell>
           <NeTableCell :data-label="$t('resellers.title')">
             <div class="flex items-center gap-2">
               <FontAwesomeIcon
@@ -381,7 +371,7 @@ const onSort = (payload: SortEvent) => {
               {{ item.resellers_count }}
             </div>
           </NeTableCell>
-          <NeTableCell :data-label="$t('customers.title')">
+          <NeTableCell :data-label="$t('distributors.total_customers')">
             <div class="flex items-center gap-2">
               <FontAwesomeIcon
                 :icon="faBuilding"
@@ -389,6 +379,16 @@ const onSort = (payload: SortEvent) => {
                 aria-hidden="true"
               />
               {{ item.customers_count }}
+            </div>
+          </NeTableCell>
+          <NeTableCell :data-label="$t('distributors.total_systems')">
+            <div class="flex items-center gap-2">
+              <FontAwesomeIcon
+                :icon="faServer"
+                class="size-4 text-gray-700 dark:text-gray-400"
+                aria-hidden="true"
+              />
+              {{ item.systems_count }}
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.status')">

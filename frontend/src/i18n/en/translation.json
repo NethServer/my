@@ -105,7 +105,9 @@
     "archive_distributor_confirmation": "Are you sure you want to archive distributor {name}? All users and systems associated with this organization will also be archived.",
     "no_distributor": "No distributors",
     "export_distributors_to_pdf": "Export distributors to PDF",
-    "export_distributors_to_csv": "Export distributors to CSV"
+    "export_distributors_to_csv": "Export distributors to CSV",
+    "total_customers": "Total Customers",
+    "total_systems": "Total Systems"
   },
   "resellers": {
     "title": "Resellers",
@@ -128,7 +130,8 @@
     "archive_reseller_confirmation": "Are you sure you want to archive reseller {name}? All users and systems associated with this organization will also be archived.",
     "no_reseller": "No resellers",
     "export_resellers_to_pdf": "Export resellers to PDF",
-    "export_resellers_to_csv": "Export resellers to CSV"
+    "export_resellers_to_csv": "Export resellers to CSV",
+    "total_systems": "Total Systems"
   },
   "customers": {
     "title": "Customers",
