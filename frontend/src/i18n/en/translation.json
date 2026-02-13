@@ -283,7 +283,8 @@
     "user_restored_successfully": "{name} restored successfully",
     "restore_user_confirmation": "Are you sure you want to restore {name}?",
     "export_users_to_pdf": "Export users to PDF",
-    "export_users_to_csv": "Export users to CSV"
+    "export_users_to_csv": "Export users to CSV",
+    "user_role_ids_at_least_one_role_is_required": "At least one role is required"
   },
   "third_party_apps": {
     "description_nethshop_nethesis_it": "Browse and order Nethesis products and services.",

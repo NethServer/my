@@ -408,7 +408,6 @@ function getEmailInvalidMessage(): string {
           "
           :showSelectedLabel="false"
           :disabled="allUserRoles.status === 'pending' || saving"
-          :optional="true"
           :optional-label="t('common.optional')"
           :no-results-label="t('ne_combobox.no_results')"
           :limited-options-label="t('ne_combobox.limited_options_label')"
