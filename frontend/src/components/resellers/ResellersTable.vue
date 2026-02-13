@@ -341,6 +341,7 @@ const onSort = (payload: SortEvent) => {
         <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
           $t('organizations.name')
         }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('organizations.vat_number') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('customers.title') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('resellers.total_systems') }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
@@ -354,6 +355,9 @@ const onSort = (payload: SortEvent) => {
         <NeTableRow v-for="(item, index) in resellersPage" :key="index">
           <NeTableCell :data-label="$t('organizations.name')">
             {{ item.name }}
+          </NeTableCell>
+          <NeTableCell :data-label="$t('organizations.vat_number')">
+            {{ item.custom_data?.vat || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('customers.title')">
             <div class="flex items-center gap-2">
