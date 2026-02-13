@@ -183,6 +183,9 @@ func (r *LocalApplicationRepository) List(
 		whereClause += " AND a.is_user_facing = TRUE"
 	}
 
+	// Certification level filter: only show applications with certification level 4 or 5
+	whereClause += " AND (a.inventory_data->>'certification_level')::int IN (4, 5)"
+
 	// Search condition
 	if search != "" {
 		searchPattern := "%" + search + "%"
@@ -469,6 +472,9 @@ func (r *LocalApplicationRepository) GetTotals(allowedSystemIDs []string, userFa
 		userFacingClause = " AND is_user_facing = TRUE"
 	}
 
+	// Certification level filter: only count applications with certification level 4 or 5
+	certLevelClause := " AND (inventory_data->>'certification_level')::int IN (4, 5)"
+
 	// Get main counts
 	query := fmt.Sprintf(`
 		SELECT
@@ -477,8 +483,8 @@ func (r *LocalApplicationRepository) GetTotals(allowedSystemIDs []string, userFa
 			COUNT(*) FILTER (WHERE organization_id IS NOT NULL) as assigned,
 			COUNT(*) FILTER (WHERE services_data->>'has_errors' = 'true') as with_errors
 		FROM applications
-		WHERE deleted_at IS NULL AND system_id IN (%s)%s
-	`, placeholdersStr, userFacingClause)
+		WHERE deleted_at IS NULL AND system_id IN (%s)%s%s
+	`, placeholdersStr, userFacingClause, certLevelClause)
 
 	totals := &models.ApplicationTotals{
 		ByType:   make(map[string]int64),
@@ -496,10 +502,10 @@ func (r *LocalApplicationRepository) GetTotals(allowedSystemIDs []string, userFa
 	typeQuery := fmt.Sprintf(`
 		SELECT instance_of, COUNT(*) as count
 		FROM applications
-		WHERE deleted_at IS NULL AND system_id IN (%s)%s
+		WHERE deleted_at IS NULL AND system_id IN (%s)%s%s
 		GROUP BY instance_of
 		ORDER BY count DESC
-	`, placeholdersStr, userFacingClause)
+	`, placeholdersStr, userFacingClause, certLevelClause)
 
 	typeRows, err := r.db.Query(typeQuery, args...)
 	if err != nil {
@@ -520,9 +526,9 @@ func (r *LocalApplicationRepository) GetTotals(allowedSystemIDs []string, userFa
 	statusQuery := fmt.Sprintf(`
 		SELECT status, COUNT(*) as count
 		FROM applications
-		WHERE deleted_at IS NULL AND system_id IN (%s)%s
+		WHERE deleted_at IS NULL AND system_id IN (%s)%s%s
 		GROUP BY status
-	`, placeholdersStr, userFacingClause)
+	`, placeholdersStr, userFacingClause, certLevelClause)
 
 	statusRows, err := r.db.Query(statusQuery, args...)
 	if err != nil {
@@ -593,6 +599,7 @@ func (r *LocalApplicationRepository) GetTrend(allowedSystemIDs []string, period 
 				FROM applications
 				WHERE deleted_at IS NULL
 				  AND system_id IN (%s)
+				  AND (inventory_data->>'certification_level')::int IN (4, 5)
 				  AND created_at::date <= ds.date
 			), 0) AS count
 		FROM date_series ds
@@ -655,13 +662,16 @@ func (r *LocalApplicationRepository) GetDistinctTypes(allowedSystemIDs []string,
 		userFacingClause = " AND is_user_facing = TRUE"
 	}
 
+	// Certification level filter: only count applications with certification level 4 or 5
+	certLevelClause := " AND (inventory_data->>'certification_level')::int IN (4, 5)"
+
 	query := fmt.Sprintf(`
 		SELECT instance_of, COUNT(*) as count
 		FROM applications
-		WHERE deleted_at IS NULL AND system_id IN (%s)%s
+		WHERE deleted_at IS NULL AND system_id IN (%s)%s%s
 		GROUP BY instance_of
 		ORDER BY instance_of
-	`, placeholdersStr, userFacingClause)
+	`, placeholdersStr, userFacingClause, certLevelClause)
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
@@ -706,12 +716,15 @@ func (r *LocalApplicationRepository) GetDistinctVersions(allowedSystemIDs []stri
 		userFacingClause = " AND is_user_facing = TRUE"
 	}
 
+	// Certification level filter: only include applications with certification level 4 or 5
+	certLevelClause := " AND (inventory_data->>'certification_level')::int IN (4, 5)"
+
 	query := fmt.Sprintf(`
 		SELECT DISTINCT instance_of, name, version
 		FROM applications
-		WHERE deleted_at IS NULL AND version IS NOT NULL AND system_id IN (%s)%s
+		WHERE deleted_at IS NULL AND version IS NOT NULL AND system_id IN (%s)%s%s
 		ORDER BY instance_of ASC, version DESC
-	`, placeholdersStr, userFacingClause)
+	`, placeholdersStr, userFacingClause, certLevelClause)
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {

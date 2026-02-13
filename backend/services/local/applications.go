@@ -517,11 +517,13 @@ func (s *LocalApplicationsService) GetAvailableSystems(userOrgRole, userOrgID st
 		args[i] = sysID
 	}
 
-	// Only return systems that have at least one application
+	// Only return systems that have at least one application with certification level 4 or 5
 	query := fmt.Sprintf(`
 		SELECT DISTINCT s.id, s.name FROM systems s
 		INNER JOIN applications a ON s.id = a.system_id
 		WHERE s.id IN (%s) AND s.deleted_at IS NULL
+		  AND a.deleted_at IS NULL AND a.is_user_facing = TRUE
+		  AND (a.inventory_data->>'certification_level')::int IN (4, 5)
 		ORDER BY s.name
 	`, strings.Join(placeholders, ","))
 
@@ -555,7 +557,7 @@ func (s *LocalApplicationsService) GetAvailableOrganizations(userOrgRole, userOr
 	// Check if there are applications without organization (for "No organization" option)
 	var hasUnassigned bool
 	err = database.DB.QueryRow(`
-		SELECT EXISTS(SELECT 1 FROM applications WHERE organization_id IS NULL OR organization_id = '')
+		SELECT EXISTS(SELECT 1 FROM applications WHERE (organization_id IS NULL OR organization_id = '') AND deleted_at IS NULL AND is_user_facing = TRUE AND (inventory_data->>'certification_level')::int IN (4, 5))
 	`).Scan(&hasUnassigned)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check unassigned applications: %w", err)
@@ -608,6 +610,8 @@ func (s *LocalApplicationsService) GetAvailableOrganizations(userOrgRole, userOr
 		SELECT DISTINCT o.id, o.logto_id, o.name, o.type
 		FROM all_orgs o
 		INNER JOIN applications a ON a.organization_id = o.logto_id
+		WHERE a.deleted_at IS NULL AND a.is_user_facing = TRUE
+		  AND (a.inventory_data->>'certification_level')::int IN (4, 5)
 		ORDER BY o.name
 	`, strings.Join(placeholders1, ","), strings.Join(placeholders2, ","), strings.Join(placeholders3, ","))
 
