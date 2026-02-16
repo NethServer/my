@@ -431,7 +431,7 @@ async function saveDistributor() {
           ref="notesRef"
           v-model="notes"
           @blur="notes = notes.trim()"
-          :label="$t('organizations.notes')"
+          :label="$t('common.notes')"
           :disabled="saving"
           :invalid-message="validationIssues.notes?.[0] ? $t(validationIssues.notes[0]) : ''"
           :optional="true"

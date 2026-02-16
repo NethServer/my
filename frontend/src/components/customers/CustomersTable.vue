@@ -351,14 +351,14 @@ const onSort = (payload: SortEvent) => {
       </NeTableHead>
       <NeTableBody>
         <NeTableRow v-for="(item, index) in customersPage" :key="index">
-          <NeTableCell :data-label="$t('organizations.name')">
+          <NeTableCell :data-label="$t('organizations.name')" :class="{ 'opacity-50': item.deleted_at }">
             {{ item.name }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('organizations.vat_number')">
+          <NeTableCell :data-label="$t('organizations.vat_number')" :class="{ 'opacity-50': item.deleted_at }">
             {{ item.custom_data?.vat || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.title')">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
               <FontAwesomeIcon
                 :icon="faServer"
                 class="size-4 text-gray-700 dark:text-gray-400"

@@ -18,6 +18,7 @@ import {
   faServer,
   faCity,
   faBuilding,
+  faEye,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -38,6 +39,7 @@ import {
   NeSortDropdown,
   NeDropdownFilter,
   type FilterOption,
+  type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import CreateOrEditDistributorDrawer from './CreateOrEditDistributorDrawer.vue'
@@ -50,6 +52,7 @@ import DestroyDistributorModal from './DestroyDistributorModal.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useDistributors } from '@/queries/organizations/distributors'
 import { canDestroyDistributors, canManageDistributors } from '@/lib/permissions'
+import router from '@/router'
 
 const { isShownCreateDistributorDrawer = false } = defineProps<{
   isShownCreateDistributorDrawer: boolean
@@ -177,9 +180,19 @@ function onCloseDrawer() {
 }
 
 function getKebabMenuItems(distributor: Distributor) {
-  const items = []
+  const items: NeDropdownItem[] = []
 
   if (canManageDistributors()) {
+    if (!distributor.deleted_at) {
+      items.push({
+        id: 'editDistributor',
+        label: t('common.edit'),
+        icon: faPenToSquare,
+        action: () => showEditDistributorDrawer(distributor),
+        disabled: asyncStatus.value === 'loading',
+      })
+    }
+
     if (distributor.suspended_at) {
       items.push({
         id: 'reactivateDistributor',
@@ -241,6 +254,10 @@ function getKebabMenuItems(distributor: Distributor) {
 const onSort = (payload: SortEvent) => {
   sortBy.value = payload.key as keyof Distributor
   sortDescending.value = payload.descending
+}
+
+const goToDistributorDetails = (distributor: Distributor) => {
+  router.push({ name: 'distributor_detail', params: { distributorId: distributor.logto_id } })
 }
 </script>
 
@@ -360,13 +377,19 @@ const onSort = (payload: SortEvent) => {
       <NeTableBody>
         <NeTableRow v-for="(item, index) in distributorsPage" :key="index">
           <NeTableCell :data-label="$t('organizations.name')">
-            {{ item.name }}
+            <router-link
+              :to="{ name: 'distributor_detail', params: { distributorId: item.logto_id } }"
+              class="cursor-pointer font-medium hover:underline"
+              :class="{ 'opacity-50': item.deleted_at }"
+            >
+              {{ item.name }}
+            </router-link>
           </NeTableCell>
-          <NeTableCell :data-label="$t('organizations.vat_number')">
+          <NeTableCell :data-label="$t('organizations.vat_number')" :class="{ 'opacity-50': item.deleted_at }">
             {{ item.custom_data?.vat || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('resellers.title')">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
               <FontAwesomeIcon
                 :icon="faCity"
                 class="size-4 text-gray-700 dark:text-gray-400"
@@ -376,7 +399,7 @@ const onSort = (payload: SortEvent) => {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('distributors.total_customers')">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
               <FontAwesomeIcon
                 :icon="faBuilding"
                 class="size-4 text-gray-700 dark:text-gray-400"
@@ -386,7 +409,7 @@ const onSort = (payload: SortEvent) => {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('distributors.total_systems')">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
               <FontAwesomeIcon
                 :icon="faServer"
                 class="size-4 text-gray-700 dark:text-gray-400"
@@ -430,23 +453,23 @@ const onSort = (payload: SortEvent) => {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div
-              v-if="canManageDistributors() || canDestroyDistributors()"
-              class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end"
-            >
+            <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
               <NeButton
-                v-if="canManageDistributors() && !item.deleted_at"
+                v-if="!item.deleted_at"
                 kind="tertiary"
-                @click="showEditDistributorDrawer(item)"
-                :disabled="asyncStatus === 'loading'"
+                @click="goToDistributorDetails(item)"
               >
                 <template #prefix>
-                  <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
+                  <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
                 </template>
-                {{ $t('common.edit') }}
+                {{ $t('common.view') }}
               </NeButton>
               <!-- kebab menu -->
-              <NeDropdown :items="getKebabMenuItems(item)" :align-to-right="true" />
+              <NeDropdown
+                v-if="canManageDistributors() || canDestroyDistributors()"
+                :items="getKebabMenuItems(item)"
+                :align-to-right="true"
+              />
             </div>
           </NeTableCell>
         </NeTableRow>

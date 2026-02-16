@@ -75,6 +75,11 @@ const router = createRouter({
     //   name: 'application_detail',
     //   component: () => import('../views/ApplicationDetailView.vue'),
     // },
+    {
+      path: '/distributors/:distributorId',
+      name: 'distributor_detail',
+      component: () => import('../views/DistributorDetailView.vue'),
+    },
   ],
 })
 

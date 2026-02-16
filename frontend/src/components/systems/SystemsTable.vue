@@ -589,7 +589,10 @@ function onCloseSecretRegeneratedModal() {
         <NeTableRow v-for="(item, index) in systemsPage" :key="index">
           <NeTableCell :data-label="$t('systems.name')">
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
-              <router-link :to="{ name: 'system_detail', params: { systemId: item.id } }">
+              <router-link
+                :to="{ name: 'system_detail', params: { systemId: item.id } }"
+                class="cursor-pointer font-medium hover:underline"
+              >
                 <div class="flex items-center gap-2">
                   <img
                     v-if="item.type"
@@ -598,7 +601,7 @@ function onCloseSecretRegeneratedModal() {
                     aria-hidden="true"
                     class="size-8"
                   />
-                  <span class="cursor-pointer font-medium hover:underline">
+                  <span>
                     {{ item.name || '-' }}
                   </span>
                 </div>
@@ -720,7 +723,6 @@ function onCloseSecretRegeneratedModal() {
                 v-if="item.status !== 'deleted'"
                 kind="tertiary"
                 @click="goToSystemDetails(item)"
-                :disabled="asyncStatus === 'loading' || item.status === 'deleted'"
               >
                 <template #prefix>
                   <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />

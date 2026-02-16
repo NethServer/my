@@ -364,7 +364,7 @@ function copySecretAndCloseDrawer() {
             ref="notesRef"
             v-model="notes"
             @blur="notes = notes.trim()"
-            :label="$t('systems.notes')"
+            :label="$t('common.notes')"
             :disabled="saving"
             :invalid-message="validationIssues.notes?.[0] ? $t(validationIssues.notes[0]) : ''"
             :optional="true"

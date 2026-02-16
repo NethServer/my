@@ -9,10 +9,19 @@ export const getCommonLanguagesOptions = (locale: string) => {
 
   const options = commonLanguagesIsoCodes.map((code) => ({
     id: code,
-    label: capitalize(languageNames.of(code) || code),
+    label: getLanguageLabel(code, locale, languageNames),
   }))
 
   return options.sort((a, b) => a.label.localeCompare(b.label))
+}
+
+export const getLanguageLabel = (
+  code: string,
+  locale: string,
+  displayNames?: Intl.DisplayNames,
+) => {
+  const languageNames = displayNames || new Intl.DisplayNames([locale], { type: 'language' })
+  return capitalize(languageNames.of(code) || code)
 }
 
 // List of common languages to be assigned to organizations.

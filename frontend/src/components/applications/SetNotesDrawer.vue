@@ -126,7 +126,7 @@ async function saveApplication() {
           ref="notesRef"
           v-model="notes"
           @blur="notes = notes.trim()"
-          :label="$t('applications.notes')"
+          :label="$t('common.notes')"
           :disabled="setNotesLoading"
           :invalid-message="validationIssues.notes?.[0] ? $t(validationIssues.notes[0]) : ''"
           :optional="true"
