@@ -398,6 +398,10 @@ components:
           type: integer
           description: Number of customers in the hierarchy. Only included in distributor and reseller list responses.
           example: 420
+        applications_count:
+          type: integer
+          description: Number of certified applications (certification_level 4 or 5) in the hierarchy. Only included in list responses.
+          example: 15
 
     OrganizationInput:
       type: object

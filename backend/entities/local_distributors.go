@@ -285,7 +285,20 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 			       (SELECT COUNT(*) FROM resellers r WHERE r.custom_data->>'createdBy' = d.logto_id AND r.deleted_at IS NULL) as resellers_count,
 			       (SELECT COUNT(*) FROM customers c WHERE c.deleted_at IS NULL AND EXISTS (
 			           SELECT 1 FROM resellers r WHERE r.logto_id = c.custom_data->>'createdBy' AND r.custom_data->>'createdBy' = d.logto_id AND r.deleted_at IS NULL
-			       )) as customers_count
+			       )) as customers_count,
+			       (SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND (
+			           a.organization_id = d.logto_id
+			           OR a.organization_id IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL)
+			           OR a.organization_id IN (
+			               SELECT c.logto_id FROM customers c
+			               WHERE c.deleted_at IS NULL AND EXISTS (
+			                   SELECT 1 FROM resellers r
+			                   WHERE r.logto_id = c.custom_data->>'createdBy'
+			                   AND r.custom_data->>'createdBy' = d.logto_id
+			                   AND r.deleted_at IS NULL
+			               )
+			           )
+			       )) as applications_count
 			FROM distributors d
 			WHERE 1=1%s%s AND (LOWER(d.name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(d.description) LIKE LOWER('%%' || $1 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(d.custom_data) AS kv(key, value) WHERE kv.key != 'createdBy' AND LOWER(kv.value) LIKE LOWER('%%' || $1 || '%%')))
 			%s
@@ -304,7 +317,20 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 			       (SELECT COUNT(*) FROM resellers r WHERE r.custom_data->>'createdBy' = d.logto_id AND r.deleted_at IS NULL) as resellers_count,
 			       (SELECT COUNT(*) FROM customers c WHERE c.deleted_at IS NULL AND EXISTS (
 			           SELECT 1 FROM resellers r WHERE r.logto_id = c.custom_data->>'createdBy' AND r.custom_data->>'createdBy' = d.logto_id AND r.deleted_at IS NULL
-			       )) as customers_count
+			       )) as customers_count,
+			       (SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND (
+			           a.organization_id = d.logto_id
+			           OR a.organization_id IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL)
+			           OR a.organization_id IN (
+			               SELECT c.logto_id FROM customers c
+			               WHERE c.deleted_at IS NULL AND EXISTS (
+			                   SELECT 1 FROM resellers r
+			                   WHERE r.logto_id = c.custom_data->>'createdBy'
+			                   AND r.custom_data->>'createdBy' = d.logto_id
+			                   AND r.deleted_at IS NULL
+			               )
+			           )
+			       )) as applications_count
 			FROM distributors d
 			WHERE 1=1%s%s
 			%s
@@ -338,14 +364,14 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 	for rows.Next() {
 		distributor := &models.LocalDistributor{}
 		var customDataJSON []byte
-		var systemsCount, resellersCount, customersCount int
+		var systemsCount, resellersCount, customersCount, applicationsCount int
 
 		err := rows.Scan(
 			&distributor.ID, &distributor.LogtoID, &distributor.Name, &distributor.Description,
 			&customDataJSON, &distributor.CreatedAt, &distributor.UpdatedAt,
 			&distributor.LogtoSyncedAt, &distributor.LogtoSyncError, &distributor.DeletedAt,
 			&distributor.SuspendedAt,
-			&systemsCount, &resellersCount, &customersCount,
+			&systemsCount, &resellersCount, &customersCount, &applicationsCount,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan distributor: %w", err)
@@ -363,6 +389,7 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 		distributor.SystemsCount = &systemsCount
 		distributor.ResellersCount = &resellersCount
 		distributor.CustomersCount = &customersCount
+		distributor.ApplicationsCount = &applicationsCount
 
 		distributors = append(distributors, distributor)
 	}
@@ -588,8 +615,8 @@ func (r *LocalDistributorRepository) GetStats(id string) (*models.DistributorSta
 				AND r.custom_data->>'createdBy' = $1
 				AND r.deleted_at IS NULL
 			)) as customers_count,
-			(SELECT COUNT(*) FROM applications WHERE organization_id = $1 AND deleted_at IS NULL) as applications_count,
-			(SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (
+			(SELECT COUNT(*) FROM applications WHERE organization_id = $1 AND deleted_at IS NULL AND (inventory_data->>'certification_level')::int IN (4, 5)) as applications_count,
+			(SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND (
 				a.organization_id = $1
 				OR a.organization_id IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL)
 				OR a.organization_id IN (

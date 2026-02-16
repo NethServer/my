@@ -32,9 +32,10 @@ type LocalDistributor struct {
 	RebrandingOrgID   *string `json:"rebranding_org_id,omitempty"`
 
 	// Inline stats (populated by List queries only, omitted in other responses)
-	SystemsCount   *int `json:"systems_count,omitempty"`
-	ResellersCount *int `json:"resellers_count,omitempty"`
-	CustomersCount *int `json:"customers_count,omitempty"`
+	SystemsCount      *int `json:"systems_count,omitempty"`
+	ResellersCount    *int `json:"resellers_count,omitempty"`
+	CustomersCount    *int `json:"customers_count,omitempty"`
+	ApplicationsCount *int `json:"applications_count,omitempty"`
 }
 
 // LocalReseller represents a reseller stored in local database
@@ -57,8 +58,9 @@ type LocalReseller struct {
 	RebrandingOrgID   *string `json:"rebranding_org_id,omitempty"`
 
 	// Inline stats (populated by List queries only, omitted in other responses)
-	SystemsCount   *int `json:"systems_count,omitempty"`
-	CustomersCount *int `json:"customers_count,omitempty"`
+	SystemsCount      *int `json:"systems_count,omitempty"`
+	CustomersCount    *int `json:"customers_count,omitempty"`
+	ApplicationsCount *int `json:"applications_count,omitempty"`
 }
 
 // LocalCustomer represents a customer stored in local database
@@ -81,7 +83,8 @@ type LocalCustomer struct {
 	RebrandingOrgID   *string `json:"rebranding_org_id,omitempty"`
 
 	// Inline stats (populated by List queries only, omitted in other responses)
-	SystemsCount *int `json:"systems_count,omitempty"`
+	SystemsCount      *int `json:"systems_count,omitempty"`
+	ApplicationsCount *int `json:"applications_count,omitempty"`
 }
 
 // CustomerFilters represents filters for customer queries
