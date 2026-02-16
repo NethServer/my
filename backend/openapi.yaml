@@ -386,22 +386,29 @@ components:
           nullable: true
           description: The organization ID that provides the rebranding (the org where rebranding is configured). Only present when rebranding_enabled is true.
           example: null
-        systems_count:
-          type: integer
-          description: Number of systems in this organization. Only included in list responses.
-          example: 32
-        resellers_count:
-          type: integer
-          description: Number of resellers created by this distributor. Only included in distributor list responses.
-          example: 25
-        customers_count:
-          type: integer
-          description: Number of customers in the hierarchy. Only included in distributor and reseller list responses.
-          example: 420
-        applications_count:
-          type: integer
-          description: Number of certified applications (certification_level 4 or 5) in the hierarchy. Only included in list responses.
-          example: 15
+
+    OrganizationWithStats:
+      description: Organization with inline count statistics, returned in list responses
+      allOf:
+        - $ref: '#/components/schemas/Organization'
+        - type: object
+          properties:
+            systems_count:
+              type: integer
+              description: Number of systems in this organization
+              example: 32
+            resellers_count:
+              type: integer
+              description: Number of resellers created by this distributor (distributors only)
+              example: 25
+            customers_count:
+              type: integer
+              description: Number of customers in the hierarchy (distributors and resellers only)
+              example: 420
+            applications_count:
+              type: integer
+              description: Number of certified applications (certification_level 4 or 5) in the hierarchy
+              example: 15
 
     OrganizationInput:
       type: object
@@ -838,12 +845,20 @@ components:
       properties:
         users_count:
           type: integer
-          description: Number of users in the distributor organization
+          description: Number of users directly in the distributor organization
           example: 980
+        users_hierarchy_count:
+          type: integer
+          description: Total number of users in the distributor hierarchy (distributor + resellers + customers)
+          example: 1500
         systems_count:
           type: integer
-          description: Number of systems in the distributor organization
+          description: Number of systems directly in the distributor organization
           example: 32
+        systems_hierarchy_count:
+          type: integer
+          description: Total number of systems in the distributor hierarchy (distributor + resellers + customers)
+          example: 1200
         resellers_count:
           type: integer
           description: Number of resellers created by this distributor
@@ -867,12 +882,20 @@ components:
       properties:
         users_count:
           type: integer
-          description: Number of users in the reseller organization
+          description: Number of users directly in the reseller organization
           example: 8
+        users_hierarchy_count:
+          type: integer
+          description: Total number of users in the reseller hierarchy (reseller + customers)
+          example: 45
         systems_count:
           type: integer
-          description: Number of systems in the reseller organization
+          description: Number of systems directly in the reseller organization
           example: 32
+        systems_hierarchy_count:
+          type: integer
+          description: Total number of systems in the reseller hierarchy (reseller + customers)
+          example: 180
         customers_count:
           type: integer
           description: Number of customers created by this reseller
@@ -3686,7 +3709,7 @@ paths:
                       customers:
                         type: array
                         items:
-                          $ref: '#/components/schemas/Organization'
+                          $ref: '#/components/schemas/OrganizationWithStats'
                       pagination:
                         $ref: '#/components/schemas/Pagination'
         '401':
@@ -4240,7 +4263,7 @@ paths:
                       distributors:
                         type: array
                         items:
-                          $ref: '#/components/schemas/Organization'
+                          $ref: '#/components/schemas/OrganizationWithStats'
                       pagination:
                         $ref: '#/components/schemas/Pagination'
         '401':
@@ -5133,7 +5156,7 @@ paths:
                       resellers:
                         type: array
                         items:
-                          $ref: '#/components/schemas/Organization'
+                          $ref: '#/components/schemas/OrganizationWithStats'
                       pagination:
                         $ref: '#/components/schemas/Pagination'
         '401':

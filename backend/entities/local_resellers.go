@@ -710,7 +710,9 @@ func (r *LocalResellerRepository) GetStats(id string) (*models.ResellerStats, er
 	if reseller.LogtoID == nil {
 		return &models.ResellerStats{
 			UsersCount:                 0,
+			UsersHierarchyCount:        0,
 			SystemsCount:               0,
+			SystemsHierarchyCount:      0,
 			CustomersCount:             0,
 			ApplicationsCount:          0,
 			ApplicationsHierarchyCount: 0,
@@ -721,7 +723,15 @@ func (r *LocalResellerRepository) GetStats(id string) (*models.ResellerStats, er
 	query := `
 		SELECT
 			(SELECT COUNT(*) FROM users WHERE organization_id = $1 AND deleted_at IS NULL) as users_count,
+			(SELECT COUNT(*) FROM users u WHERE u.deleted_at IS NULL AND (
+				u.organization_id = $1
+				OR u.organization_id IN (SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL)
+			)) as users_hierarchy_count,
 			(SELECT COUNT(*) FROM systems WHERE organization_id = $1 AND deleted_at IS NULL) as systems_count,
+			(SELECT COUNT(*) FROM systems s WHERE s.deleted_at IS NULL AND (
+				s.organization_id = $1
+				OR s.organization_id IN (SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL)
+			)) as systems_hierarchy_count,
 			(SELECT COUNT(*) FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL) as customers_count,
 			(SELECT COUNT(*) FROM applications WHERE organization_id = $1 AND deleted_at IS NULL AND (inventory_data->>'certification_level')::int IN (4, 5)) as applications_count,
 			(SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND (
@@ -731,7 +741,9 @@ func (r *LocalResellerRepository) GetStats(id string) (*models.ResellerStats, er
 	`
 
 	err = r.db.QueryRow(query, *reseller.LogtoID).Scan(
-		&stats.UsersCount, &stats.SystemsCount, &stats.CustomersCount,
+		&stats.UsersCount, &stats.UsersHierarchyCount,
+		&stats.SystemsCount, &stats.SystemsHierarchyCount,
+		&stats.CustomersCount,
 		&stats.ApplicationsCount, &stats.ApplicationsHierarchyCount,
 	)
 	if err != nil {

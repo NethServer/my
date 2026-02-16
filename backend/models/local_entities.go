@@ -165,7 +165,9 @@ type OrganizationStats struct {
 // DistributorStats represents statistics for a distributor (includes resellers, customers, and applications)
 type DistributorStats struct {
 	UsersCount                 int `json:"users_count"`
+	UsersHierarchyCount        int `json:"users_hierarchy_count"`
 	SystemsCount               int `json:"systems_count"`
+	SystemsHierarchyCount      int `json:"systems_hierarchy_count"`
 	ResellersCount             int `json:"resellers_count"`
 	CustomersCount             int `json:"customers_count"`
 	ApplicationsCount          int `json:"applications_count"`           // direct applications
@@ -175,7 +177,9 @@ type DistributorStats struct {
 // ResellerStats represents statistics for a reseller (includes customers and applications)
 type ResellerStats struct {
 	UsersCount                 int `json:"users_count"`
+	UsersHierarchyCount        int `json:"users_hierarchy_count"`
 	SystemsCount               int `json:"systems_count"`
+	SystemsHierarchyCount      int `json:"systems_hierarchy_count"`
 	CustomersCount             int `json:"customers_count"`
 	ApplicationsCount          int `json:"applications_count"`           // direct applications
 	ApplicationsHierarchyCount int `json:"applications_hierarchy_count"` // applications in hierarchy

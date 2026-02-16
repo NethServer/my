@@ -595,7 +595,9 @@ func (r *LocalDistributorRepository) GetStats(id string) (*models.DistributorSta
 	if distributor.LogtoID == nil {
 		return &models.DistributorStats{
 			UsersCount:                 0,
+			UsersHierarchyCount:        0,
 			SystemsCount:               0,
+			SystemsHierarchyCount:      0,
 			ResellersCount:             0,
 			CustomersCount:             0,
 			ApplicationsCount:          0,
@@ -607,7 +609,33 @@ func (r *LocalDistributorRepository) GetStats(id string) (*models.DistributorSta
 	query := `
 		SELECT
 			(SELECT COUNT(*) FROM users WHERE organization_id = $1 AND deleted_at IS NULL) as users_count,
+			(SELECT COUNT(*) FROM users u WHERE u.deleted_at IS NULL AND (
+				u.organization_id = $1
+				OR u.organization_id IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL)
+				OR u.organization_id IN (
+					SELECT c.logto_id FROM customers c
+					WHERE c.deleted_at IS NULL AND EXISTS (
+						SELECT 1 FROM resellers r
+						WHERE r.logto_id = c.custom_data->>'createdBy'
+						AND r.custom_data->>'createdBy' = $1
+						AND r.deleted_at IS NULL
+					)
+				)
+			)) as users_hierarchy_count,
 			(SELECT COUNT(*) FROM systems WHERE organization_id = $1 AND deleted_at IS NULL) as systems_count,
+			(SELECT COUNT(*) FROM systems s WHERE s.deleted_at IS NULL AND (
+				s.organization_id = $1
+				OR s.organization_id IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL)
+				OR s.organization_id IN (
+					SELECT c.logto_id FROM customers c
+					WHERE c.deleted_at IS NULL AND EXISTS (
+						SELECT 1 FROM resellers r
+						WHERE r.logto_id = c.custom_data->>'createdBy'
+						AND r.custom_data->>'createdBy' = $1
+						AND r.deleted_at IS NULL
+					)
+				)
+			)) as systems_hierarchy_count,
 			(SELECT COUNT(*) FROM resellers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL) as resellers_count,
 			(SELECT COUNT(*) FROM customers c WHERE c.deleted_at IS NULL AND EXISTS (
 				SELECT 1 FROM resellers r
@@ -632,7 +660,9 @@ func (r *LocalDistributorRepository) GetStats(id string) (*models.DistributorSta
 	`
 
 	err = r.db.QueryRow(query, *distributor.LogtoID).Scan(
-		&stats.UsersCount, &stats.SystemsCount, &stats.ResellersCount, &stats.CustomersCount,
+		&stats.UsersCount, &stats.UsersHierarchyCount,
+		&stats.SystemsCount, &stats.SystemsHierarchyCount,
+		&stats.ResellersCount, &stats.CustomersCount,
 		&stats.ApplicationsCount, &stats.ApplicationsHierarchyCount,
 	)
 	if err != nil {
