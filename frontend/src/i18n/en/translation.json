@@ -44,7 +44,9 @@
     "click_to_copy": "Click to copy",
     "suspend": "Suspend",
     "suspended": "Suspended",
-    "reactivate": "Reactivate"
+    "reactivate": "Reactivate",
+    "notes": "Notes",
+    "show_notes": "Show notes"
   },
   "shell": {
     "open_sidebar": "Open sidebar",
@@ -108,6 +110,10 @@
     "export_distributors_to_csv": "Export distributors to CSV",
     "total_customers": "Total Customers",
     "total_systems": "Total Systems"
+  },
+  "distributor_detail": {
+    "title": "Distributor detail",
+    "cannot_retrieve_distributor_detail": "Cannot retrieve distributor detail"
   },
   "resellers": {
     "title": "Resellers",
@@ -175,7 +181,6 @@
     "organization": "Organization",
     "choose_organization": "Choose organization",
     "no_organizations": "No organizations",
-    "notes": "Notes",
     "email": "Email",
     "phone_number": "Phone number",
     "language": "Language",
@@ -430,7 +435,6 @@
     "edit_system": "Edit system",
     "name": "Name",
     "name_helper": "Enter a descriptive name so you can recognize it easily",
-    "notes": "Notes",
     "cannot_create_system": "Cannot create system",
     "cannot_save_system": "Cannot save system",
     "save_system": "Save system",
@@ -461,7 +465,6 @@
     "system_secret_regenerated_description": "The secret for system {name} has been regenerated.",
     "cannot_regenerate_system_secret": "Cannot regenerate system secret",
     "update_the_subscription": "Update the subscription",
-    "show_notes": "Show notes",
     "restore_system": "Restore system",
     "restore_system_confirmation": "Are you sure you want to restore system {name}?",
     "system_restored": "System restored",
@@ -526,7 +529,6 @@
     "num_applications_not_assigned": "{num} application is not assigned to any organization. | {num} applications are not assigned to any organization.",
     "show_unassigned": "Show unassigned",
     "dont_show_again": "Don't show again",
-    "notes": "Notes",
     "add_notes": "Add notes",
     "edit_notes": "Edit notes",
     "set_application_notes": "Set application notes",

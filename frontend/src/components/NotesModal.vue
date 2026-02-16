@@ -17,7 +17,7 @@ const emit = defineEmits(['close'])
 <template>
   <NeModal
     :visible="visible"
-    :title="$t('systems.notes')"
+    :title="$t('common.notes')"
     kind="info"
     :primary-label="$t('common.close')"
     cancel-label=""

@@ -20,7 +20,7 @@ import { getOrganizationIcon } from '@/lib/organizations/organizations'
 import DataItem from '../DataItem.vue'
 import ClickToCopy from '../ClickToCopy.vue'
 import { ref } from 'vue'
-import SystemNotesModal from './SystemNotesModal.vue'
+import NotesModal from '../NotesModal.vue'
 import { canManageSystems } from '@/lib/permissions'
 import { faFileCsv, faFilePdf, faPenToSquare } from '@fortawesome/free-solid-svg-icons'
 import { useI18n } from 'vue-i18n'
@@ -179,21 +179,21 @@ function getKebabMenuItems() {
         <!-- notes -->
         <div v-if="systemDetail.data.notes">
           <div class="py-4 font-medium">
-            {{ $t('systems.notes') }}
+            {{ $t('common.notes') }}
           </div>
           <pre ref="preElement" class="line-clamp-5 font-sans whitespace-pre-wrap">{{
             systemDetail.data.notes
           }}</pre>
           <div class="mt-2">
             <NeLink @click="isNotesModalShown = true">
-              {{ $t('systems.show_notes') }}
+              {{ $t('common.show_notes') }}
             </NeLink>
           </div>
         </div>
       </div>
     </div>
     <!-- notes modal -->
-    <SystemNotesModal
+    <NotesModal
       :visible="isNotesModalShown"
       :notes="systemDetail.data?.notes"
       @close="isNotesModalShown = false"
