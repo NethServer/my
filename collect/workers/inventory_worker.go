@@ -30,6 +30,14 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// DiffTriggerRecord contains only the fields needed to trigger diff processing,
+// avoiding retention of the full inventory Data payload in the async goroutine.
+type DiffTriggerRecord struct {
+	ID        int64
+	SystemID  string
+	Timestamp time.Time
+}
+
 // InventoryWorker handles high-throughput batch operations
 type InventoryWorker struct {
 	inventoryBatch chan *models.InventoryData
@@ -42,6 +50,7 @@ type InventoryWorker struct {
 	failedCount    int64
 	lastFlush      time.Time
 	queueManager   *queue.QueueManager
+	diffSemaphore  chan struct{}
 }
 
 // NewInventoryWorker creates a new inventory worker
@@ -54,6 +63,7 @@ func NewInventoryWorker(batchSize int, flushInterval time.Duration, queueManager
 		isHealthy:      1,
 		lastFlush:      time.Now(),
 		queueManager:   queueManager,
+		diffSemaphore:  make(chan struct{}, 3),
 	}
 }
 
@@ -117,7 +127,7 @@ func (iw *InventoryWorker) batchWorker(ctx context.Context, wg *sync.WaitGroup) 
 			// Process batch when it reaches target size
 			if len(batch) >= iw.batchSize {
 				iw.processBatch(ctx, batch, *logger)
-				batch = batch[:0] // Reset batch
+				batch = make([]*models.InventoryData, 0, iw.batchSize)
 				iw.updateLastFlush()
 			}
 
@@ -125,7 +135,7 @@ func (iw *InventoryWorker) batchWorker(ctx context.Context, wg *sync.WaitGroup) 
 			// Process batch on timer if it has items
 			if len(batch) > 0 {
 				iw.processBatch(ctx, batch, *logger)
-				batch = batch[:0] // Reset batch
+				batch = make([]*models.InventoryData, 0, iw.batchSize)
 				iw.updateLastFlush()
 			}
 		}
@@ -212,8 +222,8 @@ func (iw *InventoryWorker) processBatchInTransaction(ctx context.Context, conn *
 		}
 	}()
 
-	// Track inserted records for diff processing
-	var insertedRecords []models.InventoryRecord
+	// Track lightweight records for diff processing (without Data payload)
+	var diffTriggerRecords []DiffTriggerRecord
 
 	// Process each item in batch
 	for _, inventory := range batch {
@@ -233,14 +243,37 @@ func (iw *InventoryWorker) processBatchInTransaction(ctx context.Context, conn *
 			return fmt.Errorf("failed to insert inventory for system %s: %w", inventory.SystemID, err)
 		}
 
-		// Create record for diff processing
-		insertedRecords = append(insertedRecords, models.InventoryRecord{
+		// Parse inventory JSON once for both updateSystemFields and extractApplications
+		var parsedData map[string]interface{}
+		if err := json.Unmarshal(inventory.Data, &parsedData); err != nil {
+			logger.Warn().
+				Err(err).
+				Str("system_id", inventory.SystemID).
+				Int64("record_id", recordID).
+				Msg("Failed to unmarshal inventory data for field extraction")
+		} else {
+			if err := iw.updateSystemFieldsFromInventory(txCtx, tx, inventory.SystemID, recordID, parsedData, logger); err != nil {
+				logger.Warn().
+					Err(err).
+					Str("system_id", inventory.SystemID).
+					Int64("record_id", recordID).
+					Msg("Failed to update system fields from inventory")
+			}
+
+			if err := iw.extractApplicationsFromInventory(txCtx, tx, inventory.SystemID, recordID, parsedData, logger); err != nil {
+				logger.Warn().
+					Err(err).
+					Str("system_id", inventory.SystemID).
+					Int64("record_id", recordID).
+					Msg("Failed to extract applications from inventory")
+			}
+		}
+
+		// Keep only lightweight record for diff triggering
+		diffTriggerRecords = append(diffTriggerRecords, DiffTriggerRecord{
 			ID:        recordID,
 			SystemID:  inventory.SystemID,
 			Timestamp: inventory.Timestamp,
-			Data:      inventory.Data,
-			DataHash:  dataHash,
-			DataSize:  dataSize,
 		})
 
 		// Log large payloads for monitoring
@@ -253,35 +286,24 @@ func (iw *InventoryWorker) processBatchInTransaction(ctx context.Context, conn *
 		}
 	}
 
-	// Update system fields and extract applications from inventory data before committing
-	for _, record := range insertedRecords {
-		if err := iw.updateSystemFieldsFromInventory(txCtx, tx, &record, logger); err != nil {
-			logger.Warn().
-				Err(err).
-				Str("system_id", record.SystemID).
-				Int64("record_id", record.ID).
-				Msg("Failed to update system fields from inventory")
-			// Continue processing other records even if one fails
-		}
-
-		// Extract applications from NS8 inventory
-		if err := iw.extractApplicationsFromInventory(txCtx, tx, &record, logger); err != nil {
-			logger.Warn().
-				Err(err).
-				Str("system_id", record.SystemID).
-				Int64("record_id", record.ID).
-				Msg("Failed to extract applications from inventory")
-			// Continue processing other records even if one fails
-		}
-	}
-
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit batch transaction: %w", err)
 	}
 
 	// After successful commit, trigger diff processing asynchronously
-	go iw.triggerDiffProcessingAsync(ctx, insertedRecords, logger)
+	// Use semaphore to limit concurrent diff goroutines
+	select {
+	case iw.diffSemaphore <- struct{}{}:
+		go func() {
+			defer func() { <-iw.diffSemaphore }()
+			iw.triggerDiffProcessingAsync(ctx, diffTriggerRecords, logger)
+		}()
+	default:
+		logger.Warn().
+			Int("records", len(diffTriggerRecords)).
+			Msg("Diff semaphore full, skipping async diff trigger")
+	}
 
 	return nil
 }
@@ -329,8 +351,9 @@ func (iw *InventoryWorker) GetStats() map[string]interface{} {
 	}
 }
 
-// triggerDiffProcessingAsync triggers diff processing asynchronously for inserted inventory records
-func (iw *InventoryWorker) triggerDiffProcessingAsync(ctx context.Context, insertedRecords []models.InventoryRecord, logger zerolog.Logger) {
+// triggerDiffProcessingAsync triggers diff processing asynchronously for inserted inventory records.
+// Uses lightweight DiffTriggerRecord to avoid retaining full inventory Data payloads in memory.
+func (iw *InventoryWorker) triggerDiffProcessingAsync(ctx context.Context, records []DiffTriggerRecord, logger zerolog.Logger) {
 	// Create a new context with timeout to prevent goroutine leaks
 	asyncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -338,7 +361,7 @@ func (iw *InventoryWorker) triggerDiffProcessingAsync(ctx context.Context, inser
 	successCount := 0
 	failedCount := 0
 
-	for _, record := range insertedRecords {
+	for _, record := range records {
 		// Check if there's a previous record for this system
 		previousRecord, err := GetPreviousInventoryRecord(asyncCtx, record.SystemID, record.ID)
 		if err != nil {
@@ -353,10 +376,14 @@ func (iw *InventoryWorker) triggerDiffProcessingAsync(ctx context.Context, inser
 
 		// Only trigger diff processing if there's a previous record
 		if previousRecord != nil {
+			// Create ProcessingJob without Data — the DiffWorker loads it from DB
 			processingJob := &models.InventoryProcessingJob{
-				InventoryRecord: &record,
-				SystemID:        record.SystemID,
-				ForceProcess:    false,
+				InventoryRecord: &models.InventoryRecord{
+					ID:       record.ID,
+					SystemID: record.SystemID,
+				},
+				SystemID:     record.SystemID,
+				ForceProcess: false,
 			}
 
 			// Use a timeout context for each enqueue operation
@@ -383,21 +410,16 @@ func (iw *InventoryWorker) triggerDiffProcessingAsync(ctx context.Context, inser
 	}
 
 	logger.Info().
-		Int("total_records", len(insertedRecords)).
+		Int("total_records", len(records)).
 		Int("diff_jobs_queued", successCount).
 		Int("diff_jobs_failed", failedCount).
 		Msg("Async diff processing completed")
 }
 
-// updateSystemFieldsFromInventory extracts relevant fields from inventory and updates the systems table
-// Supports both NS8 (nethserver) and NSEC (nethsecurity) inventory structures
-func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, tx *sql.Tx, record *models.InventoryRecord, logger zerolog.Logger) error {
-	// Parse inventory data
-	var inventoryData map[string]interface{}
-	if err := json.Unmarshal(record.Data, &inventoryData); err != nil {
-		return fmt.Errorf("failed to unmarshal inventory data: %w", err)
-	}
-
+// updateSystemFieldsFromInventory extracts relevant fields from inventory and updates the systems table.
+// Supports both NS8 (nethserver) and NSEC (nethsecurity) inventory structures.
+// Accepts pre-parsed inventory data to avoid redundant JSON unmarshaling.
+func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, tx *sql.Tx, systemID string, recordID int64, inventoryData map[string]interface{}, logger zerolog.Logger) error {
 	// Detect installation type
 	installation, _ := inventoryData["installation"].(string)
 
@@ -570,7 +592,7 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 	}
 
 	// Add system_id as last argument
-	args = append(args, record.SystemID)
+	args = append(args, systemID)
 
 	// Execute UPDATE
 	query := fmt.Sprintf(`
@@ -587,7 +609,7 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected > 0 {
 		logger.Debug().
-			Str("system_id", record.SystemID).
+			Str("system_id", systemID).
 			Int("fields_updated", len(updates)-1).
 			Msg("System fields updated from inventory")
 	}
@@ -595,14 +617,9 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 	return nil
 }
 
-// extractApplicationsFromInventory extracts modules from NS8 inventory and upserts them into applications table
-func (iw *InventoryWorker) extractApplicationsFromInventory(ctx context.Context, tx *sql.Tx, record *models.InventoryRecord, logger zerolog.Logger) error {
-	// Parse inventory data
-	var inventoryData map[string]interface{}
-	if err := json.Unmarshal(record.Data, &inventoryData); err != nil {
-		return fmt.Errorf("failed to unmarshal inventory data: %w", err)
-	}
-
+// extractApplicationsFromInventory extracts modules from NS8 inventory and upserts them into applications table.
+// Accepts pre-parsed inventory data to avoid redundant JSON unmarshaling.
+func (iw *InventoryWorker) extractApplicationsFromInventory(ctx context.Context, tx *sql.Tx, systemID string, recordID int64, inventoryData map[string]interface{}, logger zerolog.Logger) error {
 	// Only process NS8 inventories (nethserver)
 	installation, _ := inventoryData["installation"].(string)
 	if installation != "nethserver" {
@@ -631,7 +648,7 @@ func (iw *InventoryWorker) extractApplicationsFromInventory(ctx context.Context,
 	// If no FQDN in cluster, try to get from system record
 	if systemFQDN == "" {
 		var fqdn sql.NullString
-		err := tx.QueryRowContext(ctx, "SELECT fqdn FROM systems WHERE id = $1", record.SystemID).Scan(&fqdn)
+		err := tx.QueryRowContext(ctx, "SELECT fqdn FROM systems WHERE id = $1", systemID).Scan(&fqdn)
 		if err == nil && fqdn.Valid {
 			systemFQDN = fqdn.String
 		}
@@ -758,7 +775,7 @@ func (iw *InventoryWorker) extractApplicationsFromInventory(ctx context.Context,
 		}
 
 		// Generate application ID
-		appID := fmt.Sprintf("%s-%s", record.SystemID, moduleID)
+		appID := fmt.Sprintf("%s-%s", systemID, moduleID)
 
 		// Upsert application
 		query := `
@@ -791,7 +808,7 @@ func (iw *InventoryWorker) extractApplicationsFromInventory(ctx context.Context,
 
 		_, err = tx.ExecContext(ctx, query,
 			appID,                               // $1
-			record.SystemID,                     // $2
+			systemID,                            // $2
 			moduleID,                            // $3
 			moduleName,                          // $4 (instance_of)
 			helpers.NilIfEmpty(moduleUIName),    // $5 (display_name from ui_name)
@@ -825,7 +842,7 @@ func (iw *InventoryWorker) extractApplicationsFromInventory(ctx context.Context,
 		// Create placeholders for the IN clause
 		placeholders := make([]string, len(moduleIDList))
 		args := make([]interface{}, len(moduleIDList)+1)
-		args[0] = record.SystemID
+		args[0] = systemID
 		for i, moduleID := range moduleIDList {
 			placeholders[i] = fmt.Sprintf("$%d", i+2)
 			args[i+1] = moduleID
@@ -844,18 +861,18 @@ func (iw *InventoryWorker) extractApplicationsFromInventory(ctx context.Context,
 		if err != nil {
 			logger.Warn().
 				Err(err).
-				Str("system_id", record.SystemID).
+				Str("system_id", systemID).
 				Msg("Failed to soft-delete removed applications")
 		} else if rowsAffected, _ := result.RowsAffected(); rowsAffected > 0 {
 			logger.Info().
-				Str("system_id", record.SystemID).
+				Str("system_id", systemID).
 				Int64("deleted_count", rowsAffected).
 				Msg("Soft-deleted applications no longer in inventory")
 		}
 	}
 
 	logger.Debug().
-		Str("system_id", record.SystemID).
+		Str("system_id", systemID).
 		Int("modules_count", len(seenModuleIDs)).
 		Msg("Applications extracted from inventory")
 

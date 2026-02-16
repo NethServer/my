@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -28,6 +29,70 @@ import (
 	"github.com/nethesis/my/collect/queue"
 	"github.com/nethesis/my/collect/response"
 )
+
+// argon2Semaphore limits concurrent Argon2id verifications to prevent OOM.
+// Each Argon2id verification allocates ~64MB (m=65536), so limiting to 2
+// concurrent verifications caps auth memory at ~128MB.
+var argon2Semaphore = make(chan struct{}, 2)
+
+// inProcessAuthCache provides an in-process cache for auth results.
+// After a service restart, Redis auth cache entries are gone; this avoids
+// redundant Argon2id recomputation for systems that authenticate repeatedly.
+var inProcessAuthCache sync.Map
+
+type authCacheEntry struct {
+	systemID  string
+	valid     bool
+	expiresAt time.Time
+}
+
+// authCacheKey returns a consistent cache key for in-process and Redis caches
+func authCacheKey(systemKey, systemSecret string) string {
+	hash := sha256.Sum256([]byte(systemSecret))
+	return fmt.Sprintf("%s:%x", systemKey, hash)
+}
+
+// checkInProcessCache checks the in-process auth cache.
+// Returns (systemID, valid, found).
+func checkInProcessCache(systemKey, systemSecret string) (string, bool, bool) {
+	key := authCacheKey(systemKey, systemSecret)
+	val, ok := inProcessAuthCache.Load(key)
+	if !ok {
+		return "", false, false
+	}
+	entry := val.(*authCacheEntry)
+	if time.Now().After(entry.expiresAt) {
+		inProcessAuthCache.Delete(key)
+		return "", false, false
+	}
+	return entry.systemID, entry.valid, true
+}
+
+// setInProcessCache stores an auth result in the in-process cache
+func setInProcessCache(systemKey, systemSecret, systemID string, valid bool) {
+	key := authCacheKey(systemKey, systemSecret)
+	ttl := configuration.Config.SystemAuthCacheTTL
+	if !valid {
+		ttl = 1 * time.Minute
+	}
+	inProcessAuthCache.Store(key, &authCacheEntry{
+		systemID:  systemID,
+		valid:     valid,
+		expiresAt: time.Now().Add(ttl),
+	})
+}
+
+// verifySecretWithSemaphore runs Argon2id verification with a concurrency limit.
+// Returns (valid, error). If the semaphore cannot be acquired within 10 seconds, returns an error.
+func verifySecretWithSemaphore(secretPart, secretHash string) (bool, error) {
+	select {
+	case argon2Semaphore <- struct{}{}:
+		defer func() { <-argon2Semaphore }()
+	case <-time.After(10 * time.Second):
+		return false, fmt.Errorf("argon2id verification timeout: too many concurrent verifications")
+	}
+	return helpers.VerifySystemSecret(secretPart, secretHash)
+}
 
 // BasicAuthMiddleware implements HTTP Basic authentication for system credentials
 func BasicAuthMiddleware() gin.HandlerFunc {
@@ -150,9 +215,19 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 		return "", false
 	}
 
-	// Try cache first
+	// Check in-process cache first (fastest, no network)
+	if cachedID, valid, found := checkInProcessCache(systemKey, systemSecret); found {
+		if valid {
+			return cachedID, true
+		}
+		return "", false
+	}
+
+	// Check Redis cache
 	if cachedID := checkCredentialsCache(c, systemKey, systemSecret); cachedID != nil {
 		if *cachedID != "" {
+			// Promote to in-process cache
+			setInProcessCache(systemKey, systemSecret, *cachedID, true)
 			return *cachedID, true
 		}
 		// If cached as invalid, still check database for updates
@@ -200,8 +275,8 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 		return "", false
 	}
 
-	// Verify secret part hash using Argon2id
-	valid, err := helpers.VerifySystemSecret(secretPart, creds.SecretHash)
+	// Verify secret part hash using Argon2id (semaphore-guarded to limit memory usage)
+	valid, err := verifySecretWithSemaphore(secretPart, creds.SecretHash)
 	if err != nil {
 		logger.Warn().
 			Err(err).
@@ -211,6 +286,7 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 
 		// Cache negative result
 		cacheCredentialsResult(c, systemKey, systemSecret, "", false)
+		setInProcessCache(systemKey, systemSecret, "", false)
 		return "", false
 	}
 
@@ -222,11 +298,13 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 
 		// Cache negative result
 		cacheCredentialsResult(c, systemKey, systemSecret, "", false)
+		setInProcessCache(systemKey, systemSecret, "", false)
 		return "", false
 	}
 
-	// Cache positive result
+	// Cache positive result in both caches
 	cacheCredentialsResult(c, systemKey, systemSecret, creds.SystemID, true)
+	setInProcessCache(systemKey, systemSecret, creds.SystemID, true)
 
 	return creds.SystemID, true
 }

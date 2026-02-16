@@ -163,27 +163,33 @@ func (dw *DiffWorker) processInventoryDiff(ctx context.Context, job *models.Inve
 			Msg("Diff processing completed")
 	}()
 
+	// Load the full current record from DB (the job only carries ID and SystemID)
+	currentRecord, err := GetInventoryRecordByID(ctx, job.InventoryRecord.ID)
+	if err != nil {
+		return fmt.Errorf("failed to load current inventory record: %w", err)
+	}
+
 	// Get previous inventory record
-	previousRecord, err := GetPreviousInventoryRecord(ctx, job.SystemID, job.InventoryRecord.ID)
+	previousRecord, err := GetPreviousInventoryRecord(ctx, job.SystemID, currentRecord.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get previous inventory record: %w", err)
 	}
 
 	if previousRecord == nil {
 		// No previous record, mark as processed without diff
-		if err := dw.markInventoryProcessed(ctx, job.InventoryRecord.ID, false, 0); err != nil {
+		if err := dw.markInventoryProcessed(ctx, currentRecord.ID, false, 0); err != nil {
 			return fmt.Errorf("failed to mark inventory as processed: %w", err)
 		}
 
 		workerLogger.Info().
 			Str("system_id", job.SystemID).
-			Int64("inventory_id", job.InventoryRecord.ID).
+			Int64("inventory_id", currentRecord.ID).
 			Msg("No previous inventory found, marked as processed")
 		return nil
 	}
 
 	// Compute differences
-	diffs, err := dw.diffEngine.ComputeDiff(job.SystemID, previousRecord, job.InventoryRecord)
+	diffs, err := dw.diffEngine.ComputeDiff(job.SystemID, previousRecord, currentRecord)
 	if err != nil {
 		return fmt.Errorf("failed to compute diff: %w", err)
 	}
@@ -202,7 +208,7 @@ func (dw *DiffWorker) processInventoryDiff(ctx context.Context, job *models.Inve
 
 	// Mark inventory as processed
 	hasChanges := len(storedDiffs) > 0
-	if err := dw.markInventoryProcessed(ctx, job.InventoryRecord.ID, hasChanges, len(storedDiffs)); err != nil {
+	if err := dw.markInventoryProcessed(ctx, currentRecord.ID, hasChanges, len(storedDiffs)); err != nil {
 		return fmt.Errorf("failed to mark inventory as processed: %w", err)
 	}
 
@@ -228,7 +234,7 @@ func (dw *DiffWorker) processInventoryDiff(ctx context.Context, job *models.Inve
 
 	workerLogger.Info().
 		Str("system_id", job.SystemID).
-		Int64("inventory_id", job.InventoryRecord.ID).
+		Int64("inventory_id", currentRecord.ID).
 		Int64("previous_id", previousRecord.ID).
 		Int("total_diffs", len(diffs)).
 		Int("significant_diffs", len(storedDiffs)).

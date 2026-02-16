@@ -78,26 +78,36 @@ func NewDiffEngine(configPath string) (*DiffEngine, error) {
 func (de *DiffEngine) ComputeDiff(systemID string, previous, current *models.InventoryRecord) ([]models.InventoryDiff, error) {
 	engineLogger := logger.ComponentLogger("differ-engine")
 
-	// Step 1: Data Validation
+	// Step 1: JSON Parsing (single unmarshal per record, also serves as validation)
 	engineLogger.Debug().
 		Str("system_id", systemID).
 		Int64("previous_id", previous.ID).
 		Int64("current_id", current.ID).
 		Msg("Starting inventory diff computation")
 
-	if err := de.validateInventoryData(previous.Data, current.Data); err != nil {
-		return nil, fmt.Errorf("inventory validation failed: %w", err)
-	}
-
-	// Step 2: JSON Parsing
-	var prevData, currData interface{}
-
+	var prevData map[string]interface{}
 	if err := json.Unmarshal(previous.Data, &prevData); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal previous data: %w", err)
+		return nil, fmt.Errorf("inventory validation failed: invalid previous inventory JSON structure: %w", err)
 	}
 
+	var currData map[string]interface{}
 	if err := json.Unmarshal(current.Data, &currData); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal current data: %w", err)
+		return nil, fmt.Errorf("inventory validation failed: invalid current inventory JSON structure: %w", err)
+	}
+
+	// Validate expected fields
+	expectedFields := []string{"facts", "uuid", "installation"}
+	for _, field := range expectedFields {
+		if _, exists := prevData[field]; !exists {
+			engineLogger.Warn().
+				Str("missing_field", field).
+				Msg("Previous inventory missing expected field")
+		}
+		if _, exists := currData[field]; !exists {
+			engineLogger.Warn().
+				Str("missing_field", field).
+				Msg("Current inventory missing expected field")
+		}
 	}
 
 	engineLogger.Debug().Msg("JSON parsing completed successfully")
@@ -303,40 +313,6 @@ func (de *DiffEngine) valueToString(value interface{}) string {
 		}
 		return fmt.Sprintf("%v", v)
 	}
-}
-
-// validateInventoryData validates that inventory data has expected structure
-func (de *DiffEngine) validateInventoryData(previous, current json.RawMessage) error {
-	// Validate previous data structure
-	var prevParsed map[string]interface{}
-	if err := json.Unmarshal(previous, &prevParsed); err != nil {
-		return fmt.Errorf("invalid previous inventory JSON structure: %w", err)
-	}
-
-	// Validate current data structure
-	var currParsed map[string]interface{}
-	if err := json.Unmarshal(current, &currParsed); err != nil {
-		return fmt.Errorf("invalid current inventory JSON structure: %w", err)
-	}
-
-	// Both NS8 (nethserver) and NSEC (nethsecurity) use the same top-level structure:
-	// $schema, uuid, installation, facts
-	expectedFields := []string{"facts", "uuid", "installation"}
-
-	for _, field := range expectedFields {
-		if _, exists := prevParsed[field]; !exists {
-			logger.ComponentLogger("differ-engine").Warn().
-				Str("missing_field", field).
-				Msg("Previous inventory missing expected field")
-		}
-		if _, exists := currParsed[field]; !exists {
-			logger.ComponentLogger("differ-engine").Warn().
-				Str("missing_field", field).
-				Msg("Current inventory missing expected field")
-		}
-	}
-
-	return nil
 }
 
 // GroupRelatedChanges groups related changes together for better organization

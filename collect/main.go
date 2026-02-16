@@ -94,7 +94,7 @@ func main() {
 
 	// Start heartbeat monitor cron job
 	heartbeatMonitor := cron.NewHeartbeatMonitor()
-	go heartbeatMonitor.Start()
+	go heartbeatMonitor.Start(ctx)
 
 	// Init router
 	router := gin.Default()

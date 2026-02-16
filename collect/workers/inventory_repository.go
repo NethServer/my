@@ -54,3 +54,37 @@ func GetPreviousInventoryRecord(ctx context.Context, systemID string, currentID 
 
 	return record, nil
 }
+
+// GetInventoryRecordByID loads a full inventory record by its ID.
+func GetInventoryRecordByID(ctx context.Context, id int64) (*models.InventoryRecord, error) {
+	query := `
+		SELECT id, system_id, timestamp, data, data_hash, data_size,
+		       processed_at, has_changes, change_count, created_at, updated_at
+		FROM inventory_records
+		WHERE id = $1
+	`
+
+	record := &models.InventoryRecord{}
+	err := database.DB.QueryRowContext(ctx, query, id).Scan(
+		&record.ID,
+		&record.SystemID,
+		&record.Timestamp,
+		&record.Data,
+		&record.DataHash,
+		&record.DataSize,
+		&record.ProcessedAt,
+		&record.HasChanges,
+		&record.ChangeCount,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("inventory record %d not found", id)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get inventory record by id: %w", err)
+	}
+
+	return record, nil
+}

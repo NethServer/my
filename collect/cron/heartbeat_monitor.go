@@ -10,6 +10,7 @@
 package cron
 
 import (
+	"context"
 	"database/sql"
 	"time"
 
@@ -34,8 +35,8 @@ func NewHeartbeatMonitor() *HeartbeatMonitor {
 	}
 }
 
-// Start begins the heartbeat monitoring cron job
-func (h *HeartbeatMonitor) Start() {
+// Start begins the heartbeat monitoring cron job. It blocks until ctx is cancelled.
+func (h *HeartbeatMonitor) Start(ctx context.Context) {
 	logger.Info().
 		Int("timeout_minutes", h.timeoutMinutes).
 		Int("check_interval_seconds", h.checkIntervalSec).
@@ -47,9 +48,15 @@ func (h *HeartbeatMonitor) Start() {
 	// Run immediately on start
 	h.checkAndUpdateStatuses()
 
-	// Then run on ticker
-	for range ticker.C {
-		h.checkAndUpdateStatuses()
+	// Then run on ticker, stopping when context is cancelled
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Info().Msg("Heartbeat monitor stopped")
+			return
+		case <-ticker.C:
+			h.checkAndUpdateStatuses()
+		}
 	}
 }
 
