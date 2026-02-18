@@ -378,14 +378,20 @@ const goToDistributorDetails = (distributor: Distributor) => {
         <NeTableRow v-for="(item, index) in distributorsPage" :key="index">
           <NeTableCell :data-label="$t('organizations.name')">
             <router-link
+              v-if="!item.deleted_at"
               :to="{ name: 'distributor_detail', params: { distributorId: item.logto_id } }"
               class="cursor-pointer font-medium hover:underline"
-              :class="{ 'opacity-50': item.deleted_at }"
             >
               {{ item.name }}
             </router-link>
+            <span v-else class="opacity-50">
+              {{ item.name }}
+            </span>
           </NeTableCell>
-          <NeTableCell :data-label="$t('organizations.vat_number')" :class="{ 'opacity-50': item.deleted_at }">
+          <NeTableCell
+            :data-label="$t('organizations.vat_number')"
+            :class="{ 'opacity-50': item.deleted_at }"
+          >
             {{ item.custom_data?.vat || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('resellers.title')">

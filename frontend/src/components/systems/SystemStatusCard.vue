@@ -91,7 +91,7 @@ const getBadgeIcon = () => {
       v-else-if="latestInventory.status === 'pending' || systemDetail.status === 'pending'"
       :lines="6"
     />
-    <div v-else className="divide-y divide-gray-200 dark:divide-gray-700">
+    <div v-else class="divide-y divide-gray-200 dark:divide-gray-700">
       <!-- uptime -->
       <DataItem>
         <template #label>

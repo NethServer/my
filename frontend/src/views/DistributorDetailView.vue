@@ -6,11 +6,36 @@
 <script setup lang="ts">
 import { NeButton, NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faArrowLeft } from '@fortawesome/free-solid-svg-icons'
+import { faArrowLeft, faCity, faServer } from '@fortawesome/free-solid-svg-icons'
 import { useDistributorDetail } from '@/queries/organizations/distributorDetail'
 import DistributorInfoCard from '@/components/distributors/DistributorInfoCard.vue'
+import CounterCard from '@/components/CounterCard.vue'
+import { useDistributorStats } from '@/queries/organizations/distributorStats'
+import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
+import { useDistributorSystems } from '@/queries/systems/distributorSystems'
+import { getProductLogo, getProductName } from '@/lib/systems/systems'
+import SystemStatusIcon from '@/components/systems/SystemStatusIcon.vue'
+import { useI18n } from 'vue-i18n'
+import { computed } from 'vue'
 
+const { t } = useI18n()
 const { state: distributorDetail } = useDistributorDetail()
+const { state: distributorStats } = useDistributorStats()
+const { state: distributorSystems } = useDistributorSystems()
+
+const moreSystems = computed(() => {
+  if (!distributorSystems.value.data) {
+    return ''
+  }
+  const totalSystems = distributorStats.value.data?.systems_count ?? 0
+  const retrievedSystems = distributorSystems.value.data.systems.length
+  const remainingSystems = totalSystems - retrievedSystems
+
+  if (remainingSystems > 0) {
+    return t('common.plus_n_more', { num: remainingSystems })
+  }
+  return ''
+})
 </script>
 
 <template>
@@ -36,7 +61,83 @@ const { state: distributorDetail } = useDistributorDetail()
       {{ distributorDetail.data?.name }}
     </NeHeading>
     <div class="3xl:grid-cols-4 grid grid-cols-1 gap-x-6 gap-y-6 md:grid-cols-2">
-      <DistributorInfoCard />
+      <!-- distributor info -->
+      <DistributorInfoCard class="3xl:row-span-2 md:row-span-3" />
+      <!-- resellers -->
+      <CounterCard
+        :title="$t('resellers.title')"
+        :counter="distributorStats.data?.resellers_count ?? 0"
+        :icon="faCity"
+        :loading="distributorStats.status === 'pending'"
+      />
+      <!-- total systems -->
+      <CounterCard
+        :title="$t('systems.total_systems')"
+        :counter="distributorStats.data?.systems_hierarchy_count ?? 0"
+        :icon="faServer"
+        :loading="distributorStats.status === 'pending'"
+      />
+      <!-- total applications -->
+      <CounterCard
+        :title="$t('applications.total_applications')"
+        :counter="distributorStats.data?.applications_hierarchy_count ?? 0"
+        :icon="faGridOne"
+        :loading="distributorStats.status === 'pending'"
+      />
+      <!-- organization systems -->
+      <!-- //// externalize component -->
+      <CounterCard
+        :title="$t('systems.organization_systems')"
+        :counter="distributorStats.data?.systems_count ?? 0"
+        :icon="faServer"
+        :loading="distributorStats.status === 'pending' || distributorSystems.status === 'pending'"
+        :centeredCounter="false"
+      >
+        <div class="divide-y divide-gray-200 dark:divide-gray-700">
+          <div
+            v-for="system in distributorSystems.data?.systems"
+            :key="system.id"
+            class="flex items-center justify-between gap-4 py-3"
+          >
+            <router-link
+              :to="{ name: 'system_detail', params: { systemId: system.id } }"
+              class="cursor-pointer font-medium hover:underline"
+            >
+              <div class="flex items-center gap-2">
+                <img
+                  v-if="system.type"
+                  :src="getProductLogo(system.type)"
+                  :alt="getProductName(system.type)"
+                  aria-hidden="true"
+                  class="size-8"
+                />
+                <span>
+                  {{ system.name || '-' }}
+                </span>
+              </div>
+            </router-link>
+            <div class="flex items-center gap-2">
+              <SystemStatusIcon :status="system.status" :suspended-at="system.suspended_at" />
+              <span v-if="system.suspended_at">
+                {{ t('common.suspended') }}
+              </span>
+              <span v-else-if="system.status">
+                {{ t(`systems.status_${system.status}`) }}
+              </span>
+              <span v-else>-</span>
+            </div>
+          </div>
+          {{ moreSystems }} ////
+        </div>
+      </CounterCard>
+      <!-- organization applications -->
+      <CounterCard
+        :title="$t('applications.organization_applications')"
+        :counter="distributorStats.data?.applications_count ?? 0"
+        :icon="faGridOne"
+        :loading="distributorStats.status === 'pending'"
+        :centeredCounter="false"
+      />
     </div>
   </div>
 </template>
