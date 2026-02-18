@@ -52,11 +52,7 @@ services:
         sync: false
       - key: MIMIR_S3_SECRET_KEY
         sync: false
-      - key: MIMIR_S3_BUCKET
-        sync: false
       - key: MIMIR_S3_ALERTMANAGER_BUCKET
-        sync: false
-      - key: MIMIR_S3_RULER_BUCKET
         sync: false
 
   # Production Backend API Server (Private Service)
@@ -227,11 +223,7 @@ services:
         sync: false
       - key: MIMIR_S3_SECRET_KEY
         sync: false
-      - key: MIMIR_S3_BUCKET
-        sync: false
       - key: MIMIR_S3_ALERTMANAGER_BUCKET
-        sync: false
-      - key: MIMIR_S3_RULER_BUCKET
         sync: false
     autoDeploy: true
     branch: main

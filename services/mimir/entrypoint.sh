@@ -7,5 +7,5 @@ export PORT
 echo "==> Expanding Mimir config..."
 envsubst < /etc/mimir/my.yaml.template > /tmp/mimir-config.yaml
 
-echo "==> Starting Mimir on port ${PORT}..."
-exec /bin/mimir --config.file=/tmp/mimir-config.yaml
+echo "==> Starting Mimir alertmanager on port ${PORT}..."
+exec /bin/mimir -target=alertmanager -config.file=/tmp/mimir-config.yaml

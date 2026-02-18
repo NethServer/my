@@ -1,16 +1,16 @@
-# Mimir — Metrics Infrastructure
+# Mimir — Alerting Infrastructure
 
-Grafana Mimir provides long-term metrics storage for the MY platform, deployed as a single node on a dedicated VM (Server B). The collect service on Server A writes metrics to Mimir and proxies read queries.
+Grafana Mimir runs as a multi-tenant **Alertmanager** (`-target=alertmanager`) for the MY platform, deployed on a dedicated VM (Server B). It does **not** ingest metrics. The collect service on Server A routes alert notifications through Mimir's Alertmanager API.
 
 ## Topology
 
 ```
 ┌──────────────────────────────────┐      ┌──────────────────────────────────┐
-│  Server A (main app)             │      │  Server B (metrics VM)           │
+│  Server A (main app)             │      │  Server B (alerting VM)          │
 │                                  │      │                                  │
-│  collect  ──/api/services/mimir──►│◄────│  mimir   (port 19009)           │
-│  backend                         │      │      └── S3 storage              │
-│  frontend                        │      │                                  │
+│  collect  ──/api/services/mimir──►──────►  mimir   (port 19009)           │
+│  backend                         │      │    -target=alertmanager          │
+│  frontend                        │      │      └── S3 alertmanager state   │
 │  nginx proxy                     │      │                                  │
 └──────────────────────────────────┘      └──────────────────────────────────┘
 ```
@@ -55,15 +55,13 @@ Should return `ready`.
 | `MIMIR_S3_ENDPOINT` | S3-compatible storage endpoint | `ams3.digitaloceanspaces.com` |
 | `MIMIR_S3_ACCESS_KEY` | S3 access key | `your-access-key` |
 | `MIMIR_S3_SECRET_KEY` | S3 secret key | `your-secret-key` |
-| `MIMIR_S3_BUCKET` | Bucket for blocks (TSDB chunks) | `my-mimir-blocks` |
 | `MIMIR_S3_ALERTMANAGER_BUCKET` | Bucket for Alertmanager state | `my-mimir-alertmanager` |
-| `MIMIR_S3_RULER_BUCKET` | Bucket for recording/alert rules | `my-mimir-ruler` |
 
 Copy `services/mimir/.env.example` to `services/mimir/.env` and fill in every value before starting the stack.
 
 ## Architecture
 
-Mimir runs as a single node with `replication_factor: 1`. It uses three S3 buckets (blocks, alertmanager, ruler) for persistent storage. Multitenancy is enabled; all writes from `collect` include the tenant ID resolved from the system's organization.
+Mimir runs as an alertmanager-only target (`-target=alertmanager`). It uses a single S3 bucket for persistent Alertmanager state. Multitenancy is enabled; all requests from `collect` include the tenant ID resolved from the system's organization.
 
 The config template (`services/mimir/my.yaml`) uses `${VAR}` placeholders that are expanded at container startup by `entrypoint.sh` via `envsubst`.
 

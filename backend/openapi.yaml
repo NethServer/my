@@ -62,7 +62,8 @@ tags:
     description: Collect service system management and inventory collection
   - name: Collect - Rebranding
     description: Collect service rebranding endpoints for systems
-
+  - name: Collect - Metrics
+    description: Collect service metrics proxy to Mimir (Prometheus remote_write and query)
 security:
   - BearerAuth: []
 
@@ -8231,3 +8232,127 @@ paths:
                 format: binary
         '404':
           $ref: '#/components/responses/NotFound'
+
+  # ===========================================
+  # METRICS ENDPOINTS (Collect - Mimir Proxy)
+  # ===========================================
+
+  /api/services/mimir/{path}:
+    parameters:
+      - name: path
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Wildcard path forwarded to Mimir (e.g. `api/v1/push`, `prometheus/api/v1/query`)
+    get:
+      operationId: mimirProxyGet
+      tags:
+        - Collect - Metrics
+      summary: Proxy GET request to Mimir
+      description: |
+        Authenticates the system using HTTP Basic Auth (`system_key` as username,
+        `system_secret` as password), injects the `X-Scope-OrgID` header with the
+        system's `organization_id` for multi-tenant isolation, and reverse-proxies
+        the request to Mimir. Typical use: Grafana PromQL queries via
+        `GET /api/services/mimir/prometheus/api/v1/query`.
+      security:
+        - BasicAuth: []
+      responses:
+        '200':
+          description: Proxied response from Mimir
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      operationId: mimirProxyPost
+      tags:
+        - Collect - Metrics
+      summary: Proxy POST request to Mimir
+      description: |
+        Authenticates the system using HTTP Basic Auth (`system_key` as username,
+        `system_secret` as password), injects the `X-Scope-OrgID` header with the
+        system's `organization_id` for multi-tenant isolation, and reverse-proxies
+        the request to Mimir. Primary use case: Prometheus `remote_write` ingestion
+        via `POST /api/services/mimir/api/v1/push` from NethServer systems.
+      security:
+        - BasicAuth: []
+      requestBody:
+        description: Request body forwarded as-is to Mimir (e.g. Prometheus remote_write protobuf payload)
+        required: false
+        content:
+          application/x-protobuf:
+            schema:
+              type: string
+              format: binary
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Proxied response from Mimir
+        '204':
+          description: No content — Mimir acknowledged the write with no response body
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      operationId: mimirProxyPut
+      tags:
+        - Collect - Metrics
+      summary: Proxy PUT request to Mimir
+      description: |
+        Authenticates the system using HTTP Basic Auth (`system_key` as username,
+        `system_secret` as password), injects the `X-Scope-OrgID` header with the
+        system's `organization_id` for multi-tenant isolation, and reverse-proxies
+        the request to Mimir.
+      security:
+        - BasicAuth: []
+      requestBody:
+        description: Request body forwarded as-is to Mimir
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Proxied response from Mimir
+        '204':
+          description: No content
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      operationId: mimirProxyDelete
+      tags:
+        - Collect - Metrics
+      summary: Proxy DELETE request to Mimir
+      description: |
+        Authenticates the system using HTTP Basic Auth (`system_key` as username,
+        `system_secret` as password), injects the `X-Scope-OrgID` header with the
+        system's `organization_id` for multi-tenant isolation, and reverse-proxies
+        the request to Mimir.
+      security:
+        - BasicAuth: []
+      responses:
+        '200':
+          description: Proxied response from Mimir
+        '204':
+          description: No content
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
