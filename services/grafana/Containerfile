@@ -16,9 +16,8 @@ COPY --from=tools /usr/bin/envsubst /usr/local/bin/envsubst
 # Copy datasource template
 COPY provisioning/datasources/mimir.yaml.template /etc/grafana/provisioning/datasources/mimir.yaml.template
 
-# Copy and setup entrypoint script
+# Copy entrypoint script (must be executable in the repo)
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
 
 # Switch back to grafana user
 USER grafana

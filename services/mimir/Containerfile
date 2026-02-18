@@ -14,9 +14,8 @@ COPY .render-build-trigger /tmp/build-trigger
 # Copy Mimir config template
 COPY my.yaml /etc/mimir/my.yaml.template
 
-# Copy and setup entrypoint script
+# Copy entrypoint script (must be executable in the repo)
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
 
 # Expose default port (can be overridden by runtime environment)
 ARG PORT=9009
