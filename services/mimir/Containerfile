@@ -1,12 +1,13 @@
-# Build stage: grab envsubst from alpine
-FROM alpine:3.21 AS tools
+# Extract mimir binary from official image
+FROM docker.io/grafana/mimir:3.0.3 AS mimir
+
+# Final stage: alpine with shell for entrypoint script
+FROM alpine:3.21
+
 RUN apk add --no-cache gettext
 
-# Final stage
-FROM docker.io/grafana/mimir:3.0.3
-
-# Copy envsubst from tools stage
-COPY --from=tools /usr/bin/envsubst /usr/bin/envsubst
+# Copy mimir binary from official image
+COPY --from=mimir /bin/mimir /bin/mimir
 
 # Copy build trigger file to force rebuilds when it changes
 COPY .render-build-trigger /tmp/build-trigger
