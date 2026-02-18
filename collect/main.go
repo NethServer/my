@@ -105,8 +105,11 @@ func main() {
 	// Add security monitoring middleware
 	router.Use(logger.SecurityMiddleware())
 
-	// Add compression
-	router.Use(gzip.Gzip(gzip.DefaultCompression))
+	// Add compression (excluding Mimir proxy endpoints to avoid double-compression)
+	router.Use(gzip.Gzip(
+		gzip.DefaultCompression,
+		gzip.WithExcludedPathsRegexs([]string{"^/api/services/mimir"}),
+	))
 
 	// CORS configuration in debug mode
 	if gin.Mode() == gin.DebugMode {
@@ -156,6 +159,15 @@ func main() {
 		// Rebranding endpoints (system fetches its own rebranding config)
 		systemsGroup.GET("/rebranding", methods.GetSystemRebranding)
 		systemsGroup.GET("/rebranding/:product_id/:asset", methods.GetSystemRebrandingAsset)
+	}
+
+	// ===========================================
+	// EXTERNAL SERVICES PROXY
+	// ===========================================
+	servicesGroup := api.Group("/services", middleware.BasicAuthMiddleware())
+	{
+		mimirProxy := servicesGroup.Group("/mimir")
+		mimirProxy.Any("/*path", methods.ProxyMimir)
 	}
 
 	// Handle missing endpoints

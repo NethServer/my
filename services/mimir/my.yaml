@@ -35,3 +35,10 @@ store_gateway:
 server:
   http_listen_port: ${PORT}
   log_level: info
+
+limits:
+  compactor_blocks_retention_period: 24h
+
+runtime_config:
+  file: /etc/mimir/runtime_config.yaml
+  period: 10s
