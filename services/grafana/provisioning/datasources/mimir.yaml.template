@@ -1,0 +1,15 @@
+apiVersion: 1
+
+datasources:
+  - name: Mimir
+    type: prometheus
+    url: http://${COLLECT_SERVICE_NAME}/api/services/mimir
+    basicAuth: true
+    basicAuthUser: ${MIMIR_SYSTEM_KEY}
+    secureJsonData:
+      basicAuthPassword: ${MIMIR_SYSTEM_SECRET}
+    jsonData:
+      httpMethod: POST
+      prometheusType: Mimir
+    isDefault: true
+    editable: false

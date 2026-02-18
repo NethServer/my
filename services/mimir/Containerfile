@@ -1,0 +1,28 @@
+# Build stage: grab envsubst from alpine
+FROM alpine:3.21 AS tools
+RUN apk add --no-cache gettext
+
+# Final stage
+FROM docker.io/grafana/mimir:3.0.3
+
+# Copy envsubst from tools stage
+COPY --from=tools /usr/bin/envsubst /usr/bin/envsubst
+
+# Copy build trigger file to force rebuilds when it changes
+COPY .render-build-trigger /tmp/build-trigger
+
+# Copy Mimir config template
+COPY my.yaml /etc/mimir/my.yaml.template
+
+# Copy and setup entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Expose default port (can be overridden by runtime environment)
+ARG PORT=9009
+ENV PORT=${PORT}
+EXPOSE ${PORT}
+EXPOSE 7946
+
+# Use entrypoint script
+ENTRYPOINT ["/entrypoint.sh"]
