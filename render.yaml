@@ -41,7 +41,7 @@ services:
     runtime: image
     plan: starter
     image:
-      url: ghcr.io/nethserver/my/mimir:v0.3.0
+      url: ghcr.io/nethserver/my/mimir:latest
     envVars:
       - key: PORT
         value: 9009
@@ -69,7 +69,7 @@ services:
     runtime: image
     plan: starter
     image:
-      url: ghcr.io/nethserver/my/mimir:v0.3.0
+      url: ghcr.io/nethserver/my/mimir:latest
     envVars:
       - key: PORT
         value: 9009
@@ -97,7 +97,7 @@ services:
     runtime: image
     plan: starter
     image:
-      url: ghcr.io/nethserver/my/grafana:v0.3.0
+      url: ghcr.io/nethserver/my/grafana:latest
     envVars:
       - key: GF_SERVER_ROOT_URL
         value: "%(protocol)s://%(domain)s/grafana/"
