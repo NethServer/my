@@ -97,7 +97,7 @@ function getKebabMenuItems() {
         <NeDropdown :items="getKebabMenuItems()" :align-to-right="true" />
       </div>
       <!-- system information -->
-      <div className="divide-y divide-gray-200 dark:divide-gray-700">
+      <div class="divide-y divide-gray-200 dark:divide-gray-700">
         <!-- name -->
         <DataItem>
           <template #label>
@@ -127,16 +127,12 @@ function getKebabMenuItems() {
             {{ $t('common.ip_address') }}
           </template>
           <template #data>
-            <ClickToCopy
-              v-if="systemDetail.data.ipv4_address"
-              :text="systemDetail.data.ipv4_address"
-              tooltip-placement="left"
-            />
-            <ClickToCopy
-              v-if="systemDetail.data.ipv6_address"
-              :text="systemDetail.data.ipv6_address"
-              tooltip-placement="left"
-            />
+            <div v-if="systemDetail.data.ipv4_address">
+              <ClickToCopy :text="systemDetail.data.ipv4_address" tooltip-placement="left" />
+            </div>
+            <div v-if="systemDetail.data.ipv6_address">
+              <ClickToCopy :text="systemDetail.data.ipv6_address" tooltip-placement="left" />
+            </div>
             <span v-if="!systemDetail.data.ipv4_address && !systemDetail.data.ipv6_address">
               -
             </span>

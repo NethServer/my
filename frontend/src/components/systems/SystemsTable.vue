@@ -10,9 +10,6 @@ import {
   faServer,
   faEye,
   faPenToSquare,
-  faCircleCheck,
-  faCircleQuestion,
-  faTriangleExclamation,
   faFilePdf,
   faFileCsv,
   faKey,
@@ -72,6 +69,7 @@ import RestoreSystemModal from './RestoreSystemModal.vue'
 import SuspendSystemModal from './SuspendSystemModal.vue'
 import ReactivateSystemModal from './ReactivateSystemModal.vue'
 import DestroySystemModal from './DestroySystemModal.vue'
+import SystemStatusIcon from './SystemStatusIcon.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -233,6 +231,7 @@ function resetFilters() {
   versionFilter.value = []
   createdByFilter.value = []
   statusFilter.value = ['online', 'offline', 'unknown', 'suspended']
+  organizationFilter.value = []
 }
 
 function showCreateSystemDrawer() {
@@ -590,6 +589,7 @@ function onCloseSecretRegeneratedModal() {
           <NeTableCell :data-label="$t('systems.name')">
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
               <router-link
+                v-if="item.status !== 'deleted'"
                 :to="{ name: 'system_detail', params: { systemId: item.id } }"
                 class="cursor-pointer font-medium hover:underline"
               >
@@ -606,6 +606,18 @@ function onCloseSecretRegeneratedModal() {
                   </span>
                 </div>
               </router-link>
+              <div v-else class="flex items-center gap-2">
+                <img
+                  v-if="item.type"
+                  :src="getProductLogo(item.type)"
+                  :alt="getProductName(item.type)"
+                  aria-hidden="true"
+                  class="size-8"
+                />
+                <span>
+                  {{ item.name || '-' }}
+                </span>
+              </div>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.version')" class="break-all 2xl:break-normal">
@@ -613,10 +625,7 @@ function onCloseSecretRegeneratedModal() {
               {{ item.version || '-' }}
             </div>
           </NeTableCell>
-          <NeTableCell
-            :data-label="$t('systems.fqdn_ip_address')"
-            class="break-all 2xl:break-normal"
-          >
+          <NeTableCell :data-label="$t('systems.fqdn_ip_address')" class="break-all">
             <div
               class="flex flex-col items-start space-y-0.5"
               :class="{ 'opacity-50': item.status === 'deleted' }"
@@ -678,36 +687,7 @@ function onCloseSecretRegeneratedModal() {
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.status')">
             <div class="flex items-center gap-2">
-              <FontAwesomeIcon
-                v-if="item.suspended_at"
-                :icon="faCirclePause"
-                class="size-4 text-gray-700 dark:text-gray-400"
-                aria-hidden="true"
-              />
-              <FontAwesomeIcon
-                v-else-if="item.status === 'online'"
-                :icon="faCircleCheck"
-                class="size-4 text-green-600 dark:text-green-400"
-                aria-hidden="true"
-              />
-              <FontAwesomeIcon
-                v-else-if="item.status === 'offline'"
-                :icon="faTriangleExclamation"
-                class="size-4 text-amber-700 dark:text-amber-500"
-                aria-hidden="true"
-              />
-              <FontAwesomeIcon
-                v-else-if="item.status === 'deleted'"
-                :icon="faBoxArchive"
-                class="size-4 text-gray-700 dark:text-gray-400"
-                aria-hidden="true"
-              />
-              <FontAwesomeIcon
-                v-else
-                :icon="faCircleQuestion"
-                class="size-4 text-gray-700 dark:text-gray-400"
-                aria-hidden="true"
-              />
+              <SystemStatusIcon :status="item.status" :suspended-at="item.suspended_at" />
               <span v-if="item.suspended_at">
                 {{ t('common.suspended') }}
               </span>

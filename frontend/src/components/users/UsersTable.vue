@@ -508,7 +508,11 @@ const onClosePasswordChangedModal = () => {
           <NeTableCell :data-label="$t('users.name')" :class="{ 'opacity-50': item.deleted_at }">
             {{ item.name }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('users.email')" class="break-all xl:break-normal" :class="{ 'opacity-50': item.deleted_at }">
+          <NeTableCell
+            :data-label="$t('users.email')"
+            class="break-all xl:break-normal"
+            :class="{ 'opacity-50': item.deleted_at }"
+          >
             {{ item.email }}
           </NeTableCell>
           <NeTableCell :data-label="$t('users.organization')">
@@ -530,7 +534,11 @@ const onClosePasswordChangedModal = () => {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('users.roles')">
-            <span v-if="!item.roles || item.roles.length === 0" :class="{ 'opacity-50': item.deleted_at }">-</span>
+            <span
+              v-if="!item.roles || item.roles.length === 0"
+              :class="{ 'opacity-50': item.deleted_at }"
+              >-</span
+            >
             <div v-else class="flex flex-wrap gap-1" :class="{ 'opacity-50': item.deleted_at }">
               <UserRoleBadge
                 v-for="role in item.roles?.sort(sortByProperty('name'))"

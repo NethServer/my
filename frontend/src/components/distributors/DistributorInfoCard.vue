@@ -8,7 +8,6 @@ import {
   NeCard,
   NeDropdown,
   NeHeading,
-  NeInlineNotification,
   NeLink,
   NeSkeleton,
   type NeDropdownItem,
@@ -17,16 +16,13 @@ import { useDistributorDetail } from '@/queries/organizations/distributorDetail'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { getOrganizationIcon } from '@/lib/organizations/organizations'
 import DataItem from '../DataItem.vue'
-import ClickToCopy from '../ClickToCopy.vue'
 import { ref } from 'vue'
 import NotesModal from '../NotesModal.vue'
 import { canManageDistributors } from '@/lib/permissions'
-import { faFileCsv, faFilePdf, faPenToSquare } from '@fortawesome/free-solid-svg-icons'
+import { faPenToSquare } from '@fortawesome/free-solid-svg-icons'
 import { useI18n } from 'vue-i18n'
 import CreateOrEditDistributorDrawer from './CreateOrEditDistributorDrawer.vue'
 import { getLanguageLabel } from '@/lib/locale'
-
-//// review replace "distributor"
 
 const { t } = useI18n()
 const { state: distributorDetail, asyncStatus } = useDistributorDetail()
@@ -69,7 +65,7 @@ function getKebabMenuItems() {
         />
       </div>
       <!-- distributor information -->
-      <div className="divide-y divide-gray-200 dark:divide-gray-700">
+      <div class="divide-y divide-gray-200 dark:divide-gray-700">
         <!-- vat number -->
         <DataItem>
           <template #label>

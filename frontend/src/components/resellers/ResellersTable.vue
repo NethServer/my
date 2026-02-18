@@ -353,10 +353,16 @@ const onSort = (payload: SortEvent) => {
       </NeTableHead>
       <NeTableBody>
         <NeTableRow v-for="(item, index) in resellersPage" :key="index">
-          <NeTableCell :data-label="$t('organizations.name')" :class="{ 'opacity-50': item.deleted_at }">
+          <NeTableCell
+            :data-label="$t('organizations.name')"
+            :class="{ 'opacity-50': item.deleted_at }"
+          >
             {{ item.name }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('organizations.vat_number')" :class="{ 'opacity-50': item.deleted_at }">
+          <NeTableCell
+            :data-label="$t('organizations.vat_number')"
+            :class="{ 'opacity-50': item.deleted_at }"
+          >
             {{ item.custom_data?.vat || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('customers.title')">

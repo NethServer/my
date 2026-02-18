@@ -46,7 +46,8 @@
     "suspended": "Suspended",
     "reactivate": "Reactivate",
     "notes": "Notes",
-    "show_notes": "Show notes"
+    "show_notes": "Show notes",
+    "plus_n_more": "+{num} more"
   },
   "shell": {
     "open_sidebar": "Open sidebar",
@@ -484,7 +485,9 @@
     "destroy_system": "Destroy system",
     "destroy_system_confirmation": "Are you sure you want to destroy system {name}? This action cannot be undone.",
     "system_destroyed": "System destroyed",
-    "cannot_destroy_system": "Cannot destroy system"
+    "cannot_destroy_system": "Cannot destroy system",
+    "total_systems": "Total Systems",
+    "organization_systems": "Organization Systems"
   },
   "system_detail": {
     "title": "System detail",
@@ -533,7 +536,9 @@
     "edit_notes": "Edit notes",
     "set_application_notes": "Set application notes",
     "set_application_notes_description": "The notes for application {application} have been set",
-    "cannot_set_notes": "Cannot set application notes"
+    "cannot_set_notes": "Cannot set application notes",
+    "total_applications": "Total Applications",
+    "organization_applications": "Organization Applications"
   },
   "ne_table": {
     "no_items": "No items",
