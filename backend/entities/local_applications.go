@@ -306,16 +306,17 @@ func (r *LocalApplicationRepository) List(
 	orderBy := "a.created_at DESC"
 	if sortBy != "" {
 		columnMap := map[string]string{
-			"display_name":      "LOWER(COALESCE(NULLIF(TRIM(a.display_name), ''), a.module_id))",
-			"module_id":         "LOWER(a.module_id)",
-			"instance_of":       "LOWER(a.instance_of)",
-			"version":           "a.version",
-			"status":            "a.status",
-			"system_name":       "LOWER(s.name)",
-			"organization_name": "LOWER(COALESCE(d.name, re.name, c.name))",
-			"created_at":        "a.created_at",
-			"updated_at":        "a.updated_at",
-			"last_inventory_at": "a.last_inventory_at",
+			"display_name":        "LOWER(COALESCE(NULLIF(TRIM(a.display_name), ''), a.module_id))",
+			"module_id":           "LOWER(a.module_id)",
+			"instance_of":         "LOWER(a.instance_of)",
+			"version":             "a.version",
+			"status":              "a.status",
+			"system_name":         "LOWER(s.name)",
+			"organization_name":   "LOWER(COALESCE(d.name, re.name, c.name))",
+			"created_at":          "a.created_at",
+			"updated_at":          "a.updated_at",
+			"last_inventory_at":   "a.last_inventory_at",
+			"certification_level": "(a.inventory_data->>'certification_level')::int",
 		}
 
 		if column, exists := columnMap[sortBy]; exists {

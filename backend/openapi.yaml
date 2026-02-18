@@ -1947,7 +1947,7 @@ components:
       required: false
       schema:
         type: string
-        enum: ["display_name", "module_id", "instance_of", "version", "status", "created_at", "updated_at", "last_inventory_at", "system_name", "organization_name"]
+        enum: ["display_name", "module_id", "instance_of", "version", "status", "created_at", "updated_at", "last_inventory_at", "system_name", "organization_name", "certification_level"]
         example: "instance_of"
 
     AppTypeFilterParam:
