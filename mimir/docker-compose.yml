@@ -1,0 +1,105 @@
+# Metrics Infrastructure - Dedicated VM deployment
+#
+# Run on a separate server from the main application stack.
+#
+# 🚀 Start: docker-compose -f mimir/docker-compose.yml up -d
+# 🛑 Stop:  docker-compose -f mimir/docker-compose.yml down
+#
+# 🌐 Service URLs:
+#   - Mimir node 1:  http://localhost:19009
+#   - Mimir node 2:  http://localhost:19010
+#   - Grafana:       http://localhost:13000
+#
+# ⚙️ Required environment variables (set in mimir/.env or shell):
+#   MIMIR_S3_ENDPOINT, MIMIR_S3_ACCESS_KEY, MIMIR_S3_SECRET_KEY
+#   MIMIR_S3_BUCKET, MIMIR_S3_ALERTMANAGER_BUCKET, MIMIR_S3_RULER_BUCKET
+#   MIMIR_SYSTEM_KEY, MIMIR_SYSTEM_SECRET
+#   BACKEND_SERVICE_NAME (hostname:port of the main app backend, e.g. my.nethesis.it or 192.168.1.10:8080)
+#
+# 💡 The backend API (on Server A) must be reachable from this server.
+#    Grafana queries Mimir through the backend proxy at:
+#    http://${BACKEND_SERVICE_NAME}/api/mimir
+
+version: '3.8'
+
+services:
+  # =============================================================================
+  # MIMIR CLUSTER (2-node memberlist)
+  # =============================================================================
+
+  mimir1:
+    build:
+      context: .
+      dockerfile: Containerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-metrics}-mimir1
+    restart: unless-stopped
+    environment:
+      PORT: 9009
+      MIMIR_JOIN_MEMBER1: mimir1
+      MIMIR_JOIN_MEMBER2: mimir2
+      MIMIR_S3_ENDPOINT: ${MIMIR_S3_ENDPOINT}
+      MIMIR_S3_ACCESS_KEY: ${MIMIR_S3_ACCESS_KEY}
+      MIMIR_S3_SECRET_KEY: ${MIMIR_S3_SECRET_KEY}
+      MIMIR_S3_BUCKET: ${MIMIR_S3_BUCKET}
+      MIMIR_S3_ALERTMANAGER_BUCKET: ${MIMIR_S3_ALERTMANAGER_BUCKET}
+      MIMIR_S3_RULER_BUCKET: ${MIMIR_S3_RULER_BUCKET}
+    ports:
+      - "19009:9009"
+      - "17946:7946"
+    networks:
+      - metrics-network
+
+  mimir2:
+    build:
+      context: .
+      dockerfile: Containerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-metrics}-mimir2
+    restart: unless-stopped
+    environment:
+      PORT: 9009
+      MIMIR_JOIN_MEMBER1: mimir1
+      MIMIR_JOIN_MEMBER2: mimir2
+      MIMIR_S3_ENDPOINT: ${MIMIR_S3_ENDPOINT}
+      MIMIR_S3_ACCESS_KEY: ${MIMIR_S3_ACCESS_KEY}
+      MIMIR_S3_SECRET_KEY: ${MIMIR_S3_SECRET_KEY}
+      MIMIR_S3_BUCKET: ${MIMIR_S3_BUCKET}
+      MIMIR_S3_ALERTMANAGER_BUCKET: ${MIMIR_S3_ALERTMANAGER_BUCKET}
+      MIMIR_S3_RULER_BUCKET: ${MIMIR_S3_RULER_BUCKET}
+    ports:
+      - "19010:9009"
+      - "27946:7946"
+    networks:
+      - metrics-network
+
+  # =============================================================================
+  # GRAFANA
+  # =============================================================================
+
+  grafana:
+    build:
+      context: ../grafana
+      dockerfile: Containerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-metrics}-grafana
+    restart: unless-stopped
+    environment:
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      # URL of the main backend API on Server A (hostname:port or FQDN)
+      BACKEND_SERVICE_NAME: ${BACKEND_SERVICE_NAME:-localhost:8080}
+      MIMIR_SYSTEM_KEY: ${MIMIR_SYSTEM_KEY}
+      MIMIR_SYSTEM_SECRET: ${MIMIR_SYSTEM_SECRET}
+    ports:
+      - "13000:3000"
+    depends_on:
+      - mimir1
+      - mimir2
+    networks:
+      - metrics-network
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  metrics-network:
+    driver: bridge
+    name: ${COMPOSE_PROJECT_NAME:-metrics}-network

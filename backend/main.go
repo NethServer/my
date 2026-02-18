@@ -136,6 +136,14 @@ func main() {
 	api.POST("/systems/register", methods.RegisterSystem)
 
 	// ===========================================
+	// MIMIR METRICS PROXY
+	// Uses system key/secret auth (not JWT)
+	// Wildcard proxy: authenticates system, adds X-Scope-OrgID, forwards to Mimir
+	// ===========================================
+	mimirProxy := api.Group("/mimir")
+	mimirProxy.Any("/*path", methods.ProxyMimir)
+
+	// ===========================================
 	// STANDARD OAUTH2/OIDC ROUTES (for third-party apps)
 	// Uses Logto tokens directly - standard compliance
 	// ===========================================

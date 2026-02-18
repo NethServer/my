@@ -67,6 +67,8 @@ type Configuration struct {
 	SMTPFrom     string `json:"smtp_from"`
 	SMTPFromName string `json:"smtp_from_name"`
 	SMTPTLS      bool   `json:"smtp_tls"`
+	// Mimir configuration
+	MimirURL string `json:"mimir_url"`
 }
 
 var Config = Configuration{}
@@ -195,6 +197,13 @@ func Init() {
 		Config.SMTPFromName = "My Nethesis"
 	}
 	Config.SMTPTLS = parseBoolWithDefault("SMTP_TLS", true)
+
+	// Mimir configuration
+	if os.Getenv("MIMIR_URL") != "" {
+		Config.MimirURL = os.Getenv("MIMIR_URL")
+	} else {
+		Config.MimirURL = "http://localhost:9009"
+	}
 
 	// Log successful configuration load
 	logger.LogConfigLoad("env", "configuration", true, nil)

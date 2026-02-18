@@ -35,6 +35,82 @@ services:
     maxmemoryPolicy: allkeys-lru
     ipAllowList: []
 
+  # Production Mimir Node 1 (Private Service - NOT internet accessible)
+  - type: pserv
+    name: my-mimir1-prod
+    runtime: image
+    plan: starter
+    image:
+      url: ghcr.io/nethserver/my/mimir:v0.2.0
+    envVars:
+      - key: PORT
+        value: 9009
+      - key: MIMIR_JOIN_MEMBER1
+        value: my-mimir1-prod
+      - key: MIMIR_JOIN_MEMBER2
+        value: my-mimir2-prod
+      # S3 storage credentials (configure in Render dashboard)
+      - key: MIMIR_S3_ENDPOINT
+        sync: false
+      - key: MIMIR_S3_ACCESS_KEY
+        sync: false
+      - key: MIMIR_S3_SECRET_KEY
+        sync: false
+      - key: MIMIR_S3_BUCKET
+        sync: false
+      - key: MIMIR_S3_ALERTMANAGER_BUCKET
+        sync: false
+      - key: MIMIR_S3_RULER_BUCKET
+        sync: false
+
+  # Production Mimir Node 2 (Private Service - cluster peer)
+  - type: pserv
+    name: my-mimir2-prod
+    runtime: image
+    plan: starter
+    image:
+      url: ghcr.io/nethserver/my/mimir:v0.2.0
+    envVars:
+      - key: PORT
+        value: 9009
+      - key: MIMIR_JOIN_MEMBER1
+        value: my-mimir1-prod
+      - key: MIMIR_JOIN_MEMBER2
+        value: my-mimir2-prod
+      # S3 storage credentials (configure in Render dashboard)
+      - key: MIMIR_S3_ENDPOINT
+        sync: false
+      - key: MIMIR_S3_ACCESS_KEY
+        sync: false
+      - key: MIMIR_S3_SECRET_KEY
+        sync: false
+      - key: MIMIR_S3_BUCKET
+        sync: false
+      - key: MIMIR_S3_ALERTMANAGER_BUCKET
+        sync: false
+      - key: MIMIR_S3_RULER_BUCKET
+        sync: false
+
+  # Production Grafana Dashboard (Private Service - exposed via nginx proxy)
+  - type: web
+    name: my-grafana-prod
+    runtime: image
+    plan: starter
+    image:
+      url: ghcr.io/nethserver/my/grafana:v0.2.0
+    envVars:
+      - key: GF_SERVER_ROOT_URL
+        value: "%(protocol)s://%(domain)s/grafana/"
+      - key: GF_SERVER_SERVE_FROM_SUB_PATH
+        value: "true"
+      - key: BACKEND_SERVICE_NAME
+        value: my-backend-prod
+      # Mimir datasource credentials (configure in Render dashboard)
+      - key: MIMIR_SYSTEM_KEY
+        sync: false
+      - key: MIMIR_SYSTEM_SECRET
+        sync: false
+
   # Production Backend API Server (Private Service)
   - type: web
     name: my-backend-prod
@@ -97,6 +173,10 @@ services:
         sync: false
       - key: SMTP_TLS
         sync: false
+
+      # Mimir metrics proxy
+      - key: MIMIR_URL
+        value: http://my-mimir1-prod:9009
 
   # Production Collect Service (Private Service)
   - type: web
@@ -170,6 +250,8 @@ services:
         value: my-collect-prod
       - key: FRONTEND_SERVICE_NAME
         value: my-frontend-prod
+      - key: GRAFANA_SERVICE_NAME
+        value: my-grafana-prod
 
 
 # =============================================================================
@@ -183,6 +265,89 @@ services:
     plan: free
     maxmemoryPolicy: allkeys-lru
     ipAllowList: []
+
+  # QA Mimir Node 1 (Private Service)
+  - type: pserv
+    name: my-mimir1-qa
+    runtime: docker
+    plan: starter
+    rootDir: mimir
+    dockerfilePath: Containerfile
+    envVars:
+      - key: PORT
+        value: 9009
+      - key: MIMIR_JOIN_MEMBER1
+        value: my-mimir1-qa
+      - key: MIMIR_JOIN_MEMBER2
+        value: my-mimir2-qa
+      - key: MIMIR_S3_ENDPOINT
+        sync: false
+      - key: MIMIR_S3_ACCESS_KEY
+        sync: false
+      - key: MIMIR_S3_SECRET_KEY
+        sync: false
+      - key: MIMIR_S3_BUCKET
+        sync: false
+      - key: MIMIR_S3_ALERTMANAGER_BUCKET
+        sync: false
+      - key: MIMIR_S3_RULER_BUCKET
+        sync: false
+    autoDeploy: true
+    branch: main
+
+  # QA Mimir Node 2 (cluster peer)
+  - type: pserv
+    name: my-mimir2-qa
+    runtime: docker
+    plan: starter
+    rootDir: mimir
+    dockerfilePath: Containerfile
+    envVars:
+      - key: PORT
+        value: 9009
+      - key: MIMIR_JOIN_MEMBER1
+        value: my-mimir1-qa
+      - key: MIMIR_JOIN_MEMBER2
+        value: my-mimir2-qa
+      - key: MIMIR_S3_ENDPOINT
+        sync: false
+      - key: MIMIR_S3_ACCESS_KEY
+        sync: false
+      - key: MIMIR_S3_SECRET_KEY
+        sync: false
+      - key: MIMIR_S3_BUCKET
+        sync: false
+      - key: MIMIR_S3_ALERTMANAGER_BUCKET
+        sync: false
+      - key: MIMIR_S3_RULER_BUCKET
+        sync: false
+    autoDeploy: true
+    branch: main
+
+  # QA Grafana Dashboard
+  - type: web
+    name: my-grafana-qa
+    runtime: docker
+    plan: starter
+    rootDir: grafana
+    dockerfilePath: Containerfile
+    envVars:
+      - key: GF_SERVER_ROOT_URL
+        value: "%(protocol)s://%(domain)s/grafana/"
+      - key: GF_SERVER_SERVE_FROM_SUB_PATH
+        value: "true"
+      - key: BACKEND_SERVICE_NAME
+        fromService:
+          name: my-backend-qa
+          type: web
+          property: host
+      - key: MIMIR_SYSTEM_KEY
+        sync: false
+      - key: MIMIR_SYSTEM_SECRET
+        sync: false
+    autoDeploy: true
+    branch: main
+    pullRequestPreviewsEnabled: true
 
   # QA Backend API Server (Private Service)
   - type: web
@@ -246,6 +411,10 @@ services:
         sync: false
       - key: SMTP_TLS
         sync: false
+
+      # Mimir metrics proxy
+      - key: MIMIR_URL
+        value: http://my-mimir1-qa:9009
 
     autoDeploy: true   # Auto-deploy on every commit
     branch: main
@@ -336,6 +505,11 @@ services:
       - key: FRONTEND_SERVICE_NAME
         fromService:
           name: my-frontend-qa
+          type: web
+          property: host
+      - key: GRAFANA_SERVICE_NAME
+        fromService:
+          name: my-grafana-qa
           type: web
           property: host
 

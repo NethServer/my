@@ -234,6 +234,29 @@ backend/
 ```
 
 
+## Metrics Proxy (Mimir)
+
+Wildcard reverse proxy at `ANY /api/mimir/*` that forwards requests to a Mimir instance. **No JWT middleware** — authentication uses system credentials.
+
+**Config:**
+```bash
+MIMIR_URL=http://localhost:9009   # default
+```
+
+**Auth flow:**
+1. Client sends `Authorization: Basic base64(system_key:system_secret)`
+2. Handler decodes: `username=system_key`, `password=<public>.<secret>`
+3. DB lookup by `system_secret_public` (only active, non-suspended systems)
+4. Verifies `system_key` matches and Argon2id-verifies the secret part via `helpers.VerifySystemSecret()`
+5. Strips `/api/mimir` prefix, forwards path + query + body to `MIMIR_URL`
+6. Sets `X-Scope-OrgID: <organization_id>` on the upstream request
+7. Streams response back via `io.Copy` (no buffering — required for large metric payloads)
+
+**Notes:**
+- Public route — not protected by JWT middleware; uses its own system-credential auth.
+- Nginx must have `proxy_request_buffering off` for this path to avoid buffering large writes.
+- Route registered in `main.go` as `api.Group("/mimir").Any("/*path", methods.ProxyMimir)`.
+
 ## Related
 - [openapi.yaml](openapi.yaml) - API specification
 - [Collect](../collect/README.md) - Collect server
