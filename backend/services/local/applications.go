@@ -312,7 +312,7 @@ func (s *LocalApplicationsService) getAllowedOrganizationIDs(userOrgRole, userOr
 		resellerQuery := `
 			SELECT logto_id FROM resellers
 			WHERE deleted_at IS NULL AND logto_id IS NOT NULL
-			AND custom_data->>'distributor_id' = $1
+			AND custom_data->>'createdBy' = $1
 		`
 		resellerRows, err := database.DB.Query(resellerQuery, userOrgID)
 		if err != nil {
@@ -344,7 +344,7 @@ func (s *LocalApplicationsService) getAllowedOrganizationIDs(userOrgRole, userOr
 			customerQuery := fmt.Sprintf(`
 				SELECT logto_id FROM customers
 				WHERE deleted_at IS NULL AND logto_id IS NOT NULL
-				AND (custom_data->>'distributor_id' = $1 OR custom_data->>'reseller_id' IN (%s))
+				AND (custom_data->>'createdBy' = $1 OR custom_data->>'createdBy' IN (%s))
 			`, strings.Join(placeholders[1:], ","))
 
 			customerRows, err := database.DB.Query(customerQuery, args...)
@@ -365,7 +365,7 @@ func (s *LocalApplicationsService) getAllowedOrganizationIDs(userOrgRole, userOr
 			customerQuery := `
 				SELECT logto_id FROM customers
 				WHERE deleted_at IS NULL AND logto_id IS NOT NULL
-				AND custom_data->>'distributor_id' = $1
+				AND custom_data->>'createdBy' = $1
 			`
 			customerRows, err := database.DB.Query(customerQuery, userOrgID)
 			if err != nil {
@@ -389,7 +389,7 @@ func (s *LocalApplicationsService) getAllowedOrganizationIDs(userOrgRole, userOr
 		customerQuery := `
 			SELECT logto_id FROM customers
 			WHERE deleted_at IS NULL AND logto_id IS NOT NULL
-			AND custom_data->>'reseller_id' = $1
+			AND custom_data->>'createdBy' = $1
 		`
 		customerRows, err := database.DB.Query(customerQuery, userOrgID)
 		if err != nil {
