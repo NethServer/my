@@ -429,6 +429,88 @@ jobs:
         format: cyclonedx-json
         output-file: proxy-sbom.cdx.json
 
+    - name: Extract mimir metadata
+      id: mimir_meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ github.repository }}/mimir
+        tags: |
+          type=semver,pattern=v{{version}},value=${{ steps.version.outputs.VERSION }}
+          type=raw,value=latest
+
+    - name: Build and push mimir Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: services/mimir
+        file: services/mimir/Containerfile
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.mimir_meta.outputs.tags }}
+        labels: |
+          ${{ steps.mimir_meta.outputs.labels }}
+          org.opencontainers.image.title=My Nethesis Mimir
+          org.opencontainers.image.description=Grafana Mimir metrics backend for My Nethesis
+        cache-from: type=gha,scope=mimir
+        cache-to: type=gha,mode=max,scope=mimir
+
+    - name: Wait for mimir image availability
+      run: |
+        IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/mimir:${{ steps.version.outputs.VERSION }}"
+        for i in $(seq 1 10); do
+          docker manifest inspect "$IMAGE" > /dev/null 2>&1 && { echo "Image available"; exit 0; }
+          echo "Waiting for image... (attempt $i/10)"
+          sleep 5
+        done
+        echo "Image not available after 50s, proceeding anyway"
+
+    - name: Generate mimir SBOM
+      uses: anchore/sbom-action@v0
+      with:
+        image: ${{ env.REGISTRY }}/${{ github.repository }}/mimir:${{ steps.version.outputs.VERSION }}
+        format: cyclonedx-json
+        output-file: mimir-sbom.cdx.json
+
+    - name: Extract grafana metadata
+      id: grafana_meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ github.repository }}/grafana
+        tags: |
+          type=semver,pattern=v{{version}},value=${{ steps.version.outputs.VERSION }}
+          type=raw,value=latest
+
+    - name: Build and push grafana Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: services/grafana
+        file: services/grafana/Containerfile
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.grafana_meta.outputs.tags }}
+        labels: |
+          ${{ steps.grafana_meta.outputs.labels }}
+          org.opencontainers.image.title=My Nethesis Grafana
+          org.opencontainers.image.description=Grafana dashboard for My Nethesis metrics
+        cache-from: type=gha,scope=grafana
+        cache-to: type=gha,mode=max,scope=grafana
+
+    - name: Wait for grafana image availability
+      run: |
+        IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/grafana:${{ steps.version.outputs.VERSION }}"
+        for i in $(seq 1 10); do
+          docker manifest inspect "$IMAGE" > /dev/null 2>&1 && { echo "Image available"; exit 0; }
+          echo "Waiting for image... (attempt $i/10)"
+          sleep 5
+        done
+        echo "Image not available after 50s, proceeding anyway"
+
+    - name: Generate grafana SBOM
+      uses: anchore/sbom-action@v0
+      with:
+        image: ${{ env.REGISTRY }}/${{ github.repository }}/grafana:${{ steps.version.outputs.VERSION }}
+        format: cyclonedx-json
+        output-file: grafana-sbom.cdx.json
+
     # Create GitHub Release
     - name: Create Release
       uses: softprops/action-gh-release@v2
@@ -443,3 +525,5 @@ jobs:
           collect-sbom.cdx.json
           frontend-sbom.cdx.json
           proxy-sbom.cdx.json
+          mimir-sbom.cdx.json
+          grafana-sbom.cdx.json

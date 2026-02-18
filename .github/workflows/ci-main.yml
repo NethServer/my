@@ -124,7 +124,21 @@ jobs:
 
     strategy:
       matrix:
-        component: [backend, sync, collect, frontend, proxy]
+        include:
+          - component: backend
+            context: backend
+          - component: sync
+            context: sync
+          - component: collect
+            context: collect
+          - component: frontend
+            context: frontend
+          - component: proxy
+            context: proxy
+          - component: mimir
+            context: services/mimir
+          - component: grafana
+            context: services/grafana
 
     steps:
     - uses: actions/checkout@v4
@@ -153,8 +167,8 @@ jobs:
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
-        context: ${{ matrix.component }}
-        file: ${{ matrix.component }}/Containerfile
+        context: ${{ matrix.context }}
+        file: ${{ matrix.context }}/Containerfile
         platforms: linux/amd64,linux/arm64
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.meta.outputs.tags }}
@@ -172,7 +186,7 @@ jobs:
       if: github.ref == 'refs/heads/main'
       with:
         scan-type: 'fs'
-        scan-ref: './${{ matrix.component }}'
+        scan-ref: './${{ matrix.context }}'
         format: 'sarif'
         output: 'trivy-${{ matrix.component }}-results.sarif'
         github-pat: ${{ secrets.GITHUB_TOKEN }}

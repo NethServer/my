@@ -41,7 +41,7 @@ services:
     runtime: image
     plan: starter
     image:
-      url: ghcr.io/nethserver/my/mimir:v0.2.0
+      url: ghcr.io/nethserver/my/mimir:v0.3.0
     envVars:
       - key: PORT
         value: 9009
@@ -69,7 +69,7 @@ services:
     runtime: image
     plan: starter
     image:
-      url: ghcr.io/nethserver/my/mimir:v0.2.0
+      url: ghcr.io/nethserver/my/mimir:v0.3.0
     envVars:
       - key: PORT
         value: 9009
@@ -97,7 +97,7 @@ services:
     runtime: image
     plan: starter
     image:
-      url: ghcr.io/nethserver/my/grafana:v0.2.0
+      url: ghcr.io/nethserver/my/grafana:v0.3.0
     envVars:
       - key: GF_SERVER_ROOT_URL
         value: "%(protocol)s://%(domain)s/grafana/"
@@ -118,7 +118,7 @@ services:
     runtime: image
     plan: free
     image:
-      url: ghcr.io/nethserver/my/backend:v0.2.0
+      url: ghcr.io/nethserver/my/backend:v0.3.0
     envVars:
       # Server Configuration
       - key: GIN_MODE
@@ -181,7 +181,7 @@ services:
     runtime: image
     plan: free
     image:
-      url: ghcr.io/nethserver/my/collect:v0.2.0
+      url: ghcr.io/nethserver/my/collect:v0.3.0
     envVars:
       # Server Configuration
       - key: GIN_MODE
@@ -218,7 +218,7 @@ services:
     runtime: image
     plan: free
     image:
-      url: ghcr.io/nethserver/my/frontend:v0.2.0
+      url: ghcr.io/nethserver/my/frontend:v0.3.0
     envVars:
       - key: VITE_PRODUCT_NAME
         value: "My Nethesis"
@@ -239,7 +239,7 @@ services:
     runtime: image
     plan: free
     image:
-      url: ghcr.io/nethserver/my/proxy:v0.2.0
+      url: ghcr.io/nethserver/my/proxy:v0.3.0
     domains:
       - my.nethesis.it
     envVars:
@@ -262,7 +262,7 @@ services:
   # QA Redis Cache
   - type: keyvalue
     name: my-redis-qa
-    plan: free
+    plan: starter
     maxmemoryPolicy: allkeys-lru
     ipAllowList: []
 
