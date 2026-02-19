@@ -8,6 +8,7 @@ package methods
 import (
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -468,11 +469,29 @@ func GetApplicationTypeSummary(c *gin.Context) {
 	organizationID := c.Query("organization_id")
 	includeHierarchy := c.Query("include_hierarchy") == "true"
 
+	// Pagination parameters (0 means no pagination)
+	page := 0
+	if pageStr := c.Query("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+	pageSize := 0
+	if pageSizeStr := c.Query("page_size"); pageSizeStr != "" {
+		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 && ps <= 100 {
+			pageSize = ps
+		}
+	}
+
+	// Sorting parameters
+	sortBy := c.DefaultQuery("sort_by", "count")
+	sortDirection := c.DefaultQuery("sort_direction", "desc")
+
 	// Create applications service
 	appsService := local.NewApplicationsService()
 
 	// Get type summary
-	summary, err := appsService.GetApplicationTypeSummary(userOrgRole, userOrgID, organizationID, includeHierarchy)
+	summary, err := appsService.GetApplicationTypeSummary(userOrgRole, userOrgID, organizationID, includeHierarchy, page, pageSize, sortBy, sortDirection)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -491,5 +510,15 @@ func GetApplicationTypeSummary(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, response.OK("application type summary retrieved successfully", summary))
+	// Build response with pagination if requested
+	responseData := gin.H{
+		"total":   summary.Total,
+		"by_type": summary.ByType,
+	}
+
+	if pageSize > 0 {
+		responseData["pagination"] = helpers.BuildPaginationInfoWithSorting(page, pageSize, summary.TotalTypes, sortBy, sortDirection)
+	}
+
+	c.JSON(http.StatusOK, response.OK("application type summary retrieved successfully", responseData))
 }

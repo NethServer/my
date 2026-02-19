@@ -552,7 +552,9 @@ func (r *LocalApplicationRepository) GetTotals(allowedSystemIDs []string, userFa
 // GetTypeSummary returns applications grouped by instance_of with total count
 // allowedSystemIDs scopes the query to systems the user can access
 // organizationIDs optionally filters by specific organization(s); if empty, no org filter is applied
-func (r *LocalApplicationRepository) GetTypeSummary(allowedSystemIDs []string, organizationIDs []string, userFacingOnly bool) (*models.ApplicationTypeSummary, error) {
+// page/pageSize control pagination of the by_type array (0 means no pagination)
+// sortBy/sortDirection control ordering of the by_type array
+func (r *LocalApplicationRepository) GetTypeSummary(allowedSystemIDs []string, organizationIDs []string, userFacingOnly bool, page, pageSize int, sortBy, sortDirection string) (*models.ApplicationTypeSummary, error) {
 	if len(allowedSystemIDs) == 0 {
 		return &models.ApplicationTypeSummary{
 			Total:  0,
@@ -587,20 +589,43 @@ func (r *LocalApplicationRepository) GetTypeSummary(allowedSystemIDs []string, o
 		orgClause = fmt.Sprintf(" AND organization_id IN (%s)", strings.Join(orgPlaceholders, ","))
 	}
 
-	// Get total count
-	countQuery := fmt.Sprintf(`
-		SELECT COUNT(*)
-		FROM applications
-		WHERE deleted_at IS NULL AND system_id IN (%s)%s%s%s
-	`, placeholdersStr, userFacingClause, certLevelClause, orgClause)
+	whereClause := fmt.Sprintf("deleted_at IS NULL AND system_id IN (%s)%s%s%s", placeholdersStr, userFacingClause, certLevelClause, orgClause)
+
+	// Get total count of applications and distinct types
+	countQuery := fmt.Sprintf(`SELECT COUNT(*), COUNT(DISTINCT instance_of) FROM applications WHERE %s`, whereClause)
 
 	summary := &models.ApplicationTypeSummary{
 		ByType: []models.ApplicationType{},
 	}
 
-	err := r.db.QueryRow(countQuery, args...).Scan(&summary.Total)
+	err := r.db.QueryRow(countQuery, args...).Scan(&summary.Total, &summary.TotalTypes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get type summary total: %w", err)
+	}
+
+	// Determine ORDER BY clause
+	orderClause := "count DESC" // default
+	dir := "DESC"
+	if strings.ToUpper(sortDirection) == "ASC" {
+		dir = "ASC"
+	}
+	switch sortBy {
+	case "count":
+		orderClause = fmt.Sprintf("count %s", dir)
+	case "created_at":
+		orderClause = fmt.Sprintf("MAX(a.created_at) %s", dir)
+	case "instance_of":
+		orderClause = fmt.Sprintf("instance_of %s", dir)
+	}
+
+	// Pagination clause
+	paginationClause := ""
+	if pageSize > 0 {
+		offset := 0
+		if page > 1 {
+			offset = (page - 1) * pageSize
+		}
+		paginationClause = fmt.Sprintf(" LIMIT %d OFFSET %d", pageSize, offset)
 	}
 
 	// Get counts by type with human-readable name
@@ -609,10 +634,10 @@ func (r *LocalApplicationRepository) GetTypeSummary(allowedSystemIDs []string, o
 			(SELECT name FROM applications a2 WHERE a2.instance_of = a.instance_of AND a2.name IS NOT NULL AND a2.deleted_at IS NULL ORDER BY a2.updated_at DESC LIMIT 1) as name,
 			COUNT(*) as count
 		FROM applications a
-		WHERE deleted_at IS NULL AND system_id IN (%s)%s%s%s
+		WHERE %s
 		GROUP BY instance_of
-		ORDER BY count DESC
-	`, placeholdersStr, userFacingClause, certLevelClause, orgClause)
+		ORDER BY %s%s
+	`, whereClause, orderClause, paginationClause)
 
 	rows, err := r.db.Query(typeQuery, args...)
 	if err != nil {

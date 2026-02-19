@@ -142,8 +142,9 @@ type ApplicationFilters struct {
 
 // ApplicationTypeSummary represents applications grouped by type with total count
 type ApplicationTypeSummary struct {
-	Total  int64             `json:"total"`
-	ByType []ApplicationType `json:"by_type"`
+	Total      int64             `json:"total"`
+	TotalTypes int               `json:"total_types"`
+	ByType     []ApplicationType `json:"by_type"`
 }
 
 // ApplicationType represents application type metadata for filter dropdowns

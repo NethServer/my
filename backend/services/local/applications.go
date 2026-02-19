@@ -500,7 +500,7 @@ func (s *LocalApplicationsService) getOrganizationType(orgID string) (string, er
 }
 
 // GetApplicationTypeSummary returns applications grouped by type, optionally filtered by organization
-func (s *LocalApplicationsService) GetApplicationTypeSummary(userOrgRole, userOrgID, organizationID string, includeHierarchy bool) (*models.ApplicationTypeSummary, error) {
+func (s *LocalApplicationsService) GetApplicationTypeSummary(userOrgRole, userOrgID, organizationID string, includeHierarchy bool, page, pageSize int, sortBy, sortDirection string) (*models.ApplicationTypeSummary, error) {
 	// Get allowed system IDs based on user's hierarchy (always enforced)
 	allowedSystemIDs, err := s.getAllowedSystemIDs(userOrgRole, userOrgID)
 	if err != nil {
@@ -550,7 +550,7 @@ func (s *LocalApplicationsService) GetApplicationTypeSummary(userOrgRole, userOr
 	}
 	// If organizationID is empty, orgIDsToFilter stays nil -> no org filter, all apps on allowed systems
 
-	return s.repo.GetTypeSummary(allowedSystemIDs, orgIDsToFilter, true) // userFacingOnly
+	return s.repo.GetTypeSummary(allowedSystemIDs, orgIDsToFilter, true, page, pageSize, sortBy, sortDirection) // userFacingOnly
 }
 
 // getChildOrganizationIDs returns the given org plus all its children in the hierarchy
