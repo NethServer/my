@@ -90,7 +90,7 @@
     "cannot_save_distributor": "Impossibile salvare il distributore",
     "cannot_delete_distributor": "Impossibile eliminare il distributore",
     "delete_distributor": "Elimina distributore",
-    "delete_distributor_confirmation": "Sei sicuro di voler eliminare il distributore {name}? Tutti gli utenti associati a questa organizzazione verranno eliminati. Questa azione non può essere annullata.",
+    "delete_distributor_confirmation": "Sei sicuro di voler eliminare il distributore {name}? Tutti gli utenti associati a questa azienda verranno eliminati. Questa azione non può essere annullata.",
     "no_distributor": "Nessun distributore"
   },
   "resellers": {
@@ -109,7 +109,7 @@
     "cannot_save_reseller": "Impossibile salvare il rivenditore",
     "cannot_delete_reseller": "Impossibile eliminare il rivenditore",
     "delete_reseller": "Elimina rivenditore",
-    "delete_reseller_confirmation": "Sei sicuro di voler eliminare il rivenditore {name}? Tutti gli utenti associati a questa organizzazione verranno eliminati. Questa azione non può essere annullata.",
+    "delete_reseller_confirmation": "Sei sicuro di voler eliminare il rivenditore {name}? Tutti gli utenti associati a questa azienda verranno eliminati. Questa azione non può essere annullata.",
     "no_reseller": "Nessun rivenditore"
   },
   "customers": {
@@ -128,7 +128,7 @@
     "cannot_save_customer": "Impossibile salvare il cliente",
     "cannot_delete_customer": "Impossibile eliminare il cliente",
     "delete_customer": "Elimina cliente",
-    "delete_customer_confirmation": "Sei sicuro di voler eliminare il cliente {name}? Tutti gli utenti associati a questa organizzazione verranno eliminati. Questa azione non può essere annullata.",
+    "delete_customer_confirmation": "Sei sicuro di voler eliminare il cliente {name}? Tutti gli utenti associati a questa azienda verranno eliminati. Questa azione non può essere annullata.",
     "no_customer": "Nessun cliente"
   },
   "organizations": {
@@ -140,7 +140,7 @@
     "customer": "Cliente",
     "name_cannot_be_empty": "Il nome dell'azienda è richiesto",
     "custom_data_vat_cannot_be_empty": "La partita IVA è richiesta",
-    "custom_data_vat_already_exists": "Un'organizzazione con questa partita IVA esiste già"
+    "custom_data_vat_already_exists": "Un'azienda con questa partita IVA esiste già"
   },
   "users": {
     "title": "Utenti",
@@ -148,7 +148,7 @@
     "cannot_retrieve_users": "Impossibile recuperare gli utenti",
     "email": "Email",
     "name": "Nome",
-    "organization": "Organizzazione",
+    "organization": "Azienda",
     "roles": "Ruoli",
     "password": "Password",
     "no_user_found": "Nessun utente trovato",
@@ -169,7 +169,7 @@
     "password_missing_special_char": "La password deve contenere almeno un carattere speciale",
     "password_contains_weak_patterns": "La password contiene schemi deboli",
     "password_too_many_repeating_chars": "La password contiene troppi caratteri ripetuti",
-    "organization_required": "L'organizzazione è richiesta",
+    "organization_required": "L'azienda è richiesta",
     "user_created": "Utente creato",
     "user_saved": "Utente salvato",
     "user_deleted": "Utente eliminato",
@@ -180,7 +180,7 @@
     "delete_user_confirmation": "Sei sicuro di voler eliminare l'utente {name}? Questa azione non può essere annullata.",
     "no_user": "Nessun utente",
     "phone_number": "Numero di telefono",
-    "no_organizations": "Nessuna organizzazione",
+    "no_organizations": "Nessuna azienda",
     "user_roles": "Ruoli",
     "reset_password": "Reimposta password",
     "impersonate_user": "Impersona utente",
@@ -332,8 +332,8 @@
     "product": "Prodotto",
     "version": "Versione",
     "created_by": "Creato da",
-    "organization": "Organizzazione",
-    "organization_helper": "Scegli l'organizzazione a cui verrà assegnato questo sistema",
+    "organization": "Azienda",
+    "organization_helper": "Scegli l'azienda a cui verrà assegnato questo sistema",
     "status": "Stato",
     "fqdn": "FQDN",
     "fqdn_ip_address": "FQDN / Indirizzo IP",
@@ -345,7 +345,7 @@
     "go_to_system": "Vai al sistema",
     "create_system": "Crea sistema",
     "name_cannot_be_empty": "Il nome è obbligatorio",
-    "organization_required": "L'organizzazione è obbligatoria",
+    "organization_required": "L'azienda è obbligatoria",
     "system_created": "Sistema creato",
     "system_saved": "Sistema salvato",
     "edit_system": "Modifica sistema",
@@ -356,7 +356,7 @@
     "cannot_save_system": "Impossibile salvare il sistema",
     "cannot_delete_system": "Impossibile eliminare il sistema",
     "save_system": "Salva sistema",
-    "no_organizations": "Nessuna organizzazione",
+    "no_organizations": "Nessuna azienda",
     "delete_system": "Elimina sistema",
     "delete_system_confirmation": "Sei sicuro di voler eliminare il sistema {name}? Il sistema non riceverà più aggiornamenti e non sarà possibile richiedere supporto per esso.",
     "system_deleted": "Sistema eliminato",
