@@ -4,9 +4,15 @@
 -->
 
 <script setup lang="ts">
-import { NeButton, NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
+import {
+  NeButton,
+  NeHeading,
+  NeInlineNotification,
+  NeLink,
+  NeSkeleton,
+} from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faArrowLeft, faCity, faServer } from '@fortawesome/free-solid-svg-icons'
+import { faArrowLeft, faArrowRight, faCity, faServer } from '@fortawesome/free-solid-svg-icons'
 import { useDistributorDetail } from '@/queries/organizations/distributorDetail'
 import DistributorInfoCard from '@/components/distributors/DistributorInfoCard.vue'
 import CounterCard from '@/components/CounterCard.vue'
@@ -17,25 +23,43 @@ import { getProductLogo, getProductName } from '@/lib/systems/systems'
 import SystemStatusIcon from '@/components/systems/SystemStatusIcon.vue'
 import { useI18n } from 'vue-i18n'
 import { computed } from 'vue'
+import router from '@/router'
+import { useRoute } from 'vue-router'
+import { useSystems } from '@/queries/systems/systems'
 
 const { t } = useI18n()
+const route = useRoute()
 const { state: distributorDetail } = useDistributorDetail()
 const { state: distributorStats } = useDistributorStats()
 const { state: distributorSystems } = useDistributorSystems()
+const { organizationFilter: organizationFilterForSystems } = useSystems()
+// const { organizationFilter: organizationFilterForApps } = useApplications() ////
 
 const moreSystems = computed(() => {
   if (!distributorSystems.value.data) {
-    return ''
+    return 0
   }
   const totalSystems = distributorStats.value.data?.systems_count ?? 0
   const retrievedSystems = distributorSystems.value.data.systems.length
   const remainingSystems = totalSystems - retrievedSystems
 
   if (remainingSystems > 0) {
-    return t('common.plus_n_more', { num: remainingSystems })
+    return remainingSystems
   }
-  return ''
+  return 0
 })
+
+const goToSystems = () => {
+  const distributorId = route.params.distributorId as string
+  organizationFilterForSystems.value = distributorId ? [distributorId] : []
+  router.push({ name: 'systems' })
+}
+
+// const goToApplications = () => { ////
+//   const distributorId = route.params.distributorId as string
+//   organizationFilterForApps.value = distributorId ? [distributorId] : []
+//   router.push({ name: 'applications' })
+// }
 </script>
 
 <template>
@@ -127,7 +151,19 @@ const moreSystems = computed(() => {
               <span v-else>-</span>
             </div>
           </div>
-          {{ moreSystems }} ////
+          <div v-if="moreSystems > 0" class="py-3">
+            <NeLink @click="goToSystems()">
+              {{ t('common.plus_n_more', { num: moreSystems }) }}
+            </NeLink>
+          </div>
+        </div>
+        <div class="flex justify-end">
+          <NeButton kind="tertiary" class="mt-2" @click="goToSystems()">
+            <template #prefix>
+              <FontAwesomeIcon :icon="faArrowRight" aria-hidden="true" />
+            </template>
+            {{ t('common.go_to_page', { page: t('systems.title') }) }}
+          </NeButton>
         </div>
       </CounterCard>
       <!-- organization applications -->

@@ -30,7 +30,7 @@ const isNotesModalShown = ref(false)
 const isShownCreateOrEditDistributorDrawer = ref(false)
 
 function getKebabMenuItems() {
-  let items: NeDropdownItem[] = []
+  const items: NeDropdownItem[] = []
 
   if (canManageDistributors()) {
     items.push({
@@ -172,7 +172,7 @@ function getKebabMenuItems() {
     <!-- edit drawer -->
     <CreateOrEditDistributorDrawer
       :is-shown="isShownCreateOrEditDistributorDrawer"
-      :current-distributor="distributorDetail.data!"
+      :current-distributor="distributorDetail.data ?? undefined"
       @close="isShownCreateOrEditDistributorDrawer = false"
     />
   </NeCard>
