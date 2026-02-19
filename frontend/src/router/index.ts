@@ -80,6 +80,11 @@ const router = createRouter({
       name: 'distributor_detail',
       component: () => import('../views/DistributorDetailView.vue'),
     },
+    {
+      path: '/resellers/:companyId',
+      name: 'reseller_detail',
+      component: () => import('../views/ResellerDetailView.vue'),
+    },
   ],
 })
 
