@@ -4,40 +4,12 @@
 import axios from 'axios'
 import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
-
-export interface DistributorDetail {
-  id: string
-  logto_id: string
-  name: string
-  description: string
-  custom_data: {
-    address: string
-    city: string
-    createdAt: string
-    createdBy: string
-    email: string
-    language: string
-    main_contact: string
-    notes: string
-    phone: string
-    type: string
-    updatedAt: string
-    updatedBy: string
-    vat: string
-  }
-  created_at: string
-  updated_at: string
-  logto_synced_at: string | null
-  logto_sync_error: string | null
-  deleted_at: string | null
-  suspended_at: string | null
-  rebranding_enabled: boolean
-}
+import type { Distributor } from './distributors'
 
 interface DistributorDetailResponse {
   code: number
   message: string
-  data: DistributorDetail
+  data: Distributor
 }
 
 export interface DistributorStats {
