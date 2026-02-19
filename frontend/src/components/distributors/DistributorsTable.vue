@@ -257,7 +257,7 @@ const onSort = (payload: SortEvent) => {
 }
 
 const goToDistributorDetails = (distributor: Distributor) => {
-  router.push({ name: 'distributor_detail', params: { distributorId: distributor.logto_id } })
+  router.push({ name: 'distributor_detail', params: { companyId: distributor.logto_id } })
 }
 </script>
 
@@ -379,7 +379,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
           <NeTableCell :data-label="$t('organizations.name')">
             <router-link
               v-if="!item.deleted_at"
-              :to="{ name: 'distributor_detail', params: { distributorId: item.logto_id } }"
+              :to="{ name: 'distributor_detail', params: { companyId: item.logto_id } }"
               class="cursor-pointer font-medium hover:underline"
             >
               {{ item.name }}

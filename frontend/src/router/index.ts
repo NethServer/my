@@ -76,7 +76,7 @@ const router = createRouter({
     //   component: () => import('../views/ApplicationDetailView.vue'),
     // },
     {
-      path: '/distributors/:distributorId',
+      path: '/distributors/:companyId',
       name: 'distributor_detail',
       component: () => import('../views/DistributorDetailView.vue'),
     },

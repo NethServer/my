@@ -13,9 +13,9 @@ export const useDistributorStats = defineQuery(() => {
   const route = useRoute()
 
   const { state, asyncStatus, ...rest } = useQuery({
-    key: () => [DISTRIBUTORS_KEY, 'stats', route.params.distributorId],
-    enabled: () => !!loginStore.jwtToken && canReadDistributors() && !!route.params.distributorId,
-    query: () => getDistributorStats(route.params.distributorId as string),
+    key: () => [DISTRIBUTORS_KEY, 'stats', route.params.companyId],
+    enabled: () => !!loginStore.jwtToken && canReadDistributors() && !!route.params.companyId,
+    query: () => getDistributorStats(route.params.companyId as string),
   })
 
   return {
