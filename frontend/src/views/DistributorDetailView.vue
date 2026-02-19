@@ -4,83 +4,23 @@
 -->
 
 <script setup lang="ts">
-import {
-  NeButton,
-  NeHeading,
-  NeInlineNotification,
-  NeLink,
-  NeSkeleton,
-} from '@nethesis/vue-components'
+import { NeButton, NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faArrowLeft, faArrowRight, faCity, faServer } from '@fortawesome/free-solid-svg-icons'
+import { faArrowLeft, faCity, faServer } from '@fortawesome/free-solid-svg-icons'
 import { useDistributorDetail } from '@/queries/organizations/distributorDetail'
 import DistributorInfoCard from '@/components/distributors/DistributorInfoCard.vue'
 import CounterCard from '@/components/CounterCard.vue'
 import { useDistributorStats } from '@/queries/organizations/distributorStats'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import { useDistributorSystems } from '@/queries/systems/distributorSystems'
-import { getProductLogo, getProductName } from '@/lib/systems/systems'
-import SystemStatusIcon from '@/components/systems/SystemStatusIcon.vue'
-import { useI18n } from 'vue-i18n'
-import { computed } from 'vue'
-import router from '@/router'
-import { useRoute } from 'vue-router'
-import { useSystems } from '@/queries/systems/systems'
 import { useApplicationsSummary } from '@/queries/applications/applicationsSummary'
-import { useApplications } from '@/queries/applications/applications'
-import { getApplicationLogo } from '@/lib/applications/applications'
+import OrganizationSystemsCard from '@/components/organizations/OrganizationSystemsCard.vue'
+import OrganizationApplicationsCard from '@/components/organizations/OrganizationApplicationsCard.vue'
 
-const { t } = useI18n()
-const route = useRoute()
 const { state: distributorDetail } = useDistributorDetail()
 const { state: distributorStats } = useDistributorStats()
 const { state: distributorSystems } = useDistributorSystems()
-const { organizationFilter: organizationFilterForSystems } = useSystems()
-const { organizationFilter: organizationFilterForApps } = useApplications()
 const { state: applicationsSummary } = useApplicationsSummary()
-
-const moreSystems = computed(() => {
-  if (!distributorSystems.value.data) {
-    return 0
-  }
-  const totalSystems = distributorStats.value.data?.systems_count ?? 0
-  const retrievedSystems = distributorSystems.value.data.systems.length
-  const remainingSystems = totalSystems - retrievedSystems
-
-  if (remainingSystems > 0) {
-    return remainingSystems
-  }
-  return 0
-})
-
-const moreApplications = computed(() => {
-  if (!applicationsSummary.value.data) {
-    return 0
-  }
-  const totalApps = applicationsSummary.value.data.total
-  const retrievedApps = applicationsSummary.value.data.by_type.reduce(
-    (acc, appType) => acc + appType.count,
-    0,
-  )
-  const remainingApps = totalApps - retrievedApps
-
-  if (remainingApps > 0) {
-    return remainingApps
-  }
-  return 0
-})
-
-const goToSystems = () => {
-  const companyId = route.params.companyId as string
-  organizationFilterForSystems.value = companyId ? [companyId] : []
-  router.push({ name: 'systems' })
-}
-
-const goToApplications = () => {
-  const companyId = route.params.companyId as string
-  organizationFilterForApps.value = companyId ? [companyId] : []
-  router.push({ name: 'applications' })
-}
 </script>
 
 <template>
@@ -130,108 +70,18 @@ const goToApplications = () => {
         :loading="distributorStats.status === 'pending'"
       />
       <!-- organization systems -->
-      <!-- //// externalize component -->
-      <CounterCard
-        :title="$t('systems.organization_systems')"
-        :counter="distributorStats.data?.systems_count ?? 0"
-        :icon="faServer"
-        :loading="distributorStats.status === 'pending' || distributorSystems.status === 'pending'"
-        :centeredCounter="false"
-      >
-        <div class="divide-y divide-gray-200 dark:divide-gray-700">
-          <div
-            v-for="system in distributorSystems.data?.systems"
-            :key="system.id"
-            class="flex items-center justify-between gap-4 py-3"
-          >
-            <router-link
-              :to="{ name: 'system_detail', params: { systemId: system.id } }"
-              class="cursor-pointer font-medium hover:underline"
-            >
-              <div class="flex items-center gap-2">
-                <img
-                  v-if="system.type"
-                  :src="getProductLogo(system.type)"
-                  :alt="getProductName(system.type)"
-                  aria-hidden="true"
-                  class="size-8"
-                />
-                <span>
-                  {{ system.name || '-' }}
-                </span>
-              </div>
-            </router-link>
-            <div class="flex items-center gap-2">
-              <SystemStatusIcon :status="system.status" :suspended-at="system.suspended_at" />
-              <span v-if="system.suspended_at">
-                {{ t('common.suspended') }}
-              </span>
-              <span v-else-if="system.status">
-                {{ t(`systems.status_${system.status}`) }}
-              </span>
-              <span v-else>-</span>
-            </div>
-          </div>
-          <div v-if="moreSystems > 0" class="py-3">
-            <NeLink @click="goToSystems()">
-              {{ t('common.plus_n_more', { num: moreSystems }) }}
-            </NeLink>
-          </div>
-        </div>
-        <div class="flex justify-end">
-          <NeButton kind="tertiary" class="mt-2" @click="goToSystems()">
-            <template #prefix>
-              <FontAwesomeIcon :icon="faArrowRight" aria-hidden="true" />
-            </template>
-            {{ t('common.go_to_page', { page: t('systems.title') }) }}
-          </NeButton>
-        </div>
-      </CounterCard>
+      <OrganizationSystemsCard
+        :systems-count="distributorStats.data?.systems_count ?? 0"
+        :systems-status="distributorSystems.status"
+        :systems-data="distributorSystems.data"
+        :stats-status="distributorStats.status"
+      />
       <!-- organization applications -->
-      <CounterCard
-        :title="$t('applications.organization_applications')"
-        :counter="applicationsSummary.data?.total ?? 0"
-        :icon="faGridOne"
-        :loading="applicationsSummary.status === 'pending'"
-        :centeredCounter="false"
-      >
-        <div class="divide-y divide-gray-200 dark:divide-gray-700">
-          <div
-            v-for="appType in applicationsSummary.data?.by_type"
-            :key="appType.instance_of"
-            class="flex items-center justify-between py-3"
-          >
-            <div class="flex items-center gap-2">
-              <img
-                v-if="appType.instance_of"
-                :src="getApplicationLogo(appType.instance_of)"
-                :alt="appType.instance_of"
-                aria-hidden="true"
-                class="size-8"
-              />
-              <span class="font-medium">
-                {{ appType.name || '-' }}
-              </span>
-            </div>
-            <span>
-              {{ appType.count }}
-            </span>
-          </div>
-          <div v-if="moreApplications > 0" class="py-3">
-            <NeLink @click="goToApplications()">
-              {{ t('common.plus_n_more', { num: moreApplications }) }}
-            </NeLink>
-          </div>
-        </div>
-        <div class="flex justify-end">
-          <NeButton kind="tertiary" class="mt-2" @click="goToApplications()">
-            <template #prefix>
-              <FontAwesomeIcon :icon="faArrowRight" aria-hidden="true" />
-            </template>
-            {{ t('common.go_to_page', { page: t('applications.title') }) }}
-          </NeButton>
-        </div>
-      </CounterCard>
+      <OrganizationApplicationsCard
+        :applications-count="applicationsSummary.data?.total ?? 0"
+        :applications-status="applicationsSummary.status"
+        :summary-data="applicationsSummary.data"
+      />
     </div>
   </div>
 </template>
