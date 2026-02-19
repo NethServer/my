@@ -6,12 +6,10 @@
 <script setup lang="ts">
 import { NeButton, NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faArrowLeft, faServer } from '@fortawesome/free-solid-svg-icons'
+import { faArrowLeft } from '@fortawesome/free-solid-svg-icons'
 import { useCustomerDetail } from '@/queries/organizations/customerDetail'
 import CustomerInfoCard from '@/components/customers/CustomerInfoCard.vue'
-import CounterCard from '@/components/CounterCard.vue'
 import { useCustomerStats } from '@/queries/organizations/customerStats'
-import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import { useCustomerSystems } from '@/queries/systems/customerSystems'
 import { useApplicationsSummary } from '@/queries/applications/applicationsSummary'
 import OrganizationSystemsCard from '@/components/organizations/OrganizationSystemsCard.vue'
