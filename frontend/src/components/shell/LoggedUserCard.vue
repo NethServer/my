@@ -6,10 +6,10 @@
 <script setup lang="ts">
 import { NeCard, NeSkeleton } from '@nethesis/vue-components'
 import { useLoginStore } from '@/stores/login'
-import UserAvatar from '../UserAvatar.vue'
+import UserAvatar from '../users/UserAvatar.vue'
 import { getOrganizationIcon } from '@/lib/organizations/organizations'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import UserRoleBadge from '../UserRoleBadge.vue'
+import UserRoleBadge from '../users/UserRoleBadge.vue'
 
 const loginStore = useLoginStore()
 </script>

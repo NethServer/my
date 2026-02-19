@@ -25,7 +25,7 @@ import router from '@/router'
 import ImpersonationBadge from '../ImpersonationBadge.vue'
 import { useImpersonationConsent } from '@/queries/impersonationConsent'
 import ImpersonationConsentBadge from '../ImpersonationConsentBadge.vue'
-import UserAvatar from '../UserAvatar.vue'
+import UserAvatar from '../users/UserAvatar.vue'
 
 const emit = defineEmits(['openSidebar'])
 

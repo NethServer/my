@@ -38,7 +38,7 @@ import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { canManageApplications } from '@/lib/permissions'
 import { SYSTEMS_TABLE_ID } from '@/lib/systems/systems'
 import router from '@/router'
-import OrganizationIcon from '../OrganizationIcon.vue'
+import OrganizationIcon from '../organizations/OrganizationIcon.vue'
 import { useApplications } from '@/queries/applications/applications'
 import {
   getApplicationLogo,

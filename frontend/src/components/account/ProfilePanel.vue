@@ -21,7 +21,7 @@ import { ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import * as v from 'valibot'
 import { USERS_KEY } from '@/lib/users/users'
-import UserRoleBadge from '../UserRoleBadge.vue'
+import UserRoleBadge from '../users/UserRoleBadge.vue'
 
 const { t } = useI18n()
 const loginStore = useLoginStore()
