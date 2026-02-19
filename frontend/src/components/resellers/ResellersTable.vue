@@ -353,11 +353,17 @@ const onSort = (payload: SortEvent) => {
       </NeTableHead>
       <NeTableBody>
         <NeTableRow v-for="(item, index) in resellersPage" :key="index">
-          <NeTableCell
-            :data-label="$t('organizations.name')"
-            :class="{ 'opacity-50': item.deleted_at }"
-          >
-            {{ item.name }}
+          <NeTableCell :data-label="$t('organizations.name')">
+            <router-link
+              v-if="!item.deleted_at"
+              :to="{ name: 'reseller_detail', params: { companyId: item.logto_id } }"
+              class="cursor-pointer font-medium hover:underline"
+            >
+              {{ item.name }}
+            </router-link>
+            <span v-else class="opacity-50">
+              {{ item.name }}
+            </span>
           </NeTableCell>
           <NeTableCell
             :data-label="$t('organizations.vat_number')"

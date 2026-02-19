@@ -54,7 +54,7 @@ const goToApplications = () => {
     :counter="applicationsCount"
     :icon="faGridOne"
     :loading="applicationsStatus === 'pending'"
-    :centeredCounter="false"
+    :centeredCounter="!applicationsCount"
   >
     <div class="divide-y divide-gray-200 dark:divide-gray-700">
       <div
@@ -84,7 +84,7 @@ const goToApplications = () => {
         </NeLink>
       </div>
     </div>
-    <div class="flex justify-end">
+    <div v-if="applicationsCount > 0" class="flex justify-end">
       <NeButton kind="tertiary" class="mt-2" @click="goToApplications()">
         <template #prefix>
           <FontAwesomeIcon :icon="faArrowRight" aria-hidden="true" />

@@ -18,7 +18,7 @@ import { useSystems } from '@/queries/systems/systems'
 import type { System } from '@/lib/systems/systems'
 
 interface SystemData {
-  systems: System[]
+  systems: System[] | null
 }
 
 const props = defineProps<{
@@ -37,7 +37,7 @@ const moreSystems = computed(() => {
     return 0
   }
   const totalSystems = props.systemsCount ?? 0
-  const retrievedSystems = props.systemsData.systems.length
+  const retrievedSystems = props.systemsData.systems?.length ?? 0
   const remainingSystems = totalSystems - retrievedSystems
 
   if (remainingSystems > 0) {
@@ -59,7 +59,7 @@ const goToSystems = () => {
     :counter="systemsCount"
     :icon="faServer"
     :loading="statsStatus === 'pending' || systemsStatus === 'pending'"
-    :centeredCounter="false"
+    :centeredCounter="!systemsCount"
   >
     <div class="divide-y divide-gray-200 dark:divide-gray-700">
       <div
@@ -101,7 +101,7 @@ const goToSystems = () => {
         </NeLink>
       </div>
     </div>
-    <div class="flex justify-end">
+    <div v-if="systemsCount > 0" class="flex justify-end">
       <NeButton kind="tertiary" class="mt-2" @click="goToSystems()">
         <template #prefix>
           <FontAwesomeIcon :icon="faArrowRight" aria-hidden="true" />
