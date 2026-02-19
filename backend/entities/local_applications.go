@@ -603,10 +603,12 @@ func (r *LocalApplicationRepository) GetTypeSummary(allowedSystemIDs []string, o
 		return nil, fmt.Errorf("failed to get type summary total: %w", err)
 	}
 
-	// Get counts by type
+	// Get counts by type with human-readable name
 	typeQuery := fmt.Sprintf(`
-		SELECT instance_of, COUNT(*) as count
-		FROM applications
+		SELECT instance_of,
+			(SELECT name FROM applications a2 WHERE a2.instance_of = a.instance_of AND a2.name IS NOT NULL AND a2.deleted_at IS NULL ORDER BY a2.updated_at DESC LIMIT 1) as name,
+			COUNT(*) as count
+		FROM applications a
 		WHERE deleted_at IS NULL AND system_id IN (%s)%s%s%s
 		GROUP BY instance_of
 		ORDER BY count DESC
@@ -620,8 +622,12 @@ func (r *LocalApplicationRepository) GetTypeSummary(allowedSystemIDs []string, o
 
 	for rows.Next() {
 		var t models.ApplicationType
-		if err := rows.Scan(&t.InstanceOf, &t.Count); err != nil {
+		var name *string
+		if err := rows.Scan(&t.InstanceOf, &name, &t.Count); err != nil {
 			return nil, fmt.Errorf("failed to scan type summary count: %w", err)
+		}
+		if name != nil {
+			t.Name = *name
 		}
 		summary.ByType = append(summary.ByType, t)
 	}
@@ -747,8 +753,10 @@ func (r *LocalApplicationRepository) GetDistinctTypes(allowedSystemIDs []string,
 	certLevelClause := " AND (inventory_data->>'certification_level')::int IN (4, 5)"
 
 	query := fmt.Sprintf(`
-		SELECT instance_of, COUNT(*) as count
-		FROM applications
+		SELECT instance_of,
+			(SELECT name FROM applications a2 WHERE a2.instance_of = a.instance_of AND a2.name IS NOT NULL AND a2.deleted_at IS NULL ORDER BY a2.updated_at DESC LIMIT 1) as name,
+			COUNT(*) as count
+		FROM applications a
 		WHERE deleted_at IS NULL AND system_id IN (%s)%s%s
 		GROUP BY instance_of
 		ORDER BY instance_of
@@ -763,8 +771,12 @@ func (r *LocalApplicationRepository) GetDistinctTypes(allowedSystemIDs []string,
 	var types []models.ApplicationType
 	for rows.Next() {
 		var t models.ApplicationType
-		if err := rows.Scan(&t.InstanceOf, &t.Count); err != nil {
+		var name *string
+		if err := rows.Scan(&t.InstanceOf, &name, &t.Count); err != nil {
 			return nil, fmt.Errorf("failed to scan type: %w", err)
+		}
+		if name != nil {
+			t.Name = *name
 		}
 		types = append(types, t)
 	}

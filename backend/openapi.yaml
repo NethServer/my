@@ -1464,6 +1464,10 @@ components:
           type: string
           description: Application type identifier (lowercase, e.g., nethvoice, webtop, mail)
           example: "nethvoice"
+        name:
+          type: string
+          description: Human-readable name of the application type (e.g., NethVoice, WebTop)
+          example: "NethVoice"
         count:
           type: integer
           description: Number of applications of this type

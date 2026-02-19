@@ -149,6 +149,7 @@ type ApplicationTypeSummary struct {
 // ApplicationType represents application type metadata for filter dropdowns
 type ApplicationType struct {
 	InstanceOf string `json:"instance_of"`
+	Name       string `json:"name"`
 	Count      int64  `json:"count"`
 }
 
