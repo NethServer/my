@@ -369,7 +369,7 @@ func GetApplicationVersions(c *gin.Context) {
 		Versions    []string `json:"versions"`
 	}
 
-	var groupedVersions []ApplicationVersions
+	groupedVersions := make([]ApplicationVersions, 0)
 	for application, group := range versionsByProduct {
 		groupedVersions = append(groupedVersions, ApplicationVersions{
 			Application: application,
@@ -467,6 +467,7 @@ func GetApplicationTypeSummary(c *gin.Context) {
 
 	// Optional filters
 	organizationID := c.Query("organization_id")
+	systemID := c.Query("system_id")
 	includeHierarchy := c.Query("include_hierarchy") == "true"
 
 	// Pagination parameters (0 means no pagination)
@@ -491,7 +492,7 @@ func GetApplicationTypeSummary(c *gin.Context) {
 	appsService := local.NewApplicationsService()
 
 	// Get type summary
-	summary, err := appsService.GetApplicationTypeSummary(userOrgRole, userOrgID, organizationID, includeHierarchy, page, pageSize, sortBy, sortDirection)
+	summary, err := appsService.GetApplicationTypeSummary(userOrgRole, userOrgID, organizationID, systemID, includeHierarchy, page, pageSize, sortBy, sortDirection)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -500,7 +501,11 @@ func GetApplicationTypeSummary(c *gin.Context) {
 			Msg("Failed to get application type summary")
 
 		if strings.Contains(err.Error(), "access denied") {
-			c.JSON(http.StatusForbidden, response.Forbidden("access denied to organization", nil))
+			msg := "access denied to organization"
+			if systemID != "" {
+				msg = "access denied to system"
+			}
+			c.JSON(http.StatusForbidden, response.Forbidden(msg, nil))
 			return
 		}
 
@@ -513,7 +518,7 @@ func GetApplicationTypeSummary(c *gin.Context) {
 	// Build response with pagination if requested
 	responseData := gin.H{
 		"total":   summary.Total,
-		"by_type": summary.ByType,
+		"by_type": helpers.EnsureSlice(summary.ByType),
 	}
 
 	if pageSize > 0 {

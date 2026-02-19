@@ -187,7 +187,7 @@ func GetDistributors(c *gin.Context) {
 
 	// Return paginated response
 	c.JSON(http.StatusOK, response.OK("distributors retrieved successfully", gin.H{
-		"distributors": distributors,
+		"distributors": helpers.EnsureSlice(distributors),
 		"pagination":   helpers.BuildPaginationInfoWithSorting(page, pageSize, totalCount, sortBy, sortDirection),
 	}))
 }

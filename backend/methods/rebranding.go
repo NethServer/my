@@ -76,7 +76,7 @@ func GetRebrandingProducts(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response.OK("rebrandable products retrieved successfully", gin.H{
-		"products": products,
+		"products": helpers.EnsureSlice(products),
 	}))
 }
 

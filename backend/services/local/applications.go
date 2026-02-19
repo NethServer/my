@@ -500,11 +500,26 @@ func (s *LocalApplicationsService) getOrganizationType(orgID string) (string, er
 }
 
 // GetApplicationTypeSummary returns applications grouped by type, optionally filtered by organization
-func (s *LocalApplicationsService) GetApplicationTypeSummary(userOrgRole, userOrgID, organizationID string, includeHierarchy bool, page, pageSize int, sortBy, sortDirection string) (*models.ApplicationTypeSummary, error) {
+func (s *LocalApplicationsService) GetApplicationTypeSummary(userOrgRole, userOrgID, organizationID, systemID string, includeHierarchy bool, page, pageSize int, sortBy, sortDirection string) (*models.ApplicationTypeSummary, error) {
 	// Get allowed system IDs based on user's hierarchy (always enforced)
 	allowedSystemIDs, err := s.getAllowedSystemIDs(userOrgRole, userOrgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get allowed systems: %w", err)
+	}
+
+	// If a specific system_id is requested, validate it's in the allowed set and restrict to it
+	if systemID != "" {
+		found := false
+		for _, id := range allowedSystemIDs {
+			if id == systemID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("access denied: system not in user hierarchy")
+		}
+		allowedSystemIDs = []string{systemID}
 	}
 
 	var orgIDsToFilter []string

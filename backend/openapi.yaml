@@ -6820,13 +6820,19 @@ paths:
       description: |
         Returns applications grouped by instance_of (type) with a counter.
         Hierarchically authorized: the caller only sees applications on systems within their organization tree.
-        Optionally filterable by organization_id to restrict to a specific organization.
+        Optionally filterable by organization_id to restrict to a specific organization or by system_id to restrict to a specific system.
         When include_hierarchy is true, also includes applications from all child organizations.
       parameters:
         - name: organization_id
           in: query
           required: false
           description: Logto ID of a specific organization to filter by. Must be within the caller's hierarchy.
+          schema:
+            type: string
+        - name: system_id
+          in: query
+          required: false
+          description: UUID of a specific system to filter by. Must be within the caller's hierarchy.
           schema:
             type: string
         - name: include_hierarchy
@@ -6882,20 +6888,7 @@ paths:
                     type: string
                     example: "application type summary retrieved successfully"
                   data:
-                    type: object
-                    properties:
-                      total:
-                        type: integer
-                        description: Total number of matching applications
-                        example: 130
-                      by_type:
-                        type: array
-                        description: Applications grouped by type, sorted and paginated
-                        items:
-                          $ref: '#/components/schemas/ApplicationType'
-                      pagination:
-                        description: Pagination metadata (only present when page_size is specified)
-                        $ref: '#/components/schemas/Pagination'
+                    $ref: '#/components/schemas/ApplicationTypeSummary'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

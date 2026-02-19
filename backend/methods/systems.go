@@ -167,7 +167,7 @@ func GetSystems(c *gin.Context) {
 
 	// Return paginated systems list
 	c.JSON(http.StatusOK, response.OK("systems retrieved successfully", gin.H{
-		"systems":    systems,
+		"systems":    helpers.EnsureSlice(systems),
 		"pagination": helpers.BuildPaginationInfoWithSorting(page, pageSize, totalCount, sortBy, sortDirection),
 	}))
 }

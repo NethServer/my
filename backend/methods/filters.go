@@ -64,7 +64,7 @@ func GetFilterProducts(c *gin.Context) {
 	}()
 
 	// Collect unique products
-	var products []string
+	products := make([]string, 0)
 	for rows.Next() {
 		var product string
 		if err := rows.Scan(&product); err != nil {
@@ -147,7 +147,7 @@ func GetFilterCreatedBy(c *gin.Context) {
 		Name   string `json:"name"`
 		Email  string `json:"email"`
 	}
-	var creators []Creator
+	creators := make([]Creator, 0)
 
 	for rows.Next() {
 		var userID, name, email *string
@@ -262,7 +262,7 @@ func GetFilterVersions(c *gin.Context) {
 	}
 
 	// Convert map to array of ProductVersions
-	var groupedVersions []ProductVersions
+	groupedVersions := make([]ProductVersions, 0)
 	for product, versions := range versionsByProduct {
 		groupedVersions = append(groupedVersions, ProductVersions{
 			Product:  product,
@@ -344,7 +344,7 @@ func GetFilterOrganizations(c *gin.Context) {
 		ID   string `json:"id"`
 		Name string `json:"name"`
 	}
-	var organizations []Organization
+	organizations := make([]Organization, 0)
 
 	for rows.Next() {
 		var org Organization
@@ -433,7 +433,7 @@ func GetFilterUsersOrganizations(c *gin.Context) {
 		Name string `json:"name"`
 		Type string `json:"type"`
 	}
-	var organizations []Organization
+	organizations := make([]Organization, 0)
 
 	for rows.Next() {
 		var org Organization

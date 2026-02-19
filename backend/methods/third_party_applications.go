@@ -93,7 +93,7 @@ func GetThirdPartyApplications(c *gin.Context) {
 	isValidDomain := domainValidation.IsValid()
 
 	// Convert filtered applications to our response model using parallel processing
-	var responseApplications []models.ThirdPartyApplication
+	responseApplications := make([]models.ThirdPartyApplication, 0)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 

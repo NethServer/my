@@ -19,6 +19,7 @@ import (
 	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
+	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services/local"
 )
@@ -241,6 +242,11 @@ func GetSystemsTrend(c *gin.Context) {
 		Str("trend", trend.Trend).
 		Msg("systems trend retrieved")
 
+	// Ensure nil slices are empty arrays for JSON serialization
+	if trend.DataPoints == nil {
+		trend.DataPoints = []models.TrendDataPoint{}
+	}
+
 	c.JSON(http.StatusOK, response.OK("systems trend retrieved successfully", trend))
 }
 
@@ -293,7 +299,7 @@ func GetDistributorsTrend(c *gin.Context) {
 		"delta":            delta,
 		"delta_percentage": deltaPercentage,
 		"trend":            trend,
-		"data_points":      dataPoints,
+		"data_points":      helpers.EnsureSlice(dataPoints),
 	}
 
 	logger.Info().Str("component", "trend").Str("operation", "distributors_trend").Str("user_org_id", userOrgID).Str("user_org_role", userOrgRole).Int("period", period).Int("current_total", currentTotal).Int("delta", delta).Str("trend", trend).Msg("distributors trend retrieved")
@@ -349,7 +355,7 @@ func GetResellersTrend(c *gin.Context) {
 		"delta":            delta,
 		"delta_percentage": deltaPercentage,
 		"trend":            trend,
-		"data_points":      dataPoints,
+		"data_points":      helpers.EnsureSlice(dataPoints),
 	}
 
 	logger.Info().Str("component", "trend").Str("operation", "resellers_trend").Str("user_org_id", userOrgID).Str("user_org_role", userOrgRole).Int("period", period).Int("current_total", currentTotal).Int("delta", delta).Str("trend", trend).Msg("resellers trend retrieved")
@@ -405,7 +411,7 @@ func GetCustomersTrend(c *gin.Context) {
 		"delta":            delta,
 		"delta_percentage": deltaPercentage,
 		"trend":            trend,
-		"data_points":      dataPoints,
+		"data_points":      helpers.EnsureSlice(dataPoints),
 	}
 
 	logger.Info().Str("component", "trend").Str("operation", "customers_trend").Str("user_org_id", userOrgID).Str("user_org_role", userOrgRole).Int("period", period).Int("current_total", currentTotal).Int("delta", delta).Str("trend", trend).Msg("customers trend retrieved")
@@ -452,6 +458,11 @@ func GetUsersTrend(c *gin.Context) {
 		Int("delta", trend.Delta).
 		Str("trend", trend.Trend).
 		Msg("users trend retrieved")
+
+	// Ensure nil slices are empty arrays for JSON serialization
+	if trend.DataPoints == nil {
+		trend.DataPoints = []models.TrendDataPoint{}
+	}
 
 	c.JSON(http.StatusOK, response.OK("users trend retrieved successfully", trend))
 }
@@ -505,7 +516,7 @@ func GetApplicationsTrend(c *gin.Context) {
 		"delta":            delta,
 		"delta_percentage": deltaPercentage,
 		"trend":            trend,
-		"data_points":      dataPoints,
+		"data_points":      helpers.EnsureSlice(dataPoints),
 	}
 
 	logger.Info().Str("component", "trend").Str("operation", "applications_trend").Str("user_org_id", userOrgID).Str("user_org_role", userOrgRole).Int("period", period).Int("current_total", currentTotal).Int("delta", delta).Str("trend", trend).Msg("applications trend retrieved")

@@ -213,7 +213,7 @@ func GetCustomers(c *gin.Context) {
 
 	// Return paginated response
 	c.JSON(http.StatusOK, response.OK("customers retrieved successfully", gin.H{
-		"customers":  customers,
+		"customers":  helpers.EnsureSlice(customers),
 		"pagination": helpers.BuildPaginationInfoWithSorting(page, pageSize, totalCount, sortBy, sortDirection),
 	}))
 }

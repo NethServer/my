@@ -34,7 +34,7 @@ func (s *RebrandingService) ListProducts() ([]models.RebrandableProduct, error) 
 	}
 	defer func() { _ = rows.Close() }()
 
-	var products []models.RebrandableProduct
+	products := make([]models.RebrandableProduct, 0)
 	for rows.Next() {
 		var p models.RebrandableProduct
 		if err := rows.Scan(&p.ID, &p.DisplayName, &p.Type, &p.CreatedAt); err != nil {
@@ -151,7 +151,7 @@ func (s *RebrandingService) GetOrgStatus(orgID string) (*models.RebrandingOrgSta
 	}
 
 	// Build response
-	var productStatuses []models.RebrandingProductStatus
+	productStatuses := make([]models.RebrandingProductStatus, 0)
 	for _, p := range products {
 		ps := models.RebrandingProductStatus{
 			ProductID:          p.ID,

@@ -206,7 +206,7 @@ func GetResellers(c *gin.Context) {
 
 	// Return paginated response
 	c.JSON(http.StatusOK, response.OK("resellers retrieved successfully", gin.H{
-		"resellers":  resellers,
+		"resellers":  helpers.EnsureSlice(resellers),
 		"pagination": helpers.BuildPaginationInfoWithSorting(page, pageSize, totalCount, sortBy, sortDirection),
 	}))
 }

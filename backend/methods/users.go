@@ -263,7 +263,7 @@ func GetUsers(c *gin.Context) {
 	canImpersonate := HasPermission(user.UserPermissions, user.OrgPermissions, "impersonate:users")
 
 	// Enrich users with impersonation consent status if user can impersonate
-	var enrichedUsers []gin.H
+	enrichedUsers := make([]gin.H, 0)
 	if canImpersonate {
 		impersonationService := local.NewImpersonationService()
 
