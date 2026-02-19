@@ -120,6 +120,10 @@
     "title": "Reseller detail",
     "cannot_retrieve_reseller_detail": "Cannot retrieve reseller detail"
   },
+  "customer_detail": {
+    "title": "Customer detail",
+    "cannot_retrieve_customer_detail": "Cannot retrieve customer detail"
+  },
   "resellers": {
     "title": "Resellers",
     "page_description": "List of authorized Nethesis resellers, including company details.",
