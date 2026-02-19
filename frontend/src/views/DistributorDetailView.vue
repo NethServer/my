@@ -26,6 +26,9 @@ import { computed } from 'vue'
 import router from '@/router'
 import { useRoute } from 'vue-router'
 import { useSystems } from '@/queries/systems/systems'
+import { useApplicationsSummary } from '@/queries/applications/applicationsSummary'
+import { useApplications } from '@/queries/applications/applications'
+import { getApplicationLogo } from '@/lib/applications/applications'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -33,7 +36,8 @@ const { state: distributorDetail } = useDistributorDetail()
 const { state: distributorStats } = useDistributorStats()
 const { state: distributorSystems } = useDistributorSystems()
 const { organizationFilter: organizationFilterForSystems } = useSystems()
-// const { organizationFilter: organizationFilterForApps } = useApplications() ////
+const { organizationFilter: organizationFilterForApps } = useApplications()
+const { state: applicationsSummary } = useApplicationsSummary()
 
 const moreSystems = computed(() => {
   if (!distributorSystems.value.data) {
@@ -49,17 +53,34 @@ const moreSystems = computed(() => {
   return 0
 })
 
+const moreApplications = computed(() => {
+  if (!applicationsSummary.value.data) {
+    return 0
+  }
+  const totalApps = applicationsSummary.value.data.total
+  const retrievedApps = applicationsSummary.value.data.by_type.reduce(
+    (acc, appType) => acc + appType.count,
+    0,
+  )
+  const remainingApps = totalApps - retrievedApps
+
+  if (remainingApps > 0) {
+    return remainingApps
+  }
+  return 0
+})
+
 const goToSystems = () => {
-  const distributorId = route.params.distributorId as string
-  organizationFilterForSystems.value = distributorId ? [distributorId] : []
+  const companyId = route.params.companyId as string
+  organizationFilterForSystems.value = companyId ? [companyId] : []
   router.push({ name: 'systems' })
 }
 
-// const goToApplications = () => { ////
-//   const distributorId = route.params.distributorId as string
-//   organizationFilterForApps.value = distributorId ? [distributorId] : []
-//   router.push({ name: 'applications' })
-// }
+const goToApplications = () => {
+  const companyId = route.params.companyId as string
+  organizationFilterForApps.value = companyId ? [companyId] : []
+  router.push({ name: 'applications' })
+}
 </script>
 
 <template>
@@ -169,11 +190,48 @@ const goToSystems = () => {
       <!-- organization applications -->
       <CounterCard
         :title="$t('applications.organization_applications')"
-        :counter="distributorStats.data?.applications_count ?? 0"
+        :counter="applicationsSummary.data?.total ?? 0"
         :icon="faGridOne"
-        :loading="distributorStats.status === 'pending'"
+        :loading="applicationsSummary.status === 'pending'"
         :centeredCounter="false"
-      />
+      >
+        <div class="divide-y divide-gray-200 dark:divide-gray-700">
+          <div
+            v-for="appType in applicationsSummary.data?.by_type"
+            :key="appType.instance_of"
+            class="flex items-center justify-between py-3"
+          >
+            <div class="flex items-center gap-2">
+              <img
+                v-if="appType.instance_of"
+                :src="getApplicationLogo(appType.instance_of)"
+                :alt="appType.instance_of"
+                aria-hidden="true"
+                class="size-8"
+              />
+              <span class="font-medium">
+                {{ appType.name || '-' }}
+              </span>
+            </div>
+            <span>
+              {{ appType.count }}
+            </span>
+          </div>
+          <div v-if="moreApplications > 0" class="py-3">
+            <NeLink @click="goToApplications()">
+              {{ t('common.plus_n_more', { num: moreApplications }) }}
+            </NeLink>
+          </div>
+        </div>
+        <div class="flex justify-end">
+          <NeButton kind="tertiary" class="mt-2" @click="goToApplications()">
+            <template #prefix>
+              <FontAwesomeIcon :icon="faArrowRight" aria-hidden="true" />
+            </template>
+            {{ t('common.go_to_page', { page: t('applications.title') }) }}
+          </NeButton>
+        </div>
+      </CounterCard>
     </div>
   </div>
 </template>

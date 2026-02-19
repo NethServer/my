@@ -96,7 +96,7 @@ const typeFilterOptions = computed(() => {
   } else {
     return typeFilterState.value.data.map((appType) => ({
       id: appType.instance_of,
-      label: appType.instance_of,
+      label: appType.name,
     }))
   }
 })
@@ -400,7 +400,6 @@ const goToApplicationDetails = (application: Application) => {
               {{ getDisplayName(item) }}
             </NeTableCell>
             <NeTableCell :data-label="$t('applications.type')">
-              <!-- <router-link :to="{ name: 'application_detail', params: { applicationId: item.id } }"> //// uncomment -->
               <div class="flex items-center gap-2">
                 <img
                   v-if="item.instance_of"
@@ -409,7 +408,7 @@ const goToApplicationDetails = (application: Application) => {
                   aria-hidden="true"
                   class="size-8"
                 />
-                <span class="cursor-pointer font-medium hover:underline">
+                <span class="font-medium">
                   {{ item.name || '-' }}
                 </span>
               </div>

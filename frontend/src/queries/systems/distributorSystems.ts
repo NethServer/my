@@ -13,8 +13,8 @@ export const useDistributorSystems = defineQuery(() => {
   const route = useRoute()
 
   const { state, asyncStatus, ...rest } = useQuery({
-    key: () => [SYSTEMS_KEY, DISTRIBUTORS_KEY, route.params.distributorId],
-    enabled: () => !!loginStore.jwtToken && canReadDistributors() && !!route.params.distributorId,
+    key: () => [SYSTEMS_KEY, DISTRIBUTORS_KEY, route.params.companyId],
+    enabled: () => !!loginStore.jwtToken && canReadDistributors() && !!route.params.companyId,
     query: () =>
       getSystems(
         1,
@@ -24,7 +24,7 @@ export const useDistributorSystems = defineQuery(() => {
         [],
         [],
         [],
-        route.params.distributorId ? [route.params.distributorId as string] : [],
+        route.params.companyId ? [route.params.companyId as string] : [],
         'created_at',
         true,
       ),

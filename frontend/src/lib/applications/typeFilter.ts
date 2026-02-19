@@ -17,7 +17,7 @@ interface TypeFilterResponse {
 
 interface ApplicationType {
   instance_of: string
-  is_user_facing: boolean
+  name: string
   count: number
 }
 
