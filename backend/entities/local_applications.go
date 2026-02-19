@@ -549,6 +549,86 @@ func (r *LocalApplicationRepository) GetTotals(allowedSystemIDs []string, userFa
 	return totals, nil
 }
 
+// GetTypeSummary returns applications grouped by instance_of with total count
+// allowedSystemIDs scopes the query to systems the user can access
+// organizationIDs optionally filters by specific organization(s); if empty, no org filter is applied
+func (r *LocalApplicationRepository) GetTypeSummary(allowedSystemIDs []string, organizationIDs []string, userFacingOnly bool) (*models.ApplicationTypeSummary, error) {
+	if len(allowedSystemIDs) == 0 {
+		return &models.ApplicationTypeSummary{
+			Total:  0,
+			ByType: []models.ApplicationType{},
+		}, nil
+	}
+
+	// Build placeholders for allowed system IDs
+	placeholders := make([]string, len(allowedSystemIDs))
+	args := make([]interface{}, len(allowedSystemIDs))
+	for i, sysID := range allowedSystemIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = sysID
+	}
+	placeholdersStr := strings.Join(placeholders, ",")
+
+	userFacingClause := ""
+	if userFacingOnly {
+		userFacingClause = " AND is_user_facing = TRUE"
+	}
+
+	certLevelClause := " AND (inventory_data->>'certification_level')::int IN (4, 5)"
+
+	// Organization filter clause
+	orgClause := ""
+	if len(organizationIDs) > 0 {
+		orgPlaceholders := make([]string, len(organizationIDs))
+		for i, orgID := range organizationIDs {
+			orgPlaceholders[i] = fmt.Sprintf("$%d", len(args)+1)
+			args = append(args, orgID)
+		}
+		orgClause = fmt.Sprintf(" AND organization_id IN (%s)", strings.Join(orgPlaceholders, ","))
+	}
+
+	// Get total count
+	countQuery := fmt.Sprintf(`
+		SELECT COUNT(*)
+		FROM applications
+		WHERE deleted_at IS NULL AND system_id IN (%s)%s%s%s
+	`, placeholdersStr, userFacingClause, certLevelClause, orgClause)
+
+	summary := &models.ApplicationTypeSummary{
+		ByType: []models.ApplicationType{},
+	}
+
+	err := r.db.QueryRow(countQuery, args...).Scan(&summary.Total)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get type summary total: %w", err)
+	}
+
+	// Get counts by type
+	typeQuery := fmt.Sprintf(`
+		SELECT instance_of, COUNT(*) as count
+		FROM applications
+		WHERE deleted_at IS NULL AND system_id IN (%s)%s%s%s
+		GROUP BY instance_of
+		ORDER BY count DESC
+	`, placeholdersStr, userFacingClause, certLevelClause, orgClause)
+
+	rows, err := r.db.Query(typeQuery, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get type summary by type: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var t models.ApplicationType
+		if err := rows.Scan(&t.InstanceOf, &t.Count); err != nil {
+			return nil, fmt.Errorf("failed to scan type summary count: %w", err)
+		}
+		summary.ByType = append(summary.ByType, t)
+	}
+
+	return summary, nil
+}
+
 // GetTrend returns trend data for applications over a specified period
 func (r *LocalApplicationRepository) GetTrend(allowedSystemIDs []string, period int) ([]struct {
 	Date  string

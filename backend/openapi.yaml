@@ -1469,6 +1469,20 @@ components:
           description: Number of applications of this type
           example: 30
 
+    ApplicationTypeSummary:
+      type: object
+      description: Applications grouped by type with total count
+      properties:
+        total:
+          type: integer
+          description: Total number of matching applications
+          example: 5
+        by_type:
+          type: array
+          description: Applications grouped by type, sorted by count descending
+          items:
+            $ref: '#/components/schemas/ApplicationType'
+
     AssignApplicationRequest:
       type: object
       required:
@@ -6785,6 +6799,52 @@ paths:
                     example: "application totals retrieved successfully"
                   data:
                     $ref: '#/components/schemas/ApplicationTotals'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /applications/summary:
+    get:
+      operationId: getApplicationTypeSummary
+      tags:
+        - Backend - Applications
+      summary: /applications/summary - Get applications grouped by type
+      description: |
+        Returns applications grouped by instance_of (type) with a counter.
+        Hierarchically authorized: the caller only sees applications on systems within their organization tree.
+        Optionally filterable by organization_id to restrict to a specific organization.
+        When include_hierarchy is true, also includes applications from all child organizations.
+      parameters:
+        - name: organization_id
+          in: query
+          required: false
+          description: Logto ID of a specific organization to filter by. Must be within the caller's hierarchy.
+          schema:
+            type: string
+        - name: include_hierarchy
+          in: query
+          required: false
+          description: When true (and organization_id is provided), includes applications from all child organizations in the hierarchy
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Application type summary retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "application type summary retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/ApplicationTypeSummary'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

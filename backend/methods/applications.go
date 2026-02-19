@@ -8,6 +8,7 @@ package methods
 import (
 	"net/http"
 	"sort"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
@@ -452,4 +453,43 @@ func GetApplicationOrganizations(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response.OK("organizations retrieved successfully", orgs))
+}
+
+// GetApplicationTypeSummary handles GET /api/applications/summary - returns applications grouped by type
+func GetApplicationTypeSummary(c *gin.Context) {
+	// Get current user context
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	// Optional filters
+	organizationID := c.Query("organization_id")
+	includeHierarchy := c.Query("include_hierarchy") == "true"
+
+	// Create applications service
+	appsService := local.NewApplicationsService()
+
+	// Get type summary
+	summary, err := appsService.GetApplicationTypeSummary(userOrgRole, userOrgID, organizationID, includeHierarchy)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("user_id", userID).
+			Str("organization_id", organizationID).
+			Msg("Failed to get application type summary")
+
+		if strings.Contains(err.Error(), "access denied") {
+			c.JSON(http.StatusForbidden, response.Forbidden("access denied to organization", nil))
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve application type summary", map[string]interface{}{
+			"error": err.Error(),
+		}))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("application type summary retrieved successfully", summary))
 }

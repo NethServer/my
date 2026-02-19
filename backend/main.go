@@ -391,8 +391,9 @@ func main() {
 			appsGroup.PUT("/:id", methods.UpdateApplication)    // Update application (manage:applications required)
 			appsGroup.DELETE("/:id", methods.DeleteApplication) // Soft-delete application (manage:applications required)
 
-			// Applications totals and trend endpoints (read:applications required)
+			// Applications totals, summary and trend endpoints (read:applications required)
 			appsGroup.GET("/totals", methods.GetApplicationTotals)
+			appsGroup.GET("/summary", methods.GetApplicationTypeSummary)
 			appsGroup.GET("/trend", methods.GetApplicationsTrend)
 
 			// Application actions (manage:applications required)

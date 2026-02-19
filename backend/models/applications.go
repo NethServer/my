@@ -140,6 +140,12 @@ type ApplicationFilters struct {
 	SystemIDs []string `json:"system_ids"`
 }
 
+// ApplicationTypeSummary represents applications grouped by type with total count
+type ApplicationTypeSummary struct {
+	Total  int64             `json:"total"`
+	ByType []ApplicationType `json:"by_type"`
+}
+
 // ApplicationType represents application type metadata for filter dropdowns
 type ApplicationType struct {
 	InstanceOf string `json:"instance_of"`
