@@ -52,11 +52,7 @@ const { state: customerSystems } = useCustomerSystems()
         :stats-status="customerStats.status"
       />
       <!-- organization applications -->
-      <OrganizationApplicationsCard
-        :applications-count="applicationsSummary.data?.total ?? 0"
-        :applications-status="applicationsSummary.status"
-        :summary-data="applicationsSummary.data"
-      />
+      <OrganizationApplicationsCard />
     </div>
   </div>
 </template>
