@@ -64,7 +64,7 @@ jobs:
           echo "Updating build triggers with timestamp: $TIMESTAMP"
           UPDATED_FILES=()
 
-          for component in backend collect frontend proxy; do
+          for component in backend collect frontend proxy services/mimir; do
             if [ -f "$component/.render-build-trigger" ]; then
               echo "Updating $component/.render-build-trigger"
               perl -i -pe "s/LAST_UPDATE=.*/LAST_UPDATE=$TIMESTAMP/" "$component/.render-build-trigger"
@@ -108,7 +108,7 @@ jobs:
           
           echo "✅ Safety checks passed. Proceeding with commit to branch: $TARGET_BRANCH"
           
-          git add */.render-build-trigger
+          git add */.render-build-trigger services/mimir/.render-build-trigger
           git commit -m "chore: update build triggers for PR deployment
 
           Auto-updated .render-build-trigger files to ensure all services

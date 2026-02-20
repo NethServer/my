@@ -22,7 +22,6 @@ COPY entrypoint.sh /entrypoint.sh
 ARG PORT=9009
 ENV PORT=${PORT}
 EXPOSE ${PORT}
-EXPOSE 7946
 
 # Use entrypoint script
 ENTRYPOINT ["/entrypoint.sh"]

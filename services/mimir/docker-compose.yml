@@ -6,37 +6,27 @@
 # 🛑 Stop:  docker-compose -f mimir/docker-compose.yml down
 #
 # 🌐 Service URLs:
-#   - Mimir node 1:  http://localhost:19009
-#   - Mimir node 2:  http://localhost:19010
-#   - Grafana:       http://localhost:13000
+#   - Mimir:  http://localhost:19009
 #
 # ⚙️ Required environment variables (set in mimir/.env or shell):
 #   MIMIR_S3_ENDPOINT, MIMIR_S3_ACCESS_KEY, MIMIR_S3_SECRET_KEY
 #   MIMIR_S3_BUCKET, MIMIR_S3_ALERTMANAGER_BUCKET, MIMIR_S3_RULER_BUCKET
-#   MIMIR_SYSTEM_KEY, MIMIR_SYSTEM_SECRET
-#   COLLECT_SERVICE_NAME (hostname:port of the main app collect service, e.g. my.nethesis.it or 192.168.1.10:8081)
-#
-# 💡 The collect service (on Server A) must be reachable from this server.
-#    Grafana queries Mimir through the collect proxy at:
-#    http://${COLLECT_SERVICE_NAME}/api/services/mimir
 
 version: '3.8'
 
 services:
   # =============================================================================
-  # MIMIR CLUSTER (2-node memberlist)
+  # MIMIR (single node)
   # =============================================================================
 
-  mimir1:
+  mimir:
     build:
       context: .
       dockerfile: Containerfile
-    container_name: ${COMPOSE_PROJECT_NAME:-metrics}-mimir1
+    container_name: ${COMPOSE_PROJECT_NAME:-metrics}-mimir
     restart: unless-stopped
     environment:
       PORT: 9009
-      MIMIR_JOIN_MEMBER1: mimir1
-      MIMIR_JOIN_MEMBER2: mimir2
       MIMIR_S3_ENDPOINT: ${MIMIR_S3_ENDPOINT}
       MIMIR_S3_ACCESS_KEY: ${MIMIR_S3_ACCESS_KEY}
       MIMIR_S3_SECRET_KEY: ${MIMIR_S3_SECRET_KEY}
@@ -45,54 +35,6 @@ services:
       MIMIR_S3_RULER_BUCKET: ${MIMIR_S3_RULER_BUCKET}
     ports:
       - "19009:9009"
-      - "17946:7946"
-    networks:
-      - metrics-network
-
-  mimir2:
-    build:
-      context: .
-      dockerfile: Containerfile
-    container_name: ${COMPOSE_PROJECT_NAME:-metrics}-mimir2
-    restart: unless-stopped
-    environment:
-      PORT: 9009
-      MIMIR_JOIN_MEMBER1: mimir1
-      MIMIR_JOIN_MEMBER2: mimir2
-      MIMIR_S3_ENDPOINT: ${MIMIR_S3_ENDPOINT}
-      MIMIR_S3_ACCESS_KEY: ${MIMIR_S3_ACCESS_KEY}
-      MIMIR_S3_SECRET_KEY: ${MIMIR_S3_SECRET_KEY}
-      MIMIR_S3_BUCKET: ${MIMIR_S3_BUCKET}
-      MIMIR_S3_ALERTMANAGER_BUCKET: ${MIMIR_S3_ALERTMANAGER_BUCKET}
-      MIMIR_S3_RULER_BUCKET: ${MIMIR_S3_RULER_BUCKET}
-    ports:
-      - "19010:9009"
-      - "27946:7946"
-    networks:
-      - metrics-network
-
-  # =============================================================================
-  # GRAFANA
-  # =============================================================================
-
-  grafana:
-    build:
-      context: ../grafana
-      dockerfile: Containerfile
-    container_name: ${COMPOSE_PROJECT_NAME:-metrics}-grafana
-    restart: unless-stopped
-    environment:
-      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s/grafana/"
-      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
-      # URL of the main collect service on Server A (hostname:port or FQDN)
-      COLLECT_SERVICE_NAME: ${COLLECT_SERVICE_NAME:-localhost:8081}
-      MIMIR_SYSTEM_KEY: ${MIMIR_SYSTEM_KEY}
-      MIMIR_SYSTEM_SECRET: ${MIMIR_SYSTEM_SECRET}
-    ports:
-      - "13000:3000"
-    depends_on:
-      - mimir1
-      - mimir2
     networks:
       - metrics-network
 

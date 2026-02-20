@@ -137,8 +137,6 @@ jobs:
             context: proxy
           - component: mimir
             context: services/mimir
-          - component: grafana
-            context: services/grafana
 
     steps:
     - uses: actions/checkout@v4

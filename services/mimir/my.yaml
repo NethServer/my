@@ -21,24 +21,16 @@ ruler_storage:
   s3:
     bucket_name: ${MIMIR_S3_RULER_BUCKET}
 
-memberlist:
-  bind_addr: ["0.0.0.0"]
-  bind_port: 7946
-  join_members:
-    - "${MIMIR_JOIN_MEMBER1}:7946"
-    - "${MIMIR_JOIN_MEMBER2}:7946"
-  gossip_nodes: 2
-
 compactor:
   data_dir: /tmp/mimir/compactor
 
 ingester:
   ring:
-    replication_factor: 2
+    replication_factor: 1
 
 store_gateway:
   sharding_ring:
-    replication_factor: 2
+    replication_factor: 1
 
 server:
   http_listen_port: ${PORT}
