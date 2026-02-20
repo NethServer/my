@@ -152,15 +152,9 @@ jobs:
         LDFLAGS="-s -w -X github.com/nethesis/my/backend/pkg/version.Version=${VERSION} -X github.com/nethesis/my/backend/pkg/version.Commit=${COMMIT} -X github.com/nethesis/my/backend/pkg/version.BuildTime=${BUILD_TIME}"
 
         GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/backend-linux-amd64 main.go
-        GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/backend-linux-arm64 main.go
-        GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/backend-darwin-amd64 main.go
-        GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/backend-darwin-arm64 main.go
 
         cd dist
         tar -czf backend-linux-amd64.tar.gz backend-linux-amd64
-        tar -czf backend-linux-arm64.tar.gz backend-linux-arm64
-        tar -czf backend-darwin-amd64.tar.gz backend-darwin-amd64
-        tar -czf backend-darwin-arm64.tar.gz backend-darwin-arm64
 
     # Collect Release
     - name: Build collect binary
@@ -174,15 +168,9 @@ jobs:
         LDFLAGS="-s -w -X github.com/nethesis/my/collect/pkg/version.Version=${VERSION} -X github.com/nethesis/my/collect/pkg/version.Commit=${COMMIT} -X github.com/nethesis/my/collect/pkg/version.BuildTime=${BUILD_TIME}"
 
         GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/collect-linux-amd64 main.go
-        GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/collect-linux-arm64 main.go
-        GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/collect-darwin-amd64 main.go
-        GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/collect-darwin-arm64 main.go
 
         cd dist
         tar -czf collect-linux-amd64.tar.gz collect-linux-amd64
-        tar -czf collect-linux-arm64.tar.gz collect-linux-arm64
-        tar -czf collect-darwin-amd64.tar.gz collect-darwin-amd64
-        tar -czf collect-darwin-arm64.tar.gz collect-darwin-arm64
 
     # Sync Release
     - name: Build sync binary
@@ -196,22 +184,15 @@ jobs:
         LDFLAGS="-s -w -X github.com/nethesis/my/sync/pkg/version.Version=${VERSION} -X github.com/nethesis/my/sync/pkg/version.Commit=${COMMIT} -X github.com/nethesis/my/sync/pkg/version.BuildTime=${BUILD_TIME}"
 
         GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/sync-linux-amd64 ./cmd/sync/main.go
-        GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/sync-linux-arm64 ./cmd/sync/main.go
-        GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/sync-darwin-amd64 ./cmd/sync/main.go
-        GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/sync-darwin-arm64 ./cmd/sync/main.go
 
         cd dist
-        for binary in sync-*; do
-          if [[ "$binary" != *.tar.gz ]]; then
-            mkdir -p "${binary}-release"
-            cp "$binary" "${binary}-release/sync"
-            cp -r ../configs "${binary}-release/"
-            tar -czf "${binary}.tar.gz" "${binary}-release"
-            rm -rf "${binary}-release"
-          fi
-        done
+        mkdir -p sync-linux-amd64-release
+        cp sync-linux-amd64 sync-linux-amd64-release/sync
+        cp -r ../configs sync-linux-amd64-release/
+        tar -czf sync-linux-amd64.tar.gz sync-linux-amd64-release
+        rm -rf sync-linux-amd64-release
 
-    # Docker Images with multi-platform support
+    # Docker Images
     - name: Extract backend metadata
       id: backend_meta
       uses: docker/metadata-action@v5
@@ -226,7 +207,7 @@ jobs:
       with:
         context: backend
         file: backend/Containerfile
-        platforms: linux/amd64,linux/arm64
+        platforms: linux/amd64
         push: true
         tags: ${{ steps.backend_meta.outputs.tags }}
         labels: |
@@ -239,16 +220,6 @@ jobs:
           VERSION=${{ steps.version.outputs.VERSION }}
           COMMIT=${{ github.sha }}
           BUILD_TIME=${{ steps.backend_meta.outputs.labels['org.opencontainers.image.created'] }}
-
-    - name: Wait for backend image availability
-      run: |
-        IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/backend:${{ steps.version.outputs.VERSION }}"
-        for i in $(seq 1 10); do
-          docker manifest inspect "$IMAGE" > /dev/null 2>&1 && { echo "Image available"; exit 0; }
-          echo "Waiting for image... (attempt $i/10)"
-          sleep 5
-        done
-        echo "Image not available after 50s, proceeding anyway"
 
     - name: Generate backend SBOM
       uses: anchore/sbom-action@v0
@@ -271,7 +242,7 @@ jobs:
       with:
         context: sync
         file: sync/Containerfile
-        platforms: linux/amd64,linux/arm64
+        platforms: linux/amd64
         push: true
         tags: ${{ steps.sync_meta.outputs.tags }}
         labels: |
@@ -284,16 +255,6 @@ jobs:
           VERSION=${{ steps.version.outputs.VERSION }}
           COMMIT=${{ github.sha }}
           BUILD_TIME=${{ steps.sync_meta.outputs.labels['org.opencontainers.image.created'] }}
-
-    - name: Wait for sync image availability
-      run: |
-        IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/sync:${{ steps.version.outputs.VERSION }}"
-        for i in $(seq 1 10); do
-          docker manifest inspect "$IMAGE" > /dev/null 2>&1 && { echo "Image available"; exit 0; }
-          echo "Waiting for image... (attempt $i/10)"
-          sleep 5
-        done
-        echo "Image not available after 50s, proceeding anyway"
 
     - name: Generate sync SBOM
       uses: anchore/sbom-action@v0
@@ -316,7 +277,7 @@ jobs:
       with:
         context: collect
         file: collect/Containerfile
-        platforms: linux/amd64,linux/arm64
+        platforms: linux/amd64
         push: true
         tags: ${{ steps.collect_meta.outputs.tags }}
         labels: |
@@ -329,16 +290,6 @@ jobs:
           VERSION=${{ steps.version.outputs.VERSION }}
           COMMIT=${{ github.sha }}
           BUILD_TIME=${{ steps.collect_meta.outputs.labels['org.opencontainers.image.created'] }}
-
-    - name: Wait for collect image availability
-      run: |
-        IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/collect:${{ steps.version.outputs.VERSION }}"
-        for i in $(seq 1 10); do
-          docker manifest inspect "$IMAGE" > /dev/null 2>&1 && { echo "Image available"; exit 0; }
-          echo "Waiting for image... (attempt $i/10)"
-          sleep 5
-        done
-        echo "Image not available after 50s, proceeding anyway"
 
     - name: Generate collect SBOM
       uses: anchore/sbom-action@v0
@@ -361,7 +312,7 @@ jobs:
       with:
         context: frontend
         file: frontend/Containerfile
-        platforms: linux/amd64,linux/arm64
+        platforms: linux/amd64
         push: true
         tags: ${{ steps.frontend_meta.outputs.tags }}
         labels: |
@@ -370,16 +321,6 @@ jobs:
           org.opencontainers.image.description=Frontend web application for My Nethesis
         cache-from: type=gha,scope=frontend
         cache-to: type=gha,mode=max,scope=frontend
-
-    - name: Wait for frontend image availability
-      run: |
-        IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/frontend:${{ steps.version.outputs.VERSION }}"
-        for i in $(seq 1 10); do
-          docker manifest inspect "$IMAGE" > /dev/null 2>&1 && { echo "Image available"; exit 0; }
-          echo "Waiting for image... (attempt $i/10)"
-          sleep 5
-        done
-        echo "Image not available after 50s, proceeding anyway"
 
     - name: Generate frontend SBOM
       uses: anchore/sbom-action@v0
@@ -402,7 +343,7 @@ jobs:
       with:
         context: proxy
         file: proxy/Containerfile
-        platforms: linux/amd64,linux/arm64
+        platforms: linux/amd64
         push: true
         tags: ${{ steps.proxy_meta.outputs.tags }}
         labels: |
@@ -411,16 +352,6 @@ jobs:
           org.opencontainers.image.description=Reverse proxy for My Nethesis
         cache-from: type=gha,scope=proxy
         cache-to: type=gha,mode=max,scope=proxy
-
-    - name: Wait for proxy image availability
-      run: |
-        IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/proxy:${{ steps.version.outputs.VERSION }}"
-        for i in $(seq 1 10); do
-          docker manifest inspect "$IMAGE" > /dev/null 2>&1 && { echo "Image available"; exit 0; }
-          echo "Waiting for image... (attempt $i/10)"
-          sleep 5
-        done
-        echo "Image not available after 50s, proceeding anyway"
 
     - name: Generate proxy SBOM
       uses: anchore/sbom-action@v0
@@ -443,7 +374,7 @@ jobs:
       with:
         context: services/mimir
         file: services/mimir/Containerfile
-        platforms: linux/amd64,linux/arm64
+        platforms: linux/amd64
         push: true
         tags: ${{ steps.mimir_meta.outputs.tags }}
         labels: |
@@ -452,16 +383,6 @@ jobs:
           org.opencontainers.image.description=Grafana Mimir metrics backend for My Nethesis
         cache-from: type=gha,scope=mimir
         cache-to: type=gha,mode=max,scope=mimir
-
-    - name: Wait for mimir image availability
-      run: |
-        IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/mimir:${{ steps.version.outputs.VERSION }}"
-        for i in $(seq 1 10); do
-          docker manifest inspect "$IMAGE" > /dev/null 2>&1 && { echo "Image available"; exit 0; }
-          echo "Waiting for image... (attempt $i/10)"
-          sleep 5
-        done
-        echo "Image not available after 50s, proceeding anyway"
 
     - name: Generate mimir SBOM
       uses: anchore/sbom-action@v0
