@@ -29,7 +29,7 @@ interface ApplicationsSummaryResponse {
   data: ApplicationsSummaryData
 }
 
-export const getApplicationsSummary = (
+export const getApplicationsSummaryByCompany = (
   companyId: string,
   page: number,
   pageSize: number,
@@ -40,6 +40,32 @@ export const getApplicationsSummary = (
 
   const params = new URLSearchParams({
     organization_id: companyId,
+    page: page.toString(),
+    page_size: pageSize.toString(),
+    sort_by: sortBy,
+    sort_direction: sortDescending ? 'desc' : 'asc',
+  })
+  const queryString = params.toString()
+  const url = `${API_URL}/applications/summary?${queryString}`
+
+  return axios
+    .get<ApplicationsSummaryResponse>(url, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data)
+}
+
+export const getApplicationsSummaryBySystem = (
+  systemId: string,
+  page: number,
+  pageSize: number,
+  sortBy: string,
+  sortDescending: boolean,
+) => {
+  const loginStore = useLoginStore()
+
+  const params = new URLSearchParams({
+    system_id: systemId,
     page: page.toString(),
     page_size: pageSize.toString(),
     sort_by: sortBy,

@@ -18,7 +18,8 @@ import { useSystems } from '@/queries/systems/systems'
 import type { System } from '@/lib/systems/systems'
 
 interface SystemData {
-  systems: System[] | null
+  systems: System[]
+  // systems: System[] | null ////
 }
 
 const props = defineProps<{

@@ -15,13 +15,13 @@ import { computed } from 'vue'
 import router from '@/router'
 import { useRoute } from 'vue-router'
 import { useApplications } from '@/queries/applications/applications'
-import { useApplicationsSummaryByCompany } from '@/queries/applications/applicationsSummaryByCompany'
+import { useApplicationsSummaryBySystem } from '@/queries/applications/applicationsSummaryBySystem'
 
 const { t } = useI18n()
 const route = useRoute()
 
-const { state: applicationsSummary } = useApplicationsSummaryByCompany()
-const { organizationFilter: organizationFilterForApps } = useApplications()
+const { state: applicationsSummary } = useApplicationsSummaryBySystem()
+const { systemFilter: systemFilterForApps } = useApplications()
 
 const applicationsCount = computed(() => applicationsSummary.value?.data?.total ?? 0)
 const moreApplications = computed(() => {
@@ -42,15 +42,15 @@ const moreApplications = computed(() => {
 })
 
 const goToApplications = () => {
-  const companyId = route.params.companyId as string
-  organizationFilterForApps.value = companyId ? [companyId] : []
+  const systemId = route.params.systemId as string
+  systemFilterForApps.value = systemId ? [systemId] : []
   router.push({ name: 'applications' })
 }
 </script>
 
 <template>
   <CounterCard
-    :title="$t('applications.organization_applications')"
+    :title="$t('applications.system_applications')"
     :counter="applicationsCount"
     :icon="faGridOne"
     :loading="applicationsSummary.status === 'pending'"

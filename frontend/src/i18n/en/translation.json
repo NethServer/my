@@ -546,7 +546,8 @@
     "set_application_notes_description": "The notes for application {application} have been set",
     "cannot_set_notes": "Cannot set application notes",
     "total_applications": "Total Applications",
-    "organization_applications": "Company Applications"
+    "organization_applications": "Company Applications",
+    "system_applications": "System Applications"
   },
   "ne_table": {
     "no_items": "No items",

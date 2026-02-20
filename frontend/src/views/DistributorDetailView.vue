@@ -13,14 +13,14 @@ import CounterCard from '@/components/CounterCard.vue'
 import { useDistributorStats } from '@/queries/organizations/distributorStats'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import { useDistributorSystems } from '@/queries/systems/distributorSystems'
-import { useApplicationsSummary } from '@/queries/applications/applicationsSummary'
+import { useApplicationsSummaryByCompany } from '@/queries/applications/applicationsSummaryByCompany'
 import OrganizationSystemsCard from '@/components/organizations/OrganizationSystemsCard.vue'
 import OrganizationApplicationsCard from '@/components/organizations/OrganizationApplicationsCard.vue'
 
 const { state: distributorDetail } = useDistributorDetail()
 const { state: distributorStats } = useDistributorStats()
 const { state: distributorSystems } = useDistributorSystems()
-const { state: applicationsSummary } = useApplicationsSummary()
+const { state: applicationsSummary } = useApplicationsSummaryByCompany()
 </script>
 
 <template>

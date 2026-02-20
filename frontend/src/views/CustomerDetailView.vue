@@ -11,14 +11,12 @@ import { useCustomerDetail } from '@/queries/organizations/customerDetail'
 import CustomerInfoCard from '@/components/customers/CustomerInfoCard.vue'
 import { useCustomerStats } from '@/queries/organizations/customerStats'
 import { useCustomerSystems } from '@/queries/systems/customerSystems'
-import { useApplicationsSummary } from '@/queries/applications/applicationsSummary'
 import OrganizationSystemsCard from '@/components/organizations/OrganizationSystemsCard.vue'
 import OrganizationApplicationsCard from '@/components/organizations/OrganizationApplicationsCard.vue'
 
 const { state: customerDetail } = useCustomerDetail()
 const { state: customerStats } = useCustomerStats()
 const { state: customerSystems } = useCustomerSystems()
-const { state: applicationsSummary } = useApplicationsSummary()
 </script>
 
 <template>
