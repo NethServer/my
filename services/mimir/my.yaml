@@ -21,6 +21,16 @@ ruler_storage:
   s3:
     bucket_name: ${MIMIR_S3_RULER_BUCKET}
 
+alertmanager:
+  enabled: true
+  data_dir: /tmp/mimir/alertmanager
+  poll_interval: 15s
+  max_config_size_bytes: 1048576  # 1MB
+  enable_api: true
+  persist_interval: 15m
+  retention: 120h
+  external_url: https://my-collect-qa-pr-41.onrender.com/api/services/mimir/alertmanager
+
 compactor:
   data_dir: /tmp/mimir/compactor
 
