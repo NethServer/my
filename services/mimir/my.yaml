@@ -23,4 +23,4 @@ server:
 
 runtime_config:
   file: /etc/mimir/runtime_config.yaml
-  period: 10s
+  period: 60s
