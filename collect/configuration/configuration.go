@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/nethesis/my/collect/logger"
@@ -83,7 +82,7 @@ type Configuration struct {
 	HeartbeatTimeoutMinutes int `json:"heartbeat_timeout_minutes"`
 
 	// Mimir configuration
-	MimirURLs []string `json:"mimir_urls"`
+	MimirURL string `json:"mimir_url"`
 }
 
 var Config = Configuration{}
@@ -166,16 +165,10 @@ func Init() {
 	Config.HeartbeatTimeoutMinutes = parseIntWithDefault("HEARTBEAT_TIMEOUT_MINUTES", 10)
 
 	// Mimir configuration
-	if mimirURLs := os.Getenv("MIMIR_URLS"); mimirURLs != "" {
-		for _, u := range strings.Split(mimirURLs, ",") {
-			u = strings.TrimSpace(u)
-			if u != "" {
-				Config.MimirURLs = append(Config.MimirURLs, u)
-			}
-		}
-	}
-	if len(Config.MimirURLs) == 0 {
-		Config.MimirURLs = []string{"http://localhost:9009"}
+	if mimirURL := os.Getenv("MIMIR_URL"); mimirURL != "" {
+		Config.MimirURL = mimirURL
+	} else {
+		Config.MimirURL = "http://localhost:9009"
 	}
 
 	// Log successful configuration load

@@ -10,7 +10,6 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -63,84 +62,47 @@ func ProxyMimir(c *gin.Context) {
 	subPath := c.Param("path")
 	rawQuery := c.Request.URL.RawQuery
 
-	// Step 4: Try each Mimir instance starting from a random index
-	urls := configuration.Config.MimirURLs
-	n := len(urls)
-	start := rand.Intn(n)
+	// Step 4: Forward request to Mimir
+	targetURL := fmt.Sprintf("%s%s", configuration.Config.MimirURL, subPath)
+	if rawQuery != "" {
+		targetURL += "?" + rawQuery
+	}
 
-	for i := 0; i < n; i++ {
-		base := urls[(start+i)%n]
-		targetURL := fmt.Sprintf("%s%s", base, subPath)
-		if rawQuery != "" {
-			targetURL += "?" + rawQuery
-		}
+	logger.Info().Str("target", targetURL).Msg("mimir proxy: forwarding request")
 
-		logger.Info().Str("target", targetURL).Int("attempt", i+1).Msg("mimir proxy: trying instance")
-
-		req, err := http.NewRequest(c.Request.Method, targetURL, bytes.NewReader(bodyBytes))
-		if err != nil {
-			logger.Warn().Err(err).Str("target", targetURL).Msg("mimir proxy: failed to create upstream request")
-			continue
-		}
-
-		for _, header := range []string{"Content-Type", "Content-Encoding", "Accept", "User-Agent"} {
-			if val := c.GetHeader(header); val != "" {
-				req.Header.Set(header, val)
-			}
-		}
-		// Remove Accept-Encoding so Mimir sends plain JSON, not gzip
-		req.Header.Del("Accept-Encoding")
-		req.Header.Set("X-Scope-OrgID", organizationID)
-
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			logger.Warn().Err(err).Str("target", targetURL).Msg("mimir proxy: network error, trying next instance")
-			continue
-		}
-
-		// Return 4xx immediately — client errors are not retried
-		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
-			defer func() {
-				if err := resp.Body.Close(); err != nil {
-					logger.Error().Err(err).Msg("mimir proxy: failed to close upstream response body")
-				}
-			}()
-			if ct := resp.Header.Get("Content-Type"); ct != "" {
-				c.Header("Content-Type", ct)
-			}
-			c.Status(resp.StatusCode)
-			if _, err := io.Copy(c.Writer, resp.Body); err != nil {
-				logger.Error().Err(err).Msg("mimir proxy: error streaming response body")
-			}
-			return
-		}
-
-		// Retry on 5xx
-		if resp.StatusCode >= 500 {
-			if err := resp.Body.Close(); err != nil {
-				logger.Error().Err(err).Msg("mimir proxy: failed to close upstream response body")
-			}
-			logger.Warn().Str("target", targetURL).Int("status", resp.StatusCode).Msg("mimir proxy: 5xx response, trying next instance")
-			continue
-		}
-
-		// Success: stream response back to client
-		defer func() {
-			if err := resp.Body.Close(); err != nil {
-				logger.Error().Err(err).Msg("mimir proxy: failed to close upstream response body")
-			}
-		}()
-		if ct := resp.Header.Get("Content-Type"); ct != "" {
-			c.Header("Content-Type", ct)
-		}
-		c.Status(resp.StatusCode)
-		if _, err := io.Copy(c.Writer, resp.Body); err != nil {
-			logger.Error().Err(err).Msg("mimir proxy: error streaming response body")
-		}
+	req, err := http.NewRequest(c.Request.Method, targetURL, bytes.NewReader(bodyBytes))
+	if err != nil {
+		logger.Error().Err(err).Str("target", targetURL).Msg("mimir proxy: failed to create upstream request")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("internal server error", nil))
 		return
 	}
 
-	// All instances failed
-	logger.Error().Int("instances_tried", n).Msg("mimir proxy: all instances failed")
-	c.JSON(http.StatusBadGateway, response.InternalServerError("all mimir instances are unavailable", nil))
+	for _, header := range []string{"Content-Type", "Content-Encoding", "Accept", "User-Agent"} {
+		if val := c.GetHeader(header); val != "" {
+			req.Header.Set(header, val)
+		}
+	}
+	// Remove Accept-Encoding so Mimir sends plain JSON, not gzip
+	req.Header.Del("Accept-Encoding")
+	req.Header.Set("X-Scope-OrgID", organizationID)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		logger.Error().Err(err).Str("target", targetURL).Msg("mimir proxy: network error")
+		c.JSON(http.StatusBadGateway, response.InternalServerError("mimir is unavailable", nil))
+		return
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			logger.Error().Err(err).Msg("mimir proxy: failed to close upstream response body")
+		}
+	}()
+
+	if ct := resp.Header.Get("Content-Type"); ct != "" {
+		c.Header("Content-Type", ct)
+	}
+	c.Status(resp.StatusCode)
+	if _, err := io.Copy(c.Writer, resp.Body); err != nil {
+		logger.Error().Err(err).Msg("mimir proxy: error streaming response body")
+	}
 }
