@@ -68,11 +68,11 @@ func ProxyMimir(c *gin.Context) {
 		targetURL += "?" + rawQuery
 	}
 
-	logger.Info().Str("target", targetURL).Msg("mimir proxy: forwarding request")
+	logger.Info().Str("target", targetURL).Str("organization_id", organizationID).Str("system_id", systemID).Msg("mimir proxy: forwarding request")
 
 	req, err := http.NewRequest(c.Request.Method, targetURL, bytes.NewReader(bodyBytes))
 	if err != nil {
-		logger.Error().Err(err).Str("target", targetURL).Msg("mimir proxy: failed to create upstream request")
+		logger.Error().Err(err).Str("target", targetURL).Str("system_id", systemID).Str("organization_id", organizationID).Msg("mimir proxy: failed to create upstream request")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("internal server error", nil))
 		return
 	}
@@ -88,13 +88,13 @@ func ProxyMimir(c *gin.Context) {
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		logger.Error().Err(err).Str("target", targetURL).Msg("mimir proxy: network error")
+		logger.Error().Err(err).Str("target", targetURL).Str("system_id", systemID).Str("organization_id", organizationID).Msg("mimir proxy: network error")
 		c.JSON(http.StatusBadGateway, response.InternalServerError("mimir is unavailable", nil))
 		return
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			logger.Error().Err(err).Msg("mimir proxy: failed to close upstream response body")
+			logger.Error().Err(err).Str("system_id", systemID).Str("organization_id", organizationID).Msg("mimir proxy: failed to close upstream response body")
 		}
 	}()
 
@@ -103,6 +103,6 @@ func ProxyMimir(c *gin.Context) {
 	}
 	c.Status(resp.StatusCode)
 	if _, err := io.Copy(c.Writer, resp.Body); err != nil {
-		logger.Error().Err(err).Msg("mimir proxy: error streaming response body")
+		logger.Error().Err(err).Str("system_id", systemID).Str("organization_id", organizationID).Msg("mimir proxy: error streaming response body")
 	}
 }
