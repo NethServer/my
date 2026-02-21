@@ -111,6 +111,15 @@ export const useSystems = defineQuery(() => {
     },
   )
 
+  const resetFilters = () => {
+    textFilter.value = ''
+    productFilter.value = []
+    versionFilter.value = []
+    createdByFilter.value = []
+    statusFilter.value = ['online', 'offline', 'unknown', 'suspended']
+    organizationFilter.value = []
+  }
+
   return {
     ...rest,
     state,
@@ -127,5 +136,6 @@ export const useSystems = defineQuery(() => {
     sortBy,
     sortDescending,
     areDefaultFiltersApplied,
+    resetFilters,
   }
 })

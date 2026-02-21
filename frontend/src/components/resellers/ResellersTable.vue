@@ -67,6 +67,7 @@ const {
   sortBy,
   sortDescending,
   areDefaultFiltersApplied,
+  resetFilters,
 } = useResellers()
 
 const currentReseller = ref<Reseller | undefined>()
@@ -129,11 +130,6 @@ watch(
   },
   { immediate: true },
 )
-
-function resetFilters() {
-  textFilter.value = ''
-  statusFilter.value = ['enabled', 'suspended']
-}
 
 function showCreateResellerDrawer() {
   currentReseller.value = undefined

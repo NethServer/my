@@ -92,6 +92,7 @@ const {
   sortBy,
   sortDescending,
   areDefaultFiltersApplied,
+  resetFilters,
 } = useSystems()
 const { state: productFilterState, asyncStatus: productFilterAsyncStatus } = useProductFilter()
 const { state: createdByFilterState, asyncStatus: createdByFilterAsyncStatus } =
@@ -224,15 +225,6 @@ watch(
     versionFilter.value = []
   },
 )
-
-function resetFilters() {
-  textFilter.value = ''
-  productFilter.value = []
-  versionFilter.value = []
-  createdByFilter.value = []
-  statusFilter.value = ['online', 'offline', 'unknown', 'suspended']
-  organizationFilter.value = []
-}
 
 function showCreateSystemDrawer() {
   currentSystem.value = undefined

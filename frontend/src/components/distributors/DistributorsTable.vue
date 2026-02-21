@@ -71,6 +71,7 @@ const {
   sortBy,
   sortDescending,
   areDefaultFiltersApplied,
+  resetFilters,
 } = useDistributors()
 
 const currentDistributor = ref<Distributor | undefined>()
@@ -133,11 +134,6 @@ watch(
   },
   { immediate: true },
 )
-
-function resetFilters() {
-  textFilter.value = ''
-  statusFilter.value = ['enabled', 'suspended']
-}
 
 function showCreateDistributorDrawer() {
   currentDistributor.value = undefined
