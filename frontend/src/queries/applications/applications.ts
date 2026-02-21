@@ -90,6 +90,14 @@ export const useApplications = defineQuery(() => {
     },
   )
 
+  const clearFilters = () => {
+    textFilter.value = ''
+    typeFilter.value = []
+    versionFilter.value = []
+    systemFilter.value = []
+    organizationFilter.value = []
+  }
+
   return {
     ...rest,
     state,
@@ -104,5 +112,6 @@ export const useApplications = defineQuery(() => {
     debouncedTextFilter,
     sortBy,
     sortDescending,
+    clearFilters,
   }
 })

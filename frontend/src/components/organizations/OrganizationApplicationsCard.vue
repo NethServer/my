@@ -21,7 +21,8 @@ const { t } = useI18n()
 const route = useRoute()
 
 const { state: applicationsSummary } = useApplicationsSummaryByCompany()
-const { organizationFilter: organizationFilterForApps } = useApplications()
+const { organizationFilter: organizationFilterForApps, clearFilters: clearApplicationsFilters } =
+  useApplications()
 
 const applicationsCount = computed(() => applicationsSummary.value?.data?.total ?? 0)
 const moreApplications = computed(() => {
@@ -43,6 +44,7 @@ const moreApplications = computed(() => {
 
 const goToApplications = () => {
   const companyId = route.params.companyId as string
+  clearApplicationsFilters()
   organizationFilterForApps.value = companyId ? [companyId] : []
   router.push({ name: 'applications' })
 }

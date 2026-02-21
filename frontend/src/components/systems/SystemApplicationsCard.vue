@@ -21,7 +21,8 @@ const { t } = useI18n()
 const route = useRoute()
 
 const { state: applicationsSummary } = useApplicationsSummaryBySystem()
-const { systemFilter: systemFilterForApps } = useApplications()
+const { systemFilter: systemFilterForApps, clearFilters: clearApplicationsFilters } =
+  useApplications()
 
 const applicationsCount = computed(() => applicationsSummary.value?.data?.total ?? 0)
 const moreApplications = computed(() => {
@@ -43,6 +44,7 @@ const moreApplications = computed(() => {
 
 const goToApplications = () => {
   const systemId = route.params.systemId as string
+  clearApplicationsFilters()
   systemFilterForApps.value = systemId ? [systemId] : []
   router.push({ name: 'applications' })
 }
