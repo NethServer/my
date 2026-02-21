@@ -36,13 +36,11 @@ func (r *LocalApplicationRepository) GetByID(id string) (*models.Application, er
 		       a.backup_data, a.services_data, a.url, a.notes, a.is_user_facing,
 		       a.created_at, a.updated_at, a.first_seen_at, a.last_inventory_at, a.deleted_at,
 		       s.name as system_name,
-		       COALESCE(d.name, re.name, c.name, 'Owner') as organization_name,
-		       COALESCE(d.id::text, re.id::text, c.id::text) as organization_db_id
+		       COALESCE(uo.name, 'Owner') as organization_name,
+		       uo.db_id as organization_db_id
 		FROM applications a
 		LEFT JOIN systems s ON a.system_id = s.id
-		LEFT JOIN distributors d ON (a.organization_id = d.logto_id OR a.organization_id = d.id::text) AND d.deleted_at IS NULL
-		LEFT JOIN resellers re ON (a.organization_id = re.logto_id OR a.organization_id = re.id::text) AND re.deleted_at IS NULL
-		LEFT JOIN customers c ON (a.organization_id = c.logto_id OR a.organization_id = c.id::text) AND c.deleted_at IS NULL
+		LEFT JOIN unified_organizations uo ON a.organization_id = uo.logto_id
 		WHERE a.id = $1 AND a.deleted_at IS NULL
 	`
 
@@ -312,7 +310,7 @@ func (r *LocalApplicationRepository) List(
 			"version":             "a.version",
 			"status":              "a.status",
 			"system_name":         "LOWER(s.name)",
-			"organization_name":   "LOWER(COALESCE(d.name, re.name, c.name))",
+			"organization_name":   "LOWER(uo.name)",
 			"created_at":          "a.created_at",
 			"updated_at":          "a.updated_at",
 			"last_inventory_at":   "a.last_inventory_at",
@@ -335,13 +333,11 @@ func (r *LocalApplicationRepository) List(
 		       a.backup_data, a.services_data, a.url, a.notes, a.is_user_facing,
 		       a.created_at, a.updated_at, a.first_seen_at, a.last_inventory_at,
 		       s.name as system_name,
-		       COALESCE(d.name, re.name, c.name, 'Owner') as organization_name,
-		       COALESCE(d.id::text, re.id::text, c.id::text) as organization_db_id
+		       COALESCE(uo.name, 'Owner') as organization_name,
+		       uo.db_id as organization_db_id
 		FROM applications a
 		LEFT JOIN systems s ON a.system_id = s.id
-		LEFT JOIN distributors d ON (a.organization_id = d.logto_id OR a.organization_id = d.id::text) AND d.deleted_at IS NULL
-		LEFT JOIN resellers re ON (a.organization_id = re.logto_id OR a.organization_id = re.id::text) AND re.deleted_at IS NULL
-		LEFT JOIN customers c ON (a.organization_id = c.logto_id OR a.organization_id = c.id::text) AND c.deleted_at IS NULL
+		LEFT JOIN unified_organizations uo ON a.organization_id = uo.logto_id
 		WHERE %s
 		ORDER BY %s
 		LIMIT $%d OFFSET $%d

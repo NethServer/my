@@ -961,46 +961,26 @@ func (r *LocalUserRepository) GetHierarchicalOrganizationIDs(userOrgRole, userOr
 
 	switch normalizedRole {
 	case "owner":
-		// Owner can manage all organizations
-		var allOrgIDs []string
-
-		// Get all distributors
-		rows, err := r.db.Query("SELECT logto_id FROM distributors WHERE logto_id IS NOT NULL AND deleted_at IS NULL")
+		// Owner can manage all organizations - single UNION query
+		query := `
+			SELECT logto_id FROM distributors WHERE logto_id IS NOT NULL AND deleted_at IS NULL
+			UNION ALL
+			SELECT logto_id FROM resellers WHERE logto_id IS NOT NULL AND deleted_at IS NULL
+			UNION ALL
+			SELECT logto_id FROM customers WHERE logto_id IS NOT NULL AND deleted_at IS NULL
+		`
+		rows, err := r.db.Query(query)
 		if err == nil {
 			defer func() { _ = rows.Close() }()
 			for rows.Next() {
 				var orgID string
 				if rows.Scan(&orgID) == nil {
-					allOrgIDs = append(allOrgIDs, orgID)
+					orgIDs = append(orgIDs, orgID)
 				}
 			}
 		}
 
-		// Get all resellers
-		rows, err = r.db.Query("SELECT logto_id FROM resellers WHERE logto_id IS NOT NULL AND deleted_at IS NULL")
-		if err == nil {
-			defer func() { _ = rows.Close() }()
-			for rows.Next() {
-				var orgID string
-				if rows.Scan(&orgID) == nil {
-					allOrgIDs = append(allOrgIDs, orgID)
-				}
-			}
-		}
-
-		// Get all customers
-		rows, err = r.db.Query("SELECT logto_id FROM customers WHERE logto_id IS NOT NULL AND deleted_at IS NULL")
-		if err == nil {
-			defer func() { _ = rows.Close() }()
-			for rows.Next() {
-				var orgID string
-				if rows.Scan(&orgID) == nil {
-					allOrgIDs = append(allOrgIDs, orgID)
-				}
-			}
-		}
-
-		return append(orgIDs, allOrgIDs...), nil
+		return orgIDs, nil
 
 	case "distributor":
 		// Get resellers created by this distributor

@@ -8,7 +8,6 @@
 package helpers
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -36,39 +35,49 @@ func TestAppendOrgFilter_OwnerCaseInsensitive(t *testing.T) {
 }
 
 func TestAppendOrgFilter_DistributorRole(t *testing.T) {
+	// Override the callback to simulate a distributor with multiple allowed orgs
+	origCallback := GetAllowedOrgIDsForFilter
+	defer func() { GetAllowedOrgIDsForFilter = origCallback }()
+	GetAllowedOrgIDsForFilter = func(role, orgID string) []string {
+		return []string{"org-dist-1", "org-res-1", "org-cust-1"}
+	}
+
 	query := "SELECT * FROM systems WHERE 1=1"
 	args := []interface{}{}
 
 	resultQuery, resultArgs, nextIdx := AppendOrgFilter(query, "distributor", "org-dist-1", "", args, 1)
 
-	assert.Contains(t, resultQuery, "organization_id = $1")
-	assert.Contains(t, resultQuery, "resellers")
-	assert.Contains(t, resultQuery, "customers")
-	assert.Equal(t, []interface{}{"org-dist-1"}, resultArgs)
-	assert.Equal(t, 2, nextIdx)
+	assert.Contains(t, resultQuery, "organization_id IN ($1,$2,$3)")
+	assert.Equal(t, []interface{}{"org-dist-1", "org-res-1", "org-cust-1"}, resultArgs)
+	assert.Equal(t, 4, nextIdx)
 }
 
 func TestAppendOrgFilter_ResellerRole(t *testing.T) {
+	// Override to simulate a reseller with its own org + customer orgs
+	origCallback := GetAllowedOrgIDsForFilter
+	defer func() { GetAllowedOrgIDsForFilter = origCallback }()
+	GetAllowedOrgIDsForFilter = func(role, orgID string) []string {
+		return []string{"org-res-1", "org-cust-1"}
+	}
+
 	query := "SELECT * FROM systems WHERE 1=1"
 	args := []interface{}{}
 
 	resultQuery, resultArgs, nextIdx := AppendOrgFilter(query, "reseller", "org-res-1", "", args, 1)
 
-	assert.Contains(t, resultQuery, "organization_id = $1")
-	assert.Contains(t, resultQuery, "customers")
-	assert.NotContains(t, resultQuery, "resellers")
-	assert.Equal(t, []interface{}{"org-res-1"}, resultArgs)
-	assert.Equal(t, 2, nextIdx)
+	assert.Contains(t, resultQuery, "organization_id IN ($1,$2)")
+	assert.Equal(t, []interface{}{"org-res-1", "org-cust-1"}, resultArgs)
+	assert.Equal(t, 3, nextIdx)
 }
 
 func TestAppendOrgFilter_CustomerRole(t *testing.T) {
 	query := "SELECT * FROM systems WHERE 1=1"
 	args := []interface{}{}
 
+	// Default callback returns just the user's own org ID
 	resultQuery, resultArgs, nextIdx := AppendOrgFilter(query, "customer", "org-cust-1", "", args, 1)
 
-	assert.Contains(t, resultQuery, "AND organization_id = $1")
-	assert.NotContains(t, resultQuery, "IN (")
+	assert.Contains(t, resultQuery, "AND organization_id IN ($1)")
 	assert.Equal(t, []interface{}{"org-cust-1"}, resultArgs)
 	assert.Equal(t, 2, nextIdx)
 }
@@ -77,11 +86,10 @@ func TestAppendOrgFilter_UnknownRole(t *testing.T) {
 	query := "SELECT * FROM systems WHERE 1=1"
 	args := []interface{}{}
 
+	// Default callback returns just the user's own org ID for unknown roles too
 	resultQuery, resultArgs, nextIdx := AppendOrgFilter(query, "unknown", "org-x", "", args, 1)
 
-	// Unknown roles should be treated like customer (most restrictive)
-	assert.Contains(t, resultQuery, "AND organization_id = $1")
-	assert.NotContains(t, resultQuery, "IN (")
+	assert.Contains(t, resultQuery, "AND organization_id IN ($1)")
 	assert.Equal(t, []interface{}{"org-x"}, resultArgs)
 	assert.Equal(t, 2, nextIdx)
 }
@@ -92,19 +100,24 @@ func TestAppendOrgFilter_WithTableAlias(t *testing.T) {
 
 	resultQuery, resultArgs, nextIdx := AppendOrgFilter(query, "customer", "org-1", "s.", args, 1)
 
-	assert.Contains(t, resultQuery, "s.organization_id = $1")
+	assert.Contains(t, resultQuery, "s.organization_id IN ($1)")
 	assert.Equal(t, []interface{}{"org-1"}, resultArgs)
 	assert.Equal(t, 2, nextIdx)
 }
 
 func TestAppendOrgFilter_WithTableAlias_Distributor(t *testing.T) {
+	origCallback := GetAllowedOrgIDsForFilter
+	defer func() { GetAllowedOrgIDsForFilter = origCallback }()
+	GetAllowedOrgIDsForFilter = func(role, orgID string) []string {
+		return []string{"org-1", "org-child-1"}
+	}
+
 	query := "SELECT * FROM systems s WHERE 1=1"
 	args := []interface{}{}
 
 	resultQuery, _, _ := AppendOrgFilter(query, "distributor", "org-1", "s.", args, 1)
 
-	assert.Contains(t, resultQuery, "s.organization_id = $1")
-	assert.Contains(t, resultQuery, "s.organization_id IN (")
+	assert.Contains(t, resultQuery, "s.organization_id IN ($1,$2)")
 }
 
 func TestAppendOrgFilter_WithExistingArgs(t *testing.T) {
@@ -113,7 +126,7 @@ func TestAppendOrgFilter_WithExistingArgs(t *testing.T) {
 
 	resultQuery, resultArgs, nextIdx := AppendOrgFilter(query, "customer", "org-1", "", args, 2)
 
-	assert.Contains(t, resultQuery, "organization_id = $2")
+	assert.Contains(t, resultQuery, "organization_id IN ($2)")
 	assert.Equal(t, []interface{}{"test-name", "org-1"}, resultArgs)
 	assert.Equal(t, 3, nextIdx)
 }
@@ -130,13 +143,20 @@ func TestAppendOrgFilter_OwnerWithExistingArgs(t *testing.T) {
 	assert.Equal(t, 2, nextIdx)
 }
 
-func TestAppendOrgFilter_DistributorSubqueryStructure(t *testing.T) {
+func TestAppendOrgFilter_EmptyAllowedOrgs(t *testing.T) {
+	origCallback := GetAllowedOrgIDsForFilter
+	defer func() { GetAllowedOrgIDsForFilter = origCallback }()
+	GetAllowedOrgIDsForFilter = func(role, orgID string) []string {
+		return []string{}
+	}
+
 	query := "SELECT * FROM systems WHERE 1=1"
 	args := []interface{}{}
 
-	resultQuery, _, _ := AppendOrgFilter(query, "distributor", "org-dist", "", args, 1)
+	resultQuery, resultArgs, nextIdx := AppendOrgFilter(query, "distributor", "org-dist", "", args, 1)
 
-	// Verify the subquery has UNION of resellers and customers
-	assert.True(t, strings.Contains(resultQuery, "UNION"), "Distributor filter should use UNION")
-	assert.True(t, strings.Contains(resultQuery, "deleted_at IS NULL"), "Subquery should filter deleted records")
+	// Empty allowed orgs should add impossible condition
+	assert.Contains(t, resultQuery, "organization_id IS NULL AND organization_id IS NOT NULL")
+	assert.Empty(t, resultArgs)
+	assert.Equal(t, 1, nextIdx)
 }

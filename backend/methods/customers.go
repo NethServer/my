@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 
+	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
@@ -78,6 +79,7 @@ func CreateCustomer(c *gin.Context) {
 	logger.LogBusinessOperation(c, "customers", "create", "customer", customer.ID, true, nil)
 
 	// Return success response
+	cache.GetRBACCache().InvalidateAll()
 	c.JSON(http.StatusCreated, response.Created("customer created successfully", customer))
 }
 
@@ -314,6 +316,7 @@ func UpdateCustomer(c *gin.Context) {
 	logger.LogBusinessOperation(c, "customers", "update", "customer", customerID, true, nil)
 
 	// Return success response
+	cache.GetRBACCache().InvalidateAll()
 	c.JSON(http.StatusOK, response.OK("customer updated successfully", customer))
 }
 
@@ -394,6 +397,7 @@ func DeleteCustomer(c *gin.Context) {
 	logger.LogBusinessOperation(c, "customers", "delete", "customer", customerID, true, nil)
 
 	// Return success response
+	cache.GetRBACCache().InvalidateAll()
 	c.JSON(http.StatusOK, response.OK("customer deleted successfully", map[string]interface{}{
 		"deleted_systems_count": deletedSystemsCount,
 		"deleted_users_count":   deletedUsersCount,
@@ -464,6 +468,7 @@ func RestoreCustomer(c *gin.Context) {
 
 	logger.LogBusinessOperation(c, "customers", "restore", "customer", customerID, true, nil)
 
+	cache.GetRBACCache().InvalidateAll()
 	c.JSON(http.StatusOK, response.OK("customer restored successfully", map[string]interface{}{
 		"restored_systems_count": restoredSystemsCount,
 		"restored_users_count":   restoredUsersCount,
@@ -531,6 +536,7 @@ func DestroyCustomer(c *gin.Context) {
 
 	logger.LogBusinessOperation(c, "customers", "destroy", "customer", customerID, true, nil)
 
+	cache.GetRBACCache().InvalidateAll()
 	c.JSON(http.StatusOK, response.OK("customer permanently destroyed", nil))
 }
 
@@ -693,6 +699,7 @@ func SuspendCustomer(c *gin.Context) {
 	logger.LogBusinessOperation(c, "customers", "suspend", "customer", customerID, true, nil)
 
 	// Return success response
+	cache.GetRBACCache().InvalidateAll()
 	c.JSON(http.StatusOK, response.OK("customer suspended successfully", map[string]interface{}{
 		"customer":                customer,
 		"suspended_users_count":   suspendedUsersCount,
@@ -782,6 +789,7 @@ func ReactivateCustomer(c *gin.Context) {
 	logger.LogBusinessOperation(c, "customers", "reactivate", "customer", customerID, true, nil)
 
 	// Return success response
+	cache.GetRBACCache().InvalidateAll()
 	c.JSON(http.StatusOK, response.OK("customer reactivated successfully", map[string]interface{}{
 		"customer":                  customer,
 		"reactivated_users_count":   reactivatedUsersCount,

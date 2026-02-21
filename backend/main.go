@@ -25,12 +25,14 @@ import (
 	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/database"
+	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/methods"
 	"github.com/nethesis/my/backend/methods/validators"
 	"github.com/nethesis/my/backend/middleware"
 	"github.com/nethesis/my/backend/pkg/version"
 	"github.com/nethesis/my/backend/response"
+	"github.com/nethesis/my/backend/services/local"
 )
 
 func main() {
@@ -94,6 +96,16 @@ func main() {
 	err = domainValidation.LoadDomainValidation()
 	if err != nil {
 		logger.Warn().Err(err).Msg("Failed to load domain validation from Logto - will fallback to tenant ID")
+	}
+
+	// Wire up RBAC filter to use cached org ID lookups
+	helpers.GetAllowedOrgIDsForFilter = func(role, orgID string) []string {
+		svc := local.NewApplicationsService()
+		ids, err := svc.GetAllowedOrganizationIDs(role, orgID)
+		if err != nil {
+			return []string{orgID}
+		}
+		return ids
 	}
 
 	// Init router
@@ -385,6 +397,9 @@ func main() {
 		// ===========================================
 		appsGroup := customAuthWithAudit.Group("/applications", middleware.RequireResourcePermission("applications"))
 		{
+			// Aggregated init endpoint (must be before /:id to avoid conflict)
+			appsGroup.GET("/init", methods.GetApplicationsInit) // Combined totals+types+versions+organizations (read:applications required)
+
 			// CRUD operations
 			appsGroup.GET("", methods.GetApplications)          // List applications (read:applications required)
 			appsGroup.GET("/:id", methods.GetApplication)       // Get application (read:applications required)

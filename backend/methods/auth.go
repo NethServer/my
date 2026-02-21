@@ -56,6 +56,16 @@ type TokenExchangeResponse struct {
 // 3. Constructing User object with all necessary fields
 // 4. Enriching user with roles and permissions
 func buildUserFromLogtoID(c *gin.Context, logtoID string) (*models.User, error) {
+	// Check Redis cache first
+	cacheKey := "user_profile:" + logtoID
+	rc := cache.GetRedisClient()
+	if rc != nil {
+		var cachedUser models.User
+		if err := rc.Get(cacheKey, &cachedUser); err == nil {
+			return &cachedUser, nil
+		}
+	}
+
 	// Get complete user profile from Management API
 	userProfile, err := logto.GetUserProfileFromLogto(logtoID)
 	if err != nil {
@@ -75,16 +85,6 @@ func buildUserFromLogtoID(c *gin.Context, logtoID string) (*models.User, error) 
 		user = models.User{
 			ID:      localUser.ID,      // Local database ID as primary ID
 			LogtoID: localUser.LogtoID, // Logto ID for reference
-		}
-
-		// Update latest login timestamp
-		if updateErr := userService.UpdateLatestLogin(localUser.ID); updateErr != nil {
-			logger.RequestLogger(c, "auth").Warn().
-				Err(updateErr).
-				Str("operation", "update_latest_login").
-				Str("user_id", localUser.ID).
-				Msg("Failed to update latest login timestamp")
-			// Don't fail the request if this update fails
 		}
 	} else {
 		// User not in local DB, create temporary user with empty local ID
@@ -122,6 +122,11 @@ func buildUserFromLogtoID(c *gin.Context, logtoID string) (*models.User, error) 
 	user.OrgPermissions = enrichedUser.OrgPermissions
 	user.OrganizationID = enrichedUser.OrganizationID
 	user.OrganizationName = enrichedUser.OrganizationName
+
+	// Cache the user profile in Redis
+	if rc != nil {
+		_ = rc.Set(cacheKey, user, 10*time.Minute)
+	}
 
 	return &user, nil
 }
@@ -163,6 +168,18 @@ func ExchangeToken(c *gin.Context) {
 			nil,
 		))
 		return
+	}
+
+	// Update latest login timestamp (always, regardless of cache)
+	if user.ID != "" {
+		userService := local.NewUserService()
+		if updateErr := userService.UpdateLatestLogin(user.ID); updateErr != nil {
+			logger.RequestLogger(c, "auth").Warn().
+				Err(updateErr).
+				Str("operation", "update_latest_login").
+				Str("user_id", user.ID).
+				Msg("Failed to update latest login timestamp")
+		}
 	}
 
 	// Generate custom JWT token
@@ -629,6 +646,11 @@ func ChangeInfo(c *gin.Context) {
 		return
 	}
 
+	// Invalidate cached user profile so next refresh picks up the changes
+	if rc := cache.GetRedisClient(); rc != nil {
+		_ = rc.Delete("user_profile:" + *user.LogtoID)
+	}
+
 	// Log successful profile change
 	logger.LogAccountOperation(c, "change_info", user.ID, user.OrganizationID, user.ID, user.OrganizationID, true, nil)
 
@@ -707,6 +729,13 @@ func Logout(c *gin.Context) {
 			},
 		))
 		return
+	}
+
+	// Invalidate cached user profile
+	if user.LogtoID != nil && *user.LogtoID != "" {
+		if rc := cache.GetRedisClient(); rc != nil {
+			_ = rc.Delete("user_profile:" + *user.LogtoID)
+		}
 	}
 
 	// Log successful logout

@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 
+	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
@@ -78,6 +79,7 @@ func CreateDistributor(c *gin.Context) {
 	logger.LogBusinessOperation(c, "distributors", "create", "distributor", distributor.ID, true, nil)
 
 	// Return success response
+	cache.GetRBACCache().InvalidateAll()
 	c.JSON(http.StatusCreated, response.Created("distributor created successfully", distributor))
 }
 
@@ -254,6 +256,7 @@ func UpdateDistributor(c *gin.Context) {
 	logger.LogBusinessOperation(c, "distributors", "update", "distributor", distributorID, true, nil)
 
 	// Return success response
+	cache.GetRBACCache().InvalidateAll()
 	c.JSON(http.StatusOK, response.OK("distributor updated successfully", distributor))
 }
 
@@ -305,6 +308,7 @@ func DeleteDistributor(c *gin.Context) {
 	logger.LogBusinessOperation(c, "distributors", "delete", "distributor", distributorID, true, nil)
 
 	// Return success response
+	cache.GetRBACCache().InvalidateAll()
 	c.JSON(http.StatusOK, response.OK("distributor deleted successfully", map[string]interface{}{
 		"deleted_systems_count": deletedSystemsCount,
 		"deleted_users_count":   deletedUsersCount,
@@ -354,6 +358,7 @@ func RestoreDistributor(c *gin.Context) {
 
 	logger.LogBusinessOperation(c, "distributors", "restore", "distributor", distributorID, true, nil)
 
+	cache.GetRBACCache().InvalidateAll()
 	c.JSON(http.StatusOK, response.OK("distributor restored successfully", map[string]interface{}{
 		"restored_systems_count": restoredSystemsCount,
 		"restored_users_count":   restoredUsersCount,
@@ -401,6 +406,7 @@ func DestroyDistributor(c *gin.Context) {
 
 	logger.LogBusinessOperation(c, "distributors", "destroy", "distributor", distributorID, true, nil)
 
+	cache.GetRBACCache().InvalidateAll()
 	c.JSON(http.StatusOK, response.OK("distributor permanently destroyed", nil))
 }
 
@@ -508,6 +514,7 @@ func SuspendDistributor(c *gin.Context) {
 	logger.LogBusinessOperation(c, "distributors", "suspend", "distributor", distributorID, true, nil)
 
 	// Return success response
+	cache.GetRBACCache().InvalidateAll()
 	c.JSON(http.StatusOK, response.OK("distributor suspended successfully", map[string]interface{}{
 		"distributor":               distributor,
 		"suspended_resellers_count": suspendedResellersCount,
@@ -565,6 +572,7 @@ func ReactivateDistributor(c *gin.Context) {
 	logger.LogBusinessOperation(c, "distributors", "reactivate", "distributor", distributorID, true, nil)
 
 	// Return success response
+	cache.GetRBACCache().InvalidateAll()
 	c.JSON(http.StatusOK, response.OK("distributor reactivated successfully", map[string]interface{}{
 		"distributor":                 distributor,
 		"reactivated_resellers_count": reactivatedResellersCount,

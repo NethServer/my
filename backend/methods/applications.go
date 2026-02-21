@@ -72,10 +72,21 @@ func GetApplications(c *gin.Context) {
 		return
 	}
 
-	// Resolve rebranding info for each application
+	// Batch resolve rebranding info (eliminates N+1 queries)
+	var orgIDsForRebranding []string
+	for _, app := range apps {
+		if app.OrganizationID != nil && *app.OrganizationID != "" {
+			orgIDsForRebranding = append(orgIDsForRebranding, *app.OrganizationID)
+		}
+	}
+	rebrandingService := local.NewRebrandingService()
+	rebrandingResults := rebrandingService.BatchResolveRebranding(orgIDsForRebranding)
 	for i := range apps {
 		if apps[i].OrganizationID != nil && *apps[i].OrganizationID != "" {
-			apps[i].RebrandingEnabled, apps[i].RebrandingOrgID = resolveRebranding(*apps[i].OrganizationID)
+			if res, ok := rebrandingResults[*apps[i].OrganizationID]; ok && res.Enabled {
+				apps[i].RebrandingEnabled = true
+				apps[i].RebrandingOrgID = &res.ResolvedOrgID
+			}
 		}
 	}
 

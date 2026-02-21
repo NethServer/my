@@ -22,6 +22,17 @@ import (
 	"github.com/nethesis/my/backend/services/local"
 )
 
+// invalidateUserProfileCache removes the cached user profile from Redis.
+// This ensures that changes to roles, permissions, or profile data take effect immediately.
+func invalidateUserProfileCache(logtoID *string) {
+	if logtoID == nil || *logtoID == "" {
+		return
+	}
+	if rc := cache.GetRedisClient(); rc != nil {
+		_ = rc.Delete("user_profile:" + *logtoID)
+	}
+}
+
 // CreateUser handles POST /api/users - creates a new user locally and syncs to Logto
 func CreateUser(c *gin.Context) {
 	// Parse request body
@@ -531,6 +542,9 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
+	// Invalidate cached user profile (roles/permissions may have changed)
+	invalidateUserProfileCache(currentAccount.LogtoID)
+
 	// Log the action
 	logger.LogBusinessOperation(c, "users", "update", "user", userID, true, nil)
 
@@ -607,6 +621,9 @@ func DeleteUser(c *gin.Context) {
 		return
 	}
 
+	// Invalidate cached user profile
+	invalidateUserProfileCache(currentAccount.LogtoID)
+
 	// Log the action
 	logger.LogBusinessOperation(c, "users", "delete", "user", userID, true, nil)
 
@@ -626,6 +643,10 @@ func RestoreUser(c *gin.Context) {
 	if !ok {
 		return
 	}
+
+	// Fetch target user to get LogtoID for cache invalidation
+	repo := entities.NewLocalUserRepository()
+	targetUser, _ := repo.GetByID(userID)
 
 	service := local.NewUserService()
 
@@ -658,6 +679,11 @@ func RestoreUser(c *gin.Context) {
 		return
 	}
 
+	// Invalidate cached user profile
+	if targetUser != nil {
+		invalidateUserProfileCache(targetUser.LogtoID)
+	}
+
 	logger.LogBusinessOperation(c, "users", "restore", "user", userID, true, nil)
 
 	c.JSON(http.StatusOK, response.OK("user restored successfully", nil))
@@ -675,6 +701,10 @@ func DestroyUser(c *gin.Context) {
 	if !ok {
 		return
 	}
+
+	// Fetch target user to get LogtoID for cache invalidation (before destroy)
+	repo := entities.NewLocalUserRepository()
+	targetUser, _ := repo.GetByID(userID)
 
 	service := local.NewUserService()
 
@@ -702,6 +732,11 @@ func DestroyUser(c *gin.Context) {
 			"error": errMsg,
 		}))
 		return
+	}
+
+	// Invalidate cached user profile
+	if targetUser != nil {
+		invalidateUserProfileCache(targetUser.LogtoID)
 	}
 
 	logger.LogBusinessOperation(c, "users", "destroy", "user", userID, true, nil)
@@ -797,6 +832,9 @@ func SuspendUser(c *gin.Context) {
 			Str("suspended_by", user.ID).
 			Msg("All user tokens blacklisted due to suspension")
 	}
+
+	// Invalidate cached user profile
+	invalidateUserProfileCache(targetUser.LogtoID)
 
 	// Log the action
 	logger.LogBusinessOperation(c, "users", "suspend", "user", userID, true, nil)
@@ -897,6 +935,9 @@ func ReactivateUser(c *gin.Context) {
 			Str("reactivated_by", user.ID).
 			Msg("User removed from token blacklist due to reactivation")
 	}
+
+	// Invalidate cached user profile
+	invalidateUserProfileCache(targetUser.LogtoID)
 
 	// Log the action
 	logger.LogBusinessOperation(c, "users", "reactivate", "user", userID, true, nil)

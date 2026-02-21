@@ -32,32 +32,39 @@ func AppendOrgFilter(query string, orgRole, orgID, tableAlias string, args []int
 	case "owner":
 		// Owner sees everything — no filter added
 		return query, args, nextArgIdx
-	case "distributor":
-		query += fmt.Sprintf(`
-			AND (
-				%s = $%d
-				OR %s IN (
-					SELECT logto_id FROM resellers WHERE deleted_at IS NULL
-					UNION
-					SELECT logto_id FROM customers WHERE deleted_at IS NULL
-				)
-			)
-		`, colRef, nextArgIdx, colRef)
-	case "reseller":
-		query += fmt.Sprintf(`
-			AND (
-				%s = $%d
-				OR %s IN (
-					SELECT logto_id FROM customers WHERE deleted_at IS NULL
-				)
-			)
-		`, colRef, nextArgIdx, colRef)
 	default:
-		// Customer or unknown role — only their organization
-		query += fmt.Sprintf(` AND %s = $%d`, colRef, nextArgIdx)
+		// For all non-owner roles, use pre-computed allowed org IDs from the RBAC cache.
+		// This avoids the security bug where distributor/reseller subqueries selected
+		// ALL resellers/customers instead of only those in the user's hierarchy.
+		allowedOrgIDs := GetAllowedOrgIDsForFilter(orgRoleLower, orgID)
+		if len(allowedOrgIDs) == 0 {
+			// No allowed orgs - add impossible condition
+			query += fmt.Sprintf(` AND %s IS NULL AND %s IS NOT NULL`, colRef, colRef)
+			return query, args, nextArgIdx
+		}
+
+		placeholders := make([]string, len(allowedOrgIDs))
+		for i, id := range allowedOrgIDs {
+			placeholders[i] = fmt.Sprintf("$%d", nextArgIdx)
+			args = append(args, id)
+			nextArgIdx++
+			_ = id
+		}
+		query += fmt.Sprintf(` AND %s IN (%s)`, colRef, strings.Join(placeholders, ","))
 	}
 
-	args = append(args, orgID)
-	nextArgIdx++
 	return query, args, nextArgIdx
+}
+
+// GetAllowedOrgIDsForFilter computes allowed org IDs for RBAC filtering.
+// It uses the applications service cached lookup to get the correct hierarchy.
+// This is a lightweight wrapper that avoids circular imports by using a callback.
+var GetAllowedOrgIDsForFilter func(role, orgID string) []string
+
+func init() {
+	// Default implementation returns just the user's own org ID.
+	// This is overridden at startup from the applications service.
+	GetAllowedOrgIDsForFilter = func(role, orgID string) []string {
+		return []string{orgID}
+	}
 }

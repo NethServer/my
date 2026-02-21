@@ -12,6 +12,7 @@ package local
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/models"
@@ -447,6 +448,262 @@ func (s *RebrandingService) ResolveRebranding(orgID string) (bool, string, error
 		return false, "", nil
 	}
 	return true, resolvedOrgID, nil
+}
+
+// BatchResolveRebranding checks rebranding status for multiple organization IDs at once.
+// Returns a map of orgID -> (enabled, resolvedOrgID).
+// This eliminates N+1 queries when resolving rebranding for a page of applications.
+func (s *RebrandingService) BatchResolveRebranding(orgIDs []string) map[string]struct {
+	Enabled       bool
+	ResolvedOrgID string
+} {
+	result := make(map[string]struct {
+		Enabled       bool
+		ResolvedOrgID string
+	})
+
+	if len(orgIDs) == 0 {
+		return result
+	}
+
+	// Deduplicate org IDs
+	uniqueMap := make(map[string]bool)
+	var unique []string
+	for _, id := range orgIDs {
+		if id != "" && !uniqueMap[id] {
+			uniqueMap[id] = true
+			unique = append(unique, id)
+		}
+	}
+
+	if len(unique) == 0 {
+		return result
+	}
+
+	// Step 1: Check which orgs have rebranding directly enabled
+	placeholders := make([]string, len(unique))
+	args := make([]interface{}, len(unique))
+	for i, id := range unique {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+
+	directEnabled := make(map[string]bool)
+	query := fmt.Sprintf(`SELECT organization_id FROM rebranding_enabled WHERE organization_id IN (%s)`,
+		strings.Join(placeholders, ","))
+	rows, err := database.DB.Query(query, args...)
+	if err == nil {
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			var oid string
+			if rows.Scan(&oid) == nil {
+				directEnabled[oid] = true
+				result[oid] = struct {
+					Enabled       bool
+					ResolvedOrgID string
+				}{Enabled: true, ResolvedOrgID: oid}
+			}
+		}
+	}
+
+	// Step 2: For orgs not directly enabled, find their parents
+	var needParent []string
+	for _, id := range unique {
+		if !directEnabled[id] {
+			needParent = append(needParent, id)
+		}
+	}
+
+	if len(needParent) == 0 {
+		return result
+	}
+
+	// Build parent lookup: check customers first, then resellers
+	parentMap := make(map[string]string) // orgID -> parentOrgID
+
+	// Batch lookup customer parents
+	placeholders2 := make([]string, len(needParent))
+	args2 := make([]interface{}, len(needParent))
+	for i, id := range needParent {
+		placeholders2[i] = fmt.Sprintf("$%d", i+1)
+		args2[i] = id
+	}
+
+	custQuery := fmt.Sprintf(`SELECT logto_id, custom_data->>'createdBy' FROM customers WHERE logto_id IN (%s) AND deleted_at IS NULL AND custom_data->>'createdBy' IS NOT NULL`,
+		strings.Join(placeholders2, ","))
+	custRows, err := database.DB.Query(custQuery, args2...)
+	if err == nil {
+		defer func() { _ = custRows.Close() }()
+		for custRows.Next() {
+			var childID, parentID string
+			if custRows.Scan(&childID, &parentID) == nil && parentID != "" {
+				parentMap[childID] = parentID
+			}
+		}
+	}
+
+	// Batch lookup reseller parents (for orgs not found as customers)
+	var resellerCheck []string
+	for _, id := range needParent {
+		if _, found := parentMap[id]; !found {
+			resellerCheck = append(resellerCheck, id)
+		}
+	}
+
+	if len(resellerCheck) > 0 {
+		placeholders3 := make([]string, len(resellerCheck))
+		args3 := make([]interface{}, len(resellerCheck))
+		for i, id := range resellerCheck {
+			placeholders3[i] = fmt.Sprintf("$%d", i+1)
+			args3[i] = id
+		}
+
+		resQuery := fmt.Sprintf(`SELECT logto_id, custom_data->>'createdBy' FROM resellers WHERE logto_id IN (%s) AND deleted_at IS NULL AND custom_data->>'createdBy' IS NOT NULL`,
+			strings.Join(placeholders3, ","))
+		resRows, err := database.DB.Query(resQuery, args3...)
+		if err == nil {
+			defer func() { _ = resRows.Close() }()
+			for resRows.Next() {
+				var childID, parentID string
+				if resRows.Scan(&childID, &parentID) == nil && parentID != "" {
+					parentMap[childID] = parentID
+				}
+			}
+		}
+	}
+
+	// Step 3: Check if parent orgs have rebranding enabled
+	var parentIDs []string
+	parentIDSet := make(map[string]bool)
+	for _, pid := range parentMap {
+		if !parentIDSet[pid] {
+			parentIDSet[pid] = true
+			parentIDs = append(parentIDs, pid)
+		}
+	}
+
+	// Also collect grandparent IDs (for customer -> reseller -> distributor chain)
+	grandparentMap := make(map[string]string)
+	if len(parentIDs) > 0 {
+		placeholders4 := make([]string, len(parentIDs))
+		args4 := make([]interface{}, len(parentIDs))
+		for i, id := range parentIDs {
+			placeholders4[i] = fmt.Sprintf("$%d", i+1)
+			args4[i] = id
+		}
+
+		// Check parent rebranding
+		parentEnabledQuery := fmt.Sprintf(`SELECT organization_id FROM rebranding_enabled WHERE organization_id IN (%s)`,
+			strings.Join(placeholders4, ","))
+		parentEnabledRows, err := database.DB.Query(parentEnabledQuery, args4...)
+		parentEnabled := make(map[string]bool)
+		if err == nil {
+			defer func() { _ = parentEnabledRows.Close() }()
+			for parentEnabledRows.Next() {
+				var pid string
+				if parentEnabledRows.Scan(&pid) == nil {
+					parentEnabled[pid] = true
+				}
+			}
+		}
+
+		// Set results for orgs whose parent has rebranding
+		for childID, parentID := range parentMap {
+			if parentEnabled[parentID] {
+				result[childID] = struct {
+					Enabled       bool
+					ResolvedOrgID string
+				}{Enabled: true, ResolvedOrgID: parentID}
+			}
+		}
+
+		// For parents that are resellers, look up their distributor (grandparent)
+		var needGrandparent []string
+		for childID, parentID := range parentMap {
+			if _, already := result[childID]; !already && !parentEnabled[parentID] {
+				needGrandparent = append(needGrandparent, parentID)
+			}
+		}
+
+		if len(needGrandparent) > 0 {
+			gpUnique := make(map[string]bool)
+			var gpIDs []string
+			for _, id := range needGrandparent {
+				if !gpUnique[id] {
+					gpUnique[id] = true
+					gpIDs = append(gpIDs, id)
+				}
+			}
+
+			placeholders5 := make([]string, len(gpIDs))
+			args5 := make([]interface{}, len(gpIDs))
+			for i, id := range gpIDs {
+				placeholders5[i] = fmt.Sprintf("$%d", i+1)
+				args5[i] = id
+			}
+
+			gpQuery := fmt.Sprintf(`SELECT logto_id, custom_data->>'createdBy' FROM resellers WHERE logto_id IN (%s) AND deleted_at IS NULL AND custom_data->>'createdBy' IS NOT NULL`,
+				strings.Join(placeholders5, ","))
+			gpRows, err := database.DB.Query(gpQuery, args5...)
+			if err == nil {
+				defer func() { _ = gpRows.Close() }()
+				for gpRows.Next() {
+					var resID, distID string
+					if gpRows.Scan(&resID, &distID) == nil && distID != "" {
+						grandparentMap[resID] = distID
+					}
+				}
+			}
+
+			// Check grandparent rebranding
+			var gpCheckIDs []string
+			gpCheckSet := make(map[string]bool)
+			for _, gpID := range grandparentMap {
+				if !gpCheckSet[gpID] {
+					gpCheckSet[gpID] = true
+					gpCheckIDs = append(gpCheckIDs, gpID)
+				}
+			}
+
+			if len(gpCheckIDs) > 0 {
+				placeholders6 := make([]string, len(gpCheckIDs))
+				args6 := make([]interface{}, len(gpCheckIDs))
+				for i, id := range gpCheckIDs {
+					placeholders6[i] = fmt.Sprintf("$%d", i+1)
+					args6[i] = id
+				}
+
+				gpEnabledQuery := fmt.Sprintf(`SELECT organization_id FROM rebranding_enabled WHERE organization_id IN (%s)`,
+					strings.Join(placeholders6, ","))
+				gpEnabledRows, err := database.DB.Query(gpEnabledQuery, args6...)
+				gpEnabled := make(map[string]bool)
+				if err == nil {
+					defer func() { _ = gpEnabledRows.Close() }()
+					for gpEnabledRows.Next() {
+						var gpID string
+						if gpEnabledRows.Scan(&gpID) == nil {
+							gpEnabled[gpID] = true
+						}
+					}
+				}
+
+				// Set results for orgs whose grandparent has rebranding
+				for childID, parentID := range parentMap {
+					if _, already := result[childID]; already {
+						continue
+					}
+					if gpID, ok := grandparentMap[parentID]; ok && gpEnabled[gpID] {
+						result[childID] = struct {
+							Enabled       bool
+							ResolvedOrgID string
+						}{Enabled: true, ResolvedOrgID: gpID}
+					}
+				}
+			}
+		}
+	}
+
+	return result
 }
 
 // resolveRebrandingOrg walks up the hierarchy to find the first org with rebranding enabled

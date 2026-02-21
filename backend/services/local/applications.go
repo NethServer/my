@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/logger"
@@ -212,6 +213,104 @@ func (s *LocalApplicationsService) GetApplicationVersions(userOrgRole, userOrgID
 	return s.repo.GetDistinctVersions(allowedSystemIDs, true)
 }
 
+// GetApplicationTotalsWithIDs returns statistics using pre-computed system IDs (avoids re-resolving RBAC)
+func (s *LocalApplicationsService) GetApplicationTotalsWithIDs(allowedSystemIDs []string) (*models.ApplicationTotals, error) {
+	return s.repo.GetTotals(allowedSystemIDs, true)
+}
+
+// GetApplicationTypesWithIDs returns distinct types using pre-computed system IDs
+func (s *LocalApplicationsService) GetApplicationTypesWithIDs(allowedSystemIDs []string) ([]models.ApplicationType, error) {
+	return s.repo.GetDistinctTypes(allowedSystemIDs, true)
+}
+
+// GetApplicationVersionsWithIDs returns distinct versions using pre-computed system IDs
+func (s *LocalApplicationsService) GetApplicationVersionsWithIDs(allowedSystemIDs []string) (map[string]entities.ApplicationVersionGroup, error) {
+	return s.repo.GetDistinctVersions(allowedSystemIDs, true)
+}
+
+// GetAvailableOrganizationsWithIDs returns available organizations using pre-computed allowed org IDs
+func (s *LocalApplicationsService) GetAvailableOrganizationsWithIDs(allowedOrgIDs []string) ([]models.OrganizationSummary, error) {
+	return s.getAvailableOrganizationsFromIDs(allowedOrgIDs)
+}
+
+// getAvailableOrganizationsFromIDs is the internal implementation that accepts pre-computed org IDs
+func (s *LocalApplicationsService) getAvailableOrganizationsFromIDs(allowedOrgIDs []string) ([]models.OrganizationSummary, error) {
+	var orgs []models.OrganizationSummary
+
+	// Check if there are applications without organization
+	var hasUnassigned bool
+	err := database.DB.QueryRow(`
+		SELECT EXISTS(SELECT 1 FROM applications WHERE (organization_id IS NULL OR organization_id = '') AND deleted_at IS NULL AND is_user_facing = TRUE AND (inventory_data->>'certification_level')::int IN (4, 5))
+	`).Scan(&hasUnassigned)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check unassigned applications: %w", err)
+	}
+
+	if hasUnassigned {
+		orgs = append(orgs, models.OrganizationSummary{
+			ID:      "no_org",
+			LogtoID: "no_org",
+			Name:    "No organization",
+			Type:    "unassigned",
+		})
+	}
+
+	if len(allowedOrgIDs) == 0 {
+		return orgs, nil
+	}
+
+	n := len(allowedOrgIDs)
+	placeholders1 := make([]string, n)
+	placeholders2 := make([]string, n)
+	placeholders3 := make([]string, n)
+	allArgs := make([]interface{}, 0, n*3)
+
+	for i, orgID := range allowedOrgIDs {
+		placeholders1[i] = fmt.Sprintf("$%d", i+1)
+		placeholders2[i] = fmt.Sprintf("$%d", n+i+1)
+		placeholders3[i] = fmt.Sprintf("$%d", 2*n+i+1)
+		allArgs = append(allArgs, orgID)
+	}
+	for _, orgID := range allowedOrgIDs {
+		allArgs = append(allArgs, orgID)
+	}
+	for _, orgID := range allowedOrgIDs {
+		allArgs = append(allArgs, orgID)
+	}
+
+	query := fmt.Sprintf(`
+		WITH all_orgs AS (
+			SELECT id::text, logto_id, name, 'distributor' AS type FROM distributors WHERE deleted_at IS NULL AND logto_id IN (%s)
+			UNION ALL
+			SELECT id::text, logto_id, name, 'reseller' AS type FROM resellers WHERE deleted_at IS NULL AND logto_id IN (%s)
+			UNION ALL
+			SELECT id::text, logto_id, name, 'customer' AS type FROM customers WHERE deleted_at IS NULL AND logto_id IN (%s)
+		)
+		SELECT DISTINCT o.id, o.logto_id, o.name, o.type
+		FROM all_orgs o
+		INNER JOIN applications a ON a.organization_id = o.logto_id
+		WHERE a.deleted_at IS NULL AND a.is_user_facing = TRUE
+		  AND (a.inventory_data->>'certification_level')::int IN (4, 5)
+		ORDER BY o.name
+	`, strings.Join(placeholders1, ","), strings.Join(placeholders2, ","), strings.Join(placeholders3, ","))
+
+	rows, err := database.DB.Query(query, allArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query organizations: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var org models.OrganizationSummary
+		if err := rows.Scan(&org.ID, &org.LogtoID, &org.Name, &org.Type); err != nil {
+			return nil, fmt.Errorf("failed to scan organization: %w", err)
+		}
+		orgs = append(orgs, org)
+	}
+
+	return orgs, nil
+}
+
 // GetApplicationsTrend returns trend data for applications over a specified period
 func (s *LocalApplicationsService) GetApplicationsTrend(userOrgRole, userOrgID string, period int) ([]struct {
 	Date  string
@@ -229,15 +328,25 @@ func (s *LocalApplicationsService) GetApplicationsTrend(userOrgRole, userOrgID s
 // PRIVATE HELPER METHODS
 // =============================================================================
 
-// getAllowedSystemIDs returns list of system IDs the user can access based on hierarchy
-func (s *LocalApplicationsService) getAllowedSystemIDs(userOrgRole, userOrgID string) ([]string, error) {
+// GetAllowedSystemIDs returns list of system IDs the user can access based on hierarchy.
+// Results are cached for performance (5-minute TTL).
+func (s *LocalApplicationsService) GetAllowedSystemIDs(userOrgRole, userOrgID string) ([]string, error) {
+	normalizedRole := strings.ToLower(userOrgRole)
+
+	// Check cache first
+	rbac := cache.GetRBACCache()
+	if cached, ok := rbac.GetSystemIDs(normalizedRole, userOrgID); ok {
+		return cached, nil
+	}
+
 	// Get allowed organization IDs based on hierarchy
-	allowedOrgIDs, err := s.getAllowedOrganizationIDs(userOrgRole, userOrgID)
+	allowedOrgIDs, err := s.GetAllowedOrganizationIDs(userOrgRole, userOrgID)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(allowedOrgIDs) == 0 {
+		rbac.SetSystemIDs(normalizedRole, userOrgID, []string{})
 		return []string{}, nil
 	}
 
@@ -269,23 +378,56 @@ func (s *LocalApplicationsService) getAllowedSystemIDs(userOrgRole, userOrgID st
 		systemIDs = append(systemIDs, id)
 	}
 
+	// Cache result
+	rbac.SetSystemIDs(normalizedRole, userOrgID, systemIDs)
+
 	return systemIDs, nil
 }
 
-// getAllowedOrganizationIDs returns list of organization IDs the user can access
+// getAllowedSystemIDs is a private alias for backward compatibility within the service
+func (s *LocalApplicationsService) getAllowedSystemIDs(userOrgRole, userOrgID string) ([]string, error) {
+	return s.GetAllowedSystemIDs(userOrgRole, userOrgID)
+}
+
+// GetAllowedOrganizationIDs returns list of organization IDs the user can access.
+// Results are cached for performance (5-minute TTL).
+func (s *LocalApplicationsService) GetAllowedOrganizationIDs(userOrgRole, userOrgID string) ([]string, error) {
+	normalizedRole := strings.ToLower(userOrgRole)
+
+	// Check cache first
+	rbac := cache.GetRBACCache()
+	if cached, ok := rbac.GetOrgIDs(normalizedRole, userOrgID); ok {
+		return cached, nil
+	}
+
+	allowedOrgIDs, err := s.computeAllowedOrganizationIDs(normalizedRole, userOrgID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache result
+	rbac.SetOrgIDs(normalizedRole, userOrgID, allowedOrgIDs)
+
+	return allowedOrgIDs, nil
+}
+
+// getAllowedOrganizationIDs is a private alias for backward compatibility within the service
 func (s *LocalApplicationsService) getAllowedOrganizationIDs(userOrgRole, userOrgID string) ([]string, error) {
+	return s.GetAllowedOrganizationIDs(userOrgRole, userOrgID)
+}
+
+// computeAllowedOrganizationIDs performs the actual DB queries for allowed org IDs
+func (s *LocalApplicationsService) computeAllowedOrganizationIDs(normalizedRole, userOrgID string) ([]string, error) {
 	var allowedOrgIDs []string
 
-	// Normalize role to lowercase for comparison (JWT contains "Owner", "Distributor", etc.)
-	switch strings.ToLower(userOrgRole) {
+	switch normalizedRole {
 	case "owner":
-		// Owner can access all organizations
-		// Get all distributor, reseller, customer logto_ids
+		// Owner can access all organizations - single UNION query
 		query := `
 			SELECT logto_id FROM distributors WHERE deleted_at IS NULL AND logto_id IS NOT NULL
-			UNION
+			UNION ALL
 			SELECT logto_id FROM resellers WHERE deleted_at IS NULL AND logto_id IS NOT NULL
-			UNION
+			UNION ALL
 			SELECT logto_id FROM customers WHERE deleted_at IS NULL AND logto_id IS NOT NULL
 		`
 		rows, err := database.DB.Query(query)
@@ -410,7 +552,7 @@ func (s *LocalApplicationsService) getAllowedOrganizationIDs(userOrgRole, userOr
 		allowedOrgIDs = append(allowedOrgIDs, userOrgID)
 
 	default:
-		return nil, fmt.Errorf("unknown organization role: %s", userOrgRole)
+		return nil, fmt.Errorf("unknown organization role: %s", normalizedRole)
 	}
 
 	return allowedOrgIDs, nil
