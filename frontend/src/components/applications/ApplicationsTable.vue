@@ -54,8 +54,6 @@ import { buildVersionFilterOptions } from '@/lib/applications/versionFilter'
 import { useSystemFilter } from '@/queries/applications/systemFilter'
 import { useOrganizationFilter } from '@/queries/applications/organizationFilter'
 
-//// review (search "system")
-
 const { t } = useI18n()
 const {
   state,
@@ -70,6 +68,7 @@ const {
   organizationFilter,
   sortBy,
   sortDescending,
+  clearFilters,
 } = useApplications()
 
 const { state: typeFilterState, asyncStatus: typeFilterAsyncStatus } = useTypeFilter()
@@ -169,19 +168,6 @@ watch(
     versionFilter.value = []
   },
 )
-
-////
-function clearFilters() {
-  console.log('clearFilters, todo') ////
-
-  textFilter.value = ''
-  typeFilter.value = []
-  versionFilter.value = []
-  systemFilter.value = []
-  organizationFilter.value = []
-  //   createdByFilter.value = []
-  //   statusFilter.value = ['online', 'offline', 'unknown']
-}
 
 function showAssignOrgDrawer(application: Application) {
   currentApplication.value = application
