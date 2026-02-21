@@ -140,10 +140,21 @@ func GetSystems(c *gin.Context) {
 		return
 	}
 
-	// Resolve rebranding info for each system
+	// Batch resolve rebranding info (eliminates N+1 queries)
+	var orgIDsForRebranding []string
+	for _, sys := range systems {
+		if sys.Organization.LogtoID != "" {
+			orgIDsForRebranding = append(orgIDsForRebranding, sys.Organization.LogtoID)
+		}
+	}
+	rebrandingService := local.NewRebrandingService()
+	rebrandingResults := rebrandingService.BatchResolveRebranding(orgIDsForRebranding)
 	for i := range systems {
 		if systems[i].Organization.LogtoID != "" {
-			systems[i].RebrandingEnabled, systems[i].RebrandingOrgID = resolveRebranding(systems[i].Organization.LogtoID)
+			if res, ok := rebrandingResults[systems[i].Organization.LogtoID]; ok && res.Enabled {
+				systems[i].RebrandingEnabled = true
+				systems[i].RebrandingOrgID = &res.ResolvedOrgID
+			}
 		}
 	}
 

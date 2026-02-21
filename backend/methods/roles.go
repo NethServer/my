@@ -6,8 +6,10 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package methods
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -19,12 +21,34 @@ import (
 	"github.com/nethesis/my/backend/services/logto"
 )
 
+const rolesCacheTTL = 15 * time.Minute
+
 // GetRoles returns all available user roles filtered by access control
 func GetRoles(c *gin.Context) {
 	// Get current user context
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
 		return
+	}
+
+	orgRole := strings.ToLower(user.OrgRole)
+
+	// Try Redis cache first
+	cacheKey := fmt.Sprintf("logto_roles_filtered:%s", orgRole)
+	redisClient := cache.GetRedisClient()
+	if redisClient != nil {
+		var cachedRoles []models.Role
+		if err := redisClient.Get(cacheKey, &cachedRoles); err == nil {
+			logger.ComponentLogger("roles").Debug().
+				Str("cache_key", cacheKey).
+				Int("count", len(cachedRoles)).
+				Msg("Roles served from Redis cache")
+
+			c.JSON(http.StatusOK, response.OK("roles retrieved successfully", models.RolesResponse{
+				Roles: cachedRoles,
+			}))
+			return
+		}
 	}
 
 	client := logto.NewManagementClient()
@@ -46,28 +70,26 @@ func GetRoles(c *gin.Context) {
 	for _, logtoRole := range logtoRoles {
 		// Skip system roles based on name patterns
 		if isSystemRole(logtoRole.Name, logtoRole.Description) {
-			logger.ComponentLogger("roles").Debug().
-				Str("role_name", logtoRole.Name).
-				Str("role_description", logtoRole.Description).
-				Msg("Role filtered as system role")
 			continue
 		}
 
 		// Check if user can access this role based on cached access control
-		canAccess := canUserAccessRoleCached(roleCache, logtoRole.ID, user)
-
-		logger.ComponentLogger("roles").Debug().
-			Str("role_name", logtoRole.Name).
-			Str("role_id", logtoRole.ID).
-			Bool("can_access", canAccess).
-			Msg("Role access check result")
-
-		if canAccess {
+		if canUserAccessRoleCached(roleCache, logtoRole.ID, user) {
 			roles = append(roles, models.Role{
 				ID:          logtoRole.ID,
 				Name:        logtoRole.Name,
 				Description: logtoRole.Description,
 			})
+		}
+	}
+
+	// Cache the filtered result in Redis
+	if redisClient != nil {
+		if err := redisClient.Set(cacheKey, roles, rolesCacheTTL); err != nil {
+			logger.ComponentLogger("roles").Warn().
+				Err(err).
+				Str("cache_key", cacheKey).
+				Msg("Failed to cache roles in Redis")
 		}
 	}
 
@@ -86,6 +108,24 @@ func GetRoles(c *gin.Context) {
 
 // GetOrganizationRoles returns all available organization roles
 func GetOrganizationRoles(c *gin.Context) {
+	// Try Redis cache first
+	cacheKey := "logto_org_roles"
+	redisClient := cache.GetRedisClient()
+	if redisClient != nil {
+		var cachedOrgRoles []models.OrganizationRole
+		if err := redisClient.Get(cacheKey, &cachedOrgRoles); err == nil {
+			logger.ComponentLogger("roles").Debug().
+				Str("cache_key", cacheKey).
+				Int("count", len(cachedOrgRoles)).
+				Msg("Organization roles served from Redis cache")
+
+			c.JSON(http.StatusOK, response.OK("organization roles retrieved successfully", models.OrganizationRolesResponse{
+				OrganizationRoles: cachedOrgRoles,
+			}))
+			return
+		}
+	}
+
 	client := logto.NewManagementClient()
 
 	// Fetch all organization roles from Logto
@@ -104,6 +144,16 @@ func GetOrganizationRoles(c *gin.Context) {
 			ID:          logtoOrgRole.ID,
 			Name:        logtoOrgRole.Name,
 			Description: logtoOrgRole.Description,
+		}
+	}
+
+	// Cache the result in Redis
+	if redisClient != nil {
+		if err := redisClient.Set(cacheKey, orgRoles, rolesCacheTTL); err != nil {
+			logger.ComponentLogger("roles").Warn().
+				Err(err).
+				Str("cache_key", cacheKey).
+				Msg("Failed to cache organization roles in Redis")
 		}
 	}
 

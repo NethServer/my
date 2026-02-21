@@ -196,10 +196,21 @@ func GetCustomers(c *gin.Context) {
 		return
 	}
 
-	// Resolve rebranding info for each customer
+	// Batch resolve rebranding info (eliminates N+1 queries)
+	var orgIDsForRebranding []string
+	for _, cust := range customers {
+		if cust.LogtoID != nil {
+			orgIDsForRebranding = append(orgIDsForRebranding, *cust.LogtoID)
+		}
+	}
+	rebrandingService := local.NewRebrandingService()
+	rebrandingResults := rebrandingService.BatchResolveRebranding(orgIDsForRebranding)
 	for i := range customers {
 		if customers[i].LogtoID != nil {
-			customers[i].RebrandingEnabled, customers[i].RebrandingOrgID = resolveRebranding(*customers[i].LogtoID)
+			if res, ok := rebrandingResults[*customers[i].LogtoID]; ok && res.Enabled {
+				customers[i].RebrandingEnabled = true
+				customers[i].RebrandingOrgID = &res.ResolvedOrgID
+			}
 		}
 	}
 

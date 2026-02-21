@@ -170,10 +170,21 @@ func GetDistributors(c *gin.Context) {
 		return
 	}
 
-	// Resolve rebranding info for each distributor
+	// Batch resolve rebranding info (eliminates N+1 queries)
+	var orgIDsForRebranding []string
+	for _, dist := range distributors {
+		if dist.LogtoID != nil {
+			orgIDsForRebranding = append(orgIDsForRebranding, *dist.LogtoID)
+		}
+	}
+	rebrandingService := local.NewRebrandingService()
+	rebrandingResults := rebrandingService.BatchResolveRebranding(orgIDsForRebranding)
 	for i := range distributors {
 		if distributors[i].LogtoID != nil {
-			distributors[i].RebrandingEnabled, distributors[i].RebrandingOrgID = resolveRebranding(*distributors[i].LogtoID)
+			if res, ok := rebrandingResults[*distributors[i].LogtoID]; ok && res.Enabled {
+				distributors[i].RebrandingEnabled = true
+				distributors[i].RebrandingOrgID = &res.ResolvedOrgID
+			}
 		}
 	}
 

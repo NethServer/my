@@ -575,13 +575,11 @@ func (s *LocalApplicationsService) canAccessSystem(systemID, userOrgRole, userOr
 		return false
 	}
 
-	for _, allowedID := range allowedOrgIDs {
-		if allowedID == creatorOrgID {
-			return true
-		}
+	allowedMap := make(map[string]bool, len(allowedOrgIDs))
+	for _, id := range allowedOrgIDs {
+		allowedMap[id] = true
 	}
-
-	return false
+	return allowedMap[creatorOrgID]
 }
 
 // canAssignToOrganization checks if user can assign application to target organization
@@ -592,53 +590,28 @@ func (s *LocalApplicationsService) canAssignToOrganization(userOrgRole, userOrgI
 		return false
 	}
 
-	for _, allowedID := range allowedOrgIDs {
-		if allowedID == targetOrgID {
-			return true
-		}
+	allowedMap := make(map[string]bool, len(allowedOrgIDs))
+	for _, id := range allowedOrgIDs {
+		allowedMap[id] = true
 	}
-
-	return false
+	return allowedMap[targetOrgID]
 }
 
 // getOrganizationType returns the organization type for a given organization ID
 func (s *LocalApplicationsService) getOrganizationType(orgID string) (string, error) {
-	// Check distributors
-	var exists bool
+	var orgType string
 	err := database.DB.QueryRow(`
-		SELECT EXISTS(SELECT 1 FROM distributors WHERE logto_id = $1 AND deleted_at IS NULL)
-	`, orgID).Scan(&exists)
+		SELECT CASE
+			WHEN EXISTS (SELECT 1 FROM distributors WHERE logto_id = $1 AND deleted_at IS NULL) THEN 'distributor'
+			WHEN EXISTS (SELECT 1 FROM resellers WHERE logto_id = $1 AND deleted_at IS NULL) THEN 'reseller'
+			WHEN EXISTS (SELECT 1 FROM customers WHERE logto_id = $1 AND deleted_at IS NULL) THEN 'customer'
+			ELSE 'owner'
+		END
+	`, orgID).Scan(&orgType)
 	if err != nil {
 		return "", err
 	}
-	if exists {
-		return "distributor", nil
-	}
-
-	// Check resellers
-	err = database.DB.QueryRow(`
-		SELECT EXISTS(SELECT 1 FROM resellers WHERE logto_id = $1 AND deleted_at IS NULL)
-	`, orgID).Scan(&exists)
-	if err != nil {
-		return "", err
-	}
-	if exists {
-		return "reseller", nil
-	}
-
-	// Check customers
-	err = database.DB.QueryRow(`
-		SELECT EXISTS(SELECT 1 FROM customers WHERE logto_id = $1 AND deleted_at IS NULL)
-	`, orgID).Scan(&exists)
-	if err != nil {
-		return "", err
-	}
-	if exists {
-		return "customer", nil
-	}
-
-	// Default to owner if not found in other tables
-	return "owner", nil
+	return orgType, nil
 }
 
 // GetApplicationTypeSummary returns applications grouped by type, optionally filtered by organization

@@ -96,10 +96,13 @@ func GetThirdPartyApplications(c *gin.Context) {
 	responseApplications := make([]models.ThirdPartyApplication, 0)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
+	sem := make(chan struct{}, 10)
 
 	for _, app := range filteredLogtoApps {
 		wg.Add(1)
+		sem <- struct{}{}
 		go func(app models.LogtoThirdPartyApp) {
+			defer func() { <-sem }()
 			defer wg.Done()
 
 			// Parallel calls for branding and scopes

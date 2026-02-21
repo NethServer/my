@@ -1219,30 +1219,19 @@ func (s *LocalUserService) IsOrganizationInHierarchy(userOrgRole, userOrgID, tar
 		// 1. Their own organization
 		// 2. Resellers created by them
 		// 3. Customers created by them or their resellers
-
-		// Check if target is a reseller created by this distributor
-		var count int
-		query := `SELECT COUNT(*) FROM resellers WHERE logto_id = $1 AND custom_data->>'createdBy' = $2 AND deleted_at IS NULL`
-		err := database.DB.QueryRow(query, targetOrgID, userOrgID).Scan(&count)
-		if err == nil && count > 0 {
-			return true
-		}
-
-		// Check if target is a customer created by this distributor
-		query = `SELECT COUNT(*) FROM customers WHERE logto_id = $1 AND custom_data->>'createdBy' = $2 AND deleted_at IS NULL`
-		err = database.DB.QueryRow(query, targetOrgID, userOrgID).Scan(&count)
-		if err == nil && count > 0 {
-			return true
-		}
-
-		// Check if target is a customer created by a reseller created by this distributor
-		query = `
-			SELECT COUNT(*) FROM customers c
-			JOIN resellers r ON c.custom_data->>'createdBy' = r.logto_id
-			WHERE c.logto_id = $1 AND r.custom_data->>'createdBy' = $2 AND c.deleted_at IS NULL AND r.deleted_at IS NULL
+		var exists bool
+		query := `
+			SELECT EXISTS(
+				SELECT 1 FROM resellers WHERE logto_id = $1 AND custom_data->>'createdBy' = $2 AND deleted_at IS NULL
+				UNION ALL
+				SELECT 1 FROM customers WHERE logto_id = $1 AND custom_data->>'createdBy' = $2 AND deleted_at IS NULL
+				UNION ALL
+				SELECT 1 FROM customers c JOIN resellers r ON c.custom_data->>'createdBy' = r.logto_id
+				WHERE c.logto_id = $1 AND r.custom_data->>'createdBy' = $2 AND c.deleted_at IS NULL AND r.deleted_at IS NULL
+			)
 		`
-		err = database.DB.QueryRow(query, targetOrgID, userOrgID).Scan(&count)
-		if err == nil && count > 0 {
+		err := database.DB.QueryRow(query, targetOrgID, userOrgID).Scan(&exists)
+		if err == nil && exists {
 			return true
 		}
 
@@ -1541,32 +1530,30 @@ func (s *LocalUserService) parseLogtoError(err error, context map[string]interfa
 
 // determineOrganizationRoleName determines the organization role name based on organization type in database
 func (s *LocalUserService) determineOrganizationRoleName(organizationID string) string {
-	// Query each organization table to determine the type
-	// organizationID is the logto_id, not the local database id
-
-	// Check distributors table
-	var count int
-	query := `SELECT COUNT(*) FROM distributors WHERE logto_id = $1 AND deleted_at IS NULL`
-	err := database.DB.QueryRow(query, organizationID).Scan(&count)
-	if err == nil && count > 0 {
-		return "Distributor"
+	var orgType string
+	query := `
+		SELECT CASE
+			WHEN EXISTS (SELECT 1 FROM distributors WHERE logto_id = $1 AND deleted_at IS NULL) THEN 'distributor'
+			WHEN EXISTS (SELECT 1 FROM resellers WHERE logto_id = $1 AND deleted_at IS NULL) THEN 'reseller'
+			WHEN EXISTS (SELECT 1 FROM customers WHERE logto_id = $1 AND deleted_at IS NULL) THEN 'customer'
+			ELSE 'owner'
+		END
+	`
+	err := database.DB.QueryRow(query, organizationID).Scan(&orgType)
+	if err != nil {
+		return "Owner"
 	}
 
-	// Check resellers table
-	query = `SELECT COUNT(*) FROM resellers WHERE logto_id = $1 AND deleted_at IS NULL`
-	err = database.DB.QueryRow(query, organizationID).Scan(&count)
-	if err == nil && count > 0 {
-		return "Reseller"
+	// Map to title case for role name
+	roleNames := map[string]string{
+		"distributor": "Distributor",
+		"reseller":    "Reseller",
+		"customer":    "Customer",
+		"owner":       "Owner",
 	}
-
-	// Check customers table
-	query = `SELECT COUNT(*) FROM customers WHERE logto_id = $1 AND deleted_at IS NULL`
-	err = database.DB.QueryRow(query, organizationID).Scan(&count)
-	if err == nil && count > 0 {
-		return "Customer"
+	if name, ok := roleNames[orgType]; ok {
+		return name
 	}
-
-	// If not found in any table, it might be the owner organization
 	return "Owner"
 }
 

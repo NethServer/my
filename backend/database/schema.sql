@@ -51,6 +51,7 @@ CREATE INDEX IF NOT EXISTS idx_distributors_logto_synced ON distributors(logto_s
 CREATE INDEX IF NOT EXISTS idx_distributors_created_at ON distributors(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_distributors_name ON distributors(name);
 CREATE INDEX IF NOT EXISTS idx_distributors_vat_jsonb ON distributors((custom_data->>'vat'));
+CREATE INDEX IF NOT EXISTS idx_distributors_created_by ON distributors ((custom_data->>'createdBy')) WHERE deleted_at IS NULL;
 
 -- =============================================================================
 -- RESELLERS TABLE
@@ -205,6 +206,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_logto_id ON users(logto_id) WHERE lo
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE deleted_at IS NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_users_organization_id ON users(organization_id);
+CREATE INDEX IF NOT EXISTS idx_users_organization_id_active ON users(organization_id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_users_suspended_at ON users(suspended_at);
 CREATE INDEX IF NOT EXISTS idx_users_suspended_by_org_id ON users(suspended_by_org_id) WHERE suspended_by_org_id IS NOT NULL;
@@ -279,6 +281,7 @@ CREATE INDEX IF NOT EXISTS idx_systems_organization_id ON systems(organization_i
 CREATE INDEX IF NOT EXISTS idx_systems_created_by_org ON systems((created_by->>'organization_id'));
 CREATE INDEX IF NOT EXISTS idx_systems_status ON systems(status);
 CREATE INDEX IF NOT EXISTS idx_systems_type ON systems(type);
+CREATE INDEX IF NOT EXISTS idx_systems_type_version ON systems(type, version) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_systems_deleted_at ON systems(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_systems_registered_at ON systems(registered_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_systems_system_key ON systems(system_key);

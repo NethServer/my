@@ -622,13 +622,8 @@ func (s *LocalSystemsService) RegenerateSystemSecret(systemID, userID, userOrgID
 		return nil, fmt.Errorf("failed to update system credentials: %w", err)
 	}
 
-	// Get updated system
-	system, err = s.GetSystem(systemID, userOrgRole, userOrgID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get updated system: %w", err)
-	}
-
-	// Set the full token for this response only
+	// Update the existing system object in memory instead of re-fetching
+	system.UpdatedAt = now
 	system.SystemSecret = fullToken
 
 	logger.Info().

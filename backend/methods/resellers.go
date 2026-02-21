@@ -189,10 +189,21 @@ func GetResellers(c *gin.Context) {
 		return
 	}
 
-	// Resolve rebranding info for each reseller
+	// Batch resolve rebranding info (eliminates N+1 queries)
+	var orgIDsForRebranding []string
+	for _, res := range resellers {
+		if res.LogtoID != nil {
+			orgIDsForRebranding = append(orgIDsForRebranding, *res.LogtoID)
+		}
+	}
+	rebrandingService := local.NewRebrandingService()
+	rebrandingResults := rebrandingService.BatchResolveRebranding(orgIDsForRebranding)
 	for i := range resellers {
 		if resellers[i].LogtoID != nil {
-			resellers[i].RebrandingEnabled, resellers[i].RebrandingOrgID = resolveRebranding(*resellers[i].LogtoID)
+			if res, ok := rebrandingResults[*resellers[i].LogtoID]; ok && res.Enabled {
+				resellers[i].RebrandingEnabled = true
+				resellers[i].RebrandingOrgID = &res.ResolvedOrgID
+			}
 		}
 	}
 

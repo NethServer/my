@@ -44,19 +44,12 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	query := `
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
 		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, s.registered_at, s.suspended_at, s.suspended_by_org_id, h.last_heartbeat,
-		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name,
-		       CASE
-		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
-		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
-		           WHEN c.logto_id IS NOT NULL THEN 'customer'
-		           ELSE 'owner'
-		       END as organization_type,
-		       COALESCE(d.id::text, r.id::text, c.id::text, '') as organization_db_id
+		       COALESCE(uo.name, 'Owner') as organization_name,
+		       COALESCE(uo.org_type, 'owner') as organization_type,
+		       COALESCE(uo.db_id, '') as organization_db_id
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
-		LEFT JOIN distributors d ON (s.organization_id = d.logto_id OR s.organization_id = d.id::text) AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON (s.organization_id = r.logto_id OR s.organization_id = r.id::text) AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON (s.organization_id = c.logto_id OR s.organization_id = c.id::text) AND c.deleted_at IS NULL
+		LEFT JOIN unified_organizations uo ON s.organization_id = uo.logto_id
 		WHERE s.id = $1 AND s.deleted_at IS NULL
 	`
 
@@ -307,9 +300,7 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	countQuery := fmt.Sprintf(`
 		SELECT COUNT(*)
 		FROM systems s
-		LEFT JOIN distributors d ON (s.organization_id = d.logto_id OR s.organization_id = d.id::text) AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON (s.organization_id = r.logto_id OR s.organization_id = r.id::text) AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON (s.organization_id = c.logto_id OR s.organization_id = c.id::text) AND c.deleted_at IS NULL
+		LEFT JOIN unified_organizations uo ON s.organization_id = uo.logto_id
 		WHERE %s`, whereClause)
 
 	err := r.db.QueryRow(countQuery, args...).Scan(&totalCount)
@@ -331,7 +322,7 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 			"created_at":        "s.created_at",
 			"updated_at":        "s.updated_at",
 			"creator_name":      "LOWER(s.created_by ->> 'name')",
-			"organization_name": "LOWER(COALESCE(d.name, r.name, c.name))",
+			"organization_name": "LOWER(uo.name)",
 		}
 
 		if column, exists := columnMap[sortBy]; exists {
@@ -347,18 +338,11 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	query := fmt.Sprintf(`
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
 		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.deleted_at, s.registered_at, s.suspended_at, s.suspended_by_org_id, s.created_by,
-		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name,
-		       CASE
-		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
-		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
-		           WHEN c.logto_id IS NOT NULL THEN 'customer'
-		           ELSE 'owner'
-		       END as organization_type,
-		       COALESCE(d.id::text, r.id::text, c.id::text, '') as organization_db_id
+		       COALESCE(uo.name, 'Owner') as organization_name,
+		       COALESCE(uo.org_type, 'owner') as organization_type,
+		       COALESCE(uo.db_id, '') as organization_db_id
 		FROM systems s
-		LEFT JOIN distributors d ON (s.organization_id = d.logto_id OR s.organization_id = d.id::text) AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON (s.organization_id = r.logto_id OR s.organization_id = r.id::text) AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON (s.organization_id = c.logto_id OR s.organization_id = c.id::text) AND c.deleted_at IS NULL
+		LEFT JOIN unified_organizations uo ON s.organization_id = uo.logto_id
 		WHERE %s
 		ORDER BY %s
 		LIMIT $%d OFFSET $%d
