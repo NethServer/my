@@ -73,7 +73,7 @@ function onCloseSecretRegeneratedModal() {
       class="mb-6"
     />
     <NeSkeleton v-else-if="systemDetail.status === 'pending'" :lines="6" />
-    <div v-else className="divide-y divide-gray-200 dark:divide-gray-700">
+    <div v-else class="divide-y divide-gray-200 dark:divide-gray-700">
       <!-- system creation -->
       <DataItem>
         <template #label>

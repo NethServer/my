@@ -177,7 +177,7 @@ const getNetworkRoleForegroundStyle = (role: string | undefined) => {
           </div>
         </div>
       </div>
-      <div className="divide-y divide-gray-200 dark:divide-gray-700">
+      <div class="divide-y divide-gray-200 dark:divide-gray-700">
         <!-- dns -->
         <div class="flex gap-4 py-4">
           <span class="shrink-0 font-medium">

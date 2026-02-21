@@ -4,12 +4,16 @@
 -->
 
 <script setup lang="ts">
-import { NeInlineNotification } from '@nethesis/vue-components'
-import { NeModal } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
-import { deleteReseller, RESELLERS_KEY, RESELLERS_TOTAL_KEY, type Reseller } from '@/lib/resellers'
+import {
+  deleteReseller,
+  RESELLERS_KEY,
+  RESELLERS_TOTAL_KEY,
+  type Reseller,
+} from '@/lib/organizations/resellers'
 import { useNotificationsStore } from '@/stores/notifications'
+import DeleteObjectModal from '../DeleteObjectModal.vue'
 
 const { visible = false, reseller = undefined } = defineProps<{
   visible: boolean
@@ -36,8 +40,8 @@ const {
     setTimeout(() => {
       notificationsStore.createNotification({
         kind: 'success',
-        title: t('resellers.reseller_deleted'),
-        description: t('common.object_deleted_successfully', {
+        title: t('resellers.reseller_archived'),
+        description: t('common.object_archived_successfully', {
           name: vars.name,
         }),
       })
@@ -61,29 +65,17 @@ function onShow() {
 </script>
 
 <template>
-  <NeModal
+  <DeleteObjectModal
     :visible="visible"
-    :title="$t('resellers.delete_reseller')"
-    kind="warning"
-    :primary-label="$t('common.delete')"
-    :cancel-label="$t('common.cancel')"
-    primary-button-kind="danger"
-    :primary-button-disabled="deleteResellerLoading"
-    :primary-button-loading="deleteResellerLoading"
-    :close-aria-label="$t('common.close')"
+    :title="$t('resellers.archive_reseller')"
+    :primary-label="$t('common.archive')"
+    :deleting="deleteResellerLoading"
+    :confirmation-message="t('resellers.archive_reseller_confirmation', { name: reseller?.name })"
+    :confirmation-input="reseller?.name"
+    :error-title="t('organizations.cannot_archive_organization')"
+    :error-description="deleteResellerError?.message"
+    @show="onShow"
     @close="emit('close')"
     @primary-click="deleteResellerMutate(reseller!)"
-    @show="onShow"
-  >
-    <p>
-      {{ t('resellers.delete_reseller_confirmation', { name: reseller?.name }) }}
-    </p>
-    <NeInlineNotification
-      v-if="deleteResellerError?.message"
-      kind="error"
-      :title="t('resellers.cannot_delete_reseller')"
-      :description="deleteResellerError.message"
-      class="mt-4"
-    />
-  </NeModal>
+  />
 </template>

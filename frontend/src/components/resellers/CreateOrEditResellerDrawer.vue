@@ -10,24 +10,32 @@ import {
   NeTextInput,
   focusElement,
   NeInlineNotification,
+  NeTextArea,
+  NeCombobox,
+  type NeComboboxOption,
+  getPreference,
 } from '@nethesis/vue-components'
-import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
+import { computed, ref, useTemplateRef, type ShallowRef } from 'vue'
 import {
   CreateResellerSchema,
   RESELLERS_KEY,
   RESELLERS_TOTAL_KEY,
-  ResellerSchema,
+  EditResellerSchema,
   postReseller,
   putReseller,
   type CreateReseller,
   type Reseller,
-} from '@/lib/resellers'
+  type EditReseller,
+} from '@/lib/organizations/resellers'
 import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
 import { getValidationIssues, isValidationError } from '@/lib/validation'
 import type { AxiosError } from 'axios'
+import { getCommonLanguagesOptions } from '@/lib/locale'
+import { getBrowserLocale } from '@/i18n'
+import { useLoginStore } from '@/stores/login'
 
 const { isShown = false, currentReseller = undefined } = defineProps<{
   isShown: boolean
@@ -39,6 +47,7 @@ const emit = defineEmits(['close'])
 const { t } = useI18n()
 const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
+const loginStore = useLoginStore()
 
 const {
   mutate: createResellerMutate,
@@ -79,7 +88,7 @@ const {
   reset: editResellerReset,
   error: editResellerError,
 } = useMutation({
-  mutation: (reseller: Reseller) => {
+  mutation: (reseller: EditReseller) => {
     return putReseller(reseller)
   },
   onSuccess(data, vars) {
@@ -104,43 +113,77 @@ const {
 
 const name = ref('')
 const nameRef = useTemplateRef<HTMLInputElement>('nameRef')
-const description = ref('')
-const descriptionRef = useTemplateRef<HTMLInputElement>('descriptionRef')
 const vatNumber = ref('')
 const vatNumberRef = useTemplateRef<HTMLInputElement>('vatNumberRef')
+const address = ref('')
+const addressRef = useTemplateRef<HTMLInputElement>('addressRef')
+const city = ref('')
+const cityRef = useTemplateRef<HTMLInputElement>('cityRef')
+const mainContact = ref('')
+const mainContactRef = useTemplateRef<HTMLInputElement>('mainContactRef')
+const email = ref('')
+const emailRef = useTemplateRef<HTMLInputElement>('emailRef')
+const phone = ref('')
+const phoneRef = useTemplateRef<HTMLInputElement>('phoneRef')
+const language = ref('it')
+const languageRef = useTemplateRef<HTMLInputElement>('languageRef')
+const notes = ref('')
+const notesRef = useTemplateRef<HTMLInputElement>('notesRef')
 const validationIssues = ref<Record<string, string[]>>({})
 
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
   name: nameRef,
-  description: descriptionRef,
   custom_data_vat: vatNumberRef,
+  custom_data_address: addressRef,
+  custom_data_city: cityRef,
+  custom_data_main_contact: mainContactRef,
+  custom_data_email: emailRef,
+  custom_data_phone: phoneRef,
+  custom_data_language: languageRef,
+  custom_data_notes: notesRef,
 }
 
 const saving = computed(() => {
   return createResellerLoading.value || editResellerLoading.value
 })
 
-watch(
-  () => isShown,
-  () => {
-    if (isShown) {
-      clearErrors()
-      focusElement(nameRef)
+const languageOptions = computed((): NeComboboxOption[] => {
+  if (loginStore.userInfo?.email && getPreference('locale', loginStore.userInfo.email)) {
+    const locale = getPreference('locale', loginStore.userInfo.email)
+    return getCommonLanguagesOptions(locale)
+  } else {
+    return getCommonLanguagesOptions(getBrowserLocale())
+  }
+})
 
-      if (currentReseller) {
-        // editing reseller
-        name.value = currentReseller.name
-        description.value = currentReseller.description || ''
-        vatNumber.value = currentReseller.custom_data?.vat || ''
-      } else {
-        // creating reseller, reset form to defaults
-        name.value = ''
-        description.value = ''
-        vatNumber.value = ''
-      }
-    }
-  },
-)
+function onShow() {
+  clearErrors()
+  focusElement(nameRef)
+
+  if (currentReseller) {
+    // editing reseller
+    name.value = currentReseller.name
+    vatNumber.value = currentReseller.custom_data?.vat || ''
+    address.value = currentReseller.custom_data?.address || ''
+    city.value = currentReseller.custom_data?.city || ''
+    mainContact.value = currentReseller.custom_data?.main_contact || ''
+    email.value = currentReseller.custom_data?.email || ''
+    phone.value = currentReseller.custom_data?.phone || ''
+    language.value = currentReseller.custom_data?.language || ''
+    notes.value = currentReseller.custom_data?.notes || ''
+  } else {
+    // creating reseller, reset form to defaults
+    name.value = ''
+    vatNumber.value = ''
+    address.value = ''
+    city.value = ''
+    mainContact.value = ''
+    email.value = ''
+    phone.value = ''
+    language.value = 'it'
+    notes.value = ''
+  }
+}
 
 function closeDrawer() {
   emit('close')
@@ -183,9 +226,9 @@ function validateCreate(reseller: CreateReseller): boolean {
   }
 }
 
-function validateEdit(reseller: Reseller): boolean {
+function validateEdit(reseller: EditReseller): boolean {
   validationIssues.value = {}
-  const validation = v.safeParse(ResellerSchema, reseller)
+  const validation = v.safeParse(EditResellerSchema, reseller)
 
   if (validation.success) {
     // no validation issues
@@ -219,18 +262,24 @@ async function saveReseller() {
 
   const reseller = {
     name: name.value,
-    description: description.value,
     custom_data: {
       vat: vatNumber.value,
+      address: address.value,
+      city: city.value,
+      main_contact: mainContact.value,
+      email: email.value,
+      phone: phone.value,
+      language: language.value,
+      notes: notes.value,
     },
   }
 
-  if (currentReseller?.id) {
+  if (currentReseller?.logto_id) {
     // editing reseller
 
-    const resellerToEdit: Reseller = {
+    const resellerToEdit: EditReseller = {
       ...reseller,
-      id: currentReseller.id,
+      logto_id: currentReseller.logto_id,
     }
 
     const isValidationOk = validateEdit(resellerToEdit)
@@ -242,7 +291,6 @@ async function saveReseller() {
     // creating reseller
 
     const resellerToCreate: CreateReseller = reseller
-
     const isValidationOk = validateCreate(resellerToCreate)
     if (!isValidationOk) {
       return
@@ -257,6 +305,7 @@ async function saveReseller() {
     :is-shown="isShown"
     :title="currentReseller ? $t('resellers.edit_reseller') : $t('resellers.create_reseller')"
     :close-aria-label="$t('common.shell.close_side_drawer')"
+    @show="onShow"
     @close="closeDrawer"
   >
     <form @submit.prevent>
@@ -270,17 +319,6 @@ async function saveReseller() {
           :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
           :disabled="saving"
         />
-        <!-- description -->
-        <NeTextInput
-          ref="descriptionRef"
-          v-model="description"
-          @blur="description = description.trim()"
-          :label="$t('organizations.description')"
-          :invalid-message="
-            validationIssues.description?.[0] ? $t(validationIssues.description[0]) : ''
-          "
-          :disabled="saving"
-        />
         <!-- VAT number -->
         <NeTextInput
           ref="vatNumberRef"
@@ -291,6 +329,107 @@ async function saveReseller() {
             validationIssues.custom_data_vat?.[0] ? $t(validationIssues.custom_data_vat[0]) : ''
           "
           :disabled="saving"
+        />
+        <!-- address -->
+        <NeTextInput
+          ref="addressRef"
+          v-model="address"
+          @blur="address = address.trim()"
+          :label="$t('organizations.address')"
+          :invalid-message="
+            validationIssues.custom_data_address?.[0]
+              ? $t(validationIssues.custom_data_address[0])
+              : ''
+          "
+          :disabled="saving"
+          :optional="true"
+          :optional-label="t('common.optional')"
+        />
+        <!-- city -->
+        <NeTextInput
+          ref="cityRef"
+          v-model="city"
+          @blur="city = city.trim()"
+          :label="$t('organizations.city')"
+          :invalid-message="
+            validationIssues.custom_data_city?.[0] ? $t(validationIssues.custom_data_city[0]) : ''
+          "
+          :disabled="saving"
+          :optional="true"
+          :optional-label="t('common.optional')"
+        />
+        <!-- main contact -->
+        <NeTextInput
+          ref="mainContactRef"
+          v-model="mainContact"
+          @blur="mainContact = mainContact.trim()"
+          :label="$t('organizations.main_contact')"
+          :invalid-message="
+            validationIssues.custom_data_main_contact?.[0]
+              ? $t(validationIssues.custom_data_main_contact[0])
+              : ''
+          "
+          :disabled="saving"
+          :optional="true"
+          :optional-label="t('common.optional')"
+        />
+        <!-- email -->
+        <NeTextInput
+          ref="emailRef"
+          v-model="email"
+          @blur="email = email.trim()"
+          :label="$t('organizations.email')"
+          :invalid-message="
+            validationIssues.custom_data_email?.[0] ? $t(validationIssues.custom_data_email[0]) : ''
+          "
+          :disabled="saving"
+          :optional="true"
+          :optional-label="t('common.optional')"
+        />
+        <!-- phone -->
+        <NeTextInput
+          ref="phoneRef"
+          v-model="phone"
+          @blur="phone = phone.trim()"
+          :label="$t('organizations.phone_number')"
+          :invalid-message="
+            validationIssues.custom_data_phone?.[0] ? $t(validationIssues.custom_data_phone[0]) : ''
+          "
+          :disabled="saving"
+          :optional="true"
+          :optional-label="t('common.optional')"
+        />
+        <!-- language -->
+        <NeCombobox
+          ref="languageRef"
+          v-model="language"
+          :options="languageOptions"
+          :label="$t('organizations.language')"
+          :placeholder="$t('ne_combobox.choose')"
+          :invalid-message="
+            validationIssues.custom_data_language?.[0]
+              ? $t(validationIssues.custom_data_language[0])
+              : ''
+          "
+          :disabled="saving"
+          :optional="true"
+          :optional-label="t('common.optional')"
+          :no-results-label="$t('ne_combobox.no_results')"
+          :limited-options-label="$t('ne_combobox.limited_options_label')"
+          :no-options-label="$t('ne_combobox.no_options_label')"
+          :selected-label="$t('ne_combobox.selected')"
+          :user-input-label="$t('ne_combobox.user_input_label')"
+        />
+        <!-- notes -->
+        <NeTextArea
+          ref="notesRef"
+          v-model="notes"
+          @blur="notes = notes.trim()"
+          :label="$t('common.notes')"
+          :disabled="saving"
+          :invalid-message="validationIssues.notes?.[0] ? $t(validationIssues.notes[0]) : ''"
+          :optional="true"
+          :optional-label="t('common.optional')"
         />
         <!-- create reseller error notification -->
         <NeInlineNotification

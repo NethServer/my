@@ -6,18 +6,17 @@
 <script setup lang="ts">
 import {
   faCircleInfo,
-  faCirclePlus,
-  faTrash,
+  faBoxArchive,
   faServer,
   faEye,
   faPenToSquare,
-  faCircleCheck,
-  faCircleQuestion,
-  faTriangleExclamation,
-  faCircleXmark,
   faFilePdf,
   faFileCsv,
   faKey,
+  faRotateLeft,
+  faCirclePause,
+  faCirclePlay,
+  faBomb,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -44,10 +43,10 @@ import {
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
-import { canManageSystems } from '@/lib/permissions'
+import { canManageSystems, canDestroySystems } from '@/lib/permissions'
 import { useSystems } from '@/queries/systems/systems'
 import {
-  getExport,
+  exportSystem,
   getProductLogo,
   getProductName,
   SYSTEMS_TABLE_ID,
@@ -59,13 +58,18 @@ import DeleteSystemModal from './DeleteSystemModal.vue'
 import { useProductFilter } from '@/queries/systems/productFilter'
 import { useCreatedByFilter } from '@/queries/systems/createdByFilter'
 import { useVersionFilter } from '@/queries/systems/versionFilter'
-import UserAvatar from '../UserAvatar.vue'
+import { useOrganizationFilter } from '@/queries/systems/organizationFilter'
+import UserAvatar from '../users/UserAvatar.vue'
 import { buildVersionFilterOptions } from '@/lib/systems/versionFilter'
-import OrganizationIcon from '../OrganizationIcon.vue'
-import { downloadFile } from '@/lib/common'
+import OrganizationIcon from '../organizations/OrganizationIcon.vue'
 import RegenerateSecretModal from './RegenerateSecretModal.vue'
 import SecretRegeneratedModal from './SecretRegeneratedModal.vue'
 import ClickToCopy from '../ClickToCopy.vue'
+import RestoreSystemModal from './RestoreSystemModal.vue'
+import SuspendSystemModal from './SuspendSystemModal.vue'
+import ReactivateSystemModal from './ReactivateSystemModal.vue'
+import DestroySystemModal from './DestroySystemModal.vue'
+import SystemStatusIcon from './SystemStatusIcon.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -80,24 +84,32 @@ const {
   pageNum,
   pageSize,
   textFilter,
-  debouncedTextFilter,
   productFilter,
   createdByFilter,
   versionFilter,
   statusFilter,
+  organizationFilter,
   sortBy,
   sortDescending,
+  areDefaultFiltersApplied,
+  resetFilters,
 } = useSystems()
 const { state: productFilterState, asyncStatus: productFilterAsyncStatus } = useProductFilter()
 const { state: createdByFilterState, asyncStatus: createdByFilterAsyncStatus } =
   useCreatedByFilter()
 const { state: versionFilterState, asyncStatus: versionFilterAsyncStatus } = useVersionFilter()
+const { state: organizationFilterState, asyncStatus: organizationFilterAsyncStatus } =
+  useOrganizationFilter()
 
 const currentSystem = ref<System | undefined>()
 const isShownCreateOrEditSystemDrawer = ref(false)
 const isShownDeleteSystemModal = ref(false)
+const isShownRestoreSystemModal = ref(false)
 const isShownRegenerateSecretModal = ref(false)
 const isShownSecretRegeneratedModal = ref(false)
+const isShownSuspendSystemModal = ref(false)
+const isShownReactivateSystemModal = ref(false)
+const isShownDestroySystemModal = ref(false)
 const newSecret = ref<string>('')
 
 const statusFilterOptions = ref<FilterOption[]>([
@@ -112,6 +124,10 @@ const statusFilterOptions = ref<FilterOption[]>([
   {
     id: 'unknown',
     label: t('systems.status_unknown'),
+  },
+  {
+    id: 'suspended',
+    label: t('common.suspended'),
   },
   { id: 'deleted', label: t('systems.status_deleted') },
 ])
@@ -163,6 +179,35 @@ const createdByFilterOptions = computed(() => {
   }
 })
 
+const organizationFilterOptions = computed(() => {
+  if (!organizationFilterState.value.data || !organizationFilterState.value.data.organizations) {
+    return []
+  } else {
+    return organizationFilterState.value.data.organizations.map((org) => ({
+      id: org.id,
+      label: org.name,
+    }))
+  }
+})
+
+const isNoDataEmptyStateShown = computed(() => {
+  return (
+    !systemsPage.value?.length && state.value.status === 'success' && areDefaultFiltersApplied.value
+  )
+})
+
+const isNoMatchEmptyStateShown = computed(() => {
+  return (
+    !systemsPage.value?.length &&
+    state.value.status === 'success' &&
+    !areDefaultFiltersApplied.value
+  )
+})
+
+const noEmptyStateShown = computed(() => {
+  return !isNoDataEmptyStateShown.value && !isNoMatchEmptyStateShown.value
+})
+
 watch(
   () => isShownCreateSystemDrawer,
   () => {
@@ -181,14 +226,6 @@ watch(
   },
 )
 
-function resetFilters() {
-  textFilter.value = ''
-  productFilter.value = []
-  versionFilter.value = []
-  createdByFilter.value = []
-  statusFilter.value = ['online', 'offline', 'unknown']
-}
-
 function showCreateSystemDrawer() {
   currentSystem.value = undefined
   isShownCreateOrEditSystemDrawer.value = true
@@ -204,9 +241,29 @@ function showDeleteSystemModal(system: System) {
   isShownDeleteSystemModal.value = true
 }
 
+function showRestoreSystemModal(system: System) {
+  currentSystem.value = system
+  isShownRestoreSystemModal.value = true
+}
+
 function showRegenerateSecretModal(system: System) {
   currentSystem.value = system
   isShownRegenerateSecretModal.value = true
+}
+
+function showSuspendSystemModal(system: System) {
+  currentSystem.value = system
+  isShownSuspendSystemModal.value = true
+}
+
+function showReactivateSystemModal(system: System) {
+  currentSystem.value = system
+  isShownReactivateSystemModal.value = true
+}
+
+function showDestroySystemModal(system: System) {
+  currentSystem.value = system
+  isShownDestroySystemModal.value = true
 }
 
 function onCloseDrawer() {
@@ -217,7 +274,7 @@ function onCloseDrawer() {
 function getKebabMenuItems(system: System) {
   let items: NeDropdownItem[] = []
 
-  if (canManageSystems()) {
+  if (canManageSystems() && system.status !== 'deleted') {
     items.push({
       id: 'editSystem',
       label: t('common.edit'),
@@ -234,33 +291,81 @@ function getKebabMenuItems(system: System) {
       label: t('systems.export_to_pdf'),
       icon: faFilePdf,
       action: () => exportSystem(system, 'pdf'),
-      disabled: !state.value.data?.systems,
+      disabled: asyncStatus.value === 'loading',
     },
     {
       id: 'exportToCsv',
       label: t('systems.export_to_csv'),
       icon: faFileCsv,
       action: () => exportSystem(system, 'csv'),
-      disabled: !state.value.data?.systems,
+      disabled: asyncStatus.value === 'loading',
     },
   ]
 
-  if (canManageSystems()) {
+  if (canManageSystems() && system.status !== 'deleted') {
+    if (system.suspended_at) {
+      items = [
+        ...items,
+        {
+          id: 'reactivateSystem',
+          label: t('common.reactivate'),
+          icon: faCirclePlay,
+          action: () => showReactivateSystemModal(system),
+          disabled: asyncStatus.value === 'loading',
+        },
+      ]
+    } else {
+      items = [
+        ...items,
+        {
+          id: 'regenerateSecret',
+          label: t('systems.regenerate_secret'),
+          icon: faKey,
+          action: () => showRegenerateSecretModal(system),
+          disabled: asyncStatus.value === 'loading',
+        },
+        {
+          id: 'suspendSystem',
+          label: t('common.suspend'),
+          icon: faCirclePause,
+          action: () => showSuspendSystemModal(system),
+          disabled: asyncStatus.value === 'loading',
+        },
+      ]
+    }
+
     items = [
       ...items,
       {
-        id: 'regenerateSecret',
-        label: t('systems.regenerate_secret'),
-        icon: faKey,
-        action: () => showRegenerateSecretModal(system),
-        disabled: asyncStatus.value === 'loading',
-      },
-      {
         id: 'deleteSystem',
-        label: t('common.delete'),
-        icon: faTrash,
+        label: t('common.archive'),
+        icon: faBoxArchive,
         danger: true,
         action: () => showDeleteSystemModal(system),
+        disabled: asyncStatus.value === 'loading',
+      },
+    ]
+  }
+
+  if (canManageSystems() && system.status === 'deleted') {
+    items.push({
+      id: 'restoreSystem',
+      label: t('common.restore'),
+      icon: faRotateLeft,
+      action: () => showRestoreSystemModal(system),
+      disabled: asyncStatus.value === 'loading',
+    })
+  }
+
+  if (canDestroySystems()) {
+    items = [
+      ...items,
+      {
+        id: 'destroySystem',
+        label: t('common.destroy'),
+        icon: faBomb,
+        danger: true,
+        action: () => showDestroySystemModal(system),
         disabled: asyncStatus.value === 'loading',
       },
     ]
@@ -275,17 +380,6 @@ const onSort = (payload: SortEvent) => {
 
 const goToSystemDetails = (system: System) => {
   router.push({ name: 'system_detail', params: { systemId: system.id } })
-}
-
-async function exportSystem(system: System, format: 'pdf' | 'csv') {
-  try {
-    const exportData = await getExport(format, system.system_key)
-    const fileName = `${system.name}.${format}`
-    downloadFile(exportData, fileName, format)
-  } catch (error) {
-    console.error('Cannot export system to pdf:', error)
-    throw error
-  }
 }
 
 function onSecretRegenerated(secret: string) {
@@ -311,7 +405,7 @@ function onCloseSecretRegeneratedModal() {
     />
     <!-- table toolbar -->
     <div class="mb-6 flex items-center gap-4">
-      <div class="flex w-full items-end justify-between gap-4">
+      <div class="flex w-full items-center justify-between gap-4">
         <!-- filters -->
         <div class="flex flex-wrap items-center gap-4">
           <!-- text filter -->
@@ -366,6 +460,23 @@ function onCloseSecretRegeneratedModal() {
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
           />
           <NeDropdownFilter
+            v-model="organizationFilter"
+            kind="checkbox"
+            :label="t('systems.organization')"
+            :options="organizationFilterOptions"
+            :disabled="
+              organizationFilterAsyncStatus === 'loading' ||
+              organizationFilterState.status === 'error'
+            "
+            show-options-filter
+            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
+          />
+          <!-- status filter -->
+          <NeDropdownFilter
             v-model="statusFilter"
             kind="checkbox"
             :label="t('common.status')"
@@ -377,7 +488,7 @@ function onCloseSecretRegeneratedModal() {
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
           />
-          <!-- sort dropdown for small screens -->
+          <!-- sort dropdown -->
           <NeSortDropdown
             v-model:sort-key="sortBy"
             v-model:sort-descending="sortDescending"
@@ -395,7 +506,7 @@ function onCloseSecretRegeneratedModal() {
             :sort-direction-label="t('sort.direction')"
             :ascending-label="t('sort.ascending')"
             :descending-label="t('sort.descending')"
-            class="2xl:hidden"
+            align-to-right
           />
           <NeButton kind="tertiary" @click="resetFilters">
             {{ t('systems.reset_filters') }}
@@ -404,7 +515,7 @@ function onCloseSecretRegeneratedModal() {
         <!-- update indicator -->
         <div
           v-if="asyncStatus === 'loading' && state.status !== 'pending'"
-          class="relative -top-2 flex items-center gap-2"
+          class="flex items-center gap-2"
         >
           <NeSpinner color="white" />
           <div class="text-gray-500 dark:text-gray-400">
@@ -415,28 +526,14 @@ function onCloseSecretRegeneratedModal() {
     </div>
     <!-- empty state -->
     <NeEmptyState
-      v-if="state.status === 'success' && !systemsPage?.length && !debouncedTextFilter"
+      v-if="isNoDataEmptyStateShown"
       :title="$t('systems.no_systems')"
       :icon="faServer"
       class="bg-white dark:bg-gray-950"
-    >
-      <!-- create system -->
-      <NeButton
-        v-if="canManageSystems()"
-        kind="primary"
-        size="lg"
-        class="shrink-0"
-        @click="showCreateSystemDrawer()"
-      >
-        <template #prefix>
-          <FontAwesomeIcon :icon="faCirclePlus" aria-hidden="true" />
-        </template>
-        {{ $t('systems.create_system') }}
-      </NeButton>
-    </NeEmptyState>
+    />
     <!-- no system matching filter -->
     <NeEmptyState
-      v-else-if="state.status === 'success' && !systemsPage?.length && debouncedTextFilter"
+      v-else-if="isNoMatchEmptyStateShown"
       :title="$t('systems.no_systems_found')"
       :description="$t('common.try_changing_search_filters')"
       :icon="faCircleInfo"
@@ -447,7 +544,7 @@ function onCloseSecretRegeneratedModal() {
       </NeButton>
     </NeEmptyState>
     <NeTable
-      v-else
+      v-if="noEmptyStateShown"
       :sort-key="sortBy"
       :sort-descending="sortDescending"
       :aria-label="$t('systems.title')"
@@ -483,7 +580,11 @@ function onCloseSecretRegeneratedModal() {
         <NeTableRow v-for="(item, index) in systemsPage" :key="index">
           <NeTableCell :data-label="$t('systems.name')">
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
-              <router-link :to="{ name: 'system_detail', params: { systemId: item.id } }">
+              <router-link
+                v-if="item.status !== 'deleted'"
+                :to="{ name: 'system_detail', params: { systemId: item.id } }"
+                class="cursor-pointer font-medium hover:underline"
+              >
                 <div class="flex items-center gap-2">
                   <img
                     v-if="item.type"
@@ -492,11 +593,23 @@ function onCloseSecretRegeneratedModal() {
                     aria-hidden="true"
                     class="size-8"
                   />
-                  <span class="cursor-pointer font-medium hover:underline">
+                  <span>
                     {{ item.name || '-' }}
                   </span>
                 </div>
               </router-link>
+              <div v-else class="flex items-center gap-2">
+                <img
+                  v-if="item.type"
+                  :src="getProductLogo(item.type)"
+                  :alt="getProductName(item.type)"
+                  aria-hidden="true"
+                  class="size-8"
+                />
+                <span>
+                  {{ item.name || '-' }}
+                </span>
+              </div>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.version')" class="break-all 2xl:break-normal">
@@ -504,10 +617,7 @@ function onCloseSecretRegeneratedModal() {
               {{ item.version || '-' }}
             </div>
           </NeTableCell>
-          <NeTableCell
-            :data-label="$t('systems.fqdn_ip_address')"
-            class="break-all 2xl:break-normal"
-          >
+          <NeTableCell :data-label="$t('systems.fqdn_ip_address')" class="break-all">
             <div
               class="flex flex-col items-start space-y-0.5"
               :class="{ 'opacity-50': item.status === 'deleted' }"
@@ -569,50 +679,27 @@ function onCloseSecretRegeneratedModal() {
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.status')">
             <div class="flex items-center gap-2">
-              <FontAwesomeIcon
-                v-if="item.status === 'online'"
-                :icon="faCircleCheck"
-                class="size-4 text-green-600 dark:text-green-400"
-                aria-hidden="true"
-              />
-              <FontAwesomeIcon
-                v-else-if="item.status === 'offline'"
-                :icon="faTriangleExclamation"
-                class="size-4 text-amber-700 dark:text-amber-500"
-                aria-hidden="true"
-              />
-              <FontAwesomeIcon
-                v-else-if="item.status === 'deleted'"
-                :icon="faCircleXmark"
-                class="size-4 text-rose-700 dark:text-rose-500"
-                aria-hidden="true"
-              />
-              <FontAwesomeIcon
-                v-else
-                :icon="faCircleQuestion"
-                class="size-4 text-gray-700 dark:text-gray-400"
-                aria-hidden="true"
-              />
-              <span v-if="item.status">
+              <SystemStatusIcon :status="item.status" :suspended-at="item.suspended_at" />
+              <span v-if="item.suspended_at">
+                {{ t('common.suspended') }}
+              </span>
+              <span v-else-if="item.status">
                 {{ t(`systems.status_${item.status}`) }}
               </span>
               <span v-else>-</span>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div
-              v-if="item.status !== 'deleted'"
-              class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end"
-            >
+            <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
               <NeButton
+                v-if="item.status !== 'deleted'"
                 kind="tertiary"
                 @click="goToSystemDetails(item)"
-                :disabled="asyncStatus === 'loading' || item.status === 'deleted'"
               >
                 <template #prefix>
                   <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
                 </template>
-                {{ $t('common.view_details') }}
+                {{ $t('common.view') }}
               </NeButton>
               <!-- kebab menu -->
               <NeDropdown :items="getKebabMenuItems(item)" :align-to-right="true" />
@@ -656,6 +743,30 @@ function onCloseSecretRegeneratedModal() {
       :visible="isShownDeleteSystemModal"
       :system="currentSystem"
       @close="isShownDeleteSystemModal = false"
+    />
+    <!-- restore system modal -->
+    <RestoreSystemModal
+      :visible="isShownRestoreSystemModal"
+      :system="currentSystem"
+      @close="isShownRestoreSystemModal = false"
+    />
+    <!-- suspend system modal -->
+    <SuspendSystemModal
+      :visible="isShownSuspendSystemModal"
+      :system="currentSystem"
+      @close="isShownSuspendSystemModal = false"
+    />
+    <!-- reactivate system modal -->
+    <ReactivateSystemModal
+      :visible="isShownReactivateSystemModal"
+      :system="currentSystem"
+      @close="isShownReactivateSystemModal = false"
+    />
+    <!-- destroy system modal -->
+    <DestroySystemModal
+      :visible="isShownDestroySystemModal"
+      :system="currentSystem"
+      @close="isShownDestroySystemModal = false"
     />
     <!-- regenerate secret modal -->
     <RegenerateSecretModal

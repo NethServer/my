@@ -4,13 +4,21 @@
 -->
 
 <script setup lang="ts">
-import { DISTRIBUTORS_TABLE_ID, type Distributor } from '@/lib/distributors'
+import { DISTRIBUTORS_TABLE_ID, type Distributor } from '@/lib/organizations/distributors'
 import {
   faCircleInfo,
-  faCirclePlus,
   faGlobe,
   faPenToSquare,
-  faTrash,
+  faBoxArchive,
+  faCirclePause,
+  faCirclePlay,
+  faCircleCheck,
+  faRotateLeft,
+  faBomb,
+  faServer,
+  faCity,
+  faBuilding,
+  faEye,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -29,14 +37,22 @@ import {
   NeDropdown,
   type SortEvent,
   NeSortDropdown,
+  NeDropdownFilter,
+  type FilterOption,
+  type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import CreateOrEditDistributorDrawer from './CreateOrEditDistributorDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteDistributorModal from './DeleteDistributorModal.vue'
+import SuspendDistributorModal from './SuspendDistributorModal.vue'
+import ReactivateDistributorModal from './ReactivateDistributorModal.vue'
+import RestoreDistributorModal from './RestoreDistributorModal.vue'
+import DestroyDistributorModal from './DestroyDistributorModal.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
-import { useDistributors } from '@/queries/distributors'
-import { canManageDistributors } from '@/lib/permissions'
+import { useDistributors } from '@/queries/organizations/distributors'
+import { canDestroyDistributors, canManageDistributors } from '@/lib/permissions'
+import router from '@/router'
 
 const { isShownCreateDistributorDrawer = false } = defineProps<{
   isShownCreateDistributorDrawer: boolean
@@ -51,14 +67,35 @@ const {
   pageNum,
   pageSize,
   textFilter,
-  debouncedTextFilter,
+  statusFilter,
   sortBy,
   sortDescending,
+  areDefaultFiltersApplied,
+  resetFilters,
 } = useDistributors()
 
 const currentDistributor = ref<Distributor | undefined>()
 const isShownCreateOrEditDistributorDrawer = ref(false)
 const isShownDeleteDistributorDrawer = ref(false)
+const isShownSuspendDistributorModal = ref(false)
+const isShownReactivateDistributorModal = ref(false)
+const isShownRestoreDistributorModal = ref(false)
+const isShownDestroyDistributorModal = ref(false)
+
+const statusFilterOptions = ref<FilterOption[]>([
+  {
+    id: 'enabled',
+    label: t('common.enabled'),
+  },
+  {
+    id: 'suspended',
+    label: t('common.suspended'),
+  },
+  {
+    id: 'deleted',
+    label: t('common.archived'),
+  },
+])
 
 const distributorsPage = computed(() => {
   return state.value.data?.distributors
@@ -66,6 +103,26 @@ const distributorsPage = computed(() => {
 
 const pagination = computed(() => {
   return state.value.data?.pagination
+})
+
+const isNoDataEmptyStateShown = computed(() => {
+  return (
+    !distributorsPage.value?.length &&
+    state.value.status === 'success' &&
+    areDefaultFiltersApplied.value
+  )
+})
+
+const isNoMatchEmptyStateShown = computed(() => {
+  return (
+    !distributorsPage.value?.length &&
+    state.value.status === 'success' &&
+    !areDefaultFiltersApplied.value
+  )
+})
+
+const noEmptyStateShown = computed(() => {
+  return !isNoDataEmptyStateShown.value && !isNoMatchEmptyStateShown.value
 })
 
 watch(
@@ -77,10 +134,6 @@ watch(
   },
   { immediate: true },
 )
-
-function clearFilters() {
-  textFilter.value = ''
-}
 
 function showCreateDistributorDrawer() {
   currentDistributor.value = undefined
@@ -97,27 +150,110 @@ function showDeleteDistributorDrawer(distributor: Distributor) {
   isShownDeleteDistributorDrawer.value = true
 }
 
+function showRestoreDistributorModal(distributor: Distributor) {
+  currentDistributor.value = distributor
+  isShownRestoreDistributorModal.value = true
+}
+
+function showSuspendDistributorModal(distributor: Distributor) {
+  currentDistributor.value = distributor
+  isShownSuspendDistributorModal.value = true
+}
+
+function showReactivateDistributorModal(distributor: Distributor) {
+  currentDistributor.value = distributor
+  isShownReactivateDistributorModal.value = true
+}
+
+function showDestroyDistributorModal(distributor: Distributor) {
+  currentDistributor.value = distributor
+  isShownDestroyDistributorModal.value = true
+}
+
 function onCloseDrawer() {
   isShownCreateOrEditDistributorDrawer.value = false
   emit('close-drawer')
 }
 
 function getKebabMenuItems(distributor: Distributor) {
-  return [
-    {
-      id: 'deleteDistributor',
-      label: t('common.delete'),
-      icon: faTrash,
+  const items: NeDropdownItem[] = []
+
+  if (canManageDistributors()) {
+    if (!distributor.deleted_at) {
+      items.push({
+        id: 'editDistributor',
+        label: t('common.edit'),
+        icon: faPenToSquare,
+        action: () => showEditDistributorDrawer(distributor),
+        disabled: asyncStatus.value === 'loading',
+      })
+    }
+
+    if (distributor.suspended_at) {
+      items.push({
+        id: 'reactivateDistributor',
+        label: t('common.reactivate'),
+        icon: faCirclePlay,
+        action: () => showReactivateDistributorModal(distributor),
+        disabled: asyncStatus.value === 'loading',
+      })
+
+      items.push({
+        id: 'deleteDistributor',
+        label: t('common.archive'),
+        icon: faBoxArchive,
+        danger: true,
+        action: () => showDeleteDistributorDrawer(distributor),
+        disabled: asyncStatus.value === 'loading',
+      })
+    } else if (distributor.deleted_at) {
+      items.push({
+        id: 'restoreSystem',
+        label: t('common.restore'),
+        icon: faRotateLeft,
+        action: () => showRestoreDistributorModal(distributor),
+        disabled: asyncStatus.value === 'loading',
+      })
+    } else {
+      items.push({
+        id: 'suspendDistributor',
+        label: t('common.suspend'),
+        icon: faCirclePause,
+        action: () => showSuspendDistributorModal(distributor),
+        disabled: asyncStatus.value === 'loading',
+      })
+
+      items.push({
+        id: 'deleteDistributor',
+        label: t('common.archive'),
+        icon: faBoxArchive,
+        danger: true,
+        action: () => showDeleteDistributorDrawer(distributor),
+        disabled: asyncStatus.value === 'loading',
+      })
+    }
+  }
+
+  if (canDestroyDistributors()) {
+    items.push({
+      id: 'destroyDistributor',
+      label: t('common.destroy'),
+      icon: faBomb,
       danger: true,
-      action: () => showDeleteDistributorDrawer(distributor),
+      action: () => showDestroyDistributorModal(distributor),
       disabled: asyncStatus.value === 'loading',
-    },
-  ]
+    })
+  }
+  return items
 }
 
 const onSort = (payload: SortEvent) => {
   sortBy.value = payload.key as keyof Distributor
   sortDescending.value = payload.descending
+}
+
+const goToDistributorDetails = (distributor: Distributor) => {
+  router.push({ name: 'distributor_detail', params: { companyId: distributor.logto_id } })
 }
 </script>
 
@@ -143,21 +279,36 @@ const onSort = (payload: SortEvent) => {
             :placeholder="$t('distributors.filter_distributors')"
             class="max-w-48 sm:max-w-sm"
           />
+          <!-- status filter -->
+          <NeDropdownFilter
+            v-model="statusFilter"
+            kind="checkbox"
+            :label="t('common.status')"
+            :options="statusFilterOptions"
+            :show-clear-filter="false"
+            :clear-filter-label="t('ne_dropdown_filter.reset_filter')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
+          />
           <NeSortDropdown
             v-model:sort-key="sortBy"
             v-model:sort-descending="sortDescending"
             :label="t('sort.sort')"
             :options="[
               { id: 'name', label: t('organizations.name') },
-              { id: 'description', label: t('organizations.description') },
+              { id: 'suspended_at', label: t('common.status') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
             :sort-by-label="t('sort.sort_by')"
             :sort-direction-label="t('sort.direction')"
             :ascending-label="t('sort.ascending')"
             :descending-label="t('sort.descending')"
-            class="xl:hidden"
           />
+          <NeButton kind="tertiary" @click="resetFilters">
+            {{ t('common.reset_filters') }}
+          </NeButton>
         </div>
         <!-- update indicator -->
         <div
@@ -171,7 +322,25 @@ const onSort = (payload: SortEvent) => {
         </div>
       </div>
     </div>
+    <!-- empty state -->
+    <NeEmptyState
+      v-if="isNoDataEmptyStateShown"
+      :title="$t('distributors.no_distributor')"
+      :icon="faGlobe"
+      class="bg-white dark:bg-gray-950"
+    />
+    <!-- no distributor matching filter -->
+    <NeEmptyState
+      v-else-if="isNoMatchEmptyStateShown"
+      :title="$t('distributors.no_distributor_found')"
+      :description="$t('common.try_changing_search_filters')"
+      :icon="faCircleInfo"
+      class="bg-white dark:bg-gray-950"
+    >
+      <NeButton kind="tertiary" @click="resetFilters"> {{ $t('common.reset_filters') }}</NeButton>
+    </NeEmptyState>
     <NeTable
+      v-if="noEmptyStateShown"
       :sort-key="sortBy"
       :sort-descending="sortDescending"
       :aria-label="$t('distributors.title')"
@@ -184,74 +353,125 @@ const onSort = (payload: SortEvent) => {
         <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
           $t('organizations.name')
         }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="description" @sort="onSort">{{
-          $t('organizations.description')
+        <NeTableHeadCell>{{ $t('organizations.vat_number') }}</NeTableHeadCell>
+        <NeTableHeadCell>
+          {{ $t('resellers.title') }}
+        </NeTableHeadCell>
+        <NeTableHeadCell>
+          {{ $t('distributors.total_customers') }}
+        </NeTableHeadCell>
+        <NeTableHeadCell>
+          {{ $t('distributors.total_systems') }}
+        </NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
+          $t('common.status')
         }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- no header for actions -->
         </NeTableHeadCell>
       </NeTableHead>
       <NeTableBody>
-        <!-- empty state -->
-        <NeTableRow v-if="!distributorsPage?.length && !debouncedTextFilter">
-          <NeTableCell colspan="5">
-            <NeEmptyState
-              :title="$t('distributors.no_distributor')"
-              :icon="faGlobe"
-              class="bg-white dark:bg-gray-950"
-            >
-              <!-- create distributor -->
-              <NeButton
-                v-if="canManageDistributors()"
-                kind="primary"
-                size="lg"
-                class="shrink-0"
-                @click="showCreateDistributorDrawer()"
-              >
-                <template #prefix>
-                  <FontAwesomeIcon :icon="faCirclePlus" aria-hidden="true" />
-                </template>
-                {{ $t('distributors.create_distributor') }}
-              </NeButton>
-            </NeEmptyState>
-          </NeTableCell>
-        </NeTableRow>
-        <!-- no distributor matching filter -->
-        <NeTableRow v-else-if="!distributorsPage?.length && debouncedTextFilter">
-          <NeTableCell colspan="4">
-            <NeEmptyState
-              :title="$t('distributors.no_distributor_found')"
-              :description="$t('common.try_changing_search_filters')"
-              :icon="faCircleInfo"
-              class="bg-white dark:bg-gray-950"
-            >
-              <NeButton kind="tertiary" @click="clearFilters">
-                {{ $t('common.clear_filters') }}</NeButton
-              >
-            </NeEmptyState>
-          </NeTableCell>
-        </NeTableRow>
-        <NeTableRow v-for="(item, index) in distributorsPage" v-else :key="index">
+        <NeTableRow v-for="(item, index) in distributorsPage" :key="index">
           <NeTableCell :data-label="$t('organizations.name')">
-            {{ item.name }}
+            <router-link
+              v-if="!item.deleted_at"
+              :to="{ name: 'distributor_detail', params: { companyId: item.logto_id } }"
+              class="cursor-pointer font-medium hover:underline"
+            >
+              {{ item.name }}
+            </router-link>
+            <span v-else class="opacity-50">
+              {{ item.name }}
+            </span>
           </NeTableCell>
-          <NeTableCell :data-label="$t('organizations.description')">
-            {{ item.description || '-' }}
+          <NeTableCell
+            :data-label="$t('organizations.vat_number')"
+            :class="{ 'opacity-50': item.deleted_at }"
+          >
+            {{ item.custom_data?.vat || '-' }}
+          </NeTableCell>
+          <NeTableCell :data-label="$t('resellers.title')">
+            <div class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
+              <FontAwesomeIcon
+                :icon="faCity"
+                class="size-4 text-gray-700 dark:text-gray-400"
+                aria-hidden="true"
+              />
+              {{ item.resellers_count }}
+            </div>
+          </NeTableCell>
+          <NeTableCell :data-label="$t('distributors.total_customers')">
+            <div class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
+              <FontAwesomeIcon
+                :icon="faBuilding"
+                class="size-4 text-gray-700 dark:text-gray-400"
+                aria-hidden="true"
+              />
+              {{ item.customers_count }}
+            </div>
+          </NeTableCell>
+          <NeTableCell :data-label="$t('distributors.total_systems')">
+            <div class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
+              <FontAwesomeIcon
+                :icon="faServer"
+                class="size-4 text-gray-700 dark:text-gray-400"
+                aria-hidden="true"
+              />
+              {{ item.systems_count }}
+            </div>
+          </NeTableCell>
+          <NeTableCell :data-label="$t('common.status')">
+            <div class="flex items-center gap-2">
+              <template v-if="item.deleted_at">
+                <FontAwesomeIcon
+                  :icon="faBoxArchive"
+                  class="size-4 text-gray-700 dark:text-gray-400"
+                  aria-hidden="true"
+                />
+                <span>
+                  {{ t('common.archived') }}
+                </span>
+              </template>
+              <template v-else-if="item.suspended_at">
+                <FontAwesomeIcon
+                  :icon="faCirclePause"
+                  class="size-4 text-gray-700 dark:text-gray-400"
+                  aria-hidden="true"
+                />
+                <span>
+                  {{ t('common.suspended') }}
+                </span>
+              </template>
+              <template v-else>
+                <FontAwesomeIcon
+                  :icon="faCircleCheck"
+                  class="size-4 text-green-600 dark:text-green-400"
+                  aria-hidden="true"
+                />
+                <span>
+                  {{ t('common.enabled') }}
+                </span>
+              </template>
+            </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div v-if="canManageDistributors()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+            <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
               <NeButton
+                v-if="!item.deleted_at"
                 kind="tertiary"
-                @click="showEditDistributorDrawer(item)"
-                :disabled="asyncStatus === 'loading'"
+                @click="goToDistributorDetails(item)"
               >
                 <template #prefix>
-                  <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
+                  <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
                 </template>
-                {{ $t('common.edit') }}
+                {{ $t('common.view') }}
               </NeButton>
               <!-- kebab menu -->
-              <NeDropdown :items="getKebabMenuItems(item)" :align-to-right="true" />
+              <NeDropdown
+                v-if="canManageDistributors() || canDestroyDistributors()"
+                :items="getKebabMenuItems(item)"
+                :align-to-right="true"
+              />
             </div>
           </NeTableCell>
         </NeTableRow>
@@ -292,6 +512,30 @@ const onSort = (payload: SortEvent) => {
       :visible="isShownDeleteDistributorDrawer"
       :distributor="currentDistributor"
       @close="isShownDeleteDistributorDrawer = false"
+    />
+    <!-- suspend distributor modal -->
+    <SuspendDistributorModal
+      :visible="isShownSuspendDistributorModal"
+      :distributor="currentDistributor"
+      @close="isShownSuspendDistributorModal = false"
+    />
+    <!-- reactivate distributor modal -->
+    <ReactivateDistributorModal
+      :visible="isShownReactivateDistributorModal"
+      :distributor="currentDistributor"
+      @close="isShownReactivateDistributorModal = false"
+    />
+    <!-- restore distributor modal -->
+    <RestoreDistributorModal
+      :visible="isShownRestoreDistributorModal"
+      :distributor="currentDistributor"
+      @close="isShownRestoreDistributorModal = false"
+    />
+    <!-- destroy distributor modal -->
+    <DestroyDistributorModal
+      :visible="isShownDestroyDistributorModal"
+      :distributor="currentDistributor"
+      @close="isShownDestroyDistributorModal = false"
     />
   </div>
 </template>
