@@ -82,6 +82,7 @@ const {
   statusFilter,
   sortBy,
   sortDescending,
+  resetFilters,
 } = useUsers()
 const loginStore = useLoginStore()
 const { state: organizationFilterState, asyncStatus: organizationFilterAsyncStatus } =
@@ -187,13 +188,6 @@ watch(
   },
   { immediate: true },
 )
-
-function resetFilters() {
-  textFilter.value = ''
-  organizationFilter.value = []
-  roleFilter.value = []
-  statusFilter.value = ['enabled', 'suspended']
-}
 
 function showCreateUserDrawer() {
   currentUser.value = undefined

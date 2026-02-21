@@ -442,7 +442,7 @@ const goToApplicationDetails = (application: Application) => {
             </NeTableCell>
             <NeTableCell :data-label="$t('common.actions')">
               <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
-                <NeButton
+                <!-- <NeButton ////
                   v-if="item.status !== 'deleted'"
                   kind="tertiary"
                   @click="goToApplicationDetails(item)"
@@ -452,7 +452,7 @@ const goToApplicationDetails = (application: Application) => {
                     <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
                   </template>
                   {{ $t('common.view') }}
-                </NeButton>
+                </NeButton> -->
                 <!-- kebab menu -->
                 <NeDropdown
                   v-if="canManageApplications()"
