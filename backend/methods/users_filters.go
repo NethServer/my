@@ -62,6 +62,7 @@ func GetUserFilters(c *gin.Context) {
 			SELECT DISTINCT jsonb_array_elements_text(user_role_ids) AS role_id
 			FROM users u
 			WHERE u.deleted_at IS NULL
+			AND u.suspended_at IS NULL
 			AND u.user_role_ids IS NOT NULL
 			AND u.user_role_ids != '[]'::jsonb
 		`
@@ -104,6 +105,7 @@ func GetUserFilters(c *gin.Context) {
 			FROM users u
 			INNER JOIN all_organizations o ON u.organization_id = o.logto_id
 			WHERE u.deleted_at IS NULL
+			AND u.suspended_at IS NULL
 		`
 		var args []interface{}
 		query, args, _ := helpers.AppendOrgFilter(baseQuery, userOrgRole, userOrgID, "u.", args, 1)
