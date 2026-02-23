@@ -39,7 +39,7 @@ import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faCheck, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
-import { SYSTEM_ORGANIZATION_FILTER_KEY } from '@/lib/systems/organizationFilter'
+import { SYSTEM_FILTERS_KEY } from '@/lib/systems/systemFilters'
 import { organizationsQuery } from '@/queries/organizations/organizations'
 
 const { isShown = false, currentSystem = undefined } = defineProps<{
@@ -79,7 +79,7 @@ const {
   onSettled: () => {
     queryCache.invalidateQueries({ key: [SYSTEMS_KEY] })
     queryCache.invalidateQueries({ key: [SYSTEMS_TOTAL_KEY] })
-    queryCache.invalidateQueries({ key: [SYSTEM_ORGANIZATION_FILTER_KEY] })
+    queryCache.invalidateQueries({ key: [SYSTEM_FILTERS_KEY] })
   },
 })
 
@@ -112,7 +112,7 @@ const {
   },
   onSettled: () => {
     queryCache.invalidateQueries({ key: [SYSTEMS_KEY] })
-    queryCache.invalidateQueries({ key: [SYSTEM_ORGANIZATION_FILTER_KEY] })
+    queryCache.invalidateQueries({ key: [SYSTEM_FILTERS_KEY] })
   },
 })
 

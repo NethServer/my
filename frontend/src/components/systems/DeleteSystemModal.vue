@@ -8,7 +8,7 @@ import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { deleteSystem, SYSTEMS_KEY, SYSTEMS_TOTAL_KEY, type System } from '@/lib/systems/systems'
 import { useNotificationsStore } from '@/stores/notifications'
-import { SYSTEM_ORGANIZATION_FILTER_KEY } from '@/lib/systems/organizationFilter'
+import { SYSTEM_FILTERS_KEY } from '@/lib/systems/systemFilters'
 import DeleteObjectModal from '../DeleteObjectModal.vue'
 
 const { visible = false, system = undefined } = defineProps<{
@@ -51,7 +51,7 @@ const {
   onSettled: () => {
     queryCache.invalidateQueries({ key: [SYSTEMS_KEY] })
     queryCache.invalidateQueries({ key: [SYSTEMS_TOTAL_KEY] })
-    queryCache.invalidateQueries({ key: [SYSTEM_ORGANIZATION_FILTER_KEY] })
+    queryCache.invalidateQueries({ key: [SYSTEM_FILTERS_KEY] })
   },
 })
 

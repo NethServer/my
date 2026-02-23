@@ -55,12 +55,9 @@ import {
 import router from '@/router'
 import CreateOrEditSystemDrawer from './CreateOrEditSystemDrawer.vue'
 import DeleteSystemModal from './DeleteSystemModal.vue'
-import { useProductFilter } from '@/queries/systems/productFilter'
-import { useCreatedByFilter } from '@/queries/systems/createdByFilter'
-import { useVersionFilter } from '@/queries/systems/versionFilter'
-import { useOrganizationFilter } from '@/queries/systems/organizationFilter'
+import { useSystemFilters } from '@/queries/systems/systemFilters'
 import UserAvatar from '../users/UserAvatar.vue'
-import { buildVersionFilterOptions } from '@/lib/systems/versionFilter'
+import { buildVersionFilterOptions } from '@/lib/systems/systemFilters'
 import OrganizationIcon from '../organizations/OrganizationIcon.vue'
 import RegenerateSecretModal from './RegenerateSecretModal.vue'
 import SecretRegeneratedModal from './SecretRegeneratedModal.vue'
@@ -94,12 +91,7 @@ const {
   areDefaultFiltersApplied,
   resetFilters,
 } = useSystems()
-const { state: productFilterState, asyncStatus: productFilterAsyncStatus } = useProductFilter()
-const { state: createdByFilterState, asyncStatus: createdByFilterAsyncStatus } =
-  useCreatedByFilter()
-const { state: versionFilterState, asyncStatus: versionFilterAsyncStatus } = useVersionFilter()
-const { state: organizationFilterState, asyncStatus: organizationFilterAsyncStatus } =
-  useOrganizationFilter()
+const { state: systemFiltersState, asyncStatus: systemFiltersAsyncStatus } = useSystemFilters()
 
 const currentSystem = ref<System | undefined>()
 const isShownCreateOrEditSystemDrawer = ref(false)
@@ -141,10 +133,10 @@ const pagination = computed(() => {
 })
 
 const productFilterOptions = computed(() => {
-  if (!productFilterState.value.data || !productFilterState.value.data.products) {
+  if (!systemFiltersState.value.data || !systemFiltersState.value.data.products) {
     return []
   } else {
-    return productFilterState.value.data.products.map((productId) => ({
+    return systemFiltersState.value.data.products.map((productId) => ({
       id: productId,
       label: getProductName(productId),
     }))
@@ -152,16 +144,16 @@ const productFilterOptions = computed(() => {
 })
 
 const versionFilterOptions = computed(() => {
-  if (!versionFilterState.value.data || !versionFilterState.value.data.versions) {
+  if (!systemFiltersState.value.data || !systemFiltersState.value.data.versions) {
     return []
   } else {
     if (productFilter.value.length === 0) {
       // no product selected, show all versions
-      return buildVersionFilterOptions(versionFilterState.value.data.versions)
+      return buildVersionFilterOptions(systemFiltersState.value.data.versions)
     }
 
     // filter versions based on selected products
-    const productVersions = versionFilterState.value.data.versions.filter((el) =>
+    const productVersions = systemFiltersState.value.data.versions.filter((el) =>
       productFilter.value.includes(el.product),
     )
     return buildVersionFilterOptions(productVersions)
@@ -169,10 +161,10 @@ const versionFilterOptions = computed(() => {
 })
 
 const createdByFilterOptions = computed(() => {
-  if (!createdByFilterState.value.data || !createdByFilterState.value.data.created_by) {
+  if (!systemFiltersState.value.data || !systemFiltersState.value.data.created_by) {
     return []
   } else {
-    return createdByFilterState.value.data.created_by.map((user) => ({
+    return systemFiltersState.value.data.created_by.map((user) => ({
       id: user.user_id,
       label: user.name,
     }))
@@ -180,10 +172,10 @@ const createdByFilterOptions = computed(() => {
 })
 
 const organizationFilterOptions = computed(() => {
-  if (!organizationFilterState.value.data || !organizationFilterState.value.data.organizations) {
+  if (!systemFiltersState.value.data || !systemFiltersState.value.data.organizations) {
     return []
   } else {
-    return organizationFilterState.value.data.organizations.map((org) => ({
+    return systemFiltersState.value.data.organizations.map((org) => ({
       id: org.id,
       label: org.name,
     }))
@@ -419,7 +411,7 @@ function onCloseSecretRegeneratedModal() {
             v-model="productFilter"
             kind="checkbox"
             :disabled="
-              productFilterAsyncStatus === 'loading' || productFilterState.status === 'error'
+              systemFiltersAsyncStatus === 'loading' || systemFiltersState.status === 'error'
             "
             :label="t('systems.product')"
             :options="productFilterOptions"
@@ -433,7 +425,7 @@ function onCloseSecretRegeneratedModal() {
             v-model="versionFilter"
             kind="checkbox"
             :disabled="
-              versionFilterAsyncStatus === 'loading' || versionFilterState.status === 'error'
+              systemFiltersAsyncStatus === 'loading' || systemFiltersState.status === 'error'
             "
             :label="t('systems.version')"
             :options="versionFilterOptions"
@@ -448,7 +440,7 @@ function onCloseSecretRegeneratedModal() {
             v-model="createdByFilter"
             kind="checkbox"
             :disabled="
-              createdByFilterAsyncStatus === 'loading' || createdByFilterState.status === 'error'
+              systemFiltersAsyncStatus === 'loading' || systemFiltersState.status === 'error'
             "
             :label="t('systems.created_by')"
             :options="createdByFilterOptions"
@@ -465,8 +457,7 @@ function onCloseSecretRegeneratedModal() {
             :label="t('systems.organization')"
             :options="organizationFilterOptions"
             :disabled="
-              organizationFilterAsyncStatus === 'loading' ||
-              organizationFilterState.status === 'error'
+              systemFiltersAsyncStatus === 'loading' || systemFiltersState.status === 'error'
             "
             show-options-filter
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
