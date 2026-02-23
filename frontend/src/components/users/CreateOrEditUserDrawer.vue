@@ -37,7 +37,7 @@ import { PRODUCT_NAME } from '@/lib/config'
 import { normalize } from '@/lib/common'
 import { organizationsQuery } from '@/queries/organizations/organizations'
 import { userRolesQuery } from '@/queries/users/userRoles'
-import { USER_ORGANIZATION_FILTER_KEY } from '@/lib/users/organizationFilter'
+import { USER_FILTERS_KEY } from '@/lib/users/userFilters'
 
 const { isShown = false, currentUser = undefined } = defineProps<{
   isShown: boolean
@@ -91,7 +91,7 @@ const {
   onSettled: () => {
     queryCache.invalidateQueries({ key: [USERS_KEY] })
     queryCache.invalidateQueries({ key: [USERS_TOTAL_KEY] })
-    queryCache.invalidateQueries({ key: [USER_ORGANIZATION_FILTER_KEY] })
+    queryCache.invalidateQueries({ key: [USER_FILTERS_KEY] })
   },
 })
 
@@ -124,7 +124,7 @@ const {
   },
   onSettled: () => {
     queryCache.invalidateQueries({ key: [USERS_KEY] })
-    // queryCache.invalidateQueries({ key: [ORGANIZATION_FILTER_KEY] }) ////
+    queryCache.invalidateQueries({ key: [USER_FILTERS_KEY] })
   },
 })
 

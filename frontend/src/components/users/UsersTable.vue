@@ -58,9 +58,7 @@ import ReactivateUserModal from './ReactivateUserModal.vue'
 import RestoreUserModal from './RestoreUserModal.vue'
 import OrganizationIcon from '../organizations/OrganizationIcon.vue'
 import UserRoleBadge from './UserRoleBadge.vue'
-import { useOrganizationFilter } from '@/queries/users/organizationFilter'
-import { userRolesQuery } from '@/queries/users/userRoles'
-import { useQuery } from '@pinia/colada'
+import { useUserFilters } from '@/queries/users/userFilters'
 import { normalize } from '@/lib/common'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
@@ -85,12 +83,7 @@ const {
   resetFilters,
 } = useUsers()
 const loginStore = useLoginStore()
-const { state: organizationFilterState, asyncStatus: organizationFilterAsyncStatus } =
-  useOrganizationFilter()
-const { state: roleFilterState, asyncStatus: roleFilterAsyncStatus } = useQuery({
-  ...userRolesQuery,
-  enabled: () => !!loginStore.jwtToken,
-})
+const { state: userFiltersState, asyncStatus: userFiltersAsyncStatus } = useUserFilters()
 
 const currentUser = ref<User | undefined>()
 const isShownCreateOrEditUserDrawer = ref(false)
@@ -157,22 +150,20 @@ const noEmptyStateShown = computed(() => {
 })
 
 const organizationFilterOptions = computed(() => {
-  if (!organizationFilterState.value.data || !organizationFilterState.value.data.organizations) {
+  if (!userFiltersState.value.data?.organizations) {
     return []
-  } else {
-    return organizationFilterState.value.data.organizations.map((org) => ({
-      id: org.id,
-      label: org.name,
-    }))
   }
+  return userFiltersState.value.data.organizations.map((org) => ({
+    id: org.id,
+    label: org.name,
+  }))
 })
 
 const roleFilterOptions = computed(() => {
-  if (!roleFilterState.value.data) {
+  if (!userFiltersState.value.data?.roles) {
     return []
   }
-
-  return roleFilterState.value.data?.map((role) => ({
+  return userFiltersState.value.data.roles.map((role) => ({
     id: role.id,
     label: t(`user_roles.${normalize(role.name)}`),
     description: t(`user_roles.${normalize(role.name)}_description`),
@@ -382,10 +373,7 @@ const onClosePasswordChangedModal = () => {
             kind="checkbox"
             :label="t('organizations.organization')"
             :options="organizationFilterOptions"
-            :disabled="
-              organizationFilterAsyncStatus === 'loading' ||
-              organizationFilterState.status === 'error'
-            "
+            :disabled="userFiltersAsyncStatus === 'loading' || userFiltersState.status === 'error'"
             show-options-filter
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
@@ -399,7 +387,7 @@ const onClosePasswordChangedModal = () => {
             kind="checkbox"
             :label="t('users.role')"
             :options="roleFilterOptions"
-            :disabled="roleFilterAsyncStatus === 'loading' || roleFilterState.status === 'error'"
+            :disabled="userFiltersAsyncStatus === 'loading' || userFiltersState.status === 'error'"
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
