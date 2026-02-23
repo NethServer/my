@@ -131,6 +131,194 @@ components:
           description: Whether the VAT number exists in the specified entity type
           example: true
 
+    InventoryRecord:
+      type: object
+      description: A snapshot of a system's inventory data at a point in time
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Auto-incrementing record ID
+          example: 42
+        system_id:
+          type: string
+          description: ID of the system that sent the inventory
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        timestamp:
+          type: string
+          format: date-time
+          description: When the inventory was collected on the system
+          example: "2026-02-20T14:30:00Z"
+        data:
+          type: object
+          description: >
+            Complete raw inventory JSON. Contains the full system inventory payload
+            (facts, modules, nodes, network, etc.). The structure varies by system type
+            and can contain hundreds of fields.
+          example:
+            facts:
+              distro:
+                name: "NethServer"
+                version: "8.2.0"
+              network:
+                hostname: "ns8.example.com"
+                public_ip: "203.0.113.10"
+              memory:
+                total_bytes: 17179869184
+        data_hash:
+          type: string
+          description: SHA-256 hash of the inventory data for deduplication
+          example: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        data_size:
+          type: integer
+          format: int64
+          description: Size of the inventory data in bytes
+          example: 24576
+        processed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When diff processing completed for this record. Null if not yet processed.
+          example: "2026-02-20T14:31:00Z"
+        has_changes:
+          type: boolean
+          description: Whether changes were detected compared to the previous inventory
+          example: true
+        change_count:
+          type: integer
+          description: Number of significant changes detected
+          example: 5
+        created_at:
+          type: string
+          format: date-time
+          description: When the record was created in the database
+          example: "2026-02-20T14:30:05Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: When the record was last updated
+          example: "2026-02-20T14:31:00Z"
+
+    InventoryDiff:
+      type: object
+      description: A single field-level difference between two inventory snapshots
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Auto-incrementing diff ID
+          example: 101
+        system_id:
+          type: string
+          description: ID of the system
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        previous_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: ID of the previous inventory record. Null for the first inventory.
+          example: 41
+        current_id:
+          type: integer
+          format: int64
+          description: ID of the current inventory record
+          example: 42
+        diff_type:
+          type: string
+          enum: [create, update, delete]
+          description: Type of change detected
+          example: "update"
+        field_path:
+          type: string
+          description: JSON path of the changed field (e.g. facts.nodes.1.version)
+          example: "facts.distro.version"
+        previous_value:
+          type: string
+          description: Previous field value. Can be a string, number, object, or array depending on the field. Null for 'create' diffs.
+          nullable: true
+          example: "8.1.0"
+        current_value:
+          type: string
+          description: Current field value. Can be a string, number, object, or array depending on the field. Null for 'delete' diffs.
+          nullable: true
+          example: "8.2.0"
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+          description: >
+            Severity of the change. Determined by the differ engine configuration:
+            critical (deleted nodes/memory/network, error entries),
+            high (version changes, subscription, certificates),
+            medium (feature updates, cluster changes),
+            low (uptime, memory usage fluctuations).
+          example: "high"
+        category:
+          type: string
+          description: >
+            Category of the change. Possible values: os, hardware, network, security,
+            backup, features, modules, cluster, nodes, system.
+          enum: [os, hardware, network, security, backup, features, modules, cluster, nodes, system]
+          example: "os"
+        notification_sent:
+          type: boolean
+          description: Whether a notification has been sent for this change
+          example: false
+        created_at:
+          type: string
+          format: date-time
+          description: When the diff was created
+          example: "2026-02-20T14:31:00Z"
+
+    InventoryChangesSummary:
+      type: object
+      description: Aggregated summary of inventory changes for a system
+      properties:
+        system_id:
+          type: string
+          description: ID of the system
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        total_changes:
+          type: integer
+          description: Total number of changes across all inventory snapshots
+          example: 42
+        recent_changes:
+          type: integer
+          description: Number of changes in the most recent period
+          example: 5
+        last_inventory_time:
+          type: string
+          format: date-time
+          description: Timestamp of the most recent inventory record
+          example: "2026-02-20T14:30:00Z"
+        has_critical_changes:
+          type: boolean
+          description: Whether any critical-severity changes exist
+          example: false
+        has_alerts:
+          type: boolean
+          description: Whether any unresolved alerts exist for this system
+          example: true
+        changes_by_category:
+          type: object
+          description: Count of changes grouped by category
+          additionalProperties:
+            type: integer
+          example:
+            os: 10
+            hardware: 5
+            network: 8
+            security: 3
+        changes_by_severity:
+          type: object
+          description: Count of changes grouped by severity
+          additionalProperties:
+            type: integer
+          example:
+            low: 20
+            medium: 15
+            high: 5
+            critical: 2
+
     Pagination:
       type: object
       properties:
@@ -6381,7 +6569,7 @@ paths:
       tags:
         - Backend - Systems
       summary: /systems/{id}/inventory - Get system inventory history
-      description: Get paginated inventory history for a specific system
+      description: Get paginated inventory history for a specific system. Supports date range filtering.
       parameters:
         - name: id
           in: path
@@ -6392,6 +6580,22 @@ paths:
             example: "sys_123456789"
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: from_date
+          in: query
+          required: false
+          description: Filter records from this date (RFC3339 format)
+          schema:
+            type: string
+            format: date-time
+            example: "2026-01-01T00:00:00Z"
+        - name: to_date
+          in: query
+          required: false
+          description: Filter records up to this date (RFC3339 format)
+          schema:
+            type: string
+            format: date-time
+            example: "2026-02-20T23:59:59Z"
       responses:
         '200':
           description: Inventory history retrieved successfully
@@ -6409,11 +6613,10 @@ paths:
                   data:
                     type: object
                     properties:
-                      inventories:
+                      records:
                         type: array
                         items:
-                          type: object
-                          description: Inventory record
+                          $ref: '#/components/schemas/InventoryRecord'
                       pagination:
                         $ref: '#/components/schemas/Pagination'
         '401':
@@ -6429,7 +6632,7 @@ paths:
       tags:
         - Backend - Systems
       summary: /systems/{id}/inventory/latest - Get latest system inventory
-      description: Get the most recent inventory data for a specific system
+      description: Get the most recent inventory data for a specific system. Returns the full InventoryRecord including the raw inventory JSON in the `data` field.
       parameters:
         - name: id
           in: path
@@ -6455,7 +6658,9 @@ paths:
                   data:
                     type: object
                     nullable: true
-                    description: Latest inventory data, or null if no inventory exists
+                    description: Latest inventory record, or null if no inventory exists
+                    allOf:
+                      - $ref: '#/components/schemas/InventoryRecord'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -6467,7 +6672,7 @@ paths:
       tags:
         - Backend - Systems
       summary: /systems/{id}/inventory/changes - Get inventory changes summary
-      description: Get paginated summary of inventory changes for a specific system
+      description: Get an aggregated summary of all inventory changes for a specific system. Returns counts grouped by category and severity, not a paginated list.
       parameters:
         - name: id
           in: path
@@ -6476,11 +6681,9 @@ paths:
           schema:
             type: string
             example: "sys_123456789"
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/PageSizeParam'
       responses:
         '200':
-          description: Inventory changes retrieved successfully. Returns null when no inventory is available (not an error condition).
+          description: Changes summary retrieved successfully. Returns null when no inventory is available (not an error condition).
           content:
             application/json:
               schema:
@@ -6491,19 +6694,13 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: "inventory changes retrieved successfully"
+                    example: "changes summary retrieved successfully"
                   data:
                     type: object
                     nullable: true
-                    description: Inventory changes data, or null if no inventory exists
-                    properties:
-                      changes:
-                        type: array
-                        items:
-                          type: object
-                          description: Inventory change record
-                      pagination:
-                        $ref: '#/components/schemas/Pagination'
+                    description: Aggregated changes summary, or null if no inventory exists
+                    allOf:
+                      - $ref: '#/components/schemas/InventoryChangesSummary'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -6515,7 +6712,7 @@ paths:
       tags:
         - Backend - Systems
       summary: /systems/{id}/inventory/changes/latest - Get latest inventory changes
-      description: Get the most recent batch of inventory changes for a specific system
+      description: Get the changes summary scoped to the most recent inventory batch only. The `recent_changes` field equals `total_changes` since all changes are from the latest batch.
       parameters:
         - name: id
           in: path
@@ -6526,7 +6723,7 @@ paths:
             example: "sys_123456789"
       responses:
         '200':
-          description: Latest inventory changes retrieved successfully. Returns null when no inventory is available (not an error condition).
+          description: Latest inventory changes summary retrieved successfully. Returns null when no inventory is available (not an error condition).
           content:
             application/json:
               schema:
@@ -6537,11 +6734,13 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: "latest inventory changes retrieved successfully"
+                    example: "latest inventory changes summary retrieved successfully"
                   data:
                     type: object
                     nullable: true
-                    description: Latest inventory changes data, or null if no inventory exists
+                    description: Changes summary for the latest inventory batch, or null if no inventory exists
+                    allOf:
+                      - $ref: '#/components/schemas/InventoryChangesSummary'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -6553,7 +6752,7 @@ paths:
       tags:
         - Backend - Systems
       summary: /systems/{id}/inventory/diffs - Get inventory diffs
-      description: Get paginated inventory diffs for a specific system
+      description: Get paginated inventory diffs for a specific system. Supports filtering by severity, category, diff type, and date range.
       parameters:
         - name: id
           in: path
@@ -6564,6 +6763,46 @@ paths:
             example: "sys_123456789"
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: severity
+          in: query
+          required: false
+          description: Filter by severity level
+          schema:
+            type: string
+            enum: [low, medium, high, critical]
+            example: "high"
+        - name: category
+          in: query
+          required: false
+          description: Filter by change category
+          schema:
+            type: string
+            enum: [os, hardware, network, security, backup, features, modules, cluster, nodes, system]
+            example: "os"
+        - name: diff_type
+          in: query
+          required: false
+          description: Filter by diff type
+          schema:
+            type: string
+            enum: [create, update, delete]
+            example: "update"
+        - name: from_date
+          in: query
+          required: false
+          description: Filter diffs from this date (RFC3339 format)
+          schema:
+            type: string
+            format: date-time
+            example: "2026-01-01T00:00:00Z"
+        - name: to_date
+          in: query
+          required: false
+          description: Filter diffs up to this date (RFC3339 format)
+          schema:
+            type: string
+            format: date-time
+            example: "2026-02-20T23:59:59Z"
       responses:
         '200':
           description: Inventory diffs retrieved successfully
@@ -6584,8 +6823,7 @@ paths:
                       diffs:
                         type: array
                         items:
-                          type: object
-                          description: Inventory diff record
+                          $ref: '#/components/schemas/InventoryDiff'
                       pagination:
                         $ref: '#/components/schemas/Pagination'
         '401':
@@ -6600,8 +6838,8 @@ paths:
       operationId: getSystemInventoryDiffsLatest
       tags:
         - Backend - Systems
-      summary: /systems/{id}/inventory/diffs/latest - Get latest inventory diff
-      description: Get the most recent inventory diff for a specific system
+      summary: /systems/{id}/inventory/diffs/latest - Get latest inventory diffs batch
+      description: Get all diffs from the most recent inventory snapshot. Returns the complete batch (not paginated), ordered by severity (critical first) then by creation time descending.
       parameters:
         - name: id
           in: path
@@ -6612,7 +6850,7 @@ paths:
             example: "sys_123456789"
       responses:
         '200':
-          description: Latest inventory diff retrieved successfully
+          description: Latest inventory diffs retrieved successfully
           content:
             application/json:
               schema:
@@ -6623,10 +6861,24 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: "latest inventory diff retrieved successfully"
+                    example: "latest inventory diffs retrieved successfully"
                   data:
                     type: object
-                    description: Latest inventory diff data
+                    description: Latest diffs batch data
+                    properties:
+                      diffs:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/InventoryDiff'
+                      count:
+                        type: integer
+                        description: Number of diffs in this batch
+                        example: 5
+                      current_inventory_id:
+                        type: integer
+                        format: int64
+                        description: ID of the current inventory record these diffs belong to. Only present when there are diffs.
+                        example: 42
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
