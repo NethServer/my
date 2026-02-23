@@ -92,6 +92,23 @@ export const useResellers = defineQuery(() => {
     },
   )
 
+  // reset to first page when status filter changes
+  watch(
+    () => statusFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+    { deep: true },
+  )
+
+  // reset to first page when sorting changes
+  watch(
+    () => [sortBy.value, sortDescending.value],
+    () => {
+      pageNum.value = 1
+    },
+  )
+
   const resetFilters = () => {
     textFilter.value = ''
     statusFilter.value = ['enabled', 'suspended']

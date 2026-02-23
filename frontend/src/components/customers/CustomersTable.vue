@@ -428,11 +428,7 @@ const goToCustomerDetails = (customer: Customer) => {
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
             <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
-              <NeButton
-                v-if="!item.deleted_at"
-                kind="tertiary"
-                @click="goToCustomerDetails(item)"
-              >
+              <NeButton v-if="!item.deleted_at" kind="tertiary" @click="goToCustomerDetails(item)">
                 <template #prefix>
                   <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
                 </template>

@@ -111,6 +111,46 @@ export const useSystems = defineQuery(() => {
     },
   )
 
+  // reset to first page when status filter changes
+  watch(
+    () => statusFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
+
+  // reset to first page when product filter changes
+  watch(
+    () => productFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
+
+  // reset to first page when created by filter changes
+  watch(
+    () => createdByFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
+
+  // reset to first page when version filter changes
+  watch(
+    () => versionFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
+
+  // reset to first page when organization filter changes
+  watch(
+    () => organizationFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
+
   const resetFilters = () => {
     textFilter.value = ''
     productFilter.value = []

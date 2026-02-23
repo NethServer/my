@@ -92,6 +92,15 @@ export const useDistributors = defineQuery(() => {
     },
   )
 
+  // reset to first page when status filter changes
+  watch(
+    () => statusFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+    { deep: true },
+  )
+
   const resetFilters = () => {
     textFilter.value = ''
     statusFilter.value = ['enabled', 'suspended']

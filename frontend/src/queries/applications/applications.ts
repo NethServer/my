@@ -90,6 +90,38 @@ export const useApplications = defineQuery(() => {
     },
   )
 
+  // reset to first page when type filter changes
+  watch(
+    () => typeFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
+
+  // reset to first page when version filter changes
+  watch(
+    () => versionFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
+
+  // reset to first page when system filter changes
+  watch(
+    () => systemFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
+
+  // reset to first page when organization filter changes
+  watch(
+    () => organizationFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
+
   const clearFilters = () => {
     textFilter.value = ''
     typeFilter.value = []

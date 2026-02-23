@@ -94,6 +94,30 @@ export const useUsers = defineQuery(() => {
     },
   )
 
+  // reset to first page when status filter changes
+  watch(
+    () => statusFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
+
+  // reset to first page when organization filter changes
+  watch(
+    () => organizationFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
+
+  // reset to first page when role filter changes
+  watch(
+    () => roleFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
+
   const resetFilters = () => {
     textFilter.value = ''
     organizationFilter.value = []
