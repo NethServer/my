@@ -60,6 +60,7 @@ import OrganizationIcon from '../organizations/OrganizationIcon.vue'
 import UserRoleBadge from './UserRoleBadge.vue'
 import { useUserFilters } from '@/queries/users/userFilters'
 import { normalize } from '@/lib/common'
+import OrganizationLink from '../applications/OrganizationLink.vue'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -512,7 +513,10 @@ const onClosePasswordChangedModal = () => {
                   {{ t(`organizations.${item.organization.type}`) }}
                 </template>
               </NeTooltip>
-              {{ item.organization.name || '-' }}
+              <OrganizationLink v-if="item.organization" :organization="item.organization" />
+              <span v-else class="font-medium">
+                {{ '-' }}
+              </span>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('users.roles')">

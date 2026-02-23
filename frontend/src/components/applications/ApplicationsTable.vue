@@ -46,6 +46,7 @@ import {
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import AssignOrganizationDrawer from './AssignOrganizationDrawer.vue'
 import SetNotesDrawer from './SetNotesDrawer.vue'
+import OrganizationLink from './OrganizationLink.vue'
 import { useApplicationFilters } from '@/queries/applications/applicationFilters'
 import { buildVersionFilterOptions } from '@/lib/applications/applicationFilters'
 
@@ -395,7 +396,6 @@ const onSort = (payload: SortEvent) => {
                   {{ item.name || '-' }}
                 </span>
               </div>
-              <!-- </router-link> //// -->
             </NeTableCell>
             <NeTableCell
               :data-label="$t('applications.version')"
@@ -407,14 +407,16 @@ const onSort = (payload: SortEvent) => {
             </NeTableCell>
             <NeTableCell :data-label="$t('systems.system')">
               <div>
-                <router-link :to="{ name: 'system_detail', params: { systemId: item.system.id } }">
-                  <div class="flex items-center gap-2">
-                    <FontAwesomeIcon :icon="faServer" class="h-4 w-4" aria-hidden="true" />
+                <div class="flex items-center gap-2">
+                  <FontAwesomeIcon :icon="faServer" class="h-4 w-4" aria-hidden="true" />
+                  <router-link
+                    :to="{ name: 'system_detail', params: { systemId: item.system.id } }"
+                  >
                     <span class="cursor-pointer font-medium hover:underline">
                       {{ item.system.name || '-' }}
                     </span>
-                  </div>
-                </router-link>
+                  </router-link>
+                </div>
               </div>
             </NeTableCell>
             <NeTableCell :data-label="$t('organizations.organization')">
@@ -433,7 +435,10 @@ const onSort = (payload: SortEvent) => {
                       {{ t(`organizations.${item.organization.type}`) }}
                     </template>
                   </NeTooltip>
-                  {{ item.organization?.name || '-' }}
+                  <OrganizationLink v-if="item.organization" :organization="item.organization" />
+                  <span v-else class="font-medium">
+                    {{ '-' }}
+                  </span>
                 </div>
               </div>
             </NeTableCell>
