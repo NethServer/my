@@ -433,6 +433,7 @@ type SignInBranding struct {
 	LogoDarkPath    string `yaml:"logo_dark_path,omitempty" json:"logo_dark_path,omitempty"`
 	FaviconPath     string `yaml:"favicon_path,omitempty" json:"favicon_path,omitempty"`
 	FaviconDarkPath string `yaml:"favicon_dark_path,omitempty" json:"favicon_dark_path,omitempty"`
+	BackgroundPath  string `yaml:"background_path,omitempty" json:"background_path,omitempty"`
 }
 
 // SignInLanguage represents language configuration

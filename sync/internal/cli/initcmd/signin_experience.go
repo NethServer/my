@@ -28,6 +28,7 @@ type SignInExperienceFiles struct {
 	DarkLogoPath    string
 	FaviconPath     string
 	DarkFaviconPath string
+	BackgroundPath  string
 	CustomCSSPath   string
 	BrandColor      string
 	BrandColorDark  string
@@ -39,6 +40,7 @@ type SignInExperienceAssets struct {
 	DarkLogo    string
 	Favicon     string
 	DarkFavicon string
+	Background  string
 	CustomCSS   string
 }
 
@@ -144,10 +146,21 @@ func LoadSignInExperienceAssets(files SignInExperienceFiles) (*SignInExperienceA
 		return nil, fmt.Errorf("failed to load dark favicon: %w", err)
 	}
 
+	// Load background image as data URL
+	assets.Background, err = loadFileAsDataURL(files.BackgroundPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load background image: %w", err)
+	}
+
 	// Load CSS as text
 	assets.CustomCSS, err = loadTextFile(files.CustomCSSPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load custom CSS: %w", err)
+	}
+
+	// Substitute background image placeholder in CSS
+	if assets.Background != "" && assets.CustomCSS != "" {
+		assets.CustomCSS = strings.ReplaceAll(assets.CustomCSS, "{{.BackgroundImage}}", assets.Background)
 	}
 
 	return assets, nil

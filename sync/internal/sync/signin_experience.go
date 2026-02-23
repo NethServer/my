@@ -137,6 +137,16 @@ func (e *Engine) buildSignInExperienceConfig(sie *config.SignInExperience, baseP
 		if err != nil {
 			logger.Debug("Failed to load custom CSS from %s: %v", fullPath, err)
 		} else {
+			// Substitute background image placeholder if branding has a background path
+			if sie.Branding != nil && sie.Branding.BackgroundPath != "" {
+				bgFullPath := filepath.Join(basePath, sie.Branding.BackgroundPath)
+				bgDataURL, bgErr := e.loadFileAsDataURL(bgFullPath)
+				if bgErr != nil {
+					logger.Debug("Failed to load background image from %s: %v", bgFullPath, bgErr)
+				} else {
+					css = strings.ReplaceAll(css, "{{.BackgroundImage}}", bgDataURL)
+				}
+			}
 			signInConfig.CustomCSS = css
 		}
 	}
