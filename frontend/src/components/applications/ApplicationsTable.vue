@@ -7,7 +7,6 @@
 import {
   faBuilding,
   faCircleInfo,
-  faEye,
   faPenToSquare,
   faServer,
 } from '@fortawesome/free-solid-svg-icons'
@@ -37,7 +36,6 @@ import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { canManageApplications } from '@/lib/permissions'
 import { SYSTEMS_TABLE_ID } from '@/lib/systems/systems'
-import router from '@/router'
 import OrganizationIcon from '../organizations/OrganizationIcon.vue'
 import { useApplications } from '@/queries/applications/applications'
 import {
@@ -209,9 +207,9 @@ const onSort = (payload: SortEvent) => {
   sortDescending.value = payload.descending
 }
 
-const goToApplicationDetails = (application: Application) => {
-  router.push({ name: 'application_detail', params: { applicationId: application.id } })
-}
+// const goToApplicationDetails = (application: Application) => { ////
+//   router.push({ name: 'application_detail', params: { applicationId: application.id } })
+// }
 </script>
 
 <template>
