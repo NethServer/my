@@ -4876,19 +4876,22 @@ paths:
   # ===========================================================================
   # FILTERS
   # ===========================================================================
-  /filters/systems/products:
+  /filters/systems:
     get:
-      operationId: getFilterProducts
+      operationId: getSystemFilters
       tags:
         - Backend - Filters
-      summary: /filters/systems/products - Get available product filters
+      summary: /filters/systems - Get aggregated system filters
       description: |
-        Get list of unique system products for filtering (requires Support+ role).
-        Returns product type values that can be used directly in GET /systems?type= query parameter.
-        Respects RBAC hierarchy - users only see products from systems they can access.
+        Aggregated endpoint that returns all system filter data in a single request.
+        Auth is checked once, then products, created_by, versions, and organizations are fetched in parallel.
+        Respects RBAC hierarchy - users only see data from systems they can access.
+
+        **Version Format**: Returns versions in prefixed format `product:version` (e.g., `"nsec:1.2.3"`, `"ns8:1.2.3"`)
+        to avoid ambiguity when the same version number exists for multiple products.
       responses:
         '200':
-          description: Product filters retrieved successfully
+          description: System filters retrieved successfully
           content:
             application/json:
               schema:
@@ -4899,7 +4902,7 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: "product filters retrieved successfully"
+                    example: "system filters retrieved successfully"
                   data:
                     type: object
                     properties:
@@ -4908,39 +4911,6 @@ paths:
                         items:
                           type: string
                         description: List of unique product names (system types)
-                        example: ["NethSecurity", "NethServer", "nsec"]
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /filters/systems/created-by:
-    get:
-      operationId: getFilterCreatedBy
-      tags:
-        - Backend - Filters
-      summary: /filters/systems/created-by - Get available created-by filters
-      description: |
-        Get list of users who created systems for filtering (requires Support+ role).
-        Returns user_id values that can be used directly in GET /systems?created_by= query parameter.
-        Respects RBAC hierarchy - users only see creators from systems they can access.
-      responses:
-        '200':
-          description: Created-by filters retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "created-by filters retrieved successfully"
-                  data:
-                    type: object
-                    properties:
                       created_by:
                         type: array
                         items:
@@ -4954,48 +4924,11 @@ paths:
                               type: string
                               description: User full name from created_by JSONB field
                               example: "Company Owner"
+                            email:
+                              type: string
+                              description: User email from created_by JSONB field
+                              example: "owner@example.com"
                         description: List of users who created systems
-                        example:
-                          - user_id: "pnqjmgmk937x"
-                            name: "Company Owner"
-                          - user_id: "yqleewq6ursf"
-                            name: "Edoardo Super"
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /filters/systems/versions:
-    get:
-      operationId: getFilterVersions
-      tags:
-        - Backend - Filters
-      summary: /filters/systems/versions - Get version filters grouped by product
-      description: |
-        Get system versions grouped by product type for filtering (requires Support+ role).
-        Returns versions organized by product, suitable for hierarchical UI display.
-
-        **Version Format**: Returns versions in prefixed format `product:version` (e.g., `"nsec:1.2.3"`, `"ns8:1.2.3"`)
-        to avoid ambiguity when the same version number exists for multiple products.
-
-        These prefixed values can be used directly in GET /systems?version= query parameter.
-      responses:
-        '200':
-          description: Version filters retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "version filters retrieved successfully"
-                  data:
-                    type: object
-                    properties:
                       versions:
                         type: array
                         items:
@@ -5009,46 +4942,9 @@ paths:
                               type: array
                               items:
                                 type: string
-                              description: List of versions for this product in prefixed format (product:version)
-                              example: ["nsec:8.6.0", "nsec:8.5.2", "nsec:8.4.0"]
-                        description: Versions grouped by product type (each version includes product prefix)
-                        example:
-                          - product: "nsec"
-                            versions: ["nsec:8.6.0", "nsec:8.5.2"]
-                          - product: "ns8"
-                            versions: ["ns8:1.2.3", "ns8:1.1.0"]
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /filters/systems/organizations:
-    get:
-      operationId: getFilterOrganizations
-      tags:
-        - Backend - Filters
-      summary: /filters/systems/organizations - Get available organization filters
-      description: |
-        Get list of organizations with systems for filtering (requires Support+ role, filtered by RBAC).
-        Returns organization logto_id as the id field for compatibility with GET /systems?organization_id= parameter.
-        Respects RBAC hierarchy - users only see organizations they can access.
-      responses:
-        '200':
-          description: Organization filters retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "organization filters retrieved successfully"
-                  data:
-                    type: object
-                    properties:
+                              description: List of versions in prefixed format (product:version)
+                              example: ["nsec:8.6.0", "nsec:8.5.2"]
+                        description: Versions grouped by product type
                       organizations:
                         type: array
                         items:
@@ -5063,11 +4959,25 @@ paths:
                               description: Organization name
                               example: "Customer Organization 3"
                         description: List of organizations with systems
-                        example:
-                          - id: "ug9v4l0m6mwt"
-                            name: "Cust3"
-                          - id: "guwy6opsll17"
-                            name: "Owner"
+              example:
+                code: 200
+                message: "system filters retrieved successfully"
+                data:
+                  products: ["NethSecurity", "NethServer"]
+                  created_by:
+                    - user_id: "pnqjmgmk937x"
+                      name: "Company Owner"
+                      email: "owner@example.com"
+                  versions:
+                    - product: "nsec"
+                      versions: ["nsec:8.6.0", "nsec:8.5.2"]
+                    - product: "ns8"
+                      versions: ["ns8:1.2.3", "ns8:1.1.0"]
+                  organizations:
+                    - id: "ug9v4l0m6mwt"
+                      name: "Cust3"
+                    - id: "guwy6opsll17"
+                      name: "Owner"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -6932,50 +6842,23 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /filters/applications/types:
+  /filters/applications:
     get:
-      operationId: getApplicationTypes
+      operationId: getApplicationFilters
       tags:
         - Backend - Filters
-      summary: /filters/applications/types - Get available application types
-      description: Get list of available application types for filtering
-      responses:
-        '200':
-          description: Application types retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "application types retrieved successfully"
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/ApplicationType'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /filters/applications/versions:
-    get:
-      operationId: getApplicationVersions
-      tags:
-        - Backend - Filters
-      summary: /filters/applications/versions - Get version filters grouped by application type
+      summary: /filters/applications - Get aggregated application filters
       description: |
-        Get application versions grouped by application type (instance_of) for filtering (requires read:applications permission).
-        Returns versions organized by application type, suitable for hierarchical UI display.
+        Aggregated endpoint that returns all application filter data in a single request.
+        RBAC is resolved once, then types, versions, systems, and organizations are fetched in parallel.
 
         **Version Format**: Returns versions in prefixed format `type:version` (e.g., `"nethvoice:1.5.3"`, `"mail:1.7.4"`)
+
+        **Organizations special value**: If there are applications without an assigned organization, the response includes
+        a special "No organization" entry with `id: "no_org"` and `type: "unassigned"`.
       responses:
         '200':
-          description: Application versions retrieved successfully
+          description: Application filters retrieved successfully
           content:
             application/json:
               schema:
@@ -6986,10 +6869,14 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: "application versions retrieved successfully"
+                    example: "application filters retrieved successfully"
                   data:
                     type: object
                     properties:
+                      types:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ApplicationType'
                       versions:
                         type: array
                         items:
@@ -7009,80 +6896,66 @@ paths:
                                 type: string
                               description: Prefixed versions (type:version)
                               example: ["nethvoice:1.5.4", "nethvoice:1.5.3"]
-                    example:
-                      versions:
-                        - application: "mail"
-                          name: "Mail"
-                          versions: ["mail:1.7.4"]
-                        - application: "nethvoice"
-                          name: "NethVoice"
-                          versions: ["nethvoice:1.5.4", "nethvoice:1.5.3"]
-                        - application: "webtop"
-                          name: "WebTop"
-                          versions: ["webtop:1.5.4"]
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /filters/applications/systems:
-    get:
-      operationId: getApplicationSystems
-      tags:
-        - Backend - Filters
-      summary: /filters/applications/systems - Get available systems
-      description: |
-        Get list of systems that have at least one application for filtering.
-        Only returns systems with applications - systems without applications are excluded.
-      responses:
-        '200':
-          description: Systems retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "systems retrieved successfully"
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/ApplicationSystemSummary'
+                      systems:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ApplicationSystemSummary'
+                      organizations:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/OrganizationSummary'
               example:
                 code: 200
-                message: "systems retrieved successfully"
+                message: "application filters retrieved successfully"
                 data:
-                  - id: "abc123-system-uuid"
-                    name: "Production Server"
-                  - id: "def456-system-uuid"
-                    name: "Development Server"
+                  types:
+                    - instance_of: "nethvoice"
+                      name: "NethVoice"
+                      count: 15
+                    - instance_of: "mail"
+                      name: "Mail"
+                      count: 8
+                  versions:
+                    - application: "mail"
+                      name: "Mail"
+                      versions: ["mail:1.7.4"]
+                    - application: "nethvoice"
+                      name: "NethVoice"
+                      versions: ["nethvoice:1.5.4", "nethvoice:1.5.3"]
+                  systems:
+                    - id: "abc123-system-uuid"
+                      name: "Production Server"
+                    - id: "def456-system-uuid"
+                      name: "Development Server"
+                  organizations:
+                    - id: "no_org"
+                      logto_id: "no_org"
+                      name: "No organization"
+                      description: ""
+                      type: "unassigned"
+                    - id: "8b04e253-d408-4218-a30e-b048196847e5"
+                      logto_id: "fso3biosnaqp"
+                      name: "Acme Corp"
+                      description: ""
+                      type: "customer"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /filters/applications/organizations:
+  /filters/users:
     get:
-      operationId: getApplicationOrganizations
+      operationId: getUserFilters
       tags:
         - Backend - Filters
-      summary: /filters/applications/organizations - Get available organizations
+      summary: /filters/users - Get aggregated user filters
       description: |
-        Get list of organizations for application filtering.
-
-        **Special value**: If there are applications without an assigned organization, the response includes
-        a special "No organization" entry as the first item with `id: "null"` and `type: "unassigned"`.
-        Use this value (`no_org`) to filter applications that have no organization assigned.
-
-        Only returns organizations that have at least one application assigned - organizations without
-        applications are excluded (except for the special "No organization" entry).
+        Aggregated endpoint that returns all user filter data in a single request.
+        Auth is checked once, then roles and organizations are fetched in parallel.
+        Respects RBAC hierarchy for both roles and organizations.
       responses:
         '200':
-          description: Organizations retrieved successfully
+          description: User filters retrieved successfully
           content:
             application/json:
               schema:
@@ -7093,56 +6966,7 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: "organizations retrieved successfully"
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/OrganizationSummary'
-              example:
-                code: 200
-                message: "organizations retrieved successfully"
-                data:
-                  - id: "no_org"
-                    logto_id: "no_org"
-                    name: "No organization"
-                    description: ""
-                    type: "unassigned"
-                  - id: "8b04e253-d408-4218-a30e-b048196847e5"
-                    logto_id: "fso3biosnaqp"
-                    name: "Acme Corp"
-                    description: ""
-                    type: "customer"
-                  - id: "83d2f8c3-31be-4878-891e-98f2a363e683"
-                    logto_id: "akkbs6x2wo82"
-                    name: "TechStart Inc"
-                    description: ""
-                    type: "reseller"
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /filters/users/roles:
-    get:
-      operationId: getFilterUsersRoles
-      tags:
-        - Backend - Filters
-      summary: /filters/users/roles - Get available user roles for filtering
-      description: Get list of user roles available for filtering users (requires read:users permission)
-      responses:
-        '200':
-          description: User roles retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "roles retrieved successfully"
+                    example: "user filters retrieved successfully"
                   data:
                     type: object
                     properties:
@@ -7150,39 +6974,6 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/Role'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /filters/users/organizations:
-    get:
-      operationId: getFilterUsersOrganizations
-      tags:
-        - Backend - Filters
-      summary: /filters/users/organizations - Get available organizations for filtering users
-      description: |
-        Get list of organizations available for filtering users (requires read:users permission).
-        Returns all organizations the user can access based on RBAC hierarchy.
-        Unlike /filters/systems/organizations, this returns all accessible organizations
-        regardless of whether they have systems associated.
-      responses:
-        '200':
-          description: Organizations retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "organization filters retrieved successfully"
-                  data:
-                    type: object
-                    properties:
                       organizations:
                         type: array
                         items:
@@ -7201,6 +6992,24 @@ paths:
                               enum: [distributor, reseller, customer]
                               description: Organization type
                               example: "customer"
+              example:
+                code: 200
+                message: "user filters retrieved successfully"
+                data:
+                  roles:
+                    - id: "role_abc123"
+                      name: "Admin"
+                      description: "System administrator"
+                    - id: "role_def456"
+                      name: "Support"
+                      description: "Support operator"
+                  organizations:
+                    - id: "org_abc123"
+                      name: "ACME Corp"
+                      type: "customer"
+                    - id: "org_def456"
+                      name: "TechStart Inc"
+                      type: "reseller"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

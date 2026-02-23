@@ -31,6 +31,22 @@ func GetRoles(c *gin.Context) {
 		return
 	}
 
+	roles, err := FetchFilteredRoles(user)
+	if err != nil {
+		httpLogger := logger.NewHTTPErrorLogger(c, "roles")
+		httpLogger.LogError(err, "get_roles", http.StatusInternalServerError, "Failed to fetch roles from Logto")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch roles", nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("roles retrieved successfully", models.RolesResponse{
+		Roles: roles,
+	}))
+}
+
+// FetchFilteredRoles returns user roles filtered by access control.
+// Extracted for reuse by the aggregated users filters endpoint.
+func FetchFilteredRoles(user *models.User) ([]models.Role, error) {
 	orgRole := strings.ToLower(user.OrgRole)
 
 	// Try Redis cache first
@@ -43,11 +59,7 @@ func GetRoles(c *gin.Context) {
 				Str("cache_key", cacheKey).
 				Int("count", len(cachedRoles)).
 				Msg("Roles served from Redis cache")
-
-			c.JSON(http.StatusOK, response.OK("roles retrieved successfully", models.RolesResponse{
-				Roles: cachedRoles,
-			}))
-			return
+			return cachedRoles, nil
 		}
 	}
 
@@ -56,10 +68,7 @@ func GetRoles(c *gin.Context) {
 	// Fetch all roles from Logto
 	logtoRoles, err := client.GetAllRoles()
 	if err != nil {
-		httpLogger := logger.NewHTTPErrorLogger(c, "roles")
-		httpLogger.LogError(err, "get_roles", http.StatusInternalServerError, "Failed to fetch roles from Logto")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch roles", nil))
-		return
+		return nil, err
 	}
 
 	// Get role cache for access control information
@@ -101,9 +110,7 @@ func GetRoles(c *gin.Context) {
 		Int("accessible_roles", len(roles)).
 		Msg("Roles fetched and filtered successfully")
 
-	c.JSON(http.StatusOK, response.OK("roles retrieved successfully", models.RolesResponse{
-		Roles: roles,
-	}))
+	return roles, nil
 }
 
 // GetOrganizationRoles returns all available organization roles

@@ -20,10 +20,10 @@ import (
 	"github.com/nethesis/my/backend/services/local"
 )
 
-// GetApplicationsInit handles GET /api/applications/init - aggregated endpoint
-// Returns totals, types, versions, and organizations in a single response.
+// GetApplicationFilters handles GET /api/filters/applications - aggregated filters endpoint
+// Returns types, versions, systems, and organizations in a single response.
 // Single RBAC resolution, parallel data fetching.
-func GetApplicationsInit(c *gin.Context) {
+func GetApplicationFilters(c *gin.Context) {
 	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
 	if userID == "" {
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
@@ -32,38 +32,33 @@ func GetApplicationsInit(c *gin.Context) {
 
 	appsService := local.NewApplicationsService()
 
-	// Single RBAC resolution (benefits from Phase 1 cache)
+	// Single RBAC resolution
 	allowedSystemIDs, err := appsService.GetAllowedSystemIDs(userOrgRole, userOrgID)
 	if err != nil {
-		logger.Error().Err(err).Str("user_id", userID).Msg("Failed to get allowed systems for init")
+		logger.Error().Err(err).Str("user_id", userID).Msg("Failed to get allowed systems for filters")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve access", nil))
 		return
 	}
 
 	allowedOrgIDs, err := appsService.GetAllowedOrganizationIDs(userOrgRole, userOrgID)
 	if err != nil {
-		logger.Error().Err(err).Str("user_id", userID).Msg("Failed to get allowed orgs for init")
+		logger.Error().Err(err).Str("user_id", userID).Msg("Failed to get allowed orgs for filters")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve access", nil))
 		return
 	}
 
 	// Run 4 queries in parallel
 	var (
-		totals   *models.ApplicationTotals
 		types    []models.ApplicationType
 		versions map[string]entities.ApplicationVersionGroup
+		systems  []models.SystemSummary
 		orgs     []models.OrganizationSummary
 
-		errTotals, errTypes, errVersions, errOrgs error
-		wg                                        sync.WaitGroup
+		errTypes, errVersions, errSystems, errOrgs error
+		wg                                         sync.WaitGroup
 	)
 
 	wg.Add(4)
-
-	go func() {
-		defer wg.Done()
-		totals, errTotals = appsService.GetApplicationTotalsWithIDs(allowedSystemIDs)
-	}()
 
 	go func() {
 		defer wg.Done()
@@ -77,21 +72,26 @@ func GetApplicationsInit(c *gin.Context) {
 
 	go func() {
 		defer wg.Done()
+		systems, errSystems = appsService.GetAvailableSystemsWithIDs(allowedSystemIDs)
+	}()
+
+	go func() {
+		defer wg.Done()
 		orgs, errOrgs = appsService.GetAvailableOrganizationsWithIDs(allowedOrgIDs)
 	}()
 
 	wg.Wait()
 
 	// Check for errors
-	for _, e := range []error{errTotals, errTypes, errVersions, errOrgs} {
+	for _, e := range []error{errTypes, errVersions, errSystems, errOrgs} {
 		if e != nil {
-			logger.Error().Err(e).Str("user_id", userID).Msg("Failed in applications init")
-			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve applications data", nil))
+			logger.Error().Err(e).Str("user_id", userID).Msg("Failed in application filters")
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve application filters", nil))
 			return
 		}
 	}
 
-	// Convert versions map to sorted array (same format as GetApplicationVersions)
+	// Convert versions map to sorted array
 	type ApplicationVersions struct {
 		Application string   `json:"application"`
 		Name        string   `json:"name"`
@@ -110,10 +110,10 @@ func GetApplicationsInit(c *gin.Context) {
 		return groupedVersions[i].Application < groupedVersions[j].Application
 	})
 
-	c.JSON(http.StatusOK, response.OK("applications init data retrieved successfully", gin.H{
-		"totals":        totals,
+	c.JSON(http.StatusOK, response.OK("application filters retrieved successfully", gin.H{
 		"types":         helpers.EnsureSlice(types),
 		"versions":      groupedVersions,
+		"systems":       helpers.EnsureSlice(systems),
 		"organizations": helpers.EnsureSlice(orgs),
 	}))
 }

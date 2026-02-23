@@ -251,26 +251,19 @@ func main() {
 			// Systems filters (read:systems required)
 			systemsFiltersGroup := filtersGroup.Group("/systems", middleware.RequireResourcePermission("systems"))
 			{
-				systemsFiltersGroup.GET("/products", methods.GetFilterProducts)           // Get unique product types
-				systemsFiltersGroup.GET("/created-by", methods.GetFilterCreatedBy)        // Get users who created systems
-				systemsFiltersGroup.GET("/versions", methods.GetFilterVersions)           // Get unique versions
-				systemsFiltersGroup.GET("/organizations", methods.GetFilterOrganizations) // Get organizations with systems
+				systemsFiltersGroup.GET("", methods.GetSystemFilters) // Aggregated filters: products, created_by, versions, organizations
 			}
 
 			// Applications filters (read:applications required)
 			appsFiltersGroup := filtersGroup.Group("/applications", middleware.RequireResourcePermission("applications"))
 			{
-				appsFiltersGroup.GET("/types", methods.GetApplicationTypes)                 // Get available application types
-				appsFiltersGroup.GET("/versions", methods.GetApplicationVersions)           // Get available versions
-				appsFiltersGroup.GET("/systems", methods.GetApplicationSystems)             // Get available systems
-				appsFiltersGroup.GET("/organizations", methods.GetApplicationOrganizations) // Get available organizations for assignment
+				appsFiltersGroup.GET("", methods.GetApplicationFilters) // Aggregated filters: types, versions, systems, organizations
 			}
 
 			// Users filters (read:users required)
 			usersFiltersGroup := filtersGroup.Group("/users", middleware.RequireResourcePermission("users"))
 			{
-				usersFiltersGroup.GET("/roles", methods.GetRoles)                            // Get available user roles
-				usersFiltersGroup.GET("/organizations", methods.GetFilterUsersOrganizations) // Get organizations for user filtering
+				usersFiltersGroup.GET("", methods.GetUserFilters) // Aggregated filters: roles, organizations
 			}
 		}
 
@@ -402,9 +395,6 @@ func main() {
 		// ===========================================
 		appsGroup := customAuthWithAudit.Group("/applications", middleware.RequireResourcePermission("applications"))
 		{
-			// Aggregated init endpoint (must be before /:id to avoid conflict)
-			appsGroup.GET("/init", methods.GetApplicationsInit) // Combined totals+types+versions+organizations (read:applications required)
-
 			// CRUD operations
 			appsGroup.GET("", methods.GetApplications)          // List applications (read:applications required)
 			appsGroup.GET("/:id", methods.GetApplication)       // Get application (read:applications required)

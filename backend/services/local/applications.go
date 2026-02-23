@@ -277,6 +277,39 @@ func (s *LocalApplicationsService) GetAvailableOrganizationsWithIDs(allowedOrgID
 	return s.getAvailableOrganizationsFromIDs(allowedOrgIDs)
 }
 
+// GetAvailableSystemsWithIDs returns available systems using pre-computed system IDs (avoids re-resolving RBAC)
+func (s *LocalApplicationsService) GetAvailableSystemsWithIDs(allowedSystemIDs []string) ([]models.SystemSummary, error) {
+	if len(allowedSystemIDs) == 0 {
+		return []models.SystemSummary{}, nil
+	}
+
+	query := `
+		SELECT DISTINCT s.id, s.name FROM systems s
+		INNER JOIN applications a ON s.id = a.system_id
+		WHERE s.id = ANY($1::text[]) AND s.deleted_at IS NULL
+		  AND a.deleted_at IS NULL AND a.is_user_facing = TRUE
+		  AND (a.inventory_data->>'certification_level')::int IN (4, 5)
+		ORDER BY s.name
+	`
+
+	rows, err := database.DB.Query(query, pq.Array(allowedSystemIDs))
+	if err != nil {
+		return nil, fmt.Errorf("failed to query systems: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var systems []models.SystemSummary
+	for rows.Next() {
+		var sys models.SystemSummary
+		if err := rows.Scan(&sys.ID, &sys.Name); err != nil {
+			return nil, fmt.Errorf("failed to scan system: %w", err)
+		}
+		systems = append(systems, sys)
+	}
+
+	return systems, nil
+}
+
 // getAvailableOrganizationsFromIDs is the internal implementation that accepts pre-computed org IDs
 func (s *LocalApplicationsService) getAvailableOrganizationsFromIDs(allowedOrgIDs []string) ([]models.OrganizationSummary, error) {
 	var orgs []models.OrganizationSummary
