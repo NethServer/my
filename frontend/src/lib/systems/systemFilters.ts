@@ -11,7 +11,6 @@ export const SYSTEM_FILTERS_KEY = 'systemFilters'
 
 const SYSTEM_FILTERS_PATH = 'filters/systems'
 
-// Types
 export interface ProductVersions {
   product: string
   versions: string[]

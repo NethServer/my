@@ -46,11 +46,8 @@ import {
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import AssignOrganizationDrawer from './AssignOrganizationDrawer.vue'
 import SetNotesDrawer from './SetNotesDrawer.vue'
-import { useTypeFilter } from '@/queries/applications/typeFilter'
-import { useVersionFilter } from '@/queries/applications/versionFilter'
-import { buildVersionFilterOptions } from '@/lib/applications/versionFilter'
-import { useSystemFilter } from '@/queries/applications/systemFilter'
-import { useOrganizationFilter } from '@/queries/applications/organizationFilter'
+import { useApplicationFilters } from '@/queries/applications/applicationFilters'
+import { buildVersionFilterOptions } from '@/lib/applications/applicationFilters'
 
 const { t } = useI18n()
 const {
@@ -69,11 +66,8 @@ const {
   clearFilters,
 } = useApplications()
 
-const { state: typeFilterState, asyncStatus: typeFilterAsyncStatus } = useTypeFilter()
-const { state: versionFilterState, asyncStatus: versionFilterAsyncStatus } = useVersionFilter()
-const { state: systemFilterState, asyncStatus: systemFilterAsyncStatus } = useSystemFilter()
-const { state: organizationFilterState, asyncStatus: organizationFilterAsyncStatus } =
-  useOrganizationFilter()
+const { state: applicationFiltersState, asyncStatus: applicationFiltersAsyncStatus } =
+  useApplicationFilters()
 
 const currentApplication = ref<Application | undefined>()
 const isShownAssignOrgDrawer = ref(false)
@@ -88,10 +82,10 @@ const pagination = computed(() => {
 })
 
 const typeFilterOptions = computed(() => {
-  if (!typeFilterState.value.data || !typeFilterState.value.data) {
+  if (!applicationFiltersState.value.data?.types) {
     return []
   } else {
-    return typeFilterState.value.data.map((appType) => ({
+    return applicationFiltersState.value.data.types.map((appType) => ({
       id: appType.instance_of,
       label: appType.name,
     }))
@@ -99,16 +93,16 @@ const typeFilterOptions = computed(() => {
 })
 
 const versionFilterOptions = computed(() => {
-  if (!versionFilterState.value.data || !versionFilterState.value.data.versions) {
+  if (!applicationFiltersState.value.data?.versions) {
     return []
   } else {
     if (typeFilter.value.length === 0) {
       // no application selected, show all versions
-      return buildVersionFilterOptions(versionFilterState.value.data.versions)
+      return buildVersionFilterOptions(applicationFiltersState.value.data.versions)
     }
 
     // filter versions based on selected applications
-    const applicationVersions = versionFilterState.value.data.versions.filter((el) =>
+    const applicationVersions = applicationFiltersState.value.data.versions.filter((el) =>
       typeFilter.value.includes(el.application),
     )
     return buildVersionFilterOptions(applicationVersions)
@@ -116,10 +110,10 @@ const versionFilterOptions = computed(() => {
 })
 
 const systemFilterOptions = computed(() => {
-  if (!systemFilterState.value.data || !systemFilterState.value.data) {
+  if (!applicationFiltersState.value.data?.systems) {
     return []
   } else {
-    return systemFilterState.value.data.map((appSystem) => ({
+    return applicationFiltersState.value.data.systems.map((appSystem) => ({
       id: appSystem.id,
       label: appSystem.name,
     }))
@@ -127,10 +121,10 @@ const systemFilterOptions = computed(() => {
 })
 
 const organizationFilterOptions = computed(() => {
-  if (!organizationFilterState.value.data) {
+  if (!applicationFiltersState.value.data?.organizations) {
     return []
   } else {
-    return organizationFilterState.value.data.map((org) => ({
+    return applicationFiltersState.value.data.organizations.map((org) => ({
       id: org.logto_id,
       label: org.logto_id === 'no_org' ? t('applications.no_organization') : org.name,
     }))
@@ -246,7 +240,10 @@ const onSort = (payload: SortEvent) => {
             <NeDropdownFilter
               v-model="typeFilter"
               kind="checkbox"
-              :disabled="typeFilterAsyncStatus === 'loading' || typeFilterState.status === 'error'"
+              :disabled="
+                applicationFiltersAsyncStatus === 'loading' ||
+                applicationFiltersState.status === 'error'
+              "
               :label="t('applications.type')"
               :options="typeFilterOptions"
               show-options-filter
@@ -260,7 +257,8 @@ const onSort = (payload: SortEvent) => {
               v-model="versionFilter"
               kind="checkbox"
               :disabled="
-                versionFilterAsyncStatus === 'loading' || versionFilterState.status === 'error'
+                applicationFiltersAsyncStatus === 'loading' ||
+                applicationFiltersState.status === 'error'
               "
               :label="t('applications.version')"
               :options="versionFilterOptions"
@@ -275,7 +273,8 @@ const onSort = (payload: SortEvent) => {
               v-model="systemFilter"
               kind="checkbox"
               :disabled="
-                systemFilterAsyncStatus === 'loading' || systemFilterState.status === 'error'
+                applicationFiltersAsyncStatus === 'loading' ||
+                applicationFiltersState.status === 'error'
               "
               :label="t('systems.system')"
               :options="systemFilterOptions"
@@ -290,8 +289,8 @@ const onSort = (payload: SortEvent) => {
               v-model="organizationFilter"
               kind="checkbox"
               :disabled="
-                organizationFilterAsyncStatus === 'loading' ||
-                organizationFilterState.status === 'error'
+                applicationFiltersAsyncStatus === 'loading' ||
+                applicationFiltersState.status === 'error'
               "
               :label="t('organizations.organization')"
               :options="organizationFilterOptions"
