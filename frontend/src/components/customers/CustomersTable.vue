@@ -16,6 +16,7 @@ import {
   faRotateLeft,
   faBomb,
   faServer,
+  faEye,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -36,6 +37,7 @@ import {
   NeSortDropdown,
   NeDropdownFilter,
   type FilterOption,
+  type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import CreateOrEditCustomerDrawer from './CreateOrEditCustomerDrawer.vue'
@@ -48,6 +50,7 @@ import DestroyCustomerModal from './DestroyCustomerModal.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useCustomers } from '@/queries/organizations/customers'
 import { canManageCustomers, canDestroyCustomers } from '@/lib/permissions'
+import router from '@/router'
 
 const { isShownCreateCustomerDrawer = false } = defineProps<{
   isShownCreateCustomerDrawer: boolean
@@ -171,9 +174,19 @@ function onCloseDrawer() {
 }
 
 function getKebabMenuItems(customer: Customer) {
-  const items = []
+  const items: NeDropdownItem[] = []
 
   if (canManageCustomers()) {
+    if (!customer.deleted_at) {
+      items.push({
+        id: 'editCustomer',
+        label: t('common.edit'),
+        icon: faPenToSquare,
+        action: () => showEditCustomerDrawer(customer),
+        disabled: asyncStatus.value === 'loading',
+      })
+    }
+
     if (customer.suspended_at) {
       items.push({
         id: 'reactivateCustomer',
@@ -235,6 +248,10 @@ function getKebabMenuItems(customer: Customer) {
 const onSort = (payload: SortEvent) => {
   sortBy.value = payload.key as keyof Customer
   sortDescending.value = payload.descending
+}
+
+const goToCustomerDetails = (customer: Customer) => {
+  router.push({ name: 'customer_detail', params: { companyId: customer.logto_id } })
 }
 </script>
 
@@ -410,20 +427,23 @@ const onSort = (payload: SortEvent) => {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div v-if="canManageCustomers()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+            <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
               <NeButton
                 v-if="!item.deleted_at"
                 kind="tertiary"
-                @click="showEditCustomerDrawer(item)"
-                :disabled="asyncStatus === 'loading'"
+                @click="goToCustomerDetails(item)"
               >
                 <template #prefix>
-                  <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
+                  <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
                 </template>
-                {{ $t('common.edit') }}
+                {{ $t('common.view') }}
               </NeButton>
               <!-- kebab menu -->
-              <NeDropdown :items="getKebabMenuItems(item)" :align-to-right="true" />
+              <NeDropdown
+                v-if="canManageCustomers() || canDestroyCustomers()"
+                :items="getKebabMenuItems(item)"
+                :align-to-right="true"
+              />
             </div>
           </NeTableCell>
         </NeTableRow>

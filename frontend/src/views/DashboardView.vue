@@ -105,8 +105,8 @@ const { state: thirdPartyApps } = useQuery({
             <div class="flex items-center gap-3">
               <NeRoundedIcon
                 :customIcon="getThirdPartyAppIcon(thirdPartyApp)"
-                customBackgroundClasses="bg-indigo-100 dark:bg-indigo-800"
-                customForegroundClasses="text-indigo-700 dark:text-indigo-50"
+                customBackgroundClasses="bg-gray-100 dark:bg-gray-500"
+                customForegroundClasses="text-gray-700 dark:text-gray-50"
               />
               <NeHeading tag="h6">
                 {{ thirdPartyApp.branding.display_name }}

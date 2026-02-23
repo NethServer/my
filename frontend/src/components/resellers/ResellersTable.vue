@@ -17,6 +17,7 @@ import {
   faBomb,
   faServer,
   faBuilding,
+  faEye,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -37,6 +38,7 @@ import {
   NeSortDropdown,
   NeDropdownFilter,
   type FilterOption,
+  type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import CreateOrEditResellerDrawer from './CreateOrEditResellerDrawer.vue'
@@ -49,6 +51,7 @@ import DestroyResellerModal from './DestroyResellerModal.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useResellers } from '@/queries/organizations/resellers'
 import { canManageResellers, canDestroyResellers } from '@/lib/permissions'
+import router from '@/router'
 
 const { isShownCreateResellerDrawer = false } = defineProps<{
   isShownCreateResellerDrawer: boolean
@@ -172,9 +175,19 @@ function onCloseDrawer() {
 }
 
 function getKebabMenuItems(reseller: Reseller) {
-  const items = []
+  const items: NeDropdownItem[] = []
 
   if (canManageResellers()) {
+    if (!reseller.deleted_at) {
+      items.push({
+        id: 'editReseller',
+        label: t('common.edit'),
+        icon: faPenToSquare,
+        action: () => showEditResellerDrawer(reseller),
+        disabled: asyncStatus.value === 'loading',
+      })
+    }
+
     if (reseller.suspended_at) {
       items.push({
         id: 'reactivateReseller',
@@ -236,6 +249,10 @@ function getKebabMenuItems(reseller: Reseller) {
 const onSort = (payload: SortEvent) => {
   sortBy.value = payload.key as keyof Reseller
   sortDescending.value = payload.descending
+}
+
+const goToResellerDetails = (reseller: Reseller) => {
+  router.push({ name: 'reseller_detail', params: { companyId: reseller.logto_id } })
 }
 </script>
 
@@ -422,20 +439,19 @@ const onSort = (payload: SortEvent) => {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div v-if="canManageResellers()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
-              <NeButton
-                v-if="!item.deleted_at"
-                kind="tertiary"
-                @click="showEditResellerDrawer(item)"
-                :disabled="asyncStatus === 'loading'"
-              >
+            <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+              <NeButton v-if="!item.deleted_at" kind="tertiary" @click="goToResellerDetails(item)">
                 <template #prefix>
-                  <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
+                  <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
                 </template>
-                {{ $t('common.edit') }}
+                {{ $t('common.view') }}
               </NeButton>
               <!-- kebab menu -->
-              <NeDropdown :items="getKebabMenuItems(item)" :align-to-right="true" />
+              <NeDropdown
+                v-if="canManageResellers() || canDestroyResellers()"
+                :items="getKebabMenuItems(item)"
+                :align-to-right="true"
+              />
             </div>
           </NeTableCell>
         </NeTableRow>
