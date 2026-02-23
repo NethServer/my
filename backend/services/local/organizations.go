@@ -201,6 +201,7 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 		Str("created_by", createdByUserID).
 		Msg("Distributor created successfully with Logto sync")
 
+	refreshUnifiedOrganizationsAsync()
 	return distributor, nil
 }
 
@@ -361,6 +362,7 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 		Str("created_by", createdByUserID).
 		Msg("Reseller created successfully with Logto sync")
 
+	refreshUnifiedOrganizationsAsync()
 	return reseller, nil
 }
 
@@ -523,6 +525,7 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 		Str("created_by", createdByUserID).
 		Msg("Customer created successfully with Logto sync")
 
+	refreshUnifiedOrganizationsAsync()
 	return customer, nil
 }
 
@@ -823,6 +826,7 @@ func (s *LocalOrganizationService) UpdateDistributor(id string, req *models.Upda
 		Str("updated_by", updatedByUserID).
 		Msg("Distributor updated successfully with Logto sync")
 
+	refreshUnifiedOrganizationsAsync()
 	return distributor, nil
 }
 
@@ -1033,6 +1037,7 @@ func (s *LocalOrganizationService) UpdateReseller(id string, req *models.UpdateL
 		Str("updated_by", updatedByUserID).
 		Msg("Reseller updated successfully with Logto sync")
 
+	refreshUnifiedOrganizationsAsync()
 	return reseller, nil
 }
 
@@ -1243,6 +1248,7 @@ func (s *LocalOrganizationService) UpdateCustomer(id string, req *models.UpdateL
 		Str("updated_by", updatedByUserID).
 		Msg("Customer updated successfully with Logto sync")
 
+	refreshUnifiedOrganizationsAsync()
 	return customer, nil
 }
 
@@ -1313,6 +1319,7 @@ func (s *LocalOrganizationService) DeleteDistributor(id, deletedByUserID, delete
 		Int("deleted_users", deletedUsersCount).
 		Msg("Distributor soft-deleted successfully")
 
+	refreshUnifiedOrganizationsAsync()
 	return deletedSystemsCount, deletedUsersCount, nil
 }
 
@@ -1371,6 +1378,7 @@ func (s *LocalOrganizationService) DeleteReseller(id, deletedByUserID, deletedBy
 		Int("deleted_users", deletedUsersCount).
 		Msg("Reseller soft-deleted successfully")
 
+	refreshUnifiedOrganizationsAsync()
 	return deletedSystemsCount, deletedUsersCount, nil
 }
 
@@ -1420,6 +1428,7 @@ func (s *LocalOrganizationService) DeleteCustomer(id, deletedByUserID, deletedBy
 		Int("deleted_users", deletedUsersCount).
 		Msg("Customer soft-deleted successfully")
 
+	refreshUnifiedOrganizationsAsync()
 	return deletedSystemsCount, deletedUsersCount, nil
 }
 
@@ -1474,6 +1483,7 @@ func (s *LocalOrganizationService) RestoreDistributor(id, restoredByUserID, rest
 		Int("restored_users", restoredUsersCount).
 		Msg("Distributor restored successfully")
 
+	refreshUnifiedOrganizationsAsync()
 	return restoredSystemsCount, restoredUsersCount, nil
 }
 
@@ -1524,6 +1534,7 @@ func (s *LocalOrganizationService) RestoreReseller(id, restoredByUserID, restore
 		Int("restored_users", restoredUsersCount).
 		Msg("Reseller restored successfully")
 
+	refreshUnifiedOrganizationsAsync()
 	return restoredSystemsCount, restoredUsersCount, nil
 }
 
@@ -1574,6 +1585,7 @@ func (s *LocalOrganizationService) RestoreCustomer(id, restoredByUserID, restore
 		Int("restored_users", restoredUsersCount).
 		Msg("Customer restored successfully")
 
+	refreshUnifiedOrganizationsAsync()
 	return restoredSystemsCount, restoredUsersCount, nil
 }
 
@@ -1665,6 +1677,7 @@ func (s *LocalOrganizationService) DestroyDistributor(id, destroyedByUserID, des
 		Int("child_customers", len(childCustomerLogtoIDs)).
 		Msg("Distributor permanently destroyed with entire hierarchy")
 
+	refreshUnifiedOrganizationsAsync()
 	return nil
 }
 
@@ -1735,6 +1748,7 @@ func (s *LocalOrganizationService) DestroyReseller(id, destroyedByUserID, destro
 		Int("child_customers", len(childCustomerLogtoIDs)).
 		Msg("Reseller permanently destroyed with child hierarchy")
 
+	refreshUnifiedOrganizationsAsync()
 	return nil
 }
 
@@ -1783,6 +1797,7 @@ func (s *LocalOrganizationService) DestroyCustomer(id, destroyedByUserID, destro
 		Str("destroyed_by", destroyedByUserID).
 		Msg("Customer permanently destroyed")
 
+	refreshUnifiedOrganizationsAsync()
 	return nil
 }
 
@@ -2658,4 +2673,14 @@ func (s *LocalOrganizationService) cascadeReactivateSystems(orgLogtoID, orgType,
 		Msg("Completed cascade system reactivation for organization")
 
 	return count, nil
+}
+
+// refreshUnifiedOrganizationsAsync refreshes the unified_organizations materialized
+// view in a background goroutine. Called after organization CRUD operations.
+func refreshUnifiedOrganizationsAsync() {
+	go func() {
+		if err := database.RefreshUnifiedOrganizations(); err != nil {
+			logger.Warn().Err(err).Msg("Failed to refresh unified_organizations materialized view")
+		}
+	}()
 }

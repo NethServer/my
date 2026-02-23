@@ -57,6 +57,16 @@ func Init() error {
 	return nil
 }
 
+// RefreshUnifiedOrganizations refreshes the unified_organizations materialized view.
+// Uses CONCURRENTLY to avoid locking reads during refresh.
+func RefreshUnifiedOrganizations() error {
+	_, err := DB.Exec("REFRESH MATERIALIZED VIEW CONCURRENTLY unified_organizations")
+	if err != nil {
+		return fmt.Errorf("failed to refresh unified_organizations: %w", err)
+	}
+	return nil
+}
+
 // Close closes the database connection
 func Close() error {
 	if DB != nil {

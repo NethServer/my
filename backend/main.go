@@ -78,6 +78,11 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to initialize database connection")
 	}
 
+	// Refresh unified_organizations materialized view
+	if err := database.RefreshUnifiedOrganizations(); err != nil {
+		logger.Warn().Err(err).Msg("Failed to refresh unified_organizations materialized view")
+	}
+
 	// Initialize Redis cache
 	err = cache.InitRedis()
 	if err != nil {

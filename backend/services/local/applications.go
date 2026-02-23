@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/lib/pq"
 	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/entities"
@@ -120,6 +121,8 @@ func (s *LocalApplicationsService) AssignOrganization(id string, req *models.Ass
 		return err
 	}
 
+	cache.GetAppsCache().InvalidateAll()
+
 	logger.Info().
 		Str("application_id", id).
 		Str("module_id", app.ModuleID).
@@ -148,6 +151,8 @@ func (s *LocalApplicationsService) UnassignOrganization(id, userOrgRole, userOrg
 		return err
 	}
 
+	cache.GetAppsCache().InvalidateAll()
+
 	logger.Info().
 		Str("application_id", id).
 		Str("module_id", app.ModuleID).
@@ -174,6 +179,8 @@ func (s *LocalApplicationsService) DeleteApplication(id, userOrgRole, userOrgID 
 		return err
 	}
 
+	cache.GetAppsCache().InvalidateAll()
+
 	logger.Info().
 		Str("application_id", id).
 		Str("module_id", app.ModuleID).
@@ -185,32 +192,69 @@ func (s *LocalApplicationsService) DeleteApplication(id, userOrgRole, userOrgID 
 
 // GetApplicationTotals returns statistics for applications
 func (s *LocalApplicationsService) GetApplicationTotals(userOrgRole, userOrgID string) (*models.ApplicationTotals, error) {
+	// Check cache
+	ac := cache.GetAppsCache()
+	var cached models.ApplicationTotals
+	if ac.Get("totals", userOrgRole, userOrgID, &cached) {
+		return &cached, nil
+	}
+
 	allowedSystemIDs, err := s.getAllowedSystemIDs(userOrgRole, userOrgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get allowed systems: %w", err)
 	}
 
-	return s.repo.GetTotals(allowedSystemIDs, true) // userFacingOnly
+	result, err := s.repo.GetTotals(allowedSystemIDs, true) // userFacingOnly
+	if err != nil {
+		return nil, err
+	}
+
+	ac.Set("totals", userOrgRole, userOrgID, result)
+	return result, nil
 }
 
 // GetApplicationTypes returns distinct application types
 func (s *LocalApplicationsService) GetApplicationTypes(userOrgRole, userOrgID string) ([]models.ApplicationType, error) {
+	ac := cache.GetAppsCache()
+	var cached []models.ApplicationType
+	if ac.Get("types", userOrgRole, userOrgID, &cached) {
+		return cached, nil
+	}
+
 	allowedSystemIDs, err := s.getAllowedSystemIDs(userOrgRole, userOrgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get allowed systems: %w", err)
 	}
 
-	return s.repo.GetDistinctTypes(allowedSystemIDs, true)
+	result, err := s.repo.GetDistinctTypes(allowedSystemIDs, true)
+	if err != nil {
+		return nil, err
+	}
+
+	ac.Set("types", userOrgRole, userOrgID, result)
+	return result, nil
 }
 
 // GetApplicationVersions returns distinct application versions grouped by instance_of
 func (s *LocalApplicationsService) GetApplicationVersions(userOrgRole, userOrgID string) (map[string]entities.ApplicationVersionGroup, error) {
+	ac := cache.GetAppsCache()
+	var cached map[string]entities.ApplicationVersionGroup
+	if ac.Get("versions", userOrgRole, userOrgID, &cached) {
+		return cached, nil
+	}
+
 	allowedSystemIDs, err := s.getAllowedSystemIDs(userOrgRole, userOrgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get allowed systems: %w", err)
 	}
 
-	return s.repo.GetDistinctVersions(allowedSystemIDs, true)
+	result, err := s.repo.GetDistinctVersions(allowedSystemIDs, true)
+	if err != nil {
+		return nil, err
+	}
+
+	ac.Set("versions", userOrgRole, userOrgID, result)
+	return result, nil
 }
 
 // GetApplicationTotalsWithIDs returns statistics using pre-computed system IDs (avoids re-resolving RBAC)
@@ -259,32 +303,13 @@ func (s *LocalApplicationsService) getAvailableOrganizationsFromIDs(allowedOrgID
 		return orgs, nil
 	}
 
-	n := len(allowedOrgIDs)
-	placeholders1 := make([]string, n)
-	placeholders2 := make([]string, n)
-	placeholders3 := make([]string, n)
-	allArgs := make([]interface{}, 0, n*3)
-
-	for i, orgID := range allowedOrgIDs {
-		placeholders1[i] = fmt.Sprintf("$%d", i+1)
-		placeholders2[i] = fmt.Sprintf("$%d", n+i+1)
-		placeholders3[i] = fmt.Sprintf("$%d", 2*n+i+1)
-		allArgs = append(allArgs, orgID)
-	}
-	for _, orgID := range allowedOrgIDs {
-		allArgs = append(allArgs, orgID)
-	}
-	for _, orgID := range allowedOrgIDs {
-		allArgs = append(allArgs, orgID)
-	}
-
-	query := fmt.Sprintf(`
+	query := `
 		WITH all_orgs AS (
-			SELECT id::text, logto_id, name, 'distributor' AS type FROM distributors WHERE deleted_at IS NULL AND logto_id IN (%s)
+			SELECT id::text, logto_id, name, 'distributor' AS type FROM distributors WHERE deleted_at IS NULL AND logto_id = ANY($1::text[])
 			UNION ALL
-			SELECT id::text, logto_id, name, 'reseller' AS type FROM resellers WHERE deleted_at IS NULL AND logto_id IN (%s)
+			SELECT id::text, logto_id, name, 'reseller' AS type FROM resellers WHERE deleted_at IS NULL AND logto_id = ANY($1::text[])
 			UNION ALL
-			SELECT id::text, logto_id, name, 'customer' AS type FROM customers WHERE deleted_at IS NULL AND logto_id IN (%s)
+			SELECT id::text, logto_id, name, 'customer' AS type FROM customers WHERE deleted_at IS NULL AND logto_id = ANY($1::text[])
 		)
 		SELECT DISTINCT o.id, o.logto_id, o.name, o.type
 		FROM all_orgs o
@@ -292,9 +317,9 @@ func (s *LocalApplicationsService) getAvailableOrganizationsFromIDs(allowedOrgID
 		WHERE a.deleted_at IS NULL AND a.is_user_facing = TRUE
 		  AND (a.inventory_data->>'certification_level')::int IN (4, 5)
 		ORDER BY o.name
-	`, strings.Join(placeholders1, ","), strings.Join(placeholders2, ","), strings.Join(placeholders3, ","))
+	`
 
-	rows, err := database.DB.Query(query, allArgs...)
+	rows, err := database.DB.Query(query, pq.Array(allowedOrgIDs))
 	if err != nil {
 		return nil, fmt.Errorf("failed to query organizations: %w", err)
 	}
@@ -350,20 +375,12 @@ func (s *LocalApplicationsService) GetAllowedSystemIDs(userOrgRole, userOrgID st
 		return []string{}, nil
 	}
 
-	// Build query to get system IDs for allowed organizations
-	placeholders := make([]string, len(allowedOrgIDs))
-	args := make([]interface{}, len(allowedOrgIDs))
-	for i, orgID := range allowedOrgIDs {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		args[i] = orgID
-	}
-
-	query := fmt.Sprintf(`
+	query := `
 		SELECT id FROM systems
-		WHERE deleted_at IS NULL AND created_by ->> 'organization_id' IN (%s)
-	`, strings.Join(placeholders, ","))
+		WHERE deleted_at IS NULL AND created_by ->> 'organization_id' = ANY($1::text[])
+	`
 
-	rows, err := database.DB.Query(query, args...)
+	rows, err := database.DB.Query(query, pq.Array(allowedOrgIDs))
 	if err != nil {
 		return nil, fmt.Errorf("failed to query systems: %w", err)
 	}
@@ -474,22 +491,15 @@ func (s *LocalApplicationsService) computeAllowedOrganizationIDs(normalizedRole,
 
 		// Get child customers (direct and through resellers)
 		if len(resellerIDs) > 0 {
-			placeholders := make([]string, len(resellerIDs)+1)
-			args := make([]interface{}, len(resellerIDs)+1)
-			args[0] = userOrgID
-			placeholders[0] = "$1"
-			for i, rid := range resellerIDs {
-				placeholders[i+1] = fmt.Sprintf("$%d", i+2)
-				args[i+1] = rid
-			}
+			createdByIDs := append([]string{userOrgID}, resellerIDs...)
 
-			customerQuery := fmt.Sprintf(`
+			customerQuery := `
 				SELECT logto_id FROM customers
 				WHERE deleted_at IS NULL AND logto_id IS NOT NULL
-				AND (custom_data->>'createdBy' = $1 OR custom_data->>'createdBy' IN (%s))
-			`, strings.Join(placeholders[1:], ","))
+				AND custom_data->>'createdBy' = ANY($1::text[])
+			`
 
-			customerRows, err := database.DB.Query(customerQuery, args...)
+			customerRows, err := database.DB.Query(customerQuery, pq.Array(createdByIDs))
 			if err != nil {
 				return nil, fmt.Errorf("failed to query customers: %w", err)
 			}
@@ -718,18 +728,11 @@ func (s *LocalApplicationsService) getChildOrganizationIDs(orgID string) ([]stri
 		// Get child customers (direct + through resellers)
 		createdByIDs := append([]string{orgID}, resellerIDs...)
 		if len(createdByIDs) > 0 {
-			placeholders := make([]string, len(createdByIDs))
-			args := make([]interface{}, len(createdByIDs))
-			for i, id := range createdByIDs {
-				placeholders[i] = fmt.Sprintf("$%d", i+1)
-				args[i] = id
-			}
-
-			customerRows, err := database.DB.Query(fmt.Sprintf(`
+			customerRows, err := database.DB.Query(`
 				SELECT logto_id FROM customers
 				WHERE deleted_at IS NULL AND logto_id IS NOT NULL
-				AND custom_data->>'createdBy' IN (%s)
-			`, strings.Join(placeholders, ",")), args...)
+				AND custom_data->>'createdBy' = ANY($1::text[])
+			`, pq.Array(createdByIDs))
 			if err != nil {
 				return nil, fmt.Errorf("failed to query child customers: %w", err)
 			}
@@ -773,6 +776,12 @@ func (s *LocalApplicationsService) getChildOrganizationIDs(orgID string) ([]stri
 
 // GetAvailableSystems returns list of systems that have applications (for filter dropdown)
 func (s *LocalApplicationsService) GetAvailableSystems(userOrgRole, userOrgID string) ([]models.SystemSummary, error) {
+	ac := cache.GetAppsCache()
+	var cached []models.SystemSummary
+	if ac.Get("systems", userOrgRole, userOrgID, &cached) {
+		return cached, nil
+	}
+
 	allowedSystemIDs, err := s.getAllowedSystemIDs(userOrgRole, userOrgID)
 	if err != nil {
 		return nil, err
@@ -782,24 +791,17 @@ func (s *LocalApplicationsService) GetAvailableSystems(userOrgRole, userOrgID st
 		return []models.SystemSummary{}, nil
 	}
 
-	placeholders := make([]string, len(allowedSystemIDs))
-	args := make([]interface{}, len(allowedSystemIDs))
-	for i, sysID := range allowedSystemIDs {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		args[i] = sysID
-	}
-
 	// Only return systems that have at least one application with certification level 4 or 5
-	query := fmt.Sprintf(`
+	query := `
 		SELECT DISTINCT s.id, s.name FROM systems s
 		INNER JOIN applications a ON s.id = a.system_id
-		WHERE s.id IN (%s) AND s.deleted_at IS NULL
+		WHERE s.id = ANY($1::text[]) AND s.deleted_at IS NULL
 		  AND a.deleted_at IS NULL AND a.is_user_facing = TRUE
 		  AND (a.inventory_data->>'certification_level')::int IN (4, 5)
 		ORDER BY s.name
-	`, strings.Join(placeholders, ","))
+	`
 
-	rows, err := database.DB.Query(query, args...)
+	rows, err := database.DB.Query(query, pq.Array(allowedSystemIDs))
 	if err != nil {
 		return nil, fmt.Errorf("failed to query systems: %w", err)
 	}
@@ -814,92 +816,28 @@ func (s *LocalApplicationsService) GetAvailableSystems(userOrgRole, userOrgID st
 		systems = append(systems, sys)
 	}
 
+	ac.Set("systems", userOrgRole, userOrgID, systems)
 	return systems, nil
 }
 
 // GetAvailableOrganizations returns list of organizations that have applications (for filter dropdown)
 func (s *LocalApplicationsService) GetAvailableOrganizations(userOrgRole, userOrgID string) ([]models.OrganizationSummary, error) {
+	ac := cache.GetAppsCache()
+	var cached []models.OrganizationSummary
+	if ac.Get("orgs", userOrgRole, userOrgID, &cached) {
+		return cached, nil
+	}
+
 	allowedOrgIDs, err := s.getAllowedOrganizationIDs(userOrgRole, userOrgID)
 	if err != nil {
 		return nil, err
 	}
 
-	var orgs []models.OrganizationSummary
-
-	// Check if there are applications without organization (for "No organization" option)
-	var hasUnassigned bool
-	err = database.DB.QueryRow(`
-		SELECT EXISTS(SELECT 1 FROM applications WHERE (organization_id IS NULL OR organization_id = '') AND deleted_at IS NULL AND is_user_facing = TRUE AND (inventory_data->>'certification_level')::int IN (4, 5))
-	`).Scan(&hasUnassigned)
+	result, err := s.getAvailableOrganizationsFromIDs(allowedOrgIDs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to check unassigned applications: %w", err)
+		return nil, err
 	}
 
-	// Add "No organization" option first if there are unassigned applications
-	if hasUnassigned {
-		orgs = append(orgs, models.OrganizationSummary{
-			ID:      "no_org",
-			LogtoID: "no_org",
-			Name:    "No organization",
-			Type:    "unassigned",
-		})
-	}
-
-	if len(allowedOrgIDs) == 0 {
-		return orgs, nil
-	}
-
-	// Build placeholders for allowed org IDs - need different placeholders for each UNION part
-	n := len(allowedOrgIDs)
-	placeholders1 := make([]string, n)
-	placeholders2 := make([]string, n)
-	placeholders3 := make([]string, n)
-	allArgs := make([]interface{}, 0, n*3)
-
-	for i, orgID := range allowedOrgIDs {
-		placeholders1[i] = fmt.Sprintf("$%d", i+1)
-		placeholders2[i] = fmt.Sprintf("$%d", n+i+1)
-		placeholders3[i] = fmt.Sprintf("$%d", 2*n+i+1)
-		allArgs = append(allArgs, orgID)
-	}
-	for _, orgID := range allowedOrgIDs {
-		allArgs = append(allArgs, orgID)
-	}
-	for _, orgID := range allowedOrgIDs {
-		allArgs = append(allArgs, orgID)
-	}
-
-	// Query organizations that have at least one application assigned
-	// UNION all organization tables, then INNER JOIN with applications
-	query := fmt.Sprintf(`
-		WITH all_orgs AS (
-			SELECT id::text, logto_id, name, 'distributor' AS type FROM distributors WHERE deleted_at IS NULL AND logto_id IN (%s)
-			UNION ALL
-			SELECT id::text, logto_id, name, 'reseller' AS type FROM resellers WHERE deleted_at IS NULL AND logto_id IN (%s)
-			UNION ALL
-			SELECT id::text, logto_id, name, 'customer' AS type FROM customers WHERE deleted_at IS NULL AND logto_id IN (%s)
-		)
-		SELECT DISTINCT o.id, o.logto_id, o.name, o.type
-		FROM all_orgs o
-		INNER JOIN applications a ON a.organization_id = o.logto_id
-		WHERE a.deleted_at IS NULL AND a.is_user_facing = TRUE
-		  AND (a.inventory_data->>'certification_level')::int IN (4, 5)
-		ORDER BY o.name
-	`, strings.Join(placeholders1, ","), strings.Join(placeholders2, ","), strings.Join(placeholders3, ","))
-
-	rows, err := database.DB.Query(query, allArgs...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query organizations: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	for rows.Next() {
-		var org models.OrganizationSummary
-		if err := rows.Scan(&org.ID, &org.LogtoID, &org.Name, &org.Type); err != nil {
-			return nil, fmt.Errorf("failed to scan organization: %w", err)
-		}
-		orgs = append(orgs, org)
-	}
-
-	return orgs, nil
+	ac.Set("orgs", userOrgRole, userOrgID, result)
+	return result, nil
 }

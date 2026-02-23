@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lib/pq"
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/models"
 )
@@ -162,19 +163,9 @@ func (r *LocalApplicationRepository) List(
 
 	offset := (page - 1) * pageSize
 
-	// Build placeholders for allowed systems
-	placeholders := make([]string, len(allowedSystemIDs))
-	baseArgs := make([]interface{}, len(allowedSystemIDs))
-	for i, sysID := range allowedSystemIDs {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		baseArgs[i] = sysID
-	}
-	placeholdersStr := strings.Join(placeholders, ",")
-
-	// Build WHERE clause
-	whereClause := fmt.Sprintf("a.deleted_at IS NULL AND a.system_id IN (%s)", placeholdersStr)
-	args := make([]interface{}, len(baseArgs))
-	copy(args, baseArgs)
+	// Use ANY($1::text[]) for allowed system IDs (single parameter instead of N placeholders)
+	whereClause := "a.deleted_at IS NULL AND a.system_id = ANY($1::text[])"
+	args := []interface{}{pq.Array(allowedSystemIDs)}
 
 	// User-facing filter
 	if userFacingOnly {
@@ -194,13 +185,8 @@ func (r *LocalApplicationRepository) List(
 
 	// Filter by types (instance_of)
 	if len(filterTypes) > 0 {
-		typePlaceholders := make([]string, len(filterTypes))
-		baseIndex := len(args)
-		for i, t := range filterTypes {
-			typePlaceholders[i] = fmt.Sprintf("$%d", baseIndex+i+1)
-			args = append(args, t)
-		}
-		whereClause += fmt.Sprintf(" AND a.instance_of IN (%s)", strings.Join(typePlaceholders, ","))
+		whereClause += fmt.Sprintf(" AND a.instance_of = ANY($%d::text[])", len(args)+1)
+		args = append(args, pq.Array(filterTypes))
 	}
 
 	// Filter by versions
@@ -234,13 +220,8 @@ func (r *LocalApplicationRepository) List(
 
 	// Filter by system IDs (additional filter within allowed)
 	if len(filterSystemIDs) > 0 {
-		sysPlaceholders := make([]string, len(filterSystemIDs))
-		baseIndex := len(args)
-		for i, sid := range filterSystemIDs {
-			sysPlaceholders[i] = fmt.Sprintf("$%d", baseIndex+i+1)
-			args = append(args, sid)
-		}
-		whereClause += fmt.Sprintf(" AND a.system_id IN (%s)", strings.Join(sysPlaceholders, ","))
+		whereClause += fmt.Sprintf(" AND a.system_id = ANY($%d::text[])", len(args)+1)
+		args = append(args, pq.Array(filterSystemIDs))
 	}
 
 	// Filter by organization IDs (handle "no_org" for unassigned applications)
@@ -262,13 +243,8 @@ func (r *LocalApplicationRepository) List(
 		}
 
 		if len(nonNullOrgIDs) > 0 {
-			orgPlaceholders := make([]string, len(nonNullOrgIDs))
-			baseIndex := len(args)
-			for i, oid := range nonNullOrgIDs {
-				orgPlaceholders[i] = fmt.Sprintf("$%d", baseIndex+i+1)
-				args = append(args, oid)
-			}
-			orgConditions = append(orgConditions, fmt.Sprintf("a.organization_id IN (%s)", strings.Join(orgPlaceholders, ",")))
+			orgConditions = append(orgConditions, fmt.Sprintf("a.organization_id = ANY($%d::text[])", len(args)+1))
+			args = append(args, pq.Array(nonNullOrgIDs))
 		}
 
 		if len(orgConditions) > 0 {
@@ -278,13 +254,8 @@ func (r *LocalApplicationRepository) List(
 
 	// Filter by statuses
 	if len(filterStatuses) > 0 {
-		statusPlaceholders := make([]string, len(filterStatuses))
-		baseIndex := len(args)
-		for i, st := range filterStatuses {
-			statusPlaceholders[i] = fmt.Sprintf("$%d", baseIndex+i+1)
-			args = append(args, st)
-		}
-		whereClause += fmt.Sprintf(" AND a.status IN (%s)", strings.Join(statusPlaceholders, ","))
+		whereClause += fmt.Sprintf(" AND a.status = ANY($%d::text[])", len(args)+1)
+		args = append(args, pq.Array(filterStatuses))
 	}
 
 	// Get total count
@@ -442,7 +413,7 @@ func (r *LocalApplicationRepository) List(
 	return apps, totalCount, nil
 }
 
-// GetTotals returns statistics for applications
+// GetTotals returns statistics for applications using a single CTE query
 func (r *LocalApplicationRepository) GetTotals(allowedSystemIDs []string, userFacingOnly bool) (*models.ApplicationTotals, error) {
 	if len(allowedSystemIDs) == 0 {
 		return &models.ApplicationTotals{
@@ -455,91 +426,48 @@ func (r *LocalApplicationRepository) GetTotals(allowedSystemIDs []string, userFa
 		}, nil
 	}
 
-	// Build placeholders
-	placeholders := make([]string, len(allowedSystemIDs))
-	args := make([]interface{}, len(allowedSystemIDs))
-	for i, sysID := range allowedSystemIDs {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		args[i] = sysID
-	}
-	placeholdersStr := strings.Join(placeholders, ",")
-
 	userFacingClause := ""
 	if userFacingOnly {
 		userFacingClause = " AND is_user_facing = TRUE"
 	}
 
-	// Certification level filter: only count applications with certification level 4 or 5
 	certLevelClause := " AND (inventory_data->>'certification_level')::int IN (4, 5)"
 
-	// Get main counts
+	// Single CTE query instead of 3 separate queries
 	query := fmt.Sprintf(`
+		WITH filtered AS (
+			SELECT instance_of, status, organization_id, services_data
+			FROM applications
+			WHERE deleted_at IS NULL AND system_id = ANY($1::text[])%s%s
+		)
 		SELECT
-			COUNT(*) as total,
-			COUNT(*) FILTER (WHERE organization_id IS NULL) as unassigned,
-			COUNT(*) FILTER (WHERE organization_id IS NOT NULL) as assigned,
-			COUNT(*) FILTER (WHERE services_data->>'has_errors' = 'true') as with_errors
-		FROM applications
-		WHERE deleted_at IS NULL AND system_id IN (%s)%s%s
-	`, placeholdersStr, userFacingClause, certLevelClause)
+			(SELECT COUNT(*) FROM filtered) as total,
+			(SELECT COUNT(*) FROM filtered WHERE organization_id IS NULL) as unassigned,
+			(SELECT COUNT(*) FROM filtered WHERE organization_id IS NOT NULL) as assigned,
+			(SELECT COUNT(*) FROM filtered WHERE services_data->>'has_errors' = 'true') as with_errors,
+			(SELECT COALESCE(json_object_agg(instance_of, cnt), '{}') FROM (SELECT instance_of, COUNT(*) as cnt FROM filtered GROUP BY instance_of) t) as by_type,
+			(SELECT COALESCE(json_object_agg(status, cnt), '{}') FROM (SELECT status, COUNT(*) as cnt FROM filtered GROUP BY status) s) as by_status
+	`, userFacingClause, certLevelClause)
 
 	totals := &models.ApplicationTotals{
 		ByType:   make(map[string]int64),
 		ByStatus: make(map[string]int64),
 	}
 
-	err := r.db.QueryRow(query, args...).Scan(
+	var byTypeJSON, byStatusJSON []byte
+	err := r.db.QueryRow(query, pq.Array(allowedSystemIDs)).Scan(
 		&totals.Total, &totals.Unassigned, &totals.Assigned, &totals.WithErrors,
+		&byTypeJSON, &byStatusJSON,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get applications totals: %w", err)
 	}
 
-	// Get counts by type
-	typeQuery := fmt.Sprintf(`
-		SELECT instance_of, COUNT(*) as count
-		FROM applications
-		WHERE deleted_at IS NULL AND system_id IN (%s)%s%s
-		GROUP BY instance_of
-		ORDER BY count DESC
-	`, placeholdersStr, userFacingClause, certLevelClause)
-
-	typeRows, err := r.db.Query(typeQuery, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get applications by type: %w", err)
+	if err := json.Unmarshal(byTypeJSON, &totals.ByType); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal by_type: %w", err)
 	}
-	defer func() { _ = typeRows.Close() }()
-
-	for typeRows.Next() {
-		var instanceOf string
-		var count int64
-		if err := typeRows.Scan(&instanceOf, &count); err != nil {
-			return nil, fmt.Errorf("failed to scan type count: %w", err)
-		}
-		totals.ByType[instanceOf] = count
-	}
-
-	// Get counts by status
-	statusQuery := fmt.Sprintf(`
-		SELECT status, COUNT(*) as count
-		FROM applications
-		WHERE deleted_at IS NULL AND system_id IN (%s)%s%s
-		GROUP BY status
-	`, placeholdersStr, userFacingClause, certLevelClause)
-
-	statusRows, err := r.db.Query(statusQuery, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get applications by status: %w", err)
-	}
-	defer func() { _ = statusRows.Close() }()
-
-	for statusRows.Next() {
-		var status string
-		var count int64
-		if err := statusRows.Scan(&status, &count); err != nil {
-			return nil, fmt.Errorf("failed to scan status count: %w", err)
-		}
-		totals.ByStatus[status] = count
+	if err := json.Unmarshal(byStatusJSON, &totals.ByStatus); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal by_status: %w", err)
 	}
 
 	return totals, nil
@@ -558,14 +486,7 @@ func (r *LocalApplicationRepository) GetTypeSummary(allowedSystemIDs []string, o
 		}, nil
 	}
 
-	// Build placeholders for allowed system IDs
-	placeholders := make([]string, len(allowedSystemIDs))
-	args := make([]interface{}, len(allowedSystemIDs))
-	for i, sysID := range allowedSystemIDs {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		args[i] = sysID
-	}
-	placeholdersStr := strings.Join(placeholders, ",")
+	args := []interface{}{pq.Array(allowedSystemIDs)}
 
 	userFacingClause := ""
 	if userFacingOnly {
@@ -577,15 +498,11 @@ func (r *LocalApplicationRepository) GetTypeSummary(allowedSystemIDs []string, o
 	// Organization filter clause
 	orgClause := ""
 	if len(organizationIDs) > 0 {
-		orgPlaceholders := make([]string, len(organizationIDs))
-		for i, orgID := range organizationIDs {
-			orgPlaceholders[i] = fmt.Sprintf("$%d", len(args)+1)
-			args = append(args, orgID)
-		}
-		orgClause = fmt.Sprintf(" AND organization_id IN (%s)", strings.Join(orgPlaceholders, ","))
+		orgClause = fmt.Sprintf(" AND organization_id = ANY($%d::text[])", len(args)+1)
+		args = append(args, pq.Array(organizationIDs))
 	}
 
-	whereClause := fmt.Sprintf("deleted_at IS NULL AND system_id IN (%s)%s%s%s", placeholdersStr, userFacingClause, certLevelClause, orgClause)
+	whereClause := fmt.Sprintf("deleted_at IS NULL AND system_id = ANY($1::text[])%s%s%s", userFacingClause, certLevelClause, orgClause)
 
 	// Get total count of applications and distinct types
 	countQuery := fmt.Sprintf(`SELECT COUNT(*), COUNT(DISTINCT instance_of) FROM applications WHERE %s`, whereClause)
@@ -624,10 +541,10 @@ func (r *LocalApplicationRepository) GetTypeSummary(allowedSystemIDs []string, o
 		paginationClause = fmt.Sprintf(" LIMIT %d OFFSET %d", pageSize, offset)
 	}
 
-	// Get counts by type with human-readable name
+	// Get counts by type with human-readable name (using array_agg instead of correlated subquery)
 	typeQuery := fmt.Sprintf(`
 		SELECT instance_of,
-			(SELECT name FROM applications a2 WHERE a2.instance_of = a.instance_of AND a2.name IS NOT NULL AND a2.deleted_at IS NULL ORDER BY a2.updated_at DESC LIMIT 1) as name,
+			(array_agg(name ORDER BY updated_at DESC) FILTER (WHERE name IS NOT NULL))[1] as name,
 			COUNT(*) as count
 		FROM applications a
 		WHERE %s
@@ -682,15 +599,6 @@ func (r *LocalApplicationRepository) GetTrend(allowedSystemIDs []string, period 
 		return nil, 0, 0, fmt.Errorf("invalid period: %d", period)
 	}
 
-	// Build placeholders for allowed system IDs
-	placeholders := make([]string, len(allowedSystemIDs))
-	args := make([]interface{}, len(allowedSystemIDs))
-	for i, sysID := range allowedSystemIDs {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		args[i] = sysID
-	}
-	placeholdersStr := strings.Join(placeholders, ",")
-
 	// Query to get cumulative count for each date in the period
 	query := fmt.Sprintf(`
 		WITH date_series AS (
@@ -706,15 +614,15 @@ func (r *LocalApplicationRepository) GetTrend(allowedSystemIDs []string, period 
 				SELECT COUNT(*)
 				FROM applications
 				WHERE deleted_at IS NULL
-				  AND system_id IN (%s)
+				  AND system_id = ANY($1::text[])
 				  AND (inventory_data->>'certification_level')::int IN (4, 5)
 				  AND created_at::date <= ds.date
 			), 0) AS count
 		FROM date_series ds
 		ORDER BY ds.date
-	`, period, interval, placeholdersStr)
+	`, period, interval)
 
-	rows, err := r.db.Query(query, args...)
+	rows, err := r.db.Query(query, pq.Array(allowedSystemIDs))
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("failed to query applications trend data: %w", err)
 	}
@@ -757,33 +665,25 @@ func (r *LocalApplicationRepository) GetDistinctTypes(allowedSystemIDs []string,
 		return []models.ApplicationType{}, nil
 	}
 
-	placeholders := make([]string, len(allowedSystemIDs))
-	args := make([]interface{}, len(allowedSystemIDs))
-	for i, sysID := range allowedSystemIDs {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		args[i] = sysID
-	}
-	placeholdersStr := strings.Join(placeholders, ",")
-
 	userFacingClause := ""
 	if userFacingOnly {
 		userFacingClause = " AND is_user_facing = TRUE"
 	}
 
-	// Certification level filter: only count applications with certification level 4 or 5
 	certLevelClause := " AND (inventory_data->>'certification_level')::int IN (4, 5)"
 
+	// Use array_agg instead of correlated subquery for name lookup
 	query := fmt.Sprintf(`
 		SELECT instance_of,
-			(SELECT name FROM applications a2 WHERE a2.instance_of = a.instance_of AND a2.name IS NOT NULL AND a2.deleted_at IS NULL ORDER BY a2.updated_at DESC LIMIT 1) as name,
+			(array_agg(name ORDER BY updated_at DESC) FILTER (WHERE name IS NOT NULL))[1] as name,
 			COUNT(*) as count
 		FROM applications a
-		WHERE deleted_at IS NULL AND system_id IN (%s)%s%s
+		WHERE deleted_at IS NULL AND system_id = ANY($1::text[])%s%s
 		GROUP BY instance_of
 		ORDER BY instance_of
-	`, placeholdersStr, userFacingClause, certLevelClause)
+	`, userFacingClause, certLevelClause)
 
-	rows, err := r.db.Query(query, args...)
+	rows, err := r.db.Query(query, pq.Array(allowedSystemIDs))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get distinct types: %w", err)
 	}
@@ -817,30 +717,21 @@ func (r *LocalApplicationRepository) GetDistinctVersions(allowedSystemIDs []stri
 		return map[string]ApplicationVersionGroup{}, nil
 	}
 
-	placeholders := make([]string, len(allowedSystemIDs))
-	args := make([]interface{}, len(allowedSystemIDs))
-	for i, sysID := range allowedSystemIDs {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		args[i] = sysID
-	}
-	placeholdersStr := strings.Join(placeholders, ",")
-
 	userFacingClause := ""
 	if userFacingOnly {
 		userFacingClause = " AND is_user_facing = TRUE"
 	}
 
-	// Certification level filter: only include applications with certification level 4 or 5
 	certLevelClause := " AND (inventory_data->>'certification_level')::int IN (4, 5)"
 
 	query := fmt.Sprintf(`
 		SELECT DISTINCT instance_of, name, version
 		FROM applications
-		WHERE deleted_at IS NULL AND version IS NOT NULL AND system_id IN (%s)%s%s
+		WHERE deleted_at IS NULL AND version IS NOT NULL AND system_id = ANY($1::text[])%s%s
 		ORDER BY instance_of ASC, version DESC
-	`, placeholdersStr, userFacingClause, certLevelClause)
+	`, userFacingClause, certLevelClause)
 
-	rows, err := r.db.Query(query, args...)
+	rows, err := r.db.Query(query, pq.Array(allowedSystemIDs))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get distinct versions: %w", err)
 	}
