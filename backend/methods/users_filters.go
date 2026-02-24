@@ -38,52 +38,19 @@ func GetUserFilters(c *gin.Context) {
 	}
 
 	var (
-		allRoles      []models.Role
-		usedRoleIDs   map[string]bool
+		roles         []models.Role
 		organizations []Organization
 
-		errRoles, errUsedRoles, errOrgs error
-		wg                              sync.WaitGroup
+		errRoles, errOrgs error
+		wg                sync.WaitGroup
 	)
 
-	wg.Add(3)
+	wg.Add(2)
 
-	// All accessible roles from Logto
+	// Roles
 	go func() {
 		defer wg.Done()
-		allRoles, errRoles = FetchFilteredRoles(user)
-	}()
-
-	// Distinct role IDs actually assigned to visible users
-	go func() {
-		defer wg.Done()
-
-		baseQuery := `
-			SELECT DISTINCT jsonb_array_elements_text(user_role_ids) AS role_id
-			FROM users u
-			WHERE u.deleted_at IS NULL
-			AND u.suspended_at IS NULL
-			AND u.user_role_ids IS NOT NULL
-			AND u.user_role_ids != '[]'::jsonb
-		`
-		var args []interface{}
-		query, args, _ := helpers.AppendOrgFilter(baseQuery, userOrgRole, userOrgID, "u.", args, 1)
-
-		rows, err := database.DB.Query(query, args...)
-		if err != nil {
-			errUsedRoles = fmt.Errorf("failed to retrieve used role IDs: %w", err)
-			return
-		}
-		defer func() { _ = rows.Close() }()
-
-		usedRoleIDs = make(map[string]bool)
-		for rows.Next() {
-			var roleID string
-			if err := rows.Scan(&roleID); err != nil {
-				continue
-			}
-			usedRoleIDs[roleID] = true
-		}
+		roles, errRoles = FetchFilteredRoles(user)
 	}()
 
 	// Organizations
@@ -105,7 +72,6 @@ func GetUserFilters(c *gin.Context) {
 			FROM users u
 			INNER JOIN all_organizations o ON u.organization_id = o.logto_id
 			WHERE u.deleted_at IS NULL
-			AND u.suspended_at IS NULL
 		`
 		var args []interface{}
 		query, args, _ := helpers.AppendOrgFilter(baseQuery, userOrgRole, userOrgID, "u.", args, 1)
@@ -131,19 +97,11 @@ func GetUserFilters(c *gin.Context) {
 	wg.Wait()
 
 	// Check for errors
-	for _, e := range []error{errRoles, errUsedRoles, errOrgs} {
+	for _, e := range []error{errRoles, errOrgs} {
 		if e != nil {
 			logger.Error().Err(e).Str("user_id", user.ID).Msg("Failed in user filters")
 			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve user filters", nil))
 			return
-		}
-	}
-
-	// Intersect: only return roles actually assigned to visible users
-	roles := make([]models.Role, 0)
-	for _, role := range allRoles {
-		if usedRoleIDs[role.ID] {
-			roles = append(roles, role)
 		}
 	}
 
