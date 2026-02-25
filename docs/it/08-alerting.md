@@ -38,6 +38,18 @@ L'Alertmanager è esposto tramite il proxy della piattaforma al percorso:
 
 È compatibile con l'[API standard di Alertmanager v2](https://github.com/prometheus/alertmanager/blob/main/api/v2/openapi.yaml).
 
+### Endpoint di Gestione (Solo Admin Mimir)
+
+Endpoint di gestione e debug avanzati per amministratori della piattaforma:
+
+```
+/api/services/mimir/multitenant_alertmanager/*
+```
+
+Questi endpoint richiedono credenziali di amministratore Mimir e forniscono funzionalità di amministrazione multi-tenant per il supporto della piattaforma.
+
+Consulta la [Documentazione API di Mimir](https://grafana.com/docs/mimir/latest/references/http-api/) per dettagli completi.
+
 ## Esempi Comuni
 
 ### 1. Gestione Configurazione Alertmanager

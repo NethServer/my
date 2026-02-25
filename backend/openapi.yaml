@@ -88,6 +88,14 @@ tags:
       - `POST /alertmanager/api/v2/silences` - Create a silence
       - `GET /alertmanager/api/v2/silences` - List silences
       - `DELETE /alertmanager/api/v2/silence/{id}` - Delete a silence
+      
+      **Management Endpoints (Mimir Admin Only)**
+      
+      Advanced management and debugging endpoints require Mimir admin credentials and are available at:
+      - `/api/services/mimir/multitenant_alertmanager/*`
+      
+      These endpoints provide multi-tenant alerting administration capabilities for platform administrators.
+      See [Mimir HTTP API Management](https://grafana.com/docs/mimir/latest/references/http-api/) for details.
 security:
   - BearerAuth: []
 
