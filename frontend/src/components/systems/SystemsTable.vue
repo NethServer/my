@@ -91,7 +91,7 @@ const {
   areDefaultFiltersApplied,
   resetFilters,
 } = useSystems()
-const { state: systemFiltersState, asyncStatus: systemFiltersAsyncStatus } = useSystemFilters()
+const { state: systemFiltersState } = useSystemFilters()
 
 const currentSystem = ref<System | undefined>()
 const isShownCreateOrEditSystemDrawer = ref(false)
@@ -272,7 +272,6 @@ function getKebabMenuItems(system: System) {
       label: t('common.edit'),
       icon: faPenToSquare,
       action: () => showEditSystemDrawer(system),
-      disabled: asyncStatus.value === 'loading',
     })
   }
 
@@ -283,14 +282,12 @@ function getKebabMenuItems(system: System) {
       label: t('systems.export_to_pdf'),
       icon: faFilePdf,
       action: () => exportSystem(system, 'pdf'),
-      disabled: asyncStatus.value === 'loading',
     },
     {
       id: 'exportToCsv',
       label: t('systems.export_to_csv'),
       icon: faFileCsv,
       action: () => exportSystem(system, 'csv'),
-      disabled: asyncStatus.value === 'loading',
     },
   ]
 
@@ -303,7 +300,6 @@ function getKebabMenuItems(system: System) {
           label: t('common.reactivate'),
           icon: faCirclePlay,
           action: () => showReactivateSystemModal(system),
-          disabled: asyncStatus.value === 'loading',
         },
       ]
     } else {
@@ -314,14 +310,12 @@ function getKebabMenuItems(system: System) {
           label: t('systems.regenerate_secret'),
           icon: faKey,
           action: () => showRegenerateSecretModal(system),
-          disabled: asyncStatus.value === 'loading',
         },
         {
           id: 'suspendSystem',
           label: t('common.suspend'),
           icon: faCirclePause,
           action: () => showSuspendSystemModal(system),
-          disabled: asyncStatus.value === 'loading',
         },
       ]
     }
@@ -334,7 +328,6 @@ function getKebabMenuItems(system: System) {
         icon: faBoxArchive,
         danger: true,
         action: () => showDeleteSystemModal(system),
-        disabled: asyncStatus.value === 'loading',
       },
     ]
   }
@@ -345,7 +338,6 @@ function getKebabMenuItems(system: System) {
       label: t('common.restore'),
       icon: faRotateLeft,
       action: () => showRestoreSystemModal(system),
-      disabled: asyncStatus.value === 'loading',
     })
   }
 
@@ -358,7 +350,6 @@ function getKebabMenuItems(system: System) {
         icon: faBomb,
         danger: true,
         action: () => showDestroySystemModal(system),
-        disabled: asyncStatus.value === 'loading',
       },
     ]
   }
@@ -410,9 +401,7 @@ function onCloseSecretRegeneratedModal() {
           <NeDropdownFilter
             v-model="productFilter"
             kind="checkbox"
-            :disabled="
-              systemFiltersAsyncStatus === 'loading' || systemFiltersState.status === 'error'
-            "
+            :disabled="systemFiltersState.status === 'pending'"
             :label="t('systems.product')"
             :options="productFilterOptions"
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
@@ -424,9 +413,7 @@ function onCloseSecretRegeneratedModal() {
           <NeDropdownFilter
             v-model="versionFilter"
             kind="checkbox"
-            :disabled="
-              systemFiltersAsyncStatus === 'loading' || systemFiltersState.status === 'error'
-            "
+            :disabled="systemFiltersState.status === 'pending'"
             :label="t('systems.version')"
             :options="versionFilterOptions"
             show-options-filter
@@ -439,9 +426,7 @@ function onCloseSecretRegeneratedModal() {
           <NeDropdownFilter
             v-model="createdByFilter"
             kind="checkbox"
-            :disabled="
-              systemFiltersAsyncStatus === 'loading' || systemFiltersState.status === 'error'
-            "
+            :disabled="systemFiltersState.status === 'pending'"
             :label="t('systems.created_by')"
             :options="createdByFilterOptions"
             show-options-filter
@@ -456,9 +441,7 @@ function onCloseSecretRegeneratedModal() {
             kind="checkbox"
             :label="t('systems.organization')"
             :options="organizationFilterOptions"
-            :disabled="
-              systemFiltersAsyncStatus === 'loading' || systemFiltersState.status === 'error'
-            "
+            :disabled="systemFiltersState.status === 'pending'"
             show-options-filter
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"

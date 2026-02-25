@@ -69,8 +69,7 @@ const {
   clearFilters,
 } = useApplications()
 
-const { state: applicationFiltersState, asyncStatus: applicationFiltersAsyncStatus } =
-  useApplicationFilters()
+const { state: applicationFiltersState } = useApplicationFilters()
 
 const currentApplication = ref<Application | undefined>()
 const isShownAssignOrgDrawer = ref(false)
@@ -185,7 +184,6 @@ function getKebabMenuItems(application: Application) {
         : t('applications.assign_organization'),
       icon: faBuilding,
       action: () => showAssignOrgDrawer(application),
-      disabled: asyncStatus.value === 'loading',
     })
 
     items.push({
@@ -193,7 +191,6 @@ function getKebabMenuItems(application: Application) {
       label: application?.notes ? t('applications.edit_notes') : t('applications.add_notes'),
       icon: faPenToSquare,
       action: () => showSetNotesDrawer(application),
-      disabled: asyncStatus.value === 'loading',
     })
   }
   return items
@@ -243,10 +240,7 @@ const goToApplicationDetails = (application: Application) => {
             <NeDropdownFilter
               v-model="typeFilter"
               kind="checkbox"
-              :disabled="
-                applicationFiltersAsyncStatus === 'loading' ||
-                applicationFiltersState.status === 'error'
-              "
+              :disabled="applicationFiltersState.status === 'pending'"
               :label="t('applications.type')"
               :options="typeFilterOptions"
               show-options-filter
@@ -259,10 +253,7 @@ const goToApplicationDetails = (application: Application) => {
             <NeDropdownFilter
               v-model="versionFilter"
               kind="checkbox"
-              :disabled="
-                applicationFiltersAsyncStatus === 'loading' ||
-                applicationFiltersState.status === 'error'
-              "
+              :disabled="applicationFiltersState.status === 'pending'"
               :label="t('applications.version')"
               :options="versionFilterOptions"
               show-options-filter
@@ -275,10 +266,7 @@ const goToApplicationDetails = (application: Application) => {
             <NeDropdownFilter
               v-model="systemFilter"
               kind="checkbox"
-              :disabled="
-                applicationFiltersAsyncStatus === 'loading' ||
-                applicationFiltersState.status === 'error'
-              "
+              :disabled="applicationFiltersState.status === 'pending'"
               :label="t('systems.system')"
               :options="systemFilterOptions"
               show-options-filter
@@ -291,10 +279,7 @@ const goToApplicationDetails = (application: Application) => {
             <NeDropdownFilter
               v-model="organizationFilter"
               kind="checkbox"
-              :disabled="
-                applicationFiltersAsyncStatus === 'loading' ||
-                applicationFiltersState.status === 'error'
-              "
+              :disabled="applicationFiltersState.status === 'pending'"
               :label="t('organizations.organization')"
               :options="organizationFilterOptions"
               show-options-filter

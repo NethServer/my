@@ -84,7 +84,7 @@ const {
   resetFilters,
 } = useUsers()
 const loginStore = useLoginStore()
-const { state: userFiltersState, asyncStatus: userFiltersAsyncStatus } = useUserFilters()
+const { state: userFiltersState } = useUserFilters()
 
 const currentUser = ref<User | undefined>()
 const isShownCreateOrEditUserDrawer = ref(false)
@@ -253,8 +253,7 @@ function getKebabMenuItems(user: User) {
         label: t('users.impersonate_user'),
         icon: faUserSecret,
         action: () => showImpersonateUserModal(user),
-        disabled:
-          asyncStatus.value === 'loading' || isImpersonating.value || !user.can_be_impersonated,
+        disabled: isImpersonating.value || !user.can_be_impersonated,
       },
     ]
   }
@@ -268,7 +267,6 @@ function getKebabMenuItems(user: User) {
           label: t('common.restore'),
           icon: faRotateLeft,
           action: () => showRestoreUserModal(user),
-          disabled: asyncStatus.value === 'loading',
         },
       ]
     } else if (user.suspended_at) {
@@ -279,7 +277,6 @@ function getKebabMenuItems(user: User) {
           label: t('users.reactivate'),
           icon: faCirclePlay,
           action: () => showReactivateUserModal(user),
-          disabled: asyncStatus.value === 'loading',
         },
         {
           id: 'deleteAccount',
@@ -287,7 +284,6 @@ function getKebabMenuItems(user: User) {
           icon: faBoxArchive,
           danger: true,
           action: () => showDeleteUserModal(user),
-          disabled: asyncStatus.value === 'loading',
         },
       ]
     } else {
@@ -298,14 +294,12 @@ function getKebabMenuItems(user: User) {
           label: t('common.suspend'),
           icon: faCirclePause,
           action: () => showSuspendUserModal(user),
-          disabled: asyncStatus.value === 'loading',
         },
         {
           id: 'resetPassword',
           label: t('users.reset_password'),
           icon: faKey,
           action: () => showResetPasswordModal(user),
-          disabled: asyncStatus.value === 'loading',
         },
         {
           id: 'deleteAccount',
@@ -313,7 +307,6 @@ function getKebabMenuItems(user: User) {
           icon: faBoxArchive,
           danger: true,
           action: () => showDeleteUserModal(user),
-          disabled: asyncStatus.value === 'loading',
         },
       ]
     }
@@ -328,7 +321,6 @@ function getKebabMenuItems(user: User) {
         icon: faBomb,
         danger: true,
         action: () => showDestroyUserModal(user),
-        disabled: asyncStatus.value === 'loading',
       },
     ]
   }
@@ -374,7 +366,7 @@ const onClosePasswordChangedModal = () => {
             kind="checkbox"
             :label="t('organizations.organization')"
             :options="organizationFilterOptions"
-            :disabled="userFiltersAsyncStatus === 'loading' || userFiltersState.status === 'error'"
+            :disabled="userFiltersState.status === 'pending'"
             show-options-filter
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
@@ -388,7 +380,7 @@ const onClosePasswordChangedModal = () => {
             kind="checkbox"
             :label="t('users.role')"
             :options="roleFilterOptions"
-            :disabled="userFiltersAsyncStatus === 'loading' || userFiltersState.status === 'error'"
+            :disabled="userFiltersState.status === 'pending'"
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
@@ -569,12 +561,7 @@ const onClosePasswordChangedModal = () => {
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
             <div v-if="canManageUsers()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
-              <NeButton
-                v-if="!item.deleted_at"
-                kind="tertiary"
-                @click="showEditUserDrawer(item)"
-                :disabled="asyncStatus === 'loading'"
-              >
+              <NeButton v-if="!item.deleted_at" kind="tertiary" @click="showEditUserDrawer(item)">
                 <template #prefix>
                   <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
                 </template>
