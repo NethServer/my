@@ -47,7 +47,8 @@
     "reactivate": "Reactivate",
     "notes": "Notes",
     "show_notes": "Show notes",
-    "plus_n_more": "+{num} more"
+    "plus_n_more": "+{num} more",
+    "node_id": "Node {id}"
   },
   "shell": {
     "open_sidebar": "Open sidebar",
@@ -518,6 +519,11 @@
     "system_key": "System key",
     "cannot_determine_system_url_description": "Cannot access the system because its URL cannot be determined."
   },
+  "application_detail": {
+    "title": "Application detail",
+    "cannot_retrieve_application_detail": "Cannot retrieve application detail",
+    "installation_node": "Installation node"
+  },
   "applications": {
     "title": "Applications",
     "page_description": "List of applications installed on licensed NethServer systems.",
@@ -528,6 +534,8 @@
     "filter_applications": "Filter applications",
     "version": "Version",
     "type": "Type",
+    "application_type": "Application type",
+    "rebranding": "Rebranding",
     "assign_organization": "Assign to company",
     "reassign_organization": "Reassign to company",
     "name": "Name",

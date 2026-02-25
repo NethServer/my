@@ -7,6 +7,7 @@
 import {
   faBuilding,
   faCircleInfo,
+  faEye,
   faPenToSquare,
   faServer,
 } from '@fortawesome/free-solid-svg-icons'
@@ -49,6 +50,7 @@ import SetNotesDrawer from './SetNotesDrawer.vue'
 import OrganizationLink from './OrganizationLink.vue'
 import { useApplicationFilters } from '@/queries/applications/applicationFilters'
 import { buildVersionFilterOptions } from '@/lib/applications/applicationFilters'
+import router from '@/router'
 
 const { t } = useI18n()
 const {
@@ -202,9 +204,9 @@ const onSort = (payload: SortEvent) => {
   sortDescending.value = payload.descending
 }
 
-// const goToApplicationDetails = (application: Application) => { ////
-//   router.push({ name: 'application_detail', params: { applicationId: application.id } })
-// }
+const goToApplicationDetails = (application: Application) => {
+  router.push({ name: 'application_detail', params: { applicationId: application.id } })
+}
 </script>
 
 <template>
@@ -381,7 +383,12 @@ const onSort = (payload: SortEvent) => {
         <NeTableBody>
           <NeTableRow v-for="(item, index) in applicationsPage" :key="index">
             <NeTableCell :data-label="$t('applications.name')">
-              {{ getDisplayName(item) }}
+              <router-link
+                :to="{ name: 'application_detail', params: { applicationId: item.id } }"
+                class="cursor-pointer font-medium hover:underline"
+              >
+                {{ getDisplayName(item) }}
+              </router-link>
             </NeTableCell>
             <NeTableCell :data-label="$t('applications.type')">
               <div class="flex items-center gap-2">
@@ -444,17 +451,16 @@ const onSort = (payload: SortEvent) => {
             </NeTableCell>
             <NeTableCell :data-label="$t('common.actions')">
               <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
-                <!-- <NeButton ////
+                <NeButton
                   v-if="item.status !== 'deleted'"
                   kind="tertiary"
                   @click="goToApplicationDetails(item)"
-                  :disabled="asyncStatus === 'loading' || item.status === 'deleted'"
                 >
                   <template #prefix>
                     <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
                   </template>
                   {{ $t('common.view') }}
-                </NeButton> -->
+                </NeButton>
                 <!-- kebab menu -->
                 <NeDropdown
                   v-if="canManageApplications()"

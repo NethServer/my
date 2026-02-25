@@ -33,6 +33,7 @@ export const ApplicationSchema = v.object({
   node_label: v.optional(v.string()),
   url: v.optional(v.string()),
   notes: v.optional(v.string()),
+  rebranding_enabled: v.optional(v.boolean()),
   has_errors: v.boolean(),
   inventory_data: v.record(v.string(), v.any()),
   system: v.object({
