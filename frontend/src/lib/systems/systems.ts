@@ -300,8 +300,6 @@ export function getProductName(systemType: string) {
     return 'NethServer'
   } else if (systemType === 'nsec') {
     return 'NethSecurity'
-  } else if (systemType === 'nsec-controller') {
-    return 'NethSecurity Controller'
   } else {
     return systemType
   }

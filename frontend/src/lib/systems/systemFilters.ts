@@ -4,7 +4,7 @@
 import axios from 'axios'
 import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
-import type { FilterOption } from '@nethesis/vue-components'
+import type { FilterOption, FilterOptionGroup } from '@nethesis/vue-components'
 import { getProductName } from './systems'
 
 export const SYSTEM_FILTERS_KEY = 'systemFilters'
@@ -54,26 +54,27 @@ export const getSystemFilters = () => {
  * Used by components to format version data for dropdown display
  */
 export const buildVersionFilterOptions = (productVersions: ProductVersions[]) => {
-  const options: FilterOption[] = []
+  const optionGroups: FilterOptionGroup[] = []
 
   productVersions.forEach((pv) => {
+    const options: FilterOption[] = []
+
+    optionGroups.push({
+      group: getProductName(pv.product),
+      options,
+    })
+
     pv.versions.forEach((productAndVersion) => {
       // split product and version
-      const [product, version] = productAndVersion.split(':')
+      const [, version] = productAndVersion.split(':')
 
-      if (product && version) {
+      if (version) {
         options.push({
           id: productAndVersion,
-          label: `${getProductName(product)} ${version}`,
+          label: version,
         })
       }
     })
   })
-  return options
+  return optionGroups
 }
-
-// Legacy exports for backward compatibility (if needed by other modules) //// remove
-// export const PRODUCT_FILTER_KEY = SYSTEM_FILTERS_KEY
-// export const SYSTEM_VERSION_FILTER_KEY = SYSTEM_FILTERS_KEY
-// export const SYSTEM_CREATED_BY_FILTER_KEY = SYSTEM_FILTERS_KEY
-// export const SYSTEM_ORGANIZATION_FILTER_KEY = SYSTEM_FILTERS_KEY
