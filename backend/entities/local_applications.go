@@ -725,9 +725,12 @@ func (r *LocalApplicationRepository) GetDistinctVersions(allowedSystemIDs []stri
 	certLevelClause := " AND (inventory_data->>'certification_level')::int IN (4, 5)"
 
 	query := fmt.Sprintf(`
-		SELECT DISTINCT instance_of, name, version
+		SELECT instance_of,
+			(array_agg(name ORDER BY updated_at DESC) FILTER (WHERE name IS NOT NULL))[1] as name,
+			version
 		FROM applications
 		WHERE deleted_at IS NULL AND version IS NOT NULL AND system_id = ANY($1::text[])%s%s
+		GROUP BY instance_of, version
 		ORDER BY instance_of ASC, version DESC
 	`, userFacingClause, certLevelClause)
 
