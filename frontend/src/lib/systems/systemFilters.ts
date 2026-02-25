@@ -55,6 +55,7 @@ export const getSystemFilters = () => {
  */
 export const buildVersionFilterOptions = (productVersions: ProductVersions[]) => {
   const optionGroups: FilterOptionGroup[] = []
+  const seen = new Set<string>()
 
   productVersions.forEach((pv) => {
     const options: FilterOption[] = []
@@ -68,7 +69,8 @@ export const buildVersionFilterOptions = (productVersions: ProductVersions[]) =>
       // split product and version
       const [, version] = productAndVersion.split(':')
 
-      if (version) {
+      if (version && !seen.has(productAndVersion)) {
+        seen.add(productAndVersion)
         options.push({
           id: productAndVersion,
           label: version,

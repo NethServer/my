@@ -64,6 +64,7 @@ export const getApplicationFilters = () => {
  */
 export const buildVersionFilterOptions = (applicationVersions: ApplicationVersions[]) => {
   const optionGroups: FilterOptionGroup[] = []
+  const seen = new Set<string>()
 
   applicationVersions.forEach((av) => {
     const appName = av.name
@@ -78,7 +79,8 @@ export const buildVersionFilterOptions = (applicationVersions: ApplicationVersio
       // split application and version
       const [, version] = appAndVersion.split(':')
 
-      if (appName && version) {
+      if (appName && version && !seen.has(appAndVersion)) {
+        seen.add(appAndVersion)
         options.push({
           id: appAndVersion,
           label: version,
