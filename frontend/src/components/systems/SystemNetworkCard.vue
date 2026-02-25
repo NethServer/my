@@ -123,9 +123,9 @@ const getNetworkRoleForegroundStyle = (role: string | undefined) => {
 <template>
   <NeCard>
     <div class="mb-4 flex items-center gap-4">
-      <FontAwesomeIcon :icon="faNetworkWired" class="size-8 shrink-0" aria-hidden="true" />
-      <NeHeading tag="h4">
-        {{ $t('system_detail.network') }}
+      <FontAwesomeIcon :icon="faNetworkWired" class="size-5 shrink-0" aria-hidden="true" />
+      <NeHeading tag="h6">
+        {{ $t('system_detail.network').toUpperCase() }}
       </NeHeading>
     </div>
     <!-- get latest inventory error notification -->

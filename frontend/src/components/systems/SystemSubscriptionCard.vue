@@ -56,9 +56,9 @@ function onCloseSecretRegeneratedModal() {
   <NeCard>
     <div class="mb-4 flex items-center justify-between gap-4">
       <div class="flex items-center gap-4">
-        <FontAwesomeIcon :icon="faAward" class="size-8 shrink-0" aria-hidden="true" />
-        <NeHeading tag="h4">
-          {{ $t('system_detail.subscription') }}
+        <FontAwesomeIcon :icon="faAward" class="size-5 shrink-0" aria-hidden="true" />
+        <NeHeading tag="h6">
+          {{ $t('system_detail.subscription').toUpperCase() }}
         </NeHeading>
       </div>
       <!-- kebab menu -->

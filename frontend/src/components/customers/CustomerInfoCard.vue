@@ -52,8 +52,8 @@ function getKebabMenuItems() {
       <!-- logo and name -->
       <div class="mb-4 flex items-center justify-between gap-4">
         <div class="flex items-center gap-4">
-          <FontAwesomeIcon :icon="getOrganizationIcon('customer')" class="size-8" />
-          <NeHeading tag="h4">
+          <FontAwesomeIcon :icon="getOrganizationIcon('customer')" class="size-5" />
+          <NeHeading tag="h6">
             {{ customerDetail.data.name }}
           </NeHeading>
         </div>

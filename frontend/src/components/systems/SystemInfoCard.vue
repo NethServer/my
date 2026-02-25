@@ -87,7 +87,7 @@ function getKebabMenuItems() {
             aria-hidden="true"
             class="size-8"
           />
-          <NeHeading tag="h4">
+          <NeHeading tag="h6">
             {{
               getProductName(systemDetail.data.type || '') || $t('system_detail.unknown_product')
             }}
