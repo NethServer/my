@@ -24,7 +24,13 @@ import { getApplicationLogo, getDisplayName } from '@/lib/applications/applicati
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { canManageApplications } from '@/lib/permissions'
-import { faBuilding, faCheck, faPenToSquare, faXmark } from '@fortawesome/free-solid-svg-icons'
+import {
+  faArrowsRotate,
+  faBuilding,
+  faCheck,
+  faPenToSquare,
+  faXmark,
+} from '@fortawesome/free-solid-svg-icons'
 import AssignOrganizationDrawer from './AssignOrganizationDrawer.vue'
 import SetNotesDrawer from './SetNotesDrawer.vue'
 
@@ -125,7 +131,15 @@ function getKebabMenuItems() {
             {{ $t('applications.version') }}
           </template>
           <template #data>
-            {{ applicationDetail.data.version || '-' }}
+            <div class="flex items-center gap-2">
+              {{ applicationDetail.data.version || '-' }}
+              <NeBadgeV2 kind="amber">
+                <div class="flex items-center gap-1">
+                  <FontAwesomeIcon :icon="faArrowsRotate" class="size-4" aria-hidden="true" />
+                  {{ t('application_detail.update_available') }}
+                </div>
+              </NeBadgeV2>
+            </div>
           </template>
         </DataItem>
         <DataItem>

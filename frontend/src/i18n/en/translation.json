@@ -522,7 +522,8 @@
   "application_detail": {
     "title": "Application detail",
     "cannot_retrieve_application_detail": "Cannot retrieve application detail",
-    "installation_node": "Installation node"
+    "installation_node": "Installation node",
+    "update_available": "Update available"
   },
   "applications": {
     "title": "Applications",
