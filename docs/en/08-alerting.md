@@ -39,6 +39,18 @@ The collect service proxies Alertmanager API calls and automatically injects the
 
 The endpoints are compatible with the [Alertmanager v2 API](https://github.com/prometheus/alertmanager/blob/main/api/v2/openapi.yaml).
 
+### Management Endpoints (Mimir Admin Only)
+
+Advanced management and debugging endpoints for platform administrators:
+
+```
+/api/services/mimir/multitenant_alertmanager/*
+```
+
+These endpoints require Mimir admin credentials and provide multi-tenant alerting administration capabilities for platform support.
+
+See [Mimir HTTP API Documentation](https://grafana.com/docs/mimir/latest/references/http-api/) for complete details.
+
 ## Common Examples
 
 ### 1. Alertmanager Configuration Management
