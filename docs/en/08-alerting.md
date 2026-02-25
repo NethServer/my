@@ -45,7 +45,8 @@ curl -X POST \
     "labels": {
       "alertname": "HighCPU",
       "severity": "critical",
-      "host": "server-01"
+      "host": "server-01",
+      "system_key": "NOC-F64B-A989-C9E7-45B9-A55D-59EC-6545-40EE"
     },
     "annotations": {
       "summary": "CPU usage is too high",
@@ -77,7 +78,8 @@ curl -u "system_key:system_secret" \
     "labels": {
       "alertname": "HighCPU",
       "severity": "critical",
-      "host": "server-01"
+      "host": "server-01",
+      "system_key": "NOC-F64B-A989-C9E7-45B9-A55D-59EC-6545-40EE"
     },
     "annotations": {
       "summary": "CPU usage is too high",
@@ -110,7 +112,8 @@ curl -X POST \
     "labels": {
       "alertname": "HighCPU",
       "severity": "critical",
-      "host": "server-01"
+      "host": "server-01",
+      "system_key": "NOC-F64B-A989-C9E7-45B9-A55D-59EC-6545-40EE"
     },
     "annotations": {
       "summary": "CPU usage is back to normal",

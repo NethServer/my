@@ -56,6 +56,9 @@ tags:
   - name: Backend - Rebranding
     description: Backend rebranding management for organizations and products
 
+  - name: Backend - Alerting
+    description: Backend alertmanager configuration and alert monitoring
+
   - name: Collect - Health
     description: Collect service health and monitoring
   - name: Collect - Systems
@@ -108,6 +111,64 @@ components:
           example: "validation failed"
         data:
           $ref: '#/components/schemas/ErrorData'
+
+    SuccessResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+        data:
+          type: object
+          nullable: true
+
+    AlertingConfigRequest:
+      type: object
+      description: Alert routing configuration keyed by severity level (critical, warning, info)
+      additionalProperties:
+        $ref: '#/components/schemas/SeverityConfig'
+      example:
+        critical:
+          emails: ["oncall@example.com"]
+          webhooks:
+            - name: "slack"
+              url: "https://hooks.slack.com/services/T00/B00/XXX"
+          exceptions: ["NOC-SKIP-0001"]
+        warning:
+          emails: ["team@example.com"]
+    SeverityConfig:
+      type: object
+      required:
+        - emails
+      properties:
+        emails:
+          type: array
+          items:
+            type: string
+            format: email
+          minItems: 1
+        webhooks:
+          type: array
+          items:
+            $ref: '#/components/schemas/WebhookConfig'
+        exceptions:
+          type: array
+          description: system_key values to exclude from notifications for this severity
+          items:
+            type: string
+    WebhookConfig:
+      type: object
+      required:
+        - name
+        - url
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+          format: uri
 
     ErrorData:
       type: object
@@ -8308,6 +8369,182 @@ paths:
                 format: binary
         '404':
           $ref: '#/components/responses/NotFound'
+
+  # ===========================================
+  # ALERTING ENDPOINTS (Backend - Configuration)
+  # ===========================================
+
+  /api/alerting/config:
+    post:
+      operationId: configureAlerts
+      tags:
+        - Backend - Alerting
+      summary: Configure alert routing
+      description: |
+        Generates an Alertmanager configuration with per-severity routing and pushes it to Mimir.
+        SMTP settings are injected server-side. The user provides email recipients, webhooks, and optional system_key exceptions per severity.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: organization_id
+          in: query
+          description: Target organization ID. Required for Owner, Distributor, and Reseller roles. Customer role uses their own organization automatically.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertingConfigRequest'
+      responses:
+        '200':
+          description: Alerting configuration updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      operationId: disableAlerts
+      tags:
+        - Backend - Alerting
+      summary: Disable all alerts
+      description: Replaces the Alertmanager config with a blackhole-only configuration, silencing all alerts for the organization.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: organization_id
+          in: query
+          description: Target organization ID. Required for Owner, Distributor, and Reseller roles.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: All alerts disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      operationId: getAlertingConfig
+      tags:
+        - Backend - Alerting
+      summary: Get current alerting configuration
+      description: Retrieves the current Alertmanager YAML configuration from Mimir for the specified organization.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: organization_id
+          in: query
+          description: Target organization ID. Required for Owner, Distributor, and Reseller roles.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current alerting configuration
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: alerting configuration retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      config:
+                        type: string
+                        description: Raw YAML alertmanager configuration
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/alerting/alerts:
+    get:
+      operationId: getAlerts
+      tags:
+        - Backend - Alerting
+      summary: List active alerts
+      description: Retrieves active alerts from Mimir for the specified organization with optional filtering by state, severity, and system_key.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: organization_id
+          in: query
+          description: Target organization ID. Required for Owner, Distributor, and Reseller roles.
+          schema:
+            type: string
+        - name: state
+          in: query
+          description: Filter alerts by state
+          schema:
+            type: string
+            enum: [active, suppressed, unprocessed]
+        - name: severity
+          in: query
+          description: Filter alerts by severity label
+          schema:
+            type: string
+            enum: [critical, warning, info]
+        - name: system_key
+          in: query
+          description: Filter alerts by system_key label
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of active alerts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: alerts retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      alerts:
+                        type: array
+                        items:
+                          type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   # ===========================================
   # ALERTING ENDPOINTS (Collect - Mimir Proxy)
