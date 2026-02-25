@@ -164,10 +164,14 @@ func main() {
 	// ===========================================
 	// EXTERNAL SERVICES PROXY
 	// ===========================================
-	servicesGroup := api.Group("/services", middleware.MimirAuthMiddleware())
+	// Systems can access only the alertmanager alert and silence endpoints.
+	// All management APIs are reserved for future backend implementation.
+	mimirGroup := api.Group("/services/mimir", middleware.BasicAuthMiddleware())
 	{
-		mimirProxy := servicesGroup.Group("/mimir")
-		mimirProxy.Any("/*path", methods.ProxyMimir)
+		mimirGroup.Any("/alertmanager/api/v2/alerts", methods.ProxyMimir)
+		mimirGroup.Any("/alertmanager/api/v2/alerts/*subpath", methods.ProxyMimir)
+		mimirGroup.Any("/alertmanager/api/v2/silences", methods.ProxyMimir)
+		mimirGroup.Any("/alertmanager/api/v2/silences/*subpath", methods.ProxyMimir)
 	}
 
 	// Handle missing endpoints

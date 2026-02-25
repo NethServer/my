@@ -21,81 +21,38 @@ import (
 	"github.com/nethesis/my/collect/response"
 )
 
-// mimirAllowedPaths is the whitelist of path prefixes that non-admin (system) callers
-// may access. Everything else requires admin credentials.
-// Paths are matched by prefix after stripping the leading slash.
-var mimirAllowedPaths = []string{
-	// Per-tenant alertmanager configuration (GET / POST / DELETE)
-	"/api/v1/alerts",
-	// Alertmanager v2 API – alert injection and listing (POST / GET)
-	"/alertmanager/api/v2/alerts",
-	// Alertmanager v2 API – silence management (GET / POST / DELETE)
-	"/alertmanager/api/v2/silences",
-	// Read-only build info
-	"/alertmanager/api/v1/status/buildinfo",
-}
-
-// isAllowedPath returns true when subPath is on the system whitelist.
-func isAllowedPath(subPath string) bool {
-	for _, allowed := range mimirAllowedPaths {
-		if subPath == allowed || strings.HasPrefix(subPath, allowed+"/") {
-			return true
-		}
-	}
-	return false
-}
-
-// ProxyMimir handles ANY /api/services/mimir/* — MimirAuthMiddleware has already
-// validated credentials and set either "mimir_is_admin" = true (admin user) or
-// "system_id" / "system_key" (authenticated system) in the context.
-//
-// Admin users:  all paths allowed, no X-Scope-OrgID injected.
-// System users: only whitelisted alertmanager paths allowed, X-Scope-OrgID injected.
+// ProxyMimir forwards requests to Mimir on behalf of authenticated systems.
+// BasicAuthMiddleware has already validated credentials and set "system_id" in the context.
+// Route matching in main.go restricts access to /alertmanager/api/v2/alerts and
+// /alertmanager/api/v2/silences; no further path checks are needed here.
+// X-Scope-OrgID is always injected using the system's organization_id.
 func ProxyMimir(c *gin.Context) {
-	isAdmin, _ := c.Get("mimir_is_admin")
-
-	subPath := c.Param("path")
+	subPath := strings.TrimPrefix(c.Request.URL.Path, "/api/services/mimir")
 	rawQuery := c.Request.URL.RawQuery
 
+	// Resolve organization_id for X-Scope-OrgID injection
+	systemID, ok := getAuthenticatedSystemID(c)
+	if !ok {
+		logger.Warn().Str("reason", "missing system_id in context").Msg("mimir proxy auth failed")
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("unauthorized", nil))
+		return
+	}
+
 	var orgID string
+	err := database.DB.QueryRow(
+		`SELECT organization_id FROM systems WHERE id = $1`,
+		systemID,
+	).Scan(&orgID)
 
-	if isAdmin == true {
-		// Admin access – no tenant scoping, no path restriction
-		logger.Info().Str("sub_path", subPath).Msg("mimir proxy: admin access")
-	} else {
-		// System access – enforce whitelist
-		if !isAllowedPath(subPath) {
-			logger.Warn().
-				Str("sub_path", subPath).
-				Str("client_ip", c.ClientIP()).
-				Msg("mimir proxy: system attempted to access restricted path")
-			c.JSON(http.StatusForbidden, response.Error(http.StatusForbidden, "access to this path is not allowed", nil))
-			return
-		}
-
-		// Resolve organization_id for X-Scope-OrgID injection
-		systemID, ok := getAuthenticatedSystemID(c)
-		if !ok {
-			logger.Warn().Str("reason", "missing system_id in context").Msg("mimir proxy auth failed")
-			c.JSON(http.StatusUnauthorized, response.Unauthorized("unauthorized", nil))
-			return
-		}
-
-		err := database.DB.QueryRow(
-			`SELECT organization_id FROM systems WHERE id = $1`,
-			systemID,
-		).Scan(&orgID)
-
-		if err == sql.ErrNoRows {
-			logger.Warn().Str("system_id", systemID).Str("reason", "system not found").Msg("mimir proxy: system lookup failed")
-			c.JSON(http.StatusUnauthorized, response.Unauthorized("unauthorized", nil))
-			return
-		}
-		if err != nil {
-			logger.Error().Err(err).Str("system_id", systemID).Msg("mimir proxy: db query failed")
-			c.JSON(http.StatusInternalServerError, response.InternalServerError("internal server error", nil))
-			return
-		}
+	if err == sql.ErrNoRows {
+		logger.Warn().Str("system_id", systemID).Str("reason", "system not found").Msg("mimir proxy: system lookup failed")
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("unauthorized", nil))
+		return
+	}
+	if err != nil {
+		logger.Error().Err(err).Str("system_id", systemID).Msg("mimir proxy: db query failed")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("internal server error", nil))
+		return
 	}
 
 	// Buffer request body once so it can be replayed across retry attempts
@@ -128,9 +85,7 @@ func ProxyMimir(c *gin.Context) {
 	}
 	// Remove Accept-Encoding so Mimir sends plain JSON, not gzip
 	req.Header.Del("Accept-Encoding")
-	if orgID != "" {
-		req.Header.Set("X-Scope-OrgID", orgID)
-	}
+	req.Header.Set("X-Scope-OrgID", orgID)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

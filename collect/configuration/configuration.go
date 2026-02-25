@@ -82,9 +82,7 @@ type Configuration struct {
 	HeartbeatTimeoutMinutes int `json:"heartbeat_timeout_minutes"`
 
 	// Mimir configuration
-	MimirURL           string `json:"mimir_url"`
-	MimirAdminUser     string `json:"mimir_admin_user"`
-	MimirAdminPassword string `json:"mimir_admin_password"`
+	MimirURL string `json:"mimir_url"`
 }
 
 var Config = Configuration{}
@@ -172,9 +170,6 @@ func Init() {
 	} else {
 		Config.MimirURL = "http://localhost:9009"
 	}
-
-	Config.MimirAdminUser = os.Getenv("MIMIR_ADMIN_USER")
-	Config.MimirAdminPassword = os.Getenv("MIMIR_ADMIN_PASSWORD")
 
 	// Log successful configuration load
 	logger.LogConfigLoad("env", "configuration", true, nil)
