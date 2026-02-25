@@ -1,20 +1,10 @@
 # Alerting
 
-Scopri come la piattaforma My gestisce le regole di alerting e le notifiche per organizzazione tramite Grafana Mimir Alertmanager.
+Scopri come la piattaforma My gestisce alert e silenzi per organizzazione tramite Grafana Mimir Alertmanager.
 
 ## Panoramica
 
-La piattaforma My utilizza l'Alertmanager multi-tenant di [Grafana Mimir](https://grafana.com/oss/mimir/) per gestire regole di alert e inviare notifiche. Ogni organizzazione dispone di un proprio insieme isolato di regole di alerting e configurazioni di notifica: nessuna organizzazione può vedere o modificare le regole delle altre.
-
-Per la documentazione completa dell'API HTTP di Mimir, consulta:
-- [Mimir HTTP API Documentation](https://grafana.com/docs/mimir/latest/references/http-api/)
-- [Prometheus Alertmanager v2 OpenAPI Specification](https://github.com/prometheus/alertmanager/blob/main/api/v2/openapi.yaml)
-
-## Come Funziona
-
-### Multi-Tenancy
-
-Ogni sistema appartiene a un'organizzazione. Il servizio collect risolve l'`organization_id` del sistema dalle sue credenziali e lo inietta come header `X-Scope-OrgID` prima di inoltrare la richiesta a Mimir. Questo garantisce che le regole di alert e le notifiche siano completamente isolate tra le organizzazioni — ogni organizzazione gestisce e riceve solo i propri alert.
+La piattaforma My utilizza l'Alertmanager multi-tenant di [Grafana Mimir](https://grafana.com/oss/mimir/) per gestire alert e silenzi. Ogni sistema appartiene a un'organizzazione: il servizio collect risolve l'`organization_id` dalle credenziali del sistema e lo inietta come header `X-Scope-OrgID` prima di inoltrare la richiesta a Mimir. Nessuna organizzazione può vedere o modificare i dati delle altre.
 
 ## Autenticazione
 
@@ -30,73 +20,16 @@ Non è necessaria una registrazione separata — qualsiasi sistema che ha comple
 
 ## API Alertmanager
 
-L'Alertmanager è esposto tramite il proxy della piattaforma al percorso:
+I sistemi possono accedere solo ai seguenti endpoint:
 
-```
-/api/services/mimir/
-```
-
-È compatibile con l'[API standard di Alertmanager v2](https://github.com/prometheus/alertmanager/blob/main/api/v2/openapi.yaml).
-
-### Endpoint di Gestione (Solo Admin Mimir)
-
-Endpoint di gestione e debug avanzati per amministratori della piattaforma:
-
-```
-/api/services/mimir/multitenant_alertmanager/*
-```
-
-Questi endpoint richiedono credenziali di amministratore Mimir e forniscono funzionalità di amministrazione multi-tenant per il supporto della piattaforma.
-
-Consulta la [Documentazione API di Mimir](https://grafana.com/docs/mimir/latest/references/http-api/) per dettagli completi.
+| Risorsa | Percorso |
+|---------|----------|
+| Alert | `/api/services/mimir/alertmanager/api/v2/alerts` |
+| Silenzi | `/api/services/mimir/alertmanager/api/v2/silences[/{silence_id}]` |
 
 ## Esempi Comuni
 
-### 1. Gestione Configurazione Alertmanager
-
-#### Recuperare la configurazione corrente dell'organizzazione
-
-```bash
-curl -u "system_key:system_secret" \
-  https://my.nethesis.it/api/services/mimir/api/v1/alerts
-```
-
-**Risposta (200 OK):**
-```json
-{
-  "template_files": {},
-  "alertmanager_config": "global:\n  resolve_timeout: 5m\n..."
-}
-```
-
-#### Aggiornare la configurazione dell'alertmanager
-
-```bash
-curl -X POST \
-  -u "system_key:system_secret" \
-  -H "Content-Type: application/json" \
-  https://my.nethesis.it/api/services/mimir/api/v1/alerts \
-  -d '{
-    "template_files": {},
-    "alertmanager_config": "global:\n  resolve_timeout: 5m\nroute:\n  group_by: [alertname]\n  group_wait: 10s\n  group_interval: 1m\n  repeat_interval: 1h\n  receiver: \"default\"\nreceivers:\n  - name: \"default\"\n    webhook_configs:\n      - url: \"https://hooks.your-domain.com/alerts\"\n"
-  }'
-```
-
-**Risposta (201 Created)** - Configurazione creata con successo
-
-#### Eliminare la configurazione dell'alertmanager
-
-```bash
-curl -X DELETE \
-  -u "system_key:system_secret" \
-  https://my.nethesis.it/api/services/mimir/api/v1/alerts
-```
-
-**Risposta (200 OK)** - Configurazione eliminata
-
----
-
-### 2. Gestione Alert
+### 1. Gestione Alert
 
 #### Aggiungere un alert direttamente (Injection API)
 
@@ -161,16 +94,6 @@ curl -u "system_key:system_secret" \
 ]
 ```
 
-#### Recuperare i gruppi di alert
-
-```bash
-curl -u "system_key:system_secret" \
-  -H "Accept: application/json" \
-  https://my.nethesis.it/api/services/mimir/alertmanager/api/v2/alerts/groups
-```
-
-**Risposta (200 OK):** Ritorna gli alert raggruppati per le etichette di raggruppamento configurate.
-
 #### Risolvere un alert
 
 Per risolvere un alert, invia lo stesso alert con `endsAt` impostato a un timestamp nel passato:
@@ -199,7 +122,7 @@ curl -X POST \
 
 ---
 
-### 3. Gestione Silenzi
+### 2. Gestione Silenzi
 
 #### Creare un silenzio
 
@@ -254,16 +177,6 @@ curl -X DELETE \
 ```
 
 **Risposta (200 OK)** - Silenzio eliminato
-
----
-
-### Esempi di Utilizzo Precedenti
-
-**Recuperare i gruppi di alert:**
-```bash
-curl https://my.nethesis.it/api/services/mimir/alertmanager/api/v2/alerts/groups \
-  -u "<system_key>:<system_secret>"
-```
 
 ## Risoluzione Problemi
 

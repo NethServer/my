@@ -62,8 +62,6 @@ tags:
     description: Collect service system management and inventory collection
   - name: Collect - Rebranding
     description: Collect service rebranding endpoints for systems
-  - name: Collect - Metrics
-    description: Collect service alerting proxy to Mimir
   - name: Collect - Alerting
     description: |
       Collect service alerting proxy to Mimir Alertmanager.
@@ -72,30 +70,15 @@ tags:
       
       This proxy forwards requests to the Grafana Mimir Alertmanager with automatic multi-tenant isolation.
       Each system's organization is automatically resolved and injected as the `X-Scope-OrgID` header,
-      ensuring complete isolation of alerting rules, configurations, and notifications between organizations.
+      ensuring complete isolation of alerts and silences between organizations.
       
-      For complete API reference, see:
-      - [Mimir HTTP API Documentation](https://grafana.com/docs/mimir/latest/references/http-api/)
-      - [Prometheus Alertmanager v2 OpenAPI](https://github.com/prometheus/alertmanager/blob/main/api/v2/openapi.yaml)
-      
-      **Supported endpoints:**
-      - `GET /api/v1/alerts` - Get tenant alertmanager configuration
-      - `POST /api/v1/alerts` - Update tenant alertmanager configuration
-      - `DELETE /api/v1/alerts` - Delete tenant alertmanager configuration
-      - `POST /alertmanager/api/v2/alerts` - Add an alert (direct injection)
-      - `GET /alertmanager/api/v2/alerts` - List active alerts
-      - `GET /alertmanager/api/v2/alerts/groups` - List alert groups
-      - `POST /alertmanager/api/v2/silences` - Create a silence
-      - `GET /alertmanager/api/v2/silences` - List silences
-      - `DELETE /alertmanager/api/v2/silence/{id}` - Delete a silence
-      
-      **Management Endpoints (Mimir Admin Only)**
-      
-      Advanced management and debugging endpoints require Mimir admin credentials and are available at:
-      - `/api/services/mimir/multitenant_alertmanager/*`
-      
-      These endpoints provide multi-tenant alerting administration capabilities for platform administrators.
-      See [Mimir HTTP API Management](https://grafana.com/docs/mimir/latest/references/http-api/) for details.
+      **Accessible endpoints:**
+      - `POST /api/services/mimir/alertmanager/api/v2/alerts` - Add alerts
+      - `GET /api/services/mimir/alertmanager/api/v2/alerts` - List alerts
+      - `POST /api/services/mimir/alertmanager/api/v2/silences` - Create silence
+      - `GET /api/services/mimir/alertmanager/api/v2/silences` - List silences
+      - `GET /api/services/mimir/alertmanager/api/v2/silences/{id}` - Get silence
+      - `DELETE /api/services/mimir/alertmanager/api/v2/silences/{id}` - Delete silence
 security:
   - BearerAuth: []
 
@@ -8327,149 +8310,131 @@ paths:
           $ref: '#/components/responses/NotFound'
 
   # ===========================================
-  # METRICS ENDPOINTS (Collect - Mimir Proxy)
+  # ALERTING ENDPOINTS (Collect - Mimir Proxy)
   # ===========================================
 
-  /api/services/mimir/{path}:
+  /api/services/mimir/alertmanager/api/v2/alerts:
+    get:
+      operationId: mimirAlertsGet
+      tags:
+        - Collect - Alerting
+      summary: List active alerts
+      description: Lists all active alerts for the authenticated system's organization.
+      security:
+        - BasicAuth: []
+      responses:
+        '200':
+          description: List of active alerts
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      operationId: mimirAlertsPost
+      tags:
+        - Collect - Alerting
+      summary: Push alerts
+      description: Pushes one or more alerts to the Alertmanager for the authenticated system's organization.
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+      responses:
+        '200':
+          description: Alerts accepted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/services/mimir/alertmanager/api/v2/silences:
+    get:
+      operationId: mimirSilencesGet
+      tags:
+        - Collect - Alerting
+      summary: List silences
+      description: Lists all silences for the authenticated system's organization.
+      security:
+        - BasicAuth: []
+      responses:
+        '200':
+          description: List of silences
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      operationId: mimirSilencesPost
+      tags:
+        - Collect - Alerting
+      summary: Create or update a silence
+      description: Creates or updates a silence for the authenticated system's organization.
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Silence created or updated
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/services/mimir/alertmanager/api/v2/silences/{silence_id}:
     parameters:
-      - name: path
+      - name: silence_id
         in: path
         required: true
         schema:
           type: string
-        description: Wildcard path forwarded to Mimir (e.g. `api/v1/push`, `prometheus/api/v1/query`)
+        description: Silence UUID
     get:
-      operationId: mimirProxyGet
+      operationId: mimirSilenceGet
       tags:
-        - Collect - Metrics
         - Collect - Alerting
-      summary: Proxy GET request to Mimir
-      description: |
-        Authenticates the system using HTTP Basic Auth (`system_key` as username,
-        `system_secret` as password), injects the `X-Scope-OrgID` header with the
-        system's `organization_id` for multi-tenant isolation, and reverse-proxies
-        the request to Mimir. 
-        
-        **Typical use cases:**
-        - Grafana PromQL queries: `GET /api/services/mimir/prometheus/api/v1/query`
-        - Alertmanager config retrieval: `GET /api/services/mimir/api/v1/alerts`
-        - Alert listing: `GET /api/services/mimir/alertmanager/api/v2/alerts`
-        
-        For complete API reference: [Mimir HTTP API Docs](https://grafana.com/docs/mimir/latest/references/http-api/)
+      summary: Get a silence
+      description: Returns a specific silence by ID.
       security:
         - BasicAuth: []
       responses:
         '200':
-          description: Proxied response from Mimir
-        '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Silence details
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-    post:
-      operationId: mimirProxyPost
-      tags:
-        - Collect - Metrics
-        - Collect - Alerting
-      summary: Proxy POST request to Mimir
-      description: |
-        Authenticates the system using HTTP Basic Auth (`system_key` as username,
-        `system_secret` as password), injects the `X-Scope-OrgID` header with the
-        system's `organization_id` for multi-tenant isolation, and reverse-proxies
-        the request to Mimir.
-        
-        **Typical use cases:**
-        - Prometheus `remote_write` ingestion: `POST /api/services/mimir/api/v1/push`
-        - Alert injection: `POST /api/services/mimir/alertmanager/api/v2/alerts`
-        - Alertmanager config update: `POST /api/services/mimir/api/v1/alerts`
-        
-        For complete API reference: [Mimir HTTP API Docs](https://grafana.com/docs/mimir/latest/references/http-api/)
-      security:
-        - BasicAuth: []
-      requestBody:
-        description: Request body forwarded as-is to Mimir (e.g. Prometheus remote_write protobuf payload)
-        required: false
-        content:
-          application/x-protobuf:
-            schema:
-              type: string
-              format: binary
-          application/json:
-            schema:
-              type: object
-      responses:
-        '200':
-          description: Proxied response from Mimir
-        '204':
-          description: No content — Mimir acknowledged the write with no response body
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-    put:
-      operationId: mimirProxyPut
-      tags:
-        - Collect - Metrics
-        - Collect - Alerting
-      summary: Proxy PUT request to Mimir
-      description: |
-        Authenticates the system using HTTP Basic Auth (`system_key` as username,
-        `system_secret` as password), injects the `X-Scope-OrgID` header with the
-        system's `organization_id` for multi-tenant isolation, and reverse-proxies
-        the request to Mimir.
-        
-        For complete API reference: [Mimir HTTP API Docs](https://grafana.com/docs/mimir/latest/references/http-api/)
-      security:
-        - BasicAuth: []
-      requestBody:
-        description: Request body forwarded as-is to Mimir
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-      responses:
-        '200':
-          description: Proxied response from Mimir
-        '204':
-          description: No content
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '500':
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
           $ref: '#/components/responses/InternalServerError'
     delete:
-      operationId: mimirProxyDelete
+      operationId: mimirSilenceDelete
       tags:
-        - Collect - Metrics
         - Collect - Alerting
-      summary: Proxy DELETE request to Mimir
-      description: |
-        Authenticates the system using HTTP Basic Auth (`system_key` as username,
-        `system_secret` as password), injects the `X-Scope-OrgID` header with the
-        system's `organization_id` for multi-tenant isolation, and reverse-proxies
-        the request to Mimir.
-        
-        **Typical use cases:**
-        - Delete alertmanager config: `DELETE /api/services/mimir/api/v1/alerts`
-        - Delete a silence: `DELETE /api/services/mimir/alertmanager/api/v2/silence/{silence_id}`
-        
-        For complete API reference: [Mimir HTTP API Docs](https://grafana.com/docs/mimir/latest/references/http-api/)
+      summary: Delete a silence
+      description: Deletes a silence by ID.
       security:
         - BasicAuth: []
       responses:
         '200':
-          description: Proxied response from Mimir
-        '204':
-          description: No content
-        '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Silence deleted
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '500':
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
           $ref: '#/components/responses/InternalServerError'
 

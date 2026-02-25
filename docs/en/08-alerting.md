@@ -1,20 +1,12 @@
 # Alerting
 
-Learn how the My platform manages alert rules and sends notifications per organization using Grafana Mimir's multi-tenant Alertmanager.
+Learn how the My platform sends and manages alerts per organization using Grafana Mimir's multi-tenant Alertmanager.
 
 ## Overview
 
-My platform uses [Grafana Mimir](https://grafana.com/oss/mimir/)'s built-in multi-tenant Alertmanager to manage alert rules and route notifications. Each organization has its own isolated Alertmanager configuration — alert rules and notification receivers (e.g. email, PagerDuty, webhook) are fully scoped to the organization that owns them.
+My platform uses [Grafana Mimir](https://grafana.com/oss/mimir/)'s built-in multi-tenant Alertmanager. Each system belongs to an organization — the collect service resolves the system's `organization_id` from its credentials and injects it as the `X-Scope-OrgID` header before forwarding to Mimir, ensuring alerts are fully isolated between organizations.
 
-For complete API documentation, see:
-- [Mimir HTTP API Documentation](https://grafana.com/docs/mimir/latest/references/http-api/)
-- [Prometheus Alertmanager v2 OpenAPI Specification](https://github.com/prometheus/alertmanager/blob/main/api/v2/openapi.yaml)
-
-## How It Works
-
-### Multi-Tenancy
-
-Each system belongs to an organization. The collect service resolves the system's `organization_id` from its credentials and injects it as the `X-Scope-OrgID` header before forwarding to Mimir. This ensures alert rules and notifications are fully isolated between organizations — each organization only manages and receives its own alerts.
+For complete API documentation, see the [Prometheus Alertmanager v2 OpenAPI Specification](https://github.com/prometheus/alertmanager/blob/main/api/v2/openapi.yaml).
 
 ## Authentication
 
@@ -30,74 +22,16 @@ No separate registration is needed — any system that has completed registratio
 
 ## Alertmanager API
 
-The collect service proxies Alertmanager API calls and automatically injects the `X-Scope-OrgID` header based on the authenticated system's organization. The base paths are:
+The collect service proxies Alertmanager API calls and automatically injects the `X-Scope-OrgID` header based on the authenticated system's organization.
 
 | Use Case | Path |
 |----------|------|
-| **Alerts** | `/api/services/mimir/alertmanager/api/v2/` |
-| **Configuration** | `/api/services/mimir/api/v1/alerts` |
-
-The endpoints are compatible with the [Alertmanager v2 API](https://github.com/prometheus/alertmanager/blob/main/api/v2/openapi.yaml).
-
-### Management Endpoints (Mimir Admin Only)
-
-Advanced management and debugging endpoints for platform administrators:
-
-```
-/api/services/mimir/multitenant_alertmanager/*
-```
-
-These endpoints require Mimir admin credentials and provide multi-tenant alerting administration capabilities for platform support.
-
-See [Mimir HTTP API Documentation](https://grafana.com/docs/mimir/latest/references/http-api/) for complete details.
+| **Alerts** | `/api/services/mimir/alertmanager/api/v2/alerts` |
+| **Silences** | `/api/services/mimir/alertmanager/api/v2/silences[/{silence_id}]` |
 
 ## Common Examples
 
-### 1. Alertmanager Configuration Management
-
-#### Get current Alertmanager configuration
-
-```bash
-curl -u "system_key:system_secret" \
-  https://my.nethesis.it/api/services/mimir/api/v1/alerts
-```
-
-**Response (200 OK):**
-```json
-{
-  "template_files": {},
-  "alertmanager_config": "global:\n  resolve_timeout: 5m\n..."
-}
-```
-
-#### Update Alertmanager configuration
-
-```bash
-curl -X POST \
-  -u "system_key:system_secret" \
-  -H "Content-Type: application/json" \
-  https://my.nethesis.it/api/services/mimir/api/v1/alerts \
-  -d '{
-    "template_files": {},
-    "alertmanager_config": "global:\n  resolve_timeout: 5m\nroute:\n  group_by: [alertname]\n  group_wait: 10s\n  group_interval: 1m\n  repeat_interval: 1h\n  receiver: \"default\"\nreceivers:\n  - name: \"default\"\n    webhook_configs:\n      - url: \"https://hooks.your-domain.com/alerts\"\n"
-  }'
-```
-
-**Response (201 Created)** - Configuration successfully created
-
-#### Remove Alertmanager configuration
-
-```bash
-curl -X DELETE \
-  -u "system_key:system_secret" \
-  https://my.nethesis.it/api/services/mimir/api/v1/alerts
-```
-
-**Response (200 OK)** - Configuration deleted
-
----
-
-### 2. Alert Management
+### 1. Alert Management
 
 #### Inject an alert directly (Injection API)
 
@@ -162,16 +96,6 @@ curl -u "system_key:system_secret" \
 ]
 ```
 
-#### Get alert groups
-
-```bash
-curl -u "system_key:system_secret" \
-  -H "Accept: application/json" \
-  https://my.nethesis.it/api/services/mimir/alertmanager/api/v2/alerts/groups
-```
-
-**Response (200 OK):** Returns alerts grouped by the configured grouping labels.
-
 #### Resolve an alert
 
 To resolve an alert, send the same alert with `endsAt` set to a past timestamp:
@@ -200,7 +124,7 @@ curl -X POST \
 
 ---
 
-### 3. Silence Management
+### 2. Silence Management
 
 #### Create a silence
 
@@ -255,19 +179,6 @@ curl -X DELETE \
 ```
 
 **Response (200 OK)** - Silence deleted
-
----
-
-### Status and Health Checks
-
-#### Get Alertmanager status
-
-```bash
-curl https://my.nethesis.it/api/services/mimir/alertmanager/api/v2/status \
-  -u "<system_key>:<system_secret>"
-```
-
-**Response (200 OK):** Returns Alertmanager version, uptime, and configuration details.
 
 ## Troubleshooting
 
