@@ -63,7 +63,7 @@ tags:
   - name: Collect - Rebranding
     description: Collect service rebranding endpoints for systems
   - name: Collect - Metrics
-    description: Collect service metrics proxy to Mimir (Prometheus remote_write and query)
+    description: Collect service alerting proxy to Mimir
   - name: Collect - Alerting
     description: |
       Collect service alerting proxy to Mimir Alertmanager.
