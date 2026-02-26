@@ -174,7 +174,7 @@ graph LR
 
 ## Version Information
 
-Current version: **0.3.0** (Pre-production)
+Current version: **0.4.0** (Pre-production)
 
 This documentation is continuously updated. Last update: 2025-11-06
 
