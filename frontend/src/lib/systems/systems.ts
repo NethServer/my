@@ -23,7 +23,7 @@ export const CreateSystemSchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty('systems.name_cannot_be_empty')),
   organization_id: v.pipe(v.string(), v.nonEmpty('systems.organization_required')),
   notes: v.pipe(v.string()),
-  custom_data: v.optional(v.record(v.string(), v.string())), //// use correct types
+  custom_data: v.optional(v.record(v.string(), v.string())),
 })
 
 export const EditSystemSchema = v.object({

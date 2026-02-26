@@ -27,7 +27,7 @@ export const CreateUserSchema = v.object({
     v.minLength(1, 'users.user_role_ids_at_least_one_role_is_required'),
   ),
   organization_id: v.pipe(v.string(), v.nonEmpty('users.organization_required')),
-  custom_data: v.optional(v.record(v.string(), v.string())), //// use correct types
+  custom_data: v.optional(v.record(v.string(), v.string())),
 })
 
 export const EditUserSchema = v.object({
@@ -70,6 +70,14 @@ interface UsersResponse {
   data: {
     users: User[]
     pagination: Pagination
+  }
+}
+
+interface UsersTotalResponse {
+  code: number
+  message: string
+  data: {
+    total: number
   }
 }
 
@@ -169,15 +177,14 @@ export const destroyUser = (user: User) => {
   })
 }
 
-//// add typing
 export const getUsersTotal = () => {
   const loginStore = useLoginStore()
 
   return axios
-    .get(`${API_URL}/users/totals`, {
+    .get<UsersTotalResponse>(`${API_URL}/users/totals`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
-    .then((res) => res.data.data.total as number)
+    .then((res) => res.data.data.total)
 }
 
 export const resetPassword = (user: User, newPassword: string) => {

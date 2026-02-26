@@ -45,35 +45,6 @@ const { state: thirdPartyApps } = useQuery({
   <div>
     <NeHeading tag="h3" class="mb-7">{{ $t('dashboard.title') }}</NeHeading>
     <div class="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">
-      <!-- logged user  //// remove -->
-      <!-- <NeCard>
-        <div class="flex items-center gap-5 text-xs">
-          <UserAvatar size="lg" :is-owner="loginStore.isOwner" :name="loginStore.userDisplayName" />
-          <template v-if="loginStore.loadingUserInfo">
-            <NeSkeleton :lines="3" class="w-full" />
-          </template>
-          <template v-else>
-            <div class="flex flex-col gap-2">
-              <span class="text-gray-600 uppercase dark:text-gray-300">
-                {{ loginStore.userInfo?.organization_name }}
-              </span>
-              <NeHeading tag="h5">
-                {{ $t('dashboard.hello_user', { user: loginStore.userDisplayName }) }}
-              </NeHeading>
-              <div class="flex flex-wrap gap-1">
-                <NeBadge
-                  v-for="role in loginStore.userInfo?.user_roles.sort()"
-                  :key="role"
-                  :text="$t(`user_roles.${normalize(role)}`)"
-                  kind="custom"
-                  customColorClasses="bg-indigo-100 text-indigo-800 dark:bg-indigo-700 dark:text-indigo-100"
-                  class="inline-block"
-                ></NeBadge>
-              </div>
-            </div>
-          </template>
-        </div>
-      </NeCard> -->
       <!-- organizations and users counters -->
       <template v-if="!loginStore.userInfo">
         <NeCard v-for="i in 2" :key="i">

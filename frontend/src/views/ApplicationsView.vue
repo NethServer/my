@@ -76,11 +76,6 @@ const dontShowUnassignedAppsNotificationAgain = () => {
       @primary-click="showUnassignedApps"
       @secondary-click="dontShowUnassignedAppsNotificationAgain"
     />
-    <!-- ////  -->
-    <!-- showUnassignedAppsNotification {{ showUnassignedAppsNotification }}
-    <NeButton @click="saveShowUnassignedAppsNotificationToStorage(true)"
-      >Show Unassigned Apps</NeButton
-    > -->
     <ApplicationsTable />
   </div>
 </template>

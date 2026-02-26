@@ -5,8 +5,6 @@ import axios from 'axios'
 import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 
-//// is this used?
-
 export type UserRole = {
   id: string
   name: string
@@ -14,7 +12,6 @@ export type UserRole = {
 }
 
 export const USER_ROLES_KEY = 'userRoles'
-export const USER_ROLE_FILTER_KEY = 'userRoleFilter' //// used?
 
 export const getUserRoles = () => {
   const loginStore = useLoginStore()
