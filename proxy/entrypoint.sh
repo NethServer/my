@@ -28,10 +28,20 @@ else
     echo '==> Not a PR preview, using original service names'
 fi
 
-# Extract DNS resolver from /etc/resolv.conf (for internal Render DNS resolution)
+# Extract DNS resolver and search domain from /etc/resolv.conf
+# nginx resolver does not honor search domains, so service names must be FQDNs
 RESOLVER=$(awk '/^nameserver/ {print $2; exit}' /etc/resolv.conf)
 export RESOLVER="${RESOLVER:-8.8.8.8}"
-echo "Resolved DNS: $RESOLVER"
+
+SEARCH_DOMAIN=$(awk '/^search/ {print $2; exit}' /etc/resolv.conf)
+if [ -n "$SEARCH_DOMAIN" ]; then
+    export BACKEND_SERVICE_NAME="${BACKEND_SERVICE_NAME}.${SEARCH_DOMAIN}"
+    export COLLECT_SERVICE_NAME="${COLLECT_SERVICE_NAME}.${SEARCH_DOMAIN}"
+    export FRONTEND_SERVICE_NAME="${FRONTEND_SERVICE_NAME}.${SEARCH_DOMAIN}"
+fi
+
+echo "DNS resolver: $RESOLVER"
+echo "Search domain: ${SEARCH_DOMAIN:-none}"
 
 echo '==> Substituting nginx config...'
 envsubst '$PORT $BACKEND_SERVICE_NAME $COLLECT_SERVICE_NAME $FRONTEND_SERVICE_NAME $RESOLVER' < /etc/nginx/nginx.conf > /tmp/nginx.conf
