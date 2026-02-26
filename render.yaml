@@ -36,7 +36,7 @@ services:
     ipAllowList: []
 
   # Production Mimir (Private Service - NOT internet accessible)
-  - type: pserv
+  - type: web
     name: my-mimir-prod
     runtime: image
     plan: starter
@@ -56,7 +56,7 @@ services:
         sync: false
 
   # Production Backend API Server (Private Service)
-  - type: pserv
+  - type: web
     name: my-backend-prod
     runtime: image
     plan: free
@@ -119,7 +119,7 @@ services:
         sync: false
 
   # Production Collect Service (Private Service)
-  - type: pserv
+  - type: web
     name: my-collect-prod
     runtime: image
     plan: free
@@ -156,7 +156,7 @@ services:
         value: http://my-mimir-prod:9009
 
   # Production Frontend (Private Service)
-  - type: pserv
+  - type: web
     name: my-frontend-prod
     runtime: image
     plan: free
