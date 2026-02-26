@@ -140,6 +140,10 @@ jobs:
       id: version
       run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
+    - name: Compute lowercase image prefix
+      id: image_prefix
+      run: echo "PREFIX=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
     # Backend Release
     - name: Build backend binary
       working-directory: backend
@@ -224,7 +228,7 @@ jobs:
     - name: Generate backend SBOM
       uses: anchore/sbom-action@v0
       with:
-        image: ${{ env.REGISTRY }}/${{ github.repository }}/backend:${{ steps.version.outputs.VERSION }}
+        image: ${{ env.REGISTRY }}/${{ steps.image_prefix.outputs.PREFIX }}/backend:${{ steps.version.outputs.VERSION }}
         format: cyclonedx-json
         output-file: backend-sbom.cdx.json
 
@@ -259,7 +263,7 @@ jobs:
     - name: Generate sync SBOM
       uses: anchore/sbom-action@v0
       with:
-        image: ${{ env.REGISTRY }}/${{ github.repository }}/sync:${{ steps.version.outputs.VERSION }}
+        image: ${{ env.REGISTRY }}/${{ steps.image_prefix.outputs.PREFIX }}/sync:${{ steps.version.outputs.VERSION }}
         format: cyclonedx-json
         output-file: sync-sbom.cdx.json
 
@@ -294,7 +298,7 @@ jobs:
     - name: Generate collect SBOM
       uses: anchore/sbom-action@v0
       with:
-        image: ${{ env.REGISTRY }}/${{ github.repository }}/collect:${{ steps.version.outputs.VERSION }}
+        image: ${{ env.REGISTRY }}/${{ steps.image_prefix.outputs.PREFIX }}/collect:${{ steps.version.outputs.VERSION }}
         format: cyclonedx-json
         output-file: collect-sbom.cdx.json
 
@@ -325,7 +329,7 @@ jobs:
     - name: Generate frontend SBOM
       uses: anchore/sbom-action@v0
       with:
-        image: ${{ env.REGISTRY }}/${{ github.repository }}/frontend:${{ steps.version.outputs.VERSION }}
+        image: ${{ env.REGISTRY }}/${{ steps.image_prefix.outputs.PREFIX }}/frontend:${{ steps.version.outputs.VERSION }}
         format: cyclonedx-json
         output-file: frontend-sbom.cdx.json
 
@@ -356,7 +360,7 @@ jobs:
     - name: Generate proxy SBOM
       uses: anchore/sbom-action@v0
       with:
-        image: ${{ env.REGISTRY }}/${{ github.repository }}/proxy:${{ steps.version.outputs.VERSION }}
+        image: ${{ env.REGISTRY }}/${{ steps.image_prefix.outputs.PREFIX }}/proxy:${{ steps.version.outputs.VERSION }}
         format: cyclonedx-json
         output-file: proxy-sbom.cdx.json
 
@@ -387,7 +391,7 @@ jobs:
     - name: Generate mimir SBOM
       uses: anchore/sbom-action@v0
       with:
-        image: ${{ env.REGISTRY }}/${{ github.repository }}/mimir:${{ steps.version.outputs.VERSION }}
+        image: ${{ env.REGISTRY }}/${{ steps.image_prefix.outputs.PREFIX }}/mimir:${{ steps.version.outputs.VERSION }}
         format: cyclonedx-json
         output-file: mimir-sbom.cdx.json
 
