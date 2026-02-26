@@ -379,7 +379,20 @@ main() {
 
     # Commit changes
     info "Creating commit..."
-    git add version.json backend/pkg/version/VERSION collect/pkg/version/VERSION sync/pkg/version/VERSION services/mimir/VERSION frontend/package.json frontend/package-lock.json backend/openapi.yaml docs/index.md
+    release_files=(
+        version.json
+        backend/pkg/version/VERSION
+        collect/pkg/version/VERSION
+        sync/pkg/version/VERSION
+        services/mimir/VERSION
+        frontend/package.json
+        frontend/package-lock.json
+        backend/openapi.yaml
+        docs/index.md
+    )
+    for f in "${release_files[@]}"; do
+        [ -f "$f" ] && git add "$f"
+    done
     git commit -m "release: bump version to v$new_version"
 
     # Create tag
