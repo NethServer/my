@@ -42,14 +42,14 @@ function getBulkActionsMenuItems() {
       label: t('systems.export_systems_to_pdf'),
       icon: faFilePdf,
       action: () => exportSystems('pdf'),
-      disabled: !state.value.data?.systems,
+      disabled: !state.value.data?.systems.length,
     },
     {
       id: 'exportFilteredToCsv',
       label: t('systems.export_systems_to_csv'),
       icon: faFileCsv,
       action: () => exportSystems('csv'),
-      disabled: !state.value.data?.systems,
+      disabled: !state.value.data?.systems.length,
     },
   ]
 }

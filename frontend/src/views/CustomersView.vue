@@ -32,14 +32,14 @@ function getBulkActionsMenuItems() {
       label: t('customers.export_customers_to_pdf'),
       icon: faFilePdf,
       action: () => exportCustomers('pdf'),
-      disabled: !state.value.data?.customers,
+      disabled: !state.value.data?.customers.length,
     },
     {
       id: 'exportFilteredToCsv',
       label: t('customers.export_customers_to_csv'),
       icon: faFileCsv,
       action: () => exportCustomers('csv'),
-      disabled: !state.value.data?.customers,
+      disabled: !state.value.data?.customers.length,
     },
   ]
 }
