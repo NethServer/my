@@ -331,7 +331,7 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, create
 
 			// Get enriched user data using existing repository logic
 			userRepo := entities.NewLocalUserRepository()
-			enrichedUser, err := userRepo.GetByID(user.ID)
+			enrichedUser, err := userRepo.GetByID(logtoUser.ID)
 			if err != nil {
 				logger.Error().
 					Err(err).
