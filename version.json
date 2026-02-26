@@ -6,6 +6,7 @@
     "sync": "0.3.0",
     "collect": "0.3.0",
     "frontend": "0.3.0",
-    "proxy": "0.3.0"
+    "proxy": "0.3.0",
+    "services/mimir": "0.3.0"
   }
 }

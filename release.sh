@@ -193,7 +193,8 @@ update_version_file() {
         .components.sync = $version |
         .components.collect = $version |
         .components.frontend = $version |
-        .components.proxy = $version
+        .components.proxy = $version |
+        .components."services/mimir" = $version
     ' version.json > version.json.tmp && mv version.json.tmp version.json
 }
 
@@ -225,6 +226,14 @@ update_component_versions() {
         success "Updated sync/pkg/version/VERSION"
     else
         warning "sync/pkg/version/VERSION not found"
+    fi
+
+    # Update services/mimir VERSION file
+    if [ -f "services/mimir/VERSION" ]; then
+        echo "$new_version" > "services/mimir/VERSION"
+        success "Updated services/mimir/VERSION"
+    else
+        warning "services/mimir/VERSION not found"
     fi
 }
 
@@ -370,7 +379,7 @@ main() {
 
     # Commit changes
     info "Creating commit..."
-    git add version.json backend/pkg/version/VERSION collect/pkg/version/VERSION sync/pkg/version/VERSION frontend/package.json frontend/package-lock.json backend/openapi.yaml docs/index.md
+    git add version.json backend/pkg/version/VERSION collect/pkg/version/VERSION sync/pkg/version/VERSION services/mimir/VERSION frontend/package.json frontend/package-lock.json backend/openapi.yaml docs/index.md
     git commit -m "release: bump version to v$new_version"
 
     # Create tag

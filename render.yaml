@@ -41,7 +41,7 @@ services:
     runtime: image
     plan: starter
     image:
-      url: ghcr.io/nethserver/my/mimir:latest
+      url: ghcr.io/nethserver/my/mimir:v0.3.0
     envVars:
       - key: PORT
         value: 9009
