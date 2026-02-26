@@ -105,8 +105,11 @@ func main() {
 	// Add security monitoring middleware
 	router.Use(logger.SecurityMiddleware())
 
-	// Add compression
-	router.Use(gzip.Gzip(gzip.DefaultCompression))
+	// Add compression (excluding Mimir proxy endpoints to avoid double-compression)
+	router.Use(gzip.Gzip(
+		gzip.DefaultCompression,
+		gzip.WithExcludedPathsRegexs([]string{"^/api/services/mimir"}),
+	))
 
 	// CORS configuration in debug mode
 	if gin.Mode() == gin.DebugMode {
@@ -156,6 +159,19 @@ func main() {
 		// Rebranding endpoints (system fetches its own rebranding config)
 		systemsGroup.GET("/rebranding", methods.GetSystemRebranding)
 		systemsGroup.GET("/rebranding/:product_id/:asset", methods.GetSystemRebrandingAsset)
+	}
+
+	// ===========================================
+	// EXTERNAL SERVICES PROXY
+	// ===========================================
+	// Systems can access only the alertmanager alert and silence endpoints.
+	// All management APIs are reserved for future backend implementation.
+	mimirGroup := api.Group("/services/mimir", middleware.BasicAuthMiddleware())
+	{
+		mimirGroup.Any("/alertmanager/api/v2/alerts", methods.ProxyMimir)
+		mimirGroup.Any("/alertmanager/api/v2/alerts/*subpath", methods.ProxyMimir)
+		mimirGroup.Any("/alertmanager/api/v2/silences", methods.ProxyMimir)
+		mimirGroup.Any("/alertmanager/api/v2/silences/*subpath", methods.ProxyMimir)
 	}
 
 	// Handle missing endpoints

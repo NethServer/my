@@ -52,11 +52,7 @@ services:
         sync: false
       - key: MIMIR_S3_SECRET_KEY
         sync: false
-      - key: MIMIR_S3_BUCKET
-        sync: false
       - key: MIMIR_S3_ALERTMANAGER_BUCKET
-        sync: false
-      - key: MIMIR_S3_RULER_BUCKET
         sync: false
 
   # Production Backend API Server (Private Service)
@@ -227,11 +223,7 @@ services:
         sync: false
       - key: MIMIR_S3_SECRET_KEY
         sync: false
-      - key: MIMIR_S3_BUCKET
-        sync: false
       - key: MIMIR_S3_ALERTMANAGER_BUCKET
-        sync: false
-      - key: MIMIR_S3_RULER_BUCKET
         sync: false
     autoDeploy: true
     branch: main
@@ -283,6 +275,10 @@ services:
         sync: false
       - key: BACKEND_APP_SECRET
         sync: false
+
+      # Mimir Configuration
+      - key: MIMIR_URL
+        value: http://my-mimir-qa:9009
 
       # SMTP Configuration
       - key: SMTP_HOST
