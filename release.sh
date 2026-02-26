@@ -274,13 +274,22 @@ update_docs_version() {
 
     info "Updating documentation version..."
 
-    if [ -f "docs/index.md" ]; then
-        # Use sed to update the version in the "Current version:" line
-        sed -i.bak 's/Current version: \*\*[0-9.]*\*\*/Current version: **'"$new_version"'**/' docs/index.md
-        rm -f docs/index.md.bak
-        success "Updated docs/index.md version to $new_version"
+    # English docs
+    if [ -f "docs/en/index.md" ]; then
+        sed -i.bak 's/Current version: \*\*[0-9.]*\*\*/Current version: **'"$new_version"'**/' docs/en/index.md
+        rm -f docs/en/index.md.bak
+        success "Updated docs/en/index.md version to $new_version"
     else
-        warning "docs/index.md not found"
+        warning "docs/en/index.md not found"
+    fi
+
+    # Italian docs
+    if [ -f "docs/it/index.md" ]; then
+        sed -i.bak 's/Versione corrente: \*\*[0-9.]*\*\*/Versione corrente: **'"$new_version"'**/' docs/it/index.md
+        rm -f docs/it/index.md.bak
+        success "Updated docs/it/index.md version to $new_version"
+    else
+        warning "docs/it/index.md not found"
     fi
 }
 
@@ -388,7 +397,8 @@ main() {
         frontend/package.json
         frontend/package-lock.json
         backend/openapi.yaml
-        docs/index.md
+        docs/en/index.md
+        docs/it/index.md
     )
     for f in "${release_files[@]}"; do
         [ -f "$f" ] && git add "$f"
