@@ -1,0 +1,39 @@
+Benvenuto su My Nethesis!
+
+Ciao {{.UserName}},
+
+Il tuo account è stato creato ed è pronto! Di seguito troverai tutto il necessario per iniziare.
+
+═══════════════════════════════════════════════════════════════
+
+📧 Email: {{.UserEmail}}
+🏢 Organizzazione: {{.OrganizationName}}{{if .OrganizationType}} ({{.OrganizationType}}){{end}}
+{{if .UserRoles}}👤 Ruol{{if gt (len .UserRoles) 1}}i{{else}}o{{end}}: {{range $index, $role := .UserRoles}}{{if $index}}, {{end}}{{$role}}{{end}}{{end}}
+
+═══════════════════════════════════════════════════════════════
+
+🔑 PASSWORD TEMPORANEA:
+{{.TempPassword}}
+
+⚠️  Cambia questa password immediatamente dopo il login
+
+═══════════════════════════════════════════════════════════════
+
+🚀 COME INIZIARE:
+
+1. Visita: {{.LoginURL}}
+2. Inserisci la tua email: {{.UserEmail}}
+3. Usa la password temporanea sopra indicata
+4. Imposta la tua nuova password sicura
+5. Inizia a esplorare la piattaforma!
+
+═══════════════════════════════════════════════════════════════
+
+💬 SUPPORTO:
+Hai bisogno di aiuto? Contattaci a {{.SupportEmail}}
+
+Cordiali saluti,
+Il Team {{.CompanyName}}
+
+═══════════════════════════════════════════════════════════════
+Questa email è stata inviata automaticamente. Si prega di non rispondere.

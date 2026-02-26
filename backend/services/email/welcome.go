@@ -35,7 +35,8 @@ func NewWelcomeEmailService() *WelcomeEmailService {
 // =============================================================================
 
 // SendWelcomeEmail sends a welcome email with organization and user roles information
-func (w *WelcomeEmailService) SendWelcomeEmail(userEmail, userName, organizationName, organizationType string, userRoles []string, tempPassword string) error {
+// in the specified language. Falls back to English if the language template does not exist.
+func (w *WelcomeEmailService) SendWelcomeEmail(userEmail, userName, organizationName, organizationType string, userRoles []string, tempPassword, language string) error {
 	// Check if email service is configured
 	if !w.emailService.IsConfigured() {
 		logger.Warn().
@@ -67,7 +68,7 @@ func (w *WelcomeEmailService) SendWelcomeEmail(userEmail, userName, organization
 	}
 
 	// Generate email content
-	htmlBody, textBody, err := w.templateService.GenerateWelcomeEmail(templateData)
+	htmlBody, textBody, err := w.templateService.GenerateWelcomeEmail(templateData, language)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -76,10 +77,10 @@ func (w *WelcomeEmailService) SendWelcomeEmail(userEmail, userName, organization
 		return fmt.Errorf("failed to generate email content: %w", err)
 	}
 
-	// Prepare email data
+	// Prepare email data with localized subject
 	emailData := EmailData{
 		To:       userEmail,
-		Subject:  fmt.Sprintf("Welcome to %s - Account Created", organizationName),
+		Subject:  w.getLocalizedSubject(organizationName, language),
 		HTMLBody: htmlBody,
 		TextBody: textBody,
 	}
@@ -134,4 +135,14 @@ func (w *WelcomeEmailService) getCompanyName() string {
 
 	// Fallback
 	return "My Nethesis"
+}
+
+// getLocalizedSubject returns the email subject line in the specified language
+func (w *WelcomeEmailService) getLocalizedSubject(organizationName, language string) string {
+	switch language {
+	case "it":
+		return fmt.Sprintf("Benvenuto su %s - Account Creato", organizationName)
+	default:
+		return fmt.Sprintf("Welcome to %s - Account Created", organizationName)
+	}
 }

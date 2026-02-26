@@ -53,16 +53,20 @@ func NewTemplateService() *TemplateService {
 // PUBLIC METHODS
 // =============================================================================
 
-// GenerateWelcomeEmail generates HTML and text versions of welcome email
-func (ts *TemplateService) GenerateWelcomeEmail(data WelcomeEmailData) (htmlBody, textBody string, err error) {
+// GenerateWelcomeEmail generates HTML and text versions of welcome email in the specified language.
+// Falls back to English ("en") if the language-specific template does not exist.
+func (ts *TemplateService) GenerateWelcomeEmail(data WelcomeEmailData, language string) (htmlBody, textBody string, err error) {
+	htmlTemplate := ts.resolveTemplate("welcome", language, "html")
+	txtTemplate := ts.resolveTemplate("welcome", language, "txt")
+
 	// Generate HTML version
-	htmlBody, err = ts.renderTemplate("welcome.html", data)
+	htmlBody, err = ts.renderTemplate(htmlTemplate, data)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to render HTML template: %w", err)
 	}
 
 	// Generate text version
-	textBody, err = ts.renderTemplate("welcome.txt", data)
+	textBody, err = ts.renderTemplate(txtTemplate, data)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to render text template: %w", err)
 	}
@@ -70,11 +74,11 @@ func (ts *TemplateService) GenerateWelcomeEmail(data WelcomeEmailData) (htmlBody
 	return htmlBody, textBody, nil
 }
 
-// ValidateTemplates checks if required template files exist
+// ValidateTemplates checks if the default (English) template files exist
 func (ts *TemplateService) ValidateTemplates() error {
 	requiredTemplates := []string{
-		"welcome.html",
-		"welcome.txt",
+		"welcome_en.html",
+		"welcome_en.txt",
 	}
 
 	for _, templateName := range requiredTemplates {
@@ -90,6 +94,18 @@ func (ts *TemplateService) ValidateTemplates() error {
 // =============================================================================
 // PRIVATE METHODS
 // =============================================================================
+
+// resolveTemplate returns the language-specific template filename, falling back to English
+func (ts *TemplateService) resolveTemplate(base, language, ext string) string {
+	if language != "" {
+		candidate := fmt.Sprintf("%s_%s.%s", base, language, ext)
+		candidatePath := filepath.Join(ts.templateDir, candidate)
+		if _, err := os.Stat(candidatePath); err == nil {
+			return candidate
+		}
+	}
+	return fmt.Sprintf("%s_en.%s", base, ext)
+}
 
 // renderTemplate loads and renders a template file
 func (ts *TemplateService) renderTemplate(templateName string, data interface{}) (string, error) {

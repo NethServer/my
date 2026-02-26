@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Benvenuto su {{.OrganizationName}}</title>
+    <!--[if mso]>
+    <noscript>
+      <xml>
+        <o:OfficeDocumentSettings>
+          <o:PixelsPerInch>96</o:PixelsPerInch>
+        </o:OfficeDocumentSettings>
+      </xml>
+    </noscript>
+    <![endif]-->
+    <style type="text/css">
+      /* Client-specific Styles */
+      #outlook a { padding: 0; }
+      body { width: 100% !important; min-width: 100%; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; margin: 0; padding: 0; }
+      .ExternalClass { width: 100%; }
+      .ExternalClass, .ExternalClass p, .ExternalClass span, .ExternalClass font, .ExternalClass td, .ExternalClass div { line-height: 100%; }
+      #backgroundTable { margin: 0; padding: 0; width: 100% !important; line-height: 100% !important; }
+
+      /* General Styles */
+      img { outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
+      a img { border: none; }
+      .image_fix { display: block; }
+      p { margin: 0px 0px !important; }
+
+      /* Gmail specific fixes */
+      u + .body .gmail-fix { display: none; }
+
+      /* Mobile Styles */
+      @media only screen and (max-width: 640px) {
+        .mobile-hide { display: none !important; }
+        .mobile-center { text-align: center !important; }
+        .mobile-full { width: 100% !important; max-width: 100% !important; }
+        .mobile-padding { padding: 20px !important; }
+        .mobile-font-16 { font-size: 16px !important; }
+        .mobile-font-14 { font-size: 14px !important; }
+        .mobile-font-12 { font-size: 12px !important; }
+      }
+    </style>
+  </head>
+  <body style="background-color: #f9fafb; margin: 0; padding: 0; font-family: 'Poppins', Arial, Helvetica, sans-serif;">
+    <!-- 100% background wrapper (Gmail fix) -->
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" id="backgroundTable" style="background-color: #f9fafb; margin: 0; padding: 0;">
+      <tr>
+        <td align="center" valign="top" style="padding: 20px;">
+          <!-- Main email container -->
+          <table border="0" cellpadding="0" cellspacing="0" width="600" class="mobile-full" style="background-color: #ffffff; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0; max-width: 600px;">
+
+            <!-- Header -->
+            <tr>
+              <td align="center" valign="top" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%); border-radius: 16px 16px 0 0; padding: 48px 32px; position: relative;">
+                <!-- Logo -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td align="center" style="padding-bottom: 16px;">
+                      <img src="https://www.nethesis.it/assets/uploads/2025/07/nethesis.png" alt="Logo Nethesis" width="80" height="auto" style="display: block; border: 0;" />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="center" style="color: #ffffff; font-size: 32px; font-weight: 700; line-height: 1.2; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 16px;">
+                      Benvenuto su My Nethesis
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="center" style="color: rgba(255, 255, 255, 0.8); font-size: 18px; font-weight: 400; font-family: 'Poppins', Arial, sans-serif;">
+                      Il tuo account è pronto
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Content -->
+            <tr>
+              <td style="padding: 48px 32px;" class="mobile-padding">
+
+                <!-- Greeting -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td style="color: #111827; font-size: 24px; font-weight: 600; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 16px;">
+                      Ciao {{.UserName}},
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="color: #6b7280; font-size: 18px; line-height: 1.6; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 32px;">
+                      Benvenuto su My Nethesis! Il tuo account è stato creato con successo e sei pronto per iniziare. Di seguito troverai le credenziali di accesso e tutto il necessario per accedere alla piattaforma.
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Account Info Cards -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+
+                  <!-- Email Card -->
+                  <tr>
+                    <td style="padding-bottom: 16px;">
+                      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
+                        <tr>
+                          <td style="padding: 24px; text-align: center;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #64748b; margin-bottom: 8px; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 8px;">
+                                  EMAIL
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="font-size: 16px; font-weight: 600; color: #111827; word-break: break-word; font-family: 'Poppins', Arial, sans-serif;">
+                                  {{.UserEmail}}
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+
+                  <!-- Roles Card -->
+                  {{if .UserRoles}}
+                  <tr>
+                    <td style="padding-bottom: 16px;">
+                      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
+                        <tr>
+                          <td style="padding: 24px; text-align: center;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #64748b; margin-bottom: 8px; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 8px;">
+                                  RUOL{{if gt (len .UserRoles) 1}}I{{else}}O{{end}}
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="font-size: 16px; font-weight: 600; color: #111827; font-family: 'Poppins', Arial, sans-serif;">
+                                  {{range $index, $role := .UserRoles}}{{if $index}}, {{end}}{{$role}}{{end}}
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  {{end}}
+
+                  <!-- Organization Card -->
+                  <tr>
+                    <td style="padding-bottom: 16px;">
+                      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
+                        <tr>
+                          <td style="padding: 24px; text-align: center;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #64748b; margin-bottom: 8px; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 8px;">
+                                  ORGANIZZAZIONE
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="font-size: 16px; font-weight: 600; color: #111827; font-family: 'Poppins', Arial, sans-serif;">
+                                  {{.OrganizationName}}
+                                  {{if .OrganizationType}}
+                                  {{$orgTypeLower := .OrganizationType | lower}}
+                                  <br><br>
+                                  <span style="display: inline-block; padding: 8px 16px; background: oklch(0.951 0.026 236.824); color: oklch(0.5 0.134 242.749); border-radius: 50px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; font-family: 'Poppins', Arial, sans-serif; vertical-align: middle;">
+                                    {{if eq $orgTypeLower "owner"}}<span style="vertical-align: middle;">👑</span> <span style="vertical-align: middle;">Owner</span>{{end}}
+                                    {{if eq $orgTypeLower "distributor"}}<span style="vertical-align: middle;">🌍</span> <span style="vertical-align: middle;">Distributore</span>{{end}}
+                                    {{if eq $orgTypeLower "reseller"}}<span style="vertical-align: middle;">🏢</span> <span style="vertical-align: middle;">Reseller</span>{{end}}
+                                    {{if eq $orgTypeLower "customer"}}<span style="vertical-align: middle;">🏠</span> <span style="vertical-align: middle;">Cliente</span>{{end}}
+                                  </span>
+                                  {{end}}
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+
+                </table>
+
+                <!-- Getting Started Section -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 40px 0;">
+                  <tr>
+                    <td style="background-color: #f1f5f9; border-radius: 12px; border: 1px solid #e2e8f0; padding: 24px;">
+
+                      <!-- Getting Started Header -->
+                      <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                        <tr>
+                          <td style="color: #1e293b; font-size: 18px; font-weight: 600; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 16px;">
+                            <span style="vertical-align: middle;">ℹ️</span> <span style="vertical-align: middle;">Come iniziare</span>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <!-- Steps List -->
+                      <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                        <tr>
+                          <td style="color: #475569; font-size: 14px; line-height: 1.5; font-family: 'Poppins', Arial, sans-serif;">
+                            1. Clicca il pulsante "Accedi e Cambia Password" qui sotto<br>
+                            2. Inserisci la tua email: <strong style="color: #1e293b;">{{.UserEmail}}</strong><br>
+                            3. Usa la password temporanea fornita<br>
+                            4. Imposta la tua nuova password sicura<br>
+                            5. Inizia a esplorare My Nethesis
+                          </td>
+                        </tr>
+                      </table>
+
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Temporary Password Card -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="padding-bottom: 16px;">
+                  <tr>
+                    <td>
+                      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
+                        <tr>
+                          <td style="padding: 24px; text-align: center;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #64748b; margin-bottom: 8px; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 8px;">
+                                  PASSWORD TEMPORANEA
+                                </td>
+                              </tr>
+                              <tr>
+                                <td>
+                                  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background: rgb(255, 255, 255); border: 1px solid #e2e8f0; border-radius: 8px;">
+                                    <tr>
+                                      <td style="padding: 14px 16px; font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Monaco, Consolas, monospace; font-size: 16px; color: #1e293b; word-break: break-all; text-align: center;">
+                                        {{.TempPassword}}
+                                      </td>
+                                    </tr>
+                                  </table>
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- CTA Button -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 48px 0;">
+                  <tr>
+                    <td align="center">
+                      <!--[if mso]>
+                      <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{.LoginURL}}" style="height:56px;v-text-anchor:middle;width:300px;" arcsize="14%" stroke="f" fillcolor="#0069a8">
+                        <w:anchorlock/>
+                        <center>
+                      <![endif]-->
+                      <a href="{{.LoginURL}}" style="background-color: rgb(0, 105, 168); border-radius: 8px; color: #ffffff; display: inline-block; font-family: 'Poppins', Arial, sans-serif; font-size: 16px; font-weight: 600; line-height: 56px; text-align: center; text-decoration: none; width: 300px; -webkit-text-size-adjust: none;">➡️ Accedi e Cambia Password</a>
+                      <!--[if mso]>
+                        </center>
+                      </v:roundrect>
+                      <![endif]-->
+                    </td>
+                  </tr>
+                </table>
+
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td style="background-color: #f8fafc; padding: 32px; text-align: center; border-top: 1px solid #e2e8f0; border-radius: 0 0 16px 16px;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td style="font-size: 14px; color: #64748b; margin-bottom: 8px; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 8px;">
+                      <strong>{{.CompanyName}}</strong>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="font-size: 13px; color: #94a3b8; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 4px;">
+                      Hai bisogno di aiuto? Contattaci a <a href="mailto:{{.SupportEmail}}" style="color: #3b82f6; text-decoration: none;">{{.SupportEmail}}</a>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="font-size: 13px; color: #94a3b8; font-family: 'Poppins', Arial, sans-serif;">
+                      Questa email è stata inviata automaticamente. Si prega di non rispondere.
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

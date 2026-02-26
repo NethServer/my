@@ -359,6 +359,12 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, create
 				userRoles[i] = role.Name
 			}
 
+			// Determine the organization language for email localization
+			language := "it" // default language
+			if enrichedUser.Organization != nil {
+				language = s.getOrganizationLanguage(enrichedUser.Organization.LogtoID, orgType)
+			}
+
 			// Send welcome email using existing method
 			err = welcomeService.SendWelcomeEmail(
 				enrichedUser.Email,
@@ -367,6 +373,7 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, create
 				orgType,
 				userRoles,
 				tempPassword,
+				language,
 			)
 
 			if err != nil {
@@ -1555,6 +1562,35 @@ func (s *LocalUserService) determineOrganizationRoleName(organizationID string) 
 		return name
 	}
 	return "Owner"
+}
+
+// getOrganizationLanguage fetches the language from an organization's custom_data JSONB column.
+// It queries the correct table (distributors/resellers/customers) based on orgType.
+// Returns "it" as the default language if not set or on error.
+func (s *LocalUserService) getOrganizationLanguage(organizationID, orgType string) string {
+	var tableName string
+	switch strings.ToLower(orgType) {
+	case "distributor":
+		tableName = "distributors"
+	case "reseller":
+		tableName = "resellers"
+	case "customer":
+		tableName = "customers"
+	default:
+		return "it"
+	}
+
+	var language *string
+	//nolint:gosec // tableName is from a hardcoded switch, not user input
+	query := fmt.Sprintf(
+		`SELECT custom_data->>'language' FROM %s WHERE logto_id = $1 AND deleted_at IS NULL`,
+		tableName,
+	)
+	err := database.DB.QueryRow(query, organizationID).Scan(&language)
+	if err != nil || language == nil || *language == "" {
+		return "it"
+	}
+	return *language
 }
 
 // isOwnerOrganization checks if the given organization ID belongs to the Owner organization
