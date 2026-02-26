@@ -6,50 +6,63 @@
 <script setup lang="ts">
 import {
   NeCard,
+  NeDropdown,
   NeHeading,
   NeInlineNotification,
   NeLink,
   NeSkeleton,
+  type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
-import { getProductLogo, getProductName } from '@/lib/systems/systems'
+import { exportSystem, getProductLogo, getProductName } from '@/lib/systems/systems'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { getOrganizationIcon } from '@/lib/organizations'
+import { getOrganizationIcon } from '@/lib/organizations/organizations'
 import DataItem from '../DataItem.vue'
 import ClickToCopy from '../ClickToCopy.vue'
-import { computed, ref } from 'vue'
-import SystemNotesModal from './SystemNotesModal.vue'
+import { ref } from 'vue'
+import NotesModal from '../NotesModal.vue'
+import { canManageSystems } from '@/lib/permissions'
+import { faFileCsv, faFilePdf, faPenToSquare } from '@fortawesome/free-solid-svg-icons'
+import { useI18n } from 'vue-i18n'
+import CreateOrEditSystemDrawer from './CreateOrEditSystemDrawer.vue'
 
-const NOTES_MAX_LENGTH = 32
-
-const { state: systemDetail } = useSystemDetail()
+const { t } = useI18n()
+const { state: systemDetail, asyncStatus } = useSystemDetail()
 const isNotesModalShown = ref(false)
+const isShownCreateOrEditSystemDrawer = ref(false)
 
-const notesLengthExceeded = computed(() => {
-  if (!systemDetail.value.data?.notes) {
-    return false
-  }
-  const notes = systemDetail.value.data.notes
-  if (notes.length > NOTES_MAX_LENGTH || notes.includes('\n')) {
-    return true
-  }
-  return false
-})
+function getKebabMenuItems() {
+  let items: NeDropdownItem[] = []
 
-// truncate notes if they exceed a certain length or the contain new lines
-const truncatedNotes = computed(() => {
-  if (!systemDetail.value.data?.notes) {
-    return ''
+  if (canManageSystems()) {
+    items.push({
+      id: 'editSystem',
+      label: t('common.edit'),
+      icon: faPenToSquare,
+      action: () => (isShownCreateOrEditSystemDrawer.value = true),
+      disabled: asyncStatus.value === 'loading',
+    })
   }
-  const notes = systemDetail.value.data.notes
-  if (notes.length > NOTES_MAX_LENGTH) {
-    return notes.slice(0, NOTES_MAX_LENGTH) + '...'
-  }
-  if (notes.includes('\n')) {
-    return notes.split('\n')[0] + '...'
-  }
-  return notes
-})
+
+  items = [
+    ...items,
+    {
+      id: 'exportToPdf',
+      label: t('systems.export_to_pdf'),
+      icon: faFilePdf,
+      action: () => exportSystem(systemDetail.value.data!, 'pdf'),
+      disabled: asyncStatus.value === 'loading',
+    },
+    {
+      id: 'exportToCsv',
+      label: t('systems.export_to_csv'),
+      icon: faFileCsv,
+      action: () => exportSystem(systemDetail.value.data!, 'csv'),
+      disabled: asyncStatus.value === 'loading',
+    },
+  ]
+  return items
+}
 </script>
 
 <template>
@@ -65,20 +78,26 @@ const truncatedNotes = computed(() => {
     <NeSkeleton v-else-if="systemDetail.status === 'pending'" :lines="10" />
     <div v-else-if="systemDetail.data">
       <!-- product logo and name -->
-      <div class="mb-4 flex items-center gap-4">
-        <img
-          v-if="systemDetail.data.type"
-          :src="getProductLogo(systemDetail.data.type)"
-          :alt="$t('system_detail.product_logo', { product: systemDetail.data.type })"
-          aria-hidden="true"
-          class="size-8"
-        />
-        <NeHeading tag="h4">
-          {{ getProductName(systemDetail.data.type || '') || $t('system_detail.unknown_product') }}
-        </NeHeading>
+      <div class="mb-4 flex items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+          <img
+            v-if="systemDetail.data.type"
+            :src="getProductLogo(systemDetail.data.type)"
+            :alt="$t('system_detail.product_logo', { product: systemDetail.data.type })"
+            aria-hidden="true"
+            class="size-8"
+          />
+          <NeHeading tag="h6">
+            {{
+              getProductName(systemDetail.data.type || '') || $t('system_detail.unknown_product')
+            }}
+          </NeHeading>
+        </div>
+        <!-- kebab menu -->
+        <NeDropdown :items="getKebabMenuItems()" :align-to-right="true" />
       </div>
       <!-- system information -->
-      <div className="divide-y divide-gray-200 dark:divide-gray-700">
+      <div class="divide-y divide-gray-200 dark:divide-gray-700">
         <!-- name -->
         <DataItem>
           <template #label>
@@ -108,16 +127,12 @@ const truncatedNotes = computed(() => {
             {{ $t('common.ip_address') }}
           </template>
           <template #data>
-            <ClickToCopy
-              v-if="systemDetail.data.ipv4_address"
-              :text="systemDetail.data.ipv4_address"
-              tooltip-placement="left"
-            />
-            <ClickToCopy
-              v-if="systemDetail.data.ipv6_address"
-              :text="systemDetail.data.ipv6_address"
-              tooltip-placement="left"
-            />
+            <div v-if="systemDetail.data.ipv4_address">
+              <ClickToCopy :text="systemDetail.data.ipv4_address" tooltip-placement="left" />
+            </div>
+            <div v-if="systemDetail.data.ipv6_address">
+              <ClickToCopy :text="systemDetail.data.ipv6_address" tooltip-placement="left" />
+            </div>
             <span v-if="!systemDetail.data.ipv4_address && !systemDetail.data.ipv6_address">
               -
             </span>
@@ -158,26 +173,32 @@ const truncatedNotes = computed(() => {
           </template>
         </DataItem>
         <!-- notes -->
-        <DataItem v-if="systemDetail.data.notes">
-          <template #label>
-            {{ $t('systems.notes') }}
-          </template>
-          <template #data>
-            <NeLink v-if="notesLengthExceeded" @click.prevent="isNotesModalShown = true">
-              {{ truncatedNotes }}
+        <div v-if="systemDetail.data.notes">
+          <div class="py-4 font-medium">
+            {{ $t('common.notes') }}
+          </div>
+          <pre ref="preElement" class="line-clamp-5 font-sans whitespace-pre-wrap">{{
+            systemDetail.data.notes
+          }}</pre>
+          <div class="mt-2">
+            <NeLink @click="isNotesModalShown = true">
+              {{ $t('common.show_notes') }}
             </NeLink>
-            <span v-else>
-              {{ systemDetail.data.notes }}
-            </span>
-          </template>
-        </DataItem>
+          </div>
+        </div>
       </div>
     </div>
     <!-- notes modal -->
-    <SystemNotesModal
+    <NotesModal
       :visible="isNotesModalShown"
       :notes="systemDetail.data?.notes"
       @close="isNotesModalShown = false"
+    />
+    <!-- edit drawer -->
+    <CreateOrEditSystemDrawer
+      :is-shown="isShownCreateOrEditSystemDrawer"
+      :current-system="systemDetail.data!"
+      @close="isShownCreateOrEditSystemDrawer = false"
     />
   </NeCard>
 </template>

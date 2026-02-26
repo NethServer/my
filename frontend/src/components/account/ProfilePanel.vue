@@ -9,7 +9,6 @@ import { getValidationIssues, isValidationError } from '@/lib/validation'
 import { useLoginStore } from '@/stores/login'
 import { useNotificationsStore } from '@/stores/notifications'
 import {
-  NeBadge,
   NeButton,
   NeFormItemLabel,
   NeInlineNotification,
@@ -21,8 +20,8 @@ import type { AxiosError } from 'axios'
 import { ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import * as v from 'valibot'
-import { USERS_KEY } from '@/lib/users'
-import { normalize } from '@/lib/common'
+import { USERS_KEY } from '@/lib/users/users'
+import UserRoleBadge from '../users/UserRoleBadge.vue'
 
 const { t } = useI18n()
 const loginStore = useLoginStore()
@@ -171,14 +170,11 @@ function validate(profile: ProfileInfo): boolean {
           {{ $t('users.roles') }}
         </NeFormItemLabel>
         <div class="flex flex-wrap gap-1">
-          <NeBadge
+          <UserRoleBadge
             v-for="role in loginStore.userInfo?.user_roles.sort()"
             :key="role"
-            :text="t(`user_roles.${normalize(role)}`)"
-            kind="custom"
-            customColorClasses="bg-indigo-100 text-indigo-800 dark:bg-indigo-700 dark:text-indigo-100"
-            class="inline-block"
-          ></NeBadge>
+            :role="role"
+          />
         </div>
       </div>
       <!-- edit user error notification -->

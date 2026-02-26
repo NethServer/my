@@ -4,14 +4,62 @@
 -->
 
 <script setup lang="ts">
-import { NeButton, NeHeading } from '@nethesis/vue-components'
+import { NeButton, NeDropdown, NeHeading } from '@nethesis/vue-components'
 import CustomersTable from '@/components/customers/CustomersTable.vue'
 import { ref } from 'vue'
-import { faCirclePlus } from '@fortawesome/free-solid-svg-icons'
+import {
+  faChevronDown,
+  faCirclePlus,
+  faFileCsv,
+  faFilePdf,
+} from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { canManageCustomers } from '@/lib/permissions'
+import { useCustomers } from '@/queries/organizations/customers'
+import { useI18n } from 'vue-i18n'
+import { getExport } from '@/lib/organizations/customers'
+import { downloadFile } from '@/lib/common'
+
+const { t } = useI18n()
+const { state, debouncedTextFilter, statusFilter, sortBy, sortDescending } = useCustomers()
 
 const isShownCreateCustomerDrawer = ref(false)
+
+function getBulkActionsMenuItems() {
+  return [
+    {
+      id: 'exportFilteredToPdf',
+      label: t('customers.export_customers_to_pdf'),
+      icon: faFilePdf,
+      action: () => exportCustomers('pdf'),
+      disabled: !state.value.data?.customers.length,
+    },
+    {
+      id: 'exportFilteredToCsv',
+      label: t('customers.export_customers_to_csv'),
+      icon: faFileCsv,
+      action: () => exportCustomers('csv'),
+      disabled: !state.value.data?.customers.length,
+    },
+  ]
+}
+
+async function exportCustomers(format: 'pdf' | 'csv') {
+  try {
+    const exportData = await getExport(
+      format,
+      debouncedTextFilter.value,
+      statusFilter.value,
+      sortBy.value,
+      sortDescending.value,
+    )
+    const fileName = `${t('customers.title')}.${format}`
+    downloadFile(exportData, fileName, format)
+  } catch (error) {
+    console.error(`Cannot export customers to ${format}:`, error)
+    throw error
+  }
+}
 </script>
 
 <template>
@@ -21,19 +69,38 @@ const isShownCreateCustomerDrawer = ref(false)
       <div class="max-w-2xl text-gray-500 dark:text-gray-400">
         {{ $t('customers.page_description') }}
       </div>
-      <!-- create customer -->
-      <NeButton
-        v-if="canManageCustomers()"
-        kind="primary"
-        size="lg"
-        class="shrink-0"
-        @click="isShownCreateCustomerDrawer = true"
-      >
-        <template #prefix>
-          <FontAwesomeIcon :icon="faCirclePlus" aria-hidden="true" />
-        </template>
-        {{ $t('customers.create_customer') }}
-      </NeButton>
+      <div class="flex flex-row-reverse items-center gap-4 xl:flex-row">
+        <NeDropdown
+          :items="getBulkActionsMenuItems()"
+          align-to-right
+          :openMenuAriaLabel="$t('ne_dropdown.open_menu')"
+        >
+          <template #button>
+            <NeButton>
+              <template #suffix>
+                <FontAwesomeIcon
+                  :icon="faChevronDown"
+                  class="h-4 w-4"
+                  aria-hidden="true"
+                /> </template
+              >{{ $t('common.actions') }}</NeButton
+            >
+          </template>
+        </NeDropdown>
+        <!-- create customer -->
+        <NeButton
+          v-if="canManageCustomers()"
+          kind="primary"
+          size="lg"
+          class="shrink-0"
+          @click="isShownCreateCustomerDrawer = true"
+        >
+          <template #prefix>
+            <FontAwesomeIcon :icon="faCirclePlus" aria-hidden="true" />
+          </template>
+          {{ $t('customers.create_customer') }}
+        </NeButton>
+      </div>
     </div>
     <CustomersTable
       :isShownCreateCustomerDrawer="isShownCreateCustomerDrawer"

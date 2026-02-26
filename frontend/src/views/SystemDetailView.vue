@@ -19,18 +19,19 @@ import { useTabs } from '@/composables/useTabs'
 import { useI18n } from 'vue-i18n'
 import SystemOverviewPanel from '@/components/systems/SystemOverviewPanel.vue'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
+import { computed } from 'vue'
 
 const { t } = useI18n()
 const { state: systemDetail } = useSystemDetail()
 const { state: latestInventory } = useLatestInventory()
 const { tabs, selectedTab } = useTabs([{ name: 'overview', label: t('system_detail.overview') }])
 
-const canOpenSystem = () => {
-  return ['ns8', 'nsec'].includes(systemDetail.value.data?.type || '')
-}
-
-const getSystemUrl = () => {
+const systemUrl = computed(() => {
   if (!systemDetail.value.data?.fqdn) {
+    return ''
+  }
+
+  if (!['ns8', 'nsec'].includes(systemDetail.value.data?.type || '')) {
     return ''
   }
 
@@ -45,13 +46,11 @@ const getSystemUrl = () => {
   }
   const url = `https://${fqdn}${port}${path}`
   return url
-}
+})
 
 const openSystem = () => {
-  const url = getSystemUrl()
-
-  if (url) {
-    window.open(url, '_blank')
+  if (systemUrl.value) {
+    window.open(systemUrl.value, '_blank')
   }
 }
 </script>
@@ -82,15 +81,19 @@ const openSystem = () => {
       <!-- open system -->
       <NeTooltip placement="left" trigger-event="mouseenter focus" class="shrink-0">
         <template #trigger>
-          <NeButton kind="primary" :disabled="!canOpenSystem()" @click="openSystem()">
+          <NeButton kind="primary" :disabled="!systemUrl" @click="openSystem()">
             <template #prefix>
               <FontAwesomeIcon :icon="faArrowUpRightFromSquare" aria-hidden="true" />
             </template>
-            {{ $t('system_detail.open_system') }}
+            {{ $t('system_detail.go_to_system') }}
           </NeButton>
         </template>
         <template #content>
-          {{ $t('system_detail.open_system_tooltip') }}
+          {{
+            systemUrl
+              ? $t('system_detail.go_to_system_tooltip')
+              : $t('system_detail.cannot_determine_system_url_description')
+          }}
         </template>
       </NeTooltip>
     </div>

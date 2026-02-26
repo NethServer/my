@@ -5,17 +5,17 @@ import axios from 'axios'
 import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
-import { type Pagination } from '../common'
-import Ns8Logo from '@/assets/ns8_logo.svg'
-import NsecLogo from '@/assets/nsec_logo.svg'
+import { downloadFile, type Pagination } from '../common'
+import Ns8Logo from '@/assets/system_logos/nethserver.svg'
+import NsecLogo from '@/assets/system_logos/nethsecurity.svg'
 
 export const SYSTEMS_KEY = 'systems'
 export const SYSTEMS_TOTAL_KEY = 'systemsTotal'
 export const SYSTEMS_TABLE_ID = 'systemsTable'
 
-export type SystemStatus = 'online' | 'offline' | 'unknown' | 'deleted'
+export type SystemStatus = 'online' | 'offline' | 'unknown' | 'deleted' | 'suspended'
 
-const systemStatusOptions = ['online', 'offline', 'unknown', 'deleted']
+const systemStatusOptions = ['online', 'offline', 'unknown', 'deleted', 'suspended']
 
 const SystemStatusSchema = v.picklist(systemStatusOptions)
 
@@ -23,7 +23,7 @@ export const CreateSystemSchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty('systems.name_cannot_be_empty')),
   organization_id: v.pipe(v.string(), v.nonEmpty('systems.organization_required')),
   notes: v.pipe(v.string()),
-  custom_data: v.optional(v.record(v.string(), v.string())), //// use correct types
+  custom_data: v.optional(v.record(v.string(), v.string())),
 })
 
 export const EditSystemSchema = v.object({
@@ -44,6 +44,7 @@ export const SystemSchema = v.object({
   updated_at: v.string(),
   system_key: v.optional(v.string()),
   system_secret: v.string(),
+  suspended_at: v.optional(v.string()),
   organization: v.object({
     id: v.string(),
     name: v.string(),
@@ -98,6 +99,7 @@ export const getQueryStringParams = (
   createdByFilter: string[],
   versionFilter: string[],
   statusFilter: SystemStatus[],
+  organizationFilter: string[],
   sortBy: string | null,
   sortDescending: boolean,
 ) => {
@@ -126,6 +128,10 @@ export const getQueryStringParams = (
 
   statusFilter.forEach((status) => {
     searchParams.append('status', status)
+  })
+
+  organizationFilter.forEach((orgId) => {
+    searchParams.append('organization_id', orgId)
   })
   return searchParams.toString()
 }
@@ -196,6 +202,7 @@ export const getSystems = (
   createdByFilter: string[],
   versionFilter: string[],
   statusFilter: SystemStatus[],
+  organizationFilter: string[],
   sortBy: string,
   sortDescending: boolean,
 ) => {
@@ -208,6 +215,7 @@ export const getSystems = (
     createdByFilter,
     versionFilter,
     statusFilter,
+    organizationFilter,
     sortBy,
     sortDescending,
   )
@@ -245,6 +253,26 @@ export const deleteSystem = (system: System) => {
   })
 }
 
+export const destroySystem = (system: System) => {
+  const loginStore = useLoginStore()
+
+  return axios.delete(`${API_URL}/systems/${system.id}/destroy`, {
+    headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+  })
+}
+
+export const restoreSystem = (system: System) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/systems/${system.id}/restore`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
 export const regenerateSystemSecret = (systemId: string) => {
   const loginStore = useLoginStore()
 
@@ -272,8 +300,6 @@ export function getProductName(systemType: string) {
     return 'NethServer'
   } else if (systemType === 'nsec') {
     return 'NethSecurity'
-  } else if (systemType === 'nsec-controller') {
-    return 'NethSecurity Controller'
   } else {
     return systemType
   }
@@ -287,6 +313,17 @@ export const getProductLogo = (systemType: string) => {
       return NsecLogo
     default:
       return undefined
+  }
+}
+
+export async function exportSystem(system: System, format: 'pdf' | 'csv') {
+  try {
+    const exportData = await getExport(format, system.system_key)
+    const fileName = `${system.name}.${format}`
+    downloadFile(exportData, fileName, format)
+  } catch (error) {
+    console.error(`Cannot export system to ${format}:`, error)
+    throw error
   }
 }
 
@@ -326,6 +363,30 @@ export const postRegenerateSecret = (systemId: string) => {
 
   return axios.post<PostSystemResponse>(
     `${API_URL}/systems/${systemId}/regenerate-secret`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
+export const suspendSystem = (system: System) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/systems/${system.id}/suspend`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
+export const reactivateSystem = (system: System) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/systems/${system.id}/reactivate`,
     {},
     {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },

@@ -5,7 +5,7 @@
 
 <script setup lang="ts">
 import { NeButton, NeDropdown, NeHeading } from '@nethesis/vue-components'
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import {
   faChevronDown,
   faCirclePlus,
@@ -13,7 +13,7 @@ import {
   faFilePdf,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { canManageSystems, canReadSystems } from '@/lib/permissions'
+import { canManageSystems } from '@/lib/permissions'
 import SystemsTable from '@/components/systems/SystemsTable.vue'
 import { useSystems } from '@/queries/systems/systems'
 import { useI18n } from 'vue-i18n'
@@ -35,10 +35,6 @@ const {
 
 const isShownCreateSystemDrawer = ref(false)
 
-const systemsPage = computed(() => {
-  return state.value.data?.systems
-})
-
 function getBulkActionsMenuItems() {
   return [
     {
@@ -46,14 +42,14 @@ function getBulkActionsMenuItems() {
       label: t('systems.export_systems_to_pdf'),
       icon: faFilePdf,
       action: () => exportSystems('pdf'),
-      disabled: !state.value.data?.systems,
+      disabled: !state.value.data?.systems.length,
     },
     {
       id: 'exportFilteredToCsv',
       label: t('systems.export_systems_to_csv'),
       icon: faFileCsv,
       action: () => exportSystems('csv'),
-      disabled: !state.value.data?.systems,
+      disabled: !state.value.data?.systems.length,
     },
   ]
 }
@@ -74,7 +70,7 @@ async function exportSystems(format: 'pdf' | 'csv') {
     const fileName = `${t('systems.title')}.${format}`
     downloadFile(exportData, fileName, format)
   } catch (error) {
-    console.error('Cannot export systems to pdf:', error)
+    console.error(`Cannot export systems to ${format}:`, error)
     throw error
   }
 }
@@ -87,16 +83,11 @@ async function exportSystems(format: 'pdf' | 'csv') {
       <div class="max-w-2xl text-gray-500 dark:text-gray-400">
         {{ $t('systems.page_description') }}
       </div>
-      <!-- v-if condition is the opposite of empty state condition in SystemsTable.vue -->
-      <div
-        v-if="!(state.status === 'success' && !systemsPage?.length && !debouncedTextFilter)"
-        class="flex items-center gap-4"
-      >
+      <div class="flex flex-row-reverse items-center gap-4 xl:flex-row">
         <NeDropdown
           :items="getBulkActionsMenuItems()"
           align-to-right
           :openMenuAriaLabel="$t('ne_dropdown.open_menu')"
-          v-if="canReadSystems()"
         >
           >
           <template #button>

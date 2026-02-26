@@ -4,15 +4,73 @@
 -->
 
 <script setup lang="ts">
-import { NeButton, NeHeading } from '@nethesis/vue-components'
+import { NeButton, NeDropdown, NeHeading } from '@nethesis/vue-components'
 import UsersTable from '@/components/users/UsersTable.vue'
 import { ref } from 'vue'
-import { faCirclePlus } from '@fortawesome/free-solid-svg-icons'
+import {
+  faChevronDown,
+  faCirclePlus,
+  faFileCsv,
+  faFilePdf,
+} from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { PRODUCT_NAME } from '@/lib/config'
 import { canManageUsers } from '@/lib/permissions'
+import { useUsers } from '@/queries/users/users'
+import { useI18n } from 'vue-i18n'
+import { getExport } from '@/lib/users/users'
+import { downloadFile } from '@/lib/common'
+
+const { t } = useI18n()
+const {
+  state,
+  debouncedTextFilter,
+  organizationFilter,
+  roleFilter,
+  statusFilter,
+  sortBy,
+  sortDescending,
+} = useUsers()
 
 const isShownCreateUserDrawer = ref(false)
+
+function getBulkActionsMenuItems() {
+  return [
+    {
+      id: 'exportFilteredToPdf',
+      label: t('users.export_users_to_pdf'),
+      icon: faFilePdf,
+      action: () => exportUsers('pdf'),
+      disabled: !state.value.data?.users.length,
+    },
+    {
+      id: 'exportFilteredToCsv',
+      label: t('users.export_users_to_csv'),
+      icon: faFileCsv,
+      action: () => exportUsers('csv'),
+      disabled: !state.value.data?.users.length,
+    },
+  ]
+}
+
+async function exportUsers(format: 'pdf' | 'csv') {
+  try {
+    const exportData = await getExport(
+      format,
+      debouncedTextFilter.value,
+      organizationFilter.value,
+      roleFilter.value,
+      statusFilter.value,
+      sortBy.value,
+      sortDescending.value,
+    )
+    const fileName = `${t('users.title')}.${format}`
+    downloadFile(exportData, fileName, format)
+  } catch (error) {
+    console.error(`Cannot export users to ${format}:`, error)
+    throw error
+  }
+}
 </script>
 
 <template>
@@ -22,19 +80,35 @@ const isShownCreateUserDrawer = ref(false)
       <div class="max-w-2xl text-gray-500 dark:text-gray-400">
         {{ $t('users.page_description', { productName: PRODUCT_NAME }) }}
       </div>
-      <!-- create user -->
-      <NeButton
-        v-if="canManageUsers()"
-        kind="primary"
-        size="lg"
-        class="shrink-0"
-        @click="isShownCreateUserDrawer = true"
-      >
-        <template #prefix>
-          <FontAwesomeIcon :icon="faCirclePlus" aria-hidden="true" />
-        </template>
-        {{ $t('users.create_user') }}
-      </NeButton>
+      <div class="flex items-center gap-4">
+        <NeDropdown
+          :items="getBulkActionsMenuItems()"
+          align-to-right
+          :openMenuAriaLabel="$t('ne_dropdown.open_menu')"
+        >
+          <template #button>
+            <NeButton>
+              <template #suffix>
+                <FontAwesomeIcon :icon="faChevronDown" class="h-4 w-4" aria-hidden="true" />
+              </template>
+              {{ $t('common.actions') }}
+            </NeButton>
+          </template>
+        </NeDropdown>
+        <!-- create user -->
+        <NeButton
+          v-if="canManageUsers()"
+          kind="primary"
+          size="lg"
+          class="shrink-0"
+          @click="isShownCreateUserDrawer = true"
+        >
+          <template #prefix>
+            <FontAwesomeIcon :icon="faCirclePlus" aria-hidden="true" />
+          </template>
+          {{ $t('users.create_user') }}
+        </NeButton>
+      </div>
     </div>
     <UsersTable
       :isShownCreateUserDrawer="isShownCreateUserDrawer"

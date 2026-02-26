@@ -37,9 +37,10 @@ import { getValidationIssues, isValidationError } from '../../lib/validation'
 import type { AxiosError } from 'axios'
 import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
-import { getOrganizations, ORGANIZATIONS_KEY } from '@/lib/organizations'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faCheck, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
+import { SYSTEM_FILTERS_KEY } from '@/lib/systems/systemFilters'
+import { organizationsQuery } from '@/queries/organizations/organizations'
 
 const { isShown = false, currentSystem = undefined } = defineProps<{
   isShown: boolean
@@ -54,9 +55,8 @@ const notificationsStore = useNotificationsStore()
 const loginStore = useLoginStore()
 
 const { state: organizations } = useQuery({
-  key: [ORGANIZATIONS_KEY],
+  ...organizationsQuery,
   enabled: () => !!loginStore.jwtToken && isShown,
-  query: getOrganizations,
 })
 
 const {
@@ -79,6 +79,7 @@ const {
   onSettled: () => {
     queryCache.invalidateQueries({ key: [SYSTEMS_KEY] })
     queryCache.invalidateQueries({ key: [SYSTEMS_TOTAL_KEY] })
+    queryCache.invalidateQueries({ key: [SYSTEM_FILTERS_KEY] })
   },
 })
 
@@ -109,7 +110,10 @@ const {
     console.error('Error editing system:', error)
     validationIssues.value = getValidationIssues(error as AxiosError, 'systems')
   },
-  onSettled: () => queryCache.invalidateQueries({ key: [SYSTEMS_KEY] }),
+  onSettled: () => {
+    queryCache.invalidateQueries({ key: [SYSTEMS_KEY] })
+    queryCache.invalidateQueries({ key: [SYSTEM_FILTERS_KEY] })
+  },
 })
 
 const name = ref('')
@@ -141,7 +145,7 @@ const organizationOptions = computed(() => {
   }
 
   return organizations.value.data?.map((org) => ({
-    id: org.id,
+    id: org.logto_id,
     label: org.name,
     description: t(`organizations.${org.type}`),
   }))
@@ -360,7 +364,7 @@ function copySecretAndCloseDrawer() {
             ref="notesRef"
             v-model="notes"
             @blur="notes = notes.trim()"
-            :label="$t('systems.notes')"
+            :label="$t('common.notes')"
             :disabled="saving"
             :invalid-message="validationIssues.notes?.[0] ? $t(validationIssues.notes[0]) : ''"
             :optional="true"
@@ -395,9 +399,7 @@ function copySecretAndCloseDrawer() {
               <div v-if="isSecretRevealed" class="break-all">
                 {{ secret }}
               </div>
-              <div v-else class="break-all">
-                *************************************************************************
-              </div>
+              <div v-else class="break-all">************************</div>
               <NeButton
                 kind="tertiary"
                 size="sm"

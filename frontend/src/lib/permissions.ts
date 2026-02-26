@@ -14,6 +14,13 @@ const MANAGE_USERS = 'manage:users'
 const IMPERSONATE_USERS = 'impersonate:users'
 const READ_SYSTEMS = 'read:systems'
 const MANAGE_SYSTEMS = 'manage:systems'
+const READ_APPLICATIONS = 'read:applications'
+const MANAGE_APPLICATIONS = 'manage:applications'
+const DESTROY_DISTRIBUTORS = 'destroy:distributors'
+const DESTROY_RESELLERS = 'destroy:resellers'
+const DESTROY_CUSTOMERS = 'destroy:customers'
+const DESTROY_USERS = 'destroy:users'
+const DESTROY_SYSTEMS = 'destroy:systems'
 
 export const canReadDistributors = () => {
   const loginStore = useLoginStore()
@@ -68,4 +75,39 @@ export const canReadSystems = () => {
 export const canManageSystems = () => {
   const loginStore = useLoginStore()
   return loginStore.permissions.includes(MANAGE_SYSTEMS)
+}
+
+export const canReadApplications = () => {
+  const loginStore = useLoginStore()
+  return loginStore.permissions.includes(READ_APPLICATIONS)
+}
+
+export const canManageApplications = () => {
+  const loginStore = useLoginStore()
+  return loginStore.permissions.includes(MANAGE_APPLICATIONS)
+}
+
+export const canDestroyDistributors = () => {
+  const loginStore = useLoginStore()
+  return loginStore.permissions.includes(DESTROY_DISTRIBUTORS)
+}
+
+export const canDestroyResellers = () => {
+  const loginStore = useLoginStore()
+  return loginStore.permissions.includes(DESTROY_RESELLERS)
+}
+
+export const canDestroyCustomers = () => {
+  const loginStore = useLoginStore()
+  return loginStore.permissions.includes(DESTROY_CUSTOMERS)
+}
+
+export const canDestroyUsers = () => {
+  const loginStore = useLoginStore()
+  return loginStore.permissions.includes(DESTROY_USERS)
+}
+
+export const canDestroySystems = () => {
+  const loginStore = useLoginStore()
+  return loginStore.permissions.includes(DESTROY_SYSTEMS)
 }

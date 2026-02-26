@@ -15,7 +15,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 import {
   faCheck,
-  faPowerOff,
+  faCircleInfo,
   faQuestion,
   faTriangleExclamation,
   faXmark,
@@ -59,9 +59,9 @@ const getBadgeIcon = () => {
 <template>
   <NeCard>
     <div class="mb-4 flex items-center gap-4">
-      <FontAwesomeIcon :icon="faPowerOff" class="size-8 shrink-0" aria-hidden="true" />
-      <NeHeading tag="h4">
-        {{ $t('common.status') }}
+      <FontAwesomeIcon :icon="faCircleInfo" class="size-5 shrink-0" aria-hidden="true" />
+      <NeHeading tag="h6">
+        {{ $t('common.status').toUpperCase() }}
       </NeHeading>
       <!-- status badge -->
       <NeBadgeV2 v-if="systemDetail.status === 'success'" :kind="getBadgeKind()">
@@ -91,7 +91,7 @@ const getBadgeIcon = () => {
       v-else-if="latestInventory.status === 'pending' || systemDetail.status === 'pending'"
       :lines="6"
     />
-    <div v-else className="divide-y divide-gray-200 dark:divide-gray-700">
+    <div v-else class="divide-y divide-gray-200 dark:divide-gray-700">
       <!-- uptime -->
       <DataItem>
         <template #label>

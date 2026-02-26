@@ -6,13 +6,13 @@
 <script setup lang="ts">
 import { useThemeStore } from './stores/theme'
 import { computed, onMounted } from 'vue'
-import AppShell from '@/components/AppShell.vue'
+import AppShell from '@/components/shell/AppShell.vue'
 import { useRoute } from 'vue-router'
 import { useTitle } from '@vueuse/core'
 import { PRODUCT_NAME } from './lib/config'
 import { useI18n } from 'vue-i18n'
-import ToastNotificationsArea from '@/components/ToastNotificationsArea.vue'
-import { PiniaColadaDevtools } from '@pinia/colada-devtools'
+import ToastNotificationsArea from '@/components/shell/ToastNotificationsArea.vue'
+import { PiniaColadaProdDevtools } from '@pinia/colada-devtools'
 import { configureAxios } from './lib/axios'
 
 const themeStore = useThemeStore()
@@ -55,7 +55,8 @@ onMounted(() => {
     <RouterView v-else />
     <ToastNotificationsArea />
   </div>
-  <PiniaColadaDevtools />
+  <!-- <PiniaColadaDevtools /> //// -->
+  <PiniaColadaProdDevtools />
 </template>
 
 <style scoped></style>

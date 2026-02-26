@@ -4,14 +4,14 @@
 -->
 
 <script setup lang="ts">
+import ApplicationsCounterCard from '@/components/dashboard/ApplicationsCounterCard.vue'
 import CustomersCounterCard from '@/components/dashboard/CustomersCounterCard.vue'
 import DistributorsCounterCard from '@/components/dashboard/DistributorsCounterCard.vue'
 import ResellersCounterCard from '@/components/dashboard/ResellersCounterCard.vue'
 import SystemsCounterCard from '@/components/dashboard/SystemsCounterCard.vue'
 import UsersCounterCard from '@/components/dashboard/UsersCounterCard.vue'
-import UserAvatar from '@/components/UserAvatar.vue'
-import { normalize } from '@/lib/common'
 import {
+  canReadApplications,
   canReadCustomers,
   canReadDistributors,
   canReadResellers,
@@ -30,14 +30,7 @@ import {
 import { useLoginStore } from '@/stores/login'
 import { faArrowUpRightFromSquare } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import {
-  NeBadge,
-  NeButton,
-  NeCard,
-  NeHeading,
-  NeRoundedIcon,
-  NeSkeleton,
-} from '@nethesis/vue-components'
+import { NeButton, NeCard, NeHeading, NeRoundedIcon, NeSkeleton } from '@nethesis/vue-components'
 import { useQuery } from '@pinia/colada'
 
 const loginStore = useLoginStore()
@@ -52,35 +45,6 @@ const { state: thirdPartyApps } = useQuery({
   <div>
     <NeHeading tag="h3" class="mb-7">{{ $t('dashboard.title') }}</NeHeading>
     <div class="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">
-      <!-- logged user -->
-      <NeCard>
-        <div class="flex items-center gap-5 text-xs">
-          <UserAvatar size="lg" :is-owner="loginStore.isOwner" :name="loginStore.userDisplayName" />
-          <template v-if="loginStore.loadingUserInfo">
-            <NeSkeleton :lines="3" class="w-full" />
-          </template>
-          <template v-else>
-            <div class="flex flex-col gap-2">
-              <span class="text-gray-600 uppercase dark:text-gray-300">
-                {{ loginStore.userInfo?.organization_name }}
-              </span>
-              <NeHeading tag="h5">
-                {{ $t('dashboard.hello_user', { user: loginStore.userDisplayName }) }}
-              </NeHeading>
-              <div class="flex flex-wrap gap-1">
-                <NeBadge
-                  v-for="role in loginStore.userInfo?.user_roles.sort()"
-                  :key="role"
-                  :text="$t(`user_roles.${normalize(role)}`)"
-                  kind="custom"
-                  customColorClasses="bg-indigo-100 text-indigo-800 dark:bg-indigo-700 dark:text-indigo-100"
-                  class="inline-block"
-                ></NeBadge>
-              </div>
-            </div>
-          </template>
-        </div>
-      </NeCard>
       <!-- organizations and users counters -->
       <template v-if="!loginStore.userInfo">
         <NeCard v-for="i in 2" :key="i">
@@ -88,11 +52,12 @@ const { state: thirdPartyApps } = useQuery({
         </NeCard>
       </template>
       <template v-else>
-        <SystemsCounterCard v-if="canReadSystems()" />
         <DistributorsCounterCard v-if="canReadDistributors()" />
         <ResellersCounterCard v-if="canReadResellers()" />
         <CustomersCounterCard v-if="canReadCustomers()" />
         <UsersCounterCard v-if="canReadUsers()" />
+        <SystemsCounterCard v-if="canReadSystems()" />
+        <ApplicationsCounterCard v-if="canReadApplications()" />
       </template>
     </div>
     <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">
@@ -111,8 +76,8 @@ const { state: thirdPartyApps } = useQuery({
             <div class="flex items-center gap-3">
               <NeRoundedIcon
                 :customIcon="getThirdPartyAppIcon(thirdPartyApp)"
-                customBackgroundClasses="bg-indigo-100 dark:bg-indigo-800"
-                customForegroundClasses="text-indigo-700 dark:text-indigo-50"
+                customBackgroundClasses="bg-gray-100 dark:bg-gray-500"
+                customForegroundClasses="text-gray-700 dark:text-gray-50"
               />
               <NeHeading tag="h6">
                 {{ thirdPartyApp.branding.display_name }}

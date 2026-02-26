@@ -4,14 +4,62 @@
 -->
 
 <script setup lang="ts">
-import { NeButton, NeHeading } from '@nethesis/vue-components'
+import { NeButton, NeDropdown, NeHeading } from '@nethesis/vue-components'
 import DistributorsTable from '@/components/distributors/DistributorsTable.vue'
 import { ref } from 'vue'
-import { faCirclePlus } from '@fortawesome/free-solid-svg-icons'
+import {
+  faChevronDown,
+  faCirclePlus,
+  faFileCsv,
+  faFilePdf,
+} from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { canManageDistributors } from '@/lib/permissions'
+import { useDistributors } from '@/queries/organizations/distributors'
+import { useI18n } from 'vue-i18n'
+import { getExport } from '@/lib/organizations/distributors'
+import { downloadFile } from '@/lib/common'
+
+const { t } = useI18n()
+const { state, debouncedTextFilter, statusFilter, sortBy, sortDescending } = useDistributors()
 
 const isShownCreateDistributorDrawer = ref(false)
+
+function getBulkActionsMenuItems() {
+  return [
+    {
+      id: 'exportFilteredToPdf',
+      label: t('distributors.export_distributors_to_pdf'),
+      icon: faFilePdf,
+      action: () => exportDistributors('pdf'),
+      disabled: !state.value.data?.distributors,
+    },
+    {
+      id: 'exportFilteredToCsv',
+      label: t('distributors.export_distributors_to_csv'),
+      icon: faFileCsv,
+      action: () => exportDistributors('csv'),
+      disabled: !state.value.data?.distributors,
+    },
+  ]
+}
+
+async function exportDistributors(format: 'pdf' | 'csv') {
+  try {
+    const exportData = await getExport(
+      format,
+      debouncedTextFilter.value,
+      statusFilter.value,
+      sortBy.value,
+      sortDescending.value,
+    )
+    const fileName = `${t('distributors.title')}.${format}`
+    downloadFile(exportData, fileName, format)
+  } catch (error) {
+    console.error(`Cannot export distributors to ${format}:`, error)
+    throw error
+  }
+}
 </script>
 
 <template>
@@ -21,19 +69,39 @@ const isShownCreateDistributorDrawer = ref(false)
       <div class="max-w-2xl text-gray-500 dark:text-gray-400">
         {{ $t('distributors.page_description') }}
       </div>
-      <!-- create distributor -->
-      <NeButton
-        v-if="canManageDistributors()"
-        kind="primary"
-        size="lg"
-        class="shrink-0"
-        @click="isShownCreateDistributorDrawer = true"
-      >
-        <template #prefix>
-          <FontAwesomeIcon :icon="faCirclePlus" aria-hidden="true" />
-        </template>
-        {{ $t('distributors.create_distributor') }}
-      </NeButton>
+      <div class="flex flex-row-reverse items-center gap-4 xl:flex-row">
+        <NeDropdown
+          :items="getBulkActionsMenuItems()"
+          align-to-right
+          :openMenuAriaLabel="$t('ne_dropdown.open_menu')"
+        >
+          >
+          <template #button>
+            <NeButton>
+              <template #suffix>
+                <FontAwesomeIcon
+                  :icon="faChevronDown"
+                  class="h-4 w-4"
+                  aria-hidden="true"
+                /> </template
+              >{{ $t('common.actions') }}</NeButton
+            >
+          </template>
+        </NeDropdown>
+        <!-- create distributor -->
+        <NeButton
+          v-if="canManageDistributors()"
+          kind="primary"
+          size="lg"
+          class="shrink-0"
+          @click="isShownCreateDistributorDrawer = true"
+        >
+          <template #prefix>
+            <FontAwesomeIcon :icon="faCirclePlus" aria-hidden="true" />
+          </template>
+          {{ $t('distributors.create_distributor') }}
+        </NeButton>
+      </div>
     </div>
     <DistributorsTable
       :isShownCreateDistributorDrawer="isShownCreateDistributorDrawer"

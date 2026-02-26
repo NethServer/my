@@ -38,7 +38,7 @@ export const getThirdPartyApps = () => {
   const loginStore = useLoginStore()
 
   return axios
-    .get(`${API_URL}/applications`, {
+    .get(`${API_URL}/third-party-applications`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data.sort(sortThirdPartyApps) as ThirdPartyApp[])

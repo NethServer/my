@@ -4,12 +4,16 @@
 -->
 
 <script setup lang="ts">
-import { NeInlineNotification } from '@nethesis/vue-components'
-import { NeModal } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
-import { CUSTOMERS_KEY, CUSTOMERS_TOTAL_KEY, deleteCustomer, type Customer } from '@/lib/customers'
+import {
+  CUSTOMERS_KEY,
+  CUSTOMERS_TOTAL_KEY,
+  deleteCustomer,
+  type Customer,
+} from '@/lib/organizations/customers'
 import { useNotificationsStore } from '@/stores/notifications'
+import DeleteObjectModal from '../DeleteObjectModal.vue'
 
 const { visible = false, customer = undefined } = defineProps<{
   visible: boolean
@@ -36,8 +40,8 @@ const {
     setTimeout(() => {
       notificationsStore.createNotification({
         kind: 'success',
-        title: t('customers.customer_deleted'),
-        description: t('common.object_deleted_successfully', {
+        title: t('customers.customer_archived'),
+        description: t('common.object_archived_successfully', {
           name: vars.name,
         }),
       })
@@ -61,29 +65,17 @@ function onShow() {
 </script>
 
 <template>
-  <NeModal
+  <DeleteObjectModal
     :visible="visible"
-    :title="$t('customers.delete_customer')"
-    kind="warning"
-    :primary-label="$t('common.delete')"
-    :cancel-label="$t('common.cancel')"
-    primary-button-kind="danger"
-    :primary-button-disabled="deleteCustomerLoading"
-    :primary-button-loading="deleteCustomerLoading"
-    :close-aria-label="$t('common.close')"
+    :title="$t('customers.archive_customer')"
+    :primary-label="$t('common.archive')"
+    :deleting="deleteCustomerLoading"
+    :confirmation-message="t('customers.archive_customer_confirmation', { name: customer?.name })"
+    :confirmation-input="customer?.name"
+    :error-title="t('organizations.cannot_archive_organization')"
+    :error-description="deleteCustomerError?.message"
+    @show="onShow"
     @close="emit('close')"
     @primary-click="deleteCustomerMutate(customer!)"
-    @show="onShow"
-  >
-    <p>
-      {{ t('customers.delete_customer_confirmation', { name: customer?.name }) }}
-    </p>
-    <NeInlineNotification
-      v-if="deleteCustomerError?.message"
-      kind="error"
-      :title="t('customers.cannot_delete_customer')"
-      :description="deleteCustomerError.message"
-      class="mt-4"
-    />
-  </NeModal>
+  />
 </template>

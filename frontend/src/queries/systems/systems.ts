@@ -15,6 +15,7 @@ import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { useDebounceFn } from '@vueuse/core'
 import { ref, watch } from 'vue'
+import { computed } from 'vue'
 
 export const useSystems = defineQuery(() => {
   const loginStore = useLoginStore()
@@ -25,7 +26,8 @@ export const useSystems = defineQuery(() => {
   const productFilter = ref<string[]>([])
   const createdByFilter = ref<string[]>([])
   const versionFilter = ref<string[]>([])
-  const statusFilter = ref<SystemStatus[]>(['online', 'offline', 'unknown'])
+  const statusFilter = ref<SystemStatus[]>(['online', 'offline', 'unknown', 'suspended'])
+  const organizationFilter = ref<string[]>([])
   const sortBy = ref<keyof System>('name')
   const sortDescending = ref(false)
 
@@ -40,6 +42,7 @@ export const useSystems = defineQuery(() => {
         createdByFilter: createdByFilter.value,
         versionFilter: versionFilter.value,
         statusFilter: statusFilter.value,
+        organizationFilter: organizationFilter.value,
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
@@ -54,9 +57,26 @@ export const useSystems = defineQuery(() => {
         createdByFilter.value,
         versionFilter.value,
         statusFilter.value,
+        organizationFilter.value,
         sortBy.value,
         sortDescending.value,
       ),
+  })
+
+  const areDefaultFiltersApplied = computed(() => {
+    return (
+      !debouncedTextFilter.value &&
+      productFilter.value.length === 0 &&
+      versionFilter.value.length === 0 &&
+      createdByFilter.value.length === 0 &&
+      organizationFilter.value.length === 0 &&
+      statusFilter.value.length === 4 &&
+      statusFilter.value.includes('online') &&
+      statusFilter.value.includes('offline') &&
+      statusFilter.value.includes('unknown') &&
+      statusFilter.value.includes('suspended') &&
+      !statusFilter.value.includes('deleted')
+    )
   })
 
   // load table page size from storage
@@ -91,6 +111,55 @@ export const useSystems = defineQuery(() => {
     },
   )
 
+  // reset to first page when status filter changes
+  watch(
+    () => statusFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
+
+  // reset to first page when product filter changes
+  watch(
+    () => productFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
+
+  // reset to first page when created by filter changes
+  watch(
+    () => createdByFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
+
+  // reset to first page when version filter changes
+  watch(
+    () => versionFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
+
+  // reset to first page when organization filter changes
+  watch(
+    () => organizationFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
+
+  const resetFilters = () => {
+    textFilter.value = ''
+    productFilter.value = []
+    versionFilter.value = []
+    createdByFilter.value = []
+    statusFilter.value = ['online', 'offline', 'unknown', 'suspended']
+    organizationFilter.value = []
+  }
+
   return {
     ...rest,
     state,
@@ -102,8 +171,11 @@ export const useSystems = defineQuery(() => {
     createdByFilter,
     versionFilter,
     statusFilter,
+    organizationFilter,
     debouncedTextFilter,
     sortBy,
     sortDescending,
+    areDefaultFiltersApplied,
+    resetFilters,
   }
 })

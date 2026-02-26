@@ -56,9 +56,9 @@ function onCloseSecretRegeneratedModal() {
   <NeCard>
     <div class="mb-4 flex items-center justify-between gap-4">
       <div class="flex items-center gap-4">
-        <FontAwesomeIcon :icon="faAward" class="size-8 shrink-0" aria-hidden="true" />
-        <NeHeading tag="h4">
-          {{ $t('system_detail.subscription') }}
+        <FontAwesomeIcon :icon="faAward" class="size-5 shrink-0" aria-hidden="true" />
+        <NeHeading tag="h6">
+          {{ $t('system_detail.subscription').toUpperCase() }}
         </NeHeading>
       </div>
       <!-- kebab menu -->
@@ -73,7 +73,7 @@ function onCloseSecretRegeneratedModal() {
       class="mb-6"
     />
     <NeSkeleton v-else-if="systemDetail.status === 'pending'" :lines="6" />
-    <div v-else className="divide-y divide-gray-200 dark:divide-gray-700">
+    <div v-else class="divide-y divide-gray-200 dark:divide-gray-700">
       <!-- system creation -->
       <DataItem>
         <template #label>

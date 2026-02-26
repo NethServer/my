@@ -4,15 +4,19 @@
 -->
 
 <script setup lang="ts">
-import { USERS_TABLE_ID, type User } from '@/lib/users'
+import { USERS_TABLE_ID, type User } from '@/lib/users/users'
 import {
   faCircleInfo,
-  faCirclePlus,
   faUserGroup,
   faPenToSquare,
-  faTrash,
+  faBoxArchive,
   faKey,
   faUserSecret,
+  faCirclePause,
+  faCirclePlay,
+  faCircleCheck,
+  faRotateLeft,
+  faBomb,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -31,21 +35,32 @@ import {
   NeDropdown,
   type SortEvent,
   NeSortDropdown,
-  NeBadge,
   sortByProperty,
+  type NeDropdownItem,
+  NeTooltip,
+  NeDropdownFilter,
+  type FilterOption,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import CreateOrEditUserDrawer from './CreateOrEditUserDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteUserModal from './DeleteUserModal.vue'
+import DestroyUserModal from './DestroyUserModal.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import ResetPasswordModal from './ResetPasswordModal.vue'
 import PasswordChangedModal from './PasswordChangedModal.vue'
-import { useUsers } from '@/queries/users'
-import { canManageUsers, canImpersonateUsers } from '@/lib/permissions'
+import { useUsers } from '@/queries/users/users'
+import { canManageUsers, canImpersonateUsers, canDestroyUsers } from '@/lib/permissions'
 import { useLoginStore } from '@/stores/login'
 import ImpersonateUserModal from './ImpersonateUserModal.vue'
+import SuspendUserModal from './SuspendUserModal.vue'
+import ReactivateUserModal from './ReactivateUserModal.vue'
+import RestoreUserModal from './RestoreUserModal.vue'
+import OrganizationIcon from '../organizations/OrganizationIcon.vue'
+import UserRoleBadge from './UserRoleBadge.vue'
+import { useUserFilters } from '@/queries/users/userFilters'
 import { normalize } from '@/lib/common'
+import OrganizationLink from '../applications/OrganizationLink.vue'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -61,11 +76,15 @@ const {
   pageSize,
   textFilter,
   debouncedTextFilter,
+  organizationFilter,
+  roleFilter,
+  statusFilter,
   sortBy,
   sortDescending,
+  resetFilters,
 } = useUsers()
-
 const loginStore = useLoginStore()
+const { state: userFiltersState } = useUserFilters()
 
 const currentUser = ref<User | undefined>()
 const isShownCreateOrEditUserDrawer = ref(false)
@@ -73,8 +92,27 @@ const isShownDeleteUserModal = ref(false)
 const isShownResetPasswordModal = ref(false)
 const isShownPasswordChangedModal = ref(false)
 const isShownImpersonateUserModal = ref(false)
+const isShownSuspendUserModal = ref(false)
+const isShownReactivateUserModal = ref(false)
+const isShownRestoreUserModal = ref(false)
+const isShownDestroyUserModal = ref(false)
 const newPassword = ref<string>('')
 const isImpersonating = ref(false)
+
+const statusFilterOptions = ref<FilterOption[]>([
+  {
+    id: 'enabled',
+    label: t('common.enabled'),
+  },
+  {
+    id: 'suspended',
+    label: t('common.suspended'),
+  },
+  {
+    id: 'deleted',
+    label: t('common.archived'),
+  },
+])
 
 const usersPage = computed(() => {
   return state.value.data?.users
@@ -82,6 +120,55 @@ const usersPage = computed(() => {
 
 const pagination = computed(() => {
   return state.value.data?.pagination
+})
+
+const areDefaultFiltersApplied = computed(() => {
+  return (
+    !debouncedTextFilter.value &&
+    organizationFilter.value.length === 0 &&
+    roleFilter.value.length === 0 &&
+    statusFilter.value.length === 2 &&
+    statusFilter.value.includes('enabled') &&
+    statusFilter.value.includes('suspended') &&
+    !statusFilter.value.includes('deleted')
+  )
+})
+
+const isNoDataEmptyStateShown = computed(() => {
+  return (
+    !usersPage.value?.length && state.value.status === 'success' && areDefaultFiltersApplied.value
+  )
+})
+
+const isNoMatchEmptyStateShown = computed(() => {
+  return (
+    !usersPage.value?.length && state.value.status === 'success' && !areDefaultFiltersApplied.value
+  )
+})
+
+const noEmptyStateShown = computed(() => {
+  return !isNoDataEmptyStateShown.value && !isNoMatchEmptyStateShown.value
+})
+
+const organizationFilterOptions = computed(() => {
+  if (!userFiltersState.value.data?.organizations) {
+    return []
+  }
+  return userFiltersState.value.data.organizations.map((org) => ({
+    id: org.id,
+    label: org.name,
+  }))
+})
+
+const roleFilterOptions = computed(() => {
+  if (!userFiltersState.value.data?.roles) {
+    return []
+  }
+  return userFiltersState.value.data.roles.map((role) => ({
+    id: role.id,
+    label: t(`user_roles.${normalize(role.name)}`),
+    description: t(`user_roles.${normalize(role.name)}_description`),
+  }))
 })
 
 watch(
@@ -93,10 +180,6 @@ watch(
   },
   { immediate: true },
 )
-
-function clearFilters() {
-  textFilter.value = ''
-}
 
 function showCreateUserDrawer() {
   currentUser.value = undefined
@@ -118,6 +201,26 @@ function showResetPasswordModal(user: User) {
   isShownResetPasswordModal.value = true
 }
 
+function showSuspendUserModal(user: User) {
+  currentUser.value = user
+  isShownSuspendUserModal.value = true
+}
+
+function showReactivateUserModal(user: User) {
+  currentUser.value = user
+  isShownReactivateUserModal.value = true
+}
+
+function showRestoreUserModal(user: User) {
+  currentUser.value = user
+  isShownRestoreUserModal.value = true
+}
+
+function showDestroyUserModal(user: User) {
+  currentUser.value = user
+  isShownDestroyUserModal.value = true
+}
+
 function showImpersonateUserModal(user: User) {
   currentUser.value = user
   isShownImpersonateUserModal.value = true
@@ -134,36 +237,93 @@ function onCloseDrawer() {
 }
 
 function getKebabMenuItems(user: User) {
-  const items = [
-    {
-      id: 'resetPassword',
-      label: t('users.reset_password'),
-      icon: faKey,
-      action: () => showResetPasswordModal(user),
-      disabled: asyncStatus.value === 'loading',
-    },
-    {
-      id: 'deleteAccount',
-      label: t('common.delete'),
-      icon: faTrash,
-      danger: true,
-      action: () => showDeleteUserModal(user),
-      disabled: asyncStatus.value === 'loading',
-    },
-  ]
+  let items: NeDropdownItem[] = []
 
-  // Add impersonate option for owners, but not for self
-  if (canImpersonateUsers() && user.id !== loginStore.userInfo?.id) {
-    items.unshift({
-      id: 'impersonate',
-      label: t('users.impersonate_user'),
-      icon: faUserSecret,
-      action: () => showImpersonateUserModal(user),
-      disabled:
-        asyncStatus.value === 'loading' || isImpersonating.value || !user.can_be_impersonated,
-    })
+  // Hide impersonate option for yourself
+  if (
+    canImpersonateUsers() &&
+    user.logto_id !== loginStore.userInfo?.logto_id &&
+    !user.suspended_at &&
+    !user.deleted_at
+  ) {
+    items = [
+      ...items,
+      {
+        id: 'impersonate',
+        label: t('users.impersonate_user'),
+        icon: faUserSecret,
+        action: () => showImpersonateUserModal(user),
+        disabled: isImpersonating.value || !user.can_be_impersonated,
+      },
+    ]
   }
 
+  if (canManageUsers()) {
+    if (user.deleted_at) {
+      items = [
+        ...items,
+        {
+          id: 'restoreUser',
+          label: t('common.restore'),
+          icon: faRotateLeft,
+          action: () => showRestoreUserModal(user),
+        },
+      ]
+    } else if (user.suspended_at) {
+      items = [
+        ...items,
+        {
+          id: 'reactivateUser',
+          label: t('users.reactivate'),
+          icon: faCirclePlay,
+          action: () => showReactivateUserModal(user),
+        },
+        {
+          id: 'deleteAccount',
+          label: t('common.archive'),
+          icon: faBoxArchive,
+          danger: true,
+          action: () => showDeleteUserModal(user),
+        },
+      ]
+    } else {
+      items = [
+        ...items,
+        {
+          id: 'suspendUser',
+          label: t('common.suspend'),
+          icon: faCirclePause,
+          action: () => showSuspendUserModal(user),
+        },
+        {
+          id: 'resetPassword',
+          label: t('users.reset_password'),
+          icon: faKey,
+          action: () => showResetPasswordModal(user),
+        },
+        {
+          id: 'deleteAccount',
+          label: t('common.archive'),
+          icon: faBoxArchive,
+          danger: true,
+          action: () => showDeleteUserModal(user),
+        },
+      ]
+    }
+  }
+
+  if (canDestroyUsers()) {
+    items = [
+      ...items,
+      {
+        id: 'destroyUser',
+        label: t('common.destroy'),
+        icon: faBomb,
+        danger: true,
+        action: () => showDestroyUserModal(user),
+      },
+    ]
+  }
   return items
 }
 
@@ -200,6 +360,47 @@ const onClosePasswordChangedModal = () => {
             :placeholder="$t('users.filter_users')"
             class="max-w-48 sm:max-w-sm"
           />
+          <!-- organization filter -->
+          <NeDropdownFilter
+            v-model="organizationFilter"
+            kind="checkbox"
+            :label="t('organizations.organization')"
+            :options="organizationFilterOptions"
+            :disabled="userFiltersState.status === 'pending'"
+            show-options-filter
+            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
+          />
+          <!-- role filter -->
+          <NeDropdownFilter
+            v-model="roleFilter"
+            kind="checkbox"
+            :label="t('users.role')"
+            :options="roleFilterOptions"
+            :disabled="userFiltersState.status === 'pending'"
+            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
+          />
+          <!-- status filter -->
+          <NeDropdownFilter
+            v-model="statusFilter"
+            kind="checkbox"
+            :label="t('common.status')"
+            :options="statusFilterOptions"
+            :show-clear-filter="false"
+            :clear-filter-label="t('ne_dropdown_filter.reset_filter')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
+          />
+          <!-- sort dropdown -->
           <NeSortDropdown
             v-model:sort-key="sortBy"
             v-model:sort-descending="sortDescending"
@@ -208,14 +409,17 @@ const onClosePasswordChangedModal = () => {
               { id: 'name', label: t('users.name') },
               { id: 'email', label: t('users.email') },
               { id: 'organization', label: t('users.organization') },
+              { id: 'status', label: t('common.status') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
             :sort-by-label="t('sort.sort_by')"
             :sort-direction-label="t('sort.direction')"
             :ascending-label="t('sort.ascending')"
             :descending-label="t('sort.descending')"
-            class="xl:hidden"
           />
+          <NeButton kind="tertiary" @click="resetFilters">
+            {{ t('common.reset_filters') }}
+          </NeButton>
         </div>
         <!-- update indicator -->
         <div
@@ -229,7 +433,25 @@ const onClosePasswordChangedModal = () => {
         </div>
       </div>
     </div>
+    <!-- empty state -->
+    <NeEmptyState
+      v-if="isNoDataEmptyStateShown"
+      :title="$t('users.no_user')"
+      :icon="faUserGroup"
+      class="bg-white dark:bg-gray-950"
+    />
+    <!-- no user matching filter -->
+    <NeEmptyState
+      v-else-if="isNoMatchEmptyStateShown"
+      :title="$t('users.no_user_found')"
+      :description="$t('common.try_changing_search_filters')"
+      :icon="faCircleInfo"
+      class="bg-white dark:bg-gray-950"
+    >
+      <NeButton kind="tertiary" @click="resetFilters"> {{ $t('common.clear_filters') }}</NeButton>
+    </NeEmptyState>
     <NeTable
+      v-if="noEmptyStateShown"
       :sort-key="sortBy"
       :sort-descending="sortDescending"
       :aria-label="$t('users.title')"
@@ -249,80 +471,97 @@ const onClosePasswordChangedModal = () => {
           $t('users.organization')
         }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('users.roles') }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="status" @sort="onSort">{{
+          $t('common.status')
+        }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- no header for actions -->
         </NeTableHeadCell>
       </NeTableHead>
       <NeTableBody>
-        <!-- empty state -->
-        <NeTableRow v-if="!usersPage?.length && !debouncedTextFilter">
-          <NeTableCell colspan="5">
-            <NeEmptyState
-              :title="$t('users.no_user')"
-              :icon="faUserGroup"
-              class="bg-white dark:bg-gray-950"
-            >
-              <!-- create user -->
-              <NeButton
-                v-if="canManageUsers()"
-                kind="primary"
-                size="lg"
-                class="shrink-0"
-                @click="showCreateUserDrawer()"
-              >
-                <template #prefix>
-                  <FontAwesomeIcon :icon="faCirclePlus" aria-hidden="true" />
-                </template>
-                {{ $t('users.create_user') }}
-              </NeButton>
-            </NeEmptyState>
-          </NeTableCell>
-        </NeTableRow>
-        <!-- no user matching filter -->
-        <NeTableRow v-else-if="!usersPage?.length && debouncedTextFilter">
-          <NeTableCell colspan="4">
-            <NeEmptyState
-              :title="$t('users.no_user_found')"
-              :description="$t('common.try_changing_search_filters')"
-              :icon="faCircleInfo"
-              class="bg-white dark:bg-gray-950"
-            >
-              <NeButton kind="tertiary" @click="clearFilters">
-                {{ $t('common.clear_filters') }}</NeButton
-              >
-            </NeEmptyState>
-          </NeTableCell>
-        </NeTableRow>
-        <NeTableRow v-for="(item, index) in usersPage" v-else :key="index">
-          <NeTableCell :data-label="$t('users.name')">
+        <NeTableRow v-for="(item, index) in usersPage" :key="index">
+          <NeTableCell :data-label="$t('users.name')" :class="{ 'opacity-50': item.deleted_at }">
             {{ item.name }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('users.email')" class="break-all xl:break-normal">
+          <NeTableCell
+            :data-label="$t('users.email')"
+            class="break-all xl:break-normal"
+            :class="{ 'opacity-50': item.deleted_at }"
+          >
             {{ item.email }}
           </NeTableCell>
           <NeTableCell :data-label="$t('users.organization')">
-            {{ item.organization?.name || '-' }}
+            <div class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
+              <NeTooltip
+                v-if="item.organization.type"
+                placement="top"
+                trigger-event="mouseenter focus"
+                class="shrink-0"
+              >
+                <template #trigger>
+                  <OrganizationIcon :org-type="item.organization.type" size="sm" />
+                </template>
+                <template #content>
+                  {{ t(`organizations.${item.organization.type}`) }}
+                </template>
+              </NeTooltip>
+              <OrganizationLink v-if="item.organization" :organization="item.organization" />
+              <span v-else class="font-medium">
+                {{ '-' }}
+              </span>
+            </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('users.roles')">
-            <span v-if="!item.roles || item.roles.length === 0">-</span>
-            <div v-else class="flex flex-wrap gap-1">
-              <NeBadge
+            <span
+              v-if="!item.roles || item.roles.length === 0"
+              :class="{ 'opacity-50': item.deleted_at }"
+              >-</span
+            >
+            <div v-else class="flex flex-wrap gap-1" :class="{ 'opacity-50': item.deleted_at }">
+              <UserRoleBadge
                 v-for="role in item.roles?.sort(sortByProperty('name'))"
                 :key="role.id"
-                :text="t(`user_roles.${normalize(role.name)}`)"
-                kind="custom"
-                customColorClasses="bg-indigo-100 text-indigo-800 dark:bg-indigo-700 dark:text-indigo-100"
-                class="inline-block"
-              ></NeBadge>
+                :role="role.name"
+              />
+            </div>
+          </NeTableCell>
+          <NeTableCell :data-label="$t('common.status')">
+            <div class="flex items-center gap-2">
+              <template v-if="item.deleted_at">
+                <FontAwesomeIcon
+                  :icon="faBoxArchive"
+                  class="size-4 text-gray-700 dark:text-gray-400"
+                  aria-hidden="true"
+                />
+                <span>
+                  {{ t('common.archived') }}
+                </span>
+              </template>
+              <template v-else-if="item.suspended_at">
+                <FontAwesomeIcon
+                  :icon="faCirclePause"
+                  class="size-4 text-gray-700 dark:text-gray-400"
+                  aria-hidden="true"
+                />
+                <span>
+                  {{ t('users.suspended') }}
+                </span>
+              </template>
+              <template v-else>
+                <FontAwesomeIcon
+                  :icon="faCircleCheck"
+                  class="size-4 text-green-600 dark:text-green-400"
+                  aria-hidden="true"
+                />
+                <span>
+                  {{ t('common.enabled') }}
+                </span>
+              </template>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
             <div v-if="canManageUsers()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
-              <NeButton
-                kind="tertiary"
-                @click="showEditUserDrawer(item)"
-                :disabled="asyncStatus === 'loading'"
-              >
+              <NeButton v-if="!item.deleted_at" kind="tertiary" @click="showEditUserDrawer(item)">
                 <template #prefix>
                   <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
                 </template>
@@ -371,6 +610,24 @@ const onClosePasswordChangedModal = () => {
       :user="currentUser"
       @close="isShownDeleteUserModal = false"
     />
+    <!-- suspend user modal -->
+    <SuspendUserModal
+      :visible="isShownSuspendUserModal"
+      :user="currentUser"
+      @close="isShownSuspendUserModal = false"
+    />
+    <!-- reactivate user modal -->
+    <ReactivateUserModal
+      :visible="isShownReactivateUserModal"
+      :user="currentUser"
+      @close="isShownReactivateUserModal = false"
+    />
+    <!-- restore user modal -->
+    <RestoreUserModal
+      :visible="isShownRestoreUserModal"
+      :user="currentUser"
+      @close="isShownRestoreUserModal = false"
+    />
     <!-- impersonate user modal -->
     <ImpersonateUserModal
       :visible="isShownImpersonateUserModal"
@@ -390,6 +647,12 @@ const onClosePasswordChangedModal = () => {
       :user="currentUser"
       :new-password="newPassword"
       @close="onClosePasswordChangedModal"
+    />
+    <!-- destroy user modal -->
+    <DestroyUserModal
+      :visible="isShownDestroyUserModal"
+      :user="currentUser"
+      @close="isShownDestroyUserModal = false"
     />
   </div>
 </template>

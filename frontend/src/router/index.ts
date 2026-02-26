@@ -65,6 +65,31 @@ const router = createRouter({
       name: 'system_detail',
       component: () => import('../views/SystemDetailView.vue'),
     },
+    {
+      path: '/applications',
+      name: 'applications',
+      component: () => import('../views/ApplicationsView.vue'),
+    },
+    {
+      path: '/applications/:applicationId',
+      name: 'application_detail',
+      component: () => import('../views/ApplicationDetailView.vue'),
+    },
+    {
+      path: '/distributors/:companyId',
+      name: 'distributor_detail',
+      component: () => import('../views/DistributorDetailView.vue'),
+    },
+    {
+      path: '/resellers/:companyId',
+      name: 'reseller_detail',
+      component: () => import('../views/ResellerDetailView.vue'),
+    },
+    {
+      path: '/customers/:companyId',
+      name: 'customer_detail',
+      component: () => import('../views/CustomerDetailView.vue'),
+    },
   ],
 })
 
