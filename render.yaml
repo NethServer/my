@@ -36,7 +36,7 @@ services:
     ipAllowList: []
 
   # Production Mimir (Private Service - NOT internet accessible)
-  - type: web
+  - type: pserv
     name: my-mimir-prod
     runtime: image
     plan: starter
