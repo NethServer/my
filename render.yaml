@@ -238,7 +238,7 @@ services:
     pullRequestPreviewsEnabled: true
 
   # QA Backend API Server (Private Service)
-  - type: web
+  - type: pserv
     name: my-backend-qa
     runtime: docker
     plan: starter
@@ -305,7 +305,7 @@ services:
     pullRequestPreviewsEnabled: true  # PR previews enabled
 
   # QA Collect Service (Private Service)
-  - type: web
+  - type: pserv
     name: my-collect-qa
     runtime: docker
     plan: starter
@@ -346,13 +346,15 @@ services:
     pullRequestPreviewsEnabled: true  # PR previews enabled
 
   # QA Frontend (Private Service)
-  - type: web
+  - type: pserv
     name: my-frontend-qa
     runtime: docker
     plan: starter
     rootDir: frontend
     dockerfilePath: Containerfile
     envVars:
+      - key: PORT
+        value: 10000
       - key: VITE_PRODUCT_NAME
         value: "My Nethesis"
       - key: VITE_LOGTO_ENDPOINT
@@ -383,17 +385,17 @@ services:
       - key: BACKEND_SERVICE_NAME
         fromService:
           name: my-backend-qa
-          type: web
+          type: pserv
           property: host
       - key: COLLECT_SERVICE_NAME
         fromService:
           name: my-collect-qa
-          type: web
+          type: pserv
           property: host
       - key: FRONTEND_SERVICE_NAME
         fromService:
           name: my-frontend-qa
-          type: web
+          type: pserv
           property: host
     autoDeploy: true   # Auto-deploy on every commit
     branch: main

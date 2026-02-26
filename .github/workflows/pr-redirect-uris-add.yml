@@ -50,15 +50,13 @@ jobs:
           CURRENT_REDIRECT_URIS=$(echo '${{ steps.current-config.outputs.current_config }}' | jq -r '.oidcClientMetadata.redirectUris // []')
           CURRENT_POST_LOGOUT_URIS=$(echo '${{ steps.current-config.outputs.current_config }}' | jq -r '.oidcClientMetadata.postLogoutRedirectUris // []')
 
-          # Define new URIs for this PR
-          NEW_FRONTEND_REDIRECT_URI="https://my-frontend-qa-pr-${{ steps.pr.outputs.number }}.onrender.com/login-redirect"
+          # Define new URIs for this PR (only proxy, services are private)
           NEW_PROXY_REDIRECT_URI="https://my-proxy-qa-pr-${{ steps.pr.outputs.number }}.onrender.com/login-redirect"
-          NEW_FRONTEND_LOGOUT_URI="https://my-frontend-qa-pr-${{ steps.pr.outputs.number }}.onrender.com/login"
           NEW_PROXY_LOGOUT_URI="https://my-proxy-qa-pr-${{ steps.pr.outputs.number }}.onrender.com/login"
 
           # Add new URIs to existing ones (avoiding duplicates)
-          UPDATED_REDIRECT_URIS=$(echo "$CURRENT_REDIRECT_URIS" | jq --arg frontend "$NEW_FRONTEND_REDIRECT_URI" --arg proxy "$NEW_PROXY_REDIRECT_URI" '. + [$frontend, $proxy] | unique')
-          UPDATED_POST_LOGOUT_URIS=$(echo "$CURRENT_POST_LOGOUT_URIS" | jq --arg frontend "$NEW_FRONTEND_LOGOUT_URI" --arg proxy "$NEW_PROXY_LOGOUT_URI" '. + [$frontend, $proxy] | unique')
+          UPDATED_REDIRECT_URIS=$(echo "$CURRENT_REDIRECT_URIS" | jq --arg proxy "$NEW_PROXY_REDIRECT_URI" '. + [$proxy] | unique')
+          UPDATED_POST_LOGOUT_URIS=$(echo "$CURRENT_POST_LOGOUT_URIS" | jq --arg proxy "$NEW_PROXY_LOGOUT_URI" '. + [$proxy] | unique')
 
           # Create the request body
           REQUEST_BODY=$(jq -n \
@@ -87,10 +85,8 @@ jobs:
           if echo "$RESPONSE" | jq -e '.oidcClientMetadata.redirectUris' > /dev/null; then
             echo "✅ Successfully added redirect URIs for PR #${{ steps.pr.outputs.number }}"
             echo "Added redirect URIs:"
-            echo "- $NEW_FRONTEND_REDIRECT_URI"
             echo "- $NEW_PROXY_REDIRECT_URI"
             echo "Added post-logout redirect URIs:"
-            echo "- $NEW_FRONTEND_LOGOUT_URI"
             echo "- $NEW_PROXY_LOGOUT_URI"
           else
             echo "❌ Failed to update redirect URIs"
@@ -103,9 +99,7 @@ jobs:
         with:
           script: |
             const prNumber = '${{ steps.pr.outputs.number }}';
-            const frontendRedirectUri = `https://my-frontend-qa-pr-${prNumber}.onrender.com/login-redirect`;
             const proxyRedirectUri = `https://my-proxy-qa-pr-${prNumber}.onrender.com/login-redirect`;
-            const frontendLogoutUri = `https://my-frontend-qa-pr-${prNumber}.onrender.com/login`;
             const proxyLogoutUri = `https://my-proxy-qa-pr-${prNumber}.onrender.com/login`;
 
             const body = [
@@ -114,11 +108,9 @@ jobs:
               'The following redirect URIs have been automatically added to the Logto application configuration:',
               '',
               '**Redirect URIs:**',
-              `- \`${frontendRedirectUri}\``,
               `- \`${proxyRedirectUri}\``,
               '',
               '**Post-logout redirect URIs:**',
-              `- \`${frontendLogoutUri}\``,
               `- \`${proxyLogoutUri}\``,
               '',
               'These will be automatically removed when the PR is closed or merged.'

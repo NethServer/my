@@ -50,15 +50,13 @@ jobs:
           CURRENT_REDIRECT_URIS=$(echo '${{ steps.current-config.outputs.current_config }}' | jq -r '.oidcClientMetadata.redirectUris // []')
           CURRENT_POST_LOGOUT_URIS=$(echo '${{ steps.current-config.outputs.current_config }}' | jq -r '.oidcClientMetadata.postLogoutRedirectUris // []')
 
-          # Define URIs to remove for this PR
-          PR_FRONTEND_REDIRECT_URI="https://my-frontend-qa-pr-${{ steps.pr.outputs.number }}.onrender.com/login-redirect"
+          # Define URIs to remove for this PR (only proxy, services are private)
           PR_PROXY_REDIRECT_URI="https://my-proxy-qa-pr-${{ steps.pr.outputs.number }}.onrender.com/login-redirect"
-          PR_FRONTEND_LOGOUT_URI="https://my-frontend-qa-pr-${{ steps.pr.outputs.number }}.onrender.com/login"
           PR_PROXY_LOGOUT_URI="https://my-proxy-qa-pr-${{ steps.pr.outputs.number }}.onrender.com/login"
 
           # Remove PR-specific URIs from existing ones
-          UPDATED_REDIRECT_URIS=$(echo "$CURRENT_REDIRECT_URIS" | jq --arg frontend "$PR_FRONTEND_REDIRECT_URI" --arg proxy "$PR_PROXY_REDIRECT_URI" '. - [$frontend, $proxy]')
-          UPDATED_POST_LOGOUT_URIS=$(echo "$CURRENT_POST_LOGOUT_URIS" | jq --arg frontend "$PR_FRONTEND_LOGOUT_URI" --arg proxy "$PR_PROXY_LOGOUT_URI" '. - [$frontend, $proxy]')
+          UPDATED_REDIRECT_URIS=$(echo "$CURRENT_REDIRECT_URIS" | jq --arg proxy "$PR_PROXY_REDIRECT_URI" '. - [$proxy]')
+          UPDATED_POST_LOGOUT_URIS=$(echo "$CURRENT_POST_LOGOUT_URIS" | jq --arg proxy "$PR_PROXY_LOGOUT_URI" '. - [$proxy]')
 
           # Check if there are URIs to remove
           REDIRECT_COUNT_BEFORE=$(echo "$CURRENT_REDIRECT_URIS" | jq 'length')
@@ -69,10 +67,8 @@ jobs:
           if [ "$REDIRECT_COUNT_BEFORE" -eq "$REDIRECT_COUNT_AFTER" ] && [ "$POST_LOGOUT_COUNT_BEFORE" -eq "$POST_LOGOUT_COUNT_AFTER" ]; then
             echo "ℹ️ No redirect URIs found for PR #${{ steps.pr.outputs.number }} to remove"
             echo "Checked redirect URIs:"
-            echo "- $PR_FRONTEND_REDIRECT_URI"
             echo "- $PR_PROXY_REDIRECT_URI"
             echo "Checked post-logout redirect URIs:"
-            echo "- $PR_FRONTEND_LOGOUT_URI"
             echo "- $PR_PROXY_LOGOUT_URI"
             exit 0
           fi
@@ -104,10 +100,8 @@ jobs:
           if echo "$RESPONSE" | jq -e '.oidcClientMetadata.redirectUris' > /dev/null; then
             echo "✅ Successfully removed redirect URIs for PR #${{ steps.pr.outputs.number }}"
             echo "Removed redirect URIs:"
-            echo "- $PR_FRONTEND_REDIRECT_URI"
             echo "- $PR_PROXY_REDIRECT_URI"
             echo "Removed post-logout redirect URIs:"
-            echo "- $PR_FRONTEND_LOGOUT_URI"
             echo "- $PR_PROXY_LOGOUT_URI"
           else
             echo "❌ Failed to update redirect URIs"
@@ -120,9 +114,7 @@ jobs:
         with:
           script: |
             const prNumber = '${{ steps.pr.outputs.number }}';
-            const frontendRedirectUri = `https://my-frontend-qa-pr-${prNumber}.onrender.com/login-redirect`;
             const proxyRedirectUri = `https://my-proxy-qa-pr-${prNumber}.onrender.com/login-redirect`;
-            const frontendLogoutUri = `https://my-frontend-qa-pr-${prNumber}.onrender.com/login`;
             const proxyLogoutUri = `https://my-proxy-qa-pr-${prNumber}.onrender.com/login`;
 
             const body = [
@@ -131,11 +123,9 @@ jobs:
               'The following redirect URIs have been automatically removed from the Logto application configuration:',
               '',
               '**Redirect URIs:**',
-              `- \`${frontendRedirectUri}\``,
               `- \`${proxyRedirectUri}\``,
               '',
               '**Post-logout redirect URIs:**',
-              `- \`${frontendLogoutUri}\``,
               `- \`${proxyLogoutUri}\``,
               '',
               `Cleanup completed for PR #${prNumber}.`

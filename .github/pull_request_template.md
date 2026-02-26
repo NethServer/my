@@ -12,9 +12,6 @@ update deploy
 ```
 
 **Automatic PR environments:**
-- Backend: https://my-backend-qa-pr-[PR_NUMBER].onrender.com
-- Collect: https://my-collect-qa-pr-[PR_NUMBER].onrender.com
-- Frontend: https://my-frontend-qa-pr-[PR_NUMBER].onrender.com
 - Proxy: https://my-proxy-qa-pr-[PR_NUMBER].onrender.com
 
 ## ✅ Merge Checklist

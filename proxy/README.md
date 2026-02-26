@@ -2,24 +2,26 @@
 
 ## Overview
 
-This nginx reverse proxy consolidates all My Nethesis services under a single domain with proper routing:
+This nginx reverse proxy is the only public entry point for all My Nethesis services. Backend, collect, and frontend are private services (`pserv`) accessible only via this proxy on Render's internal network.
 
-- **Production**: `my.nethesis.it` 
+- **Production**: `my.nethesis.it`
 - **QA**: `qa.my.nethesis.it`
 
 ## Architecture
 
 ```
 my.nethesis.it (Production)
-├── /                    → Frontend Service (Vue.js)
-├── /backend/api/        → Backend Service (Go REST API)
-└── /collect/api/        → Collect Service (Inventory Collection)
+├── /                    → Frontend Service (private, HTTP :10000)
+├── /backend/api/        → Backend Service (private, HTTP :10000)
+└── /collect/api/        → Collect Service (private, HTTP :10000)
 
 qa.my.nethesis.it (QA)
-├── /                    → Frontend Service (Vue.js)
-├── /backend/api/        → Backend Service (Go REST API)
-└── /collect/api/        → Collect Service (Inventory Collection)
+├── /                    → Frontend Service (private, HTTP :10000)
+├── /backend/api/        → Backend Service (private, HTTP :10000)
+└── /collect/api/        → Collect Service (private, HTTP :10000)
 ```
+
+All inter-service communication uses HTTP over Render's internal network. The proxy handles TLS termination for external clients.
 
 ## Custom Domain Setup
 
@@ -31,7 +33,7 @@ Add these CNAME records in your DNS provider:
 # Production
 my.nethesis.it       CNAME   my-proxy-prod.onrender.com
 
-# QA  
+# QA
 qa.my.nethesis.it    CNAME   my-proxy-qa.onrender.com
 ```
 
@@ -44,7 +46,7 @@ qa.my.nethesis.it    CNAME   my-proxy-qa.onrender.com
    - Wait for SSL certificate provisioning
 
 3. **QA Proxy Service** (`my-proxy-qa`):
-   - Settings → Custom Domains  
+   - Settings → Custom Domains
    - Add `qa.my.nethesis.it`
    - Wait for SSL certificate provisioning
 
@@ -68,17 +70,19 @@ qa.my.nethesis.it    CNAME   my-proxy-qa.onrender.com
 
 ## Configuration
 
-The proxy automatically discovers service URLs based on the service names configured in `render.yaml`:
+The proxy receives service hostnames from Render's `fromService` mechanism and routes traffic to private services via HTTP on port 10000.
 
-### Production Environment
-- `BACKEND_SERVICE_NAME=my-backend-prod`
-- `COLLECT_SERVICE_NAME=my-collect-prod`
-- `FRONTEND_SERVICE_NAME=my-frontend-prod`
+### DNS Resolution
 
-### QA Environment
-- `BACKEND_SERVICE_NAME=my-backend-qa`
-- `COLLECT_SERVICE_NAME=my-collect-qa`
-- `FRONTEND_SERVICE_NAME=my-frontend-qa`
+The entrypoint script extracts the DNS resolver from `/etc/resolv.conf` to resolve internal Render hostnames. This is required because private services are not accessible via public DNS.
+
+### Environment Variables
+
+Set automatically by Render:
+- `BACKEND_SERVICE_NAME` - Internal hostname of the backend service
+- `COLLECT_SERVICE_NAME` - Internal hostname of the collect service
+- `FRONTEND_SERVICE_NAME` - Internal hostname of the frontend service
+- `RESOLVER` - DNS resolver extracted from `/etc/resolv.conf`
 
 ## Testing
 
@@ -111,9 +115,9 @@ curl -X POST https://my.nethesis.it/collect/api/systems/inventory \
 
 ## Security Notes
 
-- All inter-service communication uses HTTPS
-- SSL verification disabled for Render internal communication
-- Proper headers forwarded to upstream services
+- Backend, collect, and frontend are private services, not accessible from the internet
+- All inter-service communication uses HTTP over Render's internal network
+- TLS termination happens at the proxy level for external clients
 - Security headers added to all responses
 
 ## Performance Tuning

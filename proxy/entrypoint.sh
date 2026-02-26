@@ -28,8 +28,13 @@ else
     echo '==> Not a PR preview, using original service names'
 fi
 
+# Extract DNS resolver from /etc/resolv.conf (for internal Render DNS resolution)
+RESOLVER=$(awk '/^nameserver/ {print $2; exit}' /etc/resolv.conf)
+export RESOLVER="${RESOLVER:-8.8.8.8}"
+echo "Resolved DNS: $RESOLVER"
+
 echo '==> Substituting nginx config...'
-envsubst '$PORT $BACKEND_SERVICE_NAME $COLLECT_SERVICE_NAME $FRONTEND_SERVICE_NAME' < /etc/nginx/nginx.conf > /tmp/nginx.conf
+envsubst '$PORT $BACKEND_SERVICE_NAME $COLLECT_SERVICE_NAME $FRONTEND_SERVICE_NAME $RESOLVER' < /etc/nginx/nginx.conf > /tmp/nginx.conf
 
 echo '==> Generated upstream URLs:'
 grep -E 'set.*upstream' /tmp/nginx.conf || true
