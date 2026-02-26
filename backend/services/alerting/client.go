@@ -17,11 +17,24 @@ import (
 
 var httpClient = &http.Client{Timeout: 30 * time.Second}
 
+// wrapForMimir wraps a raw Alertmanager YAML config in the Mimir multi-tenant
+// format expected by POST /api/v1/alerts.
+func wrapForMimir(yamlConfig string) string {
+	var sb strings.Builder
+	sb.WriteString("alertmanager_config: |\n")
+	for _, line := range strings.Split(yamlConfig, "\n") {
+		sb.WriteString("    ")
+		sb.WriteString(line)
+		sb.WriteString("\n")
+	}
+	return sb.String()
+}
+
 // PushConfig uploads an alertmanager YAML configuration for the given tenant.
 func PushConfig(orgID, yamlConfig string) error {
 	url := configuration.Config.MimirURL + "/api/v1/alerts"
 
-	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(yamlConfig))
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(wrapForMimir(yamlConfig)))
 	if err != nil {
 		return fmt.Errorf("creating request: %w", err)
 	}

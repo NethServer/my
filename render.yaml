@@ -276,6 +276,10 @@ services:
       - key: BACKEND_APP_SECRET
         sync: false
 
+      # Mimir Configuration
+      - key: MIMIR_URL
+        value: http://my-mimir-qa:9009
+
       # SMTP Configuration
       - key: SMTP_HOST
         sync: false
