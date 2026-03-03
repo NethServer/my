@@ -31,9 +31,15 @@ import (
 )
 
 // argon2Semaphore limits concurrent Argon2id verifications to prevent OOM.
-// Each Argon2id verification allocates ~64MB (m=65536), so limiting to 2
-// concurrent verifications caps auth memory at ~128MB.
-var argon2Semaphore = make(chan struct{}, 2)
+// Each Argon2id verification allocates ~64MB (m=65536). The concurrency limit
+// is configurable via ARGON2_CONCURRENCY (default: 2, ~128MB max auth memory).
+var argon2Semaphore chan struct{}
+
+// InitArgon2Semaphore initializes the semaphore with the configured concurrency.
+// Must be called after configuration.Init().
+func InitArgon2Semaphore() {
+	argon2Semaphore = make(chan struct{}, configuration.Config.Argon2Concurrency)
+}
 
 // inProcessAuthCache provides an in-process cache for auth results.
 // After a service restart, Redis auth cache entries are gone; this avoids
@@ -284,9 +290,8 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 			Str("system_id", creds.SystemID).
 			Msg("Failed to verify system secret part")
 
-		// Cache negative result
-		cacheCredentialsResult(c, systemKey, systemSecret, "", false)
-		setInProcessCache(systemKey, systemSecret, "", false)
+		// Do not cache timeout errors as invalid: the credentials may be valid,
+		// but the server is under load. Caching would block legitimate systems.
 		return "", false
 	}
 

@@ -67,6 +67,7 @@ type Configuration struct {
 	// System authentication configuration
 	SystemSecretMinLength int           `json:"system_secret_min_length"`
 	SystemAuthCacheTTL    time.Duration `json:"system_auth_cache_ttl"`
+	Argon2Concurrency     int           `json:"argon2_concurrency"`
 
 	// API configuration
 	APIMaxRequestSize int64         `json:"api_max_request_size"`
@@ -147,6 +148,7 @@ func Init() {
 	// System authentication configuration
 	Config.SystemSecretMinLength = parseIntWithDefault("SYSTEM_SECRET_MIN_LENGTH", 32)
 	Config.SystemAuthCacheTTL = parseDurationWithDefault("SYSTEM_AUTH_CACHE_TTL", 5*time.Minute)
+	Config.Argon2Concurrency = parseIntWithDefault("ARGON2_CONCURRENCY", 2)
 
 	// API configuration
 	Config.APIMaxRequestSize = parseInt64WithDefault("API_MAX_REQUEST_SIZE", 10*1024*1024) // 10MB
