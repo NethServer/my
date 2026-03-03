@@ -13,6 +13,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"math/rand/v2"
 	"net/http"
 	"strings"
 	"sync"
@@ -39,6 +40,14 @@ var argon2Semaphore chan struct{}
 // Must be called after configuration.Init().
 func InitArgon2Semaphore() {
 	argon2Semaphore = make(chan struct{}, configuration.Config.Argon2Concurrency)
+}
+
+// jitteredTTL returns a TTL with ±25% random variation to prevent thundering herd.
+// For a 24h base TTL, entries expire between 18h and 30h.
+func jitteredTTL(base time.Duration) time.Duration {
+	jitter := float64(base) * 0.25
+	offset := rand.Float64()*2*jitter - jitter
+	return base + time.Duration(offset)
 }
 
 // inProcessAuthCache provides an in-process cache for auth results.
@@ -77,8 +86,10 @@ func checkInProcessCache(systemKey, systemSecret string) (string, bool, bool) {
 // setInProcessCache stores an auth result in the in-process cache
 func setInProcessCache(systemKey, systemSecret, systemID string, valid bool) {
 	key := authCacheKey(systemKey, systemSecret)
-	ttl := configuration.Config.SystemAuthCacheTTL
-	if !valid {
+	var ttl time.Duration
+	if valid {
+		ttl = jitteredTTL(configuration.Config.SystemAuthCacheTTL)
+	} else {
 		ttl = 1 * time.Minute
 	}
 	inProcessAuthCache.Store(key, &authCacheEntry{
@@ -352,7 +363,7 @@ func cacheCredentialsResult(c *gin.Context, systemKey, systemSecret, systemID st
 
 	if valid {
 		value = systemID // Store the system_id
-		ttl = configuration.Config.SystemAuthCacheTTL
+		ttl = jitteredTTL(configuration.Config.SystemAuthCacheTTL)
 	} else {
 		value = "invalid"
 		ttl = 1 * time.Minute // Short cache for failed attempts
