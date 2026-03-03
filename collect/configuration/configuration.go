@@ -147,7 +147,7 @@ func Init() {
 
 	// System authentication configuration
 	Config.SystemSecretMinLength = parseIntWithDefault("SYSTEM_SECRET_MIN_LENGTH", 32)
-	Config.SystemAuthCacheTTL = parseDurationWithDefault("SYSTEM_AUTH_CACHE_TTL", 5*time.Minute)
+	Config.SystemAuthCacheTTL = parseDurationWithDefault("SYSTEM_AUTH_CACHE_TTL", 24*time.Hour)
 	Config.Argon2Concurrency = parseIntWithDefault("ARGON2_CONCURRENCY", 2)
 
 	// API configuration
