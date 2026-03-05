@@ -13,6 +13,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -241,11 +242,14 @@ func (tb *TokenBlacklist) RemoveUserFromBlacklist(userID string) error {
 }
 
 // GetGlobalBlacklist returns the global token blacklist instance
-var globalBlacklist *TokenBlacklist
+var (
+	globalBlacklist *TokenBlacklist
+	blacklistOnce   sync.Once
+)
 
 func GetTokenBlacklist() *TokenBlacklist {
-	if globalBlacklist == nil {
+	blacklistOnce.Do(func() {
 		globalBlacklist = NewTokenBlacklist()
-	}
+	})
 	return globalBlacklist
 }

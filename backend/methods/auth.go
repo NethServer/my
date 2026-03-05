@@ -713,7 +713,7 @@ func Logout(c *gin.Context) {
 	// Get blacklist service
 	blacklist := cache.GetTokenBlacklist()
 
-	// Blacklist the current token
+	// Blacklist the current access token
 	err := blacklist.BlacklistToken(tokenString, "user logout")
 	if err != nil {
 		logger.RequestLogger(c, "auth").Error().
@@ -724,11 +724,20 @@ func Logout(c *gin.Context) {
 
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
 			"logout failed",
-			map[string]interface{}{
-				"error": err.Error(),
-			},
+			nil,
 		))
 		return
+	}
+
+	// Blacklist all tokens for this user to invalidate refresh tokens
+	if user.LogtoID != nil && *user.LogtoID != "" {
+		if blErr := blacklist.BlacklistAllUserTokens(*user.LogtoID, "user logout"); blErr != nil {
+			logger.RequestLogger(c, "auth").Warn().
+				Err(blErr).
+				Str("operation", "logout").
+				Str("user_id", user.ID).
+				Msg("Failed to blacklist user-level tokens during logout")
+		}
 	}
 
 	// Invalidate cached user profile

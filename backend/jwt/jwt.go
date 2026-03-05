@@ -14,25 +14,36 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 )
 
+// Token type constants for preventing token confusion
+const (
+	TokenTypeAccess        = "access"
+	TokenTypeRefresh       = "refresh"
+	TokenTypeImpersonation = "impersonation"
+)
+
 // CustomClaims represents our custom JWT claims structure
 type CustomClaims struct {
-	User models.User `json:"user"`
+	TokenType string      `json:"token_type"`
+	User      models.User `json:"user"`
 	jwt.RegisteredClaims
 }
 
 // RefreshTokenClaims represents the claims for refresh tokens
 type RefreshTokenClaims struct {
-	UserID string `json:"user_id"`
+	TokenType string `json:"token_type"`
+	UserID    string `json:"user_id"`
 	jwt.RegisteredClaims
 }
 
 // ImpersonationClaims represents the claims for impersonation tokens
 type ImpersonationClaims struct {
+	TokenType      string      `json:"token_type"`
 	User           models.User `json:"user"`            // The user being impersonated
 	ImpersonatedBy models.User `json:"impersonated_by"` // The user doing the impersonation
 	IsImpersonated bool        `json:"is_impersonated"` // Flag to indicate this is an impersonation token
@@ -50,8 +61,10 @@ func GenerateCustomToken(user models.User) (string, error) {
 
 	// Create custom claims
 	claims := CustomClaims{
-		User: user,
+		TokenType: TokenTypeAccess,
+		User:      user,
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        uuid.New().String(),
 			Issuer:    configuration.Config.JWTIssuer,
 			Subject:   user.ID,
 			Audience:  jwt.ClaimStrings{configuration.Config.LogtoAudience},
@@ -112,6 +125,10 @@ func ValidateCustomToken(tokenString string) (*CustomClaims, error) {
 
 	// Extract and validate claims
 	if claims, ok := token.Claims.(*CustomClaims); ok && token.Valid {
+		// Verify token type to prevent token confusion
+		if claims.TokenType != "" && claims.TokenType != TokenTypeAccess {
+			return nil, fmt.Errorf("invalid token type: expected %s, got %s", TokenTypeAccess, claims.TokenType)
+		}
 		logger.ComponentLogger("jwt").Debug().
 			Str("operation", "token_validation_success").
 			Str("user_id", claims.User.ID).
@@ -142,8 +159,10 @@ func GenerateRefreshToken(userID string) (string, error) {
 
 	// Create refresh token claims
 	claims := RefreshTokenClaims{
-		UserID: userID,
+		TokenType: TokenTypeRefresh,
+		UserID:    userID,
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        uuid.New().String(),
 			Issuer:    configuration.Config.JWTIssuer,
 			Subject:   userID,
 			Audience:  jwt.ClaimStrings{configuration.Config.LogtoAudience},
@@ -199,6 +218,10 @@ func ValidateRefreshToken(tokenString string) (*RefreshTokenClaims, error) {
 
 	// Extract and validate claims
 	if claims, ok := token.Claims.(*RefreshTokenClaims); ok && token.Valid {
+		// Verify token type to prevent token confusion
+		if claims.TokenType != "" && claims.TokenType != TokenTypeRefresh {
+			return nil, fmt.Errorf("invalid token type: expected %s, got %s", TokenTypeRefresh, claims.TokenType)
+		}
 		logger.ComponentLogger("jwt").Debug().
 			Str("operation", "refresh_token_validation_success").
 			Str("user_id", claims.UserID).
@@ -225,11 +248,13 @@ func GenerateImpersonationToken(impersonatedUser, impersonator models.User) (str
 func GenerateImpersonationTokenWithDuration(impersonatedUser, impersonator models.User, sessionID string, expDuration time.Duration) (string, error) {
 	// Create impersonation claims
 	claims := ImpersonationClaims{
+		TokenType:      TokenTypeImpersonation,
 		User:           impersonatedUser,
 		ImpersonatedBy: impersonator,
 		IsImpersonated: true,
 		SessionID:      sessionID,
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        uuid.New().String(),
 			Issuer:    configuration.Config.JWTIssuer,
 			Subject:   impersonatedUser.ID,
 			Audience:  jwt.ClaimStrings{configuration.Config.LogtoAudience},

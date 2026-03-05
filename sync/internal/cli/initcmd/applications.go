@@ -187,7 +187,7 @@ func DeriveEnvironmentVariables(config *InitConfig, backendApp, frontendApp *App
 		"APP_URL":            config.AppURL,
 		"BACKEND_APP_ID":     config.BackendAppID,
 		"BACKEND_APP_SECRET": config.BackendAppSecret,
-		"JWT_SECRET":         GenerateJWTSecret(),
+		"JWT_SECRET":         "", // populated in init step 5
 		"DATABASE_URL":       "postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disable",
 		"REDIS_URL":          "redis://localhost:6379",
 	}

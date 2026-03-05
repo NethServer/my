@@ -915,13 +915,12 @@ func TestTokenTypeDistinction(t *testing.T) {
 		assert.True(t, claims.IsImpersonated)
 	})
 
-	t.Run("impersonation token can also be parsed as regular token (but without impersonation data)", func(t *testing.T) {
-		// This test verifies that the middleware can distinguish between token types
+	t.Run("impersonation token is rejected by regular token validation (token type check)", func(t *testing.T) {
+		// Token type validation prevents impersonation tokens from being used as regular access tokens
 		claims, err := ValidateCustomToken(impersonationToken)
-		assert.NoError(t, err)
-		assert.NotNil(t, claims)
-		// The user data should be preserved, but no impersonation context
-		assert.Equal(t, user.ID, claims.User.ID)
+		assert.Error(t, err)
+		assert.Nil(t, claims)
+		assert.Contains(t, err.Error(), "invalid token type")
 	})
 }
 

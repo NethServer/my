@@ -66,7 +66,7 @@ type LogtoApplicationBranding struct {
 }
 
 // ToThirdPartyApplication converts a LogtoThirdPartyApp to a ThirdPartyApplication
-func (l *LogtoThirdPartyApp) ToThirdPartyApplication(branding *ApplicationSignInExperience, scopes []string, loginURLGenerator func(string, string, []string, bool) string, isValidDomain bool) *ThirdPartyApplication {
+func (l *LogtoThirdPartyApp) ToThirdPartyApplication(branding *ApplicationSignInExperience, scopes []string, loginURLGenerator func(string, string, []string, bool) (string, error), isValidDomain bool) *ThirdPartyApplication {
 	app := &ThirdPartyApplication{
 		ID:          l.ID,
 		Name:        l.Name,
@@ -114,7 +114,9 @@ func (l *LogtoThirdPartyApp) ToThirdPartyApplication(branding *ApplicationSignIn
 
 	// Fallback: Generate login URL using the first redirect URI if not provided in custom_data
 	if app.LoginURL == "" && len(app.RedirectUris) > 0 && loginURLGenerator != nil {
-		app.LoginURL = loginURLGenerator(l.ID, app.RedirectUris[0], scopes, isValidDomain)
+		if loginURL, err := loginURLGenerator(l.ID, app.RedirectUris[0], scopes, isValidDomain); err == nil {
+			app.LoginURL = loginURL
+		}
 	}
 
 	return app

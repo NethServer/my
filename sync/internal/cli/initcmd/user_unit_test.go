@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestUserStruct(t *testing.T) {
@@ -91,13 +92,15 @@ func TestUserStruct(t *testing.T) {
 func TestUserPasswordGeneration(t *testing.T) {
 	t.Run("password should be generated", func(t *testing.T) {
 		// This tests that the password generation function works
-		password := GenerateSecurePassword()
+		password, err := GenerateSecurePassword()
+		require.NoError(t, err)
 
 		assert.NotEmpty(t, password, "Generated password should not be empty")
 		assert.Equal(t, 16, len(password), "Generated password should be 16 characters")
 
 		// Test that multiple calls generate different passwords
-		password2 := GenerateSecurePassword()
+		password2, err := GenerateSecurePassword()
+		require.NoError(t, err)
 		assert.NotEqual(t, password, password2, "Multiple password generations should yield different results")
 	})
 }
@@ -109,8 +112,11 @@ func TestUserCreationScenarios(t *testing.T) {
 			ID:       "owner-user-id-123",
 			Username: "owner",
 			Email:    "owner@company.com",
-			Password: GenerateSecurePassword(),
 		}
+
+		password, err := GenerateSecurePassword()
+		require.NoError(t, err)
+		user.Password = password
 
 		assert.Equal(t, "owner", user.Username, "Owner username should be 'owner'")
 		assert.Contains(t, user.Email, "@", "Owner email should be valid email format")
@@ -128,8 +134,11 @@ func TestUserCreationScenarios(t *testing.T) {
 			ID:       "generated-id",
 			Username: defaultUsername,
 			Email:    defaultEmail,
-			Password: GenerateSecurePassword(),
 		}
+
+		password, err := GenerateSecurePassword()
+		require.NoError(t, err)
+		user.Password = password
 
 		assert.Equal(t, defaultUsername, user.Username)
 		assert.Equal(t, defaultEmail, user.Email)
@@ -145,7 +154,8 @@ func TestUserCreationScenarios(t *testing.T) {
 	t.Run("user password validation", func(t *testing.T) {
 		// Test that generated passwords meet requirements
 		for i := 0; i < 10; i++ {
-			password := GenerateSecurePassword()
+			password, err := GenerateSecurePassword()
+			require.NoError(t, err)
 			user := User{
 				ID:       "test-user",
 				Username: "testuser",

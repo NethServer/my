@@ -117,6 +117,14 @@ func Init() {
 	// JWT custom token configuration
 	if os.Getenv("JWT_SECRET") != "" {
 		Config.JWTSecret = os.Getenv("JWT_SECRET")
+		if len(Config.JWTSecret) < 32 {
+			logger.ComponentLogger("env").Warn().
+				Str("operation", "config_load").
+				Str("config_type", "JWT_SECRET").
+				Int("length", len(Config.JWTSecret)).
+				Int("min_length", 32).
+				Msg("JWT_SECRET should be at least 32 characters for security")
+		}
 	} else {
 		logger.LogConfigLoad("env", "JWT_SECRET", false, fmt.Errorf("JWT_SECRET variable is empty"))
 	}

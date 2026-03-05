@@ -47,20 +47,8 @@ func CollectInventory(c *gin.Context) {
 		return
 	}
 
-	// Check request size limit
-	if c.Request.ContentLength > configuration.Config.APIMaxRequestSize {
-		logger.Warn().
-			Str("system_id", systemIDStr).
-			Int64("content_length", c.Request.ContentLength).
-			Int64("max_size", configuration.Config.APIMaxRequestSize).
-			Msg("Request size exceeds limit")
-
-		c.JSON(http.StatusRequestEntityTooLarge, response.BadRequest("request too large", map[string]interface{}{
-			"max_size_bytes": configuration.Config.APIMaxRequestSize,
-			"received_bytes": c.Request.ContentLength,
-		}))
-		return
-	}
+	// Enforce request size limit using MaxBytesReader (cannot be bypassed by spoofing Content-Length)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, configuration.Config.APIMaxRequestSize)
 
 	// Read raw JSON body directly (inventory is sent as-is from the system)
 	rawBody, err := c.GetRawData()

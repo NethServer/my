@@ -99,13 +99,16 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 		blacklist := cache.GetTokenBlacklist()
 		isBlacklisted, blacklistReason, blacklistErr := blacklist.IsTokenBlacklisted(tokenString)
 		if blacklistErr != nil {
-			logger.RequestLogger(c, "auth").Warn().
+			logger.RequestLogger(c, "auth").Error().
 				Err(blacklistErr).
 				Str("operation", "blacklist_check_failed").
 				Str("client_ip", c.ClientIP()).
-				Msg("Failed to check token blacklist - allowing request")
-			// Continue with token validation if blacklist check fails (fail open)
-		} else if isBlacklisted {
+				Msg("Failed to check token blacklist - denying request")
+			c.JSON(http.StatusServiceUnavailable, response.ServiceUnavailable("security service temporarily unavailable", nil))
+			c.Abort()
+			return
+		}
+		if isBlacklisted {
 			logger.RequestLogger(c, "auth").Warn().
 				Str("operation", "blacklisted_token_rejected").
 				Str("client_ip", c.ClientIP()).
@@ -155,15 +158,18 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 			// Check user-level blacklist for the impersonated user
 			isUserBlacklisted, userBlacklistReason, userBlacklistErr := blacklist.IsUserBlacklisted(impersonationClaims.User.ID)
 			if userBlacklistErr != nil {
-				logger.RequestLogger(c, "auth").Warn().
+				logger.RequestLogger(c, "auth").Error().
 					Err(userBlacklistErr).
 					Str("operation", "impersonated_user_blacklist_check_failed").
 					Str("impersonated_user_id", impersonationClaims.User.ID).
 					Str("impersonator_user_id", impersonationClaims.ImpersonatedBy.ID).
 					Str("client_ip", c.ClientIP()).
-					Msg("Failed to check impersonated user blacklist - allowing request")
-				// Continue if user blacklist check fails (fail open)
-			} else if isUserBlacklisted {
+					Msg("Failed to check impersonated user blacklist - denying request")
+				c.JSON(http.StatusServiceUnavailable, response.ServiceUnavailable("security service temporarily unavailable", nil))
+				c.Abort()
+				return
+			}
+			if isUserBlacklisted {
 				logger.RequestLogger(c, "auth").Warn().
 					Str("operation", "blacklisted_impersonated_user_rejected").
 					Str("impersonated_user_id", impersonationClaims.User.ID).
@@ -214,14 +220,17 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 		// Check user-level blacklist after token validation
 		isUserBlacklisted, userBlacklistReason, userBlacklistErr := blacklist.IsUserBlacklisted(claims.User.ID)
 		if userBlacklistErr != nil {
-			logger.RequestLogger(c, "auth").Warn().
+			logger.RequestLogger(c, "auth").Error().
 				Err(userBlacklistErr).
 				Str("operation", "user_blacklist_check_failed").
 				Str("user_id", claims.User.ID).
 				Str("client_ip", c.ClientIP()).
-				Msg("Failed to check user blacklist - allowing request")
-			// Continue if user blacklist check fails (fail open)
-		} else if isUserBlacklisted {
+				Msg("Failed to check user blacklist - denying request")
+			c.JSON(http.StatusServiceUnavailable, response.ServiceUnavailable("security service temporarily unavailable", nil))
+			c.Abort()
+			return
+		}
+		if isUserBlacklisted {
 			logger.RequestLogger(c, "auth").Warn().
 				Str("operation", "blacklisted_user_rejected").
 				Str("user_id", claims.User.ID).

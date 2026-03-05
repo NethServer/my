@@ -15,16 +15,19 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGenerateSecurePassword(t *testing.T) {
 	t.Run("password length", func(t *testing.T) {
-		password := GenerateSecurePassword()
+		password, err := GenerateSecurePassword()
+		require.NoError(t, err)
 		assert.Equal(t, 16, len(password), "Password should be 16 characters long")
 	})
 
 	t.Run("password character sets", func(t *testing.T) {
-		password := GenerateSecurePassword()
+		password, err := GenerateSecurePassword()
+		require.NoError(t, err)
 
 		hasLower := false
 		hasUpper := false
@@ -63,7 +66,8 @@ func TestGenerateSecurePassword(t *testing.T) {
 
 		// Generate multiple passwords and check they're unique
 		for i := 0; i < 100; i++ {
-			password := GenerateSecurePassword()
+			password, err := GenerateSecurePassword()
+			require.NoError(t, err)
 			assert.False(t, passwords[password], "Passwords should be unique")
 			passwords[password] = true
 		}
@@ -72,24 +76,21 @@ func TestGenerateSecurePassword(t *testing.T) {
 
 func TestGenerateJWTSecret(t *testing.T) {
 	t.Run("secret length", func(t *testing.T) {
-		secret := GenerateJWTSecret()
+		secret, err := GenerateJWTSecret()
+		require.NoError(t, err)
 
 		// Base64 encoded 32 bytes should be longer than 32 characters
 		assert.Greater(t, len(secret), 32, "JWT secret should be longer than 32 characters")
 	})
 
 	t.Run("secret is base64", func(t *testing.T) {
-		secret := GenerateJWTSecret()
+		secret, err := GenerateJWTSecret()
+		require.NoError(t, err)
 
 		// Should be valid base64
-		decoded, err := base64.URLEncoding.DecodeString(secret)
-		if err != nil {
-			// If it's not valid base64, it uses the default
-			assert.Equal(t, "your-super-secret-jwt-key-please-change-in-production", secret)
-		} else {
-			// If it's valid base64, it should decode to 32 bytes
-			assert.Equal(t, 32, len(decoded), "Decoded secret should be 32 bytes")
-		}
+		decoded, decErr := base64.URLEncoding.DecodeString(secret)
+		require.NoError(t, decErr, "Secret should be valid base64")
+		assert.Equal(t, 32, len(decoded), "Decoded secret should be 32 bytes")
 	})
 
 	t.Run("secret uniqueness", func(t *testing.T) {
@@ -97,12 +98,10 @@ func TestGenerateJWTSecret(t *testing.T) {
 
 		// Generate multiple secrets and check they're unique
 		for i := 0; i < 10; i++ {
-			secret := GenerateJWTSecret()
-			// Allow the default secret to appear multiple times
-			if secret != "your-super-secret-jwt-key-please-change-in-production" {
-				assert.False(t, secrets[secret], "JWT secrets should be unique")
-				secrets[secret] = true
-			}
+			secret, err := GenerateJWTSecret()
+			require.NoError(t, err)
+			assert.False(t, secrets[secret], "JWT secrets should be unique")
+			secrets[secret] = true
 		}
 	})
 }
@@ -114,7 +113,8 @@ func TestRandomInt(t *testing.T) {
 
 		// Generate multiple random numbers
 		for i := 0; i < 100; i++ {
-			n := RandomInt(max)
+			n, err := RandomInt(max)
+			require.NoError(t, err)
 			assert.GreaterOrEqual(t, n, 0, "Random int should be >= 0")
 			assert.Less(t, n, max, "Random int should be < max")
 			results[n] = true
@@ -127,7 +127,8 @@ func TestRandomInt(t *testing.T) {
 	t.Run("edge cases", func(t *testing.T) {
 		// Test with max = 1
 		for i := 0; i < 10; i++ {
-			n := RandomInt(1)
+			n, err := RandomInt(1)
+			require.NoError(t, err)
 			assert.Equal(t, 0, n, "randomInt(1) should always return 0")
 		}
 	})

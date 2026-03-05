@@ -119,27 +119,14 @@ func main() {
 	// Define API group
 	api := router.Group("/api")
 
-	// Health check endpoint with detailed metrics
+	// Health check endpoint
 	api.GET("/health", func(c *gin.Context) {
-		dbStats := database.GetStats()
-		if redisStats := queue.GetStats(); redisStats != nil {
-			dbStats["redis"] = redisStats
-		}
-
-		healthData := map[string]interface{}{
-			"service":  "collect",
-			"status":   "healthy",
-			"workers":  workerManager.GetStatus(),
-			"database": dbStats,
-			"version":  version.Get(),
-		}
-
 		if !workerManager.IsHealthy() {
-			c.JSON(http.StatusServiceUnavailable, response.Error(http.StatusServiceUnavailable, "service unhealthy", healthData))
+			c.JSON(http.StatusServiceUnavailable, response.Error(http.StatusServiceUnavailable, "service unhealthy", version.Get()))
 			return
 		}
 
-		c.JSON(http.StatusOK, response.OK("service healthy", healthData))
+		c.JSON(http.StatusOK, response.OK("service healthy", version.Get()))
 	})
 
 	// ===========================================
@@ -163,10 +150,13 @@ func main() {
 		c.JSON(http.StatusNotFound, response.NotFound("api not found", nil))
 	})
 
-	// Setup graceful shutdown
+	// Setup graceful shutdown with timeouts to prevent slowloris attacks
 	srv := &http.Server{
-		Addr:    configuration.Config.ListenAddress,
-		Handler: router,
+		Addr:         configuration.Config.ListenAddress,
+		Handler:      router,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 60 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
 
 	// Start server in a goroutine

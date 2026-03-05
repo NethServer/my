@@ -773,17 +773,17 @@ func (r *LocalCustomerRepository) GetTrend(userOrgRole, userOrgID string, period
 					FROM customers
 					WHERE deleted_at IS NULL
 					  AND (
-					    custom_data->>'createdBy' = '%s'
+					    custom_data->>'createdBy' = $1
 					    OR custom_data->>'createdBy' IN (
 					      SELECT logto_id FROM resellers
-					      WHERE custom_data->>'createdBy' = '%s' AND deleted_at IS NULL
+					      WHERE custom_data->>'createdBy' = $2 AND deleted_at IS NULL
 					    )
 					  )
 					  AND created_at::date <= ds.date
 				), 0) AS count
 			FROM date_series ds
 			ORDER BY ds.date
-		`, period, interval, userOrgID, userOrgID)
+		`, period, interval)
 
 	case "reseller":
 		// Reseller sees customers they created
@@ -801,12 +801,12 @@ func (r *LocalCustomerRepository) GetTrend(userOrgRole, userOrgID string, period
 					SELECT COUNT(*)
 					FROM customers
 					WHERE deleted_at IS NULL
-					  AND custom_data->>'createdBy' = '%s'
+					  AND custom_data->>'createdBy' = $1
 					  AND created_at::date <= ds.date
 				), 0) AS count
 			FROM date_series ds
 			ORDER BY ds.date
-		`, period, interval, userOrgID)
+		`, period, interval)
 
 	case "customer":
 		// Customer sees only themselves (no trend, just 0 or 1)
@@ -830,12 +830,12 @@ func (r *LocalCustomerRepository) GetTrend(userOrgRole, userOrgID string, period
 					SELECT COUNT(*)
 					FROM customers
 					WHERE deleted_at IS NULL
-					  AND id = '%s'
+					  AND id = $1
 					  AND created_at::date <= ds.date
 				), 0) AS count
 			FROM date_series ds
 			ORDER BY ds.date
-		`, period, interval, userOrgID)
+		`, period, interval)
 
 	default:
 		return []struct {
@@ -844,7 +844,16 @@ func (r *LocalCustomerRepository) GetTrend(userOrgRole, userOrgID string, period
 		}{}, 0, 0, nil
 	}
 
-	rows, err := r.db.Query(query)
+	var rows *sql.Rows
+	var err error
+	switch userOrgRole {
+	case "distributor":
+		rows, err = r.db.Query(query, userOrgID, userOrgID)
+	case "reseller", "customer":
+		rows, err = r.db.Query(query, userOrgID)
+	default:
+		rows, err = r.db.Query(query)
+	}
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("failed to query trend data: %w", err)
 	}

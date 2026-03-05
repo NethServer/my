@@ -67,14 +67,7 @@ func RequirePermission(permission string) gin.HandlerFunc {
 			Str("method", c.Request.Method).
 			Msg("Permission denied - insufficient permissions")
 
-		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions", gin.H{
-			"required_permission": permission,
-			"user_permissions":    user.UserPermissions,
-			"org_permissions":     user.OrgPermissions,
-			"user_roles":          user.UserRoles,
-			"org_role":            user.OrgRole,
-			"organization":        user.OrganizationName,
-		}))
+		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions", nil))
 		c.Abort()
 	}
 }
@@ -101,10 +94,7 @@ func RequireUserRole(role string) gin.HandlerFunc {
 				Str("method", c.Request.Method).
 				Msg("User role denied - insufficient user role")
 
-			c.JSON(http.StatusForbidden, response.Forbidden("insufficient user role", gin.H{
-				"required_user_role": role,
-				"user_roles":         user.UserRoles,
-			}))
+			c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions", nil))
 			c.Abort()
 			return
 		}
@@ -144,11 +134,7 @@ func RequireOrgRole(role string) gin.HandlerFunc {
 				Str("method", c.Request.Method).
 				Msg("Organization role denied - insufficient organization role")
 
-			c.JSON(http.StatusForbidden, response.Forbidden("insufficient organization role", gin.H{
-				"required_org_role": role,
-				"user_org_role":     user.OrgRole,
-				"organization":      user.OrganizationName,
-			}))
+			c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions", nil))
 			c.Abort()
 			return
 		}
@@ -206,11 +192,7 @@ func RequireAnyOrgRole(roles ...string) gin.HandlerFunc {
 			Str("method", c.Request.Method).
 			Msg("Organization role denied - insufficient organization role (any)")
 
-		c.JSON(http.StatusForbidden, response.Forbidden("insufficient organization role", gin.H{
-			"required_org_roles": roles,
-			"user_org_role":      user.OrgRole,
-			"organization":       user.OrganizationName,
-		}))
+		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions", nil))
 		c.Abort()
 	}
 }
@@ -253,11 +235,7 @@ func RequireAnyUserRole(roles ...string) gin.HandlerFunc {
 			Str("method", c.Request.Method).
 			Msg("User role denied - insufficient user role (any)")
 
-		c.JSON(http.StatusForbidden, response.Forbidden("insufficient user role", gin.H{
-			"required_user_roles": roles,
-			"user_roles":          user.UserRoles,
-			"user_id":             user.ID,
-		}))
+		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions", nil))
 		c.Abort()
 	}
 }
@@ -339,16 +317,7 @@ func RequireResourcePermission(resource string) gin.HandlerFunc {
 			Str("path", c.Request.URL.Path).
 			Msg("Resource permission denied - insufficient permissions for HTTP method")
 
-		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions for this operation", gin.H{
-			"resource":            resource,
-			"http_method":         method,
-			"required_permission": requiredPermission,
-			"user_permissions":    user.UserPermissions,
-			"org_permissions":     user.OrgPermissions,
-			"user_roles":          user.UserRoles,
-			"org_role":            user.OrgRole,
-			"organization":        user.OrganizationName,
-		}))
+		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions", nil))
 		c.Abort()
 	}
 }

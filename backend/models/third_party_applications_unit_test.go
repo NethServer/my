@@ -141,8 +141,8 @@ func TestToThirdPartyApplication(t *testing.T) {
 
 	scopes := []string{"openid", "profile", "email"}
 
-	loginURLGenerator := func(appID, redirectURI string, scopes []string, isValidDomain bool) string {
-		return "https://auth.example.com/login?client_id=" + appID + "&redirect_uri=" + redirectURI
+	loginURLGenerator := func(appID, redirectURI string, scopes []string, isValidDomain bool) (string, error) {
+		return "https://auth.example.com/login?client_id=" + appID + "&redirect_uri=" + redirectURI, nil
 	}
 
 	app := logtoApp.ToThirdPartyApplication(branding, scopes, loginURLGenerator, true)
@@ -373,8 +373,8 @@ func TestEdgeCases(t *testing.T) {
 			},
 		}
 
-		loginURLGenerator := func(appID, redirectURI string, scopes []string, isValidDomain bool) string {
-			return "generated_url"
+		loginURLGenerator := func(appID, redirectURI string, scopes []string, isValidDomain bool) (string, error) {
+			return "generated_url", nil
 		}
 
 		result := app.ToThirdPartyApplication(nil, nil, loginURLGenerator, false)
@@ -419,8 +419,8 @@ func TestToThirdPartyApplicationWithLoginURLFromCustomData(t *testing.T) {
 			},
 		}
 
-		loginURLGenerator := func(appID, redirectURI string, scopes []string, isValidDomain bool) string {
-			return "https://generated.example.com/auth?client_id=" + appID
+		loginURLGenerator := func(appID, redirectURI string, scopes []string, isValidDomain bool) (string, error) {
+			return "https://generated.example.com/auth?client_id=" + appID, nil
 		}
 
 		app := logtoApp.ToThirdPartyApplication(nil, nil, loginURLGenerator, true)
@@ -445,8 +445,8 @@ func TestToThirdPartyApplicationWithLoginURLFromCustomData(t *testing.T) {
 			},
 		}
 
-		loginURLGenerator := func(appID, redirectURI string, scopes []string, isValidDomain bool) string {
-			return "https://generated.example.com/auth?client_id=" + appID
+		loginURLGenerator := func(appID, redirectURI string, scopes []string, isValidDomain bool) (string, error) {
+			return "https://generated.example.com/auth?client_id=" + appID, nil
 		}
 
 		app := logtoApp.ToThirdPartyApplication(nil, nil, loginURLGenerator, true)
@@ -469,8 +469,8 @@ func TestToThirdPartyApplicationWithLoginURLFromCustomData(t *testing.T) {
 			},
 		}
 
-		loginURLGenerator := func(appID, redirectURI string, scopes []string, isValidDomain bool) string {
-			return "https://generated.example.com/auth?client_id=" + appID
+		loginURLGenerator := func(appID, redirectURI string, scopes []string, isValidDomain bool) (string, error) {
+			return "https://generated.example.com/auth?client_id=" + appID, nil
 		}
 
 		app := logtoApp.ToThirdPartyApplication(nil, nil, loginURLGenerator, true)
@@ -490,8 +490,8 @@ func TestToThirdPartyApplicationWithLoginURLFromCustomData(t *testing.T) {
 			OidcClientMetadata: nil,
 		}
 
-		loginURLGenerator := func(appID, redirectURI string, scopes []string, isValidDomain bool) string {
-			return "https://generated.example.com/auth?client_id=" + appID
+		loginURLGenerator := func(appID, redirectURI string, scopes []string, isValidDomain bool) (string, error) {
+			return "https://generated.example.com/auth?client_id=" + appID, nil
 		}
 
 		app := logtoApp.ToThirdPartyApplication(nil, nil, loginURLGenerator, true)

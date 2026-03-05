@@ -141,7 +141,7 @@ func TestRequireUserRole(t *testing.T) {
 			},
 			requiredRole:   "Admin",
 			expectedStatus: http.StatusForbidden,
-			expectMessage:  "insufficient user role",
+			expectMessage:  "insufficient permissions",
 		},
 		{
 			name: "user with empty roles fails",
@@ -152,7 +152,7 @@ func TestRequireUserRole(t *testing.T) {
 			},
 			requiredRole:   "Admin",
 			expectedStatus: http.StatusForbidden,
-			expectMessage:  "insufficient user role",
+			expectMessage:  "insufficient permissions",
 		},
 	}
 
@@ -212,7 +212,7 @@ func TestRequireOrgRole(t *testing.T) {
 			},
 			requiredRole:   "Distributor",
 			expectedStatus: http.StatusForbidden,
-			expectMessage:  "insufficient organization role",
+			expectMessage:  "insufficient permissions",
 		},
 		{
 			name: "user with empty org role fails",
@@ -223,7 +223,7 @@ func TestRequireOrgRole(t *testing.T) {
 			},
 			requiredRole:   "Customer",
 			expectedStatus: http.StatusForbidden,
-			expectMessage:  "insufficient organization role",
+			expectMessage:  "insufficient permissions",
 		},
 	}
 
@@ -283,7 +283,7 @@ func TestRequireAnyOrgRole(t *testing.T) {
 			},
 			requiredRoles:  []string{"Owner", "Distributor"},
 			expectedStatus: http.StatusForbidden,
-			expectMessage:  "insufficient organization role",
+			expectMessage:  "insufficient permissions",
 		},
 	}
 

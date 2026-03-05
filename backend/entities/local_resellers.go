@@ -566,12 +566,12 @@ func (r *LocalResellerRepository) GetTrend(userOrgRole, userOrgID string, period
 					SELECT COUNT(*)
 					FROM resellers
 					WHERE deleted_at IS NULL
-					  AND custom_data->>'createdBy' = '%s'
+					  AND custom_data->>'createdBy' = $1
 					  AND created_at::date <= ds.date
 				), 0) AS count
 			FROM date_series ds
 			ORDER BY ds.date
-		`, period, interval, userOrgID)
+		`, period, interval)
 
 	default:
 		// Resellers and customers can't see resellers
@@ -581,7 +581,14 @@ func (r *LocalResellerRepository) GetTrend(userOrgRole, userOrgID string, period
 		}{}, 0, 0, nil
 	}
 
-	rows, err := r.db.Query(query)
+	var rows *sql.Rows
+	var err error
+	switch userOrgRole {
+	case "distributor":
+		rows, err = r.db.Query(query, userOrgID)
+	default:
+		rows, err = r.db.Query(query)
+	}
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("failed to query trend data: %w", err)
 	}

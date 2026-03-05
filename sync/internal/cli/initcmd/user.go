@@ -29,7 +29,10 @@ type User struct {
 func CreateOwnerUser(client *client.LogtoClient, username, email, displayName string) (*User, error) {
 	logger.Info("Creating Owner user...")
 
-	password := GenerateSecurePassword()
+	password, err := GenerateSecurePassword()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate password: %w", err)
+	}
 
 	// Create user
 	userData := map[string]interface{}{

@@ -141,7 +141,7 @@ func GetThirdPartyApplications(c *gin.Context) {
 			brandingWg.Wait()
 
 			// Convert to our response model with cached domain validation
-			convertedApp := app.ToThirdPartyApplication(branding, scopes, func(appID string, redirectURI string, scopes []string, isValidDomain bool) string {
+			convertedApp := app.ToThirdPartyApplication(branding, scopes, func(appID string, redirectURI string, scopes []string, isValidDomain bool) (string, error) {
 				return logto.GenerateOAuth2LoginURL(appID, redirectURI, scopes, isValidDomain)
 			}, isValidDomain)
 

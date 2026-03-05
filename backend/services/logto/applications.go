@@ -225,12 +225,12 @@ func canAccessApplication(app models.LogtoThirdPartyApp, organizationRoles []str
 }
 
 // GenerateOAuth2LoginURL generates the OAuth2 login URL for a third-party application
-func GenerateOAuth2LoginURL(appID string, redirectURI string, scopes []string, isValidDomain bool) string {
+func GenerateOAuth2LoginURL(appID string, redirectURI string, scopes []string, isValidDomain bool) (string, error) {
 	return GenerateOAuth2LoginURLWithDomainValidation(appID, redirectURI, scopes, isValidDomain)
 }
 
 // GenerateOAuth2LoginURLWithDomainValidation generates the OAuth2 login URL with pre-validated domain status
-func GenerateOAuth2LoginURLWithDomainValidation(appID string, redirectURI string, scopes []string, isValidDomain bool) string {
+func GenerateOAuth2LoginURLWithDomainValidation(appID string, redirectURI string, scopes []string, isValidDomain bool) (string, error) {
 	// Get domain configuration
 	tenantDomain := configuration.Config.TenantDomain
 	tenantID := configuration.Config.TenantID
@@ -261,18 +261,21 @@ func GenerateOAuth2LoginURLWithDomainValidation(appID string, redirectURI string
 	}
 
 	// Generate a random state string
-	state := generateRandomState()
+	state, err := generateRandomState()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate OAuth2 state: %w", err)
+	}
 
 	// Build OAuth2 authorization URL
 	authURL := fmt.Sprintf("%s/oidc/auth", issuerHost)
 
 	// Create URL with query parameters
-	u, err := url.Parse(authURL)
-	if err != nil {
+	u, err2 := url.Parse(authURL)
+	if err2 != nil {
 		logger.ComponentLogger("oauth").Error().
-			Err(err).
+			Err(err2).
 			Msg("Failed to parse auth URL")
-		return ""
+		return "", fmt.Errorf("failed to parse auth URL: %w", err2)
 	}
 
 	q := u.Query()
@@ -284,7 +287,7 @@ func GenerateOAuth2LoginURLWithDomainValidation(appID string, redirectURI string
 
 	u.RawQuery = q.Encode()
 
-	return u.String()
+	return u.String(), nil
 }
 
 // ValidateDomain checks if a domain is valid using Logto's domains API
@@ -370,11 +373,10 @@ func (c *LogtoManagementClient) ValidateDomain(domain string) bool {
 }
 
 // generateRandomState generates a random state string for OAuth2
-func generateRandomState() string {
+func generateRandomState() (string, error) {
 	bytes := make([]byte, 16)
 	if _, err := rand.Read(bytes); err != nil {
-		// Fallback to a simple timestamp-based state
-		return "random-state-string"
+		return "", fmt.Errorf("failed to generate random state: %w", err)
 	}
-	return hex.EncodeToString(bytes)
+	return hex.EncodeToString(bytes), nil
 }

@@ -100,6 +100,16 @@ func InternalServerError(message string, data interface{}) Response {
 	return Error(500, message, data)
 }
 
+// ServiceUnavailable creates a 503 Service Unavailable response
+func ServiceUnavailable(message string, data interface{}) Response {
+	return Error(503, message, data)
+}
+
+// TooManyRequests creates a 429 Too Many Requests response
+func TooManyRequests(message string, data interface{}) Response {
+	return Error(429, message, data)
+}
+
 // PaginatedResponse represents a paginated response
 type PaginatedResponse struct {
 	Data       interface{} `json:"data"`

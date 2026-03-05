@@ -190,7 +190,11 @@ func runInit(cmd *cobra.Command, args []string) error {
 	result.OwnerUser = *ownerUser
 
 	// Step 5: Generate JWT secret
-	result.GeneratedSecret = initcmd.GenerateJWTSecret()
+	generatedSecret, err := initcmd.GenerateJWTSecret()
+	if err != nil {
+		return fmt.Errorf("failed to generate JWT secret: %w", err)
+	}
+	result.GeneratedSecret = generatedSecret
 	if result.BackendApp.EnvironmentVars != nil {
 		result.BackendApp.EnvironmentVars["JWT_SECRET"] = result.GeneratedSecret
 	}

@@ -457,10 +457,13 @@ func main() {
 		c.JSON(http.StatusNotFound, response.NotFound("api not found", nil))
 	})
 
-	// Create HTTP server for graceful shutdown support
+	// Create HTTP server with timeouts to prevent slowloris attacks
 	srv := &http.Server{
-		Addr:    configuration.Config.ListenAddress,
-		Handler: router,
+		Addr:         configuration.Config.ListenAddress,
+		Handler:      router,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
 
 	// Start server in a goroutine

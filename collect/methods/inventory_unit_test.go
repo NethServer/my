@@ -102,15 +102,14 @@ func TestCollectInventoryRequestTooLarge(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+	// MaxBytesReader triggers a read error when the body exceeds the limit
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 
 	var response map[string]interface{}
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	assert.Equal(t, "request too large", response["message"])
-	assert.Contains(t, response["data"], "max_size_bytes")
-	assert.Contains(t, response["data"], "received_bytes")
+	assert.Equal(t, "failed to read request body", response["message"])
 }
 
 func TestCollectInventoryInvalidJSON(t *testing.T) {
