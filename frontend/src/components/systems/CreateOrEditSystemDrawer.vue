@@ -156,9 +156,9 @@ const stepNumber = computed(() => {
 })
 
 watch(organizations, () => {
-  if (isShown && currentSystem && organizations.value.data && organizations.value.data.length > 0) {
+  if (isShown && currentSystem && organizations.value.data && organizations.value.data.length) {
     // select the organization while editing a system
-    organizationId.value = currentSystem.organization.id || ''
+    organizationId.value = currentSystem.organization.logto_id || ''
   }
 })
 
@@ -190,7 +190,10 @@ function onShow() {
     // editing system
     name.value = currentSystem.name
     notes.value = currentSystem.notes || ''
-    organizationId.value = currentSystem.organization.id || ''
+
+    if (organizations.value.data?.length) {
+      organizationId.value = currentSystem.organization.logto_id || ''
+    }
   } else {
     // creating system, reset form to defaults
     name.value = ''
