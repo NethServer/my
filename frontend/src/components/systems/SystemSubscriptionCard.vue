@@ -74,26 +74,18 @@ function onCloseSecretRegeneratedModal() {
     />
     <NeSkeleton v-else-if="systemDetail.status === 'pending'" :lines="6" />
     <div v-else class="divide-y divide-gray-200 dark:divide-gray-700">
-      <!-- system creation -->
+      <!-- subscribed since -->
       <DataItem>
         <template #label>
-          {{ $t('system_detail.system_creation') }}
+          {{ $t('system_detail.subscribed_since') }}
         </template>
         <template #data>
           {{
-            systemDetail.data?.created_at
-              ? formatDateTimeNoSeconds(new Date(systemDetail.data?.created_at), locale)
+            systemDetail.data?.registered_at
+              ? formatDateTimeNoSeconds(new Date(systemDetail.data?.registered_at), locale)
               : '-'
           }}
         </template>
-      </DataItem>
-      <!-- subscription date -->
-      <DataItem>
-        <template #label>
-          {{ $t('system_detail.subscription') }}
-        </template>
-        <!-- //// TODO registration date should be sent by inventory -->
-        <template #data> - </template>
       </DataItem>
       <!-- system key -->
       <DataItem>
@@ -104,11 +96,20 @@ function onCloseSecretRegeneratedModal() {
           <ClickToCopy
             v-if="systemDetail.data?.system_key"
             :text="systemDetail.data?.system_key"
-            tooltip-placement="left"
+            tooltip-placement="bottom"
           />
           <span v-else>-</span>
         </template>
       </DataItem>
+      <!-- automatic updates -->
+      <!-- <DataItem> ////
+        <template #label>
+          {{ $t('system_detail.automatic_updates') }}
+        </template>
+        <template #data>
+          TODO
+        </template>
+      </DataItem> -->
     </div>
     <!-- regenerate secret modal -->
     <RegenerateSecretModal

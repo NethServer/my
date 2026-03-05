@@ -16,9 +16,9 @@ import { useLatestInventory } from '@/queries/systems/latestInventory'
 import {
   faCheck,
   faCircleInfo,
+  faHourglass,
   faQuestion,
   faTriangleExclamation,
-  faXmark,
 } from '@fortawesome/free-solid-svg-icons'
 import { formatDateTimeNoSeconds, formatUptime } from '@/lib/dateTime'
 import { useI18n } from 'vue-i18n'
@@ -30,26 +30,26 @@ const { state: systemDetail } = useSystemDetail()
 const { state: latestInventory } = useLatestInventory()
 
 const getBadgeKind = () => {
-  switch (systemDetail.value.data?.status) {
-    case 'online':
+  switch (systemDetail.value.data?.heartbeat_status) {
+    case 'active':
       return 'green'
-    case 'offline':
+    case 'inactive':
       return 'amber'
-    case 'deleted':
-      return 'rose'
-    default:
+    case 'unknown':
       return 'gray'
+    default:
+      return 'indigo'
   }
 }
 
 const getBadgeIcon = () => {
-  switch (systemDetail.value.data?.status) {
-    case 'online':
+  switch (systemDetail.value.data?.heartbeat_status) {
+    case 'active':
       return faCheck
-    case 'offline':
+    case 'inactive':
       return faTriangleExclamation
-    case 'deleted':
-      return faXmark
+    case 'unknown':
+      return faHourglass
     default:
       return faQuestion
   }
@@ -63,13 +63,6 @@ const getBadgeIcon = () => {
       <NeHeading tag="h6">
         {{ $t('common.status').toUpperCase() }}
       </NeHeading>
-      <!-- status badge -->
-      <NeBadgeV2 v-if="systemDetail.status === 'success'" :kind="getBadgeKind()">
-        <div class="flex items-center gap-1">
-          <FontAwesomeIcon :icon="getBadgeIcon()" class="size-4" />
-          {{ t(`systems.status_${systemDetail.data?.status}`) }}
-        </div>
-      </NeBadgeV2>
     </div>
     <!-- get system detail error notification -->
     <NeInlineNotification
@@ -92,6 +85,20 @@ const getBadgeIcon = () => {
       :lines="6"
     />
     <div v-else class="divide-y divide-gray-200 dark:divide-gray-700">
+      <!-- status -->
+      <DataItem>
+        <template #label>
+          {{ $t('common.status') }}
+        </template>
+        <template #data>
+          <NeBadgeV2 :kind="getBadgeKind()">
+            <div class="flex items-center gap-1">
+              <FontAwesomeIcon :icon="getBadgeIcon()" class="size-4" />
+              {{ t(`systems.status_${systemDetail.data?.heartbeat_status}`) }}
+            </div>
+          </NeBadgeV2>
+        </template>
+      </DataItem>
       <!-- uptime -->
       <DataItem>
         <template #label>
