@@ -10,18 +10,33 @@
 package methods
 
 import (
+	"context"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/nethesis/my/collect/database"
 	"github.com/nethesis/my/collect/logger"
 	"github.com/nethesis/my/collect/models"
+	"github.com/nethesis/my/collect/queue"
 	"github.com/nethesis/my/collect/response"
 )
 
-// ReceiveHeartbeat handles system heartbeat requests - optimized for high throughput
+var (
+	heartbeatQueueManager     *queue.QueueManager
+	heartbeatQueueManagerOnce sync.Once
+)
+
+// getHeartbeatQueueManager returns a singleton QueueManager for the heartbeat handler
+func getHeartbeatQueueManager() *queue.QueueManager {
+	heartbeatQueueManagerOnce.Do(func() {
+		heartbeatQueueManager = queue.NewQueueManager()
+	})
+	return heartbeatQueueManager
+}
+
+// ReceiveHeartbeat handles system heartbeat requests - queues for async processing
 // Body is optional and ignored - authentication via HTTP Basic Auth is sufficient
 func ReceiveHeartbeat(c *gin.Context) {
 	authSystemID, ok := getAuthenticatedSystemID(c)
@@ -32,18 +47,26 @@ func ReceiveHeartbeat(c *gin.Context) {
 
 	authSystemKey, _ := c.Get("system_key")
 
-	// Update heartbeat in database - optimized single query (using internal system_id)
 	now := time.Now()
-	err := updateSystemHeartbeat(authSystemID, now)
+
+	// Enqueue heartbeat for async batch processing
+	qm := getHeartbeatQueueManager()
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+	defer cancel()
+
+	err := qm.EnqueueHeartbeat(ctx, &models.SystemHeartbeat{
+		SystemID:      authSystemID,
+		LastHeartbeat: now,
+	})
 	if err != nil {
 		logger.Error().
 			Str("component", "heartbeat").
-			Str("operation", "database_update").
+			Str("operation", "enqueue").
 			Str("system_key", authSystemKey.(string)).
 			Str("system_id", authSystemID).
 			Err(err).
-			Msg("failed to update system heartbeat")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to update heartbeat", nil))
+			Msg("failed to enqueue heartbeat")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to process heartbeat", nil))
 		return
 	}
 
@@ -55,17 +78,4 @@ func ReceiveHeartbeat(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response.OK("heartbeat acknowledged", resp))
-}
-
-// updateSystemHeartbeat updates or inserts a system heartbeat record
-// Optimized for high throughput with UPSERT
-func updateSystemHeartbeat(systemID string, timestamp time.Time) error {
-	query := `
-		INSERT INTO system_heartbeats (system_id, last_heartbeat) 
-		VALUES ($1, $2)
-		ON CONFLICT (system_id) 
-		DO UPDATE SET last_heartbeat = $2`
-
-	_, err := database.DB.Exec(query, systemID, timestamp)
-	return err
 }

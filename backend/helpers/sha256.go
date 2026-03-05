@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Nethesis S.r.l.
+ * Copyright (C) 2026 Nethesis S.r.l.
  * http://www.nethesis.it - info@nethesis.it
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later

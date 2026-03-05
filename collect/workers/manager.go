@@ -29,6 +29,7 @@ type Manager struct {
 	cancel               context.CancelFunc
 	wg                   sync.WaitGroup
 	inventoryWorker      *InventoryWorker
+	heartbeatWorker      *HeartbeatWorker
 	diffWorker           *DiffWorker
 	notificationWorker   *NotificationWorker
 	cleanupWorker        *CleanupWorker
@@ -83,6 +84,7 @@ func NewManager() *Manager {
 
 	return &Manager{
 		inventoryWorker:      inventoryWorker,
+		heartbeatWorker:      NewHeartbeatWorker(7, 500, 2*time.Second, queueManager), // 7 ID, batch 500, flush every 2s
 		diffWorker:           NewDiffWorker(2, 1, queueManager),                       // 2 ID, 1 worker for diff processing
 		notificationWorker:   NewNotificationWorker(3, 2, queueManager),               // 3 ID, 2 workers for notifications
 		cleanupWorker:        NewCleanupWorker(4),                                     // 4 ID for cleanup operations
@@ -121,6 +123,11 @@ func (m *Manager) Start(ctx context.Context) error {
 	// Start inventory worker
 	if err := m.inventoryWorker.Start(m.ctx, &m.wg); err != nil {
 		return fmt.Errorf("failed to start inventory worker: %w", err)
+	}
+
+	// Start heartbeat worker
+	if err := m.heartbeatWorker.Start(m.ctx, &m.wg); err != nil {
+		return fmt.Errorf("failed to start heartbeat worker: %w", err)
 	}
 
 	// Start diff worker
@@ -330,6 +337,7 @@ func (m *Manager) GetStatus() map[string]interface{} {
 	return map[string]interface{}{
 		"is_started":                   m.isStarted,
 		"inventory_worker_stats":       m.inventoryWorker.GetStats(),
+		"heartbeat_worker_stats":       m.heartbeatWorker.GetStats(),
 		"diff_worker_stats":            m.diffWorker.GetStats(),
 		"notification_worker_stats":    m.notificationWorker.GetStats(),
 		"cleanup_worker_stats":         m.cleanupWorker.GetStats(),
@@ -347,7 +355,7 @@ func (m *Manager) IsHealthy() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	return m.isStarted && m.inventoryWorker.IsHealthy() && m.diffWorker.IsHealthy() && m.notificationWorker.IsHealthy() && m.cleanupWorker.IsHealthy() && m.queueMonitorWorker.IsHealthy() && m.delayedMessageWorker.IsHealthy() && !m.backpressure.circuitBreaker.IsOpen()
+	return m.isStarted && m.inventoryWorker.IsHealthy() && m.heartbeatWorker.IsHealthy() && m.diffWorker.IsHealthy() && m.notificationWorker.IsHealthy() && m.cleanupWorker.IsHealthy() && m.queueMonitorWorker.IsHealthy() && m.delayedMessageWorker.IsHealthy() && !m.backpressure.circuitBreaker.IsOpen()
 }
 
 // Circuit breaker methods

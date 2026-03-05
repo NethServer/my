@@ -41,6 +41,7 @@ type Configuration struct {
 	QueueInventoryName    string        `json:"queue_inventory_name"`
 	QueueProcessingName   string        `json:"queue_processing_name"`
 	QueueNotificationName string        `json:"queue_notification_name"`
+	QueueHeartbeatName    string        `json:"queue_heartbeat_name"`
 	QueueBatchSize        int           `json:"queue_batch_size"`
 	QueueRetryAttempts    int           `json:"queue_retry_attempts"`
 	QueueRetryDelay       time.Duration `json:"queue_retry_delay"`
@@ -121,6 +122,7 @@ func Init() {
 	Config.QueueInventoryName = getStringWithDefault("QUEUE_INVENTORY_NAME", "collect:inventory")
 	Config.QueueProcessingName = getStringWithDefault("QUEUE_PROCESSING_NAME", "collect:processing")
 	Config.QueueNotificationName = getStringWithDefault("QUEUE_NOTIFICATION_NAME", "collect:notifications")
+	Config.QueueHeartbeatName = getStringWithDefault("QUEUE_HEARTBEAT_NAME", "collect:heartbeat")
 	Config.QueueBatchSize = parseIntWithDefault("QUEUE_BATCH_SIZE", 10)
 	Config.QueueRetryAttempts = parseIntWithDefault("QUEUE_RETRY_ATTEMPTS", 3)
 	Config.QueueRetryDelay = parseDurationWithDefault("QUEUE_RETRY_DELAY", 5*time.Second)

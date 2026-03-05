@@ -106,6 +106,48 @@ func (qm *QueueManager) EnqueueInventory(ctx context.Context, inventoryData *mod
 	return qm.enqueueMessage(ctx, configuration.Config.QueueInventoryName, message)
 }
 
+// EnqueueHeartbeat adds a heartbeat update to the queue for async processing
+func (qm *QueueManager) EnqueueHeartbeat(ctx context.Context, heartbeat *models.SystemHeartbeat) error {
+	data, err := json.Marshal(heartbeat)
+	if err != nil {
+		return fmt.Errorf("failed to marshal heartbeat data: %w", err)
+	}
+
+	err = qm.client.LPush(ctx, configuration.Config.QueueHeartbeatName, data).Err()
+	if err != nil {
+		return fmt.Errorf("failed to enqueue heartbeat: %w", err)
+	}
+
+	return nil
+}
+
+// DequeueHeartbeatBatch retrieves up to batchSize heartbeats from the queue.
+// Uses RPOP in a pipeline for non-blocking batch retrieval.
+func (qm *QueueManager) DequeueHeartbeatBatch(ctx context.Context, batchSize int) ([]*models.SystemHeartbeat, error) {
+	pipe := qm.client.Pipeline()
+	cmds := make([]*redis.StringCmd, batchSize)
+	for i := 0; i < batchSize; i++ {
+		cmds[i] = pipe.RPop(ctx, configuration.Config.QueueHeartbeatName)
+	}
+	_, _ = pipe.Exec(ctx) // errors are per-command (redis.Nil when empty)
+
+	var heartbeats []*models.SystemHeartbeat
+	for _, cmd := range cmds {
+		val, err := cmd.Result()
+		if err != nil {
+			break // queue empty
+		}
+		var hb models.SystemHeartbeat
+		if err := json.Unmarshal([]byte(val), &hb); err != nil {
+			logger.Warn().Err(err).Msg("Failed to unmarshal heartbeat from queue")
+			continue
+		}
+		heartbeats = append(heartbeats, &hb)
+	}
+
+	return heartbeats, nil
+}
+
 // EnqueueProcessing adds a processing job to the queue
 func (qm *QueueManager) EnqueueProcessing(ctx context.Context, job *models.InventoryProcessingJob) error {
 	message := &models.QueueMessage{
