@@ -11,6 +11,7 @@ package middleware
 
 import (
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"fmt"
 	"math/rand/v2"
@@ -26,14 +27,12 @@ import (
 	"github.com/nethesis/my/collect/database"
 	"github.com/nethesis/my/collect/helpers"
 	"github.com/nethesis/my/collect/logger"
-	"github.com/nethesis/my/collect/models"
 	"github.com/nethesis/my/collect/queue"
 	"github.com/nethesis/my/collect/response"
 )
 
 // argon2Semaphore limits concurrent Argon2id verifications to prevent OOM.
-// Each Argon2id verification allocates ~64MB (m=65536). The concurrency limit
-// is configurable via ARGON2_CONCURRENCY (default: 2, ~128MB max auth memory).
+// Only used during migration for systems that have not yet been migrated to SHA256.
 var argon2Semaphore chan struct{}
 
 // InitArgon2Semaphore initializes the semaphore with the configured concurrency.
@@ -51,8 +50,6 @@ func jitteredTTL(base time.Duration) time.Duration {
 }
 
 // inProcessAuthCache provides an in-process cache for auth results.
-// After a service restart, Redis auth cache entries are gone; this avoids
-// redundant Argon2id recomputation for systems that authenticate repeatedly.
 var inProcessAuthCache sync.Map
 
 type authCacheEntry struct {
@@ -100,7 +97,7 @@ func setInProcessCache(systemKey, systemSecret, systemID string, valid bool) {
 }
 
 // verifySecretWithSemaphore runs Argon2id verification with a concurrency limit.
-// Returns (valid, error). If the semaphore cannot be acquired within 10 seconds, returns an error.
+// Only used during migration for systems without SHA256 hash.
 func verifySecretWithSemaphore(secretPart, secretHash string) (bool, error) {
 	select {
 	case argon2Semaphore <- struct{}{}:
@@ -200,6 +197,18 @@ func BasicAuthMiddleware() gin.HandlerFunc {
 	}
 }
 
+// systemCredentialsRow holds the DB row for system credentials lookup
+type systemCredentialsRow struct {
+	systemID     string
+	secretPublic string
+	secretArgon2 sql.NullString
+	secretSHA256 sql.NullString
+	isActive     bool
+	lastUsed     sql.NullTime
+	createdAt    time.Time
+	updatedAt    time.Time
+}
+
 // validateSystemCredentials validates system credentials against database and cache
 // Returns the internal system_id and a boolean indicating success
 func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (string, bool) {
@@ -250,23 +259,24 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 		// If cached as invalid, still check database for updates
 	}
 
-	// Query database for system credentials including system_secret_public
-	var creds models.SystemCredentials
-	var systemSecretPublic string
+	// Query database for system credentials
+	var creds systemCredentialsRow
 	query := `
-		SELECT id, system_secret, system_secret_public, true, null, created_at, updated_at
+		SELECT id, system_secret_public, system_secret, system_secret_sha256,
+		       true, null, created_at, updated_at
 		FROM systems
 		WHERE system_key = $1 AND deleted_at IS NULL
 	`
 
 	err := database.DB.QueryRow(query, systemKey).Scan(
-		&creds.SystemID,
-		&creds.SecretHash,
-		&systemSecretPublic,
-		&creds.IsActive,
-		&creds.LastUsed,
-		&creds.CreatedAt,
-		&creds.UpdatedAt,
+		&creds.systemID,
+		&creds.secretPublic,
+		&creds.secretArgon2,
+		&creds.secretSHA256,
+		&creds.isActive,
+		&creds.lastUsed,
+		&creds.createdAt,
+		&creds.updatedAt,
 	)
 
 	if err != nil {
@@ -281,10 +291,10 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 	}
 
 	// Verify that public part matches system_secret_public in database
-	if systemSecretPublic != publicPart {
+	if creds.secretPublic != publicPart {
 		logger.Warn().
 			Str("system_key", systemKey).
-			Str("system_id", creds.SystemID).
+			Str("system_id", creds.systemID).
 			Msg("Public part of system secret does not match")
 
 		// Cache negative result
@@ -292,24 +302,12 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 		return "", false
 	}
 
-	// Verify secret part hash using Argon2id (semaphore-guarded to limit memory usage)
-	valid, err := verifySecretWithSemaphore(secretPart, creds.SecretHash)
-	if err != nil {
-		logger.Warn().
-			Err(err).
-			Str("system_key", systemKey).
-			Str("system_id", creds.SystemID).
-			Msg("Failed to verify system secret part")
-
-		// Do not cache timeout errors as invalid: the credentials may be valid,
-		// but the server is under load. Caching would block legitimate systems.
-		return "", false
-	}
-
+	// Verify secret: try SHA256 first (fast), fallback to Argon2id (slow, migration only)
+	valid, migrated := verifySecret(c, secretPart, &creds)
 	if !valid {
 		logger.Warn().
 			Str("system_key", systemKey).
-			Str("system_id", creds.SystemID).
+			Str("system_id", creds.systemID).
 			Msg("Invalid system secret part")
 
 		// Cache negative result
@@ -318,11 +316,89 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 		return "", false
 	}
 
-	// Cache positive result in both caches
-	cacheCredentialsResult(c, systemKey, systemSecret, creds.SystemID, true)
-	setInProcessCache(systemKey, systemSecret, creds.SystemID, true)
+	// If migrated from Argon2id to SHA256, log it
+	if migrated {
+		logger.Info().
+			Str("system_key", systemKey).
+			Str("system_id", creds.systemID).
+			Msg("System secret migrated from Argon2id to SHA256")
+	}
 
-	return creds.SystemID, true
+	// Cache positive result in both caches
+	cacheCredentialsResult(c, systemKey, systemSecret, creds.systemID, true)
+	setInProcessCache(systemKey, systemSecret, creds.systemID, true)
+
+	return creds.systemID, true
+}
+
+// verifySecret verifies the secret part against SHA256 or Argon2id.
+// Returns (valid, migrated). If Argon2id succeeds, it lazy-migrates to SHA256.
+func verifySecret(c *gin.Context, secretPart string, creds *systemCredentialsRow) (bool, bool) {
+	// Fast path: SHA256 verification (microseconds, no memory overhead)
+	if creds.secretSHA256.Valid {
+		valid, err := helpers.VerifySystemSecretSHA256(secretPart, creds.secretSHA256.String)
+		if err != nil {
+			logger.Warn().
+				Err(err).
+				Str("system_id", creds.systemID).
+				Msg("Failed to verify SHA256 secret")
+			return false, false
+		}
+		return valid, false
+	}
+
+	// Slow path: Argon2id verification (migration only, semaphore-guarded)
+	if creds.secretArgon2.Valid {
+		valid, err := verifySecretWithSemaphore(secretPart, creds.secretArgon2.String)
+		if err != nil {
+			logger.Warn().
+				Err(err).
+				Str("system_id", creds.systemID).
+				Msg("Failed to verify Argon2id secret")
+			// Do not cache timeout errors as invalid
+			return false, false
+		}
+
+		if valid {
+			// Lazy migration: compute SHA256 and store it, clear Argon2id
+			lazyMigrateToSHA256(c, creds.systemID, secretPart)
+			return true, true
+		}
+		return false, false
+	}
+
+	// No hash stored at all
+	logger.Warn().
+		Str("system_id", creds.systemID).
+		Msg("System has no secret hash stored")
+	return false, false
+}
+
+// lazyMigrateToSHA256 computes a SHA256 hash and stores it, clearing the Argon2id hash.
+// Runs asynchronously to not block the request.
+func lazyMigrateToSHA256(c *gin.Context, systemID, secretPart string) {
+	sha256Hash, err := helpers.HashSystemSecretSHA256(secretPart)
+	if err != nil {
+		logger.Warn().
+			Err(err).
+			Str("system_id", systemID).
+			Msg("Failed to compute SHA256 hash for migration")
+		return
+	}
+
+	query := `
+		UPDATE systems
+		SET system_secret_sha256 = $2, system_secret = NULL, updated_at = NOW()
+		WHERE id = $1
+	`
+
+	_, err = database.DB.Exec(query, systemID, sha256Hash)
+	if err != nil {
+		logger.Warn().
+			Err(err).
+			Str("system_id", systemID).
+			Msg("Failed to store SHA256 hash during migration")
+	}
 }
 
 // checkCredentialsCache checks Redis cache for cached credentials

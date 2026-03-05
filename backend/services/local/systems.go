@@ -66,8 +66,8 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 		return nil, fmt.Errorf("failed to generate system secret token: %w", err)
 	}
 
-	// Hash only the secret part using Argon2id
-	hashedSecret, err := helpers.HashSystemSecret(secretPart)
+	// Hash the secret part using SHA256 (fast, negligible memory)
+	hashedSecretSHA256, err := helpers.HashSystemSecretSHA256(secretPart)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash system secret: %w", err)
 	}
@@ -88,11 +88,11 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 
 	// Insert system into database (type starts as NULL, status defaults to 'unknown' until first inventory)
 	query := `
-		INSERT INTO systems (id, name, type, status, system_key, system_secret_public, system_secret, organization_id, custom_data, notes, created_at, updated_at, created_by)
+		INSERT INTO systems (id, name, type, status, system_key, system_secret_public, system_secret_sha256, organization_id, custom_data, notes, created_at, updated_at, created_by)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 	`
 
-	_, err = database.DB.Exec(query, systemID, request.Name, nil, "unknown", systemKey, publicPart, hashedSecret, request.OrganizationID,
+	_, err = database.DB.Exec(query, systemID, request.Name, nil, "unknown", systemKey, publicPart, hashedSecretSHA256, request.OrganizationID,
 		customDataJSON, request.Notes, now, now, createdByJSON)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create system: %w", err)
@@ -604,20 +604,20 @@ func (s *LocalSystemsService) RegenerateSystemSecret(systemID, userID, userOrgID
 
 	now := time.Now()
 
-	// Hash only the secret part for storage using Argon2id
-	hashedSecret, err := helpers.HashSystemSecret(secretPart)
+	// Hash the secret part using SHA256 (fast, negligible memory)
+	hashedSecretSHA256, err := helpers.HashSystemSecretSHA256(secretPart)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash system secret: %w", err)
 	}
 
-	// Update both system_secret_public and system_secret
+	// Update secret: store SHA256, clear old Argon2id hash
 	query := `
 		UPDATE systems
-		SET system_secret_public = $2, system_secret = $3, updated_at = $4
+		SET system_secret_public = $2, system_secret = NULL, system_secret_sha256 = $3, updated_at = $4
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 
-	_, err = database.DB.Exec(query, systemID, publicPart, hashedSecret, now)
+	_, err = database.DB.Exec(query, systemID, publicPart, hashedSecretSHA256, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update system credentials: %w", err)
 	}
@@ -651,15 +651,16 @@ func (s *LocalSystemsService) RegisterSystem(systemSecret string) (*models.Regis
 
 	// Fast lookup using system_secret_public
 	query := `
-		SELECT id, system_key, system_secret, deleted_at, registered_at
+		SELECT id, system_key, system_secret, system_secret_sha256, deleted_at, registered_at
 		FROM systems
 		WHERE system_secret_public = $1
 	`
 
-	var systemID, systemKey, hashedSecret string
+	var systemID, systemKey string
+	var hashedSecret, hashedSecretSHA256 sql.NullString
 	var deletedAt, registeredAt sql.NullTime
 
-	err := database.DB.QueryRow(query, publicPart).Scan(&systemID, &systemKey, &hashedSecret, &deletedAt, &registeredAt)
+	err := database.DB.QueryRow(query, publicPart).Scan(&systemID, &systemKey, &hashedSecret, &hashedSecretSHA256, &deletedAt, &registeredAt)
 	if err == sql.ErrNoRows {
 		logger.Warn().Str("public_part", publicPart).Msg("System not found with provided public part")
 		return nil, fmt.Errorf("invalid system secret")
@@ -680,10 +681,18 @@ func (s *LocalSystemsService) RegisterSystem(systemSecret string) (*models.Regis
 		return nil, fmt.Errorf("system is already registered")
 	}
 
-	// Verify the secret part using Argon2id
-	valid, err := helpers.VerifySystemSecret(secretPart, hashedSecret)
-	if err != nil {
-		return nil, fmt.Errorf("failed to verify system secret: %w", err)
+	// Verify the secret part: try SHA256 first, fallback to Argon2id
+	valid := false
+	if hashedSecretSHA256.Valid {
+		valid, err = helpers.VerifySystemSecretSHA256(secretPart, hashedSecretSHA256.String)
+		if err != nil {
+			return nil, fmt.Errorf("failed to verify system secret: %w", err)
+		}
+	} else if hashedSecret.Valid {
+		valid, err = helpers.VerifySystemSecret(secretPart, hashedSecret.String)
+		if err != nil {
+			return nil, fmt.Errorf("failed to verify system secret: %w", err)
+		}
 	}
 	if !valid {
 		logger.Warn().Str("system_id", systemID).Msg("Invalid secret part provided during registration")
