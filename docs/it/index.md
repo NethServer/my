@@ -100,7 +100,7 @@ Documentazione tecnica per sviluppatori e integratori:
 
 ### 🔐 Sicurezza Prima di Tutto
 
-- **Argon2id** hashing dei secret (memory-hard, resistente GPU)
+- **SHA256** hashing salato dei secret
 - **Token Split Pattern** per credenziali di sistema
 - Autenticazione **basata su JWT** con blacklist token
 - **RBAC** con permessi gerarchici

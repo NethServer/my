@@ -38,7 +38,7 @@ La registrazione del sistema è il processo mediante il quale un sistema esterno
 │      My      │  4. Valida secret
 │   Platform   │     ✓ Formato corretto
 │              │     ✓ Parte pubblica esiste
-│              │     ✓ Parte secret verificata (Argon2id)
+│              │     ✓ Parte secret verificata (SHA256)
 │              │     ✓ Non eliminato
 │              │     ✓ Non già registrato
 └──────────────┘
@@ -67,7 +67,7 @@ La registrazione del sistema è il processo mediante il quale un sistema esterno
 - **Prefisso**: `my_` (identifica il tipo di token)
 - **Parte pubblica**: 20 caratteri esadecimali (per ricerca nel database)
 - **Separatore**: `.` (punto)
-- **Parte secret**: 40 caratteri esadecimali (hash con Argon2id)
+- **Parte secret**: 40 caratteri esadecimali (hash con SHA256)
 
 **Caratteristiche:**
 - Mostrato **solo una volta** durante la creazione del sistema
@@ -190,7 +190,7 @@ La piattaforma esegue diversi controlli di sicurezza:
    - La parte pubblica corrisponde al valore memorizzato
 
 4. **Verifica Crittografica**:
-   - Verifica la parte secret contro l'hash Argon2id
+   - Verifica la parte secret contro l'hash SHA256
    - Confronto a tempo costante (previene attacchi timing)
 
 ### Passo 5: Registrazione Riuscita
@@ -370,13 +370,13 @@ La ri-registrazione **NON** è tipicamente necessaria. Un sistema rimane registr
 **Come funziona:**
 1. Il sistema esterno divide `system_secret` in parti pubblica + secret
 2. La piattaforma interroga il database usando la parte pubblica (ricerca indicizzata veloce)
-3. La piattaforma verifica la parte secret usando Argon2id (memory-hard, resistente GPU)
-4. La piattaforma memorizza in cache il risultato in Redis (TTL 5 minuti)
+3. La piattaforma verifica la parte secret usando SHA256 salato
+4. La piattaforma memorizza in cache il risultato in Redis (TTL 24h con jitter)
 
 **Benefici di sicurezza:**
 - Query database veloci (parte pubblica indicizzata)
-- Crittografia forte (Argon2id: 64MB memoria, 3 iterazioni)
-- Resistente al brute-force (algoritmo memory-hard)
+- Hashing SHA256 salato (salt unico per sistema)
+- Overhead di memoria e CPU trascurabile
 - Pattern standard dell'industria (GitHub, Stripe, Slack usano pattern simili)
 
 ### Sicurezza di Rete

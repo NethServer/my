@@ -241,8 +241,7 @@ CREATE TABLE IF NOT EXISTS systems (
     -- Authentication credentials
     system_key VARCHAR(255) UNIQUE NOT NULL,     -- Unique system key for identification
     system_secret_public VARCHAR(64),            -- Public part of token (my_<public>.<secret>) for fast lookup
-    system_secret VARCHAR(512),                  -- Argon2id hash of secret part in PHC format (NULL for new systems)
-    system_secret_sha256 VARCHAR(128),           -- SHA256 hash of secret part (hex_salt:hex_hash) for fast verification
+    system_secret_sha256 VARCHAR(128),           -- SHA256 hash of secret part (hex_salt:hex_hash)
 
     -- Metadata
     custom_data JSONB,                      -- Additional system metadata
@@ -271,8 +270,7 @@ COMMENT ON COLUMN systems.suspended_at IS 'Suspension timestamp: NULL = active, 
 COMMENT ON COLUMN systems.suspended_by_org_id IS 'Organization that caused cascade suspension (for targeted reactivation)';
 COMMENT ON COLUMN systems.system_key IS 'Unique system key for identification (used with secret for auth)';
 COMMENT ON COLUMN systems.system_secret_public IS 'Public part of token (my_<public>.<secret>) for fast DB lookup';
-COMMENT ON COLUMN systems.system_secret IS 'Argon2id hash of secret part in PHC string format (NULL for new systems)';
-COMMENT ON COLUMN systems.system_secret_sha256 IS 'SHA256 hash of secret part (hex_salt:hex_hash) for fast verification';
+COMMENT ON COLUMN systems.system_secret_sha256 IS 'SHA256 hash of secret part (hex_salt:hex_hash)';
 COMMENT ON COLUMN systems.registered_at IS 'Timestamp when system first sent inventory. NULL = not yet registered';
 COMMENT ON COLUMN systems.created_by IS 'JSON object: {user_id, username, organization_id} who created the system';
 COMMENT ON COLUMN systems.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted';
@@ -288,7 +286,6 @@ CREATE INDEX IF NOT EXISTS idx_systems_deleted_at ON systems(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_systems_registered_at ON systems(registered_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_systems_system_key ON systems(system_key);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_systems_system_secret_public ON systems(system_secret_public) WHERE system_secret_public IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_systems_system_secret ON systems(system_secret);
 CREATE INDEX IF NOT EXISTS idx_systems_system_secret_sha256 ON systems(system_secret_sha256) WHERE system_secret_sha256 IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_systems_fqdn ON systems(fqdn);
 CREATE INDEX IF NOT EXISTS idx_systems_ipv4_address ON systems(ipv4_address);

@@ -100,7 +100,7 @@ Technical documentation for developers and integrators:
 
 ### 🔐 Security First
 
-- **Argon2id** secret hashing (memory-hard, GPU-resistant)
+- **SHA256** salted secret hashing
 - **Token Split Pattern** for system credentials
 - **JWT-based** authentication with token blacklisting
 - **RBAC** with hierarchical permissions

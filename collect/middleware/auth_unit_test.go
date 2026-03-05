@@ -30,7 +30,6 @@ func TestBasicAuthMiddleware(t *testing.T) {
 
 	// Initialize configuration for testing
 	configuration.Init()
-	InitArgon2Semaphore()
 
 	tests := []struct {
 		name           string

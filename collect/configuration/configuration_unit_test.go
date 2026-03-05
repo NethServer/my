@@ -104,7 +104,6 @@ func TestInit(t *testing.T) {
 	assert.Equal(t, 10, Config.InventoryDiffDepth)
 	assert.Equal(t, 32, Config.SystemSecretMinLength)
 	assert.Equal(t, 24*time.Hour, Config.SystemAuthCacheTTL)
-	assert.Equal(t, 2, Config.Argon2Concurrency)
 	assert.Equal(t, int64(10*1024*1024), Config.APIMaxRequestSize)
 	assert.Equal(t, 30*time.Second, Config.APIRequestTimeout)
 	assert.Equal(t, 30*time.Second, Config.HealthCheckInterval)

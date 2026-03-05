@@ -6300,7 +6300,7 @@ paths:
         **Important:**
         - Systems can only be registered once
         - Deleted systems cannot be registered
-        - The system_secret is validated using Argon2id hashing
+        - The system_secret is validated using SHA256 hashing
       requestBody:
         required: true
         content:

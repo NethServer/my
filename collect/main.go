@@ -71,9 +71,6 @@ func main() {
 	// Init configuration
 	configuration.Init()
 
-	// Initialize Argon2id concurrency semaphore (after config is loaded)
-	middleware.InitArgon2Semaphore()
-
 	// Initialize database connection
 	err = database.Init()
 	if err != nil {

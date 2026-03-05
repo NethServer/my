@@ -38,7 +38,7 @@ System registration is the process by which an external system (NethServer, Neth
 │      My      │  4. Validate secret
 │   Platform   │     ✓ Format correct
 │              │     ✓ Public part exists
-│              │     ✓ Secret part verified (Argon2id)
+│              │     ✓ Secret part verified (SHA256)
 │              │     ✓ Not deleted
 │              │     ✓ Not already registered
 └──────────────┘
@@ -67,7 +67,7 @@ System registration is the process by which an external system (NethServer, Neth
 - **Prefix**: `my_` (identifies token type)
 - **Public part**: 20 hex characters (for database lookup)
 - **Separator**: `.` (dot)
-- **Secret part**: 40 hex characters (hashed with Argon2id)
+- **Secret part**: 40 hex characters (hashed with SHA256)
 
 **Characteristics:**
 - Shown **only once** during system creation
@@ -190,7 +190,7 @@ The platform performs several security checks:
    - Public part matches stored value
 
 4. **Cryptographic Verification**:
-   - Verifies secret part against Argon2id hash
+   - Verifies secret part against SHA256 hash
    - Constant-time comparison (prevents timing attacks)
 
 ### Step 5: Successful Registration
@@ -370,13 +370,13 @@ Re-registration is **NOT** typically needed. A system remains registered unless:
 **How it works:**
 1. External system splits `system_secret` into public + secret parts
 2. Platform queries database using public part (fast indexed lookup)
-3. Platform verifies secret part using Argon2id (memory-hard, GPU-resistant)
-4. Platform caches result in Redis (5 minutes TTL)
+3. Platform verifies secret part using salted SHA256
+4. Platform caches result in Redis (24h TTL with jitter)
 
 **Security benefits:**
 - Fast database queries (indexed public part)
-- Strong cryptography (Argon2id: 64MB memory, 3 iterations)
-- Brute-force resistant (memory-hard algorithm)
+- Salted SHA256 hashing (unique salt per system)
+- Negligible memory and CPU overhead
 - Industry-standard pattern (GitHub, Stripe, Slack use similar)
 
 ### Network Security
