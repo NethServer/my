@@ -4,11 +4,14 @@
 -->
 
 <script setup lang="ts">
+import { useSystemDetail } from '@/queries/systems/systemDetail'
 import SystemApplicationsCard from './SystemApplicationsCard.vue'
 import SystemInfoCard from './SystemInfoCard.vue'
 import SystemNetworkCard from './SystemNetworkCard.vue'
 import SystemStatusCard from './SystemStatusCard.vue'
 import SystemSubscriptionCard from './SystemSubscriptionCard.vue'
+
+const { state: systemDetail } = useSystemDetail()
 </script>
 
 <template>
@@ -16,7 +19,7 @@ import SystemSubscriptionCard from './SystemSubscriptionCard.vue'
     <SystemInfoCard />
     <SystemStatusCard />
     <SystemSubscriptionCard />
-    <SystemApplicationsCard />
+    <SystemApplicationsCard v-if="systemDetail.data?.type === 'ns8'" />
     <SystemNetworkCard class="3xl:col-span-4 md:col-span-2" />
   </div>
 </template>
