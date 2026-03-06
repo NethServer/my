@@ -45,13 +45,8 @@ import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { canManageSystems, canDestroySystems } from '@/lib/permissions'
 import { useSystems } from '@/queries/systems/systems'
-import {
-  exportSystem,
-  getProductLogo,
-  getProductName,
-  SYSTEMS_TABLE_ID,
-  type System,
-} from '@/lib/systems/systems'
+import { exportSystem, getProductName, SYSTEMS_TABLE_ID, type System } from '@/lib/systems/systems'
+import SystemLogo from './SystemLogo.vue'
 import router from '@/router'
 import CreateOrEditSystemDrawer from './CreateOrEditSystemDrawer.vue'
 import DeleteSystemModal from './DeleteSystemModal.vue'
@@ -560,26 +555,14 @@ function onCloseSecretRegeneratedModal() {
                 class="cursor-pointer font-medium hover:underline"
               >
                 <div class="flex items-center gap-2">
-                  <img
-                    v-if="item.type"
-                    :src="getProductLogo(item.type)"
-                    :alt="getProductName(item.type)"
-                    aria-hidden="true"
-                    class="size-8"
-                  />
+                  <SystemLogo :system="item.type" />
                   <span>
                     {{ item.name || '-' }}
                   </span>
                 </div>
               </router-link>
               <div v-else class="flex items-center gap-2">
-                <img
-                  v-if="item.type"
-                  :src="getProductLogo(item.type)"
-                  :alt="getProductName(item.type)"
-                  aria-hidden="true"
-                  class="size-8"
-                />
+                <SystemLogo :system="item.type" />
                 <span>
                   {{ item.name || '-' }}
                 </span>

@@ -15,7 +15,8 @@ import {
   type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
-import { exportSystem, getProductLogo, getProductName } from '@/lib/systems/systems'
+import { exportSystem, getProductName } from '@/lib/systems/systems'
+import SystemLogo from './SystemLogo.vue'
 import DataItem from '../DataItem.vue'
 import ClickToCopy from '../ClickToCopy.vue'
 import { computed, ref } from 'vue'
@@ -158,13 +159,7 @@ function getKebabMenuItems() {
       <!-- product logo and name -->
       <div class="mb-4 flex items-center justify-between gap-4">
         <div class="flex items-center gap-4">
-          <img
-            v-if="systemDetail.data.type"
-            :src="getProductLogo(systemDetail.data.type)"
-            :alt="$t('system_detail.product_logo', { product: systemDetail.data.type })"
-            aria-hidden="true"
-            class="size-8"
-          />
+          <SystemLogo :system="systemDetail.data.type" />
           <NeHeading tag="h6">
             {{
               getProductName(systemDetail.data.type || '') || $t('system_detail.unknown_product')
