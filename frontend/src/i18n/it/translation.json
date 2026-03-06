@@ -515,7 +515,7 @@
     "no_inventory_available": "Nessun inventario disponibile",
     "no_inventory_available_description": "Il sistema non ha ancora inviato dati di inventario.",
     "subscription": "Subscription",
-    "subscribed_since": "Registrato dal",
+    "active_since": "Attiva dal",
     "system_key": "Chiave di sistema",
     "cannot_determine_system_url_description": "Impossibile accedere al sistema perché non è possibile determinarne l'URL."
   },
