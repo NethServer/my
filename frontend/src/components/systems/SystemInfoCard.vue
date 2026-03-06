@@ -11,6 +11,7 @@ import {
   NeInlineNotification,
   NeLink,
   NeSkeleton,
+  NeTooltip,
   type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
@@ -19,17 +20,25 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { getOrganizationIcon } from '@/lib/organizations/organizations'
 import DataItem from '../DataItem.vue'
 import ClickToCopy from '../ClickToCopy.vue'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import NotesModal from '../NotesModal.vue'
 import { canManageSystems } from '@/lib/permissions'
 import { faFileCsv, faFilePdf, faPenToSquare } from '@fortawesome/free-solid-svg-icons'
 import { useI18n } from 'vue-i18n'
 import CreateOrEditSystemDrawer from './CreateOrEditSystemDrawer.vue'
+import OrganizationIcon from '../organizations/OrganizationIcon.vue'
+import OrganizationLink from '../applications/OrganizationLink.vue'
 
 const { t } = useI18n()
 const { state: systemDetail, asyncStatus } = useSystemDetail()
 const isNotesModalShown = ref(false)
 const isShownCreateOrEditSystemDrawer = ref(false)
+
+const organizationTypeLabel = computed(() => {
+  const orgType = systemDetail.value.data?.organization.type
+  if (!orgType) return ''
+  return t(`organizations.${orgType.toLowerCase()}`)
+})
 
 function getKebabMenuItems() {
   let items: NeDropdownItem[] = []
@@ -154,12 +163,23 @@ function getKebabMenuItems() {
           </template>
           <template #data>
             <div class="flex items-center gap-2">
-              <FontAwesomeIcon
-                :icon="getOrganizationIcon(systemDetail.data.organization.type)"
-                class="size-5 shrink-0"
-                aria-hidden="true"
+              <NeTooltip
+                v-if="systemDetail.data.organization.type"
+                trigger-event="mouseenter focus"
+                placement="top"
+              >
+                <template #trigger>
+                  <OrganizationIcon :org-type="systemDetail.data.organization.type" size="xs" />
+                </template>
+                <template #content>
+                  {{ organizationTypeLabel }}
+                </template>
+              </NeTooltip>
+              <OrganizationLink
+                v-if="systemDetail.data.organization"
+                :organization="systemDetail.data.organization"
               />
-              {{ systemDetail.data.organization.name || '-' }}
+              <span v-else class="font-medium">-</span>
             </div>
           </template>
         </DataItem>
