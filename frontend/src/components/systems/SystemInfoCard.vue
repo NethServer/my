@@ -20,10 +20,23 @@ import DataItem from '../DataItem.vue'
 import ClickToCopy from '../ClickToCopy.vue'
 import { computed, ref } from 'vue'
 import NotesModal from '../NotesModal.vue'
-import { canManageSystems } from '@/lib/permissions'
-import { faFileCsv, faFilePdf, faPenToSquare } from '@fortawesome/free-solid-svg-icons'
+import { canManageSystems, canDestroySystems } from '@/lib/permissions'
+import {
+  faFileCsv,
+  faFilePdf,
+  faPenToSquare,
+  faBoxArchive,
+  faCirclePause,
+  faCirclePlay,
+  faBomb,
+} from '@fortawesome/free-solid-svg-icons'
 import { useI18n } from 'vue-i18n'
+import router from '@/router'
 import CreateOrEditSystemDrawer from './CreateOrEditSystemDrawer.vue'
+import DeleteSystemModal from './DeleteSystemModal.vue'
+import SuspendSystemModal from './SuspendSystemModal.vue'
+import ReactivateSystemModal from './ReactivateSystemModal.vue'
+import DestroySystemModal from './DestroySystemModal.vue'
 import OrganizationIcon from '../organizations/OrganizationIcon.vue'
 import OrganizationLink from '../applications/OrganizationLink.vue'
 
@@ -31,6 +44,10 @@ const { t } = useI18n()
 const { state: systemDetail, asyncStatus } = useSystemDetail()
 const isNotesModalShown = ref(false)
 const isShownCreateOrEditSystemDrawer = ref(false)
+const isShownDeleteSystemModal = ref(false)
+const isShownSuspendSystemModal = ref(false)
+const isShownReactivateSystemModal = ref(false)
+const isShownDestroySystemModal = ref(false)
 
 const organizationTypeLabel = computed(() => {
   const orgType = systemDetail.value.data?.organization.type
@@ -39,9 +56,10 @@ const organizationTypeLabel = computed(() => {
 })
 
 function getKebabMenuItems() {
+  const system = systemDetail.value.data
   let items: NeDropdownItem[] = []
 
-  if (canManageSystems()) {
+  if (canManageSystems() && system?.status !== 'deleted') {
     items.push({
       id: 'editSystem',
       label: t('common.edit'),
@@ -57,17 +75,70 @@ function getKebabMenuItems() {
       id: 'exportToPdf',
       label: t('systems.export_to_pdf'),
       icon: faFilePdf,
-      action: () => exportSystem(systemDetail.value.data!, 'pdf'),
+      action: () => exportSystem(system!, 'pdf'),
       disabled: asyncStatus.value === 'loading',
     },
     {
       id: 'exportToCsv',
       label: t('systems.export_to_csv'),
       icon: faFileCsv,
-      action: () => exportSystem(systemDetail.value.data!, 'csv'),
+      action: () => exportSystem(system!, 'csv'),
       disabled: asyncStatus.value === 'loading',
     },
   ]
+
+  if (canManageSystems() && system?.status !== 'deleted') {
+    if (system?.suspended_at) {
+      items = [
+        ...items,
+        {
+          id: 'reactivateSystem',
+          label: t('common.reactivate'),
+          icon: faCirclePlay,
+          action: () => (isShownReactivateSystemModal.value = true),
+          disabled: asyncStatus.value === 'loading',
+        },
+      ]
+    } else {
+      items = [
+        ...items,
+        {
+          id: 'suspendSystem',
+          label: t('common.suspend'),
+          icon: faCirclePause,
+          action: () => (isShownSuspendSystemModal.value = true),
+          disabled: asyncStatus.value === 'loading',
+        },
+      ]
+    }
+
+    items = [
+      ...items,
+      {
+        id: 'deleteSystem',
+        label: t('common.archive'),
+        icon: faBoxArchive,
+        danger: true,
+        action: () => (isShownDeleteSystemModal.value = true),
+        disabled: asyncStatus.value === 'loading',
+      },
+    ]
+  }
+
+  if (canDestroySystems()) {
+    items = [
+      ...items,
+      {
+        id: 'destroySystem',
+        label: t('common.destroy'),
+        icon: faBomb,
+        danger: true,
+        action: () => (isShownDestroySystemModal.value = true),
+        disabled: asyncStatus.value === 'loading',
+      },
+    ]
+  }
+
   return items
 }
 </script>
@@ -217,6 +288,32 @@ function getKebabMenuItems() {
       :is-shown="isShownCreateOrEditSystemDrawer"
       :current-system="systemDetail.data!"
       @close="isShownCreateOrEditSystemDrawer = false"
+    />
+    <!-- delete system modal -->
+    <DeleteSystemModal
+      :visible="isShownDeleteSystemModal"
+      :system="systemDetail.data"
+      @close="isShownDeleteSystemModal = false"
+      @success="router.push({ name: 'systems' })"
+    />
+    <!-- suspend system modal -->
+    <SuspendSystemModal
+      :visible="isShownSuspendSystemModal"
+      :system="systemDetail.data"
+      @close="isShownSuspendSystemModal = false"
+    />
+    <!-- reactivate system modal -->
+    <ReactivateSystemModal
+      :visible="isShownReactivateSystemModal"
+      :system="systemDetail.data"
+      @close="isShownReactivateSystemModal = false"
+    />
+    <!-- destroy system modal -->
+    <DestroySystemModal
+      :visible="isShownDestroySystemModal"
+      :system="systemDetail.data"
+      @close="isShownDestroySystemModal = false"
+      @success="router.push({ name: 'systems' })"
     />
   </NeCard>
 </template>
