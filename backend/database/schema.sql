@@ -233,7 +233,7 @@ CREATE TABLE IF NOT EXISTS systems (
     version VARCHAR(100),                   -- OS/system version (from inventory)
 
     -- Status (managed by collect service heartbeat monitor)
-    status VARCHAR(50) NOT NULL DEFAULT 'unknown',  -- unknown, online, offline, deleted
+    status VARCHAR(50) NOT NULL DEFAULT 'unknown',  -- unknown, active, inactive, deleted
 
     -- Organization ownership
     organization_id VARCHAR(255) NOT NULL,  -- Logto organization ID that owns this system
@@ -617,7 +617,7 @@ CREATE INDEX IF NOT EXISTS idx_inventory_diffs_notification_sent ON inventory_di
 -- SYSTEM HEARTBEATS TABLE
 -- =============================================================================
 -- Tracks system liveness via heartbeat pings
--- Used by collect service to determine online/offline status
+-- Used by collect service to determine active/inactive status
 
 CREATE TABLE IF NOT EXISTS system_heartbeats (
     id BIGSERIAL PRIMARY KEY,               -- Auto-incrementing ID
@@ -637,7 +637,7 @@ CREATE TABLE IF NOT EXISTS system_heartbeats (
 -- Table documentation
 COMMENT ON TABLE system_heartbeats IS 'Tracks system liveness via heartbeat pings';
 COMMENT ON COLUMN system_heartbeats.last_heartbeat IS 'Timestamp of last heartbeat received';
-COMMENT ON COLUMN system_heartbeats.status IS 'Current status based on heartbeat: online, offline';
+COMMENT ON COLUMN system_heartbeats.status IS 'Current status based on heartbeat: active, inactive';
 COMMENT ON COLUMN system_heartbeats.metadata IS 'Additional metadata sent with heartbeat';
 
 -- Foreign key constraint

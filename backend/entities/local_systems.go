@@ -259,7 +259,7 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	}
 
 	// Handle status filter (treat "deleted" as a normal status value, "suspended" as virtual status)
-	// When filtering by normal statuses (unknown, online, offline) WITHOUT "suspended",
+	// When filtering by normal statuses (unknown, active, inactive) WITHOUT "suspended",
 	// exclude suspended systems to avoid overlap
 	hasSuspendedFilter := false
 	var dbStatuses []string
