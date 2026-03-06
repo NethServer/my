@@ -133,7 +133,7 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRole, userRole string) ([]*models.System, error) {
 	query := `
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
-		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, s.registered_at, s.suspended_at, s.suspended_by_org_id, h.last_heartbeat,
+		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, s.registered_at, s.suspended_at, s.suspended_by_org_id, h.last_heartbeat, s.last_inventory_at,
 		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name,
 		       CASE
 		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
@@ -165,14 +165,14 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 		var customDataJSON []byte
 		var createdByJSON []byte
 		var fqdn, ipv4Address, ipv6Address, version sql.NullString
-		var registeredAt, suspendedAt, lastHeartbeat sql.NullTime
+		var registeredAt, suspendedAt, lastHeartbeat, lastInventory sql.NullTime
 		var suspendedByOrgID sql.NullString
 		var organizationName, organizationType, organizationDBID sql.NullString
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
 			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.LogtoID,
-			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &suspendedAt, &suspendedByOrgID, &lastHeartbeat,
+			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &suspendedAt, &suspendedByOrgID, &lastHeartbeat, &lastInventory,
 			&organizationName, &organizationType, &organizationDBID,
 		)
 		if err != nil {
@@ -218,13 +218,16 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 			}
 		}
 
-		// Calculate heartbeat status (15 minutes timeout)
-		var heartbeatTime *time.Time
+		// Set heartbeat and inventory timestamps
 		if lastHeartbeat.Valid {
-			heartbeatTime = &lastHeartbeat.Time
+			system.LastHeartbeat = &lastHeartbeat.Time
 		}
-		system.HeartbeatStatus, system.HeartbeatMinutes = s.calculateHeartbeatStatus(heartbeatTime, 15)
-		system.LastHeartbeat = heartbeatTime
+		if lastInventory.Valid {
+			system.LastInventory = &lastInventory.Time
+		}
+
+		// Apply unified status (suspended takes priority over DB status)
+		s.applyUnifiedStatus(system)
 
 		// Hide system_key if system is not registered yet
 		if system.RegisteredAt == nil {
@@ -262,11 +265,13 @@ func (s *LocalSystemsService) GetSystemsByOrganizationPaginated(userID, userOrgI
 		return nil, 0, err
 	}
 
-	// Hide system_key for systems that are not registered yet
 	for _, system := range systems {
+		// Hide system_key for systems that are not registered yet
 		if system.RegisteredAt == nil {
 			system.SystemKey = ""
 		}
+		// Apply unified status (suspended takes priority over DB status)
+		s.applyUnifiedStatus(system)
 	}
 
 	return systems, totalCount, nil
@@ -286,8 +291,8 @@ func (s *LocalSystemsService) GetSystem(systemID, userOrgRole, userOrgID string)
 		return nil, fmt.Errorf("access denied: %s", reason)
 	}
 
-	// Calculate heartbeat status (15 minutes timeout)
-	system.HeartbeatStatus, system.HeartbeatMinutes = s.calculateHeartbeatStatus(system.LastHeartbeat, 15)
+	// Apply unified status (suspended takes priority over DB status)
+	s.applyUnifiedStatus(system)
 
 	// Hide system_key if system is not registered yet
 	if system.RegisteredAt == nil {
@@ -296,7 +301,7 @@ func (s *LocalSystemsService) GetSystem(systemID, userOrgRole, userOrgID string)
 
 	logger.Debug().
 		Str("system_id", systemID).
-		Str("heartbeat_status", system.HeartbeatStatus).
+		Str("status", system.Status).
 		Msg("Retrieved system by ID")
 
 	return system, nil
@@ -846,20 +851,18 @@ func (s *LocalSystemsService) CanAccessSystem(system *models.System, userOrgRole
 // PRIVATE METHODS
 // =============================================================================
 
-// calculateHeartbeatStatus calculates heartbeat status based on last_heartbeat timestamp
-func (s *LocalSystemsService) calculateHeartbeatStatus(lastHeartbeat *time.Time, timeoutMinutes int) (string, *int) {
-	if lastHeartbeat == nil {
-		return "unknown", nil
+// applyUnifiedStatus overrides the DB status with the unified status.
+// Priority: suspended > deleted > DB status (unknown/active/inactive)
+func (s *LocalSystemsService) applyUnifiedStatus(system *models.System) {
+	if system.SuspendedAt != nil {
+		system.Status = "suspended"
+		return
 	}
-
-	timeout := time.Duration(timeoutMinutes) * time.Minute
-	cutoff := time.Now().Add(-timeout)
-	minutes := int(time.Since(*lastHeartbeat).Minutes())
-
-	if lastHeartbeat.After(cutoff) {
-		return "active", &minutes
+	if system.DeletedAt != nil {
+		system.Status = "deleted"
+		return
 	}
-	return "inactive", &minutes
+	// DB status is already unknown/active/inactive - keep as is
 }
 
 // generateSystemKey generates a unique UUID-based system key with prefix

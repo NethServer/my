@@ -1186,9 +1186,9 @@ components:
           example: "nsec"
         status:
           type: string
-          enum: [unknown, online, offline, deleted]
-          description: System operational status (defaults to 'unknown', auto-updated by collect service)
-          example: "unknown"
+          enum: [unknown, active, inactive, suspended, deleted]
+          description: "Unified system status. Priority: suspended > deleted > unknown/active/inactive. Computed from heartbeat + suspension state."
+          example: "active"
         fqdn:
           type: string
           description: Fully qualified domain name
@@ -1239,21 +1239,17 @@ components:
           example: "2025-07-10T10:30:00Z"
         created_by:
           $ref: '#/components/schemas/SystemCreator'
-        # Heartbeat status fields
-        heartbeat_status:
-          type: string
-          enum: [alive, dead, zombie]
-          description: System heartbeat status (alive=<15min, dead=>15min, zombie=never communicated)
-          example: "alive"
         last_heartbeat:
           type: string
           format: date-time
           description: Last heartbeat timestamp
           example: "2025-07-21T10:25:00Z"
-        heartbeat_minutes:
-          type: integer
-          description: Minutes since last heartbeat
-          example: 5
+        last_inventory:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last inventory received timestamp. NULL means no inventory received yet.
+          example: "2025-07-21T10:20:00Z"
         registered_at:
           type: string
           format: date-time
@@ -2133,7 +2129,7 @@ components:
       description: |
         Filter systems by status. Supports multiple values.
 
-        - unknown, online, offline, deleted: match the system status column
+        - unknown, active, inactive, deleted: match the system status column
         - suspended: virtual status matching systems with suspended_at IS NOT NULL
 
         Special value "deleted" shows soft-deleted systems (where deleted_at IS NOT NULL).
@@ -2143,8 +2139,8 @@ components:
         type: array
         items:
           type: string
-          enum: ["unknown", "online", "offline", "suspended", "deleted"]
-        example: ["online", "unknown"]
+          enum: ["unknown", "active", "inactive", "suspended", "deleted"]
+        example: ["active", "unknown"]
       style: form
       explode: true
 
@@ -5847,7 +5843,7 @@ paths:
 
         1. **Single type filter**: `?type=nsec`
         2. **Multiple types filter**: `?type=nsec&type=ns8`
-        3. **Multiple filters combined**: `?type=nsec&status=online&status=deleted&version=8.0`
+        3. **Multiple filters combined**: `?type=nsec&status=active&status=deleted&version=8.0`
         4. **With pagination and sorting**: `?page=1&page_size=50&sort_by=name&sort_direction=asc&type=nsec`
         5. **Search with filters**: `?search=backup&type=ns8&organization_id=org_abc123xyz`
         6. **Creator filter (by user)**: `?created_by=53h5zxpwu4vc`
@@ -5856,12 +5852,12 @@ paths:
 
         **Complete Example Request:**
         ```
-        GET /api/systems?page=1&page_size=20&sort_by=created_at&sort_direction=desc&type=nsec&type=ns8&status=online&version=nsec:8.0&version=ns8:1.2.3&organization_id=org_abc123xyz
+        GET /api/systems?page=1&page_size=20&sort_by=created_at&sort_direction=desc&type=nsec&type=ns8&status=active&version=nsec:8.0&version=ns8:1.2.3&organization_id=org_abc123xyz
         ```
 
         This retrieves systems that are:
         - Type: nsec OR ns8
-        - Status: online
+        - Status: active
         - Version: (nsec version 8.0) OR (ns8 version 1.2.3)
         - Organization: org_abc123xyz
         - Sorted by creation date (newest first)
@@ -7604,7 +7600,7 @@ paths:
                         example: "server.example.com"
                       status:
                         type: string
-                        example: "online"
+                        example: "active"
                       suspended:
                         type: boolean
                         example: false

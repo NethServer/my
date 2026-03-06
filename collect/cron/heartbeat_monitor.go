@@ -64,54 +64,54 @@ func (h *HeartbeatMonitor) Start(ctx context.Context) {
 func (h *HeartbeatMonitor) checkAndUpdateStatuses() {
 	cutoff := time.Now().Add(-time.Duration(h.timeoutMinutes) * time.Minute)
 
-	// Update systems to 'online' if they have recent heartbeat and are not currently 'online'
-	// This handles: unknown -> online, offline -> online
-	queryOnline := `
+	// Update systems to 'active' if they have recent heartbeat and are not currently 'active'
+	// This handles: unknown -> active, inactive -> active
+	queryActive := `
 		UPDATE systems s
-		SET status = 'online', updated_at = NOW()
+		SET status = 'active', updated_at = NOW()
 		FROM system_heartbeats h
 		WHERE s.id = h.system_id
 			AND h.last_heartbeat > $1
-			AND s.status != 'online'
+			AND s.status != 'active'
 			AND s.deleted_at IS NULL
 	`
 
-	resultOnline, err := h.db.Exec(queryOnline, cutoff)
+	resultActive, err := h.db.Exec(queryActive, cutoff)
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Msg("Failed to update systems to online status")
+			Msg("Failed to update systems to active status")
 	} else {
-		rowsAffected, _ := resultOnline.RowsAffected()
+		rowsAffected, _ := resultActive.RowsAffected()
 		if rowsAffected > 0 {
 			logger.Info().
 				Int64("systems_updated", rowsAffected).
-				Msg("Updated systems to online status")
+				Msg("Updated systems to active status")
 		}
 	}
 
-	// Update systems to 'offline' if they have old heartbeat and are currently 'online'
-	queryOffline := `
+	// Update systems to 'inactive' if they have old heartbeat and are currently 'active'
+	queryInactive := `
 		UPDATE systems s
-		SET status = 'offline', updated_at = NOW()
+		SET status = 'inactive', updated_at = NOW()
 		FROM system_heartbeats h
 		WHERE s.id = h.system_id
 			AND h.last_heartbeat <= $1
-			AND s.status = 'online'
+			AND s.status = 'active'
 			AND s.deleted_at IS NULL
 	`
 
-	resultOffline, err := h.db.Exec(queryOffline, cutoff)
+	resultInactive, err := h.db.Exec(queryInactive, cutoff)
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Msg("Failed to update systems to offline status")
+			Msg("Failed to update systems to inactive status")
 	} else {
-		rowsAffected, _ := resultOffline.RowsAffected()
+		rowsAffected, _ := resultInactive.RowsAffected()
 		if rowsAffected > 0 {
 			logger.Warn().
 				Int64("systems_updated", rowsAffected).
-				Msg("Updated systems to offline status")
+				Msg("Updated systems to inactive status")
 		}
 	}
 

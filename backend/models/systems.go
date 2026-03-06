@@ -30,7 +30,7 @@ type System struct {
 	ID               string            `json:"id" structs:"id"`
 	Name             string            `json:"name" structs:"name"`
 	Type             *string           `json:"type" structs:"type"`     // ns8, nsec, etc. - nullable until first inventory
-	Status           string            `json:"status" structs:"status"` // unknown (default), online, offline, deleted
+	Status           string            `json:"status" structs:"status"` // Unified status: unknown, active, inactive, suspended, deleted
 	FQDN             string            `json:"fqdn" structs:"fqdn"`
 	IPv4Address      string            `json:"ipv4_address" structs:"ipv4_address"`
 	IPv6Address      string            `json:"ipv6_address" structs:"ipv6_address"`
@@ -48,10 +48,8 @@ type System struct {
 	SuspendedByOrgID *string           `json:"suspended_by_org_id" structs:"suspended_by_org_id"` // Organization that caused cascade suspension
 	DeletedByOrgID   *string           `json:"deleted_by_org_id" structs:"deleted_by_org_id"`     // Organization that caused cascade soft-deletion
 	CreatedBy        SystemCreator     `json:"created_by" structs:"created_by"`
-	// Heartbeat status fields
-	HeartbeatStatus  string     `json:"heartbeat_status,omitempty"`  // active, inactive, unknown
-	LastHeartbeat    *time.Time `json:"last_heartbeat,omitempty"`    // Last heartbeat timestamp
-	HeartbeatMinutes *int       `json:"heartbeat_minutes,omitempty"` // Minutes since last heartbeat
+	LastHeartbeat    *time.Time        `json:"last_heartbeat,omitempty"` // Last heartbeat timestamp
+	LastInventory    *time.Time        `json:"last_inventory,omitempty"` // Last inventory timestamp (NULL = never received)
 
 	// Rebranding info (populated by handler)
 	RebrandingEnabled bool    `json:"rebranding_enabled"`

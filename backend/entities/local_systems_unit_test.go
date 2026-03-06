@@ -516,19 +516,19 @@ func simulateGetSystemTotals(userOrgRole, userOrgID string) *models.SystemTotals
 func setSystemState(system *models.System, state string) {
 	switch state {
 	case "active":
-		system.Status = "online"
+		system.Status = "active"
 	case "inactive":
-		system.Status = "offline"
+		system.Status = "inactive"
 	case "suspended":
-		system.Status = "deleted"
+		system.Status = "suspended"
 	}
 }
 
 func simulateSystemStateChange(system *models.System, operation string) (bool, string) {
 	switch operation {
 	case "activate":
-		if system.Status == "deleted" {
-			return false, "suspended" // Cannot activate deleted system directly
+		if system.Status == "suspended" {
+			return false, "suspended" // Cannot activate suspended system directly
 		}
 		return true, "active"
 	case "deactivate":
@@ -536,7 +536,7 @@ func simulateSystemStateChange(system *models.System, operation string) (bool, s
 	case "suspend":
 		return true, "suspended"
 	case "unsuspend":
-		if system.Status == "deleted" {
+		if system.Status == "suspended" {
 			return true, "active"
 		}
 		return false, "active" // Already not suspended

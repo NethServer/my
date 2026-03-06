@@ -257,6 +257,9 @@ CREATE TABLE IF NOT EXISTS systems (
     suspended_at TIMESTAMP WITH TIME ZONE,      -- NULL = active, non-NULL = suspended
     suspended_by_org_id VARCHAR(255),            -- Organization that caused cascade suspension
 
+    -- Inventory
+    last_inventory_at TIMESTAMP WITH TIME ZONE, -- Last inventory received timestamp (NULL = never received)
+
     -- Soft delete
     deleted_at TIMESTAMP WITH TIME ZONE,    -- NULL = active, non-NULL = soft deleted
     deleted_by_org_id VARCHAR(255)           -- Organization that caused cascade soft-deletion
@@ -265,7 +268,8 @@ CREATE TABLE IF NOT EXISTS systems (
 -- Table documentation
 COMMENT ON TABLE systems IS 'NS8/NethSecurity systems registered for monitoring and inventory collection';
 COMMENT ON COLUMN systems.type IS 'System type from inventory: ns8 (NethServer 8), nsec (NethSecurity)';
-COMMENT ON COLUMN systems.status IS 'Heartbeat status: unknown (no data), online (active), offline (no heartbeat), deleted';
+COMMENT ON COLUMN systems.status IS 'Heartbeat status: unknown (no data), active (heartbeat recent), inactive (heartbeat stale), deleted';
+COMMENT ON COLUMN systems.last_inventory_at IS 'Timestamp of last inventory received. NULL means no inventory received yet';
 COMMENT ON COLUMN systems.suspended_at IS 'Suspension timestamp: NULL = active, non-NULL = suspended';
 COMMENT ON COLUMN systems.suspended_by_org_id IS 'Organization that caused cascade suspension (for targeted reactivation)';
 COMMENT ON COLUMN systems.system_key IS 'Unique system key for identification (used with secret for auth)';
@@ -297,7 +301,7 @@ DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_systems_status') THEN
         ALTER TABLE systems ADD CONSTRAINT chk_systems_status
-            CHECK (status IN ('unknown', 'online', 'offline', 'deleted'));
+            CHECK (status IN ('unknown', 'active', 'inactive', 'deleted'));
     END IF;
 END $$;
 
@@ -623,7 +627,7 @@ CREATE TABLE IF NOT EXISTS system_heartbeats (
 
     -- Heartbeat data
     last_heartbeat TIMESTAMP WITH TIME ZONE NOT NULL,  -- Last heartbeat timestamp
-    status VARCHAR(20) NOT NULL DEFAULT 'online',       -- online, offline (based on heartbeat freshness)
+    status VARCHAR(20) NOT NULL DEFAULT 'active',        -- active, inactive (based on heartbeat freshness)
     metadata JSONB,                         -- Additional heartbeat metadata
 
     -- Timestamps

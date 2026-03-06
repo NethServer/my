@@ -583,11 +583,12 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 		argPos++
 	}
 
-	// Always update updated_at timestamp
+	// Always update timestamps
 	updates = append(updates, "updated_at = NOW()")
+	updates = append(updates, "last_inventory_at = NOW()")
 
 	// If no fields to update, skip
-	if len(updates) == 1 { // Only updated_at
+	if len(updates) == 2 { // Only updated_at + last_inventory_at
 		return nil
 	}
 

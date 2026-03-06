@@ -43,7 +43,7 @@ func (r *LocalSystemRepository) Create(req *models.CreateSystemRequest) (*models
 func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	query := `
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
-		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, s.registered_at, s.suspended_at, s.suspended_by_org_id, h.last_heartbeat,
+		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, s.registered_at, s.suspended_at, s.suspended_by_org_id, h.last_heartbeat, s.last_inventory_at,
 		       COALESCE(uo.name, 'Owner') as organization_name,
 		       COALESCE(uo.org_type, 'owner') as organization_type,
 		       COALESCE(uo.db_id, '') as organization_db_id
@@ -57,14 +57,14 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 	var customDataJSON []byte
 	var createdByJSON []byte
 	var fqdn, ipv4Address, ipv6Address, version sql.NullString
-	var registeredAt, suspendedAt, lastHeartbeat sql.NullTime
+	var registeredAt, suspendedAt, lastHeartbeat, lastInventory sql.NullTime
 	var suspendedByOrgID sql.NullString
 	var organizationName, organizationType, organizationDBID sql.NullString
 
 	err := r.db.QueryRow(query, id).Scan(
 		&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
 		&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.LogtoID,
-		&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &suspendedAt, &suspendedByOrgID, &lastHeartbeat,
+		&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &suspendedAt, &suspendedByOrgID, &lastHeartbeat, &lastInventory,
 		&organizationName, &organizationType, &organizationDBID,
 	)
 
@@ -111,12 +111,13 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 		_ = json.Unmarshal(createdByJSON, &system.CreatedBy) // Ignore JSON unmarshal errors - keep default zero value
 	}
 
-	// Set heartbeat time for service layer calculation
-	var heartbeatTime *time.Time
+	// Set heartbeat and inventory timestamps
 	if lastHeartbeat.Valid {
-		heartbeatTime = &lastHeartbeat.Time
+		system.LastHeartbeat = &lastHeartbeat.Time
 	}
-	system.LastHeartbeat = heartbeatTime
+	if lastInventory.Valid {
+		system.LastInventory = &lastInventory.Time
+	}
 
 	return system, nil
 }
@@ -337,7 +338,7 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	// Build main query
 	query := fmt.Sprintf(`
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
-		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.deleted_at, s.registered_at, s.suspended_at, s.suspended_by_org_id, s.created_by,
+		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.deleted_at, s.registered_at, s.suspended_at, s.suspended_by_org_id, s.created_by, s.last_inventory_at,
 		       COALESCE(uo.name, 'Owner') as organization_name,
 		       COALESCE(uo.org_type, 'owner') as organization_type,
 		       COALESCE(uo.db_id, '') as organization_db_id
@@ -365,14 +366,14 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		system := &models.System{}
 		var customDataJSON, createdByJSON []byte
 		var fqdn, ipv4Address, ipv6Address, version sql.NullString
-		var deletedAt, registeredAt, suspendedAt sql.NullTime
+		var deletedAt, registeredAt, suspendedAt, lastInventory sql.NullTime
 		var suspendedByOrgID sql.NullString
 		var organizationName, organizationType, organizationDBID sql.NullString
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
 			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.LogtoID,
-			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &deletedAt, &registeredAt, &suspendedAt, &suspendedByOrgID, &createdByJSON,
+			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &deletedAt, &registeredAt, &suspendedAt, &suspendedByOrgID, &createdByJSON, &lastInventory,
 			&organizationName, &organizationType, &organizationDBID,
 		)
 		if err != nil {
@@ -404,6 +405,11 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		}
 		if suspendedByOrgID.Valid {
 			system.SuspendedByOrgID = &suspendedByOrgID.String
+		}
+
+		// Set last_inventory_at if present
+		if lastInventory.Valid {
+			system.LastInventory = &lastInventory.Time
 		}
 
 		// Parse custom_data JSON
