@@ -77,7 +77,7 @@ function onCloseSecretRegeneratedModal() {
       <!-- subscribed since -->
       <DataItem>
         <template #label>
-          {{ $t('system_detail.subscribed_since') }}
+          {{ $t('system_detail.active_since') }}
         </template>
         <template #data>
           {{

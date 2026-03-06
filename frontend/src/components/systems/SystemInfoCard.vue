@@ -16,8 +16,6 @@ import {
 } from '@nethesis/vue-components'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { exportSystem, getProductLogo, getProductName } from '@/lib/systems/systems'
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { getOrganizationIcon } from '@/lib/organizations/organizations'
 import DataItem from '../DataItem.vue'
 import ClickToCopy from '../ClickToCopy.vue'
 import { computed, ref } from 'vue'
