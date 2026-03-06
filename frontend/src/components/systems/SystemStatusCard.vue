@@ -50,7 +50,8 @@ const leaderNode = computed(() => {
   if (!nodes) {
     return null
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any //// improve typing
+  //// improve typing
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (Object.values(nodes).find((node: any) => node.cluster_leader === true) as any) ?? null
 })
 

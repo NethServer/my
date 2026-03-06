@@ -39,11 +39,8 @@ import { canManageApplications } from '@/lib/permissions'
 import { SYSTEMS_TABLE_ID } from '@/lib/systems/systems'
 import OrganizationIcon from '../organizations/OrganizationIcon.vue'
 import { useApplications } from '@/queries/applications/applications'
-import {
-  getApplicationLogo,
-  getDisplayName,
-  type Application,
-} from '@/lib/applications/applications'
+import { getDisplayName, type Application } from '@/lib/applications/applications'
+import ApplicationLogo from './ApplicationLogo.vue'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import AssignOrganizationDrawer from './AssignOrganizationDrawer.vue'
 import SetNotesDrawer from './SetNotesDrawer.vue'
@@ -377,13 +374,7 @@ const goToApplicationDetails = (application: Application) => {
             </NeTableCell>
             <NeTableCell :data-label="$t('applications.type')">
               <div class="flex items-center gap-2">
-                <img
-                  v-if="item.instance_of"
-                  :src="getApplicationLogo(item.instance_of)"
-                  :alt="item.instance_of"
-                  aria-hidden="true"
-                  class="size-8"
-                />
+                <ApplicationLogo :app="item.instance_of" />
                 <span class="font-medium">
                   {{ item.name || '-' }}
                 </span>

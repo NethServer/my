@@ -501,7 +501,6 @@
   "system_detail": {
     "title": "System detail",
     "overview": "Overview",
-    "product_logo": "{product} logo",
     "unknown_product": "Unknown product",
     "go_to_system": "Go to system",
     "go_to_system_tooltip": "Note: The system may be unreachable due to network settings.",

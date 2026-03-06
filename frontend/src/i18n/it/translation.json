@@ -501,7 +501,6 @@
   "system_detail": {
     "title": "Dettaglio sistema",
     "overview": "Panoramica",
-    "product_logo": "Logo di {product}",
     "unknown_product": "Prodotto sconosciuto",
     "go_to_system": "Vai al sistema",
     "go_to_system_tooltip": "Nota: Il sistema potrebbe non essere raggiungibile a causa delle impostazioni di rete.",
