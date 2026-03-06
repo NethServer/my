@@ -16,7 +16,7 @@ const { visible = false, system = undefined } = defineProps<{
   system: System | undefined
 }>()
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'success'])
 
 const { t } = useI18n()
 const notificationsStore = useNotificationsStore()
@@ -44,12 +44,13 @@ const {
     }, 500)
 
     emit('close')
+    emit('success')
   },
   onError: (error) => {
     console.error('Error deleting system:', error)
   },
   onSettled: () => {
-    queryCache.invalidateQueries({ key: [SYSTEMS_KEY] })
+    queryCache.invalidateQueries({ key: [SYSTEMS_KEY], exact: true })
     queryCache.invalidateQueries({ key: [SYSTEMS_TOTAL_KEY] })
     queryCache.invalidateQueries({ key: [SYSTEM_FILTERS_KEY] })
   },
