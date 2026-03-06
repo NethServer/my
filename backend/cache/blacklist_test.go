@@ -148,7 +148,7 @@ func TestTokenBlacklist_EdgeCases(t *testing.T) {
 	assert.Error(t, err)
 
 	found, reason, err := blacklist.IsTokenBlacklisted(token)
-	assert.Error(t, err)
+	assert.NoError(t, err)
 	assert.False(t, found)
 	assert.Empty(t, reason)
 
@@ -156,7 +156,7 @@ func TestTokenBlacklist_EdgeCases(t *testing.T) {
 	assert.Error(t, err)
 
 	found, reason, err = blacklist.IsUserBlacklisted("user123")
-	assert.Error(t, err)
+	assert.NoError(t, err)
 	assert.False(t, found)
 	assert.Empty(t, reason)
 

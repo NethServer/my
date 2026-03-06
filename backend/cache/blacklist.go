@@ -129,10 +129,9 @@ func (tb *TokenBlacklist) BlacklistToken(tokenString string, reason string) erro
 func (tb *TokenBlacklist) IsTokenBlacklisted(tokenString string) (bool, string, error) {
 	if tb.redisClient == nil {
 		logger.ComponentLogger("blacklist").Warn().
-			Str("operation", "blacklist_check_failed").
-			Msg("Redis client unavailable for blacklist check")
-		// Fail open - allow token if Redis is unavailable
-		return false, "", fmt.Errorf("redis client unavailable")
+			Str("operation", "blacklist_check_skipped").
+			Msg("Redis client unavailable for blacklist check - failing open")
+		return false, "", nil
 	}
 
 	tokenHash := tb.hashToken(tokenString)
@@ -192,8 +191,10 @@ func (tb *TokenBlacklist) BlacklistAllUserTokens(userID string, reason string) e
 // IsUserBlacklisted checks if all tokens for a user are blacklisted
 func (tb *TokenBlacklist) IsUserBlacklisted(userID string) (bool, string, error) {
 	if tb.redisClient == nil {
-		// Fail open
-		return false, "", fmt.Errorf("redis client unavailable")
+		logger.ComponentLogger("blacklist").Warn().
+			Str("operation", "user_blacklist_check_skipped").
+			Msg("Redis client unavailable for user blacklist check - failing open")
+		return false, "", nil
 	}
 
 	userKey := UserBlacklistKeyPrefix + userID
