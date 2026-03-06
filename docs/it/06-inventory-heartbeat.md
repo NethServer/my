@@ -7,7 +7,7 @@ Scopri come i sistemi esterni inviano dati di inventario e segnali di heartbeat 
 Dopo la [registrazione del sistema](05-system-registration.md), i sistemi esterni comunicano con My attraverso due meccanismi:
 
 1. **Inventario**: Snapshot completo delle informazioni del sistema (hardware, software, configurazione)
-2. **Heartbeat**: Segnale periodico "Sono vivo" per indicare che il sistema è online
+2. **Heartbeat**: Segnale periodico "Sono vivo" per indicare che il sistema è attivo
 
 Entrambe le operazioni usano **HTTP Basic Authentication** con le credenziali registrate.
 
@@ -53,7 +53,7 @@ L'heartbeat è un semplice segnale per indicare che il sistema è vivo e raggiun
 
 ### Scopo
 
-- Rilevare quando i sistemi vanno offline
+- Rilevare quando i sistemi diventano inattivi
 - Attivare avvisi per sistemi morti
 - Monitorare l'affidabilità del sistema
 
@@ -164,7 +164,7 @@ I sistemi sono classificati in base all'heartbeat:
 | Stato | Condizione | Colore | Significato |
 |--------|-----------|-------|---------|
 | **Active** | < 15 minuti | 🟢 Verde | Il sistema è sano |
-| **Inactive** | ≥ 15 minuti | 🟡 Giallo | Il sistema è offline |
+| **Inactive** | ≥ 15 minuti | 🟡 Giallo | Il sistema non risponde |
 | **Unknown** | Mai inviato | ⚪ Grigio | Mai comunicato |
 
 ## Inventario
@@ -514,7 +514,7 @@ Ogni modifica ha un livello di severità:
 ### Avvisi (se configurati)
 
 Avvisi automatici per:
-- Sistema va offline (nessun heartbeat per 15+ minuti)
+- Sistema diventa inattivo (nessun heartbeat per 15+ minuti)
 - Modifiche critiche rilevate nell'inventario
 - Nuovo sistema registrato
 - Discordanza versione sistema

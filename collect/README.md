@@ -82,9 +82,9 @@ LOG_LEVEL=info
 **6. Heartbeat Monitoring**
 - **Heartbeat Monitor Cron** runs every 60 seconds
 - Automatically updates system status based on heartbeat freshness:
-  - `unknown` → `online` when first heartbeat arrives
-  - `offline` → `online` when fresh heartbeat arrives (< 10 minutes)
-  - `online` → `offline` when heartbeat is stale (> 10 minutes)
+  - `unknown` → `active` when first heartbeat arrives
+  - `inactive` → `active` when fresh heartbeat arrives (< 10 minutes)
+  - `active` → `inactive` when heartbeat is stale (> 10 minutes)
 - Configurable timeout via `HEARTBEAT_TIMEOUT_MINUTES` (default: 10 minutes)
 
 ### Queue Architecture

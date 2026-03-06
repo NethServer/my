@@ -86,7 +86,7 @@ Naviga su **Sistemi** per vedere:
 - FQDN e indirizzi IP
 - Organizzazione
 - Creato da
-- Stato (unknown, online, offline)
+- Stato (unknown, active, inactive, suspended, deleted)
 - Stato registrazione
 
 ### Filtraggio e Ricerca
@@ -98,7 +98,7 @@ Usa i filtri per trovare sistemi specifici:
 - **Versione**: Filtra per versione del sistema
 - **Organizzazione**: Filtra per organizzazione cliente
 - **Creato da**: Filtra per utente che ha creato il sistema
-- **Stato**: unknown, online, offline, deleted
+- **Stato**: unknown, active, inactive, suspended, deleted
 - **Ordina per**: Nome, versione, FQDN/indirizzo IP, Organizzazione, Creato da, Stato
 
 ### Dettagli Sistema
@@ -267,8 +267,7 @@ Vedi [Registrazione Sistema](05-system-registration.md) per istruzioni dettaglia
 Naviga su **Dashboard** per vedere:
 
 - **Sistemi Totali**: Conteggio tra le organizzazioni accessibili
-- **Stato Sistema**: Distribuzione (unknown/online/offline)
-- **Stato Heartbeat**: Conteggi active/inactive/unknown
+- **Stato Sistema**: Distribuzione (unknown/active/inactive/suspended)
 - **Modifiche Recenti**: Ultime modifiche dell'inventario
 - **Avvisi**: Sistemi con problemi
 

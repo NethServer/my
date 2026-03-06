@@ -86,7 +86,7 @@ Navigate to **Systems** to see:
 - FQDN and IP addresses
 - Organization
 - Created by
-- Status (unknown, online, offline)
+- Status (unknown, active, inactive, suspended, deleted)
 - Registration status
 
 ### Filtering and Search
@@ -98,7 +98,7 @@ Use filters to find specific systems:
 - **Version**: Filter by system version
 - **Organization**: Filter by customer organization
 - **Created By**: Filter by user who created the system
-- **Status**: unknown, online, offline, deleted
+- **Status**: unknown, active, inactive, suspended, deleted
 - **Sort By**: Name, version, FQDN/IP address, Organization, Created By, Status
 
 ### System Details
@@ -267,8 +267,7 @@ See [System Registration](05-system-registration.md) for detailed instructions.
 Navigate to **Dashboard** to see:
 
 - **Total Systems**: Count across accessible organizations
-- **System Status**: Distribution (unknown/online/offline)
-- **Heartbeat Status**: Active/inactive/unknown counts
+- **System Status**: Distribution (unknown/active/inactive/suspended)
 - **Recent Changes**: Latest inventory changes
 - **Alerts**: Systems with issues
 

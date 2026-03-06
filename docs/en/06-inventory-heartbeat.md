@@ -7,7 +7,7 @@ Learn how external systems send inventory data and heartbeat signals to My platf
 After [system registration](05-system-registration.md), external systems communicate with My through two mechanisms:
 
 1. **Inventory**: Complete system information snapshot (hardware, software, configuration)
-2. **Heartbeat**: Periodic "I'm alive" signal to indicate system is online
+2. **Heartbeat**: Periodic "I'm alive" signal to indicate system is active
 
 Both operations use **HTTP Basic Authentication** with the registered credentials.
 
@@ -53,7 +53,7 @@ Heartbeat is a simple signal to indicate the system is alive and reachable.
 
 ### Purpose
 
-- Detect when systems go offline
+- Detect when systems become inactive
 - Trigger alerts for dead systems
 - Monitor system reliability
 
@@ -164,7 +164,7 @@ Systems are classified based on heartbeat:
 | Status | Condition | Color | Meaning |
 |--------|-----------|-------|---------|
 | **Active** | < 15 minutes | 🟢 Green | System is healthy |
-| **Inactive** | ≥ 15 minutes | 🟡 Yellow | System is offline |
+| **Inactive** | ≥ 15 minutes | 🟡 Yellow | System is not responding |
 | **Unknown** | Never sent | ⚪ Gray | Never communicated |
 
 ## Inventory
@@ -514,7 +514,7 @@ Each change has a severity level:
 ### Alerts (if configured)
 
 Automatic alerts for:
-- System goes offline (no heartbeat for 15+ minutes)
+- System becomes inactive (no heartbeat for 15+ minutes)
 - Critical changes detected in inventory
 - New system registered
 - System version mismatch
