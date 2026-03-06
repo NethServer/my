@@ -515,7 +515,7 @@
     "no_inventory_available": "No inventory available",
     "no_inventory_available_description": "The system has not sent any inventory data yet.",
     "subscription": "Subscription",
-    "subscribed_since": "Subscribed since",
+    "active_since": "Active since",
     "system_key": "System key",
     "cannot_determine_system_url_description": "Cannot access the system because its URL cannot be determined."
   },
