@@ -16,40 +16,82 @@ import { useLatestInventory } from '@/queries/systems/latestInventory'
 import {
   faCheck,
   faCircleInfo,
+  faHourglass,
   faQuestion,
   faTriangleExclamation,
-  faXmark,
 } from '@fortawesome/free-solid-svg-icons'
 import { formatDateTimeNoSeconds, formatUptime } from '@/lib/dateTime'
 import { useI18n } from 'vue-i18n'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import DataItem from '../DataItem.vue'
+import { computed } from 'vue'
 
 const { t, locale } = useI18n()
 const { state: systemDetail } = useSystemDetail()
 const { state: latestInventory } = useLatestInventory()
 
+const uptimeLabel = computed(() => {
+  return systemType.value === 'ns8'
+    ? t('system_detail.leader_node_uptime')
+    : t('system_detail.uptime')
+})
+
+const timezoneLabel = computed(() => {
+  return systemType.value === 'ns8'
+    ? t('system_detail.leader_node_timezone')
+    : t('system_detail.timezone')
+})
+
+const systemType = computed(() => systemDetail.value.data?.type)
+
+const leaderNode = computed(() => {
+  const nodes = latestInventory.value.data?.data?.facts?.nodes
+
+  if (!nodes) {
+    return null
+  }
+  //// improve typing
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (Object.values(nodes).find((node: any) => node.cluster_leader === true) as any) ?? null
+})
+
+const uptimeSeconds = computed(() => {
+  if (systemType.value === 'ns8') {
+    return leaderNode.value?.uptime_seconds as number
+  } else {
+    return latestInventory.value.data?.data?.facts?.uptime_seconds as number | undefined
+  }
+})
+
+const timezone = computed(() => {
+  if (systemType.value === 'ns8') {
+    return leaderNode.value?.timezone as string
+  } else {
+    return latestInventory.value.data?.data?.facts?.timezone as string | undefined
+  }
+})
+
 const getBadgeKind = () => {
-  switch (systemDetail.value.data?.status) {
-    case 'online':
+  switch (systemDetail.value.data?.heartbeat_status) {
+    case 'active':
       return 'green'
-    case 'offline':
+    case 'inactive':
       return 'amber'
-    case 'deleted':
-      return 'rose'
-    default:
+    case 'unknown':
       return 'gray'
+    default:
+      return 'indigo'
   }
 }
 
 const getBadgeIcon = () => {
-  switch (systemDetail.value.data?.status) {
-    case 'online':
+  switch (systemDetail.value.data?.heartbeat_status) {
+    case 'active':
       return faCheck
-    case 'offline':
+    case 'inactive':
       return faTriangleExclamation
-    case 'deleted':
-      return faXmark
+    case 'unknown':
+      return faHourglass
     default:
       return faQuestion
   }
@@ -63,13 +105,6 @@ const getBadgeIcon = () => {
       <NeHeading tag="h6">
         {{ $t('common.status').toUpperCase() }}
       </NeHeading>
-      <!-- status badge -->
-      <NeBadgeV2 v-if="systemDetail.status === 'success'" :kind="getBadgeKind()">
-        <div class="flex items-center gap-1">
-          <FontAwesomeIcon :icon="getBadgeIcon()" class="size-4" />
-          {{ t(`systems.status_${systemDetail.data?.status}`) }}
-        </div>
-      </NeBadgeV2>
     </div>
     <!-- get system detail error notification -->
     <NeInlineNotification
@@ -92,17 +127,18 @@ const getBadgeIcon = () => {
       :lines="6"
     />
     <div v-else class="divide-y divide-gray-200 dark:divide-gray-700">
-      <!-- uptime -->
+      <!-- status -->
       <DataItem>
         <template #label>
-          {{ $t('system_detail.uptime') }}
+          {{ $t('common.status') }}
         </template>
         <template #data>
-          {{
-            latestInventory.data?.data?.system_uptime?.seconds
-              ? formatUptime(latestInventory.data?.data?.system_uptime?.seconds, $t)
-              : '-'
-          }}
+          <NeBadgeV2 :kind="getBadgeKind()">
+            <div class="flex items-center gap-1">
+              <FontAwesomeIcon :icon="getBadgeIcon()" class="size-4" />
+              {{ t(`systems.status_${systemDetail.data?.heartbeat_status}`) }}
+            </div>
+          </NeBadgeV2>
         </template>
       </DataItem>
       <!-- last inventory -->
@@ -118,13 +154,22 @@ const getBadgeIcon = () => {
           }}
         </template>
       </DataItem>
+      <!-- uptime -->
+      <DataItem>
+        <template #label>
+          {{ uptimeLabel }}
+        </template>
+        <template #data>
+          {{ uptimeSeconds ? formatUptime(uptimeSeconds, $t) : '-' }}
+        </template>
+      </DataItem>
       <!-- timezone -->
       <DataItem>
         <template #label>
-          {{ $t('system_detail.timezone') }}
+          {{ timezoneLabel }}
         </template>
         <template #data>
-          {{ latestInventory.data?.data?.timezone || '-' }}
+          {{ timezone ? timezone : '-' }}
         </template>
       </DataItem>
     </div>
