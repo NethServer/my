@@ -244,6 +244,17 @@ func main() {
 		}
 
 		// ===========================================
+		// ALERTING - manage alert routing configuration via Mimir
+		// ===========================================
+		alertingGroup := customAuthWithAudit.Group("/alerting", middleware.RequirePermission("manage:systems"))
+		{
+			alertingGroup.POST("/config", methods.ConfigureAlerts)
+			alertingGroup.DELETE("/config", methods.DisableAlerts)
+			alertingGroup.GET("/config", methods.GetAlertingConfig)
+			alertingGroup.GET("/alerts", methods.GetAlerts)
+		}
+
+		// ===========================================
 		// FILTERS - For UI dropdowns
 		// ===========================================
 		filtersGroup := customAuthWithAudit.Group("/filters")

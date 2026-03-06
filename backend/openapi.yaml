@@ -56,13 +56,32 @@ tags:
   - name: Backend - Rebranding
     description: Backend rebranding management for organizations and products
 
+  - name: Backend - Alerting
+    description: Backend alertmanager configuration and alert monitoring
+
   - name: Collect - Health
     description: Collect service health and monitoring
   - name: Collect - Systems
     description: Collect service system management and inventory collection
   - name: Collect - Rebranding
     description: Collect service rebranding endpoints for systems
-
+  - name: Collect - Alerting
+    description: |
+      Collect service alerting proxy to Mimir Alertmanager.
+      
+      **Multi-tenant Alertmanager API**
+      
+      This proxy forwards requests to the Grafana Mimir Alertmanager with automatic multi-tenant isolation.
+      Each system's organization is automatically resolved and injected as the `X-Scope-OrgID` header,
+      ensuring complete isolation of alerts and silences between organizations.
+      
+      **Accessible endpoints:**
+      - `POST /api/services/mimir/alertmanager/api/v2/alerts` - Add alerts
+      - `GET /api/services/mimir/alertmanager/api/v2/alerts` - List alerts
+      - `POST /api/services/mimir/alertmanager/api/v2/silences` - Create silence
+      - `GET /api/services/mimir/alertmanager/api/v2/silences` - List silences
+      - `GET /api/services/mimir/alertmanager/api/v2/silences/{id}` - Get silence
+      - `DELETE /api/services/mimir/alertmanager/api/v2/silences/{id}` - Delete silence
 security:
   - BearerAuth: []
 
@@ -92,6 +111,64 @@ components:
           example: "validation failed"
         data:
           $ref: '#/components/schemas/ErrorData'
+
+    SuccessResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+        data:
+          type: object
+          nullable: true
+
+    AlertingConfigRequest:
+      type: object
+      description: Alert routing configuration keyed by severity level (critical, warning, info)
+      additionalProperties:
+        $ref: '#/components/schemas/SeverityConfig'
+      example:
+        critical:
+          emails: ["oncall@example.com"]
+          webhooks:
+            - name: "slack"
+              url: "https://hooks.slack.com/services/T00/B00/XXX"
+          exceptions: ["NOC-SKIP-0001"]
+        warning:
+          emails: ["team@example.com"]
+    SeverityConfig:
+      type: object
+      required:
+        - emails
+      properties:
+        emails:
+          type: array
+          items:
+            type: string
+            format: email
+          minItems: 1
+        webhooks:
+          type: array
+          items:
+            $ref: '#/components/schemas/WebhookConfig'
+        exceptions:
+          type: array
+          description: system_key values to exclude from notifications for this severity
+          items:
+            type: string
+    WebhookConfig:
+      type: object
+      required:
+        - name
+        - url
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+          format: uri
 
     ErrorData:
       type: object
@@ -8292,3 +8369,309 @@ paths:
                 format: binary
         '404':
           $ref: '#/components/responses/NotFound'
+
+  # ===========================================
+  # ALERTING ENDPOINTS (Backend - Configuration)
+  # ===========================================
+
+  /api/alerting/config:
+    post:
+      operationId: configureAlerts
+      tags:
+        - Backend - Alerting
+      summary: Configure alert routing
+      description: |
+        Generates an Alertmanager configuration with per-severity routing and pushes it to Mimir.
+        SMTP settings are injected server-side. The user provides email recipients, webhooks, and optional system_key exceptions per severity.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: organization_id
+          in: query
+          description: Target organization ID. Required for Owner, Distributor, and Reseller roles. Customer role uses their own organization automatically.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertingConfigRequest'
+      responses:
+        '200':
+          description: Alerting configuration updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      operationId: disableAlerts
+      tags:
+        - Backend - Alerting
+      summary: Disable all alerts
+      description: Replaces the Alertmanager config with a blackhole-only configuration, silencing all alerts for the organization.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: organization_id
+          in: query
+          description: Target organization ID. Required for Owner, Distributor, and Reseller roles.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: All alerts disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      operationId: getAlertingConfig
+      tags:
+        - Backend - Alerting
+      summary: Get current alerting configuration
+      description: Retrieves the current Alertmanager YAML configuration from Mimir for the specified organization.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: organization_id
+          in: query
+          description: Target organization ID. Required for Owner, Distributor, and Reseller roles.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current alerting configuration
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: alerting configuration retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      config:
+                        type: string
+                        description: Raw YAML alertmanager configuration
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/alerting/alerts:
+    get:
+      operationId: getAlerts
+      tags:
+        - Backend - Alerting
+      summary: List active alerts
+      description: Retrieves active alerts from Mimir for the specified organization with optional filtering by state, severity, and system_key.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: organization_id
+          in: query
+          description: Target organization ID. Required for Owner, Distributor, and Reseller roles.
+          schema:
+            type: string
+        - name: state
+          in: query
+          description: Filter alerts by state
+          schema:
+            type: string
+            enum: [active, suppressed, unprocessed]
+        - name: severity
+          in: query
+          description: Filter alerts by severity label
+          schema:
+            type: string
+            enum: [critical, warning, info]
+        - name: system_key
+          in: query
+          description: Filter alerts by system_key label
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of active alerts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: alerts retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      alerts:
+                        type: array
+                        items:
+                          type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ===========================================
+  # ALERTING ENDPOINTS (Collect - Mimir Proxy)
+  # ===========================================
+
+  /api/services/mimir/alertmanager/api/v2/alerts:
+    get:
+      operationId: mimirAlertsGet
+      tags:
+        - Collect - Alerting
+      summary: List active alerts
+      description: Lists all active alerts for the authenticated system's organization.
+      security:
+        - BasicAuth: []
+      responses:
+        '200':
+          description: List of active alerts
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      operationId: mimirAlertsPost
+      tags:
+        - Collect - Alerting
+      summary: Push alerts
+      description: Pushes one or more alerts to the Alertmanager for the authenticated system's organization.
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+      responses:
+        '200':
+          description: Alerts accepted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/services/mimir/alertmanager/api/v2/silences:
+    get:
+      operationId: mimirSilencesGet
+      tags:
+        - Collect - Alerting
+      summary: List silences
+      description: Lists all silences for the authenticated system's organization.
+      security:
+        - BasicAuth: []
+      responses:
+        '200':
+          description: List of silences
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      operationId: mimirSilencesPost
+      tags:
+        - Collect - Alerting
+      summary: Create or update a silence
+      description: Creates or updates a silence for the authenticated system's organization.
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Silence created or updated
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/services/mimir/alertmanager/api/v2/silences/{silence_id}:
+    parameters:
+      - name: silence_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Silence UUID
+    get:
+      operationId: mimirSilenceGet
+      tags:
+        - Collect - Alerting
+      summary: Get a silence
+      description: Returns a specific silence by ID.
+      security:
+        - BasicAuth: []
+      responses:
+        '200':
+          description: Silence details
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      operationId: mimirSilenceDelete
+      tags:
+        - Collect - Alerting
+      summary: Delete a silence
+      description: Deletes a silence by ID.
+      security:
+        - BasicAuth: []
+      responses:
+        '200':
+          description: Silence deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/InternalServerError'
+

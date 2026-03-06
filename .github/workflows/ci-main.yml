@@ -137,6 +137,7 @@ jobs:
             context: proxy
           - component: mimir
             context: services/mimir
+            image_description: Mimir alertmanager backend for My Nethesis
 
     steps:
     - uses: actions/checkout@v4
@@ -170,7 +171,9 @@ jobs:
         platforms: linux/amd64
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
+        labels: |
+          ${{ steps.meta.outputs.labels }}
+          ${{ matrix.image_description != '' && format('org.opencontainers.image.description={0}', matrix.image_description) || '' }}
         cache-from: type=gha,scope=${{ matrix.component }}
         cache-to: type=gha,mode=max,scope=${{ matrix.component }}
         build-args: |
