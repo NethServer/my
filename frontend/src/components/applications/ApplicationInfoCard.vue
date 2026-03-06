@@ -20,7 +20,8 @@ import DataItem from '@/components/DataItem.vue'
 import NotesModal from '@/components/NotesModal.vue'
 import OrganizationIcon from '@/components/organizations/OrganizationIcon.vue'
 import OrganizationLink from '@/components/applications/OrganizationLink.vue'
-import { getApplicationLogo, getDisplayName } from '@/lib/applications/applications'
+import { getDisplayName } from '@/lib/applications/applications'
+import ApplicationLogo from '@/components/applications/ApplicationLogo.vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { canManageApplications } from '@/lib/permissions'
@@ -100,13 +101,7 @@ function getKebabMenuItems() {
     <div v-else-if="applicationDetail.data">
       <div class="mb-4 flex items-center justify-between gap-4">
         <div class="flex items-center gap-4">
-          <img
-            v-if="applicationDetail.data.instance_of"
-            :src="getApplicationLogo(applicationDetail.data.instance_of)"
-            :alt="applicationDetail.data.instance_of"
-            aria-hidden="true"
-            class="size-8"
-          />
+          <ApplicationLogo :app="applicationDetail.data.instance_of" />
           <NeHeading tag="h6">
             {{ getDisplayName(applicationDetail.data) }}
           </NeHeading>
