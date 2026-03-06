@@ -284,7 +284,7 @@ const goToCustomerDetails = (customer: Customer) => {
             :label="t('common.status')"
             :options="statusFilterOptions"
             :show-clear-filter="false"
-            :clear-filter-label="t('ne_dropdown_filter.reset_filter')"
+            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
