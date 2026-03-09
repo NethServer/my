@@ -2606,6 +2606,113 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /users/{id}/avatar:
+    put:
+      operationId: uploadUserAvatar
+      tags:
+        - Backend - Users
+      summary: /users/{id}/avatar - Upload user avatar (admin)
+      description: |
+        Upload a profile image for another user.
+        Requires manage:users permission and hierarchical access to the target user.
+        Self-modification is prevented (use PUT /me/avatar instead).
+        The image is validated, resized to 256x256 pixels if larger, re-encoded as PNG, and stored in the database.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User Logto ID
+          schema:
+            type: string
+            example: "jf584cz36kce"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - avatar
+              properties:
+                avatar:
+                  type: string
+                  format: binary
+                  description: Avatar image file (PNG, JPEG, or WebP, max 500KB, resized to 256x256)
+      responses:
+        '200':
+          description: Avatar uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "avatar uploaded successfully"
+                  data:
+                    type: object
+                    properties:
+                      avatar_url:
+                        type: string
+                        description: Public URL of the uploaded avatar
+                        example: "https://my.nethesis.it/api/public/avatars/jf584cz36kce"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      operationId: deleteUserAvatar
+      tags:
+        - Backend - Users
+      summary: /users/{id}/avatar - Delete user avatar (admin)
+      description: |
+        Remove the profile image for another user.
+        Requires manage:users permission and hierarchical access to the target user.
+        Self-modification is prevented (use DELETE /me/avatar instead).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User Logto ID
+          schema:
+            type: string
+            example: "jf584cz36kce"
+      responses:
+        '200':
+          description: Avatar deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "avatar deleted successfully"
+                  data:
+                    type: object
+                    nullable: true
+                    example: null
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /users/{id}/suspend:
     patch:
       operationId: suspendUser
@@ -3207,6 +3314,117 @@ paths:
                     example: null
         '500':
           $ref: '#/components/responses/InternalServerError'
+
+  /me/avatar:
+    put:
+      operationId: uploadMyAvatar
+      tags:
+        - Backend - Me
+      summary: /me/avatar - Upload current user avatar
+      description: |
+        Upload a profile image for the current authenticated user.
+        The image is validated, resized to 256x256 pixels if larger, re-encoded as PNG, and stored in the database.
+        The avatar URL is automatically synced to the user's Logto profile.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - avatar
+              properties:
+                avatar:
+                  type: string
+                  format: binary
+                  description: Avatar image file (PNG, JPEG, or WebP, max 500KB, resized to 256x256)
+      responses:
+        '200':
+          description: Avatar uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "avatar uploaded successfully"
+                  data:
+                    type: object
+                    properties:
+                      avatar_url:
+                        type: string
+                        description: Public URL of the uploaded avatar
+                        example: "https://my.nethesis.it/api/public/avatars/jf584cz36kce"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      operationId: deleteMyAvatar
+      tags:
+        - Backend - Me
+      summary: /me/avatar - Delete current user avatar
+      description: Remove the profile image for the current authenticated user. Clears the avatar from the database and the Logto profile.
+      responses:
+        '200':
+          description: Avatar deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "avatar deleted successfully"
+                  data:
+                    type: object
+                    nullable: true
+                    example: null
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /public/avatars/{id}:
+    get:
+      operationId: getPublicAvatar
+      tags:
+        - Backend - Users
+      summary: /public/avatars/{id} - Get user avatar image
+      description: Serves a user's avatar image as binary data. This endpoint is public and requires no authentication. Returns the image with appropriate Content-Type header and browser caching headers.
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User Logto ID or local database ID
+          schema:
+            type: string
+            example: "jf584cz36kce"
+      responses:
+        '200':
+          description: Avatar image binary
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: "public, max-age=3600"
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /auth/refresh:
     post:

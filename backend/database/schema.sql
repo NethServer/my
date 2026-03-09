@@ -176,6 +176,10 @@ CREATE TABLE IF NOT EXISTS users (
     -- Role assignment
     user_role_ids JSONB DEFAULT '[]',       -- Array of technical role IDs (e.g., ["admin-role-id", "support-role-id"])
 
+    -- Avatar
+    avatar BYTEA,                           -- Profile image binary data (max 256x256 PNG)
+    avatar_mime VARCHAR(50),                -- MIME type of avatar image
+
     -- Flexible metadata
     custom_data JSONB,                      -- Additional user metadata
 

@@ -142,6 +142,11 @@ func main() {
 	})
 
 	// ===========================================
+	// PUBLIC AVATAR ENDPOINT
+	// ===========================================
+	api.GET("/public/avatars/:id", methods.GetPublicAvatar)
+
+	// ===========================================
 	// PUBLIC AUTH ENDPOINTS
 	// ===========================================
 	api.POST("/auth/exchange", methods.ExchangeToken)
@@ -203,6 +208,8 @@ func main() {
 		customAuthWithAudit.GET("/me", methods.GetCurrentUser)
 		customAuthWithAudit.POST("/me/change-password", middleware.DisableOnImpersonate(), methods.ChangePassword)
 		customAuthWithAudit.POST("/me/change-info", middleware.DisableOnImpersonate(), methods.ChangeInfo)
+		customAuthWithAudit.PUT("/me/avatar", middleware.DisableOnImpersonate(), methods.UploadMyAvatar)
+		customAuthWithAudit.DELETE("/me/avatar", middleware.DisableOnImpersonate(), methods.DeleteMyAvatar)
 
 		// ===========================================
 		// SYSTEMS - resource-based permission validation (read:systems for GET, manage:systems for POST/PUT/DELETE)
@@ -384,7 +391,11 @@ func main() {
 			usersGroup.GET("/trend", methods.GetUsersTrend)
 
 			// User actions (manage:users required, prevent self-modification)
-			usersGroup.PATCH("/:id/password", middleware.PreventSelfModification(), methods.ResetUserPassword) // Reset user password
+			usersGroup.PATCH("/:id/password", middleware.PreventSelfModification(), methods.ResetUserPassword)
+
+			// Avatar management (manage:users required, prevent self-modification)
+			usersGroup.PUT("/:id/avatar", middleware.PreventSelfModification(), methods.UploadUserAvatar)
+			usersGroup.DELETE("/:id/avatar", middleware.PreventSelfModification(), methods.DeleteUserAvatar)
 
 			// Export endpoint
 			usersGroup.GET("/export", methods.ExportUsers) // Export users to CSV or PDF with applied filters
