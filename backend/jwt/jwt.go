@@ -51,6 +51,112 @@ type ImpersonationClaims struct {
 	jwt.RegisteredClaims
 }
 
+// ProxyTokenClaims represents the claims for support proxy tokens
+type ProxyTokenClaims struct {
+	TokenType   string `json:"token_type"`
+	SessionID   string `json:"session_id"`
+	ServiceName string `json:"service_name"`
+	UserID      string `json:"user_id"`
+	jwt.RegisteredClaims
+}
+
+// GenerateProxyToken creates a short-lived JWT for subdomain-based support proxy access
+func GenerateProxyToken(sessionID, serviceName, userID string) (string, error) {
+	expDuration := 8 * time.Hour
+
+	claims := ProxyTokenClaims{
+		TokenType:   "proxy",
+		SessionID:   sessionID,
+		ServiceName: serviceName,
+		UserID:      userID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    configuration.Config.JWTIssuer,
+			Subject:   userID,
+			Audience:  jwt.ClaimStrings{configuration.Config.LogtoAudience},
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expDuration)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	tokenString, err := token.SignedString([]byte(configuration.Config.JWTSecret))
+	if err != nil {
+		logger.ComponentLogger("jwt").Error().
+			Err(err).
+			Str("operation", "proxy_token_sign_failed").
+			Str("session_id", sessionID).
+			Str("service_name", serviceName).
+			Str("user_id", userID).
+			Msg("Failed to sign proxy token")
+		return "", fmt.Errorf("failed to sign proxy token: %w", err)
+	}
+
+	logger.ComponentLogger("jwt").Info().
+		Str("operation", "proxy_token_generated").
+		Str("session_id", sessionID).
+		Str("service_name", serviceName).
+		Str("user_id", userID).
+		Time("expires_at", time.Now().Add(expDuration)).
+		Msg("Proxy token generated successfully")
+
+	return tokenString, nil
+}
+
+// ValidateProxyToken parses and validates a support proxy JWT token
+func ValidateProxyToken(tokenString string) (*ProxyTokenClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &ProxyTokenClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(configuration.Config.JWTSecret), nil
+	})
+
+	if err != nil {
+		logger.ComponentLogger("jwt").Warn().
+			Err(err).
+			Str("operation", "proxy_token_validation_failed").
+			Str("error_type", "parse_failed").
+			Msg("Failed to parse proxy token")
+		return nil, fmt.Errorf("failed to parse proxy token: %w", err)
+	}
+
+	if claims, ok := token.Claims.(*ProxyTokenClaims); ok && token.Valid {
+		if claims.TokenType != "proxy" {
+			logger.ComponentLogger("jwt").Warn().
+				Str("operation", "proxy_token_validation_failed").
+				Str("error_type", "wrong_token_type").
+				Str("token_type", claims.TokenType).
+				Msg("token is not a proxy token")
+			return nil, fmt.Errorf("token is not a proxy token")
+		}
+		if claims.SessionID == "" || claims.ServiceName == "" {
+			logger.ComponentLogger("jwt").Warn().
+				Str("operation", "proxy_token_validation_failed").
+				Str("error_type", "missing_claims").
+				Msg("Proxy token missing required claims")
+			return nil, fmt.Errorf("proxy token missing required claims")
+		}
+
+		logger.ComponentLogger("jwt").Debug().
+			Str("operation", "proxy_token_validation_success").
+			Str("session_id", claims.SessionID).
+			Str("service_name", claims.ServiceName).
+			Str("user_id", claims.UserID).
+			Msg("Proxy token validated successfully")
+		return claims, nil
+	}
+
+	logger.ComponentLogger("jwt").Warn().
+		Str("operation", "proxy_token_validation_failed").
+		Str("error_type", "invalid_claims").
+		Bool("token_valid", token.Valid).
+		Msg("Invalid proxy token claims")
+
+	return nil, fmt.Errorf("invalid proxy token claims")
+}
+
 // GenerateCustomToken creates a JWT token with user information and permissions
 func GenerateCustomToken(user models.User) (string, error) {
 	// Parse expiration duration
