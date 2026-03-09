@@ -79,13 +79,10 @@ const goToSystems = () => {
           </div>
         </router-link>
         <div class="flex items-center gap-2">
-          <SystemStatusIcon :status="system.status" :suspended-at="system.suspended_at" />
-          <span v-if="system.suspended_at">
-            {{ t('common.suspended') }}
-          </span>
-          <span v-else-if="system.status">
+          <template v-if="system.status">
+            <SystemStatusIcon :status="system.status" />
             {{ t(`systems.status_${system.status}`) }}
-          </span>
+          </template>
           <span v-else>-</span>
         </div>
       </div>

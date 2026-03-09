@@ -15,27 +15,26 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
 defineProps<{
   status?: string | null
-  suspendedAt?: string | null
 }>()
 </script>
 
 <template>
   <FontAwesomeIcon
-    v-if="suspendedAt"
-    :icon="faCirclePause"
-    class="size-4 text-gray-700 dark:text-gray-400"
-    aria-hidden="true"
-  />
-  <FontAwesomeIcon
-    v-else-if="status === 'online'"
+    v-if="status === 'active'"
     :icon="faCircleCheck"
     class="size-4 text-green-600 dark:text-green-400"
     aria-hidden="true"
   />
   <FontAwesomeIcon
-    v-else-if="status === 'offline'"
+    v-else-if="status === 'inactive'"
     :icon="faTriangleExclamation"
     class="size-4 text-amber-700 dark:text-amber-500"
+    aria-hidden="true"
+  />
+  <FontAwesomeIcon
+    v-if="status === 'suspended'"
+    :icon="faCirclePause"
+    class="size-4 text-gray-700 dark:text-gray-400"
     aria-hidden="true"
   />
   <FontAwesomeIcon

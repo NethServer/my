@@ -13,13 +13,13 @@ export const SYSTEMS_KEY = 'systems'
 export const SYSTEMS_TOTAL_KEY = 'systemsTotal'
 export const SYSTEMS_TABLE_ID = 'systemsTable'
 
-export type SystemStatus = 'online' | 'offline' | 'unknown' | 'deleted' | 'suspended'
-const systemStatusOptions = ['online', 'offline', 'unknown', 'deleted', 'suspended']
+export type SystemStatus = 'active' | 'inactive' | 'unknown' | 'deleted' | 'suspended'
+const systemStatusOptions = ['active', 'inactive', 'unknown', 'deleted', 'suspended']
 const SystemStatusSchema = v.picklist(systemStatusOptions)
 
-// export type HeartbeatStatus = 'active' | 'inactive' | 'unknown //// '
-const heartbeatStatusOptions = ['active', 'inactive', 'unknown']
-const HeartbeatStatusSchema = v.picklist(heartbeatStatusOptions)
+// export type HeartbeatStatus = 'active' | 'inactive' | 'unknown' ////
+// const heartbeatStatusOptions = ['active', 'inactive', 'unknown'] ////
+// const HeartbeatStatusSchema = v.picklist(heartbeatStatusOptions) ////
 
 export const CreateSystemSchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty('systems.name_cannot_be_empty')),
@@ -48,7 +48,7 @@ export const SystemSchema = v.object({
   system_key: v.optional(v.string()),
   system_secret: v.string(),
   suspended_at: v.optional(v.string()),
-  heartbeat_status: HeartbeatStatusSchema,
+  // heartbeat_status: HeartbeatStatusSchema, ////
   organization: v.object({
     id: v.string(),
     logto_id: v.string(),
