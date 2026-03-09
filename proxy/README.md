@@ -2,7 +2,7 @@
 
 ## Overview
 
-This nginx reverse proxy is the only public entry point for all My Nethesis services. Backend, collect, and frontend are private services (`pserv`) accessible only via this proxy on Render's internal network.
+This nginx reverse proxy is the only public entry point for all My Nethesis services. Backend, collect, support, and frontend are private services (`pserv`) accessible only via this proxy on Render's internal network.
 
 - **Production**: `my.nethesis.it`
 - **QA**: `qa.my.nethesis.it`
@@ -13,12 +13,14 @@ This nginx reverse proxy is the only public entry point for all My Nethesis serv
 my.nethesis.it (Production)
 ├── /                    → Frontend Service (private, HTTP :10000)
 ├── /backend/api/        → Backend Service (private, HTTP :10000)
-└── /collect/api/        → Collect Service (private, HTTP :10000)
+├── /collect/api/        → Collect Service (private, HTTP :10000)
+└── /support/api/        → Support Service (private, HTTP :10000, WebSocket)
 
 qa.my.nethesis.it (QA)
 ├── /                    → Frontend Service (private, HTTP :10000)
 ├── /backend/api/        → Backend Service (private, HTTP :10000)
-└── /collect/api/        → Collect Service (private, HTTP :10000)
+├── /collect/api/        → Collect Service (private, HTTP :10000)
+└── /support/api/        → Support Service (private, HTTP :10000, WebSocket)
 ```
 
 All inter-service communication uses HTTP over Render's internal network. The proxy handles TLS termination for external clients.
@@ -49,6 +51,38 @@ qa.my.nethesis.it    CNAME   my-proxy-qa.onrender.com
    - Settings → Custom Domains
    - Add `qa.my.nethesis.it`
    - Wait for SSL certificate provisioning
+
+## Local Development
+
+### Prerequisites
+- [mkcert](https://github.com/FiloSottile/mkcert) (`brew install mkcert` on macOS)
+- Docker/Podman
+
+### Setup
+
+```bash
+# Generate TLS certificates (one-time, auto-runs on dev-up)
+make dev-setup
+
+# Start nginx dev proxy on https://my.localtest.me
+make dev-up
+
+# Stop proxy
+make dev-down
+
+# View logs
+make dev-logs
+
+# Check status
+make dev-status
+```
+
+`make dev-setup` generates trusted TLS certificates for `my.localtest.me` and `*.support.my.localtest.me` using mkcert. It runs automatically as part of `make dev-up`, so a fresh clone only needs `make dev-up`.
+
+The dev proxy routes:
+- `https://my.localtest.me/api/` → backend (`:8080`)
+- `https://my.localtest.me/` → frontend (`:5173`)
+- `https://*.support.my.localtest.me/` → support subdomain proxy via backend (`:8080`)
 
 ## Features
 
@@ -81,6 +115,7 @@ The entrypoint script extracts the DNS resolver from `/etc/resolv.conf` to resol
 Set automatically by Render:
 - `BACKEND_SERVICE_NAME` - Internal hostname of the backend service
 - `COLLECT_SERVICE_NAME` - Internal hostname of the collect service
+- `SUPPORT_SERVICE_NAME` - Internal hostname of the support service
 - `FRONTEND_SERVICE_NAME` - Internal hostname of the frontend service
 - `RESOLVER` - DNS resolver extracted from `/etc/resolv.conf`
 
@@ -92,11 +127,13 @@ Set automatically by Render:
 curl https://my.nethesis.it/health
 curl https://my.nethesis.it/backend/api/health
 curl https://my.nethesis.it/collect/api/health
+curl https://my.nethesis.it/support/api/health
 
 # QA
 curl https://qa.my.nethesis.it/health
 curl https://qa.my.nethesis.it/backend/api/health
 curl https://qa.my.nethesis.it/collect/api/health
+curl https://qa.my.nethesis.it/support/api/health
 ```
 
 ### API Testing
@@ -115,7 +152,7 @@ curl -X POST https://my.nethesis.it/collect/api/systems/inventory \
 
 ## Security Notes
 
-- Backend, collect, and frontend are private services, not accessible from the internet
+- Backend, collect, support, and frontend are private services, not accessible from the internet
 - All inter-service communication uses HTTP over Render's internal network
 - TLS termination happens at the proxy level for external clients
 - Security headers added to all responses
@@ -124,6 +161,8 @@ curl -X POST https://my.nethesis.it/collect/api/systems/inventory \
 
 Current configuration supports:
 - 1024 concurrent connections
-- 30-second timeouts
+- 30-second timeouts for backend/collect/frontend
+- 7-day timeouts for support (WebSocket tunnel connections)
+- WebSocket upgrade support on `/support/api/`
 - Gzip compression for text content
 - HTTP/1.1 keep-alive connections
