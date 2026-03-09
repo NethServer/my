@@ -27,6 +27,11 @@ FROM (
 ) sub
 WHERE s.id = sub.system_id;
 
--- Update system_heartbeats status column values
-UPDATE system_heartbeats SET status = 'active' WHERE status = 'online';
-UPDATE system_heartbeats SET status = 'inactive' WHERE status = 'offline';
+-- Update system_heartbeats status column values (if column exists)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'system_heartbeats' AND column_name = 'status') THEN
+        UPDATE system_heartbeats SET status = 'active' WHERE status = 'online';
+        UPDATE system_heartbeats SET status = 'inactive' WHERE status = 'offline';
+    END IF;
+END $$;

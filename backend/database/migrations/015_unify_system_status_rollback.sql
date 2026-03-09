@@ -12,6 +12,11 @@ ALTER TABLE systems ADD CONSTRAINT chk_systems_status
 -- Remove last_inventory_at column
 ALTER TABLE systems DROP COLUMN IF EXISTS last_inventory_at;
 
--- Revert system_heartbeats status column values
-UPDATE system_heartbeats SET status = 'online' WHERE status = 'active';
-UPDATE system_heartbeats SET status = 'offline' WHERE status = 'inactive';
+-- Revert system_heartbeats status column values (if column exists)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'system_heartbeats' AND column_name = 'status') THEN
+        UPDATE system_heartbeats SET status = 'online' WHERE status = 'active';
+        UPDATE system_heartbeats SET status = 'offline' WHERE status = 'inactive';
+    END IF;
+END $$;
