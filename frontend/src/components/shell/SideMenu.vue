@@ -24,6 +24,7 @@ import {
   faTriangleExclamation,
   faPuzzlePiece,
   faPalette,
+  faHeadset as fasHeadset,
 } from '@fortawesome/free-solid-svg-icons'
 import { faGridOne as fasGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import {
@@ -37,6 +38,7 @@ import {
   faTriangleExclamation as falTriangleExclamation,
   faPuzzlePiece as falPuzzlePiece,
   faPalette as falPalette,
+  faHeadset as falHeadset,
 } from '@nethesis/nethesis-light-svg-icons'
 import {
   canReadApplications,
@@ -45,6 +47,7 @@ import {
   canReadRebranding,
   isRebrandingAdmin,
   canReadResellers,
+  canConnectSystems,
   canReadSystems,
   canReadUsers,
   isAddonAdmin,
@@ -76,7 +79,7 @@ const menuExpanded: Ref<Record<string, boolean>> = ref({
   resellers: false,
 })
 
-const systemsManagementRoutes = ['alerts', 'systems', 'applications', 'addons', 'rebranding']
+const systemsManagementRoutes = ['alerts', 'systems', 'applications', 'addons', 'rebranding', 'support-sessions']
 const companiesAndUsersRoutes = ['distributors', 'resellers', 'customers', 'users']
 
 const navigation = computed(() => {
@@ -131,6 +134,15 @@ const navigation = computed(() => {
       to: 'rebranding',
       solidIcon: faPalette,
       lightIcon: falPalette,
+    })
+  }
+
+  if (canConnectSystems()) {
+    menuItems.push({
+      name: 'support.title',
+      to: 'support-sessions',
+      solidIcon: fasHeadset,
+      lightIcon: falHeadset,
     })
   }
 
