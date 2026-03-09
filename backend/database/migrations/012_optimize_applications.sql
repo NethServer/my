@@ -1,7 +1,9 @@
 -- Optimize applications: materialized view + covering indexes
 
 -- 1. Convert unified_organizations from VIEW to MATERIALIZED VIEW
+-- Handle both regular VIEW and MATERIALIZED VIEW cases
 DROP VIEW IF EXISTS unified_organizations;
+DROP MATERIALIZED VIEW IF EXISTS unified_organizations;
 CREATE MATERIALIZED VIEW unified_organizations AS
 SELECT logto_id, id::text AS db_id, name, 'distributor' AS org_type FROM distributors WHERE deleted_at IS NULL
 UNION ALL
