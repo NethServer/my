@@ -20,6 +20,7 @@ type RedisInterface interface {
 	SetWithContext(ctx context.Context, key string, value interface{}, ttl time.Duration) error
 	Get(key string, dest interface{}) error
 	GetWithContext(ctx context.Context, key string, dest interface{}) error
+	GetDel(key string, dest interface{}) error
 	Delete(key string) error
 	DeleteWithContext(ctx context.Context, key string) error
 	DeletePattern(pattern string) error
@@ -251,6 +252,52 @@ func (r *RedisClient) GetWithContext(ctx context.Context, key string, dest inter
 		Str("operation", "get").
 		Str("key", key).
 		Msg("Value retrieved from Redis")
+
+	return nil
+}
+
+// GetDel atomically retrieves and deletes a key from Redis (GETDEL command, Redis 6.2+).
+// Returns ErrCacheMiss if the key does not exist.
+func (r *RedisClient) GetDel(key string, dest interface{}) error {
+	ctx, cancel := context.WithTimeout(context.Background(), r.defaultTimeout)
+	defer cancel()
+
+	data, err := r.client.GetDel(ctx, key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			log.Debug().
+				Str("component", "redis").
+				Str("operation", "getdel").
+				Str("key", key).
+				Msg("Key not found in Redis")
+			return ErrCacheMiss
+		}
+
+		log.Error().
+			Str("component", "redis").
+			Str("operation", "getdel").
+			Str("key", key).
+			Err(err).
+			Msg("Failed to getdel value from Redis")
+		return fmt.Errorf("failed to getdel value from Redis: %w", err)
+	}
+
+	err = json.Unmarshal([]byte(data), dest)
+	if err != nil {
+		log.Error().
+			Str("component", "redis").
+			Str("operation", "getdel").
+			Str("key", key).
+			Err(err).
+			Msg("Failed to unmarshal value")
+		return fmt.Errorf("failed to unmarshal value: %w", err)
+	}
+
+	log.Debug().
+		Str("component", "redis").
+		Str("operation", "getdel").
+		Str("key", key).
+		Msg("Value retrieved and deleted from Redis")
 
 	return nil
 }
@@ -487,6 +534,16 @@ func CloseRedis() error {
 		return redisClient.Close()
 	}
 	return nil
+}
+
+// Publish publishes a message to a Redis pub/sub channel
+func (r *RedisClient) Publish(channel string, message interface{}) error {
+	if r.client == nil {
+		return fmt.Errorf("redis client not initialized")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), r.defaultTimeout)
+	defer cancel()
+	return r.client.Publish(ctx, channel, message).Err()
 }
 
 // ErrCacheMiss is returned when a key is not found in cache

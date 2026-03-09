@@ -11,6 +11,7 @@ package middleware
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/nethesis/my/backend/helpers"
@@ -120,7 +121,7 @@ func RequireOrgRole(role string) gin.HandlerFunc {
 			return
 		}
 
-		if user.OrgRole != role {
+		if !strings.EqualFold(user.OrgRole, role) {
 			logger.RequestLogger(c, "rbac").Warn().
 				Str("operation", "org_role_denied").
 				Str("required_org_role", role).

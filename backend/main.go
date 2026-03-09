@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -113,17 +114,35 @@ func main() {
 		return ids
 	}
 
-	// Init router
-	router := gin.Default()
+	// Init router (gin.New without default logger to avoid raw query params in logs)
+	router := gin.New()
+	router.Use(gin.Recovery())
 
-	// Add request logging middleware
+	// Add request logging middleware (sanitizes sensitive query params)
 	router.Use(logger.GinLogger())
 
 	// Add security monitoring middleware
 	router.Use(logger.SecurityMiddleware())
 
-	// Add compression
-	router.Use(gzip.Gzip(gzip.DefaultCompression))
+	// Dev mode: rewrite subdomain requests to /support-proxy prefix
+	// In production, nginx handles this rewrite
+	// IMPORTANT: this must run BEFORE gzip middleware so that c.Abort() prevents
+	// the outer gzip wrapper from double-compressing proxied responses
+	if configuration.Config.SupportProxyDomain != "" {
+		router.Use(func(c *gin.Context) {
+			host := c.Request.Host
+			if strings.Contains(host, ".support.") && !strings.HasPrefix(c.Request.URL.Path, "/support-proxy") {
+				c.Request.URL.Path = "/support-proxy" + c.Request.URL.Path
+				router.HandleContext(c)
+				c.Abort()
+				return
+			}
+			c.Next()
+		})
+	}
+
+	// Add compression (exclude WebSocket terminal endpoint and support proxy)
+	router.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPathsRegexs([]string{".*/terminal$", ".*/support-proxy/.*"})))
 
 	// CORS configuration in debug mode
 	if gin.Mode() == gin.DebugMode {
@@ -446,6 +465,26 @@ func main() {
 		}
 
 		// ===========================================
+		// SUPPORT SESSIONS - connect:systems permission required
+		// ===========================================
+		supportGroup := customAuthWithAudit.Group("/support-sessions", middleware.RequirePermission("connect:systems"))
+		{
+			supportGroup.GET("", methods.GetSupportSessions)
+			supportGroup.GET("/:id", methods.GetSupportSession)
+			supportGroup.PATCH("/:id/extend", methods.ExtendSupportSession)
+			supportGroup.DELETE("/:id", methods.CloseSupportSession)
+			supportGroup.GET("/:id/logs", methods.GetSupportSessionLogs)
+			supportGroup.GET("/:id/services", methods.GetSupportSessionServices)
+			supportGroup.POST("/:id/terminal-ticket", methods.GenerateTerminalTicket)
+			supportGroup.Any("/:id/proxy/:service/*path", methods.ProxySupportSession)
+			supportGroup.POST("/:id/proxy-token", methods.GenerateSupportProxyToken)
+		}
+
+		// Terminal WebSocket endpoint - uses one-time ticket auth (not JWT)
+		// to avoid exposing the long-lived JWT in URLs and server logs
+		api.GET("/support-sessions/:id/terminal", methods.GetSupportSessionTerminal)
+
+		// ===========================================
 		// METADATA - roles, organizations, third-party apps
 		// ===========================================
 		customAuthWithAudit.GET("/roles", methods.GetRoles)                                     // Get available user roles
@@ -461,6 +500,14 @@ func main() {
 			validatorsGroup.GET("/vat/:entity_type", validators.ValidateVAT) // Validate VAT number for entity type
 		}
 
+	}
+
+	// ===========================================
+	// SUPPORT SUBDOMAIN PROXY (no JWT - uses proxy token auth)
+	// ===========================================
+	supportProxy := router.Group("/support-proxy")
+	{
+		supportProxy.Any("/*path", methods.SubdomainProxy)
 	}
 
 	// Handle missing endpoints
