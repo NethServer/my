@@ -25,6 +25,7 @@ user_roles:
       priority: 0
       permissions:
         - id: "impersonate:users"
+        - id: "connect:systems"
         - id: "destroy:systems"
         - id: "read:systems"
         - id: "manage:systems"
@@ -55,7 +56,7 @@ user_roles:
 
 resources:
     - name: "systems"
-      actions: ["read", "manage", "destroy"]
+      actions: ["read", "manage", "destroy", "connect"]
 
     - name: "users"
       actions: ["read", "manage", "impersonate"]

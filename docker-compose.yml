@@ -6,6 +6,8 @@
 #   - Main App:    http://localhost:9090
 #   - Backend:     http://localhost:18080/api/health
 #   - Collect:     http://localhost:18081/api/health
+#   - Support:     http://localhost:18082/api/health
+#   - Mimir:       http://localhost:19009
 #   - Frontend:    http://localhost:13000
 #
 # 💾 Databases:
@@ -74,6 +76,36 @@ services:
       - my-full-network
 
   # =============================================================================
+  # METRICS
+  # =============================================================================
+
+  # Mimir (Grafana Mimir - metrics storage)
+  mimir-full:
+    build:
+      context: ./services/mimir
+      dockerfile: Containerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-my}-mimir-full
+    restart: unless-stopped
+    environment:
+      PORT: 9009
+      MIMIR_S3_ENDPOINT: ${MIMIR_S3_ENDPOINT:-}
+      MIMIR_S3_ACCESS_KEY: ${MIMIR_S3_ACCESS_KEY:-}
+      MIMIR_S3_SECRET_KEY: ${MIMIR_S3_SECRET_KEY:-}
+      MIMIR_S3_BUCKET: ${MIMIR_S3_BUCKET:-}
+      MIMIR_S3_ALERTMANAGER_BUCKET: ${MIMIR_S3_ALERTMANAGER_BUCKET:-}
+      MIMIR_S3_RULER_BUCKET: ${MIMIR_S3_RULER_BUCKET:-}
+    ports:
+      - "19009:9009"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9009/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - my-full-network
+
+  # =============================================================================
   # BACKEND SERVICES
   # =============================================================================
 
@@ -96,6 +128,8 @@ services:
       DATABASE_URL: postgresql://noc_user:noc_password@postgres-full:5432/noc?sslmode=disable
       REDIS_URL: redis://redis-full:6379
       REDIS_DB: 0
+      # Support service URL
+      SUPPORT_SERVICE_URL: http://support-full:8080
       # Server configuration for container environment
       LISTEN_ADDRESS: 0.0.0.0:8080
       GIN_MODE: debug
@@ -135,6 +169,8 @@ services:
       DATABASE_URL: postgresql://noc_user:noc_password@postgres-full:5432/noc?sslmode=disable
       REDIS_URL: redis://redis-full:6379
       REDIS_DB: 1
+      # Mimir URL for metrics forwarding
+      MIMIR_URL: http://mimir-full:9009
       # Server configuration for container environment
       LISTEN_ADDRESS: 0.0.0.0:8080
       GIN_MODE: debug
@@ -142,6 +178,47 @@ services:
       LOG_FORMAT: console
     ports:
       - "18081:8080"  # Different port to avoid conflicts with individual dev
+    depends_on:
+      postgres-full:
+        condition: service_healthy
+      redis-full:
+        condition: service_healthy
+      mimir-full:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - my-full-network
+
+  # Support Service
+  support-full:
+    build:
+      context: ./services/support
+      dockerfile: Containerfile
+      args:
+        VERSION: ${VERSION:-dev}
+        COMMIT: ${COMMIT:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+    container_name: ${COMPOSE_PROJECT_NAME:-my}-support-full
+    restart: unless-stopped
+    env_file:
+      - ./services/support/.env
+    environment:
+      # Override database and redis URLs for full stack containers
+      DATABASE_URL: postgresql://noc_user:noc_password@postgres-full:5432/noc?sslmode=disable
+      REDIS_URL: redis://redis-full:6379
+      REDIS_DB: 2
+      # Server configuration for container environment
+      LISTEN_ADDRESS: 0.0.0.0:8080
+      GIN_MODE: debug
+      LOG_LEVEL: debug
+      LOG_FORMAT: console
+    ports:
+      - "18082:8080"  # Different port to avoid conflicts with individual dev
     depends_on:
       postgres-full:
         condition: service_healthy
@@ -223,12 +300,14 @@ services:
       PORT: 8080
       BACKEND_SERVICE_NAME: backend-full:8080
       COLLECT_SERVICE_NAME: collect-full:8080
+      SUPPORT_SERVICE_NAME: support-full:8080
       FRONTEND_SERVICE_NAME: frontend-full:8080
     ports:
       - "9090:8080"  # Main entry point - browser-safe port
     depends_on:
       - backend-full
       - collect-full
+      - support-full
       - frontend-full
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]

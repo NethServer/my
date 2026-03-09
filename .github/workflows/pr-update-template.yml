@@ -111,7 +111,9 @@ jobs:
                   { name: 'Collect Build', jobKey: 'build (collect)' },
                   { name: 'Sync Build', jobKey: 'build (sync)' },
                   { name: 'Frontend Build', jobKey: 'build (frontend)' },
-                  { name: 'Proxy Build', jobKey: 'build (proxy)' }
+                  { name: 'Proxy Build', jobKey: 'build (proxy)' },
+                  { name: 'Support Tests', jobKey: 'go-tests (services/support)' },
+                  { name: 'Support Build', jobKey: 'build (support)' }
                 ];
 
                 for (const { name, jobKey } of badgeReplacements) {
