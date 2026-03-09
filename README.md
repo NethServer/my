@@ -36,6 +36,11 @@ Proxy:
 
 [![Proxy Build](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci-main.yml?job=proxy-build&label=Build&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci-main.yml)
 
+Support:
+
+[![Support Tests](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci-main.yml?job=support-tests&label=Tests&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci-main.yml)
+[![Support Build](https://img.shields.io/github/actions/workflow/status/NethServer/my/ci-main.yml?job=support-build&label=Build&style=for-the-badge)](https://github.com/NethServer/my/actions/workflows/ci-main.yml)
+
 
 #### Release
 [![Release](https://img.shields.io/github/actions/workflow/status/NethServer/my/release-production.yml?style=for-the-badge&label=Release)](https://github.com/NethServer/my/actions/workflows/release-production.yml)
@@ -53,8 +58,10 @@ Web application providing centralized authentication and management using Logto 
 - **[frontend/](./frontend/)** - Vue.js application for UI
 - **[backend/](./backend/)** - Go REST API with Logto JWT authentication and RBAC
 - **[collect/](./collect/)** - Go REST API with Redis queues to handle inventories
+- **[services/support/](./services/support/)** - Go service for WebSocket tunnel-based remote support sessions
 - **[sync/](./sync/)** - CLI tool for RBAC configuration synchronization
-- **[proxy/](./proxy/)** - nginx configuration as load balancer
+- **[proxy/](./proxy/)** - nginx reverse proxy routing to all services
+- **[services/mimir/](./services/mimir/)** - Grafana Mimir metrics storage with S3 backend
 
 ## 🚀 Quick Start
 
@@ -72,7 +79,7 @@ Web application providing centralized authentication and management using Logto 
 Complete replica of the production environment with all services containerized:
 
 ```bash
-# Start all services (PostgreSQL, Redis, Backend, Collect, Frontend, Proxy)
+# Start all services (PostgreSQL, Redis, Mimir, Backend, Collect, Support, Frontend, Proxy)
 docker-compose up -d
 # OR
 podman-compose up -d
@@ -115,7 +122,10 @@ cd sync && make dev-setup && make build
 # 5. Start the Collect service (port 8081)
 cd collect && make dev-setup && make run
 
-# 6. Start the Frontend (port 5173)
+# 6. Start the Support service (port 8082)
+cd services/support && make dev-setup && make run
+
+# 7. Start the Frontend (port 5173)
 cd frontend && npm ci && npm run dev
 ```
 
@@ -123,8 +133,9 @@ cd frontend && npm ci && npm run dev
 1. **RBAC Setup**: [sync/README.md](./sync/README.md) - Use `sync init` for complete Logto configuration
 2. **Backend Development**: [backend/README.md](./backend/README.md) - API server setup and environment configuration
 3. **Collect Development**: [collect/README.md](./collect/README.md) - Inventory service setup and environment configuration
-4. **Frontend Development**: [frontend/README.md](./frontend/README.md) - Vue.js setup and environment configuration
-5. **Production Deploy**: Use `./deploy.sh` for automated deployment
+4. **Support Development**: [services/support/README.md](./services/support/README.md) - WebSocket tunnel support service
+5. **Frontend Development**: [frontend/README.md](./frontend/README.md) - Vue.js setup and environment configuration
+6. **Production Deploy**: Use `./deploy.sh` for automated deployment
 
 ## 🌐 Deployment Environments
 
@@ -137,7 +148,7 @@ cd frontend && npm ci && npm run dev
 - **Trigger**: Manual deployment via `./deploy.sh` script
 - **Auto-Deploy**: Render automatically deploys when `render.yaml` is updated
 - **Manual Control**: Deploy only when explicitly triggered
-- **Security**: Private services (Backend, Collect, Frontend) only accessible through Proxy
+- **Security**: Private services (Backend, Collect, Support, Frontend) only accessible through Proxy
 
 ## 📝 Configuration
 
@@ -146,6 +157,7 @@ See individual component documentation for setup:
 - **Frontend**: [frontend/README.md](./frontend/README.md) - Environment variables and setup for frontend
 - **Backend**: [backend/README.md](./backend/README.md) - Environment variables and setup for backend
 - **Collect**: [collect/README.md](./collect/README.md) - Environment variables and setup for collect
+- **Support**: [services/support/README.md](./services/support/README.md) - Environment variables and setup for support
 - **sync CLI**: [sync/README.md](./sync/README.md) - Use `sync init` to generate all required variables
 - **proxy**: [proxy/README.md](./proxy/README.md) - nginx configuration and setup for load balancer
 
@@ -178,6 +190,7 @@ Component-specific technical documentation:
 - **[backend](./backend/README.md)** - Server setup, environment variables, authorization architecture, and consent-based impersonation
 - **[backend OpenAPI](./backend/openapi.yaml)** - Complete API specification with authentication
 - **[collect](./collect/README.md)** - Server setup, environment variables and inventory structure
+- **[support](./services/support/README.md)** - WebSocket tunnel service for remote support sessions
 - **[sync CLI](./sync/README.md)** - RBAC configuration and `sync init` setup
 - **[deploy script](./deploy.sh)** - Production deployment script for Render
 - **[proxy](./proxy/README.md)** - Production load balancer configuration with nginx
