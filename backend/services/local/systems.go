@@ -699,11 +699,11 @@ func (s *LocalSystemsService) RegisterSystem(systemSecret string) (*models.Regis
 		return nil, fmt.Errorf("invalid system secret")
 	}
 
-	// Update registered_at timestamp
+	// Update registered_at timestamp and enable support
 	now := time.Now()
 	updateQuery := `
 		UPDATE systems
-		SET registered_at = $1
+		SET registered_at = $1, support_enabled = true
 		WHERE id = $2
 	`
 

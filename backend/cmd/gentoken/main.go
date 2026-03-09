@@ -45,6 +45,7 @@ func main() {
 				UserRoleIDs: []string{"super-admin-role-id"},
 				UserPermissions: []string{
 					"destroy:systems", "read:systems", "manage:systems",
+					"connect:systems",
 					"impersonate:users", "read:users", "manage:users",
 					"read:applications", "manage:applications",
 				},

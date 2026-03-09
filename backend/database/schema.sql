@@ -264,6 +264,9 @@ CREATE TABLE IF NOT EXISTS systems (
     -- Inventory
     last_inventory_at TIMESTAMP WITH TIME ZONE, -- Last inventory received timestamp (NULL = never received)
 
+    -- Support
+    support_enabled BOOLEAN NOT NULL DEFAULT false, -- Explicit opt-in for support tunnel access
+
     -- Soft delete
     deleted_at TIMESTAMP WITH TIME ZONE,    -- NULL = active, non-NULL = soft deleted
     deleted_by_org_id VARCHAR(255)           -- Organization that caused cascade soft-deletion
@@ -281,6 +284,7 @@ COMMENT ON COLUMN systems.system_secret_public IS 'Public part of token (my_<pub
 COMMENT ON COLUMN systems.system_secret_sha256 IS 'SHA256 hash of secret part (hex_salt:hex_hash)';
 COMMENT ON COLUMN systems.registered_at IS 'Timestamp when system first sent inventory. NULL = not yet registered';
 COMMENT ON COLUMN systems.created_by IS 'JSON object: {user_id, username, organization_id} who created the system';
+COMMENT ON COLUMN systems.support_enabled IS 'Explicit opt-in: system can connect to support tunnel only when true';
 COMMENT ON COLUMN systems.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted';
 COMMENT ON COLUMN systems.deleted_by_org_id IS 'Organization that caused cascade soft-deletion (for tracking cascade source)';
 
@@ -299,6 +303,7 @@ CREATE INDEX IF NOT EXISTS idx_systems_fqdn ON systems(fqdn);
 CREATE INDEX IF NOT EXISTS idx_systems_ipv4_address ON systems(ipv4_address);
 CREATE INDEX IF NOT EXISTS idx_systems_ipv6_address ON systems(ipv6_address);
 CREATE INDEX IF NOT EXISTS idx_systems_deleted_by_org_id ON systems(deleted_by_org_id) WHERE deleted_by_org_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_systems_support_enabled ON systems(support_enabled) WHERE support_enabled = true AND deleted_at IS NULL;
 
 -- Status validation constraint
 DO $$
@@ -920,3 +925,62 @@ CREATE INDEX IF NOT EXISTS idx_applications_org_id_certified
 ON applications(organization_id)
 WHERE deleted_at IS NULL AND is_user_facing = TRUE
   AND (inventory_data->>'certification_level')::int IN (4, 5);
+
+-- =============================================================================
+-- SUPPORT SESSIONS TABLE
+-- =============================================================================
+-- Tracks WebSocket tunnel-based support sessions from client systems
+
+CREATE TABLE IF NOT EXISTS support_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    system_id VARCHAR(255) NOT NULL REFERENCES systems(id) ON DELETE CASCADE,
+    node_id VARCHAR(16),
+    session_token VARCHAR(64) UNIQUE NOT NULL,
+    reconnect_token VARCHAR(64),
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '24 hours'),
+    status VARCHAR(16) NOT NULL DEFAULT 'pending',
+    closed_at TIMESTAMPTZ,
+    closed_by VARCHAR(32),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT support_sessions_status_check CHECK (status IN ('pending', 'active', 'expired', 'closed'))
+);
+
+COMMENT ON TABLE support_sessions IS 'WebSocket tunnel-based support sessions from client systems';
+COMMENT ON COLUMN support_sessions.node_id IS 'NS8 cluster node ID (e.g., 1, 2, 3). NULL for single-node systems.';
+COMMENT ON COLUMN support_sessions.session_token IS 'Unique token for tunnel authentication';
+COMMENT ON COLUMN support_sessions.reconnect_token IS 'Token required to reconnect to a session during grace period';
+COMMENT ON COLUMN support_sessions.status IS 'Session status: pending (no tunnel yet), active, expired, closed';
+COMMENT ON COLUMN support_sessions.closed_by IS 'Who closed the session: client, operator, timeout, system';
+
+CREATE INDEX IF NOT EXISTS idx_support_sessions_system_id ON support_sessions(system_id);
+CREATE INDEX IF NOT EXISTS idx_support_sessions_status ON support_sessions(status);
+CREATE INDEX IF NOT EXISTS idx_support_sessions_session_token ON support_sessions(session_token);
+CREATE INDEX IF NOT EXISTS idx_support_sessions_expires_at ON support_sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_support_sessions_reconnect_token ON support_sessions(reconnect_token) WHERE reconnect_token IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_support_sessions_system_node ON support_sessions(system_id, node_id) WHERE status IN ('pending', 'active');
+
+-- =============================================================================
+-- SUPPORT ACCESS LOGS TABLE
+-- =============================================================================
+-- Tracks operator interactions with support sessions
+
+CREATE TABLE IF NOT EXISTS support_access_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID NOT NULL REFERENCES support_sessions(id) ON DELETE CASCADE,
+    operator_id VARCHAR(255) NOT NULL,
+    operator_name VARCHAR(255),
+    access_type VARCHAR(16) NOT NULL DEFAULT 'view',
+    connected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    disconnected_at TIMESTAMPTZ,
+    metadata JSONB,
+    CONSTRAINT support_access_logs_access_type_check CHECK (access_type IN ('view', 'ssh', 'web_terminal', 'ui_proxy'))
+);
+
+COMMENT ON TABLE support_access_logs IS 'Operator interactions with support sessions';
+COMMENT ON COLUMN support_access_logs.operator_id IS 'Logto user ID of the operator';
+COMMENT ON COLUMN support_access_logs.access_type IS 'Type of access: view, ssh, web_terminal, ui_proxy';
+
+CREATE INDEX IF NOT EXISTS idx_support_access_logs_session_id ON support_access_logs(session_id);
+CREATE INDEX IF NOT EXISTS idx_support_access_logs_operator_id ON support_access_logs(operator_id);
