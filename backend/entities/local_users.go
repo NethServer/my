@@ -1371,13 +1371,13 @@ func (r *LocalUserRepository) GetByIDIncludeDeleted(id string) (*models.LocalUse
 	return user, nil
 }
 
-// GetAvatar retrieves the avatar binary and MIME type for a user by logto_id or local id.
-func (r *LocalUserRepository) GetAvatar(userID string) ([]byte, string, error) {
-	query := `SELECT avatar, avatar_mime FROM users WHERE (logto_id = $1 OR id = $1) AND deleted_at IS NULL LIMIT 1`
+// GetAvatar retrieves the avatar binary and MIME type for a user by logto_id.
+func (r *LocalUserRepository) GetAvatar(logtoID string) ([]byte, string, error) {
+	query := `SELECT avatar, avatar_mime FROM users WHERE logto_id = $1 AND deleted_at IS NULL LIMIT 1`
 
 	var avatar []byte
 	var mime sql.NullString
-	err := r.db.QueryRow(query, userID).Scan(&avatar, &mime)
+	err := r.db.QueryRow(query, logtoID).Scan(&avatar, &mime)
 	if err != nil {
 		return nil, "", err
 	}
@@ -1388,16 +1388,36 @@ func (r *LocalUserRepository) GetAvatar(userID string) ([]byte, string, error) {
 	return avatar, mime.String, nil
 }
 
-// SetAvatar stores the avatar binary and MIME type for a user.
-func (r *LocalUserRepository) SetAvatar(userID string, data []byte, mime string) error {
-	query := `UPDATE users SET avatar = $2, avatar_mime = $3, updated_at = NOW() WHERE id = $1 OR logto_id = $1`
-	_, err := r.db.Exec(query, userID, data, mime)
-	return err
+// SetAvatar stores the avatar binary and MIME type for a user by logto ID.
+func (r *LocalUserRepository) SetAvatar(logtoID string, data []byte, mime string) error {
+	query := `UPDATE users SET avatar = $2, avatar_mime = $3, updated_at = NOW() WHERE logto_id = $1 AND deleted_at IS NULL`
+	result, err := r.db.Exec(query, logtoID, data, mime)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("user not found")
+	}
+	return nil
 }
 
-// DeleteAvatar removes the avatar for a user.
-func (r *LocalUserRepository) DeleteAvatar(userID string) error {
-	query := `UPDATE users SET avatar = NULL, avatar_mime = NULL, updated_at = NOW() WHERE id = $1 OR logto_id = $1`
-	_, err := r.db.Exec(query, userID)
-	return err
+// DeleteAvatar removes the avatar for a user by logto ID.
+func (r *LocalUserRepository) DeleteAvatar(logtoID string) error {
+	query := `UPDATE users SET avatar = NULL, avatar_mime = NULL, updated_at = NOW() WHERE logto_id = $1 AND deleted_at IS NULL`
+	result, err := r.db.Exec(query, logtoID)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("user not found")
+	}
+	return nil
 }
