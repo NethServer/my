@@ -14,7 +14,7 @@ export const APPLICATIONS_TOTAL_KEY = 'applicationsTotal'
 export const APPLICATIONS_TABLE_ID = 'applicationsTable'
 export const SHOW_UNASSIGNED_APPS_NOTIFICATION = 'showUnassignedAppsNotification'
 
-export type ApplicationStatus = 'online' | 'offline' | 'unknown' | 'deleted'
+// export type ApplicationStatus = 'online' | 'offline' | 'unknown' | 'deleted' //// needed?
 
 const applicationLogos = import.meta.glob('../../assets/application_logos/*.svg', {
   eager: true,

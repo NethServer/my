@@ -101,12 +101,12 @@ const newSecret = ref<string>('')
 
 const statusFilterOptions = ref<FilterOption[]>([
   {
-    id: 'online',
-    label: t('systems.status_online'),
+    id: 'active',
+    label: t('systems.status_active'),
   },
   {
-    id: 'offline',
-    label: t('systems.status_offline'),
+    id: 'inactive',
+    label: t('systems.status_inactive'),
   },
   {
     id: 'unknown',
@@ -636,13 +636,10 @@ function onCloseSecretRegeneratedModal() {
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.status')">
             <div class="flex items-center gap-2">
-              <SystemStatusIcon :status="item.status" :suspended-at="item.suspended_at" />
-              <span v-if="item.suspended_at">
-                {{ t('common.suspended') }}
-              </span>
-              <span v-else-if="item.status">
+              <template v-if="item.status">
+                <SystemStatusIcon :status="item.status" />
                 {{ t(`systems.status_${item.status}`) }}
-              </span>
+              </template>
               <span v-else>-</span>
             </div>
           </NeTableCell>

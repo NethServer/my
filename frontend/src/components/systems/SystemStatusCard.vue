@@ -72,7 +72,7 @@ const timezone = computed(() => {
 })
 
 const getBadgeKind = () => {
-  switch (systemDetail.value.data?.heartbeat_status) {
+  switch (systemDetail.value.data?.status) {
     case 'active':
       return 'green'
     case 'inactive':
@@ -85,7 +85,7 @@ const getBadgeKind = () => {
 }
 
 const getBadgeIcon = () => {
-  switch (systemDetail.value.data?.heartbeat_status) {
+  switch (systemDetail.value.data?.status) {
     case 'active':
       return faCheck
     case 'inactive':
@@ -136,7 +136,7 @@ const getBadgeIcon = () => {
           <NeBadgeV2 :kind="getBadgeKind()">
             <div class="flex items-center gap-1">
               <FontAwesomeIcon :icon="getBadgeIcon()" class="size-4" />
-              {{ t(`systems.status_${systemDetail.data?.heartbeat_status}`) }}
+              {{ t(`systems.status_${systemDetail.data?.status}`) }}
             </div>
           </NeBadgeV2>
         </template>
