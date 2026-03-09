@@ -1,0 +1,32 @@
+# Build stage
+FROM golang:1.24-alpine AS builder
+
+RUN apk add --no-cache git ca-certificates
+
+WORKDIR /app
+
+# Copy go mod files first for better caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the tunnel-client binary
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_TIME=unknown
+
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
+    -ldflags "-s -w -X github.com/nethesis/my/services/support/pkg/version.Version=${VERSION} \
+              -X github.com/nethesis/my/services/support/pkg/version.Commit=${COMMIT} \
+              -X github.com/nethesis/my/services/support/pkg/version.BuildTime=${BUILD_TIME}" \
+    -o tunnel-client ./cmd/tunnel-client/main.go
+
+# Final stage - minimal image with just the binary
+FROM scratch
+
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /app/tunnel-client /tunnel-client
+
+ENTRYPOINT ["/tunnel-client"]
