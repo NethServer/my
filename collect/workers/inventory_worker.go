@@ -15,6 +15,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 	"sync"
@@ -572,12 +573,12 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 		args = append(args, *systemType)
 		argPos++
 	}
-	if ipv4 != nil {
+	if ipv4 != nil && net.ParseIP(*ipv4) != nil {
 		updates = append(updates, fmt.Sprintf("ipv4_address = $%d", argPos))
 		args = append(args, *ipv4)
 		argPos++
 	}
-	if ipv6 != nil {
+	if ipv6 != nil && net.ParseIP(*ipv6) != nil {
 		updates = append(updates, fmt.Sprintf("ipv6_address = $%d", argPos))
 		args = append(args, *ipv6)
 		argPos++
