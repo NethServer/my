@@ -17,11 +17,19 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        component: [backend, sync, collect, services/support]
+        include:
+          - component: backend
+            path: backend
+          - component: sync
+            path: sync
+          - component: collect
+            path: collect
+          - component: support
+            path: services/support
 
     defaults:
       run:
-        working-directory: ${{ matrix.component }}
+        working-directory: ${{ matrix.path }}
 
     steps:
     - uses: actions/checkout@v4
@@ -38,7 +46,7 @@ jobs:
         path: |
           ~/.cache/go-build
           ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ matrix.component }}-${{ hashFiles(format('{0}/go.sum', matrix.component)) }}
+        key: ${{ runner.os }}-go-${{ matrix.component }}-${{ hashFiles(format('{0}/go.sum', matrix.path)) }}
         restore-keys: |
           ${{ runner.os }}-go-${{ matrix.component }}-
 
@@ -56,7 +64,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.component }}-coverage
-        path: ${{ matrix.component }}/coverage.out
+        path: ${{ matrix.path }}/coverage.out
         retention-days: 30
 
     - name: Run go vet
@@ -74,7 +82,7 @@ jobs:
       uses: golangci/golangci-lint-action@v6
       with:
         version: latest
-        working-directory: ${{ matrix.component }}
+        working-directory: ${{ matrix.path }}
         args: --timeout=10m
 
   # ===========================================================================
