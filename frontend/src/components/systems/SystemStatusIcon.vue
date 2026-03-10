@@ -4,17 +4,19 @@
 -->
 
 <script setup lang="ts">
+import type { SystemStatus } from '@/lib/systems/systems'
 import {
   faBoxArchive,
   faCircleCheck,
   faCirclePause,
   faCircleQuestion,
-  faTriangleExclamation,
+  faCircleXmark,
+  faClock,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
 defineProps<{
-  status?: string | null
+  status: SystemStatus
 }>()
 </script>
 
@@ -27,12 +29,12 @@ defineProps<{
   />
   <FontAwesomeIcon
     v-else-if="status === 'inactive'"
-    :icon="faTriangleExclamation"
-    class="size-4 text-amber-700 dark:text-amber-500"
+    :icon="faCircleXmark"
+    class="size-4 text-rose-700 dark:text-rose-500"
     aria-hidden="true"
   />
   <FontAwesomeIcon
-    v-if="status === 'suspended'"
+    v-else-if="status === 'suspended'"
     :icon="faCirclePause"
     class="size-4 text-gray-700 dark:text-gray-400"
     aria-hidden="true"
@@ -44,9 +46,15 @@ defineProps<{
     aria-hidden="true"
   />
   <FontAwesomeIcon
+    v-else-if="status === 'unknown'"
+    :icon="faClock"
+    class="size-4 text-gray-700 dark:text-gray-400"
+    aria-hidden="true"
+  />
+  <FontAwesomeIcon
     v-else
     :icon="faCircleQuestion"
-    class="size-4 text-gray-700 dark:text-gray-400"
+    class="size-4 text-indigo-700 dark:text-indigo-400"
     aria-hidden="true"
   />
 </template>

@@ -5,26 +5,21 @@
 
 <script setup lang="ts">
 import {
-  NeBadgeV2,
   NeCard,
   NeHeading,
   NeInlineNotification,
   NeSkeleton,
+  NeTooltip,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
-import {
-  faCheck,
-  faCircleInfo,
-  faHourglass,
-  faQuestion,
-  faTriangleExclamation,
-} from '@fortawesome/free-solid-svg-icons'
+import { faCircleInfo, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons'
 import { formatDateTimeNoSeconds, formatUptime } from '@/lib/dateTime'
 import { useI18n } from 'vue-i18n'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import DataItem from '../DataItem.vue'
 import { computed } from 'vue'
+import SystemStatusIcon from './SystemStatusIcon.vue'
 
 const { t, locale } = useI18n()
 const { state: systemDetail } = useSystemDetail()
@@ -70,32 +65,6 @@ const timezone = computed(() => {
     return latestInventory.value.data?.data?.facts?.timezone as string | undefined
   }
 })
-
-const getBadgeKind = () => {
-  switch (systemDetail.value.data?.status) {
-    case 'active':
-      return 'green'
-    case 'inactive':
-      return 'amber'
-    case 'unknown':
-      return 'gray'
-    default:
-      return 'indigo'
-  }
-}
-
-const getBadgeIcon = () => {
-  switch (systemDetail.value.data?.status) {
-    case 'active':
-      return faCheck
-    case 'inactive':
-      return faTriangleExclamation
-    case 'unknown':
-      return faHourglass
-    default:
-      return faQuestion
-  }
-}
 </script>
 
 <template>
@@ -133,12 +102,34 @@ const getBadgeIcon = () => {
           {{ $t('common.status') }}
         </template>
         <template #data>
-          <NeBadgeV2 :kind="getBadgeKind()">
-            <div class="flex items-center gap-1">
-              <FontAwesomeIcon :icon="getBadgeIcon()" class="size-4" />
+          <div class="flex items-center gap-2">
+            <template v-if="systemDetail.data?.status">
+              <SystemStatusIcon :status="systemDetail.data?.status" />
               {{ t(`systems.status_${systemDetail.data?.status}`) }}
-            </div>
-          </NeBadgeV2>
+            </template>
+            <span v-else>-</span>
+            <!-- no inventory warning (do not show for pending/unknown status) -->
+            <NeTooltip
+              v-if="
+                latestInventory.status === 'success' &&
+                !latestInventory.data &&
+                systemDetail.data?.status !== 'unknown'
+              "
+              trigger-event="mouseenter focus"
+              placement="top"
+            >
+              <template #trigger>
+                <FontAwesomeIcon
+                  :icon="faTriangleExclamation"
+                  class="size-4 text-amber-700 dark:text-amber-500"
+                  aria-hidden="true"
+                />
+              </template>
+              <template #content>
+                {{ $t('system_detail.no_inventory_available') }}
+              </template>
+            </NeTooltip>
+          </div>
         </template>
       </DataItem>
       <!-- last inventory -->
