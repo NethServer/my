@@ -63,6 +63,8 @@ type Configuration struct {
 	SupportServiceURL string `json:"support_service_url"`
 	// Support proxy domain for subdomain-based proxying (e.g. "my.nethesis.it")
 	SupportProxyDomain string `json:"support_proxy_domain"`
+	// Shared secret for backend→support internal authentication (#4)
+	SupportInternalSecret string `json:"-"`
 
 	// SMTP configuration for sending emails
 	SMTPHost     string `json:"smtp_host"`
@@ -206,6 +208,9 @@ func Init() {
 
 	// Support proxy domain (optional, enables subdomain-based proxy)
 	Config.SupportProxyDomain = os.Getenv("SUPPORT_PROXY_DOMAIN")
+
+	// Shared secret for backend→support internal communication (#4)
+	Config.SupportInternalSecret = os.Getenv("SUPPORT_INTERNAL_SECRET")
 
 	// SMTP configuration
 	Config.SMTPHost = os.Getenv("SMTP_HOST")
