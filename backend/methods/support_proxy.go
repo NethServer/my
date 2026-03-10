@@ -64,6 +64,10 @@ func (t *sessionTokenTransport) RoundTrip(req *http.Request) (*http.Response, er
 	if t.sessionToken != "" {
 		req.Header.Set("X-Session-Token", t.sessionToken)
 	}
+	// Send internal secret for defense-in-depth authentication (#4)
+	if configuration.Config.SupportInternalSecret != "" {
+		req.Header.Set("X-Internal-Secret", configuration.Config.SupportInternalSecret)
+	}
 	// Remove browser headers that would trigger CORS on the support service
 	req.Header.Del("Origin")
 	req.Header.Del("Referer")
@@ -280,6 +284,9 @@ func GetSupportSessionTerminal(c *gin.Context) {
 	}
 	upReq.Host = target.Host
 	upReq.Header.Set("X-Session-Token", sessionToken)
+	if configuration.Config.SupportInternalSecret != "" {
+		upReq.Header.Set("X-Internal-Secret", configuration.Config.SupportInternalSecret)
+	}
 
 	// Send the request to the support service
 	if writeErr := upReq.Write(upstreamConn); writeErr != nil {
@@ -573,7 +580,9 @@ func SubdomainProxy(c *gin.Context) {
 		c.SetSameSite(http.SameSiteStrictMode)
 		c.SetCookie("support_proxy", tokenString, 8*60*60, "/", hostOnly, secureCookie, true)
 
-		redirectPath := path
+		// Sanitize redirect path to prevent open redirect via protocol-relative URLs (#3).
+		// "//evil.com" is interpreted by browsers as a redirect to evil.com.
+		redirectPath := "/" + strings.TrimLeft(path, "/")
 		q := c.Request.URL.Query()
 		q.Del("token")
 		if encoded := q.Encode(); encoded != "" {
@@ -667,6 +676,9 @@ func proxyGetWithTokenOrEmpty(c *gin.Context, targetURL, sessionToken string) {
 		return
 	}
 	req.Header.Set("X-Session-Token", sessionToken)
+	if configuration.Config.SupportInternalSecret != "" {
+		req.Header.Set("X-Internal-Secret", configuration.Config.SupportInternalSecret)
+	}
 
 	resp, err := internalClient.Do(req)
 	if err != nil {
