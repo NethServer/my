@@ -17,11 +17,18 @@ if [ "$IS_PULL_REQUEST" = "true" ]; then
     PR_SUFFIX=$(echo "$RENDER_SERVICE_NAME" | sed 's/^my-proxy-qa//')
     echo "Extracted PR suffix: $PR_SUFFIX"
     
-    # Apply PR suffix to all service names
-    export BACKEND_SERVICE_NAME="${BACKEND_SERVICE_NAME}${PR_SUFFIX}"
-    export COLLECT_SERVICE_NAME="${COLLECT_SERVICE_NAME}${PR_SUFFIX}"
-    export SUPPORT_SERVICE_NAME="${SUPPORT_SERVICE_NAME}${PR_SUFFIX}"
-    export FRONTEND_SERVICE_NAME="${FRONTEND_SERVICE_NAME}${PR_SUFFIX}"
+    # Apply PR suffix to all Blueprint-managed service names.
+    # Services created manually (not from the Blueprint) do not get PR preview
+    # instances, so their names must not be suffixed. To skip a service, set
+    # its env var to an FQDN (containing a dot) — the suffix is only applied
+    # to short names.
+    for VAR in BACKEND_SERVICE_NAME COLLECT_SERVICE_NAME SUPPORT_SERVICE_NAME FRONTEND_SERVICE_NAME; do
+        eval "VAL=\$$VAR"
+        case "$VAL" in
+            *.*) echo "Skipping PR suffix for $VAR (FQDN: $VAL)" ;;
+            *)   eval "export $VAR=\"\${VAL}${PR_SUFFIX}\"" ;;
+        esac
+    done
 
     echo "Adjusted BACKEND_SERVICE_NAME=$BACKEND_SERVICE_NAME"
     echo "Adjusted COLLECT_SERVICE_NAME=$COLLECT_SERVICE_NAME"
@@ -38,10 +45,13 @@ export RESOLVER="${RESOLVER:-8.8.8.8}"
 
 SEARCH_DOMAIN=$(awk '/^search/ {print $2; exit}' /etc/resolv.conf)
 if [ -n "$SEARCH_DOMAIN" ]; then
-    export BACKEND_SERVICE_NAME="${BACKEND_SERVICE_NAME}.${SEARCH_DOMAIN}"
-    export COLLECT_SERVICE_NAME="${COLLECT_SERVICE_NAME}.${SEARCH_DOMAIN}"
-    export SUPPORT_SERVICE_NAME="${SUPPORT_SERVICE_NAME}.${SEARCH_DOMAIN}"
-    export FRONTEND_SERVICE_NAME="${FRONTEND_SERVICE_NAME}.${SEARCH_DOMAIN}"
+    for VAR in BACKEND_SERVICE_NAME COLLECT_SERVICE_NAME SUPPORT_SERVICE_NAME FRONTEND_SERVICE_NAME; do
+        eval "VAL=\$$VAR"
+        case "$VAL" in
+            *.*) echo "Skipping search domain for $VAR (already FQDN: $VAL)" ;;
+            *)   eval "export $VAR=\"\${VAL}.${SEARCH_DOMAIN}\"" ;;
+        esac
+    done
 fi
 
 echo "DNS resolver: $RESOLVER"
