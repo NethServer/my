@@ -92,7 +92,7 @@ func readLine(r io.Reader) (string, error) {
 		}
 		if err != nil {
 			if err == io.EOF && len(buf) > 0 {
-				return string(buf), nil
+				return "", fmt.Errorf("unexpected EOF: incomplete line")
 			}
 			return "", err
 		}

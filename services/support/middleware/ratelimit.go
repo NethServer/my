@@ -80,6 +80,9 @@ var tunnelIPRateLimiter = newRateLimiter(10, 1*time.Minute)
 // tunnelKeyRateLimiter limits tunnel connection attempts per system_key (#14)
 var tunnelKeyRateLimiter = newRateLimiter(5, 1*time.Minute)
 
+// sessionRateLimiter limits requests per session ID on internal endpoints
+var sessionRateLimiter = newRateLimiter(100, 1*time.Minute)
+
 // TunnelRateLimitMiddleware limits the rate of tunnel connection attempts
 // per client IP (10/min) and per system_key (5/min, checked after auth).
 func TunnelRateLimitMiddleware() gin.HandlerFunc {
@@ -91,6 +94,27 @@ func TunnelRateLimitMiddleware() gin.HandlerFunc {
 				Str("path", c.Request.URL.Path).
 				Msg("tunnel IP rate limit exceeded")
 			c.JSON(http.StatusTooManyRequests, response.Error(http.StatusTooManyRequests, "too many connection attempts", nil))
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
+// SessionRateLimitMiddleware limits the rate of requests per session ID on internal endpoints.
+func SessionRateLimitMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		sessionID := c.Param("session_id")
+		if sessionID == "" {
+			c.Next()
+			return
+		}
+		if !sessionRateLimiter.allow(sessionID) {
+			logger.Warn().
+				Str("session_id", sessionID).
+				Str("client_ip", c.ClientIP()).
+				Msg("session rate limit exceeded")
+			c.JSON(http.StatusTooManyRequests, response.Error(http.StatusTooManyRequests, "too many requests for this session", nil))
 			c.Abort()
 			return
 		}

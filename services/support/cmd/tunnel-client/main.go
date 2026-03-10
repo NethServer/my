@@ -38,6 +38,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -352,8 +353,11 @@ func connect(ctx context.Context, cfg *clientConfig) error {
 			}
 			// If the underlying WebSocket received a close frame, return that error
 			// so the reconnect loop can inspect the close code
-			if netConn.closeErr != nil {
-				return netConn.closeErr
+			netConn.mu.Lock()
+			closeErr := netConn.closeErr
+			netConn.mu.Unlock()
+			if closeErr != nil {
+				return closeErr
 			}
 			return fmt.Errorf("stream accept error: %w", err)
 		}
@@ -735,15 +739,15 @@ func discoverNodeRoutes(ctx context.Context, rdb *redis.Client, nodeID string) m
 	return services
 }
 
+// moduleIDRegex matches NS8 module IDs (compiled once at package level)
+var moduleIDRegex = regexp.MustCompile(`^(.+\d+)(?:[-_]|$)`)
+
 // extractModuleID extracts the module ID from a Traefik config filename.
 // NS8 module IDs end with an instance number (e.g., "nethvoice103", "n8n2",
 // "nethsecurity-controller4"). Route suffixes are separated by hyphen or
 // underscore after the digits (e.g., "nethvoice103-ui", "metrics1_grafana").
 func extractModuleID(name string) string {
-	// Match everything up to and including trailing digits, followed by
-	// a separator (- or _) or end of string
-	re := regexp.MustCompile(`^(.+\d+)(?:[-_]|$)`)
-	m := re.FindStringSubmatch(name)
+	m := moduleIDRegex.FindStringSubmatch(name)
 	if len(m) > 1 {
 		return m[1]
 	}
@@ -879,21 +883,28 @@ func handleStream(stream net.Conn, services map[string]ServiceInfo) {
 
 	log.Printf("CONNECT %s -> %s", serviceName, svc.Target)
 
-	// Bidirectional copy
-	done := make(chan struct{}, 2)
+	// Bidirectional copy with proper cleanup to prevent goroutine leaks
+	var once sync.Once
+	done := make(chan struct{})
+	closeBoth := func() {
+		once.Do(func() {
+			close(done)
+			_ = targetConn.Close()
+			_ = stream.Close()
+		})
+	}
 
 	go func() {
+		defer closeBoth()
 		_, _ = io.Copy(targetConn, stream)
-		done <- struct{}{}
 	}()
 
 	go func() {
+		defer closeBoth()
 		_, _ = io.Copy(stream, targetConn)
-		done <- struct{}{}
 	}()
 
 	<-done
-	_ = targetConn.Close()
 }
 
 // readConnectHeader reads "CONNECT <service>\n" from the stream byte-by-byte
@@ -949,6 +960,7 @@ func readLine(r io.Reader) (string, error) {
 type wsNetConn struct {
 	conn     *websocket.Conn
 	reader   io.Reader
+	mu       sync.Mutex
 	closeErr error // stores the WebSocket close error if received
 }
 
@@ -957,7 +969,9 @@ func (w *wsNetConn) Read(b []byte) (int, error) {
 		if w.reader == nil {
 			_, reader, err := w.conn.NextReader()
 			if err != nil {
+				w.mu.Lock()
 				w.closeErr = err
+				w.mu.Unlock()
 				return 0, err
 			}
 			w.reader = reader
@@ -982,12 +996,17 @@ func (w *wsNetConn) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-func (w *wsNetConn) Close() error                       { return w.conn.Close() }
-func (w *wsNetConn) LocalAddr() net.Addr                { return w.conn.LocalAddr() }
-func (w *wsNetConn) RemoteAddr() net.Addr               { return w.conn.RemoteAddr() }
-func (w *wsNetConn) SetDeadline(_ time.Time) error      { return nil }
-func (w *wsNetConn) SetReadDeadline(_ time.Time) error  { return nil }
-func (w *wsNetConn) SetWriteDeadline(_ time.Time) error { return nil }
+func (w *wsNetConn) Close() error         { return w.conn.Close() }
+func (w *wsNetConn) LocalAddr() net.Addr  { return w.conn.LocalAddr() }
+func (w *wsNetConn) RemoteAddr() net.Addr { return w.conn.RemoteAddr() }
+func (w *wsNetConn) SetDeadline(t time.Time) error {
+	if err := w.conn.SetReadDeadline(t); err != nil {
+		return err
+	}
+	return w.conn.SetWriteDeadline(t)
+}
+func (w *wsNetConn) SetReadDeadline(t time.Time) error  { return w.conn.SetReadDeadline(t) }
+func (w *wsNetConn) SetWriteDeadline(t time.Time) error { return w.conn.SetWriteDeadline(t) }
 
 func envWithDefault(key, defaultValue string) string {
 	if v := os.Getenv(key); v != "" {
@@ -1024,17 +1043,24 @@ func handleTerminal(stream net.Conn) {
 		log.Printf("Failed to start PTY: %v", err)
 		return
 	}
+	var once sync.Once
+	done := make(chan struct{})
+	closeAll := func() {
+		once.Do(func() {
+			close(done)
+			_ = ptmx.Close()
+			_ = stream.Close()
+		})
+	}
 	defer func() {
-		_ = ptmx.Close()
+		closeAll()
 		_ = cmd.Process.Kill()
 		_, _ = cmd.Process.Wait()
 	}()
 
-	done := make(chan struct{}, 2)
-
 	// PTY → stream: read from PTY, send as type-0 length-prefixed frames
 	go func() {
-		defer func() { done <- struct{}{} }()
+		defer closeAll()
 		buf := make([]byte, 4096)
 		for {
 			n, readErr := ptmx.Read(buf)
@@ -1054,7 +1080,7 @@ func handleTerminal(stream net.Conn) {
 
 	// Stream → PTY: read length-prefixed frames, dispatch by type
 	go func() {
-		defer func() { done <- struct{}{} }()
+		defer closeAll()
 		for {
 			frame, readErr := readFrame(stream)
 			if readErr != nil {
