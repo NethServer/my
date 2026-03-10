@@ -12,6 +12,7 @@ package tunnel
 import (
 	"io"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -20,8 +21,10 @@ import (
 // WebSocketConn wraps a gorilla/websocket.Conn to implement net.Conn
 // for use with yamux, which requires a net.Conn interface.
 type WebSocketConn struct {
-	conn   *websocket.Conn
-	reader io.Reader
+	conn    *websocket.Conn
+	reader  io.Reader
+	readMu  sync.Mutex
+	writeMu sync.Mutex
 }
 
 // NewWebSocketConn wraps a WebSocket connection as a net.Conn
@@ -29,8 +32,11 @@ func NewWebSocketConn(conn *websocket.Conn) *WebSocketConn {
 	return &WebSocketConn{conn: conn}
 }
 
-// Read reads data from the WebSocket connection
+// Read reads data from the WebSocket connection (concurrency-safe)
 func (wsc *WebSocketConn) Read(b []byte) (int, error) {
+	wsc.readMu.Lock()
+	defer wsc.readMu.Unlock()
+
 	for {
 		if wsc.reader == nil {
 			_, reader, err := wsc.conn.NextReader()
@@ -52,8 +58,11 @@ func (wsc *WebSocketConn) Read(b []byte) (int, error) {
 	}
 }
 
-// Write writes data to the WebSocket connection
+// Write writes data to the WebSocket connection (concurrency-safe)
 func (wsc *WebSocketConn) Write(b []byte) (int, error) {
+	wsc.writeMu.Lock()
+	defer wsc.writeMu.Unlock()
+
 	err := wsc.conn.WriteMessage(websocket.BinaryMessage, b)
 	if err != nil {
 		return 0, err
