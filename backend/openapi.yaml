@@ -9249,7 +9249,7 @@ paths:
       description: |
         Generates a short-lived signed JWT (8h) that grants access to a specific service on a remote
         system through the subdomain-based support proxy. The returned URL uses the format
-        `https://{service}--{session_short}.support.{domain}/` where the token is passed as a query
+        `https://{service}--{session_slug}.support.{domain}/` (where session_slug is the full UUID without dashes) where the token is passed as a query
         parameter on the first request, then stored as an HttpOnly cookie.
       security:
         - BearerAuth: []

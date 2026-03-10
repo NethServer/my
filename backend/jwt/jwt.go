@@ -53,22 +53,26 @@ type ImpersonationClaims struct {
 
 // ProxyTokenClaims represents the claims for support proxy tokens
 type ProxyTokenClaims struct {
-	TokenType   string `json:"token_type"`
-	SessionID   string `json:"session_id"`
-	ServiceName string `json:"service_name"`
-	UserID      string `json:"user_id"`
+	TokenType      string `json:"token_type"`
+	SessionID      string `json:"session_id"`
+	ServiceName    string `json:"service_name"`
+	UserID         string `json:"user_id"`
+	OrgRole        string `json:"org_role"`
+	OrganizationID string `json:"organization_id"`
 	jwt.RegisteredClaims
 }
 
 // GenerateProxyToken creates a short-lived JWT for subdomain-based support proxy access
-func GenerateProxyToken(sessionID, serviceName, userID string) (string, error) {
+func GenerateProxyToken(sessionID, serviceName, userID, orgRole, organizationID string) (string, error) {
 	expDuration := 8 * time.Hour
 
 	claims := ProxyTokenClaims{
-		TokenType:   "proxy",
-		SessionID:   sessionID,
-		ServiceName: serviceName,
-		UserID:      userID,
+		TokenType:      "proxy",
+		SessionID:      sessionID,
+		ServiceName:    serviceName,
+		UserID:         userID,
+		OrgRole:        orgRole,
+		OrganizationID: organizationID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    configuration.Config.JWTIssuer,
 			Subject:   userID,
@@ -131,7 +135,7 @@ func ValidateProxyToken(tokenString string) (*ProxyTokenClaims, error) {
 				Msg("token is not a proxy token")
 			return nil, fmt.Errorf("token is not a proxy token")
 		}
-		if claims.SessionID == "" || claims.ServiceName == "" {
+		if claims.SessionID == "" || claims.ServiceName == "" || claims.OrgRole == "" {
 			logger.ComponentLogger("jwt").Warn().
 				Str("operation", "proxy_token_validation_failed").
 				Str("error_type", "missing_claims").

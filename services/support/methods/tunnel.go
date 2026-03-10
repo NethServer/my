@@ -145,6 +145,7 @@ func HandleTunnel(c *gin.Context) {
 // and reads the service manifest. It continues to listen for manifest updates.
 func acceptControlStream(t *tunnel.Tunnel, systemID, sessionID string) {
 	log := logger.ComponentLogger("tunnel")
+	var lastManifest time.Time
 
 	for {
 		stream, err := t.Session.Accept()
@@ -152,9 +153,15 @@ func acceptControlStream(t *tunnel.Tunnel, systemID, sessionID string) {
 			return // session closed
 		}
 
-		// Decode manifest from the control stream
+		// Rate limit manifest updates (max 1 per 10 seconds, first always accepted)
+		if !lastManifest.IsZero() && time.Since(lastManifest) < 10*time.Second {
+			_ = stream.Close()
+			continue
+		}
+
+		// Decode manifest with size limit to prevent memory exhaustion
 		var manifest tunnel.ServiceManifest
-		decoder := json.NewDecoder(stream)
+		decoder := json.NewDecoder(io.LimitReader(stream, 1<<20)) // 1 MB max
 		if err := decoder.Decode(&manifest); err != nil {
 			log.Warn().Err(err).
 				Str("system_id", systemID).
@@ -167,6 +174,7 @@ func acceptControlStream(t *tunnel.Tunnel, systemID, sessionID string) {
 
 		if manifest.Services != nil {
 			t.SetServices(manifest.Services)
+			lastManifest = time.Now()
 			log.Info().
 				Str("system_id", systemID).
 				Str("session_id", sessionID).
