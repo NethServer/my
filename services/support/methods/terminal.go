@@ -30,7 +30,9 @@ import (
 // Unlike the tunnel upgrader, this rejects cross-origin requests since terminal
 // sessions are initiated by browsers on the MY domain.
 var terminalUpgrader = websocket.Upgrader{
-	CheckOrigin:     func(r *http.Request) bool { return true }, // Internal endpoint, backend proxies the request
+	CheckOrigin: func(r *http.Request) bool {
+		return r.Header.Get("Origin") == "" // Internal endpoint: backend strips Origin before proxying
+	},
 	ReadBufferSize:  4096,
 	WriteBufferSize: 4096,
 }
