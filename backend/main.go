@@ -159,11 +159,16 @@ func main() {
 	// (/alerts/config) or are public and get a small budget below.
 	router.Use(middleware.MaxBodySize(16 << 20))
 
-	// CORS configuration in debug mode
+	// CORS configuration in debug mode: restrict to local development origins (#1)
 	if gin.Mode() == gin.DebugMode {
 		corsConf := cors.DefaultConfig()
 		corsConf.AllowHeaders = []string{"Authorization", "Content-Type", "Accept"}
-		corsConf.AllowAllOrigins = true
+		corsConf.AllowOriginFunc = func(origin string) bool {
+			return strings.HasPrefix(origin, "http://localhost") ||
+				strings.HasPrefix(origin, "https://localhost") ||
+				strings.HasPrefix(origin, "http://127.0.0.1") ||
+				strings.HasPrefix(origin, "https://127.0.0.1")
+		}
 		router.Use(cors.New(corsConf))
 	}
 

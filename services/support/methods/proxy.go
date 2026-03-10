@@ -21,6 +21,7 @@ import (
 	"net/http/httputil"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/gin-gonic/gin"
 
@@ -28,6 +29,13 @@ import (
 	"github.com/nethesis/my/services/support/response"
 	"github.com/nethesis/my/services/support/tunnel"
 )
+
+// globalRewriteBytes tracks the total memory used by concurrent response rewrites (#14).
+// Limits total decompressed memory to prevent coordinated gzip bomb attacks.
+var globalRewriteBytes atomic.Int64
+
+// maxGlobalRewriteBytes is the maximum total memory for concurrent response rewrites (50 MB).
+const maxGlobalRewriteBytes int64 = 50 * 1024 * 1024
 
 // HandleProxy proxies HTTP/WebSocket requests through the yamux tunnel
 // Route: ANY /api/proxy/:session_id/:service/*path (internal, no auth)
@@ -123,6 +131,10 @@ func HandleProxy(c *gin.Context) {
 			// instead of stripping them entirely, to prevent clickjacking
 			resp.Header.Del("X-Frame-Options")
 			resp.Header.Set("Content-Security-Policy", "frame-ancestors 'self'")
+
+			// Rewrite upstream cookies to prevent cross-session leakage (#9):
+			// scope to exact proxy hostname, enforce Secure and SameSite=Strict
+			rewriteUpstreamCookies(resp)
 
 			// Rewrite hardcoded hostnames in text responses so that JS API calls
 			// go through the proxy instead of directly to the original host.
@@ -246,10 +258,32 @@ func buildHostRewriteMap(t *tunnel.Tunnel, currentProxyHost string) map[string]s
 	return rewrites
 }
 
+// rewriteUpstreamCookies rewrites cookies from upstream services to prevent
+// cross-session leakage (#9). Scopes cookies to the exact proxy hostname
+// and enforces Secure + SameSite=Strict flags.
+func rewriteUpstreamCookies(resp *http.Response) {
+	cookies := resp.Cookies()
+	if len(cookies) == 0 {
+		return
+	}
+	resp.Header.Del("Set-Cookie")
+	for _, cookie := range cookies {
+		cookie.Domain = ""
+		cookie.Secure = true
+		cookie.SameSite = http.SameSiteStrictMode
+		resp.Header.Add("Set-Cookie", cookie.String())
+	}
+}
+
 // rewriteResponseBodyMulti replaces all hostname occurrences in the response body
 // using a map of original -> proxy hostnames.
 func rewriteResponseBodyMulti(resp *http.Response, rewrites map[string]string) error {
 	if resp.Body == nil || len(rewrites) == 0 {
+		return nil
+	}
+
+	// Check global memory budget before decompressing (#14)
+	if globalRewriteBytes.Load() >= maxGlobalRewriteBytes {
 		return nil
 	}
 
@@ -279,8 +313,13 @@ func rewriteResponseBodyMulti(resp *http.Response, rewrites map[string]string) e
 	}
 	_ = resp.Body.Close()
 
+	// Track memory usage for concurrent rewrite budget (#14)
+	bodySize := int64(len(body))
+	globalRewriteBytes.Add(bodySize)
+	defer globalRewriteBytes.Add(-bodySize)
+
 	// Skip rewriting for oversized responses
-	if int64(len(body)) > maxRewriteBodySize {
+	if bodySize > maxRewriteBodySize {
 		resp.Body = io.NopCloser(bytes.NewReader(body))
 		return nil
 	}

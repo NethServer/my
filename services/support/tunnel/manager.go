@@ -12,6 +12,7 @@ package tunnel
 import (
 	"fmt"
 	"net"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +22,10 @@ import (
 
 	"github.com/nethesis/my/services/support/logger"
 )
+
+// validHostname matches valid FQDN hostnames and IP addresses.
+// Prevents hostname rewrite injection by rejecting special characters.
+var validHostname = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9._:-]*[a-zA-Z0-9])?$`)
 
 // ServiceInfo describes a service available through the tunnel
 type ServiceInfo struct {
@@ -395,6 +400,16 @@ func (t *Tunnel) SetServices(services map[string]ServiceInfo) {
 				Msg("rejected service with dangerous target")
 			continue
 		}
+		// Validate Host field to prevent hostname rewrite injection (#7):
+		// a malicious Host value could hijack rewrite mappings for other services.
+		if svc.Host != "" && !validHostname.MatchString(svc.Host) {
+			logger.ComponentLogger("tunnel_manager").Warn().
+				Str("system_id", t.SystemID).
+				Str("service", name).
+				Str("host", svc.Host).
+				Msg("rejected service with invalid host value")
+			continue
+		}
 		validated[name] = svc
 	}
 	t.services = validated
@@ -409,7 +424,8 @@ var dangerousHostnames = map[string]bool{
 	"metadata.platformequinix.com": true,
 }
 
-// validateServiceTarget rejects targets pointing to dangerous addresses (#5)
+// validateServiceTarget rejects targets pointing to dangerous addresses.
+// For non-IP hostnames, DNS is resolved to block DNS rebinding attacks (#2).
 func validateServiceTarget(target string) error {
 	if target == "" {
 		return fmt.Errorf("empty target")
@@ -427,9 +443,26 @@ func validateServiceTarget(target string) error {
 
 	ip := net.ParseIP(host)
 	if ip == nil {
-		return nil // regular hostname, allowed
+		// Resolve DNS to prevent rebinding attacks: a hostname that resolves
+		// to a benign IP at registration time could later resolve to a
+		// dangerous IP (e.g., 169.254.169.254) when the operator connects.
+		ips, lookupErr := net.LookupIP(host)
+		if lookupErr != nil {
+			return fmt.Errorf("DNS resolution failed for %s: %w", host, lookupErr)
+		}
+		for _, resolvedIP := range ips {
+			if err := validateIP(resolvedIP); err != nil {
+				return fmt.Errorf("hostname %s resolves to blocked address: %w", host, err)
+			}
+		}
+		return nil
 	}
 
+	return validateIP(ip)
+}
+
+// validateIP checks a single IP address against blocked ranges
+func validateIP(ip net.IP) error {
 	// Block unspecified address (0.0.0.0, ::)
 	if ip.IsUnspecified() {
 		return fmt.Errorf("unspecified address blocked: %s", ip)
@@ -456,11 +489,6 @@ func validateServiceTarget(target string) error {
 		// Block IPv6 link-local (fe80::/10)
 		if ip.IsLinkLocalUnicast() {
 			return fmt.Errorf("IPv6 link-local address blocked: %s", ip)
-		}
-
-		// Block IPv6 loopback (::1)
-		if ip.IsLoopback() {
-			return fmt.Errorf("IPv6 loopback address blocked: %s", ip)
 		}
 
 		// Block IPv6 multicast (ff00::/8)

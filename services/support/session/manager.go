@@ -23,7 +23,12 @@ import (
 	"github.com/nethesis/my/services/support/models"
 )
 
-// GenerateToken creates a cryptographically secure session token
+// GenerateToken creates a cryptographically secure session token.
+// Tokens are stored in plaintext in the database because they serve as a shared
+// secret for inter-service communication (backend reads them to authenticate
+// requests to the support service). The 256-bit entropy makes brute-forcing
+// infeasible; the primary risk is a full database compromise, which would
+// expose all session data regardless of token hashing.
 func GenerateToken() (string, error) {
 	bytes := make([]byte, 32)
 	if _, err := rand.Read(bytes); err != nil {

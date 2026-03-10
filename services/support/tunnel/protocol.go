@@ -12,12 +12,21 @@ package tunnel
 import (
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 )
 
+// validServiceNamePattern validates service names against injection attacks.
+// Rejects names with newlines or control characters that could desync the CONNECT protocol.
+var validServiceNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
+
 // WriteConnectHeader writes a CONNECT request header to the stream.
 // Format: "CONNECT <serviceName>\n"
+// Validates the service name to prevent newline injection (#17).
 func WriteConnectHeader(w io.Writer, serviceName string) error {
+	if !validServiceNamePattern.MatchString(serviceName) {
+		return fmt.Errorf("invalid service name: %q", serviceName)
+	}
 	_, err := fmt.Fprintf(w, "CONNECT %s\n", serviceName)
 	return err
 }
