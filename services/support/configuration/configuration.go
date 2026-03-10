@@ -47,6 +47,9 @@ type Configuration struct {
 	// Terminal configuration
 	TerminalInactivityTimeout time.Duration `json:"terminal_inactivity_timeout"`
 	TerminalMaxFrameSize      int           `json:"terminal_max_frame_size"`
+
+	// Internal authentication (shared secret with backend)
+	InternalSecret string `json:"-"`
 }
 
 // Config is the global configuration instance
@@ -85,6 +88,9 @@ func Init() {
 	// Terminal configuration
 	Config.TerminalInactivityTimeout = parseDurationWithDefault("TERMINAL_INACTIVITY_TIMEOUT", 30*time.Minute)
 	Config.TerminalMaxFrameSize = parseIntWithDefault("TERMINAL_MAX_FRAME_SIZE", 65536)
+
+	// Internal authentication
+	Config.InternalSecret = os.Getenv("INTERNAL_SECRET")
 
 	logger.LogConfigLoad("env", "configuration", true, nil)
 }

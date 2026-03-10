@@ -32,6 +32,30 @@ import (
 	"github.com/nethesis/my/services/support/response"
 )
 
+// InternalSecretMiddleware validates the X-Internal-Secret header (#4).
+// Provides defense-in-depth: even if a session token leaks, the caller
+// must also know the shared internal secret to access tunnel endpoints.
+func InternalSecretMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		secret := configuration.Config.InternalSecret
+		if secret == "" {
+			c.Next()
+			return
+		}
+		provided := c.GetHeader("X-Internal-Secret")
+		if subtle.ConstantTimeCompare([]byte(provided), []byte(secret)) != 1 {
+			logger.Warn().
+				Str("client_ip", c.ClientIP()).
+				Str("path", c.Request.URL.Path).
+				Msg("invalid or missing internal secret")
+			c.JSON(http.StatusForbidden, response.Error(http.StatusForbidden, "forbidden", nil))
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
 // SessionTokenMiddleware validates the X-Session-Token header for
 // internal endpoints. Each request is tied to a specific active session
 // via the session_id URL parameter, eliminating the single shared secret.

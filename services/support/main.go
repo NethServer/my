@@ -133,9 +133,9 @@ func main() {
 	// Tunnel endpoint (WebSocket, requires system Basic Auth, rate-limited per IP + per system_key)
 	api.GET("/tunnel", middleware.TunnelRateLimitMiddleware(), middleware.BasicAuthMiddleware(), middleware.SystemKeyRateLimitMiddleware(), methods.HandleTunnel)
 
-	// Internal endpoints: require per-session token from backend (#3/#4)
+	// Internal endpoints: require internal secret + per-session token from backend (#3/#4)
 	internal := api.Group("/")
-	internal.Use(middleware.SessionTokenMiddleware(), middleware.SessionRateLimitMiddleware())
+	internal.Use(middleware.InternalSecretMiddleware(), middleware.SessionTokenMiddleware(), middleware.SessionRateLimitMiddleware())
 
 	internal.GET("/terminal/:session_id", methods.HandleTerminal)
 	internal.GET("/proxy/:session_id/services", methods.ListServices)
