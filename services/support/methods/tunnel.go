@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -24,6 +25,9 @@ import (
 	"github.com/nethesis/my/services/support/session"
 	"github.com/nethesis/my/services/support/tunnel"
 )
+
+// nodeIDPattern validates node_id query parameter (numeric, max 10 digits)
+var nodeIDPattern = regexp.MustCompile(`^[0-9]{1,10}$`)
 
 var (
 	// TunnelManager is the global tunnel manager instance
@@ -50,6 +54,15 @@ func HandleTunnel(c *gin.Context) {
 
 	sysID := systemID.(string)
 	nodeID := c.Query("node_id")
+
+	// Validate node_id format to prevent memory abuse from crafted values (#20)
+	if nodeID != "" {
+		if len(nodeID) > 10 || !nodeIDPattern.MatchString(nodeID) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid node_id format"})
+			return
+		}
+	}
+
 	log := logger.RequestLogger(c, "tunnel")
 
 	// #8: Check for reconnect token when reusing an existing session during grace period
