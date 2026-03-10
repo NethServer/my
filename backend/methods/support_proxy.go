@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -30,8 +31,19 @@ import (
 	"github.com/nethesis/my/backend/response"
 )
 
+// validServiceName validates service names against path traversal and injection attacks
+var validServiceName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
+
 // internalTransport is a shared HTTP transport for internal service communication
 var internalTransport = &http.Transport{
+	TLSClientConfig: &tls.Config{
+		InsecureSkipVerify: true, //nolint:gosec // Internal service communication
+	},
+}
+
+// internalTransportNoCompression is a shared HTTP transport that preserves upstream encoding
+var internalTransportNoCompression = &http.Transport{
+	DisableCompression: true,
 	TLSClientConfig: &tls.Config{
 		InsecureSkipVerify: true, //nolint:gosec // Internal service communication
 	},
@@ -395,6 +407,11 @@ func ProxySupportSession(c *gin.Context) {
 		return
 	}
 
+	if !validServiceName.MatchString(serviceName) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid service name", nil))
+		return
+	}
+
 	if session := getActiveSession(c, sessionID); session == nil {
 		return
 	}
@@ -451,20 +468,24 @@ func GenerateSupportProxyToken(c *gin.Context) {
 		return
 	}
 
-	userID, _, _, _ := helpers.GetUserContextExtended(c)
-	token, err := customjwt.GenerateProxyToken(sessionID, req.Service, userID)
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+
+	if !validServiceName.MatchString(req.Service) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid service name", nil))
+		return
+	}
+
+	token, err := customjwt.GenerateProxyToken(sessionID, req.Service, userID, userOrgRole, userOrgID)
 	if err != nil {
 		logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to generate proxy token")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to generate proxy token", nil))
 		return
 	}
 
-	// Build subdomain URL: {service}--{session_id[:12]}.support.{domain}
-	shortID := sessionID
-	if len(shortID) > 12 {
-		shortID = shortID[:12]
-	}
-	subdomain := fmt.Sprintf("%s--%s.support.%s", req.Service, shortID, configuration.Config.SupportProxyDomain)
+	// Build subdomain URL: {service}--{session_slug}.support.{domain}
+	// Use full UUID without dashes for exact matching (32 hex chars)
+	sessionSlug := strings.ReplaceAll(sessionID, "-", "")
+	subdomain := fmt.Sprintf("%s--%s.support.%s", req.Service, sessionSlug, configuration.Config.SupportProxyDomain)
 	proxyURL := fmt.Sprintf("https://%s/", subdomain)
 
 	logAccess(c, sessionID, "ui_proxy", req.Service)
@@ -493,16 +514,21 @@ func SubdomainProxy(c *gin.Context) {
 		hostOnly = h
 	}
 
-	var serviceName, sessionShort string
+	var serviceName, sessionSlug string
 	if parts := strings.SplitN(hostOnly, ".support.", 2); len(parts) == 2 {
 		if subParts := strings.SplitN(parts[0], "--", 2); len(subParts) == 2 {
 			serviceName = subParts[0]
-			sessionShort = subParts[1]
+			sessionSlug = subParts[1]
 		}
 	}
 
-	if serviceName == "" || sessionShort == "" {
+	if serviceName == "" || sessionSlug == "" {
 		c.JSON(http.StatusBadRequest, response.BadRequest("invalid support proxy subdomain", nil))
+		return
+	}
+
+	if !validServiceName.MatchString(serviceName) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid service name in subdomain", nil))
 		return
 	}
 
@@ -532,8 +558,9 @@ func SubdomainProxy(c *gin.Context) {
 		return
 	}
 
-	// Validate that the token's session ID matches the subdomain short ID
-	if !strings.HasPrefix(claims.SessionID, sessionShort) {
+	// Validate that the token's session ID (without dashes) matches the subdomain slug exactly
+	tokenSessionSlug := strings.ReplaceAll(claims.SessionID, "-", "")
+	if tokenSessionSlug != sessionSlug {
 		c.JSON(http.StatusForbidden, response.Error(http.StatusForbidden, "proxy token does not match this session", nil))
 		return
 	}
@@ -543,6 +570,7 @@ func SubdomainProxy(c *gin.Context) {
 	// If token came from query param, set cookie and redirect to same path without token
 	if fromQueryParam {
 		secureCookie := !strings.HasPrefix(configuration.Config.AppURL, "http://")
+		c.SetSameSite(http.SameSiteStrictMode)
 		c.SetCookie("support_proxy", tokenString, 8*60*60, "/", hostOnly, secureCookie, true)
 
 		redirectPath := path
@@ -551,13 +579,14 @@ func SubdomainProxy(c *gin.Context) {
 		if encoded := q.Encode(); encoded != "" {
 			redirectPath = redirectPath + "?" + encoded
 		}
+		c.Header("Referrer-Policy", "no-referrer")
 		c.Redirect(http.StatusFound, redirectPath)
 		return
 	}
 
-	// Verify session is still active
+	// Verify session is still active using the token's org context
 	repo := entities.NewSupportRepository()
-	session, err := repo.GetSessionByID(sessionID, "owner", "")
+	session, err := repo.GetSessionByID(sessionID, claims.OrgRole, claims.OrganizationID)
 	if err != nil || session == nil {
 		c.JSON(http.StatusNotFound, response.NotFound("support session not found", nil))
 		return
@@ -609,12 +638,7 @@ func SubdomainProxy(c *gin.Context) {
 			resp.Header.Del("Access-Control-Allow-Methods")
 			return nil
 		},
-		Transport: &sessionTokenTransport{inner: &http.Transport{
-			DisableCompression: true,
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true, //nolint:gosec // Internal service communication
-			},
-		}, sessionToken: sessionToken},
+		Transport: &sessionTokenTransport{inner: internalTransportNoCompression, sessionToken: sessionToken},
 	}
 
 	proxy.ServeHTTP(c.Writer, c.Request)

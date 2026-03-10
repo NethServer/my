@@ -200,8 +200,8 @@ func isRewritableResponse(resp *http.Response) bool {
 		strings.Contains(ct, "text/css")
 }
 
-// maxRewriteBodySize is the maximum response body size for hostname rewriting (50 MB).
-const maxRewriteBodySize = 50 * 1024 * 1024
+// maxRewriteBodySize is the maximum response body size for hostname rewriting (5 MB).
+const maxRewriteBodySize = 5 * 1024 * 1024
 
 // buildHostRewriteMap creates a map of original hostname -> proxy hostname for all
 // services in the tunnel. This enables multi-hostname rewriting: when proxying
@@ -264,7 +264,8 @@ func rewriteResponseBodyMulti(resp *http.Response, rewrites map[string]string) e
 		if err != nil {
 			return err
 		}
-		body, err = io.ReadAll(gr)
+		// Limit decompressed size to prevent gzip bombs
+		body, err = io.ReadAll(io.LimitReader(gr, maxRewriteBodySize+1))
 		_ = gr.Close()
 		if err != nil {
 			return err

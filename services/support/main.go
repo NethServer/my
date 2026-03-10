@@ -135,7 +135,7 @@ func main() {
 
 	// Internal endpoints: require per-session token from backend (#3/#4)
 	internal := api.Group("/")
-	internal.Use(middleware.SessionTokenMiddleware())
+	internal.Use(middleware.SessionTokenMiddleware(), middleware.SessionRateLimitMiddleware())
 
 	internal.GET("/terminal/:session_id", methods.HandleTerminal)
 	internal.GET("/proxy/:session_id/services", methods.ListServices)
