@@ -108,7 +108,7 @@ interface InventoryData {
 //   zone_network_counts: Record<string, number>
 // }
 
-//// remove?
+//// fix network card, then remove
 export interface EsmithConfiguration {
   name: string
   type: string

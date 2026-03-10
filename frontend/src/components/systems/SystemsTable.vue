@@ -17,6 +17,7 @@ import {
   faCirclePause,
   faCirclePlay,
   faBomb,
+  faTriangleExclamation,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -641,6 +642,23 @@ function onCloseSecretRegeneratedModal() {
                 {{ t(`systems.status_${item.status}`) }}
               </template>
               <span v-else>-</span>
+              <!-- no inventory warning (do not show for pending/unknown status) -->
+              <NeTooltip
+                v-if="!item.last_inventory && item.status !== 'unknown'"
+                trigger-event="mouseenter focus"
+                placement="top"
+              >
+                <template #trigger>
+                  <FontAwesomeIcon
+                    :icon="faTriangleExclamation"
+                    class="size-4 text-amber-700 dark:text-amber-500"
+                    aria-hidden="true"
+                  />
+                </template>
+                <template #content>
+                  {{ $t('system_detail.no_inventory_available') }}
+                </template>
+              </NeTooltip>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
