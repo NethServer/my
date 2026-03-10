@@ -175,6 +175,9 @@ func InvalidateAuthCache(ctx context.Context, systemKey string) {
 	for iter.Next(ctx) {
 		_ = rdb.Del(ctx, iter.Val()).Err()
 	}
+	if err := iter.Err(); err != nil {
+		logger.Warn().Err(err).Str("system_key", systemKey).Msg("redis scan error during cache invalidation")
+	}
 }
 
 // StartAuthCacheInvalidator listens for cache invalidation events via Redis pub/sub.

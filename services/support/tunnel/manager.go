@@ -53,6 +53,7 @@ type Tunnel struct {
 	WsConn          WsCloser // underlying WebSocket for sending close frames
 	ConnectedAt     time.Time
 	done            chan struct{}
+	closeOnce       sync.Once
 	services        map[string]ServiceInfo
 	servicesMu      sync.RWMutex
 	activeStreams   int64
@@ -246,20 +247,26 @@ func (m *Manager) List() []TunnelInfo {
 // frame so the tunnel-client knows not to reconnect.
 func (m *Manager) CloseBySessionID(sessionID string) bool {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
+	var found *Tunnel
 	for key, t := range m.tunnels {
 		if t.SessionID == sessionID {
-			t.GracefulClose()
+			found = t
 			delete(m.tunnels, key)
-			logger.ComponentLogger("tunnel_manager").Info().
-				Str("system_id", t.SystemID).
-				Str("session_id", sessionID).
-				Msg("tunnel gracefully closed by session ID")
-			return true
+			break
 		}
 	}
-	return false
+	m.mu.Unlock()
+
+	if found == nil {
+		return false
+	}
+
+	found.GracefulClose()
+	logger.ComponentLogger("tunnel_manager").Info().
+		Str("system_id", found.SystemID).
+		Str("session_id", sessionID).
+		Msg("tunnel gracefully closed by session ID")
+	return true
 }
 
 // StartGracePeriod begins a grace period for a disconnected tunnel.
@@ -333,18 +340,14 @@ func (m *Manager) CloseAll() {
 	logger.ComponentLogger("tunnel_manager").Info().Msg("all tunnels closed")
 }
 
-// Close closes the tunnel's yamux session
+// Close closes the tunnel's yamux session (concurrency-safe via sync.Once)
 func (t *Tunnel) Close() {
-	select {
-	case <-t.done:
-		return // already closed
-	default:
+	t.closeOnce.Do(func() {
 		close(t.done)
-	}
-
-	if t.Session != nil {
-		_ = t.Session.Close()
-	}
+		if t.Session != nil {
+			_ = t.Session.Close()
+		}
+	})
 }
 
 // GracefulClose sends a WebSocket close frame with CloseCodeSessionClosed
@@ -364,14 +367,25 @@ func (t *Tunnel) Done() <-chan struct{} {
 	return t.done
 }
 
+// maxServicesPerManifest caps the number of services a tunnel client can advertise
+const maxServicesPerManifest = 500
+
 // SetServices updates the services available through this tunnel.
 // Services with dangerous targets (cloud metadata, link-local) are rejected.
+// The manifest is capped at maxServicesPerManifest entries.
 func (t *Tunnel) SetServices(services map[string]ServiceInfo) {
 	t.servicesMu.Lock()
 	defer t.servicesMu.Unlock()
 
 	validated := make(map[string]ServiceInfo, len(services))
 	for name, svc := range services {
+		if len(validated) >= maxServicesPerManifest {
+			logger.ComponentLogger("tunnel_manager").Warn().
+				Str("system_id", t.SystemID).
+				Int("max", maxServicesPerManifest).
+				Msg("service manifest truncated at max limit")
+			break
+		}
 		if err := validateServiceTarget(svc.Target); err != nil {
 			logger.ComponentLogger("tunnel_manager").Warn().
 				Str("system_id", t.SystemID).

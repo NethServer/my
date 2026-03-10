@@ -34,43 +34,71 @@ func GenerateToken() (string, error) {
 
 // CreateSession creates a new support session for a system.
 // nodeID identifies the cluster node (empty for single-node systems).
-// Enforces a maximum number of active sessions per system.
+// Enforces a maximum number of active sessions per system atomically within a transaction.
 // Closes any existing active/pending sessions for the same system+node to prevent orphans.
 func CreateSession(systemID, nodeID string) (*models.SupportSession, error) {
-	// Close any existing active/pending sessions for this system+node combination.
-	// This prevents orphaned sessions when a client reconnects without a valid reconnect token.
-	var closeQuery string
-	var closeArgs []interface{}
-	if nodeID == "" {
-		closeQuery = `UPDATE support_sessions
-		 SET status = 'closed', closed_at = NOW(), closed_by = 'replaced', updated_at = NOW()
-		 WHERE system_id = $1 AND node_id IS NULL AND status IN ('pending', 'active')`
-		closeArgs = []interface{}{systemID}
-	} else {
-		closeQuery = `UPDATE support_sessions
-		 SET status = 'closed', closed_at = NOW(), closed_by = 'replaced', updated_at = NOW()
-		 WHERE system_id = $1 AND node_id = $2 AND status IN ('pending', 'active')`
-		closeArgs = []interface{}{systemID, nodeID}
-	}
-	result, err := database.DB.Exec(closeQuery, closeArgs...)
+	log := logger.ComponentLogger("session")
+
+	token, err := GenerateToken()
 	if err != nil {
-		logger.ComponentLogger("session").Warn().Err(err).
+		return nil, err
+	}
+
+	reconnectToken, err := GenerateToken()
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	expiresAt := now.Add(configuration.Config.SessionDefaultDuration)
+	maxSessions := configuration.Config.MaxSessionsPerSystem
+
+	// Use NULL for empty node_id
+	var nodeIDParam interface{}
+	if nodeID != "" {
+		nodeIDParam = nodeID
+	}
+
+	// Use a transaction to atomically close orphans, check limits, and insert
+	tx, err := database.DB.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// Close any existing active/pending sessions for this system+node combination
+	var closeResult sql.Result
+	if nodeID == "" {
+		closeResult, err = tx.Exec(
+			`UPDATE support_sessions
+			 SET status = 'closed', closed_at = NOW(), closed_by = 'replaced', updated_at = NOW()
+			 WHERE system_id = $1 AND node_id IS NULL AND status IN ('pending', 'active')`,
+			systemID,
+		)
+	} else {
+		closeResult, err = tx.Exec(
+			`UPDATE support_sessions
+			 SET status = 'closed', closed_at = NOW(), closed_by = 'replaced', updated_at = NOW()
+			 WHERE system_id = $1 AND node_id = $2 AND status IN ('pending', 'active')`,
+			systemID, nodeID,
+		)
+	}
+	if err != nil {
+		log.Warn().Err(err).
 			Str("system_id", systemID).Str("node_id", nodeID).
 			Msg("failed to close existing sessions before creating new one")
-	} else if rows, _ := result.RowsAffected(); rows > 0 {
-		logger.ComponentLogger("session").Info().
+	} else if rows, _ := closeResult.RowsAffected(); rows > 0 {
+		log.Info().
 			Str("system_id", systemID).Str("node_id", nodeID).
 			Int64("closed_count", rows).
 			Msg("closed orphaned sessions before creating new one")
 	}
 
-	// Enforce per-system session limit
-	maxSessions := configuration.Config.MaxSessionsPerSystem
+	// Check session limit within the transaction (atomic with the close + insert)
 	if maxSessions > 0 {
 		var activeCount int
-		err := database.DB.QueryRow(
-			`SELECT COUNT(*) FROM support_sessions
-			 WHERE system_id = $1 AND status IN ('pending', 'active')`,
+		err = tx.QueryRow(
+			`SELECT COUNT(*) FROM support_sessions WHERE system_id = $1 AND status IN ('pending', 'active')`,
 			systemID,
 		).Scan(&activeCount)
 		if err != nil {
@@ -81,28 +109,9 @@ func CreateSession(systemID, nodeID string) (*models.SupportSession, error) {
 		}
 	}
 
-	token, err := GenerateToken()
-	if err != nil {
-		return nil, err
-	}
-
-	now := time.Now()
-	expiresAt := now.Add(configuration.Config.SessionDefaultDuration)
-
-	reconnectToken, err := GenerateToken()
-	if err != nil {
-		return nil, err
-	}
-
-	// Use NULL for empty node_id
-	var nodeIDParam interface{}
-	if nodeID != "" {
-		nodeIDParam = nodeID
-	}
-
 	var session models.SupportSession
 	var scannedNodeID sql.NullString
-	err = database.DB.QueryRow(
+	err = tx.QueryRow(
 		`INSERT INTO support_sessions (system_id, node_id, session_token, reconnect_token, started_at, expires_at, status)
 		 VALUES ($1, $2, $3, $4, $5, $6, 'pending')
 		 RETURNING id, system_id, node_id, session_token, reconnect_token, started_at, expires_at, status, created_at, updated_at`,
@@ -115,11 +124,16 @@ func CreateSession(systemID, nodeID string) (*models.SupportSession, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit session creation: %w", err)
+	}
+
 	if scannedNodeID.Valid {
 		session.NodeID = scannedNodeID.String
 	}
 
-	logger.ComponentLogger("session").Info().
+	log.Info().
 		Str("session_id", session.ID).
 		Str("system_id", systemID).
 		Str("node_id", nodeID).
