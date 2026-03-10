@@ -20,6 +20,12 @@ import (
 	"github.com/nethesis/my/services/support/response"
 )
 
+// NOTE: Rate limiters are in-process (not distributed). If the support service
+// is scaled to multiple instances behind a load balancer, rate limits multiply
+// by N instances. The support service is designed to run as a single instance
+// (stateful tunnel management in memory), so this is acceptable. If horizontal
+// scaling is needed, migrate to Redis-based rate limiting with INCR+EXPIRE.
+
 type rateLimitEntry struct {
 	count   int
 	resetAt time.Time

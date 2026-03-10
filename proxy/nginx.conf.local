@@ -23,13 +23,13 @@ http {
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
-    add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' wss:; img-src 'self' data:; frame-ancestors 'self';" always;
 
     # Support subdomain proxy — *.support.{domain}
     server {
         listen 8080;
-        server_name ~^.+\.support\..*;
+        server_name ~^.+\.support\.my\.localtest\.me$;
 
         location / {
             rewrite ^(.*)$ /support-proxy$1 break;

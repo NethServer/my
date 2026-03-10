@@ -1008,6 +1008,38 @@ func (w *wsNetConn) SetDeadline(t time.Time) error {
 func (w *wsNetConn) SetReadDeadline(t time.Time) error  { return w.conn.SetReadDeadline(t) }
 func (w *wsNetConn) SetWriteDeadline(t time.Time) error { return w.conn.SetWriteDeadline(t) }
 
+// sensitiveEnvPrefixes lists environment variable prefixes that are stripped
+// from the PTY shell to prevent operators from extracting credentials (#8).
+var sensitiveEnvPrefixes = []string{
+	"SYSTEM_KEY=",
+	"SYSTEM_SECRET=",
+	"SUPPORT_URL=",
+	"DATABASE_URL=",
+	"REDIS_ADDR=",
+	"REDIS_PASSWORD=",
+	"REDIS_URL=",
+	"INTERNAL_SECRET=",
+	"TUNNEL_CONFIG=",
+}
+
+// sanitizeEnv filters out sensitive environment variables before spawning a shell
+func sanitizeEnv(env []string) []string {
+	filtered := make([]string, 0, len(env))
+	for _, e := range env {
+		sensitive := false
+		for _, prefix := range sensitiveEnvPrefixes {
+			if strings.HasPrefix(e, prefix) {
+				sensitive = true
+				break
+			}
+		}
+		if !sensitive {
+			filtered = append(filtered, e)
+		}
+	}
+	return filtered
+}
+
 func envWithDefault(key, defaultValue string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
@@ -1036,7 +1068,7 @@ func handleTerminal(stream net.Conn) {
 	}
 
 	cmd := exec.Command(shell)
-	cmd.Env = append(os.Environ(), defaultTermEnv)
+	cmd.Env = append(sanitizeEnv(os.Environ()), defaultTermEnv)
 
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
