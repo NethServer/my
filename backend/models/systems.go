@@ -51,6 +51,9 @@ type System struct {
 	LastHeartbeat    *time.Time        `json:"last_heartbeat,omitempty"` // Last heartbeat timestamp
 	LastInventory    *time.Time        `json:"last_inventory,omitempty"` // Last inventory timestamp (NULL = never received)
 
+	// Support session info (populated by query)
+	SupportSessionID *string `json:"support_session_id"`
+
 	// Rebranding info (populated by handler)
 	RebrandingEnabled bool    `json:"rebranding_enabled"`
 	RebrandingOrgID   *string `json:"rebranding_org_id,omitempty"`
