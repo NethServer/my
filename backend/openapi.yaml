@@ -6554,9 +6554,6 @@ paths:
                         format: date-time
                         description: Timestamp when system was registered
                         example: "2025-11-06T10:30:00Z"
-                      message:
-                        type: string
-                        example: "system registered successfully"
         '400':
           description: Invalid system secret format
           content:

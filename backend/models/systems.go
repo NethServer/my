@@ -86,7 +86,6 @@ type RegisterSystemRequest struct {
 type RegisterSystemResponse struct {
 	SystemKey    string    `json:"system_key" structs:"system_key"`
 	RegisteredAt time.Time `json:"registered_at" structs:"registered_at"`
-	Message      string    `json:"message" structs:"message"`
 }
 
 // TrendDataPoint represents a single data point in a trend chart

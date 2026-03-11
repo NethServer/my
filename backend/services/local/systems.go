@@ -720,7 +720,6 @@ func (s *LocalSystemsService) RegisterSystem(systemSecret string) (*models.Regis
 	return &models.RegisterSystemResponse{
 		SystemKey:    systemKey,
 		RegisteredAt: now,
-		Message:      "system registered successfully",
 	}, nil
 }
 
