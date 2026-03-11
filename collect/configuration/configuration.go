@@ -81,6 +81,9 @@ type Configuration struct {
 
 	// Heartbeat monitoring configuration
 	HeartbeatTimeoutMinutes int `json:"heartbeat_timeout_minutes"`
+
+	// Mimir configuration
+	MimirURL string `json:"mimir_url"`
 }
 
 var Config = Configuration{}
@@ -162,6 +165,13 @@ func Init() {
 
 	// Heartbeat monitoring configuration
 	Config.HeartbeatTimeoutMinutes = parseIntWithDefault("HEARTBEAT_TIMEOUT_MINUTES", 10)
+
+	// Mimir configuration
+	if mimirURL := os.Getenv("MIMIR_URL"); mimirURL != "" {
+		Config.MimirURL = mimirURL
+	} else {
+		Config.MimirURL = "http://localhost:9009"
+	}
 
 	// Log successful configuration load
 	logger.LogConfigLoad("env", "configuration", true, nil)

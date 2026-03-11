@@ -131,6 +131,7 @@ plugins:
             Systems Management: Gestione Sistemi
             System Registration: Registrazione Sistema
             Inventory & Heartbeat: Inventario e Heartbeat
+            Alerting: Alerting
             Developer Documentation: Documentazione Sviluppatori
             Main Project: Progetto Principale
             Backend API: API Backend
@@ -172,6 +173,7 @@ nav:
           - Systems Management: 04-systems.md
           - System Registration: 05-system-registration.md
           - Inventory & Heartbeat: 06-inventory-heartbeat.md
+          - Alerting: 08-alerting.md
   - Developer Documentation:
       - Main Project: https://github.com/NethServer/my/blob/main/README.md
       - Backend API: https://github.com/NethServer/my/blob/main/backend/README.md
