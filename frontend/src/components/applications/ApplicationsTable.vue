@@ -24,7 +24,6 @@ import {
   NeEmptyState,
   NeInlineNotification,
   NeTextInput,
-  NeSpinner,
   NeDropdown,
   type SortEvent,
   NeTooltip,
@@ -48,6 +47,7 @@ import OrganizationLink from './OrganizationLink.vue'
 import { useApplicationFilters } from '@/queries/applications/applicationFilters'
 import { buildVersionFilterOptions } from '@/lib/applications/applicationFilters'
 import router from '@/router'
+import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 
 const { t } = useI18n()
 const {
@@ -309,15 +309,7 @@ const goToApplicationDetails = (application: Application) => {
             </NeButton>
           </div>
           <!-- update indicator -->
-          <div
-            v-if="asyncStatus === 'loading' && state.status !== 'pending'"
-            class="relative -top-2 flex items-center gap-2"
-          >
-            <NeSpinner color="white" />
-            <div class="text-gray-500 dark:text-gray-400">
-              {{ $t('common.updating') }}
-            </div>
-          </div>
+          <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
         </div>
       </div>
       <!-- no application matching filter -->

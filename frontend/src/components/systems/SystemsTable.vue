@@ -32,7 +32,6 @@ import {
   NeEmptyState,
   NeInlineNotification,
   NeTextInput,
-  NeSpinner,
   NeDropdown,
   type SortEvent,
   NeSortDropdown,
@@ -63,6 +62,7 @@ import SuspendSystemModal from './SuspendSystemModal.vue'
 import ReactivateSystemModal from './ReactivateSystemModal.vue'
 import DestroySystemModal from './DestroySystemModal.vue'
 import SystemStatusIcon from './SystemStatusIcon.vue'
+import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -384,7 +384,7 @@ function onCloseSecretRegeneratedModal() {
     />
     <!-- table toolbar -->
     <div class="mb-6 flex items-center gap-4">
-      <div class="flex w-full items-center justify-between gap-4">
+      <div class="flex w-full items-end justify-between gap-4">
         <!-- filters -->
         <div class="flex flex-wrap items-center gap-4">
           <!-- text filter -->
@@ -483,15 +483,7 @@ function onCloseSecretRegeneratedModal() {
           </NeButton>
         </div>
         <!-- update indicator -->
-        <div
-          v-if="asyncStatus === 'loading' && state.status !== 'pending'"
-          class="flex items-center gap-2"
-        >
-          <NeSpinner color="white" />
-          <div class="text-gray-500 dark:text-gray-400">
-            {{ $t('common.updating') }}
-          </div>
-        </div>
+        <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
       </div>
     </div>
     <!-- empty state -->
