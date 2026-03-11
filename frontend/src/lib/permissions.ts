@@ -1,4 +1,4 @@
-//  Copyright (C) 2025 Nethesis S.r.l.
+//  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import { useLoginStore } from '@/stores/login'
@@ -21,6 +21,7 @@ const DESTROY_RESELLERS = 'destroy:resellers'
 const DESTROY_CUSTOMERS = 'destroy:customers'
 const DESTROY_USERS = 'destroy:users'
 const DESTROY_SYSTEMS = 'destroy:systems'
+const CONNECT_SYSTEMS = 'connect:systems'
 
 export const canReadDistributors = () => {
   const loginStore = useLoginStore()
@@ -110,4 +111,9 @@ export const canDestroyUsers = () => {
 export const canDestroySystems = () => {
   const loginStore = useLoginStore()
   return loginStore.permissions.includes(DESTROY_SYSTEMS)
+}
+
+export const canConnectSystems = () => {
+  const loginStore = useLoginStore()
+  return loginStore.permissions.includes(CONNECT_SYSTEMS)
 }

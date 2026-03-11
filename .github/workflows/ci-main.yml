@@ -17,11 +17,19 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        component: [backend, sync, collect]
+        include:
+          - component: backend
+            path: backend
+          - component: sync
+            path: sync
+          - component: collect
+            path: collect
+          - component: support
+            path: services/support
 
     defaults:
       run:
-        working-directory: ${{ matrix.component }}
+        working-directory: ${{ matrix.path }}
 
     steps:
     - uses: actions/checkout@v4
@@ -38,7 +46,7 @@ jobs:
         path: |
           ~/.cache/go-build
           ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ matrix.component }}-${{ hashFiles(format('{0}/go.sum', matrix.component)) }}
+        key: ${{ runner.os }}-go-${{ matrix.component }}-${{ hashFiles(format('{0}/go.sum', matrix.path)) }}
         restore-keys: |
           ${{ runner.os }}-go-${{ matrix.component }}-
 
@@ -52,7 +60,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.component }}-coverage
-        path: ${{ matrix.component }}/coverage.out
+        path: ${{ matrix.path }}/coverage.out
         retention-days: 30
 
     - name: Run go vet
@@ -70,7 +78,7 @@ jobs:
       uses: golangci/golangci-lint-action@v6
       with:
         version: latest
-        working-directory: ${{ matrix.component }}
+        working-directory: ${{ matrix.path }}
         args: --timeout=10m
 
   # ===========================================================================
@@ -137,6 +145,11 @@ jobs:
             context: proxy
           - component: mimir
             context: services/mimir
+          - component: support
+            context: services/support
+          - component: tunnel-client
+            context: services/support
+            containerfile: Containerfile.tunnel-client
 
     steps:
     - uses: actions/checkout@v4
@@ -166,7 +179,7 @@ jobs:
       uses: docker/build-push-action@v5
       with:
         context: ${{ matrix.context }}
-        file: ${{ matrix.context }}/Containerfile
+        file: ${{ matrix.context }}/${{ matrix.containerfile || 'Containerfile' }}
         platforms: linux/amd64
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.meta.outputs.tags }}
@@ -195,3 +208,58 @@ jobs:
       with:
         sarif_file: 'trivy-${{ matrix.component }}-results.sarif'
         category: 'trivy-${{ matrix.component }}'
+
+  # ===========================================================================
+  # TUNNEL CLIENT BINARY - Rolling dev release (only on main push)
+  # ===========================================================================
+  tunnel-client-binary:
+    runs-on: ubuntu-latest
+    needs: [go-tests, frontend-tests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+        cache: false
+
+    - name: Build tunnel-client binary
+      working-directory: services/support
+      run: |
+        COMMIT="${{ github.sha }}"
+        BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        LDFLAGS="-s -w -X github.com/nethesis/my/services/support/pkg/version.Version=dev-${COMMIT::7} -X github.com/nethesis/my/services/support/pkg/version.Commit=${COMMIT} -X github.com/nethesis/my/services/support/pkg/version.BuildTime=${BUILD_TIME}"
+
+        mkdir -p dist
+        GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/tunnel-client-linux-amd64 ./cmd/tunnel-client/main.go
+
+    - name: Update dev release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: dev
+        name: Development Build
+        body: |
+          Rolling development build from `main` branch.
+          Updated on every push to main.
+
+          **Commit:** ${{ github.sha }}
+
+          ## Download
+
+          - `tunnel-client-linux-amd64` — tunnel client for NethSecurity (OpenWrt)
+        prerelease: true
+        make_latest: false
+        files: |
+          services/support/dist/tunnel-client-linux-amd64
+
+    - name: Delete old dev tag and recreate
+      run: |
+        git tag -d dev 2>/dev/null || true
+        git push origin :refs/tags/dev 2>/dev/null || true
+        git tag dev
+        git push origin dev

@@ -59,6 +59,13 @@ type Configuration struct {
 	DefaultPageSize int `json:"default_page_size"`
 	// System types configuration
 	SystemTypes []string `json:"system_types"`
+	// Support service URL for proxying
+	SupportServiceURL string `json:"support_service_url"`
+	// Support proxy domain for subdomain-based proxying (e.g. "my.nethesis.it")
+	SupportProxyDomain string `json:"support_proxy_domain"`
+	// Shared secret for backend→support internal authentication (#4)
+	SupportInternalSecret string `json:"-"`
+
 	// SMTP configuration for sending emails
 	SMTPHost     string `json:"smtp_host"`
 	SMTPPort     int    `json:"smtp_port"`
@@ -191,6 +198,19 @@ func Init() {
 	} else {
 		Config.SystemTypes = []string{"ns8", "nsec"}
 	}
+
+	// Support service URL
+	if os.Getenv("SUPPORT_SERVICE_URL") != "" {
+		Config.SupportServiceURL = os.Getenv("SUPPORT_SERVICE_URL")
+	} else {
+		Config.SupportServiceURL = "http://localhost:8082"
+	}
+
+	// Support proxy domain (optional, enables subdomain-based proxy)
+	Config.SupportProxyDomain = os.Getenv("SUPPORT_PROXY_DOMAIN")
+
+	// Shared secret for backend→support internal communication (#4)
+	Config.SupportInternalSecret = os.Getenv("SUPPORT_INTERNAL_SECRET")
 
 	// SMTP configuration
 	Config.SMTPHost = os.Getenv("SMTP_HOST")

@@ -41,7 +41,7 @@ services:
     runtime: image
     plan: starter
     image:
-      url: ghcr.io/nethserver/my/mimir:v0.3.0
+      url: ghcr.io/nethserver/my/mimir:v0.4.0
     envVars:
       - key: PORT
         value: 9009
@@ -65,7 +65,7 @@ services:
     runtime: image
     plan: free
     image:
-      url: ghcr.io/nethserver/my/backend:v0.3.0
+      url: ghcr.io/nethserver/my/backend:v0.4.0
     envVars:
       # Server Configuration
       - key: GIN_MODE
@@ -106,6 +106,10 @@ services:
       - key: BACKEND_APP_SECRET
         sync: false
 
+      # Support service URL
+      - key: SUPPORT_SERVICE_URL
+        value: http://my-support-prod:10000
+
       # SMTP Configuration
       - key: SMTP_HOST
         sync: false
@@ -128,7 +132,7 @@ services:
     runtime: image
     plan: free
     image:
-      url: ghcr.io/nethserver/my/collect:v0.3.0
+      url: ghcr.io/nethserver/my/collect:v0.4.0
     envVars:
       # Server Configuration
       - key: GIN_MODE
@@ -159,13 +163,46 @@ services:
       - key: MIMIR_URL
         value: http://my-mimir-prod:9009
 
+  # Production Support Service (Private Service)
+  - type: web
+    name: my-support-prod
+    runtime: image
+    plan: free
+    image:
+      url: ghcr.io/nethserver/my/support:v0.4.0
+    envVars:
+      # Server Configuration
+      - key: GIN_MODE
+        value: release
+      - key: LISTEN_ADDRESS
+        value: 0.0.0.0:10000
+      - key: LOG_LEVEL
+        value: info
+      - key: LOG_FORMAT
+        value: json
+
+      # Redis Configuration
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: my-redis-prod
+          property: connectionString
+      - key: REDIS_DB
+        value: 2
+
+      # PostgreSQL Configuration
+      - key: DATABASE_URL
+        fromDatabase:
+          name: my-postgres-prod
+          property: connectionString
+
   # Production Frontend (Private Service)
   - type: web
     name: my-frontend-prod
     runtime: image
     plan: free
     image:
-      url: ghcr.io/nethserver/my/frontend:v0.3.0
+      url: ghcr.io/nethserver/my/frontend:v0.4.0
     envVars:
       - key: VITE_PRODUCT_NAME
         value: "My Nethesis"
@@ -186,7 +223,7 @@ services:
     runtime: image
     plan: free
     image:
-      url: ghcr.io/nethserver/my/proxy:v0.3.0
+      url: ghcr.io/nethserver/my/proxy:v0.4.0
     domains:
       - my.nethesis.it
     envVars:
@@ -195,6 +232,8 @@ services:
         value: my-backend-prod
       - key: COLLECT_SERVICE_NAME
         value: my-collect-prod
+      - key: SUPPORT_SERVICE_NAME
+        value: my-support-prod
       - key: FRONTEND_SERVICE_NAME
         value: my-frontend-prod
 
@@ -284,6 +323,13 @@ services:
       - key: BACKEND_APP_SECRET
         sync: false
 
+      # Support service URL
+      - key: SUPPORT_SERVICE_URL
+        fromService:
+          name: my-support-qa
+          type: pserv
+          envVarKey: RENDER_SERVICE_URL
+
       # SMTP Configuration
       - key: SMTP_HOST
         sync: false
@@ -345,6 +391,43 @@ services:
     branch: main
     pullRequestPreviewsEnabled: true  # PR previews enabled
 
+  # QA Support Service (Private Service)
+  - type: pserv
+    name: my-support-qa
+    runtime: docker
+    plan: starter
+    rootDir: services/support
+    dockerfilePath: Containerfile
+    envVars:
+      # Server Configuration
+      - key: GIN_MODE
+        value: debug
+      - key: LISTEN_ADDRESS
+        value: 0.0.0.0:10000
+      - key: LOG_LEVEL
+        value: debug
+      - key: LOG_FORMAT
+        value: json
+
+      # Redis Configuration
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: my-redis-qa
+          property: connectionString
+      - key: REDIS_DB
+        value: 2
+
+      # PostgreSQL Configuration
+      - key: DATABASE_URL
+        fromDatabase:
+          name: my-postgres-qa
+          property: connectionString
+
+    autoDeploy: true
+    branch: main
+    pullRequestPreviewsEnabled: true
+
   # QA Frontend (Private Service)
   - type: pserv
     name: my-frontend-qa
@@ -390,6 +473,11 @@ services:
       - key: COLLECT_SERVICE_NAME
         fromService:
           name: my-collect-qa
+          type: pserv
+          property: host
+      - key: SUPPORT_SERVICE_NAME
+        fromService:
+          name: my-support-qa
           type: pserv
           property: host
       - key: FRONTEND_SERVICE_NAME

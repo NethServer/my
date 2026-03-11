@@ -56,6 +56,9 @@ tags:
   - name: Backend - Rebranding
     description: Backend rebranding management for organizations and products
 
+  - name: Backend - Support Sessions
+    description: Backend support session management
+
   - name: Collect - Health
     description: Collect service health and monitoring
   - name: Collect - Systems
@@ -372,6 +375,147 @@ components:
           enum: ["asc", "desc"]
           description: Sort direction
           example: "asc"
+
+    SupportSession:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        system_id:
+          type: string
+        node_id:
+          type: string
+          nullable: true
+        started_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [pending, active, expired, closed]
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+        closed_by:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        system_name:
+          type: string
+        system_type:
+          type: string
+          nullable: true
+        system_key:
+          type: string
+        organization:
+          type: object
+          properties:
+            id:
+              type: string
+            logto_id:
+              type: string
+            name:
+              type: string
+            type:
+              type: string
+
+    SupportAccessLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+        operator_id:
+          type: string
+        operator_name:
+          type: string
+          nullable: true
+        access_type:
+          type: string
+          enum: [view, ssh, web_terminal, ui_proxy]
+        connected_at:
+          type: string
+          format: date-time
+        disconnected_at:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: string
+          nullable: true
+          description: JSON-encoded metadata string
+
+    SystemSessionGroup:
+      type: object
+      properties:
+        system_id:
+          type: string
+        system_name:
+          type: string
+        system_type:
+          type: string
+          nullable: true
+        system_key:
+          type: string
+        organization:
+          type: object
+          properties:
+            id:
+              type: string
+            logto_id:
+              type: string
+            name:
+              type: string
+            type:
+              type: string
+        started_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [pending, active, expired, closed]
+        session_count:
+          type: integer
+        node_count:
+          type: integer
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionRef'
+
+    SessionRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        node_id:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [pending, active, expired, closed]
+        started_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
 
     TokenExchangeRequest:
       type: object
@@ -1267,6 +1411,11 @@ components:
           nullable: true
           description: Organization ID that caused cascade suspension (for targeted reactivation).
           example: "org_abc123"
+        support_session_id:
+          type: string
+          nullable: true
+          description: ID of the active or pending support session for this system, null if none. Use GET /api/support-sessions/:id to fetch session details.
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
         rebranding_enabled:
           type: boolean
           description: Whether rebranding is active for this system (direct or inherited)
@@ -8501,5 +8650,546 @@ paths:
               schema:
                 type: string
                 format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /support-sessions:
+    get:
+      operationId: getSupportSessions
+      tags:
+        - Backend - Support Sessions
+      summary: List support sessions
+      description: Lists active support sessions filtered by RBAC organization hierarchy
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: status
+          in: query
+          description: Filter by session status (can be repeated)
+          schema:
+            type: string
+            enum: [pending, active, expired, closed]
+        - name: system_id
+          in: query
+          schema:
+            type: string
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            default: started_at
+        - name: sort_direction
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: Support sessions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: support sessions retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      support_sessions:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/SystemSessionGroup'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /support-sessions/{id}:
+    get:
+      operationId: getSupportSession
+      tags:
+        - Backend - Support Sessions
+      summary: Get support session detail
+      description: Get a specific support session with system info
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Support session retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: support session retrieved successfully
+                  data:
+                    $ref: '#/components/schemas/SupportSession'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: closeSupportSession
+      tags:
+        - Backend - Support Sessions
+      summary: Close a support session
+      description: Force-close a support session and disconnect the tunnel
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Support session closed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: support session closed successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /support-sessions/{id}/extend:
+    patch:
+      operationId: extendSupportSession
+      tags:
+        - Backend - Support Sessions
+      summary: Extend a support session
+      description: Extends the expiration time of a support session
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - hours
+              properties:
+                hours:
+                  type: integer
+                  minimum: 1
+                  maximum: 168
+                  description: Number of hours to extend the session
+                  example: 24
+      responses:
+        '200':
+          description: Support session extended successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: support session extended successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /support-sessions/{id}/logs:
+    get:
+      operationId: getSupportSessionLogs
+      tags:
+        - Backend - Support Sessions
+      summary: Get access logs for a support session
+      description: Returns the access logs for a specific support session
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Access logs retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: access logs retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      access_logs:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/SupportAccessLog'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /support-sessions/{id}/proxy-token:
+    post:
+      operationId: generateSupportProxyToken
+      tags:
+        - Backend - Support Sessions
+      summary: Generate a subdomain proxy token for a support session service
+      description: |
+        Generates a short-lived signed JWT (8h) that grants access to a specific service on a remote
+        system through the subdomain-based support proxy. The returned URL uses the format
+        `https://{service}--{session_slug}.support.{domain}/` (where session_slug is the full UUID without dashes) where the token is passed as a query
+        parameter on the first request, then stored as an HttpOnly cookie.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Support session ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - service
+              properties:
+                service:
+                  type: string
+                  description: Name of the service to proxy (e.g. "nethvoice103-ui")
+                  example: nethvoice103-ui
+      responses:
+        '200':
+          description: Proxy token generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: proxy token generated
+                  data:
+                    type: object
+                    properties:
+                      url:
+                        type: string
+                        description: Full subdomain URL for the proxied service
+                        example: https://nethvoice103-ui--550e8400.support.my.nethesis.it/
+                      token:
+                        type: string
+                        description: Signed JWT proxy token (8h expiry)
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          description: Subdomain proxy not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /support-sessions/{id}/services:
+    get:
+      operationId: getSupportSessionServices
+      tags:
+        - Backend - Support Sessions
+      summary: List available services on a support session
+      description: |
+        Returns the list of services discovered on the remote system connected via the support tunnel.
+        Services are auto-discovered from Traefik routes or the tunnel client's service manifest.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Support session ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Services retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: services retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      services:
+                        type: object
+                        additionalProperties:
+                          type: object
+                          properties:
+                            target:
+                              type: string
+                              example: "127.0.0.1:443"
+                            host:
+                              type: string
+                              example: "nethvoice.example.com"
+                            tls:
+                              type: boolean
+                            label:
+                              type: string
+                              example: "NethVoice"
+                            module_id:
+                              type: string
+                              example: "nethvoice103"
+                            node_id:
+                              type: string
+                              example: "1"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /support-sessions/{id}/proxy/{service}/{path}:
+    get:
+      operationId: proxySupportSession
+      tags:
+        - Backend - Support Sessions
+      summary: Proxy HTTP requests to a remote service
+      description: |
+        Proxies HTTP requests through the support tunnel to a service on the remote system.
+        Supports all HTTP methods (GET, POST, PUT, DELETE, PATCH, etc.).
+        Also handles WebSocket upgrade requests for services that require them.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Support session ID
+          schema:
+            type: string
+            format: uuid
+        - name: service
+          in: path
+          required: true
+          description: Service name (as returned by the services endpoint)
+          schema:
+            type: string
+        - name: path
+          in: path
+          required: true
+          description: Path to proxy to the remote service
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Proxied response from the remote service
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          description: Support service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /support-sessions/{id}/terminal-ticket:
+    post:
+      operationId: generateTerminalTicket
+      tags:
+        - Backend - Support Sessions
+      summary: Generate a one-time ticket for terminal WebSocket
+      description: |
+        Generates a one-time, short-lived ticket (30s TTL) for authenticating the
+        WebSocket terminal connection. The client exchanges its JWT (sent securely
+        in the Authorization header) for a ticket that can be passed as a query
+        parameter when opening the WebSocket, avoiding exposure of the long-lived
+        JWT in URLs and server logs.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Support session ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Ticket generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: terminal ticket generated
+                  data:
+                    type: object
+                    properties:
+                      ticket:
+                        type: string
+                        description: One-time ticket string to use as ?ticket= query parameter
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /support-sessions/{id}/terminal:
+    get:
+      operationId: getSupportSessionTerminal
+      tags:
+        - Backend - Support Sessions
+      summary: Open SSH terminal via WebSocket
+      description: |
+        Upgrades to a WebSocket connection that bridges xterm.js in the browser to an SSH session
+        on the remote system via the yamux tunnel. Uses a binary framing protocol:
+        - Type 0 (data): raw terminal I/O bytes
+        - Type 1 (resize): JSON `{"cols": N, "rows": N}`
+        - Type 2 (auth): JSON `{"username": "...", "password": "...", "cols": N, "rows": N}` (first message from client)
+        - Type 3 (error): error string from server
+
+        Authentication uses a one-time ticket obtained from POST /support-sessions/{id}/terminal-ticket.
+        The ticket is short-lived (30s) and single-use, preventing JWT exposure in URLs and logs.
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Support session ID
+          schema:
+            type: string
+            format: uuid
+        - name: ticket
+          in: query
+          required: true
+          description: One-time ticket from POST /support-sessions/{id}/terminal-ticket
+          schema:
+            type: string
+      responses:
+        '200':
+          description: WebSocket upgrade successful (HTTP 101 Switching Protocols)
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'

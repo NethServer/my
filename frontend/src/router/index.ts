@@ -90,6 +90,11 @@ const router = createRouter({
       name: 'customer_detail',
       component: () => import('../views/CustomerDetailView.vue'),
     },
+    {
+      path: '/support-sessions',
+      name: 'support_sessions',
+      component: () => import('../views/SupportSessionsView.vue'),
+    },
   ],
 })
 

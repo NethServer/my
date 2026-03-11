@@ -21,6 +21,7 @@ import {
   faBuilding as fasBuilding,
   faUserGroup as fasUserGroup,
   faServer as fasServer,
+  faHeadset as fasHeadset,
 } from '@fortawesome/free-solid-svg-icons'
 import { faGridOne as fasGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import {
@@ -31,12 +32,14 @@ import {
   faUserGroup as falUserGroup,
   faServer as falServer,
   faGrid2 as falGrid2,
+  faHeadset as falHeadset,
 } from '@nethesis/nethesis-light-svg-icons'
 import {
   canReadApplications,
   canReadCustomers,
   canReadDistributors,
   canReadResellers,
+  canConnectSystems,
   canReadSystems,
   canReadUsers,
 } from '@/lib/permissions'
@@ -115,6 +118,15 @@ const navigation = computed(() => {
       to: 'users',
       solidIcon: fasUserGroup,
       lightIcon: falUserGroup,
+    })
+  }
+
+  if (canConnectSystems()) {
+    menuItems.push({
+      name: 'support.title',
+      to: 'support-sessions',
+      solidIcon: fasHeadset,
+      lightIcon: falHeadset,
     })
   }
   return menuItems
