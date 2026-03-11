@@ -63,6 +63,7 @@ export const SystemSchema = v.object({
   // them only when asked with include_addons, and omits the key for a system
   // holding none.
   addons: v.optional(v.array(v.string())),
+  support_session_id: v.optional(v.nullable(v.string())),
   organization: v.object({
     id: v.string(),
     logto_id: v.string(),
