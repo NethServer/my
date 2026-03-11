@@ -63,6 +63,7 @@ import ReactivateSystemModal from './ReactivateSystemModal.vue'
 import DestroySystemModal from './DestroySystemModal.vue'
 import SystemStatusIcon from './SystemStatusIcon.vue'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
+import SupportSessionPopover from './SupportSessionPopover.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -541,7 +542,10 @@ function onCloseSecretRegeneratedModal() {
       <NeTableBody>
         <NeTableRow v-for="(item, index) in systemsPage" :key="index">
           <NeTableCell :data-label="$t('systems.name')">
-            <div :class="{ 'opacity-50': item.status === 'deleted' }">
+            <div
+              class="flex items-center gap-2"
+              :class="{ 'opacity-50': item.status === 'deleted' }"
+            >
               <router-link
                 v-if="item.status !== 'deleted'"
                 :to="{ name: 'system_detail', params: { systemId: item.id } }"
@@ -560,6 +564,7 @@ function onCloseSecretRegeneratedModal() {
                   {{ item.name || '-' }}
                 </span>
               </div>
+              <SupportSessionPopover v-if="item.support_session_id" :system-id="item.id" />
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.version')" class="break-all 2xl:break-normal">

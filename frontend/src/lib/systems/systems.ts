@@ -45,6 +45,7 @@ export const SystemSchema = v.object({
   suspended_at: v.optional(v.string()),
   last_inventory: v.optional(v.string()),
   rebranding_enabled: v.optional(v.boolean()),
+  support_session_id: v.optional(v.nullable(v.string())),
   organization: v.object({
     id: v.string(),
     logto_id: v.string(),
