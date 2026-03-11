@@ -1481,6 +1481,11 @@ components:
           nullable: true
           description: Organization ID that caused cascade suspension (for targeted reactivation).
           example: "org_abc123"
+        support_session_id:
+          type: string
+          nullable: true
+          description: ID of the active or pending support session for this system, null if none. Use GET /api/support-sessions/:id to fetch session details.
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
         rebranding_enabled:
           type: boolean
           description: Whether rebranding is active for this system (direct or inherited)
