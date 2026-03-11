@@ -122,7 +122,7 @@ func logAccess(c *gin.Context, sessionID, accessType, metadata string) {
 	metaBytes, _ := json.Marshal(map[string]string{"service": metadata})
 	jsonMetadata := string(metaBytes)
 	repo := entities.NewSupportRepository()
-	if err := repo.InsertAccessLog(sessionID, userID, userName, accessType, jsonMetadata); err != nil {
+	if _, err := repo.InsertAccessLog(sessionID, userID, userName, accessType, jsonMetadata); err != nil {
 		logger.Warn().Err(err).Str("session_id", sessionID).Msg("failed to insert access log")
 	}
 }
@@ -246,7 +246,8 @@ func GetSupportSessionTerminal(c *gin.Context) {
 	userName := ticket.Name
 	metaBytes, _ := json.Marshal(map[string]string{"service": "terminal"})
 	jsonMetadata := string(metaBytes)
-	if logErr := repo.InsertAccessLog(sessionID, ticket.UserID, userName, "web_terminal", jsonMetadata); logErr != nil {
+	accessLogID, logErr := repo.InsertAccessLog(sessionID, ticket.UserID, userName, "web_terminal", jsonMetadata)
+	if logErr != nil {
 		logger.Warn().Err(logErr).Str("session_id", sessionID).Msg("failed to insert access log")
 	}
 
@@ -367,6 +368,11 @@ func GetSupportSessionTerminal(c *gin.Context) {
 	}()
 
 	<-done
+	if accessLogID != "" {
+		if err := repo.DisconnectAccessLog(accessLogID); err != nil {
+			logger.Warn().Err(err).Str("session_id", sessionID).Msg("failed to update access log disconnect")
+		}
+	}
 	logger.Info().Str("session_id", sessionID).Msg("terminal session ended")
 }
 
