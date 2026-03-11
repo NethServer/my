@@ -5,13 +5,12 @@ import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
+import { PhoneNumberSchema } from './users/users'
 
 export const ProfileInfoSchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty('users.name_cannot_be_empty')),
   email: v.pipe(v.string(), v.nonEmpty('users.email_required'), v.email('users.email_invalid')),
-  phone: v.optional(
-    v.pipe(v.string(), v.regex(/^\+?[\d\s\-\(\)]{7,20}$/, 'users.phone_invalid_format')),
-  ),
+  phone: v.optional(v.union([v.literal(''), PhoneNumberSchema])),
 })
 
 export const ChangePasswordSchema = v.pipe(

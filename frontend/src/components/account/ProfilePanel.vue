@@ -153,6 +153,8 @@ function validate(profile: ProfileInfo): boolean {
         :label="$t('users.phone_number')"
         :invalid-message="validationIssues.phone?.[0] ? $t(validationIssues.phone[0]) : ''"
         :disabled="editUserLoading || loginStore.isOwner || loginStore.isImpersonating"
+        :optional="true"
+        :optional-label="t('common.optional')"
       />
       <!-- organization -->
       <div>
