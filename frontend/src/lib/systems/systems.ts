@@ -45,6 +45,7 @@ export const SystemSchema = v.object({
   system_key: v.optional(v.string()),
   system_secret: v.string(),
   suspended_at: v.optional(v.string()),
+  support_session_id: v.optional(v.nullable(v.string())),
   organization: v.object({
     id: v.string(),
     name: v.string(),
