@@ -423,6 +423,8 @@ function getEmailInvalidMessage(): string {
           :label="$t('users.phone_number')"
           :invalid-message="validationIssues.phone?.[0] ? $t(validationIssues.phone[0]) : ''"
           :disabled="saving"
+          :optional="true"
+          :optional-label="t('common.optional')"
         />
         <!-- new user info -->
         <NeInlineNotification
