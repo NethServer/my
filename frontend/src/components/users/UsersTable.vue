@@ -31,7 +31,6 @@ import {
   NeEmptyState,
   NeInlineNotification,
   NeTextInput,
-  NeSpinner,
   NeDropdown,
   type SortEvent,
   NeSortDropdown,
@@ -61,6 +60,7 @@ import UserRoleBadge from './UserRoleBadge.vue'
 import { useUserFilters } from '@/queries/users/userFilters'
 import { normalize } from '@/lib/common'
 import OrganizationLink from '../applications/OrganizationLink.vue'
+import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -350,7 +350,7 @@ const onClosePasswordChangedModal = () => {
     />
     <!-- table toolbar -->
     <div class="mb-6 flex items-center gap-4">
-      <div class="flex w-full items-center justify-between gap-4">
+      <div class="flex w-full items-end justify-between gap-4">
         <!-- filters -->
         <div class="flex flex-wrap items-center gap-4">
           <!-- text filter -->
@@ -422,15 +422,7 @@ const onClosePasswordChangedModal = () => {
           </NeButton>
         </div>
         <!-- update indicator -->
-        <div
-          v-if="asyncStatus === 'loading' && state.status !== 'pending'"
-          class="flex items-center gap-2"
-        >
-          <NeSpinner color="white" />
-          <div class="text-gray-500 dark:text-gray-400">
-            {{ $t('common.updating') }}
-          </div>
-        </div>
+        <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
       </div>
     </div>
     <!-- empty state -->
