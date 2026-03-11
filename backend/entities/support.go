@@ -493,15 +493,28 @@ func (r *SupportRepository) CloseSession(sessionID string) error {
 	return nil
 }
 
-// InsertAccessLog inserts a new access log entry
-func (r *SupportRepository) InsertAccessLog(sessionID, operatorID, operatorName, accessType, metadata string) error {
-	_, err := r.db.Exec(
+// InsertAccessLog inserts a new access log entry and returns its ID
+func (r *SupportRepository) InsertAccessLog(sessionID, operatorID, operatorName, accessType, metadata string) (string, error) {
+	var logID string
+	err := r.db.QueryRow(
 		`INSERT INTO support_access_logs (session_id, operator_id, operator_name, access_type, connected_at, metadata)
-		 VALUES ($1, $2, $3, $4, NOW(), $5)`,
+		 VALUES ($1, $2, $3, $4, NOW(), $5) RETURNING id`,
 		sessionID, operatorID, operatorName, accessType, metadata,
+	).Scan(&logID)
+	if err != nil {
+		return "", fmt.Errorf("failed to insert access log: %w", err)
+	}
+	return logID, nil
+}
+
+// DisconnectAccessLog sets disconnected_at on an access log entry
+func (r *SupportRepository) DisconnectAccessLog(logID string) error {
+	_, err := r.db.Exec(
+		`UPDATE support_access_logs SET disconnected_at = NOW() WHERE id = $1 AND disconnected_at IS NULL`,
+		logID,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to insert access log: %w", err)
+		return fmt.Errorf("failed to update access log disconnect: %w", err)
 	}
 	return nil
 }

@@ -142,6 +142,23 @@ export const getSupportSessions = (
     .then((res) => res.data.data)
 }
 
+export const getSystemActiveSessions = (systemId: string) => {
+  const loginStore = useLoginStore()
+  const params = new URLSearchParams({
+    page: '1',
+    page_size: '100',
+    system_id: systemId,
+    status: 'active',
+  })
+  params.append('status', 'pending')
+
+  return axios
+    .get<SupportSessionsResponse>(`${API_URL}/support-sessions?${params}`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data.support_sessions)
+}
+
 export const getSupportSession = (id: string) => {
   const loginStore = useLoginStore()
 
