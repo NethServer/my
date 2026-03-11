@@ -103,6 +103,9 @@ type System struct {
 	FirstHeartbeat *time.Time `json:"first_heartbeat,omitempty"` // First heartbeat received
 	FirstInventory *time.Time `json:"first_inventory,omitempty"` // First inventory received
 
+	// Support session info (populated by query)
+	SupportSessionID *string `json:"support_session_id"`
+
 	// Rebranding info (populated by handler)
 	RebrandingEnabled bool    `json:"rebranding_enabled"`
 	RebrandingOrgID   *string `json:"rebranding_org_id,omitempty"`
