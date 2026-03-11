@@ -79,6 +79,7 @@ import {
 import OrganizationIconAndLink from '../organizations/OrganizationIconAndLink.vue'
 import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
 import SystemLogoAndLink from './SystemLogoAndLink.vue'
+import SupportSessionPopover from './SupportSessionPopover.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -560,12 +561,16 @@ function onCloseSecretRegeneratedModal() {
       <NeTableBody>
         <NeTableRow v-for="item in systemsPage" :key="item.id">
           <NeTableCell :data-label="$t('systems.name')">
-            <div :class="{ 'text-tertiary-neutral': item.status === 'deleted' }">
+            <div
+              class="flex items-center gap-2"
+              :class="{ 'text-tertiary-neutral': item.status === 'deleted' }"
+            >
               <SystemLogoAndLink
                 :system-id="item.status === 'deleted' ? '' : item.id"
                 :system-name="item.name"
                 :system-type="item.type"
               />
+              <SupportSessionPopover v-if="item.support_session_id" :system-id="item.id" />
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.version')" class="wrap-anywhere">
