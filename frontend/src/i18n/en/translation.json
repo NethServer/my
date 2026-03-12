@@ -605,7 +605,12 @@
     "seconds": "{count} second | {count} seconds",
     "minutes": "{count} minute | {count} minutes",
     "hours": "{count} hour | {count} hours",
-    "days": "{count} day | {count} days"
+    "days": "{count} day | {count} days",
+    "weeks": "{count} week | {count} weeks",
+    "months": "{count} month | {count} months",
+    "years": "{count} year | {count} years",
+    "just_now": "Just now",
+    "ago": "{time} ago"
   },
   "delete_object_modal": {
     "type_to_confirm": "Type '{confirmationText}' to confirm",

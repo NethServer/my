@@ -5,6 +5,7 @@
 
 <script setup lang="ts">
 import {
+  humanDistanceToNowLoc,
   NeCard,
   NeHeading,
   NeInlineNotification,
@@ -14,7 +15,7 @@ import {
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 import { faCircleInfo, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons'
-import { formatDateTimeNoSeconds, formatUptime } from '@/lib/dateTime'
+import { formatDateTimeNoSeconds, formatTimeAgo, formatUptime } from '@/lib/dateTime'
 import { useI18n } from 'vue-i18n'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import DataItem from '../DataItem.vue'
@@ -138,11 +139,18 @@ const timezone = computed(() => {
           {{ $t('system_detail.last_inventory') }}
         </template>
         <template #data>
-          {{
-            latestInventory.data?.timestamp
-              ? formatDateTimeNoSeconds(new Date(latestInventory.data?.timestamp), locale)
-              : '-'
-          }}
+          <NeTooltip trigger-event="mouseenter focus" placement="left">
+            <template #trigger>
+              {{ formatTimeAgo(latestInventory.data?.timestamp, $t) }}
+            </template>
+            <template #content>
+              {{
+                latestInventory.data?.timestamp
+                  ? formatDateTimeNoSeconds(new Date(latestInventory.data?.timestamp), locale)
+                  : '-'
+              }}
+            </template>
+          </NeTooltip>
         </template>
       </DataItem>
       <!-- uptime -->

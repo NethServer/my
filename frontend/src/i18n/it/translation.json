@@ -602,7 +602,12 @@
     "seconds": "{count} secondo | {count} secondi",
     "minutes": "{count} minuto | {count} minuti",
     "hours": "{count} ora | {count} ore",
-    "days": "{count} giorno | {count} giorni"
+    "days": "{count} giorno | {count} giorni",
+    "weeks": "{count} settimana | {count} settimane",
+    "months": "{count} mese | {count} mesi",
+    "years": "{count} anno | {count} anni",
+    "just_now": "Poco fa",
+    "ago": "{time} fa"
   },
   "delete_object_modal": {
     "type_to_confirm": "Digita '{confirmationText}' per confermare",
