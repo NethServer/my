@@ -8,7 +8,7 @@ import { NeButton, NeLink } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faArrowRight, faServer } from '@fortawesome/free-solid-svg-icons'
 import CounterCard from '@/components/CounterCard.vue'
-import { getProductLogo, getProductName } from '@/lib/systems/systems'
+import SystemLogo from '@/components/systems/SystemLogo.vue'
 import SystemStatusIcon from '@/components/systems/SystemStatusIcon.vue'
 import { useI18n } from 'vue-i18n'
 import { computed } from 'vue'
@@ -72,26 +72,17 @@ const goToSystems = () => {
           class="cursor-pointer font-medium hover:underline"
         >
           <div class="flex items-center gap-2">
-            <img
-              v-if="system.type"
-              :src="getProductLogo(system.type)"
-              :alt="getProductName(system.type)"
-              aria-hidden="true"
-              class="size-8"
-            />
+            <SystemLogo :system="system.type" />
             <span>
               {{ system.name || '-' }}
             </span>
           </div>
         </router-link>
         <div class="flex items-center gap-2">
-          <SystemStatusIcon :status="system.status" :suspended-at="system.suspended_at" />
-          <span v-if="system.suspended_at">
-            {{ t('common.suspended') }}
-          </span>
-          <span v-else-if="system.status">
+          <template v-if="system.status">
+            <SystemStatusIcon :status="system.status" />
             {{ t(`systems.status_${system.status}`) }}
-          </span>
+          </template>
           <span v-else>-</span>
         </div>
       </div>

@@ -26,7 +26,7 @@ export const useSystems = defineQuery(() => {
   const productFilter = ref<string[]>([])
   const createdByFilter = ref<string[]>([])
   const versionFilter = ref<string[]>([])
-  const statusFilter = ref<SystemStatus[]>(['online', 'offline', 'unknown', 'suspended'])
+  const statusFilter = ref<SystemStatus[]>(['active', 'inactive', 'unknown', 'suspended'])
   const organizationFilter = ref<string[]>([])
   const sortBy = ref<keyof System>('name')
   const sortDescending = ref(false)
@@ -71,8 +71,8 @@ export const useSystems = defineQuery(() => {
       createdByFilter.value.length === 0 &&
       organizationFilter.value.length === 0 &&
       statusFilter.value.length === 4 &&
-      statusFilter.value.includes('online') &&
-      statusFilter.value.includes('offline') &&
+      statusFilter.value.includes('active') &&
+      statusFilter.value.includes('inactive') &&
       statusFilter.value.includes('unknown') &&
       statusFilter.value.includes('suspended') &&
       !statusFilter.value.includes('deleted')
@@ -156,7 +156,7 @@ export const useSystems = defineQuery(() => {
     productFilter.value = []
     versionFilter.value = []
     createdByFilter.value = []
-    statusFilter.value = ['online', 'offline', 'unknown', 'suspended']
+    statusFilter.value = ['active', 'inactive', 'unknown', 'suspended']
     organizationFilter.value = []
   }
 

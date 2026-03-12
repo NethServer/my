@@ -33,7 +33,6 @@ import {
   NeEmptyState,
   NeInlineNotification,
   NeTextInput,
-  NeSpinner,
   NeDropdown,
   type SortEvent,
   NeSortDropdown,
@@ -53,6 +52,7 @@ import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useDistributors } from '@/queries/organizations/distributors'
 import { canDestroyDistributors, canManageDistributors } from '@/lib/permissions'
 import router from '@/router'
+import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 
 const { isShownCreateDistributorDrawer = false } = defineProps<{
   isShownCreateDistributorDrawer: boolean
@@ -269,7 +269,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
     />
     <!-- table toolbar -->
     <div class="mb-6 flex items-center gap-4">
-      <div class="flex w-full items-center justify-between gap-4">
+      <div class="flex w-full items-end justify-between gap-4">
         <!-- filters -->
         <div class="flex flex-wrap items-center gap-4">
           <!-- text filter -->
@@ -286,7 +286,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
             :label="t('common.status')"
             :options="statusFilterOptions"
             :show-clear-filter="false"
-            :clear-filter-label="t('ne_dropdown_filter.reset_filter')"
+            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
@@ -311,15 +311,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
           </NeButton>
         </div>
         <!-- update indicator -->
-        <div
-          v-if="asyncStatus === 'loading' && state.status !== 'pending'"
-          class="flex items-center gap-2"
-        >
-          <NeSpinner color="white" />
-          <div class="text-gray-500 dark:text-gray-400">
-            {{ $t('common.updating') }}
-          </div>
-        </div>
+        <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
       </div>
     </div>
     <!-- empty state -->
