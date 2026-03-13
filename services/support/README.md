@@ -90,11 +90,20 @@ make fmt
 # Run linter
 make lint
 
-# Build
+# Build support service
 make build
+
+# Build tunnel-client (linux/amd64)
+make build-tunnel-client
+
+# Build all binaries (support + tunnel-client)
+make build-all
 
 # Run server
 make run
+
+# Run tunnel-client locally
+make run-tunnel-client
 
 # Run QA server (uses .env.qa)
 make run-qa
@@ -137,6 +146,14 @@ services/support/
 ├── main.go                  # Server entry point
 ├── cmd/
 │   └── tunnel-client/       # Client binary deployed on remote systems
+│       ├── main.go          # CLI entry point (flags, signal handling)
+│       └── internal/
+│           ├── config/      # ClientConfig, env parsing, helpers
+│           ├── connection/  # WebSocket + yamux connection, reconnect loop
+│           ├── discovery/   # Service discovery (Traefik, NethSecurity, static)
+│           ├── models/      # ServiceInfo, ServiceManifest, ApiCliRoute
+│           ├── stream/      # CONNECT protocol stream handler
+│           └── terminal/    # PTY spawning, binary frame protocol
 ├── configuration/           # Environment configuration
 ├── database/                # PostgreSQL connection
 ├── helpers/                 # SHA256 verification
@@ -159,6 +176,20 @@ services/support/
 │   └── stream.go            # WebSocket-to-net.Conn adapter
 ├── pkg/version/             # Build version info
 └── .env.example             # Environment variables template
+```
+
+### Tunnel Client Configuration
+
+All tunnel client settings are configured via environment variables or CLI flags.
+
+Service exclusion patterns filter out services that are not useful for support operators:
+
+```bash
+# Via environment variable (comma-separated glob patterns)
+EXCLUDE_PATTERNS="*-server-api,*-janus,*-middleware-*,*-provisioning,*-reports-api,*-cti-server-api,*-server-websocket,*-tancredi,*_loki,*_prometheus"
+
+# Via CLI flag
+tunnel-client --exclude "*-server-api,*-janus,*-middleware-*"
 ```
 
 ## Related

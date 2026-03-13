@@ -48,6 +48,12 @@ type Configuration struct {
 	TerminalInactivityTimeout time.Duration `json:"terminal_inactivity_timeout"`
 	TerminalMaxFrameSize      int           `json:"terminal_max_frame_size"`
 
+	// Rate limiting configuration
+	RateLimitTunnelPerIP  int           `json:"rate_limit_tunnel_per_ip"`
+	RateLimitTunnelPerKey int           `json:"rate_limit_tunnel_per_key"`
+	RateLimitSessionPerID int           `json:"rate_limit_session_per_id"`
+	RateLimitWindow       time.Duration `json:"rate_limit_window"`
+
 	// Internal authentication (shared secret with backend)
 	InternalSecret string `json:"-"`
 }
@@ -88,6 +94,12 @@ func Init() {
 	// Terminal configuration
 	Config.TerminalInactivityTimeout = parseDurationWithDefault("TERMINAL_INACTIVITY_TIMEOUT", 30*time.Minute)
 	Config.TerminalMaxFrameSize = parseIntWithDefault("TERMINAL_MAX_FRAME_SIZE", 65536)
+
+	// Rate limiting configuration
+	Config.RateLimitTunnelPerIP = parseIntWithDefault("RATE_LIMIT_TUNNEL_PER_IP", 10)
+	Config.RateLimitTunnelPerKey = parseIntWithDefault("RATE_LIMIT_TUNNEL_PER_KEY", 5)
+	Config.RateLimitSessionPerID = parseIntWithDefault("RATE_LIMIT_SESSION_PER_ID", 500)
+	Config.RateLimitWindow = parseDurationWithDefault("RATE_LIMIT_WINDOW", 1*time.Minute)
 
 	// Internal authentication
 	Config.InternalSecret = os.Getenv("INTERNAL_SECRET")

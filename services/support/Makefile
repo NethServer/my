@@ -38,6 +38,12 @@ run:
 	@echo "Starting support development server..."
 	@go run main.go
 
+# Run tunnel-client locally
+.PHONY: run-tunnel-client
+run-tunnel-client:
+	@echo "Starting tunnel-client..."
+	@go run ./cmd/tunnel-client/
+
 # Run the application with QA environment
 .PHONY: run-qa
 run-qa:
@@ -52,12 +58,21 @@ build:
 	@CGO_ENABLED=0 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) main.go
 	@echo "Built $(BINARY_NAME) -> $(BUILD_DIR)/$(BINARY_NAME)"
 
+# Build tunnel-client for linux/amd64
+.PHONY: build-tunnel-client
+build-tunnel-client:
+	@echo "Building tunnel-client (linux/amd64)..."
+	@mkdir -p $(BUILD_DIR)
+	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(LDFLAGS) -o $(BUILD_DIR)/tunnel-client-linux-amd64 ./cmd/tunnel-client/
+	@echo "Built tunnel-client -> $(BUILD_DIR)/tunnel-client-linux-amd64"
+
 # Build for multiple platforms
 .PHONY: build-all
 build-all: clean
 	@echo "Building for multiple platforms..."
 	@mkdir -p $(BUILD_DIR)
 	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 main.go
+	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(LDFLAGS) -o $(BUILD_DIR)/tunnel-client-linux-amd64 ./cmd/tunnel-client/
 	@echo "Built binaries for multiple platforms in $(BUILD_DIR)/"
 
 # Run tests
@@ -201,16 +216,18 @@ help:
 	@echo "Support Service - Container runtime: $(CONTAINER_NAME)"
 	@echo ""
 	@echo "Available targets:"
-	@echo "  build         - Build the binary"
-	@echo "  build-all     - Build for multiple platforms"
+	@echo "  build                - Build the binary"
+	@echo "  build-tunnel-client  - Build tunnel-client (linux/amd64)"
+	@echo "  build-all            - Build for multiple platforms"
 	@echo "  clean         - Clean build artifacts"
 	@echo "  fmt           - Format code"
 	@echo "  help          - Show this help"
 	@echo "  install       - Install the binary"
 	@echo "  lint          - Run linter"
 	@echo "  pre-commit    - Run all pre-commit checks"
-	@echo "  run           - Start development server"
-	@echo "  run-qa        - Start QA server (uses .env.qa)"
+	@echo "  run                  - Start development server"
+	@echo "  run-tunnel-client    - Run tunnel-client locally"
+	@echo "  run-qa               - Start QA server (uses .env.qa)"
 	@echo "  test          - Run tests"
 	@echo "  test-coverage - Run tests with coverage"
 	@echo "  tidy          - Tidy dependencies"
