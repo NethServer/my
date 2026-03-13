@@ -59,6 +59,14 @@ func main() {
 
 	configuration.Init()
 
+	// Initialize rate limiters from configuration
+	middleware.InitRateLimiters(
+		configuration.Config.RateLimitTunnelPerIP,
+		configuration.Config.RateLimitTunnelPerKey,
+		configuration.Config.RateLimitSessionPerID,
+		configuration.Config.RateLimitWindow,
+	)
+
 	err = database.Init()
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize database")

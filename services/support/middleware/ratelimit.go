@@ -80,14 +80,19 @@ func (rl *rateLimiter) allow(key string) bool {
 	return entry.count <= rl.limit
 }
 
-// tunnelIPRateLimiter limits tunnel connection attempts per IP
-var tunnelIPRateLimiter = newRateLimiter(10, 1*time.Minute)
+var (
+	tunnelIPRateLimiter  *rateLimiter
+	tunnelKeyRateLimiter *rateLimiter
+	sessionRateLimiter   *rateLimiter
+)
 
-// tunnelKeyRateLimiter limits tunnel connection attempts per system_key (#14)
-var tunnelKeyRateLimiter = newRateLimiter(5, 1*time.Minute)
-
-// sessionRateLimiter limits requests per session ID on internal endpoints
-var sessionRateLimiter = newRateLimiter(100, 1*time.Minute)
+// InitRateLimiters initializes rate limiters from configuration.
+// Must be called after configuration.Init().
+func InitRateLimiters(tunnelPerIP, tunnelPerKey, sessionPerID int, window time.Duration) {
+	tunnelIPRateLimiter = newRateLimiter(tunnelPerIP, window)
+	tunnelKeyRateLimiter = newRateLimiter(tunnelPerKey, window)
+	sessionRateLimiter = newRateLimiter(sessionPerID, window)
+}
 
 // TunnelRateLimitMiddleware limits the rate of tunnel connection attempts
 // per client IP (10/min) and per system_key (5/min, checked after auth).
