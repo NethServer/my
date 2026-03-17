@@ -26,6 +26,8 @@ jobs:
             path: collect
           - component: support
             path: services/support
+          - component: ssh-gateway
+            path: services/ssh-gateway
 
     defaults:
       run:
@@ -178,6 +180,8 @@ jobs:
           - component: tunnel-client
             context: services/support
             dockerfile: services/support/Containerfile.tunnel-client
+          - component: ssh-gateway
+            context: services/ssh-gateway
 
     steps:
     - uses: actions/checkout@v7
