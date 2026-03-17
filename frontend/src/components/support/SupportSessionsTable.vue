@@ -10,6 +10,7 @@ import {
   faXmark,
   faTerminal,
   faUpRightFromSquare,
+  faCopy,
 } from '@fortawesome/free-solid-svg-icons'
 import {
   NeTable,
@@ -100,6 +101,19 @@ const terminalGroup = ref<SystemSessionGroup | null>(null)
 
 function handleOpenTerminal(group: SystemSessionGroup) {
   terminalGroup.value = group
+}
+
+const sshCopiedId = ref<string | null>(null)
+
+function handleCopySSH(group: SystemSessionGroup) {
+  const host = window.location.hostname
+  const command = `ssh ${group.system_key}@${host} -p 2222`
+  navigator.clipboard.writeText(command).then(() => {
+    sshCopiedId.value = group.system_id
+    setTimeout(() => {
+      sshCopiedId.value = null
+    }, 2000)
+  })
 }
 
 function handleCloseTerminal() {
@@ -335,6 +349,21 @@ async function handleCloseGroup(group: SystemSessionGroup) {
                     <FontAwesomeIcon :icon="faTerminal" aria-hidden="true" />
                   </template>
                   {{ $t('support.terminal') }}
+                </NeButton>
+                <NeButton
+                  v-if="group.status === 'active'"
+                  kind="tertiary"
+                  size="sm"
+                  @click="handleCopySSH(group)"
+                >
+                  <template #prefix>
+                    <FontAwesomeIcon :icon="faCopy" aria-hidden="true" />
+                  </template>
+                  {{
+                    sshCopiedId === group.system_id
+                      ? $t('support.ssh_command_copied')
+                      : $t('support.ssh')
+                  }}
                 </NeButton>
                 <NeDropdown
                   v-if="group.status === 'active' && groupHasServices(group)"

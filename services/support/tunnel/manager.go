@@ -211,6 +211,21 @@ func (m *Manager) Get(systemID, nodeID string) *Tunnel {
 	return m.tunnels[TunnelKey(systemID, nodeID)]
 }
 
+// GetBySystemID returns the first tunnel for a system (any node).
+// For single-node systems this is the only tunnel.
+// For multi-node clusters this returns an arbitrary node's tunnel.
+func (m *Manager) GetBySystemID(systemID string) *Tunnel {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	for _, t := range m.tunnels {
+		if t.SystemID == systemID {
+			return t
+		}
+	}
+	return nil
+}
+
 // GetBySessionID returns a tunnel by session ID
 func (m *Manager) GetBySessionID(sessionID string) *Tunnel {
 	m.mu.RLock()

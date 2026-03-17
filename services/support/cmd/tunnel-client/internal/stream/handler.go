@@ -37,13 +37,23 @@ func HandleStream(stream net.Conn, services map[string]models.ServiceInfo) {
 		return
 	}
 
-	// Built-in terminal service: spawn a PTY instead of dialing TCP
+	// Built-in terminal service: spawn a PTY with binary frame protocol
 	if serviceName == "terminal" {
 		if err := writeConnectResponse(stream, nil); err != nil {
 			return
 		}
 		log.Println("CONNECT terminal -> PTY")
 		terminal.HandleTerminal(stream)
+		return
+	}
+
+	// Built-in shell service: spawn a raw PTY (used by SSH gateway)
+	if serviceName == "shell" {
+		if err := writeConnectResponse(stream, nil); err != nil {
+			return
+		}
+		log.Println("CONNECT shell -> raw PTY")
+		terminal.HandleShell(stream)
 		return
 	}
 

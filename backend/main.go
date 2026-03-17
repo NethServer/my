@@ -208,6 +208,7 @@ func main() {
 	{
 		// Authentication endpoints
 		customAuth.POST("/auth/logout", middleware.DisableOnImpersonate(), methods.Logout)
+		customAuth.POST("/auth/ssh-authorize", middleware.RequirePermission("connect:systems"), methods.AuthorizeSSH)
 
 		// Consent-based impersonation endpoints (no audit to avoid recursion)
 		impersonateGroup := customAuth.Group("/impersonate")

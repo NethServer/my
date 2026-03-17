@@ -95,6 +95,11 @@ const router = createRouter({
       name: 'support_sessions',
       component: () => import('../views/SupportSessionsView.vue'),
     },
+    {
+      path: '/ssh-auth',
+      name: 'ssh_auth',
+      component: () => import('../views/SshAuthView.vue'),
+    },
   ],
 })
 

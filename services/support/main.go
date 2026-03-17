@@ -149,6 +149,12 @@ func main() {
 	internal.GET("/proxy/:session_id/services", methods.ListServices)
 	internal.Any("/proxy/:session_id/:service/*path", methods.HandleProxy)
 
+	// Stream endpoint: internal secret only (no session token needed — used by SSH gateway)
+	internalStream := api.Group("/internal")
+	internalStream.Use(middleware.InternalSecretMiddleware())
+	internalStream.GET("/stream/:session_id/:service", methods.HandleStream)
+	internalStream.GET("/stream-by-system/:system_id/:service", methods.HandleStreamBySystem)
+
 	router.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, response.NotFound("api not found", nil))
 	})

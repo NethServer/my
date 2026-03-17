@@ -21,9 +21,14 @@ update deploy
 - [![Collect Tests](https://img.shields.io/badge/Collect%20Tests-pending-blue)](https://github.com/NethServer/my/actions)
 - [![Sync Tests](https://img.shields.io/badge/Sync%20Tests-pending-blue)](https://github.com/NethServer/my/actions)
 - [![Frontend Tests](https://img.shields.io/badge/Frontend%20Tests-pending-blue)](https://github.com/NethServer/my/actions)
+- [![Support Tests](https://img.shields.io/badge/Support%20Tests-pending-blue)](https://github.com/NethServer/my/actions)
+- [![SSH Gateway Tests](https://img.shields.io/badge/SSH%20Gateway%20Tests-pending-blue)](https://github.com/NethServer/my/actions)
 
 **Builds:**
 - [![Backend Build](https://img.shields.io/badge/Backend%20Build-pending-blue)](https://github.com/NethServer/my/actions)
 - [![Collect Build](https://img.shields.io/badge/Collect%20Build-pending-blue)](https://github.com/NethServer/my/actions)
 - [![Sync Build](https://img.shields.io/badge/Sync%20Build-pending-blue)](https://github.com/NethServer/my/actions)
 - [![Frontend Build](https://img.shields.io/badge/Frontend%20Build-pending-blue)](https://github.com/NethServer/my/actions)
+- [![Proxy Build](https://img.shields.io/badge/Proxy%20Build-pending-blue)](https://github.com/NethServer/my/actions)
+- [![Support Build](https://img.shields.io/badge/Support%20Build-pending-blue)](https://github.com/NethServer/my/actions)
+- [![SSH Gateway Build](https://img.shields.io/badge/SSH%20Gateway%20Build-pending-blue)](https://github.com/NethServer/my/actions)

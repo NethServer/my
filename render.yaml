@@ -196,6 +196,43 @@ services:
           name: my-postgres-prod
           property: connectionString
 
+  # Production SSH Gateway Service (Private Service)
+  - type: web
+    name: my-ssh-gateway-prod
+    runtime: image
+    plan: free
+    image:
+      url: ghcr.io/nethserver/my/ssh-gateway:v0.4.0
+    envVars:
+      # Server Configuration
+      - key: SSH_LISTEN_ADDRESS
+        value: 0.0.0.0:2222
+      - key: HTTP_LISTEN_ADDRESS
+        value: 0.0.0.0:10000
+      - key: LOG_LEVEL
+        value: info
+      - key: LOG_FORMAT
+        value: json
+
+      # App URL
+      - key: APP_URL
+        value: https://my.nethesis.it
+
+      # Support Service
+      - key: SUPPORT_SERVICE_URL
+        value: http://my-support-prod:10000
+      - key: SUPPORT_INTERNAL_SECRET
+        sync: false  # Configure in Render dashboard
+
+      # Redis Configuration
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: my-redis-prod
+          property: connectionString
+      - key: REDIS_DB
+        value: 0
+
   # Production Frontend (Private Service)
   - type: web
     name: my-frontend-prod
@@ -423,6 +460,47 @@ services:
         fromDatabase:
           name: my-postgres-qa
           property: connectionString
+
+    autoDeploy: true
+    branch: main
+    pullRequestPreviewsEnabled: true
+
+  # QA SSH Gateway Service (Private Service)
+  - type: pserv
+    name: my-ssh-gateway-qa
+    runtime: docker
+    plan: starter
+    rootDir: services/ssh-gateway
+    dockerfilePath: Containerfile
+    envVars:
+      # Server Configuration
+      - key: SSH_LISTEN_ADDRESS
+        value: 0.0.0.0:2222
+      - key: HTTP_LISTEN_ADDRESS
+        value: 0.0.0.0:10000
+      - key: LOG_LEVEL
+        value: debug
+      - key: LOG_FORMAT
+        value: json
+
+      # App URL
+      - key: APP_URL
+        value: https://qa.my.nethesis.it
+
+      # Support Service
+      - key: SUPPORT_SERVICE_URL
+        value: http://my-support-qa:10000
+      - key: SUPPORT_INTERNAL_SECRET
+        sync: false  # Configure in Render dashboard
+
+      # Redis Configuration
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: my-redis-qa
+          property: connectionString
+      - key: REDIS_DB
+        value: 0
 
     autoDeploy: true
     branch: main

@@ -28,17 +28,17 @@ jobs:
               repo: context.repo.repo,
               pull_number: context.issue.number
             });
-            
+
             // Safety check: Never allow commits to main or master
             if (pr.data.head.ref === 'main' || pr.data.head.ref === 'master') {
               core.setFailed(`🚨 SAFETY CHECK FAILED: Cannot commit to protected branch '${pr.data.head.ref}'. This action only works on feature branches.`);
               return;
             }
-            
+
             core.setOutput('head_ref', pr.data.head.ref);
             core.setOutput('head_repo', pr.data.head.repo.full_name);
             core.setOutput('head_sha', pr.data.head.sha);
-            
+
             console.log('PR details:');
             console.log('Head ref:', pr.data.head.ref);
             console.log('Head repo:', pr.data.head.repo.full_name);
@@ -64,7 +64,7 @@ jobs:
           echo "Updating build triggers with timestamp: $TIMESTAMP"
           UPDATED_FILES=()
 
-          for component in backend collect frontend proxy services/mimir services/support; do
+          for component in backend collect frontend proxy services/mimir services/support services/ssh-gateway; do
             if [ -f "$component/.render-build-trigger" ]; then
               echo "Updating $component/.render-build-trigger"
               perl -i -pe "s/LAST_UPDATE=.*/LAST_UPDATE=$TIMESTAMP/" "$component/.render-build-trigger"
@@ -92,23 +92,23 @@ jobs:
           # Double safety check: Verify we're not on main/master
           CURRENT_BRANCH=$(git branch --show-current)
           TARGET_BRANCH="${{ steps.pr.outputs.head_ref }}"
-          
+
           echo "Current branch: $CURRENT_BRANCH"
           echo "Target branch: $TARGET_BRANCH"
-          
+
           if [[ "$TARGET_BRANCH" == "main" || "$TARGET_BRANCH" == "master" ]]; then
             echo "🚨 SAFETY CHECK FAILED: Refusing to commit to protected branch '$TARGET_BRANCH'"
             exit 1
           fi
-          
+
           if [[ "$CURRENT_BRANCH" == "main" || "$CURRENT_BRANCH" == "master" ]]; then
             echo "🚨 SAFETY CHECK FAILED: Currently on protected branch '$CURRENT_BRANCH'"
             exit 1
           fi
-          
+
           echo "✅ Safety checks passed. Proceeding with commit to branch: $TARGET_BRANCH"
-          
-          git add */.render-build-trigger services/mimir/.render-build-trigger services/support/.render-build-trigger
+
+          git add */.render-build-trigger services/mimir/.render-build-trigger services/support/.render-build-trigger services/ssh-gateway/.render-build-trigger
           git commit -m "chore: update build triggers for PR deployment
 
           Auto-updated .render-build-trigger files to ensure all services

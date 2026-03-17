@@ -113,7 +113,9 @@ jobs:
                   { name: 'Frontend Build', jobKey: 'build (frontend)' },
                   { name: 'Proxy Build', jobKey: 'build (proxy)' },
                   { name: 'Support Tests', jobKey: 'go-tests (services/support)' },
-                  { name: 'Support Build', jobKey: 'build (support)' }
+                  { name: 'Support Build', jobKey: 'build (support)' },
+                  { name: 'SSH Gateway Tests', jobKey: 'go-tests (services/ssh-gateway)' },
+                  { name: 'SSH Gateway Build', jobKey: 'build (ssh-gateway)' }
                 ];
 
                 for (const { name, jobKey } of badgeReplacements) {
@@ -121,7 +123,7 @@ jobs:
                   if (job) {
                     // Create badge with proper display name
                     const badgeUrl = `https://img.shields.io/badge/${encodeURIComponent(name)}-${job.statusText}-${job.color}`;
-                    
+
                     // Replace the specific badge line
                     const badgeRegex = new RegExp(`- \\[!\\[${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]\\([^\\)]+\\)\\]\\([^\\)]+\\)`, 'g');
                     updatedBody = updatedBody.replace(badgeRegex, `- [![${name}](${badgeUrl})](${job.url})`);

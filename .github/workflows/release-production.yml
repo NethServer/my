@@ -71,6 +71,15 @@ jobs:
           exit 1
         fi
 
+    - name: Check code formatting (ssh-gateway)
+      working-directory: services/ssh-gateway
+      run: |
+        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+          echo "Code is not formatted properly in services/ssh-gateway:"
+          gofmt -s -l .
+          exit 1
+        fi
+
     - name: Run backend linting
       uses: golangci/golangci-lint-action@v6
       with:
@@ -99,6 +108,13 @@ jobs:
         working-directory: services/support
         args: --timeout=10m
 
+    - name: Run ssh-gateway linting
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest
+        working-directory: services/ssh-gateway
+        args: --timeout=10m
+
     - name: Run backend tests
       working-directory: backend
       run: go test ./...
@@ -113,6 +129,10 @@ jobs:
 
     - name: Run support tests
       working-directory: services/support
+      run: go test ./...
+
+    - name: Run ssh-gateway tests
+      working-directory: services/ssh-gateway
       run: go test ./...
 
     - name: Set up Node.js
@@ -242,6 +262,22 @@ jobs:
         LDFLAGS="-s -w -X github.com/nethesis/my/services/support/pkg/version.Version=${VERSION} -X github.com/nethesis/my/services/support/pkg/version.Commit=${COMMIT} -X github.com/nethesis/my/services/support/pkg/version.BuildTime=${BUILD_TIME}"
 
         GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/tunnel-client-linux-amd64 ./cmd/tunnel-client/main.go
+
+    # SSH Gateway Release
+    - name: Build ssh-gateway binary
+      working-directory: services/ssh-gateway
+      run: |
+        mkdir -p dist
+
+        VERSION="${{ steps.version.outputs.VERSION }}"
+        COMMIT="${{ github.sha }}"
+        BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        LDFLAGS="-s -w -X github.com/nethesis/my/services/ssh-gateway/pkg/version.Version=${VERSION} -X github.com/nethesis/my/services/ssh-gateway/pkg/version.Commit=${COMMIT} -X github.com/nethesis/my/services/ssh-gateway/pkg/version.BuildTime=${BUILD_TIME}"
+
+        GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/ssh-gateway-linux-amd64 main.go
+
+        cd dist
+        tar -czf ssh-gateway-linux-amd64.tar.gz ssh-gateway-linux-amd64
 
     # Docker Images
     - name: Extract backend metadata
@@ -477,6 +513,41 @@ jobs:
         format: cyclonedx-json
         output-file: support-sbom.cdx.json
 
+    - name: Extract ssh-gateway metadata
+      id: ssh_gateway_meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ github.repository }}/ssh-gateway
+        tags: |
+          type=semver,pattern=v{{version}},value=${{ steps.version.outputs.VERSION }}
+          type=raw,value=latest
+
+    - name: Build and push ssh-gateway Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: services/ssh-gateway
+        file: services/ssh-gateway/Containerfile
+        platforms: linux/amd64
+        push: true
+        tags: ${{ steps.ssh_gateway_meta.outputs.tags }}
+        labels: |
+          ${{ steps.ssh_gateway_meta.outputs.labels }}
+          org.opencontainers.image.title=My Nethesis SSH Gateway
+          org.opencontainers.image.description=SSH gateway for native terminal access to remote systems
+        cache-from: type=gha,scope=ssh-gateway
+        cache-to: type=gha,mode=max,scope=ssh-gateway
+        build-args: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          COMMIT=${{ github.sha }}
+          BUILD_TIME=${{ steps.ssh_gateway_meta.outputs.labels['org.opencontainers.image.created'] }}
+
+    - name: Generate ssh-gateway SBOM
+      uses: anchore/sbom-action@v0
+      with:
+        image: ${{ env.REGISTRY }}/${{ steps.image_prefix.outputs.PREFIX }}/ssh-gateway:${{ steps.version.outputs.VERSION }}
+        format: cyclonedx-json
+        output-file: ssh-gateway-sbom.cdx.json
+
     - name: Extract tunnel-client metadata
       id: tunnel_client_meta
       uses: docker/metadata-action@v5
@@ -523,11 +594,13 @@ jobs:
           collect/dist/*.tar.gz
           services/support/dist/support-linux-amd64.tar.gz
           services/support/dist/tunnel-client-linux-amd64
+          services/ssh-gateway/dist/ssh-gateway-linux-amd64.tar.gz
           backend-sbom.cdx.json
           sync-sbom.cdx.json
           collect-sbom.cdx.json
           support-sbom.cdx.json
           tunnel-client-sbom.cdx.json
+          ssh-gateway-sbom.cdx.json
           frontend-sbom.cdx.json
           proxy-sbom.cdx.json
           mimir-sbom.cdx.json

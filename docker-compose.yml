@@ -233,6 +233,39 @@ services:
     networks:
       - my-full-network
 
+  # SSH Gateway Service
+  ssh-gateway-full:
+    build:
+      context: ./services/ssh-gateway
+      dockerfile: Containerfile
+      args:
+        VERSION: ${VERSION:-dev}
+        COMMIT: ${COMMIT:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+    container_name: ${COMPOSE_PROJECT_NAME:-my}-ssh-gateway-full
+    restart: unless-stopped
+    env_file:
+      - ./services/ssh-gateway/.env
+    environment:
+      # Override for full stack containers
+      REDIS_URL: redis://redis-full:6379
+      REDIS_DB: 0
+      SUPPORT_SERVICE_URL: http://support-full:8080
+      HTTP_LISTEN_ADDRESS: 0.0.0.0:8080
+      SSH_LISTEN_ADDRESS: 0.0.0.0:2222
+      LOG_LEVEL: debug
+      LOG_FORMAT: console
+    ports:
+      - "18083:8080"  # Health check HTTP
+      - "2222:2222"   # SSH
+    depends_on:
+      redis-full:
+        condition: service_healthy
+      support-full:
+        condition: service_healthy
+    networks:
+      - my-full-network
+
   # =============================================================================
   # FRONTEND
   # =============================================================================

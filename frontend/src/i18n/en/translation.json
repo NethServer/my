@@ -642,6 +642,8 @@
     "cannot_load_services": "Cannot load services",
     "cannot_generate_proxy_token": "Cannot generate proxy token",
     "terminal": "Terminal",
+    "ssh": "SSH",
+    "ssh_command_copied": "SSH command copied!",
     "terminal_connected": "Connected",
     "terminal_connecting": "Connecting...",
     "terminal_retry": "Retry",

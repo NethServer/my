@@ -58,7 +58,7 @@ check_formatting() {
     info "Checking code formatting for $component..."
 
     pushd "$component" > /dev/null
-    if [[ "$component" =~ ^(backend|sync|collect|services/support)$ ]]; then
+    if [[ "$component" =~ ^(backend|sync|collect|services/support|services/ssh-gateway)$ ]]; then
         # Go formatting check
         local unformatted=$(gofmt -s -l . | wc -l)
         if [ "$unformatted" -gt 0 ]; then
@@ -83,7 +83,7 @@ run_linting() {
     info "Running linting for $component..."
 
     pushd "$component" > /dev/null
-    if [ "$component" = "backend" ] || [ "$component" = "collect" ] || [ "$component" = "services/support" ]; then
+    if [ "$component" = "backend" ] || [ "$component" = "collect" ] || [ "$component" = "services/support" ] || [ "$component" = "services/ssh-gateway" ]; then
         # Check if golangci-lint is available
         if command -v golangci-lint >/dev/null 2>&1; then
             if ! golangci-lint run; then
@@ -119,7 +119,7 @@ run_tests() {
     info "Running tests for $component..."
 
     pushd "$component" > /dev/null
-    if [ "$component" = "backend" ] || [ "$component" = "collect" ] || [ "$component" = "services/support" ]; then
+    if [ "$component" = "backend" ] || [ "$component" = "collect" ] || [ "$component" = "services/support" ] || [ "$component" = "services/ssh-gateway" ]; then
         if ! go test ./...; then
             error "Tests failed for $component"
         fi
@@ -195,7 +195,8 @@ update_version_file() {
         .components.frontend = $version |
         .components.proxy = $version |
         .components."services/mimir" = $version |
-        .components."services/support" = $version
+        .components."services/support" = $version |
+        .components."services/ssh-gateway" = $version
     ' version.json > version.json.tmp && mv version.json.tmp version.json
 }
 
@@ -243,6 +244,14 @@ update_component_versions() {
         success "Updated services/support/pkg/version/VERSION"
     else
         warning "services/support/pkg/version/VERSION not found"
+    fi
+
+    # Update services/ssh-gateway VERSION file
+    if [ -f "services/ssh-gateway/pkg/version/VERSION" ]; then
+        echo "$new_version" > "services/ssh-gateway/pkg/version/VERSION"
+        success "Updated services/ssh-gateway/pkg/version/VERSION"
+    else
+        warning "services/ssh-gateway/pkg/version/VERSION not found"
     fi
 }
 
@@ -350,18 +359,21 @@ main() {
     check_formatting "sync"
     check_formatting "collect"
     check_formatting "services/support"
+    check_formatting "services/ssh-gateway"
     check_formatting "frontend"
     check_formatting "proxy"
     run_linting "backend"
     run_linting "sync"
     run_linting "collect"
     run_linting "services/support"
+    run_linting "services/ssh-gateway"
     run_linting "frontend"
     run_linting "proxy"
     run_tests "backend"
     run_tests "sync"
     run_tests "collect"
     run_tests "services/support"
+    run_tests "services/ssh-gateway"
     run_tests "frontend"
     run_tests "proxy"
     success "All quality checks passed!"
@@ -407,6 +419,7 @@ main() {
         sync/pkg/version/VERSION
         services/mimir/VERSION
         services/support/pkg/version/VERSION
+        services/ssh-gateway/pkg/version/VERSION
         frontend/package.json
         frontend/package-lock.json
         backend/openapi.yaml
