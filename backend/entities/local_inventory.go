@@ -12,6 +12,7 @@ package entities
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/nethesis/my/backend/database"
@@ -139,11 +140,21 @@ func (r *LocalInventoryRepository) GetInventoryHistory(systemID string, page, pa
 }
 
 // GetInventoryDiffs returns paginated diffs for a system
-func (r *LocalInventoryRepository) GetInventoryDiffs(systemID string, page, pageSize int, severity, category, diffType string, fromDate, toDate *time.Time) ([]models.InventoryDiff, int, error) {
+func (r *LocalInventoryRepository) GetInventoryDiffs(systemID string, page, pageSize int, severity, category, diffType string, fromDate, toDate *time.Time, inventoryIDs []int64) ([]models.InventoryDiff, int, error) {
 	// Build WHERE clause with filters
 	whereClause := "WHERE system_id = $1"
 	args := []interface{}{systemID}
 	argIndex := 2
+
+	if len(inventoryIDs) > 0 {
+		placeholders := make([]string, len(inventoryIDs))
+		for i, id := range inventoryIDs {
+			placeholders[i] = fmt.Sprintf("$%d", argIndex)
+			args = append(args, id)
+			argIndex++
+		}
+		whereClause += fmt.Sprintf(" AND current_id IN (%s)", strings.Join(placeholders, ", "))
+	}
 
 	if severity != "" {
 		whereClause += fmt.Sprintf(" AND severity = $%d", argIndex)
@@ -235,6 +246,193 @@ func (r *LocalInventoryRepository) GetInventoryDiffs(systemID string, page, page
 	}
 
 	return diffs, totalCount, nil
+}
+
+// GetInventoryTimelineSummary returns filtered severity counts for the timeline view
+func (r *LocalInventoryRepository) GetInventoryTimelineSummary(systemID, severity, category, diffType string, fromDate, toDate *time.Time) (models.InventoryTimelineSummary, error) {
+	whereClause := "WHERE system_id = $1"
+	args := []interface{}{systemID}
+	argIndex := 2
+
+	if severity != "" {
+		whereClause += fmt.Sprintf(" AND severity = $%d", argIndex)
+		args = append(args, severity)
+		argIndex++
+	}
+	if category != "" {
+		whereClause += fmt.Sprintf(" AND category = $%d", argIndex)
+		args = append(args, category)
+		argIndex++
+	}
+	if diffType != "" {
+		whereClause += fmt.Sprintf(" AND diff_type = $%d", argIndex)
+		args = append(args, diffType)
+		argIndex++
+	}
+	if fromDate != nil {
+		whereClause += fmt.Sprintf(" AND created_at >= $%d", argIndex)
+		args = append(args, *fromDate)
+		argIndex++
+	}
+	if toDate != nil {
+		whereClause += fmt.Sprintf(" AND created_at <= $%d", argIndex)
+		args = append(args, *toDate)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT
+			COUNT(*) as total,
+			COUNT(*) FILTER (WHERE severity = 'critical') as critical,
+			COUNT(*) FILTER (WHERE severity = 'high') as high,
+			COUNT(*) FILTER (WHERE severity = 'medium') as medium,
+			COUNT(*) FILTER (WHERE severity = 'low') as low
+		FROM inventory_diffs
+		%s
+	`, whereClause)
+
+	var summary models.InventoryTimelineSummary
+	err := r.db.QueryRow(query, args...).Scan(
+		&summary.Total, &summary.Critical, &summary.High, &summary.Medium, &summary.Low,
+	)
+	if err != nil {
+		return summary, fmt.Errorf("failed to query timeline summary: %w", err)
+	}
+
+	return summary, nil
+}
+
+// GetInventoryTimelineDateGroups returns paginated date groups with inventory and change counts
+func (r *LocalInventoryRepository) GetInventoryTimelineDateGroups(systemID string, page, pageSize int, severity, category, diffType string, fromDate, toDate *time.Time) ([]models.InventoryTimelineGroup, int, error) {
+	// Build WHERE clause for inventory_records (date range only)
+	irWhereClause := "WHERE ir.system_id = $1"
+	irArgs := []interface{}{systemID}
+	irArgIndex := 2
+
+	if fromDate != nil {
+		irWhereClause += fmt.Sprintf(" AND ir.timestamp >= $%d", irArgIndex)
+		irArgs = append(irArgs, *fromDate)
+		irArgIndex++
+	}
+	if toDate != nil {
+		irWhereClause += fmt.Sprintf(" AND ir.timestamp <= $%d", irArgIndex)
+		irArgs = append(irArgs, *toDate)
+		irArgIndex++
+	}
+
+	// Build JOIN condition for inventory_diffs (filter params)
+	joinCondition := "d.current_id = ir.id AND d.system_id = ir.system_id"
+	joinArgs := []interface{}{}
+	joinArgIndex := irArgIndex
+
+	if severity != "" {
+		joinCondition += fmt.Sprintf(" AND d.severity = $%d", joinArgIndex)
+		joinArgs = append(joinArgs, severity)
+		joinArgIndex++
+	}
+	if category != "" {
+		joinCondition += fmt.Sprintf(" AND d.category = $%d", joinArgIndex)
+		joinArgs = append(joinArgs, category)
+		joinArgIndex++
+	}
+	if diffType != "" {
+		joinCondition += fmt.Sprintf(" AND d.diff_type = $%d", joinArgIndex)
+		joinArgs = append(joinArgs, diffType)
+		joinArgIndex++
+	}
+
+	// Count total date groups (only needs irArgs, no join filters)
+	countQuery := fmt.Sprintf(`
+		SELECT COUNT(DISTINCT DATE(ir.timestamp AT TIME ZONE 'UTC')::text)
+		FROM inventory_records ir
+		%s
+	`, irWhereClause)
+
+	var totalCount int
+	if err := r.db.QueryRow(countQuery, irArgs...).Scan(&totalCount); err != nil {
+		return nil, 0, fmt.Errorf("failed to count timeline date groups: %w", err)
+	}
+
+	// Build full args for main query (irArgs + joinArgs + pagination)
+	allArgs := append(irArgs, joinArgs...)
+	offset := (page - 1) * pageSize
+	allArgs = append(allArgs, pageSize, offset)
+
+	query := fmt.Sprintf(`
+		SELECT
+			DATE(ir.timestamp AT TIME ZONE 'UTC')::text as date,
+			COUNT(DISTINCT ir.id) as inventory_count,
+			COUNT(d.id) as change_count
+		FROM inventory_records ir
+		LEFT JOIN inventory_diffs d ON %s
+		%s
+		GROUP BY DATE(ir.timestamp AT TIME ZONE 'UTC')
+		ORDER BY date DESC
+		LIMIT $%d OFFSET $%d
+	`, joinCondition, irWhereClause, joinArgIndex, joinArgIndex+1)
+
+	rows, err := r.db.Query(query, allArgs...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to query timeline date groups: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var groups []models.InventoryTimelineGroup
+	for rows.Next() {
+		var group models.InventoryTimelineGroup
+		if err := rows.Scan(&group.Date, &group.InventoryCount, &group.ChangeCount); err != nil {
+			return nil, 0, fmt.Errorf("failed to scan timeline date group: %w", err)
+		}
+		group.InventoryIDs = []int64{}
+		groups = append(groups, group)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("error iterating timeline date groups: %w", err)
+	}
+
+	return groups, totalCount, nil
+}
+
+// GetInventoryIDsForDates returns inventory record IDs grouped by date (YYYY-MM-DD) for the given dates
+func (r *LocalInventoryRepository) GetInventoryIDsForDates(systemID string, dates []string) (map[string][]int64, error) {
+	if len(dates) == 0 {
+		return nil, nil
+	}
+
+	placeholders := make([]string, len(dates))
+	args := []interface{}{systemID}
+	for i, d := range dates {
+		placeholders[i] = fmt.Sprintf("$%d", i+2)
+		args = append(args, d)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id, DATE(timestamp AT TIME ZONE 'UTC')::text as date
+		FROM inventory_records
+		WHERE system_id = $1
+		AND DATE(timestamp AT TIME ZONE 'UTC')::text IN (%s)
+		ORDER BY id
+	`, strings.Join(placeholders, ", "))
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query inventory IDs for dates: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	result := make(map[string][]int64)
+	for rows.Next() {
+		var id int64
+		var date string
+		if err := rows.Scan(&id, &date); err != nil {
+			return nil, fmt.Errorf("failed to scan inventory ID for date: %w", err)
+		}
+		result[date] = append(result[date], id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating inventory IDs for dates: %w", err)
+	}
+
+	return result, nil
 }
 
 // GetLatestInventoryDiffs returns all diffs from the most recent inventory processing batch for a system

@@ -86,8 +86,8 @@ func (s *LocalInventoryService) GetInventoryHistory(systemID string, page, pageS
 }
 
 // GetInventoryDiffs returns paginated diffs for a system
-func (s *LocalInventoryService) GetInventoryDiffs(systemID string, page, pageSize int, severity, category, diffType string, fromDate, toDate *time.Time) ([]models.InventoryDiff, int, error) {
-	diffs, totalCount, err := s.inventoryRepo.GetInventoryDiffs(systemID, page, pageSize, severity, category, diffType, fromDate, toDate)
+func (s *LocalInventoryService) GetInventoryDiffs(systemID string, page, pageSize int, severity, category, diffType string, fromDate, toDate *time.Time, inventoryIDs []int64) ([]models.InventoryDiff, int, error) {
+	diffs, totalCount, err := s.inventoryRepo.GetInventoryDiffs(systemID, page, pageSize, severity, category, diffType, fromDate, toDate, inventoryIDs)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -143,17 +143,57 @@ func (s *LocalInventoryService) GetLatestInventoryDiffs(systemID string) ([]mode
 	return diffs, nil
 }
 
-// GetChangesSummary returns a summary of changes for a system
+// GetInventoryTimeline returns a date-grouped timeline with summary counts and inventory IDs per group
+func (s *LocalInventoryService) GetInventoryTimeline(systemID string, page, pageSize int, severity, category, diffType string, fromDate, toDate *time.Time) (models.InventoryTimelineSummary, []models.InventoryTimelineGroup, int, error) {
+	// Get filtered summary counts
+	summary, err := s.inventoryRepo.GetInventoryTimelineSummary(systemID, severity, category, diffType, fromDate, toDate)
+	if err != nil {
+		return summary, nil, 0, err
+	}
+
+	// Get paginated date groups
+	groups, totalCount, err := s.inventoryRepo.GetInventoryTimelineDateGroups(systemID, page, pageSize, severity, category, diffType, fromDate, toDate)
+	if err != nil {
+		return summary, nil, 0, err
+	}
+
+	// Collect dates for this page and fetch their inventory IDs
+	if len(groups) > 0 {
+		dates := make([]string, len(groups))
+		for i, g := range groups {
+			dates[i] = g.Date
+		}
+
+		idsByDate, err := s.inventoryRepo.GetInventoryIDsForDates(systemID, dates)
+		if err != nil {
+			return summary, nil, 0, err
+		}
+
+		for i := range groups {
+			if ids, ok := idsByDate[groups[i].Date]; ok {
+				groups[i].InventoryIDs = ids
+			} else {
+				groups[i].InventoryIDs = []int64{}
+			}
+		}
+	}
+
+	logger.Debug().
+		Str("system_id", systemID).
+		Int("groups", len(groups)).
+		Int("total_groups", totalCount).
+		Int("summary_total", summary.Total).
+		Msg("Retrieved inventory timeline")
+
+	return summary, groups, totalCount, nil
+}
+
+// GetChangesSummary returns a summary of all changes for a system
 func (s *LocalInventoryService) GetChangesSummary(systemID string) (*InventoryChangesSummary, error) {
-	// Get latest inventory timestamp
 	var lastInventoryTime time.Time
 	err := s.db.QueryRow(`
-		SELECT timestamp FROM inventory_records 
-		WHERE system_id = $1 
-		ORDER BY timestamp DESC 
-		LIMIT 1
+		SELECT timestamp FROM inventory_records WHERE system_id = $1 ORDER BY timestamp DESC LIMIT 1
 	`, systemID).Scan(&lastInventoryTime)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("no inventory found for system %s", systemID)
@@ -161,59 +201,31 @@ func (s *LocalInventoryService) GetChangesSummary(systemID string) (*InventoryCh
 		return nil, fmt.Errorf("failed to get latest inventory time: %w", err)
 	}
 
-	// Count total changes
-	var totalChanges int
-	err = s.db.QueryRow(`
-		SELECT COUNT(*) FROM inventory_diffs WHERE system_id = $1
-	`, systemID).Scan(&totalChanges)
-	if err != nil {
+	var totalChanges, recentChanges, criticalChanges, alerts int
+	yesterday := time.Now().Add(-24 * time.Hour)
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM inventory_diffs WHERE system_id = $1`, systemID).Scan(&totalChanges); err != nil {
 		return nil, fmt.Errorf("failed to count total changes: %w", err)
 	}
-
-	// Count recent changes (last 24h)
-	var recentChanges int
-	yesterday := time.Now().Add(-24 * time.Hour)
-	err = s.db.QueryRow(`
-		SELECT COUNT(*) FROM inventory_diffs 
-		WHERE system_id = $1 AND created_at >= $2
-	`, systemID, yesterday).Scan(&recentChanges)
-	if err != nil {
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM inventory_diffs WHERE system_id = $1 AND created_at >= $2`, systemID, yesterday).Scan(&recentChanges); err != nil {
 		return nil, fmt.Errorf("failed to count recent changes: %w", err)
 	}
-
-	// Check for critical changes
-	var criticalChanges int
-	err = s.db.QueryRow(`
-		SELECT COUNT(*) FROM inventory_diffs 
-		WHERE system_id = $1 AND severity = 'critical'
-	`, systemID).Scan(&criticalChanges)
-	if err != nil {
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM inventory_diffs WHERE system_id = $1 AND severity = 'critical'`, systemID).Scan(&criticalChanges); err != nil {
 		return nil, fmt.Errorf("failed to count critical changes: %w", err)
 	}
-
-	// Check for alerts
-	var alerts int
-	err = s.db.QueryRow(`
-		SELECT COUNT(*) FROM inventory_alerts 
-		WHERE system_id = $1 AND is_resolved = false
-	`, systemID).Scan(&alerts)
-	if err != nil {
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM inventory_alerts WHERE system_id = $1 AND is_resolved = false`, systemID).Scan(&alerts); err != nil {
 		return nil, fmt.Errorf("failed to count alerts: %w", err)
 	}
 
-	// Get changes by category
-	changesByCategory, err := s.getChangesByCategory(systemID)
+	changesByCategory, err := s.queryGroupedCounts(`SELECT category, COUNT(*) FROM inventory_diffs WHERE system_id = $1 GROUP BY category`, systemID)
+	if err != nil {
+		return nil, err
+	}
+	changesBySeverity, err := s.queryGroupedCounts(`SELECT severity, COUNT(*) FROM inventory_diffs WHERE system_id = $1 GROUP BY severity`, systemID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Get changes by severity
-	changesBySeverity, err := s.getChangesBySeverity(systemID)
-	if err != nil {
-		return nil, err
-	}
-
-	summary := &InventoryChangesSummary{
+	return &InventoryChangesSummary{
 		SystemID:           systemID,
 		TotalChanges:       totalChanges,
 		RecentChanges:      recentChanges,
@@ -222,31 +234,16 @@ func (s *LocalInventoryService) GetChangesSummary(systemID string) (*InventoryCh
 		HasAlerts:          alerts > 0,
 		ChangesByCategory:  changesByCategory,
 		ChangesBySeverity:  changesBySeverity,
-	}
-
-	logger.Debug().
-		Str("system_id", systemID).
-		Int("total_changes", totalChanges).
-		Int("recent_changes", recentChanges).
-		Bool("has_critical", summary.HasCriticalChanges).
-		Bool("has_alerts", summary.HasAlerts).
-		Msg("Generated changes summary")
-
-	return summary, nil
+	}, nil
 }
 
-// GetLatestInventoryChangesSummary returns a summary of changes from the most recent inventory processing batch
+// GetLatestInventoryChangesSummary returns a changes summary scoped to the most recent inventory batch
 func (s *LocalInventoryService) GetLatestInventoryChangesSummary(systemID string) (*InventoryChangesSummary, error) {
-	// Get latest inventory timestamp and ID
 	var lastInventoryTime time.Time
 	var lastInventoryID int64
 	err := s.db.QueryRow(`
-		SELECT id, timestamp FROM inventory_records 
-		WHERE system_id = $1 
-		ORDER BY timestamp DESC 
-		LIMIT 1
+		SELECT id, timestamp FROM inventory_records WHERE system_id = $1 ORDER BY timestamp DESC LIMIT 1
 	`, systemID).Scan(&lastInventoryID, &lastInventoryTime)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("no inventory found for system %s", systemID)
@@ -254,74 +251,60 @@ func (s *LocalInventoryService) GetLatestInventoryChangesSummary(systemID string
 		return nil, fmt.Errorf("failed to get latest inventory: %w", err)
 	}
 
-	// Count changes for this specific inventory batch
-	var totalChanges int
-	err = s.db.QueryRow(`
-		SELECT COUNT(*) FROM inventory_diffs 
-		WHERE system_id = $1 AND current_id = $2
-	`, systemID, lastInventoryID).Scan(&totalChanges)
-	if err != nil {
+	var totalChanges, criticalChanges, alerts int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM inventory_diffs WHERE system_id = $1 AND current_id = $2`, systemID, lastInventoryID).Scan(&totalChanges); err != nil {
 		return nil, fmt.Errorf("failed to count latest batch changes: %w", err)
 	}
-
-	// Count critical changes for this batch
-	var criticalChanges int
-	err = s.db.QueryRow(`
-		SELECT COUNT(*) FROM inventory_diffs 
-		WHERE system_id = $1 AND current_id = $2 AND severity = 'critical'
-	`, systemID, lastInventoryID).Scan(&criticalChanges)
-	if err != nil {
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM inventory_diffs WHERE system_id = $1 AND current_id = $2 AND severity = 'critical'`, systemID, lastInventoryID).Scan(&criticalChanges); err != nil {
 		return nil, fmt.Errorf("failed to count critical changes: %w", err)
 	}
-
-	// Check for alerts related to this inventory batch
-	var alerts int
-	err = s.db.QueryRow(`
-		SELECT COUNT(*) FROM inventory_alerts 
-		WHERE system_id = $1 AND is_resolved = false
-		AND created_at >= $2
-	`, systemID, lastInventoryTime.Add(-1*time.Hour)).Scan(&alerts) // Check alerts from 1 hour before inventory
-	if err != nil {
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM inventory_alerts WHERE system_id = $1 AND is_resolved = false AND created_at >= $2`, systemID, lastInventoryTime.Add(-1*time.Hour)).Scan(&alerts); err != nil {
 		return nil, fmt.Errorf("failed to count alerts: %w", err)
 	}
 
-	// Get changes by category for this batch
-	changesByCategory, err := s.getChangesByCategoryForBatch(systemID, lastInventoryID)
+	changesByCategory, err := s.queryGroupedCounts(`SELECT category, COUNT(*) FROM inventory_diffs WHERE system_id = $1 AND current_id = $2 GROUP BY category`, systemID, lastInventoryID)
+	if err != nil {
+		return nil, err
+	}
+	changesBySeverity, err := s.queryGroupedCounts(`SELECT severity, COUNT(*) FROM inventory_diffs WHERE system_id = $1 AND current_id = $2 GROUP BY severity`, systemID, lastInventoryID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Get changes by severity for this batch
-	changesBySeverity, err := s.getChangesBySeverityForBatch(systemID, lastInventoryID)
-	if err != nil {
-		return nil, err
-	}
-
-	summary := &InventoryChangesSummary{
+	return &InventoryChangesSummary{
 		SystemID:           systemID,
 		TotalChanges:       totalChanges,
-		RecentChanges:      totalChanges, // For latest batch, all changes are "recent"
+		RecentChanges:      totalChanges,
 		LastInventoryTime:  lastInventoryTime,
 		HasCriticalChanges: criticalChanges > 0,
 		HasAlerts:          alerts > 0,
 		ChangesByCategory:  changesByCategory,
 		ChangesBySeverity:  changesBySeverity,
-	}
-
-	logger.Debug().
-		Str("system_id", systemID).
-		Int64("inventory_id", lastInventoryID).
-		Int("total_changes", totalChanges).
-		Bool("has_critical", summary.HasCriticalChanges).
-		Bool("has_alerts", summary.HasAlerts).
-		Msg("Generated latest inventory changes summary")
-
-	return summary, nil
+	}, nil
 }
 
 // =============================================================================
 // PRIVATE METHODS
 // =============================================================================
+
+func (s *LocalInventoryService) queryGroupedCounts(query string, args ...interface{}) (map[string]int, error) {
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query grouped counts: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	result := make(map[string]int)
+	for rows.Next() {
+		var key string
+		var count int
+		if err := rows.Scan(&key, &count); err != nil {
+			return nil, fmt.Errorf("failed to scan grouped count: %w", err)
+		}
+		result[key] = count
+	}
+	return result, rows.Err()
+}
 
 // parseJSONValue attempts to parse a string as JSON object, returns the object or the original string
 func (s *LocalInventoryService) parseJSONValue(value *string) interface{} {
@@ -342,110 +325,8 @@ func (s *LocalInventoryService) parseJSONValue(value *string) interface{} {
 	// Try to parse the JSON
 	var jsonObj interface{}
 	if err := json.Unmarshal([]byte(trimmed), &jsonObj); err != nil {
-		// Not valid JSON, return original string
 		return *value
 	}
 
-	// Return the parsed JSON object
 	return jsonObj
-}
-
-// getChangesByCategory returns changes grouped by category for a system
-func (s *LocalInventoryService) getChangesByCategory(systemID string) (map[string]int, error) {
-	categoryRows, err := s.db.Query(`
-		SELECT category, COUNT(*) FROM inventory_diffs 
-		WHERE system_id = $1 
-		GROUP BY category
-	`, systemID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get changes by category: %w", err)
-	}
-	defer func() { _ = categoryRows.Close() }()
-
-	changesByCategory := make(map[string]int)
-	for categoryRows.Next() {
-		var category string
-		var count int
-		if err := categoryRows.Scan(&category, &count); err != nil {
-			return nil, fmt.Errorf("failed to scan category changes: %w", err)
-		}
-		changesByCategory[category] = count
-	}
-
-	return changesByCategory, nil
-}
-
-// getChangesBySeverity returns changes grouped by severity for a system
-func (s *LocalInventoryService) getChangesBySeverity(systemID string) (map[string]int, error) {
-	severityRows, err := s.db.Query(`
-		SELECT severity, COUNT(*) FROM inventory_diffs 
-		WHERE system_id = $1 
-		GROUP BY severity
-	`, systemID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get changes by severity: %w", err)
-	}
-	defer func() { _ = severityRows.Close() }()
-
-	changesBySeverity := make(map[string]int)
-	for severityRows.Next() {
-		var severity string
-		var count int
-		if err := severityRows.Scan(&severity, &count); err != nil {
-			return nil, fmt.Errorf("failed to scan severity changes: %w", err)
-		}
-		changesBySeverity[severity] = count
-	}
-
-	return changesBySeverity, nil
-}
-
-// getChangesByCategoryForBatch returns changes grouped by category for a specific inventory batch
-func (s *LocalInventoryService) getChangesByCategoryForBatch(systemID string, inventoryID int64) (map[string]int, error) {
-	categoryRows, err := s.db.Query(`
-		SELECT category, COUNT(*) FROM inventory_diffs 
-		WHERE system_id = $1 AND current_id = $2
-		GROUP BY category
-	`, systemID, inventoryID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get changes by category: %w", err)
-	}
-	defer func() { _ = categoryRows.Close() }()
-
-	changesByCategory := make(map[string]int)
-	for categoryRows.Next() {
-		var category string
-		var count int
-		if err := categoryRows.Scan(&category, &count); err != nil {
-			return nil, fmt.Errorf("failed to scan category changes: %w", err)
-		}
-		changesByCategory[category] = count
-	}
-
-	return changesByCategory, nil
-}
-
-// getChangesBySeverityForBatch returns changes grouped by severity for a specific inventory batch
-func (s *LocalInventoryService) getChangesBySeverityForBatch(systemID string, inventoryID int64) (map[string]int, error) {
-	severityRows, err := s.db.Query(`
-		SELECT severity, COUNT(*) FROM inventory_diffs 
-		WHERE system_id = $1 AND current_id = $2
-		GROUP BY severity
-	`, systemID, inventoryID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get changes by severity: %w", err)
-	}
-	defer func() { _ = severityRows.Close() }()
-
-	changesBySeverity := make(map[string]int)
-	for severityRows.Next() {
-		var severity string
-		var count int
-		if err := severityRows.Scan(&severity, &count); err != nil {
-			return nil, fmt.Errorf("failed to scan severity changes: %w", err)
-		}
-		changesBySeverity[severity] = count
-	}
-
-	return changesBySeverity, nil
 }

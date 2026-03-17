@@ -319,6 +319,55 @@ components:
             high: 5
             critical: 2
 
+    InventoryTimelineSummary:
+      type: object
+      description: Filtered severity counts for the timeline view
+      properties:
+        total:
+          type: integer
+          description: Total number of changes matching the active filters
+          example: 12
+        critical:
+          type: integer
+          description: Number of critical-severity changes matching the active filters
+          example: 1
+        high:
+          type: integer
+          description: Number of high-severity changes matching the active filters
+          example: 3
+        medium:
+          type: integer
+          description: Number of medium-severity changes matching the active filters
+          example: 8
+        low:
+          type: integer
+          description: Number of low-severity changes matching the active filters
+          example: 0
+
+    InventoryTimelineGroup:
+      type: object
+      description: A date group in the inventory timeline
+      properties:
+        date:
+          type: string
+          description: Date in YYYY-MM-DD format (UTC)
+          example: "2026-03-04"
+        inventory_count:
+          type: integer
+          description: Number of inventory snapshots collected on this date
+          example: 3
+        change_count:
+          type: integer
+          description: Number of diffs on this date matching the active filters (0 means no changes)
+          example: 2
+        inventory_ids:
+          type: array
+          description: IDs of the inventory records collected on this date. Pass these to `GET /systems/{id}/inventory/diffs?inventory_id=<ids>` to fetch the actual diffs.
+          items:
+            type: integer
+            format: int64
+          example: [42, 43]
+
     Pagination:
       type: object
       properties:
@@ -6998,6 +7047,13 @@ paths:
             type: string
             enum: [create, update, delete]
             example: "update"
+        - name: inventory_id
+          in: query
+          required: false
+          description: Filter by specific inventory record IDs (comma-separated). Use the `inventory_ids` from a `/timeline` group to fetch diffs for that date group.
+          schema:
+            type: string
+            example: "42,43"
         - name: from_date
           in: query
           required: false
@@ -7090,6 +7146,102 @@ paths:
                         format: int64
                         description: ID of the current inventory record these diffs belong to. Only present when there are diffs.
                         example: 42
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/inventory/timeline:
+    get:
+      operationId: getSystemInventoryTimeline
+      tags:
+        - Backend - Systems
+      summary: /systems/{id}/inventory/timeline - Get inventory timeline grouped by date
+      description: |
+        Get a date-grouped inventory timeline for a specific system.
+        Returns a filtered summary (severity counters) and groups of inventory dates.
+        Each group includes `inventory_ids` — the IDs of inventory records collected that day.
+        Groups with no matching diffs still appear with `change_count: 0`, allowing the UI
+        to display "X inventories, no changes" badges. Pagination is over date groups.
+        To fetch the actual diffs for a group, call `GET /systems/{id}/inventory/diffs?inventory_id=<ids>`
+        with the `inventory_ids` from the group.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: severity
+          in: query
+          required: false
+          description: Filter by severity level
+          schema:
+            type: string
+            enum: [low, medium, high, critical]
+            example: "high"
+        - name: category
+          in: query
+          required: false
+          description: Filter by change category
+          schema:
+            type: string
+            enum: [os, hardware, network, security, backup, features, modules, cluster, nodes, system]
+            example: "security"
+        - name: diff_type
+          in: query
+          required: false
+          description: Filter by diff type
+          schema:
+            type: string
+            enum: [create, update, delete]
+            example: "update"
+        - name: from_date
+          in: query
+          required: false
+          description: Show dates from this timestamp (RFC3339 format)
+          schema:
+            type: string
+            format: date-time
+            example: "2026-01-01T00:00:00Z"
+        - name: to_date
+          in: query
+          required: false
+          description: Show dates up to this timestamp (RFC3339 format)
+          schema:
+            type: string
+            format: date-time
+            example: "2026-03-17T23:59:59Z"
+      responses:
+        '200':
+          description: Inventory timeline retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "inventory timeline retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      summary:
+                        $ref: '#/components/schemas/InventoryTimelineSummary'
+                      groups:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/InventoryTimelineGroup'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

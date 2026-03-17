@@ -29,6 +29,23 @@ type InventoryRecord struct {
 	UpdatedAt   time.Time       `json:"updated_at" db:"updated_at"`
 }
 
+// InventoryTimelineSummary represents filtered severity counts for the timeline view
+type InventoryTimelineSummary struct {
+	Total    int `json:"total"`
+	Critical int `json:"critical"`
+	High     int `json:"high"`
+	Medium   int `json:"medium"`
+	Low      int `json:"low"`
+}
+
+// InventoryTimelineGroup represents a date group in the timeline view
+type InventoryTimelineGroup struct {
+	Date           string  `json:"date"`
+	InventoryCount int     `json:"inventory_count"`
+	ChangeCount    int     `json:"change_count"`
+	InventoryIDs   []int64 `json:"inventory_ids"`
+}
+
 // InventoryDiff represents a difference between two inventory snapshots
 type InventoryDiff struct {
 	ID               int64       `json:"id" db:"id"`

@@ -12,6 +12,7 @@ package methods
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -162,6 +163,87 @@ func GetSystemLatestInventory(c *gin.Context) {
 
 	// Return latest inventory
 	c.JSON(http.StatusOK, response.OK("latest inventory retrieved successfully", record))
+}
+
+// GetSystemInventoryTimeline handles GET /api/systems/:id/inventory/timeline - retrieves date-grouped timeline
+func GetSystemInventoryTimeline(c *gin.Context) {
+	systemID := c.Param("id")
+	if systemID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
+		return
+	}
+
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	systemsService := local.NewSystemsService()
+	_, err := systemsService.GetSystem(systemID, userOrgRole, userOrgID)
+	if helpers.HandleAccessError(c, err, "system", systemID) {
+		return
+	}
+
+	// Parse pagination
+	page := 1
+	pageSize := 20
+	if pageStr := c.Query("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+	if pageSizeStr := c.Query("page_size"); pageSizeStr != "" {
+		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 && ps <= 100 {
+			pageSize = ps
+		}
+	}
+
+	// Parse filters
+	severity := c.Query("severity")
+	category := c.Query("category")
+	diffType := c.Query("diff_type")
+
+	var fromDate, toDate *time.Time
+	if fromStr := c.Query("from_date"); fromStr != "" {
+		if fd, err := time.Parse(time.RFC3339, fromStr); err == nil {
+			fromDate = &fd
+		}
+	}
+	if toStr := c.Query("to_date"); toStr != "" {
+		if td, err := time.Parse(time.RFC3339, toStr); err == nil {
+			toDate = &td
+		}
+	}
+
+	inventoryService := local.NewInventoryService()
+	summary, groups, totalCount, err := inventoryService.GetInventoryTimeline(systemID, page, pageSize, severity, category, diffType, fromDate, toDate)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("system_id", systemID).
+			Msg("Failed to retrieve inventory timeline")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve inventory timeline", map[string]interface{}{
+			"error": err.Error(),
+		}))
+		return
+	}
+
+	logger.RequestLogger(c, "inventory").Info().
+		Str("operation", "get_inventory_timeline").
+		Str("system_id", systemID).
+		Int("groups", len(groups)).
+		Int("total", totalCount).
+		Str("severity", severity).
+		Str("category", category).
+		Msg("Inventory timeline requested")
+
+	c.JSON(http.StatusOK, response.OK("inventory timeline retrieved successfully", gin.H{
+		"summary":    summary,
+		"groups":     helpers.EnsureSlice(groups),
+		"pagination": helpers.BuildPaginationInfo(page, pageSize, totalCount),
+	}))
 }
 
 // GetSystemInventoryChanges handles GET /api/systems/:id/inventory/changes - retrieves changes summary
@@ -326,6 +408,16 @@ func GetSystemInventoryDiffs(c *gin.Context) {
 	category := c.Query("category")
 	diffType := c.Query("diff_type")
 
+	// Parse inventory_id filter (comma-separated list of int64)
+	var inventoryIDs []int64
+	if idStr := c.Query("inventory_id"); idStr != "" {
+		for _, part := range strings.Split(idStr, ",") {
+			if id, err := strconv.ParseInt(strings.TrimSpace(part), 10, 64); err == nil {
+				inventoryIDs = append(inventoryIDs, id)
+			}
+		}
+	}
+
 	// Parse date filters
 	var fromDate, toDate *time.Time
 	if fromStr := c.Query("from_date"); fromStr != "" {
@@ -341,7 +433,7 @@ func GetSystemInventoryDiffs(c *gin.Context) {
 
 	// Get inventory diffs
 	inventoryService := local.NewInventoryService()
-	diffs, totalCount, err := inventoryService.GetInventoryDiffs(systemID, page, pageSize, severity, category, diffType, fromDate, toDate)
+	diffs, totalCount, err := inventoryService.GetInventoryDiffs(systemID, page, pageSize, severity, category, diffType, fromDate, toDate, inventoryIDs)
 	if err != nil {
 		logger.Error().
 			Err(err).
