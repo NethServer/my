@@ -659,6 +659,46 @@ services:
     branch: main
     pullRequestPreviewsEnabled: true
 
+  # QA SSH Gateway Service (Private Service): SSH tunnelled in WebSockets,
+  # reached through the proxy since Render lets only HTTPS in
+  - type: pserv
+    name: my-ssh-gateway-qa
+    runtime: docker
+    plan: starter
+    rootDir: services/ssh-gateway
+    dockerfilePath: Containerfile
+    envVars:
+      - fromGroup: app-secrets-qa
+
+      # Server Configuration
+      - key: HTTP_LISTEN_ADDRESS
+        value: 0.0.0.0:10000
+      - key: LOG_LEVEL
+        value: debug
+      - key: LOG_FORMAT
+        value: json
+
+      # Where operators approve the access requests
+      - key: APP_URL
+        value: https://qa.my.nethesis.it
+
+      # The backend opens the shells
+      - key: BACKEND_URL
+        value: http://my-backend-qa:10000
+
+      # Redis Configuration: shared with the backend
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: my-redis-qa
+          property: connectionString
+      - key: REDIS_DB
+        value: 0
+
+    autoDeploy: true
+    branch: main
+    pullRequestPreviewsEnabled: true
+
   # QA Frontend (Private Service)
   - type: pserv
     name: my-frontend-qa
