@@ -19,47 +19,68 @@ servers:
 
 tags:
 
-  - name: Backend - Third-Party Applications
-    description: Backend third-party application management
   - name: Backend - Authentication
-    description: Backend public authentication and token management
+    description: Token exchange, refresh, and logout
   - name: Backend - Me
-    description: Backend authenticated user profile management
-  - name: Backend - Customers
-    description: Backend customer management
-  - name: Backend - Distributors
-    description: Backend distributor management
-  - name: Backend - Health
-    description: Backend service health monitoring
-  - name: Backend - Filters
-    description: Backend filter data for UI dropdowns and selections
-  - name: Backend - Organizations
-    description: Backend organization hierarchy management
-  - name: Backend - Applications
-    description: Backend Application management from system inventory
-  - name: Backend - Resellers
-    description: Backend reseller management
-  - name: Backend - Roles
-    description: Backend role management
-  - name: Backend - Systems
-    description: Backend system management and inventory
-  - name: Backend - User
-    description: Backend user profile and permissions
-  - name: Backend - Users
-    description: Backend user management with RBAC
-  - name: Backend - Validators
-    description: Backend validation endpoints for real-time checks
+    description: Current user profile, password and avatar management
   - name: Backend - Impersonation
-    description: Backend consent-based user impersonation system
+    description: Consent-based user impersonation flow (start, exit, status, consent)
+  - name: Backend - Impersonation Sessions
+    description: Impersonation session history and audit logs
 
+  - name: Backend - Users
+    description: User CRUD and lifecycle management
+  - name: Backend - Users Stats
+    description: User statistics, trends and exports
+
+  - name: Backend - Distributors
+    description: Distributor CRUD and lifecycle management
+  - name: Backend - Distributors Stats
+    description: Distributor statistics, trends and exports
+
+  - name: Backend - Resellers
+    description: Reseller CRUD and lifecycle management
+  - name: Backend - Resellers Stats
+    description: Reseller statistics, trends and exports
+
+  - name: Backend - Customers
+    description: Customer CRUD and lifecycle management
+  - name: Backend - Customers Stats
+    description: Customer statistics, trends and exports
+
+  - name: Backend - Systems
+    description: System CRUD and lifecycle management
+  - name: Backend - Systems Stats
+    description: System statistics, trends and exports
+  - name: Backend - Systems Inventory
+    description: System inventory history, diffs and timeline
+
+  - name: Backend - Applications
+    description: Application CRUD and organization assignment
+  - name: Backend - Applications Stats
+    description: Application statistics, summaries and trends
+
+  - name: Backend - Metadata
+    description: Read-only reference data (roles, organization roles, organizations, third-party applications)
+  - name: Backend - Filters
+    description: Aggregated filter values for UI dropdowns
 
   - name: Backend - Rebranding
-    description: Backend rebranding management for organizations and products
+    description: Rebranding management for organizations and products
+
+  - name: Backend - Public
+    description: Public endpoints requiring no authentication (avatars, etc.)
+  - name: Backend - User
+    description: OAuth2/OIDC user profile and permissions endpoints
+  - name: Backend - Validators
+    description: Real-time validation endpoints (VAT, etc.)
+  - name: Backend - Health
+    description: Backend service health check
 
   - name: Collect - Health
     description: Collect service health and monitoring
   - name: Collect - Systems
-    description: Collect service system management and inventory collection
+    description: Collect service inventory and heartbeat collection
   - name: Collect - Rebranding
     description: Collect service rebranding endpoints for systems
 
@@ -2707,7 +2728,7 @@ paths:
                       avatar_url:
                         type: string
                         description: Public URL of the uploaded avatar
-                        example: "https://my.nethesis.it/api/public/avatars/jf584cz36kce"
+                        example: "https://my.nethesis.it/api/public/users/jf584cz36kce/avatar"
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -2942,7 +2963,7 @@ paths:
     get:
       operationId: getUsersTotals
       tags:
-        - Backend - Users
+        - Backend - Users Stats
       summary: /users/totals - Get users totals
       description: Get total count of users accessible to the user (Admin role required)
       responses:
@@ -2970,7 +2991,7 @@ paths:
     get:
       operationId: getUsersTrend
       tags:
-        - Backend - Users
+        - Backend - Users Stats
       summary: /users/trend - Get users trend data
       description: Get trend analysis of users over time with cumulative counts (respects hierarchical organization filtering)
       parameters:
@@ -3002,7 +3023,7 @@ paths:
     get:
       operationId: exportUsers
       tags:
-        - Backend - Users
+        - Backend - Users Stats
       summary: /users/export - Export users to CSV or PDF
       description: Export users to CSV or PDF format with applied filters (max 10,000 users)
       parameters:
@@ -3074,7 +3095,7 @@ paths:
     get:
       operationId: getThirdPartyApplications
       tags:
-        - Backend - Third-Party Applications
+        - Backend - Metadata
       summary: /third-party-applications - Get third-party applications
       description: Get third-party applications filtered by user's organization membership, organization roles, and user roles
       responses:
@@ -3407,7 +3428,7 @@ paths:
                       avatar_url:
                         type: string
                         description: Public URL of the uploaded avatar
-                        example: "https://my.nethesis.it/api/public/avatars/jf584cz36kce"
+                        example: "https://my.nethesis.it/api/public/users/jf584cz36kce/avatar"
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -3443,12 +3464,12 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /public/avatars/{id}:
+  /public/users/{id}/avatar:
     get:
       operationId: getPublicAvatar
       tags:
-        - Backend - Users
-      summary: /public/avatars/{id} - Get user avatar image
+        - Backend - Public
+      summary: /public/users/{id}/avatar - Get user avatar image
       description: Serves a user's avatar image as binary data. This endpoint is public and requires no authentication. Returns the image with appropriate Content-Type header and browser caching headers.
       security: []
       parameters:
@@ -3970,7 +3991,7 @@ paths:
     get:
       operationId: getImpersonationSessions
       tags:
-        - Backend - Impersonation
+        - Backend - Impersonation Sessions
       summary: /impersonate/sessions - List impersonation sessions
       description: |
         Retrieves all impersonation sessions for the current user. Sessions are grouped
@@ -4014,7 +4035,7 @@ paths:
     get:
       operationId: getImpersonationSession
       tags:
-        - Backend - Impersonation
+        - Backend - Impersonation Sessions
       summary: /impersonate/sessions/{session_id} - Get details for specific session
       description: |
         Retrieves details for a specific impersonation session. Users can only
@@ -4076,7 +4097,7 @@ paths:
     get:
       operationId: getSessionAudit
       tags:
-        - Backend - Impersonation
+        - Backend - Impersonation Sessions
       summary: /impersonate/sessions/{session_id}/audit - Get audit logs for specific session
       description: |
         Retrieves detailed audit logs for a specific impersonation session. Users can only
@@ -4604,7 +4625,7 @@ paths:
     get:
       operationId: getCustomersTotals
       tags:
-        - Backend - Customers
+        - Backend - Customers Stats
       summary: /customers/totals - Get customers totals
       description: Get total count of customers accessible to the user (Owner + Distributor + Reseller)
       responses:
@@ -4632,7 +4653,7 @@ paths:
     get:
       operationId: getCustomersTrend
       tags:
-        - Backend - Customers
+        - Backend - Customers Stats
       summary: /customers/trend - Get customers trend data
       description: Get trend analysis of customers over time with cumulative counts (Owner + Distributor + Reseller)
       parameters:
@@ -4664,7 +4685,7 @@ paths:
     get:
       operationId: exportCustomers
       tags:
-        - Backend - Customers
+        - Backend - Customers Stats
       summary: /customers/export - Export customers to CSV or PDF
       description: Export customers to CSV or PDF format with applied filters (max 10,000 customers)
       parameters:
@@ -5174,7 +5195,7 @@ paths:
     get:
       operationId: getDistributorsTotals
       tags:
-        - Backend - Distributors
+        - Backend - Distributors Stats
       summary: /distributors/totals - Get distributors totals
       description: Get total count of distributors accessible to the user (Owner only)
       responses:
@@ -5202,7 +5223,7 @@ paths:
     get:
       operationId: getDistributorsTrend
       tags:
-        - Backend - Distributors
+        - Backend - Distributors Stats
       summary: /distributors/trend - Get distributors trend data
       description: Get trend analysis of distributors over time with cumulative counts (Owner only)
       parameters:
@@ -5234,7 +5255,7 @@ paths:
     get:
       operationId: exportDistributors
       tags:
-        - Backend - Distributors
+        - Backend - Distributors Stats
       summary: /distributors/export - Export distributors to CSV or PDF
       description: Export distributors to CSV or PDF format with applied filters (max 10,000 distributors)
       parameters:
@@ -5441,7 +5462,7 @@ paths:
     get:
       operationId: getOrganizationRoles
       tags:
-        - Backend - Roles
+        - Backend - Metadata
       summary: /organization-roles - Get all organization roles
       description: Get all available organization roles with their IDs and descriptions
       responses:
@@ -5472,7 +5493,7 @@ paths:
     get:
       operationId: getOrganizations
       tags:
-        - Backend - Organizations
+        - Backend - Metadata
       summary: /organizations - Get available organizations
       description: Get organizations the current user can assign users to, filtered by business hierarchy
       responses:
@@ -5969,7 +5990,7 @@ paths:
     get:
       operationId: getResellersTotals
       tags:
-        - Backend - Resellers
+        - Backend - Resellers Stats
       summary: /resellers/totals - Get resellers totals
       description: Get total count of resellers accessible to the user (Owner + Distributor)
       responses:
@@ -5997,7 +6018,7 @@ paths:
     get:
       operationId: getResellersTrend
       tags:
-        - Backend - Resellers
+        - Backend - Resellers Stats
       summary: /resellers/trend - Get resellers trend data
       description: Get trend analysis of resellers over time with cumulative counts (Owner + Distributor)
       parameters:
@@ -6029,7 +6050,7 @@ paths:
     get:
       operationId: exportResellers
       tags:
-        - Backend - Resellers
+        - Backend - Resellers Stats
       summary: /resellers/export - Export resellers to CSV or PDF
       description: Export resellers to CSV or PDF format with applied filters (max 10,000 resellers)
       parameters:
@@ -6067,7 +6088,7 @@ paths:
     get:
       operationId: getRoles
       tags:
-        - Backend - Roles
+        - Backend - Metadata
       summary: /roles - Get all user roles
       description: Get all available user roles with their IDs and descriptions
       responses:
@@ -6662,7 +6683,7 @@ paths:
     get:
       operationId: getSystemsTotals
       tags:
-        - Backend - Systems
+        - Backend - Systems Stats
       summary: /systems/totals - Get systems status summary
       description: Get systems heartbeat status summary for dashboard (requires Admin or Support role)
       parameters:
@@ -6700,7 +6721,7 @@ paths:
     get:
       operationId: getSystemsTrend
       tags:
-        - Backend - Systems
+        - Backend - Systems Stats
       summary: /systems/trend - Get systems trend data
       description: Get trend analysis of systems over time with cumulative counts
       parameters:
@@ -6732,7 +6753,7 @@ paths:
     get:
       operationId: exportSystems
       tags:
-        - Backend - Systems
+        - Backend - Systems Stats
       summary: /systems/export - Export systems to CSV or PDF
       description: |
         Export systems with applied filters to CSV or PDF format.
@@ -6827,7 +6848,7 @@ paths:
     get:
       operationId: getSystemInventory
       tags:
-        - Backend - Systems
+        - Backend - Systems Inventory
       summary: /systems/{id}/inventory - Get system inventory history
       description: Get paginated inventory history for a specific system. Supports date range filtering.
       parameters:
@@ -6890,7 +6911,7 @@ paths:
     get:
       operationId: getSystemInventoryLatest
       tags:
-        - Backend - Systems
+        - Backend - Systems Inventory
       summary: /systems/{id}/inventory/latest - Get latest system inventory
       description: Get the most recent inventory data for a specific system. Returns the full InventoryRecord including the raw inventory JSON in the `data` field.
       parameters:
@@ -6930,7 +6951,7 @@ paths:
     get:
       operationId: getSystemInventoryChanges
       tags:
-        - Backend - Systems
+        - Backend - Systems Inventory
       summary: /systems/{id}/inventory/changes - Get inventory changes summary
       description: Get an aggregated summary of all inventory changes for a specific system. Returns counts grouped by category and severity, not a paginated list.
       parameters:
@@ -6970,7 +6991,7 @@ paths:
     get:
       operationId: getSystemInventoryChangesLatest
       tags:
-        - Backend - Systems
+        - Backend - Systems Inventory
       summary: /systems/{id}/inventory/changes/latest - Get latest inventory changes
       description: Get the changes summary scoped to the most recent inventory batch only. The `recent_changes` field equals `total_changes` since all changes are from the latest batch.
       parameters:
@@ -7010,7 +7031,7 @@ paths:
     get:
       operationId: getSystemInventoryDiffs
       tags:
-        - Backend - Systems
+        - Backend - Systems Inventory
       summary: /systems/{id}/inventory/diffs - Get inventory diffs
       description: Get paginated inventory diffs for a specific system. Supports filtering by severity, category, diff type, and date range.
       parameters:
@@ -7104,7 +7125,7 @@ paths:
     get:
       operationId: getSystemInventoryDiffsLatest
       tags:
-        - Backend - Systems
+        - Backend - Systems Inventory
       summary: /systems/{id}/inventory/diffs/latest - Get latest inventory diffs batch
       description: Get all diffs from the most recent inventory snapshot. Returns the complete batch (not paginated), ordered by severity (critical first) then by creation time descending.
       parameters:
@@ -7157,7 +7178,7 @@ paths:
     get:
       operationId: getSystemInventoryTimeline
       tags:
-        - Backend - Systems
+        - Backend - Systems Inventory
       summary: /systems/{id}/inventory/timeline - Get inventory timeline grouped by date
       description: |
         Get a date-grouped inventory timeline for a specific system.
@@ -7312,7 +7333,7 @@ paths:
     get:
       operationId: getApplicationTotals
       tags:
-        - Backend - Applications
+        - Backend - Applications Stats
       summary: /applications/totals - Get application statistics
       description: Get statistics about applications including counts by type and status
       responses:
@@ -7340,7 +7361,7 @@ paths:
     get:
       operationId: getApplicationTypeSummary
       tags:
-        - Backend - Applications
+        - Backend - Applications Stats
       summary: /applications/summary - Get applications grouped by type
       description: |
         Returns applications grouped by instance_of (type) with a counter.
@@ -7423,7 +7444,7 @@ paths:
     get:
       operationId: getApplicationsTrend
       tags:
-        - Backend - Applications
+        - Backend - Applications Stats
       summary: /applications/trend - Get applications trend data
       description: Get trend data for applications over a specified period showing daily counts
       parameters:

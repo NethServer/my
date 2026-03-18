@@ -47,7 +47,7 @@ var allowedAvatarMimes = map[string]bool{
 }
 
 // GetPublicAvatar serves a user's avatar image without authentication.
-// GET /api/public/avatars/:id
+// GET /api/public/users/:id/avatar
 func GetPublicAvatar(c *gin.Context) {
 	userID := c.Param("id")
 	if userID == "" {
@@ -362,5 +362,5 @@ func resizeImage(img image.Image, maxWidth, maxHeight int) image.Image {
 
 // buildAvatarURL constructs the public URL for a user's avatar.
 func buildAvatarURL(logtoID string) string {
-	return fmt.Sprintf("%s/api/public/avatars/%s", configuration.Config.AppURL, logtoID)
+	return fmt.Sprintf("%s/api/public/users/%s/avatar", configuration.Config.AppURL, logtoID)
 }

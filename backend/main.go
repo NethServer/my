@@ -142,9 +142,9 @@ func main() {
 	})
 
 	// ===========================================
-	// PUBLIC AVATAR ENDPOINT
+	// PUBLIC ENDPOINTS
 	// ===========================================
-	api.GET("/public/avatars/:id", middleware.RateLimit(10, 30), methods.GetPublicAvatar)
+	api.GET("/public/users/:id/avatar", middleware.RateLimit(10, 30), methods.GetPublicAvatar)
 
 	// ===========================================
 	// PUBLIC AUTH ENDPOINTS
