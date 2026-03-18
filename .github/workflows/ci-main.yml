@@ -45,6 +45,10 @@ jobs:
     - name: Download dependencies
       run: go mod download
 
+    - name: Sync email templates from backend (sync only)
+      if: matrix.component == 'sync'
+      run: make sync-templates
+
     - name: Run tests with coverage
       run: go test -coverprofile=coverage.out -coverpkg=./... ./...
 
@@ -128,7 +132,8 @@ jobs:
           - component: backend
             context: backend
           - component: sync
-            context: sync
+            context: .
+            dockerfile: sync/Containerfile
           - component: collect
             context: collect
           - component: frontend
@@ -166,7 +171,7 @@ jobs:
       uses: docker/build-push-action@v5
       with:
         context: ${{ matrix.context }}
-        file: ${{ matrix.context }}/Containerfile
+        file: ${{ matrix.dockerfile || format('{0}/Containerfile', matrix.context) }}
         platforms: linux/amd64
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.meta.outputs.tags }}

@@ -1,0 +1,3 @@
+
+# Email templates are generated from backend - run: make sync-templates
+internal/sync/templates/

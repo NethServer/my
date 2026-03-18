@@ -285,6 +285,22 @@ func (c *LogtoClient) GetAllUsers() ([]map[string]interface{}, error) {
 	return fetchAllPages[map[string]interface{}](c, "/api/users")
 }
 
+// GetUserByID retrieves a user by their Logto ID
+func (c *LogtoClient) GetUserByID(userID string) (map[string]interface{}, error) {
+	resp, err := c.makeRequest("GET", fmt.Sprintf("/api/users/%s", userID), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		_ = resp.Body.Close()
+		return nil, fmt.Errorf("user not found: %s", userID)
+	}
+
+	var result map[string]interface{}
+	return result, c.handleResponse(resp, http.StatusOK, &result)
+}
+
 // GetUserByUsername searches for a user by username using the search parameter
 func (c *LogtoClient) GetUserByUsername(username string) (map[string]interface{}, error) {
 	// Use search parameter with % wildcards as per Logto API

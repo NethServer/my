@@ -70,6 +70,17 @@ clean:
 	@rm -rf $(BUILD_DIR)
 	@rm -f coverage.out coverage.html
 
+# Sync email templates from backend (single source of truth)
+.PHONY: sync-templates
+sync-templates:
+	@echo "Syncing email templates from backend..."
+	@mkdir -p internal/sync/templates
+	@cp ../backend/services/email/templates/welcome_en.html internal/sync/templates/
+	@cp ../backend/services/email/templates/welcome_en.txt internal/sync/templates/
+	@cp ../backend/services/email/templates/welcome_it.html internal/sync/templates/
+	@cp ../backend/services/email/templates/welcome_it.txt internal/sync/templates/
+	@echo "Done."
+
 # Install the binary
 .PHONY: install
 install: build
