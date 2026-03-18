@@ -45,6 +45,10 @@ jobs:
     - name: Download dependencies
       run: go mod download
 
+    - name: Sync email templates from backend (sync only)
+      if: matrix.component == 'sync'
+      run: make sync-templates
+
     - name: Run tests with coverage
       run: go test -coverprofile=coverage.out -coverpkg=./... ./...
 

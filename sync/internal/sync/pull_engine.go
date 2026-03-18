@@ -438,8 +438,23 @@ func (e *PullEngine) pullUsers(result *PullResult) error {
 	return nil
 }
 
-// getUserName extracts user name from Logto user data
-func getUserName(user map[string]interface{}) string {
+// getLogtoUsername extracts the actual login username from Logto user data.
+// Falls back to email prefix, then display name, then "unknown".
+func getLogtoUsername(user map[string]interface{}) string {
+	if username, ok := user["username"].(string); ok && username != "" {
+		return username
+	}
+	if email, ok := user["primaryEmail"].(string); ok && email != "" {
+		return email
+	}
+	if name, ok := user["name"].(string); ok && name != "" {
+		return name
+	}
+	return "unknown"
+}
+
+// getUserDisplayName extracts the display name from Logto user data.
+func getUserDisplayName(user map[string]interface{}) string {
 	if name, ok := user["name"].(string); ok && name != "" {
 		return name
 	}
@@ -450,6 +465,11 @@ func getUserName(user map[string]interface{}) string {
 		return email
 	}
 	return "Unknown User"
+}
+
+// getUserName extracts a human-readable identifier from Logto user data (for logging).
+func getUserName(user map[string]interface{}) string {
+	return getUserDisplayName(user)
 }
 
 // getUserEmail extracts user email from Logto user data
@@ -478,23 +498,24 @@ func isUserInOwnerOrganization(orgs []client.UserOrganization) bool {
 // processUser processes a single user from Logto
 // userOrgs is passed from the caller to avoid duplicate API calls
 func (e *PullEngine) processUser(logtoUser map[string]interface{}, userOrgs []client.UserOrganization, result *PullResult) error {
-	userName := getUserName(logtoUser)
+	userUsername := getLogtoUsername(logtoUser)
+	userDisplayName := getUserDisplayName(logtoUser)
 	userEmail := getUserEmail(logtoUser)
 	userID := ""
 	if id, ok := logtoUser["id"].(string); ok {
 		userID = id
 	}
 
-	logger.Debug("Processing user '%s' (%s)", userName, userEmail)
+	logger.Debug("Processing user '%s' (%s)", userUsername, userEmail)
 
 	// Use the provided organizations (already fetched by caller)
 	var userOrgID *string
 	if len(userOrgs) > 0 {
 		// Use the first organization (users typically belong to one organization)
 		userOrgID = &userOrgs[0].ID
-		logger.Debug("User '%s' belongs to organization '%s' (ID: %s)", userName, userOrgs[0].Name, userOrgs[0].ID)
+		logger.Debug("User '%s' belongs to organization '%s' (ID: %s)", userUsername, userOrgs[0].Name, userOrgs[0].ID)
 	} else {
-		logger.Debug("User '%s' has no organization memberships in Logto", userName)
+		logger.Debug("User '%s' has no organization memberships in Logto", userUsername)
 	}
 
 	// Check if user already exists
@@ -509,7 +530,7 @@ func (e *PullEngine) processUser(logtoUser map[string]interface{}, userOrgs []cl
 		// Get user roles from Logto
 		userRoles, err := e.client.GetUserRoles(userID)
 		if err != nil {
-			logger.Warn("Failed to get roles for user '%s': %v", userName, err)
+			logger.Warn("Failed to get roles for user '%s': %v", userUsername, err)
 			userRoles = []string{} // Default to empty roles
 		}
 
@@ -517,9 +538,9 @@ func (e *PullEngine) processUser(logtoUser map[string]interface{}, userOrgs []cl
 		user := models.LocalUser{
 			ID:             uuid.New().String(),
 			LogtoID:        &userID,
-			Username:       userName,
+			Username:       userUsername,
 			Email:          userEmail,
-			Name:           userName,
+			Name:           userDisplayName,
 			OrganizationID: userOrgID, // Use actual organization from Logto
 			UserRoleIDs:    userRoles, // Use actual roles from Logto
 			CustomData:     make(map[string]interface{}),
@@ -551,8 +572,8 @@ func (e *PullEngine) processUser(logtoUser map[string]interface{}, userOrgs []cl
 			return fmt.Errorf("failed to create user: %w", err)
 		}
 
-		logger.Info("Created user '%s' (%s) with ID %s", user.Name, user.Email, user.ID)
-		e.addPullOperation(result, "user", "create", userName, fmt.Sprintf("Created user %s", userName), false, nil)
+		logger.Info("Created user '%s' (%s) with ID %s", userUsername, userEmail, user.ID)
+		e.addPullOperation(result, "user", "create", userUsername, fmt.Sprintf("Created user %s", userUsername), false, nil)
 		result.Summary.UsersCreated++
 
 	} else if err != nil {
@@ -567,7 +588,7 @@ func (e *PullEngine) processUser(logtoUser map[string]interface{}, userOrgs []cl
 		// Get user roles from Logto
 		userRoles, err := e.client.GetUserRoles(userID)
 		if err != nil {
-			logger.Warn("Failed to get roles for user '%s': %v", userName, err)
+			logger.Warn("Failed to get roles for user '%s': %v", userUsername, err)
 			userRoles = []string{} // Default to empty roles
 		}
 
@@ -581,15 +602,15 @@ func (e *PullEngine) processUser(logtoUser map[string]interface{}, userOrgs []cl
 			UPDATE users
 			SET username = $1, email = $2, name = $3, phone = $4, organization_id = $5, user_role_ids = $6, updated_at = $7, logto_synced_at = $8
 			WHERE id = $9`,
-			userName, userEmail, userName, phone, userOrgID, userRolesJSON, time.Now(), time.Now(), existingID,
+			userUsername, userEmail, userDisplayName, phone, userOrgID, userRolesJSON, time.Now(), time.Now(), existingID,
 		)
 
 		if err != nil {
 			return fmt.Errorf("failed to update user: %w", err)
 		}
 
-		logger.Info("Updated user '%s' (%s) with ID %s", userName, userEmail, existingID)
-		e.addPullOperation(result, "user", "update", userName, fmt.Sprintf("Updated user %s", userName), false, nil)
+		logger.Info("Updated user '%s' (%s) with ID %s", userUsername, userEmail, existingID)
+		e.addPullOperation(result, "user", "update", userUsername, fmt.Sprintf("Updated user %s", userUsername), false, nil)
 		result.Summary.UsersUpdated++
 	}
 

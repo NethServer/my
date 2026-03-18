@@ -52,11 +52,16 @@ go install github.com/nethesis/my/sync/cmd/sync@latest
 
 ### Setup
 
-> **Note:** The `pull` and `prune` commands require PostgreSQL running (start with `cd backend && make dev-up`).
+> **Note:** The `pull`, `prune`, and `push` commands require PostgreSQL running (start with `cd backend && make dev-up`).
+
+> **Note:** Email templates used by `sync push` are not tracked in this repo — they live in `backend/services/email/templates/`. Run `make sync-templates` once before building to copy them:
 
 ```bash
 # Setup development environment
 make dev-setup
+
+# Copy email templates from backend (required before first build)
+make sync-templates
 
 # Build the sync tool
 make build
