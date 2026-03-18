@@ -132,7 +132,8 @@ jobs:
           - component: backend
             context: backend
           - component: sync
-            context: sync
+            context: .
+            dockerfile: sync/Containerfile
           - component: collect
             context: collect
           - component: frontend
@@ -170,7 +171,7 @@ jobs:
       uses: docker/build-push-action@v5
       with:
         context: ${{ matrix.context }}
-        file: ${{ matrix.context }}/Containerfile
+        file: ${{ matrix.dockerfile || format('{0}/Containerfile', matrix.context) }}
         platforms: linux/amd64
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.meta.outputs.tags }}

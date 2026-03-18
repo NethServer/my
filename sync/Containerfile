@@ -8,13 +8,17 @@ RUN apk add --no-cache git ca-certificates
 WORKDIR /app
 
 # Copy go mod files first for better caching
-COPY go.mod go.sum ./
+COPY sync/go.mod sync/go.sum ./
 
 # Download dependencies
 RUN go mod download
 
 # Copy source code
-COPY . .
+COPY sync/ .
+
+# Copy email templates from backend (single source of truth)
+RUN mkdir -p internal/sync/templates
+COPY backend/services/email/templates/ internal/sync/templates/
 
 # Build the CLI application with version information
 ARG VERSION=dev

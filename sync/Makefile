@@ -74,6 +74,7 @@ clean:
 .PHONY: sync-templates
 sync-templates:
 	@echo "Syncing email templates from backend..."
+	@mkdir -p internal/sync/templates
 	@cp ../backend/services/email/templates/welcome_en.html internal/sync/templates/
 	@cp ../backend/services/email/templates/welcome_en.txt internal/sync/templates/
 	@cp ../backend/services/email/templates/welcome_it.html internal/sync/templates/
