@@ -5,7 +5,6 @@
 
 <script setup lang="ts">
 import {
-  humanDistanceToNowLoc,
   NeCard,
   NeHeading,
   NeInlineNotification,

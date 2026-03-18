@@ -10,7 +10,7 @@ export function formatDateTime(dateTime: Date, locale: string): string {
 export function formatDateTimeNoSeconds(dateTime: Date, locale: string): string {
   return dateTime.toLocaleString(locale, {
     year: 'numeric',
-    month: '2-digit',
+    month: 'short',
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',

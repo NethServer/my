@@ -88,7 +88,7 @@ describe('formatDateTimeNoSeconds', () => {
     expect(result).not.toContain('45')
     // Should contain year, month, day, hour, minute
     expect(result).toContain('2025')
-    expect(result).toContain('10')
+    expect(result).toContain('Oct')
     expect(result).toContain('03')
     expect(result).toContain('09')
     expect(result).toContain('30')
@@ -111,7 +111,7 @@ describe('formatDateTimeNoSeconds', () => {
 
     expect(typeof result).toBe('string')
     expect(result).toContain('2025')
-    expect(result).toContain('10')
+    expect(result).toContain('Oct')
     expect(result).toContain('02')
   })
 })

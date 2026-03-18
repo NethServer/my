@@ -40,8 +40,10 @@ import ReactivateSystemModal from './ReactivateSystemModal.vue'
 import DestroySystemModal from './DestroySystemModal.vue'
 import OrganizationIcon from '../organizations/OrganizationIcon.vue'
 import OrganizationLink from '../applications/OrganizationLink.vue'
+import UserAvatar from '../users/UserAvatar.vue'
+import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { state: systemDetail, asyncStatus } = useSystemDetail()
 const isNotesModalShown = ref(false)
 const isShownCreateOrEditSystemDrawer = ref(false)
@@ -250,10 +252,28 @@ function getKebabMenuItems() {
         <!-- created by -->
         <DataItem>
           <template #label>
-            {{ $t('systems.created_by') }}
+            {{ $t('systems.created') }}
           </template>
           <template #data>
-            {{ systemDetail.data.created_by.name || '-' }}
+            <div class="flex items-center gap-2">
+              <NeTooltip trigger-event="mouseenter focus" placement="top">
+                <template #trigger>
+                  <UserAvatar
+                    size="xs"
+                    :is-owner="systemDetail.data.created_by.username === 'owner'"
+                    :name="systemDetail.data.created_by.name"
+                  />
+                </template>
+                <template #content>
+                  {{
+                    $t('systems.created_by_name', {
+                      name: systemDetail.data.created_by.name,
+                    })
+                  }}
+                </template>
+              </NeTooltip>
+              {{ formatDateTimeNoSeconds(new Date(systemDetail.data.created_at), locale) }}
+            </div>
           </template>
         </DataItem>
         <!-- notes -->
