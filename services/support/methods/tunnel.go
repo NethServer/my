@@ -10,10 +10,12 @@
 package methods
 
 import (
+	"bufio"
 	"encoding/json"
 	"io"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -154,11 +156,13 @@ func HandleTunnel(c *gin.Context) {
 	go handleTunnelLifecycle(t, sysID, nodeID, sess.ID)
 }
 
-// acceptControlStream accepts the control stream from the tunnel client
-// and reads the service manifest. It continues to listen for manifest updates.
+// acceptControlStream accepts control streams from the tunnel client.
+// Each stream carries either a service manifest (raw JSON starting with '{')
+// or a diagnostics report (header line "DIAGNOSTICS 1\n" followed by JSON).
 func acceptControlStream(t *tunnel.Tunnel, systemID, sessionID string) {
 	log := logger.ComponentLogger("tunnel")
 	var lastManifest time.Time
+	var lastDiagnostics time.Time
 
 	for {
 		stream, err := t.Session.Accept()
@@ -166,16 +170,70 @@ func acceptControlStream(t *tunnel.Tunnel, systemID, sessionID string) {
 			return // session closed
 		}
 
-		// Rate limit manifest updates (max 1 per 10 seconds, first always accepted)
+		// Wrap stream with a size-limited buffered reader (1 MB overall limit)
+		br := bufio.NewReaderSize(io.LimitReader(stream, 1<<20), 4096)
+
+		firstByte, err := br.ReadByte()
+		if err != nil {
+			_ = stream.Close()
+			continue
+		}
+
+		if firstByte == 'D' {
+			// Read the rest of the header line (br already consumed the 'D')
+			rest, _ := br.ReadString('\n')
+			headerLine := "D" + rest
+			if strings.HasPrefix(strings.TrimSpace(headerLine), "DIAGNOSTICS") {
+				// Rate-limit diagnostics: max 1 per 30 seconds
+				if !lastDiagnostics.IsZero() && time.Since(lastDiagnostics) < 30*time.Second {
+					_ = stream.Close()
+					continue
+				}
+
+				// Read remaining bytes as JSON
+				rawJSON, readErr := io.ReadAll(br)
+				_ = stream.Close()
+				if readErr != nil {
+					log.Warn().Err(readErr).
+						Str("system_id", systemID).
+						Str("session_id", sessionID).
+						Msg("failed to read diagnostics payload from control stream")
+					continue
+				}
+
+				var raw json.RawMessage = rawJSON
+				if jsonErr := session.SaveDiagnostics(sessionID, raw); jsonErr != nil {
+					log.Warn().Err(jsonErr).
+						Str("system_id", systemID).
+						Str("session_id", sessionID).
+						Msg("failed to save diagnostics")
+				} else {
+					lastDiagnostics = time.Now()
+					log.Info().
+						Str("system_id", systemID).
+						Str("session_id", sessionID).
+						Int("payload_bytes", len(rawJSON)).
+						Msg("diagnostics received")
+				}
+				continue
+			}
+			// Unknown header starting with 'D' — skip stream
+			_ = stream.Close()
+			continue
+		}
+
+		// Manifest path: put the peeked byte back so the JSON decoder sees it
+		_ = br.UnreadByte()
+
+		// Rate-limit manifest updates (max 1 per 10 seconds, first always accepted)
 		if !lastManifest.IsZero() && time.Since(lastManifest) < 10*time.Second {
 			_ = stream.Close()
 			continue
 		}
 
-		// Decode manifest with size limit to prevent memory exhaustion
+		// Decode manifest with the buffered reader (preserves already-read bytes)
 		var manifest tunnel.ServiceManifest
-		decoder := json.NewDecoder(io.LimitReader(stream, 1<<20)) // 1 MB max
-		if err := decoder.Decode(&manifest); err != nil {
+		if err := json.NewDecoder(br).Decode(&manifest); err != nil {
 			log.Warn().Err(err).
 				Str("system_id", systemID).
 				Str("session_id", sessionID).
