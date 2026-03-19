@@ -68,3 +68,16 @@ type SessionRef struct {
 type ExtendSessionRequest struct {
 	Hours int `json:"hours" binding:"required,min=1,max=168"`
 }
+
+// AddSessionServiceItem describes a single static service to add to a tunnel
+type AddSessionServiceItem struct {
+	Name   string `json:"name" binding:"required"`
+	Target string `json:"target" binding:"required"`
+	Label  string `json:"label"`
+	TLS    bool   `json:"tls"`
+}
+
+// AddSessionServicesRequest represents a request to dynamically add static services
+type AddSessionServicesRequest struct {
+	Services []AddSessionServiceItem `json:"services" binding:"required,min=1,max=10"`
+}

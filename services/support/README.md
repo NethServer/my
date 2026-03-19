@@ -62,10 +62,16 @@ MAX_SESSIONS_PER_SYSTEM=5
 
 1. **System connects** via WebSocket with HTTP Basic Auth (same credentials as collect)
 2. **yamux session** multiplexes streams over a single WebSocket connection
-3. **Service manifest** is exchanged — the system advertises available services (e.g., cluster-admin, SSH)
+3. **Service manifest** is exchanged — the system opens a control stream and sends the list of reachable services as JSON
 4. **Diagnostics report** is sent — the system collects and pushes a health snapshot (CPU, RAM, disk, custom plugins)
-5. **Operator requests** arrive as yamux streams with CONNECT headers routing to the target service
+5. **Operator requests** arrive as yamux streams with `CONNECT <service>\n` headers routing to the target service
 6. **Reverse proxy** forwards HTTP/WebSocket traffic through the tunnel to remote services
+
+The support service can also **push commands** to the tunnel-client by opening outbound yamux streams. The stream starts with a `COMMAND <version>\n` header followed by a JSON payload. Currently supported commands:
+
+| Command | Description |
+|:---|:---|
+| `add_services` | Inject one or more static `host:port` services into the running session without reconnection |
 
 ### Session Lifecycle
 - `pending` — Session created by backend, waiting for system to connect
@@ -74,9 +80,10 @@ MAX_SESSIONS_PER_SYSTEM=5
 - `closed` — Session closed by operator or system disconnect
 
 ### Inter-Service Communication
-- **Backend → Support**: Redis pub/sub on channel `support:commands` (close sessions)
+- **Backend → Support**: Redis pub/sub on channel `support:commands` (`close` and `add_services` commands)
 - **Backend → Support**: Internal HTTP endpoints with `X-Internal-Secret` header (proxy, terminal, services)
 - **System → Support**: WebSocket with HTTP Basic Auth (tunnel establishment)
+- **Support → System**: Outbound yamux COMMAND streams (server-initiated, e.g. `add_services`)
 
 ## Development
 
@@ -193,6 +200,27 @@ EXCLUDE_PATTERNS="*-server-api,*-janus,*-middleware-*,*-provisioning,*-reports-a
 # Via CLI flag
 tunnel-client --exclude "*-server-api,*-janus,*-middleware-*"
 ```
+
+### Static Service Injection
+
+Operators can add arbitrary `host:port` services to a running tunnel without restarting the tunnel-client. This is useful for services not auto-discovered via Traefik — for example the web management interface of a device on the customer's LAN (IP phone, managed switch, etc.).
+
+**Flow:**
+
+```
+Operator clicks "Add service" in the UI
+  → POST /api/support-sessions/:id/services  {name, target, label, tls}
+  → Backend validates and publishes to Redis: {action: "add_services", session_id, services}
+  → Support service opens an outbound yamux stream to the tunnel-client
+  → Writes: COMMAND 1\n + JSON payload
+  → Tunnel-client merges the new service into its local map and re-sends the manifest
+  → Support service updates its service registry for that session
+  → Operator can immediately open the new service via the proxy
+```
+
+**Example:** to access a Yealink phone's web UI at `192.168.1.100:443` on a customer's system, add a service with `target: 192.168.1.100:443` and `tls: true`. The phone's interface becomes available through the subdomain proxy as if the operator were on the same LAN.
+
+Constraints: max 10 services per call, names must match `[a-zA-Z0-9][a-zA-Z0-9._-]*`, target must be `host:port`.
 
 ### Diagnostics Plugin System
 

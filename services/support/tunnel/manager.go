@@ -10,7 +10,9 @@
 package tunnel
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"regexp"
 	"strings"
@@ -536,6 +538,77 @@ func (t *Tunnel) ReleaseStream() {
 	defer t.activeStreamsMu.Unlock()
 	if t.activeStreams > 0 {
 		t.activeStreams--
+	}
+}
+
+// CommandPayload is the JSON body written to a COMMAND yamux stream.
+type CommandPayload struct {
+	Action   string                 `json:"action"`
+	Services map[string]ServiceInfo `json:"services,omitempty"`
+}
+
+// SendCommandToSession opens a COMMAND yamux stream to the tunnel-client for the
+// given session ID, writes the payload as JSON, and waits for an OK/ERROR response.
+func (m *Manager) SendCommandToSession(sessionID string, payload CommandPayload) error {
+	t := m.GetBySessionID(sessionID)
+	if t == nil {
+		return fmt.Errorf("no active tunnel for session %s", sessionID)
+	}
+
+	s, err := t.Session.Open()
+	if err != nil {
+		return fmt.Errorf("failed to open command stream: %w", err)
+	}
+	defer func() { _ = s.Close() }()
+
+	// Write COMMAND header
+	if _, err := fmt.Fprintf(s, "COMMAND 1\n"); err != nil {
+		return fmt.Errorf("failed to write command header: %w", err)
+	}
+
+	// Write JSON payload
+	if err := json.NewEncoder(s).Encode(payload); err != nil {
+		return fmt.Errorf("failed to encode command payload: %w", err)
+	}
+
+	// Read response with timeout
+	if err := s.SetReadDeadline(time.Now().Add(30 * time.Second)); err != nil {
+		return fmt.Errorf("failed to set read deadline: %w", err)
+	}
+	line, err := readStreamLine(s)
+	if err != nil {
+		return fmt.Errorf("failed to read command response: %w", err)
+	}
+	if line == "OK" {
+		return nil
+	}
+	if strings.HasPrefix(line, "ERROR ") {
+		return fmt.Errorf("tunnel-client error: %s", strings.TrimPrefix(line, "ERROR "))
+	}
+	return fmt.Errorf("unexpected command response: %q", line)
+}
+
+// readStreamLine reads a newline-terminated line from r byte-by-byte.
+func readStreamLine(r io.Reader) (string, error) {
+	var buf []byte
+	b := make([]byte, 1)
+	for {
+		n, err := r.Read(b)
+		if n > 0 {
+			if b[0] == '\n' {
+				return string(buf), nil
+			}
+			buf = append(buf, b[0])
+			if len(buf) > 1024 {
+				return "", fmt.Errorf("response line too long")
+			}
+		}
+		if err != nil {
+			if err == io.EOF && len(buf) > 0 {
+				return string(buf), nil
+			}
+			return "", err
+		}
 	}
 }
 
