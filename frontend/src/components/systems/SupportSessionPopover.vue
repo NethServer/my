@@ -12,7 +12,9 @@ import { useI18n } from 'vue-i18n'
 import {
   getSystemActiveSessions,
   getSupportSessionLogs,
+  getSupportSessionDiagnostics,
   type SystemSessionGroup,
+  type SessionDiagnostics,
 } from '@/lib/support/support'
 function formatDateWithMonth(date: Date, loc: string): string {
   return date.toLocaleString(loc, {
@@ -49,6 +51,7 @@ interface PopoverData {
 }
 
 const data = ref<PopoverData | null>(null)
+const diagnostics = ref<SessionDiagnostics | null>(null)
 const loading = ref(false)
 const error = ref(false)
 const isOpen = ref(false)
@@ -100,6 +103,18 @@ async function fetchData() {
     data.value = {
       group,
       operators: Array.from(operatorMap.values()),
+    }
+
+    // Fetch diagnostics from the most recently started session
+    if (group.sessions && group.sessions.length > 0) {
+      const latestSession = [...group.sessions].sort(
+        (a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime(),
+      )[0]
+      try {
+        diagnostics.value = await getSupportSessionDiagnostics(latestSession.id)
+      } catch {
+        diagnostics.value = null
+      }
     }
   } catch {
     error.value = true
@@ -155,6 +170,32 @@ function formatConnectionBadge(conn: OperatorConnection): string {
     return `${label} (${t('systems.node')} ${conn.nodeId})`
   }
   return label
+}
+
+function diagnosticStatusDotClass(status: string): string {
+  switch (status) {
+    case 'ok':
+      return 'bg-green-500'
+    case 'warning':
+      return 'bg-amber-400'
+    case 'critical':
+      return 'bg-red-500'
+    default:
+      return 'bg-gray-400'
+  }
+}
+
+function diagnosticStatusTextClass(status: string): string {
+  switch (status) {
+    case 'ok':
+      return 'text-green-600 dark:text-green-400'
+    case 'warning':
+      return 'text-amber-500 dark:text-amber-400'
+    case 'critical':
+      return 'text-red-600 dark:text-red-400'
+    default:
+      return 'text-gray-500 dark:text-gray-400'
+  }
 }
 </script>
 
@@ -236,6 +277,31 @@ function formatConnectionBadge(conn: OperatorConnection): string {
                   />
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+        <!-- Diagnostics -->
+        <div
+          v-if="diagnostics?.diagnostics"
+          class="border-t border-gray-200 pt-2 dark:border-gray-700"
+        >
+          <div class="mb-1.5 flex items-center gap-1.5 font-medium">
+            <span>{{ t('support.diagnostics') }}</span>
+            <span
+              class="inline-block h-2 w-2 rounded-full"
+              :class="diagnosticStatusDotClass(diagnostics.diagnostics.overall_status)"
+            />
+          </div>
+          <div class="space-y-1">
+            <div
+              v-for="plugin in diagnostics.diagnostics.plugins"
+              :key="plugin.id"
+              class="flex items-center justify-between"
+            >
+              <span class="text-gray-500 dark:text-gray-400">{{ plugin.name }}</span>
+              <span class="text-xs font-medium" :class="diagnosticStatusTextClass(plugin.status)">
+                {{ plugin.summary || plugin.status }}
+              </span>
             </div>
           </div>
         </div>

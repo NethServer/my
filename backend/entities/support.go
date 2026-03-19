@@ -7,8 +7,10 @@ package entities
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/models"
@@ -439,6 +441,54 @@ func (r *SupportRepository) GetSessionByID(sessionID, userOrgRole, userOrgID str
 	session.SessionToken = ""
 
 	return &session, nil
+}
+
+// GetDiagnostics returns the diagnostics data for a session, if available and accessible.
+// Returns nil, nil, nil if diagnostics have not been received yet.
+func (r *SupportRepository) GetDiagnostics(sessionID, userOrgRole, userOrgID string) (map[string]interface{}, *time.Time, error) {
+	conditions := []string{"ss.id = $1"}
+	args := []interface{}{sessionID}
+	argIdx := 2
+
+	// RBAC scope filter
+	rbacCondition, rbacArgs, _ := buildRBACFilter(userOrgRole, userOrgID, argIdx)
+	if rbacCondition != "" {
+		conditions = append(conditions, rbacCondition)
+		args = append(args, rbacArgs...)
+	}
+
+	query := fmt.Sprintf(`SELECT ss.diagnostics, ss.diagnostics_at
+	          FROM support_sessions ss
+	          JOIN systems s ON ss.system_id = s.id
+	          WHERE %s`, strings.Join(conditions, " AND "))
+
+	var rawDiagnostics []byte
+	var diagnosticsAt sql.NullTime
+
+	err := r.db.QueryRow(query, args...).Scan(&rawDiagnostics, &diagnosticsAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil, nil
+		}
+		return nil, nil, fmt.Errorf("failed to get diagnostics: %w", err)
+	}
+
+	if rawDiagnostics == nil {
+		return nil, nil, nil
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal(rawDiagnostics, &data); err != nil {
+		return nil, nil, fmt.Errorf("failed to unmarshal diagnostics: %w", err)
+	}
+
+	var at *time.Time
+	if diagnosticsAt.Valid {
+		t := diagnosticsAt.Time
+		at = &t
+	}
+
+	return data, at, nil
 }
 
 // maxSessionDuration is the maximum total duration a session can have from its start time (30 days)

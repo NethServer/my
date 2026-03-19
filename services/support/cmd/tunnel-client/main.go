@@ -37,17 +37,20 @@ import (
 
 func main() {
 	var (
-		urlFlag           = flag.StringP("url", "u", config.EnvWithDefault("SUPPORT_URL", ""), "WebSocket tunnel URL (env: SUPPORT_URL)")
-		keyFlag           = flag.StringP("key", "k", config.EnvWithDefault("SYSTEM_KEY", ""), "System key (env: SYSTEM_KEY)")
-		secretFlag        = flag.StringP("secret", "s", config.EnvWithDefault("SYSTEM_SECRET", ""), "System secret (env: SYSTEM_SECRET)")
-		nodeIDFlag        = flag.StringP("node-id", "n", config.EnvWithDefault("NODE_ID", ""), "Cluster node ID, auto-detected on NS8 (env: NODE_ID)")
-		redisAddr         = flag.StringP("redis-addr", "r", config.EnvWithDefault("REDIS_ADDR", ""), "Redis address, auto-detected on NS8 (env: REDIS_ADDR)")
-		staticServices    = flag.String("static-services", config.EnvWithDefault("STATIC_SERVICES", ""), "Static services name=host:port[:tls],... (env: STATIC_SERVICES)")
-		excludePatterns   = flag.String("exclude", config.EnvWithDefault("EXCLUDE_PATTERNS", ""), "Comma-separated glob patterns to exclude services (env: EXCLUDE_PATTERNS)")
-		reconnectDelay    = flag.Duration("reconnect-delay", config.ParseDurationDefault(config.EnvWithDefault("RECONNECT_DELAY", ""), config.DefaultReconnectDelay), "Base reconnect delay (env: RECONNECT_DELAY)")
-		maxReconnectDelay = flag.Duration("max-reconnect-delay", config.ParseDurationDefault(config.EnvWithDefault("MAX_RECONNECT_DELAY", ""), config.DefaultMaxReconnect), "Max reconnect delay (env: MAX_RECONNECT_DELAY)")
-		discoveryInterval = flag.Duration("discovery-interval", config.ParseDurationDefault(config.EnvWithDefault("DISCOVERY_INTERVAL", ""), config.DefaultDiscoveryInterval), "Service re-discovery interval (env: DISCOVERY_INTERVAL)")
-		tlsInsecure       = flag.Bool("tls-insecure", config.EnvWithDefault("TLS_INSECURE", "") == "true", "Skip TLS verification (env: TLS_INSECURE)")
+		urlFlag                  = flag.StringP("url", "u", config.EnvWithDefault("SUPPORT_URL", ""), "WebSocket tunnel URL (env: SUPPORT_URL)")
+		keyFlag                  = flag.StringP("key", "k", config.EnvWithDefault("SYSTEM_KEY", ""), "System key (env: SYSTEM_KEY)")
+		secretFlag               = flag.StringP("secret", "s", config.EnvWithDefault("SYSTEM_SECRET", ""), "System secret (env: SYSTEM_SECRET)")
+		nodeIDFlag               = flag.StringP("node-id", "n", config.EnvWithDefault("NODE_ID", ""), "Cluster node ID, auto-detected on NS8 (env: NODE_ID)")
+		redisAddr                = flag.StringP("redis-addr", "r", config.EnvWithDefault("REDIS_ADDR", ""), "Redis address, auto-detected on NS8 (env: REDIS_ADDR)")
+		staticServices           = flag.String("static-services", config.EnvWithDefault("STATIC_SERVICES", ""), "Static services name=host:port[:tls],... (env: STATIC_SERVICES)")
+		excludePatterns          = flag.String("exclude", config.EnvWithDefault("EXCLUDE_PATTERNS", ""), "Comma-separated glob patterns to exclude services (env: EXCLUDE_PATTERNS)")
+		reconnectDelay           = flag.Duration("reconnect-delay", config.ParseDurationDefault(config.EnvWithDefault("RECONNECT_DELAY", ""), config.DefaultReconnectDelay), "Base reconnect delay (env: RECONNECT_DELAY)")
+		maxReconnectDelay        = flag.Duration("max-reconnect-delay", config.ParseDurationDefault(config.EnvWithDefault("MAX_RECONNECT_DELAY", ""), config.DefaultMaxReconnect), "Max reconnect delay (env: MAX_RECONNECT_DELAY)")
+		discoveryInterval        = flag.Duration("discovery-interval", config.ParseDurationDefault(config.EnvWithDefault("DISCOVERY_INTERVAL", ""), config.DefaultDiscoveryInterval), "Service re-discovery interval (env: DISCOVERY_INTERVAL)")
+		tlsInsecure              = flag.Bool("tls-insecure", config.EnvWithDefault("TLS_INSECURE", "") == "true", "Skip TLS verification (env: TLS_INSECURE)")
+		diagnosticsDir           = flag.String("diagnostics-dir", config.EnvWithDefault("DIAGNOSTICS_DIR", "/usr/share/my/diagnostics.d"), "Directory with diagnostic plugin scripts (env: DIAGNOSTICS_DIR)")
+		diagnosticsPluginTimeout = flag.Duration("diagnostics-plugin-timeout", config.ParseDurationDefault(config.EnvWithDefault("DIAGNOSTICS_PLUGIN_TIMEOUT", ""), config.DefaultDiagnosticsPluginTimeout), "Timeout per diagnostic plugin (env: DIAGNOSTICS_PLUGIN_TIMEOUT)")
+		diagnosticsTotalTimeout  = flag.Duration("diagnostics-total-timeout", config.ParseDurationDefault(config.EnvWithDefault("DIAGNOSTICS_TOTAL_TIMEOUT", ""), config.DefaultDiagnosticsTotalTimeout), "Max time to wait for all diagnostics (env: DIAGNOSTICS_TOTAL_TIMEOUT)")
 	)
 	flag.Parse()
 
@@ -95,17 +98,20 @@ func main() {
 	}()
 
 	cfg := &config.ClientConfig{
-		URL:               *urlFlag,
-		Key:               *keyFlag,
-		Secret:            *secretFlag,
-		NodeID:            *nodeIDFlag,
-		RedisAddr:         *redisAddr,
-		StaticServices:    *staticServices,
-		Exclude:           exclude,
-		ReconnectDelay:    *reconnectDelay,
-		MaxReconnectDelay: *maxReconnectDelay,
-		DiscoveryInterval: *discoveryInterval,
-		TLSInsecure:       *tlsInsecure,
+		URL:                      *urlFlag,
+		Key:                      *keyFlag,
+		Secret:                   *secretFlag,
+		NodeID:                   *nodeIDFlag,
+		RedisAddr:                *redisAddr,
+		StaticServices:           *staticServices,
+		Exclude:                  exclude,
+		ReconnectDelay:           *reconnectDelay,
+		MaxReconnectDelay:        *maxReconnectDelay,
+		DiscoveryInterval:        *discoveryInterval,
+		TLSInsecure:              *tlsInsecure,
+		DiagnosticsDir:           *diagnosticsDir,
+		DiagnosticsPluginTimeout: *diagnosticsPluginTimeout,
+		DiagnosticsTotalTimeout:  *diagnosticsTotalTimeout,
 	}
 
 	connection.RunWithReconnect(ctx, cfg)

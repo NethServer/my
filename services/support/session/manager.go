@@ -14,6 +14,7 @@ import (
 	"crypto/subtle"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -329,4 +330,16 @@ func GetActiveSessions() (int, error) {
 		`SELECT COUNT(*) FROM support_sessions WHERE status = 'active'`,
 	).Scan(&count)
 	return count, err
+}
+
+// SaveDiagnostics stores diagnostic report data on a session.
+// This is best-effort: if the session no longer exists the error is ignored by the caller.
+func SaveDiagnostics(sessionID string, data json.RawMessage) error {
+	_, err := database.DB.Exec(
+		`UPDATE support_sessions
+		 SET diagnostics = $1, diagnostics_at = NOW(), updated_at = NOW()
+		 WHERE id = $2`,
+		string(data), sessionID,
+	)
+	return err
 }
