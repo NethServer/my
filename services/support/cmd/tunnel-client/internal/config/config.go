@@ -18,27 +18,32 @@ import (
 
 // Defaults -- all overridable via CLI flags or environment variables
 const (
-	DefaultRedisAddr         = "127.0.0.1:6379"
-	DefaultReconnectDelay    = 5 * time.Second
-	DefaultMaxReconnect      = 5 * time.Minute
-	DefaultDiscoveryInterval = 5 * time.Minute
-	DefaultYamuxKeepAlive    = 30 // seconds
-	RedisPingTimeout         = 2 * time.Second
+	DefaultRedisAddr                = "127.0.0.1:6379"
+	DefaultReconnectDelay           = 5 * time.Second
+	DefaultMaxReconnect             = 5 * time.Minute
+	DefaultDiscoveryInterval        = 5 * time.Minute
+	DefaultYamuxKeepAlive           = 30 // seconds
+	RedisPingTimeout                = 2 * time.Second
+	DefaultDiagnosticsPluginTimeout = 10 * time.Second
+	DefaultDiagnosticsTotalTimeout  = 30 * time.Second
 )
 
 // ClientConfig holds the runtime configuration for the tunnel client
 type ClientConfig struct {
-	URL               string
-	Key               string
-	Secret            string
-	NodeID            string
-	RedisAddr         string
-	StaticServices    string
-	Exclude           []string
-	ReconnectDelay    time.Duration
-	MaxReconnectDelay time.Duration
-	DiscoveryInterval time.Duration
-	TLSInsecure       bool
+	URL                      string
+	Key                      string
+	Secret                   string
+	NodeID                   string
+	RedisAddr                string
+	StaticServices           string
+	Exclude                  []string
+	ReconnectDelay           time.Duration
+	MaxReconnectDelay        time.Duration
+	DiscoveryInterval        time.Duration
+	TLSInsecure              bool
+	DiagnosticsDir           string
+	DiagnosticsPluginTimeout time.Duration
+	DiagnosticsTotalTimeout  time.Duration
 }
 
 // ParseExcludePatterns parses a comma-separated string of glob patterns.
