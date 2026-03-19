@@ -26,6 +26,7 @@ import (
 	"github.com/hashicorp/yamux"
 
 	"github.com/nethesis/my/services/support/cmd/tunnel-client/internal/config"
+	"github.com/nethesis/my/services/support/cmd/tunnel-client/internal/diagnostics"
 	"github.com/nethesis/my/services/support/cmd/tunnel-client/internal/discovery"
 	"github.com/nethesis/my/services/support/cmd/tunnel-client/internal/models"
 	"github.com/nethesis/my/services/support/cmd/tunnel-client/internal/stream"
@@ -96,6 +97,13 @@ func connect(ctx context.Context, cfg *config.ClientConfig) error {
 		connectURL = parsed.String()
 	}
 
+	// Start diagnostics collection in background (runs while connecting)
+	diagCh := make(chan diagnostics.DiagnosticsReport, 1)
+	go func() {
+		report := diagnostics.Collect(cfg.DiagnosticsDir, cfg.DiagnosticsPluginTimeout)
+		diagCh <- report
+	}()
+
 	log.Printf("Connecting to %s ...", connectURL)
 
 	dialer := websocket.Dialer{
@@ -133,6 +141,18 @@ func connect(ctx context.Context, cfg *config.ClientConfig) error {
 	if err := sendManifest(session, services); err != nil {
 		_ = session.Close()
 		return fmt.Errorf("failed to send manifest: %w", err)
+	}
+
+	// Send diagnostics report if ready within the total timeout
+	diagDeadline := time.NewTimer(cfg.DiagnosticsTotalTimeout)
+	defer diagDeadline.Stop()
+	select {
+	case report := <-diagCh:
+		if err := sendDiagnostics(session, report); err != nil {
+			log.Printf("Failed to send diagnostics: %v", err)
+		}
+	case <-diagDeadline.C:
+		log.Printf("Diagnostics timed out after %v, skipping", cfg.DiagnosticsTotalTimeout)
 	}
 
 	// Start periodic re-discovery
@@ -204,5 +224,25 @@ func sendManifest(session *yamux.Session, services map[string]models.ServiceInfo
 	}
 
 	log.Printf("Manifest sent with %d services", len(services))
+	return nil
+}
+
+func sendDiagnostics(session *yamux.Session, report diagnostics.DiagnosticsReport) error {
+	yamuxStream, err := session.Open()
+	if err != nil {
+		return fmt.Errorf("failed to open diagnostics stream: %w", err)
+	}
+	defer func() { _ = yamuxStream.Close() }()
+
+	// Write header line to identify this as a diagnostics stream
+	if _, err := fmt.Fprintf(yamuxStream, "DIAGNOSTICS 1\n"); err != nil {
+		return fmt.Errorf("failed to write diagnostics header: %w", err)
+	}
+
+	if err := json.NewEncoder(yamuxStream).Encode(report); err != nil {
+		return fmt.Errorf("failed to encode diagnostics: %w", err)
+	}
+
+	log.Printf("Diagnostics sent: overall_status=%s, plugins=%d", report.OverallStatus, len(report.Plugins))
 	return nil
 }

@@ -63,8 +63,9 @@ MAX_SESSIONS_PER_SYSTEM=5
 1. **System connects** via WebSocket with HTTP Basic Auth (same credentials as collect)
 2. **yamux session** multiplexes streams over a single WebSocket connection
 3. **Service manifest** is exchanged — the system advertises available services (e.g., cluster-admin, SSH)
-4. **Operator requests** arrive as yamux streams with CONNECT headers routing to the target service
-5. **Reverse proxy** forwards HTTP/WebSocket traffic through the tunnel to remote services
+4. **Diagnostics report** is sent — the system collects and pushes a health snapshot (CPU, RAM, disk, custom plugins)
+5. **Operator requests** arrive as yamux streams with CONNECT headers routing to the target service
+6. **Reverse proxy** forwards HTTP/WebSocket traffic through the tunnel to remote services
 
 ### Session Lifecycle
 - `pending` — Session created by backend, waiting for system to connect
@@ -150,6 +151,7 @@ services/support/
 │       └── internal/
 │           ├── config/      # ClientConfig, env parsing, helpers
 │           ├── connection/  # WebSocket + yamux connection, reconnect loop
+│           ├── diagnostics/ # Plugin runner, built-in system check, report aggregation
 │           ├── discovery/   # Service discovery (Traefik, NethSecurity, static)
 │           ├── models/      # ServiceInfo, ServiceManifest, ApiCliRoute
 │           ├── stream/      # CONNECT protocol stream handler
@@ -190,6 +192,40 @@ EXCLUDE_PATTERNS="*-server-api,*-janus,*-middleware-*,*-provisioning,*-reports-a
 
 # Via CLI flag
 tunnel-client --exclude "*-server-api,*-janus,*-middleware-*"
+```
+
+### Diagnostics Plugin System
+
+At connect time, the tunnel-client collects a health report and pushes it to the support service. The report is stored with the session and shown to operators in the MY interface.
+
+**Built-in plugin** (`system`): always runs, collects OS info, CPU load averages, RAM usage, disk usage, and uptime from `/proc` and `syscall.Statfs`.
+
+**External plugins**: executable files dropped in `/usr/share/my/diagnostics.d/` (configurable via `DIAGNOSTICS_DIR`). Each plugin:
+- Runs with a per-plugin timeout (default 10s, configurable via `DIAGNOSTICS_PLUGIN_TIMEOUT`)
+- Writes JSON to stdout
+- Uses exit code to signal status: `0` = ok, `1` = warning, `2` = critical
+
+Plugin output format:
+```json
+{
+  "id": "nethvoice",
+  "name": "NethVoice",
+  "status": "warning",
+  "summary": "FreeSWITCH up, DB at 87% capacity",
+  "checks": [
+    { "name": "FreeSWITCH", "status": "ok", "value": "running" },
+    { "name": "Asterisk CDR DB", "status": "warning", "value": "87% full" }
+  ]
+}
+```
+
+The overall session status is the worst status across all plugins. If the `id` or `name` fields are omitted, they are derived from the filename. If stdout is not valid JSON, the raw text is used as `summary`.
+
+```bash
+# Diagnostics flags
+--diagnostics-dir string               # Default: /usr/share/my/diagnostics.d (env: DIAGNOSTICS_DIR)
+--diagnostics-plugin-timeout duration  # Default: 10s (env: DIAGNOSTICS_PLUGIN_TIMEOUT)
+--diagnostics-total-timeout duration   # Default: 30s (env: DIAGNOSTICS_TOTAL_TIMEOUT)
 ```
 
 ## Related
