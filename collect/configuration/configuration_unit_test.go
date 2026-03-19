@@ -42,7 +42,7 @@ func TestInit(t *testing.T) {
 		"WORKER_SHUTDOWN_TIMEOUT", "WORKER_HEARTBEAT_INTERVAL",
 		"BATCH_PROCESSOR_SIZE", "BATCH_PROCESSOR_TIMEOUT", "BACKPRESSURE_THRESHOLD",
 		"CIRCUIT_BREAKER_THRESHOLD", "CIRCUIT_BREAKER_TIMEOUT",
-		"INVENTORY_MAX_AGE", "INVENTORY_CLEANUP_INTERVAL", "INVENTORY_DIFF_DEPTH",
+		"INVENTORY_CLEANUP_INTERVAL", "INVENTORY_DIFF_DEPTH",
 		"SYSTEM_SECRET_MIN_LENGTH", "SYSTEM_AUTH_CACHE_TTL",
 		"API_MAX_REQUEST_SIZE", "API_REQUEST_TIMEOUT",
 		"HEALTH_CHECK_INTERVAL", "NOTIFICATION_RETRY_ATTEMPTS",
@@ -99,7 +99,6 @@ func TestInit(t *testing.T) {
 	assert.Equal(t, 0.8, Config.BackpressureThreshold)
 	assert.Equal(t, 5, Config.CircuitBreakerThreshold)
 	assert.Equal(t, 30*time.Second, Config.CircuitBreakerTimeout)
-	assert.Equal(t, 90*24*time.Hour, Config.InventoryMaxAge)
 	assert.Equal(t, 6*time.Hour, Config.InventoryCleanupInterval)
 	assert.Equal(t, 10, Config.InventoryDiffDepth)
 	assert.Equal(t, 32, Config.SystemSecretMinLength)
@@ -141,7 +140,6 @@ func TestInitWithEnvironmentVariables(t *testing.T) {
 	_ = os.Setenv("BACKPRESSURE_THRESHOLD", "0.9")
 	_ = os.Setenv("CIRCUIT_BREAKER_THRESHOLD", "10")
 	_ = os.Setenv("CIRCUIT_BREAKER_TIMEOUT", "60s")
-	_ = os.Setenv("INVENTORY_MAX_AGE", "168h")
 	_ = os.Setenv("INVENTORY_CLEANUP_INTERVAL", "12h")
 	_ = os.Setenv("INVENTORY_DIFF_DEPTH", "20")
 	_ = os.Setenv("SYSTEM_SECRET_MIN_LENGTH", "64")
@@ -163,7 +161,7 @@ func TestInitWithEnvironmentVariables(t *testing.T) {
 			"WORKER_SHUTDOWN_TIMEOUT", "WORKER_HEARTBEAT_INTERVAL",
 			"BATCH_PROCESSOR_SIZE", "BATCH_PROCESSOR_TIMEOUT", "BACKPRESSURE_THRESHOLD",
 			"CIRCUIT_BREAKER_THRESHOLD", "CIRCUIT_BREAKER_TIMEOUT",
-			"INVENTORY_MAX_AGE", "INVENTORY_CLEANUP_INTERVAL", "INVENTORY_DIFF_DEPTH",
+			"INVENTORY_CLEANUP_INTERVAL", "INVENTORY_DIFF_DEPTH",
 			"SYSTEM_SECRET_MIN_LENGTH", "SYSTEM_AUTH_CACHE_TTL",
 			"API_MAX_REQUEST_SIZE", "API_REQUEST_TIMEOUT",
 			"HEALTH_CHECK_INTERVAL", "NOTIFICATION_RETRY_ATTEMPTS",
@@ -204,7 +202,6 @@ func TestInitWithEnvironmentVariables(t *testing.T) {
 	assert.Equal(t, 0.9, Config.BackpressureThreshold)
 	assert.Equal(t, 10, Config.CircuitBreakerThreshold)
 	assert.Equal(t, 60*time.Second, Config.CircuitBreakerTimeout)
-	assert.Equal(t, 168*time.Hour, Config.InventoryMaxAge)
 	assert.Equal(t, 12*time.Hour, Config.InventoryCleanupInterval)
 	assert.Equal(t, 20, Config.InventoryDiffDepth)
 	assert.Equal(t, 64, Config.SystemSecretMinLength)

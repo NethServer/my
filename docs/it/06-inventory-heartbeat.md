@@ -429,6 +429,43 @@ curl -X POST "$COLLECT_URL/api/systems/inventory" \
   -d "$INVENTORY"
 ```
 
+## Storico Inventario e Timeline
+
+My conserva l'intera storia delle modifiche di inventario per ogni sistema, permettendo di vedere come un sistema è evoluto nel tempo — dalla prima registrazione ad oggi.
+
+### Cosa viene conservato
+
+- **Tutte le modifiche (diff)**: Ogni modifica rilevata viene conservata in modo permanente e non viene mai eliminata. Ogni diff registra il campo modificato, il valore precedente e il nuovo valore.
+- **Snapshot dell'inventario**: Gli snapshot JSON completi vengono conservati con densità esponenziale — più frequenti vicino al presente, progressivamente più radi per le date lontane:
+
+| Età | Frequenza snapshot |
+|-----|--------------------|
+| Ultimi 7 giorni | Tutti gli snapshot |
+| 7 giorni – 1 mese | 1 al giorno |
+| 1 mese – 3 mesi | 1 alla settimana |
+| 3 mesi – 1 anno | 1 al mese |
+| Oltre 1 anno | 1 al trimestre |
+
+Il **primo snapshot** ricevuto per un sistema (la baseline) e lo **snapshot più recente** (stato attuale) sono sempre conservati indipendentemente dall'età.
+
+### La Timeline
+
+La timeline mostra l'evoluzione completa di un sistema raggruppata per data. Per ogni invio di inventario che ha contenuto modifiche, è possibile vedere:
+
+- Quando è avvenuta la modifica
+- Quali campi sono cambiati (percorso, valore precedente, nuovo valore)
+- Severità e categoria di ogni modifica
+
+Poiché tutti i diff vengono conservati permanentemente, la timeline rimane completamente navigabile anche per sistemi registrati anni fa. È possibile filtrare per intervallo di date, severità, categoria o tipo di modifica.
+
+### Visualizzare lo storico
+
+**Nel pannello di amministrazione:**
+1. Naviga su **Sistemi** > **Dettagli sistema**
+2. Clicca sulla scheda **Inventario**
+3. Usa la vista **Timeline** per lo storico delle modifiche raggruppato per data
+4. Usa la vista **Storico** per gli snapshot raw paginati
+
 ## Rilevamento Modifiche
 
 My rileva automaticamente le modifiche tra gli snapshot dell'inventario.

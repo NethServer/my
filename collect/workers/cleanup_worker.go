@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Nethesis S.r.l.
+ * Copyright (C) 2026 Nethesis S.r.l.
  * http://www.nethesis.it - info@nethesis.it
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -11,12 +11,10 @@ package workers
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/nethesis/my/collect/configuration"
 	"github.com/nethesis/my/collect/database"
 	"github.com/nethesis/my/collect/logger"
 	"github.com/rs/zerolog"
@@ -94,22 +92,14 @@ func (cw *CleanupWorker) worker(ctx context.Context, wg *sync.WaitGroup) {
 func (cw *CleanupWorker) runCleanup(ctx context.Context, workerLogger *zerolog.Logger) {
 	start := time.Now()
 
-	// Update activity timestamp
 	cw.mu.Lock()
 	cw.lastActivity = time.Now()
 	cw.mu.Unlock()
 
 	workerLogger.Info().Msg("Starting cleanup operations")
 
-	// Run cleanup operations
-	if err := cw.cleanupOldInventoryRecords(ctx, workerLogger); err != nil {
-		workerLogger.Error().Err(err).Msg("Failed to cleanup old inventory records")
-		atomic.StoreInt32(&cw.isHealthy, 0)
-		return
-	}
-
-	if err := cw.cleanupOldInventoryDiffs(ctx, workerLogger); err != nil {
-		workerLogger.Error().Err(err).Msg("Failed to cleanup old inventory diffs")
+	if err := cw.cleanupInventoryRecordsExponential(ctx, workerLogger); err != nil {
+		workerLogger.Error().Err(err).Msg("Failed to cleanup inventory records")
 		atomic.StoreInt32(&cw.isHealthy, 0)
 		return
 	}
@@ -134,28 +124,82 @@ func (cw *CleanupWorker) runCleanup(ctx context.Context, workerLogger *zerolog.L
 		Msg("Cleanup operations completed")
 }
 
-// cleanupOldInventoryRecords removes old inventory records but keeps at least 5 per system
-func (cw *CleanupWorker) cleanupOldInventoryRecords(ctx context.Context, workerLogger *zerolog.Logger) error {
-	maxAge := configuration.Config.InventoryMaxAge
-	maxAgeHours := int(maxAge.Hours())
-
-	// Use a more complex query that keeps at least 5 records per system
-	// even if they're older than the max age
+// cleanupInventoryRecordsExponential applies exponential retention to inventory_records.
+//
+// The strategy preserves historical coverage while controlling storage growth:
+//   - Always keep: the first record per system (baseline) and the latest (current state)
+//   - Last 7 days: keep all records (daily or more frequent granularity)
+//   - 7 days – 1 month: keep 1 per day
+//   - 1 month – 3 months: keep 1 per week
+//   - 3 months – 1 year: keep 1 per month
+//   - Older than 1 year: keep 1 per quarter
+//
+// inventory_diffs are never deleted — they are the timeline source of truth and
+// are self-contained (field_path, previous_value, current_value). The FK from
+// inventory_diffs to inventory_records uses ON DELETE SET NULL so diffs survive
+// when their referenced snapshot is pruned.
+func (cw *CleanupWorker) cleanupInventoryRecordsExponential(ctx context.Context, workerLogger *zerolog.Logger) error {
+	// Each tier: delete records in the age window that are NOT the representative
+	// for their bucket (day/week/month/quarter), and NOT the first or last per system.
+	//
+	// We use ROW_NUMBER() within each bucket, keeping only row 1 (most recent within bucket).
+	// The first and last record per system are always excluded from deletion via a subquery.
 	query := `
-		DELETE FROM inventory_records 
+		DELETE FROM inventory_records
 		WHERE id IN (
 			SELECT id FROM (
-				SELECT id, 
-					   ROW_NUMBER() OVER (PARTITION BY system_id ORDER BY created_at DESC) as row_num
+				SELECT
+					id,
+					created_at,
+					system_id,
+					-- Bucket label varies by age tier
+					CASE
+						WHEN created_at >= NOW() - INTERVAL '7 days'
+							THEN NULL -- never delete records from last 7 days
+						WHEN created_at >= NOW() - INTERVAL '1 month'
+							THEN DATE_TRUNC('day', created_at)::text
+						WHEN created_at >= NOW() - INTERVAL '3 months'
+							THEN DATE_TRUNC('week', created_at)::text
+						WHEN created_at >= NOW() - INTERVAL '1 year'
+							THEN DATE_TRUNC('month', created_at)::text
+						ELSE
+							DATE_TRUNC('quarter', created_at)::text
+					END AS bucket,
+					ROW_NUMBER() OVER (
+						PARTITION BY system_id,
+						CASE
+							WHEN created_at >= NOW() - INTERVAL '7 days'
+								THEN NULL
+							WHEN created_at >= NOW() - INTERVAL '1 month'
+								THEN DATE_TRUNC('day', created_at)::text
+							WHEN created_at >= NOW() - INTERVAL '3 months'
+								THEN DATE_TRUNC('week', created_at)::text
+							WHEN created_at >= NOW() - INTERVAL '1 year'
+								THEN DATE_TRUNC('month', created_at)::text
+							ELSE
+								DATE_TRUNC('quarter', created_at)::text
+						END
+						ORDER BY created_at DESC
+					) AS rn
 				FROM inventory_records
-				WHERE created_at < NOW() - INTERVAL '%d hours'
+				-- Never touch the first or last record per system
+				WHERE id NOT IN (
+					SELECT DISTINCT ON (system_id) id
+					FROM inventory_records
+					ORDER BY system_id, created_at ASC
+				)
+				AND id NOT IN (
+					SELECT DISTINCT ON (system_id) id
+					FROM inventory_records
+					ORDER BY system_id, created_at DESC
+				)
 			) ranked
-			WHERE row_num > 5
+			-- Keep row 1 per bucket (most recent in bucket), delete the rest
+			-- Also skip the last-7-days tier (bucket IS NULL)
+			WHERE rn > 1 AND bucket IS NOT NULL
 		)
 	`
 
-	query = fmt.Sprintf(query, maxAgeHours)
-
 	result, err := database.DB.ExecContext(ctx, query)
 	if err != nil {
 		return err
@@ -169,38 +213,7 @@ func (cw *CleanupWorker) cleanupOldInventoryRecords(ctx context.Context, workerL
 	if rowsAffected > 0 {
 		workerLogger.Info().
 			Int64("rows_deleted", rowsAffected).
-			Dur("max_age", maxAge).
-			Msg("Cleaned up old inventory records (kept at least 5 per system)")
-	}
-
-	return nil
-}
-
-// cleanupOldInventoryDiffs removes old inventory diffs
-func (cw *CleanupWorker) cleanupOldInventoryDiffs(ctx context.Context, workerLogger *zerolog.Logger) error {
-	maxAge := configuration.Config.InventoryMaxAge
-	maxAgeHours := int(maxAge.Hours())
-
-	// Remove old diffs after configured period
-	query := fmt.Sprintf(`
-		DELETE FROM inventory_diffs
-		WHERE created_at < NOW() - INTERVAL '%d hours'
-	`, maxAgeHours)
-
-	result, err := database.DB.ExecContext(ctx, query)
-	if err != nil {
-		return err
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-
-	if rowsAffected > 0 {
-		workerLogger.Info().
-			Int64("rows_deleted", rowsAffected).
-			Msg("Cleaned up old inventory diffs")
+			Msg("Cleaned up inventory records (exponential retention)")
 	}
 
 	return nil
@@ -208,10 +221,9 @@ func (cw *CleanupWorker) cleanupOldInventoryDiffs(ctx context.Context, workerLog
 
 // cleanupResolvedAlerts removes old resolved alerts
 func (cw *CleanupWorker) cleanupResolvedAlerts(ctx context.Context, workerLogger *zerolog.Logger) error {
-	// Remove resolved alerts older than 30 days
 	query := `
-		DELETE FROM inventory_alerts 
-		WHERE is_resolved = true 
+		DELETE FROM inventory_alerts
+		WHERE is_resolved = true
 		AND resolved_at < NOW() - INTERVAL '30 days'
 	`
 
@@ -243,9 +255,7 @@ func (cw *CleanupWorker) vacuumAnalyze(ctx context.Context, workerLogger *zerolo
 	}
 
 	for _, table := range tables {
-		query := fmt.Sprintf("VACUUM ANALYZE %s", table)
-		_, err := database.DB.ExecContext(ctx, query)
-		if err != nil {
+		if _, err := database.DB.ExecContext(ctx, "VACUUM ANALYZE "+table); err != nil {
 			workerLogger.Warn().
 				Err(err).
 				Str("table", table).
@@ -270,6 +280,6 @@ func (cw *CleanupWorker) GetStats() map[string]interface{} {
 		"last_activity":    cw.lastActivity,
 		"is_healthy":       cw.IsHealthy(),
 		"cleanup_interval": "1h",
-		"max_age":          configuration.Config.InventoryMaxAge.String(),
+		"retention_policy": "exponential: 7d=all, 1m=daily, 3m=weekly, 1y=monthly, older=quarterly",
 	}
 }

@@ -61,7 +61,6 @@ type Configuration struct {
 	CircuitBreakerTimeout   time.Duration `json:"circuit_breaker_timeout"`
 
 	// Inventory processing configuration
-	InventoryMaxAge          time.Duration `json:"inventory_max_age"`
 	InventoryCleanupInterval time.Duration `json:"inventory_cleanup_interval"`
 	InventoryDiffDepth       int           `json:"inventory_diff_depth"`
 
@@ -142,7 +141,6 @@ func Init() {
 	Config.CircuitBreakerTimeout = parseDurationWithDefault("CIRCUIT_BREAKER_TIMEOUT", 30*time.Second)
 
 	// Inventory processing configuration
-	Config.InventoryMaxAge = parseDurationWithDefault("INVENTORY_MAX_AGE", 90*24*time.Hour) // 90 days
 	Config.InventoryCleanupInterval = parseDurationWithDefault("INVENTORY_CLEANUP_INTERVAL", 6*time.Hour)
 	Config.InventoryDiffDepth = parseIntWithDefault("INVENTORY_DIFF_DEPTH", 10) // Max diff levels
 

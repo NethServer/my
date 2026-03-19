@@ -429,6 +429,43 @@ curl -X POST "$COLLECT_URL/api/systems/inventory" \
   -d "$INVENTORY"
 ```
 
+## Inventory History & Timeline
+
+My retains the full history of inventory changes for each system, allowing you to see how a system evolved over time — from its first registration to today.
+
+### What is Preserved
+
+- **All changes (diffs)**: Every detected change is stored permanently and never deleted. Each diff records the field that changed, the previous value, and the new value.
+- **Inventory snapshots**: Full JSON snapshots are retained with exponential density — more frequent near the present, progressively sparser for older dates:
+
+| Age | Snapshot frequency |
+|-----|--------------------|
+| Last 7 days | All snapshots |
+| 7 days – 1 month | 1 per day |
+| 1 month – 3 months | 1 per week |
+| 3 months – 1 year | 1 per month |
+| Older than 1 year | 1 per quarter |
+
+The **first snapshot ever** received for a system (the baseline) and the **most recent snapshot** (current state) are always preserved regardless of age.
+
+### The Timeline
+
+The timeline shows the complete evolution of a system grouped by date. For each inventory submission that contained changes, you can see:
+
+- When the change occurred
+- Which fields changed (path, previous value, new value)
+- Severity and category of each change
+
+Since all diffs are kept permanently, the timeline remains fully navigable even for systems registered years ago. You can filter by date range, severity, category, or change type.
+
+### Viewing History
+
+**In Admin Panel:**
+1. Navigate to **Systems** > **System Details**
+2. Click the **Inventory** tab
+3. Use the **Timeline** view for date-grouped change history
+4. Use the **History** view for paginated raw snapshots
+
 ## Change Detection
 
 My automatically detects changes between inventory snapshots.

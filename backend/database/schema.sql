@@ -601,11 +601,11 @@ ALTER TABLE inventory_diffs ADD CONSTRAINT chk_inventory_diffs_severity
 -- Foreign key constraints
 ALTER TABLE inventory_diffs
 ADD CONSTRAINT inventory_diffs_previous_id_fkey
-FOREIGN KEY (previous_id) REFERENCES inventory_records(id) ON DELETE CASCADE;
+FOREIGN KEY (previous_id) REFERENCES inventory_records(id) ON DELETE SET NULL;
 
 ALTER TABLE inventory_diffs
 ADD CONSTRAINT inventory_diffs_current_id_fkey
-FOREIGN KEY (current_id) REFERENCES inventory_records(id) ON DELETE CASCADE;
+FOREIGN KEY (current_id) REFERENCES inventory_records(id) ON DELETE SET NULL;
 
 -- Performance indexes
 CREATE INDEX IF NOT EXISTS idx_inventory_diffs_system_id ON inventory_diffs(system_id);

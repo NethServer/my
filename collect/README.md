@@ -44,7 +44,6 @@ REDIS_PASSWORD=
 ### Optional Environment Variables
 ```bash
 LISTEN_ADDRESS=127.0.0.1:8081
-INVENTORY_MAX_AGE=90d
 API_MAX_REQUEST_SIZE=10MB
 HEARTBEAT_TIMEOUT_MINUTES=10
 LOG_LEVEL=info
@@ -76,7 +75,7 @@ LOG_LEVEL=info
 
 **5. Retry & Cleanup**
 - **Delayed Message Worker** handles failed jobs with exponential backoff
-- **Cleanup Worker** removes old records (90-day retention)
+- **Cleanup Worker** applies exponential retention to `inventory_records` (see below); `inventory_diffs` are never deleted
 - **Queue Monitor Worker** tracks system health and performance
 
 **6. Heartbeat Monitoring**
@@ -93,6 +92,22 @@ LOG_LEVEL=info
 - `collect:notifications` → Alert notifications
 - `{queue}:delayed` → Failed jobs with retry delays
 - `{queue}:dead` → Jobs that exceeded max retry attempts
+
+### Data Retention Policy
+
+**`inventory_diffs`** are never deleted. They are the source of truth for the timeline feature (`/inventory/timeline`) and are self-contained (each diff stores `field_path`, `previous_value`, `current_value`).
+
+**`inventory_records`** (full JSON snapshots) use exponential retention — more frequent near the present, progressively sparser further back:
+
+| Age | Retention |
+|-----|-----------|
+| Last 7 days | All records preserved |
+| 7 days – 1 month | 1 per day |
+| 1 month – 3 months | 1 per week |
+| 3 months – 1 year | 1 per month |
+| Older than 1 year | 1 per quarter |
+
+The **first** record per system (inventory baseline) and the **latest** record (current state, used by `/inventory/latest`) are always preserved regardless of age.
 
 ## Development
 
