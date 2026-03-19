@@ -11,13 +11,48 @@ package methods
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 
+	"github.com/nethesis/my/services/support/configuration"
 	"github.com/nethesis/my/services/support/logger"
 	"github.com/nethesis/my/services/support/queue"
 	"github.com/nethesis/my/services/support/session"
 	"github.com/nethesis/my/services/support/tunnel"
 )
+
+// signedEnvelope wraps a Redis pub/sub payload with an HMAC-SHA256 signature.
+// The backend signs all messages with SUPPORT_INTERNAL_SECRET; the support service verifies
+// using INTERNAL_SECRET (the same shared secret) before processing any command.
+type signedEnvelope struct {
+	Payload string `json:"payload"`
+	Sig     string `json:"sig"`
+}
+
+// verifyAndUnwrap authenticates a signed Redis message and returns the inner payload.
+// If INTERNAL_SECRET is not configured, messages are accepted without verification
+// (backward-compatible with deployments that have not yet set the secret).
+func verifyAndUnwrap(raw string) (string, bool) {
+	var env signedEnvelope
+	if err := json.Unmarshal([]byte(raw), &env); err != nil {
+		return "", false
+	}
+	secret := configuration.Config.InternalSecret
+	if secret == "" {
+		// No secret configured: accept but log a warning so operators know to fix it.
+		logger.ComponentLogger("commands").Warn().Msg("INTERNAL_SECRET not set: Redis commands accepted without HMAC verification")
+		return env.Payload, true
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(env.Payload))
+	expected := hex.EncodeToString(mac.Sum(nil))
+	if !hmac.Equal([]byte(expected), []byte(env.Sig)) {
+		return "", false
+	}
+	return env.Payload, true
+}
 
 // SupportCommand represents a command received via Redis pub/sub
 type SupportCommand struct {
@@ -41,15 +76,22 @@ func StartCommandListener(ctx context.Context) {
 		case <-ctx.Done():
 			log.Info().Msg("command listener stopped")
 			return
-		case msg, ok := <-ch:
-			if !ok {
+		case msg, chanOk := <-ch:
+			if !chanOk {
 				log.Warn().Msg("command channel closed")
 				return
 			}
 
+			// Fix #2: verify HMAC signature before processing any command
+			payload, valid := verifyAndUnwrap(msg.Payload)
+			if !valid {
+				log.Error().Msg("rejected Redis command: invalid or missing HMAC signature")
+				continue
+			}
+
 			var cmd SupportCommand
-			if err := json.Unmarshal([]byte(msg.Payload), &cmd); err != nil {
-				log.Error().Err(err).Str("payload", msg.Payload).Msg("invalid command payload")
+			if err := json.Unmarshal([]byte(payload), &cmd); err != nil {
+				log.Error().Err(err).Str("payload", payload).Msg("invalid command payload")
 				continue
 			}
 
@@ -72,6 +114,20 @@ func StartCommandListener(ctx context.Context) {
 
 func handleAddServicesCommand(cmd SupportCommand) {
 	log := logger.ComponentLogger("commands")
+
+	// Fix #3: SSRF pre-check — validate each service target before forwarding to the tunnel-client.
+	// This is a defense-in-depth layer; the tunnel-client also validates, but the server
+	// should reject dangerous targets before they reach the customer's machine at all.
+	for name, svc := range cmd.Services {
+		if err := tunnel.ValidateServiceTarget(svc.Target); err != nil {
+			log.Error().Err(err).
+				Str("session_id", cmd.SessionID).
+				Str("service", name).
+				Str("target", svc.Target).
+				Msg("rejected add_services command: dangerous service target")
+			return
+		}
+	}
 
 	payload := tunnel.CommandPayload{
 		Action:   "add_services",

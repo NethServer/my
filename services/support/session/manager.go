@@ -333,13 +333,20 @@ func GetActiveSessions() (int, error) {
 }
 
 // SaveDiagnostics stores diagnostic report data on a session.
-// This is best-effort: if the session no longer exists the error is ignored by the caller.
-func SaveDiagnostics(sessionID string, data json.RawMessage) error {
-	_, err := database.DB.Exec(
+// The update is skipped if a diagnostics record was saved within the last 30 seconds,
+// enforcing the rate limit persistently across tunnel reconnections.
+// Returns (true, nil) if saved, (false, nil) if rate-limited, (false, err) on error.
+func SaveDiagnostics(sessionID string, data json.RawMessage) (bool, error) {
+	result, err := database.DB.Exec(
 		`UPDATE support_sessions
 		 SET diagnostics = $1, diagnostics_at = NOW(), updated_at = NOW()
-		 WHERE id = $2`,
+		 WHERE id = $2
+		   AND (diagnostics_at IS NULL OR diagnostics_at < NOW() - INTERVAL '30 seconds')`,
 		string(data), sessionID,
 	)
-	return err
+	if err != nil {
+		return false, err
+	}
+	rows, _ := result.RowsAffected()
+	return rows > 0, nil
 }
