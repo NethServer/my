@@ -24,6 +24,7 @@ import (
 
 	"github.com/nethesis/my/services/support/configuration"
 	"github.com/nethesis/my/services/support/logger"
+	"github.com/nethesis/my/services/support/models"
 	"github.com/nethesis/my/services/support/session"
 	"github.com/nethesis/my/services/support/tunnel"
 )
@@ -162,7 +163,7 @@ func HandleTunnel(c *gin.Context) {
 func acceptControlStream(t *tunnel.Tunnel, systemID, sessionID string) {
 	log := logger.ComponentLogger("tunnel")
 	var lastManifest time.Time
-	var lastDiagnostics time.Time
+	var lastDiagnostics time.Time // fast in-memory pre-check; DB enforces cross-reconnect rate limit
 
 	for {
 		stream, err := t.Session.Accept()
@@ -183,8 +184,10 @@ func acceptControlStream(t *tunnel.Tunnel, systemID, sessionID string) {
 			// Read the rest of the header line (br already consumed the 'D')
 			rest, _ := br.ReadString('\n')
 			headerLine := "D" + rest
-			if strings.HasPrefix(strings.TrimSpace(headerLine), "DIAGNOSTICS") {
-				// Rate-limit diagnostics: max 1 per 30 seconds
+			// Fix #8: validate exact version to reject unknown protocol versions
+			diagParts := strings.Fields(strings.TrimSpace(headerLine))
+			if len(diagParts) == 2 && diagParts[0] == "DIAGNOSTICS" && diagParts[1] == "1" {
+				// Fast in-memory rate-limit (pre-check before hitting the DB)
 				if !lastDiagnostics.IsZero() && time.Since(lastDiagnostics) < 30*time.Second {
 					_ = stream.Close()
 					continue
@@ -201,12 +204,49 @@ func acceptControlStream(t *tunnel.Tunnel, systemID, sessionID string) {
 					continue
 				}
 
-				var raw json.RawMessage = rawJSON
-				if jsonErr := session.SaveDiagnostics(sessionID, raw); jsonErr != nil {
+				// Fix #4: explicit size guard — reject payloads larger than 512 KB
+				if len(rawJSON) > 512*1024 {
+					log.Warn().
+						Str("system_id", systemID).
+						Str("session_id", sessionID).
+						Int("bytes", len(rawJSON)).
+						Msg("diagnostics payload exceeds 512 KB limit, skipping")
+					continue
+				}
+
+				// Fix #4: schema validation — unmarshal into typed struct and re-serialize
+				// to reject malformed JSON and strip unknown fields (prevents stored XSS).
+				var report models.DiagnosticsReport
+				if parseErr := json.Unmarshal(rawJSON, &report); parseErr != nil {
+					log.Warn().Err(parseErr).
+						Str("system_id", systemID).
+						Str("session_id", sessionID).
+						Msg("invalid diagnostics JSON schema, skipping")
+					continue
+				}
+				sanitized, marshalErr := json.Marshal(report)
+				if marshalErr != nil {
+					log.Warn().Err(marshalErr).
+						Str("system_id", systemID).
+						Str("session_id", sessionID).
+						Msg("failed to re-serialize diagnostics, skipping")
+					continue
+				}
+
+				var raw json.RawMessage = sanitized
+				// Fix #5: SaveDiagnostics enforces the rate limit in the DB
+				// to handle reconnect-based bypass of the in-memory check above.
+				saved, jsonErr := session.SaveDiagnostics(sessionID, raw)
+				if jsonErr != nil {
 					log.Warn().Err(jsonErr).
 						Str("system_id", systemID).
 						Str("session_id", sessionID).
 						Msg("failed to save diagnostics")
+				} else if !saved {
+					log.Debug().
+						Str("system_id", systemID).
+						Str("session_id", sessionID).
+						Msg("diagnostics update skipped: rate-limited")
 				} else {
 					lastDiagnostics = time.Now()
 					log.Info().
@@ -217,7 +257,7 @@ func acceptControlStream(t *tunnel.Tunnel, systemID, sessionID string) {
 				}
 				continue
 			}
-			// Unknown header starting with 'D' — skip stream
+			// Unknown or unsupported header starting with 'D' — skip stream
 			_ = stream.Close()
 			continue
 		}

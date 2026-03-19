@@ -79,6 +79,82 @@ func (s *serviceStore) merge(additional map[string]models.ServiceInfo) {
 	}
 }
 
+func (s *serviceStore) len() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.services)
+}
+
+// maxServicesTotal caps the total number of services in the tunnel-client store.
+// Must match the server-side maxServicesPerManifest in tunnel/manager.go.
+const maxServicesTotal = 500
+
+// dangerousHostnames mirrors the server-side list in tunnel/manager.go.
+var dangerousHostnames = map[string]bool{
+	"metadata.google.internal":     true,
+	"metadata":                     true,
+	"metadata.azure.internal":      true,
+	"instance-data":                true,
+	"metadata.platformequinix.com": true,
+}
+
+// validateTarget rejects service targets pointing to dangerous addresses.
+// Fix #1: mirrors the server-side validateServiceTarget in tunnel/manager.go so that
+// COMMAND-injected services are SSRF-validated on the tunnel-client side as well.
+func validateTarget(target string) error {
+	if target == "" {
+		return fmt.Errorf("empty target")
+	}
+	host, _, err := net.SplitHostPort(target)
+	if err != nil {
+		host = target
+	}
+	if dangerousHostnames[strings.ToLower(host)] {
+		return fmt.Errorf("cloud metadata hostname blocked: %s", host)
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		ips, lookupErr := net.LookupIP(host)
+		if lookupErr != nil {
+			return fmt.Errorf("DNS resolution failed for %s: %w", host, lookupErr)
+		}
+		for _, resolvedIP := range ips {
+			if err := validateTargetIP(resolvedIP); err != nil {
+				return fmt.Errorf("hostname %s resolves to blocked address: %w", host, err)
+			}
+		}
+		return nil
+	}
+	return validateTargetIP(ip)
+}
+
+func validateTargetIP(ip net.IP) error {
+	if ip.IsUnspecified() {
+		return fmt.Errorf("unspecified address blocked: %s", ip)
+	}
+	if ip.To4() != nil {
+		linkLocal := net.IPNet{IP: net.IPv4(169, 254, 0, 0), Mask: net.CIDRMask(16, 32)}
+		if linkLocal.Contains(ip) {
+			return fmt.Errorf("link-local/cloud metadata address blocked: %s", ip)
+		}
+		multicast := net.IPNet{IP: net.IPv4(224, 0, 0, 0), Mask: net.CIDRMask(4, 32)}
+		if multicast.Contains(ip) {
+			return fmt.Errorf("multicast address blocked: %s", ip)
+		}
+		if ip.Equal(net.IPv4bcast) {
+			return fmt.Errorf("broadcast address blocked: %s", ip)
+		}
+	} else {
+		if ip.IsLinkLocalUnicast() {
+			return fmt.Errorf("IPv6 link-local address blocked: %s", ip)
+		}
+		if ip.IsMulticast() {
+			return fmt.Errorf("IPv6 multicast address blocked: %s", ip)
+		}
+	}
+	return nil
+}
+
 // closeCodeSessionClosed matches the server's CloseCodeSessionClosed.
 // When the operator closes a session, the server sends this code
 // to tell the client to exit without reconnecting.
@@ -144,13 +220,6 @@ func connect(ctx context.Context, cfg *config.ClientConfig) error {
 		connectURL = parsed.String()
 	}
 
-	// Start diagnostics collection in background (runs while connecting)
-	diagCh := make(chan diagnostics.DiagnosticsReport, 1)
-	go func() {
-		report := diagnostics.Collect(cfg.DiagnosticsDir, cfg.DiagnosticsPluginTimeout)
-		diagCh <- report
-	}()
-
 	log.Printf("Connecting to %s ...", connectURL)
 
 	dialer := websocket.Dialer{
@@ -180,6 +249,14 @@ func connect(ctx context.Context, cfg *config.ClientConfig) error {
 		return fmt.Errorf("yamux client creation failed: %w", err)
 	}
 	log.Println("yamux session established")
+
+	// Fix #10: start diagnostics collection only after the connection is established.
+	// Running plugins during a failed dial attempt wastes resources and slows reconnect loops.
+	diagCh := make(chan diagnostics.DiagnosticsReport, 1)
+	go func() {
+		report := diagnostics.Collect(cfg.DiagnosticsDir, cfg.DiagnosticsPluginTimeout)
+		diagCh <- report
+	}()
 
 	// Discover services
 	initialServices := discovery.DiscoverServices(ctx, cfg)
@@ -312,15 +389,20 @@ func applyAddServices(newSvcs map[string]models.ServiceInfo, store *serviceStore
 	if len(newSvcs) > 10 {
 		return fmt.Errorf("too many services: max 10 per call")
 	}
+	// Fix #9: enforce total services cap to prevent unbounded store growth
+	// via repeated add_services calls.
+	if store.len()+len(newSvcs) > maxServicesTotal {
+		return fmt.Errorf("service limit exceeded: max %d total services", maxServicesTotal)
+	}
 
 	validated := make(map[string]models.ServiceInfo, len(newSvcs))
 	for name, svc := range newSvcs {
 		if !validServiceName.MatchString(name) {
 			return fmt.Errorf("invalid service name %q: must match [a-z0-9][a-z0-9_-]{0,63}", name)
 		}
-		// Validate target format: must be host:port
-		if svc.Target == "" {
-			return fmt.Errorf("service %q has empty target", name)
+		// Fix #1: SSRF validation on injected targets — mirrors server-side validateServiceTarget.
+		if err := validateTarget(svc.Target); err != nil {
+			return fmt.Errorf("service %q rejected: %w", name, err)
 		}
 		validated[name] = svc
 	}
