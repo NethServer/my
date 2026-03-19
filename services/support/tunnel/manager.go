@@ -426,6 +426,12 @@ var dangerousHostnames = map[string]bool{
 	"metadata.platformequinix.com": true,
 }
 
+// ValidateServiceTarget is the exported version of validateServiceTarget,
+// used by the commands handler to pre-check targets received from Redis messages.
+func ValidateServiceTarget(target string) error {
+	return validateServiceTarget(target)
+}
+
 // validateServiceTarget rejects targets pointing to dangerous addresses.
 // For non-IP hostnames, DNS is resolved to block DNS rebinding attacks (#2).
 func validateServiceTarget(target string) error {

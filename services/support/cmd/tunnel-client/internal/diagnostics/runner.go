@@ -232,6 +232,13 @@ func runPlugin(path string, timeout time.Duration) PluginResult {
 
 	cmd := exec.CommandContext(ctx, path) //nolint:gosec // path comes from a configured directory, not user input
 
+	// Fix #6: run plugins with a minimal environment to prevent credential leakage.
+	// The inherited environment may contain SYSTEM_KEY, SYSTEM_SECRET, SUPPORT_URL,
+	// and other sensitive values that plugins should not access.
+	cmd.Env = []string{
+		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+	}
+
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		result.Summary = fmt.Sprintf("failed to create stdout pipe: %v", err)
@@ -342,6 +349,7 @@ func Collect(pluginsDir string, pluginTimeout time.Duration) DiagnosticsReport {
 			// Silently skip if directory does not exist
 		} else {
 			// Collect and sort plugin paths
+			currentUID := os.Getuid()
 			var pluginPaths []string
 			for _, entry := range entries {
 				if !entry.Type().IsRegular() {
@@ -355,7 +363,23 @@ func Collect(pluginsDir string, pluginTimeout time.Duration) DiagnosticsReport {
 				if info.Mode()&0o111 == 0 {
 					continue
 				}
-				pluginPaths = append(pluginPaths, filepath.Join(pluginsDir, entry.Name()))
+				pluginPath := filepath.Join(pluginsDir, entry.Name())
+				// Fix #6: only run plugins owned by root (UID 0) or the current process user.
+				// Prevents privilege escalation if a less-privileged process can write to
+				// the plugins directory.
+				if sysInfo, ok := info.Sys().(*syscall.Stat_t); ok {
+					ownerUID := int(sysInfo.Uid)
+					if ownerUID != 0 && ownerUID != currentUID {
+						log.Printf("Skipping plugin %q: owned by UID %d (must be root or UID %d)", pluginPath, ownerUID, currentUID)
+						continue
+					}
+				}
+				// Fix #6: reject group-writable or world-writable plugins to prevent tampering.
+				if info.Mode().Perm()&0o022 != 0 {
+					log.Printf("Skipping plugin %q: file is group- or world-writable (mode=%04o)", pluginPath, info.Mode().Perm())
+					continue
+				}
+				pluginPaths = append(pluginPaths, pluginPath)
 			}
 			sort.Strings(pluginPaths)
 
