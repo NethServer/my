@@ -6,14 +6,20 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package methods
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"net"
 	"net/http"
-	"regexp"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 
 	"github.com/nethesis/my/backend/cache"
+	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
@@ -21,8 +27,44 @@ import (
 	"github.com/nethesis/my/backend/response"
 )
 
-// validHostPort matches a host:port string (IPv4, IPv6, or hostname with port).
-var validHostPort = regexp.MustCompile(`^(?:[a-zA-Z0-9._\-\[\]]+):\d{1,5}$`)
+// signedRedisMessage wraps a Redis pub/sub payload with an HMAC-SHA256 signature
+// so the support service can verify the message came from the backend.
+type signedRedisMessage struct {
+	Payload string `json:"payload"`
+	Sig     string `json:"sig"`
+}
+
+// signAndMarshal signs a payload with SUPPORT_INTERNAL_SECRET and returns the signed envelope.
+// If SUPPORT_INTERNAL_SECRET is not configured, the envelope is published unsigned
+// (backward-compatible, but a warning is logged).
+func signAndMarshal(payload []byte) []byte {
+	secret := configuration.Config.SupportInternalSecret
+	var sig string
+	if secret != "" {
+		mac := hmac.New(sha256.New, []byte(secret))
+		mac.Write(payload)
+		sig = hex.EncodeToString(mac.Sum(nil))
+	}
+	envelope, _ := json.Marshal(signedRedisMessage{Payload: string(payload), Sig: sig})
+	return envelope
+}
+
+// validateHostPort checks that target is a valid host:port with port in range 1-65535.
+// Fix #7: replaces the regex that accepted port numbers up to 99999.
+func validateHostPort(target string) error {
+	host, portStr, err := net.SplitHostPort(target)
+	if err != nil {
+		return fmt.Errorf("invalid host:port format: %w", err)
+	}
+	if host == "" {
+		return fmt.Errorf("empty host")
+	}
+	port, convErr := strconv.Atoi(portStr)
+	if convErr != nil || port < 1 || port > 65535 {
+		return fmt.Errorf("invalid port: must be 1-65535")
+	}
+	return nil
+}
 
 // GetSupportSessions handles GET /api/support-sessions
 // Returns support sessions grouped by system with server-side pagination.
@@ -118,14 +160,17 @@ func CloseSupportSession(c *gin.Context) {
 		return
 	}
 
-	// Notify support service via Redis pub/sub to disconnect the tunnel
+	// Notify support service via Redis pub/sub to disconnect the tunnel.
+	// Fix #2: message is signed with SUPPORT_INTERNAL_SECRET so the support service
+	// can verify it was not injected by a third party with Redis access.
 	if redisClient := cache.GetRedisClient(); redisClient != nil {
 		cmd := map[string]string{
 			"action":     "close",
 			"session_id": sessionID,
 		}
 		payload, _ := json.Marshal(cmd)
-		if err := redisClient.Publish("support:commands", string(payload)); err != nil {
+		envelope := signAndMarshal(payload)
+		if err := redisClient.Publish("support:commands", string(envelope)); err != nil {
 			logger.Warn().Err(err).Str("session_id", sessionID).Msg("failed to publish close command to support service")
 		}
 	}
@@ -230,9 +275,9 @@ func AddSupportSessionServices(c *gin.Context) {
 			))
 			return
 		}
-		if !validHostPort.MatchString(svc.Target) {
+		if err := validateHostPort(svc.Target); err != nil {
 			c.JSON(http.StatusBadRequest, response.BadRequest(
-				"invalid target format: must be host:port", nil,
+				"invalid target format: must be host:port with port 1-65535", nil,
 			))
 			return
 		}
@@ -250,13 +295,15 @@ func AddSupportSessionServices(c *gin.Context) {
 		return
 	}
 
+	// Fix #2: sign the Redis message before publishing
 	cmd := map[string]interface{}{
 		"action":     "add_services",
 		"session_id": sessionID,
 		"services":   services,
 	}
 	payload, _ := json.Marshal(cmd)
-	if err := redisClient.Publish("support:commands", string(payload)); err != nil {
+	envelope := signAndMarshal(payload)
+	if err := redisClient.Publish("support:commands", string(envelope)); err != nil {
 		logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to publish add_services command")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to send command to support service", nil))
 		return
