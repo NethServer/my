@@ -156,3 +156,28 @@ func GetSupportSessionLogs(c *gin.Context) {
 		"pagination":  helpers.BuildPaginationInfoWithSorting(page, pageSize, totalCount, "connected_at", "desc"),
 	}))
 }
+
+// GetSupportSessionDiagnostics handles GET /api/support-sessions/:id/diagnostics
+func GetSupportSessionDiagnostics(c *gin.Context) {
+	sessionID := c.Param("id")
+	if sessionID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("session id required", nil))
+		return
+	}
+
+	_, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+
+	repo := entities.NewSupportRepository()
+	data, at, err := repo.GetDiagnostics(sessionID, userOrgRole, userOrgID)
+	if err != nil {
+		logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to get diagnostics")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get diagnostics", nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("diagnostics retrieved successfully", gin.H{
+		"session_id":     sessionID,
+		"diagnostics":    data,
+		"diagnostics_at": at,
+	}))
+}

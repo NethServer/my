@@ -942,6 +942,8 @@ CREATE TABLE IF NOT EXISTS support_sessions (
     status VARCHAR(16) NOT NULL DEFAULT 'pending',
     closed_at TIMESTAMPTZ,
     closed_by VARCHAR(32),
+    diagnostics JSONB,
+    diagnostics_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT support_sessions_status_check CHECK (status IN ('pending', 'active', 'expired', 'closed'))
@@ -953,6 +955,8 @@ COMMENT ON COLUMN support_sessions.session_token IS 'Unique token for tunnel aut
 COMMENT ON COLUMN support_sessions.reconnect_token IS 'Token required to reconnect to a session during grace period';
 COMMENT ON COLUMN support_sessions.status IS 'Session status: pending (no tunnel yet), active, expired, closed';
 COMMENT ON COLUMN support_sessions.closed_by IS 'Who closed the session: client, operator, timeout, system';
+COMMENT ON COLUMN support_sessions.diagnostics IS 'Diagnostic report collected by tunnel-client at connect time (JSON)';
+COMMENT ON COLUMN support_sessions.diagnostics_at IS 'Timestamp when diagnostics were last received from the tunnel-client';
 
 CREATE INDEX IF NOT EXISTS idx_support_sessions_system_id ON support_sessions(system_id);
 CREATE INDEX IF NOT EXISTS idx_support_sessions_status ON support_sessions(status);

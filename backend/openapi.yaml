@@ -9245,6 +9245,101 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /support-sessions/{id}/diagnostics:
+    get:
+      operationId: getSupportSessionDiagnostics
+      tags:
+        - Backend - Support Sessions
+      summary: Get diagnostics for a support session
+      description: |
+        Returns the diagnostic report collected by the tunnel-client at connect time.
+        The report includes a built-in system check (CPU, RAM, disk, uptime) and any
+        additional plugin results from the remote system's diagnostics directory.
+        Returns `null` for `diagnostics` and `diagnostics_at` if no report has been
+        received yet from the tunnel-client.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Support session ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Diagnostics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: diagnostics retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      session_id:
+                        type: string
+                        format: uuid
+                      diagnostics:
+                        nullable: true
+                        type: object
+                        description: Diagnostic report from the tunnel-client, null if not yet received
+                        properties:
+                          collected_at:
+                            type: string
+                            format: date-time
+                          duration_ms:
+                            type: integer
+                          overall_status:
+                            type: string
+                            enum: [ok, warning, critical, error, timeout]
+                          plugins:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: string
+                                name:
+                                  type: string
+                                status:
+                                  type: string
+                                  enum: [ok, warning, critical, error, timeout]
+                                summary:
+                                  type: string
+                                checks:
+                                  type: array
+                                  items:
+                                    type: object
+                                    properties:
+                                      name:
+                                        type: string
+                                      status:
+                                        type: string
+                                        enum: [ok, warning, critical, error, timeout]
+                                      value:
+                                        type: string
+                                      details:
+                                        type: string
+                      diagnostics_at:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        description: Timestamp when diagnostics were last received
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /support-sessions/{id}/proxy-token:
     post:
       operationId: generateSupportProxyToken

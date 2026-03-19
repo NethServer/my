@@ -649,6 +649,7 @@
     "terminal_connection_error": "Errore di connessione",
     "terminal_new_tab": "Nuovo tab terminale",
     "terminal_close_all": "Chiudi tutti i terminali",
-    "terminal_close_all_confirm": "Verranno chiuse {count} sessioni terminale attive. Continuare?"
+    "terminal_close_all_confirm": "Verranno chiuse {count} sessioni terminale attive. Continuare?",
+    "diagnostics": "Diagnostica"
   }
 }

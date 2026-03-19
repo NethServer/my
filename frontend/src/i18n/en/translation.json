@@ -651,6 +651,7 @@
     "terminal_close_all": "Close all terminals",
     "terminal_close_all_confirm": "This will close {count} active terminal session(s). Continue?",
     "terminal_select_node": "Select node",
-    "terminal_select_node_description": "This system has multiple cluster nodes. Select which node to connect to."
+    "terminal_select_node_description": "This system has multiple cluster nodes. Select which node to connect to.",
+    "diagnostics": "Diagnostics"
   }
 }

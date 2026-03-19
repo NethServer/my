@@ -74,6 +74,34 @@ export interface SupportAccessLog {
   metadata: Record<string, unknown> | null
 }
 
+export interface DiagnosticCheck {
+  name: string
+  status: 'ok' | 'warning' | 'critical' | 'error' | 'timeout'
+  value?: string
+  details?: string
+}
+
+export interface DiagnosticPlugin {
+  id: string
+  name: string
+  status: 'ok' | 'warning' | 'critical' | 'error' | 'timeout'
+  summary?: string
+  checks?: DiagnosticCheck[]
+}
+
+export interface DiagnosticsReport {
+  collected_at: string
+  duration_ms: number
+  overall_status: 'ok' | 'warning' | 'critical' | 'error' | 'timeout'
+  plugins: DiagnosticPlugin[]
+}
+
+export interface SessionDiagnostics {
+  session_id: string
+  diagnostics: DiagnosticsReport | null
+  diagnostics_at: string | null
+}
+
 interface SupportSessionsResponse {
   code: number
   message: string
@@ -355,6 +383,19 @@ export const getSupportSessionLogs = (sessionId: string, pageNum: number, pageSi
 
   return axios
     .get<SupportAccessLogsResponse>(`${API_URL}/support-sessions/${sessionId}/logs?${params}`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data)
+}
+
+export const getSupportSessionDiagnostics = (sessionId: string): Promise<SessionDiagnostics> => {
+  const loginStore = useLoginStore()
+  return axios
+    .get<{
+      code: number
+      message: string
+      data: SessionDiagnostics
+    }>(`${API_URL}/support-sessions/${sessionId}/diagnostics`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data)

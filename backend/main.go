@@ -482,6 +482,7 @@ func main() {
 			supportGroup.PATCH("/:id/extend", methods.ExtendSupportSession)
 			supportGroup.DELETE("/:id", methods.CloseSupportSession)
 			supportGroup.GET("/:id/logs", methods.GetSupportSessionLogs)
+			supportGroup.GET("/:id/diagnostics", methods.GetSupportSessionDiagnostics)
 			supportGroup.GET("/:id/services", methods.GetSupportSessionServices)
 			supportGroup.POST("/:id/terminal-ticket", methods.GenerateTerminalTicket)
 			supportGroup.Any("/:id/proxy/:service/*path", methods.ProxySupportSession)
