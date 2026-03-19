@@ -16,12 +16,14 @@ import (
 	"github.com/nethesis/my/services/support/logger"
 	"github.com/nethesis/my/services/support/queue"
 	"github.com/nethesis/my/services/support/session"
+	"github.com/nethesis/my/services/support/tunnel"
 )
 
 // SupportCommand represents a command received via Redis pub/sub
 type SupportCommand struct {
-	Action    string `json:"action"`
-	SessionID string `json:"session_id"`
+	Action    string                        `json:"action"`
+	SessionID string                        `json:"session_id"`
+	Services  map[string]tunnel.ServiceInfo `json:"services,omitempty"`
 }
 
 // StartCommandListener listens for commands from the backend via Redis pub/sub
@@ -59,10 +61,27 @@ func StartCommandListener(ctx context.Context) {
 			switch cmd.Action {
 			case "close":
 				handleCloseCommand(cmd.SessionID)
+			case "add_services":
+				handleAddServicesCommand(cmd)
 			default:
 				log.Warn().Str("action", cmd.Action).Msg("unknown command action")
 			}
 		}
+	}
+}
+
+func handleAddServicesCommand(cmd SupportCommand) {
+	log := logger.ComponentLogger("commands")
+
+	payload := tunnel.CommandPayload{
+		Action:   "add_services",
+		Services: cmd.Services,
+	}
+
+	if err := TunnelManager.SendCommandToSession(cmd.SessionID, payload); err != nil {
+		log.Error().Err(err).Str("session_id", cmd.SessionID).Msg("failed to send add_services command to tunnel")
+	} else {
+		log.Info().Str("session_id", cmd.SessionID).Int("count", len(cmd.Services)).Msg("add_services command sent")
 	}
 }
 
