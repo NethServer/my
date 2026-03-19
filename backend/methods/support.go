@@ -8,6 +8,7 @@ package methods
 import (
 	"encoding/json"
 	"net/http"
+	"regexp"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
@@ -19,6 +20,9 @@ import (
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
 )
+
+// validHostPort matches a host:port string (IPv4, IPv6, or hostname with port).
+var validHostPort = regexp.MustCompile(`^(?:[a-zA-Z0-9._\-\[\]]+):\d{1,5}$`)
 
 // GetSupportSessions handles GET /api/support-sessions
 // Returns support sessions grouped by system with server-side pagination.
@@ -179,5 +183,89 @@ func GetSupportSessionDiagnostics(c *gin.Context) {
 		"session_id":     sessionID,
 		"diagnostics":    data,
 		"diagnostics_at": at,
+	}))
+}
+
+// AddSupportSessionServices handles POST /api/support-sessions/:id/services
+// It sends an add_services command to the tunnel-client via Redis pub/sub,
+// dynamically injecting static services into the running tunnel without reconnection.
+func AddSupportSessionServices(c *gin.Context) {
+	sessionID := c.Param("id")
+	if sessionID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("session id required", nil))
+		return
+	}
+
+	_, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+
+	// RBAC: verify session belongs to the caller's scope
+	repo := entities.NewSupportRepository()
+	sess, err := repo.GetSessionByID(sessionID, userOrgRole, userOrgID)
+	if err != nil {
+		logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to get support session")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get support session", nil))
+		return
+	}
+	if sess == nil {
+		c.JSON(http.StatusNotFound, response.NotFound("support session not found", nil))
+		return
+	}
+	if sess.Status != "active" {
+		c.JSON(http.StatusConflict, response.Conflict("session is not active", nil))
+		return
+	}
+
+	var request models.AddSessionServicesRequest
+	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
+		return
+	}
+
+	// Validate each service entry
+	services := make(map[string]interface{})
+	for _, svc := range request.Services {
+		if !validServiceName.MatchString(svc.Name) {
+			c.JSON(http.StatusBadRequest, response.BadRequest(
+				"invalid service name: use alphanumeric characters, dots, hyphens only", nil,
+			))
+			return
+		}
+		if !validHostPort.MatchString(svc.Target) {
+			c.JSON(http.StatusBadRequest, response.BadRequest(
+				"invalid target format: must be host:port", nil,
+			))
+			return
+		}
+		services[svc.Name] = map[string]interface{}{
+			"target": svc.Target,
+			"label":  svc.Label,
+			"tls":    svc.TLS,
+		}
+	}
+
+	// Publish add_services command via Redis pub/sub
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		c.JSON(http.StatusServiceUnavailable, response.InternalServerError("redis not available", nil))
+		return
+	}
+
+	cmd := map[string]interface{}{
+		"action":     "add_services",
+		"session_id": sessionID,
+		"services":   services,
+	}
+	payload, _ := json.Marshal(cmd)
+	if err := redisClient.Publish("support:commands", string(payload)); err != nil {
+		logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to publish add_services command")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to send command to support service", nil))
+		return
+	}
+
+	logger.LogBusinessOperation(c, "support", "add_services", "session", sessionID, true, nil)
+
+	c.JSON(http.StatusOK, response.OK("services added successfully", gin.H{
+		"session_id": sessionID,
+		"count":      len(request.Services),
 	}))
 }

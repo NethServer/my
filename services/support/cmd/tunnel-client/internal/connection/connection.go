@@ -17,9 +17,13 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -31,6 +35,49 @@ import (
 	"github.com/nethesis/my/services/support/cmd/tunnel-client/internal/models"
 	"github.com/nethesis/my/services/support/cmd/tunnel-client/internal/stream"
 )
+
+// validServiceName matches safe service names: lowercase alphanumeric, hyphens, underscores.
+var validServiceName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
+
+// commandPayload is the JSON body of a COMMAND stream sent by the support service.
+type commandPayload struct {
+	Action   string                        `json:"action"`
+	Services map[string]models.ServiceInfo `json:"services,omitempty"`
+}
+
+// serviceStore is a goroutine-safe holder for the current service map.
+type serviceStore struct {
+	mu       sync.RWMutex
+	services map[string]models.ServiceInfo
+}
+
+func newServiceStore(initial map[string]models.ServiceInfo) *serviceStore {
+	return &serviceStore{services: initial}
+}
+
+func (s *serviceStore) get() map[string]models.ServiceInfo {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	result := make(map[string]models.ServiceInfo, len(s.services))
+	for k, v := range s.services {
+		result[k] = v
+	}
+	return result
+}
+
+func (s *serviceStore) set(m map[string]models.ServiceInfo) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.services = m
+}
+
+func (s *serviceStore) merge(additional map[string]models.ServiceInfo) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for k, v := range additional {
+		s.services[k] = v
+	}
+}
 
 // closeCodeSessionClosed matches the server's CloseCodeSessionClosed.
 // When the operator closes a session, the server sends this code
@@ -135,10 +182,11 @@ func connect(ctx context.Context, cfg *config.ClientConfig) error {
 	log.Println("yamux session established")
 
 	// Discover services
-	services := discovery.DiscoverServices(ctx, cfg)
+	initialServices := discovery.DiscoverServices(ctx, cfg)
+	store := newServiceStore(initialServices)
 
 	// Send initial manifest
-	if err := sendManifest(session, services); err != nil {
+	if err := sendManifest(session, store.get()); err != nil {
 		_ = session.Close()
 		return fmt.Errorf("failed to send manifest: %w", err)
 	}
@@ -172,8 +220,8 @@ func connect(ctx context.Context, cfg *config.ClientConfig) error {
 					if err := sendManifest(session, newServices); err != nil {
 						log.Printf("Failed to send updated manifest: %v", err)
 					} else {
-						services = newServices
-						log.Printf("Manifest updated with %d services", len(services))
+						store.set(newServices)
+						log.Printf("Manifest updated with %d services", len(newServices))
 					}
 				}
 			}
@@ -203,8 +251,87 @@ func connect(ctx context.Context, cfg *config.ClientConfig) error {
 			}
 			return fmt.Errorf("stream accept error: %w", err)
 		}
-		go stream.HandleStream(yamuxStream, services)
+		go func() {
+			// Read the first line to determine stream type
+			firstLine, lineErr := stream.ReadLine(yamuxStream)
+			if lineErr != nil {
+				_ = yamuxStream.Close()
+				return
+			}
+			if strings.HasPrefix(firstLine, "COMMAND ") {
+				handleCommandStream(yamuxStream, firstLine, store, session)
+			} else {
+				stream.HandleStreamWithFirstLine(yamuxStream, firstLine, store.get())
+			}
+		}()
 	}
+}
+
+// handleCommandStream processes a COMMAND stream sent by the support service.
+// It reads the JSON payload, applies the command, and writes OK or ERROR response.
+func handleCommandStream(s net.Conn, firstLine string, store *serviceStore, session *yamux.Session) {
+	defer func() { _ = s.Close() }()
+
+	version := strings.TrimPrefix(firstLine, "COMMAND ")
+	if version != "1" {
+		log.Printf("Unsupported COMMAND version: %q", version)
+		_, _ = fmt.Fprintf(s, "ERROR unsupported command version %q\n", version)
+		return
+	}
+
+	// Read JSON payload (limit to 64 KB)
+	var payload commandPayload
+	dec := json.NewDecoder(io.LimitReader(s, 64*1024))
+	if err := dec.Decode(&payload); err != nil {
+		log.Printf("Failed to decode command payload: %v", err)
+		_, _ = fmt.Fprintf(s, "ERROR invalid json: %v\n", err)
+		return
+	}
+
+	switch payload.Action {
+	case "add_services":
+		if err := applyAddServices(payload.Services, store, session); err != nil {
+			log.Printf("add_services failed: %v", err)
+			_, _ = fmt.Fprintf(s, "ERROR %v\n", err)
+			return
+		}
+		log.Printf("add_services: added %d static service(s)", len(payload.Services))
+		_, _ = fmt.Fprint(s, "OK\n")
+	default:
+		log.Printf("Unknown command action: %q", payload.Action)
+		_, _ = fmt.Fprintf(s, "ERROR unknown action %q\n", payload.Action)
+	}
+}
+
+// applyAddServices validates and merges new static services into the store,
+// then re-sends the manifest to the support service.
+func applyAddServices(newSvcs map[string]models.ServiceInfo, store *serviceStore, session *yamux.Session) error {
+	if len(newSvcs) == 0 {
+		return fmt.Errorf("no services provided")
+	}
+	if len(newSvcs) > 10 {
+		return fmt.Errorf("too many services: max 10 per call")
+	}
+
+	validated := make(map[string]models.ServiceInfo, len(newSvcs))
+	for name, svc := range newSvcs {
+		if !validServiceName.MatchString(name) {
+			return fmt.Errorf("invalid service name %q: must match [a-z0-9][a-z0-9_-]{0,63}", name)
+		}
+		// Validate target format: must be host:port
+		if svc.Target == "" {
+			return fmt.Errorf("service %q has empty target", name)
+		}
+		validated[name] = svc
+	}
+
+	store.merge(validated)
+
+	// Re-send manifest so the support service registers the new services
+	if err := sendManifest(session, store.get()); err != nil {
+		return fmt.Errorf("failed to resend manifest: %w", err)
+	}
+	return nil
 }
 
 func sendManifest(session *yamux.Session, services map[string]models.ServiceInfo) error {
