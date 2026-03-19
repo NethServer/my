@@ -2515,6 +2515,13 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
 
+    Conflict:
+      description: Conflict - resource state prevents the operation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
     UnprocessableEntity:
       description: Unprocessable entity - business logic error
       content:
@@ -9414,6 +9421,104 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
 
   /support-sessions/{id}/services:
+    post:
+      operationId: addSupportSessionServices
+      tags:
+        - Backend - Support Sessions
+      summary: Add static services to a running support session
+      description: |
+        Dynamically injects one or more static TCP services into an active tunnel-client session
+        without requiring a reconnection. The command is sent via Redis pub/sub and forwarded
+        to the tunnel-client through a yamux COMMAND stream.
+
+        Use this when a system exposes a service that was not discovered automatically
+        (e.g. a custom management interface on a non-standard port). The new services
+        become immediately available for proxying through the session.
+
+        Constraints:
+        - Session must be `active`
+        - Maximum 10 services per call
+        - Service names must match `[a-zA-Z0-9][a-zA-Z0-9._-]*`
+        - Target must be a valid `host:port` string
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Support session ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - services
+              properties:
+                services:
+                  type: array
+                  minItems: 1
+                  maxItems: 10
+                  items:
+                    type: object
+                    required:
+                      - name
+                      - target
+                    properties:
+                      name:
+                        type: string
+                        description: Service identifier (alphanumeric, dots, hyphens)
+                        example: custom-panel
+                      target:
+                        type: string
+                        description: TCP target in host:port format
+                        example: '127.0.0.1:9090'
+                      label:
+                        type: string
+                        description: Human-readable label shown in the UI
+                        example: Custom Panel
+                      tls:
+                        type: boolean
+                        description: Connect to the target using TLS
+                        default: false
+      responses:
+        '200':
+          description: Services added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: services added successfully
+                  data:
+                    type: object
+                    properties:
+                      session_id:
+                        type: string
+                        format: uuid
+                      count:
+                        type: integer
+                        description: Number of services added
+                        example: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
     get:
       operationId: getSupportSessionServices
       tags:

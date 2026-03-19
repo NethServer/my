@@ -652,6 +652,18 @@
     "terminal_close_all_confirm": "This will close {count} active terminal session(s). Continue?",
     "terminal_select_node": "Select node",
     "terminal_select_node_description": "This system has multiple cluster nodes. Select which node to connect to.",
-    "diagnostics": "Diagnostics"
+    "diagnostics": "Diagnostics",
+    "add_service": "Add service",
+    "add_service_error": "Failed to add service",
+    "no_active_session": "No active session found",
+    "service_name": "Service name",
+    "service_name_placeholder": "e.g. my-service",
+    "service_name_helper": "Lowercase letters, digits, hyphens and underscores only",
+    "service_target": "Target (host:port)",
+    "service_target_placeholder": "e.g. 127.0.0.1:8080",
+    "service_target_helper": "Address and port of the service on the remote system",
+    "service_label": "Label (optional)",
+    "service_label_placeholder": "e.g. My Service",
+    "service_tls": "TLS"
   }
 }

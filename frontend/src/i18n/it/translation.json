@@ -650,6 +650,18 @@
     "terminal_new_tab": "Nuovo tab terminale",
     "terminal_close_all": "Chiudi tutti i terminali",
     "terminal_close_all_confirm": "Verranno chiuse {count} sessioni terminale attive. Continuare?",
-    "diagnostics": "Diagnostica"
+    "diagnostics": "Diagnostica",
+    "add_service": "Aggiungi servizio",
+    "add_service_error": "Impossibile aggiungere il servizio",
+    "no_active_session": "Nessuna sessione attiva trovata",
+    "service_name": "Nome servizio",
+    "service_name_placeholder": "es. mio-servizio",
+    "service_name_helper": "Solo lettere minuscole, cifre, trattini e underscore",
+    "service_target": "Target (host:porta)",
+    "service_target_placeholder": "es. 127.0.0.1:8080",
+    "service_target_helper": "Indirizzo e porta del servizio sul sistema remoto",
+    "service_label": "Etichetta (opzionale)",
+    "service_label_placeholder": "es. Il Mio Servizio",
+    "service_tls": "TLS"
   }
 }

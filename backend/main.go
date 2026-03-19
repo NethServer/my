@@ -484,6 +484,7 @@ func main() {
 			supportGroup.GET("/:id/logs", methods.GetSupportSessionLogs)
 			supportGroup.GET("/:id/diagnostics", methods.GetSupportSessionDiagnostics)
 			supportGroup.GET("/:id/services", methods.GetSupportSessionServices)
+			supportGroup.POST("/:id/services", methods.AddSupportSessionServices)
 			supportGroup.POST("/:id/terminal-ticket", methods.GenerateTerminalTicket)
 			supportGroup.Any("/:id/proxy/:service/*path", methods.ProxySupportSession)
 			supportGroup.POST("/:id/proxy-token", methods.GenerateSupportProxyToken)
