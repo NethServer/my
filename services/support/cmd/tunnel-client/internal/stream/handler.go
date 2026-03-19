@@ -25,6 +25,32 @@ import (
 
 const maxLineLength = 1024
 
+// ReadLine reads a newline-terminated line from r, byte by byte.
+// Returns the line without the trailing newline. Returns an error if the line
+// exceeds maxLineLength bytes or the reader fails.
+func ReadLine(r io.Reader) (string, error) {
+	return readLine(r)
+}
+
+// HandleStreamWithFirstLine processes an incoming yamux stream when the caller
+// has already consumed the first line (e.g. to determine the stream type).
+// It behaves identically to HandleStream but skips reading the header line,
+// using firstLine instead.
+func HandleStreamWithFirstLine(stream net.Conn, firstLine string, services map[string]models.ServiceInfo) {
+	defer func() { _ = stream.Close() }()
+
+	if !strings.HasPrefix(firstLine, "CONNECT ") {
+		log.Printf("Invalid CONNECT header: %q", firstLine)
+		return
+	}
+	serviceName := strings.TrimPrefix(firstLine, "CONNECT ")
+	if serviceName == "" {
+		log.Printf("Empty service name in CONNECT header")
+		return
+	}
+	dispatchStream(stream, serviceName, services)
+}
+
 // HandleStream processes an incoming yamux stream by reading a CONNECT header,
 // resolving the target service, and proxying traffic bidirectionally.
 func HandleStream(stream net.Conn, services map[string]models.ServiceInfo) {
@@ -37,6 +63,11 @@ func HandleStream(stream net.Conn, services map[string]models.ServiceInfo) {
 		return
 	}
 
+	dispatchStream(stream, serviceName, services)
+}
+
+// dispatchStream routes an already-identified service name to the correct handler.
+func dispatchStream(stream net.Conn, serviceName string, services map[string]models.ServiceInfo) {
 	// Built-in terminal service: spawn a PTY instead of dialing TCP
 	if serviceName == "terminal" {
 		if err := writeConnectResponse(stream, nil); err != nil {
@@ -55,6 +86,7 @@ func HandleStream(stream net.Conn, services map[string]models.ServiceInfo) {
 	}
 
 	// Connect to local target
+	var err error
 	var targetConn net.Conn
 	if svc.TLS {
 		targetConn, err = tls.Dial("tcp", svc.Target, &tls.Config{
