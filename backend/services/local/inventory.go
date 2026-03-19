@@ -86,8 +86,8 @@ func (s *LocalInventoryService) GetInventoryHistory(systemID string, page, pageS
 }
 
 // GetInventoryDiffs returns paginated diffs for a system
-func (s *LocalInventoryService) GetInventoryDiffs(systemID string, page, pageSize int, severity, category, diffType string, fromDate, toDate *time.Time, inventoryIDs []int64) ([]models.InventoryDiff, int, error) {
-	diffs, totalCount, err := s.inventoryRepo.GetInventoryDiffs(systemID, page, pageSize, severity, category, diffType, fromDate, toDate, inventoryIDs)
+func (s *LocalInventoryService) GetInventoryDiffs(systemID string, page, pageSize int, severities, categories, diffTypes []string, fromDate, toDate *time.Time, inventoryIDs []int64) ([]models.InventoryDiff, int, error) {
+	diffs, totalCount, err := s.inventoryRepo.GetInventoryDiffs(systemID, page, pageSize, severities, categories, diffTypes, fromDate, toDate, inventoryIDs)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -106,8 +106,8 @@ func (s *LocalInventoryService) GetInventoryDiffs(systemID string, page, pageSiz
 		Str("system_id", systemID).
 		Int("count", len(diffs)).
 		Int("total", totalCount).
-		Str("severity", severity).
-		Str("category", category).
+		Strs("severity", severities).
+		Strs("category", categories).
 		Msg("Retrieved inventory diffs")
 
 	return diffs, totalCount, nil
@@ -144,15 +144,15 @@ func (s *LocalInventoryService) GetLatestInventoryDiffs(systemID string) ([]mode
 }
 
 // GetInventoryTimeline returns a date-grouped timeline with summary counts and inventory IDs per group
-func (s *LocalInventoryService) GetInventoryTimeline(systemID string, page, pageSize int, severity, category, diffType string, fromDate, toDate *time.Time) (models.InventoryTimelineSummary, []models.InventoryTimelineGroup, int, error) {
+func (s *LocalInventoryService) GetInventoryTimeline(systemID string, page, pageSize int, severities, categories, diffTypes []string, fromDate, toDate *time.Time) (models.InventoryTimelineSummary, []models.InventoryTimelineGroup, int, error) {
 	// Get filtered summary counts
-	summary, err := s.inventoryRepo.GetInventoryTimelineSummary(systemID, severity, category, diffType, fromDate, toDate)
+	summary, err := s.inventoryRepo.GetInventoryTimelineSummary(systemID, severities, categories, diffTypes, fromDate, toDate)
 	if err != nil {
 		return summary, nil, 0, err
 	}
 
 	// Get paginated date groups
-	groups, totalCount, err := s.inventoryRepo.GetInventoryTimelineDateGroups(systemID, page, pageSize, severity, category, diffType, fromDate, toDate)
+	groups, totalCount, err := s.inventoryRepo.GetInventoryTimelineDateGroups(systemID, page, pageSize, severities, categories, diffTypes, fromDate, toDate)
 	if err != nil {
 		return summary, nil, 0, err
 	}

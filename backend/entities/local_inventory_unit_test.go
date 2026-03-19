@@ -229,71 +229,79 @@ func TestLocalInventoryRepository_InventoryDateFiltering(t *testing.T) {
 func TestLocalInventoryRepository_InventoryDiffFiltering(t *testing.T) {
 	tests := []struct {
 		name            string
-		severity        string
-		category        string
-		diffType        string
+		severities      []string
+		categories      []string
+		diffTypes       []string
 		expectedDiffs   int
 		expectedMatches bool
 	}{
 		{
 			name:            "critical security diffs",
-			severity:        "critical",
-			category:        "security",
-			diffType:        "",
+			severities:      []string{"critical"},
+			categories:      []string{"security"},
+			diffTypes:       nil,
 			expectedDiffs:   5,
 			expectedMatches: true,
 		},
 		{
 			name:            "package changes",
-			severity:        "",
-			category:        "packages",
-			diffType:        "changed",
+			severities:      nil,
+			categories:      []string{"packages"},
+			diffTypes:       []string{"changed"},
 			expectedDiffs:   15,
 			expectedMatches: true,
 		},
 		{
 			name:            "high severity additions",
-			severity:        "high",
-			category:        "",
-			diffType:        "added",
+			severities:      []string{"high"},
+			categories:      nil,
+			diffTypes:       []string{"added"},
 			expectedDiffs:   8,
 			expectedMatches: true,
 		},
 		{
 			name:            "no filters (all diffs)",
-			severity:        "",
-			category:        "",
-			diffType:        "",
+			severities:      nil,
+			categories:      nil,
+			diffTypes:       nil,
 			expectedDiffs:   50,
 			expectedMatches: true,
 		},
 		{
 			name:            "non-existent combination",
-			severity:        "critical",
-			category:        "non-existent",
-			diffType:        "added",
+			severities:      []string{"critical"},
+			categories:      []string{"non-existent"},
+			diffTypes:       []string{"added"},
 			expectedDiffs:   0,
 			expectedMatches: false,
+		},
+		{
+			name:            "multiple severities",
+			severities:      []string{"critical", "high"},
+			categories:      nil,
+			diffTypes:       nil,
+			expectedDiffs:   13,
+			expectedMatches: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			diffs, _ := simulateGetInventoryDiffs("system-123", 1, 100, tt.severity, tt.category, tt.diffType, nil, nil)
+			diffs, _ := simulateGetInventoryDiffs("system-123", 1, 100, tt.severities, tt.categories, tt.diffTypes, nil, nil)
 
 			assert.Equal(t, tt.expectedDiffs, len(diffs))
 
 			// Verify all diffs match the filter criteria
 			if tt.expectedMatches && len(diffs) > 0 {
 				for _, diff := range diffs {
-					if tt.severity != "" {
-						assert.Equal(t, tt.severity, diff.Severity)
+					if len(tt.severities) > 0 {
+						assert.Contains(t, tt.severities, diff.Severity)
 					}
-					if tt.category != "" {
-						assert.Equal(t, tt.category, diff.Category)
+					if len(tt.categories) > 0 {
+						assert.Contains(t, tt.categories, diff.Category)
 					}
-					if tt.diffType != "" {
-						assert.Equal(t, tt.diffType, diff.DiffType)
+					if len(tt.diffTypes) > 0 {
+						assert.Contains(t, tt.diffTypes, diff.DiffType)
 					}
 				}
 			}
@@ -513,18 +521,45 @@ func simulateGetInventoryHistory(systemID string, page, pageSize int, fromDate, 
 	return records, totalRecords
 }
 
-func simulateGetInventoryDiffs(systemID string, page, pageSize int, severity, category, diffType string, fromDate, toDate *time.Time) ([]models.InventoryDiff, int) {
+func simulateGetInventoryDiffs(systemID string, page, pageSize int, severities, categories, diffTypes []string, fromDate, toDate *time.Time) ([]models.InventoryDiff, int) {
 	// Simulate different diff counts based on filters
 	totalDiffs := 50
 
-	if severity == "critical" && category == "security" {
+	hasSeverity := func(s string) bool {
+		for _, v := range severities {
+			if v == s {
+				return true
+			}
+		}
+		return false
+	}
+	hasCategory := func(c string) bool {
+		for _, v := range categories {
+			if v == c {
+				return true
+			}
+		}
+		return false
+	}
+	hasDiffType := func(dt string) bool {
+		for _, v := range diffTypes {
+			if v == dt {
+				return true
+			}
+		}
+		return false
+	}
+
+	if hasSeverity("critical") && hasCategory("security") {
 		totalDiffs = 5
-	} else if category == "packages" && diffType == "changed" {
+	} else if hasCategory("packages") && hasDiffType("changed") {
 		totalDiffs = 15
-	} else if severity == "high" && diffType == "added" {
+	} else if hasSeverity("high") && hasDiffType("added") {
 		totalDiffs = 8
-	} else if severity == "critical" && category == "non-existent" {
+	} else if hasSeverity("critical") && hasCategory("non-existent") {
 		totalDiffs = 0
+	} else if hasSeverity("critical") && hasSeverity("high") && len(severities) == 2 && len(categories) == 0 && len(diffTypes) == 0 {
+		totalDiffs = 13
 	}
 
 	offset := (page - 1) * pageSize
@@ -537,18 +572,18 @@ func simulateGetInventoryDiffs(systemID string, page, pageSize int, severity, ca
 
 	for i := 0; i < diffCount; i++ {
 		diffSeverity := "medium"
-		if severity != "" {
-			diffSeverity = severity
+		if len(severities) > 0 {
+			diffSeverity = severities[0]
 		}
 
 		diffCategory := "general"
-		if category != "" {
-			diffCategory = category
+		if len(categories) > 0 {
+			diffCategory = categories[0]
 		}
 
 		diffDiffType := "changed"
-		if diffType != "" {
-			diffDiffType = diffType
+		if len(diffTypes) > 0 {
+			diffDiffType = diffTypes[0]
 		}
 
 		diffs[i] = models.InventoryDiff{

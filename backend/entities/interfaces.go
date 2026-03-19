@@ -71,6 +71,6 @@ type SystemRepository interface {
 type InventoryRepository interface {
 	GetLatestInventory(systemID string) (*models.InventoryRecord, error)
 	GetInventoryHistory(systemID string, page, pageSize int, fromDate, toDate *time.Time) ([]models.InventoryRecord, int, error)
-	GetInventoryDiffs(systemID string, page, pageSize int, severity, category, diffType string, fromDate, toDate *time.Time) ([]models.InventoryDiff, int, error)
+	GetInventoryDiffs(systemID string, page, pageSize int, severities, categories, diffTypes []string, fromDate, toDate *time.Time, inventoryIDs []int64) ([]models.InventoryDiff, int, error)
 	GetLatestInventoryDiffs(systemID string) ([]models.InventoryDiff, error)
 }

@@ -140,7 +140,7 @@ func (r *LocalInventoryRepository) GetInventoryHistory(systemID string, page, pa
 }
 
 // GetInventoryDiffs returns paginated diffs for a system
-func (r *LocalInventoryRepository) GetInventoryDiffs(systemID string, page, pageSize int, severity, category, diffType string, fromDate, toDate *time.Time, inventoryIDs []int64) ([]models.InventoryDiff, int, error) {
+func (r *LocalInventoryRepository) GetInventoryDiffs(systemID string, page, pageSize int, severities, categories, diffTypes []string, fromDate, toDate *time.Time, inventoryIDs []int64) ([]models.InventoryDiff, int, error) {
 	// Build WHERE clause with filters
 	whereClause := "WHERE system_id = $1"
 	args := []interface{}{systemID}
@@ -156,22 +156,34 @@ func (r *LocalInventoryRepository) GetInventoryDiffs(systemID string, page, page
 		whereClause += fmt.Sprintf(" AND current_id IN (%s)", strings.Join(placeholders, ", "))
 	}
 
-	if severity != "" {
-		whereClause += fmt.Sprintf(" AND severity = $%d", argIndex)
-		args = append(args, severity)
-		argIndex++
+	if len(severities) > 0 {
+		placeholders := make([]string, len(severities))
+		for i, s := range severities {
+			placeholders[i] = fmt.Sprintf("$%d", argIndex)
+			args = append(args, s)
+			argIndex++
+		}
+		whereClause += fmt.Sprintf(" AND severity IN (%s)", strings.Join(placeholders, ", "))
 	}
 
-	if category != "" {
-		whereClause += fmt.Sprintf(" AND category = $%d", argIndex)
-		args = append(args, category)
-		argIndex++
+	if len(categories) > 0 {
+		placeholders := make([]string, len(categories))
+		for i, c := range categories {
+			placeholders[i] = fmt.Sprintf("$%d", argIndex)
+			args = append(args, c)
+			argIndex++
+		}
+		whereClause += fmt.Sprintf(" AND category IN (%s)", strings.Join(placeholders, ", "))
 	}
 
-	if diffType != "" {
-		whereClause += fmt.Sprintf(" AND diff_type = $%d", argIndex)
-		args = append(args, diffType)
-		argIndex++
+	if len(diffTypes) > 0 {
+		placeholders := make([]string, len(diffTypes))
+		for i, dt := range diffTypes {
+			placeholders[i] = fmt.Sprintf("$%d", argIndex)
+			args = append(args, dt)
+			argIndex++
+		}
+		whereClause += fmt.Sprintf(" AND diff_type IN (%s)", strings.Join(placeholders, ", "))
 	}
 
 	if fromDate != nil {
@@ -249,25 +261,37 @@ func (r *LocalInventoryRepository) GetInventoryDiffs(systemID string, page, page
 }
 
 // GetInventoryTimelineSummary returns filtered severity counts for the timeline view
-func (r *LocalInventoryRepository) GetInventoryTimelineSummary(systemID, severity, category, diffType string, fromDate, toDate *time.Time) (models.InventoryTimelineSummary, error) {
+func (r *LocalInventoryRepository) GetInventoryTimelineSummary(systemID string, severities, categories, diffTypes []string, fromDate, toDate *time.Time) (models.InventoryTimelineSummary, error) {
 	whereClause := "WHERE system_id = $1"
 	args := []interface{}{systemID}
 	argIndex := 2
 
-	if severity != "" {
-		whereClause += fmt.Sprintf(" AND severity = $%d", argIndex)
-		args = append(args, severity)
-		argIndex++
+	if len(severities) > 0 {
+		placeholders := make([]string, len(severities))
+		for i, s := range severities {
+			placeholders[i] = fmt.Sprintf("$%d", argIndex)
+			args = append(args, s)
+			argIndex++
+		}
+		whereClause += fmt.Sprintf(" AND severity IN (%s)", strings.Join(placeholders, ", "))
 	}
-	if category != "" {
-		whereClause += fmt.Sprintf(" AND category = $%d", argIndex)
-		args = append(args, category)
-		argIndex++
+	if len(categories) > 0 {
+		placeholders := make([]string, len(categories))
+		for i, c := range categories {
+			placeholders[i] = fmt.Sprintf("$%d", argIndex)
+			args = append(args, c)
+			argIndex++
+		}
+		whereClause += fmt.Sprintf(" AND category IN (%s)", strings.Join(placeholders, ", "))
 	}
-	if diffType != "" {
-		whereClause += fmt.Sprintf(" AND diff_type = $%d", argIndex)
-		args = append(args, diffType)
-		argIndex++
+	if len(diffTypes) > 0 {
+		placeholders := make([]string, len(diffTypes))
+		for i, dt := range diffTypes {
+			placeholders[i] = fmt.Sprintf("$%d", argIndex)
+			args = append(args, dt)
+			argIndex++
+		}
+		whereClause += fmt.Sprintf(" AND diff_type IN (%s)", strings.Join(placeholders, ", "))
 	}
 	if fromDate != nil {
 		whereClause += fmt.Sprintf(" AND created_at >= $%d", argIndex)
@@ -302,7 +326,7 @@ func (r *LocalInventoryRepository) GetInventoryTimelineSummary(systemID, severit
 }
 
 // GetInventoryTimelineDateGroups returns paginated date groups with inventory and change counts
-func (r *LocalInventoryRepository) GetInventoryTimelineDateGroups(systemID string, page, pageSize int, severity, category, diffType string, fromDate, toDate *time.Time) ([]models.InventoryTimelineGroup, int, error) {
+func (r *LocalInventoryRepository) GetInventoryTimelineDateGroups(systemID string, page, pageSize int, severities, categories, diffTypes []string, fromDate, toDate *time.Time) ([]models.InventoryTimelineGroup, int, error) {
 	// Build WHERE clause for inventory_records (date range only)
 	irWhereClause := "WHERE ir.system_id = $1"
 	irArgs := []interface{}{systemID}
@@ -324,20 +348,32 @@ func (r *LocalInventoryRepository) GetInventoryTimelineDateGroups(systemID strin
 	joinArgs := []interface{}{}
 	joinArgIndex := irArgIndex
 
-	if severity != "" {
-		joinCondition += fmt.Sprintf(" AND d.severity = $%d", joinArgIndex)
-		joinArgs = append(joinArgs, severity)
-		joinArgIndex++
+	if len(severities) > 0 {
+		placeholders := make([]string, len(severities))
+		for i, s := range severities {
+			placeholders[i] = fmt.Sprintf("$%d", joinArgIndex)
+			joinArgs = append(joinArgs, s)
+			joinArgIndex++
+		}
+		joinCondition += fmt.Sprintf(" AND d.severity IN (%s)", strings.Join(placeholders, ", "))
 	}
-	if category != "" {
-		joinCondition += fmt.Sprintf(" AND d.category = $%d", joinArgIndex)
-		joinArgs = append(joinArgs, category)
-		joinArgIndex++
+	if len(categories) > 0 {
+		placeholders := make([]string, len(categories))
+		for i, c := range categories {
+			placeholders[i] = fmt.Sprintf("$%d", joinArgIndex)
+			joinArgs = append(joinArgs, c)
+			joinArgIndex++
+		}
+		joinCondition += fmt.Sprintf(" AND d.category IN (%s)", strings.Join(placeholders, ", "))
 	}
-	if diffType != "" {
-		joinCondition += fmt.Sprintf(" AND d.diff_type = $%d", joinArgIndex)
-		joinArgs = append(joinArgs, diffType)
-		joinArgIndex++
+	if len(diffTypes) > 0 {
+		placeholders := make([]string, len(diffTypes))
+		for i, dt := range diffTypes {
+			placeholders[i] = fmt.Sprintf("$%d", joinArgIndex)
+			joinArgs = append(joinArgs, dt)
+			joinArgIndex++
+		}
+		joinCondition += fmt.Sprintf(" AND d.diff_type IN (%s)", strings.Join(placeholders, ", "))
 	}
 
 	// Count total date groups (only needs irArgs, no join filters)

@@ -12,7 +12,6 @@ package methods
 import (
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -200,9 +199,9 @@ func GetSystemInventoryTimeline(c *gin.Context) {
 	}
 
 	// Parse filters
-	severity := c.Query("severity")
-	category := c.Query("category")
-	diffType := c.Query("diff_type")
+	severities := c.QueryArray("severity")
+	categories := c.QueryArray("category")
+	diffTypes := c.QueryArray("diff_type")
 
 	var fromDate, toDate *time.Time
 	if fromStr := c.Query("from_date"); fromStr != "" {
@@ -217,7 +216,7 @@ func GetSystemInventoryTimeline(c *gin.Context) {
 	}
 
 	inventoryService := local.NewInventoryService()
-	summary, groups, totalCount, err := inventoryService.GetInventoryTimeline(systemID, page, pageSize, severity, category, diffType, fromDate, toDate)
+	summary, groups, totalCount, err := inventoryService.GetInventoryTimeline(systemID, page, pageSize, severities, categories, diffTypes, fromDate, toDate)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -235,8 +234,8 @@ func GetSystemInventoryTimeline(c *gin.Context) {
 		Str("system_id", systemID).
 		Int("groups", len(groups)).
 		Int("total", totalCount).
-		Str("severity", severity).
-		Str("category", category).
+		Strs("severity", severities).
+		Strs("category", categories).
 		Msg("Inventory timeline requested")
 
 	c.JSON(http.StatusOK, response.OK("inventory timeline retrieved successfully", gin.H{
@@ -404,17 +403,15 @@ func GetSystemInventoryDiffs(c *gin.Context) {
 	}
 
 	// Parse filters
-	severity := c.Query("severity")
-	category := c.Query("category")
-	diffType := c.Query("diff_type")
+	severities := c.QueryArray("severity")
+	categories := c.QueryArray("category")
+	diffTypes := c.QueryArray("diff_type")
 
-	// Parse inventory_id filter (comma-separated list of int64)
+	// Parse inventory_id filter (repeated params: ?inventory_id=42&inventory_id=43)
 	var inventoryIDs []int64
-	if idStr := c.Query("inventory_id"); idStr != "" {
-		for _, part := range strings.Split(idStr, ",") {
-			if id, err := strconv.ParseInt(strings.TrimSpace(part), 10, 64); err == nil {
-				inventoryIDs = append(inventoryIDs, id)
-			}
+	for _, idStr := range c.QueryArray("inventory_id") {
+		if id, err := strconv.ParseInt(idStr, 10, 64); err == nil {
+			inventoryIDs = append(inventoryIDs, id)
 		}
 	}
 
@@ -433,16 +430,16 @@ func GetSystemInventoryDiffs(c *gin.Context) {
 
 	// Get inventory diffs
 	inventoryService := local.NewInventoryService()
-	diffs, totalCount, err := inventoryService.GetInventoryDiffs(systemID, page, pageSize, severity, category, diffType, fromDate, toDate, inventoryIDs)
+	diffs, totalCount, err := inventoryService.GetInventoryDiffs(systemID, page, pageSize, severities, categories, diffTypes, fromDate, toDate, inventoryIDs)
 	if err != nil {
 		logger.Error().
 			Err(err).
 			Str("system_id", systemID).
 			Int("page", page).
 			Int("page_size", pageSize).
-			Str("severity", severity).
-			Str("category", category).
-			Str("diff_type", diffType).
+			Strs("severity", severities).
+			Strs("category", categories).
+			Strs("diff_type", diffTypes).
 			Msg("Failed to retrieve inventory diffs")
 
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve inventory diffs", map[string]interface{}{
@@ -457,8 +454,8 @@ func GetSystemInventoryDiffs(c *gin.Context) {
 		Str("system_id", systemID).
 		Int("count", len(diffs)).
 		Int("total", totalCount).
-		Str("severity", severity).
-		Str("category", category).
+		Strs("severity", severities).
+		Strs("category", categories).
 		Msg("Inventory diffs requested")
 
 	// Return paginated results
