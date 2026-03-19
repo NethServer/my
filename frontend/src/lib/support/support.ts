@@ -388,6 +388,24 @@ export const getSupportSessionLogs = (sessionId: string, pageNum: number, pageSi
     .then((res) => res.data.data)
 }
 
+export interface AddSessionServiceItem {
+  name: string
+  target: string
+  label?: string
+  tls?: boolean
+}
+
+export const addSupportSessionServices = (sessionId: string, services: AddSessionServiceItem[]) => {
+  const loginStore = useLoginStore()
+  return axios
+    .post(
+      `${API_URL}/support-sessions/${sessionId}/services`,
+      { services },
+      { headers: { Authorization: `Bearer ${loginStore.jwtToken}` } },
+    )
+    .then((res) => res.data)
+}
+
 export const getSupportSessionDiagnostics = (sessionId: string): Promise<SessionDiagnostics> => {
   const loginStore = useLoginStore()
   return axios

@@ -10,6 +10,7 @@ import {
   faXmark,
   faTerminal,
   faUpRightFromSquare,
+  faPlug,
 } from '@fortawesome/free-solid-svg-icons'
 import {
   NeTable,
@@ -24,6 +25,9 @@ import {
   NeInlineNotification,
   NeBadge,
   NeDropdown,
+  NeModal,
+  NeTextInput,
+  NeToggle,
   type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
@@ -41,6 +45,7 @@ import {
   closeSupportSession,
   getSupportSessionServices,
   generateSupportProxyToken,
+  addSupportSessionServices,
 } from '@/lib/support/support'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import { formatDateTimeNoSeconds } from '@/lib/dateTime'
@@ -50,7 +55,7 @@ import { useQueryCache } from '@pinia/colada'
 import { getProductName } from '@/lib/systems/systems'
 import SupportTerminal from '@/components/support/SupportTerminal.vue'
 
-const { locale } = useI18n()
+const { locale, t } = useI18n()
 const queryCache = useQueryCache()
 const { state, asyncStatus, pageNum, pageSize } = useSupportSessions()
 
@@ -247,6 +252,65 @@ async function handleCloseGroup(group: SystemSessionGroup) {
     closingSessionId.value = null
   }
 }
+
+// Add service modal
+const addServiceGroup = ref<SystemSessionGroup | null>(null)
+const addServiceName = ref('')
+const addServiceTarget = ref('')
+const addServiceLabel = ref('')
+const addServiceTls = ref(false)
+const addServiceLoading = ref(false)
+const addServiceError = ref('')
+
+function handleOpenAddService(group: SystemSessionGroup) {
+  addServiceGroup.value = group
+  addServiceName.value = ''
+  addServiceTarget.value = ''
+  addServiceLabel.value = ''
+  addServiceTls.value = false
+  addServiceError.value = ''
+}
+
+function handleCloseAddService() {
+  addServiceGroup.value = null
+}
+
+async function handleAddService() {
+  if (!addServiceGroup.value) return
+  addServiceError.value = ''
+  addServiceLoading.value = true
+  try {
+    // Use the first active session id as the target
+    const activeSession = addServiceGroup.value.sessions.find((s) => s.status === 'active')
+    if (!activeSession) {
+      addServiceError.value = t('support.no_active_session')
+      return
+    }
+    await addSupportSessionServices(activeSession.id, [
+      {
+        name: addServiceName.value,
+        target: addServiceTarget.value,
+        label: addServiceLabel.value,
+        tls: addServiceTls.value,
+      },
+    ])
+    // Wait for the Redis → support service → tunnel-client → manifest round-trip
+    // before re-fetching, otherwise the GET arrives before the manifest is updated
+    handleCloseAddService()
+    setTimeout(() => {
+      getSupportSessionServices(activeSession.id)
+        .then((svcGroups) => {
+          servicesMap.value[activeSession.id] = svcGroups || []
+        })
+        .catch(() => {})
+    }, 1500)
+  } catch (error: unknown) {
+    const axiosError = error as { response?: { data?: { message?: string } } }
+    addServiceError.value = axiosError?.response?.data?.message || t('support.add_service_error')
+  } finally {
+    addServiceLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -356,6 +420,17 @@ async function handleCloseGroup(group: SystemSessionGroup) {
                   </template>
                 </NeDropdown>
                 <NeButton
+                  v-if="group.status === 'active'"
+                  kind="tertiary"
+                  size="sm"
+                  @click="handleOpenAddService(group)"
+                >
+                  <template #prefix>
+                    <FontAwesomeIcon :icon="faPlug" aria-hidden="true" />
+                  </template>
+                  {{ $t('support.add_service') }}
+                </NeButton>
+                <NeButton
                   v-if="group.status === 'active' || group.status === 'pending'"
                   kind="tertiary"
                   size="sm"
@@ -418,5 +493,44 @@ async function handleCloseGroup(group: SystemSessionGroup) {
       :system-name="terminalGroup.system_name || terminalGroup.system_key"
       @close="handleCloseTerminal"
     />
+    <!-- Add service modal -->
+    <NeModal
+      v-if="addServiceGroup"
+      :visible="!!addServiceGroup"
+      :title="$t('support.add_service')"
+      :primary-label="$t('support.add_service')"
+      :cancel-label="$t('common.cancel')"
+      :primary-button-loading="addServiceLoading"
+      :close-aria-label="$t('common.close')"
+      @close="handleCloseAddService"
+      @primary-click="handleAddService"
+    >
+      <div class="flex flex-col gap-4">
+        <NeInlineNotification
+          v-if="addServiceError"
+          kind="error"
+          :title="$t('support.add_service_error')"
+          :description="addServiceError"
+        />
+        <NeTextInput
+          v-model="addServiceName"
+          :label="$t('support.service_name')"
+          :placeholder="$t('support.service_name_placeholder')"
+          :helper-text="$t('support.service_name_helper')"
+        />
+        <NeTextInput
+          v-model="addServiceTarget"
+          :label="$t('support.service_target')"
+          :placeholder="$t('support.service_target_placeholder')"
+          :helper-text="$t('support.service_target_helper')"
+        />
+        <NeTextInput
+          v-model="addServiceLabel"
+          :label="$t('support.service_label')"
+          :placeholder="$t('support.service_label_placeholder')"
+        />
+        <NeToggle v-model="addServiceTls" :label="$t('support.service_tls')" />
+      </div>
+    </NeModal>
   </div>
 </template>
