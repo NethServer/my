@@ -18,13 +18,17 @@ import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { useTabs } from '@/composables/useTabs'
 import { useI18n } from 'vue-i18n'
 import SystemOverviewPanel from '@/components/systems/SystemOverviewPanel.vue'
+import SystemChangeHistoryPanel from '@/components/systems/SystemChangeHistoryPanel.vue'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 import { computed } from 'vue'
 
 const { t } = useI18n()
 const { state: systemDetail } = useSystemDetail()
 const { state: latestInventory } = useLatestInventory()
-const { tabs, selectedTab } = useTabs([{ name: 'overview', label: t('system_detail.overview') }])
+const { tabs, selectedTab } = useTabs([
+  { name: 'overview', label: t('system_detail.overview') },
+  { name: 'change_history', label: t('system_detail.change_history') },
+])
 
 const systemUrl = computed(() => {
   if (!systemDetail.value.data?.fqdn) {
@@ -114,5 +118,6 @@ const openSystem = () => {
       @select-tab="selectedTab = $event"
     />
     <SystemOverviewPanel v-if="selectedTab === 'overview'" />
+    <SystemChangeHistoryPanel v-else-if="selectedTab === 'change_history'" />
   </div>
 </template>

@@ -504,6 +504,7 @@
   "system_detail": {
     "title": "System detail",
     "overview": "Overview",
+    "change_history": "Change history",
     "unknown_product": "Unknown product",
     "go_to_system": "Go to system",
     "go_to_system_tooltip": "Note: The system may be unreachable due to network settings.",
