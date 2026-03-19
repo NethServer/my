@@ -232,7 +232,7 @@ func (r *LocalInventoryRepository) GetInventoryDiffs(systemID string, page, page
 		var previousValue, currentValue sql.NullString
 
 		err := rows.Scan(
-			&diff.ID, &diff.SystemID, &previousID, &diff.CurrentID, &diff.DiffType,
+			&diff.ID, &diff.SystemID, &previousID, &diff.InventoryID, &diff.DiffType,
 			&diff.FieldPath, &previousValue, &currentValue, &diff.Severity,
 			&diff.Category, &diff.NotificationSent, &diff.CreatedAt,
 		)
@@ -241,7 +241,7 @@ func (r *LocalInventoryRepository) GetInventoryDiffs(systemID string, page, page
 		}
 
 		if previousID.Valid {
-			diff.PreviousID = &previousID.Int64
+			diff.PreviousInventoryID = &previousID.Int64
 		}
 		if previousValue.Valid {
 			diff.PreviousValueRaw = &previousValue.String
@@ -507,7 +507,7 @@ func (r *LocalInventoryRepository) GetLatestInventoryDiffs(systemID string) ([]m
 		var previousValue, currentValue sql.NullString
 
 		err := rows.Scan(
-			&diff.ID, &diff.SystemID, &previousID, &diff.CurrentID, &diff.DiffType,
+			&diff.ID, &diff.SystemID, &previousID, &diff.InventoryID, &diff.DiffType,
 			&diff.FieldPath, &previousValue, &currentValue, &diff.Severity,
 			&diff.Category, &diff.NotificationSent, &diff.CreatedAt,
 		)
@@ -516,7 +516,7 @@ func (r *LocalInventoryRepository) GetLatestInventoryDiffs(systemID string) ([]m
 		}
 
 		if previousID.Valid {
-			diff.PreviousID = &previousID.Int64
+			diff.PreviousInventoryID = &previousID.Int64
 		}
 		if previousValue.Valid {
 			diff.PreviousValueRaw = &previousValue.String

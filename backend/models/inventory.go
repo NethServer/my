@@ -48,18 +48,18 @@ type InventoryTimelineGroup struct {
 
 // InventoryDiff represents a difference between two inventory snapshots
 type InventoryDiff struct {
-	ID               int64       `json:"id" db:"id"`
-	SystemID         string      `json:"system_id" db:"system_id"`
-	PreviousID       *int64      `json:"previous_id" db:"previous_id"`
-	CurrentID        int64       `json:"current_id" db:"current_id"`
-	DiffType         string      `json:"diff_type" db:"diff_type"` // create, update, delete
-	FieldPath        string      `json:"field_path" db:"field_path"`
-	PreviousValueRaw *string     `json:"-" db:"previous_value"`  // Raw value from DB (not exported)
-	CurrentValueRaw  *string     `json:"-" db:"current_value"`   // Raw value from DB (not exported)
-	PreviousValue    interface{} `json:"previous_value"`         // Parsed value for JSON response
-	CurrentValue     interface{} `json:"current_value"`          // Parsed value for JSON response
-	Severity         string      `json:"severity" db:"severity"` // low, medium, high, critical
-	Category         string      `json:"category" db:"category"` // os, hardware, network, features
-	NotificationSent bool        `json:"notification_sent" db:"notification_sent"`
-	CreatedAt        time.Time   `json:"created_at" db:"created_at"`
+	ID                  int64       `json:"id" db:"id"`
+	SystemID            string      `json:"system_id" db:"system_id"`
+	PreviousInventoryID *int64      `json:"previous_inventory_id" db:"previous_id"`
+	InventoryID         int64       `json:"inventory_id" db:"current_id"`
+	DiffType            string      `json:"diff_type" db:"diff_type"` // create, update, delete
+	FieldPath           string      `json:"field_path" db:"field_path"`
+	PreviousValueRaw    *string     `json:"-" db:"previous_value"`  // Raw value from DB (not exported)
+	CurrentValueRaw     *string     `json:"-" db:"current_value"`   // Raw value from DB (not exported)
+	PreviousValue       interface{} `json:"previous_value"`         // Parsed value for JSON response
+	CurrentValue        interface{} `json:"current_value"`          // Parsed value for JSON response
+	Severity            string      `json:"severity" db:"severity"` // low, medium, high, critical
+	Category            string      `json:"category" db:"category"` // os, hardware, network, features
+	NotificationSent    bool        `json:"notification_sent" db:"notification_sent"`
+	CreatedAt           time.Time   `json:"created_at" db:"created_at"`
 }

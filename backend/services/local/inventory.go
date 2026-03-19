@@ -135,7 +135,7 @@ func (s *LocalInventoryService) GetLatestInventoryDiffs(systemID string) ([]mode
 		Int("count", len(diffs))
 
 	if len(diffs) > 0 {
-		logEvent.Int64("current_id", diffs[0].CurrentID)
+		logEvent.Int64("inventory_id", diffs[0].InventoryID)
 	}
 
 	logEvent.Msg("Retrieved latest inventory diffs batch")

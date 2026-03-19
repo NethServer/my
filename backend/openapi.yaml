@@ -233,16 +233,16 @@ components:
           type: string
           description: ID of the system
           example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-        previous_id:
+        previous_inventory_id:
           type: integer
           format: int64
           nullable: true
-          description: ID of the previous inventory record. Null for the first inventory.
+          description: ID of the previous inventory record this diff was computed against. Null for the first inventory.
           example: 41
-        current_id:
+        inventory_id:
           type: integer
           format: int64
-          description: ID of the current inventory record
+          description: ID of the inventory record this diff belongs to
           example: 42
         diff_type:
           type: string

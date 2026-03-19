@@ -176,26 +176,26 @@ func TestInventoryDiffStructure(t *testing.T) {
 	currentValue := "new_value"
 
 	diff := InventoryDiff{
-		ID:               1,
-		SystemID:         "diff-system-123",
-		PreviousID:       &previousID,
-		CurrentID:        200,
-		DiffType:         "update",
-		FieldPath:        "hardware.memory",
-		PreviousValueRaw: &previousValue,
-		CurrentValueRaw:  &currentValue,
-		PreviousValue:    "8GB",
-		CurrentValue:     "16GB",
-		Severity:         "medium",
-		Category:         "hardware",
-		NotificationSent: false,
-		CreatedAt:        now,
+		ID:                  1,
+		SystemID:            "diff-system-123",
+		PreviousInventoryID: &previousID,
+		InventoryID:         200,
+		DiffType:            "update",
+		FieldPath:           "hardware.memory",
+		PreviousValueRaw:    &previousValue,
+		CurrentValueRaw:     &currentValue,
+		PreviousValue:       "8GB",
+		CurrentValue:        "16GB",
+		Severity:            "medium",
+		Category:            "hardware",
+		NotificationSent:    false,
+		CreatedAt:           now,
 	}
 
 	assert.Equal(t, int64(1), diff.ID)
 	assert.Equal(t, "diff-system-123", diff.SystemID)
-	assert.Equal(t, &previousID, diff.PreviousID)
-	assert.Equal(t, int64(200), diff.CurrentID)
+	assert.Equal(t, &previousID, diff.PreviousInventoryID)
+	assert.Equal(t, int64(200), diff.InventoryID)
 	assert.Equal(t, "update", diff.DiffType)
 	assert.Equal(t, "hardware.memory", diff.FieldPath)
 	assert.Equal(t, &previousValue, diff.PreviousValueRaw)
@@ -215,20 +215,20 @@ func TestInventoryDiffJSONSerialization(t *testing.T) {
 	currentValue := "Linux 5.8"
 
 	diff := InventoryDiff{
-		ID:               2,
-		SystemID:         "json-diff-system-456",
-		PreviousID:       &previousID,
-		CurrentID:        400,
-		DiffType:         "update",
-		FieldPath:        "os.version",
-		PreviousValueRaw: &previousValue,
-		CurrentValueRaw:  &currentValue,
-		PreviousValue:    "5.4.0",
-		CurrentValue:     "5.8.0",
-		Severity:         "low",
-		Category:         "os",
-		NotificationSent: true,
-		CreatedAt:        now,
+		ID:                  2,
+		SystemID:            "json-diff-system-456",
+		PreviousInventoryID: &previousID,
+		InventoryID:         400,
+		DiffType:            "update",
+		FieldPath:           "os.version",
+		PreviousValueRaw:    &previousValue,
+		CurrentValueRaw:     &currentValue,
+		PreviousValue:       "5.4.0",
+		CurrentValue:        "5.8.0",
+		Severity:            "low",
+		Category:            "os",
+		NotificationSent:    true,
+		CreatedAt:           now,
 	}
 
 	// Test JSON marshaling
@@ -243,8 +243,8 @@ func TestInventoryDiffJSONSerialization(t *testing.T) {
 
 	assert.Equal(t, diff.ID, unmarshaledDiff.ID)
 	assert.Equal(t, diff.SystemID, unmarshaledDiff.SystemID)
-	assert.Equal(t, *diff.PreviousID, *unmarshaledDiff.PreviousID)
-	assert.Equal(t, diff.CurrentID, unmarshaledDiff.CurrentID)
+	assert.Equal(t, *diff.PreviousInventoryID, *unmarshaledDiff.PreviousInventoryID)
+	assert.Equal(t, diff.InventoryID, unmarshaledDiff.InventoryID)
 	assert.Equal(t, diff.DiffType, unmarshaledDiff.DiffType)
 	assert.Equal(t, diff.FieldPath, unmarshaledDiff.FieldPath)
 	assert.Equal(t, diff.PreviousValue, unmarshaledDiff.PreviousValue)
@@ -259,20 +259,20 @@ func TestInventoryDiffWithNilFields(t *testing.T) {
 	now := time.Now()
 
 	diff := InventoryDiff{
-		ID:               3,
-		SystemID:         "nil-diff-system-789",
-		PreviousID:       nil,
-		CurrentID:        500,
-		DiffType:         "create",
-		FieldPath:        "new.field",
-		PreviousValueRaw: nil,
-		CurrentValueRaw:  nil,
-		PreviousValue:    nil,
-		CurrentValue:     "new_value",
-		Severity:         "high",
-		Category:         "features",
-		NotificationSent: false,
-		CreatedAt:        now,
+		ID:                  3,
+		SystemID:            "nil-diff-system-789",
+		PreviousInventoryID: nil,
+		InventoryID:         500,
+		DiffType:            "create",
+		FieldPath:           "new.field",
+		PreviousValueRaw:    nil,
+		CurrentValueRaw:     nil,
+		PreviousValue:       nil,
+		CurrentValue:        "new_value",
+		Severity:            "high",
+		Category:            "features",
+		NotificationSent:    false,
+		CreatedAt:           now,
 	}
 
 	// Test JSON marshaling with nil fields
@@ -287,8 +287,8 @@ func TestInventoryDiffWithNilFields(t *testing.T) {
 
 	assert.Equal(t, diff.ID, unmarshaledDiff.ID)
 	assert.Equal(t, diff.SystemID, unmarshaledDiff.SystemID)
-	assert.Nil(t, unmarshaledDiff.PreviousID)
-	assert.Equal(t, diff.CurrentID, unmarshaledDiff.CurrentID)
+	assert.Nil(t, unmarshaledDiff.PreviousInventoryID)
+	assert.Equal(t, diff.InventoryID, unmarshaledDiff.InventoryID)
 	assert.Equal(t, diff.DiffType, unmarshaledDiff.DiffType)
 	assert.Nil(t, unmarshaledDiff.PreviousValue)
 	assert.Equal(t, diff.CurrentValue, unmarshaledDiff.CurrentValue)
@@ -376,7 +376,7 @@ func TestInventoryDiffJSONTags(t *testing.T) {
 	diff := InventoryDiff{
 		ID:               10,
 		SystemID:         "tag-diff-system",
-		CurrentID:        20,
+		InventoryID:      20,
 		DiffType:         "update",
 		FieldPath:        "test.path",
 		PreviousValue:    "old",
@@ -397,7 +397,7 @@ func TestInventoryDiffJSONTags(t *testing.T) {
 
 	// Verify JSON field names match struct tags
 	expectedFields := []string{
-		"id", "system_id", "previous_id", "current_id", "diff_type",
+		"id", "system_id", "previous_inventory_id", "inventory_id", "diff_type",
 		"field_path", "previous_value", "current_value", "severity",
 		"category", "notification_sent", "created_at",
 	}
@@ -409,7 +409,7 @@ func TestInventoryDiffJSONTags(t *testing.T) {
 	// Verify values
 	assert.Equal(t, float64(10), jsonMap["id"])
 	assert.Equal(t, "tag-diff-system", jsonMap["system_id"])
-	assert.Equal(t, float64(20), jsonMap["current_id"])
+	assert.Equal(t, float64(20), jsonMap["inventory_id"])
 	assert.Equal(t, "update", jsonMap["diff_type"])
 	assert.Equal(t, "test.path", jsonMap["field_path"])
 	assert.Equal(t, "old", jsonMap["previous_value"])

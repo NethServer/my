@@ -510,7 +510,7 @@ func GetSystemLatestInventoryDiff(c *gin.Context) {
 		Int("count", len(diffs))
 
 	if len(diffs) > 0 {
-		logEvent.Int64("current_id", diffs[0].CurrentID)
+		logEvent.Int64("inventory_id", diffs[0].InventoryID)
 	}
 
 	logEvent.Msg("Latest inventory diffs batch requested")
@@ -523,7 +523,7 @@ func GetSystemLatestInventoryDiff(c *gin.Context) {
 
 	// Add current_inventory_id only if there are diffs
 	if len(diffs) > 0 {
-		responseData["current_inventory_id"] = diffs[0].CurrentID
+		responseData["current_inventory_id"] = diffs[0].InventoryID
 	}
 
 	// Return latest diffs batch
