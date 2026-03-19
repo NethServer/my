@@ -12,6 +12,7 @@ package methods
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -162,6 +163,60 @@ func GetSystemLatestInventory(c *gin.Context) {
 
 	// Return latest inventory
 	c.JSON(http.StatusOK, response.OK("latest inventory retrieved successfully", record))
+}
+
+// GetSystemInventoryByID handles GET /api/systems/:id/inventory/:inventory_id - retrieves a specific inventory record
+func GetSystemInventoryByID(c *gin.Context) {
+	systemID := c.Param("id")
+	if systemID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
+		return
+	}
+
+	inventoryIDStr := c.Param("inventory_id")
+	inventoryID, err := strconv.ParseInt(inventoryIDStr, 10, 64)
+	if err != nil || inventoryID <= 0 {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid inventory ID", nil))
+		return
+	}
+
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	systemsService := local.NewSystemsService()
+	_, err = systemsService.GetSystem(systemID, userOrgRole, userOrgID)
+	if helpers.HandleAccessError(c, err, "system", systemID) {
+		return
+	}
+
+	inventoryService := local.NewInventoryService()
+	record, err := inventoryService.GetInventoryByID(systemID, inventoryID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, response.NotFound("inventory record not found", nil))
+			return
+		}
+		logger.Error().
+			Err(err).
+			Str("system_id", systemID).
+			Int64("inventory_id", inventoryID).
+			Msg("Failed to retrieve inventory record")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve inventory record", map[string]interface{}{
+			"error": err.Error(),
+		}))
+		return
+	}
+
+	logger.RequestLogger(c, "inventory").Info().
+		Str("operation", "get_inventory_by_id").
+		Str("system_id", systemID).
+		Int64("inventory_id", inventoryID).
+		Msg("Inventory record requested")
+
+	c.JSON(http.StatusOK, response.OK("inventory record retrieved successfully", record))
 }
 
 // GetSystemInventoryTimeline handles GET /api/systems/:id/inventory/timeline - retrieves date-grouped timeline

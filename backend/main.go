@@ -249,6 +249,7 @@ func main() {
 			systemsGroup.GET("/:id/inventory/diffs", methods.GetSystemInventoryDiffs)                  // Get paginated diffs
 			systemsGroup.GET("/:id/inventory/diffs/latest", methods.GetSystemLatestInventoryDiff)      // Get latest diff
 			systemsGroup.GET("/:id/inventory/timeline", methods.GetSystemInventoryTimeline)            // Get date-grouped timeline with summary
+			systemsGroup.GET("/:id/inventory/:inventory_id", methods.GetSystemInventoryByID)           // Get specific inventory record by ID
 		}
 
 		// ===========================================

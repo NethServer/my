@@ -65,6 +65,38 @@ func (r *LocalInventoryRepository) GetLatestInventory(systemID string) (*models.
 	return &record, nil
 }
 
+// GetInventoryByID returns a specific inventory record by its ID, scoped to the system
+func (r *LocalInventoryRepository) GetInventoryByID(systemID string, inventoryID int64) (*models.InventoryRecord, error) {
+	query := `
+		SELECT id, system_id, timestamp, data, data_hash, data_size,
+		       processed_at, has_changes, change_count, created_at, updated_at
+		FROM inventory_records
+		WHERE system_id = $1 AND id = $2
+	`
+
+	var record models.InventoryRecord
+	var processedAt sql.NullTime
+
+	err := r.db.QueryRow(query, systemID, inventoryID).Scan(
+		&record.ID, &record.SystemID, &record.Timestamp, &record.Data, &record.DataHash,
+		&record.DataSize, &processedAt, &record.HasChanges,
+		&record.ChangeCount, &record.CreatedAt, &record.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("inventory record %d not found for system %s", inventoryID, systemID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to query inventory record: %w", err)
+	}
+
+	if processedAt.Valid {
+		record.ProcessedAt = &processedAt.Time
+	}
+
+	return &record, nil
+}
+
 // GetInventoryHistory returns paginated inventory history for a system
 func (r *LocalInventoryRepository) GetInventoryHistory(systemID string, page, pageSize int, fromDate, toDate *time.Time) ([]models.InventoryRecord, int, error) {
 	// Build WHERE clause with date filters

@@ -1,0 +1,5 @@
+# This file instructs Redocly's linter to ignore the rules contained for specific parts of your API.
+# See https://redocly.com/docs/cli/ for more information.
+openapi.yaml:
+  no-ambiguous-paths:
+    - '#/paths/~1systems~1rebranding~1{product_id}~1{asset}'

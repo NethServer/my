@@ -68,6 +68,21 @@ func (s *LocalInventoryService) GetLatestInventory(systemID string) (*models.Inv
 	return record, nil
 }
 
+// GetInventoryByID returns a specific inventory record by its ID, scoped to the system
+func (s *LocalInventoryService) GetInventoryByID(systemID string, inventoryID int64) (*models.InventoryRecord, error) {
+	record, err := s.inventoryRepo.GetInventoryByID(systemID, inventoryID)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debug().
+		Str("system_id", systemID).
+		Int64("inventory_id", inventoryID).
+		Msg("Retrieved inventory record by ID")
+
+	return record, nil
+}
+
 // GetInventoryHistory returns paginated inventory history for a system
 func (s *LocalInventoryService) GetInventoryHistory(systemID string, page, pageSize int, fromDate, toDate *time.Time) ([]models.InventoryRecord, int, error) {
 	records, totalCount, err := s.inventoryRepo.GetInventoryHistory(systemID, page, pageSize, fromDate, toDate)

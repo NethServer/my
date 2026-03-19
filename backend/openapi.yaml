@@ -6963,6 +6963,54 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /systems/{id}/inventory/{inventory_id}:
+    get:
+      operationId: getSystemInventoryByID
+      tags:
+        - Backend - Systems Inventory
+      summary: /systems/{id}/inventory/{inventory_id} - Get a specific inventory record
+      description: Get a specific inventory record by its ID, scoped to the system.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+        - name: inventory_id
+          in: path
+          required: true
+          description: Inventory record ID
+          schema:
+            type: integer
+            format: int64
+            example: 42
+      responses:
+        '200':
+          description: Inventory record retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "inventory record retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/InventoryRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /systems/{id}/inventory/changes:
     get:
       operationId: getSystemInventoryChanges
