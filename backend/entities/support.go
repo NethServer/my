@@ -491,6 +491,101 @@ func (r *SupportRepository) GetDiagnostics(sessionID, userOrgRole, userOrgID str
 	return data, at, nil
 }
 
+// statusSeverity maps a diagnostic status to a numeric severity for comparison.
+// Higher values indicate worse status.
+var statusSeverity = map[string]int{
+	"ok":       0,
+	"warning":  1,
+	"critical": 2,
+	"error":    3,
+	"timeout":  4,
+}
+
+// worstStatus returns the most severe status among the given statuses.
+func worstStatus(statuses []string) string {
+	worst := "ok"
+	for _, s := range statuses {
+		if statusSeverity[s] > statusSeverity[worst] {
+			worst = s
+		}
+	}
+	return worst
+}
+
+// GetSystemDiagnostics returns diagnostics for all active sessions of a system,
+// grouped by node, with an overall status reflecting the worst across all nodes.
+func (r *SupportRepository) GetSystemDiagnostics(systemID, userOrgRole, userOrgID string) (*models.SystemDiagnostics, error) {
+	conditions := []string{"ss.system_id = $1", "ss.status IN ('active', 'pending')"}
+	args := []interface{}{systemID}
+	argIdx := 2
+
+	// RBAC scope filter
+	rbacCondition, rbacArgs, _ := buildRBACFilter(userOrgRole, userOrgID, argIdx)
+	if rbacCondition != "" {
+		conditions = append(conditions, rbacCondition)
+		args = append(args, rbacArgs...)
+	}
+
+	query := fmt.Sprintf(`SELECT ss.id, ss.node_id, ss.diagnostics, ss.diagnostics_at
+		FROM support_sessions ss
+		JOIN systems s ON ss.system_id = s.id
+		WHERE %s
+		ORDER BY ss.node_id NULLS FIRST, ss.started_at DESC`,
+		strings.Join(conditions, " AND "))
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query system diagnostics: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	result := &models.SystemDiagnostics{
+		SystemID: systemID,
+		Nodes:    []models.NodeDiagnostics{},
+	}
+
+	var statuses []string
+	for rows.Next() {
+		var nd models.NodeDiagnostics
+		var nodeID sql.NullString
+		var rawDiagnostics []byte
+		var diagnosticsAt sql.NullTime
+
+		if err := rows.Scan(&nd.SessionID, &nodeID, &rawDiagnostics, &diagnosticsAt); err != nil {
+			return nil, fmt.Errorf("failed to scan system diagnostics: %w", err)
+		}
+
+		if nodeID.Valid {
+			nd.NodeID = &nodeID.String
+		}
+		if diagnosticsAt.Valid {
+			t := diagnosticsAt.Time
+			nd.DiagnosticsAt = &t
+		}
+		if rawDiagnostics != nil {
+			var data map[string]interface{}
+			if err := json.Unmarshal(rawDiagnostics, &data); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal diagnostics: %w", err)
+			}
+			nd.Diagnostics = data
+			if os, ok := data["overall_status"].(string); ok {
+				statuses = append(statuses, os)
+			}
+		}
+
+		result.Nodes = append(result.Nodes, nd)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate system diagnostics: %w", err)
+	}
+
+	if len(statuses) > 0 {
+		result.OverallStatus = worstStatus(statuses)
+	}
+
+	return result, nil
+}
+
 // maxSessionDuration is the maximum total duration a session can have from its start time (30 days)
 const maxSessionDuration = 30 * 24 // hours
 
