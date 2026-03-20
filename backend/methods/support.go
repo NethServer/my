@@ -231,6 +231,28 @@ func GetSupportSessionDiagnostics(c *gin.Context) {
 	}))
 }
 
+// GetSystemSessionsDiagnostics handles GET /api/support-sessions/diagnostics?system_id=X
+// Returns diagnostics for all active sessions of a system, grouped by node.
+func GetSystemSessionsDiagnostics(c *gin.Context) {
+	systemID := c.Query("system_id")
+	if systemID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system_id query parameter required", nil))
+		return
+	}
+
+	_, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+
+	repo := entities.NewSupportRepository()
+	result, err := repo.GetSystemDiagnostics(systemID, userOrgRole, userOrgID)
+	if err != nil {
+		logger.Error().Err(err).Str("system_id", systemID).Msg("failed to get system diagnostics")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get system diagnostics", nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("system diagnostics retrieved successfully", result))
+}
+
 // AddSupportSessionServices handles POST /api/support-sessions/:id/services
 // It sends an add_services command to the tunnel-client via Redis pub/sub,
 // dynamically injecting static services into the running tunnel without reconnection.

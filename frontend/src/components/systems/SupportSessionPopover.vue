@@ -12,9 +12,9 @@ import { useI18n } from 'vue-i18n'
 import {
   getSystemActiveSessions,
   getSupportSessionLogs,
-  getSupportSessionDiagnostics,
+  getSystemDiagnostics,
   type SystemSessionGroup,
-  type SessionDiagnostics,
+  type SystemDiagnostics,
 } from '@/lib/support/support'
 function formatDateWithMonth(date: Date, loc: string): string {
   return date.toLocaleString(loc, {
@@ -51,7 +51,8 @@ interface PopoverData {
 }
 
 const data = ref<PopoverData | null>(null)
-const diagnostics = ref<SessionDiagnostics | null>(null)
+const diagnostics = ref<SystemDiagnostics | null>(null)
+const expandedNodes = ref<Set<string>>(new Set())
 const loading = ref(false)
 const error = ref(false)
 const isOpen = ref(false)
@@ -105,16 +106,16 @@ async function fetchData() {
       operators: Array.from(operatorMap.values()),
     }
 
-    // Fetch diagnostics from the most recently started session
-    if (group.sessions && group.sessions.length > 0) {
-      const latestSession = [...group.sessions].sort(
-        (a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime(),
-      )[0]
-      try {
-        diagnostics.value = await getSupportSessionDiagnostics(latestSession.id)
-      } catch {
-        diagnostics.value = null
+    // Fetch diagnostics for all active sessions of this system
+    try {
+      const sysDiag = await getSystemDiagnostics(props.systemId)
+      diagnostics.value = sysDiag
+      // Auto-expand all nodes in multi-node view
+      if (sysDiag.nodes.length > 1) {
+        expandedNodes.value = new Set(sysDiag.nodes.map((n) => n.node_id ?? '__null__'))
       }
+    } catch {
+      diagnostics.value = null
     }
   } catch {
     error.value = true
@@ -170,6 +171,19 @@ function formatConnectionBadge(conn: OperatorConnection): string {
     return `${label} (${t('systems.node')} ${conn.nodeId})`
   }
   return label
+}
+
+function toggleNode(nodeId: string | null) {
+  const key = nodeId ?? '__null__'
+  if (expandedNodes.value.has(key)) {
+    expandedNodes.value.delete(key)
+  } else {
+    expandedNodes.value.add(key)
+  }
+}
+
+function isNodeExpanded(nodeId: string | null): boolean {
+  return expandedNodes.value.has(nodeId ?? '__null__')
 }
 
 function diagnosticStatusDotClass(status: string): string {
@@ -282,26 +296,66 @@ function diagnosticStatusTextClass(status: string): string {
         </div>
         <!-- Diagnostics -->
         <div
-          v-if="diagnostics?.diagnostics"
+          v-if="diagnostics && diagnostics.nodes.some((n) => n.diagnostics)"
           class="border-t border-gray-200 pt-2 dark:border-gray-700"
         >
           <div class="mb-1.5 flex items-center gap-1.5 font-medium">
             <span>{{ t('support.diagnostics') }}</span>
             <span
+              v-if="diagnostics.overall_status"
               class="inline-block h-2 w-2 rounded-full"
-              :class="diagnosticStatusDotClass(diagnostics.diagnostics.overall_status)"
+              :class="diagnosticStatusDotClass(diagnostics.overall_status)"
             />
           </div>
-          <div class="space-y-1">
-            <div
-              v-for="plugin in diagnostics.diagnostics.plugins"
-              :key="plugin.id"
-              class="flex items-center justify-between"
-            >
-              <span class="text-gray-500 dark:text-gray-400">{{ plugin.name }}</span>
-              <span class="text-xs font-medium" :class="diagnosticStatusTextClass(plugin.status)">
-                {{ plugin.summary || plugin.status }}
-              </span>
+          <!-- Single-node: flat list (no node headers) -->
+          <div v-if="diagnostics.nodes.length <= 1" class="space-y-1">
+            <template v-for="node in diagnostics.nodes" :key="node.session_id">
+              <div
+                v-for="plugin in node.diagnostics?.plugins || []"
+                :key="plugin.id"
+                class="flex items-center justify-between"
+              >
+                <span class="text-gray-500 dark:text-gray-400">{{ plugin.name }}</span>
+                <span class="text-xs font-medium" :class="diagnosticStatusTextClass(plugin.status)">
+                  {{ plugin.summary || plugin.status }}
+                </span>
+              </div>
+            </template>
+          </div>
+          <!-- Multi-node: collapsible sections per node -->
+          <div v-else class="space-y-1">
+            <div v-for="node in diagnostics.nodes" :key="node.session_id">
+              <button
+                v-if="node.diagnostics"
+                class="flex w-full cursor-pointer items-center justify-between rounded px-1 py-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
+                @click="toggleNode(node.node_id)"
+              >
+                <div class="flex items-center gap-1.5 font-medium">
+                  <span class="text-xs text-gray-400">{{
+                    isNodeExpanded(node.node_id) ? '▾' : '▸'
+                  }}</span>
+                  <span>{{ t('systems.node') }} {{ node.node_id }}</span>
+                </div>
+                <span
+                  class="inline-block h-2 w-2 rounded-full"
+                  :class="diagnosticStatusDotClass(node.diagnostics.overall_status)"
+                />
+              </button>
+              <div v-if="isNodeExpanded(node.node_id) && node.diagnostics" class="space-y-1 pl-5">
+                <div
+                  v-for="plugin in node.diagnostics.plugins"
+                  :key="plugin.id"
+                  class="flex items-center justify-between"
+                >
+                  <span class="text-gray-500 dark:text-gray-400">{{ plugin.name }}</span>
+                  <span
+                    class="text-xs font-medium"
+                    :class="diagnosticStatusTextClass(plugin.status)"
+                  >
+                    {{ plugin.summary || plugin.status }}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
