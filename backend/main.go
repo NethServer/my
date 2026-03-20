@@ -479,6 +479,7 @@ func main() {
 		supportGroup := customAuthWithAudit.Group("/support-sessions", middleware.RequirePermission("connect:systems"))
 		{
 			supportGroup.GET("", methods.GetSupportSessions)
+			supportGroup.GET("/diagnostics", methods.GetSystemSessionsDiagnostics)
 			supportGroup.GET("/:id", methods.GetSupportSession)
 			supportGroup.PATCH("/:id/extend", methods.ExtendSupportSession)
 			supportGroup.DELETE("/:id", methods.CloseSupportSession)

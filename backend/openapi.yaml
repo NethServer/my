@@ -9252,6 +9252,116 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /support-sessions/diagnostics:
+    get:
+      operationId: getSystemSessionsDiagnostics
+      tags:
+        - Backend - Support Sessions
+      summary: Get diagnostics for all active sessions of a system
+      description: |
+        Returns diagnostics for all active/pending sessions of the given system,
+        grouped by node. Includes an overall_status reflecting the worst status
+        across all nodes. For single-node systems (NethSecurity), returns a single
+        entry with node_id null.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: system_id
+          in: query
+          required: true
+          description: System ID (database UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: System diagnostics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: system diagnostics retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      system_id:
+                        type: string
+                        format: uuid
+                      overall_status:
+                        type: string
+                        enum: [ok, warning, critical, error, timeout, '']
+                        description: Worst status across all nodes, empty string if no diagnostics available
+                      nodes:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            node_id:
+                              type: string
+                              nullable: true
+                              description: Node identifier, null for single-node systems
+                            session_id:
+                              type: string
+                              format: uuid
+                            diagnostics:
+                              nullable: true
+                              type: object
+                              description: Diagnostic report from the tunnel-client
+                              properties:
+                                collected_at:
+                                  type: string
+                                  format: date-time
+                                duration_ms:
+                                  type: integer
+                                overall_status:
+                                  type: string
+                                  enum: [ok, warning, critical, error, timeout]
+                                plugins:
+                                  type: array
+                                  items:
+                                    type: object
+                                    properties:
+                                      id:
+                                        type: string
+                                      name:
+                                        type: string
+                                      status:
+                                        type: string
+                                        enum: [ok, warning, critical, error, timeout]
+                                      summary:
+                                        type: string
+                                      checks:
+                                        type: array
+                                        items:
+                                          type: object
+                                          properties:
+                                            name:
+                                              type: string
+                                            status:
+                                              type: string
+                                              enum: [ok, warning, critical, error, timeout]
+                                            value:
+                                              type: string
+                                            details:
+                                              type: string
+                            diagnostics_at:
+                              type: string
+                              format: date-time
+                              nullable: true
+                              description: Timestamp when diagnostics were last received
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /support-sessions/{id}/diagnostics:
     get:
       operationId: getSupportSessionDiagnostics
