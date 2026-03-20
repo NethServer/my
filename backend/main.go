@@ -159,7 +159,11 @@ func main() {
 	// (/alerts/config) or are public and get a small budget below.
 	router.Use(middleware.MaxBodySize(16 << 20))
 
+	// Define API group
+	api := router.Group("/api")
+
 	// CORS configuration in debug mode: restrict to local development origins (#1)
+	// Applied only to /api routes — /support-proxy handles its own CORS
 	if gin.Mode() == gin.DebugMode {
 		corsConf := cors.DefaultConfig()
 		corsConf.AllowHeaders = []string{"Authorization", "Content-Type", "Accept"}
@@ -169,11 +173,8 @@ func main() {
 				strings.HasPrefix(origin, "http://127.0.0.1") ||
 				strings.HasPrefix(origin, "https://127.0.0.1")
 		}
-		router.Use(cors.New(corsConf))
+		api.Use(cors.New(corsConf))
 	}
-
-	// Define API group
-	api := router.Group("/api")
 
 	// Health check endpoint
 	api.GET("/health", func(c *gin.Context) {
