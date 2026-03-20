@@ -545,6 +545,26 @@ func SubdomainProxy(c *gin.Context) {
 		return
 	}
 
+	// CORS: allow cross-origin requests between same-session sibling subdomains.
+	// Remote apps (e.g., NethVoice) make cross-subdomain API calls that require
+	// CORS headers and credentials support.
+	corsOrigin := supportProxyCORSOrigin(c.GetHeader("Origin"), sessionSlug)
+
+	// Set CORS headers for all cross-subdomain responses (errors included)
+	if corsOrigin != "" {
+		c.Header("Access-Control-Allow-Origin", corsOrigin)
+		c.Header("Access-Control-Allow-Credentials", "true")
+	}
+
+	// Handle OPTIONS preflight for cross-subdomain requests
+	if c.Request.Method == http.MethodOptions && corsOrigin != "" {
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+		c.Header("Access-Control-Max-Age", "3600")
+		c.Status(http.StatusNoContent)
+		return
+	}
+
 	// Prefer query param token (fresh from the UI) over cookie (may be stale
 	// from a previous session — the cookie domain covers all support subdomains).
 	tokenString := c.Query("token")
@@ -565,13 +585,10 @@ func SubdomainProxy(c *gin.Context) {
 		return
 	}
 
-	// Validate that the token's service name matches the subdomain service
-	if claims.ServiceName != serviceName {
-		c.JSON(http.StatusForbidden, response.Error(http.StatusForbidden, "proxy token is not valid for this service", nil))
-		return
-	}
-
-	// Validate that the token's session ID (without dashes) matches the subdomain slug exactly
+	// Validate that the token's session ID (without dashes) matches the subdomain slug exactly.
+	// The service name is NOT validated: the cookie is shared across all services
+	// in the session (domain .support.{domain}), and the user has session-level
+	// access — they can generate proxy tokens for any service via the frontend.
 	tokenSessionSlug := strings.ReplaceAll(claims.SessionID, "-", "")
 	if tokenSessionSlug != sessionSlug {
 		c.JSON(http.StatusForbidden, response.Error(http.StatusForbidden, "proxy token does not match this session", nil))
@@ -583,8 +600,9 @@ func SubdomainProxy(c *gin.Context) {
 	// If token came from query param, set cookie and redirect to same path without token
 	if fromQueryParam {
 		secureCookie := !strings.HasPrefix(configuration.Config.AppURL, "http://")
-		c.SetSameSite(http.SameSiteStrictMode)
-		c.SetCookie("support_proxy", tokenString, 8*60*60, "/", hostOnly, secureCookie, true)
+		cookieDomain := ".support." + configuration.Config.SupportProxyDomain
+		c.SetSameSite(http.SameSiteLaxMode)
+		c.SetCookie("support_proxy", tokenString, 8*60*60, "/", cookieDomain, secureCookie, true)
 
 		// Sanitize redirect path to prevent open redirect via protocol-relative URLs (#3).
 		// "//evil.com" is interpreted by browsers as a redirect to evil.com.
@@ -646,17 +664,46 @@ func SubdomainProxy(c *gin.Context) {
 			resp.Header.Del("X-Frame-Options")
 			resp.Header.Set("Content-Security-Policy", "frame-ancestors 'self'")
 
-			// Strip upstream CORS headers to avoid duplicates
+			// Strip upstream CORS headers and replace with proxy-controlled values
 			resp.Header.Del("Access-Control-Allow-Origin")
 			resp.Header.Del("Access-Control-Allow-Credentials")
 			resp.Header.Del("Access-Control-Allow-Headers")
 			resp.Header.Del("Access-Control-Allow-Methods")
+
+			// Add CORS headers for cross-subdomain requests within the same session
+			if corsOrigin != "" {
+				resp.Header.Set("Access-Control-Allow-Origin", corsOrigin)
+				resp.Header.Set("Access-Control-Allow-Credentials", "true")
+			}
 			return nil
 		},
 		Transport: &sessionTokenTransport{inner: internalTransportNoCompression, sessionToken: sessionToken},
 	}
 
 	proxy.ServeHTTP(c.Writer, c.Request)
+}
+
+// supportProxyCORSOrigin checks if the request Origin is a sibling subdomain
+// of the same support session (same session slug under *.support.{domain}).
+// Returns the origin if valid, empty string otherwise.
+func supportProxyCORSOrigin(origin, sessionSlug string) string {
+	if origin == "" || sessionSlug == "" || configuration.Config.SupportProxyDomain == "" {
+		return ""
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return ""
+	}
+	host := u.Hostname()
+	parts := strings.SplitN(host, ".support.", 2)
+	if len(parts) != 2 || parts[1] != configuration.Config.SupportProxyDomain {
+		return ""
+	}
+	subParts := strings.SplitN(parts[0], "--", 2)
+	if len(subParts) != 2 || subParts[1] != sessionSlug {
+		return ""
+	}
+	return origin
 }
 
 // filterSupportProxyCookie removes the support_proxy cookie from the request
