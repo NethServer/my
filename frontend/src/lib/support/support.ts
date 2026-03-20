@@ -102,6 +102,19 @@ export interface SessionDiagnostics {
   diagnostics_at: string | null
 }
 
+export interface NodeDiagnostics {
+  node_id: string | null
+  session_id: string
+  diagnostics: DiagnosticsReport | null
+  diagnostics_at: string | null
+}
+
+export interface SystemDiagnostics {
+  system_id: string
+  overall_status: string
+  nodes: NodeDiagnostics[]
+}
+
 interface SupportSessionsResponse {
   code: number
   message: string
@@ -414,6 +427,19 @@ export const getSupportSessionDiagnostics = (sessionId: string): Promise<Session
       message: string
       data: SessionDiagnostics
     }>(`${API_URL}/support-sessions/${sessionId}/diagnostics`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data)
+}
+
+export const getSystemDiagnostics = (systemId: string): Promise<SystemDiagnostics> => {
+  const loginStore = useLoginStore()
+  return axios
+    .get<{
+      code: number
+      message: string
+      data: SystemDiagnostics
+    }>(`${API_URL}/support-sessions/diagnostics?system_id=${encodeURIComponent(systemId)}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data)

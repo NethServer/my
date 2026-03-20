@@ -69,6 +69,21 @@ type ExtendSessionRequest struct {
 	Hours int `json:"hours" binding:"required,min=1,max=168"`
 }
 
+// NodeDiagnostics contains diagnostics data for a single node/session
+type NodeDiagnostics struct {
+	NodeID        *string                `json:"node_id"`
+	SessionID     string                 `json:"session_id"`
+	Diagnostics   map[string]interface{} `json:"diagnostics"`
+	DiagnosticsAt *time.Time             `json:"diagnostics_at"`
+}
+
+// SystemDiagnostics aggregates diagnostics across all active sessions of a system
+type SystemDiagnostics struct {
+	SystemID      string            `json:"system_id"`
+	OverallStatus string            `json:"overall_status"`
+	Nodes         []NodeDiagnostics `json:"nodes"`
+}
+
 // AddSessionServiceItem describes a single static service to add to a tunnel
 type AddSessionServiceItem struct {
 	Name   string `json:"name" binding:"required"`
