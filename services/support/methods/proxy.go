@@ -232,14 +232,18 @@ func buildHostRewriteMap(t *tunnel.Tunnel, currentProxyHost string) map[string]s
 	domain := parts[0]
 	domainSuffix := parts[1]
 
-	// Extract the session short ID from the subdomain
+	// Extract the current service name and session short ID from the subdomain
 	subParts := strings.SplitN(domain, "--", 2)
 	if len(subParts) != 2 {
 		return nil
 	}
+	currentService := subParts[0]
 	sessionShort := subParts[1]
 
-	// Build rewrite map for all services with hostnames
+	// Build rewrite map for all services with hostnames.
+	// When multiple services share the same original hostname (common in NS8
+	// where Traefik routes by path), prefer the current service's proxy hostname.
+	// This keeps API calls same-origin and lets Traefik handle path-based routing.
 	rewrites := make(map[string]string)
 	services := t.GetServices()
 	for svcName, svc := range services {
@@ -249,6 +253,14 @@ func buildHostRewriteMap(t *tunnel.Tunnel, currentProxyHost string) map[string]s
 		proxyHostname := fmt.Sprintf("%s--%s.support.%s", svcName, sessionShort, domainSuffix)
 		if svc.Host != proxyHostname {
 			rewrites[svc.Host] = proxyHostname
+		}
+	}
+	// Override: for the current service's hostname, always map to the current
+	// service's proxy subdomain. This ensures same-origin for shared hostnames.
+	if currentSvc, ok := services[currentService]; ok && currentSvc.Host != "" {
+		currentProxy := fmt.Sprintf("%s--%s.support.%s", currentService, sessionShort, domainSuffix)
+		if currentSvc.Host != currentProxy {
+			rewrites[currentSvc.Host] = currentProxy
 		}
 	}
 
