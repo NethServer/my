@@ -519,10 +519,16 @@
     "cannot_retrieve_latest_inventory": "Cannot retrieve latest inventory",
     "no_inventory_available": "No inventory available",
     "no_inventory_available_description": "The system has not sent any inventory data yet.",
+    "total_changes": "Total changes",
+    "critical_changes": "Critical",
+    "high_changes": "High",
+    "medium_changes": "Medium",
     "subscription": "Subscription",
     "active_since": "Active since",
     "system_key": "System key",
-    "cannot_determine_system_url_description": "Cannot access the system because its URL cannot be determined."
+    "cannot_determine_system_url_description": "Cannot access the system because its URL cannot be determined.",
+    "change_history_description": "The change history is based on the differences between the inventories sent by the system. If the system has not sent any inventory yet, no change history will be available.",
+    "cannot_retrieve_inventory_changes": "Cannot retrieve inventory changes"
   },
   "application_detail": {
     "title": "Application detail",
