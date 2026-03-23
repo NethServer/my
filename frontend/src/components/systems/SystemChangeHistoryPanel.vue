@@ -9,6 +9,7 @@ import { useInventoryChanges } from '@/queries/systems/inventoryChanges'
 import { useI18n } from 'vue-i18n'
 import UpdatingSpinner from '../UpdatingSpinner.vue'
 import { NeInlineNotification } from '@nethesis/vue-components'
+import SystemChangesTimeline from './SystemChangesTimeline.vue'
 
 const { t } = useI18n()
 
@@ -34,7 +35,7 @@ const { state: inventoryChanges, asyncStatus: inventoryChangesAsyncStatus } = us
     class="mb-6"
   />
   <!-- change counters -->
-  <div class="grid grid-cols-2 gap-6 sm:grid-cols-4">
+  <div class="mb-10 grid grid-cols-2 gap-6 sm:grid-cols-4">
     <CounterCard
       :title="t('system_detail.total_changes')"
       :counter="inventoryChanges.data?.total_changes ?? 0"
@@ -56,7 +57,10 @@ const { state: inventoryChanges, asyncStatus: inventoryChangesAsyncStatus } = us
       :title="t('system_detail.medium_changes')"
       :counter="inventoryChanges.data?.changes_by_severity?.medium ?? 0"
       :loading="inventoryChanges.status === 'pending'"
-      color-classes="text-yellow-700 dark:text-yellow-400"
+      color-classes="text-yellow-600 dark:text-yellow-700"
     />
   </div>
+  <!-- changes timeline -->
+  <!-- //// remove mock-mode -->
+  <SystemChangesTimeline mock-mode />
 </template>

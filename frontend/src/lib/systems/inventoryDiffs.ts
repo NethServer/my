@@ -28,12 +28,12 @@ export type InventoryDiffType = 'create' | 'update' | 'delete'
 export interface InventoryDiff {
   id: number
   system_id: string
-  previous_id: number
-  current_id: number
+  previous_inventory_id: number | null
+  inventory_id: number
   diff_type: InventoryDiffType
   field_path: string
-  previous_value: string
-  current_value: string
+  previous_value: unknown
+  current_value: unknown
   severity: InventoryDiffSeverity
   category: InventoryDiffCategory
   notification_sent: boolean

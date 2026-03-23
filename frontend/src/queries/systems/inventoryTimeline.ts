@@ -8,34 +8,30 @@ import {
 } from '@/lib/systems/inventoryDiffs'
 import {
   INVENTORY_TIMELINE_KEY,
-  INVENTORY_TIMELINE_TABLE_ID,
   getInventoryTimeline,
 } from '@/lib/systems/inventoryTimeline'
 import { canReadSystems } from '@/lib/permissions'
-import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
-import { defineQuery, useQuery } from '@pinia/colada'
-import { computed, ref, watch } from 'vue'
+import { defineQuery, useInfiniteQuery } from '@pinia/colada'
+import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
+
+const TIMELINE_PAGE_SIZE = 10
 
 export const useInventoryTimeline = defineQuery(() => {
   const loginStore = useLoginStore()
   const route = useRoute()
-  const pageNum = ref(1)
-  const pageSize = ref(DEFAULT_PAGE_SIZE)
   const severityFilter = ref<InventoryDiffSeverity[]>([])
   const categoryFilter = ref<InventoryDiffCategory[]>([])
   const diffTypeFilter = ref<InventoryDiffType[]>([])
   const fromDate = ref('')
   const toDate = ref('')
 
-  const { state, asyncStatus, ...rest } = useQuery({
+  const { state, asyncStatus, hasNextPage, loadNextPage } = useInfiniteQuery({
     key: () => [
       INVENTORY_TIMELINE_KEY,
       {
         systemId: route.params.systemId,
-        pageNum: pageNum.value,
-        pageSize: pageSize.value,
         severityFilter: severityFilter.value,
         categoryFilter: categoryFilter.value,
         diffTypeFilter: diffTypeFilter.value,
@@ -44,18 +40,31 @@ export const useInventoryTimeline = defineQuery(() => {
       },
     ],
     enabled: () => !!loginStore.jwtToken && canReadSystems() && !!route.params.systemId,
-    query: () =>
+    initialPageParam: 1,
+    query: ({ pageParam }) =>
       getInventoryTimeline(
         route.params.systemId as string,
-        pageNum.value,
-        pageSize.value,
+        pageParam,
+        TIMELINE_PAGE_SIZE,
         severityFilter.value,
         categoryFilter.value,
         diffTypeFilter.value,
         fromDate.value,
         toDate.value,
       ),
+    getNextPageParam: (lastPage) =>
+      lastPage.pagination.has_next ? lastPage.pagination.page + 1 : null,
   })
+
+  const allInventoryIds = computed(() =>
+    (state.value.data?.pages ?? []).flatMap((page) =>
+      page.groups.flatMap((group) => group.inventory_ids),
+    ),
+  )
+
+  const allGroups = computed(() =>
+    (state.value.data?.pages ?? []).flatMap((page) => page.groups),
+  )
 
   const areDefaultFiltersApplied = computed(() => {
     return (
@@ -67,64 +76,6 @@ export const useInventoryTimeline = defineQuery(() => {
     )
   })
 
-  // load table page size from storage
-  watch(
-    () => loginStore.userInfo?.email,
-    (email) => {
-      if (email) {
-        pageSize.value = loadPageSizeFromStorage(INVENTORY_TIMELINE_TABLE_ID)
-      }
-    },
-    { immediate: true },
-  )
-
-  // reset to first page when page size changes
-  watch(
-    () => pageSize.value,
-    () => {
-      pageNum.value = 1
-    },
-  )
-
-  // reset to first page when any filter changes
-  watch(
-    () => severityFilter.value,
-    () => {
-      pageNum.value = 1
-    },
-    { deep: true },
-  )
-
-  watch(
-    () => categoryFilter.value,
-    () => {
-      pageNum.value = 1
-    },
-    { deep: true },
-  )
-
-  watch(
-    () => diffTypeFilter.value,
-    () => {
-      pageNum.value = 1
-    },
-    { deep: true },
-  )
-
-  watch(
-    () => fromDate.value,
-    () => {
-      pageNum.value = 1
-    },
-  )
-
-  watch(
-    () => toDate.value,
-    () => {
-      pageNum.value = 1
-    },
-  )
-
   const resetFilters = () => {
     severityFilter.value = []
     categoryFilter.value = []
@@ -134,11 +85,10 @@ export const useInventoryTimeline = defineQuery(() => {
   }
 
   return {
-    ...rest,
     state,
     asyncStatus,
-    pageNum,
-    pageSize,
+    hasNextPage,
+    loadNextPage,
     severityFilter,
     categoryFilter,
     diffTypeFilter,
@@ -146,5 +96,7 @@ export const useInventoryTimeline = defineQuery(() => {
     toDate,
     areDefaultFiltersApplied,
     resetFilters,
+    allInventoryIds,
+    allGroups,
   }
 })
