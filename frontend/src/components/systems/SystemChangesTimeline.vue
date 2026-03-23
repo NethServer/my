@@ -13,7 +13,11 @@ import {
   type InventoryDiffSeverity,
   type InventoryDiffType,
 } from '@/lib/systems/inventoryDiffs'
-import { mockInventoryDiffs, mockTimelineGroups } from '@/lib/systems/inventoryMocks'
+import {
+  INVENTORY_MOCK_ENABLED,
+  mockInventoryDiffs,
+  mockDiffsPagination,
+} from '@/lib/systems/inventoryMocks'
 import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 import { canReadSystems } from '@/lib/permissions'
 import { useLoginStore } from '@/stores/login'
@@ -41,9 +45,6 @@ import {
   faAngleUp,
   faArrowRight,
 } from '@fortawesome/free-solid-svg-icons'
-
-//// remove mock-mode
-const props = withDefaults(defineProps<{ mockMode?: boolean }>(), { mockMode: false })
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -87,13 +88,12 @@ const { state: diffsState, asyncStatus: diffsAsyncStatus } = useQuery({
     },
   ],
   enabled: () =>
-    !props.mockMode &&
     !!loginStore.jwtToken &&
     canReadSystems() &&
     !!route.params.systemId &&
     allInventoryIds.value.length > 0,
-  query: () =>
-    getInventoryDiffs(
+  query: () => {
+    const apiCall = getInventoryDiffs(
       route.params.systemId as string,
       1,
       500,
@@ -103,16 +103,18 @@ const { state: diffsState, asyncStatus: diffsAsyncStatus } = useQuery({
       allInventoryIds.value,
       fromDate.value,
       toDate.value,
-    ),
+    )
+    if (INVENTORY_MOCK_ENABLED) {
+      apiCall.catch(() => {})
+      return Promise.resolve({ diffs: mockInventoryDiffs, pagination: mockDiffsPagination })
+    }
+    return apiCall
+  },
 })
 
-// ── Mock mode overrides ───────────────────────────────────────────────────────
-const effectiveGroups = computed(() => (props.mockMode ? mockTimelineGroups : allGroups.value))
-
-// ── Auto-expand all groups when they load ────────────────────────────────────
+// ── Auto-expand all groups when they load ─────────────────────────────────────
 watch(
-  //// revert to allGroups.value when mockMode is removed
-  () => effectiveGroups.value,
+  () => allGroups.value,
   (groups) => {
     groups.forEach((g) => expandedGroups.value.add(g.date))
   },
@@ -183,7 +185,7 @@ interface DisplayGroup {
 const today = todayDateString()
 
 const displayGroups = computed<DisplayGroup[]>(() => {
-  const groups = effectiveGroups.value
+  const groups = allGroups.value
   const result: DisplayGroup[] = []
 
   // Always show Today as the first entry
@@ -218,31 +220,23 @@ const displayGroups = computed<DisplayGroup[]>(() => {
 })
 
 const isTimelineEmpty = computed(() => {
-  if (!props.mockMode && timelineState.value.status !== 'success') return false
-  return effectiveGroups.value.filter((g) => g.change_count > 0).length === 0
+  if (timelineState.value.status !== 'success') return false
+  return allGroups.value.filter((g) => g.change_count > 0).length === 0
 })
 
 // ── Diffs helpers ─────────────────────────────────────────────────────────────
-const allDiffs = computed<InventoryDiff[]>(() =>
-  props.mockMode ? mockInventoryDiffs : (diffsState.value.data?.diffs ?? []),
-)
+const allDiffs = computed<InventoryDiff[]>(() => diffsState.value.data?.diffs ?? [])
 
-const timelineIsPending = computed(
-  () => !props.mockMode && timelineState.value.status === 'pending',
-)
+const timelineIsPending = computed(() => timelineState.value.status === 'pending')
 const timelineError = computed(() =>
-  !props.mockMode && timelineState.value.status === 'error' ? timelineState.value.error : null,
+  timelineState.value.status === 'error' ? timelineState.value.error : null,
 )
 const diffsError = computed(() =>
-  !props.mockMode && diffsState.value.status === 'error' ? diffsState.value.error : null,
+  diffsState.value.status === 'error' ? diffsState.value.error : null,
 )
 const diffsIsLoading = computed(
-  () =>
-    !props.mockMode &&
-    (diffsState.value.status === 'pending' || diffsAsyncStatus.value === 'loading'),
+  () => diffsState.value.status === 'pending' || diffsAsyncStatus.value === 'loading',
 )
-const effectiveHasNextPage = computed(() => !props.mockMode && hasNextPage.value)
-
 function getDiffsForGroup(group: DisplayGroup): InventoryDiff[] {
   const idSet = new Set(group.inventory_ids)
   return allDiffs.value.filter((d) => idSet.has(d.inventory_id))
@@ -346,11 +340,11 @@ watch(loadMoreTrigger, (el) => {
   if (!el) return
   const observer = new IntersectionObserver(
     (entries) => {
-      if (entries[0]?.isIntersecting && hasNextPage.value) {
+      if (entries[0]?.isIntersecting) {
         loadNextPage()
       }
     },
-    { rootMargin: '200px', threshold: [0] },
+    { rootMargin: '300px', threshold: [0] },
   )
   observer.observe(el)
   onWatcherCleanup(() => observer.disconnect())
@@ -710,7 +704,7 @@ const diffTypeFilterModel = computed<string[]>({
       </div>
 
       <!-- Gap badge (days without changes between this group and the next) -->
-      <div v-if="group.gapDaysAfter > 0" class="mb-4 flex items-start">
+      <div v-if="group.gapDaysAfter > 0" class="my-8 flex items-start">
         <div class="w-36 flex-shrink-0"></div>
         <div class="flex-1 pl-10">
           <span
@@ -723,10 +717,13 @@ const diffTypeFilterModel = computed<string[]>({
     </div>
 
     <!-- Load more trigger (IntersectionObserver target) -->
-    <div v-if="effectiveHasNextPage" ref="loadMoreTrigger" class="flex items-start py-4">
+    <div v-if="hasNextPage" ref="loadMoreTrigger" class="flex items-start py-4">
       <div class="w-36 flex-shrink-0"></div>
       <div class="flex-1 pl-10">
-        <p class="text-sm text-gray-400 dark:text-gray-500">
+        <p
+          v-if="timelineAsyncStatus === 'loading'"
+          class="text-sm text-gray-400 dark:text-gray-500"
+        >
           {{ t('common.loading') }}
         </p>
       </div>

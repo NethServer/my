@@ -2,8 +2,8 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 /**
- * Mock data for SystemChangesTimeline — pass mockMode prop to the component to
- * render with this data instead of live API calls.
+ * Mock data for inventory queries — the Pinia Colada queries fire the real API
+ * calls but resolve with this data instead of the actual server response.
  *
  * Timeline covers today (no changes) + ten historical groups spread across
  * four months, with notable gaps between them.  Diffs exercise every
@@ -12,8 +12,11 @@
  */
 
 import { type InventoryDiff } from './inventoryDiffs'
+import { type InventoryChanges } from './inventoryChanges'
 import { type InventoryTimelineGroup, type InventoryTimelineSummary } from './inventoryTimeline'
 import { type Pagination } from '@/lib/common'
+
+export const INVENTORY_MOCK_ENABLED = false
 
 // ── Reference date ────────────────────────────────────────────────────────────
 // The component always injects today's date dynamically, so these groups start
@@ -638,4 +641,32 @@ export const mockDiffsPagination: Pagination = {
   total_pages: 1,
   has_next: false,
   has_prev: false,
+}
+
+// ── Inventory changes summary ─────────────────────────────────────────────────
+export const mockInventoryChanges: InventoryChanges = {
+  system_id: 'sys-demo-001',
+  total_changes: 35,
+  recent_changes: 4,
+  last_inventory_time: '2026-03-22T11:05:19Z',
+  has_critical_changes: true,
+  has_alerts: true,
+  changes_by_category: {
+    os: 9,
+    security: 6,
+    network: 5,
+    hardware: 5,
+    modules: 3,
+    features: 2,
+    backup: 2,
+    cluster: 1,
+    nodes: 1,
+    system: 1,
+  },
+  changes_by_severity: {
+    critical: 6,
+    high: 8,
+    medium: 7,
+    low: 14,
+  },
 }

@@ -9,6 +9,11 @@ import {
   type InventoryDiffSeverity,
   type InventoryDiffType,
 } from '@/lib/systems/inventoryDiffs'
+import {
+  INVENTORY_MOCK_ENABLED,
+  mockInventoryDiffs,
+  mockDiffsPagination,
+} from '@/lib/systems/inventoryMocks'
 import { canReadSystems } from '@/lib/permissions'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
@@ -16,6 +21,7 @@ import { defineQuery, useQuery } from '@pinia/colada'
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
+//// currently unused?
 export const useInventoryDiffs = defineQuery(() => {
   const loginStore = useLoginStore()
   const route = useRoute()
@@ -44,8 +50,8 @@ export const useInventoryDiffs = defineQuery(() => {
       },
     ],
     enabled: () => !!loginStore.jwtToken && canReadSystems() && !!route.params.systemId,
-    query: () =>
-      getInventoryDiffs(
+    query: () => {
+      const apiCall = getInventoryDiffs(
         route.params.systemId as string,
         pageNum.value,
         pageSize.value,
@@ -55,7 +61,13 @@ export const useInventoryDiffs = defineQuery(() => {
         inventoryIdFilter.value,
         fromDate.value,
         toDate.value,
-      ),
+      )
+      if (INVENTORY_MOCK_ENABLED) {
+        apiCall.catch(() => {})
+        return Promise.resolve({ diffs: mockInventoryDiffs, pagination: mockDiffsPagination })
+      }
+      return apiCall
+    },
   })
 
   const areDefaultFiltersApplied = computed(() => {

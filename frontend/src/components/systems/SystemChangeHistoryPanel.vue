@@ -61,6 +61,5 @@ const { state: inventoryChanges, asyncStatus: inventoryChangesAsyncStatus } = us
     />
   </div>
   <!-- changes timeline -->
-  <!-- //// remove mock-mode -->
-  <SystemChangesTimeline mock-mode />
+  <SystemChangesTimeline />
 </template>

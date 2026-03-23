@@ -6,17 +6,19 @@ import {
   type InventoryDiffSeverity,
   type InventoryDiffType,
 } from '@/lib/systems/inventoryDiffs'
+import { INVENTORY_TIMELINE_KEY, getInventoryTimeline } from '@/lib/systems/inventoryTimeline'
 import {
-  INVENTORY_TIMELINE_KEY,
-  getInventoryTimeline,
-} from '@/lib/systems/inventoryTimeline'
+  INVENTORY_MOCK_ENABLED,
+  mockTimelineSummary,
+  mockTimelineGroups,
+} from '@/lib/systems/inventoryMocks'
 import { canReadSystems } from '@/lib/permissions'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useInfiniteQuery } from '@pinia/colada'
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
-const TIMELINE_PAGE_SIZE = 10
+const TIMELINE_PAGE_SIZE = 5 //// 20
 
 export const useInventoryTimeline = defineQuery(() => {
   const loginStore = useLoginStore()
@@ -41,8 +43,8 @@ export const useInventoryTimeline = defineQuery(() => {
     ],
     enabled: () => !!loginStore.jwtToken && canReadSystems() && !!route.params.systemId,
     initialPageParam: 1,
-    query: ({ pageParam }) =>
-      getInventoryTimeline(
+    query: ({ pageParam }) => {
+      const apiCall = getInventoryTimeline(
         route.params.systemId as string,
         pageParam,
         TIMELINE_PAGE_SIZE,
@@ -51,7 +53,27 @@ export const useInventoryTimeline = defineQuery(() => {
         diffTypeFilter.value,
         fromDate.value,
         toDate.value,
-      ),
+      )
+      if (INVENTORY_MOCK_ENABLED) {
+        apiCall.catch(() => {})
+        const start = (pageParam - 1) * TIMELINE_PAGE_SIZE
+        const pagedGroups = mockTimelineGroups.slice(start, start + TIMELINE_PAGE_SIZE)
+        const totalPages = Math.ceil(mockTimelineGroups.length / TIMELINE_PAGE_SIZE)
+        return Promise.resolve({
+          summary: mockTimelineSummary,
+          groups: pagedGroups,
+          pagination: {
+            page: pageParam,
+            page_size: TIMELINE_PAGE_SIZE,
+            total_count: mockTimelineGroups.length,
+            total_pages: totalPages,
+            has_next: pageParam < totalPages,
+            has_prev: pageParam > 1,
+          },
+        })
+      }
+      return apiCall
+    },
     getNextPageParam: (lastPage) =>
       lastPage.pagination.has_next ? lastPage.pagination.page + 1 : null,
   })
@@ -62,9 +84,7 @@ export const useInventoryTimeline = defineQuery(() => {
     ),
   )
 
-  const allGroups = computed(() =>
-    (state.value.data?.pages ?? []).flatMap((page) => page.groups),
-  )
+  const allGroups = computed(() => (state.value.data?.pages ?? []).flatMap((page) => page.groups))
 
   const areDefaultFiltersApplied = computed(() => {
     return (
