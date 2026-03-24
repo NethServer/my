@@ -63,6 +63,18 @@ func HandleProxy(c *gin.Context) {
 		return
 	}
 
+	// Re-validate service target at connection time to prevent DNS rebinding attacks.
+	// The target was validated at manifest registration, but DNS records can change.
+	if err := tunnel.ValidateServiceTarget(svc.Target); err != nil {
+		log.Warn().Err(err).
+			Str("session_id", sessionID).
+			Str("service", serviceName).
+			Str("target", svc.Target).
+			Msg("service target failed DNS re-validation at proxy time")
+		c.JSON(http.StatusForbidden, response.Error(http.StatusForbidden, "service target blocked by security policy", nil))
+		return
+	}
+
 	// Strip Traefik PathPrefix from the request path.
 	// In NS8, Traefik routes e.g. PathPrefix('/cluster-admin') to the backend
 	// and strips the prefix. Our proxy bypasses Traefik, so we must strip it too.

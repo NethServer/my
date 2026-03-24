@@ -101,8 +101,11 @@ func Init() {
 	Config.RateLimitSessionPerID = parseIntWithDefault("RATE_LIMIT_SESSION_PER_ID", 500)
 	Config.RateLimitWindow = parseDurationWithDefault("RATE_LIMIT_WINDOW", 1*time.Minute)
 
-	// Internal authentication
+	// Internal authentication (required: fail fast if empty)
 	Config.InternalSecret = os.Getenv("INTERNAL_SECRET")
+	if Config.InternalSecret == "" {
+		logger.Fatal().Msg("INTERNAL_SECRET is required but not set")
+	}
 
 	logger.LogConfigLoad("env", "configuration", true, nil)
 }
