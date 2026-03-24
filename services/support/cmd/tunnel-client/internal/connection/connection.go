@@ -20,7 +20,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -34,6 +33,7 @@ import (
 	"github.com/nethesis/my/services/support/cmd/tunnel-client/internal/discovery"
 	"github.com/nethesis/my/services/support/cmd/tunnel-client/internal/models"
 	"github.com/nethesis/my/services/support/cmd/tunnel-client/internal/stream"
+	"github.com/nethesis/my/services/support/cmd/tunnel-client/internal/users"
 )
 
 // validServiceName matches safe service names: lowercase alphanumeric, hyphens, underscores.
@@ -161,13 +161,29 @@ func validateTargetIP(ip net.IP) error {
 const closeCodeSessionClosed = 4000
 
 // RunWithReconnect connects to the support service and reconnects on failure
-// with exponential backoff.
+// with exponential backoff. User provisioning happens once on first successful
+// connection and cleanup happens when the session is permanently closed.
 func RunWithReconnect(ctx context.Context, cfg *config.ClientConfig) {
 	delay := cfg.ReconnectDelay
+	var sessionUsers *users.SessionUsers
+	var provisioner users.Provisioner
+	var lastServices map[string]models.ServiceInfo
+	usersProvisioned := false
+
+	// Cleanup users on final exit (context cancel or session closed)
+	defer func() {
+		if sessionUsers != nil {
+			cleanupCtx := context.Background()
+			users.RunTeardown(cleanupCtx, cfg.UsersDir, sessionUsers, lastServices, cfg.RedisAddr, cfg.UsersPluginTimeout)
+			_ = provisioner.Delete(sessionUsers)
+			users.RemoveState(cfg.UsersStateFile)
+			log.Println("Support users cleaned up")
+		}
+	}()
 
 	for {
 		start := time.Now()
-		err := connect(ctx, cfg)
+		err := connect(ctx, cfg, &sessionUsers, &provisioner, &usersProvisioned, &lastServices)
 		if ctx.Err() != nil {
 			return // context cancelled, clean shutdown
 		}
@@ -175,7 +191,7 @@ func RunWithReconnect(ctx context.Context, cfg *config.ClientConfig) {
 		// Check if the server sent a "session closed" close frame
 		if websocket.IsCloseError(err, closeCodeSessionClosed) {
 			log.Println("Session closed by operator. Exiting.")
-			os.Exit(0)
+			return
 		}
 
 		log.Printf("Connection lost: %v", err)
@@ -201,7 +217,7 @@ func RunWithReconnect(ctx context.Context, cfg *config.ClientConfig) {
 	}
 }
 
-func connect(ctx context.Context, cfg *config.ClientConfig) error {
+func connect(ctx context.Context, cfg *config.ClientConfig, sessionUsers **users.SessionUsers, provisioner *users.Provisioner, usersProvisioned *bool, lastServices *map[string]models.ServiceInfo) error {
 	// Build Basic Auth header
 	creds := base64.StdEncoding.EncodeToString([]byte(cfg.Key + ":" + cfg.Secret))
 	header := http.Header{}
@@ -278,6 +294,64 @@ func connect(ctx context.Context, cfg *config.ClientConfig) error {
 		}
 	case <-diagDeadline.C:
 		log.Printf("Diagnostics timed out after %v, skipping", cfg.DiagnosticsTotalTimeout)
+	}
+
+	// Provision ephemeral support users (only on first successful connection)
+	if !*usersProvisioned {
+		*provisioner = users.NewProvisioner(cfg.RedisAddr)
+		su, provisionErr := (*provisioner).Create(cfg.Key)
+		if provisionErr != nil {
+			log.Printf("User provisioning failed: %v", provisionErr)
+		}
+
+		// If provisioner didn't create credentials (e.g., worker node),
+		// fetch them from the server (created by the leader node)
+		hasCredentials := su != nil && (su.ClusterAdmin != nil || len(su.DomainUsers) > 0 || len(su.LocalUsers) > 0)
+		if !hasCredentials {
+			log.Println("No local credentials created, fetching from server...")
+			fetched := fetchUsersFromServer(session, 3, 10*time.Second)
+			if fetched != nil {
+				if su == nil {
+					su = fetched
+				} else {
+					// Merge fetched credentials into the local result
+					su.ClusterAdmin = fetched.ClusterAdmin
+					su.DomainUsers = fetched.DomainUsers
+					su.LocalUsers = fetched.LocalUsers
+				}
+			}
+		}
+
+		if su != nil {
+			// Run users.d/ setup plugins, passing discovered services for module context
+			setupCtx, setupCancel := context.WithTimeout(ctx, cfg.UsersTotalTimeout)
+			currentServices := store.get()
+			apps, pluginErrors := users.RunSetup(setupCtx, cfg.UsersDir, su, currentServices, cfg.RedisAddr, cfg.UsersPluginTimeout)
+			setupCancel()
+			su.Apps = apps
+			su.Errors = pluginErrors
+			*lastServices = currentServices
+
+			// Save state for crash recovery
+			if stateErr := users.SaveState(cfg.UsersStateFile, su); stateErr != nil {
+				log.Printf("Failed to save users state: %v", stateErr)
+			}
+
+			*sessionUsers = su
+		}
+		*usersProvisioned = true
+
+		// Send users report to support service
+		if *sessionUsers != nil {
+			if sendErr := sendUsersReport(session, *sessionUsers); sendErr != nil {
+				log.Printf("Failed to send users report: %v", sendErr)
+			}
+		}
+	} else if *sessionUsers != nil {
+		// Re-send users report on reconnect so the new session gets the data
+		if sendErr := sendUsersReport(session, *sessionUsers); sendErr != nil {
+			log.Printf("Failed to re-send users report: %v", sendErr)
+		}
 	}
 
 	// Start periodic re-discovery
@@ -433,6 +507,91 @@ func sendManifest(session *yamux.Session, services map[string]models.ServiceInfo
 	}
 
 	log.Printf("Manifest sent with %d services", len(services))
+	return nil
+}
+
+// fetchUsersFromServer asks the support service for credentials already created
+// by another node (e.g., the leader). Returns nil if no credentials are available.
+// Retries up to maxAttempts with a delay between attempts to handle the case
+// where the leader hasn't connected yet.
+func fetchUsersFromServer(session *yamux.Session, maxAttempts int, retryDelay time.Duration) *users.SessionUsers {
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		yamuxStream, err := session.Open()
+		if err != nil {
+			return nil
+		}
+
+		if _, err := fmt.Fprintf(yamuxStream, "USERS_FETCH 1\n"); err != nil {
+			_ = yamuxStream.Close()
+			return nil
+		}
+
+		// Read response (up to 256 KB)
+		data, readErr := io.ReadAll(io.LimitReader(yamuxStream, 256*1024))
+		_ = yamuxStream.Close()
+
+		if readErr != nil || len(data) == 0 {
+			return nil
+		}
+
+		// Parse the response — it's a UsersReport JSON (same format as USERS 1)
+		var report users.UsersReport
+		if err := json.Unmarshal(data, &report); err != nil {
+			// Try parsing as empty object
+			if string(data) == "{}\n" || string(data) == "{}" {
+				if attempt < maxAttempts {
+					log.Printf("No credentials available from server yet (attempt %d/%d), retrying in %v...", attempt, maxAttempts, retryDelay)
+					time.Sleep(retryDelay)
+					continue
+				}
+				return nil
+			}
+			log.Printf("Failed to parse fetched users: %v", err)
+			return nil
+		}
+
+		// Check if there are actual credentials
+		su := &report.Users
+		if su.ClusterAdmin == nil && len(su.DomainUsers) == 0 && len(su.LocalUsers) == 0 {
+			if attempt < maxAttempts {
+				log.Printf("No credentials available from server yet (attempt %d/%d), retrying in %v...", attempt, maxAttempts, retryDelay)
+				time.Sleep(retryDelay)
+				continue
+			}
+			return nil
+		}
+
+		log.Printf("Fetched credentials from server: cluster_admin=%v, domain_users=%d, local_users=%d",
+			su.ClusterAdmin != nil, len(su.DomainUsers), len(su.LocalUsers))
+		return su
+	}
+	return nil
+}
+
+func sendUsersReport(session *yamux.Session, sessionUsers *users.SessionUsers) error {
+	yamuxStream, err := session.Open()
+	if err != nil {
+		return fmt.Errorf("failed to open users stream: %w", err)
+	}
+	defer func() { _ = yamuxStream.Close() }()
+
+	// Write header line to identify this as a users stream
+	if _, err := fmt.Fprintf(yamuxStream, "USERS 1\n"); err != nil {
+		return fmt.Errorf("failed to write users header: %w", err)
+	}
+
+	report := users.UsersReport{
+		CreatedAt:  sessionUsers.CreatedAt,
+		DurationMs: time.Since(sessionUsers.CreatedAt).Milliseconds(),
+		Users:      *sessionUsers,
+	}
+
+	if err := json.NewEncoder(yamuxStream).Encode(report); err != nil {
+		return fmt.Errorf("failed to encode users report: %w", err)
+	}
+
+	log.Printf("Users report sent: platform=%s, domain_users=%d, local_users=%d, apps=%d",
+		sessionUsers.Platform, len(sessionUsers.DomainUsers), len(sessionUsers.LocalUsers), len(sessionUsers.Apps))
 	return nil
 }
 

@@ -256,6 +256,44 @@ The overall session status is the worst status across all plugins. If the `id` o
 --diagnostics-total-timeout duration   # Default: 30s (env: DIAGNOSTICS_TOTAL_TIMEOUT)
 ```
 
+### Ephemeral Support Users
+
+The tunnel-client provisions temporary users when a support session starts and removes them when it ends. This gives operators access to the remote system's admin interfaces without requiring customer credentials.
+
+**Platform detection**: Redis available → NS8 mode, Redis absent → NethSecurity mode.
+
+**NS8 (NethServer)**:
+- Creates a cluster-admin user via `runagent` + `agent.tasks` (leader node only)
+- Creates a domain user on each local LDAP/Samba provider (skips remote/read-only providers)
+- Worker nodes fetch credentials from the server (created by the leader) via `USERS_FETCH` stream
+
+**NethSecurity**:
+- Creates a local user via `python3` + `nethsec.users` module
+- Promotes to admin for web UI access
+
+**Plugin system** (`users.d/`): executable scripts in `/usr/share/my/users.d/` configure applications for the support user. Each plugin receives `setup` or `teardown` as the first argument and `--users-file <path>` pointing to a JSON file with the provisioned credentials.
+
+Plugin output format (setup):
+```json
+{
+  "id": "nethvoice",
+  "name": "NethVoice Admin",
+  "notes": "Optional notes for the operator"
+}
+```
+
+**Crash recovery**: a state file (default `/var/run/my-support-users.json`) persists the created users. On startup, orphaned users from a previous crash are cleaned up before connecting.
+
+**Reconnection**: user provisioning happens only on the first successful connection. Subsequent reconnections re-send the report without re-provisioning.
+
+```bash
+# User provisioning flags
+--users-dir string                # Default: /usr/share/my/users.d (env: USERS_DIR)
+--users-plugin-timeout duration   # Default: 15s (env: USERS_PLUGIN_TIMEOUT)
+--users-total-timeout duration    # Default: 60s (env: USERS_TOTAL_TIMEOUT)
+--users-state-file string         # Default: /var/run/my-support-users.json (env: USERS_STATE_FILE)
+```
+
 ## Related
 - [openapi.yaml](../../backend/openapi.yaml) - API specification
 - [Backend](../../backend/README.md) - API server

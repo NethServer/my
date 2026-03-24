@@ -26,6 +26,10 @@ const (
 	RedisPingTimeout                = 2 * time.Second
 	DefaultDiagnosticsPluginTimeout = 10 * time.Second
 	DefaultDiagnosticsTotalTimeout  = 30 * time.Second
+	DefaultUsersDir                 = "/usr/share/my/users.d"
+	DefaultUsersPluginTimeout       = 15 * time.Second
+	DefaultUsersTotalTimeout        = 60 * time.Second
+	DefaultUsersStateFile           = "/var/run/my-support-users.json"
 )
 
 // ClientConfig holds the runtime configuration for the tunnel client
@@ -44,6 +48,10 @@ type ClientConfig struct {
 	DiagnosticsDir           string
 	DiagnosticsPluginTimeout time.Duration
 	DiagnosticsTotalTimeout  time.Duration
+	UsersDir                 string
+	UsersPluginTimeout       time.Duration
+	UsersTotalTimeout        time.Duration
+	UsersStateFile           string
 }
 
 // ParseExcludePatterns parses a comma-separated string of glob patterns.

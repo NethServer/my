@@ -11,6 +11,10 @@ import {
   faTerminal,
   faUpRightFromSquare,
   faPlug,
+  faCopy,
+  faCheck,
+  faChevronDown,
+  faChevronRight,
 } from '@fortawesome/free-solid-svg-icons'
 import {
   NeTable,
@@ -24,11 +28,10 @@ import {
   NeEmptyState,
   NeInlineNotification,
   NeBadge,
-  NeDropdown,
   NeModal,
   NeTextInput,
   NeToggle,
-  type NeDropdownItem,
+  NeSpinner,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -41,11 +44,14 @@ import {
   type SupportSessionStatus,
   type SystemSessionGroup,
   type SupportServiceGroup,
+  type SessionUserCredential,
+  type SessionDomainUser,
   extendSupportSession,
   closeSupportSession,
   getSupportSessionServices,
   generateSupportProxyToken,
   addSupportSessionServices,
+  getSupportSessionUsers,
 } from '@/lib/support/support'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import { formatDateTimeNoSeconds } from '@/lib/dateTime'
@@ -113,7 +119,6 @@ function handleCloseTerminal() {
 
 // Services map keyed by session ID (individual sessions, not groups)
 const servicesMap = ref<Record<string, SupportServiceGroup[]>>({})
-const openingServiceId = ref<string | null>(null)
 
 watch(
   sessionGroups,
@@ -135,109 +140,17 @@ watch(
   { immediate: true },
 )
 
-function groupHasServices(group: SystemSessionGroup): boolean {
-  return group.sessions.some((s) =>
-    (servicesMap.value[s.id] || []).some((g) => g.services.length > 0),
-  )
-}
-
-function getGroupServiceDropdownItems(group: SystemSessionGroup): NeDropdownItem[] {
-  const items: NeDropdownItem[] = []
-
-  // Collect all service groups from all sessions, deduplicating by service name.
-  interface ServiceEntry {
-    group: SupportServiceGroup
-    session: SessionRef
-  }
-  const allGroups: ServiceEntry[] = []
-  const seenServices = new Set<string>()
-
-  for (const session of group.sessions) {
-    for (const sg of servicesMap.value[session.id] || []) {
-      const deduped: SupportServiceGroup = { ...sg, services: [] }
-      for (const svc of sg.services) {
-        if (seenServices.has(svc.name)) continue
-        seenServices.add(svc.name)
-        deduped.services.push(svc)
-      }
-      if (deduped.services.length > 0) {
-        allGroups.push({ group: deduped, session })
-      }
-    }
-  }
-
-  // Sort by nodeId then moduleId
-  allGroups.sort((a, b) => {
-    const nodeA = a.group.nodeId || ''
-    const nodeB = b.group.nodeId || ''
-    const nc = nodeA.localeCompare(nodeB, undefined, { numeric: true })
-    if (nc !== 0) return nc
-    return a.group.moduleId.localeCompare(b.group.moduleId)
-  })
-
-  // Check if services span multiple nodes
-  const nodeIds = new Set(allGroups.map((e) => e.group.nodeId).filter(Boolean))
-  const multiNode = nodeIds.size > 1
-  let lastNodeId = ''
-
-  for (const entry of allGroups) {
-    const { group: sg, session } = entry
-
-    // Node header
-    if (multiNode && sg.nodeId && sg.nodeId !== lastNodeId) {
-      items.push({
-        id: `node-${sg.nodeId}`,
-        label: `— Node ${sg.nodeId} —`,
-        disabled: true,
-      })
-      lastNodeId = sg.nodeId
-    }
-
-    // Module header
-    if (sg.moduleId) {
-      const header = sg.moduleLabel ? `${sg.moduleId} (${sg.moduleLabel})` : sg.moduleId
-      items.push({
-        id: `header-${sg.nodeId}-${sg.moduleId}`,
-        label: header,
-        disabled: true,
-      })
-    }
-
-    // Service items
-    for (const svc of sg.services) {
-      let label = svc.name
-      if (svc.host || svc.path) {
-        const hostPath = (svc.host || '') + (svc.path || '')
-        label += ` (${hostPath})`
-      }
-      items.push({
-        id: `${session.id}-${svc.name}`,
-        label,
-        icon: faUpRightFromSquare,
-        action: () => handleOpenService(session, svc.name, svc.path),
-      })
-    }
-  }
-
-  return items
-}
-
 async function handleOpenService(session: SessionRef, serviceName: string, path?: string) {
-  openingServiceId.value = session.id
   try {
     const result = await generateSupportProxyToken(session.id, serviceName)
-    // Append the route path (e.g., /pbx-report) so Traefik matches the correct route
     let baseUrl = result.url
     if (path && path !== '/') {
-      // result.url ends with '/', path starts with '/'
       baseUrl = baseUrl.replace(/\/$/, '') + path + '/'
     }
     const url = baseUrl + '?token=' + result.token
     window.open(url, '_blank')
   } catch (error) {
     console.error('Cannot generate proxy token:', error)
-  } finally {
-    openingServiceId.value = null
   }
 }
 
@@ -275,12 +188,172 @@ function handleCloseAddService() {
   addServiceGroup.value = null
 }
 
+// ── Unified Services & Credentials modal ──
+
+interface MergedCredentials {
+  clusterAdmin: SessionUserCredential | null
+  domainUsers: SessionDomainUser[]
+  localUsers: SessionUserCredential[]
+}
+
+// A module group for the unified modal: module name + label + domain + credentials + services
+interface UnifiedModuleGroup {
+  moduleId: string
+  moduleLabel: string
+  nodeId: string
+  domain: string
+  password: string
+  services: { name: string; session: SessionRef; host: string; path: string }[]
+}
+
+const unifiedGroup = ref<SystemSessionGroup | null>(null)
+const unifiedLoading = ref(false)
+const unifiedCredentials = ref<MergedCredentials | null>(null)
+const unifiedModules = ref<UnifiedModuleGroup[]>([])
+const unifiedUngrouped = ref<{ name: string; label: string; session: SessionRef; host: string; path: string }[]>(
+  [],
+)
+const copiedField = ref<string | null>(null)
+const expandedModules = ref<Set<string>>(new Set())
+
+function toggleModule(moduleId: string) {
+  if (expandedModules.value.has(moduleId)) {
+    expandedModules.value.delete(moduleId)
+  } else {
+    expandedModules.value.add(moduleId)
+  }
+}
+
+async function handleOpenUnified(group: SystemSessionGroup) {
+  unifiedGroup.value = group
+  unifiedLoading.value = true
+  unifiedCredentials.value = null
+  unifiedModules.value = []
+  unifiedUngrouped.value = []
+  expandedModules.value = new Set()
+
+  try {
+    // Fetch credentials from all active sessions
+    const activeSessions = group.sessions.filter((s) => s.status === 'active')
+    const usersResults = await Promise.all(
+      activeSessions.map((s) => getSupportSessionUsers(s.id).catch(() => null)),
+    )
+
+    // Merge credentials
+    const merged: MergedCredentials = { clusterAdmin: null, domainUsers: [], localUsers: [] }
+    const seenDomains = new Set<string>()
+    const seenLocal = new Set<string>()
+    for (const r of usersResults) {
+      if (!r?.users?.users) continue
+      const u = r.users.users
+      if (u.cluster_admin && !merged.clusterAdmin) merged.clusterAdmin = u.cluster_admin
+      for (const du of u.domain_users || []) {
+        if (!seenDomains.has(du.domain)) {
+          seenDomains.add(du.domain)
+          merged.domainUsers.push(du)
+        }
+      }
+      for (const lu of u.local_users || []) {
+        if (!seenLocal.has(lu.username)) {
+          seenLocal.add(lu.username)
+          merged.localUsers.push(lu)
+        }
+      }
+    }
+    const hasData =
+      merged.clusterAdmin || merged.domainUsers.length > 0 || merged.localUsers.length > 0
+    unifiedCredentials.value = hasData ? merged : null
+
+    // Build domain → password map
+    const domainPasswords = new Map<string, string>()
+    for (const du of merged.domainUsers) {
+      domainPasswords.set(du.domain, du.password)
+    }
+
+    // Build module_domains map from all user reports
+    const moduleDomains = new Map<string, string>()
+    for (const r of usersResults) {
+      if (!r?.users?.users?.module_domains) continue
+      for (const [modId, domain] of Object.entries(r.users.users.module_domains)) {
+        moduleDomains.set(modId, domain)
+      }
+    }
+
+    // Build unified module groups from services
+    const moduleMap = new Map<string, UnifiedModuleGroup>()
+    const ungrouped: typeof unifiedUngrouped.value = []
+    const seenServices = new Set<string>()
+
+    for (const session of activeSessions) {
+      for (const sg of servicesMap.value[session.id] || []) {
+        for (const svc of sg.services) {
+          if (seenServices.has(svc.name)) continue
+          seenServices.add(svc.name)
+
+          if (!svc.moduleId) {
+            ungrouped.push({ name: svc.name, label: svc.label, session, host: svc.host, path: svc.path })
+            continue
+          }
+
+          let mg = moduleMap.get(svc.moduleId)
+          if (!mg) {
+            const domain = moduleDomains.get(svc.moduleId) || ''
+            mg = {
+              moduleId: svc.moduleId,
+              moduleLabel: svc.label || sg.moduleLabel || '',
+              nodeId: svc.nodeId || sg.nodeId || '',
+              domain,
+              password: domain ? domainPasswords.get(domain) || '' : '',
+              services: [],
+            }
+            moduleMap.set(svc.moduleId, mg)
+          }
+          if (!mg.moduleLabel && (svc.label || sg.moduleLabel)) {
+            mg.moduleLabel = svc.label || sg.moduleLabel
+          }
+          mg.services.push({ name: svc.name, session, host: svc.host, path: svc.path })
+        }
+      }
+    }
+
+    // Sort modules by nodeId then moduleId
+    unifiedModules.value = Array.from(moduleMap.values()).sort((a, b) => {
+      const nc = (a.nodeId || '').localeCompare(b.nodeId || '', undefined, { numeric: true })
+      if (nc !== 0) return nc
+      return a.moduleId.localeCompare(b.moduleId)
+    })
+    unifiedUngrouped.value = ungrouped.sort((a, b) => a.name.localeCompare(b.name))
+  } catch (error) {
+    console.error('Cannot load services & credentials:', error)
+  } finally {
+    unifiedLoading.value = false
+  }
+}
+
+function handleCloseUnified() {
+  unifiedGroup.value = null
+}
+
+async function copyToClipboard(text: string, fieldId: string) {
+  await navigator.clipboard.writeText(text)
+  copiedField.value = fieldId
+  setTimeout(() => {
+    copiedField.value = null
+  }, 2000)
+}
+
+// Check if unified modal has any services
+function groupHasServices(group: SystemSessionGroup): boolean {
+  return group.sessions.some((s) =>
+    (servicesMap.value[s.id] || []).some((g) => g.services.length > 0),
+  )
+}
+
 async function handleAddService() {
   if (!addServiceGroup.value) return
   addServiceError.value = ''
   addServiceLoading.value = true
   try {
-    // Use the first active session id as the target
     const activeSession = addServiceGroup.value.sessions.find((s) => s.status === 'active')
     if (!activeSession) {
       addServiceError.value = t('support.no_active_session')
@@ -294,8 +367,6 @@ async function handleAddService() {
         tls: addServiceTls.value,
       },
     ])
-    // Wait for the Redis → support service → tunnel-client → manifest round-trip
-    // before re-fetching, otherwise the GET arrives before the manifest is updated
     handleCloseAddService()
     setTimeout(() => {
       getSupportSessionServices(activeSession.id)
@@ -400,25 +471,17 @@ async function handleAddService() {
                   </template>
                   {{ $t('support.terminal') }}
                 </NeButton>
-                <NeDropdown
+                <NeButton
                   v-if="group.status === 'active' && groupHasServices(group)"
-                  :items="getGroupServiceDropdownItems(group)"
-                  :align-to-right="true"
-                  menu-classes="max-h-80 overflow-y-auto"
+                  kind="tertiary"
+                  size="sm"
+                  @click="handleOpenUnified(group)"
                 >
-                  <template #button>
-                    <NeButton
-                      kind="tertiary"
-                      size="sm"
-                      :loading="openingServiceId === group.system_id"
-                    >
-                      <template #prefix>
-                        <FontAwesomeIcon :icon="faUpRightFromSquare" aria-hidden="true" />
-                      </template>
-                      {{ $t('support.open_service') }}
-                    </NeButton>
+                  <template #prefix>
+                    <FontAwesomeIcon :icon="faUpRightFromSquare" aria-hidden="true" />
                   </template>
-                </NeDropdown>
+                  {{ $t('support.services') }}
+                </NeButton>
                 <NeButton
                   v-if="group.status === 'active'"
                   kind="tertiary"
@@ -493,6 +556,283 @@ async function handleAddService() {
       :system-name="terminalGroup.system_name || terminalGroup.system_key"
       @close="handleCloseTerminal"
     />
+    <!-- Unified Services & Credentials modal -->
+    <NeModal
+      v-if="unifiedGroup"
+      :visible="!!unifiedGroup"
+      :title="$t('support.services_and_credentials')"
+      kind="info"
+      :cancel-label="$t('common.close')"
+      :close-aria-label="$t('common.close')"
+      size="xxl"
+      class="hide-primary-button"
+      @close="handleCloseUnified"
+    >
+      <div class="-mr-2 flex max-h-[65vh] flex-col gap-3 overflow-y-auto pr-2">
+        <div v-if="unifiedLoading" class="flex justify-center py-4">
+          <NeSpinner />
+        </div>
+        <template v-else>
+          <!-- Cluster Admin credentials -->
+          <div
+            v-if="unifiedCredentials?.clusterAdmin"
+            class="shrink-0 rounded-md border border-gray-200 p-3 dark:border-gray-700"
+          >
+            <h4 class="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+              {{ $t('support.cluster_admin') }}
+            </h4>
+            <div class="flex flex-col gap-1 text-sm">
+              <div class="flex items-center justify-between">
+                <span class="text-gray-500 dark:text-gray-400">{{ $t('support.username') }}:</span>
+                <div class="flex items-center gap-1">
+                  <code class="text-gray-900 dark:text-gray-100">{{
+                    unifiedCredentials.clusterAdmin.username
+                  }}</code>
+                  <button
+                    class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                    @click="copyToClipboard(unifiedCredentials.clusterAdmin!.username, 'ca-user')"
+                  >
+                    <FontAwesomeIcon
+                      :icon="copiedField === 'ca-user' ? faCheck : faCopy"
+                      class="h-3 w-3"
+                    />
+                  </button>
+                </div>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-gray-500 dark:text-gray-400">{{ $t('support.password') }}:</span>
+                <div class="flex items-center gap-1">
+                  <code class="text-gray-900 dark:text-gray-100">{{
+                    unifiedCredentials.clusterAdmin.password
+                  }}</code>
+                  <button
+                    class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                    @click="copyToClipboard(unifiedCredentials.clusterAdmin!.password, 'ca-pass')"
+                  >
+                    <FontAwesomeIcon
+                      :icon="copiedField === 'ca-pass' ? faCheck : faCopy"
+                      class="h-3 w-3"
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+            <!-- Open cluster-admin link -->
+            <button
+              v-if="unifiedUngrouped.find((s) => s.name === 'cluster-admin')"
+              class="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 mt-2 flex items-center gap-1.5 text-sm"
+              @click="
+                handleOpenService(
+                  unifiedUngrouped.find((s) => s.name === 'cluster-admin')!.session,
+                  'cluster-admin',
+                )
+              "
+            >
+              <FontAwesomeIcon :icon="faUpRightFromSquare" class="h-3 w-3" />
+              {{ $t('support.open_service') }}
+            </button>
+          </div>
+          <!-- Local Users (NethSecurity) -->
+          <div
+            v-if="unifiedCredentials?.localUsers.length"
+            class="shrink-0 rounded-md border border-gray-200 p-3 dark:border-gray-700"
+          >
+            <h4 class="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+              {{ $t('support.local_users') }}
+            </h4>
+            <div
+              v-for="(lu, idx) in unifiedCredentials.localUsers"
+              :key="idx"
+              class="flex flex-col gap-1 text-sm"
+            >
+              <div class="flex items-center justify-between">
+                <span class="text-gray-500 dark:text-gray-400">{{ $t('support.username') }}:</span>
+                <div class="flex items-center gap-1">
+                  <code class="text-gray-900 dark:text-gray-100">{{ lu.username }}</code>
+                  <button
+                    class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                    @click="copyToClipboard(lu.username, `lu-user-${idx}`)"
+                  >
+                    <FontAwesomeIcon
+                      :icon="copiedField === `lu-user-${idx}` ? faCheck : faCopy"
+                      class="h-3 w-3"
+                    />
+                  </button>
+                </div>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-gray-500 dark:text-gray-400">{{ $t('support.password') }}:</span>
+                <div class="flex items-center gap-1">
+                  <code class="text-gray-900 dark:text-gray-100">{{ lu.password }}</code>
+                  <button
+                    class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                    @click="copyToClipboard(lu.password, `lu-pass-${idx}`)"
+                  >
+                    <FontAwesomeIcon
+                      :icon="copiedField === `lu-pass-${idx}` ? faCheck : faCopy"
+                      class="h-3 w-3"
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+            <!-- Open nethsecurity-ui link -->
+            <button
+              v-if="unifiedUngrouped.find((s) => s.name === 'nethsecurity-ui')"
+              class="mt-2 flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+              @click="
+                handleOpenService(
+                  unifiedUngrouped.find((s) => s.name === 'nethsecurity-ui')!.session,
+                  'nethsecurity-ui',
+                )
+              "
+            >
+              <FontAwesomeIcon :icon="faUpRightFromSquare" class="h-3 w-3" />
+              {{ $t('support.open_service') }}
+            </button>
+          </div>
+          <!-- Module groups with services + domain credentials (collapsible) -->
+          <template v-for="(mg, mgIdx) in unifiedModules" :key="mg.moduleId">
+            <div
+              class="shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-500 dark:bg-gray-800"
+            >
+              <!-- Clickable module header -->
+              <button
+                class="flex w-full items-center gap-2 px-4 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
+                @click="toggleModule(mg.moduleId)"
+              >
+                <FontAwesomeIcon
+                  :icon="expandedModules.has(mg.moduleId) ? faChevronDown : faChevronRight"
+                  class="h-3.5 w-3.5 shrink-0 text-gray-500 dark:text-gray-400"
+                />
+                <h4 class="flex-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  {{ mg.moduleId }}
+                  <span v-if="mg.moduleLabel" class="font-normal text-gray-500 dark:text-gray-400">
+                    ({{ mg.moduleLabel }})
+                  </span>
+                </h4>
+                <NeBadge v-if="mg.nodeId" :text="`Node ${mg.nodeId}`" kind="secondary" size="sm" />
+                <NeBadge :text="`${mg.services.length}`" kind="secondary" size="sm" />
+              </button>
+              <!-- Expanded content -->
+              <div
+                v-if="expandedModules.has(mg.moduleId)"
+                class="border-t border-gray-200 p-3 dark:border-gray-700"
+              >
+                <!-- Domain credentials for this module -->
+                <div
+                  v-if="mg.domain && mg.password"
+                  class="mb-2 rounded bg-gray-50 p-2 text-sm dark:bg-gray-800/50"
+                >
+                  <div class="flex items-center justify-between">
+                    <span class="text-gray-500 dark:text-gray-400"
+                      >{{ $t('support.domain') }}:</span
+                    >
+                    <span class="text-gray-700 dark:text-gray-300">{{ mg.domain }}</span>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-gray-500 dark:text-gray-400"
+                      >{{ $t('support.username') }}:</span
+                    >
+                    <div class="flex items-center gap-1">
+                      <code class="text-gray-900 dark:text-gray-100">{{
+                        unifiedCredentials?.domainUsers[0]?.username
+                      }}</code>
+                      <button
+                        class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                        @click.stop="
+                          copyToClipboard(
+                            unifiedCredentials?.domainUsers[0]?.username || '',
+                            `mg-user-${mgIdx}`,
+                          )
+                        "
+                      >
+                        <FontAwesomeIcon
+                          :icon="copiedField === `mg-user-${mgIdx}` ? faCheck : faCopy"
+                          class="h-3 w-3"
+                        />
+                      </button>
+                    </div>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-gray-500 dark:text-gray-400"
+                      >{{ $t('support.password') }}:</span
+                    >
+                    <div class="flex items-center gap-1">
+                      <code class="text-gray-900 dark:text-gray-100">{{ mg.password }}</code>
+                      <button
+                        class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                        @click.stop="copyToClipboard(mg.password, `mg-pass-${mgIdx}`)"
+                      >
+                        <FontAwesomeIcon
+                          :icon="copiedField === `mg-pass-${mgIdx}` ? faCheck : faCopy"
+                          class="h-3 w-3"
+                        />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <!-- Service links -->
+                <div class="flex flex-col gap-0.5">
+                  <button
+                    v-for="svc in mg.services"
+                    :key="svc.name"
+                    class="text-primary-600 dark:text-primary-400 flex items-center gap-1.5 rounded px-1 py-0.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-800"
+                    @click="handleOpenService(svc.session, svc.name, svc.path)"
+                  >
+                    <FontAwesomeIcon :icon="faUpRightFromSquare" class="h-3 w-3 shrink-0" />
+                    <span class="min-w-0 truncate">{{ svc.name }}</span>
+                    <span v-if="svc.host" class="min-w-0 shrink truncate text-xs text-gray-400"
+                      >({{ svc.host }}{{ svc.path || '' }})</span
+                    >
+                  </button>
+                </div>
+              </div>
+            </div>
+          </template>
+          <!-- Ungrouped services (no moduleId, excluding cluster-admin) -->
+          <div
+            v-if="unifiedUngrouped.filter((s) => s.name !== 'cluster-admin' && s.name !== 'nethsecurity-ui').length"
+            class="shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-500 dark:bg-gray-800"
+          >
+            <button
+              class="flex w-full items-center gap-2 px-4 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
+              @click="toggleModule('__ungrouped__')"
+            >
+              <FontAwesomeIcon
+                :icon="expandedModules.has('__ungrouped__') ? faChevronDown : faChevronRight"
+                class="h-3 w-3 shrink-0 text-gray-400"
+              />
+              <h4 class="flex-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                {{ $t('support.other_services') }}
+              </h4>
+              <NeBadge
+                :text="`${unifiedUngrouped.filter((s) => s.name !== 'cluster-admin' && s.name !== 'nethsecurity-ui').length}`"
+                kind="secondary"
+                size="sm"
+              />
+            </button>
+            <div
+              v-if="expandedModules.has('__ungrouped__')"
+              class="border-t border-gray-200 p-3 dark:border-gray-700"
+            >
+              <div class="flex flex-col gap-0.5">
+                <button
+                  v-for="svc in unifiedUngrouped.filter((s) => s.name !== 'cluster-admin' && s.name !== 'nethsecurity-ui')"
+                  :key="svc.name"
+                  class="text-primary-600 dark:text-primary-400 flex items-center gap-1.5 rounded px-1 py-0.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-800"
+                  @click="handleOpenService(svc.session, svc.name, svc.path)"
+                >
+                  <FontAwesomeIcon :icon="faUpRightFromSquare" class="h-3 w-3 shrink-0" />
+                  <span>{{ svc.label || svc.name }}</span>
+                  <span v-if="svc.label" class="text-xs text-gray-400">({{ svc.name }})</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </NeModal>
     <!-- Add service modal -->
     <NeModal
       v-if="addServiceGroup"
@@ -534,3 +874,9 @@ async function handleAddService() {
     </NeModal>
   </div>
 </template>
+
+<style>
+.hide-primary-button button[type='submit'] {
+  display: none;
+}
+</style>
