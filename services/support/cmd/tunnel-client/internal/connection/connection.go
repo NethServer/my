@@ -41,18 +41,24 @@ var validServiceName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
 
 // commandPayload is the JSON body of a COMMAND stream sent by the support service.
 type commandPayload struct {
-	Action   string                        `json:"action"`
-	Services map[string]models.ServiceInfo `json:"services,omitempty"`
+	Action       string                        `json:"action"`
+	Services     map[string]models.ServiceInfo `json:"services,omitempty"`
+	ServiceNames []string                      `json:"service_names,omitempty"` // for remove_services
 }
 
 // serviceStore is a goroutine-safe holder for the current service map.
+// It tracks which services were injected via COMMAND so they survive re-discovery.
 type serviceStore struct {
 	mu       sync.RWMutex
 	services map[string]models.ServiceInfo
+	injected map[string]models.ServiceInfo // services added via COMMAND (preserved across re-discovery)
 }
 
 func newServiceStore(initial map[string]models.ServiceInfo) *serviceStore {
-	return &serviceStore{services: initial}
+	return &serviceStore{
+		services: initial,
+		injected: make(map[string]models.ServiceInfo),
+	}
 }
 
 func (s *serviceStore) get() map[string]models.ServiceInfo {
@@ -65,18 +71,43 @@ func (s *serviceStore) get() map[string]models.ServiceInfo {
 	return result
 }
 
-func (s *serviceStore) set(m map[string]models.ServiceInfo) {
+// setDiscovered replaces discovered services but preserves injected (COMMAND) services.
+func (s *serviceStore) setDiscovered(discovered map[string]models.ServiceInfo) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.services = m
+	merged := make(map[string]models.ServiceInfo, len(discovered)+len(s.injected))
+	for k, v := range discovered {
+		merged[k] = v
+	}
+	// Re-add injected services (COMMAND-added) that weren't in the new discovery
+	for k, v := range s.injected {
+		if _, exists := merged[k]; !exists {
+			merged[k] = v
+		}
+	}
+	s.services = merged
 }
 
-func (s *serviceStore) merge(additional map[string]models.ServiceInfo) {
+// addInjected adds services via COMMAND and marks them as injected.
+func (s *serviceStore) addInjected(additional map[string]models.ServiceInfo) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for k, v := range additional {
 		s.services[k] = v
+		s.injected[k] = v
 	}
+}
+
+// removeInjected removes an injected service by name.
+func (s *serviceStore) removeInjected(name string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.injected[name]; !ok {
+		return false
+	}
+	delete(s.injected, name)
+	delete(s.services, name)
+	return true
 }
 
 func (s *serviceStore) len() int {
@@ -368,10 +399,10 @@ func connect(ctx context.Context, cfg *config.ClientConfig, sessionUsers **users
 			case <-ticker.C:
 				newServices := discovery.DiscoverServices(ctx, cfg)
 				if len(newServices) > 0 {
-					if err := sendManifest(session, newServices); err != nil {
+					store.setDiscovered(newServices)
+					if err := sendManifest(session, store.get()); err != nil {
 						log.Printf("Failed to send updated manifest: %v", err)
 					} else {
-						store.set(newServices)
 						log.Printf("Manifest updated with %d services", len(newServices))
 					}
 				}
@@ -448,6 +479,24 @@ func handleCommandStream(s net.Conn, firstLine string, store *serviceStore, sess
 		}
 		log.Printf("add_services: added %d static service(s)", len(payload.Services))
 		_, _ = fmt.Fprint(s, "OK\n")
+	case "remove_services":
+		if len(payload.ServiceNames) == 0 {
+			_, _ = fmt.Fprint(s, "ERROR no service names provided\n")
+			return
+		}
+		removed := 0
+		for _, name := range payload.ServiceNames {
+			if store.removeInjected(name) {
+				removed++
+			}
+		}
+		if removed > 0 {
+			if err := sendManifest(session, store.get()); err != nil {
+				log.Printf("Failed to resend manifest after remove: %v", err)
+			}
+		}
+		log.Printf("remove_services: removed %d service(s)", removed)
+		_, _ = fmt.Fprint(s, "OK\n")
 	default:
 		log.Printf("Unknown command action: %q", payload.Action)
 		_, _ = fmt.Fprintf(s, "ERROR unknown action %q\n", payload.Action)
@@ -481,7 +530,7 @@ func applyAddServices(newSvcs map[string]models.ServiceInfo, store *serviceStore
 		validated[name] = svc
 	}
 
-	store.merge(validated)
+	store.addInjected(validated)
 
 	// Re-send manifest so the support service registers the new services
 	if err := sendManifest(session, store.get()); err != nil {

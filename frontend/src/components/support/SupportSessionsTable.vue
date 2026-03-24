@@ -15,6 +15,7 @@ import {
   faCheck,
   faChevronDown,
   faChevronRight,
+  faTrashCan,
 } from '@fortawesome/free-solid-svg-icons'
 import {
   NeTable,
@@ -51,6 +52,7 @@ import {
   getSupportSessionServices,
   generateSupportProxyToken,
   addSupportSessionServices,
+  removeSupportSessionService,
   getSupportSessionUsers,
 } from '@/lib/support/support'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
@@ -210,9 +212,9 @@ const unifiedGroup = ref<SystemSessionGroup | null>(null)
 const unifiedLoading = ref(false)
 const unifiedCredentials = ref<MergedCredentials | null>(null)
 const unifiedModules = ref<UnifiedModuleGroup[]>([])
-const unifiedUngrouped = ref<{ name: string; label: string; session: SessionRef; host: string; path: string }[]>(
-  [],
-)
+const unifiedUngrouped = ref<
+  { name: string; label: string; session: SessionRef; host: string; path: string }[]
+>([])
 const copiedField = ref<string | null>(null)
 const expandedModules = ref<Set<string>>(new Set())
 
@@ -233,8 +235,20 @@ async function handleOpenUnified(group: SystemSessionGroup) {
   expandedModules.value = new Set()
 
   try {
-    // Fetch credentials from all active sessions
+    // Fetch fresh services and credentials from all active sessions
     const activeSessions = group.sessions.filter((s) => s.status === 'active')
+
+    // Re-fetch services to get latest state (handles add/remove since last open)
+    await Promise.all(
+      activeSessions.map((s) =>
+        getSupportSessionServices(s.id)
+          .then((svcGroups) => {
+            servicesMap.value[s.id] = svcGroups || []
+          })
+          .catch(() => {}),
+      ),
+    )
+
     const usersResults = await Promise.all(
       activeSessions.map((s) => getSupportSessionUsers(s.id).catch(() => null)),
     )
@@ -291,7 +305,13 @@ async function handleOpenUnified(group: SystemSessionGroup) {
           seenServices.add(svc.name)
 
           if (!svc.moduleId) {
-            ungrouped.push({ name: svc.name, label: svc.label, session, host: svc.host, path: svc.path })
+            ungrouped.push({
+              name: svc.name,
+              label: svc.label,
+              session,
+              host: svc.host,
+              path: svc.path,
+            })
             continue
           }
 
@@ -347,6 +367,31 @@ function groupHasServices(group: SystemSessionGroup): boolean {
   return group.sessions.some((s) =>
     (servicesMap.value[s.id] || []).some((g) => g.services.length > 0),
   )
+}
+
+async function handleRemoveService(session: SessionRef, serviceName: string) {
+  try {
+    await removeSupportSessionService(session.id, serviceName)
+    // Remove from local modal state immediately
+    unifiedUngrouped.value = unifiedUngrouped.value.filter((s) => s.name !== serviceName)
+    // Also remove from servicesMap cache so reopening the modal won't show it
+    const cached = servicesMap.value[session.id]
+    if (cached) {
+      servicesMap.value[session.id] = cached
+        .map((g) => ({ ...g, services: g.services.filter((s) => s.name !== serviceName) }))
+        .filter((g) => g.services.length > 0)
+    }
+    // Re-fetch after delay to sync with server
+    setTimeout(() => {
+      getSupportSessionServices(session.id)
+        .then((svcGroups) => {
+          servicesMap.value[session.id] = svcGroups || []
+        })
+        .catch(() => {})
+    }, 2000)
+  } catch (error) {
+    console.error('Cannot remove service:', error)
+  }
 }
 
 async function handleAddService() {
@@ -679,7 +724,7 @@ async function handleAddService() {
             <!-- Open nethsecurity-ui link -->
             <button
               v-if="unifiedUngrouped.find((s) => s.name === 'nethsecurity-ui')"
-              class="mt-2 flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+              class="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 mt-2 flex items-center gap-1.5 text-sm"
               @click="
                 handleOpenService(
                   unifiedUngrouped.find((s) => s.name === 'nethsecurity-ui')!.session,
@@ -792,7 +837,11 @@ async function handleAddService() {
           </template>
           <!-- Ungrouped services (no moduleId, excluding cluster-admin) -->
           <div
-            v-if="unifiedUngrouped.filter((s) => s.name !== 'cluster-admin' && s.name !== 'nethsecurity-ui').length"
+            v-if="
+              unifiedUngrouped.filter(
+                (s) => s.name !== 'cluster-admin' && s.name !== 'nethsecurity-ui',
+              ).length
+            "
             class="shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-500 dark:bg-gray-800"
           >
             <button
@@ -804,7 +853,7 @@ async function handleAddService() {
                 class="h-3 w-3 shrink-0 text-gray-400"
               />
               <h4 class="flex-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
-                {{ $t('support.other_services') }}
+                {{ $t('support.custom_services') }}
               </h4>
               <NeBadge
                 :text="`${unifiedUngrouped.filter((s) => s.name !== 'cluster-admin' && s.name !== 'nethsecurity-ui').length}`"
@@ -816,17 +865,29 @@ async function handleAddService() {
               v-if="expandedModules.has('__ungrouped__')"
               class="border-t border-gray-200 p-3 dark:border-gray-700"
             >
-              <div class="flex flex-col gap-0.5">
-                <button
-                  v-for="svc in unifiedUngrouped.filter((s) => s.name !== 'cluster-admin' && s.name !== 'nethsecurity-ui')"
+              <div class="flex flex-col gap-1">
+                <div
+                  v-for="svc in unifiedUngrouped.filter(
+                    (s) => s.name !== 'cluster-admin' && s.name !== 'nethsecurity-ui',
+                  )"
                   :key="svc.name"
-                  class="text-primary-600 dark:text-primary-400 flex items-center gap-1.5 rounded px-1 py-0.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-800"
-                  @click="handleOpenService(svc.session, svc.name, svc.path)"
+                  class="flex items-center justify-between rounded px-1 py-0.5 text-sm"
                 >
-                  <FontAwesomeIcon :icon="faUpRightFromSquare" class="h-3 w-3 shrink-0" />
-                  <span>{{ svc.label || svc.name }}</span>
-                  <span v-if="svc.label" class="text-xs text-gray-400">({{ svc.name }})</span>
-                </button>
+                  <button
+                    class="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 flex items-center gap-1.5"
+                    @click="handleOpenService(svc.session, svc.name, svc.path)"
+                  >
+                    <FontAwesomeIcon :icon="faUpRightFromSquare" class="h-3 w-3 shrink-0" />
+                    <span>{{ svc.label || svc.name }}</span>
+                    <span v-if="svc.label" class="text-xs text-gray-400">({{ svc.name }})</span>
+                  </button>
+                  <button
+                    class="p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400"
+                    @click="handleRemoveService(svc.session, svc.name)"
+                  >
+                    <FontAwesomeIcon :icon="faTrashCan" class="h-3 w-3" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>

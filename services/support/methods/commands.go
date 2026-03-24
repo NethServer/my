@@ -56,9 +56,10 @@ func verifyAndUnwrap(raw string) (string, bool) {
 
 // SupportCommand represents a command received via Redis pub/sub
 type SupportCommand struct {
-	Action    string                        `json:"action"`
-	SessionID string                        `json:"session_id"`
-	Services  map[string]tunnel.ServiceInfo `json:"services,omitempty"`
+	Action       string                        `json:"action"`
+	SessionID    string                        `json:"session_id"`
+	Services     map[string]tunnel.ServiceInfo `json:"services,omitempty"`
+	ServiceNames []string                      `json:"service_names,omitempty"` // for remove_services
 }
 
 // StartCommandListener listens for commands from the backend via Redis pub/sub
@@ -105,6 +106,8 @@ func StartCommandListener(ctx context.Context) {
 				handleCloseCommand(cmd.SessionID)
 			case "add_services":
 				handleAddServicesCommand(cmd)
+			case "remove_services":
+				handleRemoveServicesCommand(cmd)
 			default:
 				log.Warn().Str("action", cmd.Action).Msg("unknown command action")
 			}
@@ -138,6 +141,25 @@ func handleAddServicesCommand(cmd SupportCommand) {
 		log.Error().Err(err).Str("session_id", cmd.SessionID).Msg("failed to send add_services command to tunnel")
 	} else {
 		log.Info().Str("session_id", cmd.SessionID).Int("count", len(cmd.Services)).Msg("add_services command sent")
+	}
+}
+
+func handleRemoveServicesCommand(cmd SupportCommand) {
+	log := logger.ComponentLogger("commands")
+
+	// Remove services from the server-side tunnel registry immediately
+	// so GET /services reflects the change without waiting for the tunnel-client manifest
+	TunnelManager.RemoveServicesBySessionID(cmd.SessionID, cmd.ServiceNames)
+
+	payload := tunnel.CommandPayload{
+		Action:       "remove_services",
+		ServiceNames: cmd.ServiceNames,
+	}
+
+	if err := TunnelManager.SendCommandToSession(cmd.SessionID, payload); err != nil {
+		log.Error().Err(err).Str("session_id", cmd.SessionID).Msg("failed to send remove_services command to tunnel")
+	} else {
+		log.Info().Str("session_id", cmd.SessionID).Int("count", len(cmd.ServiceNames)).Msg("remove_services command sent")
 	}
 }
 

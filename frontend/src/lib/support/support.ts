@@ -408,6 +408,15 @@ export interface AddSessionServiceItem {
   tls?: boolean
 }
 
+export const removeSupportSessionService = (sessionId: string, serviceName: string) => {
+  const loginStore = useLoginStore()
+  return axios
+    .delete(`${API_URL}/support-sessions/${sessionId}/services/${serviceName}`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data)
+}
+
 export const addSupportSessionServices = (sessionId: string, services: AddSessionServiceItem[]) => {
   const loginStore = useLoginStore()
   return axios
