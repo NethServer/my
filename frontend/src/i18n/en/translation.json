@@ -672,7 +672,7 @@
     "cluster_admin": "Cluster Admin",
     "domain_users": "Domain Users",
     "local_users": "Admin Interface",
-    "other_services": "Other Services",
+    "custom_services": "Custom Services",
     "username": "Username",
     "password": "Password",
     "domain": "Domain",

@@ -363,3 +363,58 @@ func AddSupportSessionServices(c *gin.Context) {
 		"count":      len(request.Services),
 	}))
 }
+
+// RemoveSupportSessionService handles DELETE /api/support-sessions/:id/services/:name
+// It sends a remove_services command to the tunnel-client via Redis pub/sub.
+func RemoveSupportSessionService(c *gin.Context) {
+	sessionID := c.Param("id")
+	serviceName := c.Param("name")
+	if sessionID == "" || serviceName == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("session id and service name required", nil))
+		return
+	}
+
+	_, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+
+	repo := entities.NewSupportRepository()
+	sess, err := repo.GetSessionByID(sessionID, userOrgRole, userOrgID)
+	if err != nil {
+		logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to get support session")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get support session", nil))
+		return
+	}
+	if sess == nil {
+		c.JSON(http.StatusNotFound, response.NotFound("support session not found", nil))
+		return
+	}
+	if sess.Status != "active" {
+		c.JSON(http.StatusConflict, response.Conflict("session is not active", nil))
+		return
+	}
+
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		c.JSON(http.StatusServiceUnavailable, response.InternalServerError("redis not available", nil))
+		return
+	}
+
+	cmd := map[string]interface{}{
+		"action":        "remove_services",
+		"session_id":    sessionID,
+		"service_names": []string{serviceName},
+	}
+	payload, _ := json.Marshal(cmd)
+	envelope := signAndMarshal(payload)
+	if err := redisClient.Publish("support:commands", string(envelope)); err != nil {
+		logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to publish remove_services command")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to send command to support service", nil))
+		return
+	}
+
+	logger.LogBusinessOperation(c, "support", "remove_service", "session", sessionID, true, nil)
+
+	c.JSON(http.StatusOK, response.OK("service removed successfully", gin.H{
+		"session_id":   sessionID,
+		"service_name": serviceName,
+	}))
+}
