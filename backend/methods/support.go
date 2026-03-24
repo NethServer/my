@@ -124,13 +124,27 @@ func ExtendSupportSession(c *gin.Context) {
 		return
 	}
 
+	_, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+
+	// RBAC: verify session belongs to the caller's scope
+	repo := entities.NewSupportRepository()
+	sess, err := repo.GetSessionByID(sessionID, userOrgRole, userOrgID)
+	if err != nil {
+		logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to get support session")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get support session", nil))
+		return
+	}
+	if sess == nil {
+		c.JSON(http.StatusNotFound, response.NotFound("support session not found", nil))
+		return
+	}
+
 	var request models.ExtendSessionRequest
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
 		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
 		return
 	}
 
-	repo := entities.NewSupportRepository()
 	if err := repo.ExtendSession(sessionID, request.Hours); err != nil {
 		logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to extend support session")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to extend support session", nil))
@@ -153,7 +167,21 @@ func CloseSupportSession(c *gin.Context) {
 		return
 	}
 
+	_, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+
+	// RBAC: verify session belongs to the caller's scope
 	repo := entities.NewSupportRepository()
+	sess, err := repo.GetSessionByID(sessionID, userOrgRole, userOrgID)
+	if err != nil {
+		logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to get support session")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get support session", nil))
+		return
+	}
+	if sess == nil {
+		c.JSON(http.StatusNotFound, response.NotFound("support session not found", nil))
+		return
+	}
+
 	if err := repo.CloseSession(sessionID); err != nil {
 		logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to close support session")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to close support session", nil))
