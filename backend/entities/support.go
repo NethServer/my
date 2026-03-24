@@ -491,6 +491,54 @@ func (r *SupportRepository) GetDiagnostics(sessionID, userOrgRole, userOrgID str
 	return data, at, nil
 }
 
+// GetUsers returns the ephemeral support users for a session, if available and accessible.
+// Returns nil, nil, nil if users have not been provisioned yet.
+func (r *SupportRepository) GetUsers(sessionID, userOrgRole, userOrgID string) (map[string]interface{}, *time.Time, error) {
+	conditions := []string{"ss.id = $1"}
+	args := []interface{}{sessionID}
+	argIdx := 2
+
+	// RBAC scope filter
+	rbacCondition, rbacArgs, _ := buildRBACFilter(userOrgRole, userOrgID, argIdx)
+	if rbacCondition != "" {
+		conditions = append(conditions, rbacCondition)
+		args = append(args, rbacArgs...)
+	}
+
+	query := fmt.Sprintf(`SELECT ss.users, ss.users_at
+	          FROM support_sessions ss
+	          JOIN systems s ON ss.system_id = s.id
+	          WHERE %s`, strings.Join(conditions, " AND "))
+
+	var rawUsers []byte
+	var usersAt sql.NullTime
+
+	err := r.db.QueryRow(query, args...).Scan(&rawUsers, &usersAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil, nil
+		}
+		return nil, nil, fmt.Errorf("failed to get users: %w", err)
+	}
+
+	if rawUsers == nil {
+		return nil, nil, nil
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal(rawUsers, &data); err != nil {
+		return nil, nil, fmt.Errorf("failed to unmarshal users: %w", err)
+	}
+
+	var at *time.Time
+	if usersAt.Valid {
+		t := usersAt.Time
+		at = &t
+	}
+
+	return data, at, nil
+}
+
 // statusSeverity maps a diagnostic status to a numeric severity for comparison.
 // Higher values indicate worse status.
 var statusSeverity = map[string]int{

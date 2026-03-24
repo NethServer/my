@@ -664,6 +664,18 @@
     "service_target_helper": "Address and port of the service on the remote system",
     "service_label": "Label (optional)",
     "service_label_placeholder": "e.g. My Service",
-    "service_tls": "TLS"
+    "service_tls": "TLS",
+    "credentials": "Credentials",
+    "credentials_title": "Support Credentials",
+    "services_and_credentials": "Services & Credentials",
+    "no_credentials": "No credentials available for this session.",
+    "cluster_admin": "Cluster Admin",
+    "domain_users": "Domain Users",
+    "local_users": "Admin Interface",
+    "other_services": "Other Services",
+    "username": "Username",
+    "password": "Password",
+    "domain": "Domain",
+    "copied": "Copied"
   }
 }

@@ -485,6 +485,7 @@ func main() {
 			supportGroup.DELETE("/:id", methods.CloseSupportSession)
 			supportGroup.GET("/:id/logs", methods.GetSupportSessionLogs)
 			supportGroup.GET("/:id/diagnostics", methods.GetSupportSessionDiagnostics)
+			supportGroup.GET("/:id/users", methods.GetSupportSessionUsers)
 			supportGroup.GET("/:id/services", methods.GetSupportSessionServices)
 			supportGroup.POST("/:id/services", methods.AddSupportSessionServices)
 			supportGroup.POST("/:id/terminal-ticket", methods.GenerateTerminalTicket)

@@ -350,3 +350,41 @@ func SaveDiagnostics(sessionID string, data json.RawMessage) (bool, error) {
 	rows, _ := result.RowsAffected()
 	return rows > 0, nil
 }
+
+// SaveUsers stores the ephemeral support users report on a session.
+// Similar to SaveDiagnostics, only one update is allowed per session.
+// Returns (true, nil) if saved, (false, nil) if already present, (false, err) on error.
+func SaveUsers(sessionID string, data json.RawMessage) (bool, error) {
+	result, err := database.DB.Exec(
+		`UPDATE support_sessions
+		 SET users = $1, users_at = NOW(), updated_at = NOW()
+		 WHERE id = $2
+		   AND users IS NULL`,
+		string(data), sessionID,
+	)
+	if err != nil {
+		return false, err
+	}
+	rows, _ := result.RowsAffected()
+	return rows > 0, nil
+}
+
+// GetUsersBySystemID returns the users report from any active/pending session
+// of the same system that already has credentials. This allows worker nodes
+// to fetch credentials created by the leader node's tunnel-client.
+func GetUsersBySystemID(systemID string) (json.RawMessage, error) {
+	var rawUsers []byte
+	err := database.DB.QueryRow(
+		`SELECT users FROM support_sessions
+		 WHERE system_id = $1 AND status IN ('pending', 'active') AND users IS NOT NULL
+		 ORDER BY users_at DESC LIMIT 1`,
+		systemID,
+	).Scan(&rawUsers)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return rawUsers, nil
+}

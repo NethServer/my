@@ -28,6 +28,8 @@ type SupportSession struct {
 	ClosedBy       *string          `json:"closed_by,omitempty"`
 	Diagnostics    *json.RawMessage `json:"diagnostics,omitempty"`
 	DiagnosticsAt  *time.Time       `json:"diagnostics_at,omitempty"`
+	Users          *json.RawMessage `json:"users,omitempty"`
+	UsersAt        *time.Time       `json:"users_at,omitempty"`
 	CreatedAt      time.Time        `json:"created_at"`
 	UpdatedAt      time.Time        `json:"updated_at"`
 }

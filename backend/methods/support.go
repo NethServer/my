@@ -231,6 +231,31 @@ func GetSupportSessionDiagnostics(c *gin.Context) {
 	}))
 }
 
+// GetSupportSessionUsers handles GET /api/support-sessions/:id/users
+func GetSupportSessionUsers(c *gin.Context) {
+	sessionID := c.Param("id")
+	if sessionID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("session id required", nil))
+		return
+	}
+
+	_, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+
+	repo := entities.NewSupportRepository()
+	data, at, err := repo.GetUsers(sessionID, userOrgRole, userOrgID)
+	if err != nil {
+		logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to get session users")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get session users", nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("session users retrieved successfully", gin.H{
+		"session_id": sessionID,
+		"users":      data,
+		"users_at":   at,
+	}))
+}
+
 // GetSystemSessionsDiagnostics handles GET /api/support-sessions/diagnostics?system_id=X
 // Returns diagnostics for all active sessions of a system, grouped by node.
 func GetSystemSessionsDiagnostics(c *gin.Context) {
