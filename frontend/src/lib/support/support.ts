@@ -432,6 +432,62 @@ export const getSupportSessionDiagnostics = (sessionId: string): Promise<Session
     .then((res) => res.data.data)
 }
 
+// Ephemeral support users
+
+export interface SessionUserCredential {
+  username: string
+  password: string
+}
+
+export interface SessionDomainUser {
+  domain: string
+  module: string
+  username: string
+  password: string
+}
+
+export interface SessionAppConfig {
+  id: string
+  name: string
+  url?: string
+  notes?: string
+}
+
+export interface SessionUsersData {
+  session_id: string
+  platform: string
+  cluster_admin?: SessionUserCredential
+  domain_users?: SessionDomainUser[]
+  local_users?: SessionUserCredential[]
+  apps?: SessionAppConfig[]
+  module_domains?: Record<string, string> // moduleID → user domain
+}
+
+export interface SessionUsersReport {
+  created_at: string
+  duration_ms: number
+  users: SessionUsersData
+}
+
+export interface SessionUsersResponse {
+  session_id: string
+  users: SessionUsersReport | null
+  users_at: string | null
+}
+
+export const getSupportSessionUsers = (sessionId: string): Promise<SessionUsersResponse> => {
+  const loginStore = useLoginStore()
+  return axios
+    .get<{
+      code: number
+      message: string
+      data: SessionUsersResponse
+    }>(`${API_URL}/support-sessions/${sessionId}/users`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data)
+}
+
 export const getSystemDiagnostics = (systemId: string): Promise<SystemDiagnostics> => {
   const loginStore = useLoginStore()
   return axios

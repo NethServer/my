@@ -180,6 +180,100 @@ func acceptControlStream(t *tunnel.Tunnel, systemID, sessionID string) {
 			continue
 		}
 
+		if firstByte == 'U' {
+			// Read the rest of the header line (br already consumed the 'U')
+			rest, _ := br.ReadString('\n')
+			headerLine := "U" + rest
+			headerParts := strings.Fields(strings.TrimSpace(headerLine))
+
+			// USERS_FETCH 1: client requests credentials from another node's session
+			if len(headerParts) == 2 && headerParts[0] == "USERS_FETCH" && headerParts[1] == "1" {
+				usersData, fetchErr := session.GetUsersBySystemID(systemID)
+				if fetchErr != nil {
+					log.Warn().Err(fetchErr).
+						Str("system_id", systemID).
+						Str("session_id", sessionID).
+						Msg("failed to fetch users for system")
+					_, _ = stream.Write([]byte("{}\n"))
+				} else if usersData == nil {
+					_, _ = stream.Write([]byte("{}\n"))
+				} else {
+					_, _ = stream.Write(append(usersData, '\n'))
+					log.Info().
+						Str("system_id", systemID).
+						Str("session_id", sessionID).
+						Int("payload_bytes", len(usersData)).
+						Msg("users credentials sent to requesting node")
+				}
+				_ = stream.Close()
+				continue
+			}
+
+			// USERS 1: client sends its provisioned credentials
+			if len(headerParts) == 2 && headerParts[0] == "USERS" && headerParts[1] == "1" {
+				rawJSON, readErr := io.ReadAll(br)
+				_ = stream.Close()
+				if readErr != nil {
+					log.Warn().Err(readErr).
+						Str("system_id", systemID).
+						Str("session_id", sessionID).
+						Msg("failed to read users payload from control stream")
+					continue
+				}
+
+				// Reject payloads larger than 256 KB
+				if len(rawJSON) > 256*1024 {
+					log.Warn().
+						Str("system_id", systemID).
+						Str("session_id", sessionID).
+						Int("bytes", len(rawJSON)).
+						Msg("users payload exceeds 256 KB limit, skipping")
+					continue
+				}
+
+				// Schema validation: unmarshal into typed struct and re-serialize
+				var report models.UsersReport
+				if parseErr := json.Unmarshal(rawJSON, &report); parseErr != nil {
+					log.Warn().Err(parseErr).
+						Str("system_id", systemID).
+						Str("session_id", sessionID).
+						Msg("invalid users JSON schema, skipping")
+					continue
+				}
+				sanitized, marshalErr := json.Marshal(report)
+				if marshalErr != nil {
+					log.Warn().Err(marshalErr).
+						Str("system_id", systemID).
+						Str("session_id", sessionID).
+						Msg("failed to re-serialize users, skipping")
+					continue
+				}
+
+				var raw json.RawMessage = sanitized
+				saved, jsonErr := session.SaveUsers(sessionID, raw)
+				if jsonErr != nil {
+					log.Warn().Err(jsonErr).
+						Str("system_id", systemID).
+						Str("session_id", sessionID).
+						Msg("failed to save users")
+				} else if !saved {
+					log.Debug().
+						Str("system_id", systemID).
+						Str("session_id", sessionID).
+						Msg("users update skipped: already present")
+				} else {
+					log.Info().
+						Str("system_id", systemID).
+						Str("session_id", sessionID).
+						Int("payload_bytes", len(rawJSON)).
+						Msg("users report received")
+				}
+				continue
+			}
+			_ = stream.Close()
+			continue
+		}
+
 		if firstByte == 'D' {
 			// Read the rest of the header line (br already consumed the 'D')
 			rest, _ := br.ReadString('\n')
