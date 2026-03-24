@@ -62,7 +62,7 @@ const {
   diffTypeFilter,
   fromDate,
   toDate,
-  areDefaultFiltersApplied,
+  areDefaultFiltersApplied: areTimelineDefaultFiltersApplied,
   resetFilters: resetTimelineFilters,
   allInventoryIds,
   allGroups,
@@ -97,7 +97,7 @@ const { state: diffsState, asyncStatus: diffsAsyncStatus } = useQuery({
     const apiCall = getInventoryDiffs(
       route.params.systemId as string,
       1,
-      500,
+      100,
       severityFilter.value,
       categoryFilter.value,
       diffTypeFilter.value,
@@ -215,7 +215,18 @@ const displayGroups = computed<DisplayGroup[]>(() => {
   // When a text filter is active and diffs are loaded, also skip groups whose
   // diffs are all filtered out by the text search.
   const visibleEntries = allOrderedEntries.filter((e) => {
-    if (e.isToday) return true
+    if (e.isToday) {
+      // Always show today when it has no changes ("no changes today" label)
+      if (e.change_count === 0) return true
+      // When text filter is active and diffs are loaded, hide today if nothing matches
+      if (search && diffsHaveEverLoaded.value) {
+        const idSet = new Set(e.inventory_ids)
+        return allDiffs.value.some(
+          (d) => idSet.has(d.inventory_id) && d.field_path.toLowerCase().includes(search),
+        )
+      }
+      return true
+    }
     if (e.change_count === 0) return false
     if (search && diffsHaveEverLoaded.value) {
       const idSet = new Set(e.inventory_ids)
@@ -242,8 +253,18 @@ const displayGroups = computed<DisplayGroup[]>(() => {
 
 const isTimelineEmpty = computed(() => {
   if (timelineState.value.status !== 'success') return false
-  return allGroups.value.filter((g) => g.change_count > 0).length === 0
+  if (allGroups.value.filter((g) => g.change_count > 0).length === 0) return true
+  // Text filter is client-side: treat as empty when active, diffs loaded, and nothing matches
+  const search = textFilter.value.trim().toLowerCase()
+  if (search && diffsHaveEverLoaded.value) {
+    return !allDiffs.value.some((d) => d.field_path.toLowerCase().includes(search))
+  }
+  return false
 })
+
+const areDefaultFiltersApplied = computed(
+  () => areTimelineDefaultFiltersApplied.value && !textFilter.value.trim(),
+)
 
 // ── Diffs helpers ─────────────────────────────────────────────────────────────
 
@@ -316,6 +337,14 @@ function getFilteredDiffsForGroup(group: DisplayGroup): InventoryDiff[] {
   if (!textFilter.value.trim()) return diffs
   const search = textFilter.value.trim().toLowerCase()
   return diffs.filter((d) => d.field_path.toLowerCase().includes(search))
+}
+
+// ── Filtered change count (respects text search) ────────────────────────────
+function getDisplayCountForGroup(group: DisplayGroup): number {
+  if (textFilter.value.trim() && diffsHaveEverLoaded.value) {
+    return getFilteredDiffsForGroup(group).length
+  }
+  return group.change_count
 }
 
 // ── Group expand/collapse ─────────────────────────────────────────────────────
@@ -617,9 +646,9 @@ const diffTypeFilterModel = computed<string[]>({
               />
               <span>
                 {{
-                  group.change_count === 1
+                  getDisplayCountForGroup(group) === 1
                     ? t('system_detail.one_change')
-                    : t('system_detail.n_changes', { n: group.change_count })
+                    : t('system_detail.n_changes', { n: getDisplayCountForGroup(group) })
                 }}
               </span>
             </button>
