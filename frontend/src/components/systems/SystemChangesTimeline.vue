@@ -33,6 +33,7 @@ import {
   NeSkeleton,
   NeTextInput,
   type FilterOption,
+  NeSpinner,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -187,31 +188,51 @@ const today = todayDateString()
 const displayGroups = computed<DisplayGroup[]>(() => {
   const groups = allGroups.value
   const result: DisplayGroup[] = []
+  const search = textFilter.value.trim().toLowerCase()
 
-  // Always show Today as the first entry
   const todayGroup = groups.find((g) => g.date === today)
-  const firstRealGroup = todayGroup ? groups[1] : groups[0]
+  const otherGroups = todayGroup ? groups.slice(1) : groups
 
-  const gapAfterToday = firstRealGroup ? gapDaysBetween(today, firstRealGroup.date, !todayGroup) : 0
+  // Build a flat ordered list: today first, then everything else
+  const allOrderedEntries = [
+    {
+      date: today,
+      isToday: true,
+      change_count: todayGroup?.change_count ?? 0,
+      inventory_ids: todayGroup?.inventory_ids ?? [],
+    },
+    ...otherGroups.map((g) => ({
+      date: g.date,
+      isToday: false,
+      change_count: g.change_count,
+      inventory_ids: g.inventory_ids,
+    })),
+  ]
 
-  result.push({
-    date: today,
-    isToday: true,
-    change_count: todayGroup?.change_count ?? 0,
-    inventory_ids: todayGroup?.inventory_ids ?? [],
-    gapDaysAfter: gapAfterToday > 0 ? gapAfterToday : 0,
+  // Skip non-today groups with change_count === 0 (e.g. when a filter hides all
+  // their diffs). Their date range gets absorbed into the gap of the preceding
+  // visible entry, so only a single badge is shown between two real changes.
+  // When a text filter is active and diffs are loaded, also skip groups whose
+  // diffs are all filtered out by the text search.
+  const visibleEntries = allOrderedEntries.filter((e) => {
+    if (e.isToday) return true
+    if (e.change_count === 0) return false
+    if (search && diffsHaveEverLoaded.value) {
+      const idSet = new Set(e.inventory_ids)
+      return allDiffs.value.some(
+        (d) => idSet.has(d.inventory_id) && d.field_path.toLowerCase().includes(search),
+      )
+    }
+    return true
   })
 
-  // Add the remaining groups (skip today's group if it was in allGroups)
-  const otherGroups = todayGroup ? groups.slice(1) : groups
-  otherGroups.forEach((group, idx) => {
-    const nextGroup = otherGroups[idx + 1]
-    const gapAfter = nextGroup ? gapDaysBetween(group.date, nextGroup.date, false) : 0
+  visibleEntries.forEach((entry, idx) => {
+    const nextEntry = visibleEntries[idx + 1]
+    // newerIsToday=true means "today itself is a gap day" (no inventory collected today)
+    const newerIsToday = entry.isToday && entry.change_count === 0
+    const gapAfter = nextEntry ? gapDaysBetween(entry.date, nextEntry.date, newerIsToday) : 0
     result.push({
-      date: group.date,
-      isToday: false,
-      change_count: group.change_count,
-      inventory_ids: group.inventory_ids,
+      ...entry,
       gapDaysAfter: gapAfter > 0 ? gapAfter : 0,
     })
   })
@@ -225,9 +246,30 @@ const isTimelineEmpty = computed(() => {
 })
 
 // ── Diffs helpers ─────────────────────────────────────────────────────────────
-const allDiffs = computed<InventoryDiff[]>(() => diffsState.value.data?.diffs ?? [])
 
-const timelineIsPending = computed(() => timelineState.value.status === 'pending')
+// Stable snapshot of diffs from the last completed fetch — never clears during refetch
+// so existing groups keep showing their diffs while a new page is loading.
+const stableDiffs = ref<InventoryDiff[]>([])
+const lastFetchedInventoryIds = ref<Set<number>>(new Set())
+const diffsHaveEverLoaded = ref(false)
+
+watch(
+  () => diffsState.value.data,
+  (data) => {
+    if (data !== undefined) {
+      stableDiffs.value = data.diffs
+      lastFetchedInventoryIds.value = new Set(allInventoryIds.value)
+      diffsHaveEverLoaded.value = true
+    }
+  },
+)
+
+// allDiffs always returns stable data — never empty during a refetch
+const allDiffs = computed<InventoryDiff[]>(() => stableDiffs.value)
+
+const timelineIsPending = computed(
+  () => timelineState.value.status === 'pending' || diffsIsLoading.value,
+)
 const timelineError = computed(() =>
   timelineState.value.status === 'error' ? timelineState.value.error : null,
 )
@@ -235,11 +277,23 @@ const diffsError = computed(() =>
   diffsState.value.status === 'error' ? diffsState.value.error : null,
 )
 const diffsIsLoading = computed(
-  () => diffsState.value.status === 'pending' || diffsAsyncStatus.value === 'loading',
+  () => !diffsHaveEverLoaded.value && diffsState.value.status === 'pending',
+)
+// True while allInventoryIds has IDs not yet covered by the last completed diffs fetch
+const diffsIsRefetching = computed(
+  () =>
+    diffsHaveEverLoaded.value &&
+    allInventoryIds.value.some((id) => !lastFetchedInventoryIds.value.has(id)),
 )
 function getDiffsForGroup(group: DisplayGroup): InventoryDiff[] {
   const idSet = new Set(group.inventory_ids)
   return allDiffs.value.filter((d) => idSet.has(d.inventory_id))
+}
+
+// Returns true when this group's diffs haven't been fetched yet (new page, still loading)
+function isGroupPendingDiffs(group: DisplayGroup): boolean {
+  if (!diffsIsRefetching.value) return false
+  return group.inventory_ids.some((id) => !lastFetchedInventoryIds.value.has(id))
 }
 
 function formatDiffValue(value: unknown): string {
@@ -467,6 +521,12 @@ const diffTypeFilterModel = computed<string[]>({
     class="mb-6"
   />
 
+  <!-- ////  -->
+  <!-- <div>timelineState.status {{ timelineState.status }}</div>
+  <div>timelineAsyncStatus {{ timelineAsyncStatus }}</div>
+  <div>diffsState.status {{ diffsState.status }}</div>
+  <div>diffsAsyncStatus {{ diffsAsyncStatus }}</div> -->
+
   <!-- Loading skeleton (initial load) -->
   <div v-if="timelineIsPending" class="space-y-6">
     <div v-for="i in 3" :key="i" class="flex gap-12">
@@ -512,7 +572,7 @@ const diffTypeFilterModel = computed<string[]>({
 
     <div v-for="group in displayGroups" :key="group.date">
       <!-- Date header row -->
-      <div class="relative mb-2 flex items-start">
+      <div v-if="!isGroupPendingDiffs(group)" class="relative mb-2 flex items-start">
         <!-- Date label column (right-aligned) -->
         <div class="w-36 flex-shrink-0 pt-0.5 pr-6 text-right">
           <span
@@ -565,7 +625,7 @@ const diffTypeFilterModel = computed<string[]>({
             </button>
 
             <!-- Diffs list -->
-            <div v-if="expandedGroups.has(group.date)" class="mt-3 space-y-3">
+            <div v-if="expandedGroups.has(group.date)" class="mt-4 space-y-4">
               <!-- Loading diffs state -->
               <template v-if="diffsIsLoading">
                 <NeSkeleton v-for="j in group.change_count" :key="j" class="h-14 w-full" />
@@ -629,11 +689,8 @@ const diffTypeFilterModel = computed<string[]>({
                       v-if="diff.diff_type === 'update'"
                       class="flex items-center gap-4 rounded-sm bg-blue-50 px-1.5 py-0.5 dark:bg-blue-950"
                     >
-                      <FontAwesomeIcon
-                        :icon="faPen"
-                        class="size-3 shrink-0 text-blue-700 dark:text-blue-400"
-                      />
-                      <span class="font-mono text-sm text-gray-700 line-through dark:text-gray-300">
+                      <FontAwesomeIcon :icon="faPen" class="size-3 shrink-0" />
+                      <span class="font-mono text-sm text-gray-700 dark:text-gray-300">
                         {{ formatDiffValue(diff.previous_value) }}
                       </span>
                       <FontAwesomeIcon
@@ -654,10 +711,7 @@ const diffTypeFilterModel = computed<string[]>({
                         :key="idx"
                         class="flex items-center gap-4"
                       >
-                        <FontAwesomeIcon
-                          :icon="faPlus"
-                          class="size-3 shrink-0 text-green-600 dark:text-green-400"
-                        />
+                        <FontAwesomeIcon :icon="faPlus" class="size-3 shrink-0" />
                         <span class="font-mono text-sm text-gray-700 dark:text-gray-300">{{
                           line
                         }}</span>
@@ -673,14 +727,10 @@ const diffTypeFilterModel = computed<string[]>({
                         :key="idx"
                         class="flex items-center gap-4"
                       >
-                        <FontAwesomeIcon
-                          :icon="faMinus"
-                          class="size-3 shrink-0 text-rose-700 dark:text-rose-400"
-                        />
-                        <span
-                          class="font-mono text-sm text-gray-700 line-through dark:text-gray-300"
-                          >{{ line }}</span
-                        >
+                        <FontAwesomeIcon :icon="faMinus" class="size-3 shrink-0" />
+                        <span class="font-mono text-sm text-gray-700 dark:text-gray-300">{{
+                          line
+                        }}</span>
                       </div>
                     </div>
                     <!-- Timestamp -->
@@ -704,7 +754,10 @@ const diffTypeFilterModel = computed<string[]>({
       </div>
 
       <!-- Gap badge (days without changes between this group and the next) -->
-      <div v-if="group.gapDaysAfter > 0" class="my-8 flex items-start">
+      <div
+        v-if="group.gapDaysAfter > 0 && !isGroupPendingDiffs(group)"
+        class="my-8 flex items-start"
+      >
         <div class="w-36 flex-shrink-0"></div>
         <div class="flex-1 pl-10">
           <span
@@ -720,12 +773,15 @@ const diffTypeFilterModel = computed<string[]>({
     <div v-if="hasNextPage" ref="loadMoreTrigger" class="flex items-start py-4">
       <div class="w-36 flex-shrink-0"></div>
       <div class="flex-1 pl-10">
-        <p
-          v-if="timelineAsyncStatus === 'loading'"
-          class="text-sm text-gray-400 dark:text-gray-500"
+        <div
+          v-if="timelineAsyncStatus === 'loading' || diffsAsyncStatus === 'loading'"
+          class="flex items-center gap-2"
         >
-          {{ t('common.loading') }}
-        </p>
+          <NeSpinner color="white" />
+          <div class="text-gray-500 dark:text-gray-400">
+            {{ t('common.loading') }}
+          </div>
+        </div>
       </div>
     </div>
   </div>
