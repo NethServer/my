@@ -384,9 +384,18 @@ func writeUsersFile(users *SessionUsers) (string, error) {
 	return writeTempJSON("my-support-users-*.json", users)
 }
 
-// writeTempJSON writes data as JSON to a temporary file and returns its path.
+// pluginTempDir is a restricted directory for plugin temp files containing credentials.
+// Using a dedicated directory instead of /tmp prevents inotify-based snooping by
+// other processes. Created with 0700 permissions (owner-only).
+const pluginTempDir = "/var/run/my-support-tmp"
+
+// writeTempJSON writes data as JSON to a temporary file in a restricted directory.
 func writeTempJSON(pattern string, data interface{}) (string, error) {
-	f, err := os.CreateTemp("", pattern)
+	if err := os.MkdirAll(pluginTempDir, 0o700); err != nil {
+		return "", fmt.Errorf("cannot create temp directory: %w", err)
+	}
+
+	f, err := os.CreateTemp(pluginTempDir, pattern)
 	if err != nil {
 		return "", err
 	}
