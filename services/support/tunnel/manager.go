@@ -549,8 +549,22 @@ func (t *Tunnel) ReleaseStream() {
 
 // CommandPayload is the JSON body written to a COMMAND yamux stream.
 type CommandPayload struct {
-	Action   string                 `json:"action"`
-	Services map[string]ServiceInfo `json:"services,omitempty"`
+	Action       string                 `json:"action"`
+	Services     map[string]ServiceInfo `json:"services,omitempty"`
+	ServiceNames []string               `json:"service_names,omitempty"`
+}
+
+// RemoveServicesBySessionID removes specific services from the server-side tunnel registry.
+func (m *Manager) RemoveServicesBySessionID(sessionID string, names []string) {
+	t := m.GetBySessionID(sessionID)
+	if t == nil {
+		return
+	}
+	t.servicesMu.Lock()
+	defer t.servicesMu.Unlock()
+	for _, name := range names {
+		delete(t.services, name)
+	}
 }
 
 // SendCommandToSession opens a COMMAND yamux stream to the tunnel-client for the
