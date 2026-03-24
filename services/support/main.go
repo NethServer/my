@@ -153,10 +153,13 @@ func main() {
 		c.JSON(http.StatusNotFound, response.NotFound("api not found", nil))
 	})
 
-	// Start HTTP server
+	// Start HTTP server with timeouts to prevent slowloris attacks.
+	// WriteTimeout is 0 because WebSocket and tunnel connections are long-lived.
 	srv := &http.Server{
-		Addr:    configuration.Config.ListenAddress,
-		Handler: router,
+		Addr:              configuration.Config.ListenAddress,
+		Handler:           router,
+		ReadHeaderTimeout: 15 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	go func() {

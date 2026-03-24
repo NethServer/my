@@ -667,11 +667,11 @@ func (r *SupportRepository) ExtendSession(sessionID string, hours int) error {
 	return nil
 }
 
-// CloseSession force-closes a session
+// CloseSession force-closes a session and clears ephemeral credentials
 func (r *SupportRepository) CloseSession(sessionID string) error {
 	result, err := r.db.Exec(
 		`UPDATE support_sessions
-		 SET status = 'closed', closed_at = NOW(), closed_by = 'operator', updated_at = NOW()
+		 SET status = 'closed', closed_at = NOW(), closed_by = 'operator', users = NULL, users_at = NULL, updated_at = NOW()
 		 WHERE id = $1 AND status IN ('pending', 'active')`,
 		sessionID,
 	)
