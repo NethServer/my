@@ -35,13 +35,10 @@ import (
 // InternalSecretMiddleware validates the X-Internal-Secret header (#4).
 // Provides defense-in-depth: even if a session token leaks, the caller
 // must also know the shared internal secret to access tunnel endpoints.
+// INTERNAL_SECRET is required at startup; this middleware always enforces it.
 func InternalSecretMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		secret := configuration.Config.InternalSecret
-		if secret == "" {
-			c.Next()
-			return
-		}
 		provided := c.GetHeader("X-Internal-Secret")
 		if subtle.ConstantTimeCompare([]byte(provided), []byte(secret)) != 1 {
 			logger.Warn().

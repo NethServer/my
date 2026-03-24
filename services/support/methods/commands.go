@@ -32,19 +32,13 @@ type signedEnvelope struct {
 }
 
 // verifyAndUnwrap authenticates a signed Redis message and returns the inner payload.
-// If INTERNAL_SECRET is not configured, messages are accepted without verification
-// (backward-compatible with deployments that have not yet set the secret).
+// INTERNAL_SECRET is required at startup, so HMAC verification is always enforced.
 func verifyAndUnwrap(raw string) (string, bool) {
 	var env signedEnvelope
 	if err := json.Unmarshal([]byte(raw), &env); err != nil {
 		return "", false
 	}
 	secret := configuration.Config.InternalSecret
-	if secret == "" {
-		// No secret configured: accept but log a warning so operators know to fix it.
-		logger.ComponentLogger("commands").Warn().Msg("INTERNAL_SECRET not set: Redis commands accepted without HMAC verification")
-		return env.Payload, true
-	}
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(env.Payload))
 	expected := hex.EncodeToString(mac.Sum(nil))
