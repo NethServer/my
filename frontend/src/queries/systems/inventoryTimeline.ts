@@ -7,18 +7,13 @@ import {
   type InventoryDiffType,
 } from '@/lib/systems/inventoryDiffs'
 import { INVENTORY_TIMELINE_KEY, getInventoryTimeline } from '@/lib/systems/inventoryTimeline'
-import {
-  INVENTORY_MOCK_ENABLED,
-  mockTimelineSummary,
-  mockTimelineGroups,
-} from '@/lib/systems/inventoryMocks'
 import { canReadSystems } from '@/lib/permissions'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useInfiniteQuery } from '@pinia/colada'
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
-const TIMELINE_PAGE_SIZE = 5 //// 20
+const TIMELINE_PAGE_SIZE = 20
 
 export const useInventoryTimeline = defineQuery(() => {
   const loginStore = useLoginStore()
@@ -54,24 +49,6 @@ export const useInventoryTimeline = defineQuery(() => {
         fromDate.value,
         toDate.value,
       )
-      if (INVENTORY_MOCK_ENABLED) {
-        apiCall.catch(() => {})
-        const start = (pageParam - 1) * TIMELINE_PAGE_SIZE
-        const pagedGroups = mockTimelineGroups.slice(start, start + TIMELINE_PAGE_SIZE)
-        const totalPages = Math.ceil(mockTimelineGroups.length / TIMELINE_PAGE_SIZE)
-        return Promise.resolve({
-          summary: mockTimelineSummary,
-          groups: pagedGroups,
-          pagination: {
-            page: pageParam,
-            page_size: TIMELINE_PAGE_SIZE,
-            total_count: mockTimelineGroups.length,
-            total_pages: totalPages,
-            has_next: pageParam < totalPages,
-            has_prev: pageParam > 1,
-          },
-        })
-      }
       return apiCall
     },
     getNextPageParam: (lastPage) =>

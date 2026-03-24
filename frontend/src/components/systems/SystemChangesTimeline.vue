@@ -13,11 +13,6 @@ import {
   type InventoryDiffSeverity,
   type InventoryDiffType,
 } from '@/lib/systems/inventoryDiffs'
-import {
-  INVENTORY_MOCK_ENABLED,
-  mockInventoryDiffs,
-  mockDiffsPagination,
-} from '@/lib/systems/inventoryMocks'
 import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 import { canReadSystems } from '@/lib/permissions'
 import { useLoginStore } from '@/stores/login'
@@ -105,10 +100,6 @@ const { state: diffsState, asyncStatus: diffsAsyncStatus } = useQuery({
       fromDate.value,
       toDate.value,
     )
-    if (INVENTORY_MOCK_ENABLED) {
-      apiCall.catch(() => {})
-      return Promise.resolve({ diffs: mockInventoryDiffs, pagination: mockDiffsPagination })
-    }
     return apiCall
   },
 })

@@ -9,11 +9,6 @@ import {
   type InventoryDiffSeverity,
   type InventoryDiffType,
 } from '@/lib/systems/inventoryDiffs'
-import {
-  INVENTORY_MOCK_ENABLED,
-  mockInventoryDiffs,
-  mockDiffsPagination,
-} from '@/lib/systems/inventoryMocks'
 import { canReadSystems } from '@/lib/permissions'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
@@ -62,10 +57,6 @@ export const useInventoryDiffs = defineQuery(() => {
         fromDate.value,
         toDate.value,
       )
-      if (INVENTORY_MOCK_ENABLED) {
-        apiCall.catch(() => {})
-        return Promise.resolve({ diffs: mockInventoryDiffs, pagination: mockDiffsPagination })
-      }
       return apiCall
     },
   })
