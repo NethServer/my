@@ -33,6 +33,7 @@ import (
 	"github.com/nethesis/my/services/support/cmd/tunnel-client/internal/config"
 	"github.com/nethesis/my/services/support/cmd/tunnel-client/internal/connection"
 	"github.com/nethesis/my/services/support/cmd/tunnel-client/internal/discovery"
+	"github.com/nethesis/my/services/support/cmd/tunnel-client/internal/users"
 )
 
 func main() {
@@ -51,6 +52,11 @@ func main() {
 		diagnosticsDir           = flag.String("diagnostics-dir", config.EnvWithDefault("DIAGNOSTICS_DIR", "/usr/share/my/diagnostics.d"), "Directory with diagnostic plugin scripts (env: DIAGNOSTICS_DIR)")
 		diagnosticsPluginTimeout = flag.Duration("diagnostics-plugin-timeout", config.ParseDurationDefault(config.EnvWithDefault("DIAGNOSTICS_PLUGIN_TIMEOUT", ""), config.DefaultDiagnosticsPluginTimeout), "Timeout per diagnostic plugin (env: DIAGNOSTICS_PLUGIN_TIMEOUT)")
 		diagnosticsTotalTimeout  = flag.Duration("diagnostics-total-timeout", config.ParseDurationDefault(config.EnvWithDefault("DIAGNOSTICS_TOTAL_TIMEOUT", ""), config.DefaultDiagnosticsTotalTimeout), "Max time to wait for all diagnostics (env: DIAGNOSTICS_TOTAL_TIMEOUT)")
+
+		usersDir           = flag.String("users-dir", config.EnvWithDefault("USERS_DIR", config.DefaultUsersDir), "Directory with user configuration plugin scripts (env: USERS_DIR)")
+		usersPluginTimeout = flag.Duration("users-plugin-timeout", config.ParseDurationDefault(config.EnvWithDefault("USERS_PLUGIN_TIMEOUT", ""), config.DefaultUsersPluginTimeout), "Timeout per user plugin (env: USERS_PLUGIN_TIMEOUT)")
+		usersTotalTimeout  = flag.Duration("users-total-timeout", config.ParseDurationDefault(config.EnvWithDefault("USERS_TOTAL_TIMEOUT", ""), config.DefaultUsersTotalTimeout), "Max time to wait for user provisioning (env: USERS_TOTAL_TIMEOUT)")
+		usersStateFile     = flag.String("users-state-file", config.EnvWithDefault("USERS_STATE_FILE", config.DefaultUsersStateFile), "State file for orphan user cleanup (env: USERS_STATE_FILE)")
 	)
 	flag.Parse()
 
@@ -112,6 +118,22 @@ func main() {
 		DiagnosticsDir:           *diagnosticsDir,
 		DiagnosticsPluginTimeout: *diagnosticsPluginTimeout,
 		DiagnosticsTotalTimeout:  *diagnosticsTotalTimeout,
+		UsersDir:                 *usersDir,
+		UsersPluginTimeout:       *usersPluginTimeout,
+		UsersTotalTimeout:        *usersTotalTimeout,
+		UsersStateFile:           *usersStateFile,
+	}
+
+	// Clean up orphaned support users from a previous crash
+	if state, loadErr := users.LoadState(cfg.UsersStateFile); loadErr != nil {
+		log.Printf("Warning: cannot read users state file: %v", loadErr)
+	} else if state != nil {
+		log.Printf("Found orphaned support users from session %s, cleaning up...", state.SessionID)
+		provisioner := users.NewProvisioner(cfg.RedisAddr)
+		users.RunTeardown(ctx, cfg.UsersDir, state, nil, cfg.RedisAddr, cfg.UsersPluginTimeout)
+		_ = provisioner.Delete(state)
+		users.RemoveState(cfg.UsersStateFile)
+		log.Println("Orphaned support users cleaned up")
 	}
 
 	connection.RunWithReconnect(ctx, cfg)
