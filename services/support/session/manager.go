@@ -13,9 +13,11 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"database/sql"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"time"
 
 	"github.com/nethesis/my/services/support/configuration"
@@ -23,6 +25,14 @@ import (
 	"github.com/nethesis/my/services/support/logger"
 	"github.com/nethesis/my/services/support/models"
 )
+
+// systemAdvisoryLockKey derives a deterministic int64 key for pg_advisory_xact_lock
+// from a system_id string. The lock serializes session creation per system.
+func systemAdvisoryLockKey(systemID string) int64 {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(systemID))
+	return int64(binary.BigEndian.Uint64(h.Sum(nil)[:8]))
+}
 
 // GenerateToken creates a cryptographically secure session token.
 // Tokens are stored in plaintext in the database because they serve as a shared
@@ -72,19 +82,26 @@ func CreateSession(systemID, nodeID string) (*models.SupportSession, error) {
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	// Acquire advisory lock to serialize session creation for this system.
+	// Prevents race conditions when two tunnel-clients connect simultaneously.
+	// The lock is automatically released when the transaction commits or rolls back.
+	if _, err := tx.Exec(`SELECT pg_advisory_xact_lock($1)`, systemAdvisoryLockKey(systemID)); err != nil {
+		return nil, fmt.Errorf("failed to acquire advisory lock: %w", err)
+	}
+
 	// Close any existing active/pending sessions for this system+node combination
 	var closeResult sql.Result
 	if nodeID == "" {
 		closeResult, err = tx.Exec(
 			`UPDATE support_sessions
-			 SET status = 'closed', closed_at = NOW(), closed_by = 'replaced', updated_at = NOW()
+			 SET status = 'closed', closed_at = NOW(), closed_by = 'replaced', users = NULL, users_at = NULL, updated_at = NOW()
 			 WHERE system_id = $1 AND node_id IS NULL AND status IN ('pending', 'active')`,
 			systemID,
 		)
 	} else {
 		closeResult, err = tx.Exec(
 			`UPDATE support_sessions
-			 SET status = 'closed', closed_at = NOW(), closed_by = 'replaced', updated_at = NOW()
+			 SET status = 'closed', closed_at = NOW(), closed_by = 'replaced', users = NULL, users_at = NULL, updated_at = NOW()
 			 WHERE system_id = $1 AND node_id = $2 AND status IN ('pending', 'active')`,
 			systemID, nodeID,
 		)
@@ -283,11 +300,11 @@ func GetSessionByID(sessionID string) (*models.SupportSession, error) {
 	return &session, nil
 }
 
-// CloseSession closes a support session
+// CloseSession closes a support session and clears ephemeral credentials
 func CloseSession(sessionID, closedBy string) error {
 	result, err := database.DB.Exec(
 		`UPDATE support_sessions
-		 SET status = 'closed', closed_at = NOW(), closed_by = $2, updated_at = NOW()
+		 SET status = 'closed', closed_at = NOW(), closed_by = $2, users = NULL, users_at = NULL, updated_at = NOW()
 		 WHERE id = $1 AND status IN ('pending', 'active')`,
 		sessionID, closedBy,
 	)
@@ -308,11 +325,11 @@ func CloseSession(sessionID, closedBy string) error {
 	return nil
 }
 
-// ExpireSessions marks expired sessions
+// ExpireSessions marks expired sessions and clears ephemeral credentials
 func ExpireSessions() (int64, error) {
 	result, err := database.DB.Exec(
 		`UPDATE support_sessions
-		 SET status = 'expired', closed_at = NOW(), closed_by = 'timeout', updated_at = NOW()
+		 SET status = 'expired', closed_at = NOW(), closed_by = 'timeout', users = NULL, users_at = NULL, updated_at = NOW()
 		 WHERE status IN ('pending', 'active') AND expires_at < NOW()`,
 	)
 	if err != nil {
