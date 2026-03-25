@@ -30,12 +30,16 @@ import (
 // - Field categorization rules
 // - Severity determination logic
 // - Significance filtering patterns
+// - Field identifier mappings for human-readable paths
 // - Processing limits and thresholds
 type DiffEngine struct {
 	configurableDiffer *ConfigurableDiffer
 	maxDepth           int
 	maxDiffsPerRun     int
 	maxFieldPathLength int
+	// identifierMap maps "path.prefix.index" to a human-readable identifier
+	// Built per-diff from inventory data using field_identifiers config
+	identifierMap map[string]string
 }
 
 // NewDiffEngine creates a new diff engine with configurable behavior
@@ -111,6 +115,9 @@ func (de *DiffEngine) ComputeDiff(systemID string, previous, current *models.Inv
 	}
 
 	engineLogger.Debug().Msg("JSON parsing completed successfully")
+
+	// Step 2b: Build identifier map from both records for human-readable field paths
+	de.identifierMap = de.buildIdentifierMap(prevData, currData)
 
 	// Step 3: Diff Calculation
 	changelog, err := diff.Diff(prevData, currData)
@@ -264,12 +271,28 @@ func (de *DiffEngine) convertToInventoryDiff(systemID string, previousID, curren
 	return inventoryDiff
 }
 
-// formatPath converts a diff path to a readable field path
+// formatPath converts a diff path to a readable field path,
+// replacing numeric indices with human-readable identifiers when configured
 func (de *DiffEngine) formatPath(path []string) string {
 	if len(path) == 0 {
 		return "root"
 	}
-	return strings.Join(path, ".")
+
+	if len(de.identifierMap) == 0 {
+		return strings.Join(path, ".")
+	}
+
+	result := make([]string, len(path))
+	for i, segment := range path {
+		// Build the path prefix up to and including this segment
+		key := strings.Join(path[:i+1], ".")
+		if identifier, ok := de.identifierMap[key]; ok {
+			result[i] = identifier
+		} else {
+			result[i] = segment
+		}
+	}
+	return strings.Join(result, ".")
 }
 
 // getPathDepth returns the depth of a path
@@ -494,6 +517,87 @@ func (de *DiffEngine) ReloadConfiguration(configPath string) error {
 		Msg("Configuration reloaded successfully")
 
 	return nil
+}
+
+// buildIdentifierMap builds a lookup map from inventory data using field_identifiers config.
+// It merges identifiers from both previous and current data so that diffs referencing
+// either record can be resolved.
+func (de *DiffEngine) buildIdentifierMap(datasets ...map[string]interface{}) map[string]string {
+	config := de.configurableDiffer.GetConfig()
+	if len(config.FieldIdentifiers) == 0 {
+		return nil
+	}
+
+	idMap := make(map[string]string)
+
+	for _, data := range datasets {
+		if data == nil {
+			continue
+		}
+		for _, fi := range config.FieldIdentifiers {
+			pathSegments := strings.Split(fi.Path, ".")
+			de.extractIdentifiers(data, pathSegments, 0, fi, idMap)
+		}
+	}
+
+	if len(idMap) > 0 {
+		logger.ComponentLogger("differ-engine").Debug().
+			Int("identifiers", len(idMap)).
+			Msg("Built field identifier map")
+	}
+
+	return idMap
+}
+
+// extractIdentifiers recursively navigates the data following pathSegments
+// and extracts identifier values from matching collections
+func (de *DiffEngine) extractIdentifiers(data interface{}, pathSegments []string, depth int, fi FieldIdentifier, idMap map[string]string) {
+	if depth >= len(pathSegments) {
+		// Reached the target collection, extract identifiers
+		de.extractCollectionIdentifiers(data, fi, idMap)
+		return
+	}
+
+	segment := pathSegments[depth]
+
+	switch v := data.(type) {
+	case map[string]interface{}:
+		if next, ok := v[segment]; ok {
+			de.extractIdentifiers(next, pathSegments, depth+1, fi, idMap)
+		}
+	}
+}
+
+// extractCollectionIdentifiers extracts identifier values from an array or object collection
+func (de *DiffEngine) extractCollectionIdentifiers(data interface{}, fi FieldIdentifier, idMap map[string]string) {
+	switch fi.Type {
+	case "array":
+		arr, ok := data.([]interface{})
+		if !ok {
+			return
+		}
+		for i, elem := range arr {
+			if obj, ok := elem.(map[string]interface{}); ok {
+				if idVal, ok := obj[fi.Identifier]; ok {
+					key := fmt.Sprintf("%s.%d", fi.Path, i)
+					idMap[key] = fmt.Sprintf("%v", idVal)
+				}
+			}
+		}
+	case "object":
+		obj, ok := data.(map[string]interface{})
+		if !ok {
+			return
+		}
+		for k, elem := range obj {
+			if inner, ok := elem.(map[string]interface{}); ok {
+				if idVal, ok := inner[fi.Identifier]; ok {
+					key := fmt.Sprintf("%s.%s", fi.Path, k)
+					idMap[key] = fmt.Sprintf("%v", idVal)
+				}
+			}
+		}
+	}
 }
 
 // GetEngineStats returns engine statistics

@@ -267,6 +267,31 @@ differ:
       significant: true
       description: "Default significance for unclassified changes"
 
+  # Field identifiers
+  # Replace numeric array indices or object keys with human-readable identifiers in field paths
+  # Example: "facts.modules.3.version" → "facts.modules.metrics1.version"
+  field_identifiers:
+    # NS8: modules array → use module instance id (e.g., "metrics1", "samba1")
+    - path: "facts.modules"
+      type: array
+      identifier: "id"
+    # NS8: nodes object with numeric keys → use node ui_name
+    - path: "facts.nodes"
+      type: object
+      identifier: "ui_name"
+    # NS8: cluster user domains
+    - path: "facts.cluster.user_domains"
+      type: array
+      identifier: "name"
+    # NSEC: firewall network zones
+    - path: "facts.features.network.zones"
+      type: array
+      identifier: "name"
+    # NSEC: wireguard statistics
+    - path: "facts.features.wireguard.statistics"
+      type: array
+      identifier: "server"
+
   # Processing limits
   limits:
     max_diff_depth: 10        # Maximum depth for diff processing

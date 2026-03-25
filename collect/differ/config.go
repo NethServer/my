@@ -18,12 +18,13 @@ import (
 
 // DifferConfig represents the complete differ configuration
 type DifferConfig struct {
-	Categorization CategorizationConfig `yaml:"categorization"`
-	Severity       SeverityConfig       `yaml:"severity"`
-	Significance   SignificanceConfig   `yaml:"significance"`
-	Limits         LimitsConfig         `yaml:"limits"`
-	Trends         TrendsConfig         `yaml:"trends"`
-	Notifications  NotificationsConfig  `yaml:"notifications"`
+	Categorization   CategorizationConfig `yaml:"categorization"`
+	Severity         SeverityConfig       `yaml:"severity"`
+	Significance     SignificanceConfig   `yaml:"significance"`
+	FieldIdentifiers []FieldIdentifier    `yaml:"field_identifiers"`
+	Limits           LimitsConfig         `yaml:"limits"`
+	Trends           TrendsConfig         `yaml:"trends"`
+	Notifications    NotificationsConfig  `yaml:"notifications"`
 }
 
 // unifiedConfig represents the top-level config.yml structure
@@ -112,6 +113,13 @@ type ValueFilter struct {
 type DefaultSignificance struct {
 	Significant bool   `yaml:"significant"`
 	Description string `yaml:"description"`
+}
+
+// FieldIdentifier maps a collection path to a human-readable identifier field
+type FieldIdentifier struct {
+	Path       string `yaml:"path"`       // dot-separated path to the collection (e.g., "facts.modules")
+	Type       string `yaml:"type"`       // "array" or "object"
+	Identifier string `yaml:"identifier"` // field name to use as identifier (e.g., "id", "fqdn", "name")
 }
 
 // LimitsConfig defines processing limits
