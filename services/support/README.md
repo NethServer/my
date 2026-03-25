@@ -72,6 +72,7 @@ The support service can also **push commands** to the tunnel-client by opening o
 | Command | Description |
 |:---|:---|
 | `add_services` | Inject one or more static `host:port` services into the running session without reconnection |
+| `remove_services` | Remove one or more services from the running session by name |
 
 ### Session Lifecycle
 - `pending` — Session created by backend, waiting for system to connect
@@ -162,7 +163,8 @@ services/support/
 │           ├── discovery/   # Service discovery (Traefik, NethSecurity, static)
 │           ├── models/      # ServiceInfo, ServiceManifest, ApiCliRoute
 │           ├── stream/      # CONNECT protocol stream handler
-│           └── terminal/    # PTY spawning, binary frame protocol
+│           ├── terminal/    # PTY spawning, binary frame protocol
+│           └── users/       # Ephemeral user provisioning, users.d plugin runner, state file
 ├── configuration/           # Environment configuration
 ├── database/                # PostgreSQL connection
 ├── helpers/                 # SHA256 verification
@@ -183,6 +185,8 @@ services/support/
 │   ├── manager.go           # In-memory tunnel registry
 │   ├── protocol.go          # CONNECT header protocol
 │   └── stream.go            # WebSocket-to-net.Conn adapter
+├── examples/
+│   └── users.d/             # Example users.d plugins (nethvoice)
 ├── pkg/version/             # Build version info
 └── .env.example             # Environment variables template
 ```
@@ -229,11 +233,14 @@ At connect time, the tunnel-client collects a health report and pushes it to the
 **Built-in plugin** (`system`): always runs, collects OS info, CPU load averages, RAM usage, disk usage, and uptime from `/proc` and `syscall.Statfs`.
 
 **External plugins**: executable files dropped in `/usr/share/my/diagnostics.d/` (configurable via `DIAGNOSTICS_DIR`). Each plugin:
-- Runs with a per-plugin timeout (default 10s, configurable via `DIAGNOSTICS_PLUGIN_TIMEOUT`)
-- Writes JSON to stdout
-- Uses exit code to signal status: `0` = ok, `1` = warning, `2` = critical
+- Is any executable (bash, python, Go binary, etc.)
+- Runs with **no arguments** and **no stdin**
+- Writes JSON to stdout (or raw text as fallback)
+- Uses exit code to signal status: `0` = ok, `1` = warning, `2` = critical, other = error
+- Has a per-plugin timeout (default 10s, configurable via `DIAGNOSTICS_PLUGIN_TIMEOUT`)
+- Stdout is capped at 512 KB
 
-Plugin output format:
+**Plugin output format** (JSON on stdout):
 ```json
 {
   "id": "nethvoice",
@@ -247,7 +254,7 @@ Plugin output format:
 }
 ```
 
-The overall session status is the worst status across all plugins. If the `id` or `name` fields are omitted, they are derived from the filename. If stdout is not valid JSON, the raw text is used as `summary`.
+The overall session status is the worst status across all plugins. If the `id` or `name` fields are omitted, they are derived from the filename. If stdout is not valid JSON, the raw text is used as `summary` and status comes from the exit code.
 
 ```bash
 # Diagnostics flags
@@ -271,20 +278,11 @@ The tunnel-client provisions temporary users when a support session starts and r
 - Creates a local user via `python3` + `nethsec.users` module
 - Promotes to admin for web UI access
 
-**Plugin system** (`users.d/`): executable scripts in `/usr/share/my/users.d/` configure applications for the support user. Each plugin receives `setup` or `teardown` as the first argument and `--users-file <path>` pointing to a JSON file with the provisioned credentials.
-
-Plugin output format (setup):
-```json
-{
-  "id": "nethvoice",
-  "name": "NethVoice Admin",
-  "notes": "Optional notes for the operator"
-}
-```
-
-**Crash recovery**: a state file (default `/var/run/my-support-users.json`) persists the created users. On startup, orphaned users from a previous crash are cleaned up before connecting.
-
-**Reconnection**: user provisioning happens only on the first successful connection. Subsequent reconnections re-send the report without re-provisioning.
+**Credential lifecycle**:
+1. **On connect**: tunnel-client creates users, stores credentials in a local state file (`/var/run/my-support-users.json`), reports them to the server via yamux `USERS_REPORT` stream, the server stores them in the `users` JSONB column
+2. **On disconnect/session end**: tunnel-client deletes all ephemeral users and removes the state file; the server clears the `users` column from the database
+3. **On crash recovery**: next startup reads the orphaned state file, runs cleanup (delete users + teardown plugins), then removes the file
+4. **Reconnection**: user provisioning happens only on the first successful connection; subsequent reconnections re-send the existing report without re-provisioning
 
 ```bash
 # User provisioning flags
@@ -293,6 +291,103 @@ Plugin output format (setup):
 --users-total-timeout duration    # Default: 60s (env: USERS_TOTAL_TIMEOUT)
 --users-state-file string         # Default: /var/run/my-support-users.json (env: USERS_STATE_FILE)
 ```
+
+### Users Plugin System (`users.d/`)
+
+After ephemeral users are provisioned, plugins in `users.d/` configure **applications** to accept those credentials. For example, the `nethvoice` plugin creates a FreePBX `ampusers` entry so the support user can log in to NethVoice.
+
+**Invocation**: each plugin is called with two actions during the session lifecycle:
+```bash
+# Setup: configure the application for the support user
+/usr/share/my/users.d/nethvoice setup --users-file /var/run/my-support-tmp/users.json --instances-file /var/run/my-support-tmp/instances.json
+
+# Teardown: undo the configuration (called on session end or tunnel-client shutdown)
+/usr/share/my/users.d/nethvoice teardown --users-file /var/run/my-support-tmp/users.json --instances-file /var/run/my-support-tmp/instances.json
+```
+
+**`--users-file` format** (`SessionUsers` — the provisioned credentials):
+```json
+{
+  "session_id": "NETH-2239-DE49-...",
+  "platform": "nethserver",
+  "cluster_admin": {
+    "username": "support-neth-2239-7d37",
+    "password": "IWUPPBp8HQk#@6Ep#T9@"
+  },
+  "domain_users": [
+    {
+      "domain": "sf.nethserver.net",
+      "module": "openldap1",
+      "username": "support-neth-2239-7d37",
+      "password": "xK9#mLp2@vRtNw4&jB7q"
+    }
+  ],
+  "local_users": [],
+  "module_domains": {
+    "nethvoice103": "sf.nethserver.net",
+    "webtop5": "sf.nethserver.net"
+  },
+  "created_at": "2026-03-24T19:13:28Z"
+}
+```
+
+**`--instances-file` format** (`ModuleContext` — passed only when the plugin name matches a discovered NS8 module):
+```json
+{
+  "module": "nethvoice",
+  "instances": [
+    {
+      "id": "nethvoice103",
+      "node_id": "1",
+      "label": "Main PBX",
+      "domain": "sf.nethserver.net",
+      "services": {
+        "nethvoice103-wizard": {
+          "host": "nethvoice103.sf.nethserver.net",
+          "path": "/nethvoice103-wizard",
+          "path_prefix": "/nethvoice103-wizard",
+          "tls": true
+        }
+      }
+    }
+  ]
+}
+```
+
+**Module matching**: the plugin filename determines module matching. If a plugin is named `nethvoice`, the tunnel-client checks if any discovered NS8 module has base name `nethvoice` (trailing digits are stripped: `nethvoice103` → `nethvoice`). If a match is found, `--instances-file` is provided with all matching instances. If no match, the plugin runs without `--instances-file` (useful for generic plugins).
+
+**Setup output** (JSON on stdout — single object or array of `AppConfig`):
+```json
+[
+  {
+    "id": "nethvoice103",
+    "name": "NethVoice (Main PBX)",
+    "url": "https://optional-direct-url/",
+    "notes": "Domain: sf.nethserver.net | Service: nethvoice103-wizard"
+  }
+]
+```
+
+These `AppConfig` entries appear in the support session UI so operators know which applications are configured and how to access them. The `teardown` action ignores stdout.
+
+**Example**: see `examples/users.d/nethvoice` for a complete reference implementation that creates FreePBX admin users for each NethVoice instance.
+
+### Plugin Security Model
+
+Both `diagnostics.d/` and `users.d/` apply identical security checks before executing any plugin:
+
+| Check | Rule |
+|:---|:---|
+| **File type** | Must be a regular file (no symlinks, no directories) |
+| **Executable** | Must have at least one execute bit set |
+| **Ownership** | Must be owned by **root (UID 0)** or the tunnel-client process UID |
+| **Write permissions** | Must **not** be group-writable or world-writable |
+| **Environment** | Plugins run with a minimal environment (`PATH` only) — no inherited secrets |
+| **Timeout** | Per-plugin timeout enforced via `context.WithTimeout` |
+| **Output limit** | Stdout capped (512 KB for diagnostics, 64 KB for users) |
+| **Temp files** | Credential files (`--users-file`, `--instances-file`) are written to `/var/run/my-support-tmp/` with 0700 permissions and deleted after execution |
+
+If any check fails, the plugin is silently skipped with a log message. Plugins are executed in alphabetical order.
 
 ## Related
 - [openapi.yaml](../../backend/openapi.yaml) - API specification
