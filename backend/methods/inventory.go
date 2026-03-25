@@ -55,7 +55,7 @@ func GetSystemInventoryHistory(c *gin.Context) {
 		}
 	}
 	if pageSizeStr := c.Query("page_size"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 && ps <= 100 {
+		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 && ps <= 200 {
 			pageSize = ps
 		}
 	}
@@ -248,7 +248,7 @@ func GetSystemInventoryTimeline(c *gin.Context) {
 		}
 	}
 	if pageSizeStr := c.Query("page_size"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 && ps <= 100 {
+		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 && ps <= 200 {
 			pageSize = ps
 		}
 	}
@@ -455,7 +455,7 @@ func GetSystemInventoryDiffs(c *gin.Context) {
 		}
 	}
 	if pageSizeStr := c.Query("page_size"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 && ps <= 100 {
+		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 && ps <= 200 {
 			pageSize = ps
 		}
 	}

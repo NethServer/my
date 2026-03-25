@@ -429,15 +429,30 @@ func (r *LocalInventoryRepository) GetInventoryTimelineDateGroups(systemID strin
 		joinArgIndex += 3
 	}
 
-	// Count total date groups (only needs irArgs, no join filters)
+	// Determine if diff filters are active (severity, category, diff_type, search)
+	hasDiffFilters := len(joinArgs) > 0
+
+	// When diff filters are active, only count/show dates that have matching diffs
+	havingClause := ""
+	if hasDiffFilters {
+		havingClause = "HAVING COUNT(d.id) > 0"
+	}
+
+	// Count total date groups
+	countAllArgs := append(irArgs, joinArgs...)
 	countQuery := fmt.Sprintf(`
-		SELECT COUNT(DISTINCT DATE(ir.timestamp AT TIME ZONE 'UTC')::text)
-		FROM inventory_records ir
-		%s
-	`, irWhereClause)
+		SELECT COUNT(*) FROM (
+			SELECT DATE(ir.timestamp AT TIME ZONE 'UTC')::text as date
+			FROM inventory_records ir
+			LEFT JOIN inventory_diffs d ON %s
+			%s
+			GROUP BY DATE(ir.timestamp AT TIME ZONE 'UTC')
+			%s
+		) sub
+	`, joinCondition, irWhereClause, havingClause)
 
 	var totalCount int
-	if err := r.db.QueryRow(countQuery, irArgs...).Scan(&totalCount); err != nil {
+	if err := r.db.QueryRow(countQuery, countAllArgs...).Scan(&totalCount); err != nil {
 		return nil, 0, fmt.Errorf("failed to count timeline date groups: %w", err)
 	}
 
@@ -455,9 +470,10 @@ func (r *LocalInventoryRepository) GetInventoryTimelineDateGroups(systemID strin
 		LEFT JOIN inventory_diffs d ON %s
 		%s
 		GROUP BY DATE(ir.timestamp AT TIME ZONE 'UTC')
+		%s
 		ORDER BY date DESC
 		LIMIT $%d OFFSET $%d
-	`, joinCondition, irWhereClause, joinArgIndex, joinArgIndex+1)
+	`, joinCondition, irWhereClause, havingClause, joinArgIndex, joinArgIndex+1)
 
 	rows, err := r.db.Query(query, allArgs...)
 	if err != nil {
