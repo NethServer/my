@@ -31,6 +31,7 @@ import {
   NeSpinner,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import {
   faChevronDown,
   faChevronUp,
@@ -453,80 +454,86 @@ const diffTypeFilterModel = computed<string[]>({
 
 <template>
   <!-- Filters bar -->
-  <div class="mb-6 flex flex-wrap items-center gap-4">
-    <!-- Text filter -->
-    <NeTextInput
-      v-model.trim="textFilter"
-      is-search
-      :placeholder="$t('common.filter')"
-      class="max-w-xs"
-    />
-    <!-- Severity filter -->
-    <NeDropdownFilter
-      v-model="severityFilterModel"
-      kind="checkbox"
-      :label="t('system_detail.severity')"
-      :options="severityFilterOptions"
-      :show-clear-filter="false"
-      :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
-      :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-      :no-options-label="t('ne_dropdown_filter.no_options')"
-      :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-      :clear-search-label="t('ne_dropdown_filter.clear_search')"
-    />
-    <!-- Category filter -->
-    <NeDropdownFilter
-      v-model="categoryFilterModel"
-      kind="checkbox"
-      :label="t('system_detail.category')"
-      :options="categoryFilterOptions"
-      show-options-filter
-      :show-clear-filter="false"
-      :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
-      :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-      :no-options-label="t('ne_dropdown_filter.no_options')"
-      :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-      :clear-search-label="t('ne_dropdown_filter.clear_search')"
-    />
-    <!-- Change type filter -->
-    <NeDropdownFilter
-      v-model="diffTypeFilterModel"
-      kind="checkbox"
-      :label="t('system_detail.change_type')"
-      :options="diffTypeFilterOptions"
-      :show-clear-filter="false"
-      :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
-      :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-      :no-options-label="t('ne_dropdown_filter.no_options')"
-      :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-      :clear-search-label="t('ne_dropdown_filter.clear_search')"
-    />
-    <!-- Date range: from -->
-    <div class="flex items-center gap-2">
-      <label class="text-sm text-gray-500 dark:text-gray-400">{{
-        t('system_detail.from_date')
-      }}</label>
-      <input
-        v-model="fromDate"
-        type="date"
-        class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:ring-2 focus:ring-sky-500 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300"
-      />
+  <div class="mb-6 flex items-center gap-4">
+    <div class="flex w-full items-end justify-between gap-4">
+      <div class="flex flex-wrap items-center gap-4">
+        <!-- Text filter -->
+        <NeTextInput
+          v-model.trim="textFilter"
+          is-search
+          :placeholder="$t('common.filter')"
+          class="max-w-xs"
+        />
+        <!-- Severity filter -->
+        <NeDropdownFilter
+          v-model="severityFilterModel"
+          kind="checkbox"
+          :label="t('system_detail.severity')"
+          :options="severityFilterOptions"
+          :show-clear-filter="false"
+          :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+          :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+          :no-options-label="t('ne_dropdown_filter.no_options')"
+          :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+          :clear-search-label="t('ne_dropdown_filter.clear_search')"
+        />
+        <!-- Category filter -->
+        <NeDropdownFilter
+          v-model="categoryFilterModel"
+          kind="checkbox"
+          :label="t('system_detail.category')"
+          :options="categoryFilterOptions"
+          show-options-filter
+          :show-clear-filter="false"
+          :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+          :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+          :no-options-label="t('ne_dropdown_filter.no_options')"
+          :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+          :clear-search-label="t('ne_dropdown_filter.clear_search')"
+        />
+        <!-- Change type filter -->
+        <NeDropdownFilter
+          v-model="diffTypeFilterModel"
+          kind="checkbox"
+          :label="t('system_detail.change_type')"
+          :options="diffTypeFilterOptions"
+          :show-clear-filter="false"
+          :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+          :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+          :no-options-label="t('ne_dropdown_filter.no_options')"
+          :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+          :clear-search-label="t('ne_dropdown_filter.clear_search')"
+        />
+        <!-- Date range: from -->
+        <div class="flex items-center gap-2">
+          <label class="text-sm text-gray-500 dark:text-gray-400">{{
+            t('system_detail.from_date')
+          }}</label>
+          <input
+            v-model="fromDate"
+            type="date"
+            class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:ring-2 focus:ring-sky-500 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300"
+          />
+        </div>
+        <!-- Date range: to -->
+        <div class="flex items-center gap-2">
+          <label class="text-sm text-gray-500 dark:text-gray-400">{{
+            t('system_detail.to_date')
+          }}</label>
+          <input
+            v-model="toDate"
+            type="date"
+            class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:ring-2 focus:ring-sky-500 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300"
+          />
+        </div>
+        <!-- Reset filters -->
+        <NeButton kind="tertiary" @click="resetAllFilters">
+          {{ t('common.reset_filters') }}
+        </NeButton>
+      </div>
+      <!-- update indicator -->
+      <UpdatingSpinner v-if="timelineAsyncStatus === 'loading' || diffsAsyncStatus === 'loading'" />
     </div>
-    <!-- Date range: to -->
-    <div class="flex items-center gap-2">
-      <label class="text-sm text-gray-500 dark:text-gray-400">{{
-        t('system_detail.to_date')
-      }}</label>
-      <input
-        v-model="toDate"
-        type="date"
-        class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:ring-2 focus:ring-sky-500 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300"
-      />
-    </div>
-    <!-- Reset filters -->
-    <NeButton kind="tertiary" @click="resetAllFilters">
-      {{ t('common.reset_filters') }}
-    </NeButton>
   </div>
 
   <!-- Error notifications -->
@@ -545,10 +552,8 @@ const diffTypeFilterModel = computed<string[]>({
     class="mb-6"
   />
 
-  <!-- ////  -->
-  <!-- <div>timelineState.status {{ timelineState.status }}</div>
+  <!-- ////
   <div>timelineAsyncStatus {{ timelineAsyncStatus }}</div>
-  <div>diffsState.status {{ diffsState.status }}</div>
   <div>diffsAsyncStatus {{ diffsAsyncStatus }}</div> -->
 
   <!-- Loading skeleton (initial load) -->
