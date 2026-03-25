@@ -58,6 +58,7 @@ const getInventoryDiffsQueryStringParams = (
   inventoryId: number[],
   fromDate: string,
   toDate: string,
+  search: string,
 ) => {
   const searchParams = new URLSearchParams({
     page: pageNum.toString(),
@@ -77,6 +78,10 @@ const getInventoryDiffsQueryStringParams = (
     searchParams.append('to_date', toDate)
   }
 
+  if (search.trim()) {
+    searchParams.append('search', search)
+  }
+
   return searchParams.toString()
 }
 
@@ -90,6 +95,7 @@ export const getInventoryDiffs = (
   inventoryId: number[],
   fromDate: string,
   toDate: string,
+  search: string,
 ) => {
   const loginStore = useLoginStore()
   const queryString = getInventoryDiffsQueryStringParams(
@@ -101,6 +107,7 @@ export const getInventoryDiffs = (
     inventoryId,
     fromDate,
     toDate,
+    search,
   )
 
   return axios

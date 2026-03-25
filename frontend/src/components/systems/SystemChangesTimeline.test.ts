@@ -57,8 +57,18 @@ const timelineGroups = ref<TimelineGroup[]>([])
 const timelineAsyncStatusValue = ref<'idle' | 'loading'>('idle')
 const hasNextPageValue = ref(false)
 const areDefaultFiltersAppliedValue = ref(true)
+const textFilterValue = ref('')
+const debouncedTextFilterValue = ref('')
 const loadNextPageMock = vi.fn()
-const resetFiltersMock = vi.fn()
+const resetFiltersMock = vi.fn(() => {
+  textFilterValue.value = ''
+  debouncedTextFilterValue.value = ''
+  severityFilterValue.value = []
+  categoryFilterValue.value = []
+  diffTypeFilterValue.value = []
+  fromDateValue.value = ''
+  toDateValue.value = ''
+})
 const severityFilterValue = ref<string[]>([])
 const categoryFilterValue = ref<string[]>([])
 const diffTypeFilterValue = ref<string[]>([])
@@ -79,6 +89,8 @@ const timelineMock = {
   diffTypeFilter: diffTypeFilterValue,
   fromDate: fromDateValue,
   toDate: toDateValue,
+  textFilter: textFilterValue,
+  debouncedTextFilter: debouncedTextFilterValue,
   areDefaultFiltersApplied: computed(() => areDefaultFiltersAppliedValue.value),
   resetFilters: resetFiltersMock,
   allInventoryIds: computed(() => timelineGroups.value.flatMap((g) => g.inventory_ids)),
@@ -93,7 +105,17 @@ const diffsAsyncStatusValue = ref<'idle' | 'loading'>('idle')
 const diffsMock = {
   state: computed(() => ({
     status: diffsStatus.value,
-    data: diffsStatus.value === 'success' ? { diffs: diffsData.value, pagination: {} } : undefined,
+    data:
+      diffsStatus.value === 'success'
+        ? {
+            diffs: diffsData.value,
+            pagination: {},
+            // Mirror the real query's .then() which appends requestedInventoryIds so the
+            // component's stableDiffs watcher populates lastFetchedInventoryIds correctly,
+            // keeping diffsIsRefetching=false and allowing group headers to render.
+            requestedInventoryIds: timelineGroups.value.flatMap((g) => g.inventory_ids),
+          }
+        : undefined,
     error: diffsErrValue.value,
   })),
   asyncStatus: computed(() => diffsAsyncStatusValue.value),
@@ -186,7 +208,9 @@ function resetToBaseline() {
   hasNextPageValue.value = false
   areDefaultFiltersAppliedValue.value = true
   loadNextPageMock.mockReset()
-  resetFiltersMock.mockReset()
+  resetFiltersMock.mockClear()
+  textFilterValue.value = ''
+  debouncedTextFilterValue.value = ''
   severityFilterValue.value = []
   categoryFilterValue.value = []
   diffTypeFilterValue.value = []
@@ -630,7 +654,12 @@ describe('SystemChangesTimeline', () => {
       const diff2 = makeDiff({ id: 2, inventory_id: 10, field_path: 'hardware.cpu.cores' })
       const wrapper = await mountWithDiffs([makeGroup('2026-03-20', 2, [10])], [diff1, diff2])
 
-      await wrapper.find('input').setValue('kernel')
+      // Simulate debounce completing: the component resets stableDiffs when
+      // debouncedTextFilter changes, then the server returns only matching diffs.
+      debouncedTextFilterValue.value = 'kernel'
+      await wrapper.vm.$nextTick() // stableDiffs resets to []
+      diffsData.value = [diff1] // server returns only the matching diff
+      await wrapper.vm.$nextTick()
       await wrapper.vm.$nextTick()
 
       expect(wrapper.text()).toContain('os.kernel_version')
@@ -640,9 +669,8 @@ describe('SystemChangesTimeline', () => {
     it('shows "Try changing your search filters" when nothing matches', async () => {
       // diffsStatus='success' set BEFORE mount keeps diffsHaveEverLoaded=false
       // (the non-immediate watcher only fires on *changes*, not the initial value).
-      // When diffsHaveEverLoaded=false, isTimelineEmpty skips the text-filter path
-      // so the timeline still renders — but getFilteredDiffsForGroup returns [] for
-      // the expanded group, showing the per-group "Try changing" message.
+      // stableDiffs is therefore empty, so the expanded group renders 0 diffs and
+      // shows the per-group "Try changing" message regardless of the text input.
       timelineStatus.value = 'success'
       timelineGroups.value = [makeGroup('2026-03-20', 1, [10])]
       diffsStatus.value = 'success'
@@ -661,7 +689,12 @@ describe('SystemChangesTimeline', () => {
 
       expect(wrapper.text()).toContain('2 changes')
 
-      await wrapper.find('input').setValue('kernel')
+      // Simulate server response: updated timeline (change_count=1) and filtered diffs
+      debouncedTextFilterValue.value = 'kernel'
+      await wrapper.vm.$nextTick() // stableDiffs resets
+      timelineGroups.value = [makeGroup('2026-03-20', 1, [10])] // server reports 1 match
+      diffsData.value = [diff1] // server returns matching diff
+      await wrapper.vm.$nextTick()
       await wrapper.vm.$nextTick()
 
       expect(wrapper.text()).toContain('1 change')

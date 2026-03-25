@@ -9,10 +9,12 @@ import {
   type InventoryDiffSeverity,
   type InventoryDiffType,
 } from '@/lib/systems/inventoryDiffs'
+import { MIN_SEARCH_LENGTH } from '@/lib/common'
 import { canReadSystems } from '@/lib/permissions'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
+import { useDebounceFn } from '@vueuse/core'
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
@@ -28,6 +30,8 @@ export const useInventoryDiffs = defineQuery(() => {
   const inventoryIdFilter = ref<number[]>([])
   const fromDate = ref('')
   const toDate = ref('')
+  const textFilter = ref('')
+  const debouncedTextFilter = ref('')
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [
@@ -42,6 +46,7 @@ export const useInventoryDiffs = defineQuery(() => {
         inventoryIdFilter: inventoryIdFilter.value,
         fromDate: fromDate.value,
         toDate: toDate.value,
+        search: debouncedTextFilter.value,
       },
     ],
     enabled: () => !!loginStore.jwtToken && canReadSystems() && !!route.params.systemId,
@@ -56,6 +61,7 @@ export const useInventoryDiffs = defineQuery(() => {
         inventoryIdFilter.value,
         fromDate.value,
         toDate.value,
+        debouncedTextFilter.value,
       )
       return apiCall
     },
@@ -68,7 +74,8 @@ export const useInventoryDiffs = defineQuery(() => {
       diffTypeFilter.value.length === 0 &&
       inventoryIdFilter.value.length === 0 &&
       !fromDate.value &&
-      !toDate.value
+      !toDate.value &&
+      !debouncedTextFilter.value
     )
   })
 
@@ -145,7 +152,19 @@ export const useInventoryDiffs = defineQuery(() => {
     inventoryIdFilter.value = []
     fromDate.value = ''
     toDate.value = ''
+    textFilter.value = ''
+    debouncedTextFilter.value = ''
   }
+
+  watch(
+    () => textFilter.value,
+    useDebounceFn(() => {
+      if (textFilter.value.length === 0 || textFilter.value.length >= MIN_SEARCH_LENGTH) {
+        debouncedTextFilter.value = textFilter.value
+        pageNum.value = 1
+      }
+    }, 500),
+  )
 
   return {
     ...rest,
@@ -159,6 +178,8 @@ export const useInventoryDiffs = defineQuery(() => {
     inventoryIdFilter,
     fromDate,
     toDate,
+    textFilter,
+    debouncedTextFilter,
     areDefaultFiltersApplied,
     resetFilters,
   }

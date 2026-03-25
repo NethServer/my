@@ -57,6 +57,8 @@ const {
   diffTypeFilter,
   fromDate,
   toDate,
+  textFilter,
+  debouncedTextFilter,
   areDefaultFiltersApplied: areTimelineDefaultFiltersApplied,
   resetFilters: resetTimelineFilters,
   allInventoryIds,
@@ -64,11 +66,15 @@ const {
 } = useInventoryTimeline()
 
 // ── Local state ──────────────────────────────────────────────────────────────
-const textFilter = ref('')
 const expandedGroups = ref<Set<string>>(new Set())
 const expandedDiffs = ref<Set<number>>(new Set())
 
-// ── Diffs query (reactive to allInventoryIds from timeline) ──────────────────
+// ── Diffs stable state (declared before useQuery so enabled/query can close over them) ──
+const stableDiffs = ref<InventoryDiff[]>([])
+const lastFetchedInventoryIds = ref<Set<number>>(new Set())
+const diffsHaveEverLoaded = ref(false)
+
+// ── Diffs query — key tracks the full ID set; query fetches only the delta ───
 const { state: diffsState, asyncStatus: diffsAsyncStatus } = useQuery({
   key: () => [
     INVENTORY_DIFFS_KEY,
@@ -81,26 +87,34 @@ const { state: diffsState, asyncStatus: diffsAsyncStatus } = useQuery({
       diffTypeFilter: diffTypeFilter.value,
       fromDate: fromDate.value,
       toDate: toDate.value,
+      search: debouncedTextFilter.value,
     },
   ],
+  // Only run when there are IDs in the current timeline page that haven't been fetched yet.
+  // Using allInventoryIds ensures the key and the enabled guard are always in sync: when
+  // filters change the infinite query resets to no-data, allInventoryIds becomes [] and the
+  // query is automatically disabled until the first timeline page for the new filters loads.
   enabled: () =>
     !!loginStore.jwtToken &&
     canReadSystems() &&
     !!route.params.systemId &&
-    allInventoryIds.value.length > 0,
+    allInventoryIds.value.some((id) => !lastFetchedInventoryIds.value.has(id)),
   query: () => {
-    const apiCall = getInventoryDiffs(
+    // Fetch only the IDs we haven't retrieved yet so each loadNextPage() sends a
+    // minimal request instead of re-requesting every previously loaded page.
+    const idsToFetch = allInventoryIds.value.filter((id) => !lastFetchedInventoryIds.value.has(id))
+    return getInventoryDiffs(
       route.params.systemId as string,
       1,
       100,
       severityFilter.value,
       categoryFilter.value,
       diffTypeFilter.value,
-      allInventoryIds.value,
+      idsToFetch,
       fromDate.value,
       toDate.value,
-    )
-    return apiCall
+      debouncedTextFilter.value,
+    ).then((result) => ({ ...result, requestedInventoryIds: idsToFetch }))
   },
 })
 
@@ -179,7 +193,6 @@ const today = todayDateString()
 const displayGroups = computed<DisplayGroup[]>(() => {
   const groups = allGroups.value
   const result: DisplayGroup[] = []
-  const search = textFilter.value.trim().toLowerCase()
 
   const todayGroup = groups.find((g) => g.date === today)
   const otherGroups = todayGroup ? groups.slice(1) : groups
@@ -203,29 +216,9 @@ const displayGroups = computed<DisplayGroup[]>(() => {
   // Skip non-today groups with change_count === 0 (e.g. when a filter hides all
   // their diffs). Their date range gets absorbed into the gap of the preceding
   // visible entry, so only a single badge is shown between two real changes.
-  // When a text filter is active and diffs are loaded, also skip groups whose
-  // diffs are all filtered out by the text search.
   const visibleEntries = allOrderedEntries.filter((e) => {
-    if (e.isToday) {
-      // Always show today when it has no changes ("no changes today" label)
-      if (e.change_count === 0) return true
-      // When text filter is active and diffs are loaded, hide today if nothing matches
-      if (search && diffsHaveEverLoaded.value) {
-        const idSet = new Set(e.inventory_ids)
-        return allDiffs.value.some(
-          (d) => idSet.has(d.inventory_id) && d.field_path.toLowerCase().includes(search),
-        )
-      }
-      return true
-    }
-    if (e.change_count === 0) return false
-    if (search && diffsHaveEverLoaded.value) {
-      const idSet = new Set(e.inventory_ids)
-      return allDiffs.value.some(
-        (d) => idSet.has(d.inventory_id) && d.field_path.toLowerCase().includes(search),
-      )
-    }
-    return true
+    if (e.isToday) return true
+    return e.change_count !== 0
   })
 
   visibleEntries.forEach((entry, idx) => {
@@ -244,33 +237,48 @@ const displayGroups = computed<DisplayGroup[]>(() => {
 
 const isTimelineEmpty = computed(() => {
   if (timelineState.value.status !== 'success') return false
-  if (allGroups.value.filter((g) => g.change_count > 0).length === 0) return true
-  // Text filter is client-side: treat as empty when active, diffs loaded, and nothing matches
-  const search = textFilter.value.trim().toLowerCase()
-  if (search && diffsHaveEverLoaded.value) {
-    return !allDiffs.value.some((d) => d.field_path.toLowerCase().includes(search))
-  }
-  return false
+  return allGroups.value.filter((g) => g.change_count > 0).length === 0
 })
 
-const areDefaultFiltersApplied = computed(
-  () => areTimelineDefaultFiltersApplied.value && !textFilter.value.trim(),
-)
+const areDefaultFiltersApplied = computed(() => areTimelineDefaultFiltersApplied.value)
 
 // ── Diffs helpers ─────────────────────────────────────────────────────────────
 
-// Stable snapshot of diffs from the last completed fetch — never clears during refetch
-// so existing groups keep showing their diffs while a new page is loading.
-const stableDiffs = ref<InventoryDiff[]>([])
-const lastFetchedInventoryIds = ref<Set<number>>(new Set())
-const diffsHaveEverLoaded = ref(false)
+// Reset accumulated diffs when filter conditions (or system) change so the
+// subsequent diffs fetch starts fresh rather than merging into stale data.
+// Using a serialized computed key prevents spurious resets when resetFilters()
+// assigns new empty-array instances that are equal in content to the old ones.
+const filterResetKey = computed(() =>
+  JSON.stringify({
+    systemId: route.params.systemId,
+    severityFilter: severityFilter.value,
+    categoryFilter: categoryFilter.value,
+    diffTypeFilter: diffTypeFilter.value,
+    fromDate: fromDate.value,
+    toDate: toDate.value,
+    debouncedTextFilter: debouncedTextFilter.value,
+  }),
+)
+
+watch(filterResetKey, () => {
+  stableDiffs.value = []
+  lastFetchedInventoryIds.value = new Set()
+  diffsHaveEverLoaded.value = false
+})
 
 watch(
   () => diffsState.value.data,
   (data) => {
     if (data !== undefined) {
-      stableDiffs.value = data.diffs
-      lastFetchedInventoryIds.value = new Set(allInventoryIds.value)
+      // Merge: replace any existing diffs for these IDs (idempotent on refetch),
+      // then append the new ones. This way each loadNextPage() only fetches the
+      // delta instead of re-requesting all previously loaded pages.
+      const fetchedIds = new Set(data.requestedInventoryIds)
+      stableDiffs.value = [
+        ...stableDiffs.value.filter((d) => !fetchedIds.has(d.inventory_id)),
+        ...data.diffs,
+      ]
+      fetchedIds.forEach((id) => lastFetchedInventoryIds.value.add(id))
       diffsHaveEverLoaded.value = true
     }
   },
@@ -324,17 +332,11 @@ function objectToLines(value: unknown): string[] {
 }
 
 function getFilteredDiffsForGroup(group: DisplayGroup): InventoryDiff[] {
-  const diffs = getDiffsForGroup(group)
-  if (!textFilter.value.trim()) return diffs
-  const search = textFilter.value.trim().toLowerCase()
-  return diffs.filter((d) => d.field_path.toLowerCase().includes(search))
+  return getDiffsForGroup(group)
 }
 
 // ── Filtered change count (respects text search) ────────────────────────────
 function getDisplayCountForGroup(group: DisplayGroup): number {
-  if (textFilter.value.trim() && diffsHaveEverLoaded.value) {
-    return getFilteredDiffsForGroup(group).length
-  }
   return group.change_count
 }
 
@@ -403,7 +405,6 @@ function getCategoryLabel(category: InventoryDiffCategory): string {
 
 // ── Reset all filters ─────────────────────────────────────────────────────────
 function resetAllFilters() {
-  textFilter.value = ''
   resetTimelineFilters()
 }
 
@@ -592,7 +593,7 @@ const diffTypeFilterModel = computed<string[]>({
 
     <div v-for="group in displayGroups" :key="group.date">
       <!-- Date header row -->
-      <div v-if="!isGroupPendingDiffs(group)" class="relative mb-2 flex items-start">
+      <div v-if="!isGroupPendingDiffs(group)" class="relative mb-8 flex items-start">
         <!-- Date label column (right-aligned) -->
         <div class="w-36 flex-shrink-0 pt-0.5 pr-6 text-right">
           <span
@@ -774,8 +775,9 @@ const diffTypeFilterModel = computed<string[]>({
       </div>
 
       <!-- Gap badge (days without changes between this group and the next) -->
+      <!-- Only shown when no filters are applied — the gap count is meaningless under a filter -->
       <div
-        v-if="group.gapDaysAfter > 0 && !isGroupPendingDiffs(group)"
+        v-if="group.gapDaysAfter > 0 && !isGroupPendingDiffs(group) && areDefaultFiltersApplied"
         class="my-8 flex items-start"
       >
         <div class="w-36 flex-shrink-0"></div>

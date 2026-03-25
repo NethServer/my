@@ -7,13 +7,15 @@ import {
   type InventoryDiffType,
 } from '@/lib/systems/inventoryDiffs'
 import { INVENTORY_TIMELINE_KEY, getInventoryTimeline } from '@/lib/systems/inventoryTimeline'
+import { MIN_SEARCH_LENGTH } from '@/lib/common'
 import { canReadSystems } from '@/lib/permissions'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useInfiniteQuery } from '@pinia/colada'
-import { computed, ref } from 'vue'
+import { useDebounceFn } from '@vueuse/core'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
-const TIMELINE_PAGE_SIZE = 20
+const TIMELINE_PAGE_SIZE = 5 //// 20
 
 export const useInventoryTimeline = defineQuery(() => {
   const loginStore = useLoginStore()
@@ -23,6 +25,8 @@ export const useInventoryTimeline = defineQuery(() => {
   const diffTypeFilter = ref<InventoryDiffType[]>([])
   const fromDate = ref('')
   const toDate = ref('')
+  const textFilter = ref('')
+  const debouncedTextFilter = ref('')
 
   const { state, asyncStatus, hasNextPage, loadNextPage } = useInfiniteQuery({
     key: () => [
@@ -34,6 +38,7 @@ export const useInventoryTimeline = defineQuery(() => {
         diffTypeFilter: diffTypeFilter.value,
         fromDate: fromDate.value,
         toDate: toDate.value,
+        search: debouncedTextFilter.value,
       },
     ],
     enabled: () => !!loginStore.jwtToken && canReadSystems() && !!route.params.systemId,
@@ -48,6 +53,7 @@ export const useInventoryTimeline = defineQuery(() => {
         diffTypeFilter.value,
         fromDate.value,
         toDate.value,
+        debouncedTextFilter.value,
       )
       return apiCall
     },
@@ -69,9 +75,19 @@ export const useInventoryTimeline = defineQuery(() => {
       categoryFilter.value.length === 0 &&
       diffTypeFilter.value.length === 0 &&
       !fromDate.value &&
-      !toDate.value
+      !toDate.value &&
+      !debouncedTextFilter.value
     )
   })
+
+  watch(
+    () => textFilter.value,
+    useDebounceFn(() => {
+      if (textFilter.value.length === 0 || textFilter.value.length >= MIN_SEARCH_LENGTH) {
+        debouncedTextFilter.value = textFilter.value
+      }
+    }, 500),
+  )
 
   const resetFilters = () => {
     severityFilter.value = []
@@ -79,6 +95,8 @@ export const useInventoryTimeline = defineQuery(() => {
     diffTypeFilter.value = []
     fromDate.value = ''
     toDate.value = ''
+    textFilter.value = ''
+    debouncedTextFilter.value = ''
   }
 
   return {
@@ -91,6 +109,8 @@ export const useInventoryTimeline = defineQuery(() => {
     diffTypeFilter,
     fromDate,
     toDate,
+    textFilter,
+    debouncedTextFilter,
     areDefaultFiltersApplied,
     resetFilters,
     allInventoryIds,

@@ -47,6 +47,7 @@ const getInventoryTimelineQueryStringParams = (
   diffType: InventoryDiffType[],
   fromDate: string,
   toDate: string,
+  search: string,
 ) => {
   const searchParams = new URLSearchParams({
     page: pageNum.toString(),
@@ -65,6 +66,10 @@ const getInventoryTimelineQueryStringParams = (
     searchParams.append('to_date', toDate)
   }
 
+  if (search.trim()) {
+    searchParams.append('search', search)
+  }
+
   return searchParams.toString()
 }
 
@@ -77,6 +82,7 @@ export const getInventoryTimeline = (
   diffType: InventoryDiffType[],
   fromDate: string,
   toDate: string,
+  search: string,
 ) => {
   const loginStore = useLoginStore()
   const queryString = getInventoryTimelineQueryStringParams(
@@ -87,6 +93,7 @@ export const getInventoryTimeline = (
     diffType,
     fromDate,
     toDate,
+    search,
   )
 
   return axios
