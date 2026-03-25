@@ -7108,7 +7108,14 @@ paths:
             example: "sys_123456789"
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
-        - $ref: '#/components/parameters/SearchParam'
+        - name: search
+          in: query
+          required: false
+          description: "Case-insensitive text search across field_path, previous_value, and current_value."
+          schema:
+            type: string
+            minLength: 1
+            example: "network"
         - name: severity
           in: query
           required: false
@@ -7281,7 +7288,14 @@ paths:
             example: "sys_123456789"
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
-        - $ref: '#/components/parameters/SearchParam'
+        - name: search
+          in: query
+          required: false
+          description: "Case-insensitive text search across diff field_path, previous_value, and current_value. Affects change_count in groups and summary counters."
+          schema:
+            type: string
+            minLength: 1
+            example: "dhcp"
         - name: severity
           in: query
           required: false

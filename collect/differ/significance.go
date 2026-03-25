@@ -14,37 +14,26 @@ import (
 // IsSignificantChange determines if a change is significant enough to track and notify
 //
 // Process Flow:
-// 1. Check "always significant" patterns first - these always pass
-// 2. Check "never significant" patterns - these always fail
+// 1. Check "never significant" patterns first - explicit exclusions have highest priority
+// 2. Check "always significant" patterns - these always pass if not excluded
 // 3. Apply time-based filters to reduce noise from frequent changes
 // 4. Apply value-based filters to ignore minor numeric changes
 // 5. Return default significance if no specific rules match
 //
 // Significance Filters:
+//   - Never Significant: Explicit exclusions (memory bytes, timestamps, heartbeats) - highest priority
 //   - Always Significant: High/critical severity, hardware/network/security changes, deletions
-//   - Never Significant: Timestamps, heartbeats, frequent monitoring data
 //   - Time Filters: Ignore frequent changes within time windows
 //   - Value Filters: Ignore changes below percentage thresholds
 //
 // Example:
+//   - "uptime_seconds" → never significant (checked first)
 //   - "severity:critical" → always significant
-//   - "uptime_seconds" → never significant
 //   - "metrics" within 5 minutes → filtered out
 func (cd *ConfigurableDiffer) IsSignificantChange(fieldPath, changeType, category, severity string, from, to interface{}) bool {
 	pathLower := strings.ToLower(fieldPath)
 
-	// Step 1: Check "always significant" patterns
-	if cd.matchesAlwaysSignificant(pathLower, changeType, category, severity) {
-		logger.ComponentLogger("differ-significance").Debug().
-			Str("field_path", fieldPath).
-			Str("reason", "always_significant").
-			Bool("significant", true).
-			Msg("Change marked as always significant")
-
-		return true
-	}
-
-	// Step 2: Check "never significant" patterns
+	// Step 1: Check "never significant" patterns (explicit exclusions have highest priority)
 	if cd.matchesNeverSignificant(pathLower, changeType, category, severity) {
 		logger.ComponentLogger("differ-significance").Debug().
 			Str("field_path", fieldPath).
@@ -53,6 +42,17 @@ func (cd *ConfigurableDiffer) IsSignificantChange(fieldPath, changeType, categor
 			Msg("Change marked as never significant")
 
 		return false
+	}
+
+	// Step 2: Check "always significant" patterns
+	if cd.matchesAlwaysSignificant(pathLower, changeType, category, severity) {
+		logger.ComponentLogger("differ-significance").Debug().
+			Str("field_path", fieldPath).
+			Str("reason", "always_significant").
+			Bool("significant", true).
+			Msg("Change marked as always significant")
+
+		return true
 	}
 
 	// Step 3: Apply time-based filters
@@ -312,11 +312,11 @@ func (cd *ConfigurableDiffer) AnalyzeSignificanceDistribution(changes []ChangeIn
 	for _, change := range changes {
 		pathLower := strings.ToLower(change.FieldPath)
 
-		if cd.matchesAlwaysSignificant(pathLower, change.ChangeType, change.Category, change.Severity) {
+		if cd.matchesNeverSignificant(pathLower, change.ChangeType, change.Category, change.Severity) {
+			stats["never_significant"]++
+		} else if cd.matchesAlwaysSignificant(pathLower, change.ChangeType, change.Category, change.Severity) {
 			stats["always_significant"]++
 			stats["significant"]++
-		} else if cd.matchesNeverSignificant(pathLower, change.ChangeType, change.Category, change.Severity) {
-			stats["never_significant"]++
 		} else if cd.isFilteredByTime(pathLower) {
 			stats["time_filtered"]++
 		} else if cd.isFilteredByValue(pathLower, change.From, change.To) {

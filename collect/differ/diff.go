@@ -71,8 +71,8 @@ func FilterSignificantChanges(diffs []models.InventoryDiff) ([]models.InventoryD
 			ChangeType: diff.DiffType,
 			Category:   diff.Category,
 			Severity:   diff.Severity,
-			From:       nil, // Values not available in this context
-			To:         nil,
+			From:       diff.PreviousValue,
+			To:         diff.CurrentValue,
 		}
 	}
 
