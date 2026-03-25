@@ -528,7 +528,6 @@
     "system_key": "System key",
     "cannot_determine_system_url_description": "Cannot access the system because its URL cannot be determined.",
     "change_history_description": "The change history is based on the differences between the inventories sent by the system. If the system has not sent any inventory yet, no change history will be available.",
-    "cannot_retrieve_inventory_changes": "Cannot retrieve inventory changes",
     "today": "Today",
     "no_changes_today": "No changes",
     "one_day_no_changes": "1 day, no changes",

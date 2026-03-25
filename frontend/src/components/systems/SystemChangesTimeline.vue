@@ -63,6 +63,7 @@ const {
   resetFilters: resetTimelineFilters,
   allInventoryIds,
   allGroups,
+  summary,
 } = useInventoryTimeline()
 
 // ── Local state ──────────────────────────────────────────────────────────────
@@ -128,12 +129,11 @@ watch(
 )
 
 // ── Filter options ────────────────────────────────────────────────────────────
-const severityFilterOptions = computed<FilterOption[]>(() => [
-  { id: 'critical', label: t('system_detail.severity_critical') },
-  { id: 'high', label: t('system_detail.severity_high') },
-  { id: 'medium', label: t('system_detail.severity_medium') },
-  { id: 'low', label: t('system_detail.severity_low') },
-])
+const severityFilterOptions = computed<FilterOption[]>(() =>
+  (['critical', 'high', 'medium', 'low'] as const)
+    .filter((s) => (summary.value?.[s] ?? 0) > 0)
+    .map((s) => ({ id: s, label: t(`system_detail.severity_${s}`) })),
+)
 
 const categoryFilterOptions = computed<FilterOption[]>(() => [
   { id: 'os', label: t('system_detail.category_os') },
@@ -297,7 +297,10 @@ const diffsError = computed(() =>
   diffsState.value.status === 'error' ? diffsState.value.error : null,
 )
 const diffsIsLoading = computed(
-  () => !diffsHaveEverLoaded.value && diffsState.value.status === 'pending',
+  () =>
+    !diffsHaveEverLoaded.value &&
+    diffsState.value.status === 'pending' &&
+    allInventoryIds.value.length > 0,
 )
 // True while allInventoryIds has IDs not yet covered by the last completed diffs fetch
 const diffsIsRefetching = computed(

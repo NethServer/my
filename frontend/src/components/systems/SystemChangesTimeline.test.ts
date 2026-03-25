@@ -95,6 +95,7 @@ const timelineMock = {
   resetFilters: resetFiltersMock,
   allInventoryIds: computed(() => timelineGroups.value.flatMap((g) => g.inventory_ids)),
   allGroups: computed(() => timelineGroups.value),
+  summary: computed(() => null),
 }
 
 const diffsStatus = ref<'pending' | 'success' | 'error'>('pending')

@@ -69,6 +69,9 @@ export const useInventoryTimeline = defineQuery(() => {
 
   const allGroups = computed(() => (state.value.data?.pages ?? []).flatMap((page) => page.groups))
 
+  // Summary from the first page — represents overall totals for the current system
+  const summary = computed(() => state.value.data?.pages[0]?.summary ?? null)
+
   const areDefaultFiltersApplied = computed(() => {
     return (
       severityFilter.value.length === 0 &&
@@ -115,5 +118,6 @@ export const useInventoryTimeline = defineQuery(() => {
     resetFilters,
     allInventoryIds,
     allGroups,
+    summary,
   }
 })

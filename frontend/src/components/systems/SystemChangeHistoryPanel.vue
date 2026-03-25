@@ -5,7 +5,7 @@
 
 <script setup lang="ts">
 import CounterCard from '@/components/CounterCard.vue'
-import { useInventoryChanges } from '@/queries/systems/inventoryChanges'
+import { useInventoryTimeline } from '@/queries/systems/inventoryTimeline'
 import { useI18n } from 'vue-i18n'
 import UpdatingSpinner from '../UpdatingSpinner.vue'
 import { NeInlineNotification } from '@nethesis/vue-components'
@@ -13,7 +13,7 @@ import SystemChangesTimeline from './SystemChangesTimeline.vue'
 
 const { t } = useI18n()
 
-const { state: inventoryChanges, asyncStatus: inventoryChangesAsyncStatus } = useInventoryChanges()
+const { state: timelineState, asyncStatus: timelineAsyncStatus, summary } = useInventoryTimeline()
 </script>
 
 <template>
@@ -23,40 +23,40 @@ const { state: inventoryChanges, asyncStatus: inventoryChangesAsyncStatus } = us
     </div>
     <!-- update indicator -->
     <UpdatingSpinner
-      v-if="inventoryChangesAsyncStatus === 'loading' && inventoryChanges.status !== 'pending'"
+      v-if="timelineAsyncStatus === 'loading' && timelineState.status !== 'pending'"
     />
   </div>
-  <!-- inventory changes error notification -->
+  <!-- timeline error notification -->
   <NeInlineNotification
-    v-if="inventoryChanges.status === 'error'"
+    v-if="timelineState.status === 'error'"
     kind="error"
-    :title="t('system_detail.cannot_retrieve_latest_inventory')"
-    :description="inventoryChanges.error.message"
+    :title="t('system_detail.cannot_retrieve_inventory_timeline')"
+    :description="timelineState.error.message"
     class="mb-6"
   />
   <!-- change counters -->
   <div class="mb-10 grid grid-cols-2 gap-6 sm:grid-cols-4">
     <CounterCard
       :title="t('system_detail.total_changes')"
-      :counter="inventoryChanges.data?.total_changes ?? 0"
-      :loading="inventoryChanges.status === 'pending'"
+      :counter="summary?.total ?? 0"
+      :loading="timelineState.status === 'pending'"
     />
     <CounterCard
       :title="t('system_detail.critical_changes')"
-      :counter="inventoryChanges.data?.changes_by_severity?.critical ?? 0"
-      :loading="inventoryChanges.status === 'pending'"
+      :counter="summary?.critical ?? 0"
+      :loading="timelineState.status === 'pending'"
       color-classes="text-rose-700 dark:text-rose-500"
     />
     <CounterCard
       :title="t('system_detail.high_changes')"
-      :counter="inventoryChanges.data?.changes_by_severity?.high ?? 0"
-      :loading="inventoryChanges.status === 'pending'"
+      :counter="summary?.high ?? 0"
+      :loading="timelineState.status === 'pending'"
       color-classes="text-orange-600 dark:text-orange-500"
     />
     <CounterCard
       :title="t('system_detail.medium_changes')"
-      :counter="inventoryChanges.data?.changes_by_severity?.medium ?? 0"
-      :loading="inventoryChanges.status === 'pending'"
+      :counter="summary?.medium ?? 0"
+      :loading="timelineState.status === 'pending'"
       color-classes="text-yellow-600 dark:text-yellow-700"
     />
   </div>
