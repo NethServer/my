@@ -172,7 +172,7 @@ func (r *LocalInventoryRepository) GetInventoryHistory(systemID string, page, pa
 }
 
 // GetInventoryDiffs returns paginated diffs for a system
-func (r *LocalInventoryRepository) GetInventoryDiffs(systemID string, page, pageSize int, severities, categories, diffTypes []string, fromDate, toDate *time.Time, inventoryIDs []int64) ([]models.InventoryDiff, int, error) {
+func (r *LocalInventoryRepository) GetInventoryDiffs(systemID string, page, pageSize int, severities, categories, diffTypes []string, fromDate, toDate *time.Time, inventoryIDs []int64, search string) ([]models.InventoryDiff, int, error) {
 	// Build WHERE clause with filters
 	whereClause := "WHERE system_id = $1"
 	args := []interface{}{systemID}
@@ -228,6 +228,13 @@ func (r *LocalInventoryRepository) GetInventoryDiffs(systemID string, page, page
 		whereClause += fmt.Sprintf(" AND created_at <= $%d", argIndex)
 		args = append(args, *toDate)
 		argIndex++
+	}
+
+	if search != "" {
+		searchPattern := "%" + search + "%"
+		whereClause += fmt.Sprintf(" AND (field_path ILIKE $%d OR previous_value::text ILIKE $%d OR current_value::text ILIKE $%d)", argIndex, argIndex+1, argIndex+2)
+		args = append(args, searchPattern, searchPattern, searchPattern)
+		argIndex += 3
 	}
 
 	// Count total records
@@ -293,7 +300,7 @@ func (r *LocalInventoryRepository) GetInventoryDiffs(systemID string, page, page
 }
 
 // GetInventoryTimelineSummary returns filtered severity counts for the timeline view
-func (r *LocalInventoryRepository) GetInventoryTimelineSummary(systemID string, severities, categories, diffTypes []string, fromDate, toDate *time.Time) (models.InventoryTimelineSummary, error) {
+func (r *LocalInventoryRepository) GetInventoryTimelineSummary(systemID string, severities, categories, diffTypes []string, fromDate, toDate *time.Time, search string) (models.InventoryTimelineSummary, error) {
 	whereClause := "WHERE system_id = $1"
 	args := []interface{}{systemID}
 	argIndex := 2
@@ -333,6 +340,13 @@ func (r *LocalInventoryRepository) GetInventoryTimelineSummary(systemID string, 
 	if toDate != nil {
 		whereClause += fmt.Sprintf(" AND created_at <= $%d", argIndex)
 		args = append(args, *toDate)
+		argIndex++
+	}
+
+	if search != "" {
+		searchPattern := "%" + search + "%"
+		whereClause += fmt.Sprintf(" AND (field_path ILIKE $%d OR previous_value::text ILIKE $%d OR current_value::text ILIKE $%d)", argIndex, argIndex+1, argIndex+2)
+		args = append(args, searchPattern, searchPattern, searchPattern)
 	}
 
 	query := fmt.Sprintf(`
@@ -358,7 +372,7 @@ func (r *LocalInventoryRepository) GetInventoryTimelineSummary(systemID string, 
 }
 
 // GetInventoryTimelineDateGroups returns paginated date groups with inventory and change counts
-func (r *LocalInventoryRepository) GetInventoryTimelineDateGroups(systemID string, page, pageSize int, severities, categories, diffTypes []string, fromDate, toDate *time.Time) ([]models.InventoryTimelineGroup, int, error) {
+func (r *LocalInventoryRepository) GetInventoryTimelineDateGroups(systemID string, page, pageSize int, severities, categories, diffTypes []string, fromDate, toDate *time.Time, search string) ([]models.InventoryTimelineGroup, int, error) {
 	// Build WHERE clause for inventory_records (date range only)
 	irWhereClause := "WHERE ir.system_id = $1"
 	irArgs := []interface{}{systemID}
@@ -406,6 +420,13 @@ func (r *LocalInventoryRepository) GetInventoryTimelineDateGroups(systemID strin
 			joinArgIndex++
 		}
 		joinCondition += fmt.Sprintf(" AND d.diff_type IN (%s)", strings.Join(placeholders, ", "))
+	}
+
+	if search != "" {
+		searchPattern := "%" + search + "%"
+		joinCondition += fmt.Sprintf(" AND (d.field_path ILIKE $%d OR d.previous_value::text ILIKE $%d OR d.current_value::text ILIKE $%d)", joinArgIndex, joinArgIndex+1, joinArgIndex+2)
+		joinArgs = append(joinArgs, searchPattern, searchPattern, searchPattern)
+		joinArgIndex += 3
 	}
 
 	// Count total date groups (only needs irArgs, no join filters)

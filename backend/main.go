@@ -243,13 +243,13 @@ func main() {
 
 			// Inventory endpoints
 			systemsGroup.GET("/:id/inventory", methods.GetSystemInventoryHistory)                      // Get paginated inventory history
+			systemsGroup.GET("/:id/inventory/:inventory_id", methods.GetSystemInventoryByID)           // Get specific inventory record by ID
 			systemsGroup.GET("/:id/inventory/latest", methods.GetSystemLatestInventory)                // Get latest inventory
 			systemsGroup.GET("/:id/inventory/changes", methods.GetSystemInventoryChanges)              // Get changes summary
 			systemsGroup.GET("/:id/inventory/changes/latest", methods.GetSystemLatestInventoryChanges) // Get latest batch changes summary
 			systemsGroup.GET("/:id/inventory/diffs", methods.GetSystemInventoryDiffs)                  // Get paginated diffs
 			systemsGroup.GET("/:id/inventory/diffs/latest", methods.GetSystemLatestInventoryDiff)      // Get latest diff
 			systemsGroup.GET("/:id/inventory/timeline", methods.GetSystemInventoryTimeline)            // Get date-grouped timeline with summary
-			systemsGroup.GET("/:id/inventory/:inventory_id", methods.GetSystemInventoryByID)           // Get specific inventory record by ID
 		}
 
 		// ===========================================

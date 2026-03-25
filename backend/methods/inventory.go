@@ -270,8 +270,11 @@ func GetSystemInventoryTimeline(c *gin.Context) {
 		}
 	}
 
+	// Parse search filter
+	search := strings.TrimSpace(c.Query("search"))
+
 	inventoryService := local.NewInventoryService()
-	summary, groups, totalCount, err := inventoryService.GetInventoryTimeline(systemID, page, pageSize, severities, categories, diffTypes, fromDate, toDate)
+	summary, groups, totalCount, err := inventoryService.GetInventoryTimeline(systemID, page, pageSize, severities, categories, diffTypes, fromDate, toDate, search)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -483,9 +486,12 @@ func GetSystemInventoryDiffs(c *gin.Context) {
 		}
 	}
 
+	// Parse search filter
+	search := strings.TrimSpace(c.Query("search"))
+
 	// Get inventory diffs
 	inventoryService := local.NewInventoryService()
-	diffs, totalCount, err := inventoryService.GetInventoryDiffs(systemID, page, pageSize, severities, categories, diffTypes, fromDate, toDate, inventoryIDs)
+	diffs, totalCount, err := inventoryService.GetInventoryDiffs(systemID, page, pageSize, severities, categories, diffTypes, fromDate, toDate, inventoryIDs, search)
 	if err != nil {
 		logger.Error().
 			Err(err).
