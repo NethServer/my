@@ -107,11 +107,14 @@ func runBuiltinSystem() PluginResult {
 		loadStatus = StatusWarning
 	}
 	overallStatus = worstStatus(overallStatus, loadStatus)
+	loadDetails, _ := json.Marshal(map[string]interface{}{
+		"load_1m": load1m, "load_5m": load5m, "load_15m": load15m, "cpu_count": cpuCount,
+	})
 	checks = append(checks, DiagnosticCheck{
 		Name:    "load_average",
 		Status:  loadStatus,
 		Value:   fmt.Sprintf("%.2f %.2f %.2f", load1m, load5m, load15m),
-		Details: fmt.Sprintf("1m/5m/15m (cpu_count=%d)", cpuCount),
+		Details: string(loadDetails),
 	})
 
 	// --- RAM usage ---
@@ -145,11 +148,14 @@ func runBuiltinSystem() PluginResult {
 		}
 	}
 	overallStatus = worstStatus(overallStatus, ramStatus)
+	ramDetails, _ := json.Marshal(map[string]interface{}{
+		"total_kb": memTotal, "available_kb": memAvailable, "used_pct": ramUsagePct,
+	})
 	checks = append(checks, DiagnosticCheck{
 		Name:    "ram_usage",
 		Status:  ramStatus,
 		Value:   fmt.Sprintf("%.1f%%", ramUsagePct),
-		Details: fmt.Sprintf("total=%dkB available=%dkB", memTotal, memAvailable),
+		Details: string(ramDetails),
 	})
 
 	// --- Root filesystem usage ---
@@ -168,11 +174,14 @@ func runBuiltinSystem() PluginResult {
 			}
 		}
 		overallStatus = worstStatus(overallStatus, diskStatus)
+		diskDetails, _ := json.Marshal(map[string]interface{}{
+			"total_bytes": total, "available_bytes": available, "used_pct": diskUsagePct,
+		})
 		checks = append(checks, DiagnosticCheck{
 			Name:    "disk_usage",
 			Status:  diskStatus,
 			Value:   fmt.Sprintf("%.1f%%", diskUsagePct),
-			Details: fmt.Sprintf("total=%dB available=%dB", total, available),
+			Details: string(diskDetails),
 		})
 	} else {
 		checks = append(checks, DiagnosticCheck{
@@ -192,10 +201,14 @@ func runBuiltinSystem() PluginResult {
 				days := totalSecs / 86400
 				hours := (totalSecs % 86400) / 3600
 				minutes := (totalSecs % 3600) / 60
+				uptimeDetails, _ := json.Marshal(map[string]interface{}{
+					"days": days, "hours": hours, "minutes": minutes, "total_seconds": totalSecs,
+				})
 				checks = append(checks, DiagnosticCheck{
-					Name:   "uptime",
-					Status: StatusOK,
-					Value:  fmt.Sprintf("%d days %d hours %d minutes", days, hours, minutes),
+					Name:    "uptime",
+					Status:  StatusOK,
+					Value:   fmt.Sprintf("%d days %d hours %d minutes", days, hours, minutes),
+					Details: string(uptimeDetails),
 				})
 			}
 		}
