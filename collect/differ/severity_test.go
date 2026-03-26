@@ -28,7 +28,7 @@ func TestConfigurableDiffer_DetermineSeverity(t *testing.T) {
 		// Note: modules delete is now high severity, not critical
 		{
 			name:        "critical nodes delete",
-			fieldPath:   "facts.nodes[0].id",
+			fieldPath:   "facts.nodes.0.id",
 			changeType:  "delete",
 			from:        1,
 			to:          nil,
@@ -86,7 +86,7 @@ func TestConfigurableDiffer_DetermineSeverity(t *testing.T) {
 		},
 		{
 			name:        "high module version update",
-			fieldPath:   "facts.modules[0].version",
+			fieldPath:   "facts.modules.0.version",
 			changeType:  "update",
 			from:        "1.0.0",
 			to:          "2.0.0",
@@ -94,7 +94,7 @@ func TestConfigurableDiffer_DetermineSeverity(t *testing.T) {
 		},
 		{
 			name:        "high node version update",
-			fieldPath:   "facts.nodes[0].version",
+			fieldPath:   "facts.nodes.0.version",
 			changeType:  "update",
 			from:        "8.2.0",
 			to:          "8.3.0",
@@ -126,7 +126,7 @@ func TestConfigurableDiffer_DetermineSeverity(t *testing.T) {
 		},
 		{
 			name:        "high modules create",
-			fieldPath:   "facts.modules[1]",
+			fieldPath:   "facts.modules.1",
 			changeType:  "create",
 			from:        nil,
 			to:          map[string]interface{}{"id": "newmodule1"},
@@ -223,7 +223,7 @@ func TestConfigurableDiffer_DetermineSeverity(t *testing.T) {
 		},
 		{
 			name:        "mixed case field path",
-			fieldPath:   "Facts.Modules[0].Version",
+			fieldPath:   "Facts.Modules.0.Version",
 			changeType:  "Update",
 			from:        "1.0.0",
 			to:          "2.0.0",

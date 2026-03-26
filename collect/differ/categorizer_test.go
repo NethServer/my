@@ -25,12 +25,12 @@ func TestConfigurableDiffer_CategorizeField(t *testing.T) {
 		// Modules category tests (NS8)
 		{
 			name:        "modules array field",
-			fieldPath:   "facts.modules[0].id",
+			fieldPath:   "facts.modules.0.id",
 			expectedCat: "modules",
 		},
 		{
 			name:        "modules version field",
-			fieldPath:   "facts.modules[1].version",
+			fieldPath:   "facts.modules.1.version",
 			expectedCat: "modules",
 		},
 
@@ -49,12 +49,12 @@ func TestConfigurableDiffer_CategorizeField(t *testing.T) {
 		// Nodes category tests (NS8)
 		{
 			name:        "nodes array field",
-			fieldPath:   "facts.nodes[0].id",
+			fieldPath:   "facts.nodes.0.id",
 			expectedCat: "nodes",
 		},
 		{
 			name:        "nodes version field",
-			fieldPath:   "facts.nodes[1].version",
+			fieldPath:   "facts.nodes.1.version",
 			expectedCat: "nodes",
 		},
 
@@ -378,7 +378,7 @@ func TestConfigurableDiffer_CategorizeFieldBatch(t *testing.T) {
 		"facts.memory.total",
 		"facts.network.interfaces",
 		"facts.features.docker",
-		"facts.modules[0].id",
+		"facts.modules.0.id",
 		"unknown.field",
 	}
 
@@ -394,7 +394,7 @@ func TestConfigurableDiffer_CategorizeFieldBatch(t *testing.T) {
 		"facts.memory.total":       "hardware",
 		"facts.network.interfaces": "network",
 		"facts.features.docker":    "features",
-		"facts.modules[0].id":      "modules",
+		"facts.modules.0.id":       "modules",
 		"unknown.field":            "system",
 	}
 
@@ -426,7 +426,7 @@ func TestConfigurableDiffer_GetCategoryStats(t *testing.T) {
 		"facts.memory.free":        "hardware",
 		"facts.network.interfaces": "network",
 		"facts.features.docker":    "features",
-		"facts.modules[0].id":      "modules",
+		"facts.modules.0.id":       "modules",
 		"unknown.field":            "system",
 	}
 

@@ -83,12 +83,12 @@ differ:
         - "facts\\.virtual"
         - "facts\\.pci"
         # NS8 node-level hardware fields
-        - "facts\\.nodes\\.\\d+\\.processors"
-        - "facts\\.nodes\\.\\d+\\.memory"
-        - "facts\\.nodes\\.\\d+\\.product"
-        - "facts\\.nodes\\.\\d+\\.virtual"
-        - "facts\\.nodes\\.\\d+\\.pci"
-        - "facts\\.nodes\\.\\d+\\.distro"
+        - "facts\\.nodes\\.[^.]+\\.processors"
+        - "facts\\.nodes\\.[^.]+\\.memory"
+        - "facts\\.nodes\\.[^.]+\\.product"
+        - "facts\\.nodes\\.[^.]+\\.virtual"
+        - "facts\\.nodes\\.[^.]+\\.pci"
+        - "facts\\.nodes\\.[^.]+\\.distro"
       description: "Hardware and system components"
 
     # Network category
@@ -155,10 +155,10 @@ differ:
         - change_type: "update"
           patterns:
             - "facts\\.distro\\.version"
-            - "facts\\.modules\\[\\d+\\]\\.version"
+            - "facts\\.modules\\.[^.]+\\.version"
             # NS8 nodes use object notation (facts.nodes.1.version) not array notation
-            - "facts\\.nodes\\.\\d+\\.version"
-            - "facts\\.nodes\\[\\d+\\]\\.version"
+            - "facts\\.nodes\\.[^.]+\\.version"
+            - "facts\\.nodes\\.[^.]+\\.version"
             - "facts\\.cluster\\.subscription"
             - "facts\\.cluster\\.fqdn"
             - "facts\\.cluster\\.public_ip"
@@ -195,8 +195,8 @@ differ:
             - "facts\\.memory\\..*\\.used_bytes"
             - "facts\\.memory\\..*\\.available_bytes"
             # NS8 node-level memory
-            - "facts\\.nodes\\.\\d+\\.memory\\..*\\.used_bytes"
-            - "facts\\.nodes\\.\\d+\\.memory\\..*\\.available_bytes"
+            - "facts\\.nodes\\.[^.]+\\.memory\\..*\\.used_bytes"
+            - "facts\\.nodes\\.[^.]+\\.memory\\..*\\.available_bytes"
             # Uptime changes
             - "uptime_seconds"
         - change_type: "create"
@@ -226,8 +226,8 @@ differ:
       - "uptime_seconds"
       - "facts\\.memory\\..*\\.used_bytes"
       - "facts\\.memory\\..*\\.available_bytes"
-      - "facts\\.nodes\\.\\d+\\.memory\\..*\\.used_bytes"
-      - "facts\\.nodes\\.\\d+\\.memory\\..*\\.available_bytes"
+      - "facts\\.nodes\\.[^.]+\\.memory\\..*\\.used_bytes"
+      - "facts\\.nodes\\.[^.]+\\.memory\\..*\\.available_bytes"
       - "metrics\\.timestamp"
       - "performance\\.last_update"
       - "monitoring\\.heartbeat"
@@ -259,7 +259,7 @@ differ:
         - pattern: "facts\\.memory"
           threshold_percent: 5
         # NS8 node-level memory
-        - pattern: "facts\\.nodes\\.\\d+\\.memory"
+        - pattern: "facts\\.nodes\\.[^.]+\\.memory"
           threshold_percent: 5
 
     # Default significance for unmatched patterns

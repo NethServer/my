@@ -579,8 +579,11 @@ func (de *DiffEngine) extractCollectionIdentifiers(data interface{}, fi FieldIde
 		for i, elem := range arr {
 			if obj, ok := elem.(map[string]interface{}); ok {
 				if idVal, ok := obj[fi.Identifier]; ok {
-					key := fmt.Sprintf("%s.%d", fi.Path, i)
-					idMap[key] = fmt.Sprintf("%v", idVal)
+					idStr := fmt.Sprintf("%v", idVal)
+					if idStr != "" {
+						key := fmt.Sprintf("%s.%d", fi.Path, i)
+						idMap[key] = idStr
+					}
 				}
 			}
 		}
@@ -592,8 +595,11 @@ func (de *DiffEngine) extractCollectionIdentifiers(data interface{}, fi FieldIde
 		for k, elem := range obj {
 			if inner, ok := elem.(map[string]interface{}); ok {
 				if idVal, ok := inner[fi.Identifier]; ok {
-					key := fmt.Sprintf("%s.%s", fi.Path, k)
-					idMap[key] = fmt.Sprintf("%v", idVal)
+					idStr := fmt.Sprintf("%v", idVal)
+					if idStr != "" {
+						key := fmt.Sprintf("%s.%s", fi.Path, k)
+						idMap[key] = idStr
+					}
 				}
 			}
 		}
