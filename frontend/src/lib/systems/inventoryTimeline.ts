@@ -59,11 +59,11 @@ const getInventoryTimelineQueryStringParams = (
   diffType.forEach((d) => searchParams.append('diff_type', d))
 
   if (fromDate.trim()) {
-    searchParams.append('from_date', fromDate)
+    searchParams.append('from_date', fromDate + 'T00:00:00Z')
   }
 
   if (toDate.trim()) {
-    searchParams.append('to_date', toDate)
+    searchParams.append('to_date', toDate + 'T23:59:59Z')
   }
 
   if (search.trim()) {

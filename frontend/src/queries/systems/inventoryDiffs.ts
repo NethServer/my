@@ -50,6 +50,8 @@ export const useInventoryDiffs = defineQuery(() => {
       },
     ],
     enabled: () => !!loginStore.jwtToken && canReadSystems() && !!route.params.systemId,
+    staleTime: 0,
+    gcTime: 0,
     query: () => {
       const apiCall = getInventoryDiffs(
         route.params.systemId as string,

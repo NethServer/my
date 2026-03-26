@@ -1,0 +1,27 @@
+/*
+  Copyright (C) 2026 Nethesis S.r.l.
+  SPDX-License-Identifier: GPL-3.0-or-later
+*/
+
+/* VueDatePicker customizations */
+.vue-datepicker {
+  @apply w-auto!;
+  --dp-font-family: 'Poppins', sans-serif;
+  --dp-font-size: var(--text-sm);
+  --dp-border-radius: var(--radius-md);
+}
+
+.dp__theme_light {
+  --dp-background-color: var(--color-white);
+  --dp-primary-color: var(--color-primary-700);
+}
+
+.dp__theme_dark {
+  --dp-background-color: var(--color-gray-950);
+  --dp-primary-color: var(--color-primary-500);
+  --dp-primary-text-color: var(--color-gray-950);
+}
+
+.dp__menu {
+  box-shadow: var(--shadow-lg);
+}

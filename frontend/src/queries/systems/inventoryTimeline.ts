@@ -42,6 +42,8 @@ export const useInventoryTimeline = defineQuery(() => {
       },
     ],
     enabled: () => !!loginStore.jwtToken && canReadSystems() && !!route.params.systemId,
+    staleTime: 0,
+    gcTime: 0,
     initialPageParam: 1,
     query: ({ pageParam }) => {
       const apiCall = getInventoryTimeline(

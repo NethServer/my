@@ -5,6 +5,7 @@
 
 <script setup lang="ts">
 import { useInventoryTimeline } from '@/queries/systems/inventoryTimeline'
+import { useInventoryChanges } from '@/queries/systems/inventoryChanges'
 import {
   INVENTORY_DIFFS_KEY,
   getInventoryDiffs,
@@ -32,6 +33,7 @@ import {
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
+import { VueDatePicker } from '@vuepic/vue-datepicker'
 import {
   faChevronDown,
   faChevronUp,
@@ -42,10 +44,12 @@ import {
   faAngleUp,
   faArrowRight,
 } from '@fortawesome/free-solid-svg-icons'
+import { useThemeStore } from '@/stores/theme'
 
 const { t, locale } = useI18n()
 const route = useRoute()
 const loginStore = useLoginStore()
+const themeStore = useThemeStore()
 
 // ── Timeline infinite query ──────────────────────────────────────────────────
 const {
@@ -64,8 +68,9 @@ const {
   resetFilters: resetTimelineFilters,
   allInventoryIds,
   allGroups,
-  summary,
 } = useInventoryTimeline()
+
+const { state: inventoryChangesState } = useInventoryChanges()
 
 // ── Local state ──────────────────────────────────────────────────────────────
 const expandedGroups = ref<Set<string>>(new Set())
@@ -132,7 +137,7 @@ watch(
 // ── Filter options ────────────────────────────────────────────────────────────
 const severityFilterOptions = computed<FilterOption[]>(() =>
   (['critical', 'high', 'medium', 'low'] as const)
-    .filter((s) => (summary.value?.[s] ?? 0) > 0)
+    .filter((s) => (inventoryChangesState.value.data?.changes_by_severity?.[s] ?? 0) > 0)
     .map((s) => ({ id: s, label: t(`system_detail.severity_${s}`) })),
 )
 
@@ -407,6 +412,15 @@ function getCategoryLabel(category: InventoryDiffCategory): string {
   return t(`system_detail.category_${category}`)
 }
 
+// ── Date range model (bridges fromDate/toDate refs to VueDatePicker range) ────
+const dateRangeModel = computed<string[] | null>({
+  get: () => (fromDate.value || toDate.value ? [fromDate.value || '', toDate.value || ''] : null),
+  set: (val: string[] | null) => {
+    fromDate.value = val?.[0] ?? ''
+    toDate.value = val?.[1] ?? ''
+  },
+})
+
 // ── Reset all filters ─────────────────────────────────────────────────────────
 function resetAllFilters() {
   resetTimelineFilters()
@@ -504,28 +518,30 @@ const diffTypeFilterModel = computed<string[]>({
           :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
           :clear-search-label="t('ne_dropdown_filter.clear_search')"
         />
-        <!-- Date range: from -->
-        <div class="flex items-center gap-2">
-          <label class="text-sm text-gray-500 dark:text-gray-400">{{
-            t('system_detail.from_date')
-          }}</label>
-          <input
-            v-model="fromDate"
-            type="date"
-            class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:ring-2 focus:ring-sky-500 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300"
-          />
-        </div>
-        <!-- Date range: to -->
-        <div class="flex items-center gap-2">
-          <label class="text-sm text-gray-500 dark:text-gray-400">{{
-            t('system_detail.to_date')
-          }}</label>
-          <input
-            v-model="toDate"
-            type="date"
-            class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:ring-2 focus:ring-sky-500 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300"
-          />
-        </div>
+        <!-- Date range picker -->
+        <VueDatePicker
+          v-model="dateRangeModel"
+          range
+          model-type="yyyy-MM-dd"
+          :time-config="{ enableTimePicker: false }"
+          auto-apply
+          :dark="!themeStore.isLight"
+          class="vue-datepicker"
+        >
+          <template #trigger>
+            <div class="inline-block">
+              <button
+                class="focus:ring-primary-500 dark:focus:ring-primary-300 dark:focus:ring-offset-primary-950 rounded-md px-2.5 py-1.5 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-gray-300 transition-colors duration-200 hover:bg-gray-200/70 hover:text-gray-800 focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-100 dark:ring-gray-500 dark:hover:bg-gray-600/30 dark:hover:text-gray-50"
+                type="button"
+              >
+                <span class="flex items-center justify-center">
+                  {{ t('system_detail.date_range') }}
+                  <FontAwesomeIcon :icon="faChevronDown" class="ml-2 h-3 w-3" aria-hidden="true" />
+                </span>
+              </button>
+            </div>
+          </template>
+        </VueDatePicker>
         <!-- Reset filters -->
         <NeButton kind="tertiary" @click="resetAllFilters">
           {{ t('common.reset_filters') }}
