@@ -379,15 +379,15 @@ function getDiffTypeIcon(type: InventoryDiffType) {
 }
 
 function getDiffTypeIconBg(type: InventoryDiffType): string {
-  if (type === 'create') return 'bg-green-600'
-  if (type === 'delete') return 'bg-red-500'
-  return 'bg-blue-700'
+  if (type === 'create') return 'bg-green-500 dark:bg-green-400'
+  if (type === 'delete') return 'bg-red-700 dark:bg-red-500'
+  return 'bg-blue-700 dark:bg-blue-500'
 }
 
 function getDiffTypeBorder(type: InventoryDiffType): string {
-  if (type === 'create') return 'border-l-green-500'
-  if (type === 'delete') return 'border-l-red-500'
-  return 'border-l-blue-700'
+  if (type === 'create') return 'border-l-green-500 dark:border-l-green-400'
+  if (type === 'delete') return 'border-l-red-700 dark:border-l-red-500'
+  return 'border-l-blue-700 dark:border-l-blue-500'
 }
 
 //// use NeBadgeV2Kind as return type instead of string literal union
@@ -404,7 +404,7 @@ function getSeverityKind(
 
 function getSeverityCustomKindClasses(severity: InventoryDiffSeverity): string | undefined {
   if (severity === 'medium')
-    return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400'
+    return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-700 dark:text-yellow-100'
   return undefined
 }
 
@@ -655,7 +655,7 @@ const diffTypeFilterModel = computed<string[]>({
 
         <!-- Timeline dot (centered on the vertical line at left: 144px, dot size 10px → left: 139px) -->
         <div
-          class="absolute z-10 size-2.5 rounded-full"
+          class="absolute z-10 size-2.5 rounded-full ring-4 ring-gray-50 dark:ring-gray-900"
           :class="
             group.isToday ? 'bg-indigo-700 dark:bg-indigo-500' : 'bg-gray-300 dark:bg-gray-600'
           "
@@ -717,7 +717,7 @@ const diffTypeFilterModel = computed<string[]>({
                       >
                         <FontAwesomeIcon
                           :icon="getDiffTypeIcon(diff.diff_type)"
-                          class="size-3 text-white"
+                          class="size-3 text-white dark:text-gray-950"
                         />
                       </div>
                       <!-- Category -->

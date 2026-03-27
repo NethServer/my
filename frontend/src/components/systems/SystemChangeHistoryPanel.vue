@@ -4,7 +4,6 @@
 -->
 
 <script setup lang="ts">
-import CounterCard from '@/components/CounterCard.vue'
 import { useInventoryTimeline } from '@/queries/systems/inventoryTimeline'
 import { useI18n } from 'vue-i18n'
 import UpdatingSpinner from '../UpdatingSpinner.vue'
@@ -13,7 +12,7 @@ import SystemChangesTimeline from './SystemChangesTimeline.vue'
 
 const { t } = useI18n()
 
-const { state: timelineState, asyncStatus: timelineAsyncStatus, summary } = useInventoryTimeline()
+const { state: timelineState, asyncStatus: timelineAsyncStatus } = useInventoryTimeline()
 </script>
 
 <template>
@@ -34,32 +33,6 @@ const { state: timelineState, asyncStatus: timelineAsyncStatus, summary } = useI
     :description="timelineState.error.message"
     class="mb-6"
   />
-  <!-- change counters -->
-  <div class="mb-10 grid grid-cols-2 gap-6 sm:grid-cols-4">
-    <CounterCard
-      :title="t('system_detail.total_changes')"
-      :counter="summary?.total ?? 0"
-      :loading="timelineState.status === 'pending'"
-    />
-    <CounterCard
-      :title="t('system_detail.critical_changes')"
-      :counter="summary?.critical ?? 0"
-      :loading="timelineState.status === 'pending'"
-      color-classes="text-rose-700 dark:text-rose-500"
-    />
-    <CounterCard
-      :title="t('system_detail.high_changes')"
-      :counter="summary?.high ?? 0"
-      :loading="timelineState.status === 'pending'"
-      color-classes="text-orange-600 dark:text-orange-500"
-    />
-    <CounterCard
-      :title="t('system_detail.medium_changes')"
-      :counter="summary?.medium ?? 0"
-      :loading="timelineState.status === 'pending'"
-      color-classes="text-yellow-600 dark:text-yellow-700"
-    />
-  </div>
   <!-- changes timeline -->
   <SystemChangesTimeline />
 </template>
