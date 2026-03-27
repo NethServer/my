@@ -336,6 +336,15 @@ async function handleOpenUnified(group: SystemSessionGroup) {
       }
     }
 
+    // Sort services within each module by host (or name if no host)
+    for (const mg of moduleMap.values()) {
+      mg.services.sort((a, b) => {
+        const ak = a.host ? `${a.host}${a.path || ''}` : a.name
+        const bk = b.host ? `${b.host}${b.path || ''}` : b.name
+        return ak.localeCompare(bk)
+      })
+    }
+
     // Sort modules by nodeId then moduleId
     unifiedModules.value = Array.from(moduleMap.values()).sort((a, b) => {
       const nc = (a.nodeId || '').localeCompare(b.nodeId || '', undefined, { numeric: true })
@@ -826,9 +835,12 @@ async function handleAddService() {
                     @click="handleOpenService(svc.session, svc.name, svc.path)"
                   >
                     <FontAwesomeIcon :icon="faUpRightFromSquare" class="h-3 w-3 shrink-0" />
-                    <span class="min-w-0 truncate">{{ svc.name }}</span>
-                    <span v-if="svc.host" class="min-w-0 shrink truncate text-xs text-gray-400"
-                      >({{ svc.host }}{{ svc.path || '' }})</span
+                    <span v-if="svc.host" class="min-w-0 truncate"
+                      >{{ svc.host }}{{ svc.path || '' }}</span
+                    >
+                    <span v-else class="min-w-0 truncate">{{ svc.name }}</span>
+                    <span class="min-w-0 shrink truncate text-gray-400"
+                      >({{ svc.name }})</span
                     >
                   </button>
                 </div>
