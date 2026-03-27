@@ -9,14 +9,17 @@
 
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // DiagnosticCheck is a single named check within a plugin result.
 type DiagnosticCheck struct {
-	Name    string `json:"name"`
-	Status  string `json:"status"`
-	Value   string `json:"value,omitempty"`
-	Details string `json:"details,omitempty"`
+	Name    string          `json:"name"`
+	Status  string          `json:"status"`
+	Value   string          `json:"value,omitempty"`
+	Details json.RawMessage `json:"details,omitempty"`
 }
 
 // DiagnosticPlugin is the result from a single diagnostics plugin.
