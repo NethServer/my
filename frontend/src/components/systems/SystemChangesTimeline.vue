@@ -30,6 +30,7 @@ import {
   NeTextInput,
   type FilterOption,
   NeSpinner,
+  NeLink,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
@@ -195,6 +196,9 @@ interface DisplayGroup {
 }
 
 const today = todayDateString()
+
+// ── Date picker ref ─────────────────────────────────────────────────────────
+const datepicker = useTemplateRef<InstanceType<typeof VueDatePicker>>('datepicker')
 
 const displayGroups = computed<DisplayGroup[]>(() => {
   const groups = allGroups.value
@@ -423,7 +427,12 @@ const dateRangeModel = computed<string[] | null>({
 
 // ── Reset all filters ─────────────────────────────────────────────────────────
 function resetAllFilters() {
+  datepicker.value?.clearValue()
   resetTimelineFilters()
+}
+
+function clearDateRange() {
+  datepicker.value?.clearValue()
 }
 
 // ── Infinite scroll (IntersectionObserver) ────────────────────────────────────
@@ -484,7 +493,6 @@ const diffTypeFilterModel = computed<string[]>({
           kind="checkbox"
           :label="t('system_detail.severity')"
           :options="severityFilterOptions"
-          :show-clear-filter="false"
           :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
           :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
           :no-options-label="t('ne_dropdown_filter.no_options')"
@@ -498,7 +506,6 @@ const diffTypeFilterModel = computed<string[]>({
           :label="t('system_detail.category')"
           :options="categoryFilterOptions"
           show-options-filter
-          :show-clear-filter="false"
           :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
           :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
           :no-options-label="t('ne_dropdown_filter.no_options')"
@@ -511,7 +518,6 @@ const diffTypeFilterModel = computed<string[]>({
           kind="checkbox"
           :label="t('system_detail.change_type')"
           :options="diffTypeFilterOptions"
-          :show-clear-filter="false"
           :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
           :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
           :no-options-label="t('ne_dropdown_filter.no_options')"
@@ -520,9 +526,11 @@ const diffTypeFilterModel = computed<string[]>({
         />
         <!-- Date range picker -->
         <VueDatePicker
+          ref="datepicker"
           v-model="dateRangeModel"
           range
           model-type="yyyy-MM-dd"
+          :max-date="new Date()"
           :time-config="{ enableTimePicker: false }"
           auto-apply
           :dark="!themeStore.isLight"
@@ -541,6 +549,19 @@ const diffTypeFilterModel = computed<string[]>({
               </button>
             </div>
           </template>
+          <template #menu-header>
+            <!-- <span v-if="value">Selected date: {{ value.getDate() }}</span>
+            <span v-else>No date selected</span> ////  -->
+            <NeLink @click="clearDateRange" class="inline-block pt-3 pl-3">{{
+              t('ne_dropdown_filter.clear_filter')
+            }}</NeLink>
+          </template>
+          <!-- <template #action-extra="{ selectCurrentDate }"> ////
+            <button @click="selectCurrentDate()" title="Select current date">Today</button>
+          </template>
+          <template #clear-icon="{ clear }">
+            <button @click="clear">Clear</button>
+          </template> -->
         </VueDatePicker>
         <!-- Reset filters -->
         <NeButton kind="tertiary" @click="resetAllFilters">
