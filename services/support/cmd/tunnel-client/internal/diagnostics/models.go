@@ -9,7 +9,10 @@
 
 package diagnostics
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // DiagnosticStatus represents the health status of a diagnostic check
 type DiagnosticStatus string
@@ -27,7 +30,7 @@ type DiagnosticCheck struct {
 	Name    string           `json:"name"`
 	Status  DiagnosticStatus `json:"status"`
 	Value   string           `json:"value,omitempty"`
-	Details string           `json:"details,omitempty"`
+	Details json.RawMessage  `json:"details,omitempty"`
 }
 
 // PluginResult is the output of a single diagnostic plugin
