@@ -30,6 +30,10 @@ func (p *NethSecurityProvisioner) Create(sessionID string) (*SessionUsers, error
 		CreatedAt: time.Now(),
 	}
 
+	// Remove existing user first to ensure password matches on restart
+	_ = p.removeAdmin(username)
+	_ = p.deleteLocalUser(username)
+
 	// Create local user via Python (ubus has timeout issues)
 	if err := p.addLocalUser(username, password); err != nil {
 		return result, fmt.Errorf("failed to create local user: %w", err)
