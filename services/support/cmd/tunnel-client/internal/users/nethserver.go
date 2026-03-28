@@ -62,7 +62,8 @@ func (p *NethServerProvisioner) Create(sessionID string) (*SessionUsers, error) 
 		return result, nil
 	}
 
-	// 1. Create cluster-admin user
+	// 1. Create cluster-admin user (remove first if exists, to ensure password matches)
+	_ = p.deleteClusterAdmin(username)
 	adminPwd := generatePassword()
 	if err := p.createClusterAdmin(username, adminPwd); err != nil {
 		log.Printf("NS8 user provisioning: cluster-admin creation failed: %v", err)
@@ -90,6 +91,7 @@ func (p *NethServerProvisioner) Create(sessionID string) (*SessionUsers, error) 
 
 		// Use the first provider for the domain
 		provider := domain.Providers[0].ID
+		_ = p.deleteDomainUser(provider, username)
 		domainPwd := generatePassword()
 		if err := p.createDomainUser(provider, username, domainPwd); err != nil {
 			log.Printf("NS8 user provisioning: domain user creation on %q failed: %v", provider, err)
