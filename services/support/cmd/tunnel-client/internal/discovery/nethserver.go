@@ -157,7 +157,9 @@ func discoverNodeRoutes(ctx context.Context, rdb *redis.Client, nodeID string) m
 		return services
 	}
 
-	// Call api-cli to get all routes with details
+	// Call api-cli to get all routes with details.
+	// api-cli authenticates to Redis using AGENT_ID, REDIS_USER, REDIS_PASSWORD
+	// environment variables injected by the start-tunnel-client node action.
 	cmd := exec.CommandContext(ctx, "api-cli", "run",
 		fmt.Sprintf("module/%s/list-routes", traefikInstance),
 		"--data", `{"expand_list": true}`)

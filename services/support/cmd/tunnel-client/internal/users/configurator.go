@@ -21,8 +21,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"syscall"
 	"time"
+
+	"github.com/nethesis/my/services/support/cmd/tunnel-client/internal/discovery"
 
 	"github.com/nethesis/my/services/support/cmd/tunnel-client/internal/models"
 )
@@ -156,42 +159,51 @@ func RunTeardown(ctx context.Context, usersDir string, users *SessionUsers, serv
 	}
 }
 
-// buildModuleContexts groups discovered services by module base name.
-func buildModuleContexts(services map[string]models.ServiceInfo, redisAddr string) map[string]*ModuleContext {
-	if len(services) == 0 {
-		return nil
-	}
+// moduleInfo holds per-module data during context building.
+type moduleInfo struct {
+	nodeID   string
+	label    string
+	services map[string]ModuleServiceInfo
+}
 
-	// Group services by moduleID
-	type moduleInfo struct {
-		nodeID   string
-		label    string
-		services map[string]ModuleServiceInfo
-	}
+// buildModuleContexts groups discovered services by module base name.
+// When services is empty (e.g. api-cli fails on worker nodes), falls back
+// to querying Redis directly for local module instances.
+func buildModuleContexts(services map[string]models.ServiceInfo, redisAddr string) map[string]*ModuleContext {
 	moduleMap := make(map[string]*moduleInfo)
 
-	for serviceName, svc := range services {
-		if svc.ModuleID == "" {
-			continue
-		}
-		mi, ok := moduleMap[svc.ModuleID]
-		if !ok {
-			mi = &moduleInfo{
-				nodeID:   svc.NodeID,
-				label:    svc.Label,
-				services: make(map[string]ModuleServiceInfo),
+	if len(services) > 0 {
+		for serviceName, svc := range services {
+			if svc.ModuleID == "" {
+				continue
 			}
-			moduleMap[svc.ModuleID] = mi
+			mi, ok := moduleMap[svc.ModuleID]
+			if !ok {
+				mi = &moduleInfo{
+					nodeID:   svc.NodeID,
+					label:    svc.Label,
+					services: make(map[string]ModuleServiceInfo),
+				}
+				moduleMap[svc.ModuleID] = mi
+			}
+			if mi.label == "" && svc.Label != "" {
+				mi.label = svc.Label
+			}
+			mi.services[serviceName] = ModuleServiceInfo{
+				Host:       svc.Host,
+				Path:       svc.Path,
+				PathPrefix: svc.PathPrefix,
+				TLS:        svc.TLS,
+			}
 		}
-		if mi.label == "" && svc.Label != "" {
-			mi.label = svc.Label
-		}
-		mi.services[serviceName] = ModuleServiceInfo{
-			Host:       svc.Host,
-			Path:       svc.Path,
-			PathPrefix: svc.PathPrefix,
-			TLS:        svc.TLS,
-		}
+	} else if redisAddr != "" {
+		// Fallback: discover local modules directly from Redis.
+		// This handles worker nodes where api-cli cannot authenticate.
+		moduleMap = discoverLocalModulesFromRedis()
+	}
+
+	if len(moduleMap) == 0 {
+		return nil
 	}
 
 	// Fetch USER_DOMAIN for each module instance (NS8 only)
@@ -231,6 +243,49 @@ func buildModuleContexts(services map[string]models.ServiceInfo, redisAddr strin
 	}
 
 	return contexts
+}
+
+// discoverLocalModulesFromRedis queries Redis directly (default user, no auth)
+// to find modules on the local node. Used as fallback when api-cli is unavailable.
+func discoverLocalModulesFromRedis() map[string]*moduleInfo {
+	localNodeID := discovery.ReadNodeID()
+	if localNodeID == "" {
+		return nil
+	}
+
+	// Read cluster/module_node hash to find modules on this node
+	cmd := exec.Command("redis-cli", "HGETALL", "cluster/module_node") //nolint:gosec
+	output, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	result := make(map[string]*moduleInfo)
+	for i := 0; i+1 < len(lines); i += 2 {
+		moduleID := strings.TrimSpace(lines[i])
+		nodeID := strings.TrimSpace(lines[i+1])
+		if nodeID != localNodeID {
+			continue
+		}
+		// Read ui_name for label
+		var label string
+		labelCmd := exec.Command("redis-cli", "GET", fmt.Sprintf("module/%s/ui_name", moduleID)) //nolint:gosec
+		if labelOutput, labelErr := labelCmd.Output(); labelErr == nil {
+			l := strings.TrimSpace(string(labelOutput))
+			if l != "" && l != "(nil)" {
+				label = l
+			}
+		}
+		result[moduleID] = &moduleInfo{
+			nodeID:   nodeID,
+			label:    label,
+			services: make(map[string]ModuleServiceInfo),
+		}
+	}
+
+	log.Printf("Users configurator: Redis fallback found %d local modules on node %s", len(result), localNodeID)
+	return result
 }
 
 // fetchModuleDomain reads USER_DOMAIN from Redis for a module instance.
