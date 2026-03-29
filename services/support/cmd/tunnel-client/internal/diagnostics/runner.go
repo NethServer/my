@@ -114,9 +114,9 @@ func runBuiltinSystem() PluginResult {
 	}
 	overallStatus = worstStatus(overallStatus, loadStatus)
 	checks = append(checks, DiagnosticCheck{
-		Name:    "load_average",
-		Status:  loadStatus,
-		Value:   fmt.Sprintf("%.2f %.2f %.2f", load1m, load5m, load15m),
+		Name:   "load_average",
+		Status: loadStatus,
+		Value:  fmt.Sprintf("%.2f %.2f %.2f", load1m, load5m, load15m),
 		Details: jsonDetails(map[string]interface{}{
 			"load_1m": load1m, "load_5m": load5m, "load_15m": load15m, "cpu_count": cpuCount,
 		}),
@@ -154,9 +154,9 @@ func runBuiltinSystem() PluginResult {
 	}
 	overallStatus = worstStatus(overallStatus, ramStatus)
 	checks = append(checks, DiagnosticCheck{
-		Name:    "ram_usage",
-		Status:  ramStatus,
-		Value:   fmt.Sprintf("%.1f%%", ramUsagePct),
+		Name:   "ram_usage",
+		Status: ramStatus,
+		Value:  fmt.Sprintf("%.1f%%", ramUsagePct),
 		Details: jsonDetails(map[string]interface{}{
 			"total_kb": memTotal, "available_kb": memAvailable, "used_pct": ramUsagePct,
 		}),
@@ -179,9 +179,9 @@ func runBuiltinSystem() PluginResult {
 		}
 		overallStatus = worstStatus(overallStatus, diskStatus)
 		checks = append(checks, DiagnosticCheck{
-			Name:    "disk_usage",
-			Status:  diskStatus,
-			Value:   fmt.Sprintf("%.1f%%", diskUsagePct),
+			Name:   "disk_usage",
+			Status: diskStatus,
+			Value:  fmt.Sprintf("%.1f%%", diskUsagePct),
 			Details: jsonDetails(map[string]interface{}{
 				"total_bytes": total, "available_bytes": available, "used_pct": diskUsagePct,
 			}),
