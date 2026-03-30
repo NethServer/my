@@ -31,6 +31,7 @@ import {
   type FilterOption,
   NeSpinner,
   NeLink,
+  NeEmptyState,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
@@ -44,6 +45,7 @@ import {
   faAngleDown,
   faAngleUp,
   faArrowRight,
+  faCodeCompare,
 } from '@fortawesome/free-solid-svg-icons'
 import { useThemeStore } from '@/stores/theme'
 
@@ -606,16 +608,36 @@ const diffTypeFilterModel = computed<string[]>({
   </div>
 
   <!-- Empty state -->
-  <div
+  <NeEmptyState
+    v-else-if="isTimelineEmpty"
+    :title="
+      areDefaultFiltersApplied
+        ? $t('system_detail.no_inventory_changes')
+        : $t('system_detail.no_inventory_changes_found')
+    "
+    :description="
+      areDefaultFiltersApplied
+        ? $t('system_detail.no_inventory_changes_description')
+        : $t('common.try_changing_search_filters')
+    "
+    :icon="faCodeCompare"
+    class="bg-white dark:bg-gray-950"
+  >
+    <NeButton v-if="!areDefaultFiltersApplied" kind="tertiary" @click="resetAllFilters">
+      {{ $t('common.reset_filters') }}</NeButton
+    >
+  </NeEmptyState>
+
+  <!-- <div ////
     v-else-if="isTimelineEmpty"
     class="flex flex-col items-center justify-center py-16 text-center text-gray-500 dark:text-gray-400"
   >
-    <p class="text-base font-medium">{{ t('system_detail.no_changes_in_timeline') }}</p>
+    <p class="text-sm font-medium">{{ t('system_detail.no_inventory_changes') }}</p>
     <p class="mt-1 text-sm">
       {{
         areDefaultFiltersApplied
-          ? t('system_detail.no_changes_in_timeline_no_filters_description')
-          : t('system_detail.no_changes_in_timeline_description')
+          ? t('system_detail.no_inventory_changes_no_filters_description')
+          : t('common.try_changing_search_filters')
       }}
     </p>
     <NeButton
@@ -626,14 +648,14 @@ const diffTypeFilterModel = computed<string[]>({
     >
       {{ t('common.reset_filters') }}
     </NeButton>
-  </div>
+  </div> -->
 
   <!-- Timeline -->
   <div v-else class="relative mt-2">
     <!-- Vertical timeline line -->
     <div
-      class="absolute top-0 bottom-0 w-px bg-gray-200 dark:bg-gray-700"
-      style="left: 144px"
+      class="absolute top-2 bottom-0 w-px bg-gray-200 dark:bg-gray-700"
+      style="left: 143px"
     ></div>
 
     <div v-for="group in displayGroups" :key="group.date">
@@ -642,20 +664,20 @@ const diffTypeFilterModel = computed<string[]>({
         <!-- Date label column (right-aligned) -->
         <div class="w-36 flex-shrink-0 pt-0.5 pr-6 text-right">
           <span
-            class="text-base font-medium"
+            class="text-sm font-medium"
             :class="
               group.isToday
-                ? 'text-indigo-600 dark:text-indigo-400'
-                : 'text-gray-500 dark:text-gray-400'
+                ? 'text-indigo-700 dark:text-indigo-500'
+                : 'text-gray-600 dark:text-gray-300'
             "
           >
             {{ group.isToday ? t('system_detail.today') : formatGroupDate(group.date) }}
           </span>
         </div>
 
-        <!-- Timeline dot (centered on the vertical line at left: 144px, dot size 10px → left: 139px) -->
+        <!-- Timeline dot (centered on the vertical line at left: 143px, dot size 10px → left: 139px) -->
         <div
-          class="absolute z-10 size-2.5 rounded-full ring-4 ring-gray-50 dark:ring-gray-900"
+          class="absolute z-10 size-2 rounded-full ring-4 ring-gray-50 dark:ring-gray-900"
           :class="
             group.isToday ? 'bg-indigo-700 dark:bg-indigo-500' : 'bg-gray-300 dark:bg-gray-600'
           "
@@ -666,7 +688,7 @@ const diffTypeFilterModel = computed<string[]>({
         <div class="flex-1 pl-10">
           <!-- Today with no changes -->
           <template v-if="group.isToday && group.change_count === 0">
-            <span class="text-base font-medium text-indigo-600 dark:text-indigo-400">
+            <span class="text-sm font-medium text-indigo-600 dark:text-indigo-400">
               {{ t('system_detail.no_changes_today') }}
             </span>
           </template>
@@ -674,7 +696,7 @@ const diffTypeFilterModel = computed<string[]>({
           <!-- Group with changes: toggle header -->
           <template v-else-if="group.change_count > 0">
             <button
-              class="flex items-center gap-2 text-base font-medium text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+              class="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-700 dark:text-gray-300 dark:hover:text-gray-200"
               @click="toggleGroup(group.date)"
             >
               <FontAwesomeIcon
@@ -706,7 +728,7 @@ const diffTypeFilterModel = computed<string[]>({
                 >
                   <!-- Diff header row -->
                   <div
-                    class="flex cursor-pointer items-center justify-between px-5 py-3"
+                    class="flex cursor-pointer items-center justify-between px-6 py-4"
                     @click="toggleDiff(diff.id)"
                   >
                     <div class="flex items-center gap-4">
@@ -722,12 +744,12 @@ const diffTypeFilterModel = computed<string[]>({
                       </div>
                       <!-- Category -->
                       <span
-                        class="w-20 flex-shrink-0 text-sm font-medium text-gray-700 uppercase dark:text-gray-50"
+                        class="w-20 flex-shrink-0 text-sm font-medium text-gray-900 uppercase dark:text-gray-50"
                       >
                         {{ getCategoryLabel(diff.category) }}
                       </span>
                       <!-- Field path -->
-                      <span class="text-sm text-gray-500 dark:text-gray-400">
+                      <span class="text-sm text-gray-600 dark:text-gray-300">
                         {{ diff.field_path }}
                       </span>
                       <!-- Severity badge -->
@@ -741,15 +763,12 @@ const diffTypeFilterModel = computed<string[]>({
                     <!-- Expand chevron -->
                     <FontAwesomeIcon
                       :icon="expandedDiffs.has(diff.id) ? faAngleUp : faAngleDown"
-                      class="size-4 flex-shrink-0 text-gray-400 dark:text-gray-500"
+                      class="size-4 flex-shrink-0 text-gray-600 dark:text-gray-300"
                     />
                   </div>
 
                   <!-- Expanded diff detail -->
-                  <div
-                    v-if="expandedDiffs.has(diff.id)"
-                    class="border-t border-gray-100 px-5 py-3 dark:border-gray-800"
-                  >
+                  <div v-if="expandedDiffs.has(diff.id)" class="px-6 pt-2 pb-4">
                     <!-- Update: inline strikethrough → arrow → new value -->
                     <div
                       v-if="diff.diff_type === 'update'"
@@ -800,7 +819,7 @@ const diffTypeFilterModel = computed<string[]>({
                       </div>
                     </div>
                     <!-- Timestamp -->
-                    <p class="mt-2 text-[10px] text-gray-500 dark:text-gray-400">
+                    <p class="mt-4 text-[10px] text-gray-600 dark:text-gray-300">
                       {{ formatDateTimeNoSeconds(new Date(diff.created_at), locale) }}
                     </p>
                   </div>

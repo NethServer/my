@@ -5,13 +5,10 @@
 
 <script setup lang="ts">
 import { useInventoryTimeline } from '@/queries/systems/inventoryTimeline'
-import { useI18n } from 'vue-i18n'
 import UpdatingSpinner from '../UpdatingSpinner.vue'
-import { NeInlineNotification } from '@nethesis/vue-components'
 import SystemChangesTimeline from './SystemChangesTimeline.vue'
 
-const { t } = useI18n()
-
+// const { t } = useI18n()
 const { state: timelineState, asyncStatus: timelineAsyncStatus } = useInventoryTimeline()
 </script>
 
@@ -25,14 +22,6 @@ const { state: timelineState, asyncStatus: timelineAsyncStatus } = useInventoryT
       v-if="timelineAsyncStatus === 'loading' && timelineState.status !== 'pending'"
     />
   </div>
-  <!-- timeline error notification -->
-  <NeInlineNotification
-    v-if="timelineState.status === 'error'"
-    kind="error"
-    :title="t('system_detail.cannot_retrieve_inventory_timeline')"
-    :description="timelineState.error.message"
-    class="mb-6"
-  />
   <!-- changes timeline -->
   <SystemChangesTimeline />
 </template>

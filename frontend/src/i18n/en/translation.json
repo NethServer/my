@@ -559,9 +559,9 @@
     "category_cluster": "Cluster",
     "category_nodes": "Nodes",
     "category_system": "System",
-    "no_changes_in_timeline": "No change history",
-    "no_changes_in_timeline_description": "No changes match the current filters.",
-    "no_changes_in_timeline_no_filters_description": "The system has not reported any changes yet."
+    "no_inventory_changes": "No inventory changes",
+    "no_inventory_changes_found": "No inventory changes found",
+    "no_inventory_changes_description": "The system has not reported any changes yet."
   },
   "application_detail": {
     "title": "Application detail",
