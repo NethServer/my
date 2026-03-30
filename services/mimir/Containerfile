@@ -1,5 +1,5 @@
 # Extract mimir binary from official image
-FROM docker.io/grafana/mimir:3.0.3 AS mimir
+FROM docker.io/grafana/mimir:3.0.4 AS mimir
 
 # Final stage: alpine with shell for entrypoint script
 FROM alpine:3.21
