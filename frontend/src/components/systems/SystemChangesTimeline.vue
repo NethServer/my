@@ -601,10 +601,6 @@ const diffTypeFilterModel = computed<string[]>({
                       >
                         {{ getCategoryLabel(diff.category) }}
                       </span>
-                      <!-- Field path -->
-                      <span class="text-sm text-gray-600 dark:text-gray-300">
-                        {{ diff.field_path }}
-                      </span>
                       <!-- Severity badge -->
                       <NeBadgeV2
                         :kind="getSeverityKind(diff.severity)"
@@ -612,6 +608,10 @@ const diffTypeFilterModel = computed<string[]>({
                       >
                         {{ getSeverityLabel(diff.severity) }}
                       </NeBadgeV2>
+                      <!-- Field path -->
+                      <span class="text-sm text-gray-600 dark:text-gray-300">
+                        {{ diff.field_path }}
+                      </span>
                     </div>
                     <!-- Expand chevron -->
                     <FontAwesomeIcon
