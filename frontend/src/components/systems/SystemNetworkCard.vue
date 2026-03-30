@@ -9,7 +9,6 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 import {
   faEarthAmericas,
-  faEthernet,
   faLocationDot,
   faNetworkWired,
   faShield,
@@ -18,25 +17,20 @@ import {
   faWifi,
 } from '@fortawesome/free-solid-svg-icons'
 import { computed } from 'vue'
-import type { EsmithConfiguration, InventoryNetworkInterface } from '@/lib/systems/inventory'
+import type { InventoryNetworkInterface, NsecFacts } from '@/lib/systems/inventory'
 import { netmaskToCIDR } from '@/lib/network'
 
 const { state: latestInventory } = useLatestInventory()
 
 const dnsServers = computed(() => {
-  const esmithConfig = latestInventory.value.data?.data?.esmithdb?.configuration || []
-  const dnsEntry = esmithConfig.find((entry: EsmithConfiguration) => entry.name === 'dns')
-  const dnsServers = dnsEntry?.props?.NameServers || ''
-
-  if (!dnsServers) {
-    return []
-  } else {
-    return dnsServers.split(',')
-  }
+  const facts = latestInventory.value.data?.data?.facts as NsecFacts | undefined
+  return facts?.dns_servers || []
 })
 
 const networkInterfaces = computed(() => {
-  return latestInventory.value.data?.data?.esmithdb?.networks || []
+  const facts = latestInventory.value.data?.data?.facts as NsecFacts | undefined
+  const networkConfig = facts?.features?.network?.configuration
+  return networkConfig ? Object.values(networkConfig) : []
 })
 
 const getIpAddressWithCidr = (iface: InventoryNetworkInterface) => {
@@ -52,15 +46,7 @@ const getIpAddressWithCidr = (iface: InventoryNetworkInterface) => {
   }
 }
 
-const isNethsecurity = computed(() => {
-  return latestInventory.value.data?.data?.os?.type === 'nethsecurity'
-})
-
 const getNetworkRoleIcon = (role: string | undefined) => {
-  if (!isNethsecurity.value) {
-    return faEthernet
-  }
-
   switch (role) {
     case 'green':
       return faLocationDot
@@ -78,10 +64,6 @@ const getNetworkRoleIcon = (role: string | undefined) => {
 }
 
 const getNetworkRoleBackgroundStyle = (role: string | undefined) => {
-  if (!isNethsecurity.value) {
-    return 'bg-gray-100 dark:bg-gray-700'
-  }
-
   switch (role) {
     case 'green':
       return 'bg-green-100 dark:bg-green-700'
@@ -99,10 +81,6 @@ const getNetworkRoleBackgroundStyle = (role: string | undefined) => {
 }
 
 const getNetworkRoleForegroundStyle = (role: string | undefined) => {
-  if (!isNethsecurity.value) {
-    return 'text-gray-700 dark:text-gray-300'
-  }
-
   switch (role) {
     case 'green':
       return 'text-green-700 dark:text-green-50'
@@ -156,13 +134,13 @@ const getNetworkRoleForegroundStyle = (role: string | undefined) => {
             />
           </div>
           <!-- name -->
-          <div class="mt-2 text-lg font-medium">
+          <div class="mt-2 text-base font-medium">
             {{ iface.name }}
           </div>
           <!-- type and role -->
-          <div class="text-gray-600 dark:text-gray-300">
+          <div class="mt-1 text-gray-600 dark:text-gray-300">
             {{ iface?.type || '-' }}
-            <span v-if="latestInventory.data.data?.os?.type === 'nethsecurity'"
+            <span
               >&bull;
               {{ iface.props?.role || '-' }}
             </span>

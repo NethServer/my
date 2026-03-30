@@ -20,6 +20,8 @@ import { useSystemDetail } from '@/queries/systems/systemDetail'
 import DataItem from '../DataItem.vue'
 import { computed } from 'vue'
 import SystemStatusIcon from './SystemStatusIcon.vue'
+import type { Ns8Facts } from '@/lib/systems/ns8Facts'
+import type { NsecFacts } from '@/lib/systems/nsecFacts'
 
 const { t, locale } = useI18n()
 const { state: systemDetail } = useSystemDetail()
@@ -40,21 +42,25 @@ const timezoneLabel = computed(() => {
 const systemType = computed(() => systemDetail.value.data?.type)
 
 const leaderNode = computed(() => {
-  const nodes = latestInventory.value.data?.data?.facts?.nodes
+  if (systemType.value !== 'ns8') {
+    return null
+  }
+
+  const facts = latestInventory.value.data?.data?.facts as Ns8Facts | undefined
+  const nodes = facts?.nodes
 
   if (!nodes) {
     return null
   }
-  //// improve typing
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (Object.values(nodes).find((node: any) => node.cluster_leader === true) as any) ?? null
+  return Object.values(nodes).find((node) => node.cluster_leader === true)
 })
 
 const uptimeSeconds = computed(() => {
   if (systemType.value === 'ns8') {
-    return leaderNode.value?.uptime_seconds as number
+    return leaderNode.value?.uptime_seconds
   } else {
-    return latestInventory.value.data?.data?.facts?.uptime_seconds as number | undefined
+    const facts = latestInventory.value.data?.data?.facts as NsecFacts | undefined
+    return facts?.uptime_seconds
   }
 })
 
@@ -62,7 +68,8 @@ const timezone = computed(() => {
   if (systemType.value === 'ns8') {
     return leaderNode.value?.timezone as string
   } else {
-    return latestInventory.value.data?.data?.facts?.timezone as string | undefined
+    const facts = latestInventory.value.data?.data?.facts as NsecFacts | undefined
+    return facts?.timezone
   }
 })
 </script>
