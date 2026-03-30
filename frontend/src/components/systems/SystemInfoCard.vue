@@ -5,6 +5,7 @@
 
 <script setup lang="ts">
 import {
+  NeBadgeV2,
   NeCard,
   NeDropdown,
   NeHeading,
@@ -22,7 +23,9 @@ import ClickToCopy from '../ClickToCopy.vue'
 import { computed, ref } from 'vue'
 import NotesModal from '../NotesModal.vue'
 import { canManageSystems, canDestroySystems } from '@/lib/permissions'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
+  faArrowsRotate,
   faFileCsv,
   faFilePdf,
   faPenToSquare,
@@ -42,9 +45,39 @@ import OrganizationIcon from '../organizations/OrganizationIcon.vue'
 import OrganizationLink from '../applications/OrganizationLink.vue'
 import UserAvatar from '../users/UserAvatar.vue'
 import { formatDateTimeNoSeconds } from '@/lib/dateTime'
+import { useLatestInventory } from '@/queries/systems/latestInventory'
+import type { Ns8Facts } from '@/lib/systems/ns8Facts'
+import type { NsecFacts } from '@/lib/systems/nsecFacts'
 
 const { t, locale } = useI18n()
 const { state: systemDetail, asyncStatus } = useSystemDetail()
+const { state: latestInventory } = useLatestInventory()
+
+const systemType = computed(() => systemDetail.value.data?.type)
+
+const leaderNode = computed(() => {
+  if (systemType.value !== 'ns8') {
+    return null
+  }
+
+  const facts = latestInventory.value.data?.data?.facts as Ns8Facts | undefined
+  const nodes = facts?.nodes
+
+  if (!nodes) {
+    return null
+  }
+  return Object.values(nodes).find((node) => node.cluster_leader === true)
+})
+
+const newVersionAvailable = computed(() => {
+  if (systemType.value === 'ns8') {
+    return leaderNode.value?.update_available ?? false
+  } else {
+    const facts = latestInventory.value.data?.data?.facts as NsecFacts | undefined
+    return facts?.image_updates_available ?? false
+  }
+})
+
 const isNotesModalShown = ref(false)
 const isShownCreateOrEditSystemDrawer = ref(false)
 const isShownDeleteSystemModal = ref(false)
@@ -219,7 +252,15 @@ function getKebabMenuItems() {
             {{ $t('systems.version') }}
           </template>
           <template #data>
-            {{ systemDetail.data.version || '-' }}
+            <div class="flex items-center gap-2">
+              {{ systemDetail.data.version || '-' }}
+              <NeBadgeV2 v-if="newVersionAvailable" kind="amber" size="xs">
+                <div class="flex items-center gap-1">
+                  <FontAwesomeIcon :icon="faArrowsRotate" class="size-4" aria-hidden="true" />
+                  {{ $t('systems.update_available') }}
+                </div>
+              </NeBadgeV2>
+            </div>
           </template>
         </DataItem>
         <!-- organization -->
