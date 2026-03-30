@@ -54,7 +54,7 @@ func HandleTerminal(stream net.Conn) {
 		shell = defaultShell
 	}
 
-	cmd := exec.Command(shell)
+	cmd := exec.Command(shell, "-l")
 	cmd.Env = append(SanitizeEnv(os.Environ()), defaultTermEnv)
 
 	ptmx, err := pty.Start(cmd)
