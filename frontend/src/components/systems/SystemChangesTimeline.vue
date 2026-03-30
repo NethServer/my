@@ -364,6 +364,22 @@ const diffTypeFilterModel = computed<string[]>({
 </script>
 
 <template>
+  <!-- Error notifications -->
+  <NeInlineNotification
+    v-if="timelineError"
+    kind="error"
+    :title="t('system_detail.cannot_retrieve_inventory_timeline')"
+    :description="timelineError?.message"
+    class="mb-6"
+  />
+  <NeInlineNotification
+    v-if="diffsError"
+    kind="error"
+    :title="t('system_detail.cannot_retrieve_inventory_diffs')"
+    :description="diffsError?.message"
+    class="mb-6"
+  />
+
   <!-- Filters bar -->
   <div class="mb-6 flex items-center gap-4">
     <div class="flex w-full items-end justify-between gap-4">
@@ -450,25 +466,9 @@ const diffTypeFilterModel = computed<string[]>({
         </NeButton>
       </div>
       <!-- update indicator -->
-      <UpdatingSpinner v-if="timelineAsyncStatus === 'loading' || diffsAsyncStatus === 'loading'" />
+      <UpdatingSpinner v-if="diffsAsyncStatus === 'loading' && diffsState.status !== 'pending'" />
     </div>
   </div>
-
-  <!-- Error notifications -->
-  <NeInlineNotification
-    v-if="timelineError"
-    kind="error"
-    :title="t('system_detail.cannot_retrieve_inventory_timeline')"
-    :description="timelineError?.message"
-    class="mb-6"
-  />
-  <NeInlineNotification
-    v-if="diffsError"
-    kind="error"
-    :title="t('system_detail.cannot_retrieve_inventory_diffs')"
-    :description="diffsError?.message"
-    class="mb-6"
-  />
 
   <!-- Loading skeleton (initial load) -->
   <div v-if="timelineIsPending" class="space-y-6">
