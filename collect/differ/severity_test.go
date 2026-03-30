@@ -201,7 +201,7 @@ func TestConfigurableDiffer_DetermineSeverity(t *testing.T) {
 			changeType:  "update",
 			from:        "old",
 			to:          "new",
-			expectedSev: "medium", // Default severity
+			expectedSev: "low", // Default severity
 		},
 		{
 			name:        "unknown change type",
@@ -209,7 +209,7 @@ func TestConfigurableDiffer_DetermineSeverity(t *testing.T) {
 			changeType:  "unknown",
 			from:        "23.05.4",
 			to:          "24.10",
-			expectedSev: "medium", // Default severity
+			expectedSev: "low", // Default severity
 		},
 
 		// Case insensitive tests
@@ -237,15 +237,15 @@ func TestConfigurableDiffer_DetermineSeverity(t *testing.T) {
 			changeType:  "update",
 			from:        100,
 			to:          150,      // 50% increase
-			expectedSev: "medium", // Should be detected as significant
+			expectedSev: "medium", // Significant numeric change (>20%)
 		},
 		{
 			name:        "small numeric change",
 			fieldPath:   "custom.field",
 			changeType:  "update",
 			from:        100,
-			to:          105,      // 5% increase
-			expectedSev: "medium", // Default severity
+			to:          105,   // 5% increase
+			expectedSev: "low", // Default severity
 		},
 	}
 

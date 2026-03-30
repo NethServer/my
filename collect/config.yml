@@ -191,13 +191,8 @@ differ:
       conditions:
         - change_type: "update"
           patterns:
-            # NSEC memory
-            - "facts\\.memory\\..*\\.used_bytes"
-            - "facts\\.memory\\..*\\.available_bytes"
-            # NS8 node-level memory
-            - "facts\\.nodes\\.[^.]+\\.memory\\..*\\.used_bytes"
-            - "facts\\.nodes\\.[^.]+\\.memory\\..*\\.available_bytes"
-            # Uptime changes
+            - "used_bytes"
+            - "available_bytes"
             - "uptime_seconds"
         - change_type: "create"
           patterns:
@@ -207,7 +202,7 @@ differ:
 
     # Default severity for unmatched patterns
     default:
-      level: "medium"
+      level: "low"
       description: "Default severity for unclassified changes"
 
   # Significance filters
@@ -224,10 +219,8 @@ differ:
     # Never significant patterns (noise reduction)
     never_significant:
       - "uptime_seconds"
-      - "facts\\.memory\\..*\\.used_bytes"
-      - "facts\\.memory\\..*\\.available_bytes"
-      - "facts\\.nodes\\.[^.]+\\.memory\\..*\\.used_bytes"
-      - "facts\\.nodes\\.[^.]+\\.memory\\..*\\.available_bytes"
+      - "used_bytes"
+      - "available_bytes"
       - "metrics\\.timestamp"
       - "performance\\.last_update"
       - "monitoring\\.heartbeat"
