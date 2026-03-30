@@ -3,186 +3,156 @@
 
 import {
   INVENTORY_DIFFS_KEY,
-  INVENTORY_DIFFS_TABLE_ID,
   getInventoryDiffs,
-  type InventoryDiffCategory,
-  type InventoryDiffSeverity,
-  type InventoryDiffType,
+  type InventoryDiff,
 } from '@/lib/systems/inventoryDiffs'
-import { MIN_SEARCH_LENGTH } from '@/lib/common'
 import { canReadSystems } from '@/lib/permissions'
-import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
-import { useDebounceFn } from '@vueuse/core'
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useInventoryTimeline } from './inventoryTimeline'
 
-//// currently unused?
 export const useInventoryDiffs = defineQuery(() => {
   const loginStore = useLoginStore()
   const route = useRoute()
-  const pageNum = ref(1)
-  const pageSize = ref(DEFAULT_PAGE_SIZE)
-  const severityFilter = ref<InventoryDiffSeverity[]>([])
-  const categoryFilter = ref<InventoryDiffCategory[]>([])
-  const diffTypeFilter = ref<InventoryDiffType[]>([])
-  const inventoryIdFilter = ref<number[]>([])
-  const fromDate = ref('')
-  const toDate = ref('')
-  const textFilter = ref('')
-  const debouncedTextFilter = ref('')
 
-  const { state, asyncStatus, ...rest } = useQuery({
+  const {
+    allInventoryIds,
+    severityFilter,
+    categoryFilter,
+    diffTypeFilter,
+    fromDate,
+    toDate,
+    debouncedTextFilter,
+  } = useInventoryTimeline()
+
+  // ── Stable accumulated state ──────────────────────────────────────────────
+  const stableDiffs = ref<InventoryDiff[]>([])
+  const lastFetchedInventoryIds = ref<Set<number>>(new Set())
+  const diffsHaveEverLoaded = ref(false)
+
+  // Reset accumulated diffs when filter conditions (or system) change so the
+  // subsequent diffs fetch starts fresh rather than merging into stale data.
+  // Using a serialized computed key prevents spurious resets when resetFilters()
+  // assigns new empty-array instances that are equal in content to the old ones.
+  const filterResetKey = computed(() =>
+    JSON.stringify({
+      systemId: route.params.systemId,
+      severityFilter: severityFilter.value,
+      categoryFilter: categoryFilter.value,
+      diffTypeFilter: diffTypeFilter.value,
+      fromDate: fromDate.value,
+      toDate: toDate.value,
+      debouncedTextFilter: debouncedTextFilter.value,
+    }),
+  )
+
+  watch(filterResetKey, () => {
+    stableDiffs.value = []
+    lastFetchedInventoryIds.value = new Set()
+    diffsHaveEverLoaded.value = false
+  })
+
+  // ── Diffs query — key tracks the full ID set; query fetches only the delta ─
+  const { state, asyncStatus } = useQuery({
     key: () => [
       INVENTORY_DIFFS_KEY,
+      'timeline',
       {
         systemId: route.params.systemId,
-        pageNum: pageNum.value,
-        pageSize: pageSize.value,
+        inventoryIds: allInventoryIds.value,
         severityFilter: severityFilter.value,
         categoryFilter: categoryFilter.value,
         diffTypeFilter: diffTypeFilter.value,
-        inventoryIdFilter: inventoryIdFilter.value,
         fromDate: fromDate.value,
         toDate: toDate.value,
         search: debouncedTextFilter.value,
       },
     ],
-    enabled: () => !!loginStore.jwtToken && canReadSystems() && !!route.params.systemId,
-    staleTime: 0,
-    gcTime: 0,
+    // Only run when there are IDs in the current timeline page that haven't been fetched yet.
+    // Using allInventoryIds ensures the key and the enabled guard are always in sync: when
+    // filters change the infinite query resets to no-data, allInventoryIds becomes [] and the
+    // query is automatically disabled until the first timeline page for the new filters loads.
+    enabled: () =>
+      !!loginStore.jwtToken &&
+      canReadSystems() &&
+      !!route.params.systemId &&
+      allInventoryIds.value.some((id) => !lastFetchedInventoryIds.value.has(id)),
     query: () => {
-      const apiCall = getInventoryDiffs(
+      // Fetch only the IDs we haven't retrieved yet so each loadNextPage() sends a
+      // minimal request instead of re-requesting every previously loaded page.
+      const idsToFetch = allInventoryIds.value.filter(
+        (id) => !lastFetchedInventoryIds.value.has(id),
+      )
+      return getInventoryDiffs(
         route.params.systemId as string,
-        pageNum.value,
-        pageSize.value,
+        1,
+        100,
         severityFilter.value,
         categoryFilter.value,
         diffTypeFilter.value,
-        inventoryIdFilter.value,
+        idsToFetch,
         fromDate.value,
         toDate.value,
         debouncedTextFilter.value,
-      )
-      return apiCall
+      ).then((result) => ({ ...result, requestedInventoryIds: idsToFetch }))
     },
   })
 
-  const areDefaultFiltersApplied = computed(() => {
-    return (
-      severityFilter.value.length === 0 &&
-      categoryFilter.value.length === 0 &&
-      diffTypeFilter.value.length === 0 &&
-      inventoryIdFilter.value.length === 0 &&
-      !fromDate.value &&
-      !toDate.value &&
-      !debouncedTextFilter.value
-    )
-  })
-
-  // load table page size from storage
   watch(
-    () => loginStore.userInfo?.email,
-    (email) => {
-      if (email) {
-        pageSize.value = loadPageSizeFromStorage(INVENTORY_DIFFS_TABLE_ID)
+    () => state.value.data,
+    (data) => {
+      if (data !== undefined) {
+        // Merge: replace any existing diffs for these IDs (idempotent on refetch),
+        // then append the new ones. This way each loadNextPage() only fetches the
+        // delta instead of re-requesting all previously loaded pages.
+        const fetchedIds = new Set(data.requestedInventoryIds)
+        stableDiffs.value = [
+          ...stableDiffs.value.filter((d) => !fetchedIds.has(d.inventory_id)),
+          ...data.diffs,
+        ]
+        fetchedIds.forEach((id) => lastFetchedInventoryIds.value.add(id))
+        diffsHaveEverLoaded.value = true
       }
     },
-    { immediate: true },
   )
 
-  // reset to first page when page size changes
-  watch(
-    () => pageSize.value,
-    () => {
-      pageNum.value = 1
-    },
+  // allDiffs always returns stable data — never empty during a refetch
+  const allDiffs = computed<InventoryDiff[]>(() => stableDiffs.value)
+
+  const diffsIsLoading = computed(
+    () =>
+      !diffsHaveEverLoaded.value &&
+      state.value.status === 'pending' &&
+      allInventoryIds.value.length > 0,
   )
 
-  // reset to first page when any filter changes
-  watch(
-    () => severityFilter.value,
-    () => {
-      pageNum.value = 1
-    },
-    { deep: true },
+  // True while allInventoryIds has IDs not yet covered by the last completed diffs fetch
+  const diffsIsRefetching = computed(
+    () =>
+      diffsHaveEverLoaded.value &&
+      allInventoryIds.value.some((id) => !lastFetchedInventoryIds.value.has(id)),
   )
 
-  watch(
-    () => categoryFilter.value,
-    () => {
-      pageNum.value = 1
-    },
-    { deep: true },
-  )
-
-  watch(
-    () => diffTypeFilter.value,
-    () => {
-      pageNum.value = 1
-    },
-    { deep: true },
-  )
-
-  watch(
-    () => inventoryIdFilter.value,
-    () => {
-      pageNum.value = 1
-    },
-    { deep: true },
-  )
-
-  watch(
-    () => fromDate.value,
-    () => {
-      pageNum.value = 1
-    },
-  )
-
-  watch(
-    () => toDate.value,
-    () => {
-      pageNum.value = 1
-    },
-  )
-
-  const resetFilters = () => {
-    severityFilter.value = []
-    categoryFilter.value = []
-    diffTypeFilter.value = []
-    inventoryIdFilter.value = []
-    fromDate.value = ''
-    toDate.value = ''
-    textFilter.value = ''
-    debouncedTextFilter.value = ''
+  function getDiffsForGroup(group: { inventory_ids: number[] }): InventoryDiff[] {
+    const idSet = new Set(group.inventory_ids)
+    return allDiffs.value.filter((d) => idSet.has(d.inventory_id))
   }
 
-  watch(
-    () => textFilter.value,
-    useDebounceFn(() => {
-      if (textFilter.value.length === 0 || textFilter.value.length >= MIN_SEARCH_LENGTH) {
-        debouncedTextFilter.value = textFilter.value
-        pageNum.value = 1
-      }
-    }, 500),
-  )
+  // Returns true when this group's diffs haven't been fetched yet (new page, still loading)
+  function isGroupPendingDiffs(group: { inventory_ids: number[] }): boolean {
+    if (!diffsIsRefetching.value) return false
+    return group.inventory_ids.some((id) => !lastFetchedInventoryIds.value.has(id))
+  }
 
   return {
-    ...rest,
     state,
     asyncStatus,
-    pageNum,
-    pageSize,
-    severityFilter,
-    categoryFilter,
-    diffTypeFilter,
-    inventoryIdFilter,
-    fromDate,
-    toDate,
-    textFilter,
-    debouncedTextFilter,
-    areDefaultFiltersApplied,
-    resetFilters,
+    allDiffs,
+    diffsIsLoading,
+    diffsIsRefetching,
+    getDiffsForGroup,
+    isGroupPendingDiffs,
   }
 })

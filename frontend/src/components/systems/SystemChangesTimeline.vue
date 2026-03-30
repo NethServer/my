@@ -6,20 +6,15 @@
 <script setup lang="ts">
 import { useInventoryTimeline } from '@/queries/systems/inventoryTimeline'
 import { useInventoryChanges } from '@/queries/systems/inventoryChanges'
+import { useInventoryDiffs } from '@/queries/systems/inventoryDiffs'
 import {
-  INVENTORY_DIFFS_KEY,
-  getInventoryDiffs,
   type InventoryDiff,
   type InventoryDiffCategory,
   type InventoryDiffSeverity,
   type InventoryDiffType,
 } from '@/lib/systems/inventoryDiffs'
 import { formatDateTimeNoSeconds } from '@/lib/dateTime'
-import { canReadSystems } from '@/lib/permissions'
-import { useLoginStore } from '@/stores/login'
-import { useQuery } from '@pinia/colada'
 import { computed, onWatcherCleanup, ref, useTemplateRef, watch } from 'vue'
-import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
   NeButton,
@@ -50,8 +45,6 @@ import {
 import { useThemeStore } from '@/stores/theme'
 
 const { t, locale } = useI18n()
-const route = useRoute()
-const loginStore = useLoginStore()
 const themeStore = useThemeStore()
 
 // ── Timeline infinite query ──────────────────────────────────────────────────
@@ -66,10 +59,8 @@ const {
   fromDate,
   toDate,
   textFilter,
-  debouncedTextFilter,
   areDefaultFiltersApplied: areTimelineDefaultFiltersApplied,
   resetFilters: resetTimelineFilters,
-  allInventoryIds,
   allGroups,
 } = useInventoryTimeline()
 
@@ -79,54 +70,14 @@ const { state: inventoryChangesState } = useInventoryChanges()
 const expandedGroups = ref<Set<string>>(new Set())
 const expandedDiffs = ref<Set<number>>(new Set())
 
-// ── Diffs stable state (declared before useQuery so enabled/query can close over them) ──
-const stableDiffs = ref<InventoryDiff[]>([])
-const lastFetchedInventoryIds = ref<Set<number>>(new Set())
-const diffsHaveEverLoaded = ref(false)
-
-// ── Diffs query — key tracks the full ID set; query fetches only the delta ───
-const { state: diffsState, asyncStatus: diffsAsyncStatus } = useQuery({
-  key: () => [
-    INVENTORY_DIFFS_KEY,
-    'timeline',
-    {
-      systemId: route.params.systemId,
-      inventoryIds: allInventoryIds.value,
-      severityFilter: severityFilter.value,
-      categoryFilter: categoryFilter.value,
-      diffTypeFilter: diffTypeFilter.value,
-      fromDate: fromDate.value,
-      toDate: toDate.value,
-      search: debouncedTextFilter.value,
-    },
-  ],
-  // Only run when there are IDs in the current timeline page that haven't been fetched yet.
-  // Using allInventoryIds ensures the key and the enabled guard are always in sync: when
-  // filters change the infinite query resets to no-data, allInventoryIds becomes [] and the
-  // query is automatically disabled until the first timeline page for the new filters loads.
-  enabled: () =>
-    !!loginStore.jwtToken &&
-    canReadSystems() &&
-    !!route.params.systemId &&
-    allInventoryIds.value.some((id) => !lastFetchedInventoryIds.value.has(id)),
-  query: () => {
-    // Fetch only the IDs we haven't retrieved yet so each loadNextPage() sends a
-    // minimal request instead of re-requesting every previously loaded page.
-    const idsToFetch = allInventoryIds.value.filter((id) => !lastFetchedInventoryIds.value.has(id))
-    return getInventoryDiffs(
-      route.params.systemId as string,
-      1,
-      100,
-      severityFilter.value,
-      categoryFilter.value,
-      diffTypeFilter.value,
-      idsToFetch,
-      fromDate.value,
-      toDate.value,
-      debouncedTextFilter.value,
-    ).then((result) => ({ ...result, requestedInventoryIds: idsToFetch }))
-  },
-})
+// ── Diffs query ──────────────────────────────────────────────────────────────
+const {
+  state: diffsState,
+  asyncStatus: diffsAsyncStatus,
+  diffsIsLoading,
+  getDiffsForGroup,
+  isGroupPendingDiffs,
+} = useInventoryDiffs()
 
 // ── Auto-expand all groups when they load ─────────────────────────────────────
 watch(
@@ -256,49 +207,6 @@ const areDefaultFiltersApplied = computed(() => areTimelineDefaultFiltersApplied
 
 // ── Diffs helpers ─────────────────────────────────────────────────────────────
 
-// Reset accumulated diffs when filter conditions (or system) change so the
-// subsequent diffs fetch starts fresh rather than merging into stale data.
-// Using a serialized computed key prevents spurious resets when resetFilters()
-// assigns new empty-array instances that are equal in content to the old ones.
-const filterResetKey = computed(() =>
-  JSON.stringify({
-    systemId: route.params.systemId,
-    severityFilter: severityFilter.value,
-    categoryFilter: categoryFilter.value,
-    diffTypeFilter: diffTypeFilter.value,
-    fromDate: fromDate.value,
-    toDate: toDate.value,
-    debouncedTextFilter: debouncedTextFilter.value,
-  }),
-)
-
-watch(filterResetKey, () => {
-  stableDiffs.value = []
-  lastFetchedInventoryIds.value = new Set()
-  diffsHaveEverLoaded.value = false
-})
-
-watch(
-  () => diffsState.value.data,
-  (data) => {
-    if (data !== undefined) {
-      // Merge: replace any existing diffs for these IDs (idempotent on refetch),
-      // then append the new ones. This way each loadNextPage() only fetches the
-      // delta instead of re-requesting all previously loaded pages.
-      const fetchedIds = new Set(data.requestedInventoryIds)
-      stableDiffs.value = [
-        ...stableDiffs.value.filter((d) => !fetchedIds.has(d.inventory_id)),
-        ...data.diffs,
-      ]
-      fetchedIds.forEach((id) => lastFetchedInventoryIds.value.add(id))
-      diffsHaveEverLoaded.value = true
-    }
-  },
-)
-
-// allDiffs always returns stable data — never empty during a refetch
-const allDiffs = computed<InventoryDiff[]>(() => stableDiffs.value)
-
 const timelineIsPending = computed(
   () => timelineState.value.status === 'pending' || diffsIsLoading.value,
 )
@@ -308,28 +216,6 @@ const timelineError = computed(() =>
 const diffsError = computed(() =>
   diffsState.value.status === 'error' ? diffsState.value.error : null,
 )
-const diffsIsLoading = computed(
-  () =>
-    !diffsHaveEverLoaded.value &&
-    diffsState.value.status === 'pending' &&
-    allInventoryIds.value.length > 0,
-)
-// True while allInventoryIds has IDs not yet covered by the last completed diffs fetch
-const diffsIsRefetching = computed(
-  () =>
-    diffsHaveEverLoaded.value &&
-    allInventoryIds.value.some((id) => !lastFetchedInventoryIds.value.has(id)),
-)
-function getDiffsForGroup(group: DisplayGroup): InventoryDiff[] {
-  const idSet = new Set(group.inventory_ids)
-  return allDiffs.value.filter((d) => idSet.has(d.inventory_id))
-}
-
-// Returns true when this group's diffs haven't been fetched yet (new page, still loading)
-function isGroupPendingDiffs(group: DisplayGroup): boolean {
-  if (!diffsIsRefetching.value) return false
-  return group.inventory_ids.some((id) => !lastFetchedInventoryIds.value.has(id))
-}
 
 function formatDiffValue(value: unknown): string {
   if (value === null || value === undefined) return '—'
@@ -553,18 +439,10 @@ const diffTypeFilterModel = computed<string[]>({
             </div>
           </template>
           <template #menu-header>
-            <!-- <span v-if="value">Selected date: {{ value.getDate() }}</span>
-            <span v-else>No date selected</span> ////  -->
             <NeLink @click="clearDateRange" class="inline-block pt-3 pl-3">{{
               t('ne_dropdown_filter.clear_filter')
             }}</NeLink>
           </template>
-          <!-- <template #action-extra="{ selectCurrentDate }"> ////
-            <button @click="selectCurrentDate()" title="Select current date">Today</button>
-          </template>
-          <template #clear-icon="{ clear }">
-            <button @click="clear">Clear</button>
-          </template> -->
         </VueDatePicker>
         <!-- Reset filters -->
         <NeButton kind="tertiary" @click="resetAllFilters">
@@ -591,10 +469,6 @@ const diffTypeFilterModel = computed<string[]>({
     :description="diffsError?.message"
     class="mb-6"
   />
-
-  <!-- ////
-  <div>timelineAsyncStatus {{ timelineAsyncStatus }}</div>
-  <div>diffsAsyncStatus {{ diffsAsyncStatus }}</div> -->
 
   <!-- Loading skeleton (initial load) -->
   <div v-if="timelineIsPending" class="space-y-6">
@@ -628,28 +502,6 @@ const diffTypeFilterModel = computed<string[]>({
       {{ $t('common.reset_filters') }}</NeButton
     >
   </NeEmptyState>
-
-  <!-- <div ////
-    v-else-if="isTimelineEmpty"
-    class="flex flex-col items-center justify-center py-16 text-center text-gray-500 dark:text-gray-400"
-  >
-    <p class="text-sm font-medium">{{ t('system_detail.no_inventory_changes') }}</p>
-    <p class="mt-1 text-sm">
-      {{
-        areDefaultFiltersApplied
-          ? t('system_detail.no_inventory_changes_no_filters_description')
-          : t('common.try_changing_search_filters')
-      }}
-    </p>
-    <NeButton
-      v-if="!areDefaultFiltersApplied"
-      kind="tertiary"
-      class="mt-4"
-      @click="resetAllFilters"
-    >
-      {{ t('common.reset_filters') }}
-    </NeButton>
-  </div> -->
 
   <!-- Timeline -->
   <div v-else class="relative mt-2">

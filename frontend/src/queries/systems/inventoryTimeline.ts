@@ -15,7 +15,7 @@ import { useDebounceFn } from '@vueuse/core'
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
-const TIMELINE_PAGE_SIZE = 5 //// 20
+const TIMELINE_PAGE_SIZE = 20
 
 export const useInventoryTimeline = defineQuery(() => {
   const loginStore = useLoginStore()
