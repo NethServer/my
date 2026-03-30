@@ -29,9 +29,3 @@
 .dp__menu {
   box-shadow: var(--shadow-lg);
 }
-
-/* Hide the menu arrow */
-.dp__arrow_top,
-.dp__arrow_bottom {
-  display: none;
-}

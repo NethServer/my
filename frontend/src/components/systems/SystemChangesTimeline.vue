@@ -534,6 +534,7 @@ const diffTypeFilterModel = computed<string[]>({
           model-type="yyyy-MM-dd"
           :max-date="new Date()"
           :time-config="{ enableTimePicker: false }"
+          :floating="{ arrow: false, placement: 'bottom-start' }"
           auto-apply
           :dark="!themeStore.isLight"
           class="vue-datepicker"
