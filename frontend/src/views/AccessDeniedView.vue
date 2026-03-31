@@ -6,7 +6,7 @@
 <script setup lang="ts">
 import { NeButton, NeEmptyState } from '@nethesis/vue-components'
 import router from '@/router'
-import { faBan } from '@fortawesome/free-solid-svg-icons'
+import { faArrowRight, faBan } from '@fortawesome/free-solid-svg-icons'
 
 const goToDashboard = () => {
   router.push({ name: 'dashboard' })
@@ -15,12 +15,15 @@ const goToDashboard = () => {
 
 <template>
   <NeEmptyState
-    :title="$t('access_denied.oops')"
+    :title="$t('access_denied.title')"
     :description="$t('access_denied.description')"
     :icon="faBan"
     class="bg-white dark:bg-gray-950"
   >
-    <NeButton kind="tertiary" @click="goToDashboard">
+    <NeButton kind="primary" @click="goToDashboard">
+      <template #prefix>
+        <FontAwesomeIcon :icon="faArrowRight" aria-hidden="true" />
+      </template>
       {{ $t('common.go_to_page', { page: $t('dashboard.title') }) }}</NeButton
     >
   </NeEmptyState>

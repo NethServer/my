@@ -561,7 +561,13 @@
     "category_system": "System",
     "no_inventory_changes": "No inventory changes",
     "no_inventory_changes_found": "No inventory changes found",
-    "no_inventory_changes_description": "The system has not reported any changes yet."
+    "no_inventory_changes_description": "The system has not reported any changes yet.",
+    "additional_services": "Additional services",
+    "no_additional_services": "No additional services",
+    "service_ha": "High Availability",
+    "service_netifyd": "Netify Informatics",
+    "service_flashstart": "FlashStart",
+    "service_threat_shield": "Yoroi blocklist"
   },
   "application_detail": {
     "title": "Application detail",
@@ -603,9 +609,8 @@
     "system_applications": "System Applications"
   },
   "access_denied": {
-    "title": "Access denied",
-    "description": "You do not have the necessary permissions to view this page.",
-    "oops": "Oops!"
+    "title": "Restricted page",
+    "description": "It seems that you don't have the necessary permissions to view this page."
   },
   "ne_table": {
     "no_items": "No items",
