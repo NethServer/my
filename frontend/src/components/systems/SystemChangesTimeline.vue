@@ -597,7 +597,7 @@ const diffTypeFilterModel = computed<string[]>({
                       </div>
                       <!-- Category -->
                       <span
-                        class="w-20 flex-shrink-0 text-sm font-medium text-gray-900 uppercase dark:text-gray-50"
+                        class="min-w-[80px] flex-shrink-0 text-sm font-medium text-gray-900 uppercase dark:text-gray-50"
                       >
                         {{ getCategoryLabel(diff.category) }}
                       </span>
