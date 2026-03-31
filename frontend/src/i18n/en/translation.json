@@ -602,6 +602,11 @@
     "organization_applications": "Company Applications",
     "system_applications": "System Applications"
   },
+  "access_denied": {
+    "title": "Access denied",
+    "description": "You do not have the necessary permissions to view this page.",
+    "oops": "Oops!"
+  },
   "ne_table": {
     "no_items": "No items",
     "go_to_previous_page": "Go to previous page",
