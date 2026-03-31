@@ -581,10 +581,10 @@ const diffTypeFilterModel = computed<string[]>({
                 >
                   <!-- Diff header row -->
                   <div
-                    class="flex cursor-pointer items-center justify-between px-6 py-4"
+                    class="flex cursor-pointer items-center justify-between gap-2 px-6 py-4"
                     @click="toggleDiff(diff.id)"
                   >
-                    <div class="flex items-center gap-4">
+                    <div class="flex min-w-0 items-center gap-4">
                       <!-- Change type icon -->
                       <div
                         class="flex size-6 flex-shrink-0 items-center justify-center rounded-full"
@@ -605,11 +605,12 @@ const diffTypeFilterModel = computed<string[]>({
                       <NeBadgeV2
                         :kind="getSeverityKind(diff.severity)"
                         :custom-kind-classes="getSeverityCustomKindClasses(diff.severity)"
+                        class="mr-3 min-w-[80px] justify-center"
                       >
                         {{ getSeverityLabel(diff.severity) }}
                       </NeBadgeV2>
                       <!-- Field path -->
-                      <span class="text-sm text-gray-600 dark:text-gray-300">
+                      <span class="min-w-0 text-sm break-all text-gray-600 dark:text-gray-300">
                         {{ diff.field_path }}
                       </span>
                     </div>
