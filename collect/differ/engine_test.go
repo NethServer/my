@@ -348,7 +348,12 @@ func TestDiffEngine_ValueToString(t *testing.T) {
 		{
 			name:     "float64 value",
 			value:    3.14159,
-			expected: "3.14",
+			expected: "3.14159",
+		},
+		{
+			name:     "float64 integer value",
+			value:    float64(4),
+			expected: "4",
 		},
 		{
 			name:     "nil value",

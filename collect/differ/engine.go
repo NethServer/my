@@ -8,6 +8,7 @@ package differ
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -326,9 +327,9 @@ func (de *DiffEngine) valueToString(value interface{}) string {
 	case int64:
 		return fmt.Sprintf("%d", v)
 	case float32:
-		return fmt.Sprintf("%.2f", v)
+		return strconv.FormatFloat(float64(v), 'f', -1, 32)
 	case float64:
-		return fmt.Sprintf("%.2f", v)
+		return strconv.FormatFloat(v, 'f', -1, 64)
 	default:
 		// For complex types, marshal to JSON
 		if data, err := json.Marshal(v); err == nil {
