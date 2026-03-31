@@ -6,7 +6,6 @@ import {
   getInventoryDiffs,
   type InventoryDiff,
 } from '@/lib/systems/inventoryDiffs'
-import { canReadSystems } from '@/lib/permissions'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { computed, ref, watch } from 'vue'
@@ -76,7 +75,6 @@ export const useInventoryDiffs = defineQuery(() => {
     // query is automatically disabled until the first timeline page for the new filters loads.
     enabled: () =>
       !!loginStore.jwtToken &&
-      canReadSystems() &&
       !!route.params.systemId &&
       allInventoryIds.value.some((id) => !lastFetchedInventoryIds.value.has(id)),
     query: () => {

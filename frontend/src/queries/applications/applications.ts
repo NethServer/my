@@ -2,7 +2,6 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import { MIN_SEARCH_LENGTH } from '@/lib/common'
-import { canReadApplications } from '@/lib/permissions'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
@@ -43,7 +42,7 @@ export const useApplications = defineQuery(() => {
         sortDirection: sortDescending.value,
       },
     ],
-    enabled: () => !!loginStore.jwtToken && canReadApplications(),
+    enabled: () => !!loginStore.jwtToken,
     query: () =>
       getApplications(
         pageNum.value,

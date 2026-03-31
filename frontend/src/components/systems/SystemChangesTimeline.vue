@@ -672,7 +672,7 @@ const diffTypeFilterModel = computed<string[]>({
                       </div>
                     </div>
                     <!-- Timestamp -->
-                    <p class="mt-4 text-[10px] text-gray-600 dark:text-gray-300">
+                    <p class="mt-4 text-xs text-gray-600 dark:text-gray-300">
                       {{ formatDateTimeNoSeconds(new Date(diff.created_at), locale) }}
                     </p>
                   </div>

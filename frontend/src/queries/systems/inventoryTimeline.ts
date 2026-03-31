@@ -8,7 +8,6 @@ import {
 } from '@/lib/systems/inventoryDiffs'
 import { INVENTORY_TIMELINE_KEY, getInventoryTimeline } from '@/lib/systems/inventoryTimeline'
 import { MIN_SEARCH_LENGTH } from '@/lib/common'
-import { canReadSystems } from '@/lib/permissions'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useInfiniteQuery } from '@pinia/colada'
 import { useDebounceFn } from '@vueuse/core'
@@ -41,7 +40,7 @@ export const useInventoryTimeline = defineQuery(() => {
         search: debouncedTextFilter.value,
       },
     ],
-    enabled: () => !!loginStore.jwtToken && canReadSystems() && !!route.params.systemId,
+    enabled: () => !!loginStore.jwtToken && !!route.params.systemId,
     staleTime: 0,
     gcTime: 0,
     initialPageParam: 1,

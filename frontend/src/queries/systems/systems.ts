@@ -2,7 +2,6 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import { MIN_SEARCH_LENGTH } from '@/lib/common'
-import { canReadSystems } from '@/lib/permissions'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import {
   getSystems,
@@ -47,7 +46,7 @@ export const useSystems = defineQuery(() => {
         sortDirection: sortDescending.value,
       },
     ],
-    enabled: () => !!loginStore.jwtToken && canReadSystems(),
+    enabled: () => !!loginStore.jwtToken,
     query: () =>
       getSystems(
         pageNum.value,

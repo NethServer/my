@@ -6,14 +6,6 @@ import DashboardView from '../views/DashboardView.vue'
 import LoginRedirectView from '../views/LoginRedirectView.vue'
 import LoginView from '../views/LoginView.vue'
 import { useLoginStore } from '@/stores/login'
-import {
-  canReadApplications,
-  canReadCustomers,
-  canReadDistributors,
-  canReadResellers,
-  canReadSystems,
-  canReadUsers,
-} from '@/lib/permissions'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -39,9 +31,9 @@ const router = createRouter({
       component: LoginRedirectView,
     },
     {
-      path: '/access-denied',
-      name: 'access_denied',
-      component: () => import('../views/AccessDeniedView.vue'),
+      path: '/forbidden',
+      name: 'forbidden',
+      component: () => import('../views/ForbiddenView.vue'),
     },
     {
       path: '/account',
@@ -121,50 +113,6 @@ router.beforeEach(async (to) => {
   // If the user is logged in, cannot access the login page
   if ((to.name === 'login' || to.name === 'login_redirect') && loginStore.isAuthenticated) {
     return { name: 'dashboard' }
-  }
-
-  // Make sure the user has the necessary permissions to access the page, otherwise redirect to access denied page
-  if (false) {
-    ////
-    switch (
-      to.name ////
-    ) {
-      case 'distributors':
-      case 'distributor_detail':
-        if (!canReadDistributors()) {
-          return { name: 'access_denied' }
-        }
-        break
-      case 'resellers':
-      case 'reseller_detail':
-        if (!canReadResellers()) {
-          return { name: 'access_denied' }
-        }
-        break
-      case 'customers':
-      case 'customer_detail':
-        if (!canReadCustomers()) {
-          return { name: 'access_denied' }
-        }
-        break
-      case 'users':
-        if (!canReadUsers()) {
-          return { name: 'access_denied' }
-        }
-        break
-      case 'systems':
-      case 'system_detail':
-        if (!canReadSystems()) {
-          return { name: 'access_denied' }
-        }
-        break
-      case 'applications':
-      case 'application_detail':
-        if (!canReadApplications()) {
-          return { name: 'access_denied' }
-        }
-        break
-    }
   }
 })
 

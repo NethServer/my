@@ -608,7 +608,7 @@
     "organization_applications": "Company Applications",
     "system_applications": "System Applications"
   },
-  "access_denied": {
+  "forbidden_page": {
     "title": "Restricted page",
     "description": "It seems that you don't have the necessary permissions to view this page."
   },

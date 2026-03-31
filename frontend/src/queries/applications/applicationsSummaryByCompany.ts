@@ -5,7 +5,6 @@ import {
   APPLICATIONS_SUMMARY_KEY,
   getApplicationsSummaryByCompany,
 } from '@/lib/applications/applicationsSummary'
-import { canReadApplications } from '@/lib/permissions'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { useRoute } from 'vue-router'
@@ -16,7 +15,7 @@ export const useApplicationsSummaryByCompany = defineQuery(() => {
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [APPLICATIONS_SUMMARY_KEY, route.params.companyId],
-    enabled: () => !!loginStore.jwtToken && canReadApplications() && !!route.params.companyId,
+    enabled: () => !!loginStore.jwtToken && !!route.params.companyId,
     query: () =>
       getApplicationsSummaryByCompany(route.params.companyId as string, 1, 5, 'count', true),
   })

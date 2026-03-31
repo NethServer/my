@@ -7,6 +7,7 @@
 import { NeButton, NeEmptyState } from '@nethesis/vue-components'
 import router from '@/router'
 import { faArrowRight, faBan } from '@fortawesome/free-solid-svg-icons'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
 const goToDashboard = () => {
   router.push({ name: 'dashboard' })
@@ -15,8 +16,8 @@ const goToDashboard = () => {
 
 <template>
   <NeEmptyState
-    :title="$t('access_denied.title')"
-    :description="$t('access_denied.description')"
+    :title="$t('forbidden_page.title')"
+    :description="$t('forbidden_page.description')"
     :icon="faBan"
     class="bg-white dark:bg-gray-950"
   >

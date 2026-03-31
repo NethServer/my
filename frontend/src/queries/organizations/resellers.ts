@@ -2,7 +2,6 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import { MIN_SEARCH_LENGTH } from '@/lib/common'
-import { canReadResellers } from '@/lib/permissions'
 import {
   getResellers,
   RESELLERS_KEY,
@@ -38,7 +37,7 @@ export const useResellers = defineQuery(() => {
         sortDirection: sortDescending.value,
       },
     ],
-    enabled: () => !!loginStore.jwtToken && canReadResellers(),
+    enabled: () => !!loginStore.jwtToken,
     query: () =>
       getResellers(
         pageNum.value,
