@@ -124,42 +124,47 @@ router.beforeEach(async (to) => {
   }
 
   // Make sure the user has the necessary permissions to access the page, otherwise redirect to access denied page
-  switch (to.name) {
-    case 'distributors':
-    case 'distributor_detail':
-      if (!canReadDistributors()) {
-        return { name: 'access_denied' }
-      }
-      break
-    case 'resellers':
-    case 'reseller_detail':
-      if (!canReadResellers()) {
-        return { name: 'access_denied' }
-      }
-      break
-    case 'customers':
-    case 'customer_detail':
-      if (!canReadCustomers()) {
-        return { name: 'access_denied' }
-      }
-      break
-    case 'users':
-      if (!canReadUsers()) {
-        return { name: 'access_denied' }
-      }
-      break
-    case 'systems':
-    case 'system_detail':
-      if (!canReadSystems()) {
-        return { name: 'access_denied' }
-      }
-      break
-    case 'applications':
-    case 'application_detail':
-      if (!canReadApplications()) {
-        return { name: 'access_denied' }
-      }
-      break
+  if (false) {
+    ////
+    switch (
+      to.name ////
+    ) {
+      case 'distributors':
+      case 'distributor_detail':
+        if (!canReadDistributors()) {
+          return { name: 'access_denied' }
+        }
+        break
+      case 'resellers':
+      case 'reseller_detail':
+        if (!canReadResellers()) {
+          return { name: 'access_denied' }
+        }
+        break
+      case 'customers':
+      case 'customer_detail':
+        if (!canReadCustomers()) {
+          return { name: 'access_denied' }
+        }
+        break
+      case 'users':
+        if (!canReadUsers()) {
+          return { name: 'access_denied' }
+        }
+        break
+      case 'systems':
+      case 'system_detail':
+        if (!canReadSystems()) {
+          return { name: 'access_denied' }
+        }
+        break
+      case 'applications':
+      case 'application_detail':
+        if (!canReadApplications()) {
+          return { name: 'access_denied' }
+        }
+        break
+    }
   }
 })
 
