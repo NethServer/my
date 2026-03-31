@@ -7,6 +7,7 @@
 import { useInventoryTimeline } from '@/queries/systems/inventoryTimeline'
 import { useInventoryChanges } from '@/queries/systems/inventoryChanges'
 import { useInventoryDiffs } from '@/queries/systems/inventoryDiffs'
+import { useSystemDetail } from '@/queries/systems/systemDetail'
 import {
   type InventoryDiff,
   type InventoryDiffCategory,
@@ -65,6 +66,7 @@ const {
 } = useInventoryTimeline()
 
 const { state: inventoryChangesState } = useInventoryChanges()
+const { state: systemDetailState } = useSystemDetail()
 
 // ── Local state ──────────────────────────────────────────────────────────────
 const expandedGroups = ref<Set<string>>(new Set())
@@ -605,7 +607,7 @@ const diffTypeFilterModel = computed<string[]>({
                       <NeBadgeV2
                         :kind="getSeverityKind(diff.severity)"
                         :custom-kind-classes="getSeverityCustomKindClasses(diff.severity)"
-                        class="mr-3 min-w-[80px] justify-center"
+                        class="mr-2 min-w-[80px] justify-center"
                       >
                         {{ getSeverityLabel(diff.severity) }}
                       </NeBadgeV2>
@@ -724,5 +726,50 @@ const diffTypeFilterModel = computed<string[]>({
         </div>
       </div>
     </div>
+
+    <!-- Static milestone events: system registration and creation -->
+    <template v-if="systemDetailState.data">
+      <!-- System registration -->
+      <div v-if="systemDetailState.data.registered_at" class="relative mb-8 flex items-start">
+        <div class="w-36 flex-shrink-0 pt-0.5 pr-6 text-right">
+          <span class="text-sm font-medium text-gray-600 dark:text-gray-300">
+            {{ formatGroupDate(systemDetailState.data.registered_at.slice(0, 10)) }}
+          </span>
+        </div>
+        <div
+          class="absolute z-10 size-2 rounded-full bg-green-500 ring-4 ring-gray-50 dark:bg-green-400 dark:ring-gray-900"
+          style="left: 139px; top: 7px"
+        ></div>
+        <div class="flex-1 pl-10">
+          <span class="text-sm font-medium text-gray-600 dark:text-gray-300">
+            {{ t('system_detail.system_registered') }}
+          </span>
+          <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+            {{ formatDateTimeNoSeconds(new Date(systemDetailState.data.registered_at), locale) }}
+          </p>
+        </div>
+      </div>
+
+      <!-- System creation -->
+      <div v-if="systemDetailState.data.created_at" class="relative mb-8 flex items-start">
+        <div class="w-36 flex-shrink-0 pt-0.5 pr-6 text-right">
+          <span class="text-sm font-medium text-gray-600 dark:text-gray-300">
+            {{ formatGroupDate(systemDetailState.data.created_at.slice(0, 10)) }}
+          </span>
+        </div>
+        <div
+          class="absolute z-10 size-2 rounded-full bg-gray-400 ring-4 ring-gray-50 dark:bg-gray-500 dark:ring-gray-900"
+          style="left: 139px; top: 7px"
+        ></div>
+        <div class="flex-1 pl-10">
+          <span class="text-sm font-medium text-gray-600 dark:text-gray-300">
+            {{ t('system_detail.system_created') }}
+          </span>
+          <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+            {{ formatDateTimeNoSeconds(new Date(systemDetailState.data.created_at), locale) }}
+          </p>
+        </div>
+      </div>
+    </template>
   </div>
 </template>

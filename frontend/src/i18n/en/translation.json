@@ -567,7 +567,9 @@
     "service_ha": "High Availability",
     "service_netifyd": "Netify Informatics",
     "service_flashstart": "FlashStart",
-    "service_threat_shield": "Yoroi blocklist"
+    "service_threat_shield": "Yoroi blocklist",
+    "system_registered": "System registered",
+    "system_created": "System created"
   },
   "application_detail": {
     "title": "Application detail",
