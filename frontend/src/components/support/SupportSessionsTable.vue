@@ -839,9 +839,7 @@ async function handleAddService() {
                       >{{ svc.host }}{{ svc.path || '' }}</span
                     >
                     <span v-else class="min-w-0 truncate">{{ svc.name }}</span>
-                    <span class="min-w-0 shrink truncate text-gray-400"
-                      >({{ svc.name }})</span
-                    >
+                    <span class="min-w-0 shrink truncate text-gray-400">({{ svc.name }})</span>
                   </button>
                 </div>
               </div>
