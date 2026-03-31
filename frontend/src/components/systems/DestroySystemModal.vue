@@ -49,7 +49,7 @@ const {
     console.error('Error destroying system:', error)
   },
   onSettled: () => {
-    queryCache.invalidateQueries({ key: [SYSTEMS_KEY], exact: true })
+    queryCache.invalidateQueries({ key: [SYSTEMS_KEY] })
     queryCache.invalidateQueries({ key: [SYSTEMS_TOTAL_KEY] })
   },
 })
