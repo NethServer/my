@@ -62,7 +62,12 @@ func buildUserFromLogtoID(c *gin.Context, logtoID string) (*models.User, error) 
 	if rc != nil {
 		var cachedUser models.User
 		if err := rc.Get(cacheKey, &cachedUser); err == nil {
-			return &cachedUser, nil
+			// Validate cached data is complete before using it
+			if cachedUser.Username != "" && cachedUser.Email != "" {
+				return &cachedUser, nil
+			}
+			// Cached data is incomplete, discard it
+			_ = rc.Delete(cacheKey)
 		}
 	}
 
@@ -123,8 +128,9 @@ func buildUserFromLogtoID(c *gin.Context, logtoID string) (*models.User, error) 
 	user.OrganizationID = enrichedUser.OrganizationID
 	user.OrganizationName = enrichedUser.OrganizationName
 
-	// Cache the user profile in Redis
-	if rc != nil {
+	// Cache the user profile in Redis only if the profile is complete
+	// (avoid caching incomplete data from transient Logto API failures)
+	if rc != nil && userProfile != nil && user.Username != "" {
 		_ = rc.Set(cacheKey, user, 10*time.Minute)
 	}
 
