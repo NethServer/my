@@ -193,6 +193,9 @@ differ:
           patterns:
             - "used_bytes"
             - "available_bytes"
+            - "total_bytes"
+            - "facts\\.pci"
+            - "^uuid$"
             - "uptime_seconds"
         - change_type: "create"
           patterns:
@@ -221,6 +224,9 @@ differ:
       - "uptime_seconds"
       - "used_bytes"
       - "available_bytes"
+      - "total_bytes"
+      - "facts\\.pci"
+      - "^uuid$"
       - "metrics\\.timestamp"
       - "performance\\.last_update"
       - "monitoring\\.heartbeat"
