@@ -1,0 +1,113 @@
+/**
+ * CSS modules for the landing page hero section.
+ */
+
+.heroBanner {
+  background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 40%, #3b82f6 100%);
+  padding: 5rem 0;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  color: #ffffff;
+}
+
+.heroBanner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 25% 40%, rgba(255, 255, 255, 0.07) 0%, transparent 50%),
+    radial-gradient(circle at 75% 60%, rgba(255, 255, 255, 0.04) 0%, transparent 40%);
+  pointer-events: none;
+}
+
+[data-theme='dark'] .heroBanner {
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #1d4ed8 100%);
+}
+
+.heroTitle {
+  font-size: 3.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  margin-bottom: 0.5rem;
+}
+
+.heroSubtitle {
+  font-size: 1.3rem;
+  opacity: 0.9;
+  max-width: 560px;
+  margin: 0 auto 2rem;
+  line-height: 1.5;
+  color: #ffffff;
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.primaryButton {
+  background: #ffffff;
+  color: #1d4ed8;
+  border: 2px solid #ffffff;
+  font-weight: 600;
+  transition:
+    background-color 0.15s ease,
+    transform 0.1s ease;
+}
+
+.primaryButton:hover {
+  background: rgba(255, 255, 255, 0.9);
+  color: #1a44c2;
+  transform: translateY(-1px);
+}
+
+.secondaryButton {
+  background: transparent;
+  color: #ffffff;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  font-weight: 600;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.1s ease;
+}
+
+.secondaryButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.8);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+@media screen and (max-width: 996px) {
+  .heroBanner {
+    padding: 3rem 1.5rem;
+  }
+
+  .heroTitle {
+    font-size: 2.5rem;
+  }
+
+  .heroSubtitle {
+    font-size: 1.1rem;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .heroBanner {
+    padding: 2.5rem 1rem;
+  }
+
+  .heroTitle {
+    font-size: 2rem;
+  }
+
+  .buttons {
+    flex-direction: column;
+  }
+}
