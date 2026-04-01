@@ -14,7 +14,7 @@ import {
   type InventoryDiffSeverity,
   type InventoryDiffType,
 } from '@/lib/systems/inventoryDiffs'
-import { formatDateTimeNoSeconds } from '@/lib/dateTime'
+import { formatDateTimeNoSeconds, formatTimeNoSeconds } from '@/lib/dateTime'
 import { computed, onWatcherCleanup, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -509,7 +509,7 @@ const diffTypeFilterModel = computed<string[]>({
   <div v-else class="relative mt-2">
     <!-- Vertical timeline line -->
     <div
-      class="absolute top-2 bottom-0 w-px bg-gray-200 dark:bg-gray-700"
+      class="absolute top-2 bottom-5 w-px bg-gray-200 dark:bg-gray-700"
       style="left: 143px"
     ></div>
 
@@ -737,7 +737,7 @@ const diffTypeFilterModel = computed<string[]>({
           </span>
         </div>
         <div
-          class="absolute z-10 size-2 rounded-full bg-green-500 ring-4 ring-gray-50 dark:bg-green-400 dark:ring-gray-900"
+          class="absolute z-10 size-2 rounded-full bg-gray-300 ring-4 ring-gray-50 dark:bg-gray-600 dark:ring-gray-900"
           style="left: 139px; top: 7px"
         ></div>
         <div class="flex-1 pl-10">
@@ -745,7 +745,7 @@ const diffTypeFilterModel = computed<string[]>({
             {{ t('system_detail.system_registered') }}
           </span>
           <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-            {{ formatDateTimeNoSeconds(new Date(systemDetailState.data.registered_at), locale) }}
+            {{ formatTimeNoSeconds(new Date(systemDetailState.data.registered_at), locale) }}
           </p>
         </div>
       </div>
@@ -758,7 +758,7 @@ const diffTypeFilterModel = computed<string[]>({
           </span>
         </div>
         <div
-          class="absolute z-10 size-2 rounded-full bg-gray-400 ring-4 ring-gray-50 dark:bg-gray-500 dark:ring-gray-900"
+          class="absolute z-10 size-2 rounded-full bg-gray-300 ring-4 ring-gray-50 dark:bg-gray-600 dark:ring-gray-900"
           style="left: 139px; top: 7px"
         ></div>
         <div class="flex-1 pl-10">
@@ -766,7 +766,7 @@ const diffTypeFilterModel = computed<string[]>({
             {{ t('system_detail.system_created') }}
           </span>
           <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-            {{ formatDateTimeNoSeconds(new Date(systemDetailState.data.created_at), locale) }}
+            {{ formatTimeNoSeconds(new Date(systemDetailState.data.created_at), locale) }}
           </p>
         </div>
       </div>

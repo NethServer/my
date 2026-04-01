@@ -17,6 +17,13 @@ export function formatDateTimeNoSeconds(dateTime: Date, locale: string): string 
   })
 }
 
+export function formatTimeNoSeconds(dateTime: Date, locale: string): string {
+  return dateTime.toLocaleTimeString(locale, {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 export function formatMinutes(totalMinutes: number, t: ComposerTranslation) {
   if (totalMinutes < 60) {
     return t('time.minutes', totalMinutes)
