@@ -3,24 +3,26 @@
 
 import type { ComposerTranslation } from 'vue-i18n'
 
-export function formatDateTime(dateTime: Date, locale: string): string {
-  return dateTime.toLocaleString(locale)
+export function formatDateTime(dateTime: Date, locale: string, timeZone?: string): string {
+  return dateTime.toLocaleString(locale, timeZone ? { timeZone } : undefined)
 }
 
-export function formatDateTimeNoSeconds(dateTime: Date, locale: string): string {
+export function formatDateTimeNoSeconds(dateTime: Date, locale: string, timeZone?: string): string {
   return dateTime.toLocaleString(locale, {
     year: 'numeric',
     month: 'short',
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+    ...(timeZone ? { timeZone } : {}),
   })
 }
 
-export function formatTimeNoSeconds(dateTime: Date, locale: string): string {
+export function formatTimeNoSeconds(dateTime: Date, locale: string, timeZone?: string): string {
   return dateTime.toLocaleTimeString(locale, {
     hour: '2-digit',
     minute: '2-digit',
+    ...(timeZone ? { timeZone } : {}),
   })
 }
 

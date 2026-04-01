@@ -124,8 +124,13 @@ function todayDateString(): string {
 }
 
 function formatGroupDate(dateStr: string): string {
-  const date = new Date(dateStr + 'T00:00:00')
-  return date.toLocaleDateString(locale.value, { day: 'numeric', month: 'short', year: 'numeric' })
+  const date = new Date(dateStr + 'T00:00:00Z')
+  return date.toLocaleDateString(locale.value, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
 }
 
 function gapDaysBetween(newerDateStr: string, olderDateStr: string, newerIsToday: boolean): number {
@@ -676,7 +681,7 @@ const diffTypeFilterModel = computed<string[]>({
                     </div>
                     <!-- Timestamp -->
                     <p class="mt-4 text-xs text-gray-600 dark:text-gray-300">
-                      {{ formatDateTimeNoSeconds(new Date(diff.created_at), locale) }}
+                      {{ formatDateTimeNoSeconds(new Date(diff.created_at), locale, 'UTC') }}
                     </p>
                   </div>
                 </div>
@@ -745,7 +750,7 @@ const diffTypeFilterModel = computed<string[]>({
             {{ t('system_detail.system_registered') }}
           </span>
           <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-            {{ formatTimeNoSeconds(new Date(systemDetailState.data.registered_at), locale) }}
+            {{ formatTimeNoSeconds(new Date(systemDetailState.data.registered_at), locale, 'UTC') }}
           </p>
         </div>
       </div>
@@ -766,7 +771,7 @@ const diffTypeFilterModel = computed<string[]>({
             {{ t('system_detail.system_created') }}
           </span>
           <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-            {{ formatTimeNoSeconds(new Date(systemDetailState.data.created_at), locale) }}
+            {{ formatTimeNoSeconds(new Date(systemDetailState.data.created_at), locale, 'UTC') }}
           </p>
         </div>
       </div>
