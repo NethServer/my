@@ -7,6 +7,7 @@ import {
   formatMinutes,
   formatSeconds,
   formatTimeAgo,
+  formatTimeNoSeconds,
   formatUptime,
 } from './dateTime'
 import { expect, it, describe, vi, beforeEach, afterEach } from 'vitest'
@@ -77,6 +78,13 @@ describe('formatDateTime', () => {
     expect(typeof result).toBe('string')
     expect(result.length).toBeGreaterThan(0)
   })
+
+  it('should include time zone when provided', () => {
+    const date = new Date('2025-10-02T14:30:45Z')
+    const result = formatDateTime(date, 'en-US', 'UTC')
+
+    expect(result).toMatch(/UTC|GMT/)
+  })
 })
 
 describe('formatDateTimeNoSeconds', () => {
@@ -113,6 +121,25 @@ describe('formatDateTimeNoSeconds', () => {
     expect(result).toContain('2025')
     expect(result).toContain('Oct')
     expect(result).toContain('02')
+  })
+
+  it('should include time zone when provided', () => {
+    const date = new Date('2025-10-03T09:30:45Z')
+    const result = formatDateTimeNoSeconds(date, 'en-US', 'UTC')
+
+    expect(result).toMatch(/UTC|GMT/)
+  })
+})
+
+describe('formatTimeNoSeconds', () => {
+  it('should format time without seconds', () => {
+    const date = new Date('2025-10-03T09:30:45Z')
+    const result = formatTimeNoSeconds(date, 'en-US', 'UTC')
+
+    expect(result).not.toContain('45')
+    expect(result).toContain('09')
+    expect(result).toContain('30')
+    expect(result).toMatch(/UTC|GMT/)
   })
 })
 

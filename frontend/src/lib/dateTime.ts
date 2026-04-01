@@ -3,8 +3,23 @@
 
 import type { ComposerTranslation } from 'vue-i18n'
 
+function getTimeZoneOptions(timeZone?: string): Intl.DateTimeFormatOptions {
+  if (!timeZone) {
+    return {}
+  }
+
+  return {
+    timeZone,
+    timeZoneName: 'short',
+  }
+}
+
 export function formatDateTime(dateTime: Date, locale: string, timeZone?: string): string {
-  return dateTime.toLocaleString(locale, timeZone ? { timeZone } : undefined)
+  const options = getTimeZoneOptions(timeZone)
+
+  return Object.keys(options).length > 0
+    ? dateTime.toLocaleString(locale, options)
+    : dateTime.toLocaleString(locale)
 }
 
 export function formatDateTimeNoSeconds(dateTime: Date, locale: string, timeZone?: string): string {
@@ -14,7 +29,7 @@ export function formatDateTimeNoSeconds(dateTime: Date, locale: string, timeZone
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-    ...(timeZone ? { timeZone } : {}),
+    ...getTimeZoneOptions(timeZone),
   })
 }
 
@@ -22,7 +37,7 @@ export function formatTimeNoSeconds(dateTime: Date, locale: string, timeZone?: s
   return dateTime.toLocaleTimeString(locale, {
     hour: '2-digit',
     minute: '2-digit',
-    ...(timeZone ? { timeZone } : {}),
+    ...getTimeZoneOptions(timeZone),
   })
 }
 
