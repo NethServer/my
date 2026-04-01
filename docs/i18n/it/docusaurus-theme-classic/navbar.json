@@ -1,0 +1,18 @@
+{
+  "title": {
+    "message": "My",
+    "description": "The title in the navbar"
+  },
+  "item.label.User Guide": {
+    "message": "Guida Utente",
+    "description": "Navbar item with label User Guide"
+  },
+  "item.label.Developer Docs": {
+    "message": "Documentazione Sviluppatori",
+    "description": "Navbar item with label Developer Docs"
+  },
+  "item.label.GitHub": {
+    "message": "GitHub",
+    "description": "Navbar item with label GitHub"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "link.title.Documentation": {
+    "message": "Documentazione"
+  },
+  "link.title.Developer": {
+    "message": "Sviluppatori"
+  },
+  "link.title.Community": {
+    "message": "Comunità"
+  },
+  "link.item.label.User Guide": {
+    "message": "Guida Utente"
+  },
+  "link.item.label.Authentication": {
+    "message": "Autenticazione"
+  },
+  "link.item.label.Systems": {
+    "message": "Sistemi"
+  }
+}
