@@ -116,3 +116,39 @@ export const getInventoryDiffs = (
     })
     .then((res) => res.data.data)
 }
+
+export const getAllInventoryDiffs = async (
+  systemId: string,
+  pageSize: number,
+  severity: InventoryDiffSeverity[],
+  category: InventoryDiffCategory[],
+  diffType: InventoryDiffType[],
+  inventoryId: number[],
+  fromDate: string,
+  toDate: string,
+  search: string,
+): Promise<{ diffs: InventoryDiff[]; pagination: Pagination }> => {
+  let page = 1
+  let allDiffs: InventoryDiff[] = []
+  let lastPagination: Pagination
+
+  do {
+    const result = await getInventoryDiffs(
+      systemId,
+      page,
+      pageSize,
+      severity,
+      category,
+      diffType,
+      inventoryId,
+      fromDate,
+      toDate,
+      search,
+    )
+    allDiffs = allDiffs.concat(result.diffs)
+    lastPagination = result.pagination
+    page++
+  } while (lastPagination.has_next)
+
+  return { diffs: allDiffs, pagination: lastPagination }
+}

@@ -16,8 +16,8 @@ const goToDashboard = () => {
 
 <template>
   <NeEmptyState
-    :title="$t('forbidden_page.title')"
-    :description="$t('forbidden_page.description')"
+    :title="$t('forbidden.title')"
+    :description="$t('forbidden.description')"
     :icon="faBan"
     class="bg-white dark:bg-gray-950"
   >

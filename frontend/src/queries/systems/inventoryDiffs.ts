@@ -3,7 +3,7 @@
 
 import {
   INVENTORY_DIFFS_KEY,
-  getInventoryDiffs,
+  getAllInventoryDiffs,
   type InventoryDiff,
 } from '@/lib/systems/inventoryDiffs'
 import { useLoginStore } from '@/stores/login'
@@ -83,9 +83,8 @@ export const useInventoryDiffs = defineQuery(() => {
       const idsToFetch = allInventoryIds.value.filter(
         (id) => !lastFetchedInventoryIds.value.has(id),
       )
-      return getInventoryDiffs(
+      return getAllInventoryDiffs(
         route.params.systemId as string,
-        1,
         100,
         severityFilter.value,
         categoryFilter.value,
