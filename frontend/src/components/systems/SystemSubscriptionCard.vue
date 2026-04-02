@@ -101,15 +101,6 @@ function onCloseSecretRegeneratedModal() {
           <span v-else>-</span>
         </template>
       </DataItem>
-      <!-- automatic updates -->
-      <!-- <DataItem> ////
-        <template #label>
-          {{ $t('system_detail.automatic_updates') }}
-        </template>
-        <template #data>
-          TODO
-        </template>
-      </DataItem> -->
     </div>
     <!-- regenerate secret modal -->
     <RegenerateSecretModal

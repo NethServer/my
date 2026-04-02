@@ -28,6 +28,7 @@ import {
   NeSpinner,
   NeLink,
   NeEmptyState,
+  type NeBadgeV2Kind,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
@@ -285,12 +286,8 @@ function getDiffTypeBorder(type: InventoryDiffType): string {
   return 'border-l-blue-700 dark:border-l-blue-500'
 }
 
-//// use NeBadgeV2Kind as return type instead of string literal union
-
 // ── Severity badge styling ────────────────────────────────────────────────────
-function getSeverityKind(
-  severity: InventoryDiffSeverity,
-): 'rose' | 'amber' | 'blue' | 'custom' | 'primary' | 'indigo' | 'gray' | 'green' {
+function getSeverityKind(severity: InventoryDiffSeverity): NeBadgeV2Kind {
   if (severity === 'critical') return 'rose'
   if (severity === 'high') return 'amber'
   if (severity === 'low') return 'blue'
