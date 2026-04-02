@@ -6,8 +6,11 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package methods
 
 import (
+	"crypto/tls"
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
@@ -570,4 +573,89 @@ func ReactivateSystem(c *gin.Context) {
 	logger.LogBusinessOperation(c, "systems", "reactivate", "system", systemID, true, nil)
 
 	c.JSON(http.StatusOK, response.OK("system reactivated successfully", nil))
+}
+
+// checkURL performs a HEAD request to the given URL and returns true if the system responds
+func checkURL(ctx *gin.Context, client *http.Client, targetURL string) bool {
+	req, err := http.NewRequestWithContext(ctx.Request.Context(), http.MethodHead, targetURL, nil)
+	if err != nil {
+		return false
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	return true
+}
+
+// CheckSystemReachability handles GET /api/systems/:id/reachability - checks if a system's web UI is reachable
+func CheckSystemReachability(c *gin.Context) {
+	systemID := c.Param("id")
+	if systemID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
+		return
+	}
+
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	systemsService := local.NewSystemsService()
+	system, err := systemsService.GetSystem(systemID, user.OrgRole, user.OrganizationID)
+	if helpers.HandleAccessError(c, err, "system", systemID) {
+		return
+	}
+
+	if system.FQDN == "" {
+		c.JSON(http.StatusOK, response.OK("reachability check completed", gin.H{"reachable": false, "url": ""}))
+		return
+	}
+
+	// Build candidate URLs based on system type
+	var candidateURLs []string
+	switch {
+	case system.Type != nil && *system.Type == "ns8":
+		candidateURLs = []string{fmt.Sprintf("https://%s/cluster-admin", system.FQDN)}
+	case system.Type != nil && *system.Type == "nsec":
+		candidateURLs = []string{
+			fmt.Sprintf("https://%s:443", system.FQDN),
+			fmt.Sprintf("https://%s:9090", system.FQDN),
+		}
+	default:
+		c.JSON(http.StatusOK, response.OK("reachability check completed", gin.H{"reachable": false, "url": ""}))
+		return
+	}
+
+	// HTTP client with short timeout and skip TLS verification (self-signed certs)
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // systems use self-signed certificates
+		},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	for _, targetURL := range candidateURLs {
+		if checkURL(c, client, targetURL) {
+			logger.RequestLogger(c, "systems").Debug().
+				Str("system_id", systemID).
+				Str("target_url", targetURL).
+				Msg("System is reachable")
+
+			c.JSON(http.StatusOK, response.OK("reachability check completed", gin.H{"reachable": true, "url": targetURL}))
+			return
+		}
+	}
+
+	logger.RequestLogger(c, "systems").Debug().
+		Str("system_id", systemID).
+		Msg("System is not reachable on any candidate URL")
+
+	c.JSON(http.StatusOK, response.OK("reachability check completed", gin.H{"reachable": false, "url": ""}))
 }
