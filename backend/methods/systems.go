@@ -6,8 +6,11 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package methods
 
 import (
+	"crypto/tls"
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
@@ -570,4 +573,79 @@ func ReactivateSystem(c *gin.Context) {
 	logger.LogBusinessOperation(c, "systems", "reactivate", "system", systemID, true, nil)
 
 	c.JSON(http.StatusOK, response.OK("system reactivated successfully", nil))
+}
+
+// CheckSystemReachability handles GET /api/systems/:id/reachability - checks if a system's web UI is reachable
+func CheckSystemReachability(c *gin.Context) {
+	systemID := c.Param("id")
+	if systemID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID required", nil))
+		return
+	}
+
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	systemsService := local.NewSystemsService()
+	system, err := systemsService.GetSystem(systemID, user.OrgRole, user.OrganizationID)
+	if helpers.HandleAccessError(c, err, "system", systemID) {
+		return
+	}
+
+	if system.FQDN == "" {
+		c.JSON(http.StatusOK, response.OK("reachability check completed", gin.H{"reachable": false}))
+		return
+	}
+
+	// Build the URL based on system type (same logic as frontend)
+	var targetURL string
+	switch {
+	case system.Type != nil && *system.Type == "ns8":
+		targetURL = fmt.Sprintf("https://%s/cluster-admin", system.FQDN)
+	case system.Type != nil && *system.Type == "nsec":
+		targetURL = fmt.Sprintf("https://%s:9090", system.FQDN)
+	default:
+		c.JSON(http.StatusOK, response.OK("reachability check completed", gin.H{"reachable": false}))
+		return
+	}
+
+	// HTTP client with short timeout and skip TLS verification (self-signed certs)
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // systems use self-signed certificates
+		},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodHead, targetURL, nil)
+	if err != nil {
+		logger.RequestLogger(c, "systems").Error().
+			Err(err).
+			Str("system_id", systemID).
+			Str("target_url", targetURL).
+			Msg("Failed to create reachability request")
+
+		c.JSON(http.StatusOK, response.OK("reachability check completed", gin.H{"reachable": false}))
+		return
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		logger.RequestLogger(c, "systems").Debug().
+			Err(err).
+			Str("system_id", systemID).
+			Str("target_url", targetURL).
+			Msg("System is not reachable")
+
+		c.JSON(http.StatusOK, response.OK("reachability check completed", gin.H{"reachable": false}))
+		return
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	c.JSON(http.StatusOK, response.OK("reachability check completed", gin.H{"reachable": true}))
 }

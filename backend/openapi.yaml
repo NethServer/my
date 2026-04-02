@@ -6579,6 +6579,56 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /systems/{id}/reachability:
+    get:
+      operationId: checkSystemReachability
+      tags:
+        - Backend - Systems
+      summary: /systems/{id}/reachability - Check if system web UI is reachable
+      description: |
+        Checks if the system's web UI is reachable from the backend server.
+        The target URL is constructed from the system's FQDN and type:
+        - NS8: `https://{fqdn}/cluster-admin`
+        - NethSecurity: `https://{fqdn}:9090`
+
+        Returns `reachable: false` if the FQDN is missing, the system type is unsupported, or the connection fails within 5 seconds.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: Reachability check completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "reachability check completed"
+                  data:
+                    type: object
+                    properties:
+                      reachable:
+                        type: boolean
+                        example: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /systems/register:
     post:
       operationId: registerSystem

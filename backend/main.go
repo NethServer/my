@@ -237,6 +237,7 @@ func main() {
 
 			// System actions
 			systemsGroup.POST("/:id/regenerate-secret", methods.RegenerateSystemSecret) // Regenerate system secret
+			systemsGroup.GET("/:id/reachability", methods.CheckSystemReachability)      // Check if system web UI is reachable
 
 			// Export endpoint
 			systemsGroup.GET("/export", methods.ExportSystems) // Export systems to CSV or PDF with applied filters
