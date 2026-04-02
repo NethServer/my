@@ -7,6 +7,7 @@
     "close": "Close",
     "edit": "Edit",
     "delete": "Delete",
+    "remove": "Remove",
     "destroy": "Destroy",
     "archive": "Archive",
     "restore": "Restore",
@@ -325,6 +326,21 @@
     "cannot_save_profile_data": "Cannot save profile data",
     "profile_saved": "Profile saved",
     "save_profile": "Save profile",
+    "change_picture": "Change picture",
+    "remove_picture": "Remove picture",
+    "picture": "Picture",
+    "supported_formats_picture": "Supported formats: JPEG, PNG or WebP. Max size 500 KB",
+    "profile_picture_updated": "Profile picture updated",
+    "profile_picture_updated_description": "The profile picture for your account has been updated successfully",
+    "cannot_change_picture": "Cannot change picture",
+    "remove_picture_confirmation": "Your profile picture will be removed.",
+    "profile_picture_removed": "Profile picture removed",
+    "profile_picture_removed_description": "Your profile picture has been removed successfully",
+    "cannot_remove_profile_picture": "Cannot remove profile picture",
+    "no_file_selected": "Select a file to upload",
+    "file_type_not_supported": "File type not supported. Please upload a JPEG, PNG or WebP file",
+    "file_too_large": "File size exceeds the 500 KB limit",
+    "preview": "Preview",
     "cannot_edit_profile": "Profile editing is disabled",
     "cannot_edit_profile_owner_description": "You cannot edit your profile because you are logged in as the 'owner' user.",
     "cannot_edit_profile_impersonating_description": "You cannot edit the profile because you are impersonating another user.",
@@ -647,6 +663,9 @@
   },
   "ne_stepper": {
     "step": "Step"
+  },
+  "ne_file_input": {
+    "drag_and_drop_or_click_to_upload": "Drag and drop or click to upload"
   },
   "sort": {
     "sort": "Sort",

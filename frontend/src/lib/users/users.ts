@@ -38,8 +38,8 @@ export const EditUserSchema = v.object({
 export const UserSchema = v.object({
   ...CreateUserSchema.entries,
   ...EditUserSchema.entries,
-  active: v.optional(v.boolean()),
   logto_id: v.optional(v.string()),
+  username: v.string(),
   can_be_impersonated: v.boolean(),
   logto_synced_at: v.optional(v.string()),
   suspended_at: v.optional(v.string()),

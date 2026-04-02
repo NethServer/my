@@ -303,6 +303,7 @@ function getKebabMenuItems() {
                     size="xs"
                     :is-owner="systemDetail.data.created_by.username === 'owner'"
                     :name="systemDetail.data.created_by.name"
+                    :logto-id="systemDetail.data.created_by.user_id"
                   />
                 </template>
                 <template #content>

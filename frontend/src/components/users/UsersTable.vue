@@ -61,6 +61,7 @@ import { useUserFilters } from '@/queries/users/userFilters'
 import { normalize } from '@/lib/common'
 import OrganizationLink from '../applications/OrganizationLink.vue'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
+import UserAvatar from './UserAvatar.vue'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -473,7 +474,15 @@ const onClosePasswordChangedModal = () => {
       <NeTableBody>
         <NeTableRow v-for="(item, index) in usersPage" :key="index">
           <NeTableCell :data-label="$t('users.name')" :class="{ 'opacity-50': item.deleted_at }">
-            {{ item.name }}
+            <div class="flex items-center gap-2">
+              <UserAvatar
+                :size="'sm'"
+                :is-owner="item.username === 'owner'"
+                :name="item.name"
+                :logto-id="item.logto_id || ''"
+              />
+              {{ item.name }}
+            </div>
           </NeTableCell>
           <NeTableCell
             :data-label="$t('users.email')"

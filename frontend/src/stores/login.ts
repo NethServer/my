@@ -41,6 +41,7 @@ export const useLoginStore = defineStore('login', () => {
   const refreshToken = ref<string>('')
   const userInfo = ref<UserInfo | undefined>()
   const loadingUserInfo = ref<boolean>(true)
+  const avatarVersion = ref<number>(0)
   const isImpersonating = ref<boolean>(false)
   const impersonatedUser = ref<UserInfo | undefined>()
   const originalUser = ref<UserInfo | undefined>()
@@ -84,6 +85,10 @@ export const useLoginStore = defineStore('login', () => {
 
   const logout = () => {
     signOut(SIGN_OUT_REDIRECT_URI)
+  }
+
+  const refreshAvatar = () => {
+    avatarVersion.value = Date.now()
   }
 
   const fetchTokenAndUserInfo = async () => {
@@ -232,10 +237,12 @@ export const useLoginStore = defineStore('login', () => {
     loadingUserInfo,
     isOwner,
     permissions,
+    avatarVersion,
     isImpersonating,
     impersonatedUser,
     originalUser,
     impersonateExpiration,
+    refreshAvatar,
     fetchTokenAndUserInfo,
     doRefreshToken,
     impersonateUser,

@@ -612,6 +612,7 @@ function onCloseSecretRegeneratedModal() {
                     size="sm"
                     :is-owner="item.created_by.username === 'owner'"
                     :name="item.created_by.name"
+                    :logto-id="item.created_by.user_id"
                   />
                   <div class="space-y-0.5">
                     <div>{{ item.created_by.name || '-' }}</div>

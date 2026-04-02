@@ -185,15 +185,18 @@ function openNotificationsDrawer() {
               :align-to-right="true"
               :open-menu-aria-label="$t('shell.open_account_menu')"
               menu-classes="z-150!"
-              class="relative bottom-0.5"
+              class="relative"
             >
               <template #button>
                 <button type="button" :class="['-m-2.5 flex p-2.5', topBarButtonsColorClasses]">
                   <div class="flex items-center gap-2">
                     <UserAvatar
+                      v-if="loginStore.userInfo"
                       size="sm"
                       :is-owner="loginStore.isOwner"
                       :name="loginStore.userDisplayName"
+                      :logto-id="loginStore.userInfo.logto_id"
+                      :cache-key="loginStore.avatarVersion"
                     />
                     <FontAwesomeIcon
                       :icon="faChevronDown"

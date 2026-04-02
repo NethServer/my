@@ -5,23 +5,31 @@
 
 <script lang="ts" setup>
 import { ProfileInfoSchema, postChangeInfo, type ProfileInfo } from '@/lib/account'
+import { API_URL } from '@/lib/config'
 import { getValidationIssues, isValidationError } from '@/lib/validation'
 import { useLoginStore } from '@/stores/login'
 import { useNotificationsStore } from '@/stores/notifications'
+import { faCircleXmark, faPenToSquare } from '@fortawesome/free-solid-svg-icons'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   NeButton,
+  NeCard,
+  NeDropdown,
   NeFormItemLabel,
   NeInlineNotification,
   NeSkeleton,
   NeTextInput,
 } from '@nethesis/vue-components'
 import { useMutation, useQueryCache } from '@pinia/colada'
-import type { AxiosError } from 'axios'
+import axios, { type AxiosError } from 'axios'
 import { ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import * as v from 'valibot'
 import { USERS_KEY } from '@/lib/users/users'
 import UserRoleBadge from '../users/UserRoleBadge.vue'
+import UserAvatar from '../users/UserAvatar.vue'
+import ChangePictureDrawer from './ChangePictureDrawer.vue'
+import RemoveAvatarModal from './RemoveAvatarModal.vue'
 
 const { t } = useI18n()
 const loginStore = useLoginStore()
@@ -53,6 +61,10 @@ const {
   },
 })
 
+const isChangePictureDrawerShown = ref(false)
+const isRemoveAvatarModalShown = ref(false)
+const hasCustomAvatar = ref(false)
+const loadingCustomAvatar = ref(false)
 const name = ref('')
 const nameRef = useTemplateRef<HTMLInputElement>('nameRef')
 const email = ref('')
@@ -75,6 +87,31 @@ watch(
       name.value = userInfo.name || ''
       email.value = userInfo.email || ''
       phone.value = userInfo.phone || ''
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  [() => loginStore.userInfo?.logto_id, () => loginStore.avatarVersion],
+  async ([logtoId]) => {
+    if (!logtoId) {
+      hasCustomAvatar.value = false
+      return
+    }
+
+    loadingCustomAvatar.value = true
+
+    try {
+      const avatarResponse = await axios.get(`${API_URL}/public/users/${logtoId}/avatar`, {
+        validateStatus: (status) => status === 200 || status === 404,
+      })
+      hasCustomAvatar.value = avatarResponse.status === 200
+    } catch (error) {
+      console.error('Error checking avatar:', error)
+      hasCustomAvatar.value = false
+    } finally {
+      loadingCustomAvatar.value = false
     }
   },
   { immediate: true },
@@ -124,12 +161,64 @@ function validate(profile: ProfileInfo): boolean {
     return false
   }
 }
+
+function getKebabMenuItems() {
+  return [
+    {
+      id: 'removePicture',
+      label: t('account.remove_picture'),
+      icon: faCircleXmark,
+      action: () => {
+        isRemoveAvatarModalShown.value = true
+      },
+      disabled: loadingCustomAvatar.value || !hasCustomAvatar.value,
+    },
+  ]
+}
 </script>
 
 <template>
   <div>
     <NeSkeleton v-if="loginStore.loadingUserInfo || editUserLoading" :lines="12" class="w-full" />
     <form v-else @submit.prevent class="space-y-7">
+      <!-- avatar -->
+      <NeCard>
+        <div class="flex items-center justify-between gap-4">
+          <UserAvatar
+            size="3xl"
+            :name="loginStore.userDisplayName"
+            :is-owner="loginStore.isOwner"
+            :logto-id="loginStore.userInfo?.logto_id || ''"
+            :cache-key="loginStore.avatarVersion"
+          />
+          <div class="flex shrink-0 items-center gap-2">
+            <NeButton
+              kind="secondary"
+              type="button"
+              size="lg"
+              :disabled="loginStore.isOwner || loginStore.isImpersonating"
+              @click="isChangePictureDrawerShown = true"
+            >
+              <template #prefix>
+                <FontAwesomeIcon :icon="faPenToSquare" class="size-4" aria-hidden="true" />
+              </template>
+              {{ $t('account.change_picture') }}
+            </NeButton>
+            <!-- kebab menu -->
+            <NeDropdown
+              :items="getKebabMenuItems()"
+              :align-to-right="true"
+              :disabled="
+                loginStore.isOwner ||
+                loginStore.isImpersonating ||
+                loadingCustomAvatar ||
+                !hasCustomAvatar
+              "
+            />
+          </div>
+        </div>
+      </NeCard>
+
       <!-- name -->
       <NeTextInput
         ref="nameRef"
@@ -199,4 +288,13 @@ function validate(profile: ProfileInfo): boolean {
       </NeButton>
     </form>
   </div>
+  <!-- change picture drawer -->
+  <ChangePictureDrawer
+    :is-shown="isChangePictureDrawerShown"
+    @close="isChangePictureDrawerShown = false"
+  />
+  <RemoveAvatarModal
+    :visible="isRemoveAvatarModalShown"
+    @close="isRemoveAvatarModalShown = false"
+  />
 </template>
