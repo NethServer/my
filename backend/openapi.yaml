@@ -31,22 +31,30 @@ tags:
   - name: Backend - Users
     description: User CRUD and lifecycle management
   - name: Backend - Users Stats
-    description: User statistics, trends and exports
+    description: User statistics and trends
+  - name: Backend - Users Import/Export
+    description: User CSV import and CSV/PDF export
 
   - name: Backend - Distributors
     description: Distributor CRUD and lifecycle management
   - name: Backend - Distributors Stats
-    description: Distributor statistics, trends and exports
+    description: Distributor statistics and trends
+  - name: Backend - Distributors Import/Export
+    description: Distributor CSV import and CSV/PDF export
 
   - name: Backend - Resellers
     description: Reseller CRUD and lifecycle management
   - name: Backend - Resellers Stats
-    description: Reseller statistics, trends and exports
+    description: Reseller statistics and trends
+  - name: Backend - Resellers Import/Export
+    description: Reseller CSV import and CSV/PDF export
 
   - name: Backend - Customers
     description: Customer CRUD and lifecycle management
   - name: Backend - Customers Stats
-    description: Customer statistics, trends and exports
+    description: Customer statistics and trends
+  - name: Backend - Customers Import/Export
+    description: Customer CSV import and CSV/PDF export
 
   - name: Backend - Systems
     description: System CRUD and lifecycle management
@@ -3147,7 +3155,7 @@ paths:
     get:
       operationId: exportUsers
       tags:
-        - Backend - Users Stats
+        - Backend - Users Import/Export
       summary: /users/export - Export users to CSV or PDF
       description: Export users to CSV or PDF format with applied filters (max 10,000 users)
       parameters:
@@ -3227,7 +3235,7 @@ paths:
     get:
       operationId: getUsersImportTemplate
       tags:
-        - Backend - Users Stats
+        - Backend - Users Import/Export
       summary: /users/import/template - Download CSV import template
       description: Download a CSV template with headers and example rows for user import
       responses:
@@ -3247,7 +3255,7 @@ paths:
     post:
       operationId: validateUsersImport
       tags:
-        - Backend - Users Stats
+        - Backend - Users Import/Export
       summary: /users/import/validate - Validate CSV file for user import
       description: |
         Upload and validate a CSV file for bulk user import. Returns a row-by-row validation report
@@ -3298,7 +3306,7 @@ paths:
     post:
       operationId: confirmUsersImport
       tags:
-        - Backend - Users Stats
+        - Backend - Users Import/Export
       summary: /users/import/confirm - Execute validated user import
       description: |
         Confirm and execute a validated user import. Creates users using the same logic as single
@@ -4930,7 +4938,7 @@ paths:
     get:
       operationId: exportCustomers
       tags:
-        - Backend - Customers Stats
+        - Backend - Customers Import/Export
       summary: /customers/export - Export customers to CSV or PDF
       description: Export customers to CSV or PDF format with applied filters (max 10,000 customers)
       parameters:
@@ -5500,7 +5508,7 @@ paths:
     get:
       operationId: exportDistributors
       tags:
-        - Backend - Distributors Stats
+        - Backend - Distributors Import/Export
       summary: /distributors/export - Export distributors to CSV or PDF
       description: Export distributors to CSV or PDF format with applied filters (max 10,000 distributors)
       parameters:
@@ -5541,7 +5549,7 @@ paths:
     get:
       operationId: getDistributorsImportTemplate
       tags:
-        - Backend - Distributors Stats
+        - Backend - Distributors Import/Export
       summary: /distributors/import/template - Download CSV import template
       description: Download a CSV template with headers and example rows for distributor import
       responses:
@@ -5561,7 +5569,7 @@ paths:
     post:
       operationId: validateDistributorsImport
       tags:
-        - Backend - Distributors Stats
+        - Backend - Distributors Import/Export
       summary: /distributors/import/validate - Validate CSV for distributor import
       description: |
         Upload and validate a CSV file for bulk distributor import. Returns row-by-row validation report.
@@ -5606,7 +5614,7 @@ paths:
     post:
       operationId: confirmDistributorsImport
       tags:
-        - Backend - Distributors Stats
+        - Backend - Distributors Import/Export
       summary: /distributors/import/confirm - Execute validated distributor import
       description: Confirm and execute a validated distributor import. Non-atomic.
       requestBody:
@@ -5645,7 +5653,7 @@ paths:
     get:
       operationId: getResellersImportTemplate
       tags:
-        - Backend - Resellers Stats
+        - Backend - Resellers Import/Export
       summary: /resellers/import/template - Download CSV import template
       description: Download a CSV template with headers and example rows for reseller import
       responses:
@@ -5665,7 +5673,7 @@ paths:
     post:
       operationId: validateResellersImport
       tags:
-        - Backend - Resellers Stats
+        - Backend - Resellers Import/Export
       summary: /resellers/import/validate - Validate CSV for reseller import
       description: |
         Upload and validate a CSV file for bulk reseller import. Returns row-by-row validation report.
@@ -5710,7 +5718,7 @@ paths:
     post:
       operationId: confirmResellersImport
       tags:
-        - Backend - Resellers Stats
+        - Backend - Resellers Import/Export
       summary: /resellers/import/confirm - Execute validated reseller import
       description: Confirm and execute a validated reseller import. Non-atomic.
       requestBody:
@@ -5749,7 +5757,7 @@ paths:
     get:
       operationId: getCustomersImportTemplate
       tags:
-        - Backend - Customers Stats
+        - Backend - Customers Import/Export
       summary: /customers/import/template - Download CSV import template
       description: Download a CSV template with headers and example rows for customer import
       responses:
@@ -5769,7 +5777,7 @@ paths:
     post:
       operationId: validateCustomersImport
       tags:
-        - Backend - Customers Stats
+        - Backend - Customers Import/Export
       summary: /customers/import/validate - Validate CSV for customer import
       description: |
         Upload and validate a CSV file for bulk customer import. Returns row-by-row validation report.
@@ -5814,7 +5822,7 @@ paths:
     post:
       operationId: confirmCustomersImport
       tags:
-        - Backend - Customers Stats
+        - Backend - Customers Import/Export
       summary: /customers/import/confirm - Execute validated customer import
       description: Confirm and execute a validated customer import. Non-atomic.
       requestBody:
@@ -6607,7 +6615,7 @@ paths:
     get:
       operationId: exportResellers
       tags:
-        - Backend - Resellers Stats
+        - Backend - Resellers Import/Export
       summary: /resellers/export - Export resellers to CSV or PDF
       description: Export resellers to CSV or PDF format with applied filters (max 10,000 resellers)
       parameters:
