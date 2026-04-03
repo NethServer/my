@@ -12,6 +12,7 @@ import NsecLogo from '@/assets/system_logos/nethsecurity.svg'
 export const SYSTEMS_KEY = 'systems'
 export const SYSTEMS_TOTAL_KEY = 'systemsTotal'
 export const SYSTEMS_TABLE_ID = 'systemsTable'
+export const SYSTEM_REACHABILITY_KEY = 'systemReachability'
 
 const SystemStatusSchema = v.picklist(['active', 'inactive', 'unknown', 'deleted', 'suspended'])
 
@@ -89,6 +90,15 @@ interface SystemsTotalResponse {
     timeout_minutes: number
     total: number
     zombie: number
+  }
+}
+
+interface SystemReachabilityResponse {
+  code: number
+  message: string
+  data: {
+    reachable: boolean
+    url: string
   }
 }
 
@@ -291,6 +301,16 @@ export const getSystemsTotal = () => {
 
   return axios
     .get<SystemsTotalResponse>(`${API_URL}/systems/totals`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data)
+}
+
+export const checkSystemReachability = (systemId: string) => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .get<SystemReachabilityResponse>(`${API_URL}/systems/${systemId}/reachability`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data)

@@ -543,6 +543,8 @@
     "active_since": "Active since",
     "system_key": "System key",
     "cannot_determine_system_url_description": "Cannot access the system because its URL cannot be determined.",
+    "checking_reachability": "Checking system reachability…",
+    "system_unreachable": "The system UI is not publicly reachable. This might happen due to network configuration or security measures.",
     "change_history_description": "The change history is based on the differences between the inventories sent by the system. If the system has not sent any inventory yet, no change history will be available.",
     "today": "Today",
     "no_changes_today": "No changes",

@@ -9,6 +9,7 @@ import {
   NeHeading,
   NeInlineNotification,
   NeSkeleton,
+  NeSpinner,
   NeTabs,
   NeTooltip,
 } from '@nethesis/vue-components'
@@ -20,41 +21,28 @@ import { useI18n } from 'vue-i18n'
 import SystemOverviewPanel from '@/components/systems/SystemOverviewPanel.vue'
 import SystemChangeHistoryPanel from '@/components/systems/SystemChangeHistoryPanel.vue'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
+import { useSystemReachability } from '@/queries/systems/systemReachability'
 import { computed } from 'vue'
 
 const { t } = useI18n()
 const { state: systemDetail } = useSystemDetail()
 const { state: latestInventory } = useLatestInventory()
+const { state: reachabilityState, asyncStatus: reachabilityAsyncStatus } = useSystemReachability()
 const { tabs, selectedTab } = useTabs([
   { name: 'overview', label: t('system_detail.overview') },
   { name: 'change_history', label: t('system_detail.change_history') },
 ])
 
-const systemUrl = computed(() => {
-  if (!systemDetail.value.data?.fqdn) {
-    return ''
-  }
-
-  if (!['ns8', 'nsec'].includes(systemDetail.value.data?.type || '')) {
-    return ''
-  }
-
-  const fqdn = systemDetail.value.data.fqdn
-  let port = ''
-  let path = ''
-
-  if (systemDetail.value.data?.type === 'ns8') {
-    path = '/cluster-admin'
-  } else if (systemDetail.value.data?.type === 'nsec') {
-    port = ':9090'
-  }
-  const url = `https://${fqdn}${port}${path}`
-  return url
-})
+const isSystemReachable = computed(() => !!reachabilityState.value.data?.reachable)
+const isCheckingReachability = computed(() => reachabilityAsyncStatus.value === 'loading')
+const isGoToSystemDisabled = computed(
+  () => isCheckingReachability.value || !isSystemReachable.value,
+)
 
 const openSystem = () => {
-  if (systemUrl.value) {
-    window.open(systemUrl.value, '_blank')
+  const url = reachabilityState.value.data?.url
+  if (url) {
+    window.open(url, '_blank')
   }
 }
 </script>
@@ -82,24 +70,44 @@ const openSystem = () => {
       <NeHeading tag="h3" class="mb-7">
         {{ systemDetail.data?.name }}
       </NeHeading>
-      <!-- open system -->
-      <NeTooltip placement="left" trigger-event="mouseenter focus" class="shrink-0">
-        <template #trigger>
-          <NeButton kind="primary" :disabled="!systemUrl" @click="openSystem()">
-            <template #prefix>
-              <FontAwesomeIcon :icon="faArrowUpRightFromSquare" aria-hidden="true" />
-            </template>
-            {{ $t('system_detail.go_to_system') }}
-          </NeButton>
-        </template>
-        <template #content>
-          {{
-            systemUrl
-              ? $t('system_detail.go_to_system_tooltip')
-              : $t('system_detail.cannot_determine_system_url_description')
-          }}
-        </template>
-      </NeTooltip>
+      <div class="flex shrink-0 items-center gap-2">
+        <NeSpinner v-if="reachabilityState.status === 'pending'" color="white" />
+        <!-- open system (with tooltip only when not reachable) -->
+        <NeTooltip
+          v-if="!isSystemReachable"
+          placement="left"
+          trigger-event="mouseenter focus"
+          class="shrink-0"
+        >
+          <template #trigger>
+            <NeButton kind="primary" :disabled="isGoToSystemDisabled">
+              <template #prefix>
+                <FontAwesomeIcon :icon="faArrowUpRightFromSquare" aria-hidden="true" />
+              </template>
+              {{ $t('system_detail.go_to_system') }}
+            </NeButton>
+          </template>
+          <template #content>
+            {{
+              isCheckingReachability
+                ? $t('system_detail.checking_reachability')
+                : $t('system_detail.system_unreachable')
+            }}
+          </template>
+        </NeTooltip>
+        <NeButton
+          v-else
+          kind="primary"
+          :disabled="isGoToSystemDisabled"
+          class="shrink-0"
+          @click="openSystem()"
+        >
+          <template #prefix>
+            <FontAwesomeIcon :icon="faArrowUpRightFromSquare" aria-hidden="true" />
+          </template>
+          {{ $t('system_detail.go_to_system') }}
+        </NeButton>
+      </div>
     </div>
     <!-- no inventory notification -->
     <NeInlineNotification
