@@ -132,6 +132,41 @@ func (r *RoleNames) IsLoaded() bool {
 	return r.loaded
 }
 
+// GetIDByName returns the role ID for a given role name (case-insensitive).
+// Returns empty string if not found or roles not loaded.
+func (r *RoleNames) GetIDByName(name string) string {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	if !r.loaded {
+		return ""
+	}
+
+	lowerName := strings.ToLower(strings.TrimSpace(name))
+	for id, roleName := range r.roles {
+		if strings.ToLower(roleName) == lowerName {
+			return id
+		}
+	}
+	return ""
+}
+
+// GetAllNames returns all role names (for template/validation reference)
+func (r *RoleNames) GetAllNames() []string {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	if !r.loaded {
+		return nil
+	}
+
+	names := make([]string, 0, len(r.roles))
+	for _, name := range r.roles {
+		names = append(names, name)
+	}
+	return names
+}
+
 // GetAccessControl returns the access control information for a role
 func (r *RoleNames) GetAccessControl(roleID string) (RoleAccessControl, bool) {
 	r.mutex.RLock()

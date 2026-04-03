@@ -187,6 +187,72 @@ func TestRoleNames_ConcurrentAccess(t *testing.T) {
 	wg.Wait()
 }
 
+func TestRoleNames_GetIDByName(t *testing.T) {
+	resetSingleton()
+	roleNames := GetRoleNames()
+
+	roleNames.mutex.Lock()
+	roleNames.roles = map[string]string{
+		"role1": "Admin",
+		"role2": "Support",
+	}
+	roleNames.loaded = true
+	roleNames.mutex.Unlock()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"exact match", "Admin", "role1"},
+		{"case insensitive", "admin", "role1"},
+		{"case insensitive upper", "SUPPORT", "role2"},
+		{"with spaces", "  Admin  ", "role1"},
+		{"not found", "Unknown", ""},
+		{"empty", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := roleNames.GetIDByName(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestRoleNames_GetIDByName_NotLoaded(t *testing.T) {
+	resetSingleton()
+	roleNames := GetRoleNames()
+
+	result := roleNames.GetIDByName("Admin")
+	assert.Equal(t, "", result, "Should return empty string when not loaded")
+}
+
+func TestRoleNames_GetAllNames(t *testing.T) {
+	resetSingleton()
+	roleNames := GetRoleNames()
+
+	roleNames.mutex.Lock()
+	roleNames.roles = map[string]string{
+		"role1": "Admin",
+		"role2": "Support",
+	}
+	roleNames.loaded = true
+	roleNames.mutex.Unlock()
+
+	names := roleNames.GetAllNames()
+	assert.Len(t, names, 2)
+	assert.ElementsMatch(t, []string{"Admin", "Support"}, names)
+}
+
+func TestRoleNames_GetAllNames_NotLoaded(t *testing.T) {
+	resetSingleton()
+	roleNames := GetRoleNames()
+
+	names := roleNames.GetAllNames()
+	assert.Nil(t, names)
+}
+
 func TestRoleNames_LoadRoles_ClearsPreviousData(t *testing.T) {
 	resetSingleton()
 	roleNames := GetRoleNames()

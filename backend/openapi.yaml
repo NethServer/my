@@ -2002,6 +2002,122 @@ components:
           items:
             $ref: '#/components/schemas/SystemRebrandingProduct'
 
+    # ==========================================================================
+    # CSV IMPORT SCHEMAS
+    # ==========================================================================
+
+    ImportFieldError:
+      type: object
+      properties:
+        field:
+          type: string
+          description: Field name that failed validation
+          example: "email"
+        message:
+          type: string
+          description: Error code
+          example: "required"
+        value:
+          type: string
+          description: The value that failed validation
+          example: "not-an-email"
+
+    ImportRow:
+      type: object
+      properties:
+        row_number:
+          type: integer
+          description: CSV row number (1-indexed, excluding header)
+          example: 2
+        status:
+          type: string
+          enum: [valid, error, duplicate]
+          description: Validation status for this row
+        data:
+          type: object
+          description: Parsed row data
+          additionalProperties: true
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportFieldError'
+          description: Validation errors (empty if status is valid)
+
+    ImportValidationResult:
+      type: object
+      properties:
+        import_id:
+          type: string
+          format: uuid
+          description: Session ID to use when confirming the import
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        total_rows:
+          type: integer
+          example: 50
+        valid_rows:
+          type: integer
+          example: 45
+        error_rows:
+          type: integer
+          example: 3
+        duplicate_rows:
+          type: integer
+          example: 2
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportRow'
+
+    ImportConfirmRequest:
+      type: object
+      required:
+        - import_id
+      properties:
+        import_id:
+          type: string
+          format: uuid
+          description: Import session ID from the validate response
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        skip_rows:
+          type: array
+          items:
+            type: integer
+          description: Row numbers to skip during import
+          example: [3, 7]
+
+    ImportResultRow:
+      type: object
+      properties:
+        row_number:
+          type: integer
+          example: 2
+        status:
+          type: string
+          enum: [created, skipped, failed]
+        id:
+          type: string
+          description: Created entity ID (only if status is created)
+        error:
+          type: string
+          description: Error message (only if status is failed)
+
+    ImportConfirmResult:
+      type: object
+      properties:
+        created:
+          type: integer
+          example: 45
+        skipped:
+          type: integer
+          example: 5
+        failed:
+          type: integer
+          example: 0
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportResultRow'
+
   parameters:
     PageParam:
       name: page
@@ -3097,6 +3213,119 @@ paths:
               schema:
                 type: string
                 format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ===========================================================================
+  # USERS IMPORT
+  # ===========================================================================
+  /users/import/template:
+    get:
+      operationId: getUsersImportTemplate
+      tags:
+        - Backend - Users Stats
+      summary: /users/import/template - Download CSV import template
+      description: Download a CSV template with headers and example rows for user import
+      responses:
+        '200':
+          description: CSV template downloaded
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users/import/validate:
+    post:
+      operationId: validateUsersImport
+      tags:
+        - Backend - Users Stats
+      summary: /users/import/validate - Validate CSV file for user import
+      description: |
+        Upload and validate a CSV file for bulk user import. Returns a row-by-row validation report
+        with status (valid/error/duplicate) and field-level errors. Validated data is stored in a
+        temporary session (30 min TTL) for confirmation.
+
+        CSV columns: email, name, phone, organization, roles.
+        Roles are semicolon-separated names (e.g. "Admin;Support").
+        Organization is matched by name (case-insensitive).
+        Max 1000 rows, max 10MB file size.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: CSV file to validate
+      responses:
+        '200':
+          description: Validation report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "users import validated"
+                  data:
+                    $ref: '#/components/schemas/ImportValidationResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users/import/confirm:
+    post:
+      operationId: confirmUsersImport
+      tags:
+        - Backend - Users Stats
+      summary: /users/import/confirm - Execute validated user import
+      description: |
+        Confirm and execute a validated user import. Creates users using the same logic as single
+        user creation (Logto sync, welcome emails, RBAC validation). Non-atomic: partial failures
+        are reported per-row.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportConfirmRequest'
+      responses:
+        '200':
+          description: Import results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "users imported successfully"
+                  data:
+                    $ref: '#/components/schemas/ImportConfirmResult'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -5298,6 +5527,318 @@ paths:
               schema:
                 type: string
                 format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ===========================================================================
+  # DISTRIBUTORS IMPORT
+  # ===========================================================================
+  /distributors/import/template:
+    get:
+      operationId: getDistributorsImportTemplate
+      tags:
+        - Backend - Distributors Stats
+      summary: /distributors/import/template - Download CSV import template
+      description: Download a CSV template with headers and example rows for distributor import
+      responses:
+        '200':
+          description: CSV template downloaded
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /distributors/import/validate:
+    post:
+      operationId: validateDistributorsImport
+      tags:
+        - Backend - Distributors Stats
+      summary: /distributors/import/validate - Validate CSV for distributor import
+      description: |
+        Upload and validate a CSV file for bulk distributor import. Returns row-by-row validation report.
+        CSV columns: name, description, vat, address, city, main_contact, email, phone, language, notes.
+        Max 1000 rows, max 10MB.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Validation report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "distributors import validated"
+                  data:
+                    $ref: '#/components/schemas/ImportValidationResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /distributors/import/confirm:
+    post:
+      operationId: confirmDistributorsImport
+      tags:
+        - Backend - Distributors Stats
+      summary: /distributors/import/confirm - Execute validated distributor import
+      description: Confirm and execute a validated distributor import. Non-atomic.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportConfirmRequest'
+      responses:
+        '200':
+          description: Import results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "distributors imported successfully"
+                  data:
+                    $ref: '#/components/schemas/ImportConfirmResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ===========================================================================
+  # RESELLERS IMPORT
+  # ===========================================================================
+  /resellers/import/template:
+    get:
+      operationId: getResellersImportTemplate
+      tags:
+        - Backend - Resellers Stats
+      summary: /resellers/import/template - Download CSV import template
+      description: Download a CSV template with headers and example rows for reseller import
+      responses:
+        '200':
+          description: CSV template downloaded
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /resellers/import/validate:
+    post:
+      operationId: validateResellersImport
+      tags:
+        - Backend - Resellers Stats
+      summary: /resellers/import/validate - Validate CSV for reseller import
+      description: |
+        Upload and validate a CSV file for bulk reseller import. Returns row-by-row validation report.
+        CSV columns: name, description, vat, address, city, main_contact, email, phone, language, notes.
+        Max 1000 rows, max 10MB.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Validation report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "resellers import validated"
+                  data:
+                    $ref: '#/components/schemas/ImportValidationResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /resellers/import/confirm:
+    post:
+      operationId: confirmResellersImport
+      tags:
+        - Backend - Resellers Stats
+      summary: /resellers/import/confirm - Execute validated reseller import
+      description: Confirm and execute a validated reseller import. Non-atomic.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportConfirmRequest'
+      responses:
+        '200':
+          description: Import results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "resellers imported successfully"
+                  data:
+                    $ref: '#/components/schemas/ImportConfirmResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ===========================================================================
+  # CUSTOMERS IMPORT
+  # ===========================================================================
+  /customers/import/template:
+    get:
+      operationId: getCustomersImportTemplate
+      tags:
+        - Backend - Customers Stats
+      summary: /customers/import/template - Download CSV import template
+      description: Download a CSV template with headers and example rows for customer import
+      responses:
+        '200':
+          description: CSV template downloaded
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /customers/import/validate:
+    post:
+      operationId: validateCustomersImport
+      tags:
+        - Backend - Customers Stats
+      summary: /customers/import/validate - Validate CSV for customer import
+      description: |
+        Upload and validate a CSV file for bulk customer import. Returns row-by-row validation report.
+        CSV columns: name, description, vat, address, city, main_contact, email, phone, language, notes.
+        Max 1000 rows, max 10MB.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Validation report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "customers import validated"
+                  data:
+                    $ref: '#/components/schemas/ImportValidationResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /customers/import/confirm:
+    post:
+      operationId: confirmCustomersImport
+      tags:
+        - Backend - Customers Stats
+      summary: /customers/import/confirm - Execute validated customer import
+      description: Confirm and execute a validated customer import. Non-atomic.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportConfirmRequest'
+      responses:
+        '200':
+          description: Import results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "customers imported successfully"
+                  data:
+                    $ref: '#/components/schemas/ImportConfirmResult'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':

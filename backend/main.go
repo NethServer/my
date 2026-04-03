@@ -309,6 +309,11 @@ func main() {
 
 			// Export endpoint
 			distributorsGroup.GET("/export", methods.ExportDistributors) // Export distributors to CSV or PDF with applied filters
+
+			// Import endpoints
+			distributorsGroup.GET("/import/template", methods.GetDistributorsImportTemplate) // Download CSV import template
+			distributorsGroup.POST("/import/validate", methods.ValidateDistributorsImport)   // Validate CSV file and return row-by-row report
+			distributorsGroup.POST("/import/confirm", methods.ConfirmDistributorsImport)     // Confirm and execute validated import
 		}
 
 		// Resellers - resource-based permission validation (read:resellers for GET, manage:resellers for POST/PUT/DELETE)
@@ -338,6 +343,11 @@ func main() {
 
 			// Export endpoint
 			resellersGroup.GET("/export", methods.ExportResellers) // Export resellers to CSV or PDF with applied filters
+
+			// Import endpoints
+			resellersGroup.GET("/import/template", methods.GetResellersImportTemplate) // Download CSV import template
+			resellersGroup.POST("/import/validate", methods.ValidateResellersImport)   // Validate CSV file and return row-by-row report
+			resellersGroup.POST("/import/confirm", methods.ConfirmResellersImport)     // Confirm and execute validated import
 		}
 
 		// Customers - resource-based permission validation (read:customers for GET, manage:customers for POST/PUT/DELETE)
@@ -367,6 +377,11 @@ func main() {
 
 			// Export endpoint
 			customersGroup.GET("/export", methods.ExportCustomers) // Export customers to CSV or PDF with applied filters
+
+			// Import endpoints
+			customersGroup.GET("/import/template", methods.GetCustomersImportTemplate) // Download CSV import template
+			customersGroup.POST("/import/validate", methods.ValidateCustomersImport)   // Validate CSV file and return row-by-row report
+			customersGroup.POST("/import/confirm", methods.ConfirmCustomersImport)     // Confirm and execute validated import
 		}
 
 		// ===========================================
@@ -402,6 +417,11 @@ func main() {
 
 			// Export endpoint
 			usersGroup.GET("/export", methods.ExportUsers) // Export users to CSV or PDF with applied filters
+
+			// Import endpoints
+			usersGroup.GET("/import/template", methods.GetUsersImportTemplate) // Download CSV import template
+			usersGroup.POST("/import/validate", methods.ValidateUsersImport)   // Validate CSV file and return row-by-row report
+			usersGroup.POST("/import/confirm", methods.ConfirmUsersImport)     // Confirm and execute validated import
 		}
 
 		// ===========================================
