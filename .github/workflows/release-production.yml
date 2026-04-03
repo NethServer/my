@@ -62,6 +62,15 @@ jobs:
           exit 1
         fi
 
+    - name: Check code formatting (support)
+      working-directory: services/support
+      run: |
+        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+          echo "Code is not formatted properly in services/support:"
+          gofmt -s -l .
+          exit 1
+        fi
+
     - name: Run backend linting
       uses: golangci/golangci-lint-action@v6
       with:
@@ -83,6 +92,13 @@ jobs:
         working-directory: collect
         args: --timeout=10m
 
+    - name: Run support linting
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest
+        working-directory: services/support
+        args: --timeout=10m
+
     - name: Run backend tests
       working-directory: backend
       run: go test ./...
@@ -93,6 +109,10 @@ jobs:
 
     - name: Run collect tests
       working-directory: collect
+      run: go test ./...
+
+    - name: Run support tests
+      working-directory: services/support
       run: go test ./...
 
     - name: Set up Node.js
@@ -195,6 +215,33 @@ jobs:
         cp -r ../configs sync-linux-amd64-release/
         tar -czf sync-linux-amd64.tar.gz sync-linux-amd64-release
         rm -rf sync-linux-amd64-release
+
+    # Support Release
+    - name: Build support binary
+      working-directory: services/support
+      run: |
+        mkdir -p dist
+
+        VERSION="${{ steps.version.outputs.VERSION }}"
+        COMMIT="${{ github.sha }}"
+        BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        LDFLAGS="-s -w -X github.com/nethesis/my/services/support/pkg/version.Version=${VERSION} -X github.com/nethesis/my/services/support/pkg/version.Commit=${COMMIT} -X github.com/nethesis/my/services/support/pkg/version.BuildTime=${BUILD_TIME}"
+
+        GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/support-linux-amd64 main.go
+
+        cd dist
+        tar -czf support-linux-amd64.tar.gz support-linux-amd64
+
+    # Tunnel Client Release
+    - name: Build tunnel-client binary
+      working-directory: services/support
+      run: |
+        VERSION="${{ steps.version.outputs.VERSION }}"
+        COMMIT="${{ github.sha }}"
+        BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        LDFLAGS="-s -w -X github.com/nethesis/my/services/support/pkg/version.Version=${VERSION} -X github.com/nethesis/my/services/support/pkg/version.Commit=${COMMIT} -X github.com/nethesis/my/services/support/pkg/version.BuildTime=${BUILD_TIME}"
+
+        GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/tunnel-client-linux-amd64 ./cmd/tunnel-client/main.go
 
     # Docker Images
     - name: Extract backend metadata
@@ -395,6 +442,76 @@ jobs:
         format: cyclonedx-json
         output-file: mimir-sbom.cdx.json
 
+    - name: Extract support metadata
+      id: support_meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ github.repository }}/support
+        tags: |
+          type=semver,pattern=v{{version}},value=${{ steps.version.outputs.VERSION }}
+          type=raw,value=latest
+
+    - name: Build and push support Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: services/support
+        file: services/support/Containerfile
+        platforms: linux/amd64
+        push: true
+        tags: ${{ steps.support_meta.outputs.tags }}
+        labels: |
+          ${{ steps.support_meta.outputs.labels }}
+          org.opencontainers.image.title=My Nethesis Support
+          org.opencontainers.image.description=WebSocket tunnel support service for My Nethesis
+        cache-from: type=gha,scope=support
+        cache-to: type=gha,mode=max,scope=support
+        build-args: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          COMMIT=${{ github.sha }}
+          BUILD_TIME=${{ steps.support_meta.outputs.labels['org.opencontainers.image.created'] }}
+
+    - name: Generate support SBOM
+      uses: anchore/sbom-action@v0
+      with:
+        image: ${{ env.REGISTRY }}/${{ steps.image_prefix.outputs.PREFIX }}/support:${{ steps.version.outputs.VERSION }}
+        format: cyclonedx-json
+        output-file: support-sbom.cdx.json
+
+    - name: Extract tunnel-client metadata
+      id: tunnel_client_meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ github.repository }}/tunnel-client
+        tags: |
+          type=semver,pattern=v{{version}},value=${{ steps.version.outputs.VERSION }}
+          type=raw,value=latest
+
+    - name: Build and push tunnel-client Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: services/support
+        file: services/support/Containerfile.tunnel-client
+        platforms: linux/amd64
+        push: true
+        tags: ${{ steps.tunnel_client_meta.outputs.tags }}
+        labels: |
+          ${{ steps.tunnel_client_meta.outputs.labels }}
+          org.opencontainers.image.title=My Nethesis Tunnel Client
+          org.opencontainers.image.description=WebSocket tunnel client for NS8 remote support
+        cache-from: type=gha,scope=tunnel-client
+        cache-to: type=gha,mode=max,scope=tunnel-client
+        build-args: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          COMMIT=${{ github.sha }}
+          BUILD_TIME=${{ steps.tunnel_client_meta.outputs.labels['org.opencontainers.image.created'] }}
+
+    - name: Generate tunnel-client SBOM
+      uses: anchore/sbom-action@v0
+      with:
+        image: ${{ env.REGISTRY }}/${{ steps.image_prefix.outputs.PREFIX }}/tunnel-client:${{ steps.version.outputs.VERSION }}
+        format: cyclonedx-json
+        output-file: tunnel-client-sbom.cdx.json
+
     # Create GitHub Release
     - name: Create Release
       uses: softprops/action-gh-release@v2
@@ -404,9 +521,13 @@ jobs:
           backend/dist/*.tar.gz
           sync/dist/*.tar.gz
           collect/dist/*.tar.gz
+          services/support/dist/support-linux-amd64.tar.gz
+          services/support/dist/tunnel-client-linux-amd64
           backend-sbom.cdx.json
           sync-sbom.cdx.json
           collect-sbom.cdx.json
+          support-sbom.cdx.json
+          tunnel-client-sbom.cdx.json
           frontend-sbom.cdx.json
           proxy-sbom.cdx.json
           mimir-sbom.cdx.json

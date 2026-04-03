@@ -7,6 +7,7 @@
     "collect": "0.4.0",
     "frontend": "0.4.0",
     "proxy": "0.4.0",
-    "services/mimir": "0.4.0"
+    "services/mimir": "0.4.0",
+    "services/support": "0.4.0"
   }
 }
