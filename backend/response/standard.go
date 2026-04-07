@@ -324,11 +324,11 @@ func NormalizeLogtoError(logtoError interface{}) ErrorData {
 							code = codeVal
 						}
 
-						// Normalize the message to match Gin validation format
+						// Normalize the message to a human-readable format
 						normalizedMessage := code
 						switch code {
 						case "invalid_string":
-							normalizedMessage = field // Use field name as message (like "phone", "email")
+							normalizedMessage = "invalid_format"
 						}
 
 						// Try to extract value from the context based on field

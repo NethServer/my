@@ -10,14 +10,17 @@
 package methods
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services/csvimport"
+	"github.com/nethesis/my/backend/services/local"
 )
 
 // readCSVFromRequest reads the uploaded CSV file from a multipart form request.
@@ -43,6 +46,27 @@ func readCSVFromRequest(c *gin.Context) []byte {
 	}
 
 	return data
+}
+
+// formatImportError extracts detailed validation error messages from a creation error.
+// If the error contains a ValidationError with field-level details, it returns a
+// machine-readable string with field:message pairs for frontend i18n translation.
+func formatImportError(err error) string {
+	var validationErr *local.ValidationError
+	if errors.As(err, &validationErr) && len(validationErr.ErrorData.Errors) > 0 {
+		details := make([]string, 0, len(validationErr.ErrorData.Errors))
+		for _, e := range validationErr.ErrorData.Errors {
+			if e.Key != "" && e.Message != "" {
+				details = append(details, fmt.Sprintf("%s: %s", e.Key, e.Message))
+			} else if e.Message != "" {
+				details = append(details, e.Message)
+			}
+		}
+		if len(details) > 0 {
+			return strings.Join(details, "; ")
+		}
+	}
+	return err.Error()
 }
 
 // sendTemplateCSV sends a CSV template file as a download response.
