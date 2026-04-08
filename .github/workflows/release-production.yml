@@ -23,7 +23,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.24'
+        go-version: '1.25'
         cache: false
 
     - name: Cache Go modules
@@ -65,21 +65,21 @@ jobs:
     - name: Run backend linting
       uses: golangci/golangci-lint-action@v6
       with:
-        version: latest
+        version: v2
         working-directory: backend
         args: --timeout=10m
 
     - name: Run sync linting
       uses: golangci/golangci-lint-action@v6
       with:
-        version: latest
+        version: v2
         working-directory: sync
         args: --timeout=10m
 
     - name: Run collect linting
       uses: golangci/golangci-lint-action@v6
       with:
-        version: latest
+        version: v2
         working-directory: collect
         args: --timeout=10m
 

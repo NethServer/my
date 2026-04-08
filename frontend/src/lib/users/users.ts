@@ -13,15 +13,15 @@ export const USERS_TABLE_ID = 'usersTable'
 
 export type UserStatus = 'enabled' | 'suspended' | 'deleted'
 
+export const PhoneNumberSchema = v.pipe(
+  v.string(),
+  v.regex(/^\+?[\d\s\-\(\)]{7,20}$/, 'users.phone_invalid_format'),
+)
+
 export const CreateUserSchema = v.object({
   email: v.pipe(v.string(), v.nonEmpty('users.email_required'), v.email('users.email_invalid')),
   name: v.pipe(v.string(), v.nonEmpty('users.name_cannot_be_empty')),
-  phone: v.optional(
-    v.union([
-      v.literal(''),
-      v.pipe(v.string(), v.regex(/^\+?[\d\s\-\(\)]{7,20}$/, 'users.phone_invalid_format')),
-    ]),
-  ),
+  phone: v.optional(v.union([v.literal(''), PhoneNumberSchema])),
   user_role_ids: v.pipe(
     v.array(v.string()),
     v.minLength(1, 'users.user_role_ids_at_least_one_role_is_required'),
@@ -38,8 +38,8 @@ export const EditUserSchema = v.object({
 export const UserSchema = v.object({
   ...CreateUserSchema.entries,
   ...EditUserSchema.entries,
-  active: v.optional(v.boolean()),
   logto_id: v.optional(v.string()),
+  username: v.string(),
   can_be_impersonated: v.boolean(),
   logto_synced_at: v.optional(v.string()),
   suspended_at: v.optional(v.string()),

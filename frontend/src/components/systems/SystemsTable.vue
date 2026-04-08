@@ -17,6 +17,7 @@ import {
   faCirclePause,
   faCirclePlay,
   faBomb,
+  faTriangleExclamation,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -31,7 +32,6 @@ import {
   NeEmptyState,
   NeInlineNotification,
   NeTextInput,
-  NeSpinner,
   NeDropdown,
   type SortEvent,
   NeSortDropdown,
@@ -45,13 +45,8 @@ import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { canManageSystems, canDestroySystems } from '@/lib/permissions'
 import { useSystems } from '@/queries/systems/systems'
-import {
-  exportSystem,
-  getProductLogo,
-  getProductName,
-  SYSTEMS_TABLE_ID,
-  type System,
-} from '@/lib/systems/systems'
+import { exportSystem, getProductName, SYSTEMS_TABLE_ID, type System } from '@/lib/systems/systems'
+import SystemLogo from './SystemLogo.vue'
 import router from '@/router'
 import CreateOrEditSystemDrawer from './CreateOrEditSystemDrawer.vue'
 import DeleteSystemModal from './DeleteSystemModal.vue'
@@ -67,6 +62,7 @@ import SuspendSystemModal from './SuspendSystemModal.vue'
 import ReactivateSystemModal from './ReactivateSystemModal.vue'
 import DestroySystemModal from './DestroySystemModal.vue'
 import SystemStatusIcon from './SystemStatusIcon.vue'
+import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -106,12 +102,12 @@ const newSecret = ref<string>('')
 
 const statusFilterOptions = ref<FilterOption[]>([
   {
-    id: 'online',
-    label: t('systems.status_online'),
+    id: 'active',
+    label: t('systems.status_active'),
   },
   {
-    id: 'offline',
-    label: t('systems.status_offline'),
+    id: 'inactive',
+    label: t('systems.status_inactive'),
   },
   {
     id: 'unknown',
@@ -388,7 +384,7 @@ function onCloseSecretRegeneratedModal() {
     />
     <!-- table toolbar -->
     <div class="mb-6 flex items-center gap-4">
-      <div class="flex w-full items-center justify-between gap-4">
+      <div class="flex w-full items-end justify-between gap-4">
         <!-- filters -->
         <div class="flex flex-wrap items-center gap-4">
           <!-- text filter -->
@@ -487,15 +483,7 @@ function onCloseSecretRegeneratedModal() {
           </NeButton>
         </div>
         <!-- update indicator -->
-        <div
-          v-if="asyncStatus === 'loading' && state.status !== 'pending'"
-          class="flex items-center gap-2"
-        >
-          <NeSpinner color="white" />
-          <div class="text-gray-500 dark:text-gray-400">
-            {{ $t('common.updating') }}
-          </div>
-        </div>
+        <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
       </div>
     </div>
     <!-- empty state -->
@@ -560,26 +548,14 @@ function onCloseSecretRegeneratedModal() {
                 class="cursor-pointer font-medium hover:underline"
               >
                 <div class="flex items-center gap-2">
-                  <img
-                    v-if="item.type"
-                    :src="getProductLogo(item.type)"
-                    :alt="getProductName(item.type)"
-                    aria-hidden="true"
-                    class="size-8"
-                  />
+                  <SystemLogo :system="item.type" />
                   <span>
                     {{ item.name || '-' }}
                   </span>
                 </div>
               </router-link>
               <div v-else class="flex items-center gap-2">
-                <img
-                  v-if="item.type"
-                  :src="getProductLogo(item.type)"
-                  :alt="getProductName(item.type)"
-                  aria-hidden="true"
-                  class="size-8"
-                />
+                <SystemLogo :system="item.type" />
                 <span>
                   {{ item.name || '-' }}
                 </span>
@@ -636,6 +612,7 @@ function onCloseSecretRegeneratedModal() {
                     size="sm"
                     :is-owner="item.created_by.username === 'owner'"
                     :name="item.created_by.name"
+                    :logto-id="item.created_by.user_id"
                   />
                   <div class="space-y-0.5">
                     <div>{{ item.created_by.name || '-' }}</div>
@@ -653,14 +630,28 @@ function onCloseSecretRegeneratedModal() {
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.status')">
             <div class="flex items-center gap-2">
-              <SystemStatusIcon :status="item.status" :suspended-at="item.suspended_at" />
-              <span v-if="item.suspended_at">
-                {{ t('common.suspended') }}
-              </span>
-              <span v-else-if="item.status">
+              <template v-if="item.status">
+                <SystemStatusIcon :status="item.status" />
                 {{ t(`systems.status_${item.status}`) }}
-              </span>
+              </template>
               <span v-else>-</span>
+              <!-- no inventory warning (do not show for pending/unknown status) -->
+              <NeTooltip
+                v-if="!item.last_inventory && item.status !== 'unknown'"
+                trigger-event="mouseenter focus"
+                placement="top"
+              >
+                <template #trigger>
+                  <FontAwesomeIcon
+                    :icon="faTriangleExclamation"
+                    class="size-4 text-amber-700 dark:text-amber-500"
+                    aria-hidden="true"
+                  />
+                </template>
+                <template #content>
+                  {{ $t('system_detail.no_inventory_available') }}
+                </template>
+              </NeTooltip>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">

@@ -301,7 +301,7 @@ func ConfirmUsersImport(c *gin.Context) {
 			result.Results = append(result.Results, models.ImportResultRow{
 				RowNumber: row.RowNumber,
 				Status:    models.ImportResultFailed,
-				Error:     createErr.Error(),
+				Error:     formatImportError(createErr),
 			})
 			logger.Error().
 				Err(createErr).

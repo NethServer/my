@@ -12,6 +12,7 @@ import { useLoginStore } from '@/stores/login'
 import { ref } from 'vue'
 import { isValidationError } from '@/lib/validation'
 import type { User } from '@/lib/users/users'
+import router from '@/router'
 
 const { visible = false, user = undefined } = defineProps<{
   visible: boolean
@@ -43,6 +44,11 @@ async function impersonateUser(user: User) {
           }),
         })
       }, 500)
+
+      setTimeout(() => {
+        // go to dashboard (impersonated user might not have access to users page)
+        router.push({ name: 'dashboard' })
+      }, 1000)
 
       emit('close')
     })

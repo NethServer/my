@@ -6,21 +6,43 @@ import {
   formatDateTimeNoSeconds,
   formatMinutes,
   formatSeconds,
+  formatTimeAgo,
+  formatTimeNoSeconds,
   formatUptime,
 } from './dateTime'
-import { expect, it, describe, vi, beforeEach } from 'vitest'
+import { expect, it, describe, vi, beforeEach, afterEach } from 'vitest'
 
 // Create a simple mock function for translation
-const mockT = vi.fn((key: string, count: number) => {
+const mockT = vi.fn((key: string, countOrNamed?: number | Record<string, unknown>) => {
   const translations: Record<string, (count: number) => string> = {
     'time.seconds': (count: number) => `${count} second${count !== 1 ? 's' : ''}`,
     'time.minutes': (count: number) => `${count} minute${count !== 1 ? 's' : ''}`,
     'time.hours': (count: number) => `${count} hour${count !== 1 ? 's' : ''}`,
     'time.days': (count: number) => `${count} day${count !== 1 ? 's' : ''}`,
+    'time.weeks': (count: number) => `${count} week${count !== 1 ? 's' : ''}`,
+    'time.months': (count: number) => `${count} month${count !== 1 ? 's' : ''}`,
+    'time.years': (count: number) => `${count} year${count !== 1 ? 's' : ''}`,
   }
 
-  if (translations[key]) {
-    return translations[key](count)
+  // Handle named parameter form: t('time.ago', { time: '...' })
+  if (typeof countOrNamed === 'object' && countOrNamed !== null) {
+    if (key === 'time.ago') {
+      return `${countOrNamed.time} ago`
+    }
+    return key
+  }
+
+  // Handle pluralization form: t('time.minutes', count)
+  if (typeof countOrNamed === 'number' && translations[key]) {
+    return translations[key](countOrNamed)
+  }
+
+  // Handle simple keys
+  const simpleKeys: Record<string, string> = {
+    'time.just_now': 'Just now',
+  }
+  if (simpleKeys[key]) {
+    return simpleKeys[key]
   }
 
   return key
@@ -56,6 +78,13 @@ describe('formatDateTime', () => {
     expect(typeof result).toBe('string')
     expect(result.length).toBeGreaterThan(0)
   })
+
+  it('should include time zone when provided', () => {
+    const date = new Date('2025-10-02T14:30:45Z')
+    const result = formatDateTime(date, 'en-US', 'UTC')
+
+    expect(result).toMatch(/UTC|GMT/)
+  })
 })
 
 describe('formatDateTimeNoSeconds', () => {
@@ -67,7 +96,7 @@ describe('formatDateTimeNoSeconds', () => {
     expect(result).not.toContain('45')
     // Should contain year, month, day, hour, minute
     expect(result).toContain('2025')
-    expect(result).toContain('10')
+    expect(result).toContain('Oct')
     expect(result).toContain('03')
     expect(result).toContain('09')
     expect(result).toContain('30')
@@ -90,8 +119,27 @@ describe('formatDateTimeNoSeconds', () => {
 
     expect(typeof result).toBe('string')
     expect(result).toContain('2025')
-    expect(result).toContain('10')
+    expect(result).toContain('Oct')
     expect(result).toContain('02')
+  })
+
+  it('should include time zone when provided', () => {
+    const date = new Date('2025-10-03T09:30:45Z')
+    const result = formatDateTimeNoSeconds(date, 'en-US', 'UTC')
+
+    expect(result).toMatch(/UTC|GMT/)
+  })
+})
+
+describe('formatTimeNoSeconds', () => {
+  it('should format time without seconds', () => {
+    const date = new Date('2025-10-03T09:30:45Z')
+    const result = formatTimeNoSeconds(date, 'en-US', 'UTC')
+
+    expect(result).not.toContain('45')
+    expect(result).toContain('09')
+    expect(result).toContain('30')
+    expect(result).toMatch(/UTC|GMT/)
   })
 })
 
@@ -365,5 +413,120 @@ describe('formatUptime', () => {
 
     expect(mockT).toHaveBeenCalledWith('time.minutes', 59)
     expect(result).toBe('59 minutes')
+  })
+})
+
+describe('formatTimeAgo', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-03-12T12:00:00Z'))
+    mockT.mockClear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('should return "Just now" for dates less than 60 seconds ago', () => {
+    const result = formatTimeAgo('2026-03-12T11:59:30Z', mockT as any) // 30 seconds ago
+    expect(result).toBe('Just now')
+  })
+
+  it('should return "Just now" for dates exactly now', () => {
+    const result = formatTimeAgo('2026-03-12T12:00:00Z', mockT as any)
+    expect(result).toBe('Just now')
+  })
+
+  it('should return "Just now" for future dates', () => {
+    const result = formatTimeAgo('2026-03-12T13:00:00Z', mockT as any)
+    expect(result).toBe('Just now')
+  })
+
+  it('should return a dash for invalid date strings', () => {
+    const result = formatTimeAgo('not-a-date', mockT as any)
+    expect(result).toBe('-')
+  })
+
+  it('should return minutes ago for 1 minute', () => {
+    const result = formatTimeAgo('2026-03-12T11:59:00Z', mockT as any) // 60 seconds ago
+    expect(result).toBe('1 minute ago')
+  })
+
+  it('should return minutes ago for multiple minutes', () => {
+    const result = formatTimeAgo('2026-03-12T11:51:00Z', mockT as any) // 9 minutes ago
+    expect(result).toBe('9 minutes ago')
+  })
+
+  it('should return minutes ago for 59 minutes', () => {
+    const result = formatTimeAgo('2026-03-12T11:01:00Z', mockT as any) // 59 minutes ago
+    expect(result).toBe('59 minutes ago')
+  })
+
+  it('should return hours ago for 1 hour', () => {
+    const result = formatTimeAgo('2026-03-12T11:00:00Z', mockT as any) // 1 hour ago
+    expect(result).toBe('1 hour ago')
+  })
+
+  it('should return hours ago for multiple hours', () => {
+    const result = formatTimeAgo('2026-03-12T09:00:00Z', mockT as any) // 3 hours ago
+    expect(result).toBe('3 hours ago')
+  })
+
+  it('should return days ago for 1 day', () => {
+    const result = formatTimeAgo('2026-03-11T12:00:00Z', mockT as any) // 1 day ago
+    expect(result).toBe('1 day ago')
+  })
+
+  it('should return days ago for multiple days', () => {
+    const result = formatTimeAgo('2026-03-10T12:00:00Z', mockT as any) // 2 days ago
+    expect(result).toBe('2 days ago')
+  })
+
+  it('should return weeks ago for 1 week', () => {
+    const result = formatTimeAgo('2026-03-05T12:00:00Z', mockT as any) // 7 days ago
+    expect(result).toBe('1 week ago')
+  })
+
+  it('should return weeks ago for multiple weeks', () => {
+    const result = formatTimeAgo('2026-02-26T12:00:00Z', mockT as any) // 14 days ago
+    expect(result).toBe('2 weeks ago')
+  })
+
+  it('should return months ago for 1 month', () => {
+    const result = formatTimeAgo('2026-02-10T12:00:00Z', mockT as any) // 30 days ago
+    expect(result).toBe('1 month ago')
+  })
+
+  it('should return months ago for multiple months', () => {
+    const result = formatTimeAgo('2025-12-12T12:00:00Z', mockT as any) // 90 days ago
+    expect(result).toBe('3 months ago')
+  })
+
+  it('should return years ago for 1 year', () => {
+    const result = formatTimeAgo('2025-03-12T12:00:00Z', mockT as any) // 365 days ago
+    expect(result).toBe('1 year ago')
+  })
+
+  it('should return years ago for multiple years', () => {
+    const result = formatTimeAgo('2024-03-12T12:00:00Z', mockT as any) // ~730 days ago
+    expect(result).toBe('2 years ago')
+  })
+
+  it('should return duration without suffix when suffix is false', () => {
+    const result = formatTimeAgo('2026-03-12T09:00:00Z', mockT as any, { suffix: false })
+    expect(result).toBe('3 hours')
+  })
+
+  it('should return "Just now" even when suffix is false', () => {
+    const result = formatTimeAgo('2026-03-12T11:59:30Z', mockT as any, { suffix: false })
+    expect(result).toBe('Just now')
+  })
+
+  it('should return duration without suffix for each unit', () => {
+    expect(formatTimeAgo('2026-03-12T11:51:00Z', mockT as any, { suffix: false })).toBe('9 minutes')
+    expect(formatTimeAgo('2026-03-11T12:00:00Z', mockT as any, { suffix: false })).toBe('1 day')
+    expect(formatTimeAgo('2026-03-05T12:00:00Z', mockT as any, { suffix: false })).toBe('1 week')
+    expect(formatTimeAgo('2026-02-10T12:00:00Z', mockT as any, { suffix: false })).toBe('1 month')
+    expect(formatTimeAgo('2025-03-12T12:00:00Z', mockT as any, { suffix: false })).toBe('1 year')
   })
 })

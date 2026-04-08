@@ -131,9 +131,9 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, create
 		CustomData:   customData,
 	}
 
-	// Add phone if provided
+	// Add phone if provided, normalized to digits-only format for Logto
 	if req.Phone != nil && *req.Phone != "" {
-		logtoUserReq.PrimaryPhone = *req.Phone
+		logtoUserReq.PrimaryPhone = normalizePhoneForLogto(*req.Phone)
 	}
 
 	logtoUser, err := s.logtoClient.CreateUser(logtoUserReq)
@@ -1427,6 +1427,14 @@ func (s *LocalUserService) markUserSynced(id, logtoID string) error {
 	query := `UPDATE users SET logto_id = $1, logto_synced_at = $2 WHERE id = $3`
 	_, err := database.DB.Exec(query, logtoID, time.Now(), id)
 	return err
+}
+
+// normalizePhoneForLogto strips spaces, dashes, parentheses, and the leading "+"
+// to produce the digits-only format that Logto accepts.
+// Example: "+39 333 1234567" -> "393331234567"
+func normalizePhoneForLogto(phone string) string {
+	replacer := strings.NewReplacer(" ", "", "-", "", "(", "", ")", "", "+", "")
+	return replacer.Replace(phone)
 }
 
 // generateUsernameFromEmail converts email to valid Logto username format with conflict resolution

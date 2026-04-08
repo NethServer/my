@@ -31,7 +31,13 @@ const loginStore = useLoginStore()
         />
       </div>
       <div class="flex items-center gap-2">
-        <UserAvatar :name="loginStore.userInfo.name" :is-owner="loginStore.isOwner" size="md" />
+        <UserAvatar
+          :name="loginStore.userInfo.name"
+          :is-owner="loginStore.isOwner"
+          size="md"
+          :logto-id="loginStore.userInfo.logto_id"
+          :cache-key="loginStore.avatarVersion"
+        />
         <div class="flex flex-col gap-1">
           <div>{{ loginStore.userInfo.name }}</div>
           <div class="flex flex-wrap gap-1">

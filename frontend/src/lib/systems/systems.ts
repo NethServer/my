@@ -12,12 +12,9 @@ import NsecLogo from '@/assets/system_logos/nethsecurity.svg'
 export const SYSTEMS_KEY = 'systems'
 export const SYSTEMS_TOTAL_KEY = 'systemsTotal'
 export const SYSTEMS_TABLE_ID = 'systemsTable'
+export const SYSTEM_REACHABILITY_KEY = 'systemReachability'
 
-export type SystemStatus = 'online' | 'offline' | 'unknown' | 'deleted' | 'suspended'
-
-const systemStatusOptions = ['online', 'offline', 'unknown', 'deleted', 'suspended']
-
-const SystemStatusSchema = v.picklist(systemStatusOptions)
+const SystemStatusSchema = v.picklist(['active', 'inactive', 'unknown', 'deleted', 'suspended'])
 
 export const CreateSystemSchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty('systems.name_cannot_be_empty')),
@@ -42,11 +39,15 @@ export const SystemSchema = v.object({
   version: v.string(),
   created_at: v.string(),
   updated_at: v.string(),
+  registered_at: v.optional(v.string()),
   system_key: v.optional(v.string()),
   system_secret: v.string(),
   suspended_at: v.optional(v.string()),
+  last_inventory: v.optional(v.string()),
+  rebranding_enabled: v.optional(v.boolean()),
   organization: v.object({
     id: v.string(),
+    logto_id: v.string(),
     name: v.string(),
     type: v.string(),
   }),
@@ -63,6 +64,7 @@ export const SystemSchema = v.object({
 export type CreateSystem = v.InferOutput<typeof CreateSystemSchema>
 export type EditSystem = v.InferOutput<typeof EditSystemSchema>
 export type System = v.InferOutput<typeof SystemSchema>
+export type SystemStatus = v.InferOutput<typeof SystemStatusSchema>
 
 interface SystemsResponse {
   code: number
@@ -88,6 +90,15 @@ interface SystemsTotalResponse {
     timeout_minutes: number
     total: number
     zombie: number
+  }
+}
+
+interface SystemReachabilityResponse {
+  code: number
+  message: string
+  data: {
+    reachable: boolean
+    url: string
   }
 }
 
@@ -290,6 +301,16 @@ export const getSystemsTotal = () => {
 
   return axios
     .get<SystemsTotalResponse>(`${API_URL}/systems/totals`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data)
+}
+
+export const checkSystemReachability = (systemId: string) => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .get<SystemReachabilityResponse>(`${API_URL}/systems/${systemId}/reachability`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data)

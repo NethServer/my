@@ -9,7 +9,6 @@ import {
   type Customer,
   type CustomerStatus,
 } from '@/lib/organizations/customers'
-import { canReadCustomers } from '@/lib/permissions'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
@@ -38,7 +37,7 @@ export const useCustomers = defineQuery(() => {
         sortDirection: sortDescending.value,
       },
     ],
-    enabled: () => !!loginStore.jwtToken && canReadCustomers(),
+    enabled: () => !!loginStore.jwtToken,
     query: () =>
       getCustomers(
         pageNum.value,

@@ -5,13 +5,26 @@ import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
+import { PhoneNumberSchema } from './users/users'
+
+interface UploadMyAvatarResponse {
+  code: number
+  message: string
+  data: {
+    avatar_url: string
+  }
+}
+
+interface DeleteMyAvatarResponse {
+  code: number
+  message: string
+  data: null
+}
 
 export const ProfileInfoSchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty('users.name_cannot_be_empty')),
   email: v.pipe(v.string(), v.nonEmpty('users.email_required'), v.email('users.email_invalid')),
-  phone: v.optional(
-    v.pipe(v.string(), v.regex(/^\+?[\d\s\-\(\)]{7,20}$/, 'users.phone_invalid_format')),
-  ),
+  phone: v.optional(v.union([v.literal(''), PhoneNumberSchema])),
 })
 
 export const ChangePasswordSchema = v.pipe(
@@ -55,4 +68,26 @@ export const postChangePassword = (changePasswordData: ChangePassword) => {
   return axios.post(`${API_URL}/me/change-password`, changePasswordData, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
+}
+
+export const putAvatar = (avatar: File) => {
+  const loginStore = useLoginStore()
+  const formData = new FormData()
+  formData.append('avatar', avatar)
+
+  return axios
+    .put<UploadMyAvatarResponse>(`${API_URL}/me/avatar`, formData, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data)
+}
+
+export const deleteAvatar = () => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .delete<DeleteMyAvatarResponse>(`${API_URL}/me/avatar`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data)
 }

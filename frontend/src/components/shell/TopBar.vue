@@ -80,7 +80,7 @@ function openNotificationsDrawer() {
 
 <template>
   <div
-    class="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8 dark:border-gray-700 dark:bg-gray-950"
+    class="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 sm:gap-x-6 sm:px-6 lg:px-8 dark:border-gray-700 dark:bg-gray-950"
   >
     <button
       type="button"
@@ -185,15 +185,18 @@ function openNotificationsDrawer() {
               :align-to-right="true"
               :open-menu-aria-label="$t('shell.open_account_menu')"
               menu-classes="z-150!"
-              class="relative bottom-0.5"
+              class="relative"
             >
               <template #button>
                 <button type="button" :class="['-m-2.5 flex p-2.5', topBarButtonsColorClasses]">
                   <div class="flex items-center gap-2">
                     <UserAvatar
+                      v-if="loginStore.userInfo"
                       size="sm"
                       :is-owner="loginStore.isOwner"
                       :name="loginStore.userDisplayName"
+                      :logto-id="loginStore.userInfo.logto_id"
+                      :cache-key="loginStore.avatarVersion"
                     />
                     <FontAwesomeIcon
                       :icon="faChevronDown"

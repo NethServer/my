@@ -31,7 +31,6 @@ import {
   NeEmptyState,
   NeInlineNotification,
   NeTextInput,
-  NeSpinner,
   NeDropdown,
   type SortEvent,
   NeSortDropdown,
@@ -61,6 +60,8 @@ import UserRoleBadge from './UserRoleBadge.vue'
 import { useUserFilters } from '@/queries/users/userFilters'
 import { normalize } from '@/lib/common'
 import OrganizationLink from '../applications/OrganizationLink.vue'
+import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
+import UserAvatar from './UserAvatar.vue'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -350,7 +351,7 @@ const onClosePasswordChangedModal = () => {
     />
     <!-- table toolbar -->
     <div class="mb-6 flex items-center gap-4">
-      <div class="flex w-full items-center justify-between gap-4">
+      <div class="flex w-full items-end justify-between gap-4">
         <!-- filters -->
         <div class="flex flex-wrap items-center gap-4">
           <!-- text filter -->
@@ -394,7 +395,7 @@ const onClosePasswordChangedModal = () => {
             :label="t('common.status')"
             :options="statusFilterOptions"
             :show-clear-filter="false"
-            :clear-filter-label="t('ne_dropdown_filter.reset_filter')"
+            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
@@ -422,15 +423,7 @@ const onClosePasswordChangedModal = () => {
           </NeButton>
         </div>
         <!-- update indicator -->
-        <div
-          v-if="asyncStatus === 'loading' && state.status !== 'pending'"
-          class="flex items-center gap-2"
-        >
-          <NeSpinner color="white" />
-          <div class="text-gray-500 dark:text-gray-400">
-            {{ $t('common.updating') }}
-          </div>
-        </div>
+        <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
       </div>
     </div>
     <!-- empty state -->
@@ -481,7 +474,15 @@ const onClosePasswordChangedModal = () => {
       <NeTableBody>
         <NeTableRow v-for="(item, index) in usersPage" :key="index">
           <NeTableCell :data-label="$t('users.name')" :class="{ 'opacity-50': item.deleted_at }">
-            {{ item.name }}
+            <div class="flex items-center gap-2">
+              <UserAvatar
+                :size="'sm'"
+                :is-owner="item.username === 'owner'"
+                :name="item.name"
+                :logto-id="item.logto_id || ''"
+              />
+              {{ item.name }}
+            </div>
           </NeTableCell>
           <NeTableCell
             :data-label="$t('users.email')"

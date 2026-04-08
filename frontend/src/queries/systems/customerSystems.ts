@@ -1,7 +1,6 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { canReadCustomers } from '@/lib/permissions'
 import { getSystems, SYSTEMS_KEY } from '@/lib/systems/systems'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
@@ -14,7 +13,7 @@ export const useCustomerSystems = defineQuery(() => {
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [SYSTEMS_KEY, CUSTOMERS_KEY, route.params.companyId],
-    enabled: () => !!loginStore.jwtToken && canReadCustomers() && !!route.params.companyId,
+    enabled: () => !!loginStore.jwtToken && !!route.params.companyId,
     query: () =>
       getSystems(
         1,

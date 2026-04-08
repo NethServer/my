@@ -5,7 +5,7 @@
 
 <script setup lang="ts">
 import { NeSideDrawer, NeEmptyState } from '@nethesis/vue-components'
-import { NeToastNotification } from '@nethesis/vue-components'
+import { NeToastNotificationV2 } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useNotificationsStore } from '@/stores/notifications'
 import isEmpty from 'lodash/isEmpty'
@@ -36,13 +36,14 @@ function closeDrawer() {
     <!-- notifications -->
     <div v-else class="flex w-full flex-col items-center space-y-4 sm:items-end">
       <TransitionGroup name="fade">
-        <NeToastNotification
+        <NeToastNotificationV2
           v-for="notification in notificationsStore.notifications"
           :key="notification.id"
           :notification="notification"
           full-width
           show-timestamp
           :sr-close-label="t('common.close')"
+          @action="notificationsStore.handleNotificationAction(notification.id, $event)"
         />
       </TransitionGroup>
     </div>

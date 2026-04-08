@@ -9,7 +9,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faArrowRight } from '@fortawesome/free-solid-svg-icons'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import CounterCard from '@/components/CounterCard.vue'
-import { getApplicationLogo } from '@/lib/applications/applications'
+import ApplicationLogo from '@/components/applications/ApplicationLogo.vue'
 import { useI18n } from 'vue-i18n'
 import { computed } from 'vue'
 import router from '@/router'
@@ -65,13 +65,7 @@ const goToApplications = () => {
         class="flex items-center justify-between py-3"
       >
         <div class="flex items-center gap-2">
-          <img
-            v-if="appType.instance_of"
-            :src="getApplicationLogo(appType.instance_of)"
-            :alt="appType.instance_of"
-            aria-hidden="true"
-            class="size-8"
-          />
+          <ApplicationLogo :app="appType.instance_of" />
           <span class="font-medium">
             {{ appType.name || '-' }}
           </span>
