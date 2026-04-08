@@ -15,6 +15,9 @@ COPY .render-build-trigger /tmp/build-trigger
 # Copy Mimir config template
 COPY my.yaml /etc/mimir/my.yaml.template
 
+# Copy default runtime configuration (per-tenant overrides, reloaded every 10s)
+COPY runtime_config.yaml /etc/mimir/runtime_config.yaml
+
 # Copy entrypoint script (must be executable in the repo)
 COPY entrypoint.sh /entrypoint.sh
 

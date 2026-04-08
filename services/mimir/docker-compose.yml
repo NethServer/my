@@ -1,4 +1,4 @@
-# Metrics Infrastructure - Dedicated VM deployment
+# Alerting Infrastructure - Dedicated VM deployment
 #
 # Run on a separate server from the main application stack.
 #
@@ -10,7 +10,7 @@
 #
 # ⚙️ Required environment variables (set in mimir/.env or shell):
 #   MIMIR_S3_ENDPOINT, MIMIR_S3_ACCESS_KEY, MIMIR_S3_SECRET_KEY
-#   MIMIR_S3_BUCKET, MIMIR_S3_ALERTMANAGER_BUCKET, MIMIR_S3_RULER_BUCKET
+#   MIMIR_S3_ALERTMANAGER_BUCKET
 
 version: '3.8'
 
@@ -30,9 +30,7 @@ services:
       MIMIR_S3_ENDPOINT: ${MIMIR_S3_ENDPOINT}
       MIMIR_S3_ACCESS_KEY: ${MIMIR_S3_ACCESS_KEY}
       MIMIR_S3_SECRET_KEY: ${MIMIR_S3_SECRET_KEY}
-      MIMIR_S3_BUCKET: ${MIMIR_S3_BUCKET}
       MIMIR_S3_ALERTMANAGER_BUCKET: ${MIMIR_S3_ALERTMANAGER_BUCKET}
-      MIMIR_S3_RULER_BUCKET: ${MIMIR_S3_RULER_BUCKET}
     ports:
       - "19009:9009"
     networks:

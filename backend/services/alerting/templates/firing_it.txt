@@ -1,0 +1,27 @@
+{{ define "firing_it.txt" }}My Nethesis - Notifica Allarme
+=================================================================
+
+{{ len .Alerts.Firing }} ALLARME{{ if gt (len .Alerts.Firing) 1 }}I{{ end }} ATTIV{{ if gt (len .Alerts.Firing) 1 }}I{{ else }}O{{ end }}
+
+{{ range .Alerts.Firing -}}
+-----------------------------------------------------------------
+ALLARME:   {{ .Labels.alertname }}
+SEVERITA': {{ .Labels.severity | toUpper }}
+{{ if .Labels.system_key -}}
+SISTEMA:   {{ .Labels.system_key }}
+{{ end -}}
+{{ if .Annotations.summary -}}
+RIEPILOGO: {{ .Annotations.summary }}
+{{ end -}}
+{{ if .Annotations.description -}}
+DETTAGLI:  {{ .Annotations.description }}
+{{ end -}}
+DAL:       {{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC
+
+{{ end -}}
+=================================================================
+Questa notifica e' stata generata automaticamente dal sistema
+di monitoraggio My Nethesis. Non rispondere a questa email.
+
+My Nethesis | Powered by Nethesis
+{{ end }}

@@ -1,0 +1,182 @@
+{{- define "firing_en.subject" -}}
+[FIRING{{ if gt (len .Alerts.Firing) 1 }} x{{ len .Alerts.Firing }}{{ end }}] {{ if .CommonLabels.alertname }}{{ .CommonLabels.alertname }}{{ else }}Alert{{ end }}{{ if .CommonLabels.system_key }} - {{ .CommonLabels.system_key }}{{ end }}
+{{- end }}
+
+{{ define "firing_en.html" }}<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Alert Notification</title>
+    <style type="text/css">
+      #outlook a { padding: 0; }
+      body { width: 100% !important; min-width: 100%; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; margin: 0; padding: 0; }
+      .ExternalClass { width: 100%; }
+      .ExternalClass, .ExternalClass p, .ExternalClass span, .ExternalClass font, .ExternalClass td, .ExternalClass div { line-height: 100%; }
+      img { outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
+      a img { border: none; }
+      p { margin: 0px 0px !important; }
+      @media only screen and (max-width: 640px) {
+        .mobile-full { width: 100% !important; max-width: 100% !important; }
+        .mobile-padding { padding: 20px !important; }
+      }
+    </style>
+  </head>
+  <body style="background-color: #f9fafb; margin: 0; padding: 0; font-family: 'Poppins', Arial, Helvetica, sans-serif;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f9fafb; margin: 0; padding: 0;">
+      <tr>
+        <td align="center" valign="top" style="padding: 20px;">
+          <table border="0" cellpadding="0" cellspacing="0" width="600" class="mobile-full" style="background-color: #ffffff; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; max-width: 600px;">
+
+            <!-- Header -->
+            <tr>
+              <td align="center" valign="top" style="background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 50%, #b91c1c 100%); border-radius: 16px 16px 0 0; padding: 48px 32px;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td align="center" style="padding-bottom: 16px;">
+                      <img src="https://www.nethesis.it/assets/uploads/2025/07/nethesis.png" alt="Nethesis" width="80" height="auto" style="display: block; border: 0;" />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="center" style="color: #ffffff; font-size: 32px; font-weight: 700; line-height: 1.2; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 12px;">
+                      &#128308; Alert Notification
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="center" style="color: rgba(255,255,255,0.85); font-size: 16px; font-family: 'Poppins', Arial, sans-serif;">
+                      {{ len .Alerts.Firing }} alert{{ if gt (len .Alerts.Firing) 1 }}s{{ end }} currently firing
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Content -->
+            <tr>
+              <td style="padding: 40px 32px;" class="mobile-padding">
+
+                <!-- Alert cards -->
+                {{ range .Alerts.Firing }}
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 20px;">
+                  <tr>
+                    <td style="background-color: #fff5f5; border: 1px solid #fecaca; border-left: 4px solid #dc2626; border-radius: 12px; padding: 24px;">
+                      <table border="0" cellpadding="0" cellspacing="0" width="100%">
+
+                        <!-- Alert name + severity -->
+                        <tr>
+                          <td style="padding-bottom: 12px;">
+                            <table border="0" cellpadding="0" cellspacing="0">
+                              <tr>
+                                <td style="font-size: 18px; font-weight: 700; color: #111827; font-family: 'Poppins', Arial, sans-serif; padding-right: 12px; vertical-align: middle;">
+                                  {{ .Labels.alertname }}
+                                </td>
+                                <td style="vertical-align: middle;">
+                                  {{ if eq .Labels.severity "critical" }}
+                                  <span style="display: inline-block; padding: 4px 12px; background-color: #dc2626; color: #ffffff; border-radius: 50px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; font-family: 'Poppins', Arial, sans-serif;">CRITICAL</span>
+                                  {{ else if eq .Labels.severity "warning" }}
+                                  <span style="display: inline-block; padding: 4px 12px; background-color: #d97706; color: #ffffff; border-radius: 50px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; font-family: 'Poppins', Arial, sans-serif;">WARNING</span>
+                                  {{ else }}
+                                  <span style="display: inline-block; padding: 4px 12px; background-color: #2563eb; color: #ffffff; border-radius: 50px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; font-family: 'Poppins', Arial, sans-serif;">{{ .Labels.severity | toUpper }}</span>
+                                  {{ end }}
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+
+                        <!-- System key -->
+                        {{ if .Labels.system_key }}
+                        <tr>
+                          <td style="padding-bottom: 10px;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 4px;">SYSTEM</td>
+                              </tr>
+                              <tr>
+                                <td style="font-size: 14px; color: #374151; font-family: 'Poppins', Arial, sans-serif; font-weight: 600;">{{ .Labels.system_key }}</td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        {{ end }}
+
+                        <!-- Summary -->
+                        {{ if .Annotations.summary }}
+                        <tr>
+                          <td style="padding-bottom: 10px;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 4px;">SUMMARY</td>
+                              </tr>
+                              <tr>
+                                <td style="font-size: 14px; color: #374151; line-height: 1.5; font-family: 'Poppins', Arial, sans-serif;">{{ .Annotations.summary }}</td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        {{ end }}
+
+                        <!-- Description -->
+                        {{ if .Annotations.description }}
+                        <tr>
+                          <td style="padding-bottom: 10px;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 4px;">DESCRIPTION</td>
+                              </tr>
+                              <tr>
+                                <td style="font-size: 14px; color: #374151; line-height: 1.5; font-family: 'Poppins', Arial, sans-serif;">{{ .Annotations.description }}</td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        {{ end }}
+
+                        <!-- Firing since -->
+                        <tr>
+                          <td style="padding-top: 8px; border-top: 1px solid #fecaca;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 4px;">FIRING SINCE</td>
+                              </tr>
+                              <tr>
+                                <td style="font-size: 13px; color: #dc2626; font-family: 'Poppins', Arial, sans-serif; font-weight: 600;">{{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC</td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+                {{ end }}
+
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td style="background-color: #f8fafc; padding: 28px 32px; text-align: center; border-top: 1px solid #e2e8f0; border-radius: 0 0 16px 16px;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td style="font-size: 14px; color: #64748b; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 4px;">
+                      <strong>My Nethesis</strong> &bull; Powered by Nethesis
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="font-size: 12px; color: #94a3b8; font-family: 'Poppins', Arial, sans-serif;">
+                      This email was sent automatically. Please do not reply.
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+{{ end }}

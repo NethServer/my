@@ -1,0 +1,25 @@
+{{ define "resolved_it.txt" }}My Nethesis - Allarme Risolto
+=================================================================
+
+{{ len .Alerts.Resolved }} ALLARME{{ if gt (len .Alerts.Resolved) 1 }}I{{ end }} RISOLTO{{ if gt (len .Alerts.Resolved) 1 }}I{{ end }}
+
+{{ range .Alerts.Resolved -}}
+-----------------------------------------------------------------
+ALLARME:    {{ .Labels.alertname }}
+SEVERITA':  {{ .Labels.severity | toUpper }}
+{{ if .Labels.system_key -}}
+SISTEMA:    {{ .Labels.system_key }}
+{{ end -}}
+{{ if .Annotations.summary -}}
+RIEPILOGO:  {{ .Annotations.summary }}
+{{ end -}}
+INIZIATO:   {{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC
+RISOLTO:    {{ .EndsAt.UTC.Format "2006-01-02 15:04:05" }} UTC
+
+{{ end -}}
+=================================================================
+Questa notifica e' stata generata automaticamente dal sistema
+di monitoraggio My Nethesis. Non rispondere a questa email.
+
+My Nethesis | Powered by Nethesis
+{{ end }}
