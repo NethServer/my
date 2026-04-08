@@ -29,7 +29,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.24'
+        go-version: '1.25'
         cache: false
 
     - name: Cache Go modules
@@ -71,9 +71,9 @@ jobs:
         fi
 
     - name: Run linting
-      uses: golangci/golangci-lint-action@v6
+      uses: golangci/golangci-lint-action@v9
       with:
-        version: latest
+        version: v2.11.4
         working-directory: ${{ matrix.component }}
         args: --timeout=10m
 
