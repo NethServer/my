@@ -2029,6 +2029,28 @@ components:
           type: string
           description: The value that failed validation
           example: "not-an-email"
+        candidates:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportOrgCandidate'
+          description: Candidate organizations for disambiguation (only present when message is ambiguous_name)
+
+    ImportOrgCandidate:
+      type: object
+      properties:
+        logto_id:
+          type: string
+          description: Organization Logto ID
+          example: "abc123"
+        name:
+          type: string
+          description: Organization name
+          example: "Acme Corp"
+        type:
+          type: string
+          enum: [distributor, reseller, customer]
+          description: Organization type
+          example: "distributor"
 
     ImportRow:
       type: object
@@ -2039,8 +2061,8 @@ components:
           example: 2
         status:
           type: string
-          enum: [valid, error, duplicate]
-          description: Validation status for this row
+          enum: [valid, error, duplicate, ambiguous]
+          description: Validation status for this row. Ambiguous rows have multiple matching organizations and require resolution during confirm.
         data:
           type: object
           description: Parsed row data
@@ -2049,7 +2071,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ImportFieldError'
-          description: Validation errors (empty if status is valid)
+          description: Validation errors (empty if status is valid). For ambiguous rows, errors contain candidates for disambiguation.
 
     ImportValidationResult:
       type: object
@@ -2071,6 +2093,10 @@ components:
         duplicate_rows:
           type: integer
           example: 2
+        ambiguous_rows:
+          type: integer
+          description: Rows where the organization name matches multiple organizations and requires disambiguation
+          example: 1
         rows:
           type: array
           items:
@@ -2092,6 +2118,22 @@ components:
             type: integer
           description: Row numbers to skip during import
           example: [3, 7]
+        resolutions:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ImportResolution'
+          description: Resolutions for ambiguous rows, keyed by row number (e.g. "3")
+          example:
+            "3":
+              organization_id: "abc123"
+
+    ImportResolution:
+      type: object
+      properties:
+        organization_id:
+          type: string
+          description: The chosen organization Logto ID from the candidates list
+          example: "abc123"
 
     ImportResultRow:
       type: object

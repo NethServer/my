@@ -16,13 +16,22 @@ const (
 	ImportRowValid     ImportRowStatus = "valid"
 	ImportRowInvalid   ImportRowStatus = "error"
 	ImportRowDuplicate ImportRowStatus = "duplicate"
+	ImportRowAmbiguous ImportRowStatus = "ambiguous"
 )
 
 // ImportFieldError represents a validation error for a specific field in a CSV row
 type ImportFieldError struct {
-	Field   string `json:"field"`
-	Message string `json:"message"`
-	Value   string `json:"value,omitempty"`
+	Field      string               `json:"field"`
+	Message    string               `json:"message"`
+	Value      string               `json:"value,omitempty"`
+	Candidates []ImportOrgCandidate `json:"candidates,omitempty"`
+}
+
+// ImportOrgCandidate represents a candidate organization for disambiguation
+type ImportOrgCandidate struct {
+	LogtoID string `json:"logto_id"`
+	Name    string `json:"name"`
+	Type    string `json:"type"`
 }
 
 // ImportRow represents a single validated CSV row with its status and any errors
@@ -40,13 +49,20 @@ type ImportValidationResult struct {
 	ValidRows     int         `json:"valid_rows"`
 	ErrorRows     int         `json:"error_rows"`
 	DuplicateRows int         `json:"duplicate_rows"`
+	AmbiguousRows int         `json:"ambiguous_rows"`
 	Rows          []ImportRow `json:"rows"`
 }
 
 // ImportConfirmRequest represents the request to confirm an import
 type ImportConfirmRequest struct {
-	ImportID string `json:"import_id" validate:"required"`
-	SkipRows []int  `json:"skip_rows,omitempty"`
+	ImportID    string                      `json:"import_id" validate:"required"`
+	SkipRows    []int                       `json:"skip_rows,omitempty"`
+	Resolutions map[string]ImportResolution `json:"resolutions,omitempty"`
+}
+
+// ImportResolution represents a user's choice for an ambiguous row
+type ImportResolution struct {
+	OrganizationID string `json:"organization_id"`
 }
 
 // ImportResultStatus represents the status of a single row after import execution

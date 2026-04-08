@@ -55,9 +55,17 @@ func ValidateUserRow(row map[string]string) []models.ImportFieldError {
 	return errs
 }
 
+// OrgMatch represents a matched organization from the unified_organizations view.
+type OrgMatch struct {
+	LogtoID string
+	Name    string
+	OrgType string
+}
+
 // ResolveOrganizationByName looks up an organization by name, scoped to the allowed org IDs.
 // This ensures that users only resolve organizations within their own hierarchy.
 // Returns (logto_id, org_type, error). Returns empty strings if not found.
+// When multiple matches are found, returns an AmbiguousOrgError containing the candidates.
 func ResolveOrganizationByName(name string, allowedOrgIDs []string) (string, string, error) {
 	if len(allowedOrgIDs) == 0 {
 		return "", "", nil
@@ -73,7 +81,7 @@ func ResolveOrganizationByName(name string, allowedOrgIDs []string) (string, str
 	}
 
 	query := fmt.Sprintf(`
-		SELECT logto_id, org_type FROM unified_organizations
+		SELECT logto_id, name, org_type FROM unified_organizations
 		WHERE LOWER(name) = LOWER($1) AND logto_id IN (%s)
 	`, strings.Join(placeholders, ", "))
 
@@ -83,16 +91,10 @@ func ResolveOrganizationByName(name string, allowedOrgIDs []string) (string, str
 	}
 	defer func() { _ = rows.Close() }()
 
-	var matches []struct {
-		logtoID string
-		orgType string
-	}
+	var matches []OrgMatch
 	for rows.Next() {
-		var m struct {
-			logtoID string
-			orgType string
-		}
-		if err := rows.Scan(&m.logtoID, &m.orgType); err != nil {
+		var m OrgMatch
+		if err := rows.Scan(&m.LogtoID, &m.Name, &m.OrgType); err != nil {
 			return "", "", err
 		}
 		matches = append(matches, m)
@@ -102,9 +104,18 @@ func ResolveOrganizationByName(name string, allowedOrgIDs []string) (string, str
 		return "", "", nil
 	}
 	if len(matches) > 1 {
-		return "", "", fmt.Errorf("ambiguous_name")
+		return "", "", &AmbiguousOrgError{Candidates: matches}
 	}
-	return matches[0].logtoID, matches[0].orgType, nil
+	return matches[0].LogtoID, matches[0].OrgType, nil
+}
+
+// AmbiguousOrgError is returned when an organization name matches multiple organizations.
+type AmbiguousOrgError struct {
+	Candidates []OrgMatch
+}
+
+func (e *AmbiguousOrgError) Error() string {
+	return "ambiguous_name"
 }
 
 // ResolveRolesByNames converts semicolon-separated role names to role IDs.

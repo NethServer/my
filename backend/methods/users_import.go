@@ -10,6 +10,8 @@
 package methods
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -97,15 +99,21 @@ func ValidateUsersImport(c *gin.Context) {
 
 		// Resolve organization name to ID (scoped to user's hierarchy)
 		var orgLogtoID string
+		var ambiguousCandidates []models.ImportOrgCandidate
 		if rowMap["organization"] != "" && !hasFieldError(errs, "organization") {
 			orgID, _, resolveErr := csvimport.ResolveOrganizationByName(rowMap["organization"], allowedOrgIDs)
 			if resolveErr != nil {
-				if resolveErr.Error() == "ambiguous_name" {
-					errs = append(errs, models.ImportFieldError{
-						Field:   "organization",
-						Message: "ambiguous_name",
-						Value:   rowMap["organization"],
-					})
+				var ambErr *csvimport.AmbiguousOrgError
+				if errors.As(resolveErr, &ambErr) {
+					candidates := make([]models.ImportOrgCandidate, len(ambErr.Candidates))
+					for j, c := range ambErr.Candidates {
+						candidates[j] = models.ImportOrgCandidate{
+							LogtoID: c.LogtoID,
+							Name:    c.Name,
+							Type:    c.OrgType,
+						}
+					}
+					ambiguousCandidates = candidates
 				} else {
 					logger.Error().Err(resolveErr).Str("organization", rowMap["organization"]).Msg("Failed to resolve organization")
 					errs = append(errs, models.ImportFieldError{
@@ -185,7 +193,16 @@ func ValidateUsersImport(c *gin.Context) {
 			}
 		}
 
-		if len(errs) > 0 {
+		if ambiguousCandidates != nil && len(errs) == 0 {
+			importRow.Status = models.ImportRowAmbiguous
+			importRow.Errors = []models.ImportFieldError{{
+				Field:      "organization",
+				Message:    "ambiguous_name",
+				Value:      rowMap["organization"],
+				Candidates: ambiguousCandidates,
+			}}
+			result.AmbiguousRows++
+		} else if len(errs) > 0 {
 			importRow.Status = models.ImportRowInvalid
 			importRow.Errors = errs
 			result.ErrorRows++
@@ -221,6 +238,7 @@ func ValidateUsersImport(c *gin.Context) {
 		Int("valid_rows", result.ValidRows).
 		Int("error_rows", result.ErrorRows).
 		Int("duplicate_rows", result.DuplicateRows).
+		Int("ambiguous_rows", result.AmbiguousRows).
 		Str("import_id", importID).
 		Msg("CSV import validated")
 
@@ -275,7 +293,42 @@ func ConfirmUsersImport(c *gin.Context) {
 	}
 
 	for _, row := range session.Rows {
-		if row.Status != models.ImportRowValid {
+		// Handle ambiguous rows: import only if a resolution is provided
+		if row.Status == models.ImportRowAmbiguous {
+			rowKey := fmt.Sprintf("%d", row.RowNumber)
+			resolution, hasResolution := req.Resolutions[rowKey]
+			if !hasResolution || resolution.OrganizationID == "" {
+				result.Skipped++
+				result.Results = append(result.Results, models.ImportResultRow{
+					RowNumber: row.RowNumber,
+					Status:    models.ImportResultSkipped,
+				})
+				continue
+			}
+
+			// Validate the chosen org ID is among the candidates
+			validChoice := false
+			for _, e := range row.Errors {
+				for _, c := range e.Candidates {
+					if c.LogtoID == resolution.OrganizationID {
+						validChoice = true
+						break
+					}
+				}
+			}
+			if !validChoice {
+				result.Failed++
+				result.Results = append(result.Results, models.ImportResultRow{
+					RowNumber: row.RowNumber,
+					Status:    models.ImportResultFailed,
+					Error:     "resolved organization_id is not among the candidates",
+				})
+				continue
+			}
+
+			// Apply the resolution to the row data
+			row.Data["organization_id"] = resolution.OrganizationID
+		} else if row.Status != models.ImportRowValid {
 			result.Skipped++
 			result.Results = append(result.Results, models.ImportResultRow{
 				RowNumber: row.RowNumber,
