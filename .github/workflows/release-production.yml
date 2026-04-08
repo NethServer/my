@@ -63,23 +63,23 @@ jobs:
         fi
 
     - name: Run backend linting
-      uses: golangci/golangci-lint-action@v6
+      uses: golangci/golangci-lint-action@v9
       with:
-        version: v2
+        version: v2.11.4
         working-directory: backend
         args: --timeout=10m
 
     - name: Run sync linting
-      uses: golangci/golangci-lint-action@v6
+      uses: golangci/golangci-lint-action@v9
       with:
-        version: v2
+        version: v2.11.4
         working-directory: sync
         args: --timeout=10m
 
     - name: Run collect linting
-      uses: golangci/golangci-lint-action@v6
+      uses: golangci/golangci-lint-action@v9
       with:
-        version: v2
+        version: v2.11.4
         working-directory: collect
         args: --timeout=10m
 
