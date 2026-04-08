@@ -275,21 +275,21 @@ update_docs_version() {
     info "Updating documentation version..."
 
     # English docs
-    if [ -f "docs/en/index.md" ]; then
-        sed -i.bak 's/Current version: \*\*[0-9.]*\*\*/Current version: **'"$new_version"'**/' docs/en/index.md
-        rm -f docs/en/index.md.bak
-        success "Updated docs/en/index.md version to $new_version"
+    if [ -f "docs/docs/intro.md" ]; then
+        sed -i.bak 's/Current version: \*\*[0-9.]*\*\*/Current version: **'"$new_version"'**/' docs/docs/intro.md
+        rm -f docs/docs/intro.md.bak
+        success "Updated docs/docs/intro.md version to $new_version"
     else
-        warning "docs/en/index.md not found"
+        warning "docs/docs/intro.md not found"
     fi
 
     # Italian docs
-    if [ -f "docs/it/index.md" ]; then
-        sed -i.bak 's/Versione corrente: \*\*[0-9.]*\*\*/Versione corrente: **'"$new_version"'**/' docs/it/index.md
-        rm -f docs/it/index.md.bak
-        success "Updated docs/it/index.md version to $new_version"
+    if [ -f "docs/i18n/it/docusaurus-plugin-content-docs/current/intro.md" ]; then
+        sed -i.bak 's/Versione corrente: \*\*[0-9.]*\*\*/Versione corrente: **'"$new_version"'**/' docs/i18n/it/docusaurus-plugin-content-docs/current/intro.md
+        rm -f docs/i18n/it/docusaurus-plugin-content-docs/current/intro.md.bak
+        success "Updated docs/i18n/it/docusaurus-plugin-content-docs/current/intro.md version to $new_version"
     else
-        warning "docs/it/index.md not found"
+        warning "docs/i18n/it/docusaurus-plugin-content-docs/current/intro.md not found"
     fi
 }
 
@@ -397,8 +397,8 @@ main() {
         frontend/package.json
         frontend/package-lock.json
         backend/openapi.yaml
-        docs/en/index.md
-        docs/it/index.md
+        docs/docs/intro.md
+        docs/i18n/it/docusaurus-plugin-content-docs/current/intro.md
     )
     for f in "${release_files[@]}"; do
         [ -f "$f" ] && git add "$f"

@@ -69,6 +69,10 @@ jobs:
         working-directory: backend
         args: --timeout=10m
 
+    - name: Sync email templates for sync component
+      working-directory: sync
+      run: make sync-templates
+
     - name: Run sync linting
       uses: golangci/golangci-lint-action@v9
       with:
