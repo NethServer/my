@@ -248,7 +248,7 @@ jobs:
     - name: Build and push sync Docker image
       uses: docker/build-push-action@v5
       with:
-        context: sync
+        context: .
         file: sync/Containerfile
         platforms: linux/amd64
         push: true
