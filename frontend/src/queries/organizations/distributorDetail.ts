@@ -1,7 +1,6 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { canReadDistributors } from '@/lib/permissions'
 import { getDistributorDetail } from '@/lib/organizations/distributorDetail'
 import { DISTRIBUTORS_KEY } from '@/lib/organizations/distributors'
 import { useLoginStore } from '@/stores/login'
@@ -14,7 +13,7 @@ export const useDistributorDetail = defineQuery(() => {
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [DISTRIBUTORS_KEY, route.params.companyId],
-    enabled: () => !!loginStore.jwtToken && canReadDistributors() && !!route.params.companyId,
+    enabled: () => !!loginStore.jwtToken && !!route.params.companyId,
     query: () => getDistributorDetail(route.params.companyId as string),
   })
 

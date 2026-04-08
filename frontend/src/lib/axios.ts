@@ -7,6 +7,7 @@ import { API_URL } from './config'
 import { useStorage } from '@vueuse/core'
 import { isValidationErrorCode } from './validation'
 import { useNotificationsStore } from '@/stores/notifications'
+import router from '@/router'
 
 export const configureAxios = () => {
   const loginStore = useLoginStore()
@@ -55,10 +56,13 @@ export const configureAxios = () => {
         // logout user
         console.warn('[interceptor]', 'Detected error 401, logout')
         loginStore.logout()
+      } else if (error.response?.status == 403) {
+        router.push({ name: 'forbidden' })
       } else if (!isValidationErrorCode(error.response?.data?.code)) {
         // show error notification if it's not a validation error
         notificationsStore.createNotificationFromAxiosError(error)
       }
+
       return Promise.reject(error)
     },
   )

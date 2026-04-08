@@ -1,7 +1,6 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { canReadApplications } from '@/lib/permissions'
 import { getApplicationDetail } from '@/lib/applications/applicationDetail'
 import { APPLICATIONS_KEY } from '@/lib/applications/applications'
 import { useLoginStore } from '@/stores/login'
@@ -14,7 +13,7 @@ export const useApplicationDetail = defineQuery(() => {
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [APPLICATIONS_KEY, route.params.applicationId],
-    enabled: () => !!loginStore.jwtToken && canReadApplications() && !!route.params.applicationId,
+    enabled: () => !!loginStore.jwtToken && !!route.params.applicationId,
     query: () => getApplicationDetail(route.params.applicationId as string),
   })
 

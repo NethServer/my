@@ -31,6 +31,11 @@ const router = createRouter({
       component: LoginRedirectView,
     },
     {
+      path: '/forbidden',
+      name: 'forbidden',
+      component: () => import('../views/ForbiddenView.vue'),
+    },
+    {
       path: '/account',
       name: 'account',
       component: () => import('../views/AccountView.vue'),

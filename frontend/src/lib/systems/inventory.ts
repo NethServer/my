@@ -4,6 +4,48 @@
 import axios from 'axios'
 import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
+import type { NsecFacts } from './nsecFacts'
+import type { Ns8Facts } from './ns8Facts'
+
+export type { NsecFacts, NsecFeatures, NsecNetworkFeature } from './nsecFacts'
+
+export interface PciDevice {
+  class_id: string
+  vendor_id: string
+  device_id: string
+  revision: string
+  class_name: string
+  vendor_name: string
+  device_name: string
+  driver: string
+}
+
+export interface Distro {
+  name: string
+  version: string
+}
+
+export interface Memory {
+  swap: {
+    used_bytes: number
+    available_bytes: number
+  }
+  system: {
+    used_bytes: number
+    available_bytes: number
+  }
+}
+
+export interface Product {
+  name: string
+  manufacturer: string
+}
+
+export interface Processors {
+  count: number | string
+  model: string
+  architecture: string
+}
 
 export const LATEST_INVENTORY_KEY = 'latestInventory'
 
@@ -11,15 +53,12 @@ interface InventoryData {
   id: number
   system_id: string
   timestamp: string
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  data: any // The structure of inventory data can be complex and varied
-}
-
-export interface EsmithConfiguration {
-  name: string
-  type: string
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  props: any
+  data: {
+    uuid: string
+    installation: string
+    $schema: string
+    facts: Ns8Facts | NsecFacts
+  }
 }
 
 interface LatestInventoryResponse {

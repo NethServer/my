@@ -17,6 +17,7 @@ const {
   skeletonLines = 2,
   uppercaseTitle = true,
   centeredCounter = true,
+  colorClasses = undefined,
 } = defineProps<{
   title: string
   counter: number
@@ -25,6 +26,7 @@ const {
   skeletonLines?: number
   uppercaseTitle?: boolean
   centeredCounter?: boolean
+  colorClasses?: string
 }>()
 
 const slots = useSlots()
@@ -49,7 +51,8 @@ const hasDefaultSlot = computed(() => !!slots.default)
         </div>
         <span
           :class="[
-            'self-center text-4xl font-medium text-indigo-700 dark:text-indigo-500',
+            'self-center text-4xl font-medium',
+            colorClasses ?? 'text-indigo-700 dark:text-indigo-500',
             { 'self-center': centeredCounter },
           ]"
         >

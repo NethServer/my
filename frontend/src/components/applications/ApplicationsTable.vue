@@ -24,7 +24,6 @@ import {
   NeEmptyState,
   NeInlineNotification,
   NeTextInput,
-  NeSpinner,
   NeDropdown,
   type SortEvent,
   NeTooltip,
@@ -39,11 +38,8 @@ import { canManageApplications } from '@/lib/permissions'
 import { SYSTEMS_TABLE_ID } from '@/lib/systems/systems'
 import OrganizationIcon from '../organizations/OrganizationIcon.vue'
 import { useApplications } from '@/queries/applications/applications'
-import {
-  getApplicationLogo,
-  getDisplayName,
-  type Application,
-} from '@/lib/applications/applications'
+import { getDisplayName, type Application } from '@/lib/applications/applications'
+import ApplicationLogo from './ApplicationLogo.vue'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import AssignOrganizationDrawer from './AssignOrganizationDrawer.vue'
 import SetNotesDrawer from './SetNotesDrawer.vue'
@@ -51,6 +47,7 @@ import OrganizationLink from './OrganizationLink.vue'
 import { useApplicationFilters } from '@/queries/applications/applicationFilters'
 import { buildVersionFilterOptions } from '@/lib/applications/applicationFilters'
 import router from '@/router'
+import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 
 const { t } = useI18n()
 const {
@@ -312,15 +309,7 @@ const goToApplicationDetails = (application: Application) => {
             </NeButton>
           </div>
           <!-- update indicator -->
-          <div
-            v-if="asyncStatus === 'loading' && state.status !== 'pending'"
-            class="relative -top-2 flex items-center gap-2"
-          >
-            <NeSpinner color="white" />
-            <div class="text-gray-500 dark:text-gray-400">
-              {{ $t('common.updating') }}
-            </div>
-          </div>
+          <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
         </div>
       </div>
       <!-- no application matching filter -->
@@ -377,13 +366,7 @@ const goToApplicationDetails = (application: Application) => {
             </NeTableCell>
             <NeTableCell :data-label="$t('applications.type')">
               <div class="flex items-center gap-2">
-                <img
-                  v-if="item.instance_of"
-                  :src="getApplicationLogo(item.instance_of)"
-                  :alt="item.instance_of"
-                  aria-hidden="true"
-                  class="size-8"
-                />
+                <ApplicationLogo :app="item.instance_of" />
                 <span class="font-medium">
                   {{ item.name || '-' }}
                 </span>

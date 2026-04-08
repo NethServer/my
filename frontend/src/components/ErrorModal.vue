@@ -21,21 +21,29 @@ const notification = computed(() => {
   return notificationsStore.axiosErrorNotificationToShow
 })
 
+const notificationPayload = computed(() => {
+  if (!notification.value) {
+    return undefined
+  }
+
+  return notificationsStore.getAxiosErrorNotificationPayload(notification.value)
+})
+
 const callFailed = computed(() => {
-  const httpMethod = notification.value?.payload.axiosError?.config?.method.toUpperCase()
-  const apiUrl = notification.value?.payload.axiosError?.config?.url
+  const httpMethod = notificationPayload.value?.axiosError?.config?.method?.toUpperCase()
+  const apiUrl = notificationPayload.value?.axiosError?.config?.url
   return `${httpMethod} ${apiUrl}`
 })
 
 const response = computed(() => {
   const errorCode =
-    notification.value?.payload.responseData?.code ||
-    notification.value?.payload.axiosError?.status ||
+    (notificationPayload.value?.responseData as { code?: string | number } | undefined)?.code ||
+    notificationPayload.value?.axiosError?.status ||
     ''
 
   const message =
-    notification.value?.payload.responseData?.message ||
-    notification.value?.payload.axiosError?.message ||
+    (notificationPayload.value?.responseData as { message?: string } | undefined)?.message ||
+    notificationPayload.value?.axiosError?.message ||
     t('error_modal.unknown_error')
 
   return `${errorCode} ${message}`
@@ -49,7 +57,7 @@ watch(
       isExpandedResponse.value = false
 
       // print the error object on the console
-      console.info(toRaw(notification.value?.payload))
+      console.info(toRaw(notificationPayload.value))
     }
   },
 )

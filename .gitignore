@@ -54,3 +54,4 @@ Thumbs.db
 
 # Copilot instructions (local only)
 .github/copilot-instructions.md
+.github/instructions/frontend.instructions.md
