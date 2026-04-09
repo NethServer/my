@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/models"
@@ -545,23 +546,29 @@ func (r *LocalUserRepository) UpdateLatestLogin(userID string) error {
 
 // List returns paginated list of users based on hierarchical RBAC (matches other repository patterns)
 func (r *LocalUserRepository) List(userOrgRole, userOrgID, excludeUserID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses, roleFilter []string) ([]*models.LocalUser, int, error) {
-	// Get all organization IDs the user can access hierarchically
-	allowedOrgIDs, err := r.GetHierarchicalOrganizationIDs(userOrgRole, userOrgID)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
+	// Owner can access all users - pass nil to skip RBAC filtering in query
+	var allowedOrgIDs []string
+	if strings.ToLower(userOrgRole) != "owner" {
+		var err error
+		allowedOrgIDs, err = r.GetHierarchicalOrganizationIDs(userOrgRole, userOrgID)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
+		}
 	}
 
 	return r.ListByOrganizations(allowedOrgIDs, excludeUserID, page, pageSize, search, sortBy, sortDirection, organizationFilter, statuses, roleFilter)
 }
 
 // ListByOrganizations returns paginated list of users in specified organizations (excluding specified user)
+// nil allowedOrgIDs = owner (no RBAC filter), empty = no access
 func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, excludeUserID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses, roleFilter []string) ([]*models.LocalUser, int, error) {
-	if len(allowedOrgIDs) == 0 {
+	// nil = owner (no RBAC filter), empty = no access
+	if allowedOrgIDs != nil && len(allowedOrgIDs) == 0 {
 		return []*models.LocalUser{}, 0, nil
 	}
 
-	// If organization filter is specified, verify each is in allowed orgs
-	if len(organizationFilter) > 0 {
+	// If organization filter is specified, verify each is in allowed orgs (skip for owner)
+	if len(organizationFilter) > 0 && allowedOrgIDs != nil {
 		var filteredOrgIDs []string
 		allowedSet := make(map[string]bool, len(allowedOrgIDs))
 		for _, orgID := range allowedOrgIDs {
@@ -573,11 +580,12 @@ func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, exclud
 			}
 		}
 		if len(filteredOrgIDs) == 0 {
-			// None of the filtered organizations are in allowed list - return empty
 			return []*models.LocalUser{}, 0, nil
 		}
-		// Use only the filtered organizations
 		allowedOrgIDs = filteredOrgIDs
+	} else if len(organizationFilter) > 0 && allowedOrgIDs == nil {
+		// Owner with org filter: use the filter directly as the allowed list
+		allowedOrgIDs = organizationFilter
 	}
 
 	offset := (page - 1) * pageSize
@@ -601,7 +609,7 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, exclud
 			"created_at":      "u.created_at",
 			"updated_at":      "u.updated_at",
 			"latest_login_at": "u.latest_login_at",
-			"organization":    "LOWER(COALESCE(d.name, r.name, c.name))",
+			"organization":    "LOWER(uo.name)",
 			"status":          "u.suspended_at",
 		}
 
@@ -639,80 +647,54 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, exclud
 		statusClause = " AND (" + strings.Join(statusConditions, " OR ") + ")"
 	}
 
-	// Build placeholders for organization IDs
-	placeholders := make([]string, len(allowedOrgIDs))
-	for i := range allowedOrgIDs {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
+	// Build WHERE clause and args: nil allowedOrgIDs = owner (no org filter)
+	var args []interface{}
+	orgClause := ""
+	if allowedOrgIDs != nil {
+		args = append(args, pq.Array(allowedOrgIDs))
+		orgClause = fmt.Sprintf(" AND u.organization_id = ANY($%d::text[])", len(args))
 	}
-	orgPlaceholders := strings.Join(placeholders, ",")
 
-	// Track parameter index for dynamic filters
-	paramIdx := len(allowedOrgIDs) + 4 // after orgIDs, excludeUserID, search, search
+	args = append(args, excludeUserID)
+	excludeClause := fmt.Sprintf(" AND u.id != $%d", len(args))
 
-	// Build role filter clause (supports multiple roles with OR logic)
+	args = append(args, search, search)
+	searchClause := fmt.Sprintf(" AND (LOWER(u.name) LIKE LOWER('%%%%' || $%d || '%%%%') OR LOWER(u.email) LIKE LOWER('%%%%' || $%d || '%%%%'))", len(args)-1, len(args))
+
+	// Build role filter clause
 	roleClause := ""
-	var roleArgs []interface{}
 	if len(roleFilter) > 0 {
 		var roleConditions []string
 		for _, role := range roleFilter {
-			roleConditions = append(roleConditions, fmt.Sprintf("u.user_role_ids @> jsonb_build_array($%d::text)", paramIdx))
-			roleArgs = append(roleArgs, role)
-			paramIdx++
+			args = append(args, role)
+			roleConditions = append(roleConditions, fmt.Sprintf("u.user_role_ids @> jsonb_build_array($%d::text)", len(args)))
 		}
 		roleClause = " AND (" + strings.Join(roleConditions, " OR ") + ")"
 	}
 
-	// Build count query
-	countQuery := fmt.Sprintf(`
-		SELECT COUNT(*) FROM users u
-		WHERE 1=1%s
-		  AND u.organization_id IN (%s)
-		  AND u.id != $%d
-		  AND (LOWER(u.name) LIKE LOWER('%%' || $%d || '%%') OR LOWER(u.email) LIKE LOWER('%%' || $%d || '%%'))%s%s
-	`, deletedClause, orgPlaceholders, len(allowedOrgIDs)+1, len(allowedOrgIDs)+2, len(allowedOrgIDs)+3, statusClause, roleClause)
+	whereClause := fmt.Sprintf("1=1%s%s%s%s%s%s", deletedClause, orgClause, excludeClause, searchClause, statusClause, roleClause)
 
-	// Build main query
+	// Single query with COUNT(*) OVER() for total count + paginated results
 	mainQuery := fmt.Sprintf(`
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
 		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at, u.suspended_by_org_id,
-		       COALESCE(d.name, r.name, c.name) as organization_name,
-		       COALESCE(d.id, r.id, c.id) as organization_local_id,
-		       CASE
-		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
-		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
-		           WHEN c.logto_id IS NOT NULL THEN 'customer'
-		           ELSE 'owner'
-		       END as organization_type
+		       uo.name as organization_name,
+		       uo.db_id as organization_local_id,
+		       COALESCE(uo.org_type, 'owner') as organization_type,
+		       COUNT(*) OVER() as total_count
 		FROM users u
-		LEFT JOIN distributors d ON (u.organization_id = d.logto_id OR u.organization_id = d.id::text) AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON (u.organization_id = r.logto_id OR u.organization_id = r.id::text) AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON (u.organization_id = c.logto_id OR u.organization_id = c.id::text) AND c.deleted_at IS NULL
-		WHERE 1=1%s
-		  AND u.organization_id IN (%s)
-		  AND u.id != $%d
-		  AND (LOWER(u.name) LIKE LOWER('%%' || $%d || '%%') OR LOWER(u.email) LIKE LOWER('%%' || $%d || '%%'))%s%s
+		LEFT JOIN unified_organizations uo ON u.organization_id = uo.logto_id
+		WHERE %s
 		%s
 		LIMIT $%d OFFSET $%d
-	`, deletedClause, orgPlaceholders, len(allowedOrgIDs)+1, len(allowedOrgIDs)+2, len(allowedOrgIDs)+3, statusClause, roleClause, orderClause, paramIdx, paramIdx+1)
+	`, whereClause, orderClause, len(args)+1, len(args)+2)
 
-	// Prepare arguments for count query
-	countArgs := make([]interface{}, 0, len(allowedOrgIDs)+5+len(roleArgs))
-	for _, orgID := range allowedOrgIDs {
-		countArgs = append(countArgs, orgID)
-	}
-	countArgs = append(countArgs, excludeUserID, search, search)
-	countArgs = append(countArgs, roleArgs...)
+	mainArgs := make([]interface{}, len(args)+2)
+	copy(mainArgs, args)
+	mainArgs[len(args)] = pageSize
+	mainArgs[len(args)+1] = offset
 
-	// Prepare arguments for main query
-	mainArgs := make([]interface{}, 0, len(allowedOrgIDs)+7+len(roleArgs))
-	for _, orgID := range allowedOrgIDs {
-		mainArgs = append(mainArgs, orgID)
-	}
-	mainArgs = append(mainArgs, excludeUserID, search, search)
-	mainArgs = append(mainArgs, roleArgs...)
-	mainArgs = append(mainArgs, pageSize, offset)
-
-	return r.executeUserQuery(countQuery, countArgs, mainQuery, mainArgs)
+	return r.executeUserQuery("", nil, mainQuery, mainArgs)
 }
 
 // listUsersWithoutSearch handles user listing without search functionality
@@ -727,7 +709,7 @@ func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, exc
 			"created_at":      "u.created_at",
 			"updated_at":      "u.updated_at",
 			"latest_login_at": "u.latest_login_at",
-			"organization":    "LOWER(COALESCE(d.name, r.name, c.name))",
+			"organization":    "LOWER(uo.name)",
 			"status":          "u.suspended_at",
 		}
 
@@ -765,96 +747,63 @@ func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, exc
 		statusClause = " AND (" + strings.Join(statusConditions, " OR ") + ")"
 	}
 
-	// Build placeholders for organization IDs
-	placeholders := make([]string, len(allowedOrgIDs))
-	for i := range allowedOrgIDs {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
+	// Build WHERE clause and args: nil allowedOrgIDs = owner (no org filter)
+	var args []interface{}
+	orgClause := ""
+	if allowedOrgIDs != nil {
+		args = append(args, pq.Array(allowedOrgIDs))
+		orgClause = fmt.Sprintf(" AND u.organization_id = ANY($%d::text[])", len(args))
 	}
-	orgPlaceholders := strings.Join(placeholders, ",")
 
-	// Track parameter index for dynamic filters
-	paramIdx := len(allowedOrgIDs) + 2 // after orgIDs, excludeUserID
+	args = append(args, excludeUserID)
+	excludeClause := fmt.Sprintf(" AND u.id != $%d", len(args))
 
-	// Build role filter clause (supports multiple roles with OR logic)
+	// Build role filter clause
 	roleClause := ""
-	var roleArgs []interface{}
 	if len(roleFilter) > 0 {
 		var roleConditions []string
 		for _, role := range roleFilter {
-			roleConditions = append(roleConditions, fmt.Sprintf("u.user_role_ids @> jsonb_build_array($%d::text)", paramIdx))
-			roleArgs = append(roleArgs, role)
-			paramIdx++
+			args = append(args, role)
+			roleConditions = append(roleConditions, fmt.Sprintf("u.user_role_ids @> jsonb_build_array($%d::text)", len(args)))
 		}
 		roleClause = " AND (" + strings.Join(roleConditions, " OR ") + ")"
 	}
 
-	// Build count query
-	countQuery := fmt.Sprintf(`
-		SELECT COUNT(*) FROM users u
-		WHERE 1=1%s
-		  AND u.organization_id IN (%s)
-		  AND u.id != $%d%s%s
-	`, deletedClause, orgPlaceholders, len(allowedOrgIDs)+1, statusClause, roleClause)
+	whereClause := fmt.Sprintf("1=1%s%s%s%s%s", deletedClause, orgClause, excludeClause, statusClause, roleClause)
 
-	// Build main query
+	// Single query with COUNT(*) OVER() for total count + paginated results
 	mainQuery := fmt.Sprintf(`
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
 		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at, u.suspended_by_org_id,
-		       COALESCE(d.name, r.name, c.name) as organization_name,
-		       COALESCE(d.id, r.id, c.id) as organization_local_id,
-		       CASE
-		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
-		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
-		           WHEN c.logto_id IS NOT NULL THEN 'customer'
-		           ELSE 'owner'
-		       END as organization_type
+		       uo.name as organization_name,
+		       uo.db_id as organization_local_id,
+		       COALESCE(uo.org_type, 'owner') as organization_type,
+		       COUNT(*) OVER() as total_count
 		FROM users u
-		LEFT JOIN distributors d ON (u.organization_id = d.logto_id OR u.organization_id = d.id::text) AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON (u.organization_id = r.logto_id OR u.organization_id = r.id::text) AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON (u.organization_id = c.logto_id OR u.organization_id = c.id::text) AND c.deleted_at IS NULL
-		WHERE 1=1%s
-		  AND u.organization_id IN (%s)
-		  AND u.id != $%d%s%s
+		LEFT JOIN unified_organizations uo ON u.organization_id = uo.logto_id
+		WHERE %s
 		%s
 		LIMIT $%d OFFSET $%d
-	`, deletedClause, orgPlaceholders, len(allowedOrgIDs)+1, statusClause, roleClause, orderClause, paramIdx, paramIdx+1)
+	`, whereClause, orderClause, len(args)+1, len(args)+2)
 
-	// Prepare arguments for count query
-	countArgs := make([]interface{}, 0, len(allowedOrgIDs)+3+len(roleArgs))
-	for _, orgID := range allowedOrgIDs {
-		countArgs = append(countArgs, orgID)
-	}
-	countArgs = append(countArgs, excludeUserID)
-	countArgs = append(countArgs, roleArgs...)
+	mainArgs := make([]interface{}, len(args)+2)
+	copy(mainArgs, args)
+	mainArgs[len(args)] = pageSize
+	mainArgs[len(args)+1] = offset
 
-	// Prepare arguments for main query
-	mainArgs := make([]interface{}, 0, len(allowedOrgIDs)+5+len(roleArgs))
-	for _, orgID := range allowedOrgIDs {
-		mainArgs = append(mainArgs, orgID)
-	}
-	mainArgs = append(mainArgs, excludeUserID)
-	mainArgs = append(mainArgs, roleArgs...)
-	mainArgs = append(mainArgs, pageSize, offset)
-
-	return r.executeUserQuery(countQuery, countArgs, mainQuery, mainArgs)
+	return r.executeUserQuery("", nil, mainQuery, mainArgs)
 }
 
-// executeUserQuery executes the count and main queries for users
-func (r *LocalUserRepository) executeUserQuery(countQuery string, countArgs []interface{}, mainQuery string, mainArgs []interface{}) ([]*models.LocalUser, int, error) {
-	// Get total count
-	var totalCount int
-	err := r.db.QueryRow(countQuery, countArgs...).Scan(&totalCount)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get users count: %w", err)
-	}
-
-	// Get paginated results
+// executeUserQuery executes the main query for users (count is embedded via COUNT(*) OVER())
+func (r *LocalUserRepository) executeUserQuery(_ string, _ []interface{}, mainQuery string, mainArgs []interface{}) ([]*models.LocalUser, int, error) {
+	// Single query with COUNT(*) OVER() for total count + paginated results
 	rows, err := r.db.Query(mainQuery, mainArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query users: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
+	var totalCount int
 	var users []*models.LocalUser
 	for rows.Next() {
 		user := &models.LocalUser{}
@@ -865,6 +814,7 @@ func (r *LocalUserRepository) executeUserQuery(countQuery string, countArgs []in
 			&user.Phone, &user.OrganizationID, &userRoleIDsJSON, &customDataJSON,
 			&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt, &user.SuspendedByOrgID,
 			&user.OrganizationName, &user.OrganizationLocalID, &user.OrganizationType,
+			&totalCount,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan user: %w", err)
@@ -903,35 +853,36 @@ func (r *LocalUserRepository) executeUserQuery(countQuery string, countArgs []in
 
 // GetTotals returns total count of users based on hierarchical RBAC (matches other repository patterns)
 func (r *LocalUserRepository) GetTotals(userOrgRole, userOrgID string) (int, error) {
-	// Get all organization IDs the user can access hierarchically
-	allowedOrgIDs, err := r.GetHierarchicalOrganizationIDs(userOrgRole, userOrgID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
+	// Owner can access all users - pass nil to skip RBAC filtering
+	var allowedOrgIDs []string
+	if strings.ToLower(userOrgRole) != "owner" {
+		var err error
+		allowedOrgIDs, err = r.GetHierarchicalOrganizationIDs(userOrgRole, userOrgID)
+		if err != nil {
+			return 0, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
+		}
 	}
 
 	return r.GetTotalsByOrganizations(allowedOrgIDs)
 }
 
 // GetTotalsByOrganizations returns total count of users in specified organizations
+// nil allowedOrgIDs = owner (no RBAC filter), empty = no access
 func (r *LocalUserRepository) GetTotalsByOrganizations(allowedOrgIDs []string) (int, error) {
-	if len(allowedOrgIDs) == 0 {
+	if allowedOrgIDs != nil && len(allowedOrgIDs) == 0 {
 		return 0, nil
 	}
 
-	// Build placeholders for IN clause
-	placeholders := make([]string, len(allowedOrgIDs))
-	args := make([]interface{}, len(allowedOrgIDs))
-	for i, orgID := range allowedOrgIDs {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		args[i] = orgID
-	}
-	placeholdersStr := strings.Join(placeholders, ",")
-
 	var count int
-	query := fmt.Sprintf(`
-		SELECT COUNT(*) FROM users
-		WHERE deleted_at IS NULL AND organization_id IN (%s)
-	`, placeholdersStr)
+	var query string
+	var args []interface{}
+
+	if allowedOrgIDs != nil {
+		query = `SELECT COUNT(*) FROM users WHERE deleted_at IS NULL AND organization_id = ANY($1::text[])`
+		args = []interface{}{pq.Array(allowedOrgIDs)}
+	} else {
+		query = `SELECT COUNT(*) FROM users WHERE deleted_at IS NULL`
+	}
 
 	err := r.db.QueryRow(query, args...).Scan(&count)
 	return count, err

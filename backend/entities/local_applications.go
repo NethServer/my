@@ -157,15 +157,22 @@ func (r *LocalApplicationRepository) List(
 	filterTypes, filterVersions, filterSystemIDs, filterOrgIDs, filterStatuses []string,
 	userFacingOnly bool,
 ) ([]*models.Application, int, error) {
-	if len(allowedSystemIDs) == 0 {
+	// nil = owner (no RBAC filter), empty = no access
+	if allowedSystemIDs != nil && len(allowedSystemIDs) == 0 {
 		return []*models.Application{}, 0, nil
 	}
 
 	offset := (page - 1) * pageSize
 
-	// Use ANY($1::text[]) for allowed system IDs (single parameter instead of N placeholders)
-	whereClause := "a.deleted_at IS NULL AND a.system_id = ANY($1::text[])"
-	args := []interface{}{pq.Array(allowedSystemIDs)}
+	// Build WHERE clause: nil means owner (skip system filter), non-nil means RBAC filter
+	var whereClause string
+	var args []interface{}
+	if allowedSystemIDs != nil {
+		whereClause = "a.deleted_at IS NULL AND a.system_id = ANY($1::text[])"
+		args = []interface{}{pq.Array(allowedSystemIDs)}
+	} else {
+		whereClause = "a.deleted_at IS NULL"
+	}
 
 	// User-facing filter
 	if userFacingOnly {
@@ -258,19 +265,6 @@ func (r *LocalApplicationRepository) List(
 		args = append(args, pq.Array(filterStatuses))
 	}
 
-	// Get total count
-	countQuery := fmt.Sprintf(`
-		SELECT COUNT(*)
-		FROM applications a
-		LEFT JOIN systems s ON a.system_id = s.id
-		WHERE %s`, whereClause)
-
-	var totalCount int
-	err := r.db.QueryRow(countQuery, args...).Scan(&totalCount)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get applications count: %w", err)
-	}
-
 	// Build ORDER BY clause
 	orderBy := "a.created_at DESC"
 	if sortBy != "" {
@@ -297,7 +291,7 @@ func (r *LocalApplicationRepository) List(
 		}
 	}
 
-	// Build main query
+	// Single query with COUNT(*) OVER() to get total count + paginated results
 	query := fmt.Sprintf(`
 		SELECT a.id, a.system_id, a.module_id, a.instance_of, a.name, a.source, a.display_name, a.node_id, a.node_label,
 		       a.version, a.organization_id, a.organization_type, a.status, a.inventory_data,
@@ -305,7 +299,8 @@ func (r *LocalApplicationRepository) List(
 		       a.created_at, a.updated_at, a.first_seen_at, a.last_inventory_at,
 		       s.name as system_name,
 		       COALESCE(uo.name, 'Owner') as organization_name,
-		       uo.db_id as organization_db_id
+		       uo.db_id as organization_db_id,
+		       COUNT(*) OVER() as total_count
 		FROM applications a
 		LEFT JOIN systems s ON a.system_id = s.id
 		LEFT JOIN unified_organizations uo ON a.organization_id = uo.logto_id
@@ -325,6 +320,7 @@ func (r *LocalApplicationRepository) List(
 	}
 	defer func() { _ = rows.Close() }()
 
+	var totalCount int
 	var apps []*models.Application
 	for rows.Next() {
 		app := &models.Application{}
@@ -340,6 +336,7 @@ func (r *LocalApplicationRepository) List(
 			&backupData, &servicesData, &url, &notes, &app.IsUserFacing,
 			&app.CreatedAt, &app.UpdatedAt, &app.FirstSeenAt, &lastInventoryAt,
 			&systemName, &orgName, &orgDbID,
+			&totalCount,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan application: %w", err)
@@ -415,7 +412,8 @@ func (r *LocalApplicationRepository) List(
 
 // GetTotals returns statistics for applications using a single CTE query
 func (r *LocalApplicationRepository) GetTotals(allowedSystemIDs []string, userFacingOnly bool) (*models.ApplicationTotals, error) {
-	if len(allowedSystemIDs) == 0 {
+	// nil = owner (no filter), empty = no access
+	if allowedSystemIDs != nil && len(allowedSystemIDs) == 0 {
 		return &models.ApplicationTotals{
 			Total:      0,
 			Unassigned: 0,
@@ -433,12 +431,18 @@ func (r *LocalApplicationRepository) GetTotals(allowedSystemIDs []string, userFa
 
 	certLevelClause := " AND (inventory_data->>'certification_level')::int IN (4, 5)"
 
-	// Single CTE query instead of 3 separate queries
+	systemClause := ""
+	var args []interface{}
+	if allowedSystemIDs != nil {
+		systemClause = " AND system_id = ANY($1::text[])"
+		args = []interface{}{pq.Array(allowedSystemIDs)}
+	}
+
 	query := fmt.Sprintf(`
 		WITH filtered AS (
 			SELECT instance_of, status, organization_id, services_data
 			FROM applications
-			WHERE deleted_at IS NULL AND system_id = ANY($1::text[])%s%s
+			WHERE deleted_at IS NULL%s%s%s
 		)
 		SELECT
 			(SELECT COUNT(*) FROM filtered) as total,
@@ -447,7 +451,7 @@ func (r *LocalApplicationRepository) GetTotals(allowedSystemIDs []string, userFa
 			(SELECT COUNT(*) FROM filtered WHERE services_data->>'has_errors' = 'true') as with_errors,
 			(SELECT COALESCE(json_object_agg(instance_of, cnt), '{}') FROM (SELECT instance_of, COUNT(*) as cnt FROM filtered GROUP BY instance_of) t) as by_type,
 			(SELECT COALESCE(json_object_agg(status, cnt), '{}') FROM (SELECT status, COUNT(*) as cnt FROM filtered GROUP BY status) s) as by_status
-	`, userFacingClause, certLevelClause)
+	`, systemClause, userFacingClause, certLevelClause)
 
 	totals := &models.ApplicationTotals{
 		ByType:   make(map[string]int64),
@@ -455,7 +459,7 @@ func (r *LocalApplicationRepository) GetTotals(allowedSystemIDs []string, userFa
 	}
 
 	var byTypeJSON, byStatusJSON []byte
-	err := r.db.QueryRow(query, pq.Array(allowedSystemIDs)).Scan(
+	err := r.db.QueryRow(query, args...).Scan(
 		&totals.Total, &totals.Unassigned, &totals.Assigned, &totals.WithErrors,
 		&byTypeJSON, &byStatusJSON,
 	)
@@ -479,14 +483,21 @@ func (r *LocalApplicationRepository) GetTotals(allowedSystemIDs []string, userFa
 // page/pageSize control pagination of the by_type array (0 means no pagination)
 // sortBy/sortDirection control ordering of the by_type array
 func (r *LocalApplicationRepository) GetTypeSummary(allowedSystemIDs []string, organizationIDs []string, userFacingOnly bool, page, pageSize int, sortBy, sortDirection string) (*models.ApplicationTypeSummary, error) {
-	if len(allowedSystemIDs) == 0 {
+	// nil = owner (no filter), empty = no access
+	if allowedSystemIDs != nil && len(allowedSystemIDs) == 0 {
 		return &models.ApplicationTypeSummary{
 			Total:  0,
 			ByType: []models.ApplicationType{},
 		}, nil
 	}
 
-	args := []interface{}{pq.Array(allowedSystemIDs)}
+	var args []interface{}
+
+	systemClause := ""
+	if allowedSystemIDs != nil {
+		args = append(args, pq.Array(allowedSystemIDs))
+		systemClause = " AND system_id = ANY($1::text[])"
+	}
 
 	userFacingClause := ""
 	if userFacingOnly {
@@ -502,7 +513,7 @@ func (r *LocalApplicationRepository) GetTypeSummary(allowedSystemIDs []string, o
 		args = append(args, pq.Array(organizationIDs))
 	}
 
-	whereClause := fmt.Sprintf("deleted_at IS NULL AND system_id = ANY($1::text[])%s%s%s", userFacingClause, certLevelClause, orgClause)
+	whereClause := fmt.Sprintf("deleted_at IS NULL%s%s%s%s", systemClause, userFacingClause, certLevelClause, orgClause)
 
 	// Get total count of applications and distinct types
 	countQuery := fmt.Sprintf(`SELECT COUNT(*), COUNT(DISTINCT instance_of) FROM applications WHERE %s`, whereClause)
@@ -661,7 +672,8 @@ func (r *LocalApplicationRepository) GetTrend(allowedSystemIDs []string, period 
 
 // GetDistinctTypes returns distinct application types with is_user_facing from database
 func (r *LocalApplicationRepository) GetDistinctTypes(allowedSystemIDs []string, userFacingOnly bool) ([]models.ApplicationType, error) {
-	if len(allowedSystemIDs) == 0 {
+	// nil = owner (no filter), empty = no access
+	if allowedSystemIDs != nil && len(allowedSystemIDs) == 0 {
 		return []models.ApplicationType{}, nil
 	}
 
@@ -672,18 +684,24 @@ func (r *LocalApplicationRepository) GetDistinctTypes(allowedSystemIDs []string,
 
 	certLevelClause := " AND (inventory_data->>'certification_level')::int IN (4, 5)"
 
-	// Use array_agg instead of correlated subquery for name lookup
+	systemClause := ""
+	var args []interface{}
+	if allowedSystemIDs != nil {
+		systemClause = " AND system_id = ANY($1::text[])"
+		args = []interface{}{pq.Array(allowedSystemIDs)}
+	}
+
 	query := fmt.Sprintf(`
 		SELECT instance_of,
 			(array_agg(name ORDER BY updated_at DESC) FILTER (WHERE name IS NOT NULL))[1] as name,
 			COUNT(*) as count
 		FROM applications a
-		WHERE deleted_at IS NULL AND system_id = ANY($1::text[])%s%s
+		WHERE deleted_at IS NULL%s%s%s
 		GROUP BY instance_of
 		ORDER BY instance_of
-	`, userFacingClause, certLevelClause)
+	`, systemClause, userFacingClause, certLevelClause)
 
-	rows, err := r.db.Query(query, pq.Array(allowedSystemIDs))
+	rows, err := r.db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get distinct types: %w", err)
 	}
@@ -713,7 +731,8 @@ type ApplicationVersionGroup struct {
 
 // GetDistinctVersions returns distinct application versions grouped by instance_of
 func (r *LocalApplicationRepository) GetDistinctVersions(allowedSystemIDs []string, userFacingOnly bool) (map[string]ApplicationVersionGroup, error) {
-	if len(allowedSystemIDs) == 0 {
+	// nil = owner (no filter), empty = no access
+	if allowedSystemIDs != nil && len(allowedSystemIDs) == 0 {
 		return map[string]ApplicationVersionGroup{}, nil
 	}
 
@@ -724,17 +743,24 @@ func (r *LocalApplicationRepository) GetDistinctVersions(allowedSystemIDs []stri
 
 	certLevelClause := " AND (inventory_data->>'certification_level')::int IN (4, 5)"
 
+	systemClause := ""
+	var args []interface{}
+	if allowedSystemIDs != nil {
+		systemClause = " AND system_id = ANY($1::text[])"
+		args = []interface{}{pq.Array(allowedSystemIDs)}
+	}
+
 	query := fmt.Sprintf(`
 		SELECT instance_of,
 			(array_agg(name ORDER BY updated_at DESC) FILTER (WHERE name IS NOT NULL))[1] as name,
 			version
 		FROM applications
-		WHERE deleted_at IS NULL AND version IS NOT NULL AND system_id = ANY($1::text[])%s%s
+		WHERE deleted_at IS NULL AND version IS NOT NULL%s%s%s
 		GROUP BY instance_of, version
 		ORDER BY instance_of ASC, version DESC
-	`, userFacingClause, certLevelClause)
+	`, systemClause, userFacingClause, certLevelClause)
 
-	rows, err := r.db.Query(query, pq.Array(allowedSystemIDs))
+	rows, err := r.db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get distinct versions: %w", err)
 	}

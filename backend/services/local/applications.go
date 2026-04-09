@@ -36,10 +36,14 @@ func (s *LocalApplicationsService) GetApplications(
 	search, sortBy, sortDirection string,
 	filterTypes, filterVersions, filterSystemIDs, filterOrgIDs, filterStatuses []string,
 ) ([]*models.Application, int, error) {
-	// Get allowed system IDs based on user's organization hierarchy
-	allowedSystemIDs, err := s.getAllowedSystemIDs(userOrgRole, userOrgID)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get allowed systems: %w", err)
+	// Owner can access all systems - pass nil to skip RBAC filtering in query
+	var allowedSystemIDs []string
+	if strings.ToLower(userOrgRole) != "owner" {
+		var err error
+		allowedSystemIDs, err = s.getAllowedSystemIDs(userOrgRole, userOrgID)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to get allowed systems: %w", err)
+		}
 	}
 
 	// Only show user-facing applications
@@ -199,9 +203,14 @@ func (s *LocalApplicationsService) GetApplicationTotals(userOrgRole, userOrgID s
 		return &cached, nil
 	}
 
-	allowedSystemIDs, err := s.getAllowedSystemIDs(userOrgRole, userOrgID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get allowed systems: %w", err)
+	// Owner can access all systems - pass nil to skip RBAC filtering
+	var allowedSystemIDs []string
+	if strings.ToLower(userOrgRole) != "owner" {
+		var err error
+		allowedSystemIDs, err = s.getAllowedSystemIDs(userOrgRole, userOrgID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get allowed systems: %w", err)
+		}
 	}
 
 	result, err := s.repo.GetTotals(allowedSystemIDs, true) // userFacingOnly
@@ -279,20 +288,35 @@ func (s *LocalApplicationsService) GetAvailableOrganizationsWithIDs(allowedOrgID
 
 // GetAvailableSystemsWithIDs returns available systems using pre-computed system IDs (avoids re-resolving RBAC)
 func (s *LocalApplicationsService) GetAvailableSystemsWithIDs(allowedSystemIDs []string) ([]models.SystemSummary, error) {
-	if len(allowedSystemIDs) == 0 {
+	// nil = owner (no filter), empty = no access
+	if allowedSystemIDs != nil && len(allowedSystemIDs) == 0 {
 		return []models.SystemSummary{}, nil
 	}
 
-	query := `
-		SELECT DISTINCT s.id, s.name FROM systems s
-		INNER JOIN applications a ON s.id = a.system_id
-		WHERE s.id = ANY($1::text[]) AND s.deleted_at IS NULL
-		  AND a.deleted_at IS NULL AND a.is_user_facing = TRUE
-		  AND (a.inventory_data->>'certification_level')::int IN (4, 5)
-		ORDER BY s.name
-	`
+	var query string
+	var args []interface{}
+	if allowedSystemIDs != nil {
+		query = `
+			SELECT DISTINCT s.id, s.name FROM systems s
+			INNER JOIN applications a ON s.id = a.system_id
+			WHERE s.id = ANY($1::text[]) AND s.deleted_at IS NULL
+			  AND a.deleted_at IS NULL AND a.is_user_facing = TRUE
+			  AND (a.inventory_data->>'certification_level')::int IN (4, 5)
+			ORDER BY s.name
+		`
+		args = []interface{}{pq.Array(allowedSystemIDs)}
+	} else {
+		query = `
+			SELECT DISTINCT s.id, s.name FROM systems s
+			INNER JOIN applications a ON s.id = a.system_id
+			WHERE s.deleted_at IS NULL
+			  AND a.deleted_at IS NULL AND a.is_user_facing = TRUE
+			  AND (a.inventory_data->>'certification_level')::int IN (4, 5)
+			ORDER BY s.name
+		`
+	}
 
-	rows, err := database.DB.Query(query, pq.Array(allowedSystemIDs))
+	rows, err := database.DB.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query systems: %w", err)
 	}
@@ -311,6 +335,7 @@ func (s *LocalApplicationsService) GetAvailableSystemsWithIDs(allowedSystemIDs [
 }
 
 // getAvailableOrganizationsFromIDs is the internal implementation that accepts pre-computed org IDs
+// nil allowedOrgIDs = owner (no RBAC filter)
 func (s *LocalApplicationsService) getAvailableOrganizationsFromIDs(allowedOrgIDs []string) ([]models.OrganizationSummary, error) {
 	var orgs []models.OrganizationSummary
 
@@ -332,27 +357,36 @@ func (s *LocalApplicationsService) getAvailableOrganizationsFromIDs(allowedOrgID
 		})
 	}
 
-	if len(allowedOrgIDs) == 0 {
+	// nil = owner (no filter), empty = no access
+	if allowedOrgIDs != nil && len(allowedOrgIDs) == 0 {
 		return orgs, nil
 	}
 
-	query := `
-		WITH all_orgs AS (
-			SELECT id::text, logto_id, name, 'distributor' AS type FROM distributors WHERE deleted_at IS NULL AND logto_id = ANY($1::text[])
-			UNION ALL
-			SELECT id::text, logto_id, name, 'reseller' AS type FROM resellers WHERE deleted_at IS NULL AND logto_id = ANY($1::text[])
-			UNION ALL
-			SELECT id::text, logto_id, name, 'customer' AS type FROM customers WHERE deleted_at IS NULL AND logto_id = ANY($1::text[])
-		)
-		SELECT DISTINCT o.id, o.logto_id, o.name, o.type
-		FROM all_orgs o
-		INNER JOIN applications a ON a.organization_id = o.logto_id
-		WHERE a.deleted_at IS NULL AND a.is_user_facing = TRUE
-		  AND (a.inventory_data->>'certification_level')::int IN (4, 5)
-		ORDER BY o.name
-	`
+	var query string
+	var args []interface{}
+	if allowedOrgIDs != nil {
+		query = `
+			SELECT DISTINCT uo.db_id, uo.logto_id, uo.name, uo.org_type
+			FROM unified_organizations uo
+			INNER JOIN applications a ON a.organization_id = uo.logto_id
+			WHERE uo.logto_id = ANY($1::text[])
+			  AND a.deleted_at IS NULL AND a.is_user_facing = TRUE
+			  AND (a.inventory_data->>'certification_level')::int IN (4, 5)
+			ORDER BY uo.name
+		`
+		args = []interface{}{pq.Array(allowedOrgIDs)}
+	} else {
+		query = `
+			SELECT DISTINCT uo.db_id, uo.logto_id, uo.name, uo.org_type
+			FROM unified_organizations uo
+			INNER JOIN applications a ON a.organization_id = uo.logto_id
+			WHERE a.deleted_at IS NULL AND a.is_user_facing = TRUE
+			  AND (a.inventory_data->>'certification_level')::int IN (4, 5)
+			ORDER BY uo.name
+		`
+	}
 
-	rows, err := database.DB.Query(query, pq.Array(allowedOrgIDs))
+	rows, err := database.DB.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query organizations: %w", err)
 	}
@@ -419,7 +453,7 @@ func (s *LocalApplicationsService) GetAllowedSystemIDs(userOrgRole, userOrgID st
 	}
 	defer func() { _ = rows.Close() }()
 
-	var systemIDs []string
+	systemIDs := make([]string, 0)
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
@@ -468,7 +502,7 @@ func (s *LocalApplicationsService) getAllowedOrganizationIDs(userOrgRole, userOr
 
 // computeAllowedOrganizationIDs performs the actual DB queries for allowed org IDs
 func (s *LocalApplicationsService) computeAllowedOrganizationIDs(normalizedRole, userOrgID string) ([]string, error) {
-	var allowedOrgIDs []string
+	allowedOrgIDs := make([]string, 0)
 
 	switch normalizedRole {
 	case "owner":
@@ -659,23 +693,29 @@ func (s *LocalApplicationsService) getOrganizationType(orgID string) (string, er
 
 // GetApplicationTypeSummary returns applications grouped by type, optionally filtered by organization
 func (s *LocalApplicationsService) GetApplicationTypeSummary(userOrgRole, userOrgID, organizationID, systemID string, includeHierarchy bool, page, pageSize int, sortBy, sortDirection string) (*models.ApplicationTypeSummary, error) {
-	// Get allowed system IDs based on user's hierarchy (always enforced)
-	allowedSystemIDs, err := s.getAllowedSystemIDs(userOrgRole, userOrgID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get allowed systems: %w", err)
+	// Owner can access all systems - pass nil to skip RBAC filtering
+	var allowedSystemIDs []string
+	if strings.ToLower(userOrgRole) != "owner" {
+		var err error
+		allowedSystemIDs, err = s.getAllowedSystemIDs(userOrgRole, userOrgID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get allowed systems: %w", err)
+		}
 	}
 
 	// If a specific system_id is requested, validate it's in the allowed set and restrict to it
 	if systemID != "" {
-		found := false
-		for _, id := range allowedSystemIDs {
-			if id == systemID {
-				found = true
-				break
+		if allowedSystemIDs != nil {
+			found := false
+			for _, id := range allowedSystemIDs {
+				if id == systemID {
+					found = true
+					break
+				}
 			}
-		}
-		if !found {
-			return nil, fmt.Errorf("access denied: system not in user hierarchy")
+			if !found {
+				return nil, fmt.Errorf("access denied: system not in user hierarchy")
+			}
 		}
 		allowedSystemIDs = []string{systemID}
 	}
@@ -683,21 +723,23 @@ func (s *LocalApplicationsService) GetApplicationTypeSummary(userOrgRole, userOr
 	var orgIDsToFilter []string
 
 	if organizationID != "" {
-		// Validate that the requested organization is within the user's hierarchy
-		allowedOrgIDs, err := s.getAllowedOrganizationIDs(userOrgRole, userOrgID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get allowed organizations: %w", err)
-		}
-
-		found := false
-		for _, id := range allowedOrgIDs {
-			if id == organizationID {
-				found = true
-				break
+		// Validate that the requested organization is within the user's hierarchy (skip for owner)
+		if strings.ToLower(userOrgRole) != "owner" {
+			allowedOrgIDs, err := s.getAllowedOrganizationIDs(userOrgRole, userOrgID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get allowed organizations: %w", err)
 			}
-		}
-		if !found {
-			return nil, fmt.Errorf("access denied: organization not in user hierarchy")
+
+			found := false
+			for _, id := range allowedOrgIDs {
+				if id == organizationID {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return nil, fmt.Errorf("access denied: organization not in user hierarchy")
+			}
 		}
 
 		if includeHierarchy {
@@ -707,14 +749,20 @@ func (s *LocalApplicationsService) GetApplicationTypeSummary(userOrgRole, userOr
 				return nil, fmt.Errorf("failed to get child organizations: %w", err)
 			}
 
-			// Intersect with allowed org IDs for safety
-			allowedSet := make(map[string]bool, len(allowedOrgIDs))
-			for _, id := range allowedOrgIDs {
-				allowedSet[id] = true
-			}
-			for _, id := range childIDs {
-				if allowedSet[id] {
-					orgIDsToFilter = append(orgIDsToFilter, id)
+			if strings.ToLower(userOrgRole) == "owner" {
+				// Owner can access all children
+				orgIDsToFilter = append(orgIDsToFilter, childIDs...)
+			} else {
+				// Intersect with allowed org IDs for safety
+				allowedOrgIDs, _ := s.getAllowedOrganizationIDs(userOrgRole, userOrgID)
+				allowedSet := make(map[string]bool, len(allowedOrgIDs))
+				for _, id := range allowedOrgIDs {
+					allowedSet[id] = true
+				}
+				for _, id := range childIDs {
+					if allowedSet[id] {
+						orgIDsToFilter = append(orgIDsToFilter, id)
+					}
 				}
 			}
 		} else {

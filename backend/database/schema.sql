@@ -101,6 +101,7 @@ CREATE INDEX IF NOT EXISTS idx_resellers_created_at ON resellers(created_at DESC
 CREATE INDEX IF NOT EXISTS idx_resellers_name ON resellers(name);
 CREATE INDEX IF NOT EXISTS idx_resellers_vat_jsonb ON resellers((custom_data->>'vat'));
 CREATE INDEX IF NOT EXISTS idx_resellers_suspended_by_org_id ON resellers(suspended_by_org_id) WHERE suspended_by_org_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_resellers_created_by ON resellers ((custom_data->>'createdBy')) WHERE deleted_at IS NULL;
 
 -- =============================================================================
 -- CUSTOMERS TABLE
@@ -150,6 +151,7 @@ CREATE INDEX IF NOT EXISTS idx_customers_created_at ON customers(created_at DESC
 CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);
 CREATE INDEX IF NOT EXISTS idx_customers_vat_jsonb ON customers((custom_data->>'vat'));
 CREATE INDEX IF NOT EXISTS idx_customers_suspended_by_org_id ON customers(suspended_by_org_id) WHERE suspended_by_org_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_customers_created_by ON customers ((custom_data->>'createdBy')) WHERE deleted_at IS NULL;
 
 -- =============================================================================
 -- USERS TABLE

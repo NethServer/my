@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/entities"
@@ -251,11 +252,15 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 
 // GetSystemsByOrganizationPaginated retrieves systems filtered by organization with pagination, search, sorting and RBAC
 func (s *LocalSystemsService) GetSystemsByOrganizationPaginated(userID, userOrgID, userOrgRole string, page, pageSize int, search, sortBy, sortDirection, filterName, filterSystemKey string, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses []string) ([]*models.System, int, error) {
-	// Get hierarchical organization IDs using existing user service logic
-	userService := NewUserService()
-	allowedOrgIDs, err := userService.GetHierarchicalOrganizationIDs(strings.ToLower(userOrgRole), userOrgID)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
+	// Owner can access all systems - pass nil to skip RBAC filtering in query
+	var allowedOrgIDs []string
+	if strings.ToLower(userOrgRole) != "owner" {
+		userService := NewUserService()
+		var err error
+		allowedOrgIDs, err = userService.GetHierarchicalOrganizationIDs(strings.ToLower(userOrgRole), userOrgID)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
+		}
 	}
 
 	// Use repository layer for pagination, search, sorting and filters
@@ -736,11 +741,15 @@ func (s *LocalSystemsService) GetTotals(userOrgRole, userOrgID string, timeoutMi
 		return nil, fmt.Errorf("insufficient permissions to access system totals")
 	}
 
-	// Get all organization IDs the user can access hierarchically
-	userService := NewUserService()
-	allowedOrgIDs, err := userService.GetHierarchicalOrganizationIDs(normalizedRole, userOrgID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
+	// Owner can access all systems - pass nil to skip RBAC filtering
+	var allowedOrgIDs []string
+	if normalizedRole != "owner" {
+		userService := NewUserService()
+		var err error
+		allowedOrgIDs, err = userService.GetHierarchicalOrganizationIDs(normalizedRole, userOrgID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
+		}
 	}
 
 	// Get totals with the specified timeout based on created_by organizations
@@ -925,8 +934,10 @@ func (s *LocalSystemsService) generateSystemSecretToken() (string, string, strin
 }
 
 // GetTotalsByCreatedByOrganizations returns total counts and status for systems created by specified organizations
+// nil allowedOrgIDs = owner (no RBAC filter), empty = no access
 func (s *LocalSystemsService) GetTotalsByCreatedByOrganizations(allowedOrgIDs []string, timeoutMinutes int) (*models.SystemTotals, error) {
-	if len(allowedOrgIDs) == 0 {
+	// nil = owner (no filter), empty = no access
+	if allowedOrgIDs != nil && len(allowedOrgIDs) == 0 {
 		return &models.SystemTotals{
 			Total:          0,
 			Active:         0,
@@ -940,19 +951,13 @@ func (s *LocalSystemsService) GetTotalsByCreatedByOrganizations(allowedOrgIDs []
 	timeout := time.Duration(timeoutMinutes) * time.Minute
 	cutoff := time.Now().Add(-timeout)
 
-	// Build placeholders for IN clause
-	placeholders := make([]string, len(allowedOrgIDs))
-	args := make([]interface{}, 1+len(allowedOrgIDs)) // +1 for cutoff time
-	args[0] = cutoff
-
-	for i, orgID := range allowedOrgIDs {
-		placeholders[i] = fmt.Sprintf("$%d", i+2) // +2 because $1 is cutoff
-		args[i+1] = orgID
+	args := []interface{}{cutoff}
+	orgClause := ""
+	if allowedOrgIDs != nil {
+		args = append(args, pq.Array(allowedOrgIDs))
+		orgClause = " AND s.created_by ->> 'organization_id' = ANY($2::text[])"
 	}
-	placeholdersStr := strings.Join(placeholders, ",")
 
-	// Base query with heartbeat status calculation and hierarchical filtering by created_by
-	// Use COALESCE to handle NULL values when there are no systems (SUM returns NULL for empty result set)
 	query := fmt.Sprintf(`
 		SELECT
 			COUNT(*) as total,
@@ -961,8 +966,8 @@ func (s *LocalSystemsService) GetTotalsByCreatedByOrganizations(allowedOrgIDs []
 			COALESCE(SUM(CASE WHEN h.last_heartbeat IS NULL THEN 1 ELSE 0 END), 0) as unknown
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
-		WHERE s.deleted_at IS NULL AND s.created_by ->> 'organization_id' IN (%s)
-	`, placeholdersStr)
+		WHERE s.deleted_at IS NULL%s
+	`, orgClause)
 
 	var total, active, inactive, unknown int
 	err := database.DB.QueryRow(query, args...).Scan(&total, &active, &inactive, &unknown)

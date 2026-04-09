@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lib/pq"
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/models"
 )
@@ -138,20 +139,12 @@ func (r *LocalSystemRepository) Delete(id string) error {
 
 // ListByCreatedByOrganizations returns paginated list of systems created by users in specified organizations with filters
 func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []string, page, pageSize int, search, sortBy, sortDirection, filterName, filterSystemKey string, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses []string) ([]*models.System, int, error) {
-	if len(allowedOrgIDs) == 0 {
+	// nil = owner (no RBAC filter), empty = no access
+	if allowedOrgIDs != nil && len(allowedOrgIDs) == 0 {
 		return []*models.System{}, 0, nil
 	}
 
 	offset := (page - 1) * pageSize
-
-	// Build placeholders for IN clause (allowed organizations)
-	placeholders := make([]string, len(allowedOrgIDs))
-	baseArgs := make([]interface{}, len(allowedOrgIDs))
-	for i, orgID := range allowedOrgIDs {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		baseArgs[i] = orgID
-	}
-	placeholdersStr := strings.Join(placeholders, ",")
 
 	// Check if status filter includes "deleted"
 	hasDeletedFilter := false
@@ -162,18 +155,25 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		}
 	}
 
-	// Build WHERE clause for search and filters
-	// By default exclude deleted systems unless explicitly requested via status filter
+	// Build WHERE clause: nil means owner (skip org filter), non-nil means RBAC filter
 	var whereClause string
-	if hasDeletedFilter {
-		// Include deleted systems when status filter contains "deleted"
-		whereClause = fmt.Sprintf("s.created_by ->> 'organization_id' IN (%s)", placeholdersStr)
+	var args []interface{}
+	if allowedOrgIDs != nil {
+		// Use ANY($1::text[]) instead of individual placeholders for efficiency
+		args = []interface{}{pq.Array(allowedOrgIDs)}
+		if hasDeletedFilter {
+			whereClause = "s.created_by ->> 'organization_id' = ANY($1::text[])"
+		} else {
+			whereClause = "s.deleted_at IS NULL AND s.created_by ->> 'organization_id' = ANY($1::text[])"
+		}
 	} else {
-		// Normal case: exclude deleted systems
-		whereClause = fmt.Sprintf("s.deleted_at IS NULL AND s.created_by ->> 'organization_id' IN (%s)", placeholdersStr)
+		// Owner: no org filter needed
+		if hasDeletedFilter {
+			whereClause = "1=1"
+		} else {
+			whereClause = "s.deleted_at IS NULL"
+		}
 	}
-	args := make([]interface{}, len(baseArgs))
-	copy(args, baseArgs)
 
 	// Add search condition (handle nullable fields with COALESCE)
 	if search != "" {
@@ -296,23 +296,9 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		whereClause += " AND (" + strings.Join(statusParts, " OR ") + ")"
 	}
 
-	// Get total count
-	var totalCount int
-	countQuery := fmt.Sprintf(`
-		SELECT COUNT(*)
-		FROM systems s
-		LEFT JOIN unified_organizations uo ON s.organization_id = uo.logto_id
-		WHERE %s`, whereClause)
-
-	err := r.db.QueryRow(countQuery, args...).Scan(&totalCount)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get systems count: %w", err)
-	}
-
 	// Build ORDER BY clause
 	orderBy := "s.created_at DESC"
 	if sortBy != "" {
-		// Map sortBy values to actual column names (use LOWER() for case-insensitive sorting on text fields)
 		columnMap := map[string]string{
 			"name":              "LOWER(s.name)",
 			"type":              "LOWER(s.type)",
@@ -335,13 +321,14 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		}
 	}
 
-	// Build main query
+	// Single query with COUNT(*) OVER() to get total count + paginated results
 	query := fmt.Sprintf(`
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
 		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.deleted_at, s.registered_at, s.suspended_at, s.suspended_by_org_id, s.created_by, s.last_inventory_at,
 		       COALESCE(uo.name, 'Owner') as organization_name,
 		       COALESCE(uo.org_type, 'owner') as organization_type,
-		       COALESCE(uo.db_id, '') as organization_db_id
+		       COALESCE(uo.db_id, '') as organization_db_id,
+		       COUNT(*) OVER() as total_count
 		FROM systems s
 		LEFT JOIN unified_organizations uo ON s.organization_id = uo.logto_id
 		WHERE %s
@@ -349,7 +336,6 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		LIMIT $%d OFFSET $%d
 	`, whereClause, orderBy, len(args)+1, len(args)+2)
 
-	// Add pagination parameters
 	listArgs := make([]interface{}, len(args)+2)
 	copy(listArgs, args)
 	listArgs[len(args)] = pageSize
@@ -361,6 +347,7 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	}
 	defer func() { _ = rows.Close() }()
 
+	var totalCount int
 	var systems []*models.System
 	for rows.Next() {
 		system := &models.System{}
@@ -375,6 +362,7 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.LogtoID,
 			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &deletedAt, &registeredAt, &suspendedAt, &suspendedByOrgID, &createdByJSON, &lastInventory,
 			&organizationName, &organizationType, &organizationDBID,
+			&totalCount,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan system: %w", err)
@@ -438,7 +426,8 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 
 // GetTotalsByCreatedByOrganizations returns total counts and status for systems created by users in specified organizations
 func (r *LocalSystemRepository) GetTotalsByCreatedByOrganizations(allowedOrgIDs []string, timeoutMinutes int) (*models.SystemTotals, error) {
-	if len(allowedOrgIDs) == 0 {
+	// nil = owner (no filter), empty = no access
+	if allowedOrgIDs != nil && len(allowedOrgIDs) == 0 {
 		return &models.SystemTotals{
 			Total:          0,
 			Active:         0,
@@ -452,18 +441,13 @@ func (r *LocalSystemRepository) GetTotalsByCreatedByOrganizations(allowedOrgIDs 
 	timeout := time.Duration(timeoutMinutes) * time.Minute
 	cutoff := time.Now().Add(-timeout)
 
-	// Build placeholders for IN clause
-	placeholders := make([]string, len(allowedOrgIDs))
-	args := make([]interface{}, 1+len(allowedOrgIDs)) // +1 for cutoff time
-	args[0] = cutoff
-
-	for i, orgID := range allowedOrgIDs {
-		placeholders[i] = fmt.Sprintf("$%d", i+2) // +2 because $1 is cutoff
-		args[i+1] = orgID
+	args := []interface{}{cutoff}
+	orgClause := ""
+	if allowedOrgIDs != nil {
+		args = append(args, pq.Array(allowedOrgIDs))
+		orgClause = " AND s.created_by ->> 'organization_id' = ANY($2::text[])"
 	}
-	placeholdersStr := strings.Join(placeholders, ",")
 
-	// Base query with heartbeat status calculation and hierarchical filtering
 	query := fmt.Sprintf(`
 		SELECT
 			COUNT(*) as total,
@@ -472,8 +456,8 @@ func (r *LocalSystemRepository) GetTotalsByCreatedByOrganizations(allowedOrgIDs 
 			COALESCE(SUM(CASE WHEN h.last_heartbeat IS NULL THEN 1 ELSE 0 END), 0) as unknown
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
-		WHERE s.deleted_at IS NULL AND s.created_by ->> 'organization_id' IN (%s)
-	`, placeholdersStr)
+		WHERE s.deleted_at IS NULL%s
+	`, orgClause)
 
 	var total, active, inactive, unknown int
 	err := r.db.QueryRow(query, args...).Scan(&total, &active, &inactive, &unknown)

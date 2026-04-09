@@ -8,6 +8,7 @@ package methods
 import (
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -32,19 +33,24 @@ func GetApplicationFilters(c *gin.Context) {
 
 	appsService := local.NewApplicationsService()
 
-	// Single RBAC resolution
-	allowedSystemIDs, err := appsService.GetAllowedSystemIDs(userOrgRole, userOrgID)
-	if err != nil {
-		logger.Error().Err(err).Str("user_id", userID).Msg("Failed to get allowed systems for filters")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve access", nil))
-		return
-	}
+	// Owner can access everything - pass nil to skip RBAC filtering in queries
+	var allowedSystemIDs []string
+	var allowedOrgIDs []string
+	if strings.ToLower(userOrgRole) != "owner" {
+		var err error
+		allowedSystemIDs, err = appsService.GetAllowedSystemIDs(userOrgRole, userOrgID)
+		if err != nil {
+			logger.Error().Err(err).Str("user_id", userID).Msg("Failed to get allowed systems for filters")
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve access", nil))
+			return
+		}
 
-	allowedOrgIDs, err := appsService.GetAllowedOrganizationIDs(userOrgRole, userOrgID)
-	if err != nil {
-		logger.Error().Err(err).Str("user_id", userID).Msg("Failed to get allowed orgs for filters")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve access", nil))
-		return
+		allowedOrgIDs, err = appsService.GetAllowedOrganizationIDs(userOrgRole, userOrgID)
+		if err != nil {
+			logger.Error().Err(err).Str("user_id", userID).Msg("Failed to get allowed orgs for filters")
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve access", nil))
+			return
+		}
 	}
 
 	// Run 4 queries in parallel
