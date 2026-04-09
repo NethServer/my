@@ -11,6 +11,7 @@ import SystemInfoCard from './SystemInfoCard.vue'
 import SystemNetworkCard from './SystemNetworkCard.vue'
 import SystemStatusCard from './SystemStatusCard.vue'
 import SystemSubscriptionCard from './SystemSubscriptionCard.vue'
+import SystemActiveAlertsCard from './SystemActiveAlertsCard.vue'
 
 const { state: systemDetail } = useSystemDetail()
 </script>
@@ -26,5 +27,6 @@ const { state: systemDetail } = useSystemDetail()
       v-if="systemDetail.data?.type === 'nsec'"
       class="3xl:col-span-4 md:col-span-2"
     />
+    <SystemActiveAlertsCard class="3xl:col-span-4 md:col-span-2" />
   </div>
 </template>

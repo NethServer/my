@@ -81,6 +81,11 @@ const router = createRouter({
       component: () => import('../views/ApplicationDetailView.vue'),
     },
     {
+      path: '/alerting',
+      name: 'alerting',
+      component: () => import('../views/AlertingView.vue'),
+    },
+    {
       path: '/distributors/:companyId',
       name: 'distributor_detail',
       component: () => import('../views/DistributorDetailView.vue'),
@@ -108,6 +113,11 @@ router.beforeEach(async (to) => {
       localStorage.setItem('pathRequested', JSON.stringify(to))
     }
     return { name: 'login' }
+  }
+
+  // Owner-only routes
+  if (to.name === 'alerting' && loginStore.isAuthenticated && !loginStore.isOwner) {
+    return { name: 'forbidden' }
   }
 
   // If the user is logged in, cannot access the login page
