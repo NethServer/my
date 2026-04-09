@@ -589,8 +589,8 @@ func (r *LocalApplicationRepository) GetTrend(allowedSystemIDs []string, period 
 	Date  string
 	Count int
 }, int, int, error) {
-	// If no allowed systems, return empty data
-	if len(allowedSystemIDs) == 0 {
+	// nil = owner (no filter), empty = no access
+	if allowedSystemIDs != nil && len(allowedSystemIDs) == 0 {
 		return []struct {
 			Date  string
 			Count int
@@ -610,6 +610,14 @@ func (r *LocalApplicationRepository) GetTrend(allowedSystemIDs []string, period 
 		return nil, 0, 0, fmt.Errorf("invalid period: %d", period)
 	}
 
+	// Build system filter clause
+	systemClause := ""
+	var args []interface{}
+	if allowedSystemIDs != nil {
+		systemClause = "AND system_id = ANY($1::text[])"
+		args = []interface{}{pq.Array(allowedSystemIDs)}
+	}
+
 	// Query to get cumulative count for each date in the period
 	query := fmt.Sprintf(`
 		WITH date_series AS (
@@ -625,15 +633,15 @@ func (r *LocalApplicationRepository) GetTrend(allowedSystemIDs []string, period 
 				SELECT COUNT(*)
 				FROM applications
 				WHERE deleted_at IS NULL
-				  AND system_id = ANY($1::text[])
+				  %s
 				  AND (inventory_data->>'certification_level')::int IN (4, 5)
 				  AND created_at::date <= ds.date
 			), 0) AS count
 		FROM date_series ds
 		ORDER BY ds.date
-	`, period, interval)
+	`, period, interval, systemClause)
 
-	rows, err := r.db.Query(query, pq.Array(allowedSystemIDs))
+	rows, err := r.db.Query(query, args...)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("failed to query applications trend data: %w", err)
 	}

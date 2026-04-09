@@ -230,9 +230,14 @@ func (s *LocalApplicationsService) GetApplicationTypes(userOrgRole, userOrgID st
 		return cached, nil
 	}
 
-	allowedSystemIDs, err := s.getAllowedSystemIDs(userOrgRole, userOrgID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get allowed systems: %w", err)
+	// Owner can access all systems - pass nil to skip RBAC filtering
+	var allowedSystemIDs []string
+	if strings.ToLower(userOrgRole) != "owner" {
+		var err error
+		allowedSystemIDs, err = s.getAllowedSystemIDs(userOrgRole, userOrgID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get allowed systems: %w", err)
+		}
 	}
 
 	result, err := s.repo.GetDistinctTypes(allowedSystemIDs, true)
@@ -252,9 +257,14 @@ func (s *LocalApplicationsService) GetApplicationVersions(userOrgRole, userOrgID
 		return cached, nil
 	}
 
-	allowedSystemIDs, err := s.getAllowedSystemIDs(userOrgRole, userOrgID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get allowed systems: %w", err)
+	// Owner can access all systems - pass nil to skip RBAC filtering
+	var allowedSystemIDs []string
+	if strings.ToLower(userOrgRole) != "owner" {
+		var err error
+		allowedSystemIDs, err = s.getAllowedSystemIDs(userOrgRole, userOrgID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get allowed systems: %w", err)
+		}
 	}
 
 	result, err := s.repo.GetDistinctVersions(allowedSystemIDs, true)
@@ -408,9 +418,14 @@ func (s *LocalApplicationsService) GetApplicationsTrend(userOrgRole, userOrgID s
 	Date  string
 	Count int
 }, int, int, error) {
-	allowedSystemIDs, err := s.getAllowedSystemIDs(userOrgRole, userOrgID)
-	if err != nil {
-		return nil, 0, 0, fmt.Errorf("failed to get allowed systems: %w", err)
+	// Owner can access all systems - pass nil to skip RBAC filtering
+	var allowedSystemIDs []string
+	if strings.ToLower(userOrgRole) != "owner" {
+		var err error
+		allowedSystemIDs, err = s.getAllowedSystemIDs(userOrgRole, userOrgID)
+		if err != nil {
+			return nil, 0, 0, fmt.Errorf("failed to get allowed systems: %w", err)
+		}
 	}
 
 	return s.repo.GetTrend(allowedSystemIDs, period)
@@ -863,38 +878,19 @@ func (s *LocalApplicationsService) GetAvailableSystems(userOrgRole, userOrgID st
 		return cached, nil
 	}
 
-	allowedSystemIDs, err := s.getAllowedSystemIDs(userOrgRole, userOrgID)
+	// Owner can access all systems - pass nil to skip RBAC filtering
+	var allowedSystemIDs []string
+	if strings.ToLower(userOrgRole) != "owner" {
+		var err error
+		allowedSystemIDs, err = s.getAllowedSystemIDs(userOrgRole, userOrgID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	systems, err := s.GetAvailableSystemsWithIDs(allowedSystemIDs)
 	if err != nil {
 		return nil, err
-	}
-
-	if len(allowedSystemIDs) == 0 {
-		return []models.SystemSummary{}, nil
-	}
-
-	// Only return systems that have at least one application with certification level 4 or 5
-	query := `
-		SELECT DISTINCT s.id, s.name FROM systems s
-		INNER JOIN applications a ON s.id = a.system_id
-		WHERE s.id = ANY($1::text[]) AND s.deleted_at IS NULL
-		  AND a.deleted_at IS NULL AND a.is_user_facing = TRUE
-		  AND (a.inventory_data->>'certification_level')::int IN (4, 5)
-		ORDER BY s.name
-	`
-
-	rows, err := database.DB.Query(query, pq.Array(allowedSystemIDs))
-	if err != nil {
-		return nil, fmt.Errorf("failed to query systems: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	var systems []models.SystemSummary
-	for rows.Next() {
-		var sys models.SystemSummary
-		if err := rows.Scan(&sys.ID, &sys.Name); err != nil {
-			return nil, fmt.Errorf("failed to scan system: %w", err)
-		}
-		systems = append(systems, sys)
 	}
 
 	ac.Set("systems", userOrgRole, userOrgID, systems)
@@ -909,9 +905,14 @@ func (s *LocalApplicationsService) GetAvailableOrganizations(userOrgRole, userOr
 		return cached, nil
 	}
 
-	allowedOrgIDs, err := s.getAllowedOrganizationIDs(userOrgRole, userOrgID)
-	if err != nil {
-		return nil, err
+	// Owner can access all organizations - pass nil to skip RBAC filtering
+	var allowedOrgIDs []string
+	if strings.ToLower(userOrgRole) != "owner" {
+		var err error
+		allowedOrgIDs, err = s.getAllowedOrganizationIDs(userOrgRole, userOrgID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	result, err := s.getAvailableOrganizationsFromIDs(allowedOrgIDs)
