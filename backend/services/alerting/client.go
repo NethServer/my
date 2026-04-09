@@ -91,30 +91,6 @@ func PushConfig(orgID, yamlConfig string, templateFiles map[string]string) error
 	return nil
 }
 
-// DeleteConfig removes the alertmanager configuration for the given tenant.
-func DeleteConfig(orgID string) error {
-	url := configuration.Config.MimirURL + "/api/v1/alerts"
-
-	req, err := http.NewRequest(http.MethodDelete, url, nil)
-	if err != nil {
-		return fmt.Errorf("creating request: %w", err)
-	}
-	req.Header.Set("X-Scope-OrgID", orgID)
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("deleting config from mimir: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("mimir returned %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
-}
-
 // GetAlerts fetches active alerts for the given tenant from Mimir.
 func GetAlerts(orgID string) ([]byte, error) {
 	url := configuration.Config.MimirURL + "/alertmanager/api/v2/alerts"

@@ -152,10 +152,10 @@ python alerting_config.py --url https://my-proxy-qa-pr-42.onrender.com \
 ### Full example workflow
 
 ```bash
-BASE="https://my-proxy-qa-pr-42.onrender.com"
-EMAIL="giacomo.sanchietti@nethesis.it"
-PASS="+=V\$-{30vEd*"
-ORG="veg2rx4p6lmo"
+BASE="https://qa.my.nethesis.it"
+EMAIL="user@example.com"
+PASS="your-password-here"
+ORG="your-org-id"
 
 # 1. Check current config
 python alerting_config.py --url "$BASE" --email "$EMAIL" --password "$PASS" get --org "$ORG"
@@ -312,9 +312,9 @@ Options:
 ### Full example workflow
 
 ```bash
-BASE="https://my-proxy-qa-pr-42.onrender.com/collect/api/services/mimir"
-KEY="NETH-F5D2-5E69-A174-45A9-B1AB-2BB9-03F5-F1B4"
-SECRET="my_8dc030a0e5189eb1f9fe.6889e67a77d80a4c1315da65e6107503ebfc58ac"
+BASE="https://qa.my.nethesis.it/collect/api/services/mimir"
+KEY="NETH-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
+SECRET="my_xxxxxxxxxxxxxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 # 1. Fire a critical alert
 python alert.py --url "$BASE" --key "$KEY" --secret "$SECRET" \

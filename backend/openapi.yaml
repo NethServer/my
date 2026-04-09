@@ -85,8 +85,8 @@ tags:
   - name: Backend - Health
     description: Backend service health check
 
-  - name: Backend - Alerting
-    description: Backend alertmanager configuration and alert monitoring
+  - name: Backend - Alerts
+    description: Alert routing configuration and active alert monitoring via Mimir
 
   - name: Collect - Health
     description: Collect service health and monitoring
@@ -105,12 +105,13 @@ tags:
       ensuring complete isolation of alerts and silences between organizations.
       
       **Accessible endpoints:**
-      - `POST /api/services/mimir/alertmanager/api/v2/alerts` - Add alerts
+      - `POST /api/services/mimir/alertmanager/api/v2/alerts` - Push alerts
       - `GET /api/services/mimir/alertmanager/api/v2/alerts` - List alerts
       - `POST /api/services/mimir/alertmanager/api/v2/silences` - Create silence
       - `GET /api/services/mimir/alertmanager/api/v2/silences` - List silences
       - `GET /api/services/mimir/alertmanager/api/v2/silences/{id}` - Get silence
       - `DELETE /api/services/mimir/alertmanager/api/v2/silences/{id}` - Delete silence
+      - `POST /api/alert_history` - Alertmanager webhook for alert history persistence
 security:
   - BearerAuth: []
 
@@ -8259,18 +8260,65 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /systems/{id}/alerting/history:
+  /systems/{id}/alerts:
+    get:
+      operationId: getSystemAlerts
+      tags:
+        - Backend - Alerts
+      summary: /systems/{id}/alerts - Get active alerts for a system
+      description: |
+        Returns active alerts from Mimir for a specific system, filtered by the system's key.
+        Requires `read:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID (database UUID)
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: Active alerts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "alerts retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      alerts:
+                        type: array
+                        items:
+                          type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/alerts/history:
     get:
       operationId: getSystemAlertHistory
       tags:
-        - Backend - Systems Inventory
-      summary: /systems/{id}/alerting/history - Get system alert history
+        - Backend - Alerts
+      summary: /systems/{id}/alerts/history - Get system alert history
       description: |
         Get paginated history of resolved and inactive alerts for a specific system.
         Alerts are stored by the collect service when Alertmanager sends webhook notifications.
         Requires `read:systems` permission.
       security:
-        - bearerAuth: []
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
@@ -9728,14 +9776,141 @@ paths:
           $ref: '#/components/responses/NotFound'
 
   # ===========================================
+  # ALERTING ENDPOINTS (Backend - Totals & Trend)
+  # ===========================================
+
+  /alerts/totals:
+    get:
+      operationId: getAlertsTotals
+      tags:
+        - Backend - Alerts
+      summary: Get alert totals
+      description: |
+        Returns active alert counts by severity (from Mimir) and total resolved alert history count (from DB).
+        Requires `read:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: organization_id
+          in: query
+          description: Target organization ID. Required for Owner, Distributor, and Reseller roles.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Alert totals retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: alert totals retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      active:
+                        type: integer
+                        description: Total active alerts
+                      critical:
+                        type: integer
+                        description: Active critical alerts
+                      warning:
+                        type: integer
+                        description: Active warning alerts
+                      info:
+                        type: integer
+                        description: Active info alerts
+                      history:
+                        type: integer
+                        description: Total resolved alerts in history
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /alerts/trend:
+    get:
+      operationId: getAlertsTrend
+      tags:
+        - Backend - Alerts
+      summary: Get alert history trend
+      description: |
+        Returns trend data for resolved alerts over a specified period with daily data points.
+        Compares the current period with the previous period of equal length.
+        Requires `read:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          description: Trend period in days
+          schema:
+            type: integer
+            enum: [7, 30, 180, 365]
+            default: 7
+      responses:
+        '200':
+          description: Alert trend data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: alerts trend retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      period:
+                        type: integer
+                      period_label:
+                        type: string
+                      current_total:
+                        type: integer
+                      previous_total:
+                        type: integer
+                      delta:
+                        type: integer
+                      delta_percentage:
+                        type: number
+                      trend:
+                        type: string
+                        enum: [up, down, stable]
+                      data_points:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            date:
+                              type: string
+                              format: date
+                            count:
+                              type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ===========================================
   # ALERTING ENDPOINTS (Backend - Configuration)
   # ===========================================
 
-  /api/alerting/config:
+  /alerts/config:
     post:
       operationId: configureAlerts
       tags:
-        - Backend - Alerting
+        - Backend - Alerts
       summary: Configure alert routing
       description: |
         Accepts a generic AlertingConfig JSON, renders it into a valid Alertmanager YAML configuration,
@@ -9775,7 +9950,7 @@ paths:
     delete:
       operationId: disableAlerts
       tags:
-        - Backend - Alerting
+        - Backend - Alerts
       summary: Disable all alerts
       description: Replaces the Alertmanager config with a blackhole-only configuration, silencing all alerts for the organization. The built-in history webhook remains active.
       security:
@@ -9804,7 +9979,7 @@ paths:
     get:
       operationId: getAlertingConfig
       tags:
-        - Backend - Alerting
+        - Backend - Alerts
       summary: Get current alerting configuration
       description: |
         Retrieves the current alerting configuration from Mimir (source of truth).
@@ -9854,11 +10029,11 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/alerting/alerts:
+  /alerts:
     get:
       operationId: getAlerts
       tags:
-        - Backend - Alerting
+        - Backend - Alerts
       summary: List active alerts
       description: Retrieves active alerts from Mimir for the specified organization with optional filtering by state, severity, and system_key.
       security:
@@ -9920,7 +10095,7 @@ paths:
   # ALERTING ENDPOINTS (Collect - Mimir Proxy)
   # ===========================================
 
-  /api/services/mimir/alertmanager/api/v2/alerts:
+  /services/mimir/alertmanager/api/v2/alerts:
     get:
       operationId: mimirAlertsGet
       tags:
@@ -9962,7 +10137,7 @@ paths:
         '502':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/services/mimir/alertmanager/api/v2/silences:
+  /services/mimir/alertmanager/api/v2/silences:
     get:
       operationId: mimirSilencesGet
       tags:
@@ -10002,7 +10177,7 @@ paths:
         '502':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/services/mimir/alertmanager/api/v2/silences/{silence_id}:
+  /services/mimir/alertmanager/api/v2/silences/{silence_id}:
     parameters:
       - name: silence_id
         in: path
@@ -10044,4 +10219,48 @@ paths:
           $ref: '#/components/responses/NotFound'
         '502':
           $ref: '#/components/responses/InternalServerError'
+
+  # ===========================================
+  # ALERTING ENDPOINTS (Collect - Alert History Webhook)
+  # ===========================================
+
+  /alert_history:
+    post:
+      operationId: receiveAlertHistory
+      tags:
+        - Collect - Alerting
+      summary: Receive alert history webhook
+      description: |
+        Receives resolved alert webhooks from Alertmanager and persists them to the alert_history table.
+        Firing alerts are ignored; only resolved alerts are stored.
+        Authenticated via Bearer token (ALERTING_HISTORY_WEBHOOK_SECRET).
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  example: "resolved"
+                alerts:
+                  type: array
+                  items:
+                    type: object
+                receiver:
+                  type: string
+      responses:
+        '204':
+          description: Webhook processed successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          description: Webhook authentication not configured
 

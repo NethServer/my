@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Nethesis S.r.l.
+ * Copyright (C) 2026 Nethesis S.r.l.
  * http://www.nethesis.it - info@nethesis.it
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -19,6 +20,9 @@ import (
 	"github.com/nethesis/my/collect/models"
 	"github.com/nethesis/my/collect/response"
 )
+
+// zeroTime is Alertmanager's sentinel for "no end time" on firing alerts.
+var zeroTime = time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
 
 // ReceiveAlertHistory handles POST /api/alert_history.
 // It persists resolved alerts from Alertmanager webhook payloads.
@@ -60,17 +64,30 @@ func ReceiveAlertHistory(c *gin.Context) {
 			continue
 		}
 
+		// Convert Alertmanager zero-time sentinel to NULL
+		var endsAt *time.Time
+		if !alert.EndsAt.Equal(zeroTime) {
+			endsAt = &alert.EndsAt
+		}
+
 		_, err = database.DB.Exec(
 			`INSERT INTO alert_history
 				(system_key, alertname, severity, status, fingerprint, starts_at, ends_at, summary, labels, annotations, receiver)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			ON CONFLICT (fingerprint, system_key) DO UPDATE SET
+				status = EXCLUDED.status,
+				ends_at = EXCLUDED.ends_at,
+				summary = EXCLUDED.summary,
+				labels = EXCLUDED.labels,
+				annotations = EXCLUDED.annotations,
+				receiver = EXCLUDED.receiver`,
 			systemKey,
 			alertname,
 			nullableString(severity),
 			"resolved",
 			alert.Fingerprint,
 			alert.StartsAt,
-			alert.EndsAt,
+			endsAt,
 			nullableString(summary),
 			labelsJSON,
 			annotationsJSON,

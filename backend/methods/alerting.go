@@ -8,6 +8,7 @@ package methods
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -22,19 +23,17 @@ import (
 	"github.com/nethesis/my/backend/services/local"
 )
 
-// resolveOrgID extracts the target organization ID.
-// Owner/Distributor/Reseller must pass organization_id query param.
-// Customer uses their own organization from JWT.
+// resolveOrgID extracts and validates the target organization ID for alerting operations.
+// Owner/Distributor/Reseller must pass organization_id query param; Customer uses their own.
+// Validates hierarchical access via IsOrganizationInHierarchy.
 func resolveOrgID(c *gin.Context, user *models.User) (string, bool) {
 	orgID := c.Query("organization_id")
 	orgRole := strings.ToLower(user.OrgRole)
 
 	if orgRole == "customer" {
-		// Customer always uses their own organization
 		return user.OrganizationID, true
 	}
 
-	// Owner, Distributor, Reseller must provide organization_id
 	if orgID == "" {
 		c.JSON(http.StatusBadRequest, response.BadRequest("organization_id query parameter is required", nil))
 		return "", false
@@ -50,7 +49,7 @@ func resolveOrgID(c *gin.Context, user *models.User) (string, bool) {
 	return orgID, true
 }
 
-// ConfigureAlerts handles POST /api/alerting/config
+// ConfigureAlerts handles POST /api/alerts/config
 func ConfigureAlerts(c *gin.Context) {
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
@@ -117,7 +116,7 @@ func ConfigureAlerts(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("alerting configuration updated successfully", nil))
 }
 
-// DisableAlerts handles DELETE /api/alerting/config
+// DisableAlerts handles DELETE /api/alerts/config
 func DisableAlerts(c *gin.Context) {
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
@@ -148,7 +147,7 @@ func DisableAlerts(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("all alerts disabled successfully", nil))
 }
 
-// GetAlerts handles GET /api/alerting/alerts
+// GetAlerts handles GET /api/alerts
 func GetAlerts(c *gin.Context) {
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
@@ -184,7 +183,7 @@ func GetAlerts(c *gin.Context) {
 	}))
 }
 
-// GetAlertingConfig handles GET /api/alerting/config
+// GetAlertingConfig handles GET /api/alerts/config
 // By default returns structured JSON parsed from Mimir YAML.
 // Use ?format=yaml to get the raw (redacted) YAML.
 func GetAlertingConfig(c *gin.Context) {
@@ -220,6 +219,93 @@ func GetAlertingConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("alerting configuration retrieved successfully", gin.H{
 		"config": cfg,
 	}))
+}
+
+// GetAlertsTotals handles GET /api/alerts/totals
+// Returns active alert counts by severity (from Mimir) and total history count (from DB).
+func GetAlertsTotals(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	orgID, ok := resolveOrgID(c, user)
+	if !ok {
+		return
+	}
+
+	result := gin.H{
+		"active":   0,
+		"critical": 0,
+		"warning":  0,
+		"info":     0,
+		"history":  0,
+	}
+
+	// Fetch active alerts from Mimir
+	body, err := alerting.GetAlerts(orgID)
+	if err != nil {
+		logger.Warn().Err(err).Str("org_id", orgID).Msg("failed to fetch alerts from mimir for totals")
+	} else {
+		var alerts []map[string]interface{}
+		if err := json.Unmarshal(body, &alerts); err == nil {
+			result["active"] = len(alerts)
+			for _, alert := range alerts {
+				labels, _ := alert["labels"].(map[string]interface{})
+				if sev, ok := labels["severity"].(string); ok {
+					switch sev {
+					case "critical":
+						result["critical"] = result["critical"].(int) + 1
+					case "warning":
+						result["warning"] = result["warning"].(int) + 1
+					case "info":
+						result["info"] = result["info"].(int) + 1
+					}
+				}
+			}
+		}
+	}
+
+	// Fetch history total from DB
+	repo := entities.NewLocalAlertHistoryRepository()
+	historyTotal, err := repo.GetAlertHistoryTotals(strings.ToLower(user.OrgRole), user.OrganizationID)
+	if err != nil {
+		logger.Warn().Err(err).Str("org_id", orgID).Msg("failed to count alert history for totals")
+	} else {
+		result["history"] = historyTotal
+	}
+
+	c.JSON(http.StatusOK, response.OK("alert totals retrieved successfully", result))
+}
+
+// GetAlertsTrend handles GET /api/alerts/trend
+// Returns trend data for resolved alerts over a specified period.
+func GetAlertsTrend(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	periodStr := c.DefaultQuery("period", "7")
+	period, err := strconv.Atoi(periodStr)
+	if err != nil || (period != 7 && period != 30 && period != 180 && period != 365) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid period parameter (supported: 7, 30, 180, 365)", nil))
+		return
+	}
+
+	repo := entities.NewLocalAlertHistoryRepository()
+	trend, err := repo.GetAlertHistoryTrend(period, strings.ToLower(user.OrgRole), user.OrganizationID)
+	if err != nil {
+		logger.Error().Err(err).Int("period", period).Msg("failed to retrieve alerts trend")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve alerts trend", nil))
+		return
+	}
+
+	if trend.DataPoints == nil {
+		trend.DataPoints = []models.TrendDataPoint{}
+	}
+
+	c.JSON(http.StatusOK, response.OK("alerts trend retrieved successfully", trend))
 }
 
 // filterAlerts applies optional query filters to the alerts list
@@ -258,7 +344,56 @@ func filterAlerts(alerts []map[string]interface{}, params models.AlertQueryParam
 	return filtered
 }
 
-// GetSystemAlertHistory handles GET /api/systems/:id/alerting/history
+// GetSystemAlerts handles GET /api/systems/:id/alerts
+// Returns active alerts from Mimir for a specific system, filtered by system_key.
+func GetSystemAlerts(c *gin.Context) {
+	systemID := c.Param("id")
+	if systemID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system id required", nil))
+		return
+	}
+
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	systemsService := local.NewSystemsService()
+	system, err := systemsService.GetSystem(systemID, userOrgRole, userOrgID)
+	if helpers.HandleAccessError(c, err, "system", systemID) {
+		return
+	}
+
+	body, err := alerting.GetAlerts(system.Organization.LogtoID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch alerts from mimir: "+err.Error(), nil))
+		return
+	}
+
+	var alerts []map[string]interface{}
+	if err := json.Unmarshal(body, &alerts); err != nil {
+		c.JSON(http.StatusOK, response.OK("alerts retrieved successfully", gin.H{
+			"alerts": []interface{}{},
+		}))
+		return
+	}
+
+	// Filter alerts by this system's key
+	filtered := make([]map[string]interface{}, 0, len(alerts))
+	for _, alert := range alerts {
+		labels, _ := alert["labels"].(map[string]interface{})
+		if sk, ok := labels["system_key"].(string); ok && sk == system.SystemKey {
+			filtered = append(filtered, alert)
+		}
+	}
+
+	c.JSON(http.StatusOK, response.OK("alerts retrieved successfully", gin.H{
+		"alerts": filtered,
+	}))
+}
+
+// GetSystemAlertHistory handles GET /api/systems/:id/alerts/history
 // Returns paginated resolved/inactive alert history for a system.
 func GetSystemAlertHistory(c *gin.Context) {
 	systemID := c.Param("id")

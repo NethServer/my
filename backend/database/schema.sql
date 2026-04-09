@@ -746,9 +746,9 @@ COMMENT ON COLUMN alert_history.status IS 'Alert status at time of receipt: reso
 COMMENT ON COLUMN alert_history.ends_at IS 'NULL when end time is the zero time (0001-01-01)';
 
 -- Performance indexes
-CREATE INDEX IF NOT EXISTS idx_alert_history_system_key ON alert_history(system_key);
-CREATE INDEX IF NOT EXISTS idx_alert_history_created_at ON alert_history(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_alert_history_starts_at  ON alert_history(starts_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alert_history_system_key_created_at ON alert_history(system_key, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alert_history_starts_at ON alert_history(starts_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_alert_history_fingerprint_system_key ON alert_history(fingerprint, system_key);
 
 -- =============================================================================
 -- SCHEMA MIGRATIONS TABLE

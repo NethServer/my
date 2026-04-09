@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2025 Nethesis S.r.l.
+Copyright (C) 2026 Nethesis S.r.l.
 SPDX-License-Identifier: AGPL-3.0-or-later
 */
 
@@ -9,6 +9,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
+	"time"
 
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/models"
@@ -125,4 +127,155 @@ func (r *LocalAlertHistoryRepository) GetAlertHistoryBySystemKey(systemKey strin
 	}
 
 	return records, totalCount, nil
+}
+
+// GetAlertHistoryTotals returns the total count of alert history records for a given organization.
+// It joins with the systems table to filter by organization_id.
+func (r *LocalAlertHistoryRepository) GetAlertHistoryTotals(orgRole, orgID string) (int, error) {
+	query := `
+		SELECT COUNT(*)
+		FROM alert_history ah
+		JOIN systems s ON s.system_key = ah.system_key
+	`
+	var args []interface{}
+
+	switch orgRole {
+	case "owner":
+		// Owner sees all
+	default:
+		query += ` WHERE s.organization_id = $1`
+		args = append(args, orgID)
+	}
+
+	var total int
+	if err := r.db.QueryRow(query, args...).Scan(&total); err != nil {
+		return 0, fmt.Errorf("failed to count alert history: %w", err)
+	}
+	return total, nil
+}
+
+// GetAlertHistoryTrend returns trend data for resolved alerts over a specified period (days).
+// It counts alerts by created_at date, with org-scoped filtering via the systems table.
+func (r *LocalAlertHistoryRepository) GetAlertHistoryTrend(period int, orgRole, orgID string) (*models.TrendResponse, error) {
+	now := time.Now().UTC()
+	currentStart := now.AddDate(0, 0, -period)
+	previousStart := currentStart.AddDate(0, 0, -period)
+
+	isOwner := orgRole == "owner"
+
+	// Current period count
+	var currentQuery string
+	var currentArgs []interface{}
+	if isOwner {
+		currentQuery = `SELECT COUNT(*) FROM alert_history ah
+			JOIN systems s ON s.system_key = ah.system_key
+			WHERE ah.created_at >= $1`
+		currentArgs = []interface{}{currentStart}
+	} else {
+		currentQuery = `SELECT COUNT(*) FROM alert_history ah
+			JOIN systems s ON s.system_key = ah.system_key
+			WHERE ah.created_at >= $1 AND s.organization_id = $2`
+		currentArgs = []interface{}{currentStart, orgID}
+	}
+
+	var currentTotal int
+	if err := r.db.QueryRow(currentQuery, currentArgs...).Scan(&currentTotal); err != nil {
+		return nil, fmt.Errorf("failed to count current period: %w", err)
+	}
+
+	// Previous period count
+	var prevQuery string
+	var prevArgs []interface{}
+	if isOwner {
+		prevQuery = `SELECT COUNT(*) FROM alert_history ah
+			JOIN systems s ON s.system_key = ah.system_key
+			WHERE ah.created_at >= $1 AND ah.created_at < $2`
+		prevArgs = []interface{}{previousStart, currentStart}
+	} else {
+		prevQuery = `SELECT COUNT(*) FROM alert_history ah
+			JOIN systems s ON s.system_key = ah.system_key
+			WHERE ah.created_at >= $1 AND ah.created_at < $2 AND s.organization_id = $3`
+		prevArgs = []interface{}{previousStart, currentStart, orgID}
+	}
+
+	var previousTotal int
+	if err := r.db.QueryRow(prevQuery, prevArgs...).Scan(&previousTotal); err != nil {
+		return nil, fmt.Errorf("failed to count previous period: %w", err)
+	}
+
+	// Daily data points for current period
+	var dpQuery string
+	var dpArgs []interface{}
+	if isOwner {
+		dpQuery = `SELECT DATE(ah.created_at) AS day, COUNT(*) AS count
+			FROM alert_history ah
+			JOIN systems s ON s.system_key = ah.system_key
+			WHERE ah.created_at >= $1
+			GROUP BY day ORDER BY day`
+		dpArgs = []interface{}{currentStart}
+	} else {
+		dpQuery = `SELECT DATE(ah.created_at) AS day, COUNT(*) AS count
+			FROM alert_history ah
+			JOIN systems s ON s.system_key = ah.system_key
+			WHERE ah.created_at >= $1 AND s.organization_id = $2
+			GROUP BY day ORDER BY day`
+		dpArgs = []interface{}{currentStart, orgID}
+	}
+
+	rows, err := r.db.Query(dpQuery, dpArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query data points: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	pointMap := make(map[string]int)
+	for rows.Next() {
+		var day time.Time
+		var count int
+		if err := rows.Scan(&day, &count); err != nil {
+			return nil, fmt.Errorf("failed to scan data point: %w", err)
+		}
+		pointMap[day.Format("2006-01-02")] = count
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate data points: %w", err)
+	}
+
+	// Build full data points array (one per day, zero-fill gaps)
+	dataPoints := make([]models.TrendDataPoint, 0, period)
+	for i := 0; i < period; i++ {
+		date := currentStart.AddDate(0, 0, i+1).Format("2006-01-02")
+		count := pointMap[date]
+		dataPoints = append(dataPoints, models.TrendDataPoint{Date: date, Count: count})
+	}
+
+	delta := currentTotal - previousTotal
+	var deltaPercentage float64
+	if previousTotal > 0 {
+		deltaPercentage = math.Round(float64(delta)/float64(previousTotal)*10000) / 100
+	}
+
+	trend := "stable"
+	if delta > 0 {
+		trend = "up"
+	} else if delta < 0 {
+		trend = "down"
+	}
+
+	periodLabels := map[int]string{7: "7 days", 30: "30 days", 180: "6 months", 365: "1 year"}
+	label := periodLabels[period]
+	if label == "" {
+		label = fmt.Sprintf("%d days", period)
+	}
+
+	return &models.TrendResponse{
+		Period:          period,
+		PeriodLabel:     label,
+		CurrentTotal:    currentTotal,
+		PreviousTotal:   previousTotal,
+		Delta:           delta,
+		DeltaPercentage: deltaPercentage,
+		Trend:           trend,
+		DataPoints:      dataPoints,
+	}, nil
 }

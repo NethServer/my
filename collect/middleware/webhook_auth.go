@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Nethesis S.r.l.
+ * Copyright (C) 2026 Nethesis S.r.l.
  * http://www.nethesis.it - info@nethesis.it
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -8,6 +8,7 @@
 package middleware
 
 import (
+	"crypto/subtle"
 	"net/http"
 	"strings"
 
@@ -36,7 +37,7 @@ func WebhookAuthMiddleware() gin.HandlerFunc {
 
 		auth := c.GetHeader("Authorization")
 		token, found := strings.CutPrefix(auth, "Bearer ")
-		if !found || token != secret {
+		if !found || subtle.ConstantTimeCompare([]byte(token), []byte(secret)) != 1 {
 			logger.Warn().
 				Str("client_ip", c.ClientIP()).
 				Str("path", c.Request.URL.Path).

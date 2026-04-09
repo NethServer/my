@@ -1,0 +1,18 @@
+multitenancy_enabled: true
+target: alertmanager
+
+common:
+  storage:
+    backend: filesystem
+
+alertmanager_storage:
+  filesystem:
+    dir: /data/alertmanager
+
+server:
+  http_listen_port: 9009
+  log_level: debug
+
+runtime_config:
+  file: /etc/mimir/runtime_config.yaml
+  period: 10s

@@ -34,13 +34,25 @@ func Init() error {
 		return fmt.Errorf("failed to parse Redis URL: %w", err)
 	}
 
-	// Override with configuration values
-	opt.DB = configuration.Config.RedisDB
-	opt.Password = configuration.Config.RedisPassword
-	opt.MaxRetries = configuration.Config.RedisMaxRetries
-	opt.DialTimeout = configuration.Config.RedisDialTimeout
-	opt.ReadTimeout = configuration.Config.RedisReadTimeout
-	opt.WriteTimeout = configuration.Config.RedisWriteTimeout
+	// Override with configuration values if provided
+	if configuration.Config.RedisDB != 0 {
+		opt.DB = configuration.Config.RedisDB
+	}
+	if configuration.Config.RedisPassword != "" {
+		opt.Password = configuration.Config.RedisPassword
+	}
+	if configuration.Config.RedisMaxRetries != 0 {
+		opt.MaxRetries = configuration.Config.RedisMaxRetries
+	}
+	if configuration.Config.RedisDialTimeout != 0 {
+		opt.DialTimeout = configuration.Config.RedisDialTimeout
+	}
+	if configuration.Config.RedisReadTimeout != 0 {
+		opt.ReadTimeout = configuration.Config.RedisReadTimeout
+	}
+	if configuration.Config.RedisWriteTimeout != 0 {
+		opt.WriteTimeout = configuration.Config.RedisWriteTimeout
+	}
 
 	// Configure connection pool - sizes from configuration for tunability
 	opt.PoolSize = configuration.Config.RedisPoolSize

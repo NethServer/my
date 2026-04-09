@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -20,6 +21,8 @@ import (
 	"github.com/nethesis/my/collect/logger"
 	"github.com/nethesis/my/collect/response"
 )
+
+var mimirHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 // ProxyMimir forwards requests to Mimir on behalf of authenticated systems.
 // BasicAuthMiddleware has already validated credentials and set "system_id" in the context.
@@ -87,7 +90,7 @@ func ProxyMimir(c *gin.Context) {
 	req.Header.Del("Accept-Encoding")
 	req.Header.Set("X-Scope-OrgID", orgID)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := mimirHTTPClient.Do(req)
 	if err != nil {
 		logger.Error().Err(err).Str("target", targetURL).Msg("mimir proxy: network error")
 		c.JSON(http.StatusBadGateway, response.InternalServerError("mimir is unavailable", nil))

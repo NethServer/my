@@ -76,6 +76,7 @@ import argparse
 import base64
 import hashlib
 import json
+import os
 import secrets
 import sys
 from urllib.parse import parse_qs, urlparse
@@ -86,12 +87,12 @@ except ImportError:
     print("Error: 'requests' library is required. Install it with: pip install requests", file=sys.stderr)
     sys.exit(1)
 
-_LOGTO_ENDPOINT = "https://qa.id.nethesis.it"
-_LOGTO_APP_ID = "amz2744kof0iq3a6i7csu"
+_LOGTO_ENDPOINT = os.environ.get("LOGTO_ENDPOINT", "https://your-tenant.logto.app")
+_LOGTO_APP_ID = os.environ.get("LOGTO_APP_ID", "your-app-id")
 _LOGTO_REDIRECT_URI_PATH = "login-redirect"
 
-# Stable QA URL used for the registered OIDC redirect_uri (must stay registered in Logto)
-_AUTH_BASE_URL = "https://my-proxy-qa.onrender.com"
+# Base URL used for the registered OIDC redirect_uri (must be registered in Logto)
+_AUTH_BASE_URL = os.environ.get("AUTH_BASE_URL", "https://qa.my.nethesis.it")
 
 
 def _logto_login(api_url, email, password):

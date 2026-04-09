@@ -2,17 +2,15 @@
 #
 # Run on a separate server from the main application stack.
 #
-# 🚀 Start: docker-compose -f mimir/docker-compose.yml up -d
-# 🛑 Stop:  docker-compose -f mimir/docker-compose.yml down
+# Start: docker-compose -f mimir/docker-compose.yml up -d
+# Stop:  docker-compose -f mimir/docker-compose.yml down
 #
-# 🌐 Service URLs:
+# Service URLs:
 #   - Mimir:  http://localhost:19009
 #
-# ⚙️ Required environment variables (set in mimir/.env or shell):
+# Required environment variables (set in mimir/.env or shell):
 #   MIMIR_S3_ENDPOINT, MIMIR_S3_ACCESS_KEY, MIMIR_S3_SECRET_KEY
 #   MIMIR_S3_ALERTMANAGER_BUCKET
-
-version: '3.8'
 
 services:
   # =============================================================================

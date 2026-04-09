@@ -16,3 +16,7 @@ alertmanager_storage:
 server:
   http_listen_port: ${PORT}
   log_level: info
+
+runtime_config:
+  file: /etc/mimir/runtime_config.yaml
+  period: 10s
