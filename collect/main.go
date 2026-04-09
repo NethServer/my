@@ -161,6 +161,12 @@ func main() {
 		mimirGroup.Any("/alertmanager/api/v2/silences/*subpath", methods.ProxyMimir)
 	}
 
+	// ===========================================
+	// ALERTMANAGER HISTORY WEBHOOK
+	// ===========================================
+	// Receives resolved/inactive alert webhooks from Alertmanager and persists them.
+	api.POST("/alert_history", middleware.WebhookAuthMiddleware(), methods.ReceiveAlertHistory)
+
 	// Handle missing endpoints
 	router.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, response.NotFound("api not found", nil))

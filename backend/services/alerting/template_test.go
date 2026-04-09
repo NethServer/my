@@ -34,7 +34,7 @@ func isValidYAML(t *testing.T, s string) {
 
 func TestRenderConfig_NilCfg_BlackholeOnly(t *testing.T) {
 	host, port, user, pass, from, tls := smtpArgs()
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", nil)
+	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", nil)
 	require.NoError(t, err)
 	isValidYAML(t, out)
 
@@ -46,7 +46,7 @@ func TestRenderConfig_NilCfg_BlackholeOnly(t *testing.T) {
 
 func TestRenderConfig_NilCfg_WithHistoryURL(t *testing.T) {
 	host, port, user, pass, from, tls := smtpArgs()
-	out, err := RenderConfig(host, port, user, pass, from, tls, "http://history.example.com/hook", nil)
+	out, err := RenderConfig(host, port, user, pass, from, tls, "http://history.example.com/hook", "", nil)
 	require.NoError(t, err)
 	isValidYAML(t, out)
 
@@ -64,7 +64,7 @@ func TestRenderConfig_GlobalMailOnly(t *testing.T) {
 		MailEnabled:   true,
 		MailAddresses: []string{"admin@example.com"},
 	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", cfg)
+	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
 	require.NoError(t, err)
 	isValidYAML(t, out)
 
@@ -81,7 +81,7 @@ func TestRenderConfig_GlobalWebhookOnly(t *testing.T) {
 			{Name: "slack", URL: "https://hooks.slack.com/abc"},
 		},
 	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", cfg)
+	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
 	require.NoError(t, err)
 	isValidYAML(t, out)
 
@@ -96,7 +96,7 @@ func TestRenderConfig_GlobalDisabled_BlackholeRoute(t *testing.T) {
 		MailEnabled:    false,
 		WebhookEnabled: false,
 	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", cfg)
+	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
 	require.NoError(t, err)
 	isValidYAML(t, out)
 
@@ -112,7 +112,7 @@ func TestRenderConfig_HistoryAlwaysFires_EvenWhenDisabled(t *testing.T) {
 		MailEnabled:    false,
 		WebhookEnabled: false,
 	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "http://history.example.com/hook", cfg)
+	out, err := RenderConfig(host, port, user, pass, from, tls, "http://history.example.com/hook", "", cfg)
 	require.NoError(t, err)
 	isValidYAML(t, out)
 
@@ -132,7 +132,7 @@ func TestRenderConfig_SeverityOverride_DisablesWarning(t *testing.T) {
 			},
 		},
 	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", cfg)
+	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
 	require.NoError(t, err)
 	isValidYAML(t, out)
 
@@ -164,7 +164,7 @@ func TestRenderConfig_SeverityOverride_CustomAddresses(t *testing.T) {
 			},
 		},
 	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", cfg)
+	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
 	require.NoError(t, err)
 	isValidYAML(t, out)
 
@@ -193,7 +193,7 @@ func TestRenderConfig_SeverityOverride_InheritsGlobalAddresses(t *testing.T) {
 			},
 		},
 	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", cfg)
+	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
 	require.NoError(t, err)
 	isValidYAML(t, out)
 
@@ -214,7 +214,7 @@ func TestRenderConfig_SystemOverride(t *testing.T) {
 			},
 		},
 	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", cfg)
+	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
 	require.NoError(t, err)
 	isValidYAML(t, out)
 
@@ -235,7 +235,7 @@ func TestRenderConfig_SystemOverride_Disabled(t *testing.T) {
 			},
 		},
 	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", cfg)
+	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
 	require.NoError(t, err)
 	isValidYAML(t, out)
 
@@ -263,14 +263,14 @@ func TestRenderConfig_InvalidSeverityKey(t *testing.T) {
 			{Severity: "bad severity!"},
 		},
 	}
-	_, err := RenderConfig(host, port, user, pass, from, tls, "", cfg)
+	_, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid severity key")
 }
 
 func TestRenderConfig_SmtpCredentialsRedacted(t *testing.T) {
 	host, port, user, pass, from, tls := smtpArgs()
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", nil)
+	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", nil)
 	require.NoError(t, err)
 
 	// SMTP creds appear in raw output; RedactSensitiveConfig removes them
@@ -278,11 +278,37 @@ func TestRenderConfig_SmtpCredentialsRedacted(t *testing.T) {
 	assert.Contains(t, out, "smtp_auth_password: 'pass'")
 }
 
+func TestRedactSensitiveConfig_BearerToken(t *testing.T) {
+	input := `global:
+  smtp_smarthost: 'smtp.example.com'
+  smtp_auth_username: 'testuser'
+  smtp_auth_password: 'testpass'
+
+receivers:
+  - name: 'builtin-history'
+    webhook_configs:
+      - url: 'http://example.com/webhook'
+        http_config:
+          authorization:
+            type: Bearer
+            credentials: 'secret-token-12345'`
+
+	output := RedactSensitiveConfig(input)
+
+	// Bearer token should be redacted
+	assert.NotContains(t, output, "secret-token-12345")
+	assert.Contains(t, output, "credentials: '[REDACTED]'")
+
+	// SMTP credentials should also be redacted
+	assert.NotContains(t, output, "testpass")
+	assert.Contains(t, output, "smtp_auth_password: '[REDACTED]'")
+}
+
 // --- ParseConfig tests ---
 
 func TestParseConfig_BlackholeOnly_ReturnsNil(t *testing.T) {
 	host, port, user, pass, from, tls := smtpArgs()
-	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", nil)
+	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", "", nil)
 	require.NoError(t, err)
 
 	cfg, err := ParseConfig(yamlStr)
@@ -292,7 +318,7 @@ func TestParseConfig_BlackholeOnly_ReturnsNil(t *testing.T) {
 
 func TestParseConfig_HistoryOnly_ReturnsNil(t *testing.T) {
 	host, port, user, pass, from, tls := smtpArgs()
-	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "http://history.example.com/hook", nil)
+	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "http://history.example.com/hook", "", nil)
 	require.NoError(t, err)
 
 	cfg, err := ParseConfig(yamlStr)
@@ -306,7 +332,7 @@ func TestParseConfig_GlobalMail_Roundtrip(t *testing.T) {
 		MailEnabled:   true,
 		MailAddresses: []string{"admin@example.com"},
 	}
-	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", original)
+	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", "", original)
 	require.NoError(t, err)
 
 	parsed, err := ParseConfig(yamlStr)
@@ -326,7 +352,7 @@ func TestParseConfig_GlobalWebhook_Roundtrip(t *testing.T) {
 			{Name: "slack", URL: "https://hooks.slack.com/abc"},
 		},
 	}
-	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", original)
+	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", "", original)
 	require.NoError(t, err)
 
 	parsed, err := ParseConfig(yamlStr)
@@ -352,7 +378,7 @@ func TestParseConfig_SeverityOverride_Roundtrip(t *testing.T) {
 			},
 		},
 	}
-	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", original)
+	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", "", original)
 	require.NoError(t, err)
 
 	parsed, err := ParseConfig(yamlStr)
@@ -379,7 +405,7 @@ func TestParseConfig_SystemOverride_Roundtrip(t *testing.T) {
 			},
 		},
 	}
-	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", original)
+	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", "", original)
 	require.NoError(t, err)
 
 	parsed, err := ParseConfig(yamlStr)
@@ -395,7 +421,7 @@ func TestParseConfig_SystemOverride_Roundtrip(t *testing.T) {
 
 func TestParseConfig_MimirWrapperFormat(t *testing.T) {
 	host, port, user, pass, from, tls := smtpArgs()
-	inner, err := RenderConfig(host, port, user, pass, from, tls, "", &models.AlertingConfig{
+	inner, err := RenderConfig(host, port, user, pass, from, tls, "", "", &models.AlertingConfig{
 		MailEnabled:   true,
 		MailAddresses: []string{"a@b.com"},
 	})
@@ -420,7 +446,7 @@ func TestParseConfig_GlobalDisabled_NotNil(t *testing.T) {
 		MailEnabled:    false,
 		WebhookEnabled: false,
 	}
-	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", cfg)
+	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
 	require.NoError(t, err)
 
 	parsed, err := ParseConfig(yamlStr)
@@ -443,7 +469,7 @@ func TestParseConfig_DisabledSeverity_BlackholeRoute(t *testing.T) {
 			},
 		},
 	}
-	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", cfg)
+	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
 	require.NoError(t, err)
 
 	parsed, err := ParseConfig(yamlStr)
@@ -505,7 +531,7 @@ func TestRenderConfig_DefaultsToEnglishTemplates(t *testing.T) {
 		MailAddresses: []string{"admin@example.com"},
 		// EmailTemplateLang not set → should default to "en"
 	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", cfg)
+	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
 	require.NoError(t, err)
 	isValidYAML(t, out)
 
@@ -526,7 +552,7 @@ func TestRenderConfig_ItalianTemplates(t *testing.T) {
 		MailAddresses:     []string{"admin@example.com"},
 		EmailTemplateLang: "it",
 	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", cfg)
+	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
 	require.NoError(t, err)
 	isValidYAML(t, out)
 
@@ -539,7 +565,7 @@ func TestRenderConfig_ItalianTemplates(t *testing.T) {
 
 func TestRenderConfig_NilCfg_NoTemplateSection(t *testing.T) {
 	host, port, user, pass, from, tls := smtpArgs()
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", nil)
+	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", nil)
 	require.NoError(t, err)
 
 	// nil cfg → blackhole-only, no email templates needed
@@ -555,7 +581,7 @@ func TestRenderConfig_WebhookOnly_NoHtmlField(t *testing.T) {
 			{Name: "slack", URL: "https://hooks.slack.com/abc"},
 		},
 	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", cfg)
+	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
 	require.NoError(t, err)
 	isValidYAML(t, out)
 
@@ -629,7 +655,7 @@ func TestParseConfig_EmailTemplateLang_English(t *testing.T) {
 		MailAddresses:     []string{"a@b.com"},
 		EmailTemplateLang: "en",
 	}
-	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", original)
+	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", "", original)
 	require.NoError(t, err)
 
 	parsed, err := ParseConfig(yamlStr)
@@ -645,7 +671,7 @@ func TestParseConfig_EmailTemplateLang_Italian(t *testing.T) {
 		MailAddresses:     []string{"a@b.com"},
 		EmailTemplateLang: "it",
 	}
-	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", original)
+	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", "", original)
 	require.NoError(t, err)
 
 	parsed, err := ParseConfig(yamlStr)

@@ -45,14 +45,15 @@ type receiverEntry struct {
 
 // templateData holds all pre-computed values injected into the YAML template.
 type templateData struct {
-	SmtpSmarthost     string
-	SmtpFrom          string
-	SmtpAuthUsername  string
-	SmtpAuthPassword  string
-	SmtpRequireTLS    bool
-	HistoryWebhookURL string
-	Routes            []routeEntry
-	Receivers         []receiverEntry
+	SmtpSmarthost       string
+	SmtpFrom            string
+	SmtpAuthUsername    string
+	SmtpAuthPassword    string
+	SmtpRequireTLS      bool
+	HistoryWebhookURL   string
+	HistoryWebhookToken string
+	Routes              []routeEntry
+	Receivers           []receiverEntry
 	// EmailTemplateLang is set when custom email templates are configured ("en" or "it").
 	// An empty value means Alertmanager's built-in default templates are used.
 	EmailTemplateLang string
@@ -97,6 +98,12 @@ receivers:
     webhook_configs:
       - url: '{{ yamlEscape .HistoryWebhookURL }}'
         send_resolved: true
+{{- if .HistoryWebhookToken }}
+        http_config:
+          authorization:
+            type: Bearer
+            credentials: '{{ yamlEscape .HistoryWebhookToken }}'
+{{- end }}
 {{- end }}
 {{- range .Receivers }}
 
@@ -211,19 +218,21 @@ func buildReceiver(name string, mailEnabled, webhookEnabled bool, emails, webhoo
 // RenderConfig renders the Alertmanager YAML configuration from AlertingConfig
 // and SMTP settings. If cfg is nil, it produces a blackhole-only config.
 // historyWebhookURL is always included as a non-bypassable builtin receiver.
-func RenderConfig(smtpHost string, smtpPort int, smtpUser, smtpPass, smtpFrom string, smtpTLS bool, historyWebhookURL string, cfg *models.AlertingConfig) (string, error) {
+// historyWebhookToken is the Bearer token for the history webhook (optional).
+func RenderConfig(smtpHost string, smtpPort int, smtpUser, smtpPass, smtpFrom string, smtpTLS bool, historyWebhookURL, historyWebhookToken string, cfg *models.AlertingConfig) (string, error) {
 	smarthost := smtpHost
 	if smtpPort > 0 {
 		smarthost = smtpHost + ":" + strconv.Itoa(smtpPort)
 	}
 
 	data := templateData{
-		SmtpSmarthost:     smarthost,
-		SmtpFrom:          smtpFrom,
-		SmtpAuthUsername:  smtpUser,
-		SmtpAuthPassword:  smtpPass,
-		SmtpRequireTLS:    smtpTLS,
-		HistoryWebhookURL: historyWebhookURL,
+		SmtpSmarthost:       smarthost,
+		SmtpFrom:            smtpFrom,
+		SmtpAuthUsername:    smtpUser,
+		SmtpAuthPassword:    smtpPass,
+		SmtpRequireTLS:      smtpTLS,
+		HistoryWebhookURL:   historyWebhookURL,
+		HistoryWebhookToken: historyWebhookToken,
 	}
 
 	if cfg != nil {

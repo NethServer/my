@@ -251,6 +251,9 @@ func main() {
 			systemsGroup.GET("/:id/inventory/diffs", methods.GetSystemInventoryDiffs)                  // Get paginated diffs
 			systemsGroup.GET("/:id/inventory/diffs/latest", methods.GetSystemLatestInventoryDiff)      // Get latest diff
 			systemsGroup.GET("/:id/inventory/timeline", methods.GetSystemInventoryTimeline)            // Get date-grouped timeline with summary
+
+			// Alert history endpoint (read:systems required)
+			systemsGroup.GET("/:id/alerting/history", methods.GetSystemAlertHistory) // Get paginated alert history
 		}
 
 		// ===========================================

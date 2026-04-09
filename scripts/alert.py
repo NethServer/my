@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Simple CLI to push, resolve, silence, and list alerts via the Mimir Alertmanager proxy.
+Simple CLI to fire, resolve, silence, and list alerts via the Mimir Alertmanager proxy.
 
 Usage:
-    python alert.py push    --url URL --key KEY --secret SECRET --alertname NAME --severity SEV [--labels k=v ...] [--annotations k=v ...]
+    python alert.py fire    --url URL --key KEY --secret SECRET --alertname NAME --severity SEV [--labels k=v ...] [--annotations k=v ...]
     python alert.py resolve --url URL --key KEY --secret SECRET --alertname NAME --severity SEV [--labels k=v ...]
     python alert.py silence --url URL --key KEY --secret SECRET --alertname NAME [--labels k=v ...] [--duration MINUTES] [--comment TEXT] [--created-by TEXT]
     python alert.py list    --url URL --key KEY --secret SECRET [--state STATE] [--severity SEV]
 
 Examples:
-    # Push a critical alert
-    python alert.py push --url https://my.nethesis.it/collect/api/services/mimir \
+    # Fire a critical alert
+    python alert.py fire --url https://my.nethesis.it/collect/api/services/mimir \
         --key NOC-XXXX-XXXX --secret 'my_pub.secretpart' \
         --alertname DiskFull --severity critical \
         --labels service=storage --annotations "description_en=Disk usage above 90%"
@@ -55,8 +55,8 @@ def parse_kv(pairs):
     return result
 
 
-def push_alert(args):
-    """Push (fire) an alert."""
+def fire_alert(args):
+    """Fire an alert."""
     labels = {
         "alertname": args.alertname,
         "severity": args.severity,
@@ -84,9 +84,9 @@ def push_alert(args):
     )
 
     if resp.ok:
-        print(f"Alert '{args.alertname}' pushed successfully (HTTP {resp.status_code})")
+        print(f"Alert '{args.alertname}' fired successfully (HTTP {resp.status_code})")
     else:
-        print(f"Failed to push alert (HTTP {resp.status_code}): {resp.text}", file=sys.stderr)
+        print(f"Failed to fire alert (HTTP {resp.status_code}): {resp.text}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -197,12 +197,12 @@ def main():
 
     sub = parser.add_subparsers(dest="command", required=True)
 
-    # push
-    push_parser = sub.add_parser("push", help="Push (fire) an alert")
-    push_parser.add_argument("--alertname", required=True, help="Alert name")
-    push_parser.add_argument("--severity", required=True, choices=["critical", "warning", "info"], help="Severity level")
-    push_parser.add_argument("--labels", nargs="*", help="Additional labels as key=value pairs")
-    push_parser.add_argument("--annotations", nargs="*", help="Annotations as key=value pairs")
+    # fire
+    fire_parser = sub.add_parser("fire", help="Fire an alert")
+    fire_parser.add_argument("--alertname", required=True, help="Alert name")
+    fire_parser.add_argument("--severity", required=True, choices=["critical", "warning", "info"], help="Severity level")
+    fire_parser.add_argument("--labels", nargs="*", help="Additional labels as key=value pairs")
+    fire_parser.add_argument("--annotations", nargs="*", help="Annotations as key=value pairs")
 
     # resolve
     resolve_parser = sub.add_parser("resolve", help="Resolve an alert")
@@ -226,8 +226,8 @@ def main():
 
     args = parser.parse_args()
 
-    if args.command == "push":
-        push_alert(args)
+    if args.command == "fire":
+        fire_alert(args)
     elif args.command == "resolve":
         resolve_alert(args)
     elif args.command == "silence":

@@ -20,11 +20,14 @@ import (
 var httpClient = &http.Client{Timeout: 30 * time.Second}
 
 var smtpSensitiveFields = regexp.MustCompile(`(?m)^(\s*smtp_(?:smarthost|auth_username|auth_password):\s*).*$`)
+var bearerTokenField = regexp.MustCompile(`(?m)^(\s*credentials:\s*).*$`)
 
-// RedactSensitiveConfig replaces sensitive SMTP fields in an alertmanager config
+// RedactSensitiveConfig replaces sensitive SMTP and bearer token fields in an alertmanager config
 // YAML string with a redaction placeholder before returning to clients.
 func RedactSensitiveConfig(config string) string {
-	return smtpSensitiveFields.ReplaceAllString(config, "${1}'[REDACTED]'")
+	config = smtpSensitiveFields.ReplaceAllString(config, "${1}'[REDACTED]'")
+	config = bearerTokenField.ReplaceAllString(config, "${1}'[REDACTED]'")
+	return config
 }
 
 // wrapForMimir wraps a raw Alertmanager YAML config in the Mimir multi-tenant

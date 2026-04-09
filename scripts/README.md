@@ -178,7 +178,7 @@ python alerting_config.py --url "$BASE" --email "$EMAIL" --password "$PASS" dele
 
 ## alert.py
 
-CLI tool to push, resolve, silence, and list alerts via the Mimir Alertmanager proxy exposed by the collect service.
+CLI tool to fire, resolve, silence, and list alerts via the Mimir Alertmanager proxy exposed by the collect service.
 
 ### Requirements
 
@@ -202,14 +202,14 @@ python alert.py --url URL --key KEY --secret SECRET <command> [options]
 
 ---
 
-### Push an alert
+### Fire an alert
 
 Fire an alert into Alertmanager. The alert stays active until resolved or it expires.
 
 ```bash
 python alert.py --url https://my.nethesis.it/collect/api/services/mimir \
     --key NETH-XXXX-XXXX --secret 'my_pub.secret' \
-    push \
+    fire \
     --alertname DiskFull \
     --severity critical \
     --labels service=storage \
@@ -229,7 +229,7 @@ Options:
 
 ### Resolve an alert
 
-Resolve a previously pushed alert by sending it with an explicit end time.
+Resolve a previously fired alert by sending it with an explicit end time.
 
 ```bash
 python alert.py --url https://my.nethesis.it/collect/api/services/mimir \
@@ -240,15 +240,15 @@ python alert.py --url https://my.nethesis.it/collect/api/services/mimir \
     --labels service=storage
 ```
 
-> Labels must match those used when the alert was pushed.
+> Labels must match those used when the alert was fired.
 
 Options:
 
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--alertname` | yes | Alert name |
-| `--severity`  | yes | Must match the pushed alert |
-| `--labels`    | no  | Must match the pushed alert labels |
+| `--severity`  | yes | Must match the fired alert |
+| `--labels`    | no  | Must match the fired alert labels |
 
 ---
 
@@ -318,7 +318,7 @@ SECRET="my_8dc030a0e5189eb1f9fe.6889e67a77d80a4c1315da65e6107503ebfc58ac"
 
 # 1. Fire a critical alert
 python alert.py --url "$BASE" --key "$KEY" --secret "$SECRET" \
-    push --alertname DiskFull --severity critical \
+    fire --alertname DiskFull --severity critical \
     --labels service=storage --annotations "description_en=Disk usage above 90%"
 
 # 2. List it

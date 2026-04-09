@@ -83,6 +83,9 @@ type Configuration struct {
 
 	// Mimir configuration
 	MimirURL string `json:"mimir_url"`
+
+	// Alertmanager webhook authentication
+	AlertmanagerWebhookSecret string `json:"alertmanager_webhook_secret"`
 }
 
 var Config = Configuration{}
@@ -170,6 +173,9 @@ func Init() {
 	} else {
 		Config.MimirURL = "http://localhost:9009"
 	}
+
+	// Alerting history webhook authentication
+	Config.AlertmanagerWebhookSecret = os.Getenv("ALERTING_HISTORY_WEBHOOK_SECRET")
 
 	// Log successful configuration load
 	logger.LogConfigLoad("env", "configuration", true, nil)

@@ -320,6 +320,80 @@ components:
           description: Whether the VAT number exists in the specified entity type
           example: true
 
+    AlertHistoryRecord:
+      type: object
+      description: A single resolved or inactive alert stored from an Alertmanager webhook
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Auto-incrementing record ID
+          example: 1
+        system_key:
+          type: string
+          description: System key extracted from alert labels
+          example: "NETH-F5D2-5E69-A174-45A9-B1AB-2BB9-03F5-F1B4"
+        alertname:
+          type: string
+          description: Alert name from labels
+          example: "DiskFull"
+        severity:
+          type: string
+          nullable: true
+          description: Severity from alert labels
+          example: "critical"
+        status:
+          type: string
+          description: Alert status at time of receipt
+          enum: [resolved, inactive]
+          example: "resolved"
+        fingerprint:
+          type: string
+          description: Alertmanager fingerprint for the alert
+          example: "ac193fc966f036ca"
+        starts_at:
+          type: string
+          format: date-time
+          description: When the alert started firing
+          example: "2026-04-08T13:28:38Z"
+        ends_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the alert resolved. Null when the end time is unknown.
+          example: "2026-04-08T13:33:39Z"
+        summary:
+          type: string
+          nullable: true
+          description: Human-readable summary from alert annotations
+          example: "Disk usage above 90%"
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+          description: All labels from the alert
+          example:
+            alertname: "DiskFull"
+            severity: "critical"
+            system_key: "NETH-F5D2-5E69-A174-45A9-B1AB-2BB9-03F5-F1B4"
+        annotations:
+          type: object
+          additionalProperties:
+            type: string
+          description: All annotations from the alert
+          example:
+            summary: "Disk usage above 90%"
+        receiver:
+          type: string
+          nullable: true
+          description: Alertmanager receiver that handled this alert
+          example: "severity-critical-receiver"
+        created_at:
+          type: string
+          format: date-time
+          description: When the record was created in the database
+          example: "2026-04-08T13:33:40Z"
+
     InventoryRecord:
       type: object
       description: A snapshot of a system's inventory data at a point in time
@@ -8176,6 +8250,67 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/InventoryTimelineGroup'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/alerting/history:
+    get:
+      operationId: getSystemAlertHistory
+      tags:
+        - Backend - Systems Inventory
+      summary: /systems/{id}/alerting/history - Get system alert history
+      description: |
+        Get paginated history of resolved and inactive alerts for a specific system.
+        Alerts are stored by the collect service when Alertmanager sends webhook notifications.
+        Requires `read:systems` permission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID (logto_id)
+          schema:
+            type: string
+            example: "sys_123456789"
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: sort_by
+          in: query
+          required: false
+          description: Field to sort by
+          schema:
+            type: string
+            enum: [id, alertname, severity, status, starts_at, ends_at, created_at]
+            default: created_at
+        - $ref: '#/components/parameters/SortDirectionParam'
+      responses:
+        '200':
+          description: Alert history retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "alert history retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      alerts:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AlertHistoryRecord'
                       pagination:
                         $ref: '#/components/schemas/Pagination'
         '401':

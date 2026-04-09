@@ -12,6 +12,7 @@ Commands:
     set     Set alerting configuration from a JSON file
     delete  Disable all alerts (replace config with blackhole)
     alerts  List active alerts
+    history List resolved/inactive alert history for a system
 
 Config JSON structure (used with the 'set' command):
     {
@@ -65,6 +66,10 @@ Examples:
     python alerting_config.py --url https://my.nethesis.it \\
         --email admin@example.com --password 's3cr3t' \\
         alerts --org veg2rx4p6lmo --severity critical --state active
+
+    python alerting_config.py --url https://my.nethesis.it \\
+        --email admin@example.com --password 's3cr3t' \\
+        history --system-id sys_123456789 --page 1 --page-size 50
 """
 
 import argparse
@@ -310,6 +315,40 @@ def cmd_alerts(args):
         _fail(r)
 
 
+def cmd_history(args):
+    """List resolved/inactive alert history for a system."""
+    headers, backend_url = _authenticate(args.url, args.email, args.password)
+    
+    system_id = args.system_id
+    params = {}
+    if args.page:
+        params["page"] = args.page
+    if args.page_size:
+        params["page_size"] = args.page_size
+    if args.sort_by:
+        params["sort_by"] = args.sort_by
+    if args.sort_direction:
+        params["sort_direction"] = args.sort_direction
+
+    r = requests.get(
+        f"{backend_url}/systems/{system_id}/alerting/history",
+        headers=headers,
+        params=params,
+        timeout=30,
+    )
+    if r.ok:
+        data = r.json().get("data", {})
+        alerts = data.get("alerts", [])
+        pagination = data.get("pagination", {})
+        
+        if not alerts:
+            print("No alert history found.")
+        else:
+            print(json.dumps({"alerts": alerts, "pagination": pagination}, indent=2))
+    else:
+        _fail(r)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Manage alerting configuration via the MY backend API"
@@ -343,6 +382,14 @@ def main():
     alerts_parser.add_argument("--severity", choices=["critical", "warning", "info"], help="Filter by severity")
     alerts_parser.add_argument("--system-key", dest="system_key", help="Filter by system_key label")
 
+    # history
+    history_parser = sub.add_parser("history", help="List resolved/inactive alert history for a system")
+    history_parser.add_argument("--system-id", dest="system_id", required=True, help="System ID (logto_id)")
+    history_parser.add_argument("--page", type=int, help="Page number (default: 1)")
+    history_parser.add_argument("--page-size", dest="page_size", type=int, help="Results per page (default: 20)")
+    history_parser.add_argument("--sort-by", dest="sort_by", choices=["id", "alertname", "severity", "status", "starts_at", "ends_at", "created_at"], help="Sort by field")
+    history_parser.add_argument("--sort-direction", dest="sort_direction", choices=["asc", "desc"], help="Sort direction")
+
     args = parser.parse_args()
     args.url = args.url.rstrip("/")
 
@@ -351,6 +398,7 @@ def main():
         "set": cmd_set,
         "delete": cmd_delete,
         "alerts": cmd_alerts,
+        "history": cmd_history,
     }
     dispatch[args.command](args)
 

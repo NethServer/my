@@ -13,7 +13,9 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/nethesis/my/backend/configuration"
+	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/helpers"
+	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services/alerting"
@@ -93,7 +95,7 @@ func ConfigureAlerts(c *gin.Context) {
 	cfg := configuration.Config
 	yamlConfig, err := alerting.RenderConfig(
 		cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.SMTPTLS,
-		cfg.AlertingHistoryWebhookURL,
+		cfg.AlertingHistoryWebhookURL, cfg.AlertingHistoryWebhookToken,
 		&req,
 	)
 	if err != nil {
@@ -130,7 +132,7 @@ func DisableAlerts(c *gin.Context) {
 	cfg := configuration.Config
 	yamlConfig, err := alerting.RenderConfig(
 		cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.SMTPTLS,
-		cfg.AlertingHistoryWebhookURL,
+		cfg.AlertingHistoryWebhookURL, cfg.AlertingHistoryWebhookToken,
 		nil,
 	)
 	if err != nil {
@@ -254,4 +256,46 @@ func filterAlerts(alerts []map[string]interface{}, params models.AlertQueryParam
 	}
 
 	return filtered
+}
+
+// GetSystemAlertHistory handles GET /api/systems/:id/alerting/history
+// Returns paginated resolved/inactive alert history for a system.
+func GetSystemAlertHistory(c *gin.Context) {
+	systemID := c.Param("id")
+	if systemID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system id required", nil))
+		return
+	}
+
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	// Validate system access and retrieve system_key.
+	systemsService := local.NewSystemsService()
+	system, err := systemsService.GetSystem(systemID, userOrgRole, userOrgID)
+	if helpers.HandleAccessError(c, err, "system", systemID) {
+		return
+	}
+
+	page, pageSize, sortBy, sortDirection := helpers.GetPaginationAndSortingFromQuery(c)
+
+	repo := entities.NewLocalAlertHistoryRepository()
+	records, totalCount, err := repo.GetAlertHistoryBySystemKey(system.SystemKey, page, pageSize, sortBy, sortDirection)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("system_id", systemID).
+			Str("system_key", system.SystemKey).
+			Msg("failed to retrieve alert history")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve alert history", nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("alert history retrieved successfully", gin.H{
+		"alerts":     records,
+		"pagination": helpers.BuildPaginationInfoWithSorting(page, pageSize, totalCount, sortBy, sortDirection),
+	}))
 }
