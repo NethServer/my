@@ -186,9 +186,9 @@ def _logto_login(api_url, email, password):
 def _authenticate(base_url, email, password):
     """Authenticate via Logto OIDC and return (headers, backend_url)."""
     backend_url = f"{base_url}/backend/api"
-    print("Authenticating...", end="  ", flush=True)
+    print("Authenticating...", file=sys.stderr, flush=True)
     token = _logto_login(base_url, email, password)
-    print("OK")
+    print("OK", file=sys.stderr)
     return {"Authorization": f"Bearer {token}"}, backend_url
 
 
@@ -205,7 +205,7 @@ def _resolve_org(org, headers, backend_url):
         print("Error: no organizations found; pass --org explicitly.", file=sys.stderr)
         sys.exit(1)
     discovered = orgs[0].get("logto_id") or orgs[0].get("id")
-    print(f"  org: {discovered} (auto-discovered)")
+    print(f"auto-discovered org: {discovered}", file=sys.stderr)
     return discovered
 
 
@@ -239,13 +239,13 @@ def cmd_get(args):
         data = r.json().get("data", {})
         config = data.get("config")
         if config is None:
-            print("No alerting configuration set (alerts are disabled).")
+            print(json.dumps({"error": "no alerting configuration set"}))
         elif isinstance(config, str):
             # Raw YAML format (--format yaml)
             print(config)
         else:
             # Structured JSON object (default)
-            print(json.dumps(config, indent=2))
+            print(json.dumps(config))
     else:
         _fail(r)
 
@@ -268,7 +268,7 @@ def cmd_set(args):
         timeout=30,
     )
     if r.ok:
-        print(r.json().get("message", "alerting configuration updated successfully"))
+        print(json.dumps({"status": "success", "message": "alerting configuration updated successfully"}))
     else:
         _fail(r)
 
@@ -283,7 +283,7 @@ def cmd_delete(args):
         timeout=30,
     )
     if r.ok:
-        print(r.json().get("message", "all alerts disabled successfully"))
+        print(json.dumps({"status": "success", "message": "all alerts disabled successfully"}))
     else:
         _fail(r)
 
@@ -307,10 +307,7 @@ def cmd_alerts(args):
     )
     if r.ok:
         alerts = r.json().get("data", {}).get("alerts", [])
-        if not alerts:
-            print("No alerts found.")
-        else:
-            print(json.dumps(alerts, indent=2))
+        print(json.dumps(alerts))
     else:
         _fail(r)
 
@@ -341,10 +338,7 @@ def cmd_history(args):
         alerts = data.get("alerts", [])
         pagination = data.get("pagination", {})
         
-        if not alerts:
-            print("No alert history found.")
-        else:
-            print(json.dumps({"alerts": alerts, "pagination": pagination}, indent=2))
+        print(json.dumps({"alerts": alerts, "pagination": pagination}))
     else:
         _fail(r)
 

@@ -84,7 +84,7 @@ def fire_alert(args):
     )
 
     if resp.ok:
-        print(f"Alert '{args.alertname}' fired successfully (HTTP {resp.status_code})")
+        print(json.dumps({"status": "success", "message": f"Alert '{args.alertname}' fired"}))
     else:
         print(f"Failed to fire alert (HTTP {resp.status_code}): {resp.text}", file=sys.stderr)
         sys.exit(1)
@@ -118,7 +118,7 @@ def resolve_alert(args):
     )
 
     if resp.ok:
-        print(f"Alert '{args.alertname}' resolved successfully (HTTP {resp.status_code})")
+        print(json.dumps({"status": "success", "message": f"Alert '{args.alertname}' resolved"}))
     else:
         print(f"Failed to resolve alert (HTTP {resp.status_code}): {resp.text}", file=sys.stderr)
         sys.exit(1)
@@ -152,7 +152,7 @@ def silence_alert(args):
 
     if resp.ok:
         data = resp.json()
-        print(f"Silence created for '{args.alertname}' (ID: {data.get('silenceID', 'unknown')}, duration: {args.duration}m)")
+        print(json.dumps(data))
     else:
         print(f"Failed to create silence (HTTP {resp.status_code}): {resp.text}", file=sys.stderr)
         sys.exit(1)
@@ -182,11 +182,7 @@ def list_alerts(args):
     if args.system_key:
         alerts = [a for a in alerts if a.get("labels", {}).get("system_key") == args.system_key]
 
-    if not alerts:
-        print("No alerts found.")
-        return
-
-    print(json.dumps(alerts, indent=2))
+    print(json.dumps(alerts))
 
 
 def main():
