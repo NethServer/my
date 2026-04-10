@@ -249,3 +249,6 @@ def main():
         silence_alert(args)
     elif args.command == "list":
         list_alerts(args)
+
+if __name__ == '__main__':
+    main()
