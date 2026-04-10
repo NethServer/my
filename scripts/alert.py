@@ -4,7 +4,7 @@ Simple CLI to fire, resolve, silence, and list alerts via the Mimir Alertmanager
 
 Usage:
     python alert.py fire    --url URL --key KEY --secret SECRET --alertname NAME --severity SEV [--labels k=v ...] [--annotations k=v ...]
-    python alert.py resolve --url URL --key KEY --secret SECRET --alertname NAME --severity SEV [--labels k=v ...]
+    python alert.py resolve --url URL --key KEY --secret SECRET --alertname NAME --severity SEV [--labels k=v ...] [--annotations k=v ...]
     python alert.py silence --url URL --key KEY --secret SECRET --alertname NAME [--labels k=v ...] [--duration MINUTES] [--comment TEXT] [--created-by TEXT]
     python alert.py list    --url URL --key KEY --secret SECRET [--state STATE] [--severity SEV]
 
@@ -19,7 +19,7 @@ Examples:
     python alert.py resolve --url https://my.nethesis.it/collect/api/services/mimir \
         --key NOC-XXXX-XXXX --secret 'my_pub.secretpart' \
         --alertname DiskFull --severity critical \
-        --labels service=storage
+        --labels service=storage --annotations "summary=resolved by operator"
 
     # Silence an alert for 2 hours
     python alert.py silence --url https://my.nethesis.it/collect/api/services/mimir \
@@ -53,6 +53,22 @@ def parse_kv(pairs):
         k, v = pair.split("=", 1)
         result[k] = v
     return result
+
+
+def build_resolve_annotations(args, labels_map, resolved_at):
+    """Build annotations for a resolve event."""
+    annotations = parse_kv(args.annotations)
+    if annotations:
+        return annotations
+
+    labels_summary = ", ".join(f"{key}={value}" for key, value in labels_map.items()) if labels_map else "none"
+    return {
+        "summary": "resolved",
+        "description": (
+            f"Resolved alert {args.alertname} (severity={args.severity})"
+            f" with labels {labels_summary} at {resolved_at.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+        ),
+    }
 
 
 def fire_alert(args):
@@ -97,12 +113,14 @@ def resolve_alert(args):
         "severity": args.severity,
         "system_key": args.key,
     }
-    labels.update(parse_kv(args.labels))
+    labels_map = parse_kv(args.labels)
+    labels.update(labels_map)
 
     now = datetime.now(timezone.utc)
+    annotations = build_resolve_annotations(args, labels_map, now)
     payload = [{
         "labels": labels,
-        "annotations": {"summary": "resolved"},
+        "annotations": annotations,
         "generatorURL": f"http://{args.key}/alert",
         "startsAt": (now - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "endsAt": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -205,6 +223,7 @@ def main():
     resolve_parser.add_argument("--alertname", required=True, help="Alert name")
     resolve_parser.add_argument("--severity", required=True, choices=["critical", "warning", "info"], help="Severity level")
     resolve_parser.add_argument("--labels", nargs="*", help="Additional labels as key=value pairs (must match the fired alert)")
+    resolve_parser.add_argument("--annotations", nargs="*", help="Annotations as key=value pairs")
 
     # silence
     silence_parser = sub.add_parser("silence", help="Silence an alert")
@@ -230,7 +249,3 @@ def main():
         silence_alert(args)
     elif args.command == "list":
         list_alerts(args)
-
-
-if __name__ == "__main__":
-    main()
