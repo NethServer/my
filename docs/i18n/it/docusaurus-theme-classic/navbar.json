@@ -11,6 +11,10 @@
     "message": "Documentazione Sviluppatori",
     "description": "Navbar item with label Developer Docs"
   },
+  "item.label.Alerting System": {
+    "message": "Sistema di alerting",
+    "description": "Navbar item with label Alerting System"
+  },
   "item.label.GitHub": {
     "message": "GitHub",
     "description": "Navbar item with label GitHub"
