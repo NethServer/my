@@ -36,7 +36,8 @@ export AUTH_BASE_URL="https://qa.my.nethesis.it"
 ### Usage
 
 ```
-python alerting_config.py --url URL --email EMAIL --password PASS <command> [options]
+python alerting_config.py --url URL --email EMAIL --password PASS \
+    --tenant-id TENANT_ID --app-id APP_ID <command> [options]
 ```
 
 **Common arguments:**
@@ -46,6 +47,8 @@ python alerting_config.py --url URL --email EMAIL --password PASS <command> [opt
 | `--url`  | Base URL of the MY proxy (e.g. `https://my.nethesis.it`) |
 | `--email` | User email address |
 | `--password` | User password |
+| `--tenant-id` | Logto tenant ID (e.g., `your-tenant`) |
+| `--app-id` | Logto OIDC app ID |
 
 Owner, Distributor, and Reseller roles must pass `--org <organization_id>` to all commands. Customer role uses their own organization automatically.
 
@@ -57,11 +60,13 @@ Owner, Distributor, and Reseller roles must pass `--org <organization_id>` to al
 # Structured JSON (default)
 python alerting_config.py --url https://my-proxy-qa-pr-42.onrender.com \
     --email admin@example.com --password 's3cr3t' \
+    --tenant-id your-tenant --app-id your-app-id \
     get --org veg2rx4p6lmo
 
 # Raw Alertmanager YAML
 python alerting_config.py --url https://my-proxy-qa-pr-42.onrender.com \
     --email admin@example.com --password 's3cr3t' \
+    --tenant-id your-tenant --app-id your-app-id \
     get --org veg2rx4p6lmo --format yaml
 ```
 
@@ -124,6 +129,7 @@ Then apply it:
 ```bash
 python alerting_config.py --url https://my-proxy-qa-pr-42.onrender.com \
     --email admin@example.com --password 's3cr3t' \
+    --tenant-id your-tenant --app-id your-app-id \
     set --org veg2rx4p6lmo --config my_config.json
 ```
 
@@ -141,6 +147,7 @@ Replaces the Alertmanager config with a blackhole-only configuration:
 ```bash
 python alerting_config.py --url https://my-proxy-qa-pr-42.onrender.com \
     --email admin@example.com --password 's3cr3t' \
+    --tenant-id your-tenant --app-id your-app-id \
     delete --org veg2rx4p6lmo
 ```
 
@@ -152,11 +159,13 @@ python alerting_config.py --url https://my-proxy-qa-pr-42.onrender.com \
 # All active alerts for the organization
 python alerting_config.py --url https://my-proxy-qa-pr-42.onrender.com \
     --email admin@example.com --password 's3cr3t' \
+    --tenant-id your-tenant --app-id your-app-id \
     alerts --org veg2rx4p6lmo
 
 # Filter by severity and state
 python alerting_config.py --url https://my-proxy-qa-pr-42.onrender.com \
     --email admin@example.com --password 's3cr3t' \
+    --tenant-id your-tenant --app-id your-app-id \
     alerts --org veg2rx4p6lmo --severity critical --state active
 ```
 
@@ -175,23 +184,30 @@ python alerting_config.py --url https://my-proxy-qa-pr-42.onrender.com \
 BASE="https://qa.my.nethesis.it"
 EMAIL="user@example.com"
 PASS="your-password-here"
+TENANT_ID="your-tenant"
+APP_ID="your-app-id"
 ORG="your-org-id"
 
 # 1. Check current config
-python alerting_config.py --url "$BASE" --email "$EMAIL" --password "$PASS" get --org "$ORG"
+python alerting_config.py --url "$BASE" --email "$EMAIL" --password "$PASS" \
+    --tenant-id "$TENANT_ID" --app-id "$APP_ID" get --org "$ORG"
 
 # 2. Apply new config
 python alerting_config.py --url "$BASE" --email "$EMAIL" --password "$PASS" \
+    --tenant-id "$TENANT_ID" --app-id "$APP_ID" \
     set --org "$ORG" --config my_config.json
 
 # 3. Verify it took effect
-python alerting_config.py --url "$BASE" --email "$EMAIL" --password "$PASS" get --org "$ORG"
+python alerting_config.py --url "$BASE" --email "$EMAIL" --password "$PASS" \
+    --tenant-id "$TENANT_ID" --app-id "$APP_ID" get --org "$ORG"
 
 # 4. Check for active alerts
-python alerting_config.py --url "$BASE" --email "$EMAIL" --password "$PASS" alerts --org "$ORG"
+python alerting_config.py --url "$BASE" --email "$EMAIL" --password "$PASS" \
+    --tenant-id "$TENANT_ID" --app-id "$APP_ID" alerts --org "$ORG"
 
 # 5. Disable alerts when done
-python alerting_config.py --url "$BASE" --email "$EMAIL" --password "$PASS" delete --org "$ORG"
+python alerting_config.py --url "$BASE" --email "$EMAIL" --password "$PASS" \
+    --tenant-id "$TENANT_ID" --app-id "$APP_ID" delete --org "$ORG"
 ```
 
 ---
