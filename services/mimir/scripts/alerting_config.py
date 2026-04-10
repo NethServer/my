@@ -115,21 +115,42 @@ def _logto_login(api_url, email, password, tenant_id, app_id):
     state = secrets.token_urlsafe(16)
     # Step 1: Start OIDC authorization flow — follow redirects so Logto
     # establishes the interaction session cookie before we call its API.
-    session.get(
-        f"{logto_endpoint}/oidc/auth",
-        params={
-            "client_id": app_id,
-            "redirect_uri": redirect_uri,
-            "response_type": "code",
-            "scope": "openid profile email offline_access urn:logto:scope:organizations urn:logto:scope:organization_roles",
-            "state": state,
-            "code_challenge": code_challenge,
-            "code_challenge_method": "S256",
-        },
-        allow_redirects=True,
-    )
+    try:
+        r1 = session.get(
+            f"{logto_endpoint}/oidc/auth",
+            params={
+                "client_id": app_id,
+                "redirect_uri": redirect_uri,
+                "response_type": "code",
+                "scope": "openid profile email offline_access urn:logto:scope:organizations urn:logto:scope:organization_roles",
+                "state": state,
+                "code_challenge": code_challenge,
+                "code_challenge_method": "S256",
+            },
+            allow_redirects=True,
+        )
+        if not r1.ok:
+            print(f"Authentication error (Step 1 - OIDC auth endpoint returned {r1.status_code})")
+            print(f"  Endpoint: {logto_endpoint}/oidc/auth")
+            print(f"  This could mean:")
+            print(f"    1. Tenant ID '{tenant_id}' doesn't exist or is invalid")
+            print(f"    2. Logto service is unavailable")
+            print(f"  Please verify --tenant-id (or TENANT_ID env var) is correct")
+            print(f"  Response: {r1.text[:200]}")
+            sys.exit(1)
+    except Exception as e:
+        print(f"Authentication error (Step 1 - OIDC auth): {e}")
+        sys.exit(1)
     # Step 2: Logto interaction API — sign in with email/password
-    session.put(f"{logto_endpoint}/api/interaction", json={"event": "SignIn"})
+    try:
+        r2a = session.put(f"{logto_endpoint}/api/interaction", json={"event": "SignIn"})
+        if not r2a.ok:
+            print(f"Authentication error (Step 2a - interaction init, {r2a.status_code}): {r2a.text}")
+            sys.exit(1)
+    except Exception as e:
+        print(f"Authentication error (Step 2a - interaction init): {e}")
+        sys.exit(1)
+    
     r = session.patch(
         f"{logto_endpoint}/api/interaction/identifiers",
         json={"email": email, "password": password},
@@ -138,7 +159,11 @@ def _logto_login(api_url, email, password, tenant_id, app_id):
         print(f"Authentication failed: {r.json().get('message', r.text)}")
         sys.exit(1)
     if not r.ok:
-        print(f"Authentication error ({r.status_code}): {r.text}")
+        print(f"Authentication error (Step 2b - identifier patch, {r.status_code}): {r.text}")
+        print(f"  Logto endpoint: {logto_endpoint}")
+        print(f"  Tenant ID: {tenant_id}")
+        print(f"  App ID: {app_id}")
+        print(f"  Make sure the tenant exists and the redirect URI is registered")
         sys.exit(1)
     # Step 3: Submit sign-in
     r4 = session.post(f"{logto_endpoint}/api/interaction/submit")
@@ -355,7 +380,7 @@ def main():
     parser.add_argument("--url", required=True, help="Base URL of the MY proxy (e.g. https://my.nethesis.it)")
     parser.add_argument("--email", required=True, help="User email address")
     parser.add_argument("--password", required=True, help="User password")
-    parser.add_argument("--tenant-id", dest="tenant_id", required=True, help="Logto tenant ID (e.g., your-tenant)")
+    parser.add_argument("--tenant-id", dest="tenant_id", default=os.environ.get("TENANT_ID"), help="Logto tenant ID (default: TENANT_ID env var)")
     parser.add_argument("--app-id", dest="app_id", default=os.environ.get("LOGTO_APP_ID", "my_frontend_app"), help="Logto OIDC app ID (default: LOGTO_APP_ID env var or 'my_frontend_app')")
     parser.add_argument("--org", help="Organization logto_id (required for Owner/Distributor/Reseller; auto-discovered if omitted)")
 
@@ -393,6 +418,11 @@ def main():
 
     args = parser.parse_args()
     args.url = args.url.rstrip("/")
+    
+    # Validate required arguments
+    if not args.tenant_id:
+        print("Error: --tenant-id is required (or set TENANT_ID environment variable)", file=sys.stderr)
+        sys.exit(1)
 
     dispatch = {
         "get": cmd_get,
