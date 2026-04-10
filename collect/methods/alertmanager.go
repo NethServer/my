@@ -99,7 +99,7 @@ func ReceiveAlertHistory(c *gin.Context) {
 		saved++
 	}
 
-	logger.Info().
+	logger.Debug().
 		Str("receiver", payload.Receiver).
 		Str("status", payload.Status).
 		Int("total_alerts", len(payload.Alerts)).
