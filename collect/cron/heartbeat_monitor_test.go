@@ -39,17 +39,17 @@ func TestNewHeartbeatMonitor(t *testing.T) {
 		t.Errorf("Expected mimirURL http://localhost:9009, got %s", monitor.mimirURL)
 	}
 
-	if monitor.firedAlerts == nil {
-		t.Fatal("Expected firedAlerts map to be initialized")
+	if monitor.timeoutMinutes != configuration.Config.HeartbeatTimeoutMinutes {
+		t.Errorf("Expected timeout to match config value %d, got %d", configuration.Config.HeartbeatTimeoutMinutes, monitor.timeoutMinutes)
 	}
 }
 
 func TestHeartbeatMonitor_Structure(t *testing.T) {
 	monitor := &HeartbeatMonitor{
+		db:               nil,
 		mimirURL:         "http://localhost:9009",
 		timeoutMinutes:   10,
 		checkIntervalSec: 60,
-		firedAlerts:      make(map[string]firedAlert),
 	}
 
 	if monitor.timeoutMinutes != 10 {
@@ -65,37 +65,23 @@ func TestHeartbeatMonitor_Structure(t *testing.T) {
 	}
 }
 
-func TestHeartbeatMonitor_FiredAlertsTracking(t *testing.T) {
+func TestHeartbeatMonitor_AlertFunctions(t *testing.T) {
 	monitor := &HeartbeatMonitor{
+		db:               nil,
+		mimirURL:         "http://localhost:9009",
 		timeoutMinutes:   10,
 		checkIntervalSec: 60,
-		firedAlerts:      make(map[string]firedAlert),
 	}
 
-	systemKey := "NETH-TEST-KEY"
-	monitor.firedAlerts[systemKey] = firedAlert{
-		OrgID:    "org-123",
-		StartsAt: nowForTest(),
-	}
+	// Test fireHostDownAlert doesn't panic (won't actually post in test)
+	err := monitor.fireHostDownAlert("TEST-KEY", "org-123", nowForTest())
+	// Note: Will fail to connect to mimir in test, but that's OK for structure validation
+	_ = err
 
-	if len(monitor.firedAlerts) != 1 {
-		t.Fatalf("Expected 1 fired alert, got %d", len(monitor.firedAlerts))
-	}
-
-	alert, ok := monitor.firedAlerts[systemKey]
-	if !ok {
-		t.Fatal("Expected fired alert to be present")
-	}
-
-	if alert.OrgID != "org-123" {
-		t.Fatalf("Expected OrgID org-123, got %s", alert.OrgID)
-	}
-
-	delete(monitor.firedAlerts, systemKey)
-
-	if len(monitor.firedAlerts) != 0 {
-		t.Fatalf("Expected fired alerts map to be empty, got %d entries", len(monitor.firedAlerts))
-	}
+	// Test resolveHostDownAlert doesn't panic
+	err = monitor.resolveHostDownAlert("TEST-KEY", "org-123")
+	// Note: Will fail to connect to mimir in test, but that's OK for structure validation
+	_ = err
 }
 
 func nowForTest() time.Time {

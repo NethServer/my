@@ -16,7 +16,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/nethesis/my/collect/configuration"
@@ -24,19 +23,12 @@ import (
 	"github.com/nethesis/my/collect/logger"
 )
 
-type firedAlert struct {
-	OrgID    string
-	StartsAt time.Time
-}
-
 // HeartbeatMonitor checks system heartbeats and updates status accordingly
 type HeartbeatMonitor struct {
 	db               *sql.DB
 	mimirURL         string
 	timeoutMinutes   int
 	checkIntervalSec int
-	firedAlerts      map[string]firedAlert
-	mu               sync.Mutex
 }
 
 // NewHeartbeatMonitor creates a new heartbeat monitor instance
@@ -46,7 +38,6 @@ func NewHeartbeatMonitor() *HeartbeatMonitor {
 		mimirURL:         configuration.Config.MimirURL,
 		timeoutMinutes:   configuration.Config.HeartbeatTimeoutMinutes,
 		checkIntervalSec: 60, // Check every 60 seconds
-		firedAlerts:      make(map[string]firedAlert),
 	}
 }
 
@@ -75,11 +66,6 @@ func (h *HeartbeatMonitor) Start(ctx context.Context) {
 	}
 }
 
-type hostDownSystem struct {
-	SystemKey string
-	OrgID     string
-}
-
 type mimirAlert struct {
 	Labels      map[string]string `json:"labels"`
 	Annotations map[string]string `json:"annotations"`
@@ -92,156 +78,118 @@ type mimirAlert struct {
 func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 	cutoff := time.Now().Add(-time.Duration(h.timeoutMinutes) * time.Minute)
 
-	// Update systems to 'active' if they have recent heartbeat and are not currently 'active'
+	// Select systems that will be set to 'active' if they have recent heartbeat and are not currently 'active'
 	// This handles: unknown -> active, inactive -> active
 	queryActive := `
-		UPDATE systems s
-		SET status = 'active', updated_at = NOW()
-		FROM system_heartbeats h
-		WHERE s.id = h.system_id
-			AND h.last_heartbeat > $1
+		SELECT s.system_key, s.organization_id
+		FROM systems s
+		INNER JOIN system_heartbeats h ON s.id = h.system_id
+		WHERE h.last_heartbeat > $1
 			AND s.status != 'active'
 			AND s.deleted_at IS NULL
 	`
 
-	resultActive, err := h.db.ExecContext(ctx, queryActive, cutoff)
+	// Update systems to 'active' and resolve HostDown alerts
+	resultActive, err := h.db.QueryContext(ctx, queryActive, cutoff)
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Msg("Failed to update systems to active status")
+			Msg("Failed to query systems for active status update")
 	} else {
-		rowsAffected, _ := resultActive.RowsAffected()
-		if rowsAffected > 0 {
-			logger.Info().
-				Int64("systems_updated", rowsAffected).
-				Msg("Updated systems to active status")
+		for resultActive.Next() {
+			var systemKey, orgID string
+			if err := resultActive.Scan(&systemKey, &orgID); err != nil {
+				logger.Error().
+					Err(err).
+					Str("system_key", systemKey).
+					Msg("Failed to scan active system row")
+				continue
+			} else {
+				updatedRows, err := h.db.ExecContext(ctx, `
+					UPDATE systems
+					SET status = 'active', updated_at = NOW()
+					WHERE system_key = $1
+				`, systemKey)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("system_key", systemKey).
+						Msg("Failed to update system to active status")
+				} else {
+					affected, _ := updatedRows.RowsAffected()
+					if affected > 0 {
+						logger.Info().
+							Str("system_key", systemKey).
+							Msg("Updated system to active status")
+					}
+					if err := h.resolveHostDownAlert(systemKey, orgID); err != nil {
+						logger.Error().
+							Err(err).
+							Str("system_key", systemKey).
+							Msg("Failed to resolve HostDown alert")
+					}
+				}
+			}
 		}
 	}
 
 	// Update systems to 'inactive' if they have old heartbeat and are currently 'active'
 	queryInactive := `
-		UPDATE systems s
-		SET status = 'inactive', updated_at = NOW()
-		FROM system_heartbeats h
-		WHERE s.id = h.system_id
-			AND h.last_heartbeat <= $1
+		SELECT s.system_key, s.organization_id
+		FROM systems s
+		INNER JOIN system_heartbeats h ON s.id = h.system_id
+		WHERE h.last_heartbeat <= $1
 			AND s.status = 'active'
 			AND s.deleted_at IS NULL
 	`
 
-	resultInactive, err := h.db.ExecContext(ctx, queryInactive, cutoff)
+	// Update systems to 'inactive' and fire HostDown alerts
+	resultInactive, err := h.db.QueryContext(ctx, queryInactive, cutoff)
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Msg("Failed to update systems to inactive status")
+			Msg("Failed to query systems for inactive status update")
 	} else {
-		rowsAffected, _ := resultInactive.RowsAffected()
-		if rowsAffected > 0 {
-			logger.Warn().
-				Int64("systems_updated", rowsAffected).
-				Msg("Updated systems to inactive status")
+		for resultInactive.Next() {
+			var systemKey, orgID string
+			if err := resultInactive.Scan(&systemKey, &orgID); err != nil {
+				logger.Error().
+					Err(err).
+					Str("system_key", systemKey).
+					Msg("Failed to scan inactive system row")
+				continue
+			} else {
+				updatedRows, err := h.db.ExecContext(ctx, `
+					UPDATE systems
+					SET status = 'inactive', updated_at = NOW()
+					WHERE system_key = $1
+				`, systemKey)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("system_key", systemKey).
+						Msg("Failed to update system to inactive status")
+				} else {
+					affected, _ := updatedRows.RowsAffected()
+					if affected > 0 {
+						logger.Info().
+							Str("system_key", systemKey).
+							Msg("Updated system to inactive status")
+					}
+					if err := h.fireHostDownAlert(systemKey, orgID, time.Now()); err != nil {
+						logger.Error().
+							Err(err).
+							Str("system_key", systemKey).
+							Msg("Failed to fire HostDown alert")
+					}
+				}
+			}
 		}
-	}
-
-	inactiveSystems, err := h.getInactiveSystems(ctx, cutoff)
-	if err != nil {
-		logger.Error().
-			Err(err).
-			Msg("Failed to load inactive systems for HostDown alerts")
-	} else {
-		h.syncHostDownAlerts(inactiveSystems)
 	}
 
 	logger.Debug().
 		Time("cutoff", cutoff).
 		Msg("Heartbeat status check completed")
-}
-
-func (h *HeartbeatMonitor) getInactiveSystems(ctx context.Context, cutoff time.Time) (map[string]hostDownSystem, error) {
-	rows, err := h.db.QueryContext(ctx, `
-		SELECT s.system_key, s.organization_id
-		FROM systems s
-		INNER JOIN system_heartbeats hb ON s.id = hb.system_id
-		WHERE hb.last_heartbeat <= $1
-			AND s.deleted_at IS NULL
-			AND s.suspended_at IS NULL
-	`, cutoff)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			logger.Error().Err(err).Msg("Failed to close inactive systems rows")
-		}
-	}()
-
-	inactiveSystems := make(map[string]hostDownSystem)
-	for rows.Next() {
-		var system hostDownSystem
-		if err := rows.Scan(&system.SystemKey, &system.OrgID); err != nil {
-			return nil, err
-		}
-		inactiveSystems[system.SystemKey] = system
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return inactiveSystems, nil
-}
-
-func (h *HeartbeatMonitor) syncHostDownAlerts(inactiveSystems map[string]hostDownSystem) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	for systemKey, alert := range h.firedAlerts {
-		if _, stillInactive := inactiveSystems[systemKey]; stillInactive {
-			continue
-		}
-
-		if err := h.resolveHostDownAlert(systemKey, alert.OrgID); err != nil {
-			logger.Error().
-				Err(err).
-				Str("system_key", systemKey).
-				Msg("Failed to resolve HostDown alert")
-			continue
-		}
-
-		logger.Info().
-			Str("system_key", systemKey).
-			Dur("was_down_for", time.Since(alert.StartsAt)).
-			Msg("Resolved HostDown alert")
-		delete(h.firedAlerts, systemKey)
-	}
-
-	for systemKey, system := range inactiveSystems {
-		activeAlert, alreadyFired := h.firedAlerts[systemKey]
-		startsAt := activeAlert.StartsAt
-		if !alreadyFired {
-			startsAt = time.Now()
-		}
-
-		if err := h.fireHostDownAlert(systemKey, system.OrgID, startsAt); err != nil {
-			logger.Error().
-				Err(err).
-				Str("system_key", systemKey).
-				Msg("Failed to fire HostDown alert")
-			continue
-		}
-
-		if !alreadyFired {
-			logger.Warn().
-				Str("system_key", systemKey).
-				Int("timeout_minutes", h.timeoutMinutes).
-				Msg("Fired HostDown alert")
-		}
-
-		h.firedAlerts[systemKey] = firedAlert{
-			OrgID:    system.OrgID,
-			StartsAt: startsAt,
-		}
-	}
 }
 
 func (h *HeartbeatMonitor) fireHostDownAlert(systemKey, orgID string, startsAt time.Time) error {
@@ -250,6 +198,7 @@ func (h *HeartbeatMonitor) fireHostDownAlert(systemKey, orgID string, startsAt t
 }
 
 func (h *HeartbeatMonitor) resolveHostDownAlert(systemKey, orgID string) error {
+	// To resolve the alert, post a new alert with the same fingerprint but with an end time in the past.
 	return h.postHostDownAlert(systemKey, orgID, time.Now().Add(-time.Duration(h.timeoutMinutes)*time.Minute), time.Now())
 }
 
@@ -262,7 +211,10 @@ func (h *HeartbeatMonitor) postHostDownAlert(systemKey, orgID string, startsAt, 
 				"system_key": systemKey,
 			},
 			Annotations: map[string]string{
-				"summary": fmt.Sprintf("system %s is down: no heartbeat received", systemKey),
+				"summary_en":     "System is down: no heartbeat received",
+				"summary_it":     "Il sistema è inattivo: nessun heartbeat ricevuto",
+				"description_en": fmt.Sprintf("The system with key %s has not sent a heartbeat since %s, it is considered down.", systemKey, startsAt.Format(time.RFC3339)),
+				"description_it": fmt.Sprintf("Il sistema con chiave %s non ha inviato un heartbeat dal %s, è considerato inattivo.", systemKey, startsAt.Format(time.RFC3339)),
 			},
 			StartsAt: startsAt,
 			EndsAt:   endsAt,
