@@ -6,7 +6,7 @@ Handles the full Logto OIDC authentication flow automatically.
 
 Usage:
     python alerting_config.py --url URL --email EMAIL --password PASS \\
-        --tenant-id TENANT_ID --app-id APP_ID <command> [options]
+        --tenant-id TENANT_ID [--app-id APP_ID] <command> [options]
 
 Commands:
     get     Get the current alerting configuration (JSON by default, use --format yaml for raw YAML)
@@ -50,32 +50,32 @@ Config JSON structure (used with the 'set' command):
 Examples:
     python alerting_config.py --url https://my.nethesis.it \\
         --email admin@example.com --password 's3cr3t' \\
-        --tenant-id your-tenant --app-id your-app-id \\
+        --tenant-id your-tenant \\
         get --org veg2rx4p6lmo
 
     python alerting_config.py --url https://my.nethesis.it \\
         --email admin@example.com --password 's3cr3t' \\
-        --tenant-id your-tenant --app-id your-app-id \\
+        --tenant-id your-tenant \\
         get --org veg2rx4p6lmo --format yaml
 
     python alerting_config.py --url https://my.nethesis.it \\
         --email admin@example.com --password 's3cr3t' \\
-        --tenant-id your-tenant --app-id your-app-id \\
+        --tenant-id your-tenant \\
         set --org veg2rx4p6lmo --config my_config.json
 
     python alerting_config.py --url https://my.nethesis.it \\
         --email admin@example.com --password 's3cr3t' \\
-        --tenant-id your-tenant --app-id your-app-id \\
+        --tenant-id your-tenant \\
         delete --org veg2rx4p6lmo
 
     python alerting_config.py --url https://my.nethesis.it \\
         --email admin@example.com --password 's3cr3t' \\
-        --tenant-id your-tenant --app-id your-app-id \\
+        --tenant-id your-tenant \\
         alerts --org veg2rx4p6lmo --severity critical --state active
 
     python alerting_config.py --url https://my.nethesis.it \\
         --email admin@example.com --password 's3cr3t' \\
-        --tenant-id your-tenant --app-id your-app-id \\
+        --tenant-id your-tenant \\
         history --system-id sys_123456789 --page 1 --page-size 50
 """
 
@@ -356,7 +356,7 @@ def main():
     parser.add_argument("--email", required=True, help="User email address")
     parser.add_argument("--password", required=True, help="User password")
     parser.add_argument("--tenant-id", dest="tenant_id", required=True, help="Logto tenant ID (e.g., your-tenant)")
-    parser.add_argument("--app-id", dest="app_id", required=True, help="Logto OIDC app ID")
+    parser.add_argument("--app-id", dest="app_id", default=os.environ.get("LOGTO_APP_ID", "my_frontend_app"), help="Logto OIDC app ID (default: LOGTO_APP_ID env var or 'my_frontend_app')")
     parser.add_argument("--org", help="Organization logto_id (required for Owner/Distributor/Reseller; auto-discovered if omitted)")
 
     sub = parser.add_subparsers(dest="command", required=True)
