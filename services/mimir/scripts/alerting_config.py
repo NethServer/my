@@ -231,7 +231,7 @@ def cmd_get(args):
     if args.format == "yaml":
         params["format"] = "yaml"
     r = requests.get(
-        f"{backend_url}/alerting/config",
+        f"{backend_url}/alerts/config",
         headers=headers,
         params=params,
         timeout=30,
@@ -262,7 +262,7 @@ def cmd_set(args):
 
     headers, backend_url = _authenticate(args.url, args.email, args.password)
     r = requests.post(
-        f"{backend_url}/alerting/config",
+        f"{backend_url}/alerts/config",
         headers={**headers, "Content-Type": "application/json"},
         params=_org_params(args.org, headers, backend_url),
         json=config_body,
@@ -278,7 +278,7 @@ def cmd_delete(args):
     """Disable all alerts (replace config with blackhole)."""
     headers, backend_url = _authenticate(args.url, args.email, args.password)
     r = requests.delete(
-        f"{backend_url}/alerting/config",
+        f"{backend_url}/alerts/config",
         headers=headers,
         params=_org_params(args.org, headers, backend_url),
         timeout=30,
@@ -301,7 +301,7 @@ def cmd_alerts(args):
         params["system_key"] = args.system_key
 
     r = requests.get(
-        f"{backend_url}/alerting/alerts",
+        f"{backend_url}/alerts",
         headers=headers,
         params=params,
         timeout=30,
@@ -329,7 +329,7 @@ def cmd_history(args):
         params["sort_direction"] = args.sort_direction
 
     r = requests.get(
-        f"{backend_url}/systems/{system_id}/alerting/history",
+        f"{backend_url}/systems/{system_id}/alerts/history",
         headers=headers,
         params=params,
         timeout=30,

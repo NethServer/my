@@ -13,6 +13,26 @@ Handles the full Logto OIDC authentication flow automatically.
 pip install requests
 ```
 
+### Environment variables
+
+The OIDC login flow needs to know which Logto tenant and application to use. Configure these variables before running the script:
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `LOGTO_ENDPOINT` | yes | `https://your-tenant.logto.app` | Logto tenant endpoint (e.g. `https://qa.id.nethesis.it`) |
+| `LOGTO_APP_ID`   | yes | `your-app-id` | Logto application ID used for the OIDC flow |
+| `AUTH_BASE_URL`  | no  | `https://qa.my.nethesis.it` | Stable base URL registered as the OIDC redirect URI in Logto |
+
+Export them in your shell or put them in a local `.env` and source it before running the script:
+
+```bash
+export LOGTO_ENDPOINT="https://qa.id.nethesis.it"
+export LOGTO_APP_ID="abcd1234efgh5678"
+export AUTH_BASE_URL="https://qa.my.nethesis.it"
+```
+
+> `AUTH_BASE_URL` must match a redirect URI that is already registered in Logto for the application (`<AUTH_BASE_URL>/login-redirect`). Using a different value will cause the login flow to fail.
+
 ### Usage
 
 ```
