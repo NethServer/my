@@ -73,8 +73,7 @@ func ReceiveAlertHistory(c *gin.Context) {
 		_, err = database.DB.Exec(
 			`INSERT INTO alert_history
 				(system_key, alertname, severity, status, fingerprint, starts_at, ends_at, summary, labels, annotations, receiver)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-			ON CONFLICT (fingerprint, system_key, starts_at) DO NOTHING`,
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
 			systemKey,
 			alertname,
 			nullableString(severity),

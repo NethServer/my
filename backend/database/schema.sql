@@ -741,14 +741,13 @@ CREATE TABLE IF NOT EXISTS alert_history (
 -- Table documentation
 COMMENT ON TABLE alert_history IS 'Resolved and inactive alerts received from Alertmanager webhooks';
 COMMENT ON COLUMN alert_history.system_key IS 'System key extracted from alert labels.system_key';
-COMMENT ON COLUMN alert_history.fingerprint IS 'Alert fingerprint from Alertmanager for deduplication';
+COMMENT ON COLUMN alert_history.fingerprint IS 'Alert fingerprint from Alertmanager (hash of labels)';
 COMMENT ON COLUMN alert_history.status IS 'Alert status at time of receipt: resolved';
 COMMENT ON COLUMN alert_history.ends_at IS 'NULL when end time is the zero time (0001-01-01)';
 
 -- Performance indexes
 CREATE INDEX IF NOT EXISTS idx_alert_history_system_key_created_at ON alert_history(system_key, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_alert_history_starts_at ON alert_history(starts_at DESC);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_alert_history_fingerprint_system_key_starts_at ON alert_history(fingerprint, system_key, starts_at);
 
 -- =============================================================================
 -- SCHEMA MIGRATIONS TABLE
