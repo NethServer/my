@@ -19,6 +19,26 @@ My platform uses [Grafana Mimir](https://grafana.com/oss/mimir/)'s built-in mult
 
 For complete API documentation, see the [Prometheus Alertmanager v2 OpenAPI Specification](https://github.com/prometheus/alertmanager/blob/main/api/v2/openapi.yaml).
 
+## Local development
+
+For local development you can start a Mimir instance with filesystem storage (no S3 required) using the provided `Makefile`:
+
+```bash
+cd services/mimir
+make dev-setup     # inject MIMIR_URL and webhook vars into backend/.env and collect/.env
+make dev-up        # start Mimir on http://localhost:9009
+make dev-status    # show container status and readiness
+make dev-logs      # follow container logs
+make dev-restart   # restart container
+make dev-down      # stop container
+```
+
+`dev-setup` is idempotent: it skips insertion if `MIMIR_URL` is already present. It expects `backend/.env` and `collect/.env` to exist (created by `backend/make dev-setup` and `collect/make dev-setup`).
+
+The local setup uses `docker-compose.local.yml` which mounts `my-local.yaml` (filesystem backend) into the official `grafana/mimir` image. Alertmanager state is persisted in a named volume `mimir-data` so configurations survive restarts.
+
+The alert history webhook URL is set to `http://host.containers.internal:8081/api/alert_history`, which lets the Mimir container reach the collect service running on the host. Docker (non-podman) users may need to change this to `host.docker.internal`.
+
 ## Self-hosted deployment
 
 All commands are run from the **repository root**.
