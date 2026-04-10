@@ -5,7 +5,8 @@ CLI to manage alerting configuration via the MY backend API.
 Handles the full Logto OIDC authentication flow automatically.
 
 Usage:
-    python alerting_config.py --url URL --email EMAIL --password PASS <command> [options]
+    python alerting_config.py --url URL --email EMAIL --password PASS \\
+        --tenant-id TENANT_ID --app-id APP_ID <command> [options]
 
 Commands:
     get     Get the current alerting configuration (JSON by default, use --format yaml for raw YAML)
@@ -49,26 +50,32 @@ Config JSON structure (used with the 'set' command):
 Examples:
     python alerting_config.py --url https://my.nethesis.it \\
         --email admin@example.com --password 's3cr3t' \\
+        --tenant-id your-tenant --app-id your-app-id \\
         get --org veg2rx4p6lmo
 
     python alerting_config.py --url https://my.nethesis.it \\
         --email admin@example.com --password 's3cr3t' \\
+        --tenant-id your-tenant --app-id your-app-id \\
         get --org veg2rx4p6lmo --format yaml
 
     python alerting_config.py --url https://my.nethesis.it \\
         --email admin@example.com --password 's3cr3t' \\
+        --tenant-id your-tenant --app-id your-app-id \\
         set --org veg2rx4p6lmo --config my_config.json
 
     python alerting_config.py --url https://my.nethesis.it \\
         --email admin@example.com --password 's3cr3t' \\
+        --tenant-id your-tenant --app-id your-app-id \\
         delete --org veg2rx4p6lmo
 
     python alerting_config.py --url https://my.nethesis.it \\
         --email admin@example.com --password 's3cr3t' \\
+        --tenant-id your-tenant --app-id your-app-id \\
         alerts --org veg2rx4p6lmo --severity critical --state active
 
     python alerting_config.py --url https://my.nethesis.it \\
         --email admin@example.com --password 's3cr3t' \\
+        --tenant-id your-tenant --app-id your-app-id \\
         history --system-id sys_123456789 --page 1 --page-size 50
 """
 
@@ -87,17 +94,14 @@ except ImportError:
     print("Error: 'requests' library is required. Install it with: pip install requests", file=sys.stderr)
     sys.exit(1)
 
-_LOGTO_ENDPOINT = os.environ.get("LOGTO_ENDPOINT", "https://your-tenant.logto.app")
-_LOGTO_APP_ID = os.environ.get("LOGTO_APP_ID", "your-app-id")
 _LOGTO_REDIRECT_URI_PATH = "login-redirect"
 
-# Base URL used for the registered OIDC redirect_uri (must be registered in Logto)
-_AUTH_BASE_URL = os.environ.get("AUTH_BASE_URL", "https://qa.my.nethesis.it")
 
-
-def _logto_login(api_url, email, password):
+def _logto_login(api_url, email, password, tenant_id, app_id):
+    # Derive Logto endpoint from tenant ID
+    logto_endpoint = f"https://{tenant_id}.logto.app"
     # redirect_uri must use the stable QA URL (permanently registered in Logto)
-    redirect_uri = f"{_AUTH_BASE_URL.rstrip('/')}/{_LOGTO_REDIRECT_URI_PATH}"
+    redirect_uri = f"{api_url.rstrip('/')}/{_LOGTO_REDIRECT_URI_PATH}"
     # Token exchange targets the actual API deployment
     backend_url = f"{api_url.rstrip('/')}/backend/api"
     session = requests.Session()
@@ -112,9 +116,9 @@ def _logto_login(api_url, email, password):
     # Step 1: Start OIDC authorization flow — follow redirects so Logto
     # establishes the interaction session cookie before we call its API.
     session.get(
-        f"{_LOGTO_ENDPOINT}/oidc/auth",
+        f"{logto_endpoint}/oidc/auth",
         params={
-            "client_id": _LOGTO_APP_ID,
+            "client_id": app_id,
             "redirect_uri": redirect_uri,
             "response_type": "code",
             "scope": "openid profile email offline_access urn:logto:scope:organizations urn:logto:scope:organization_roles",
@@ -125,9 +129,9 @@ def _logto_login(api_url, email, password):
         allow_redirects=True,
     )
     # Step 2: Logto interaction API — sign in with email/password
-    session.put(f"{_LOGTO_ENDPOINT}/api/interaction", json={"event": "SignIn"})
+    session.put(f"{logto_endpoint}/api/interaction", json={"event": "SignIn"})
     r = session.patch(
-        f"{_LOGTO_ENDPOINT}/api/interaction/identifiers",
+        f"{logto_endpoint}/api/interaction/identifiers",
         json={"email": email, "password": password},
     )
     if r.status_code == 422:
@@ -137,7 +141,7 @@ def _logto_login(api_url, email, password):
         print(f"Authentication error ({r.status_code}): {r.text}")
         sys.exit(1)
     # Step 3: Submit sign-in
-    r4 = session.post(f"{_LOGTO_ENDPOINT}/api/interaction/submit")
+    r4 = session.post(f"{logto_endpoint}/api/interaction/submit")
     redirect_to = r4.json().get("redirectTo")
     if not redirect_to:
         print(f"Unexpected sign-in response: {r4.text}")
@@ -145,8 +149,8 @@ def _logto_login(api_url, email, password):
     # Step 4: Handle optional consent screen
     r5 = session.get(redirect_to, allow_redirects=False)
     if "consent" in r5.headers.get("Location", ""):
-        session.get(f"{_LOGTO_ENDPOINT}{r5.headers['Location']}", allow_redirects=False)
-        r_consent = session.post(f"{_LOGTO_ENDPOINT}/api/interaction/consent")
+        session.get(f"{logto_endpoint}{r5.headers['Location']}", allow_redirects=False)
+        r_consent = session.post(f"{logto_endpoint}/api/interaction/consent")
         redirect_to = r_consent.json().get("redirectTo")
     # Step 5: Follow final redirect to get the auth code
     r_final = session.get(redirect_to, allow_redirects=False)
@@ -158,12 +162,12 @@ def _logto_login(api_url, email, password):
         sys.exit(1)
     # Step 6: Exchange code for Logto access token
     r6 = requests.post(
-        f"{_LOGTO_ENDPOINT}/oidc/token",
+        f"{logto_endpoint}/oidc/token",
         data={
             "grant_type": "authorization_code",
             "code": code,
             "redirect_uri": redirect_uri,
-            "client_id": _LOGTO_APP_ID,
+            "client_id": app_id,
             "code_verifier": code_verifier,
         },
     )
@@ -184,11 +188,11 @@ def _logto_login(api_url, email, password):
     return token
 
 
-def _authenticate(base_url, email, password):
+def _authenticate(base_url, email, password, tenant_id, app_id):
     """Authenticate via Logto OIDC and return (headers, backend_url)."""
     backend_url = f"{base_url}/backend/api"
     print("Authenticating...", file=sys.stderr, flush=True)
-    token = _logto_login(base_url, email, password)
+    token = _logto_login(base_url, email, password, tenant_id, app_id)
     print("OK", file=sys.stderr)
     return {"Authorization": f"Bearer {token}"}, backend_url
 
@@ -226,7 +230,7 @@ def _fail(r):
 
 def cmd_get(args):
     """Get the current alerting configuration."""
-    headers, backend_url = _authenticate(args.url, args.email, args.password)
+    headers, backend_url = _authenticate(args.url, args.email, args.password, args.tenant_id, args.app_id)
     params = _org_params(args.org, headers, backend_url)
     if args.format == "yaml":
         params["format"] = "yaml"
@@ -260,7 +264,7 @@ def cmd_set(args):
         print(f"Error reading config file: {e}", file=sys.stderr)
         sys.exit(1)
 
-    headers, backend_url = _authenticate(args.url, args.email, args.password)
+    headers, backend_url = _authenticate(args.url, args.email, args.password, args.tenant_id, args.app_id)
     r = requests.post(
         f"{backend_url}/alerts/config",
         headers={**headers, "Content-Type": "application/json"},
@@ -276,7 +280,7 @@ def cmd_set(args):
 
 def cmd_delete(args):
     """Disable all alerts (replace config with blackhole)."""
-    headers, backend_url = _authenticate(args.url, args.email, args.password)
+    headers, backend_url = _authenticate(args.url, args.email, args.password, args.tenant_id, args.app_id)
     r = requests.delete(
         f"{backend_url}/alerts/config",
         headers=headers,
@@ -291,7 +295,7 @@ def cmd_delete(args):
 
 def cmd_alerts(args):
     """List active alerts with optional filters."""
-    headers, backend_url = _authenticate(args.url, args.email, args.password)
+    headers, backend_url = _authenticate(args.url, args.email, args.password, args.tenant_id, args.app_id)
     params = _org_params(args.org, headers, backend_url)
     if args.state:
         params["state"] = args.state
@@ -315,7 +319,7 @@ def cmd_alerts(args):
 
 def cmd_history(args):
     """List resolved/inactive alert history for a system."""
-    headers, backend_url = _authenticate(args.url, args.email, args.password)
+    headers, backend_url = _authenticate(args.url, args.email, args.password, args.tenant_id, args.app_id)
     
     system_id = args.system_id
     params = {}
@@ -351,6 +355,8 @@ def main():
     parser.add_argument("--url", required=True, help="Base URL of the MY proxy (e.g. https://my.nethesis.it)")
     parser.add_argument("--email", required=True, help="User email address")
     parser.add_argument("--password", required=True, help="User password")
+    parser.add_argument("--tenant-id", dest="tenant_id", required=True, help="Logto tenant ID (e.g., your-tenant)")
+    parser.add_argument("--app-id", dest="app_id", required=True, help="Logto OIDC app ID")
     parser.add_argument("--org", help="Organization logto_id (required for Owner/Distributor/Reseller; auto-discovered if omitted)")
 
     sub = parser.add_subparsers(dest="command", required=True)
