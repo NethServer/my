@@ -21,7 +21,9 @@ var ValidTemplateLangs = []string{"en", "it"}
 // the given language, plus a generated dispatcher template that routes
 // firing/resolved notifications to the correct language-specific template.
 // lang defaults to "en" when empty.
-func BuildTemplateFiles(lang string) (map[string]string, error) {
+// appURL is substituted into the ${APP_URL} placeholder inside the templates,
+// used by the "view system" CTA to build a link to the frontend.
+func BuildTemplateFiles(lang, appURL string) (map[string]string, error) {
 	if lang == "" {
 		lang = "en"
 	}
@@ -39,7 +41,7 @@ func BuildTemplateFiles(lang string) (map[string]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("loading alert template %s: %w", name, err)
 		}
-		files[name] = string(content)
+		files[name] = strings.ReplaceAll(string(content), "${APP_URL}", appURL)
 	}
 
 	// Dispatcher routes firing/resolved to the correct language template.

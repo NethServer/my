@@ -74,13 +74,7 @@ func ReceiveAlertHistory(c *gin.Context) {
 			`INSERT INTO alert_history
 				(system_key, alertname, severity, status, fingerprint, starts_at, ends_at, summary, labels, annotations, receiver)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-			ON CONFLICT (fingerprint, system_key) DO UPDATE SET
-				status = EXCLUDED.status,
-				ends_at = EXCLUDED.ends_at,
-				summary = EXCLUDED.summary,
-				labels = EXCLUDED.labels,
-				annotations = EXCLUDED.annotations,
-				receiver = EXCLUDED.receiver`,
+			ON CONFLICT (fingerprint, system_key, starts_at) DO NOTHING`,
 			systemKey,
 			alertname,
 			nullableString(severity),

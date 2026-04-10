@@ -8,6 +8,7 @@ package methods
 import (
 	"bytes"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -41,11 +42,11 @@ func ProxyMimir(c *gin.Context) {
 		return
 	}
 
-	var orgID string
+	var orgID, systemKey string
 	err := database.DB.QueryRow(
-		`SELECT organization_id FROM systems WHERE id = $1`,
+		`SELECT organization_id, system_key FROM systems WHERE id = $1`,
 		systemID,
-	).Scan(&orgID)
+	).Scan(&orgID, &systemKey)
 
 	if err == sql.ErrNoRows {
 		logger.Warn().Str("system_id", systemID).Str("reason", "system not found").Msg("mimir proxy: system lookup failed")
@@ -64,6 +65,11 @@ func ProxyMimir(c *gin.Context) {
 		logger.Error().Err(err).Msg("mimir proxy: failed to read request body")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("internal server error", nil))
 		return
+	}
+
+	// Inject system_key and system_id labels into POST alerts if missing
+	if c.Request.Method == http.MethodPost && strings.Contains(subPath, "/alerts") && len(bodyBytes) > 0 {
+		bodyBytes = injectSystemLabels(bodyBytes, systemKey, systemID)
 	}
 
 	// Forward request to Mimir
@@ -109,4 +115,39 @@ func ProxyMimir(c *gin.Context) {
 	if _, err := io.Copy(c.Writer, resp.Body); err != nil {
 		logger.Error().Err(err).Msg("mimir proxy: error streaming response body")
 	}
+}
+
+// injectSystemLabels adds system_key and system_id labels to each alert in the payload if not already present.
+func injectSystemLabels(body []byte, systemKey, systemID string) []byte {
+	var alerts []map[string]interface{}
+	if err := json.Unmarshal(body, &alerts); err != nil {
+		return body // Not a valid alert array, pass through unchanged
+	}
+
+	modified := false
+	for _, alert := range alerts {
+		labels, ok := alert["labels"].(map[string]interface{})
+		if !ok {
+			labels = map[string]interface{}{}
+			alert["labels"] = labels
+		}
+		if _, exists := labels["system_key"]; !exists {
+			labels["system_key"] = systemKey
+			modified = true
+		}
+		if _, exists := labels["system_id"]; !exists {
+			labels["system_id"] = systemID
+			modified = true
+		}
+	}
+
+	if !modified {
+		return body
+	}
+
+	out, err := json.Marshal(alerts)
+	if err != nil {
+		return body
+	}
+	return out
 }

@@ -102,7 +102,7 @@ func ConfigureAlerts(c *gin.Context) {
 		return
 	}
 
-	templateFiles, err := alerting.BuildTemplateFiles(req.EmailTemplateLang)
+	templateFiles, err := alerting.BuildTemplateFiles(req.EmailTemplateLang, cfg.AppURL)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to load alert email templates: "+err.Error(), nil))
 		return

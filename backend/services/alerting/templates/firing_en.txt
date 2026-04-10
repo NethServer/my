@@ -1,27 +1,37 @@
 {{ define "firing_en.txt" }}My Nethesis - Alert Notification
-=================================================================
 
-{{ len .Alerts.Firing }} ALERT{{ if gt (len .Alerts.Firing) 1 }}S{{ end }} CURRENTLY FIRING
+{{ len .Alerts.Firing }} alert{{ if gt (len .Alerts.Firing) 1 }}s{{ end }} currently firing.
+
+═══════════════════════════════════════════════════════════════
 
 {{ range .Alerts.Firing -}}
------------------------------------------------------------------
 ALERT:    {{ .Labels.alertname }}
 SEVERITY: {{ .Labels.severity | toUpper }}
 {{ if .Labels.system_key -}}
 SYSTEM:   {{ .Labels.system_key }}
 {{ end -}}
-{{ if .Annotations.summary -}}
+{{ if .Labels.service -}}
+SERVICE:  {{ .Labels.service }}
+{{ end -}}
+{{ if .Annotations.summary_en -}}
+SUMMARY:  {{ .Annotations.summary_en }}
+{{ else if .Annotations.summary -}}
 SUMMARY:  {{ .Annotations.summary }}
 {{ end -}}
-{{ if .Annotations.description -}}
+{{ if .Annotations.description_en -}}
+DETAILS:  {{ .Annotations.description_en }}
+{{ else if .Annotations.description -}}
 DETAILS:  {{ .Annotations.description }}
 {{ end -}}
 SINCE:    {{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC
+{{ if .Labels.system_id }}
+View system: ${APP_URL}/systems/{{ .Labels.system_id }}
+{{ end }}
+═══════════════════════════════════════════════════════════════
 
 {{ end -}}
-=================================================================
-This notification was generated automatically by My Nethesis
-monitoring. Please do not reply to this email.
 
-My Nethesis | Powered by Nethesis
+My Nethesis
+Need help? Contact us at info@nethesis.it
+This email was sent automatically. Please do not reply.
 {{ end }}

@@ -1,25 +1,40 @@
 {{ define "resolved_it.txt" }}My Nethesis - Allarme Risolto
-=================================================================
 
-{{ len .Alerts.Resolved }} ALLARME{{ if gt (len .Alerts.Resolved) 1 }}I{{ end }} RISOLTO{{ if gt (len .Alerts.Resolved) 1 }}I{{ end }}
+{{ len .Alerts.Resolved }} allarme{{ if gt (len .Alerts.Resolved) 1 }}i{{ end }} risolto{{ if gt (len .Alerts.Resolved) 1 }}i{{ end }}.
+
+═══════════════════════════════════════════════════════════════
 
 {{ range .Alerts.Resolved -}}
------------------------------------------------------------------
-ALLARME:    {{ .Labels.alertname }}
-SEVERITA':  {{ .Labels.severity | toUpper }}
+ALLARME:   {{ .Labels.alertname }}
+SEVERITA': {{ .Labels.severity | toUpper }}
 {{ if .Labels.system_key -}}
-SISTEMA:    {{ .Labels.system_key }}
+SISTEMA:   {{ .Labels.system_key }}
 {{ end -}}
-{{ if .Annotations.summary -}}
-RIEPILOGO:  {{ .Annotations.summary }}
+{{ if .Labels.service -}}
+SERVIZIO:  {{ .Labels.service }}
 {{ end -}}
-INIZIATO:   {{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC
-RISOLTO:    {{ .EndsAt.UTC.Format "2006-01-02 15:04:05" }} UTC
+{{ if .Annotations.summary_it -}}
+RIEPILOGO: {{ .Annotations.summary_it }}
+{{ else if .Annotations.summary -}}
+RIEPILOGO: {{ .Annotations.summary }}
+{{ end -}}
+{{ if .Annotations.description_it -}}
+DETTAGLI:  {{ .Annotations.description_it }}
+{{ else if .Annotations.description_en -}}
+DETTAGLI:  {{ .Annotations.description_en }}
+{{ else if .Annotations.description -}}
+DETTAGLI:  {{ .Annotations.description }}
+{{ end -}}
+INIZIO:    {{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC
+RISOLTO:   {{ .EndsAt.UTC.Format "2006-01-02 15:04:05" }} UTC
+{{ if .Labels.system_id }}
+Visualizza sistema: ${APP_URL}/systems/{{ .Labels.system_id }}
+{{ end }}
+═══════════════════════════════════════════════════════════════
 
 {{ end -}}
-=================================================================
-Questa notifica e' stata generata automaticamente dal sistema
-di monitoraggio My Nethesis. Non rispondere a questa email.
 
-My Nethesis | Powered by Nethesis
+My Nethesis
+Hai bisogno di aiuto? Contattaci a info@nethesis.it
+Questa email è stata inviata automaticamente. Si prega di non rispondere.
 {{ end }}

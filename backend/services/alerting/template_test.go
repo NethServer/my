@@ -590,7 +590,7 @@ func TestRenderConfig_WebhookOnly_NoHtmlField(t *testing.T) {
 }
 
 func TestBuildTemplateFiles_English(t *testing.T) {
-	files, err := BuildTemplateFiles("en")
+	files, err := BuildTemplateFiles("en", "https://my.nethesis.it")
 	require.NoError(t, err)
 
 	expected := []string{
@@ -616,7 +616,7 @@ func TestBuildTemplateFiles_English(t *testing.T) {
 }
 
 func TestBuildTemplateFiles_Italian(t *testing.T) {
-	files, err := BuildTemplateFiles("it")
+	files, err := BuildTemplateFiles("it", "https://my.nethesis.it")
 	require.NoError(t, err)
 
 	assert.Contains(t, files, "firing_it.html")
@@ -625,19 +625,19 @@ func TestBuildTemplateFiles_Italian(t *testing.T) {
 }
 
 func TestBuildTemplateFiles_EmptyLang_DefaultsToEnglish(t *testing.T) {
-	files, err := BuildTemplateFiles("")
+	files, err := BuildTemplateFiles("", "https://my.nethesis.it")
 	require.NoError(t, err)
 	assert.Contains(t, files, "firing_en.html")
 }
 
 func TestBuildTemplateFiles_InvalidLang_ReturnsError(t *testing.T) {
-	_, err := BuildTemplateFiles("zz")
+	_, err := BuildTemplateFiles("zz", "https://my.nethesis.it")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "zz")
 }
 
 func TestTemplateFiles_DefineNamedTemplates(t *testing.T) {
-	files, err := BuildTemplateFiles("en")
+	files, err := BuildTemplateFiles("en", "https://my.nethesis.it")
 	require.NoError(t, err)
 
 	assert.Contains(t, files["firing_en.html"], `define "firing_en.html"`)
