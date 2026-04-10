@@ -121,6 +121,9 @@ func GetAlerts(orgID string) ([]byte, error) {
 }
 
 // GetConfig fetches the current alertmanager configuration for the given tenant.
+// If Mimir returns 404 (no config has ever been pushed for this tenant), an
+// empty body is returned with no error — callers should treat this as "no
+// config set" rather than a hard failure.
 func GetConfig(orgID string) ([]byte, error) {
 	url := configuration.Config.MimirURL + "/api/v1/alerts"
 
@@ -136,6 +139,10 @@ func GetConfig(orgID string) ([]byte, error) {
 		return nil, fmt.Errorf("fetching config from mimir: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

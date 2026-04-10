@@ -203,6 +203,15 @@ func GetAlertingConfig(c *gin.Context) {
 		return
 	}
 
+	// No config exists for this tenant (Mimir 404 or empty body). Return null
+	// so the frontend can show the "no configuration found" empty state.
+	if len(body) == 0 {
+		c.JSON(http.StatusOK, response.OK("alerting configuration retrieved successfully", gin.H{
+			"config": nil,
+		}))
+		return
+	}
+
 	if c.Query("format") == "yaml" {
 		c.JSON(http.StatusOK, response.OK("alerting configuration retrieved successfully", gin.H{
 			"config": alerting.RedactSensitiveConfig(string(body)),
