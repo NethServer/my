@@ -112,7 +112,7 @@ export const getAlertingConfig = (organizationId: string, format?: 'yaml') => {
   }
 
   return axios
-    .get<AlertingConfigResponse>(`${API_URL}/alerting/config?${params}`, {
+    .get<AlertingConfigResponse>(`${API_URL}/alerts/config?${params}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data.config)
@@ -121,7 +121,7 @@ export const getAlertingConfig = (organizationId: string, format?: 'yaml') => {
 export const postAlertingConfig = (organizationId: string, config: AlertingConfig) => {
   const loginStore = useLoginStore()
 
-  return axios.post(`${API_URL}/alerting/config?organization_id=${organizationId}`, config, {
+  return axios.post(`${API_URL}/alerts/config?organization_id=${organizationId}`, config, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
@@ -129,7 +129,7 @@ export const postAlertingConfig = (organizationId: string, config: AlertingConfi
 export const deleteAlertingConfig = (organizationId: string) => {
   const loginStore = useLoginStore()
 
-  return axios.delete(`${API_URL}/alerting/config?organization_id=${organizationId}`, {
+  return axios.delete(`${API_URL}/alerts/config?organization_id=${organizationId}`, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
@@ -147,7 +147,7 @@ export const getAlerts = (
   if (systemKey) params.append('system_key', systemKey)
 
   return axios
-    .get<AlertsResponse>(`${API_URL}/alerting/alerts?${params}`, {
+    .get<AlertsResponse>(`${API_URL}/alerts?${params}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data.alerts)
@@ -169,13 +169,18 @@ export const getSystemAlertHistory = (
   })
 
   return axios
-    .get<AlertHistoryResponse>(`${API_URL}/systems/${systemId}/alerting/history?${params}`, {
+    .get<AlertHistoryResponse>(`${API_URL}/systems/${systemId}/alerts/history?${params}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data)
 }
 
-// Get alerts for the current system (no org scoping, uses system_key filter)
-export const getSystemActiveAlerts = (organizationId: string, systemKey: string) => {
-  return getAlerts(organizationId, undefined, undefined, systemKey)
+// Get active alerts for a specific system via the dedicated endpoint
+export const getSystemActiveAlerts = (systemId: string) => {
+  const loginStore = useLoginStore()
+  return axios
+    .get<AlertsResponse>(`${API_URL}/systems/${systemId}/alerts`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data.alerts)
 }

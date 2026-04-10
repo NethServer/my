@@ -30,17 +30,16 @@ const alerts = ref<Alert[]>([])
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 
-const organizationId = computed(() => systemDetail.value.data?.organization?.logto_id || '')
-const systemKey = computed(() => systemDetail.value.data?.system_key || '')
+const systemId = computed(() => systemDetail.value.data?.id || '')
 
 watch(
-  [organizationId, systemKey],
-  async ([orgId, sysKey]) => {
-    if (!orgId || !sysKey || !loginStore.jwtToken) return
+  systemId,
+  async (sysId) => {
+    if (!sysId || !loginStore.jwtToken) return
     isLoading.value = true
     error.value = null
     try {
-      alerts.value = await getSystemActiveAlerts(orgId, sysKey)
+      alerts.value = await getSystemActiveAlerts(sysId)
     } catch (e: unknown) {
       error.value = e instanceof Error ? e.message : String(e)
     } finally {
