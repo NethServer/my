@@ -18,6 +18,7 @@ import (
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
+	"github.com/nethesis/my/backend/services/alerting"
 	"github.com/nethesis/my/backend/services/local"
 )
 
@@ -77,6 +78,22 @@ func CreateReseller(c *gin.Context) {
 
 	// Log the action
 	logger.LogBusinessOperation(c, "resellers", "create", "reseller", reseller.ID, true, nil)
+
+	// Auto-provision default alerting configuration so the built-in history webhook
+	// is active from day one. If the reseller has an email and language in
+	// custom_data, they are used as defaults for notifications. Failure is logged
+	// but does not block reseller creation.
+	if reseller.LogtoID != nil && *reseller.LogtoID != "" {
+		defaultEmail, _ := reseller.CustomData["email"].(string)
+		defaultLang, _ := reseller.CustomData["language"].(string)
+		if err := alerting.ProvisionDefaultConfig(*reseller.LogtoID, defaultEmail, defaultLang); err != nil {
+			logger.Warn().
+				Err(err).
+				Str("reseller_id", reseller.ID).
+				Str("logto_id", *reseller.LogtoID).
+				Msg("failed to provision default alerting config for new reseller")
+		}
+	}
 
 	// Return success response
 	cache.GetRBACCache().InvalidateAll()

@@ -2,14 +2,13 @@
 
 {{ len .Alerts.Resolved }} alert{{ if gt (len .Alerts.Resolved) 1 }}s{{ end }} resolved.
 
+{{ range .Alerts.Resolved -}}
+═══════════════════════════════════════════════════════════════
+  ALERT RESOLVED
 ═══════════════════════════════════════════════════════════════
 
-{{ range .Alerts.Resolved -}}
 ALERT:    {{ .Labels.alertname }}
 SEVERITY: {{ .Labels.severity | toUpper }}
-{{ if .Labels.system_key -}}
-SYSTEM:   {{ .Labels.system_key }}
-{{ end -}}
 {{ if .Labels.service -}}
 SERVICE:  {{ .Labels.service }}
 {{ end -}}
@@ -25,12 +24,25 @@ DETAILS:  {{ .Annotations.description }}
 {{ end -}}
 STARTED:  {{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC
 RESOLVED: {{ .EndsAt.UTC.Format "2006-01-02 15:04:05" }} UTC
-{{ if .Labels.system_id }}
+
+───────────────────────────────────────────────────────────────
+  SYSTEM
+───────────────────────────────────────────────────────────────
+
+{{ if .Labels.organization_name -}}
+{{ if eq .Labels.organization_type "customer" }}CUSTOMER: {{ else if eq .Labels.organization_type "reseller" }}RESELLER: {{ else if eq .Labels.organization_type "distributor" }}DISTRIB.: {{ else }}ORG.:     {{ end }}{{ if .Labels.organization_vat }}{{ .Labels.organization_vat }} - {{ end }}{{ .Labels.organization_name }}
+{{ end -}}
+{{ if or .Labels.system_name .Labels.system_key -}}
+SYSTEM:   {{ if .Labels.system_name }}{{ .Labels.system_name }}{{ if .Labels.system_key }} ({{ .Labels.system_key }}){{ end }}{{ else }}{{ .Labels.system_key }}{{ end }}
+{{ end -}}
+{{ if or .Labels.system_fqdn .Labels.system_ipv4 -}}
+{{ if .Labels.system_fqdn }}FQDN:     {{ .Labels.system_fqdn }}{{ else }}IP:       {{ .Labels.system_ipv4 }}{{ end }}
+{{ end }}
+{{ if .Labels.system_id -}}
 View system: ${APP_URL}/systems/{{ .Labels.system_id }}
 {{ end }}
-═══════════════════════════════════════════════════════════════
-
 {{ end -}}
+═══════════════════════════════════════════════════════════════
 
 My Nethesis
 Need help? Contact us at info@nethesis.it

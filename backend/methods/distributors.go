@@ -18,6 +18,7 @@ import (
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
+	"github.com/nethesis/my/backend/services/alerting"
 	"github.com/nethesis/my/backend/services/local"
 )
 
@@ -77,6 +78,22 @@ func CreateDistributor(c *gin.Context) {
 
 	// Log the action
 	logger.LogBusinessOperation(c, "distributors", "create", "distributor", distributor.ID, true, nil)
+
+	// Auto-provision default alerting configuration so the built-in history webhook
+	// is active from day one. If the distributor has an email and language in
+	// custom_data, they are used as defaults for notifications. Failure is logged
+	// but does not block distributor creation.
+	if distributor.LogtoID != nil && *distributor.LogtoID != "" {
+		defaultEmail, _ := distributor.CustomData["email"].(string)
+		defaultLang, _ := distributor.CustomData["language"].(string)
+		if err := alerting.ProvisionDefaultConfig(*distributor.LogtoID, defaultEmail, defaultLang); err != nil {
+			logger.Warn().
+				Err(err).
+				Str("distributor_id", distributor.ID).
+				Str("logto_id", *distributor.LogtoID).
+				Msg("failed to provision default alerting config for new distributor")
+		}
+	}
 
 	// Return success response
 	cache.GetRBACCache().InvalidateAll()

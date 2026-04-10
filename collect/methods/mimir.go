@@ -42,11 +42,36 @@ func ProxyMimir(c *gin.Context) {
 		return
 	}
 
-	var orgID, systemKey string
-	err := database.DB.QueryRow(
-		`SELECT organization_id, system_key FROM systems WHERE id = $1`,
-		systemID,
-	).Scan(&orgID, &systemKey)
+	var (
+		orgID      string
+		systemKey  string
+		systemName string
+		systemFQDN sql.NullString
+		systemIPv4 sql.NullString
+		orgName    sql.NullString
+		orgVAT     sql.NullString
+		orgType    sql.NullString
+	)
+	err := database.DB.QueryRow(`
+		SELECT s.organization_id,
+		       s.system_key,
+		       s.name,
+		       s.fqdn,
+		       s.ipv4_address::text,
+		       COALESCE(d.name, r.name, c.name),
+		       COALESCE(d.custom_data->>'vat', r.custom_data->>'vat', c.custom_data->>'vat'),
+		       CASE
+		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
+		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
+		           WHEN c.logto_id IS NOT NULL THEN 'customer'
+		           ELSE NULL
+		       END
+		FROM systems s
+		LEFT JOIN distributors d ON (s.organization_id = d.logto_id OR s.organization_id = d.id) AND d.deleted_at IS NULL
+		LEFT JOIN resellers r ON (s.organization_id = r.logto_id OR s.organization_id = r.id) AND r.deleted_at IS NULL
+		LEFT JOIN customers c ON (s.organization_id = c.logto_id OR s.organization_id = c.id) AND c.deleted_at IS NULL
+		WHERE s.id = $1
+	`, systemID).Scan(&orgID, &systemKey, &systemName, &systemFQDN, &systemIPv4, &orgName, &orgVAT, &orgType)
 
 	if err == sql.ErrNoRows {
 		logger.Warn().Str("system_id", systemID).Str("reason", "system not found").Msg("mimir proxy: system lookup failed")
@@ -67,9 +92,31 @@ func ProxyMimir(c *gin.Context) {
 		return
 	}
 
-	// Inject system_key and system_id labels into POST alerts if missing
+	// Inject system/org context labels into POST alerts if missing
 	if c.Request.Method == http.MethodPost && strings.Contains(subPath, "/alerts") && len(bodyBytes) > 0 {
-		bodyBytes = injectSystemLabels(bodyBytes, systemKey, systemID)
+		injected := map[string]string{
+			"system_id":  systemID,
+			"system_key": systemKey,
+		}
+		if systemName != "" {
+			injected["system_name"] = systemName
+		}
+		if systemFQDN.Valid && systemFQDN.String != "" {
+			injected["system_fqdn"] = systemFQDN.String
+		}
+		if systemIPv4.Valid && systemIPv4.String != "" {
+			injected["system_ipv4"] = systemIPv4.String
+		}
+		if orgName.Valid && orgName.String != "" {
+			injected["organization_name"] = orgName.String
+		}
+		if orgVAT.Valid && orgVAT.String != "" {
+			injected["organization_vat"] = orgVAT.String
+		}
+		if orgType.Valid && orgType.String != "" {
+			injected["organization_type"] = orgType.String
+		}
+		bodyBytes = injectLabels(bodyBytes, injected)
 	}
 
 	// Forward request to Mimir
@@ -117,8 +164,13 @@ func ProxyMimir(c *gin.Context) {
 	}
 }
 
-// injectSystemLabels adds system_key and system_id labels to each alert in the payload if not already present.
-func injectSystemLabels(body []byte, systemKey, systemID string) []byte {
+// injectLabels adds the given labels to each alert in the payload if not already present.
+// Client-provided values for the same label key are preserved.
+func injectLabels(body []byte, toInject map[string]string) []byte {
+	if len(toInject) == 0 {
+		return body
+	}
+
 	var alerts []map[string]interface{}
 	if err := json.Unmarshal(body, &alerts); err != nil {
 		return body // Not a valid alert array, pass through unchanged
@@ -131,13 +183,11 @@ func injectSystemLabels(body []byte, systemKey, systemID string) []byte {
 			labels = map[string]interface{}{}
 			alert["labels"] = labels
 		}
-		if _, exists := labels["system_key"]; !exists {
-			labels["system_key"] = systemKey
-			modified = true
-		}
-		if _, exists := labels["system_id"]; !exists {
-			labels["system_id"] = systemID
-			modified = true
+		for key, value := range toInject {
+			if _, exists := labels[key]; !exists {
+				labels[key] = value
+				modified = true
+			}
 		}
 	}
 

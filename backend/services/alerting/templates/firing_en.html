@@ -1,5 +1,5 @@
 {{- define "firing_en.subject" -}}
-[FIRING{{ if gt (len .Alerts.Firing) 1 }} x{{ len .Alerts.Firing }}{{ end }}] {{ if .CommonLabels.alertname }}{{ .CommonLabels.alertname }}{{ else }}Alert{{ end }}{{ if .CommonLabels.system_key }} - {{ .CommonLabels.system_key }}{{ end }}
+[FIRING{{ if gt (len .Alerts.Firing) 1 }} x{{ len .Alerts.Firing }}{{ end }}][{{ if .CommonLabels.alertname }}{{ .CommonLabels.alertname }}{{ else }}Alert{{ end }}]{{ if .CommonLabels.system_key }} - {{ .CommonLabels.system_key }}{{ end }}
 {{- end }}
 
 {{ define "firing_en.html" }}<!DOCTYPE html>
@@ -81,19 +81,19 @@
             <tr>
               <td style="padding: 48px 32px;" class="mobile-padding">
 
-                <!-- Alert cards -->
                 {{ range .Alerts.Firing }}
+                <!-- Card 1: Alert (red background) -->
                 <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 20px;">
                   <tr>
-                    <td style="background-color: #fff5f5; border: 1px solid #fecaca; border-left: 4px solid #dc2626; border-radius: 12px; padding: 24px;">
+                    <td style="background-color: #fff5f5; border: 1px solid #fecaca; border-left: 4px solid #dc2626; border-radius: 12px; padding: 28px;">
                       <table border="0" cellpadding="0" cellspacing="0" width="100%">
 
                         <!-- Alert name + severity -->
                         <tr>
-                          <td style="padding-bottom: 12px;">
+                          <td style="padding-bottom: 18px;">
                             <table border="0" cellpadding="0" cellspacing="0">
                               <tr>
-                                <td style="font-size: 18px; font-weight: 700; color: #111827; font-family: 'Poppins', Arial, sans-serif; padding-right: 12px; vertical-align: middle;">
+                                <td style="font-size: 20px; font-weight: 700; color: #111827; font-family: 'Poppins', Arial, sans-serif; padding-right: 12px; vertical-align: middle;">
                                   {{ .Labels.alertname }}
                                 </td>
                                 <td style="vertical-align: middle;">
@@ -110,29 +110,13 @@
                           </td>
                         </tr>
 
-                        <!-- System key -->
-                        {{ if .Labels.system_key }}
-                        <tr>
-                          <td style="padding-bottom: 10px;">
-                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
-                              <tr>
-                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 4px;">SYSTEM</td>
-                              </tr>
-                              <tr>
-                                <td style="font-size: 14px; color: #374151; font-family: 'Poppins', Arial, sans-serif; font-weight: 600;">{{ .Labels.system_key }}</td>
-                              </tr>
-                            </table>
-                          </td>
-                        </tr>
-                        {{ end }}
-
                         <!-- Service -->
                         {{ if .Labels.service }}
                         <tr>
-                          <td style="padding-bottom: 10px;">
+                          <td style="padding-bottom: 18px;">
                             <table border="0" cellpadding="0" cellspacing="0" width="100%">
                               <tr>
-                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 4px;">SERVICE</td>
+                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">SERVICE</td>
                               </tr>
                               <tr>
                                 <td style="font-size: 14px; color: #374151; font-family: 'Poppins', Arial, sans-serif; font-weight: 600;">{{ .Labels.service }}</td>
@@ -145,10 +129,10 @@
                         <!-- Summary -->
                         {{ if or .Annotations.summary_en .Annotations.summary }}
                         <tr>
-                          <td style="padding-bottom: 10px;">
+                          <td style="padding-bottom: 18px;">
                             <table border="0" cellpadding="0" cellspacing="0" width="100%">
                               <tr>
-                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 4px;">SUMMARY</td>
+                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">SUMMARY</td>
                               </tr>
                               <tr>
                                 <td style="font-size: 14px; color: #374151; line-height: 1.5; font-family: 'Poppins', Arial, sans-serif;">{{ if .Annotations.summary_en }}{{ .Annotations.summary_en }}{{ else }}{{ .Annotations.summary }}{{ end }}</td>
@@ -161,10 +145,10 @@
                         <!-- Description -->
                         {{ if or .Annotations.description_en .Annotations.description }}
                         <tr>
-                          <td style="padding-bottom: 10px;">
+                          <td style="padding-bottom: 18px;">
                             <table border="0" cellpadding="0" cellspacing="0" width="100%">
                               <tr>
-                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 4px;">DESCRIPTION</td>
+                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">DESCRIPTION</td>
                               </tr>
                               <tr>
                                 <td style="font-size: 14px; color: #374151; line-height: 1.5; font-family: 'Poppins', Arial, sans-serif;">{{ if .Annotations.description_en }}{{ .Annotations.description_en }}{{ else }}{{ .Annotations.description }}{{ end }}</td>
@@ -176,10 +160,10 @@
 
                         <!-- Firing since -->
                         <tr>
-                          <td style="padding-top: 8px; border-top: 1px solid #fecaca;">
+                          <td style="padding-top: 14px; border-top: 1px solid #fecaca;">
                             <table border="0" cellpadding="0" cellspacing="0" width="100%">
                               <tr>
-                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 4px;">FIRING SINCE</td>
+                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">FIRING SINCE</td>
                               </tr>
                               <tr>
                                 <td style="font-size: 13px; color: #dc2626; font-family: 'Poppins', Arial, sans-serif; font-weight: 600;">{{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC</td>
@@ -192,18 +176,86 @@
                     </td>
                   </tr>
                 </table>
-                {{ end }}
 
-                <!-- CTA: view system -->
-                {{ with (index .Alerts.Firing 0) }}{{ if .Labels.system_id }}
-                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-top: 32px;">
+                <!-- Card 2: System information + CTA (neutral background) -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 20px;">
                   <tr>
-                    <td align="center">
-                      <a href="${APP_URL}/systems/{{ .Labels.system_id }}" style="background-color: rgb(0, 105, 168); border-radius: 8px; color: #ffffff; display: inline-block; font-family: 'Poppins', Arial, sans-serif; font-size: 16px; font-weight: 600; line-height: 52px; text-align: center; text-decoration: none; width: 280px;">View system</a>
+                    <td style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px;">
+                      <table border="0" cellpadding="0" cellspacing="0" width="100%">
+
+                        <!-- Organization -->
+                        {{ if .Labels.organization_name }}
+                        <tr>
+                          <td style="padding-bottom: 18px;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #64748b; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">{{ if eq .Labels.organization_type "customer" }}CUSTOMER{{ else if eq .Labels.organization_type "reseller" }}RESELLER{{ else if eq .Labels.organization_type "distributor" }}DISTRIBUTOR{{ else }}ORGANIZATION{{ end }}</td>
+                              </tr>
+                              <tr>
+                                <td style="font-size: 14px; color: #1e293b; font-family: 'Poppins', Arial, sans-serif; font-weight: 600;">{{ if .Labels.organization_vat }}{{ .Labels.organization_vat }} - {{ end }}{{ .Labels.organization_name }}</td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        {{ end }}
+
+                        <!-- System -->
+                        {{ if or .Labels.system_name .Labels.system_key }}
+                        <tr>
+                          <td style="padding-bottom: 18px;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #64748b; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">SYSTEM</td>
+                              </tr>
+                              <tr>
+                                <td style="font-size: 14px; color: #1e293b; font-family: 'Poppins', Arial, sans-serif; font-weight: 600;">{{ if .Labels.system_name }}{{ .Labels.system_name }}{{ else }}{{ .Labels.system_key }}{{ end }}</td>
+                              </tr>
+                              {{ if and .Labels.system_name .Labels.system_key }}
+                              <tr>
+                                <td style="font-size: 12px; color: #64748b; font-family: 'Poppins', Arial, sans-serif; padding-top: 4px;">{{ .Labels.system_key }}</td>
+                              </tr>
+                              {{ end }}
+                            </table>
+                          </td>
+                        </tr>
+                        {{ end }}
+
+                        <!-- FQDN or IP -->
+                        {{ if or .Labels.system_fqdn .Labels.system_ipv4 }}
+                        <tr>
+                          <td style="padding-bottom: 24px;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #64748b; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">{{ if .Labels.system_fqdn }}FQDN{{ else }}IP{{ end }}</td>
+                              </tr>
+                              <tr>
+                                <td style="font-size: 14px; color: #1e293b; font-family: 'Poppins', Arial, sans-serif;">{{ if .Labels.system_fqdn }}{{ .Labels.system_fqdn }}{{ else }}{{ .Labels.system_ipv4 }}{{ end }}</td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        {{ end }}
+
+                        <!-- CTA: view system -->
+                        {{ if .Labels.system_id }}
+                        <tr>
+                          <td align="center" style="padding-top: 8px; border-top: 1px solid #e2e8f0;">
+                            <table border="0" cellpadding="0" cellspacing="0">
+                              <tr>
+                                <td align="center" style="padding-top: 20px;">
+                                  <a href="${APP_URL}/systems/{{ .Labels.system_id }}" style="background-color: rgb(0, 105, 168); border-radius: 8px; color: #ffffff; display: inline-block; font-family: 'Poppins', Arial, sans-serif; font-size: 16px; font-weight: 600; line-height: 52px; text-align: center; text-decoration: none; width: 280px;">View system</a>
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        {{ end }}
+
+                      </table>
                     </td>
                   </tr>
                 </table>
-                {{ end }}{{ end }}
+                {{ end }}
 
               </td>
             </tr>

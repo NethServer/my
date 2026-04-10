@@ -12,52 +12,68 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestInjectSystemLabels(t *testing.T) {
+func TestInjectLabels(t *testing.T) {
 	tests := []struct {
-		name       string
-		body       string
-		systemKey  string
-		systemID   string
-		wantKeyVal string
-		wantIDVal  string
+		name     string
+		body     string
+		toInject map[string]string
+		expected map[string]string
 	}{
 		{
-			name:       "adds system_key and system_id when missing",
-			body:       `[{"labels":{"alertname":"DiskFull","severity":"critical"}}]`,
-			systemKey:  "SYS-KEY-001",
-			systemID:   "uuid-001",
-			wantKeyVal: "SYS-KEY-001",
-			wantIDVal:  "uuid-001",
+			name:     "adds all labels when missing",
+			body:     `[{"labels":{"alertname":"DiskFull","severity":"critical"}}]`,
+			toInject: map[string]string{"system_key": "SYS-001", "system_id": "uuid-001"},
+			expected: map[string]string{
+				"alertname":  "DiskFull",
+				"severity":   "critical",
+				"system_key": "SYS-001",
+				"system_id":  "uuid-001",
+			},
 		},
 		{
-			name:       "preserves existing system_key",
-			body:       `[{"labels":{"alertname":"DiskFull","system_key":"EXISTING"}}]`,
-			systemKey:  "SYS-KEY-001",
-			systemID:   "uuid-001",
-			wantKeyVal: "EXISTING",
-			wantIDVal:  "uuid-001",
+			name:     "preserves existing labels",
+			body:     `[{"labels":{"alertname":"DiskFull","system_key":"EXISTING"}}]`,
+			toInject: map[string]string{"system_key": "SYS-001", "system_id": "uuid-001"},
+			expected: map[string]string{
+				"alertname":  "DiskFull",
+				"system_key": "EXISTING",
+				"system_id":  "uuid-001",
+			},
 		},
 		{
-			name:       "preserves existing system_id",
-			body:       `[{"labels":{"alertname":"DiskFull","system_id":"EXISTING-UUID"}}]`,
-			systemKey:  "SYS-KEY-001",
-			systemID:   "uuid-001",
-			wantKeyVal: "SYS-KEY-001",
-			wantIDVal:  "EXISTING-UUID",
+			name:     "handles missing labels object",
+			body:     `[{"annotations":{"summary":"test"}}]`,
+			toInject: map[string]string{"system_key": "SYS-KEY-003", "system_id": "uuid-003"},
+			expected: map[string]string{
+				"system_key": "SYS-KEY-003",
+				"system_id":  "uuid-003",
+			},
 		},
 		{
-			name:       "handles missing labels object",
-			body:       `[{"annotations":{"summary":"test"}}]`,
-			systemKey:  "SYS-KEY-003",
-			systemID:   "uuid-003",
-			wantKeyVal: "SYS-KEY-003",
-			wantIDVal:  "uuid-003",
+			name: "injects all context labels",
+			body: `[{"labels":{"alertname":"Test","severity":"warning"}}]`,
+			toInject: map[string]string{
+				"system_key":        "SYS-001",
+				"system_id":         "uuid-001",
+				"system_name":       "web-01",
+				"organization_name": "Acme Corp",
+				"organization_vat":  "IT00000000001",
+			},
+			expected: map[string]string{
+				"alertname":         "Test",
+				"severity":          "warning",
+				"system_key":        "SYS-001",
+				"system_id":         "uuid-001",
+				"system_name":       "web-01",
+				"organization_name": "Acme Corp",
+				"organization_vat":  "IT00000000001",
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := injectSystemLabels([]byte(tt.body), tt.systemKey, tt.systemID)
+			result := injectLabels([]byte(tt.body), tt.toInject)
 
 			var alerts []map[string]interface{}
 			err := json.Unmarshal(result, &alerts)
@@ -66,20 +82,23 @@ func TestInjectSystemLabels(t *testing.T) {
 
 			labels, ok := alerts[0]["labels"].(map[string]interface{})
 			assert.True(t, ok)
-			assert.Equal(t, tt.wantKeyVal, labels["system_key"])
-			assert.Equal(t, tt.wantIDVal, labels["system_id"])
+
+			assert.Equal(t, len(tt.expected), len(labels), "unexpected label count")
+			for key, wantVal := range tt.expected {
+				assert.Equal(t, wantVal, labels[key], "label %s mismatch", key)
+			}
 		})
 	}
 }
 
-func TestInjectSystemLabels_InvalidJSON(t *testing.T) {
+func TestInjectLabels_InvalidJSON(t *testing.T) {
 	body := []byte("not json")
-	result := injectSystemLabels(body, "SYS-001", "uuid-001")
+	result := injectLabels(body, map[string]string{"system_key": "SYS-001"})
 	assert.Equal(t, body, result, "invalid JSON must be returned unchanged")
 }
 
-func TestInjectSystemLabels_EmptyArray(t *testing.T) {
-	body := []byte("[]")
-	result := injectSystemLabels(body, "SYS-001", "uuid-001")
-	assert.Equal(t, body, result, "empty array must be returned unchanged")
+func TestInjectLabels_EmptyInjection(t *testing.T) {
+	body := []byte(`[{"labels":{"alertname":"Test"}}]`)
+	result := injectLabels(body, map[string]string{})
+	assert.Equal(t, body, result, "empty injection must return body unchanged")
 }
