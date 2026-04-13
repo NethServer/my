@@ -86,6 +86,20 @@ type Configuration struct {
 
 	// Alertmanager webhook authentication
 	AlertmanagerWebhookSecret string `json:"alertmanager_webhook_secret"`
+
+	// Backup storage — S3 client credentials used to reach the DigitalOcean
+	// Spaces bucket that holds appliance configuration backups. The same
+	// Spaces account also hosts the Mimir buckets; values for endpoint,
+	// access key, and secret key are the shared S3 credentials.
+	BackupS3Endpoint       string `json:"backup_s3_endpoint"`
+	BackupS3Region         string `json:"backup_s3_region"`
+	BackupS3Bucket         string `json:"backup_s3_bucket"`
+	BackupS3AccessKey      string `json:"backup_s3_access_key"`
+	BackupS3SecretKey      string `json:"backup_s3_secret_key"`
+	BackupS3UsePathStyle   bool   `json:"backup_s3_use_path_style"`
+	BackupMaxUploadSize    int64  `json:"backup_max_upload_size"`
+	BackupMaxPerSystem     int    `json:"backup_max_per_system"`
+	BackupMaxSizePerSystem int64  `json:"backup_max_size_per_system"`
 }
 
 var Config = Configuration{}
@@ -176,6 +190,17 @@ func Init() {
 
 	// Alerting history webhook authentication
 	Config.AlertmanagerWebhookSecret = os.Getenv("ALERTING_HISTORY_WEBHOOK_SECRET")
+
+	// Backup storage — S3 client credentials (DigitalOcean Spaces)
+	Config.BackupS3Endpoint = os.Getenv("BACKUP_S3_ENDPOINT")
+	Config.BackupS3Region = getStringWithDefault("BACKUP_S3_REGION", "us-east-1")
+	Config.BackupS3Bucket = os.Getenv("BACKUP_S3_BUCKET")
+	Config.BackupS3AccessKey = os.Getenv("BACKUP_S3_ACCESS_KEY")
+	Config.BackupS3SecretKey = os.Getenv("BACKUP_S3_SECRET_KEY")
+	Config.BackupS3UsePathStyle = os.Getenv("BACKUP_S3_USE_PATH_STYLE") == "true"
+	Config.BackupMaxUploadSize = parseInt64WithDefault("BACKUP_MAX_UPLOAD_SIZE", 2*1024*1024*1024)
+	Config.BackupMaxPerSystem = parseIntWithDefault("BACKUP_MAX_PER_SYSTEM", 10)
+	Config.BackupMaxSizePerSystem = parseInt64WithDefault("BACKUP_MAX_SIZE_PER_SYSTEM", 500*1024*1024)
 
 	// Log successful configuration load
 	logger.LogConfigLoad("env", "configuration", true, nil)

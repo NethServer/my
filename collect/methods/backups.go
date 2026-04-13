@@ -1,0 +1,415 @@
+/*
+ * Copyright (C) 2026 Nethesis S.r.l.
+ * http://www.nethesis.it - info@nethesis.it
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * author: Edoardo Spadoni <edoardo.spadoni@nethesis.it>
+ */
+
+package methods
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+
+	"github.com/nethesis/my/collect/configuration"
+	"github.com/nethesis/my/collect/database"
+	"github.com/nethesis/my/collect/logger"
+	"github.com/nethesis/my/collect/response"
+	"github.com/nethesis/my/collect/storage"
+)
+
+// BackupMetadata is the JSON payload returned for list/upload operations.
+type BackupMetadata struct {
+	ID         string    `json:"id"`
+	Filename   string    `json:"filename"`
+	Size       int64     `json:"size"`
+	SHA256     string    `json:"sha256"`
+	MimeType   string    `json:"mimetype"`
+	UploadedAt time.Time `json:"uploaded_at"`
+	UploaderIP string    `json:"uploader_ip,omitempty"`
+	UploaderUA string    `json:"uploader_ua,omitempty"`
+	SystemVer  string    `json:"system_version,omitempty"`
+}
+
+// UploadBackup streams a configuration backup uploaded by an authenticated
+// appliance into the Garage-backed object store. The body is read as a single
+// stream, hashed with SHA-256 on the fly, and multipart-uploaded to S3. After
+// the object is committed the final SHA-256 is attached via CopyObject so it
+// appears in subsequent HEAD/GET metadata. Retention caps (count + total size)
+// are then enforced by pruning the oldest objects under the system's prefix.
+func UploadBackup(c *gin.Context) {
+	systemID, ok := getAuthenticatedSystemID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("authentication required", nil))
+		return
+	}
+
+	if c.Request.ContentLength > configuration.Config.BackupMaxUploadSize {
+		c.JSON(http.StatusRequestEntityTooLarge, response.Error(http.StatusRequestEntityTooLarge, "backup exceeds max upload size", gin.H{
+			"max_bytes": configuration.Config.BackupMaxUploadSize,
+		}))
+		return
+	}
+
+	orgID, err := lookupSystemOrgID(systemID)
+	if err != nil {
+		logger.Error().Err(err).Str("system_id", systemID).Msg("failed to resolve system organization")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve system organization", nil))
+		return
+	}
+
+	ctx := c.Request.Context()
+	client, _, err := storage.BackupClient(ctx)
+	if err != nil {
+		logger.Error().Err(err).Msg("backup storage client unavailable")
+		c.JSON(http.StatusServiceUnavailable, response.Error(http.StatusServiceUnavailable, "backup storage unavailable", nil))
+		return
+	}
+
+	backupID := uuid.Must(uuid.NewV7())
+	filename := extractFilename(c.GetHeader("X-Filename"), backupID.String())
+	ext := extractExtension(filename)
+	key := fmt.Sprintf("%s/%s/%s%s", orgID, systemID, backupID.String(), ext)
+	contentType := c.GetHeader("Content-Type")
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	hasher := sha256.New()
+	limitedBody := http.MaxBytesReader(c.Writer, c.Request.Body, configuration.Config.BackupMaxUploadSize)
+	teeReader := io.TeeReader(limitedBody, hasher)
+
+	metadata := map[string]string{
+		"filename":    filename,
+		"uploader-ip": c.ClientIP(),
+		"uploader-ua": c.Request.UserAgent(),
+		"sha256":      "pending",
+	}
+	if sv := c.GetHeader("X-System-Version"); sv != "" {
+		metadata["system-ver"] = sv
+	}
+
+	_, err = client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:        aws.String(configuration.Config.BackupS3Bucket),
+		Key:           aws.String(key),
+		Body:          teeReader,
+		ContentLength: aws.Int64(c.Request.ContentLength),
+		ContentType:   aws.String(contentType),
+		Metadata:      metadata,
+	})
+	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			c.JSON(http.StatusRequestEntityTooLarge, response.Error(http.StatusRequestEntityTooLarge, "backup exceeds max upload size", nil))
+			return
+		}
+		logger.Error().Err(err).Str("system_id", systemID).Str("key", key).Msg("backup upload failed")
+		c.JSON(http.StatusBadGateway, response.Error(http.StatusBadGateway, "backup upload failed", nil))
+		return
+	}
+
+	sha := hex.EncodeToString(hasher.Sum(nil))
+	metadata["sha256"] = sha
+
+	_, err = client.CopyObject(ctx, &s3.CopyObjectInput{
+		Bucket:            aws.String(configuration.Config.BackupS3Bucket),
+		Key:               aws.String(key),
+		CopySource:        aws.String(configuration.Config.BackupS3Bucket + "/" + key),
+		Metadata:          metadata,
+		MetadataDirective: s3types.MetadataDirectiveReplace,
+		ContentType:       aws.String(contentType),
+	})
+	if err != nil {
+		logger.Warn().Err(err).Str("key", key).Msg("failed to attach final sha256 metadata")
+	}
+
+	head, err := client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(configuration.Config.BackupS3Bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		logger.Warn().Err(err).Str("key", key).Msg("failed to HEAD uploaded backup")
+	}
+
+	var size int64
+	if head != nil {
+		size = aws.ToInt64(head.ContentLength)
+	}
+
+	if err := enforceBackupRetention(ctx, client, orgID, systemID); err != nil {
+		logger.Warn().Err(err).Str("system_id", systemID).Msg("retention enforcement failed")
+	}
+
+	logger.Info().
+		Str("component", "backup").
+		Str("operation", "upload").
+		Str("system_id", systemID).
+		Str("org_id", orgID).
+		Str("key", key).
+		Str("sha256", sha).
+		Int64("size", size).
+		Msg("backup stored")
+
+	c.JSON(http.StatusCreated, response.Created("backup stored", BackupMetadata{
+		ID:         backupID.String() + ext,
+		Filename:   filename,
+		Size:       size,
+		SHA256:     sha,
+		MimeType:   contentType,
+		UploadedAt: time.Now().UTC(),
+		UploaderIP: c.ClientIP(),
+		UploaderUA: c.Request.UserAgent(),
+		SystemVer:  metadata["system-ver"],
+	}))
+}
+
+// ListBackups returns the list of backups stored for the authenticated system.
+func ListBackups(c *gin.Context) {
+	systemID, ok := getAuthenticatedSystemID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("authentication required", nil))
+		return
+	}
+
+	orgID, err := lookupSystemOrgID(systemID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve system organization", nil))
+		return
+	}
+
+	ctx := c.Request.Context()
+	client, _, err := storage.BackupClient(ctx)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, response.Error(http.StatusServiceUnavailable, "backup storage unavailable", nil))
+		return
+	}
+
+	items, err := listBackupsForSystem(ctx, client, orgID, systemID)
+	if err != nil {
+		logger.Error().Err(err).Str("system_id", systemID).Msg("list backups failed")
+		c.JSON(http.StatusBadGateway, response.Error(http.StatusBadGateway, "failed to list backups", nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("backups listed", gin.H{"backups": items}))
+}
+
+// DownloadBackup streams a stored backup back to the authenticated appliance
+// for restore operations.
+func DownloadBackup(c *gin.Context) {
+	systemID, ok := getAuthenticatedSystemID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("authentication required", nil))
+		return
+	}
+
+	backupID := c.Param("id")
+	if backupID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("backup id required", nil))
+		return
+	}
+
+	orgID, err := lookupSystemOrgID(systemID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve system organization", nil))
+		return
+	}
+
+	ctx := c.Request.Context()
+	client, _, err := storage.BackupClient(ctx)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, response.Error(http.StatusServiceUnavailable, "backup storage unavailable", nil))
+		return
+	}
+
+	key := fmt.Sprintf("%s/%s/%s", orgID, systemID, backupID)
+	obj, err := client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(configuration.Config.BackupS3Bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		var nsk *s3types.NoSuchKey
+		if errors.As(err, &nsk) {
+			c.JSON(http.StatusNotFound, response.NotFound("backup not found", nil))
+			return
+		}
+		logger.Error().Err(err).Str("key", key).Msg("get backup failed")
+		c.JSON(http.StatusBadGateway, response.Error(http.StatusBadGateway, "failed to fetch backup", nil))
+		return
+	}
+	defer func() {
+		if cerr := obj.Body.Close(); cerr != nil {
+			logger.Warn().Err(cerr).Str("key", key).Msg("backup body close failed")
+		}
+	}()
+
+	contentType := aws.ToString(obj.ContentType)
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	c.Header("Content-Type", contentType)
+	if obj.ContentLength != nil {
+		c.Header("Content-Length", fmt.Sprintf("%d", aws.ToInt64(obj.ContentLength)))
+	}
+	if filename, ok := obj.Metadata["filename"]; ok && filename != "" {
+		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename=%q`, filename))
+	}
+	c.Status(http.StatusOK)
+
+	if _, err := io.Copy(c.Writer, obj.Body); err != nil {
+		logger.Warn().Err(err).Str("key", key).Msg("backup stream interrupted")
+	}
+}
+
+// listBackupsForSystem lists every backup object under the {org}/{system}
+// prefix and maps it to BackupMetadata.
+func listBackupsForSystem(ctx context.Context, client *s3.Client, orgID, systemID string) ([]BackupMetadata, error) {
+	prefix := fmt.Sprintf("%s/%s/", orgID, systemID)
+
+	out, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket: aws.String(configuration.Config.BackupS3Bucket),
+		Prefix: aws.String(prefix),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]BackupMetadata, 0, len(out.Contents))
+	for _, o := range out.Contents {
+		key := aws.ToString(o.Key)
+		id := strings.TrimPrefix(key, prefix)
+
+		head, err := client.HeadObject(ctx, &s3.HeadObjectInput{
+			Bucket: aws.String(configuration.Config.BackupS3Bucket),
+			Key:    aws.String(key),
+		})
+		if err != nil {
+			logger.Warn().Err(err).Str("key", key).Msg("head failed during list")
+			continue
+		}
+
+		md := head.Metadata
+		item := BackupMetadata{
+			ID:         id,
+			Filename:   md["filename"],
+			Size:       aws.ToInt64(head.ContentLength),
+			SHA256:     md["sha256"],
+			MimeType:   aws.ToString(head.ContentType),
+			UploadedAt: aws.ToTime(o.LastModified),
+			UploaderIP: md["uploader-ip"],
+			UploaderUA: md["uploader-ua"],
+			SystemVer:  md["system-ver"],
+		}
+		items = append(items, item)
+	}
+
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].UploadedAt.After(items[j].UploadedAt)
+	})
+
+	return items, nil
+}
+
+// enforceBackupRetention deletes the oldest backups under a system's prefix
+// until both BackupMaxPerSystem and BackupMaxSizePerSystem limits are met.
+func enforceBackupRetention(ctx context.Context, client *s3.Client, orgID, systemID string) error {
+	prefix := fmt.Sprintf("%s/%s/", orgID, systemID)
+
+	out, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket: aws.String(configuration.Config.BackupS3Bucket),
+		Prefix: aws.String(prefix),
+	})
+	if err != nil {
+		return err
+	}
+
+	objs := out.Contents
+	sort.Slice(objs, func(i, j int) bool {
+		return aws.ToTime(objs[i].LastModified).Before(aws.ToTime(objs[j].LastModified))
+	})
+
+	var totalSize int64
+	for _, o := range objs {
+		totalSize += aws.ToInt64(o.Size)
+	}
+
+	maxCount := configuration.Config.BackupMaxPerSystem
+	maxSize := configuration.Config.BackupMaxSizePerSystem
+
+	for len(objs) > 0 && (len(objs) > maxCount || totalSize > maxSize) {
+		victim := objs[0]
+		objs = objs[1:]
+		_, delErr := client.DeleteObject(ctx, &s3.DeleteObjectInput{
+			Bucket: aws.String(configuration.Config.BackupS3Bucket),
+			Key:    victim.Key,
+		})
+		if delErr != nil {
+			logger.Warn().Err(delErr).Str("key", aws.ToString(victim.Key)).Msg("retention: delete failed")
+			continue
+		}
+		totalSize -= aws.ToInt64(victim.Size)
+		logger.Info().Str("key", aws.ToString(victim.Key)).Msg("retention: oldest backup pruned")
+	}
+
+	return nil
+}
+
+// lookupSystemOrgID returns the organization_id for the given system_id.
+func lookupSystemOrgID(systemID string) (string, error) {
+	var orgID string
+	err := database.DB.QueryRow(
+		`SELECT organization_id FROM systems WHERE id = $1 AND deleted_at IS NULL`,
+		systemID,
+	).Scan(&orgID)
+	if err != nil {
+		return "", err
+	}
+	return orgID, nil
+}
+
+// extractFilename returns a safe user-facing filename, falling back to the
+// backup UUID if the appliance did not provide one.
+func extractFilename(headerValue, fallbackID string) string {
+	h := strings.TrimSpace(headerValue)
+	if h == "" {
+		return "backup-" + fallbackID
+	}
+	// Strip any path components so headers cannot escape the bucket prefix.
+	if i := strings.LastIndexAny(h, "/\\"); i >= 0 {
+		h = h[i+1:]
+	}
+	return h
+}
+
+// extractExtension returns the file extension from a filename, including the
+// leading dot. Falls back to ".bin" when no extension is present.
+func extractExtension(filename string) string {
+	// Preserve compound extensions like ".tar.gz" and ".tar.xz".
+	lower := strings.ToLower(filename)
+	for _, compound := range []string{".tar.gz", ".tar.xz", ".tar.bz2", ".tar.zst"} {
+		if strings.HasSuffix(lower, compound) {
+			return compound
+		}
+	}
+	if i := strings.LastIndex(filename, "."); i >= 0 && i < len(filename)-1 {
+		return strings.ToLower(filename[i:])
+	}
+	return ".bin"
+}

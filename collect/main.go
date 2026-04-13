@@ -150,6 +150,11 @@ func main() {
 		// Rebranding endpoints (system fetches its own rebranding config)
 		systemsGroup.GET("/rebranding", methods.GetSystemRebranding)
 		systemsGroup.GET("/rebranding/:product_id/:asset", methods.GetSystemRebrandingAsset)
+
+		// Backup ingest/list/restore — appliance uploads its own backups
+		systemsGroup.POST("/backups", methods.UploadBackup)
+		systemsGroup.GET("/backups", methods.ListBackups)
+		systemsGroup.GET("/backups/:id", methods.DownloadBackup)
 	}
 
 	// ===========================================
