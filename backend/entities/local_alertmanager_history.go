@@ -26,10 +26,12 @@ func NewLocalAlertHistoryRepository() *LocalAlertHistoryRepository {
 	return &LocalAlertHistoryRepository{db: database.DB}
 }
 
-// GetAlertHistoryBySystemKey returns paginated alert history for a given system_key.
+// GetAlertHistoryBySystemKey returns paginated alert history for a given system_key
+// scoped to an organization. Both filters are mandatory to prevent cross-tenant
+// disclosure if two systems ever share a system_key.
 // Valid sortBy values: id, alertname, severity, status, starts_at, ends_at, created_at.
 // sortDirection must be "asc" or "desc".
-func (r *LocalAlertHistoryRepository) GetAlertHistoryBySystemKey(systemKey string, page, pageSize int, sortBy, sortDirection string) ([]models.AlertHistoryRecord, int, error) {
+func (r *LocalAlertHistoryRepository) GetAlertHistoryBySystemKey(systemKey, organizationID string, page, pageSize int, sortBy, sortDirection string) ([]models.AlertHistoryRecord, int, error) {
 	// Allowlist for sortBy to prevent SQL injection.
 	allowedSortBy := map[string]string{
 		"id":         "id",
@@ -48,9 +50,9 @@ func (r *LocalAlertHistoryRepository) GetAlertHistoryBySystemKey(systemKey strin
 		sortDirection = "desc"
 	}
 
-	countQuery := `SELECT COUNT(*) FROM alert_history WHERE system_key = $1`
+	countQuery := `SELECT COUNT(*) FROM alert_history WHERE system_key = $1 AND organization_id = $2`
 	var totalCount int
-	if err := r.db.QueryRow(countQuery, systemKey).Scan(&totalCount); err != nil {
+	if err := r.db.QueryRow(countQuery, systemKey, organizationID).Scan(&totalCount); err != nil {
 		return nil, 0, fmt.Errorf("failed to count alert history: %w", err)
 	}
 
@@ -59,12 +61,12 @@ func (r *LocalAlertHistoryRepository) GetAlertHistoryBySystemKey(systemKey strin
 		SELECT id, system_key, alertname, severity, status, fingerprint,
 		       starts_at, ends_at, summary, labels, annotations, receiver, created_at
 		FROM alert_history
-		WHERE system_key = $1
+		WHERE system_key = $1 AND organization_id = $2
 		ORDER BY %s %s
-		LIMIT $2 OFFSET $3
+		LIMIT $3 OFFSET $4
 	`, col, sortDirection)
 
-	rows, err := r.db.Query(query, systemKey, pageSize, offset)
+	rows, err := r.db.Query(query, systemKey, organizationID, pageSize, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query alert history: %w", err)
 	}
@@ -129,99 +131,69 @@ func (r *LocalAlertHistoryRepository) GetAlertHistoryBySystemKey(systemKey strin
 	return records, totalCount, nil
 }
 
-// GetAlertHistoryTotals returns the total count of alert history records for a given organization.
-// It joins with the systems table to filter by organization_id.
-func (r *LocalAlertHistoryRepository) GetAlertHistoryTotals(orgRole, orgID string) (int, error) {
-	query := `
-		SELECT COUNT(*)
-		FROM alert_history ah
-		JOIN systems s ON s.system_key = ah.system_key
-	`
-	var args []interface{}
-
-	switch orgRole {
-	case "owner":
-		// Owner sees all
-	default:
-		query += ` WHERE s.organization_id = $1`
-		args = append(args, orgID)
-	}
-
+// GetAlertHistoryTotals returns the total count of alert history records.
+// When orgID is non-empty, results are scoped to that organization; the caller
+// is expected to have validated hierarchy access. An empty orgID returns the
+// aggregate across all tenants and is reserved for callers (Owner) that have
+// already cleared that authorization gate.
+func (r *LocalAlertHistoryRepository) GetAlertHistoryTotals(orgID string) (int, error) {
 	var total int
-	if err := r.db.QueryRow(query, args...).Scan(&total); err != nil {
+	if orgID == "" {
+		if err := r.db.QueryRow(`SELECT COUNT(*) FROM alert_history`).Scan(&total); err != nil {
+			return 0, fmt.Errorf("failed to count alert history: %w", err)
+		}
+		return total, nil
+	}
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM alert_history WHERE organization_id = $1`, orgID).Scan(&total); err != nil {
 		return 0, fmt.Errorf("failed to count alert history: %w", err)
 	}
 	return total, nil
 }
 
-// GetAlertHistoryTrend returns trend data for resolved alerts over a specified period (days).
-// It counts alerts by created_at date, with org-scoped filtering via the systems table.
-func (r *LocalAlertHistoryRepository) GetAlertHistoryTrend(period int, orgRole, orgID string) (*models.TrendResponse, error) {
+// GetAlertHistoryTrend returns trend data for resolved alerts over a specified
+// period (days). When orgID is non-empty, results are scoped to that
+// organization; an empty orgID returns the aggregate across all tenants and is
+// reserved for Owner-only callers that have cleared authorization upstream.
+func (r *LocalAlertHistoryRepository) GetAlertHistoryTrend(period int, orgID string) (*models.TrendResponse, error) {
 	now := time.Now().UTC()
 	currentStart := now.AddDate(0, 0, -period)
 	previousStart := currentStart.AddDate(0, 0, -period)
 
-	isOwner := orgRole == "owner"
-
-	// Current period count
-	var currentQuery string
-	var currentArgs []interface{}
-	if isOwner {
-		currentQuery = `SELECT COUNT(*) FROM alert_history ah
-			JOIN systems s ON s.system_key = ah.system_key
-			WHERE ah.created_at >= $1`
-		currentArgs = []interface{}{currentStart}
-	} else {
-		currentQuery = `SELECT COUNT(*) FROM alert_history ah
-			JOIN systems s ON s.system_key = ah.system_key
-			WHERE ah.created_at >= $1 AND s.organization_id = $2`
-		currentArgs = []interface{}{currentStart, orgID}
-	}
+	scopeAll := orgID == ""
 
 	var currentTotal int
-	if err := r.db.QueryRow(currentQuery, currentArgs...).Scan(&currentTotal); err != nil {
-		return nil, fmt.Errorf("failed to count current period: %w", err)
-	}
-
-	// Previous period count
-	var prevQuery string
-	var prevArgs []interface{}
-	if isOwner {
-		prevQuery = `SELECT COUNT(*) FROM alert_history ah
-			JOIN systems s ON s.system_key = ah.system_key
-			WHERE ah.created_at >= $1 AND ah.created_at < $2`
-		prevArgs = []interface{}{previousStart, currentStart}
-	} else {
-		prevQuery = `SELECT COUNT(*) FROM alert_history ah
-			JOIN systems s ON s.system_key = ah.system_key
-			WHERE ah.created_at >= $1 AND ah.created_at < $2 AND s.organization_id = $3`
-		prevArgs = []interface{}{previousStart, currentStart, orgID}
+	{
+		query := `SELECT COUNT(*) FROM alert_history WHERE created_at >= $1`
+		args := []interface{}{currentStart}
+		if !scopeAll {
+			query += ` AND organization_id = $2`
+			args = append(args, orgID)
+		}
+		if err := r.db.QueryRow(query, args...).Scan(&currentTotal); err != nil {
+			return nil, fmt.Errorf("failed to count current period: %w", err)
+		}
 	}
 
 	var previousTotal int
-	if err := r.db.QueryRow(prevQuery, prevArgs...).Scan(&previousTotal); err != nil {
-		return nil, fmt.Errorf("failed to count previous period: %w", err)
+	{
+		query := `SELECT COUNT(*) FROM alert_history WHERE created_at >= $1 AND created_at < $2`
+		args := []interface{}{previousStart, currentStart}
+		if !scopeAll {
+			query += ` AND organization_id = $3`
+			args = append(args, orgID)
+		}
+		if err := r.db.QueryRow(query, args...).Scan(&previousTotal); err != nil {
+			return nil, fmt.Errorf("failed to count previous period: %w", err)
+		}
 	}
 
-	// Daily data points for current period
-	var dpQuery string
-	var dpArgs []interface{}
-	if isOwner {
-		dpQuery = `SELECT DATE(ah.created_at) AS day, COUNT(*) AS count
-			FROM alert_history ah
-			JOIN systems s ON s.system_key = ah.system_key
-			WHERE ah.created_at >= $1
-			GROUP BY day ORDER BY day`
-		dpArgs = []interface{}{currentStart}
-	} else {
-		dpQuery = `SELECT DATE(ah.created_at) AS day, COUNT(*) AS count
-			FROM alert_history ah
-			JOIN systems s ON s.system_key = ah.system_key
-			WHERE ah.created_at >= $1 AND s.organization_id = $2
-			GROUP BY day ORDER BY day`
-		dpArgs = []interface{}{currentStart, orgID}
+	dpQuery := `SELECT DATE(created_at) AS day, COUNT(*) AS count FROM alert_history WHERE created_at >= $1`
+	dpArgs := []interface{}{currentStart}
+	if !scopeAll {
+		dpQuery += ` AND organization_id = $2`
+		dpArgs = append(dpArgs, orgID)
 	}
-
+	dpQuery += ` GROUP BY day ORDER BY day`
 	rows, err := r.db.Query(dpQuery, dpArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query data points: %w", err)

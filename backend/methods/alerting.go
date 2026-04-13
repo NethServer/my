@@ -8,7 +8,11 @@ package methods
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net"
 	"net/http"
+	"net/url"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -30,15 +34,42 @@ import (
 const defaultSystemAlertSilenceDurationMinutes = 60
 const defaultSystemAlertSilenceComment = "silenced from my"
 
+// systemKeyPattern restricts SystemOverride.SystemKey to characters that are safe
+// to embed verbatim in an Alertmanager matcher (which is rendered inside a
+// double-quoted YAML scalar). This prevents a user from injecting additional
+// matcher labels or breaking out of the YAML scalar with quotes or backslashes.
+var systemKeyPattern = regexp.MustCompile(`^[A-Za-z0-9_:.\-]+$`)
+
+// webhookHostDenylist rejects URLs whose host resolves to loopback, link-local,
+// cloud metadata service, RFC1918 private ranges, or unspecified addresses.
+// See validateWebhookURL.
+var webhookHostDenylist = []string{
+	"127.", "0.", "::1", "localhost",
+	"169.254.", "fe80:", "fe80::",
+	"10.", "172.16.", "172.17.", "172.18.", "172.19.",
+	"172.20.", "172.21.", "172.22.", "172.23.", "172.24.",
+	"172.25.", "172.26.", "172.27.", "172.28.", "172.29.",
+	"172.30.", "172.31.", "192.168.",
+	"fc00:", "fd00:",
+}
+
 // resolveOrgID extracts and validates the target organization ID for alerting operations.
-// Owner/Distributor/Reseller must pass organization_id query param; Customer uses their own.
-// Validates hierarchical access via IsOrganizationInHierarchy.
+//   - Customer: always pinned to their own organization.
+//   - Distributor/Reseller: must pass organization_id, validated via IsOrganizationInHierarchy.
+//   - Owner: organization_id is optional; an empty result means "all tenants" and is
+//     only meaningful for aggregate endpoints (totals, trend). Endpoints that talk to
+//     Mimir per-tenant must reject an empty result themselves.
 func resolveOrgID(c *gin.Context, user *models.User) (string, bool) {
 	orgID := c.Query("organization_id")
 	orgRole := strings.ToLower(user.OrgRole)
 
 	if orgRole == "customer" {
 		return user.OrganizationID, true
+	}
+
+	if orgRole == "owner" {
+		// Owner may omit organization_id to operate across all tenants.
+		return orgID, true
 	}
 
 	if orgID == "" {
@@ -56,6 +87,17 @@ func resolveOrgID(c *gin.Context, user *models.User) (string, bool) {
 	return orgID, true
 }
 
+// requireOrgID rejects callers that omitted organization_id when the endpoint
+// cannot operate without one (e.g., Mimir per-tenant queries). Returns true if
+// the request is allowed to proceed.
+func requireOrgID(c *gin.Context, orgID string) bool {
+	if orgID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("organization_id query parameter is required", nil))
+		return false
+	}
+	return true
+}
+
 // ConfigureAlerts handles POST /api/alerts/config
 func ConfigureAlerts(c *gin.Context) {
 	user, ok := helpers.GetUserFromContext(c)
@@ -65,6 +107,9 @@ func ConfigureAlerts(c *gin.Context) {
 
 	orgID, ok := resolveOrgID(c, user)
 	if !ok {
+		return
+	}
+	if !requireOrgID(c, orgID) {
 		return
 	}
 
@@ -81,6 +126,28 @@ func ConfigureAlerts(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, response.BadRequest("invalid severity level: "+severity.Severity+". allowed: critical, warning, info", nil))
 			return
 		}
+		if err := validateWebhookReceivers(severity.WebhookReceivers); err != nil {
+			c.JSON(http.StatusBadRequest, response.BadRequest(err.Error(), nil))
+			return
+		}
+	}
+
+	// Validate per-system overrides: SystemKey is rendered verbatim into an
+	// Alertmanager matcher, so it must be restricted to a safe character set.
+	for _, sys := range req.Systems {
+		if !systemKeyPattern.MatchString(sys.SystemKey) {
+			c.JSON(http.StatusBadRequest, response.BadRequest("invalid system_key: only alphanumeric characters and _ : . - are allowed", nil))
+			return
+		}
+		if err := validateWebhookReceivers(sys.WebhookReceivers); err != nil {
+			c.JSON(http.StatusBadRequest, response.BadRequest(err.Error(), nil))
+			return
+		}
+	}
+
+	if err := validateWebhookReceivers(req.WebhookReceivers); err != nil {
+		c.JSON(http.StatusBadRequest, response.BadRequest(err.Error(), nil))
+		return
 	}
 
 	// Validate email template language
@@ -125,6 +192,9 @@ func DisableAlerts(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if !requireOrgID(c, orgID) {
+		return
+	}
 
 	cfg := configuration.Config
 	yamlConfig, err := alerting.RenderConfig(
@@ -154,6 +224,9 @@ func GetAlerts(c *gin.Context) {
 
 	orgID, ok := resolveOrgID(c, user)
 	if !ok {
+		return
+	}
+	if !requireOrgID(c, orgID) {
 		return
 	}
 
@@ -192,6 +265,9 @@ func GetAlertingConfig(c *gin.Context) {
 
 	orgID, ok := resolveOrgID(c, user)
 	if !ok {
+		return
+	}
+	if !requireOrgID(c, orgID) {
 		return
 	}
 
@@ -249,35 +325,40 @@ func GetAlertsTotals(c *gin.Context) {
 		"history":  0,
 	}
 
-	// Fetch active alerts from Mimir
-	body, err := alerting.GetAlerts(orgID)
-	if err != nil {
-		logger.Warn().Err(err).Str("org_id", orgID).Msg("failed to fetch alerts from mimir for totals")
-	} else {
-		var alerts []map[string]interface{}
-		if err := json.Unmarshal(body, &alerts); err == nil {
-			var critical, warning, info int
-			for _, alert := range alerts {
-				labels, _ := alert["labels"].(map[string]interface{})
-				switch sev, _ := labels["severity"].(string); sev {
-				case "critical":
-					critical++
-				case "warning":
-					warning++
-				case "info":
-					info++
+	// Fetch active alerts from Mimir. Mimir is per-tenant, so this is only
+	// meaningful when a specific organization_id is in scope. Owner without
+	// organization_id sees active=0; the history aggregate below still works.
+	if orgID != "" {
+		body, err := alerting.GetAlerts(orgID)
+		if err != nil {
+			logger.Warn().Err(err).Str("org_id", orgID).Msg("failed to fetch alerts from mimir for totals")
+		} else {
+			var alerts []map[string]interface{}
+			if err := json.Unmarshal(body, &alerts); err == nil {
+				var critical, warning, info int
+				for _, alert := range alerts {
+					labels, _ := alert["labels"].(map[string]interface{})
+					switch sev, _ := labels["severity"].(string); sev {
+					case "critical":
+						critical++
+					case "warning":
+						warning++
+					case "info":
+						info++
+					}
 				}
+				result["active"] = len(alerts)
+				result["critical"] = critical
+				result["warning"] = warning
+				result["info"] = info
 			}
-			result["active"] = len(alerts)
-			result["critical"] = critical
-			result["warning"] = warning
-			result["info"] = info
 		}
 	}
 
-	// Fetch history total from DB
+	// Fetch history total from DB. An empty orgID means "all tenants" (Owner
+	// only — resolveOrgID would have rejected an empty value otherwise).
 	repo := entities.NewLocalAlertHistoryRepository()
-	historyTotal, err := repo.GetAlertHistoryTotals(strings.ToLower(user.OrgRole), user.OrganizationID)
+	historyTotal, err := repo.GetAlertHistoryTotals(orgID)
 	if err != nil {
 		logger.Warn().Err(err).Str("org_id", orgID).Msg("failed to count alert history for totals")
 	} else {
@@ -295,6 +376,11 @@ func GetAlertsTrend(c *gin.Context) {
 		return
 	}
 
+	orgID, ok := resolveOrgID(c, user)
+	if !ok {
+		return
+	}
+
 	periodStr := c.DefaultQuery("period", "7")
 	period, err := strconv.Atoi(periodStr)
 	if err != nil || (period != 7 && period != 30 && period != 180 && period != 365) {
@@ -303,7 +389,7 @@ func GetAlertsTrend(c *gin.Context) {
 	}
 
 	repo := entities.NewLocalAlertHistoryRepository()
-	trend, err := repo.GetAlertHistoryTrend(period, strings.ToLower(user.OrgRole), user.OrganizationID)
+	trend, err := repo.GetAlertHistoryTrend(period, orgID)
 	if err != nil {
 		logger.Error().Err(err).Int("period", period).Msg("failed to retrieve alerts trend")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve alerts trend", nil))
@@ -317,7 +403,10 @@ func GetAlertsTrend(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("alerts trend retrieved successfully", trend))
 }
 
-// filterAlerts applies optional query filters to the alerts list
+// filterAlerts applies optional query filters to the alerts list.
+// An alert is excluded when a requested filter's target label/field is missing
+// or does not match; this prevents silent leakage of unrelated alerts when the
+// caller narrows the query.
 func filterAlerts(alerts []map[string]interface{}, params models.AlertQueryParams) []map[string]interface{} {
 	if params.State == "" && params.Severity == "" && params.SystemKey == "" {
 		return alerts
@@ -326,23 +415,28 @@ func filterAlerts(alerts []map[string]interface{}, params models.AlertQueryParam
 	filtered := make([]map[string]interface{}, 0, len(alerts))
 	for _, alert := range alerts {
 		if params.State != "" {
-			if status, ok := alert["status"].(map[string]interface{}); ok {
-				if state, ok := status["state"].(string); ok && state != params.State {
-					continue
-				}
+			status, ok := alert["status"].(map[string]interface{})
+			if !ok {
+				continue
+			}
+			state, ok := status["state"].(string)
+			if !ok || state != params.State {
+				continue
 			}
 		}
 
 		labels, _ := alert["labels"].(map[string]interface{})
 
 		if params.Severity != "" {
-			if sev, ok := labels["severity"].(string); ok && sev != params.Severity {
+			sev, ok := labels["severity"].(string)
+			if !ok || sev != params.Severity {
 				continue
 			}
 		}
 
 		if params.SystemKey != "" {
-			if sk, ok := labels["system_key"].(string); ok && sk != params.SystemKey {
+			sk, ok := labels["system_key"].(string)
+			if !ok || sk != params.SystemKey {
 				continue
 			}
 		}
@@ -851,7 +945,7 @@ func GetSystemAlertHistory(c *gin.Context) {
 	page, pageSize, sortBy, sortDirection := helpers.GetPaginationAndSortingFromQuery(c)
 
 	repo := entities.NewLocalAlertHistoryRepository()
-	records, totalCount, err := repo.GetAlertHistoryBySystemKey(system.SystemKey, page, pageSize, sortBy, sortDirection)
+	records, totalCount, err := repo.GetAlertHistoryBySystemKey(system.SystemKey, system.Organization.LogtoID, page, pageSize, sortBy, sortDirection)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -866,4 +960,50 @@ func GetSystemAlertHistory(c *gin.Context) {
 		"alerts":     records,
 		"pagination": helpers.BuildPaginationInfoWithSorting(page, pageSize, totalCount, sortBy, sortDirection),
 	}))
+}
+
+// validateWebhookReceivers enforces that every webhook URL is a plain http/https
+// URL pointing to a publicly-routable host. This protects Mimir's Alertmanager
+// (which dispatches alert payloads from inside the internal network) from being
+// abused as a blind SSRF relay to loopback, metadata, or private-range hosts.
+func validateWebhookReceivers(receivers []models.WebhookReceiver) error {
+	for _, r := range receivers {
+		if err := validateWebhookURL(r.URL); err != nil {
+			return fmt.Errorf("webhook receiver %q: %w", r.Name, err)
+		}
+	}
+	return nil
+}
+
+func validateWebhookURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("invalid webhook url: %w", err)
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return fmt.Errorf("webhook url must use http or https, got %q", u.Scheme)
+	}
+	host := u.Hostname()
+	if host == "" {
+		return fmt.Errorf("webhook url is missing a host")
+	}
+
+	hostLower := strings.ToLower(host)
+	for _, prefix := range webhookHostDenylist {
+		if hostLower == strings.TrimSuffix(prefix, ".") || strings.HasPrefix(hostLower, prefix) {
+			return fmt.Errorf("webhook url host %q is not allowed (loopback, metadata, or private network)", host)
+		}
+	}
+
+	// Reject IP literals pointing to private/loopback/link-local/multicast/unspecified.
+	if ip := net.ParseIP(host); ip != nil {
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() ||
+			ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast() ||
+			ip.IsMulticast() || ip.IsUnspecified() {
+			return fmt.Errorf("webhook url host %q resolves to a non-public ip", host)
+		}
+	}
+
+	return nil
 }

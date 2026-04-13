@@ -108,29 +108,19 @@ func LookupSystemAlertContext(ctx context.Context, db *sql.DB, systemID string) 
 }
 
 // BuildSystemAlertContext converts metadata into the authoritative label set used by alerts.
+// Every identity label is included even when the DB value is empty: InjectLabels
+// will strip the client-supplied value for empty keys, preventing a compromised
+// system from spoofing labels when the server has no value.
 func BuildSystemAlertContext(metadata SystemAlertMetadata) *SystemAlertContext {
 	labels := map[string]string{
-		"system_id":  metadata.SystemID,
-		"system_key": metadata.SystemKey,
-	}
-
-	if metadata.SystemName != "" {
-		labels["system_name"] = metadata.SystemName
-	}
-	if metadata.SystemFQDN != "" {
-		labels["system_fqdn"] = metadata.SystemFQDN
-	}
-	if metadata.SystemIPv4 != "" {
-		labels["system_ipv4"] = metadata.SystemIPv4
-	}
-	if metadata.OrganizationName != "" {
-		labels["organization_name"] = metadata.OrganizationName
-	}
-	if metadata.OrganizationVAT != "" {
-		labels["organization_vat"] = metadata.OrganizationVAT
-	}
-	if metadata.OrganizationType != "" {
-		labels["organization_type"] = metadata.OrganizationType
+		"system_id":         metadata.SystemID,
+		"system_key":        metadata.SystemKey,
+		"system_name":       metadata.SystemName,
+		"system_fqdn":       metadata.SystemFQDN,
+		"system_ipv4":       metadata.SystemIPv4,
+		"organization_name": metadata.OrganizationName,
+		"organization_vat":  metadata.OrganizationVAT,
+		"organization_type": metadata.OrganizationType,
 	}
 
 	return &SystemAlertContext{
@@ -172,8 +162,12 @@ func EnrichAlerts(alerts []models.AlertmanagerPostAlert, systemContext *SystemAl
 	return enriched, nil
 }
 
-// InjectLabels adds the given labels to each alert in the payload. The client-provided
-// system_key label is always replaced with the authoritative system value.
+// InjectLabels authoritatively sets the given labels on each alert in the
+// payload. Every key in toInject is server-controlled: a non-empty value
+// replaces whatever the client sent; an empty value strips the client-supplied
+// value entirely. Identity labels (system/organization) must never be
+// attacker-controlled, otherwise a compromised system could spoof alerts for
+// other systems within the same tenant.
 func InjectLabels(body []byte, toInject map[string]string) []byte {
 	if len(toInject) == 0 {
 		return body
@@ -184,7 +178,6 @@ func InjectLabels(body []byte, toInject map[string]string) []byte {
 		return body
 	}
 
-	modified := false
 	for _, alert := range alerts {
 		labels, ok := alert["labels"].(map[string]interface{})
 		if !ok {
@@ -192,24 +185,12 @@ func InjectLabels(body []byte, toInject map[string]string) []byte {
 			alert["labels"] = labels
 		}
 		for key, value := range toInject {
-			if key == "system_key" {
-				current, exists := labels[key]
-				currentValue, isString := current.(string)
-				if !exists || !isString || currentValue != value {
-					labels[key] = value
-					modified = true
-				}
-				continue
-			}
-			if _, exists := labels[key]; !exists {
+			if value == "" {
+				delete(labels, key)
+			} else {
 				labels[key] = value
-				modified = true
 			}
 		}
-	}
-
-	if !modified {
-		return body
 	}
 
 	out, err := json.Marshal(alerts)

@@ -141,11 +141,16 @@ func TestFilterAlerts_MissingLabels(t *testing.T) {
 		},
 	}
 
-	// Filter by severity — alerts without the label pass through (not excluded)
+	// Filter by severity — alerts without the label must be excluded
+	// to prevent silent leakage of unrelated alerts.
 	result := filterAlerts(alerts, models.AlertQueryParams{Severity: "critical"})
-	assert.Equal(t, 2, len(result))
+	assert.Equal(t, 0, len(result))
 
-	// Filter by state — both have "active" state
+	// Filter by system_key — alerts without the label must be excluded.
+	result = filterAlerts(alerts, models.AlertQueryParams{SystemKey: "SYS-001"})
+	assert.Equal(t, 0, len(result))
+
+	// Filter by state — both have "active" state, so both match.
 	result = filterAlerts(alerts, models.AlertQueryParams{State: "active"})
 	assert.Equal(t, 2, len(result))
 }

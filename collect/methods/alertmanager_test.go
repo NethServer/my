@@ -42,6 +42,11 @@ func TestReceiveAlertHistory_ResolvedAlert(t *testing.T) {
 	mock, cleanup := setupMockDB(t)
 	defer cleanup()
 
+	// Lookup organization_id from systems using the trusted system_key
+	mock.ExpectQuery(`SELECT organization_id FROM systems WHERE system_key = \$1`).
+		WithArgs("SYS-KEY-001").
+		WillReturnRows(sqlmock.NewRows([]string{"organization_id"}).AddRow("org-1"))
+
 	mock.ExpectExec(`INSERT INTO alert_history`).
 		WithArgs(
 			"SYS-KEY-001",
@@ -151,6 +156,43 @@ func TestReceiveAlertHistory_MissingSystemKey(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, w.Code)
 }
 
+func TestReceiveAlertHistory_UnknownSystemKey(t *testing.T) {
+	mock, cleanup := setupMockDB(t)
+	defer cleanup()
+
+	// The lookup returns no rows; the alert is dropped, no INSERT is performed.
+	mock.ExpectQuery(`SELECT organization_id FROM systems`).
+		WithArgs("SYS-UNKNOWN").
+		WillReturnError(sql.ErrNoRows)
+
+	payload := map[string]interface{}{
+		"status":   "resolved",
+		"receiver": "default",
+		"alerts": []map[string]interface{}{
+			{
+				"status":      "resolved",
+				"labels":      map[string]string{"alertname": "DiskFull", "system_key": "SYS-UNKNOWN"},
+				"annotations": map[string]string{},
+				"startsAt":    "2026-04-09T10:00:00Z",
+				"endsAt":      "2026-04-09T10:30:00Z",
+				"fingerprint": "unknown1",
+			},
+		},
+	}
+	body, _ := json.Marshal(payload)
+
+	router := gin.New()
+	router.POST("/alert_history", ReceiveAlertHistory)
+
+	req := httptest.NewRequest(http.MethodPost, "/alert_history", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestReceiveAlertHistory_InvalidBody(t *testing.T) {
 	router := gin.New()
 	router.POST("/alert_history", ReceiveAlertHistory)
@@ -166,6 +208,10 @@ func TestReceiveAlertHistory_InvalidBody(t *testing.T) {
 func TestReceiveAlertHistory_DBError(t *testing.T) {
 	mock, cleanup := setupMockDB(t)
 	defer cleanup()
+
+	mock.ExpectQuery(`SELECT organization_id FROM systems`).
+		WithArgs("SYS-KEY-001").
+		WillReturnRows(sqlmock.NewRows([]string{"organization_id"}).AddRow("org-1"))
 
 	mock.ExpectExec(`INSERT INTO alert_history`).
 		WillReturnError(sql.ErrConnDone)
@@ -200,6 +246,10 @@ func TestReceiveAlertHistory_DBError(t *testing.T) {
 func TestReceiveAlertHistory_ZeroTimeEndsAt(t *testing.T) {
 	mock, cleanup := setupMockDB(t)
 	defer cleanup()
+
+	mock.ExpectQuery(`SELECT organization_id FROM systems`).
+		WithArgs("SYS-KEY-001").
+		WillReturnRows(sqlmock.NewRows([]string{"organization_id"}).AddRow("org-1"))
 
 	// The resolved alert with zero-time endsAt should store NULL
 	mock.ExpectExec(`INSERT INTO alert_history`).
@@ -251,6 +301,10 @@ func TestReceiveAlertHistory_LinkFailedUpdatesExistingStart(t *testing.T) {
 	mock, cleanup := setupMockDB(t)
 	defer cleanup()
 
+	mock.ExpectQuery(`SELECT organization_id FROM systems`).
+		WithArgs("SYS-KEY-001").
+		WillReturnRows(sqlmock.NewRows([]string{"organization_id"}).AddRow("org-1"))
+
 	mock.ExpectExec(`WITH existing AS`).
 		WithArgs(
 			"SYS-KEY-001",
@@ -301,6 +355,10 @@ func TestReceiveAlertHistory_LinkFailedUpdatesExistingStart(t *testing.T) {
 func TestReceiveAlertHistory_LinkFailedInsertsWhenStartNotSeen(t *testing.T) {
 	mock, cleanup := setupMockDB(t)
 	defer cleanup()
+
+	mock.ExpectQuery(`SELECT organization_id FROM systems`).
+		WithArgs("SYS-KEY-001").
+		WillReturnRows(sqlmock.NewRows([]string{"organization_id"}).AddRow("org-1"))
 
 	mock.ExpectExec(`WITH existing AS`).
 		WillReturnResult(sqlmock.NewResult(0, 0))

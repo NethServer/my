@@ -6,6 +6,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package alerting
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -41,6 +42,61 @@ func TestBuildSystemAlertContext(t *testing.T) {
 		"organization_vat":  "IT00000000001",
 		"organization_type": "customer",
 	}, context.Labels)
+}
+
+func TestBuildSystemAlertContext_EmptyFields(t *testing.T) {
+	ctx := BuildSystemAlertContext(SystemAlertMetadata{
+		SystemID:       "system-1",
+		OrganizationID: "org-1",
+		SystemKey:      "SYS-001",
+		// All other fields empty
+	})
+
+	require.NotNil(t, ctx)
+	// All identity labels must be present so InjectLabels can strip
+	// client-supplied spoofed values for keys the server has no value for.
+	assert.Contains(t, ctx.Labels, "system_fqdn")
+	assert.Contains(t, ctx.Labels, "organization_name")
+	assert.Equal(t, "", ctx.Labels["system_fqdn"])
+	assert.Equal(t, "", ctx.Labels["organization_name"])
+}
+
+func TestInjectLabels_EmptyValueStripsClientLabel(t *testing.T) {
+	body := []byte(`[{"labels":{"alertname":"Test","organization_name":"FAKE","system_fqdn":"evil.local"}}]`)
+	result := InjectLabels(body, map[string]string{
+		"system_id":         "uuid-1",
+		"system_key":        "SYS-1",
+		"organization_name": "",
+		"system_fqdn":       "",
+	})
+
+	var alerts []map[string]interface{}
+	err := json.Unmarshal(result, &alerts)
+	require.NoError(t, err)
+	labels := alerts[0]["labels"].(map[string]interface{})
+
+	_, hasOrgName := labels["organization_name"]
+	_, hasFQDN := labels["system_fqdn"]
+	assert.False(t, hasOrgName, "organization_name must be stripped when server has no value")
+	assert.False(t, hasFQDN, "system_fqdn must be stripped when server has no value")
+	assert.Equal(t, "uuid-1", labels["system_id"])
+	assert.Equal(t, "SYS-1", labels["system_key"])
+}
+
+func TestInjectLabels_OverwritesClientLabels(t *testing.T) {
+	body := []byte(`[{"labels":{"alertname":"Test","system_key":"SPOOFED","system_name":"FAKE"}}]`)
+	result := InjectLabels(body, map[string]string{
+		"system_key":  "REAL-KEY",
+		"system_name": "real-host",
+	})
+
+	var alerts []map[string]interface{}
+	err := json.Unmarshal(result, &alerts)
+	require.NoError(t, err)
+	labels := alerts[0]["labels"].(map[string]interface{})
+
+	assert.Equal(t, "REAL-KEY", labels["system_key"])
+	assert.Equal(t, "real-host", labels["system_name"])
 }
 
 func TestEnrichAlerts(t *testing.T) {

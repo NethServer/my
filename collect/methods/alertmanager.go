@@ -8,6 +8,7 @@
 package methods
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -47,6 +48,32 @@ func ReceiveAlertHistory(c *gin.Context) {
 				Str("fingerprint", alert.Fingerprint).
 				Msg("alertmanager history: skipping alert without system_key label")
 			continue
+		}
+
+		// Resolve organization_id from the systems table. The webhook payload is
+		// attacker-influenceable (labels travel through Alertmanager), so we
+		// never trust a claimed organization_id from the payload — the DB is
+		// authoritative. Unknown system_keys are dropped.
+		var organizationID string
+		err := database.DB.QueryRow(
+			`SELECT organization_id FROM systems WHERE system_key = $1`,
+			systemKey,
+		).Scan(&organizationID)
+		if err == sql.ErrNoRows {
+			logger.Warn().
+				Str("fingerprint", alert.Fingerprint).
+				Str("system_key", systemKey).
+				Msg("alertmanager history: skipping alert for unknown system_key")
+			continue
+		}
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("fingerprint", alert.Fingerprint).
+				Str("system_key", systemKey).
+				Msg("alertmanager history: failed to resolve organization_id")
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to save alert history", nil))
+			return
 		}
 
 		alertname := alert.Labels["alertname"]

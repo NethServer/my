@@ -714,6 +714,11 @@ CREATE TABLE IF NOT EXISTS alert_history (
     -- System identification
     system_key     VARCHAR(255) NOT NULL,
 
+    -- Tenant isolation: organization_id is resolved from the systems table at
+    -- write-time using the trusted system_key. Queries MUST filter on this
+    -- column to prevent cross-tenant history disclosure.
+    organization_id VARCHAR(255) NOT NULL,
+
     -- Alert identity
     alertname      VARCHAR(255) NOT NULL,
     severity       VARCHAR(50),
@@ -748,6 +753,7 @@ COMMENT ON COLUMN alert_history.ends_at IS 'NULL when end time is the zero time 
 -- Performance indexes
 CREATE INDEX IF NOT EXISTS idx_alert_history_system_key_created_at ON alert_history(system_key, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_alert_history_starts_at ON alert_history(starts_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alert_history_org_id_created_at ON alert_history(organization_id, created_at DESC);
 
 -- =============================================================================
 -- SCHEMA MIGRATIONS TABLE
