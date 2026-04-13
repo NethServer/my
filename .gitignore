@@ -55,3 +55,6 @@ Thumbs.db
 # Copilot instructions (local only)
 .github/copilot-instructions.md
 .github/instructions/frontend.instructions.md
+
+# Claude Code local shim — points to AGENTS.md; each dev may keep their own
+CLAUDE.md
