@@ -260,6 +260,12 @@ func main() {
 			systemsGroup.PUT("/:id/alerts/silences/:silence_id", methods.UpdateSystemAlertSilence)    // Update a silence's end time / comment
 			systemsGroup.DELETE("/:id/alerts/silences/:silence_id", methods.DeleteSystemAlertSilence) // Disable a silence for a system alert
 			systemsGroup.GET("/:id/alerts/history", methods.GetSystemAlertHistory)                    // Get paginated alert history
+
+			// Backup endpoints — list stored backups, issue short-lived presigned
+			// download URLs, and delete backups. Ingest happens on collect.
+			systemsGroup.GET("/:id/backups", methods.GetSystemBackups)                         // List backups for a system
+			systemsGroup.GET("/:id/backups/:backup_id/download", methods.DownloadSystemBackup) // 302 to presigned URL
+			systemsGroup.DELETE("/:id/backups/:backup_id", methods.DeleteSystemBackup)         // Delete a backup
 		}
 
 		// ===========================================

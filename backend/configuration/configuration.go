@@ -72,6 +72,19 @@ type Configuration struct {
 	// Alerting configuration
 	AlertingHistoryWebhookURL    string `json:"alerting_history_webhook_url"`
 	AlertingHistoryWebhookSecret string `json:"alerting_history_webhook_secret"`
+
+	// Backup storage — S3 client credentials used to read from the
+	// DigitalOcean Spaces bucket that holds client configuration
+	// backups. The same Spaces account also hosts the Mimir buckets;
+	// values for endpoint, access key, and secret key are the shared
+	// S3 credentials.
+	BackupS3Endpoint     string        `json:"backup_s3_endpoint"`
+	BackupS3Region       string        `json:"backup_s3_region"`
+	BackupS3Bucket       string        `json:"backup_s3_bucket"`
+	BackupS3AccessKey    string        `json:"backup_s3_access_key"`
+	BackupS3SecretKey    string        `json:"backup_s3_secret_key"`
+	BackupS3UsePathStyle bool          `json:"backup_s3_use_path_style"`
+	BackupPresignTTL     time.Duration `json:"backup_presign_ttl"`
 }
 
 var Config = Configuration{}
@@ -220,6 +233,19 @@ func Init() {
 	// Alerting configuration — optional, empty means no built-in history webhook
 	Config.AlertingHistoryWebhookURL = os.Getenv("ALERTING_HISTORY_WEBHOOK_URL")
 	Config.AlertingHistoryWebhookSecret = os.Getenv("ALERTING_HISTORY_WEBHOOK_SECRET")
+
+	// Backup storage — S3 client credentials (DigitalOcean Spaces)
+	Config.BackupS3Endpoint = os.Getenv("BACKUP_S3_ENDPOINT")
+	if envRegion := os.Getenv("BACKUP_S3_REGION"); envRegion != "" {
+		Config.BackupS3Region = envRegion
+	} else {
+		Config.BackupS3Region = "us-east-1"
+	}
+	Config.BackupS3Bucket = os.Getenv("BACKUP_S3_BUCKET")
+	Config.BackupS3AccessKey = os.Getenv("BACKUP_S3_ACCESS_KEY")
+	Config.BackupS3SecretKey = os.Getenv("BACKUP_S3_SECRET_KEY")
+	Config.BackupS3UsePathStyle = parseBoolWithDefault("BACKUP_S3_USE_PATH_STYLE", false)
+	Config.BackupPresignTTL = parseDurationWithDefault("BACKUP_PRESIGN_TTL", 5*time.Minute)
 
 	// Log successful configuration load
 	logger.LogConfigLoad("env", "configuration", true, nil)
