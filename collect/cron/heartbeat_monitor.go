@@ -135,53 +135,52 @@ func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 
 	// Update systems to 'inactive' if they have old heartbeat and are currently 'active'
 	queryInactive := `
-		SELECT s.system_key, s.organization_id
-		FROM systems s
-		INNER JOIN system_heartbeats h ON s.id = h.system_id
-		WHERE h.last_heartbeat <= $1
-			AND s.status = 'active'
-			AND s.deleted_at IS NULL
+		UPDATE systems s
+		SET status = 'inactive', updated_at = NOW()
+		FROM system_heartbeats h
+		WHERE s.id = h.system_id
+		AND h.last_heartbeat <= $1
 	`
-
-	// Update systems to 'inactive' and fire HostDown alerts
-	resultInactive, err := h.db.QueryContext(ctx, queryInactive, cutoff)
+	resultInactive, err := h.db.Exec(queryInactive, cutoff)
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Msg("Failed to query systems for inactive status update")
+			Msg("Failed to update systems to inactive status")
 	} else {
-		for resultInactive.Next() {
+		rowsAffected, _ := resultInactive.RowsAffected()
+		if rowsAffected > 0 {
+			logger.Warn().
+				Int64("systems_updated", rowsAffected).
+				Msg("Updated systems to inactive status")
+		}
+	}
+
+	// Select inactive, not-deleted systems to ensure HostDown alerts are fired
+	queryHostDown := `
+		SELECT system_key, organization_id
+		FROM systems
+		WHERE status = 'inactive' AND deleted_at IS NULL
+	`
+	resultHostDown, err := h.db.QueryContext(ctx, queryHostDown)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Msg("Failed to query systems for HostDown alert check")
+	} else {
+		for resultHostDown.Next() {
 			var systemKey, orgID string
-			if err := resultInactive.Scan(&systemKey, &orgID); err != nil {
+			if err := resultHostDown.Scan(&systemKey, &orgID); err != nil {
 				logger.Error().
 					Err(err).
 					Str("system_key", systemKey).
-					Msg("Failed to scan inactive system row")
+					Msg("Failed to scan inactive system row for HostDown alert")
 				continue
 			} else {
-				updatedRows, err := h.db.ExecContext(ctx, `
-					UPDATE systems
-					SET status = 'inactive', updated_at = NOW()
-					WHERE system_key = $1
-				`, systemKey)
-				if err != nil {
+				if err := h.fireHostDownAlert(systemKey, orgID, cutoff); err != nil {
 					logger.Error().
 						Err(err).
 						Str("system_key", systemKey).
-						Msg("Failed to update system to inactive status")
-				} else {
-					affected, _ := updatedRows.RowsAffected()
-					if affected > 0 {
-						logger.Info().
-							Str("system_key", systemKey).
-							Msg("Updated system to inactive status")
-					}
-					if err := h.fireHostDownAlert(systemKey, orgID, time.Now()); err != nil {
-						logger.Error().
-							Err(err).
-							Str("system_key", systemKey).
-							Msg("Failed to fire HostDown alert")
-					}
+						Msg("Failed to fire HostDown alert")
 				}
 			}
 		}

@@ -4,8 +4,7 @@ Utility scripts for interacting with the MY platform.
 
 ## alerting_config.py
 
-CLI to manage alerting configuration via the MY backend API (requires user credentials).
-Handles the full Logto OIDC authentication flow automatically.
+CLI to manage alerting configuration via the MY backend API using a pre-issued JWT.
 
 ### Requirements
 
@@ -15,29 +14,16 @@ pip install requests
 
 ### Environment variables
 
-The OIDC login flow needs to know which Logto tenant and application to use. Configure these variables before running the script:
-
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `LOGTO_ENDPOINT` | yes | `https://your-tenant.logto.app` | Logto tenant endpoint (e.g. `https://qa.id.nethesis.it`) |
-| `LOGTO_APP_ID`   | yes | `your-app-id` | Logto application ID used for the OIDC flow |
-| `AUTH_BASE_URL`  | no  | `https://qa.my.nethesis.it` | Stable base URL registered as the OIDC redirect URI in Logto |
+| `MY_JWT_TOKEN` | no | none | JWT token used as `Authorization: Bearer <token>` when `--jwt` is omitted |
 
-Export them in your shell or put them in a local `.env` and source it before running the script:
-
-```bash
-export LOGTO_ENDPOINT="https://qa.id.nethesis.it"
-export LOGTO_APP_ID="abcd1234efgh5678"
-export AUTH_BASE_URL="https://qa.my.nethesis.it"
-```
-
-> `AUTH_BASE_URL` must match a redirect URI that is already registered in Logto for the application (`<AUTH_BASE_URL>/login-redirect`). Using a different value will cause the login flow to fail.
+Security note: keep JWTs in environment variables (not literal CLI arguments), unset them after use (`unset MY_JWT_TOKEN`), and never store token files in git-tracked paths.
 
 ### Usage
 
 ```
-python alerting_config.py --url URL --email EMAIL --password PASS \
-    --tenant-id TENANT_ID --app-id APP_ID <command> [options]
+python alerting_config.py --url URL --jwt JWT <command> [options]
 ```
 
 **Common arguments:**
@@ -45,12 +31,9 @@ python alerting_config.py --url URL --email EMAIL --password PASS \
 | Argument | Description |
 |----------|-------------|
 | `--url`  | Base URL of the MY proxy (e.g. `https://my.nethesis.it`) |
-| `--email` | User email address |
-| `--password` | User password |
-| `--tenant-id` | Logto tenant ID (e.g., `your-tenant`) |
-| `--app-id` | Logto OIDC app ID |
+| `--jwt` | JWT token (or set `MY_JWT_TOKEN`) |
 
-Owner, Distributor, and Reseller roles must pass `--org <organization_id>` to all commands. Customer role uses their own organization automatically.
+If `--org` is omitted, the script auto-selects the first accessible organization. Pass `--org <organization_id>` for deterministic targeting.
 
 ---
 
@@ -59,14 +42,12 @@ Owner, Distributor, and Reseller roles must pass `--org <organization_id>` to al
 ```bash
 # Structured JSON (default)
 python alerting_config.py --url https://my-proxy-qa-pr-42.onrender.com \
-    --email admin@example.com --password 's3cr3t' \
-    --tenant-id your-tenant \
+    --jwt "$MY_JWT_TOKEN" \
     get --org veg2rx4p6lmo
 
 # Raw Alertmanager YAML
 python alerting_config.py --url https://my-proxy-qa-pr-42.onrender.com \
-    --email admin@example.com --password 's3cr3t' \
-    --tenant-id your-tenant \
+    --jwt "$MY_JWT_TOKEN" \
     get --org veg2rx4p6lmo --format yaml
 ```
 
@@ -128,14 +109,18 @@ Then apply it:
 
 ```bash
 python alerting_config.py --url https://my-proxy-qa-pr-42.onrender.com \
-    --email admin@example.com --password 's3cr3t' \
-    --tenant-id your-tenant \
+    --jwt "$MY_JWT_TOKEN" \
     set --org veg2rx4p6lmo --config my_config.json
+
+# Auto-select first accessible organization
+python alerting_config.py --url https://my-proxy-qa-pr-42.onrender.com \
+    --jwt "$MY_JWT_TOKEN" \
+    set --config config.json
 ```
 
 | Option | Required | Description |
 |--------|----------|-------------|
-| `--org`    | yes (non-Customer) | Target organization ID |
+| `--org`    | no | Target organization ID (auto-discovered if omitted) |
 | `--config` | yes | Path to JSON config file |
 
 ---
@@ -146,8 +131,7 @@ Replaces the Alertmanager config with a blackhole-only configuration:
 
 ```bash
 python alerting_config.py --url https://my-proxy-qa-pr-42.onrender.com \
-    --email admin@example.com --password 's3cr3t' \
-    --tenant-id your-tenant \
+    --jwt "$MY_JWT_TOKEN" \
     delete --org veg2rx4p6lmo
 ```
 
@@ -158,14 +142,12 @@ python alerting_config.py --url https://my-proxy-qa-pr-42.onrender.com \
 ```bash
 # All active alerts for the organization
 python alerting_config.py --url https://my-proxy-qa-pr-42.onrender.com \
-    --email admin@example.com --password 's3cr3t' \
-    --tenant-id your-tenant \
+    --jwt "$MY_JWT_TOKEN" \
     alerts --org veg2rx4p6lmo
 
 # Filter by severity and state
 python alerting_config.py --url https://my-proxy-qa-pr-42.onrender.com \
-    --email admin@example.com --password 's3cr3t' \
-    --tenant-id your-tenant \
+    --jwt "$MY_JWT_TOKEN" \
     alerts --org veg2rx4p6lmo --severity critical --state active
 ```
 
@@ -182,31 +164,24 @@ python alerting_config.py --url https://my-proxy-qa-pr-42.onrender.com \
 
 ```bash
 BASE="https://qa.my.nethesis.it"
-EMAIL="user@example.com"
-PASS="your-password-here"
-TENANT_ID="your-tenant"
+JWT="$MY_JWT_TOKEN"
 ORG="your-org-id"
 
 # 1. Check current config
-python alerting_config.py --url "$BASE" --email "$EMAIL" --password "$PASS" \
-    --tenant-id "$TENANT_ID" get --org "$ORG"
+python alerting_config.py --url "$BASE" --jwt "$JWT" get --org "$ORG"
 
 # 2. Apply new config
-python alerting_config.py --url "$BASE" --email "$EMAIL" --password "$PASS" \
-    --tenant-id "$TENANT_ID" \
+python alerting_config.py --url "$BASE" --jwt "$JWT" \
     set --org "$ORG" --config my_config.json
 
 # 3. Verify it took effect
-python alerting_config.py --url "$BASE" --email "$EMAIL" --password "$PASS" \
-    --tenant-id "$TENANT_ID" get --org "$ORG"
+python alerting_config.py --url "$BASE" --jwt "$JWT" get --org "$ORG"
 
 # 4. Check for active alerts
-python alerting_config.py --url "$BASE" --email "$EMAIL" --password "$PASS" \
-    --tenant-id "$TENANT_ID" alerts --org "$ORG"
+python alerting_config.py --url "$BASE" --jwt "$JWT" alerts --org "$ORG"
 
 # 5. Disable alerts when done
-python alerting_config.py --url "$BASE" --email "$EMAIL" --password "$PASS" \
-    --tenant-id "$TENANT_ID" delete --org "$ORG"
+python alerting_config.py --url "$BASE" --jwt "$JWT" delete --org "$ORG"
 ```
 
 ---

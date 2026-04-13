@@ -2,11 +2,10 @@
 """
 CLI to manage alerting configuration via the MY backend API.
 
-Handles the full Logto OIDC authentication flow automatically.
+Uses a pre-issued MY JWT for authentication.
 
 Usage:
-    python alerting_config.py --url URL --email EMAIL --password PASS \\
-        --tenant-id TENANT_ID [--app-id APP_ID] <command> [options]
+    python alerting_config.py --url URL --jwt JWT <command> [options]
 
 Commands:
     get     Get the current alerting configuration (JSON by default, use --format yaml for raw YAML)
@@ -49,44 +48,36 @@ Config JSON structure (used with the 'set' command):
 
 Examples:
     python alerting_config.py --url https://my.nethesis.it \\
-        --email admin@example.com --password 's3cr3t' \\
-        --tenant-id your-tenant \\
+        --jwt "$MY_JWT_TOKEN" \\
         get --org veg2rx4p6lmo
 
     python alerting_config.py --url https://my.nethesis.it \\
-        --email admin@example.com --password 's3cr3t' \\
-        --tenant-id your-tenant \\
+        --jwt "$MY_JWT_TOKEN" \\
         get --org veg2rx4p6lmo --format yaml
 
     python alerting_config.py --url https://my.nethesis.it \\
-        --email admin@example.com --password 's3cr3t' \\
-        --tenant-id your-tenant \\
+        --jwt "$MY_JWT_TOKEN" \\
         set --org veg2rx4p6lmo --config my_config.json
 
     python alerting_config.py --url https://my.nethesis.it \\
-        --email admin@example.com --password 's3cr3t' \\
-        --tenant-id your-tenant \\
+        --jwt "$MY_JWT_TOKEN" \\
         delete --org veg2rx4p6lmo
 
     python alerting_config.py --url https://my.nethesis.it \\
-        --email admin@example.com --password 's3cr3t' \\
-        --tenant-id your-tenant \\
+        --jwt "$MY_JWT_TOKEN" \\
         alerts --org veg2rx4p6lmo --severity critical --state active
 
     python alerting_config.py --url https://my.nethesis.it \\
-        --email admin@example.com --password 's3cr3t' \\
-        --tenant-id your-tenant \\
+        --jwt "$MY_JWT_TOKEN" \\
         history --system-id sys_123456789 --page 1 --page-size 50
 """
 
 import argparse
-import base64
-import hashlib
 import json
 import os
-import secrets
+import re
 import sys
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
 try:
     import requests
@@ -94,141 +85,64 @@ except ImportError:
     print("Error: 'requests' library is required. Install it with: pip install requests", file=sys.stderr)
     sys.exit(1)
 
-_LOGTO_REDIRECT_URI_PATH = "login-redirect"
+_REQUEST_TIMEOUT = 30
+_JWT_ENV_VAR = "MY_JWT_TOKEN"
+_SYSTEM_ID_RE = re.compile(r"^[A-Za-z0-9_.:-]+$")
+
+def _normalize_base_url(url, *, label):
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        print(f"Error: {label} must start with http:// or https://", file=sys.stderr)
+        sys.exit(1)
+    if parsed.scheme == "http" and parsed.hostname not in {"localhost", "127.0.0.1"}:
+        print(f"Error: {label} must use https (http is only allowed for localhost)", file=sys.stderr)
+        sys.exit(1)
+    return url.rstrip("/")
 
 
-def _logto_login(api_url, email, password, tenant_id, app_id):
-    # Derive Logto endpoint from tenant ID
-    logto_endpoint = f"https://{tenant_id}.logto.app"
-    # redirect_uri must use the stable QA URL (permanently registered in Logto)
-    redirect_uri = f"{api_url.rstrip('/')}/{_LOGTO_REDIRECT_URI_PATH}"
-    # Token exchange targets the actual API deployment
-    backend_url = f"{api_url.rstrip('/')}/backend/api"
-    session = requests.Session()
-    # PKCE setup
-    code_verifier = secrets.token_urlsafe(64)
-    code_challenge = (
-        base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode()).digest())
-        .rstrip(b"=")
-        .decode()
-    )
-    state = secrets.token_urlsafe(16)
-    # Step 1: Start OIDC authorization flow — follow redirects so Logto
-    # establishes the interaction session cookie before we call its API.
-    try:
-        r1 = session.get(
-            f"{logto_endpoint}/oidc/auth",
-            params={
-                "client_id": app_id,
-                "redirect_uri": redirect_uri,
-                "response_type": "code",
-                "scope": "openid profile email offline_access urn:logto:scope:organizations urn:logto:scope:organization_roles",
-                "state": state,
-                "code_challenge": code_challenge,
-                "code_challenge_method": "S256",
-            },
-            allow_redirects=True,
-        )
-        if not r1.ok:
-            print(f"Authentication error (Step 1 - OIDC auth endpoint returned {r1.status_code})")
-            print(f"  Endpoint: {logto_endpoint}/oidc/auth")
-            print(f"  This could mean:")
-            print(f"    1. Tenant ID '{tenant_id}' doesn't exist or is invalid")
-            print(f"    2. Logto service is unavailable")
-            print(f"  Please verify --tenant-id (or TENANT_ID env var) is correct")
-            print(f"  Response: {r1.text[:200]}")
-            sys.exit(1)
-    except Exception as e:
-        print(f"Authentication error (Step 1 - OIDC auth): {e}")
-        sys.exit(1)
-    # Step 2: Logto interaction API — sign in with email/password
-    try:
-        r2a = session.put(f"{logto_endpoint}/api/interaction", json={"event": "SignIn"})
-        if not r2a.ok:
-            print(f"Authentication error (Step 2a - interaction init, {r2a.status_code}): {r2a.text}")
-            sys.exit(1)
-    except Exception as e:
-        print(f"Authentication error (Step 2a - interaction init): {e}")
-        sys.exit(1)
-    
-    r = session.patch(
-        f"{logto_endpoint}/api/interaction/identifiers",
-        json={"email": email, "password": password},
-    )
-    if r.status_code == 422:
-        print(f"Authentication failed: {r.json().get('message', r.text)}")
-        sys.exit(1)
-    if not r.ok:
-        print(f"Authentication error (Step 2b - identifier patch, {r.status_code}): {r.text}")
-        print(f"  Logto endpoint: {logto_endpoint}")
-        print(f"  Tenant ID: {tenant_id}")
-        print(f"  App ID: {app_id}")
-        print(f"  Make sure the tenant exists and the redirect URI is registered")
-        sys.exit(1)
-    # Step 3: Submit sign-in
-    r4 = session.post(f"{logto_endpoint}/api/interaction/submit")
-    redirect_to = r4.json().get("redirectTo")
-    if not redirect_to:
-        print(f"Unexpected sign-in response: {r4.text}")
-        sys.exit(1)
-    # Step 4: Handle optional consent screen
-    r5 = session.get(redirect_to, allow_redirects=False)
-    if "consent" in r5.headers.get("Location", ""):
-        session.get(f"{logto_endpoint}{r5.headers['Location']}", allow_redirects=False)
-        r_consent = session.post(f"{logto_endpoint}/api/interaction/consent")
-        redirect_to = r_consent.json().get("redirectTo")
-    # Step 5: Follow final redirect to get the auth code
-    r_final = session.get(redirect_to, allow_redirects=False)
-    callback_url = r_final.headers.get("Location", "")
-    qs = parse_qs(urlparse(callback_url).query)
-    code = qs.get("code", [None])[0]
-    if not code:
-        print(f"Failed to obtain authorization code from: {callback_url}")
-        sys.exit(1)
-    # Step 6: Exchange code for Logto access token
-    r6 = requests.post(
-        f"{logto_endpoint}/oidc/token",
-        data={
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": redirect_uri,
-            "client_id": app_id,
-            "code_verifier": code_verifier,
-        },
-    )
-    logto_token = r6.json().get("access_token")
-    if not logto_token:
-        print(f"Failed to get Logto access token: {r6.text}")
-        sys.exit(1)
-    # Step 7: Exchange Logto token for custom backend JWT
-    r7 = requests.post(
-        f"{backend_url}/auth/exchange",
-        json={"access_token": logto_token},
-        headers={"Content-Type": "application/json"},
-    )
-    token = r7.json().get("data", {}).get("token")
-    if not token:
-        print(f"Failed to exchange token: {r7.text}")
+def _normalize_jwt(jwt_token):
+    token = jwt_token.strip()
+    if token.lower().startswith("bearer "):
+        token = token[7:].strip()
+    if token.count(".") != 2:
+        print("Error: --jwt must be a valid JWT token (header.payload.signature)", file=sys.stderr)
         sys.exit(1)
     return token
 
 
-def _authenticate(base_url, email, password, tenant_id, app_id):
-    """Authenticate via Logto OIDC and return (headers, backend_url)."""
+def _authenticate(base_url, jwt_token):
+    """Authenticate via pre-issued JWT and return (headers, backend_url)."""
     backend_url = f"{base_url}/backend/api"
-    print("Authenticating...", file=sys.stderr, flush=True)
-    token = _logto_login(base_url, email, password, tenant_id, app_id)
-    print("OK", file=sys.stderr)
+    token = _normalize_jwt(jwt_token)
     return {"Authorization": f"Bearer {token}"}, backend_url
+
+
+def _safe_error_message(response):
+    try:
+        body = response.json()
+        if isinstance(body, dict):
+            safe = {}
+            for field in ("message", "error", "code"):
+                if field in body:
+                    safe[field] = body[field]
+            if safe:
+                return json.dumps(safe)
+    except Exception:
+        pass
+    text = response.text.strip().replace("\n", " ")
+    return f"{text[:200]}..." if len(text) > 200 else (text or "request failed")
 
 
 def _resolve_org(org, headers, backend_url):
     """Return org as-is if provided, otherwise auto-discover from /organizations."""
     if org:
         return org
-    r = requests.get(f"{backend_url}/organizations", headers=headers, timeout=30)
+    r = requests.get(f"{backend_url}/organizations", headers=headers, timeout=_REQUEST_TIMEOUT)
     if not r.ok:
-        print(f"Error: failed to discover organizations (HTTP {r.status_code}): {r.text}", file=sys.stderr)
+        print(
+            f"Error: failed to discover organizations (HTTP {r.status_code}): {_safe_error_message(r)}",
+            file=sys.stderr,
+        )
         sys.exit(1)
     orgs = r.json().get("data", {}).get("organizations", [])
     if not orgs:
@@ -245,17 +159,13 @@ def _org_params(org, headers, backend_url):
 
 
 def _fail(r):
-    try:
-        body = json.dumps(r.json(), indent=2)
-    except Exception:
-        body = r.text
-    print(f"Error (HTTP {r.status_code}): {body}", file=sys.stderr)
+    print(f"Error (HTTP {r.status_code}): {_safe_error_message(r)}", file=sys.stderr)
     sys.exit(1)
 
 
 def cmd_get(args):
     """Get the current alerting configuration."""
-    headers, backend_url = _authenticate(args.url, args.email, args.password, args.tenant_id, args.app_id)
+    headers, backend_url = _authenticate(args.url, args.jwt)
     params = _org_params(args.org, headers, backend_url)
     if args.format == "yaml":
         params["format"] = "yaml"
@@ -263,7 +173,7 @@ def cmd_get(args):
         f"{backend_url}/alerts/config",
         headers=headers,
         params=params,
-        timeout=30,
+        timeout=_REQUEST_TIMEOUT,
     )
     if r.ok:
         data = r.json().get("data", {})
@@ -289,13 +199,13 @@ def cmd_set(args):
         print(f"Error reading config file: {e}", file=sys.stderr)
         sys.exit(1)
 
-    headers, backend_url = _authenticate(args.url, args.email, args.password, args.tenant_id, args.app_id)
+    headers, backend_url = _authenticate(args.url, args.jwt)
     r = requests.post(
         f"{backend_url}/alerts/config",
         headers={**headers, "Content-Type": "application/json"},
         params=_org_params(args.org, headers, backend_url),
         json=config_body,
-        timeout=30,
+        timeout=_REQUEST_TIMEOUT,
     )
     if r.ok:
         print(json.dumps({"status": "success", "message": "alerting configuration updated successfully"}))
@@ -305,12 +215,12 @@ def cmd_set(args):
 
 def cmd_delete(args):
     """Disable all alerts (replace config with blackhole)."""
-    headers, backend_url = _authenticate(args.url, args.email, args.password, args.tenant_id, args.app_id)
+    headers, backend_url = _authenticate(args.url, args.jwt)
     r = requests.delete(
         f"{backend_url}/alerts/config",
         headers=headers,
         params=_org_params(args.org, headers, backend_url),
-        timeout=30,
+        timeout=_REQUEST_TIMEOUT,
     )
     if r.ok:
         print(json.dumps({"status": "success", "message": "all alerts disabled successfully"}))
@@ -320,7 +230,7 @@ def cmd_delete(args):
 
 def cmd_alerts(args):
     """List active alerts with optional filters."""
-    headers, backend_url = _authenticate(args.url, args.email, args.password, args.tenant_id, args.app_id)
+    headers, backend_url = _authenticate(args.url, args.jwt)
     params = _org_params(args.org, headers, backend_url)
     if args.state:
         params["state"] = args.state
@@ -333,7 +243,7 @@ def cmd_alerts(args):
         f"{backend_url}/alerts",
         headers=headers,
         params=params,
-        timeout=30,
+        timeout=_REQUEST_TIMEOUT,
     )
     if r.ok:
         alerts = r.json().get("data", {}).get("alerts", [])
@@ -344,9 +254,12 @@ def cmd_alerts(args):
 
 def cmd_history(args):
     """List resolved/inactive alert history for a system."""
-    headers, backend_url = _authenticate(args.url, args.email, args.password, args.tenant_id, args.app_id)
-    
+    headers, backend_url = _authenticate(args.url, args.jwt)
+
     system_id = args.system_id
+    if not _SYSTEM_ID_RE.match(system_id):
+        print("Error: invalid system ID", file=sys.stderr)
+        sys.exit(1)
     params = {}
     if args.page:
         params["page"] = args.page
@@ -361,7 +274,7 @@ def cmd_history(args):
         f"{backend_url}/systems/{system_id}/alerts/history",
         headers=headers,
         params=params,
-        timeout=30,
+        timeout=_REQUEST_TIMEOUT,
     )
     if r.ok:
         data = r.json().get("data", {})
@@ -378,10 +291,12 @@ def main():
         description="Manage alerting configuration via the MY backend API"
     )
     parser.add_argument("--url", required=True, help="Base URL of the MY proxy (e.g. https://my.nethesis.it)")
-    parser.add_argument("--email", required=True, help="User email address")
-    parser.add_argument("--password", required=True, help="User password")
-    parser.add_argument("--tenant-id", dest="tenant_id", default=os.environ.get("TENANT_ID"), help="Logto tenant ID (default: TENANT_ID env var)")
-    parser.add_argument("--app-id", dest="app_id", default=os.environ.get("LOGTO_APP_ID", "my_frontend_app"), help="Logto OIDC app ID (default: LOGTO_APP_ID env var or 'my_frontend_app')")
+    parser.add_argument(
+        "--jwt",
+        default=os.environ.get(_JWT_ENV_VAR),
+        required=os.environ.get(_JWT_ENV_VAR) is None,
+        help=f"JWT token (or set {_JWT_ENV_VAR})",
+    )
     parser.add_argument("--org", help="Organization logto_id (required for Owner/Distributor/Reseller; auto-discovered if omitted)")
 
     sub = parser.add_subparsers(dest="command", required=True)
@@ -417,12 +332,7 @@ def main():
     history_parser.add_argument("--sort-direction", dest="sort_direction", choices=["asc", "desc"], help="Sort direction")
 
     args = parser.parse_args()
-    args.url = args.url.rstrip("/")
-    
-    # Validate required arguments
-    if not args.tenant_id:
-        print("Error: --tenant-id is required (or set TENANT_ID environment variable)", file=sys.stderr)
-        sys.exit(1)
+    args.url = _normalize_base_url(args.url, label="--url")
 
     dispatch = {
         "get": cmd_get,
