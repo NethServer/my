@@ -138,7 +138,10 @@ func DownloadSystemBackup(c *gin.Context) {
 		Str("backup_id", backupID).
 		Msg("backup download URL issued")
 
-	c.Redirect(http.StatusFound, presigned.URL)
+	c.JSON(http.StatusOK, response.OK("download URL issued", gin.H{
+		"download_url":       presigned.URL,
+		"expires_in_seconds": int(configuration.Config.BackupPresignTTL.Seconds()),
+	}))
 }
 
 // DeleteSystemBackup handles DELETE /api/systems/:id/backups/:backup_id —
