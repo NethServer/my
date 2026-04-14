@@ -8307,6 +8307,80 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /systems/{id}/alerts/silences:
+    post:
+      operationId: createSystemAlertSilence
+      tags:
+        - Backend - Alerts
+      summary: /systems/{id}/alerts/silences - Create a silence for a system alert
+      description: |
+        Creates an Alertmanager silence for a specific active alert on the target system.
+        The request identifies the live alert by fingerprint. The backend resolves the alert,
+        builds the silence matchers server-side, and always uses the system's authoritative
+        `system_key`.
+        Requires `manage:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID (database UUID)
+          schema:
+            type: string
+            example: "sys_123456789"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - fingerprint
+              properties:
+                fingerprint:
+                  type: string
+                  description: Fingerprint of the active alert to silence
+                  example: "8f2d65896d4bcf97"
+                comment:
+                  type: string
+                  description: Optional silence comment. Defaults to a system-generated value when empty.
+                  example: "silenced during maintenance"
+                duration_minutes:
+                  type: integer
+                  minimum: 1
+                  maximum: 10080
+                  description: Optional silence duration in minutes. Defaults to 60 when omitted.
+                  example: 60
+      responses:
+        '200':
+          description: Alert silence created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "alert silenced successfully"
+                  data:
+                    type: object
+                    properties:
+                      silence_id:
+                        type: string
+                        example: "4e6f0c30-c383-4e22-9443-0d7b6a8bd40b"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /systems/{id}/alerts/history:
     get:
       operationId: getSystemAlertHistory
@@ -10263,4 +10337,3 @@ paths:
           $ref: '#/components/responses/InternalServerError'
         '503':
           description: Webhook authentication not configured
-

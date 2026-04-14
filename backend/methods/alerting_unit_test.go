@@ -7,9 +7,11 @@ package methods
 
 import (
 	"testing"
+	"time"
 
 	"github.com/nethesis/my/backend/models"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFilterAlerts(t *testing.T) {
@@ -155,4 +157,83 @@ func TestFilterAlerts_EmptyInput(t *testing.T) {
 
 	result = filterAlerts(nil, models.AlertQueryParams{})
 	assert.Nil(t, result)
+}
+
+func TestFindSystemAlertByFingerprint(t *testing.T) {
+	alerts := []models.ActiveAlert{
+		{
+			Fingerprint: "alert-1",
+			Labels: map[string]string{
+				"alertname":  "HostDown",
+				"system_key": "system-1",
+			},
+		},
+		{
+			Fingerprint: "alert-2",
+			Labels: map[string]string{
+				"alertname":  "DiskFull",
+				"system_key": "system-2",
+			},
+		},
+	}
+
+	result := findSystemAlertByFingerprint(alerts, "alert-1", "system-1")
+	require.NotNil(t, result)
+	assert.Equal(t, "HostDown", result.Labels["alertname"])
+
+	assert.Nil(t, findSystemAlertByFingerprint(alerts, "alert-1", "system-2"))
+	assert.Nil(t, findSystemAlertByFingerprint(alerts, "missing", "system-1"))
+}
+
+func TestBuildSystemAlertSilenceRequest(t *testing.T) {
+	now := time.Date(2026, time.April, 14, 10, 0, 0, 0, time.UTC)
+	alert := &models.ActiveAlert{
+		Labels: map[string]string{
+			"system_key":      "forged-system-key",
+			"alertname":       "HostDown",
+			"severity":        "critical",
+			"system_id":       "system-1",
+			"organization_id": "org-1",
+			"empty_label":     "",
+		},
+	}
+
+	req := buildSystemAlertSilenceRequest(
+		alert,
+		"system-1-key",
+		"admin@example.com",
+		"  ",
+		0,
+		now,
+	)
+
+	assert.Equal(t, "2026-04-14T10:00:00Z", req.StartsAt)
+	assert.Equal(t, "2026-04-14T11:00:00Z", req.EndsAt)
+	assert.Equal(t, "admin@example.com", req.CreatedBy)
+	assert.Equal(t, "silenced from my", req.Comment)
+	assert.Equal(t, []models.AlertmanagerMatcher{
+		{Name: "alertname", Value: "HostDown", IsRegex: false},
+		{Name: "organization_id", Value: "org-1", IsRegex: false},
+		{Name: "severity", Value: "critical", IsRegex: false},
+		{Name: "system_id", Value: "system-1", IsRegex: false},
+		{Name: "system_key", Value: "system-1-key", IsRegex: false},
+	}, req.Matchers)
+}
+
+func TestBuildSystemAlertSilenceRequestAddsSystemKeyMatcher(t *testing.T) {
+	now := time.Date(2026, time.April, 14, 10, 0, 0, 0, time.UTC)
+	alert := &models.ActiveAlert{
+		Labels: map[string]string{
+			"alertname": "HostDown",
+		},
+	}
+
+	req := buildSystemAlertSilenceRequest(alert, "system-1-key", "admin@example.com", "manual silence", 30, now)
+
+	assert.Equal(t, []models.AlertmanagerMatcher{
+		{Name: "alertname", Value: "HostDown", IsRegex: false},
+		{Name: "system_key", Value: "system-1-key", IsRegex: false},
+	}, req.Matchers)
+	assert.Equal(t, "manual silence", req.Comment)
+	assert.Equal(t, "2026-04-14T10:30:00Z", req.EndsAt)
 }

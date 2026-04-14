@@ -8,8 +8,10 @@ package methods
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -22,6 +24,9 @@ import (
 	"github.com/nethesis/my/backend/services/alerting"
 	"github.com/nethesis/my/backend/services/local"
 )
+
+const defaultSystemAlertSilenceDurationMinutes = 60
+const defaultSystemAlertSilenceComment = "silenced from my"
 
 // resolveOrgID extracts and validates the target organization ID for alerting operations.
 // Owner/Distributor/Reseller must pass organization_id query param; Customer uses their own.
@@ -353,6 +358,110 @@ func filterAlerts(alerts []map[string]interface{}, params models.AlertQueryParam
 	return filtered
 }
 
+func getSystemAlertOrgID(system *models.System) string {
+	if system.Organization.LogtoID != "" {
+		return system.Organization.LogtoID
+	}
+	return system.Organization.ID
+}
+
+func findSystemAlertByFingerprint(alerts []models.ActiveAlert, fingerprint, systemKey string) *models.ActiveAlert {
+	for i := range alerts {
+		if alerts[i].Fingerprint != fingerprint {
+			continue
+		}
+		if alerts[i].Labels["system_key"] != systemKey {
+			continue
+		}
+		return &alerts[i]
+	}
+	return nil
+}
+
+func normalizeAlertSilenceComment(comment string) string {
+	comment = strings.TrimSpace(comment)
+	if comment == "" {
+		return defaultSystemAlertSilenceComment
+	}
+	return comment
+}
+
+func getAlertSilenceCreatedBy(user *models.User) string {
+	if user == nil {
+		return "my"
+	}
+	if user.Username != "" {
+		return user.Username
+	}
+	if user.Email != "" {
+		return user.Email
+	}
+	if user.Name != "" {
+		return user.Name
+	}
+	if user.ID != "" {
+		return user.ID
+	}
+	return "my"
+}
+
+func buildSystemAlertSilenceRequest(
+	alert *models.ActiveAlert,
+	systemKey, createdBy, comment string,
+	durationMinutes int,
+	now time.Time,
+) *models.AlertmanagerSilenceRequest {
+	if durationMinutes <= 0 {
+		durationMinutes = defaultSystemAlertSilenceDurationMinutes
+	}
+
+	labelNames := make([]string, 0, len(alert.Labels)+1)
+	for name, value := range alert.Labels {
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+		labelNames = append(labelNames, name)
+	}
+	if systemKey != "" {
+		if _, found := alert.Labels["system_key"]; !found {
+			labelNames = append(labelNames, "system_key")
+		}
+	}
+
+	sort.Strings(labelNames)
+
+	matchers := make([]models.AlertmanagerMatcher, 0, len(labelNames))
+	seen := make(map[string]struct{}, len(labelNames))
+	for _, name := range labelNames {
+		if _, found := seen[name]; found {
+			continue
+		}
+		seen[name] = struct{}{}
+
+		value := alert.Labels[name]
+		if name == "system_key" {
+			value = systemKey
+		}
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+
+		matchers = append(matchers, models.AlertmanagerMatcher{
+			Name:    name,
+			Value:   value,
+			IsRegex: false,
+		})
+	}
+
+	return &models.AlertmanagerSilenceRequest{
+		Matchers:  matchers,
+		StartsAt:  now.Format(time.RFC3339),
+		EndsAt:    now.Add(time.Duration(durationMinutes) * time.Minute).Format(time.RFC3339),
+		Comment:   normalizeAlertSilenceComment(comment),
+		CreatedBy: createdBy,
+	}
+}
+
 // GetSystemAlerts handles GET /api/systems/:id/alerts
 // Returns active alerts from Mimir for a specific system, filtered by system_key.
 func GetSystemAlerts(c *gin.Context) {
@@ -374,7 +483,7 @@ func GetSystemAlerts(c *gin.Context) {
 		return
 	}
 
-	body, err := alerting.GetAlerts(system.Organization.LogtoID)
+	body, err := alerting.GetAlerts(getSystemAlertOrgID(system))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch alerts from mimir: "+err.Error(), nil))
 		return
@@ -399,6 +508,78 @@ func GetSystemAlerts(c *gin.Context) {
 
 	c.JSON(http.StatusOK, response.OK("alerts retrieved successfully", gin.H{
 		"alerts": filtered,
+	}))
+}
+
+// CreateSystemAlertSilence handles POST /api/systems/:id/alerts/silences
+// Creates a silence in Alertmanager for a specific active system alert.
+func CreateSystemAlertSilence(c *gin.Context) {
+	systemID := c.Param("id")
+	if systemID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system id required", nil))
+		return
+	}
+
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	systemsService := local.NewSystemsService()
+	system, err := systemsService.GetSystem(systemID, user.OrgRole, user.OrganizationID)
+	if helpers.HandleAccessError(c, err, "system", systemID) {
+		return
+	}
+	if system.SystemKey == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system is not registered", nil))
+		return
+	}
+
+	var req models.CreateSystemAlertSilenceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body: "+err.Error(), nil))
+		return
+	}
+
+	body, err := alerting.GetAlerts(getSystemAlertOrgID(system))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch alerts from mimir: "+err.Error(), nil))
+		return
+	}
+
+	var alerts []models.ActiveAlert
+	if err := json.Unmarshal(body, &alerts); err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to parse alerts from mimir: "+err.Error(), nil))
+		return
+	}
+
+	alert := findSystemAlertByFingerprint(alerts, req.Fingerprint, system.SystemKey)
+	if alert == nil {
+		c.JSON(http.StatusNotFound, response.NotFound("alert not found", nil))
+		return
+	}
+	if len(alert.Status.SilencedBy) > 0 {
+		c.JSON(http.StatusBadRequest, response.BadRequest("alert is already silenced", nil))
+		return
+	}
+
+	silenceReq := buildSystemAlertSilenceRequest(
+		alert,
+		system.SystemKey,
+		getAlertSilenceCreatedBy(user),
+		req.Comment,
+		req.DurationMinutes,
+		time.Now().UTC(),
+	)
+
+	silenceResp, err := alerting.CreateSilence(getSystemAlertOrgID(system), silenceReq)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to create silence in mimir: "+err.Error(), nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("alert silenced successfully", gin.H{
+		"silence_id": silenceResp.SilenceID,
 	}))
 }
 

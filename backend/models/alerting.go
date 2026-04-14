@@ -50,3 +50,49 @@ type AlertQueryParams struct {
 	Severity  string `form:"severity"`   // e.g. "critical", "warning", "info"
 	SystemKey string `form:"system_key"` // filter by system_key label
 }
+
+// AlertStatus represents the status metadata for an active alert from Alertmanager.
+type AlertStatus struct {
+	State       string   `json:"state"`
+	SilencedBy  []string `json:"silencedBy"`
+	InhibitedBy []string `json:"inhibitedBy"`
+}
+
+// ActiveAlert represents an active alert returned by Alertmanager.
+type ActiveAlert struct {
+	Labels       map[string]string `json:"labels"`
+	Annotations  map[string]string `json:"annotations"`
+	Status       AlertStatus       `json:"status"`
+	StartsAt     string            `json:"startsAt"`
+	EndsAt       string            `json:"endsAt"`
+	Fingerprint  string            `json:"fingerprint"`
+	GeneratorURL string            `json:"generatorURL,omitempty"`
+}
+
+// CreateSystemAlertSilenceRequest identifies the active alert to silence.
+type CreateSystemAlertSilenceRequest struct {
+	Fingerprint     string `json:"fingerprint" binding:"required"`
+	Comment         string `json:"comment"`
+	DurationMinutes int    `json:"duration_minutes" binding:"omitempty,min=1,max=10080"`
+}
+
+// AlertmanagerMatcher represents a single Alertmanager silence matcher.
+type AlertmanagerMatcher struct {
+	Name    string `json:"name"`
+	Value   string `json:"value"`
+	IsRegex bool   `json:"isRegex"`
+}
+
+// AlertmanagerSilenceRequest is the payload sent to Alertmanager when creating a silence.
+type AlertmanagerSilenceRequest struct {
+	Matchers  []AlertmanagerMatcher `json:"matchers"`
+	StartsAt  string                `json:"startsAt"`
+	EndsAt    string                `json:"endsAt"`
+	Comment   string                `json:"comment"`
+	CreatedBy string                `json:"createdBy"`
+}
+
+// AlertmanagerSilenceResponse is the Alertmanager response for a created silence.
+type AlertmanagerSilenceResponse struct {
+	SilenceID string `json:"silenceID"`
+}

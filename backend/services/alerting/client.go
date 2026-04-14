@@ -6,6 +6,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package alerting
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +17,7 @@ import (
 	"time"
 
 	"github.com/nethesis/my/backend/configuration"
+	"github.com/nethesis/my/backend/models"
 )
 
 var httpClient = &http.Client{Timeout: 30 * time.Second}
@@ -154,4 +157,48 @@ func GetConfig(orgID string) ([]byte, error) {
 	}
 
 	return body, nil
+}
+
+// CreateSilence creates an Alertmanager silence for the given tenant.
+func CreateSilence(orgID string, silence *models.AlertmanagerSilenceRequest) (*models.AlertmanagerSilenceResponse, error) {
+	url := configuration.Config.MimirURL + "/alertmanager/api/v2/silences"
+
+	payload, err := json.Marshal(silence)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling silence payload: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(payload))
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("X-Scope-OrgID", orgID)
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("creating silence in mimir: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading response body: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("mimir returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	if len(body) == 0 {
+		return &models.AlertmanagerSilenceResponse{}, nil
+	}
+
+	var silenceResponse models.AlertmanagerSilenceResponse
+	if err := json.Unmarshal(body, &silenceResponse); err != nil {
+		return nil, fmt.Errorf("decoding silence response: %w", err)
+	}
+
+	return &silenceResponse, nil
 }
