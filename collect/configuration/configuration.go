@@ -11,8 +11,10 @@ package configuration
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/nethesis/my/collect/logger"
@@ -192,7 +194,7 @@ func Init() {
 	Config.AlertmanagerWebhookSecret = os.Getenv("ALERTING_HISTORY_WEBHOOK_SECRET")
 
 	// Backup storage — S3 client credentials (DigitalOcean Spaces)
-	Config.BackupS3Endpoint = os.Getenv("BACKUP_S3_ENDPOINT")
+	Config.BackupS3Endpoint = validateBackupEndpoint("BACKUP_S3_ENDPOINT", os.Getenv("BACKUP_S3_ENDPOINT"))
 	Config.BackupS3Region = getStringWithDefault("BACKUP_S3_REGION", "us-east-1")
 	Config.BackupS3Bucket = os.Getenv("BACKUP_S3_BUCKET")
 	Config.BackupS3AccessKey = os.Getenv("BACKUP_S3_ACCESS_KEY")
@@ -204,6 +206,37 @@ func Init() {
 
 	// Log successful configuration load
 	logger.LogConfigLoad("env", "configuration", true, nil)
+}
+
+// validateBackupEndpoint refuses HTTP endpoints unless the host is a
+// well-known dev loopback name; misconfigured prod deployments would
+// otherwise send signed S3 traffic in plaintext. Empty values are
+// returned unchanged (the storage package surfaces a clearer error).
+func validateBackupEndpoint(name, raw string) string {
+	if raw == "" {
+		return ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		logger.LogConfigLoad("env", name, false, fmt.Errorf("invalid URL %q", raw))
+		return ""
+	}
+	if u.Scheme == "https" {
+		return raw
+	}
+	if u.Scheme == "http" {
+		host := u.Hostname()
+		if host == "localhost" || host == "127.0.0.1" || host == "::1" ||
+			strings.HasSuffix(host, ".local") ||
+			strings.HasSuffix(host, ".localtest.me") ||
+			os.Getenv("BACKUP_S3_ALLOW_INSECURE") == "true" {
+			return raw
+		}
+		logger.LogConfigLoad("env", name, false, fmt.Errorf("HTTP endpoint to non-loopback host %q rejected; set BACKUP_S3_ALLOW_INSECURE=true to override", host))
+		return ""
+	}
+	logger.LogConfigLoad("env", name, false, fmt.Errorf("unsupported scheme %q", u.Scheme))
+	return ""
 }
 
 // parseDurationWithDefault parses a duration from environment variable or returns default

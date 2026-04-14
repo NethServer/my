@@ -94,6 +94,44 @@ func TestExtractExtension(t *testing.T) {
 	}
 }
 
+func TestSanitizeFilename(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"keeps safe charset", "daily-backup_42.tar.gz", "daily-backup_42.tar.gz"},
+		{"strips CRLF", "foo\r\nSet-Cookie: x=1.gpg", "foo__Set-Cookie__x_1.gpg"},
+		{"strips control bytes", "a\x00b\x01c.bin", "a_b_c.bin"},
+		{"strips html tags", "<img onerror=alert(1)>.gpg", "_img_onerror_alert_1__.gpg"},
+		{"strips spaces and punctuation", "my backup [2026].gpg", "my_backup__2026_.gpg"},
+		{"caps at 255 chars", strings.Repeat("a", 300), strings.Repeat("a", 255)},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, sanitizeFilename(tc.in))
+		})
+	}
+}
+
+func TestSanitizeSystemVersion(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"keeps version-ish", "ns8-3.0.0+dev", "ns8-3.0.0+dev"},
+		{"drops spaces", "ns8 3.0.0", "ns83.0.0"},
+		{"drops parens", "NethServer (8.4.2)", "NethServer8.4.2"},
+		{"caps at 64 chars", strings.Repeat("9", 100), strings.Repeat("9", 64)},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, sanitizeSystemVersion(tc.in))
+		})
+	}
+}
+
 func TestUploadBackupNoSystemID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -137,6 +175,28 @@ func TestUploadBackupExceedsMaxSize(t *testing.T) {
 	var body map[string]interface{}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	assert.Equal(t, "backup exceeds max upload size", body["message"])
+}
+
+func TestUploadBackupRequiresContentLength(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	configuration.Config.BackupMaxUploadSize = 1024
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("system_id", "sys-123")
+		c.Set("system_key", "my_sys_abc")
+		c.Next()
+	})
+	router.POST("/backups", UploadBackup)
+
+	req := httptest.NewRequest("POST", "/backups", strings.NewReader("body"))
+	req.Header.Set("Content-Type", "application/octet-stream")
+	req.ContentLength = -1 // simulate chunked / unknown length
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusLengthRequired, w.Code)
 }
 
 func TestListBackupsNoSystemID(t *testing.T) {

@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"regexp"
 	"sort"
@@ -32,6 +33,7 @@ import (
 	"github.com/nethesis/my/collect/configuration"
 	"github.com/nethesis/my/collect/database"
 	"github.com/nethesis/my/collect/logger"
+	"github.com/nethesis/my/collect/queue"
 	"github.com/nethesis/my/collect/response"
 	"github.com/nethesis/my/collect/storage"
 )
@@ -50,6 +52,69 @@ var backupIDPattern = regexp.MustCompile(
 // user-controlled path parameters.
 func isValidBackupID(id string) bool {
 	return backupIDPattern.MatchString(strings.ToLower(id))
+}
+
+// safeFilenameChar keeps filenames to a conservative subset so that no
+// header or UI reflection can escape its context via CR/LF, quote,
+// wildcard, or non-printable bytes. Appliance-provided filenames that
+// violate the set are replaced char-by-char with '_' rather than
+// rejected outright — a valid backup should not be dropped just because
+// the caller labelled it with Unicode or spaces.
+func safeFilenameChar(r rune) rune {
+	switch {
+	case r >= 'A' && r <= 'Z':
+	case r >= 'a' && r <= 'z':
+	case r >= '0' && r <= '9':
+	case r == '.' || r == '-' || r == '_':
+	default:
+		return '_'
+	}
+	return r
+}
+
+// sanitizeFilename strips path components, maps any byte outside the
+// safe allowlist to '_', and truncates to 255 chars so the final value
+// is safe to ship as an S3 metadata header and as an inline filename in
+// Content-Disposition.
+func sanitizeFilename(raw string) string {
+	s := strings.Map(safeFilenameChar, raw)
+	if len(s) > 255 {
+		s = s[:255]
+	}
+	return s
+}
+
+// sanitizeSystemVersion whitelists a narrower set than filenames: no
+// whitespace, no punctuation beyond what shows up in real version
+// strings, capped at 64 chars.
+func sanitizeSystemVersion(raw string) string {
+	mapFn := func(r rune) rune {
+		switch {
+		case r >= 'A' && r <= 'Z':
+		case r >= 'a' && r <= 'z':
+		case r >= '0' && r <= '9':
+		case r == '.' || r == '-' || r == '_' || r == '+':
+		default:
+			return -1
+		}
+		return r
+	}
+	s := strings.Map(mapFn, raw)
+	if len(s) > 64 {
+		s = s[:64]
+	}
+	return s
+}
+
+// remoteAddrIP returns the true peer IP observed by the server. Unlike
+// c.ClientIP() it never honours X-Forwarded-For, so a malicious
+// appliance cannot forge the uploader IP in audit metadata.
+func remoteAddrIP(c *gin.Context) string {
+	host, _, err := net.SplitHostPort(c.Request.RemoteAddr)
+	if err != nil {
+		return c.Request.RemoteAddr
+	}
+	return host
 }
 
 // countingReader tracks how many bytes the downstream consumer has read
@@ -139,12 +204,12 @@ func UploadBackup(c *gin.Context) {
 	teeReader := io.TeeReader(counter, hasher)
 
 	metadata := map[string]string{
-		"filename":    filename,
-		"uploader-ip": c.ClientIP(),
-		"uploader-ua": c.Request.UserAgent(),
+		"filename":    sanitizeFilename(filename),
+		"uploader-ip": remoteAddrIP(c),
+		"uploader-ua": sanitizeFilename(c.Request.UserAgent()),
 		"sha256":      "pending",
 	}
-	if sv := c.GetHeader("X-System-Version"); sv != "" {
+	if sv := sanitizeSystemVersion(c.GetHeader("X-System-Version")); sv != "" {
 		metadata["system-ver"] = sv
 	}
 
@@ -236,13 +301,13 @@ func UploadBackup(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, response.Created("backup stored", BackupMetadata{
 		ID:         backupID.String() + ext,
-		Filename:   filename,
+		Filename:   metadata["filename"],
 		Size:       size,
 		SHA256:     sha,
 		MimeType:   contentType,
 		UploadedAt: time.Now().UTC(),
-		UploaderIP: c.ClientIP(),
-		UploaderUA: c.Request.UserAgent(),
+		UploaderIP: metadata["uploader-ip"],
+		UploaderUA: metadata["uploader-ua"],
 		SystemVer:  metadata["system-ver"],
 	}))
 }
@@ -341,7 +406,10 @@ func DownloadBackup(c *gin.Context) {
 		c.Header("Content-Length", fmt.Sprintf("%d", aws.ToInt64(obj.ContentLength)))
 	}
 	if filename, ok := obj.Metadata["filename"]; ok && filename != "" {
-		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename=%q`, filename))
+		// Filename has already been sanitized at ingest, but apply the
+		// same filter again on the read path in case an object was
+		// written by an older build or directly via the S3 API.
+		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename=%q`, sanitizeFilename(filename)))
 	}
 	c.Status(http.StatusOK)
 
@@ -399,9 +467,34 @@ func listBackupsForSystem(ctx context.Context, client *s3.Client, orgID, systemI
 	return items, nil
 }
 
-// enforceBackupRetention deletes the oldest backups under a system's prefix
-// until both BackupMaxPerSystem and BackupMaxSizePerSystem limits are met.
+// enforceBackupRetention deletes the oldest backups under a system's
+// prefix until both BackupMaxPerSystem and BackupMaxSizePerSystem
+// limits are met. It is serialised by a Redis lock keyed on the system
+// (so two concurrent uploads cannot both delete the same victim and
+// race over the survivor count) and orders objects by their key —
+// because the keys embed a UUIDv7, lexicographic order is monotonic in
+// upload time and immune to S3 LastModified clock skew.
 func enforceBackupRetention(ctx context.Context, client *s3.Client, orgID, systemID string) error {
+	lockKey := fmt.Sprintf("backup:retention:%s", systemID)
+	rdb := queue.GetClient()
+	locked, err := rdb.SetNX(ctx, lockKey, "1", 60*time.Second).Result()
+	if err != nil {
+		// Redis unreachable — skip retention this round; the next
+		// upload will retry. Better to leave one extra backup than
+		// to delete the wrong one.
+		logger.Warn().Err(err).Str("system_id", systemID).Msg("retention: lock acquire failed, skipping")
+		return nil
+	}
+	if !locked {
+		// Another upload is already pruning this system; do nothing.
+		return nil
+	}
+	defer func() {
+		if _, err := rdb.Del(ctx, lockKey).Result(); err != nil {
+			logger.Warn().Err(err).Str("system_id", systemID).Msg("retention: lock release failed")
+		}
+	}()
+
 	prefix := fmt.Sprintf("%s/%s/", orgID, systemID)
 
 	out, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
@@ -413,8 +506,12 @@ func enforceBackupRetention(ctx context.Context, client *s3.Client, orgID, syste
 	}
 
 	objs := out.Contents
+	// Sort by key (ascending). The {uuid}.{ext} suffix begins with a
+	// UUIDv7 whose first 48 bits are the upload's millisecond
+	// timestamp, so lexicographic order matches chronological order
+	// without depending on the storage backend's clock.
 	sort.Slice(objs, func(i, j int) bool {
-		return aws.ToTime(objs[i].LastModified).Before(aws.ToTime(objs[j].LastModified))
+		return aws.ToString(objs[i].Key) < aws.ToString(objs[j].Key)
 	})
 
 	var totalSize int64

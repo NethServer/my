@@ -11,6 +11,7 @@ package configuration
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -236,12 +237,12 @@ func Init() {
 	Config.AlertingHistoryWebhookSecret = os.Getenv("ALERTING_HISTORY_WEBHOOK_SECRET")
 
 	// Backup storage — S3 client credentials (DigitalOcean Spaces)
-	Config.BackupS3Endpoint = os.Getenv("BACKUP_S3_ENDPOINT")
+	Config.BackupS3Endpoint = validateBackupEndpoint("BACKUP_S3_ENDPOINT", os.Getenv("BACKUP_S3_ENDPOINT"))
 	// Optional override used only when the API-facing endpoint differs
 	// from the endpoint the user's browser can reach (typical for local
 	// dev where backend runs inside a container and MinIO is exposed on
 	// the host). Empty in production.
-	Config.BackupS3PresignEndpoint = os.Getenv("BACKUP_S3_PRESIGN_ENDPOINT")
+	Config.BackupS3PresignEndpoint = validateBackupEndpoint("BACKUP_S3_PRESIGN_ENDPOINT", os.Getenv("BACKUP_S3_PRESIGN_ENDPOINT"))
 	if envRegion := os.Getenv("BACKUP_S3_REGION"); envRegion != "" {
 		Config.BackupS3Region = envRegion
 	} else {
@@ -251,10 +252,51 @@ func Init() {
 	Config.BackupS3AccessKey = os.Getenv("BACKUP_S3_ACCESS_KEY")
 	Config.BackupS3SecretKey = os.Getenv("BACKUP_S3_SECRET_KEY")
 	Config.BackupS3UsePathStyle = parseBoolWithDefault("BACKUP_S3_USE_PATH_STYLE", false)
-	Config.BackupPresignTTL = parseDurationWithDefault("BACKUP_PRESIGN_TTL", 5*time.Minute)
+	// Cap the presigned URL lifetime at 15 minutes so a misconfigured
+	// env can never mint long-lived bearer URLs to backup objects.
+	ttl := parseDurationWithDefault("BACKUP_PRESIGN_TTL", 5*time.Minute)
+	if ttl > 15*time.Minute {
+		logger.LogConfigLoad("env", "BACKUP_PRESIGN_TTL", false, fmt.Errorf("value %s exceeds the 15m hard cap, clamping", ttl))
+		ttl = 15 * time.Minute
+	}
+	if ttl <= 0 {
+		ttl = 5 * time.Minute
+	}
+	Config.BackupPresignTTL = ttl
 
 	// Log successful configuration load
 	logger.LogConfigLoad("env", "configuration", true, nil)
+}
+
+// validateBackupEndpoint refuses HTTP endpoints unless the host is one
+// of the well-known dev loopback names; misconfigured prod deployments
+// would otherwise send signed S3 traffic in plaintext. Empty values are
+// returned unchanged (the storage package surfaces a clearer error).
+func validateBackupEndpoint(name, raw string) string {
+	if raw == "" {
+		return ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		logger.LogConfigLoad("env", name, false, fmt.Errorf("invalid URL %q", raw))
+		return ""
+	}
+	if u.Scheme == "https" {
+		return raw
+	}
+	if u.Scheme == "http" {
+		host := u.Hostname()
+		if host == "localhost" || host == "127.0.0.1" || host == "::1" ||
+			strings.HasSuffix(host, ".local") ||
+			strings.HasSuffix(host, ".localtest.me") ||
+			parseBoolWithDefault("BACKUP_S3_ALLOW_INSECURE", false) {
+			return raw
+		}
+		logger.LogConfigLoad("env", name, false, fmt.Errorf("HTTP endpoint to non-loopback host %q rejected; set BACKUP_S3_ALLOW_INSECURE=true to override", host))
+		return ""
+	}
+	logger.LogConfigLoad("env", name, false, fmt.Errorf("unsupported scheme %q", u.Scheme))
+	return ""
 }
 
 // parseDurationWithDefault parses a duration from environment variable or returns default

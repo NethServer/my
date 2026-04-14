@@ -150,10 +150,12 @@ func DownloadSystemBackup(c *gin.Context) {
 		return
 	}
 
+	logger.LogBusinessOperation(c, "systems", "download_backup", "backup", backupID, true, nil)
 	logger.RequestLogger(c, "systems").Info().
 		Str("operation", "download_backup").
 		Str("system_id", systemID).
 		Str("backup_id", backupID).
+		Int("expires_in_seconds", int(configuration.Config.BackupPresignTTL.Seconds())).
 		Msg("backup download URL issued")
 
 	c.JSON(http.StatusOK, response.OK("download URL issued", gin.H{
@@ -216,6 +218,50 @@ func DeleteSystemBackup(c *gin.Context) {
 		"system_id": systemID,
 		"backup_id": backupID,
 	}))
+}
+
+// purgeSystemBackups removes every object stored under a system's S3
+// prefix. It is invoked by DestroySystem before the DB row goes away
+// to honour the GDPR Article 17 "right to erasure" — backups that
+// belong to a deleted system must not survive in storage. A non-nil
+// error means the destroy must be refused so the operator can retry.
+//
+// The function is a no-op when the backup storage client is not
+// configured (e.g. dev environments without BACKUP_S3_ENDPOINT set);
+// in that case there is nothing to purge.
+func purgeSystemBackups(ctx context.Context, orgID, systemID string) error {
+	client, _, err := storage.BackupClient(ctx)
+	if err != nil {
+		// No backup storage configured for this environment.
+		logger.Warn().Err(err).Str("system_id", systemID).Msg("backup storage unavailable; skipping purge")
+		return nil
+	}
+
+	prefix := fmt.Sprintf("%s/%s/", orgID, systemID)
+	out, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket: aws.String(configuration.Config.BackupS3Bucket),
+		Prefix: aws.String(prefix),
+	})
+	if err != nil {
+		return fmt.Errorf("list backups for purge: %w", err)
+	}
+
+	for _, o := range out.Contents {
+		_, delErr := client.DeleteObject(ctx, &s3.DeleteObjectInput{
+			Bucket: aws.String(configuration.Config.BackupS3Bucket),
+			Key:    o.Key,
+		})
+		if delErr != nil {
+			return fmt.Errorf("delete %s: %w", aws.ToString(o.Key), delErr)
+		}
+	}
+
+	logger.Info().
+		Str("system_id", systemID).
+		Str("org_id", orgID).
+		Int("objects_purged", len(out.Contents)).
+		Msg("system backups purged")
+	return nil
 }
 
 // listSystemBackups returns the backups for a system along with the total
