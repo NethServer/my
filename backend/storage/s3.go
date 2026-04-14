@@ -14,6 +14,13 @@
 // fetches object metadata for rich UI rendering, and generates short-lived
 // presigned URLs so user browsers can download objects directly from Spaces
 // without streaming through the API.
+//
+// When BACKUP_S3_PRESIGN_ENDPOINT is set, the presigner is built on a
+// separate client that signs URLs with that endpoint instead of the one
+// used for server-side calls. This matters only for local development
+// where backend runs inside a compose network and talks to MinIO over the
+// internal hostname, while the browser can only reach MinIO via a host
+// port mapping; using two endpoints keeps signatures valid in both worlds.
 package storage
 
 import (
@@ -72,7 +79,14 @@ func buildBackupClient(ctx context.Context) (*s3.Client, *s3.PresignClient, erro
 		o.UsePathStyle = configuration.Config.BackupS3UsePathStyle
 	})
 
-	presigner := s3.NewPresignClient(client)
+	presignClient := client
+	if override := configuration.Config.BackupS3PresignEndpoint; override != "" {
+		presignClient = s3.NewFromConfig(cfg, func(o *s3.Options) {
+			o.BaseEndpoint = aws.String(override)
+			o.UsePathStyle = configuration.Config.BackupS3UsePathStyle
+		})
+	}
+	presigner := s3.NewPresignClient(presignClient)
 
 	return client, presigner, nil
 }
