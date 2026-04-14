@@ -32,6 +32,27 @@ func handlerPanicRecovery(h gin.HandlerFunc) gin.HandlerFunc {
 	}
 }
 
+func TestIsValidBackupID(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		ok   bool
+	}{
+		{"uuidv7 bare", "01934fab-bc33-7890-a1b2-c3d4e5f6a7b8", true},
+		{"uuidv7 with tar.gz", "01934fab-bc33-7890-a1b2-c3d4e5f6a7b8.tar.gz", true},
+		{"uuidv7 uppercase normalised", "01934FAB-BC33-7890-A1B2-C3D4E5F6A7B8.GPG", true},
+		{"path traversal", "../../etc/passwd", false},
+		{"slash injection", "01934fab-bc33-7890-a1b2-c3d4e5f6a7b8/extra", false},
+		{"unknown extension", "01934fab-bc33-7890-a1b2-c3d4e5f6a7b8.sh", false},
+		{"empty", "", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.ok, isValidBackupID(tc.in))
+		})
+	}
+}
+
 func TestGetSystemBackupsRequiresUserContext(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

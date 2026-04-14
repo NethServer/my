@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -26,6 +27,19 @@ import (
 	"github.com/nethesis/my/backend/services/local"
 	"github.com/nethesis/my/backend/storage"
 )
+
+// backupIDPattern pins the shape of a valid backup identifier: a UUIDv7
+// plus one of the extensions produced by the ingest side. Anything else —
+// path components, traversal tokens, URL-encoded slashes, unexpected
+// suffixes — is refused before it reaches the storage layer so the S3
+// key cannot be diverted outside the system's prefix.
+var backupIDPattern = regexp.MustCompile(
+	`^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\.(?:tar\.gz|tar\.xz|tar\.bz2|tar\.zst|gpg|bin))?$`,
+)
+
+func isValidBackupID(id string) bool {
+	return backupIDPattern.MatchString(strings.ToLower(id))
+}
 
 // BackupMetadata is the JSON payload returned in list responses for a single
 // backup object.
@@ -102,6 +116,10 @@ func DownloadSystemBackup(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, response.BadRequest("system ID and backup ID required", nil))
 		return
 	}
+	if !isValidBackupID(backupID) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid backup id", nil))
+		return
+	}
 
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
@@ -151,6 +169,10 @@ func DeleteSystemBackup(c *gin.Context) {
 	backupID := c.Param("backup_id")
 	if systemID == "" || backupID == "" {
 		c.JSON(http.StatusBadRequest, response.BadRequest("system ID and backup ID required", nil))
+		return
+	}
+	if !isValidBackupID(backupID) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid backup id", nil))
 		return
 	}
 

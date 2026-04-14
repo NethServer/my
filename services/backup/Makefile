@@ -9,8 +9,24 @@ REPO_ROOT = $(shell cd ../.. && pwd)
 BACKEND_ENV = $(REPO_ROOT)/backend/.env
 COLLECT_ENV = $(REPO_ROOT)/collect/.env
 
-.PHONY: dev-setup dev-up dev-down dev-restart dev-logs dev-status dev-ready \
-        dev-shell dev-objects dev-reset test-roundtrip
+.PHONY: dev-secrets dev-setup dev-up dev-down dev-restart dev-logs dev-status \
+        dev-ready dev-shell dev-objects dev-reset test-roundtrip
+
+## Generate Garage RPC + admin secrets in services/backup/.env if missing
+dev-secrets:
+	@if [ ! -f .env ]; then \
+		cp .env.example .env; \
+	fi
+	@if ! grep -q '^GARAGE_RPC_SECRET=..' .env; then \
+		sec=$$(openssl rand -hex 32); \
+		awk -v s="$$sec" '/^GARAGE_RPC_SECRET=$$/{print "GARAGE_RPC_SECRET="s; next} {print}' .env > .env.tmp && mv .env.tmp .env; \
+		echo "  generated GARAGE_RPC_SECRET"; \
+	fi
+	@if ! grep -q '^GARAGE_ADMIN_TOKEN=..' .env; then \
+		tok=$$(openssl rand -hex 32); \
+		awk -v s="$$tok" '/^GARAGE_ADMIN_TOKEN=$$/{print "GARAGE_ADMIN_TOKEN="s; next} {print}' .env > .env.tmp && mv .env.tmp .env; \
+		echo "  generated GARAGE_ADMIN_TOKEN"; \
+	fi
 
 ## Inject BACKUP_S3_* env vars into backend/.env and collect/.env
 dev-setup:
@@ -37,7 +53,7 @@ dev-setup:
 	@echo "Done. Restart backend and collect to pick up the new env vars."
 
 ## Start local Garage (S3-compatible object storage for dev)
-dev-up:
+dev-up: dev-secrets
 	@if podman ps --format '{{.Names}}' | grep -q '^$(CONTAINER_NAME)$$'; then \
 		echo "$(CONTAINER_NAME) is already running"; \
 	else \

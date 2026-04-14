@@ -15,7 +15,8 @@ backend   ◄─────────presigned URL─────────
 All commands are run from `services/backup/`.
 
 ```bash
-# 1. Start Garage + bootstrap (creates bucket and fixed access key)
+# 1. Start Garage + bootstrap (auto-generates RPC/admin secrets in .env
+#    if missing, then creates the bucket and fixed access key)
 make dev-up
 
 # 2. Append BACKUP_S3_* entries to backend/.env and collect/.env
@@ -26,6 +27,8 @@ make dev-setup
 # 4. Exercise the full appliance simulation
 make test-roundtrip
 ```
+
+The first `make dev-up` generates fresh `GARAGE_RPC_SECRET` and `GARAGE_ADMIN_TOKEN` values in `services/backup/.env` and leaves them there for subsequent runs. The admin port is bound to `127.0.0.1` only, so the token never leaves the local host.
 
 See `make help` equivalents by listing the Makefile — every target starts with `dev-` (lifecycle) or `test-` (verification).
 

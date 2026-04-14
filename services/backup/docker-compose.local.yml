@@ -8,43 +8,41 @@
 # Start: podman-compose -f services/backup/docker-compose.local.yml up -d
 # Stop:  podman-compose -f services/backup/docker-compose.local.yml down
 #
-# Service URLs:
-#   - Garage S3 API: http://localhost:13900
-#   - Garage Admin API: http://localhost:13903 (health check only)
+# Service URLs (bound to 127.0.0.1 only — never exposed on the LAN):
+#   - Garage S3 API: http://127.0.0.1:13900
+#   - Garage Admin API: http://127.0.0.1:13903
 #
-# Wire the following env vars into backend/.env and collect/.env when
-# running the components on the host (go run):
-#   BACKUP_S3_ENDPOINT=http://localhost:13900
-#   BACKUP_S3_REGION=garage
-#   BACKUP_S3_BUCKET=my-backups-dev
-#   BACKUP_S3_ACCESS_KEY=backup-local-key
-#   BACKUP_S3_SECRET_KEY=backup-local-secret-backup-local-secret-0000000000
-#   BACKUP_S3_USE_PATH_STYLE=true
+# Required env in services/backup/.env (generate with `openssl rand -hex 32`):
+#   GARAGE_RPC_SECRET   — cluster RPC shared secret
+#   GARAGE_ADMIN_TOKEN  — admin API bearer token
 #
-# When running backend/collect inside a compose network (root
-# docker-compose.yml), join this file's network and set instead:
-#   BACKUP_S3_ENDPOINT=http://garage:3900
-#   BACKUP_S3_PRESIGN_ENDPOINT=http://localhost:13900   (backend only)
+# See services/backup/README.md for the full wiring to backend/collect.
 
 version: '3.8'
 
 services:
   garage:
-    image: docker.io/dxflrs/garage:v1.0.1
+    build:
+      context: .
+      dockerfile: Containerfile
     container_name: ${COMPOSE_PROJECT_NAME:-backup-local}-garage
     restart: unless-stopped
-    command: ["/garage", "-c", "/etc/garage/garage.toml", "server"]
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN}
     volumes:
-      - ./garage-local.toml:/etc/garage/garage.toml:ro
       - garage-meta:/var/lib/garage/meta
       - garage-data:/var/lib/garage/data
     ports:
-      - "13900:3900"
-      - "13903:3903"
+      # Admin/S3 endpoints stay pinned to the loopback interface so a
+      # misconfigured firewall does not expose the admin API (with its
+      # token) to the LAN.
+      - "127.0.0.1:13900:3900"
+      - "127.0.0.1:13903:3903"
     networks:
       - backup-local
     healthcheck:
-      test: ["CMD", "/garage", "-c", "/etc/garage/garage.toml", "status"]
+      test: ["CMD", "/bin/garage", "-c", "/etc/garage/garage.toml", "status"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -59,7 +57,7 @@ services:
         condition: service_healthy
     environment:
       GARAGE_RPC_HOST: garage:3901
-      GARAGE_RPC_SECRET: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET}
     entrypoint:
       - /bin/sh
       - -c

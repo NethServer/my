@@ -2,13 +2,20 @@
 # The production backup target is DigitalOcean Spaces, so this image is not
 # deployed by the current Render blueprint; it exists for parity with the
 # other services/ directories and for ad-hoc self-hosted deployments.
-FROM docker.io/dxflrs/garage:v1.0.1
+#
+# Secrets are NEVER baked in — the Garage config template uses envsubst
+# placeholders resolved at runtime by entrypoint.sh.
+FROM docker.io/dxflrs/garage:v1.0.1 AS garage
 
-# Bake the default config. Operators can override it at runtime by
-# mounting a different file at /etc/garage/garage.toml.
-COPY garage-local.toml /etc/garage/garage.toml
+FROM alpine:3.21
+
+RUN apk add --no-cache gettext
+
+COPY --from=garage /garage /bin/garage
+COPY garage-local.toml /etc/garage/garage.toml.template
+COPY entrypoint.sh /entrypoint.sh
 
 # S3 API + admin API ports. RPC (3901) stays container-internal.
 EXPOSE 3900 3903
 
-ENTRYPOINT ["/garage", "-c", "/etc/garage/garage.toml", "server"]
+ENTRYPOINT ["/entrypoint.sh"]

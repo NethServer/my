@@ -6,10 +6,11 @@ replication_factor = 1
 
 rpc_bind_addr = "[::]:3901"
 rpc_public_addr = "127.0.0.1:3901"
-# Fixed development secret — acceptable because this config file only ships
-# in the local compose and the RPC port is never exposed outside the
-# container network. Do NOT reuse these values outside local development.
-rpc_secret = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+# Rendered by entrypoint.sh via envsubst — the template contains no
+# secrets in the repo. Developers set GARAGE_RPC_SECRET in
+# services/backup/.env (or use the default produced by `make dev-up`,
+# which generates one on first boot and pins it in the .env file).
+rpc_secret = "${GARAGE_RPC_SECRET}"
 
 [s3_api]
 s3_region = "garage"
@@ -18,4 +19,4 @@ root_domain = ".s3.garage.local"
 
 [admin]
 api_bind_addr = "[::]:3903"
-admin_token = "local-dev-admin"
+admin_token = "${GARAGE_ADMIN_TOKEN}"

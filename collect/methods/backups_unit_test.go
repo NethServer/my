@@ -44,6 +44,34 @@ func TestExtractFilename(t *testing.T) {
 	}
 }
 
+func TestIsValidBackupID(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		ok   bool
+	}{
+		// UUIDv7 canonical form — version nibble 7, variant nibble 8/9/a/b.
+		{"uuidv7 bare", "01934fab-bc33-7890-a1b2-c3d4e5f6a7b8", true},
+		{"uuidv7 with tar.gz", "01934fab-bc33-7890-a1b2-c3d4e5f6a7b8.tar.gz", true},
+		{"uuidv7 with gpg", "01934fab-bc33-7890-a1b2-c3d4e5f6a7b8.gpg", true},
+		{"uuidv7 with bin", "01934fab-bc33-7890-a1b2-c3d4e5f6a7b8.bin", true},
+		{"uuidv7 uppercase normalised", "01934FAB-BC33-7890-A1B2-C3D4E5F6A7B8.TAR.GZ", true},
+		// Rejected shapes.
+		{"uuidv4 (wrong version nibble)", "01934fab-bc33-4890-a1b2-c3d4e5f6a7b8", false},
+		{"path traversal", "../../etc/passwd", false},
+		{"encoded slash traversal", "01934fab-bc33-7890-a1b2-c3d4e5f6a7b8..%2Fetc%2Fpasswd", false},
+		{"slash injection", "01934fab-bc33-7890-a1b2-c3d4e5f6a7b8/extra", false},
+		{"unknown extension", "01934fab-bc33-7890-a1b2-c3d4e5f6a7b8.sh", false},
+		{"trailing whitespace", "01934fab-bc33-7890-a1b2-c3d4e5f6a7b8 ", false},
+		{"empty", "", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.ok, isValidBackupID(tc.in))
+		})
+	}
+}
+
 func TestExtractExtension(t *testing.T) {
 	tests := []struct {
 		name string

@@ -17,8 +17,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -33,6 +35,39 @@ import (
 	"github.com/nethesis/my/collect/response"
 	"github.com/nethesis/my/collect/storage"
 )
+
+// backupIDPattern pins the shape of a valid backup identifier: a UUIDv7
+// (32 hex digits with the version nibble and variant enforced) plus one of
+// the extensions derived by extractExtension. Anything else — path
+// components, traversal tokens, URL-encoded slashes, unexpected suffixes —
+// is refused before it reaches the storage layer so the S3 key can never
+// reach outside the authenticated system's prefix.
+var backupIDPattern = regexp.MustCompile(
+	`^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\.(?:tar\.gz|tar\.xz|tar\.bz2|tar\.zst|gpg|bin))?$`,
+)
+
+// isValidBackupID is the strict allowlist for backup IDs that arrive via
+// user-controlled path parameters.
+func isValidBackupID(id string) bool {
+	return backupIDPattern.MatchString(strings.ToLower(id))
+}
+
+// countingReader tracks how many bytes the downstream consumer has read
+// so the handler can reject clients that under-declare Content-Length
+// (which would otherwise leave the SHA-256 tee hashing only a prefix of
+// the uploaded body).
+type countingReader struct {
+	r io.Reader
+	n atomic.Int64
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	if n > 0 {
+		c.n.Add(int64(n))
+	}
+	return n, err
+}
 
 // BackupMetadata is the JSON payload returned for list/upload operations.
 type BackupMetadata struct {
@@ -60,6 +95,13 @@ func UploadBackup(c *gin.Context) {
 		return
 	}
 
+	// Require an explicit Content-Length. A missing or -1 value would
+	// leave the handler dependent on MaxBytesReader alone and make the
+	// post-upload byte reconciliation impossible.
+	if c.Request.ContentLength <= 0 {
+		c.JSON(http.StatusLengthRequired, response.Error(http.StatusLengthRequired, "Content-Length required", nil))
+		return
+	}
 	if c.Request.ContentLength > configuration.Config.BackupMaxUploadSize {
 		c.JSON(http.StatusRequestEntityTooLarge, response.Error(http.StatusRequestEntityTooLarge, "backup exceeds max upload size", gin.H{
 			"max_bytes": configuration.Config.BackupMaxUploadSize,
@@ -93,7 +135,8 @@ func UploadBackup(c *gin.Context) {
 
 	hasher := sha256.New()
 	limitedBody := http.MaxBytesReader(c.Writer, c.Request.Body, configuration.Config.BackupMaxUploadSize)
-	teeReader := io.TeeReader(limitedBody, hasher)
+	counter := &countingReader{r: limitedBody}
+	teeReader := io.TeeReader(counter, hasher)
 
 	metadata := map[string]string{
 		"filename":    filename,
@@ -124,9 +167,31 @@ func UploadBackup(c *gin.Context) {
 		return
 	}
 
+	// Reconcile actual body length against the declared Content-Length.
+	// A mismatch means either the client lied in the header (truncating
+	// the SHA-256 tee) or the S3 client silently padded the request.
+	// In either case the stored object cannot be trusted — drop it.
+	observed := counter.n.Load()
+	if observed != c.Request.ContentLength {
+		deleteOrphanObject(ctx, client, key)
+		logger.Error().
+			Str("system_id", systemID).
+			Str("key", key).
+			Int64("declared_bytes", c.Request.ContentLength).
+			Int64("observed_bytes", observed).
+			Msg("upload length mismatch — object dropped")
+		c.JSON(http.StatusBadRequest, response.BadRequest("upload length mismatch", nil))
+		return
+	}
+
 	sha := hex.EncodeToString(hasher.Sum(nil))
 	metadata["sha256"] = sha
 
+	// Rewrite the object's metadata with the real checksum. CopyObject
+	// against the same key is a server-side operation, so it is fast and
+	// does not transfer the body again. Any failure here leaves the
+	// object with sha256=pending, which would silently lie to later
+	// readers — drop the object and surface a 502 instead.
 	_, err = client.CopyObject(ctx, &s3.CopyObjectInput{
 		Bucket:            aws.String(configuration.Config.BackupS3Bucket),
 		Key:               aws.String(key),
@@ -136,7 +201,10 @@ func UploadBackup(c *gin.Context) {
 		ContentType:       aws.String(contentType),
 	})
 	if err != nil {
-		logger.Warn().Err(err).Str("key", key).Msg("failed to attach final sha256 metadata")
+		deleteOrphanObject(ctx, client, key)
+		logger.Error().Err(err).Str("key", key).Msg("failed to attach final sha256 metadata — object dropped")
+		c.JSON(http.StatusBadGateway, response.Error(http.StatusBadGateway, "failed to persist backup metadata", nil))
+		return
 	}
 
 	head, err := client.HeadObject(ctx, &s3.HeadObjectInput{
@@ -222,6 +290,10 @@ func DownloadBackup(c *gin.Context) {
 	backupID := c.Param("id")
 	if backupID == "" {
 		c.JSON(http.StatusBadRequest, response.BadRequest("backup id required", nil))
+		return
+	}
+	if !isValidBackupID(backupID) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid backup id", nil))
 		return
 	}
 
@@ -396,6 +468,19 @@ func extractFilename(headerValue, fallbackID string) string {
 		h = h[i+1:]
 	}
 	return h
+}
+
+// deleteOrphanObject removes an S3 object that was written but whose
+// metadata could not be committed; it is always best-effort (the caller
+// already owns the surfaced error) and only logs the outcome.
+func deleteOrphanObject(ctx context.Context, client *s3.Client, key string) {
+	_, err := client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(configuration.Config.BackupS3Bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		logger.Warn().Err(err).Str("key", key).Msg("orphan backup cleanup failed")
+	}
 }
 
 // extractExtension returns the file extension from a filename, including the
