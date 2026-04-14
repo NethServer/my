@@ -215,6 +215,17 @@ export const createSystemAlertSilence = (
     .then((res) => res.data.data)
 }
 
+export const deleteSystemAlertSilence = (systemId: string, silenceId: string) => {
+  const loginStore = useLoginStore()
+
+  return axios.delete(
+    `${API_URL}/systems/${systemId}/alerts/silences/${encodeURIComponent(silenceId)}`,
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
 type AlertAnnotationKey = 'summary' | 'description'
 type AlertWithAnnotations = {
   annotations?: Record<string, string | null | undefined>
@@ -253,4 +264,12 @@ export const getAlertSummary = (alert: AlertWithAnnotations, locale: string) => 
 
 export const getAlertDescription = (alert: AlertWithAnnotations, locale: string) => {
   return getAlertAnnotation(alert, 'description', locale)
+}
+
+export const getAlertSilenceIds = (alert: Alert) => {
+  return Array.from(new Set((alert.status?.silencedBy || []).filter((silenceId) => !!silenceId)))
+}
+
+export const isAlertSilenced = (alert: Alert) => {
+  return getAlertSilenceIds(alert).length > 0
 }

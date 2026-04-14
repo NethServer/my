@@ -8,10 +8,16 @@ import {
   NeBadgeV2,
   NeButton,
   NeCard,
+  NeEmptyState,
   NeHeading,
   NeInlineNotification,
   NeSkeleton,
-  NeEmptyState,
+  NeTable,
+  NeTableBody,
+  NeTableCell,
+  NeTableHead,
+  NeTableHeadCell,
+  NeTableRow,
   type NeBadgeV2Kind,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -20,8 +26,10 @@ import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { useLoginStore } from '@/stores/login'
 import {
   getAlertDescription,
+  getAlertSilenceIds,
   getAlertSummary,
   getSystemActiveAlerts,
+  isAlertSilenced,
   type Alert,
 } from '@/lib/alerting'
 import { ref, watch, computed } from 'vue'
@@ -29,8 +37,10 @@ import { useI18n } from 'vue-i18n'
 import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 import { canManageSystems } from '@/lib/permissions'
 import SilenceSystemAlertModal from './SilenceSystemAlertModal.vue'
+import DisableSystemAlertSilenceModal from './DisableSystemAlertSilenceModal.vue'
+import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 
-const { locale } = useI18n()
+const { locale, t } = useI18n()
 const loginStore = useLoginStore()
 const { state: systemDetail } = useSystemDetail()
 
@@ -39,9 +49,36 @@ const isLoading = ref(false)
 const error = ref<string | null>(null)
 const currentAlert = ref<Alert | undefined>()
 const isShownSilenceAlertModal = ref(false)
+const isShownDisableSilenceModal = ref(false)
+const loadedSystemId = ref('')
 
 const systemId = computed(() => systemDetail.value.data?.id || '')
 const activeAlertsCount = computed(() => alerts.value.length)
+const silencedAlertsCount = computed(() => alerts.value.filter(isAlertSilenced).length)
+const sortedAlerts = computed(() => {
+  const stateOrder: Record<string, number> = {
+    active: 0,
+    suppressed: 1,
+    unprocessed: 2,
+  }
+
+  return [...alerts.value].sort((firstAlert, secondAlert) => {
+    const firstStateOrder = stateOrder[firstAlert.status?.state?.toLowerCase() || ''] ?? 99
+    const secondStateOrder = stateOrder[secondAlert.status?.state?.toLowerCase() || ''] ?? 99
+
+    if (firstStateOrder !== secondStateOrder) {
+      return firstStateOrder - secondStateOrder
+    }
+
+    const firstStartsAt = firstAlert.startsAt ? Date.parse(firstAlert.startsAt) : 0
+    const secondStartsAt = secondAlert.startsAt ? Date.parse(secondAlert.startsAt) : 0
+    if (firstStartsAt !== secondStartsAt) {
+      return secondStartsAt - firstStartsAt
+    }
+
+    return (firstAlert.labels.alertname || '').localeCompare(secondAlert.labels.alertname || '')
+  })
+})
 let requestId = 0
 
 function getAlertSummaryText(alert: Alert) {
@@ -53,10 +90,6 @@ function getAlertDescriptionText(alert: Alert) {
   return description !== getAlertSummaryText(alert) ? description : ''
 }
 
-function isAlertSilenced(alert: Alert) {
-  return alert.status?.silencedBy?.length > 0
-}
-
 async function loadAlerts(sysId: string) {
   const currentRequestId = ++requestId
 
@@ -64,12 +97,15 @@ async function loadAlerts(sysId: string) {
     alerts.value = []
     error.value = null
     isLoading.value = false
+    loadedSystemId.value = ''
     return
   }
 
   isLoading.value = true
   error.value = null
-  alerts.value = []
+  if (loadedSystemId.value !== sysId) {
+    alerts.value = []
+  }
 
   try {
     const systemAlerts = await getSystemActiveAlerts(sysId)
@@ -78,6 +114,7 @@ async function loadAlerts(sysId: string) {
     }
 
     alerts.value = systemAlerts
+    loadedSystemId.value = sysId
   } catch (e: unknown) {
     if (currentRequestId !== requestId) {
       return
@@ -93,16 +130,24 @@ async function loadAlerts(sysId: string) {
 
 function showSilenceAlertModal(alert: Alert) {
   currentAlert.value = alert
+  isShownDisableSilenceModal.value = false
   isShownSilenceAlertModal.value = true
 }
 
-function closeSilenceAlertModal() {
+function showDisableSilenceModal(alert: Alert) {
+  currentAlert.value = alert
   isShownSilenceAlertModal.value = false
+  isShownDisableSilenceModal.value = true
+}
+
+function closeAlertActionModals() {
+  isShownSilenceAlertModal.value = false
+  isShownDisableSilenceModal.value = false
   currentAlert.value = undefined
 }
 
-function onAlertSilenced() {
-  closeSilenceAlertModal()
+function onAlertActionSuccess() {
+  closeAlertActionModals()
   if (systemId.value) {
     void loadAlerts(systemId.value)
   }
@@ -135,24 +180,55 @@ function getStateBadgeKind(state: string | undefined): NeBadgeV2Kind {
       return 'rose'
     case 'suppressed':
       return 'gray'
+    case 'unprocessed':
+      return 'amber'
     default:
       return 'gray'
   }
+}
+
+function getAlertStateLabel(state: string | undefined) {
+  switch (state?.toLowerCase()) {
+    case 'active':
+      return t('alerting.state_active')
+    case 'suppressed':
+      return t('alerting.state_suppressed')
+    case 'unprocessed':
+      return t('alerting.state_unprocessed')
+    default:
+      return state || '-'
+  }
+}
+
+function getAlertSilenceCountText(alert: Alert) {
+  const silenceIds = getAlertSilenceIds(alert)
+  if (!silenceIds.length) {
+    return '-'
+  }
+
+  return t('alerting.silences_count', { num: silenceIds.length }, silenceIds.length)
 }
 </script>
 
 <template>
   <NeCard class="col-span-full">
-    <div class="mb-4 flex items-center gap-2">
-      <FontAwesomeIcon :icon="faBell" class="h-5 w-5 text-gray-500 dark:text-gray-400" />
-      <NeHeading tag="h6">{{ $t('alerting.active_alerts_card_title') }}</NeHeading>
-      <NeBadgeV2 :kind="activeAlertsCount ? 'rose' : 'gray'" size="xs">
-        {{ activeAlertsCount }}
-      </NeBadgeV2>
-      <NeBadgeV2 kind="gray" size="xs" class="ml-1">ALPHA</NeBadgeV2>
+    <div class="mb-4 flex flex-col items-start justify-between gap-4 xl:flex-row">
+      <div class="flex flex-wrap items-center gap-2">
+        <FontAwesomeIcon :icon="faBell" class="h-5 w-5 text-gray-500 dark:text-gray-400" />
+        <NeHeading tag="h6">{{ $t('alerting.active_alerts_card_title') }}</NeHeading>
+        <NeBadgeV2 :kind="activeAlertsCount ? 'rose' : 'gray'" size="xs">
+          {{ activeAlertsCount }}
+        </NeBadgeV2>
+        <NeBadgeV2 v-if="silencedAlertsCount" kind="gray" size="xs">
+          {{
+            $t('alerting.silenced_alerts_count', { num: silencedAlertsCount }, silencedAlertsCount)
+          }}
+        </NeBadgeV2>
+        <NeBadgeV2 kind="gray" size="xs" class="ml-1">ALPHA</NeBadgeV2>
+      </div>
+      <UpdatingSpinner v-if="isLoading && alerts.length > 0" />
     </div>
 
-    <!-- error -->
     <NeInlineNotification
       v-if="error"
       kind="error"
@@ -161,76 +237,113 @@ function getStateBadgeKind(state: string | undefined): NeBadgeV2Kind {
       class="mb-4"
     />
 
-    <!-- loading -->
-    <NeSkeleton v-else-if="isLoading" :lines="3" />
-
-    <!-- empty state -->
+    <NeSkeleton v-if="isLoading && !alerts.length" :lines="6" />
     <NeEmptyState
-      v-else-if="!alerts.length"
+      v-else-if="!alerts.length && !error"
       :title="$t('alerting.no_active_alerts')"
       :description="$t('alerting.no_active_alerts_description')"
       :icon="faBell"
     />
-
-    <!-- alerts list -->
-    <div v-else class="space-y-3">
-      <div
-        v-for="alert in alerts"
-        :key="alert.fingerprint"
-        class="flex flex-col gap-1 rounded-lg border border-gray-200 p-3 dark:border-gray-700"
-      >
-        <div class="flex flex-wrap items-center gap-2">
-          <FontAwesomeIcon
-            :icon="faExclamationTriangle"
-            class="h-4 w-4 shrink-0 text-amber-500"
-            aria-hidden="true"
-          />
-          <span class="font-semibold">{{ alert.labels.alertname || '-' }}</span>
-          <NeBadgeV2
-            v-if="alert.labels.severity"
-            :kind="getSeverityBadgeKind(alert.labels.severity)"
-            size="xs"
-          >
-            {{ alert.labels.severity }}
-          </NeBadgeV2>
-          <NeBadgeV2 :kind="getStateBadgeKind(alert.status?.state)" size="xs">
-            {{ alert.status?.state || '-' }}
-          </NeBadgeV2>
-        </div>
-        <div v-if="getAlertSummaryText(alert) || getAlertDescriptionText(alert)" class="space-y-1">
-          <div
-            v-if="getAlertSummaryText(alert)"
-            class="text-sm font-medium text-gray-700 dark:text-gray-300"
-          >
-            {{ getAlertSummaryText(alert) }}
-          </div>
-          <div
-            v-if="getAlertDescriptionText(alert)"
-            class="text-sm text-gray-600 dark:text-gray-400"
-          >
-            {{ getAlertDescriptionText(alert) }}
-          </div>
-        </div>
-        <div class="text-xs text-gray-400 dark:text-gray-500">
-          {{ $t('alerting.starts_at') }}:
-          {{ alert.startsAt ? formatDateTimeNoSeconds(new Date(alert.startsAt), locale) : '-' }}
-        </div>
-        <div v-if="canManageSystems() && !isAlertSilenced(alert)" class="mt-2">
-          <NeButton kind="tertiary" size="sm" @click="showSilenceAlertModal(alert)">
-            <template #prefix>
-              <FontAwesomeIcon :icon="faBellSlash" aria-hidden="true" />
-            </template>
-            {{ $t('alerting.silence_alert') }}
-          </NeButton>
-        </div>
-      </div>
-    </div>
+    <NeTable
+      v-else-if="alerts.length"
+      :aria-label="$t('alerting.active_alerts_card_title')"
+      card-breakpoint="lg"
+    >
+      <NeTableHead>
+        <NeTableHeadCell>{{ $t('alerting.alertname') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('alerting.severity') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('common.status') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('alerting.summary') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('alerting.starts_at') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('alerting.silences') }}</NeTableHeadCell>
+        <NeTableHeadCell v-if="canManageSystems()">{{ $t('common.actions') }}</NeTableHeadCell>
+      </NeTableHead>
+      <NeTableBody>
+        <NeTableRow v-for="alert in sortedAlerts" :key="alert.fingerprint">
+          <NeTableCell :data-label="$t('alerting.alertname')">
+            <div class="flex items-center gap-2">
+              <FontAwesomeIcon
+                :icon="faExclamationTriangle"
+                class="h-4 w-4 shrink-0 text-amber-500"
+                aria-hidden="true"
+              />
+              <span class="font-medium">{{ alert.labels.alertname || '-' }}</span>
+            </div>
+          </NeTableCell>
+          <NeTableCell :data-label="$t('alerting.severity')">
+            <NeBadgeV2
+              v-if="alert.labels.severity"
+              :kind="getSeverityBadgeKind(alert.labels.severity)"
+              size="xs"
+            >
+              {{ alert.labels.severity }}
+            </NeBadgeV2>
+            <span v-else>-</span>
+          </NeTableCell>
+          <NeTableCell :data-label="$t('common.status')">
+            <NeBadgeV2 :kind="getStateBadgeKind(alert.status?.state)" size="xs">
+              {{ getAlertStateLabel(alert.status?.state) }}
+            </NeBadgeV2>
+          </NeTableCell>
+          <NeTableCell :data-label="$t('alerting.summary')">
+            <div class="space-y-1">
+              <div class="font-medium text-gray-700 dark:text-gray-300">
+                {{ getAlertSummaryText(alert) || '-' }}
+              </div>
+              <div
+                v-if="getAlertDescriptionText(alert)"
+                class="text-sm text-gray-600 dark:text-gray-400"
+              >
+                {{ getAlertDescriptionText(alert) }}
+              </div>
+            </div>
+          </NeTableCell>
+          <NeTableCell :data-label="$t('alerting.starts_at')">
+            {{ alert.startsAt ? formatDateTimeNoSeconds(new Date(alert.startsAt), locale) : '-' }}
+          </NeTableCell>
+          <NeTableCell :data-label="$t('alerting.silences')">
+            <NeBadgeV2 v-if="isAlertSilenced(alert)" kind="gray" size="xs">
+              {{ getAlertSilenceCountText(alert) }}
+            </NeBadgeV2>
+            <span v-else>-</span>
+          </NeTableCell>
+          <NeTableCell v-if="canManageSystems()" :data-label="$t('common.actions')">
+            <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+              <NeButton
+                v-if="isAlertSilenced(alert)"
+                kind="tertiary"
+                size="sm"
+                @click="showDisableSilenceModal(alert)"
+              >
+                <template #prefix>
+                  <FontAwesomeIcon :icon="faBell" aria-hidden="true" />
+                </template>
+                {{ $t('alerting.disable_silence') }}
+              </NeButton>
+              <NeButton v-else kind="tertiary" size="sm" @click="showSilenceAlertModal(alert)">
+                <template #prefix>
+                  <FontAwesomeIcon :icon="faBellSlash" aria-hidden="true" />
+                </template>
+                {{ $t('alerting.silence_alert') }}
+              </NeButton>
+            </div>
+          </NeTableCell>
+        </NeTableRow>
+      </NeTableBody>
+    </NeTable>
     <SilenceSystemAlertModal
       :visible="isShownSilenceAlertModal"
       :alert="currentAlert"
       :system-id="systemId"
-      @close="closeSilenceAlertModal"
-      @success="onAlertSilenced"
+      @close="closeAlertActionModals"
+      @success="onAlertActionSuccess"
+    />
+    <DisableSystemAlertSilenceModal
+      :visible="isShownDisableSilenceModal"
+      :alert="currentAlert"
+      :system-id="systemId"
+      @close="closeAlertActionModals"
+      @success="onAlertActionSuccess"
     />
   </NeCard>
 </template>

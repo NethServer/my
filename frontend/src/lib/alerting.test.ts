@@ -2,7 +2,13 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import { describe, expect, it } from 'vitest'
-import { getAlertDescription, getAlertSummary, type Alert } from './alerting'
+import {
+  getAlertDescription,
+  getAlertSilenceIds,
+  getAlertSummary,
+  isAlertSilenced,
+  type Alert,
+} from './alerting'
 
 const baseAlert: Alert = {
   labels: {},
@@ -65,5 +71,37 @@ describe('getAlertDescription', () => {
 
   it('returns an empty string when no description is available', () => {
     expect(getAlertDescription(baseAlert, 'en')).toBe('')
+  })
+})
+
+describe('getAlertSilenceIds', () => {
+  it('deduplicates silence ids and removes empty values', () => {
+    expect(
+      getAlertSilenceIds({
+        ...baseAlert,
+        status: {
+          ...baseAlert.status,
+          silencedBy: ['silence-1', '', 'silence-1', 'silence-2'],
+        },
+      }),
+    ).toEqual(['silence-1', 'silence-2'])
+  })
+})
+
+describe('isAlertSilenced', () => {
+  it('returns true when the alert has at least one silence id', () => {
+    expect(
+      isAlertSilenced({
+        ...baseAlert,
+        status: {
+          ...baseAlert.status,
+          silencedBy: ['silence-1'],
+        },
+      }),
+    ).toBe(true)
+  })
+
+  it('returns false when the alert has no silence ids', () => {
+    expect(isAlertSilenced(baseAlert)).toBe(false)
   })
 })
