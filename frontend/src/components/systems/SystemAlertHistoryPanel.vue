@@ -21,9 +21,11 @@ import {
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faBell } from '@fortawesome/free-solid-svg-icons'
 import { useAlertHistory } from '@/queries/systems/alertHistory'
+import { getAlertSummary } from '@/lib/alerting'
 import { useI18n } from 'vue-i18n'
 import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
+import SystemActiveAlertsCard from './SystemActiveAlertsCard.vue'
 
 const { locale } = useI18n()
 const { state, asyncStatus, pageNum, pageSize } = useAlertHistory()
@@ -44,6 +46,8 @@ function getSeverityBadgeKind(severity: string | null | undefined): NeBadgeV2Kin
 
 <template>
   <div>
+    <SystemActiveAlertsCard class="mb-8" />
+
     <div class="mb-8 flex flex-col items-start justify-between gap-6 xl:flex-row">
       <div class="max-w-2xl text-gray-500 dark:text-gray-400">
         {{ $t('alerting.history_tab_description') }}
@@ -108,7 +112,7 @@ function getSeverityBadgeKind(severity: string | null | undefined): NeBadgeV2Kin
               <NeBadgeV2 kind="gray" size="xs">{{ alert.status }}</NeBadgeV2>
             </NeTableCell>
             <NeTableCell :data-label="$t('alerting.summary')">
-              {{ alert.summary || alert.annotations?.summary || '-' }}
+              {{ getAlertSummary(alert, locale) || alert.summary || '-' }}
             </NeTableCell>
             <NeTableCell :data-label="$t('alerting.starts_at')">
               {{

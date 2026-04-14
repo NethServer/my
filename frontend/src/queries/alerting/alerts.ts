@@ -8,7 +8,7 @@ import { ref } from 'vue'
 
 export const useAlerts = defineQuery(() => {
   const loginStore = useLoginStore()
-  const organizationId = ref(loginStore.userInfo?.organization_id || '')
+  const organizationId = ref('')
   const stateFilter = ref<string[]>([])
   const severityFilter = ref<string[]>([])
   const systemKeyFilter = ref('')

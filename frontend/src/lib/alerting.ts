@@ -184,3 +184,43 @@ export const getSystemActiveAlerts = (systemId: string) => {
     })
     .then((res) => res.data.data.alerts)
 }
+
+type AlertAnnotationKey = 'summary' | 'description'
+type AlertWithAnnotations = {
+  annotations?: Record<string, string | null | undefined>
+}
+
+const DEFAULT_ALERT_LOCALE = 'en'
+
+function getAlertAnnotation(
+  alert: AlertWithAnnotations,
+  annotationKey: AlertAnnotationKey,
+  locale: string,
+) {
+  const annotations = alert.annotations ?? {}
+  const normalizedLocale = locale.split('-')[0].toLowerCase() || DEFAULT_ALERT_LOCALE
+  const candidateKeys = Array.from(
+    new Set([
+      `${annotationKey}_${normalizedLocale}`,
+      annotationKey,
+      `${annotationKey}_${DEFAULT_ALERT_LOCALE}`,
+    ]),
+  )
+
+  for (const key of candidateKeys) {
+    const value = annotations[key]
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim()
+    }
+  }
+
+  return ''
+}
+
+export const getAlertSummary = (alert: AlertWithAnnotations, locale: string) => {
+  return getAlertAnnotation(alert, 'summary', locale)
+}
+
+export const getAlertDescription = (alert: AlertWithAnnotations, locale: string) => {
+  return getAlertAnnotation(alert, 'description', locale)
+}

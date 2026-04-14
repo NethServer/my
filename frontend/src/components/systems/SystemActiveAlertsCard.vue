@@ -17,7 +17,12 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faBell, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { useLoginStore } from '@/stores/login'
-import { getSystemActiveAlerts, type Alert } from '@/lib/alerting'
+import {
+  getAlertDescription,
+  getAlertSummary,
+  getSystemActiveAlerts,
+  type Alert,
+} from '@/lib/alerting'
 import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { formatDateTimeNoSeconds } from '@/lib/dateTime'
@@ -31,19 +36,51 @@ const isLoading = ref(false)
 const error = ref<string | null>(null)
 
 const systemId = computed(() => systemDetail.value.data?.id || '')
+const activeAlertsCount = computed(() => alerts.value.length)
+let requestId = 0
+
+function getAlertSummaryText(alert: Alert) {
+  return getAlertSummary(alert, locale.value)
+}
+
+function getAlertDescriptionText(alert: Alert) {
+  const description = getAlertDescription(alert, locale.value)
+  return description !== getAlertSummaryText(alert) ? description : ''
+}
 
 watch(
   systemId,
   async (sysId) => {
-    if (!sysId || !loginStore.jwtToken) return
+    const currentRequestId = ++requestId
+
+    if (!sysId || !loginStore.jwtToken) {
+      alerts.value = []
+      error.value = null
+      isLoading.value = false
+      return
+    }
+
     isLoading.value = true
     error.value = null
+    alerts.value = []
+
     try {
-      alerts.value = await getSystemActiveAlerts(sysId)
+      const systemAlerts = await getSystemActiveAlerts(sysId)
+      if (currentRequestId !== requestId) {
+        return
+      }
+
+      alerts.value = systemAlerts
     } catch (e: unknown) {
+      if (currentRequestId !== requestId) {
+        return
+      }
+
       error.value = e instanceof Error ? e.message : String(e)
     } finally {
-      isLoading.value = false
+      if (currentRequestId === requestId) {
+        isLoading.value = false
+      }
     }
   },
   { immediate: true },
@@ -79,6 +116,9 @@ function getStateBadgeKind(state: string | undefined): NeBadgeV2Kind {
     <div class="mb-4 flex items-center gap-2">
       <FontAwesomeIcon :icon="faBell" class="h-5 w-5 text-gray-500 dark:text-gray-400" />
       <NeHeading tag="h6">{{ $t('alerting.active_alerts_card_title') }}</NeHeading>
+      <NeBadgeV2 :kind="activeAlertsCount ? 'rose' : 'gray'" size="xs">
+        {{ activeAlertsCount }}
+      </NeBadgeV2>
       <NeBadgeV2 kind="gray" size="xs" class="ml-1">ALPHA</NeBadgeV2>
     </div>
 
@@ -127,8 +167,19 @@ function getStateBadgeKind(state: string | undefined): NeBadgeV2Kind {
             {{ alert.status?.state || '-' }}
           </NeBadgeV2>
         </div>
-        <div v-if="alert.annotations?.summary" class="text-sm text-gray-600 dark:text-gray-400">
-          {{ alert.annotations.summary }}
+        <div v-if="getAlertSummaryText(alert) || getAlertDescriptionText(alert)" class="space-y-1">
+          <div
+            v-if="getAlertSummaryText(alert)"
+            class="text-sm font-medium text-gray-700 dark:text-gray-300"
+          >
+            {{ getAlertSummaryText(alert) }}
+          </div>
+          <div
+            v-if="getAlertDescriptionText(alert)"
+            class="text-sm text-gray-600 dark:text-gray-400"
+          >
+            {{ getAlertDescriptionText(alert) }}
+          </div>
         </div>
         <div class="text-xs text-gray-400 dark:text-gray-500">
           {{ $t('alerting.starts_at') }}:

@@ -758,12 +758,15 @@
     "config_editor": "Configuration editor",
     "paste_json_config": "Paste JSON configuration",
     "active_alerts_card_title": "Active Alerts",
+    "active_alerts_count": "{num} active alert | {num} active alerts",
     "no_active_alerts": "No active alerts",
     "no_active_alerts_description": "This system has no active alerts",
     "history_tab_description": "History of resolved alerts for this system",
     "cannot_retrieve_system_alerts": "Cannot retrieve active alerts for this system",
+    "cannot_retrieve_organizations": "Cannot retrieve organizations",
     "alerting_title": "Alerting",
     "alerting_page_description": "View active alerts and manage alerting configuration for any organization",
-    "select_organization": "Organization"
+    "select_organization": "Organization",
+    "no_organizations_description": "There are no organizations available for alerting"
   }
 }

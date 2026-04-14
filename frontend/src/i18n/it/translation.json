@@ -680,12 +680,15 @@
     "config_editor": "Editor configurazione",
     "paste_json_config": "Incolla configurazione JSON",
     "active_alerts_card_title": "Avvisi attivi",
+    "active_alerts_count": "{num} avviso attivo | {num} avvisi attivi",
     "no_active_alerts": "Nessun avviso attivo",
     "no_active_alerts_description": "Questo sistema non ha avvisi attivi",
     "history_tab_description": "Storico degli avvisi risolti per questo sistema",
     "cannot_retrieve_system_alerts": "Impossibile recuperare gli avvisi attivi per questo sistema",
+    "cannot_retrieve_organizations": "Impossibile recuperare le organizzazioni",
     "alerting_title": "Alerting",
     "alerting_page_description": "Visualizza gli avvisi attivi e gestisci la configurazione degli avvisi per qualsiasi organizzazione",
-    "select_organization": "Organizzazione"
+    "select_organization": "Organizzazione",
+    "no_organizations_description": "Non ci sono organizzazioni disponibili per l'alerting"
   }
 }
