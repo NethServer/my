@@ -104,6 +104,14 @@ interface AlertHistoryResponse {
   }
 }
 
+interface CreateSystemAlertSilenceResponse {
+  code: number
+  message: string
+  data: {
+    silence_id: string
+  }
+}
+
 export const getAlertingConfig = (organizationId: string, format?: 'yaml') => {
   const loginStore = useLoginStore()
   const params = new URLSearchParams({ organization_id: organizationId })
@@ -183,6 +191,28 @@ export const getSystemActiveAlerts = (systemId: string) => {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data.alerts)
+}
+
+export const createSystemAlertSilence = (
+  systemId: string,
+  fingerprint: string,
+  comment?: string,
+) => {
+  const loginStore = useLoginStore()
+  const payload = {
+    fingerprint,
+    comment: comment?.trim() || undefined,
+  }
+
+  return axios
+    .post<CreateSystemAlertSilenceResponse>(
+      `${API_URL}/systems/${systemId}/alerts/silences`,
+      payload,
+      {
+        headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+      },
+    )
+    .then((res) => res.data.data)
 }
 
 type AlertAnnotationKey = 'summary' | 'description'

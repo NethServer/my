@@ -6,6 +6,7 @@
 <script setup lang="ts">
 import {
   NeBadgeV2,
+  NeButton,
   NeCard,
   NeHeading,
   NeInlineNotification,
@@ -14,7 +15,7 @@ import {
   type NeBadgeV2Kind,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faBell, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons'
+import { faBell, faBellSlash, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { useLoginStore } from '@/stores/login'
 import {
@@ -26,6 +27,8 @@ import {
 import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { formatDateTimeNoSeconds } from '@/lib/dateTime'
+import { canManageSystems } from '@/lib/permissions'
+import SilenceSystemAlertModal from './SilenceSystemAlertModal.vue'
 
 const { locale } = useI18n()
 const loginStore = useLoginStore()
@@ -34,6 +37,8 @@ const { state: systemDetail } = useSystemDetail()
 const alerts = ref<Alert[]>([])
 const isLoading = ref(false)
 const error = ref<string | null>(null)
+const currentAlert = ref<Alert | undefined>()
+const isShownSilenceAlertModal = ref(false)
 
 const systemId = computed(() => systemDetail.value.data?.id || '')
 const activeAlertsCount = computed(() => alerts.value.length)
@@ -48,40 +53,65 @@ function getAlertDescriptionText(alert: Alert) {
   return description !== getAlertSummaryText(alert) ? description : ''
 }
 
-watch(
-  systemId,
-  async (sysId) => {
-    const currentRequestId = ++requestId
+function isAlertSilenced(alert: Alert) {
+  return alert.status?.silencedBy?.length > 0
+}
 
-    if (!sysId || !loginStore.jwtToken) {
-      alerts.value = []
-      error.value = null
-      isLoading.value = false
+async function loadAlerts(sysId: string) {
+  const currentRequestId = ++requestId
+
+  if (!sysId || !loginStore.jwtToken) {
+    alerts.value = []
+    error.value = null
+    isLoading.value = false
+    return
+  }
+
+  isLoading.value = true
+  error.value = null
+  alerts.value = []
+
+  try {
+    const systemAlerts = await getSystemActiveAlerts(sysId)
+    if (currentRequestId !== requestId) {
       return
     }
 
-    isLoading.value = true
-    error.value = null
-    alerts.value = []
-
-    try {
-      const systemAlerts = await getSystemActiveAlerts(sysId)
-      if (currentRequestId !== requestId) {
-        return
-      }
-
-      alerts.value = systemAlerts
-    } catch (e: unknown) {
-      if (currentRequestId !== requestId) {
-        return
-      }
-
-      error.value = e instanceof Error ? e.message : String(e)
-    } finally {
-      if (currentRequestId === requestId) {
-        isLoading.value = false
-      }
+    alerts.value = systemAlerts
+  } catch (e: unknown) {
+    if (currentRequestId !== requestId) {
+      return
     }
+
+    error.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    if (currentRequestId === requestId) {
+      isLoading.value = false
+    }
+  }
+}
+
+function showSilenceAlertModal(alert: Alert) {
+  currentAlert.value = alert
+  isShownSilenceAlertModal.value = true
+}
+
+function closeSilenceAlertModal() {
+  isShownSilenceAlertModal.value = false
+  currentAlert.value = undefined
+}
+
+function onAlertSilenced() {
+  closeSilenceAlertModal()
+  if (systemId.value) {
+    void loadAlerts(systemId.value)
+  }
+}
+
+watch(
+  systemId,
+  (sysId) => {
+    void loadAlerts(sysId)
   },
   { immediate: true },
 )
@@ -185,7 +215,22 @@ function getStateBadgeKind(state: string | undefined): NeBadgeV2Kind {
           {{ $t('alerting.starts_at') }}:
           {{ alert.startsAt ? formatDateTimeNoSeconds(new Date(alert.startsAt), locale) : '-' }}
         </div>
+        <div v-if="canManageSystems() && !isAlertSilenced(alert)" class="mt-2">
+          <NeButton kind="tertiary" size="sm" @click="showSilenceAlertModal(alert)">
+            <template #prefix>
+              <FontAwesomeIcon :icon="faBellSlash" aria-hidden="true" />
+            </template>
+            {{ $t('alerting.silence_alert') }}
+          </NeButton>
+        </div>
       </div>
     </div>
+    <SilenceSystemAlertModal
+      :visible="isShownSilenceAlertModal"
+      :alert="currentAlert"
+      :system-id="systemId"
+      @close="closeSilenceAlertModal"
+      @success="onAlertSilenced"
+    />
   </NeCard>
 </template>
