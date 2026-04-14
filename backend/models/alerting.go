@@ -96,3 +96,13 @@ type AlertmanagerSilenceRequest struct {
 type AlertmanagerSilenceResponse struct {
 	SilenceID string `json:"silenceID"`
 }
+
+// AlertmanagerSilence represents a silence returned by Alertmanager.
+type AlertmanagerSilence struct {
+	ID        string                `json:"id"`
+	Matchers  []AlertmanagerMatcher `json:"matchers"`
+	StartsAt  string                `json:"startsAt,omitempty"`
+	EndsAt    string                `json:"endsAt,omitempty"`
+	CreatedBy string                `json:"createdBy,omitempty"`
+	Comment   string                `json:"comment,omitempty"`
+}

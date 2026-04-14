@@ -7,6 +7,7 @@ package alerting
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -84,4 +85,99 @@ func TestCreateSilenceReturnsMimirError(t *testing.T) {
 	_, err := CreateSilence("org-1", &models.AlertmanagerSilenceRequest{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "mimir returned 400")
+}
+
+func TestGetSilence(t *testing.T) {
+	oldClient := httpClient
+	oldMimirURL := configuration.Config.MimirURL
+	defer func() {
+		httpClient = oldClient
+		configuration.Config.MimirURL = oldMimirURL
+	}()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodGet, r.Method)
+		assert.Equal(t, "/alertmanager/api/v2/silences/silence-1", r.URL.Path)
+		assert.Equal(t, "application/json", r.Header.Get("Accept"))
+		assert.Equal(t, "org-1", r.Header.Get("X-Scope-OrgID"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"silence-1","matchers":[{"name":"system_key","value":"system-1","isRegex":false}]}`))
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	configuration.Config.MimirURL = server.URL
+
+	resp, err := GetSilence("org-1", "silence-1")
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, "silence-1", resp.ID)
+	assert.Equal(t, []models.AlertmanagerMatcher{
+		{Name: "system_key", Value: "system-1", IsRegex: false},
+	}, resp.Matchers)
+}
+
+func TestGetSilenceReturnsNotFound(t *testing.T) {
+	oldClient := httpClient
+	oldMimirURL := configuration.Config.MimirURL
+	defer func() {
+		httpClient = oldClient
+		configuration.Config.MimirURL = oldMimirURL
+	}()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	configuration.Config.MimirURL = server.URL
+
+	_, err := GetSilence("org-1", "missing")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrSilenceNotFound)
+}
+
+func TestDeleteSilence(t *testing.T) {
+	oldClient := httpClient
+	oldMimirURL := configuration.Config.MimirURL
+	defer func() {
+		httpClient = oldClient
+		configuration.Config.MimirURL = oldMimirURL
+	}()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodDelete, r.Method)
+		assert.Equal(t, "/alertmanager/api/v2/silences/silence-1", r.URL.Path)
+		assert.Equal(t, "application/json", r.Header.Get("Accept"))
+		assert.Equal(t, "org-1", r.Header.Get("X-Scope-OrgID"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	configuration.Config.MimirURL = server.URL
+
+	require.NoError(t, DeleteSilence("org-1", "silence-1"))
+}
+
+func TestDeleteSilenceReturnsNotFound(t *testing.T) {
+	oldClient := httpClient
+	oldMimirURL := configuration.Config.MimirURL
+	defer func() {
+		httpClient = oldClient
+		configuration.Config.MimirURL = oldMimirURL
+	}()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	configuration.Config.MimirURL = server.URL
+
+	err := DeleteSilence("org-1", "missing")
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrSilenceNotFound))
 }

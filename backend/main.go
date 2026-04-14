@@ -252,10 +252,11 @@ func main() {
 			systemsGroup.GET("/:id/inventory/diffs/latest", methods.GetSystemLatestInventoryDiff)      // Get latest diff
 			systemsGroup.GET("/:id/inventory/timeline", methods.GetSystemInventoryTimeline)            // Get date-grouped timeline with summary
 
-			// Alert endpoints (read:systems required for GET, manage:systems required for POST)
-			systemsGroup.GET("/:id/alerts", methods.GetSystemAlerts)                    // Get active alerts for a system
-			systemsGroup.POST("/:id/alerts/silences", methods.CreateSystemAlertSilence) // Create a silence for a system alert
-			systemsGroup.GET("/:id/alerts/history", methods.GetSystemAlertHistory)      // Get paginated alert history
+			// Alert endpoints (read:systems required for GET, manage:systems required for POST/DELETE)
+			systemsGroup.GET("/:id/alerts", methods.GetSystemAlerts)                                  // Get active alerts for a system
+			systemsGroup.POST("/:id/alerts/silences", methods.CreateSystemAlertSilence)               // Create a silence for a system alert
+			systemsGroup.DELETE("/:id/alerts/silences/:silence_id", methods.DeleteSystemAlertSilence) // Disable a silence for a system alert
+			systemsGroup.GET("/:id/alerts/history", methods.GetSystemAlertHistory)                    // Get paginated alert history
 		}
 
 		// ===========================================

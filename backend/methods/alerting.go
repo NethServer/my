@@ -7,6 +7,7 @@ package methods
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"sort"
 	"strconv"
@@ -462,6 +463,20 @@ func buildSystemAlertSilenceRequest(
 	}
 }
 
+func silenceBelongsToSystem(silence *models.AlertmanagerSilence, systemKey string) bool {
+	if silence == nil || systemKey == "" {
+		return false
+	}
+
+	for _, matcher := range silence.Matchers {
+		if matcher.Name == "system_key" && matcher.Value == systemKey && !matcher.IsRegex {
+			return true
+		}
+	}
+
+	return false
+}
+
 // GetSystemAlerts handles GET /api/systems/:id/alerts
 // Returns active alerts from Mimir for a specific system, filtered by system_key.
 func GetSystemAlerts(c *gin.Context) {
@@ -581,6 +596,62 @@ func CreateSystemAlertSilence(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("alert silenced successfully", gin.H{
 		"silence_id": silenceResp.SilenceID,
 	}))
+}
+
+// DeleteSystemAlertSilence handles DELETE /api/systems/:id/alerts/silences/:silence_id
+// Deletes a system-scoped silence in Alertmanager after validating its ownership.
+func DeleteSystemAlertSilence(c *gin.Context) {
+	systemID := c.Param("id")
+	if systemID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system id required", nil))
+		return
+	}
+
+	silenceID := c.Param("silence_id")
+	if silenceID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("silence id required", nil))
+		return
+	}
+
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	systemsService := local.NewSystemsService()
+	system, err := systemsService.GetSystem(systemID, user.OrgRole, user.OrganizationID)
+	if helpers.HandleAccessError(c, err, "system", systemID) {
+		return
+	}
+	if system.SystemKey == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system is not registered", nil))
+		return
+	}
+
+	orgID := getSystemAlertOrgID(system)
+	silence, err := alerting.GetSilence(orgID, silenceID)
+	if errors.Is(err, alerting.ErrSilenceNotFound) {
+		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch silence from mimir: "+err.Error(), nil))
+		return
+	}
+	if !silenceBelongsToSystem(silence, system.SystemKey) {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied to silence", nil))
+		return
+	}
+
+	if err := alerting.DeleteSilence(orgID, silenceID); errors.Is(err, alerting.ErrSilenceNotFound) {
+		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
+		return
+	} else if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to delete silence in mimir: "+err.Error(), nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("silence disabled successfully", nil))
 }
 
 // GetSystemAlertHistory handles GET /api/systems/:id/alerts/history

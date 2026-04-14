@@ -8267,7 +8267,8 @@ paths:
         - Backend - Alerts
       summary: /systems/{id}/alerts - Get active alerts for a system
       description: |
-        Returns active alerts from Mimir for a specific system, filtered by the system's key.
+        Returns current alerts from Mimir for a specific system, filtered by the system's key.
+        Suppressed alerts remain visible so silenced alerts can still be inspected in the system detail view.
         Requires `read:systems` permission.
       security:
         - BearerAuth: []
@@ -8372,6 +8373,56 @@ paths:
                       silence_id:
                         type: string
                         example: "4e6f0c30-c383-4e22-9443-0d7b6a8bd40b"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/alerts/silences/{silence_id}:
+    delete:
+      operationId: deleteSystemAlertSilence
+      tags:
+        - Backend - Alerts
+      summary: /systems/{id}/alerts/silences/{silence_id} - Disable a system alert silence
+      description: |
+        Deletes a system-scoped Alertmanager silence after validating that the silence belongs
+        to the target system through the authoritative `system_key` matcher.
+        Requires `manage:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID (database UUID)
+          schema:
+            type: string
+            example: "sys_123456789"
+        - name: silence_id
+          in: path
+          required: true
+          description: Alertmanager silence ID
+          schema:
+            type: string
+            example: "4e6f0c30-c383-4e22-9443-0d7b6a8bd40b"
+      responses:
+        '200':
+          description: Alert silence disabled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "silence disabled successfully"
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':

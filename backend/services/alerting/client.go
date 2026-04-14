@@ -8,9 +8,11 @@ package alerting
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"sort"
 	"strings"
@@ -21,6 +23,7 @@ import (
 )
 
 var httpClient = &http.Client{Timeout: 30 * time.Second}
+var ErrSilenceNotFound = errors.New("silence not found")
 
 var smtpSensitiveFields = regexp.MustCompile(`(?m)^(\s*smtp_(?:smarthost|auth_username|auth_password):\s*).*$`)
 var bearerTokenField = regexp.MustCompile(`(?m)^(\s*credentials:\s*).*$`)
@@ -201,4 +204,73 @@ func CreateSilence(orgID string, silence *models.AlertmanagerSilenceRequest) (*m
 	}
 
 	return &silenceResponse, nil
+}
+
+// GetSilence fetches a specific Alertmanager silence for the given tenant.
+func GetSilence(orgID, silenceID string) (*models.AlertmanagerSilence, error) {
+	url := configuration.Config.MimirURL + "/alertmanager/api/v2/silences/" + url.PathEscape(silenceID)
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("X-Scope-OrgID", orgID)
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetching silence from mimir: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading response body: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("%w: %s", ErrSilenceNotFound, silenceID)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("mimir returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var silence models.AlertmanagerSilence
+	if err := json.Unmarshal(body, &silence); err != nil {
+		return nil, fmt.Errorf("decoding silence response: %w", err)
+	}
+
+	return &silence, nil
+}
+
+// DeleteSilence deletes a specific Alertmanager silence for the given tenant.
+func DeleteSilence(orgID, silenceID string) error {
+	url := configuration.Config.MimirURL + "/alertmanager/api/v2/silences/" + url.PathEscape(silenceID)
+
+	req, err := http.NewRequest(http.MethodDelete, url, nil)
+	if err != nil {
+		return fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("X-Scope-OrgID", orgID)
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("deleting silence in mimir: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("reading response body: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("%w: %s", ErrSilenceNotFound, silenceID)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("mimir returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
 }

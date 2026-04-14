@@ -237,3 +237,59 @@ func TestBuildSystemAlertSilenceRequestAddsSystemKeyMatcher(t *testing.T) {
 	assert.Equal(t, "manual silence", req.Comment)
 	assert.Equal(t, "2026-04-14T10:30:00Z", req.EndsAt)
 }
+
+func TestSilenceBelongsToSystem(t *testing.T) {
+	tests := []struct {
+		name      string
+		silence   *models.AlertmanagerSilence
+		systemKey string
+		expected  bool
+	}{
+		{
+			name: "exact system key matcher",
+			silence: &models.AlertmanagerSilence{
+				Matchers: []models.AlertmanagerMatcher{
+					{Name: "system_key", Value: "system-1", IsRegex: false},
+				},
+			},
+			systemKey: "system-1",
+			expected:  true,
+		},
+		{
+			name: "regex matcher is rejected",
+			silence: &models.AlertmanagerSilence{
+				Matchers: []models.AlertmanagerMatcher{
+					{Name: "system_key", Value: "system-1", IsRegex: true},
+				},
+			},
+			systemKey: "system-1",
+			expected:  false,
+		},
+		{
+			name: "different system key",
+			silence: &models.AlertmanagerSilence{
+				Matchers: []models.AlertmanagerMatcher{
+					{Name: "system_key", Value: "system-2", IsRegex: false},
+				},
+			},
+			systemKey: "system-1",
+			expected:  false,
+		},
+		{
+			name: "missing system key matcher",
+			silence: &models.AlertmanagerSilence{
+				Matchers: []models.AlertmanagerMatcher{
+					{Name: "alertname", Value: "HostDown", IsRegex: false},
+				},
+			},
+			systemKey: "system-1",
+			expected:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, silenceBelongsToSystem(tt.silence, tt.systemKey))
+		})
+	}
+}
