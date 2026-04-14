@@ -201,7 +201,36 @@ curl -X POST http://localhost:8081/api/systems/inventory \
   -H "Content-Type: application/json" \
   -u "system_key:system_secret" \
   -d '{"system_id": "test", "timestamp": "2025-07-13T10:00:00Z", "data": {"os": {"name": "TestOS"}}}'
+
+# Upload a configuration backup (streams the file body; GPG encryption is
+# up to the appliance). X-Filename is the user-facing name shown in the
+# UI; X-System-Version tracks the appliance OS release that produced it.
+curl -X POST http://localhost:8081/api/systems/backups \
+  -u "system_key:system_secret" \
+  -H "Content-Type: application/octet-stream" \
+  -H "X-Filename: dump.json.gz.gpg" \
+  -H "X-System-Version: ns8-3.0.0" \
+  --data-binary @/path/to/backup.gpg
 ```
+
+### Appliance integration (NS8 / NethSecurity)
+
+Each authenticated system owns a prefix in the backup bucket
+(`{org_id}/{system_id}/...`) and the three endpoints below are all the
+appliance needs. Auth is always HTTP Basic with the system_key and the
+system_secret returned at registration:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/systems/backups`   | Stream a new backup. 201 on success with `{id, sha256, size, uploaded_at}` in the body. |
+| `GET /api/systems/backups`    | List own backups with metadata. |
+| `GET /api/systems/backups/:id` | Download a stored backup for restore. |
+
+Retention is enforced server-side: after each upload the oldest entries
+beyond `BACKUP_MAX_PER_SYSTEM` or `BACKUP_MAX_SIZE_PER_SYSTEM` are
+pruned. Client-side dedup via local MD5 is still useful — if the hash
+of the just-encrypted blob equals the one from the previous run the
+appliance can skip the upload entirely.
 
 ## Project Structure
 
