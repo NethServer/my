@@ -419,45 +419,48 @@ func DownloadBackup(c *gin.Context) {
 }
 
 // listBackupsForSystem lists every backup object under the {org}/{system}
-// prefix and maps it to BackupMetadata.
+// prefix and maps it to BackupMetadata. Paginates explicitly so the
+// per-system list is never silently truncated at the S3 1000-item
+// response cap.
 func listBackupsForSystem(ctx context.Context, client *s3.Client, orgID, systemID string) ([]BackupMetadata, error) {
 	prefix := fmt.Sprintf("%s/%s/", orgID, systemID)
 
-	out, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+	items := make([]BackupMetadata, 0)
+	paginator := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
 		Bucket: aws.String(configuration.Config.BackupS3Bucket),
 		Prefix: aws.String(prefix),
 	})
-	if err != nil {
-		return nil, err
-	}
-
-	items := make([]BackupMetadata, 0, len(out.Contents))
-	for _, o := range out.Contents {
-		key := aws.ToString(o.Key)
-		id := strings.TrimPrefix(key, prefix)
-
-		head, err := client.HeadObject(ctx, &s3.HeadObjectInput{
-			Bucket: aws.String(configuration.Config.BackupS3Bucket),
-			Key:    aws.String(key),
-		})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
 		if err != nil {
-			logger.Warn().Err(err).Str("key", key).Msg("head failed during list")
-			continue
+			return nil, err
 		}
+		for _, o := range page.Contents {
+			key := aws.ToString(o.Key)
+			id := strings.TrimPrefix(key, prefix)
 
-		md := head.Metadata
-		item := BackupMetadata{
-			ID:         id,
-			Filename:   md["filename"],
-			Size:       aws.ToInt64(head.ContentLength),
-			SHA256:     md["sha256"],
-			MimeType:   aws.ToString(head.ContentType),
-			UploadedAt: aws.ToTime(o.LastModified),
-			UploaderIP: md["uploader-ip"],
-			UploaderUA: md["uploader-ua"],
-			SystemVer:  md["system-ver"],
+			head, err := client.HeadObject(ctx, &s3.HeadObjectInput{
+				Bucket: aws.String(configuration.Config.BackupS3Bucket),
+				Key:    aws.String(key),
+			})
+			if err != nil {
+				logger.Warn().Err(err).Str("key", key).Msg("head failed during list")
+				continue
+			}
+
+			md := head.Metadata
+			items = append(items, BackupMetadata{
+				ID:         id,
+				Filename:   md["filename"],
+				Size:       aws.ToInt64(head.ContentLength),
+				SHA256:     md["sha256"],
+				MimeType:   aws.ToString(head.ContentType),
+				UploadedAt: aws.ToTime(o.LastModified),
+				UploaderIP: md["uploader-ip"],
+				UploaderUA: md["uploader-ua"],
+				SystemVer:  md["system-ver"],
+			})
 		}
-		items = append(items, item)
 	}
 
 	sort.Slice(items, func(i, j int) bool {
@@ -497,15 +500,19 @@ func enforceBackupRetention(ctx context.Context, client *s3.Client, orgID, syste
 
 	prefix := fmt.Sprintf("%s/%s/", orgID, systemID)
 
-	out, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+	objs := make([]s3types.Object, 0)
+	paginator := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
 		Bucket: aws.String(configuration.Config.BackupS3Bucket),
 		Prefix: aws.String(prefix),
 	})
-	if err != nil {
-		return err
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return err
+		}
+		objs = append(objs, page.Contents...)
 	}
 
-	objs := out.Contents
 	// Sort by key (ascending). The {uuid}.{ext} suffix begins with a
 	// UUIDv7 whose first 48 bits are the upload's millisecond
 	// timestamp, so lexicographic order matches chronological order

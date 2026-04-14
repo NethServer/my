@@ -238,74 +238,83 @@ func purgeSystemBackups(ctx context.Context, orgID, systemID string) error {
 	}
 
 	prefix := fmt.Sprintf("%s/%s/", orgID, systemID)
-	out, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+	purged := 0
+	paginator := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
 		Bucket: aws.String(configuration.Config.BackupS3Bucket),
 		Prefix: aws.String(prefix),
 	})
-	if err != nil {
-		return fmt.Errorf("list backups for purge: %w", err)
-	}
-
-	for _, o := range out.Contents {
-		_, delErr := client.DeleteObject(ctx, &s3.DeleteObjectInput{
-			Bucket: aws.String(configuration.Config.BackupS3Bucket),
-			Key:    o.Key,
-		})
-		if delErr != nil {
-			return fmt.Errorf("delete %s: %w", aws.ToString(o.Key), delErr)
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("list backups for purge: %w", err)
+		}
+		for _, o := range page.Contents {
+			_, delErr := client.DeleteObject(ctx, &s3.DeleteObjectInput{
+				Bucket: aws.String(configuration.Config.BackupS3Bucket),
+				Key:    o.Key,
+			})
+			if delErr != nil {
+				return fmt.Errorf("delete %s: %w", aws.ToString(o.Key), delErr)
+			}
+			purged++
 		}
 	}
 
 	logger.Info().
 		Str("system_id", systemID).
 		Str("org_id", orgID).
-		Int("objects_purged", len(out.Contents)).
+		Int("objects_purged", purged).
 		Msg("system backups purged")
 	return nil
 }
 
-// listSystemBackups returns the backups for a system along with the total
-// bytes stored under the prefix.
+// listSystemBackups returns the backups for a system along with the
+// total bytes stored under the prefix. Paginates explicitly so the
+// per-system list is never silently truncated at the S3 1000-item
+// response cap.
 func listSystemBackups(ctx context.Context, client *s3.Client, orgID, systemID string) ([]BackupMetadata, int64, error) {
 	prefix := fmt.Sprintf("%s/%s/", orgID, systemID)
 
-	out, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+	items := make([]BackupMetadata, 0)
+	var total int64
+
+	paginator := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
 		Bucket: aws.String(configuration.Config.BackupS3Bucket),
 		Prefix: aws.String(prefix),
 	})
-	if err != nil {
-		return nil, 0, err
-	}
-
-	items := make([]BackupMetadata, 0, len(out.Contents))
-	var total int64
-	for _, o := range out.Contents {
-		key := aws.ToString(o.Key)
-		id := strings.TrimPrefix(key, prefix)
-
-		head, err := client.HeadObject(ctx, &s3.HeadObjectInput{
-			Bucket: aws.String(configuration.Config.BackupS3Bucket),
-			Key:    aws.String(key),
-		})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
 		if err != nil {
-			logger.Warn().Err(err).Str("key", key).Msg("head failed during backup list")
-			continue
+			return nil, 0, err
 		}
+		for _, o := range page.Contents {
+			key := aws.ToString(o.Key)
+			id := strings.TrimPrefix(key, prefix)
 
-		md := head.Metadata
-		size := aws.ToInt64(head.ContentLength)
-		total += size
-		items = append(items, BackupMetadata{
-			ID:         id,
-			Filename:   md["filename"],
-			Size:       size,
-			SHA256:     md["sha256"],
-			MimeType:   aws.ToString(head.ContentType),
-			UploadedAt: aws.ToTime(o.LastModified),
-			UploaderIP: md["uploader-ip"],
-			UploaderUA: md["uploader-ua"],
-			SystemVer:  md["system-ver"],
-		})
+			head, err := client.HeadObject(ctx, &s3.HeadObjectInput{
+				Bucket: aws.String(configuration.Config.BackupS3Bucket),
+				Key:    aws.String(key),
+			})
+			if err != nil {
+				logger.Warn().Err(err).Str("key", key).Msg("head failed during backup list")
+				continue
+			}
+
+			md := head.Metadata
+			size := aws.ToInt64(head.ContentLength)
+			total += size
+			items = append(items, BackupMetadata{
+				ID:         id,
+				Filename:   md["filename"],
+				Size:       size,
+				SHA256:     md["sha256"],
+				MimeType:   aws.ToString(head.ContentType),
+				UploadedAt: aws.ToTime(o.LastModified),
+				UploaderIP: md["uploader-ip"],
+				UploaderUA: md["uploader-ua"],
+				SystemVer:  md["system-ver"],
+			})
+		}
 	}
 
 	sort.Slice(items, func(i, j int) bool {
