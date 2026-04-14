@@ -214,12 +214,13 @@ func UploadBackup(c *gin.Context) {
 	}
 
 	_, err = client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket:        aws.String(configuration.Config.BackupS3Bucket),
-		Key:           aws.String(key),
-		Body:          teeReader,
-		ContentLength: aws.Int64(c.Request.ContentLength),
-		ContentType:   aws.String(contentType),
-		Metadata:      metadata,
+		Bucket:               aws.String(configuration.Config.BackupS3Bucket),
+		Key:                  aws.String(key),
+		Body:                 teeReader,
+		ContentLength:        aws.Int64(c.Request.ContentLength),
+		ContentType:          aws.String(contentType),
+		Metadata:             metadata,
+		ServerSideEncryption: s3types.ServerSideEncryptionAes256,
 	})
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
@@ -258,12 +259,13 @@ func UploadBackup(c *gin.Context) {
 	// object with sha256=pending, which would silently lie to later
 	// readers — drop the object and surface a 502 instead.
 	_, err = client.CopyObject(ctx, &s3.CopyObjectInput{
-		Bucket:            aws.String(configuration.Config.BackupS3Bucket),
-		Key:               aws.String(key),
-		CopySource:        aws.String(configuration.Config.BackupS3Bucket + "/" + key),
-		Metadata:          metadata,
-		MetadataDirective: s3types.MetadataDirectiveReplace,
-		ContentType:       aws.String(contentType),
+		Bucket:               aws.String(configuration.Config.BackupS3Bucket),
+		Key:                  aws.String(key),
+		CopySource:           aws.String(configuration.Config.BackupS3Bucket + "/" + key),
+		Metadata:             metadata,
+		MetadataDirective:    s3types.MetadataDirectiveReplace,
+		ContentType:          aws.String(contentType),
+		ServerSideEncryption: s3types.ServerSideEncryptionAes256,
 	})
 	if err != nil {
 		deleteOrphanObject(ctx, client, key)

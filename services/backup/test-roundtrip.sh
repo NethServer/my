@@ -49,9 +49,11 @@ echo "==> Compressing with gzip (same flags as cluster-backup)"
 gzip -n -f "$dump"
 
 echo "==> Encrypting with GPG symmetric AES-256 (same flags as appliances)"
-gpg --batch --yes -c --pinentry-mode loopback \
+# Read the passphrase from stdin instead of argv so it never shows up
+# in `ps` output or shell history.
+printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --yes -c --pinentry-mode loopback \
     --cipher-algo AES256 \
-    --passphrase "$BACKUP_PASSPHRASE" \
+    --passphrase-fd 0 \
     "$gz"
 
 size=$(stat -f%z "$gpg_file" 2>/dev/null || stat -c%s "$gpg_file")
@@ -60,14 +62,17 @@ echo "==> Encrypted payload: $gpg_file ($size bytes, sha256=$sha)"
 
 echo "==> POST $COLLECT_URL/api/systems/backups with BasicAuth($SYSTEM_KEY:***)"
 response=$(mktemp)
+# Pipe the curl config over stdin so the system_secret never lands in
+# the process argv (visible via `ps auxww`).
 http_code=$(
-  curl --silent --output "$response" --write-out '%{http_code}' \
-       --user "$SYSTEM_KEY:$SYSTEM_SECRET" \
+  curl --config - --silent --output "$response" --write-out '%{http_code}' \
        --header "X-Filename: dump.json.gz.gpg" \
        --header "X-System-Version: simulated-ns8-3.0.0" \
        --header "Content-Type: application/octet-stream" \
        --data-binary "@$gpg_file" \
-       "$COLLECT_URL/api/systems/backups"
+       "$COLLECT_URL/api/systems/backups" <<CURL_CONFIG
+user = $SYSTEM_KEY:$SYSTEM_SECRET
+CURL_CONFIG
 )
 echo "    HTTP $http_code"
 cat "$response"
