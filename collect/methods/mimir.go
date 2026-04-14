@@ -92,7 +92,8 @@ func ProxyMimir(c *gin.Context) {
 		return
 	}
 
-	// Inject system/org context labels into POST alerts if missing
+	// Inject server-side system context into POST alerts, always overriding
+	// system_key with the authenticated system value.
 	if c.Request.Method == http.MethodPost && strings.Contains(subPath, "/alerts") && len(bodyBytes) > 0 {
 		injected := map[string]string{
 			"system_id":  systemID,
@@ -164,8 +165,9 @@ func ProxyMimir(c *gin.Context) {
 	}
 }
 
-// injectLabels adds the given labels to each alert in the payload if not already present.
-// Client-provided values for the same label key are preserved.
+// injectLabels adds the given labels to each alert in the payload. The
+// client-provided system_key label is always replaced with the authenticated
+// system value; other labels are added only when missing.
 func injectLabels(body []byte, toInject map[string]string) []byte {
 	if len(toInject) == 0 {
 		return body
@@ -184,6 +186,15 @@ func injectLabels(body []byte, toInject map[string]string) []byte {
 			alert["labels"] = labels
 		}
 		for key, value := range toInject {
+			if key == "system_key" {
+				current, exists := labels[key]
+				currentValue, isString := current.(string)
+				if !exists || !isString || currentValue != value {
+					labels[key] = value
+					modified = true
+				}
+				continue
+			}
 			if _, exists := labels[key]; !exists {
 				labels[key] = value
 				modified = true

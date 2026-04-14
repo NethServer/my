@@ -31,12 +31,12 @@ func TestInjectLabels(t *testing.T) {
 			},
 		},
 		{
-			name:     "preserves existing labels",
+			name:     "overrides existing system_key",
 			body:     `[{"labels":{"alertname":"DiskFull","system_key":"EXISTING"}}]`,
 			toInject: map[string]string{"system_key": "SYS-001", "system_id": "uuid-001"},
 			expected: map[string]string{
 				"alertname":  "DiskFull",
-				"system_key": "EXISTING",
+				"system_key": "SYS-001",
 				"system_id":  "uuid-001",
 			},
 		},
