@@ -632,6 +632,7 @@
     "starts_at": "Iniziato il",
     "ends_at": "Terminato il",
     "summary": "Sommario",
+    "description": "Descrizione",
     "labels": "Etichette",
     "annotations": "Annotazioni",
     "fingerprint": "Impronta",

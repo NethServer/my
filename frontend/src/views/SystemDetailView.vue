@@ -32,7 +32,7 @@ const { state: reachabilityState, asyncStatus: reachabilityAsyncStatus } = useSy
 const { tabs, selectedTab } = useTabs([
   { name: 'overview', label: t('system_detail.overview') },
   { name: 'change_history', label: t('system_detail.change_history') },
-  { name: 'alert_history', label: t('alerting.alert_history') },
+  { name: 'alert_history', label: t('alerting.title') },
 ])
 
 const isSystemReachable = computed(() => !!reachabilityState.value.data?.reachable)

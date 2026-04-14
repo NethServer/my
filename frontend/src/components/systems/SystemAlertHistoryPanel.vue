@@ -14,6 +14,7 @@ import {
   NeTableCell,
   NePaginator,
   NeEmptyState,
+  NeHeading,
   NeInlineNotification,
   NeSkeleton,
   type NeBadgeV2Kind,
@@ -49,8 +50,11 @@ function getSeverityBadgeKind(severity: string | null | undefined): NeBadgeV2Kin
     <SystemActiveAlertsCard class="mb-8" />
 
     <div class="mb-8 flex flex-col items-start justify-between gap-6 xl:flex-row">
-      <div class="max-w-2xl text-gray-500 dark:text-gray-400">
-        {{ $t('alerting.history_tab_description') }}
+      <div>
+        <NeHeading tag="h6" class="mb-2">{{ $t('alerting.alert_history') }}</NeHeading>
+        <div class="max-w-2xl text-gray-500 dark:text-gray-400">
+          {{ $t('alerting.history_tab_description') }}
+        </div>
       </div>
       <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
     </div>

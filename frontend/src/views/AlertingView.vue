@@ -14,6 +14,12 @@ import {
   NeHeading,
   NeInlineNotification,
   NeSkeleton,
+  NeTable,
+  NeTableBody,
+  NeTableCell,
+  NeTableHead,
+  NeTableHeadCell,
+  NeTableRow,
   NeTabs,
   NeTextArea,
   NeTextInput,
@@ -63,7 +69,7 @@ const notificationsStore = useNotificationsStore()
 // ── Organisation selector ──────────────────────────────────────────────────────
 const { state: orgsState } = useQuery({
   ...organizationsQuery,
-  enabled: () => !!loginStore.jwtToken,
+  enabled: () => !!loginStore.jwtToken && loginStore.isOwner,
 })
 
 const organizationOptions = computed((): NeComboboxOption[] => {
@@ -495,28 +501,37 @@ const isOwner = computed(() => loginStore.isOwner)
             :icon="faBell"
           />
 
-          <!-- alerts list -->
-          <div v-else class="space-y-3">
-            <div
-              v-for="alert in alertsState.data"
-              :key="alert.fingerprint"
-              class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900"
-            >
-              <div class="flex flex-wrap items-start justify-between gap-3">
-                <div class="flex flex-wrap items-center gap-2">
-                  <FontAwesomeIcon
-                    :icon="faExclamationTriangle"
-                    :class="[
-                      'h-5 w-5 shrink-0',
-                      alert.labels.severity === 'critical'
-                        ? 'text-red-500'
-                        : alert.labels.severity === 'warning'
-                          ? 'text-amber-500'
-                          : 'text-blue-400',
-                    ]"
-                    aria-hidden="true"
-                  />
-                  <span class="text-base font-semibold">{{ alert.labels.alertname || '-' }}</span>
+          <!-- alerts table -->
+          <NeTable v-else :aria-label="$t('alerting.active_alerts')" card-breakpoint="md">
+            <NeTableHead>
+              <NeTableHeadCell>{{ $t('alerting.alertname') }}</NeTableHeadCell>
+              <NeTableHeadCell>{{ $t('alerting.severity') }}</NeTableHeadCell>
+              <NeTableHeadCell>{{ $t('alerting.state') }}</NeTableHeadCell>
+              <NeTableHeadCell>{{ $t('alerting.system_key') }}</NeTableHeadCell>
+              <NeTableHeadCell>{{ $t('alerting.summary') }}</NeTableHeadCell>
+              <NeTableHeadCell>{{ $t('alerting.description') }}</NeTableHeadCell>
+              <NeTableHeadCell>{{ $t('alerting.starts_at') }}</NeTableHeadCell>
+            </NeTableHead>
+            <NeTableBody>
+              <NeTableRow v-for="alert in alertsState.data" :key="alert.fingerprint">
+                <NeTableCell :data-label="$t('alerting.alertname')">
+                  <div class="flex items-center gap-2">
+                    <FontAwesomeIcon
+                      :icon="faExclamationTriangle"
+                      :class="[
+                        'h-4 w-4 shrink-0',
+                        alert.labels.severity === 'critical'
+                          ? 'text-red-500'
+                          : alert.labels.severity === 'warning'
+                            ? 'text-amber-500'
+                            : 'text-blue-400',
+                      ]"
+                      aria-hidden="true"
+                    />
+                    <span class="font-medium">{{ alert.labels.alertname || '-' }}</span>
+                  </div>
+                </NeTableCell>
+                <NeTableCell :data-label="$t('alerting.severity')">
                   <NeBadgeV2
                     v-if="alert.labels.severity"
                     :kind="getSeverityBadgeKind(alert.labels.severity)"
@@ -524,48 +539,34 @@ const isOwner = computed(() => loginStore.isOwner)
                   >
                     {{ alert.labels.severity }}
                   </NeBadgeV2>
+                  <span v-else>-</span>
+                </NeTableCell>
+                <NeTableCell :data-label="$t('alerting.state')">
                   <NeBadgeV2 :kind="getStateBadgeKind(alert.status?.state)" size="xs">
                     {{ alert.status?.state || '-' }}
                   </NeBadgeV2>
-                </div>
-                <div class="text-xs text-gray-400 dark:text-gray-500">
-                  {{ $t('alerting.starts_at') }}:
+                </NeTableCell>
+                <NeTableCell :data-label="$t('alerting.system_key')">
+                  <span class="font-mono text-xs">{{ alert.labels.system_key || '-' }}</span>
+                </NeTableCell>
+                <NeTableCell :data-label="$t('alerting.summary')">
+                  <div class="max-w-md break-words whitespace-normal">
+                    {{ getAlertSummaryText(alert) || '-' }}
+                  </div>
+                </NeTableCell>
+                <NeTableCell :data-label="$t('alerting.description')">
+                  <div class="max-w-md break-words whitespace-normal">
+                    {{ getAlertDescriptionText(alert) || '-' }}
+                  </div>
+                </NeTableCell>
+                <NeTableCell :data-label="$t('alerting.starts_at')">
                   {{
                     alert.startsAt ? formatDateTimeNoSeconds(new Date(alert.startsAt), locale) : '-'
                   }}
-                </div>
-              </div>
-
-              <div
-                v-if="getAlertSummaryText(alert) || getAlertDescriptionText(alert)"
-                class="mt-2 space-y-1"
-              >
-                <div
-                  v-if="getAlertSummaryText(alert)"
-                  class="text-sm font-medium text-gray-700 dark:text-gray-300"
-                >
-                  {{ getAlertSummaryText(alert) }}
-                </div>
-                <div
-                  v-if="getAlertDescriptionText(alert)"
-                  class="text-sm text-gray-600 dark:text-gray-400"
-                >
-                  {{ getAlertDescriptionText(alert) }}
-                </div>
-              </div>
-
-              <div class="mt-3 flex flex-wrap gap-2">
-                <template v-for="(val, key) in alert.labels" :key="key">
-                  <span
-                    v-if="key !== 'alertname' && key !== 'severity'"
-                    class="rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400"
-                  >
-                    {{ key }}={{ val }}
-                  </span>
-                </template>
-              </div>
-            </div>
-          </div>
+                </NeTableCell>
+              </NeTableRow>
+            </NeTableBody>
+          </NeTable>
         </template>
 
         <!-- ══ CONFIGURATION TAB ══════════════════════════════════════════════ -->

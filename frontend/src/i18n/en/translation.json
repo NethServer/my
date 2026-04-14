@@ -710,6 +710,7 @@
     "starts_at": "Started at",
     "ends_at": "Ended at",
     "summary": "Summary",
+    "description": "Description",
     "labels": "Labels",
     "annotations": "Annotations",
     "fingerprint": "Fingerprint",

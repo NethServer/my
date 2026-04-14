@@ -115,11 +115,6 @@ router.beforeEach(async (to) => {
     return { name: 'login' }
   }
 
-  // Owner-only routes
-  if (to.name === 'alerting' && loginStore.isAuthenticated && !loginStore.isOwner) {
-    return { name: 'forbidden' }
-  }
-
   // If the user is logged in, cannot access the login page
   if ((to.name === 'login' || to.name === 'login_redirect') && loginStore.isAuthenticated) {
     return { name: 'dashboard' }
