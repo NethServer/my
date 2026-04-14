@@ -155,13 +155,18 @@ func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 		}
 	}
 
-	// Select inactive, not-deleted systems to ensure HostDown alerts are fired
+	// Select inactive, not-deleted systems to ensure HostDown alerts are fired.
+	// Only fire alerts for systems that have been inactive for at least 2 check intervals.
+	stricterCutoff := time.Now().Add(-time.Duration(h.timeoutMinutes)*time.Minute - time.Duration(h.checkIntervalSec)*time.Second)
 	queryHostDown := `
-		SELECT system_key, organization_id
-		FROM systems
-		WHERE status = 'inactive' AND deleted_at IS NULL
+		SELECT s.system_key, s.organization_id
+		FROM systems s
+		INNER JOIN system_heartbeats h ON s.id = h.system_id
+		WHERE s.status = 'inactive'
+			AND h.last_heartbeat <= $1
+			AND s.deleted_at IS NULL
 	`
-	resultHostDown, err := h.db.QueryContext(ctx, queryHostDown)
+	resultHostDown, err := h.db.QueryContext(ctx, queryHostDown, stricterCutoff)
 	if err != nil {
 		logger.Error().
 			Err(err).
