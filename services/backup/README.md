@@ -1,49 +1,59 @@
-# Backup — Local Development
+# Backup — Object Storage
 
-This directory holds development-only tooling for the backup subsystem. Configuration backups are stored as S3 objects; production targets DigitalOcean Spaces (configured via `BACKUP_S3_*` on `collect` and `backend`). For local development [Garage](https://garagehq.deuxfleurs.fr) provides an S3-compatible endpoint backed by a local volume.
+[Garage](https://garagehq.deuxfleurs.fr) provides an S3-compatible object store for appliance configuration backups during local development. The production target is DigitalOcean Spaces (configured via `BACKUP_S3_*` on `collect` and `backend`); the compose file in this directory stands up a single-node Garage with local volumes so the round-trip (appliance upload → collect ingest → backend list/download) can be exercised without cloud credentials.
 
-## Running Garage locally
+## Topology
 
-From the repository root:
+```
+appliance ──POST /api/systems/backups──► collect ──S3 PutObject──►  Garage
+                                                                      │
+backend   ◄─────────presigned URL──────────────────────────────── Garage
+```
+
+## Quick start
+
+All commands are run from `services/backup/`.
 
 ```bash
-podman-compose -f services/backup/docker-compose.local.yml up -d
+# 1. Start Garage + bootstrap (creates bucket and fixed access key)
+make dev-up
+
+# 2. Append BACKUP_S3_* entries to backend/.env and collect/.env
+make dev-setup
+
+# 3. Restart backend and collect so they pick up the new env vars
+
+# 4. Exercise the full appliance simulation
+make test-roundtrip
 ```
 
-This starts:
+See `make help` equivalents by listing the Makefile — every target starts with `dev-` (lifecycle) or `test-` (verification).
 
-| Service | Host port | Purpose |
-|---------|-----------|---------|
-| Garage S3 API | 13900 | S3 endpoint used by `collect` and `backend` |
-| Garage Admin API | 13903 | Cluster admin + health check |
+## Service ports (host)
 
-A bootstrap container (`garage-init`) runs once and assigns the cluster layout, creates the bucket `my-backups-dev`, and imports a fixed service key. All bootstrap commands are idempotent, so re-running the compose file does not duplicate resources.
+| Service           | Host port | Container port | Purpose                       |
+|-------------------|-----------|----------------|-------------------------------|
+| Garage S3 API     | 13900     | 3900           | Used by collect and backend   |
+| Garage Admin API  | 13903     | 3903           | Health checks and metrics     |
 
-Credentials created by the bootstrap (paste verbatim into `backend/.env` and `collect/.env`):
+RPC (3901) stays container-internal — do not expose.
 
-```
-BACKUP_S3_ACCESS_KEY=backup-local-key
-BACKUP_S3_SECRET_KEY=backup-local-secret-backup-local-secret-0000000000
-```
+## Fixed local credentials
 
-## Wiring the local stack
+The bootstrap container (`garage-init`) is idempotent: every `make dev-up` converges on the same bucket and the same access key so `backend/.env` and `collect/.env` entries need to be written only once.
 
-**Standalone components running on the host** (e.g. `go run main.go`):
+| Variable                    | Value                                                             |
+|-----------------------------|-------------------------------------------------------------------|
+| `BACKUP_S3_ENDPOINT`        | `http://localhost:13900`                                          |
+| `BACKUP_S3_REGION`          | `garage`                                                          |
+| `BACKUP_S3_BUCKET`          | `my-backups-dev`                                                  |
+| `BACKUP_S3_ACCESS_KEY`      | `backup-local-key`                                                |
+| `BACKUP_S3_SECRET_KEY`      | `backup-local-secret-backup-local-secret-0000000000`              |
+| `BACKUP_S3_USE_PATH_STYLE`  | `true`                                                            |
 
-Add to `backend/.env` and `collect/.env`:
+`make dev-setup` writes the block above to `backend/.env` and `collect/.env` (skipping the file if the keys are already present).
 
-```
-BACKUP_S3_ENDPOINT=http://localhost:13900
-BACKUP_S3_REGION=garage
-BACKUP_S3_BUCKET=my-backups-dev
-BACKUP_S3_ACCESS_KEY=backup-local-key
-BACKUP_S3_SECRET_KEY=backup-local-secret-backup-local-secret-0000000000
-BACKUP_S3_USE_PATH_STYLE=true
-```
-
-**Full-stack running in containers** (root `docker-compose.yml`):
-
-Backend and collect reach Garage via the shared compose network and use a different hostname than the browser. Join the `backup-local-network` network and set:
+**Containerised backend/collect**: when the components run under the root `docker-compose.yml` instead of directly on the host, reach Garage via the container-internal hostname and tell the backend to sign presigned URLs with the host-visible endpoint:
 
 ```
 BACKUP_S3_ENDPOINT=http://garage:3900
@@ -51,56 +61,78 @@ BACKUP_S3_PRESIGN_ENDPOINT=http://localhost:13900
 BACKUP_S3_USE_PATH_STYLE=true
 ```
 
-`BACKUP_S3_PRESIGN_ENDPOINT` is backend-only. When set, the backend signs download URLs with this hostname instead of `BACKUP_S3_ENDPOINT`, so the browser can follow them without a DNS or signature mismatch. In production the variable stays unset and both roles use the same Spaces endpoint.
+## Inspecting storage
 
-## Inspecting local storage
-
-Garage ships no web UI; use the CLI via `podman exec`:
+Garage ships no web UI. Use the CLI through `podman exec`:
 
 ```bash
-# Cluster state and bucket list
-podman exec backup-local-garage /garage -c /etc/garage/garage.toml status
-podman exec backup-local-garage /garage -c /etc/garage/garage.toml bucket list
+# Cluster health + bucket list
+make dev-status
+make dev-objects            # bucket info for my-backups-dev
 
-# Bucket usage (object count, total bytes, per-key permissions)
-podman exec backup-local-garage /garage -c /etc/garage/garage.toml bucket info my-backups-dev
+# List objects for a single system
+podman exec backup-local-garage /garage -c /etc/garage/garage.toml \
+    bucket list-objects my-backups-dev --prefix "<org_id>/<system_id>/"
 
-# List objects under a system's prefix
-podman exec backup-local-garage /garage -c /etc/garage/garage.toml bucket list-objects \
-    my-backups-dev --prefix "<org_id>/<system_id>/"
-```
-
-Or with the AWS CLI, which speaks the S3 protocol directly:
-
-```bash
-aws --endpoint-url http://localhost:13900 \
-    --region garage \
+# Or via awscli (path-style)
+aws --endpoint-url http://localhost:13900 --region garage \
     s3 ls s3://my-backups-dev/ --recursive
 ```
 
-(with `AWS_ACCESS_KEY_ID=backup-local-key` and the matching secret in the environment).
+## Object layout
+
+S3 keys follow:
+
+```
+{org_id}/{system_id}/{backup_id}.{ext}
+```
+
+- `org_id` is the organization Logto ID — enables per-tenant lifecycle and quota.
+- `system_id` is the internal `my` system UUID, stable across credential rotations.
+- `backup_id` is a UUIDv7 generated at ingest time.
+- `ext` is derived from a compound-aware filename parser (`.tar.gz`, `.tar.xz`, `.gpg`, defaults to `.bin`).
+
+Per-object metadata is stored as S3 headers (`x-amz-meta-*`):
+
+| Header                   | Source                                                              |
+|--------------------------|---------------------------------------------------------------------|
+| `x-amz-meta-sha256`      | Computed by `collect` via streaming tee at ingest                   |
+| `x-amz-meta-filename`    | From appliance request header `X-Filename`                          |
+| `x-amz-meta-uploader-ip` | Client IP observed by `collect`                                     |
+| `x-amz-meta-uploader-ua` | Appliance `User-Agent`                                              |
+| `x-amz-meta-system-ver`  | Optional appliance OS version from `X-System-Version`               |
+
+## Retention
+
+Enforced by `collect` after each upload by listing the system's prefix and pruning the oldest objects if either limit is exceeded:
+
+| Knob                            | Default           |
+|---------------------------------|-------------------|
+| `BACKUP_MAX_PER_SYSTEM`         | 10 objects        |
+| `BACKUP_MAX_SIZE_PER_SYSTEM`    | 500 MB            |
+| `BACKUP_MAX_UPLOAD_SIZE`        | 2 GB (per upload) |
+
+A Garage-level lifecycle rule can complement the inline enforcement by deleting anything older than `N` days; configure with `garage bucket lifecycle add`.
 
 ## Exercising the round-trip
 
-1. Start the full app stack and Garage.
-2. Create a system via the UI → save the `system_key` and `system_secret`.
-3. Upload a backup as an appliance would:
+`test-roundtrip.sh` reproduces the NS8 / NethSecurity upload pipeline against the locally running collect endpoint: build a minimal JSON payload, gzip it, GPG-symmetric-encrypt it, and POST it with HTTP Basic auth.
 
-   ```bash
-   curl -u "$SYSTEM_KEY:$SYSTEM_SECRET" \
-        -H "X-Filename: daily.tar.gz" \
-        -H "Content-Type: application/gzip" \
-        --data-binary @/path/to/backup.tar.gz \
-        http://localhost:18081/api/systems/backups
-   ```
-
-4. Verify the object landed via `garage bucket list-objects` or the AWS CLI commands above.
-5. As a logged-in user hit the backend list endpoint and then the download endpoint; follow the `download_url` it returns.
+```bash
+export SYSTEM_KEY="my_sys_XXXXXXXXXXXXXXXX"
+export SYSTEM_SECRET="my_XXXXXXXXXXXXXXXXXXXX.YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY"
+export COLLECT_URL="http://localhost:8081"
+make test-roundtrip
+```
 
 ## Resetting local storage
 
 ```bash
-podman-compose -f services/backup/docker-compose.local.yml down -v
+make dev-reset
 ```
 
-The `-v` flag removes the `garage-meta` and `garage-data` volumes so the next start comes up with an empty cluster that the bootstrap container re-initialises.
+Removes the `garage-meta` and `garage-data` volumes so the next `make dev-up` converges on an empty cluster that the bootstrap container re-initialises.
+
+## Production deployment
+
+The Render blueprint provisions no Garage instance — production backups land in DigitalOcean Spaces via `BACKUP_S3_*` on `my-backend-prod` / `my-backend-qa` and `my-collect-prod` / `my-collect-qa`. The `Containerfile` in this directory is kept for parity with other `services/` entries and for ad-hoc self-hosted deployments.

@@ -194,7 +194,8 @@ update_version_file() {
         .components.collect = $version |
         .components.frontend = $version |
         .components.proxy = $version |
-        .components."services/mimir" = $version
+        .components."services/mimir" = $version |
+        .components."services/backup" = $version
     ' version.json > version.json.tmp && mv version.json.tmp version.json
 }
 
@@ -234,6 +235,14 @@ update_component_versions() {
         success "Updated services/mimir/VERSION"
     else
         warning "services/mimir/VERSION not found"
+    fi
+
+    # Update services/backup VERSION file
+    if [ -f "services/backup/VERSION" ]; then
+        echo "$new_version" > "services/backup/VERSION"
+        success "Updated services/backup/VERSION"
+    else
+        warning "services/backup/VERSION not found"
     fi
 }
 

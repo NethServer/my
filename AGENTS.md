@@ -43,13 +43,14 @@ my/
   frontend/       Vue 3 + TS SPA. Vite, Tailwind, Pinia.
   proxy/          nginx reverse proxy routing to backend/collect/frontend.
   services/mimir/ Grafana Mimir single-node + multi-tenant Alertmanager. S3 backend.
+  services/backup/ Garage single-node (S3-compatible) for local backup round-trip tests. Production uses DigitalOcean Spaces.
   services/support/    Artifacts only on this branch (prebuilt tunnel-client, examples). Source lives elsewhere.
   services/ssh-gateway/ Placeholder only on this branch (.env + host key). Not implemented here.
   docs/           Docusaurus site (published docs).
   presentation/   Slides and mockups (out of scope for code work).
 ```
 
-The six first-class components (tracked in `version.json`): backend, collect, sync, frontend, proxy, services/mimir. Do not attempt to build/run support or ssh-gateway from this branch.
+The seven first-class components (tracked in `version.json`): backend, collect, sync, frontend, proxy, services/mimir, services/backup. Do not attempt to build/run support or ssh-gateway from this branch.
 
 ### 2.2 Authentication flow
 
@@ -149,7 +150,16 @@ Single-node Grafana Mimir with S3-compatible backend and multi-tenant Alertmanag
 - Collect proxies systems to Alertmanager `alerts`/`silences` with `X-Scope-OrgID` from the authenticated system's org.
 - Alertmanager webhooks resolved alerts back to collect `/api/alert_history`, which persists them scoped by `organization_id` (column on `alert_history`, populated from the DB via `system_key` lookup — never trusted from the payload).
 
-### 3.6 Proxy (`proxy/`)
+### 3.6 Backup (`services/backup/`)
+
+Garage single-node, S3-compatible, local-development-only scaffolding for the appliance backup round-trip. Containerfile, Makefile, `docker-compose.local.yml`, `garage-local.toml`, `test-roundtrip.sh` (NS8/NethSecurity upload simulation). The Render blueprint does not deploy Garage — production backups land in DigitalOcean Spaces.
+
+**Backup integration**:
+- Appliances (NS8, NethSecurity) POST their GPG-encrypted configuration blob to collect at `POST /api/systems/backups` with HTTP Basic auth (`system_key:system_secret`). Collect streams the body into S3 with a SHA-256 tee and enforces per-system retention (`BACKUP_MAX_PER_SYSTEM`, `BACKUP_MAX_SIZE_PER_SYSTEM`).
+- Backend exposes `GET /api/systems/:id/backups`, `GET /api/systems/:id/backups/:backup_id/download` (returns a presigned URL), and `DELETE /api/systems/:id/backups/:backup_id` for the UI, gated by the same RBAC rules as `GET /systems/:id`.
+- S3 keys follow `{org_id}/{system_id}/{backup_id}.{ext}`; per-object metadata (sha256, filename, uploader ip/ua, system version) is stored as `x-amz-meta-*` headers set during ingest.
+
+### 3.7 Proxy (`proxy/`)
 
 nginx. Routes `/api/*` (backend), `/api/services/mimir/*` and `/api/alert_history` (collect), everything else to frontend. Mixed TLS certs under `my.localtest.me+*.pem` for local dev.
 
@@ -386,6 +396,7 @@ Operational runbooks and command cookbooks live with each component:
 - `collect/README.md` — worker model, differ config, queue ops.
 - `sync/README.md` — init/sync/pull/prune workflows, Logto setup.
 - `services/mimir/README.md` — Mimir single-node setup, scripts.
+- `services/backup/README.md` — Garage single-node setup, backup round-trip testing.
 - `frontend/README.md` — Vue/Vite specifics.
 
 When implementing a feature, prefer consulting the component README over re-deriving from CLAUDE.md.

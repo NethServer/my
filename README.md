@@ -55,6 +55,7 @@ Web application providing centralized authentication and management using Logto 
 - **[collect/](./collect/)** - Go REST API with Redis queues to handle inventories
 - **[sync/](./sync/)** - CLI tool for RBAC configuration synchronization
 - **[proxy/](./proxy/)** - nginx configuration as load balancer
+- **[services/backup/](./services/backup/)** - Local Garage (S3-compatible) for appliance backup round-trip testing
 
 ## 🚀 Quick Start
 
