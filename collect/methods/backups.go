@@ -106,6 +106,62 @@ func sanitizeSystemVersion(raw string) string {
 	return s
 }
 
+// enforceIngestRateLimit keeps a Redis-backed sliding counter per
+// system and rejects requests past the per-minute and per-hour caps.
+// Returns (allowed, retryAfterSeconds). A Redis outage fails open —
+// a DoS mitigation should never itself become the cause of a service
+// outage, and the inline retention + auth gates still apply.
+//
+// Setting BackupRateLimitPerMinute or BackupRateLimitPerHour to 0 or
+// below disables the corresponding check; setting both to 0 turns the
+// limiter off entirely (useful in tests and for emergencies).
+func enforceIngestRateLimit(ctx context.Context, systemID string) (bool, int) {
+	perMin := configuration.Config.BackupRateLimitPerMinute
+	perHour := configuration.Config.BackupRateLimitPerHour
+	if perMin <= 0 && perHour <= 0 {
+		return true, 0
+	}
+	rdb := queue.GetClient()
+	if rdb == nil {
+		// Redis not initialised — only happens in tests or during a
+		// brief boot window. Fail open.
+		return true, 0
+	}
+	now := time.Now().Unix()
+
+	minuteBucket := now / 60
+	hourBucket := now / 3600
+	minuteKey := fmt.Sprintf("backup:rate:min:%s:%d", systemID, minuteBucket)
+	hourKey := fmt.Sprintf("backup:rate:hour:%s:%d", systemID, hourBucket)
+
+	minCount, err := rdb.Incr(ctx, minuteKey).Result()
+	if err != nil {
+		logger.Warn().Err(err).Str("system_id", systemID).Msg("rate-limit counter unreachable, failing open")
+		return true, 0
+	}
+	if minCount == 1 {
+		_ = rdb.Expire(ctx, minuteKey, 90*time.Second).Err()
+	}
+	if perMin > 0 && minCount > int64(perMin) {
+		retry := 60 - int(now%60)
+		return false, retry
+	}
+
+	hourCount, err := rdb.Incr(ctx, hourKey).Result()
+	if err != nil {
+		logger.Warn().Err(err).Str("system_id", systemID).Msg("rate-limit counter unreachable, failing open")
+		return true, 0
+	}
+	if hourCount == 1 {
+		_ = rdb.Expire(ctx, hourKey, 2*time.Hour).Err()
+	}
+	if perHour > 0 && hourCount > int64(perHour) {
+		retry := 3600 - int(now%3600)
+		return false, retry
+	}
+	return true, 0
+}
+
 // remoteAddrIP returns the true peer IP observed by the server. Unlike
 // c.ClientIP() it never honours X-Forwarded-For, so a malicious
 // appliance cannot forge the uploader IP in audit metadata.
@@ -157,6 +213,16 @@ func UploadBackup(c *gin.Context) {
 	systemID, ok := getAuthenticatedSystemID(c)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("authentication required", nil))
+		return
+	}
+
+	// Per-system ingest rate limit — blocks flood-style abuse ahead of
+	// the expensive storage path.
+	if ok, retry := enforceIngestRateLimit(c.Request.Context(), systemID); !ok {
+		c.Header("Retry-After", fmt.Sprintf("%d", retry))
+		c.JSON(http.StatusTooManyRequests, response.Error(http.StatusTooManyRequests, "upload rate limit exceeded", gin.H{
+			"retry_after_seconds": retry,
+		}))
 		return
 	}
 

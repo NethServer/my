@@ -11,6 +11,7 @@ package methods
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -197,6 +198,26 @@ func TestUploadBackupRequiresContentLength(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusLengthRequired, w.Code)
+}
+
+// TestEnforceIngestRateLimitDisabled confirms the limiter is a no-op
+// when both caps are 0 — the configuration escape hatch used by tests
+// and by operators during an emergency.
+func TestEnforceIngestRateLimitDisabled(t *testing.T) {
+	prevMin := configuration.Config.BackupRateLimitPerMinute
+	prevHour := configuration.Config.BackupRateLimitPerHour
+	defer func() {
+		configuration.Config.BackupRateLimitPerMinute = prevMin
+		configuration.Config.BackupRateLimitPerHour = prevHour
+	}()
+	configuration.Config.BackupRateLimitPerMinute = 0
+	configuration.Config.BackupRateLimitPerHour = 0
+
+	for i := 0; i < 100; i++ {
+		allowed, retry := enforceIngestRateLimit(context.Background(), "sys-123")
+		require.True(t, allowed, "iteration %d", i)
+		require.Equal(t, 0, retry)
+	}
 }
 
 func TestListBackupsNoSystemID(t *testing.T) {
