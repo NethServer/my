@@ -225,3 +225,25 @@ collect/
 - [Backend](../backend/README.md) - API server
 - [sync CLI](../sync/README.md) - RBAC configuration tool
 - [Project Overview](../README.md) - Main documentation
+
+## Machine-scoped Alertmanager access
+
+The Mimir Alertmanager endpoints (`/services/mimir/alertmanager/api/v2/*`) implement strict per-machine scoping to ensure systems can only access their own alerts and silences.
+
+### How scoping works
+
+Each system (identified by `system_key`) is automatically restricted to see and manage only its own data:
+
+- **GET /alerts**: The proxy injects a `system_key` filter into the query, limiting results to this system's alerts
+- **POST /alerts**: The `system_key`, `system_id`, and `organization_id` labels are injected and override any client values
+- **GET /silences**: The proxy injects a `system_key` filter to scope results to this system's silences
+- **POST /silences**: The proxy injects a `system_key` matcher, overwriting any client-supplied `system_key` matcher. This ensures the silence can only target this system's alerts
+- **GET /silences/{id}**: The proxy fetches the silence from Mimir and verifies it contains an exact `system_key` matcher matching this system. Denies access (403) if the silence does not belong to this system
+- **DELETE /silences/{id}**: Same ownership verification as GET, then deletes only if verified
+
+### Security properties
+
+- Systems cannot view, create, or modify silences for other systems
+- Silence matchers cannot be bypassed — a `system_key` matcher is always enforced server-side
+- The `system_key` label in alerts is always server-sourced (injected via `injectLabels` in `mimir.go`), never trusted from client input
+- Failed ownership checks are logged with system and path details for audit purposes

@@ -9,9 +9,11 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -25,14 +27,23 @@ import (
 
 var mimirHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
+const (
+	mimirAlertsPath   = "/alertmanager/api/v2/alerts"
+	mimirSilencesPath = "/alertmanager/api/v2/silences"
+)
+
 // ProxyMimir forwards requests to Mimir on behalf of authenticated systems.
 // BasicAuthMiddleware has already validated credentials and set "system_id" in the context.
-// Route matching in main.go restricts access to /alertmanager/api/v2/alerts and
-// /alertmanager/api/v2/silences; no further path checks are needed here.
-// X-Scope-OrgID is always injected using the system's organization_id.
+// Each machine is scoped to its own alerts and silences (identified by system_key):
+//   - GET /alerts and GET /silences: filter param injected to scope results to this system
+//   - POST /silences: system_key matcher injected into the silence matchers
+//   - GET /silences/:id and DELETE /silences/:id: ownership verified before forwarding
+//
+// X-Scope-OrgID is always injected server-side from the system's organization_id.
 func ProxyMimir(c *gin.Context) {
 	subPath := strings.TrimPrefix(c.Request.URL.Path, "/api/services/mimir")
 	rawQuery := c.Request.URL.RawQuery
+	method := c.Request.Method
 
 	// Resolve organization_id for X-Scope-OrgID injection
 	systemID, ok := getAuthenticatedSystemID(c)
@@ -84,17 +95,52 @@ func ProxyMimir(c *gin.Context) {
 		return
 	}
 
-	// Buffer request body once so it can be replayed across retry attempts
+	// Enforce request body size limit (same ceiling as the inventory endpoint).
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, configuration.Config.APIMaxRequestSize)
+
+	// Buffer request body once so it can be replayed across retry attempts.
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		logger.Error().Err(err).Msg("mimir proxy: failed to read request body")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("internal server error", nil))
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			logger.Warn().Int64("limit", maxErr.Limit).Str("system_id", systemID).Msg("mimir proxy: request body exceeds size limit")
+			c.JSON(http.StatusRequestEntityTooLarge, response.BadRequest("request body too large", nil))
+		} else {
+			logger.Error().Err(err).Msg("mimir proxy: failed to read request body")
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("internal server error", nil))
+		}
 		return
+	}
+
+	// Per-machine scoping: restrict each system to its own alerts and silences.
+	isSilenceByID := strings.HasPrefix(subPath, mimirSilencesPath+"/") && len(subPath) > len(mimirSilencesPath)+1
+	switch {
+	case method == http.MethodGet && (subPath == mimirAlertsPath || subPath == mimirSilencesPath):
+		// Scope listing results to only this machine's data.
+		rawQuery = appendSystemKeyFilter(rawQuery, systemKey)
+
+	case method == http.MethodPost && subPath == mimirSilencesPath:
+		// Ensure the silence targets only this machine's alerts.
+		bodyBytes = injectSilenceMatcher(bodyBytes, systemKey)
+
+	case isSilenceByID:
+		// Verify the silence belongs to this machine before allowing GET or DELETE.
+		owned, checkErr := fetchAndCheckSilenceOwnership(orgID, subPath, systemKey)
+		if checkErr != nil {
+			logger.Error().Err(checkErr).Str("system_id", systemID).Str("path", subPath).Msg("mimir proxy: silence ownership check failed")
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("internal server error", nil))
+			return
+		}
+		if !owned {
+			logger.Warn().Str("system_id", systemID).Str("path", subPath).Msg("mimir proxy: access denied to silence not owned by system")
+			c.JSON(http.StatusForbidden, response.Forbidden("access denied", nil))
+			return
+		}
 	}
 
 	// Inject server-side system context into POST alerts, always overriding
 	// system_key with the authenticated system value.
-	if c.Request.Method == http.MethodPost && strings.Contains(subPath, "/alerts") && len(bodyBytes) > 0 {
+	if method == http.MethodPost && subPath == mimirAlertsPath && len(bodyBytes) > 0 {
 		injected := map[string]string{
 			"system_id":  systemID,
 			"system_key": systemKey,
@@ -128,7 +174,7 @@ func ProxyMimir(c *gin.Context) {
 
 	logger.Info().Str("target", targetURL).Str("org_id", orgID).Msg("mimir proxy: forwarding request")
 
-	req, err := http.NewRequest(c.Request.Method, targetURL, bytes.NewReader(bodyBytes))
+	req, err := http.NewRequest(method, targetURL, bytes.NewReader(bodyBytes))
 	if err != nil {
 		logger.Error().Err(err).Str("target", targetURL).Msg("mimir proxy: failed to create upstream request")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("internal server error", nil))
@@ -163,6 +209,111 @@ func ProxyMimir(c *gin.Context) {
 	if _, err := io.Copy(c.Writer, resp.Body); err != nil {
 		logger.Error().Err(err).Msg("mimir proxy: error streaming response body")
 	}
+}
+
+// appendSystemKeyFilter appends a Prometheus label matcher for system_key to the query string,
+// scoping GET /alerts and GET /silences results to only this machine's data.
+func appendSystemKeyFilter(rawQuery, systemKey string) string {
+	filter := fmt.Sprintf(`system_key="%s"`, systemKey)
+	encoded := url.QueryEscape(filter)
+	if rawQuery == "" {
+		return "filter=" + encoded
+	}
+	return rawQuery + "&filter=" + encoded
+}
+
+// injectSilenceMatcher ensures the silence body contains an exact system_key matcher for
+// this machine, overwriting any client-supplied system_key matcher.
+func injectSilenceMatcher(body []byte, systemKey string) []byte {
+	if len(body) == 0 {
+		return body
+	}
+	var silence map[string]interface{}
+	if err := json.Unmarshal(body, &silence); err != nil {
+		return body
+	}
+
+	matchers, _ := silence["matchers"].([]interface{})
+	filtered := make([]interface{}, 0, len(matchers)+1)
+	for _, m := range matchers {
+		mm, ok := m.(map[string]interface{})
+		if !ok {
+			filtered = append(filtered, m)
+			continue
+		}
+		if name, _ := mm["name"].(string); name == "system_key" {
+			continue // replaced below
+		}
+		filtered = append(filtered, m)
+	}
+	filtered = append(filtered, map[string]interface{}{
+		"name":    "system_key",
+		"value":   systemKey,
+		"isRegex": false,
+		"isEqual": true,
+	})
+	silence["matchers"] = filtered
+
+	out, err := json.Marshal(silence)
+	if err != nil {
+		return body
+	}
+	return out
+}
+
+// fetchAndCheckSilenceOwnership fetches a silence from Mimir and returns true only if it
+// contains an exact non-regex system_key matcher matching the given systemKey.
+func fetchAndCheckSilenceOwnership(orgID, subPath, systemKey string) (bool, error) {
+	targetURL := fmt.Sprintf("%s%s", configuration.Config.MimirURL, subPath)
+	req, err := http.NewRequest(http.MethodGet, targetURL, nil)
+	if err != nil {
+		return false, fmt.Errorf("building ownership-check request: %w", err)
+	}
+	req.Header.Set("X-Scope-OrgID", orgID)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := mimirHTTPClient.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("fetching silence for ownership check: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("unexpected upstream status %d during ownership check", resp.StatusCode)
+	}
+
+	// Limit the ownership-check response to 1 MB; individual silences are small JSON objects.
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return false, fmt.Errorf("reading silence response: %w", err)
+	}
+	return silenceHasSystemKeyMatcher(body, systemKey), nil
+}
+
+// silenceHasSystemKeyMatcher returns true if the silence JSON contains an exact
+// (non-regex, isEqual=true) matcher for the given systemKey.
+func silenceHasSystemKeyMatcher(silenceBody []byte, systemKey string) bool {
+	var silence struct {
+		Matchers []struct {
+			Name    string `json:"name"`
+			Value   string `json:"value"`
+			IsRegex bool   `json:"isRegex"`
+			IsEqual *bool  `json:"isEqual"`
+		} `json:"matchers"`
+	}
+	if err := json.Unmarshal(silenceBody, &silence); err != nil {
+		return false
+	}
+	for _, m := range silence.Matchers {
+		if m.Name == "system_key" && m.Value == systemKey && !m.IsRegex {
+			// isEqual defaults to true when absent
+			return m.IsEqual == nil || *m.IsEqual
+		}
+	}
+	return false
 }
 
 // injectLabels adds the given labels to each alert in the payload. The

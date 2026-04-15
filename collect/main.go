@@ -151,14 +151,16 @@ func main() {
 	// ===========================================
 	// EXTERNAL SERVICES PROXY
 	// ===========================================
-	// Systems can access only the alertmanager alert and silence endpoints.
-	// All management APIs are reserved for future backend implementation.
+	// Each machine can only access its own alerts and silences (scoped by system_key).
+	// Allowed operations: GET/POST alerts, GET/POST silences, GET/DELETE silence by ID.
 	mimirGroup := api.Group("/services/mimir", middleware.BasicAuthMiddleware())
 	{
-		mimirGroup.Any("/alertmanager/api/v2/alerts", methods.ProxyMimir)
-		mimirGroup.Any("/alertmanager/api/v2/alerts/*subpath", methods.ProxyMimir)
-		mimirGroup.Any("/alertmanager/api/v2/silences", methods.ProxyMimir)
-		mimirGroup.Any("/alertmanager/api/v2/silences/*subpath", methods.ProxyMimir)
+		mimirGroup.GET("/alertmanager/api/v2/alerts", methods.ProxyMimir)
+		mimirGroup.POST("/alertmanager/api/v2/alerts", methods.ProxyMimir)
+		mimirGroup.GET("/alertmanager/api/v2/silences", methods.ProxyMimir)
+		mimirGroup.POST("/alertmanager/api/v2/silences", methods.ProxyMimir)
+		mimirGroup.GET("/alertmanager/api/v2/silences/:silenceID", methods.ProxyMimir)
+		mimirGroup.DELETE("/alertmanager/api/v2/silences/:silenceID", methods.ProxyMimir)
 	}
 
 	// ===========================================

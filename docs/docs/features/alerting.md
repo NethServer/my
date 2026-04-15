@@ -191,6 +191,16 @@ Shows a paginated table of resolved alerts for the system, with columns for aler
 
 You can change the page size (5, 10, 25, 50, 100) and navigate through pages using the pagination controls at the bottom of the table.
 
+## Machine-scoped access to Alertmanager
+
+Each system (machine) has isolated access to the Alertmanager API. When a system authenticates with HTTP Basic Auth (system credentials), it can only:
+
+- **View its own alerts** - The proxy automatically filters results to show only alerts with the system's `system_key` label
+- **Create silences for its own alerts** - Silences are automatically scoped to the system's `system_key`, even if a different value is provided in the request
+- **Manage its own silences** - The system can only fetch, update, or delete silences that explicitly target its own `system_key`
+
+This prevents one system from interfering with alerts or silences from other systems in the same organization.
+
 ## Email notifications
 
 When email notifications are enabled, alerts are delivered from Alertmanager using templates customized for the platform. Each email includes:

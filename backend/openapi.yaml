@@ -10226,14 +10226,21 @@ paths:
       tags:
         - Collect - Alerting
       summary: List active alerts
-      description: Lists all active alerts for the authenticated system's organization.
+      description: |
+        Lists all active alerts for the authenticated system, filtered by that system's `system_key`.
+        
+        Each system is scoped to see only its own alerts. The proxy automatically injects a `system_key` filter into the query.
+        
+        **Access control:** Requires HTTP Basic Auth with valid system credentials.
       security:
         - BasicAuth: []
       responses:
         '200':
-          description: List of active alerts
+          description: List of active alerts belonging to this system
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
         '502':
           $ref: '#/components/responses/InternalServerError'
     post:
@@ -10241,7 +10248,14 @@ paths:
       tags:
         - Collect - Alerting
       summary: Push alerts
-      description: Pushes one or more alerts to the Alertmanager for the authenticated system's organization.
+      description: |
+        Pushes one or more alerts to the Alertmanager for this system.
+        
+        The system's `system_key`, `system_id`, and `organization_id` are automatically injected and override any client-supplied values.
+        
+        **Access control:** Requires HTTP Basic Auth with valid system credentials.
+        
+        **Request body limits:** Maximum 10 MB per request (configurable via `API_MAX_REQUEST_SIZE`).
       security:
         - BasicAuth: []
       requestBody:
@@ -10254,11 +10268,13 @@ paths:
                 type: object
       responses:
         '200':
-          description: Alerts accepted
+          description: Alerts accepted and forwarded to Alertmanager
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
         '502':
           $ref: '#/components/responses/InternalServerError'
 
@@ -10268,14 +10284,21 @@ paths:
       tags:
         - Collect - Alerting
       summary: List silences
-      description: Lists all silences for the authenticated system's organization.
+      description: |
+        Lists all silences for this system's organization, filtered to silences that target this system's `system_key`.
+        
+        The proxy injects a `system_key` filter to ensure each system only sees its own silences.
+        
+        **Access control:** Requires HTTP Basic Auth with valid system credentials.
       security:
         - BasicAuth: []
       responses:
         '200':
-          description: List of silences
+          description: List of silences belonging to this system
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
         '502':
           $ref: '#/components/responses/InternalServerError'
     post:
@@ -10283,7 +10306,14 @@ paths:
       tags:
         - Collect - Alerting
       summary: Create or update a silence
-      description: Creates or updates a silence for the authenticated system's organization.
+      description: |
+        Creates or updates a silence that targets this system's alerts.
+        
+        The proxy automatically injects a `system_key` matcher for this system into the silence, overwriting any client-supplied `system_key` matcher. This ensures silences can only target this system's alerts.
+        
+        **Access control:** Requires HTTP Basic Auth with valid system credentials.
+        
+        **Silence matchers:** The silence must include at least one matcher (e.g., `alertname`). The `system_key` matcher is added automatically and cannot be customized.
       security:
         - BasicAuth: []
       requestBody:
@@ -10292,13 +10322,16 @@ paths:
           application/json:
             schema:
               type: object
+              description: Silence object with matchers, startsAt, endsAt, createdBy, comment
       responses:
         '200':
-          description: Silence created or updated
+          description: Silence created or updated successfully
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
         '502':
           $ref: '#/components/responses/InternalServerError'
 
@@ -10315,16 +10348,25 @@ paths:
       tags:
         - Collect - Alerting
       summary: Get a silence
-      description: Returns a specific silence by ID.
+      description: |
+        Returns a specific silence by ID, if it belongs to this system.
+        
+        Before forwarding the request to Alertmanager, the proxy verifies the silence contains an exact `system_key` matcher matching this system. If the silence does not belong to this system, a 403 Forbidden response is returned.
+        
+        **Access control:** Requires HTTP Basic Auth with valid system credentials.
       security:
         - BasicAuth: []
       responses:
         '200':
-          description: Silence details
+          description: Silence details (only if it targets this system)
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
         '502':
           $ref: '#/components/responses/InternalServerError'
     delete:
@@ -10332,12 +10374,27 @@ paths:
       tags:
         - Collect - Alerting
       summary: Delete a silence
-      description: Deletes a silence by ID.
+      description: |
+        Deletes a silence by ID, if it belongs to this system.
+        
+        Before forwarding the request to Alertmanager, the proxy verifies the silence contains an exact `system_key` matcher matching this system. If the silence does not belong to this system, a 403 Forbidden response is returned.
+        
+        **Access control:** Requires HTTP Basic Auth with valid system credentials.
       security:
         - BasicAuth: []
       responses:
         '200':
-          description: Silence deleted
+          description: Silence deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
+        '502':
+          $ref: '#/components/responses/InternalServerError'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
