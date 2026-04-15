@@ -139,3 +139,12 @@ Removes the `garage-meta` and `garage-data` volumes so the next `make dev-up` co
 ## Production deployment
 
 The Render blueprint provisions no Garage instance — production backups land in DigitalOcean Spaces via `BACKUP_S3_*` on `my-backend-prod` / `my-backend-qa` and `my-collect-prod` / `my-collect-qa`. The `Containerfile` in this directory is kept for parity with other `services/` entries and for ad-hoc self-hosted deployments.
+
+## Known follow-ups
+
+These items were identified by the security audit and intentionally deferred; each requires an ops or design decision that lives outside this component.
+
+- **Split S3 credentials.** Collect and backend share a single access key today. Ops can issue two keys — ingest-only for collect (PutObject/CopyObject/ListObjectsV2/HeadObject/DeleteObject) and read-biased for backend (ListObjectsV2/HeadObject/GetObject via presign, plus DeleteObject for manual cleanup) — and set the `BACKUP_S3_ACCESS_KEY` / `BACKUP_S3_SECRET_KEY` env pair to a different value on each service. No code change is needed, but DO Spaces does not offer prefix-scoped IAM so the two keys still share the bucket.
+- **Per-organization quota.** The code enforces per-system caps (`BACKUP_MAX_PER_SYSTEM`, `BACKUP_MAX_SIZE_PER_SYSTEM`) but no aggregate ceiling per org. An organization with many systems can still consume the whole bucket. A follow-up can track a Redis counter incremented at upload and decremented at prune, or rely on a periodic S3 scan.
+- **Async retention worker.** Inline retention is serialised via a Redis `SET NX` lock per system, which closes the concurrent-upload race. For large bursts the pruning still runs in the request hot path. Moving it to a worker (cron every few minutes or Redis list consumed by a goroutine pool) would keep request latency flat and give retention its own audit log.
+- **Auth cache invalidation bus.** The in-process and Redis auth caches on collect now expire within ten minutes by default, which bounds the staleness after a backend-side delete/rotate. A proper invalidation bus (Redis pub/sub or a dedicated Postgres `LISTEN` channel) would cut this to sub-second propagation and is the right long-term design.
