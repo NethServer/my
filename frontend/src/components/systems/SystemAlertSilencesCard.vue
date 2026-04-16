@@ -72,6 +72,10 @@ function getSilenceStateLabel(state: string | undefined) {
   }
 }
 
+function getSilencedAlertName(silence: AlertmanagerSilence): string {
+  return silence.matchers.find((m) => m.name === 'alertname')?.value || '-'
+}
+
 async function loadSilences(sysId: string) {
   const currentRequestId = ++requestId
 
@@ -176,6 +180,7 @@ watch(
       card-breakpoint="lg"
     >
       <NeTableHead>
+        <NeTableHeadCell>{{ $t('alerting.alertname') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('common.status') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('alerting.silence_comment') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('alerting.silence_created_by') }}</NeTableHeadCell>
@@ -184,6 +189,9 @@ watch(
       </NeTableHead>
       <NeTableBody>
         <NeTableRow v-for="silence in silences" :key="silence.id">
+          <NeTableCell :data-label="$t('alerting.alertname')">
+            <span class="font-medium">{{ getSilencedAlertName(silence) }}</span>
+          </NeTableCell>
           <NeTableCell :data-label="$t('common.status')">
             <NeBadgeV2 :kind="getSilenceBadgeKind(silence.status?.state)" size="xs">
               {{ getSilenceStateLabel(silence.status?.state) }}

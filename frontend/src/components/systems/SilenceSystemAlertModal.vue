@@ -36,7 +36,7 @@ const alertName = computed(() => {
 })
 
 function defaultEndAt() {
-  const d = new Date(Date.now() + 60 * 60 * 1000)
+  const d = new Date(Date.now() + 4 * 60 * 60 * 1000)
   // datetime-local requires "YYYY-MM-DDTHH:MM"
   return d.toISOString().slice(0, 16)
 }

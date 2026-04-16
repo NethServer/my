@@ -208,6 +208,10 @@ function getAlertSilenceCountText(alert: Alert) {
 
   return t('alerting.silences_count', { num: silenceIds.length }, silenceIds.length)
 }
+
+function isSuppressed(alert: Alert) {
+  return alert.status?.state?.toLowerCase() === 'suppressed'
+}
 </script>
 
 <template>
@@ -259,7 +263,11 @@ function getAlertSilenceCountText(alert: Alert) {
         <NeTableHeadCell v-if="canManageSystems()">{{ $t('common.actions') }}</NeTableHeadCell>
       </NeTableHead>
       <NeTableBody>
-        <NeTableRow v-for="alert in sortedAlerts" :key="alert.fingerprint">
+        <NeTableRow
+          v-for="alert in sortedAlerts"
+          :key="alert.fingerprint"
+          :class="isSuppressed(alert) ? 'opacity-50' : ''"
+        >
           <NeTableCell :data-label="$t('alerting.alertname')">
             <div class="flex items-center gap-2">
               <FontAwesomeIcon
@@ -308,19 +316,8 @@ function getAlertSilenceCountText(alert: Alert) {
             <span v-else>-</span>
           </NeTableCell>
           <NeTableCell v-if="canManageSystems()" :data-label="$t('common.actions')">
-            <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
-              <NeButton
-                v-if="isAlertSilenced(alert)"
-                kind="tertiary"
-                size="sm"
-                @click="showDisableSilenceModal(alert)"
-              >
-                <template #prefix>
-                  <FontAwesomeIcon :icon="faBell" aria-hidden="true" />
-                </template>
-                {{ $t('alerting.disable_silence') }}
-              </NeButton>
-              <NeButton v-else kind="tertiary" size="sm" @click="showSilenceAlertModal(alert)">
+            <div v-if="!isSuppressed(alert)" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+              <NeButton kind="tertiary" size="sm" @click="showSilenceAlertModal(alert)">
                 <template #prefix>
                   <FontAwesomeIcon :icon="faBellSlash" aria-hidden="true" />
                 </template>
