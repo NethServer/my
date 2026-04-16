@@ -22,9 +22,10 @@ var provisionRetryDelays = []time.Duration{1 * time.Second, 3 * time.Second, 5 *
 // for the given organization. The built-in history webhook is always active so
 // resolved alerts are persisted in the alert_history table.
 //
-// If defaultEmail is non-empty, email notifications are enabled with the given
-// address as the sole recipient. Otherwise email notifications are disabled.
-// Webhook notifications are always disabled by default.
+// If defaultEmail is non-empty it is stored as the default mail recipient so it
+// appears pre-filled in the UI, but mail notifications are always disabled on
+// creation. Webhook notifications are also always disabled.
+// Both must be explicitly enabled by the user after creation.
 //
 // defaultLang sets the email template language: "it" or "en". Invalid or empty
 // values default to English.
@@ -46,7 +47,7 @@ func ProvisionDefaultConfig(orgID, defaultEmail, defaultLang string) error {
 
 	cfg := configuration.Config
 	defaultAlerting := &models.AlertingConfig{
-		MailEnabled:       defaultEmail != "",
+		MailEnabled:       false,
 		WebhookEnabled:    false,
 		MailAddresses:     []string{},
 		WebhookReceivers:  []models.WebhookReceiver{},

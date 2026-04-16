@@ -80,9 +80,10 @@ func CreateDistributor(c *gin.Context) {
 	logger.LogBusinessOperation(c, "distributors", "create", "distributor", distributor.ID, true, nil)
 
 	// Auto-provision default alerting configuration so the built-in history webhook
-	// is active from day one. If the distributor has an email and language in
-	// custom_data, they are used as defaults for notifications. Failure is logged
-	// but does not block distributor creation.
+	// is active from day one. Mail and webhook notifications are always disabled on
+	// creation; the distributor's email (if present) is stored as a pre-filled
+	// recipient but must be explicitly enabled. Failure is logged but does not block
+	// distributor creation.
 	if distributor.LogtoID != nil && *distributor.LogtoID != "" {
 		defaultEmail, _ := distributor.CustomData["email"].(string)
 		defaultLang, _ := distributor.CustomData["language"].(string)

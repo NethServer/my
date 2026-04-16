@@ -80,9 +80,10 @@ func CreateCustomer(c *gin.Context) {
 	logger.LogBusinessOperation(c, "customers", "create", "customer", customer.ID, true, nil)
 
 	// Auto-provision default alerting configuration so the built-in history webhook
-	// is active from day one. If the customer has an email and language in
-	// custom_data, they are used as defaults for notifications. Failure is logged
-	// but does not block customer creation.
+	// is active from day one. Mail and webhook notifications are always disabled on
+	// creation; the customer's email (if present) is stored as a pre-filled
+	// recipient but must be explicitly enabled. Failure is logged but does not block
+	// customer creation.
 	if customer.LogtoID != nil && *customer.LogtoID != "" {
 		defaultEmail, _ := customer.CustomData["email"].(string)
 		defaultLang, _ := customer.CustomData["language"].(string)

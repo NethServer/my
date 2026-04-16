@@ -80,9 +80,10 @@ func CreateReseller(c *gin.Context) {
 	logger.LogBusinessOperation(c, "resellers", "create", "reseller", reseller.ID, true, nil)
 
 	// Auto-provision default alerting configuration so the built-in history webhook
-	// is active from day one. If the reseller has an email and language in
-	// custom_data, they are used as defaults for notifications. Failure is logged
-	// but does not block reseller creation.
+	// is active from day one. Mail and webhook notifications are always disabled on
+	// creation; the reseller's email (if present) is stored as a pre-filled
+	// recipient but must be explicitly enabled. Failure is logged but does not block
+	// reseller creation.
 	if reseller.LogtoID != nil && *reseller.LogtoID != "" {
 		defaultEmail, _ := reseller.CustomData["email"].(string)
 		defaultLang, _ := reseller.CustomData["language"].(string)
