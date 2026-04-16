@@ -17,7 +17,7 @@ La funzionalità di Alerting fornisce una vista centralizzata di tutti gli allar
 Dalla pagina Alerting puoi:
 
 - Visualizzare gli allarmi attivi filtrati per stato, severità o sistema specifico
-- Configurare notifiche email e webhook per ogni organizzazione
+- Configurare notifiche email, webhook e Telegram per ogni organizzazione
 - Definire regole di notifica personalizzate per severità e per sistema
 - Consultare lo storico degli allarmi di ciascun sistema
 
@@ -90,6 +90,8 @@ La configurazione viene modificata come oggetto JSON con i seguenti campi:
 | `mail_addresses` | string[] | Lista di indirizzi email che ricevono tutti gli allarmi |
 | `webhook_enabled` | boolean | Abilita o disabilita le notifiche webhook globalmente |
 | `webhook_receivers` | object[] | Lista di endpoint webhook, ciascuno con `name` e `url` |
+| `telegram_enabled` | boolean | Abilita o disabilita le notifiche Telegram globalmente |
+| `telegram_receivers` | object[] | Lista di receiver Telegram, ciascuno con `bot_token` e `chat_id` |
 | `email_template_lang` | string | Lingua dei template email: `en` o `it` (default: `en`) |
 
 #### Override per severità
@@ -101,8 +103,10 @@ Ogni override include:
 - `severity`: uno tra `critical`, `warning`, `info`
 - `mail_enabled` (opzionale): override dell'impostazione email globale per questa severità
 - `webhook_enabled` (opzionale): override dell'impostazione webhook globale
+- `telegram_enabled` (opzionale): override dell'impostazione Telegram globale
 - `mail_addresses` (opzionale): lista di indirizzi email per questa severità
 - `webhook_receivers` (opzionale): lista di webhook receiver per questa severità
+- `telegram_receivers` (opzionale): lista di receiver Telegram per questa severità
 
 Se la lista degli indirizzi di un override è vuota, vengono usati gli indirizzi globali come fallback.
 
@@ -115,8 +119,10 @@ Ogni override include:
 - `system_key`: l'identificatore del sistema target
 - `mail_enabled` (opzionale): override per questo sistema
 - `webhook_enabled` (opzionale): override per questo sistema
+- `telegram_enabled` (opzionale): override per questo sistema
 - `mail_addresses` (opzionale): destinatari aggiuntivi per gli allarmi di questo sistema
 - `webhook_receivers` (opzionale): webhook aggiuntivi per gli allarmi di questo sistema
+- `telegram_receivers` (opzionale): receiver Telegram aggiuntivi per gli allarmi di questo sistema
 
 ### Priorità delle override
 
@@ -132,8 +138,12 @@ Quando si instrada un allarme, la priorità è:
 {
   "mail_enabled": true,
   "webhook_enabled": false,
+  "telegram_enabled": true,
   "mail_addresses": ["ops@example.com"],
   "webhook_receivers": [],
+  "telegram_receivers": [
+    { "bot_token": "123456789:ABCDEFabcdef...", "chat_id": -1001234567890 }
+  ],
   "email_template_lang": "it",
   "severities": [
     {
@@ -142,7 +152,8 @@ Quando si instrada un allarme, la priorità è:
     },
     {
       "severity": "info",
-      "mail_enabled": false
+      "mail_enabled": false,
+      "telegram_enabled": false
     }
   ],
   "systems": [
@@ -156,9 +167,9 @@ Quando si instrada un allarme, la priorità è:
 
 In questo esempio:
 
-- Tutti gli allarmi warning vanno a `ops@example.com`
+- Tutti gli allarmi warning vanno a `ops@example.com` e alla chat Telegram configurata
 - Gli allarmi critical vanno sia a `oncall@example.com` che a `ops@example.com`
-- Gli allarmi info sono soppressi
+- Gli allarmi info sono soppressi (email e Telegram disabilitati)
 - Gli allarmi dal sistema `NETH-ABCD-1234` vanno anche a `platform-team@example.com`
 - I template email vengono renderizzati in italiano
 
@@ -202,6 +213,66 @@ Quando le notifiche email sono abilitate, gli allarmi vengono consegnati da Aler
 - Un pulsante **Visualizza sistema** che linka direttamente alla pagina di dettaglio del sistema
 
 I template sono disponibili in **inglese** e **italiano**, selezionati tramite il campo `email_template_lang`.
+
+## Notifiche Telegram
+
+Quando le notifiche Telegram sono abilitate, gli allarmi vengono inviati come messaggi formattati a un bot Telegram. I messaggi usano la formattazione MarkdownV2 e includono nome allarme, severità, system key e riepilogo localizzato.
+
+:::note
+I messaggi Telegram sono limitati a 4096 caratteri. Per descrizioni di allarme molto lunghe, il messaggio potrebbe essere troncato. Per allarmi con metadati estesi, considera di usare email o webhook.
+:::
+
+### Passaggio 1 — Crea un bot Telegram
+
+1. Apri Telegram e avvia una conversazione con **[@BotFather](https://t.me/BotFather)**
+2. Invia il comando `/newbot`
+3. Segui le istruzioni: scegli un nome visualizzato e un username univoco (deve terminare con `bot`, es. `MyAlertsBot`)
+4. BotFather risponde con un **bot token** nel formato `123456789:ABCDEFabcdef...` — copialo
+
+### Passaggio 2 — Ottieni il chat ID
+
+Il `chat_id` è l'identificatore numerico della destinazione (un utente privato, un gruppo o un canale).
+
+**Per una chat privata con te stesso o un utente specifico:**
+
+1. Apri Telegram e avvia una conversazione con il tuo nuovo bot (cerca il suo username)
+2. Invia qualsiasi messaggio al bot (es. `/start`)
+3. Apri il seguente URL nel browser, sostituendo `<BOT_TOKEN>` con il tuo token:
+
+   ```
+   https://api.telegram.org/bot<BOT_TOKEN>/getUpdates
+   ```
+
+4. Trova il campo `"id"` all'interno dell'oggetto `"chat"` nella risposta JSON — quello è il tuo `chat_id` (un intero positivo, es. `123456789`)
+
+**Per un gruppo o canale:**
+
+1. Aggiungi il tuo bot al gruppo o canale come **amministratore**
+2. Invia un messaggio nel gruppo in modo che Alertmanager abbia qualcosa da leggere
+3. Chiama `getUpdates` come sopra — il `chat_id` per gruppi e canali è un numero **negativo** (es. `-1001234567890`)
+
+### Passaggio 3 — Configura il JSON di alerting
+
+Aggiungi `telegram_enabled` e `telegram_receivers` alla configurazione di alerting. Ogni voce in `telegram_receivers` richiede:
+
+| Campo | Tipo | Descrizione |
+|-------|------|-------------|
+| `bot_token` | string | Il token fornito da BotFather |
+| `chat_id` | integer | L'ID numerico della chat Telegram (positivo per utenti, negativo per gruppi/canali) |
+
+Esempio:
+
+```json
+{
+  "mail_enabled": false,
+  "telegram_enabled": true,
+  "telegram_receivers": [
+    { "bot_token": "123456789:ABCDEFabcdef...", "chat_id": -1001234567890 }
+  ]
+}
+```
+
+È possibile definire più receiver per inviare gli allarmi a più bot o chat contemporaneamente.
 
 ## Argomenti correlati
 
