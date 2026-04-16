@@ -1,16 +1,20 @@
 {{ define "telegram.message" -}}
 {{ if .Alerts.Firing -}}
-{{ if eq (len .Alerts.Firing) 1 }}🔴{{ else }}🚨{{ end }} <b>{{ len .Alerts.Firing }} allarme{{ if gt (len .Alerts.Firing) 1 }}i{{ end }} ATTIV{{ if gt (len .Alerts.Firing) 1 }}I{{ else }}O{{ end }}</b>
+{{ if eq (len .Alerts.Firing) 1 }}🔴 <b>ALLARME ATTIVO</b>{{ else }}🚨 <b>{{ len .Alerts.Firing }} ALLARMI ATTIVI</b>{{ end }}
+
 {{ range .Alerts.Firing -}}
-{{ if eq .Labels.severity "critical" }}🔴{{ else if eq .Labels.severity "warning" }}🟠{{ else }}🔵{{ end }} <b>{{ .Labels.alertname }}</b>{{ if .Labels.system_name }} — <code>{{ .Labels.system_name }}</code>{{ end }}
-{{ if .Annotations.summary_it }}📋 {{ .Annotations.summary_it }}{{ else if .Annotations.summary }}📋 {{ .Annotations.summary }}{{ end }}
+<b>{{ .Labels.alertname }}</b>
+{{ if eq .Labels.severity "critical" }}🔴 <i>Critico</i>{{ else if eq .Labels.severity "warning" }}🟠 <i>Avviso</i>{{ else }}🔵 <i>Info</i>{{ end }}{{ if .Labels.system_name }} | 🖥️ <code>{{ .Labels.system_name }}</code>{{ end }}
+{{ if .Annotations.summary_it }}{{ .Annotations.summary_it }}{{ else if .Annotations.summary }}{{ .Annotations.summary }}{{ end }}
 {{ end -}}
 {{ end -}}
 {{ if .Alerts.Resolved -}}
 ✅ <b>{{ len .Alerts.Resolved }} allarme{{ if gt (len .Alerts.Resolved) 1 }}i{{ end }} RISOLTO{{ if gt (len .Alerts.Resolved) 1 }}I{{ end }}</b>
+
 {{ range .Alerts.Resolved -}}
-{{ if eq .Labels.severity "critical" }}🟢{{ else if eq .Labels.severity "warning" }}🟡{{ else }}🔵{{ end }} <b>{{ .Labels.alertname }}</b>{{ if .Labels.system_name }} — <code>{{ .Labels.system_name }}</code>{{ end }}
-{{ if .Annotations.summary_it }}📋 {{ .Annotations.summary_it }}{{ else if .Annotations.summary }}📋 {{ .Annotations.summary }}{{ end }}
+<b>{{ .Labels.alertname }}</b>
+{{ if eq .Labels.severity "critical" }}🟢 <i>Critico</i>{{ else if eq .Labels.severity "warning" }}🟡 <i>Avviso</i>{{ else }}🔵 <i>Info</i>{{ end }}{{ if .Labels.system_name }} | 🖥️ <code>{{ .Labels.system_name }}</code>{{ end }}
+{{ if .Annotations.summary_it }}{{ .Annotations.summary_it }}{{ else if .Annotations.summary }}{{ .Annotations.summary }}{{ end }}
 {{ end -}}
 {{ end -}}
 {{- end }}
