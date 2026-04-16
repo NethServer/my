@@ -11,7 +11,6 @@ package cron
 
 import (
 	"testing"
-	"time"
 
 	"github.com/nethesis/my/collect/configuration"
 )
@@ -19,7 +18,6 @@ import (
 func TestNewHeartbeatMonitor(t *testing.T) {
 	// Initialize configuration for testing
 	configuration.Config.HeartbeatTimeoutMinutes = 10
-	configuration.Config.MimirURL = "http://localhost:9009"
 
 	monitor := NewHeartbeatMonitor()
 
@@ -35,10 +33,6 @@ func TestNewHeartbeatMonitor(t *testing.T) {
 		t.Errorf("Expected check interval 60 seconds, got %d", monitor.checkIntervalSec)
 	}
 
-	if monitor.mimirURL != "http://localhost:9009" {
-		t.Errorf("Expected mimirURL http://localhost:9009, got %s", monitor.mimirURL)
-	}
-
 	if monitor.timeoutMinutes != configuration.Config.HeartbeatTimeoutMinutes {
 		t.Errorf("Expected timeout to match config value %d, got %d", configuration.Config.HeartbeatTimeoutMinutes, monitor.timeoutMinutes)
 	}
@@ -47,7 +41,6 @@ func TestNewHeartbeatMonitor(t *testing.T) {
 func TestHeartbeatMonitor_Structure(t *testing.T) {
 	monitor := &HeartbeatMonitor{
 		db:               nil,
-		mimirURL:         "http://localhost:9009",
 		timeoutMinutes:   10,
 		checkIntervalSec: 60,
 	}
@@ -60,30 +53,4 @@ func TestHeartbeatMonitor_Structure(t *testing.T) {
 		t.Errorf("Expected interval 60 seconds, got %d", monitor.checkIntervalSec)
 	}
 
-	if monitor.mimirURL == "" {
-		t.Fatal("Expected mimirURL to be set")
-	}
-}
-
-func TestHeartbeatMonitor_AlertFunctions(t *testing.T) {
-	monitor := &HeartbeatMonitor{
-		db:               nil,
-		mimirURL:         "http://localhost:9009",
-		timeoutMinutes:   10,
-		checkIntervalSec: 60,
-	}
-
-	// Test fireLinkFailedAlert doesn't panic (won't actually post in test)
-	err := monitor.fireLinkFailedAlert("TEST-KEY", "org-123", nowForTest())
-	// Note: Will fail to connect to mimir in test, but that's OK for structure validation
-	_ = err
-
-	// Test resolveLinkFailedAlert doesn't panic
-	err = monitor.resolveLinkFailedAlert("TEST-KEY", "org-123")
-	// Note: Will fail to connect to mimir in test, but that's OK for structure validation
-	_ = err
-}
-
-func nowForTest() time.Time {
-	return time.Unix(123, 0)
 }

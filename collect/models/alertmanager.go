@@ -33,3 +33,11 @@ type AlertmanagerAlert struct {
 	GeneratorURL string            `json:"generatorURL"`
 	Fingerprint  string            `json:"fingerprint"`
 }
+
+// AlertmanagerPostAlert represents a single alert sent to Alertmanager.
+type AlertmanagerPostAlert struct {
+	Labels      map[string]string `json:"labels"`
+	Annotations map[string]string `json:"annotations"`
+	StartsAt    time.Time         `json:"startsAt"`
+	EndsAt      time.Time         `json:"endsAt"`
+}

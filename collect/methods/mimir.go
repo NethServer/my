@@ -15,21 +15,17 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"text/template"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
+	collectalerting "github.com/nethesis/my/collect/alerting"
 	"github.com/nethesis/my/collect/configuration"
 	"github.com/nethesis/my/collect/database"
 	"github.com/nethesis/my/collect/logger"
 	"github.com/nethesis/my/collect/response"
 )
 
-var mimirHTTPClient = &http.Client{Timeout: 30 * time.Second}
-
 const (
-	mimirAlertsPath   = "/alertmanager/api/v2/alerts"
 	mimirSilencesPath = "/alertmanager/api/v2/silences"
 )
 
@@ -54,37 +50,7 @@ func ProxyMimir(c *gin.Context) {
 		return
 	}
 
-	var (
-		orgID      string
-		systemKey  string
-		systemName string
-		systemFQDN sql.NullString
-		systemIPv4 sql.NullString
-		orgName    sql.NullString
-		orgVAT     sql.NullString
-		orgType    sql.NullString
-	)
-	err := database.DB.QueryRow(`
-		SELECT s.organization_id,
-		       s.system_key,
-		       s.name,
-		       s.fqdn,
-		       s.ipv4_address::text,
-		       COALESCE(d.name, r.name, c.name),
-		       COALESCE(d.custom_data->>'vat', r.custom_data->>'vat', c.custom_data->>'vat'),
-		       CASE
-		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
-		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
-		           WHEN c.logto_id IS NOT NULL THEN 'customer'
-		           ELSE NULL
-		       END
-		FROM systems s
-		LEFT JOIN distributors d ON (s.organization_id = d.logto_id OR s.organization_id = d.id) AND d.deleted_at IS NULL
-		LEFT JOIN resellers r ON (s.organization_id = r.logto_id OR s.organization_id = r.id) AND r.deleted_at IS NULL
-		LEFT JOIN customers c ON (s.organization_id = c.logto_id OR s.organization_id = c.id) AND c.deleted_at IS NULL
-		WHERE s.id = $1
-	`, systemID).Scan(&orgID, &systemKey, &systemName, &systemFQDN, &systemIPv4, &orgName, &orgVAT, &orgType)
-
+	systemAlertContext, err := collectalerting.LookupSystemAlertContext(c.Request.Context(), database.DB, systemID)
 	if err == sql.ErrNoRows {
 		logger.Warn().Str("system_id", systemID).Str("reason", "system not found").Msg("mimir proxy: system lookup failed")
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("unauthorized", nil))
@@ -95,6 +61,8 @@ func ProxyMimir(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("internal server error", nil))
 		return
 	}
+	orgID := systemAlertContext.OrganizationID
+	systemKey := systemAlertContext.SystemKey
 
 	// Enforce request body size limit (same ceiling as the inventory endpoint).
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, configuration.Config.APIMaxRequestSize)
@@ -116,7 +84,7 @@ func ProxyMimir(c *gin.Context) {
 	// Per-machine scoping: restrict each system to its own alerts and silences.
 	isSilenceByID := strings.HasPrefix(subPath, mimirSilencesPath+"/") && len(subPath) > len(mimirSilencesPath)+1
 	switch {
-	case method == http.MethodGet && (subPath == mimirAlertsPath || subPath == mimirSilencesPath):
+	case method == http.MethodGet && (subPath == collectalerting.MimirAlertsPath || subPath == mimirSilencesPath):
 		// Scope listing results to only this machine's data.
 		rawQuery = appendSystemKeyFilter(rawQuery, systemKey)
 
@@ -141,31 +109,8 @@ func ProxyMimir(c *gin.Context) {
 
 	// Inject server-side system context into POST alerts, always overriding
 	// system_key with the authenticated system value.
-	if method == http.MethodPost && subPath == mimirAlertsPath && len(bodyBytes) > 0 {
-		injected := map[string]string{
-			"system_id":  systemID,
-			"system_key": systemKey,
-		}
-		if systemName != "" {
-			injected["system_name"] = systemName
-		}
-		if systemFQDN.Valid && systemFQDN.String != "" {
-			injected["system_fqdn"] = systemFQDN.String
-		}
-		if systemIPv4.Valid && systemIPv4.String != "" {
-			injected["system_ipv4"] = systemIPv4.String
-		}
-		if orgName.Valid && orgName.String != "" {
-			injected["organization_name"] = orgName.String
-		}
-		if orgVAT.Valid && orgVAT.String != "" {
-			injected["organization_vat"] = orgVAT.String
-		}
-		if orgType.Valid && orgType.String != "" {
-			injected["organization_type"] = orgType.String
-		}
-		bodyBytes = injectLabels(bodyBytes, injected)
-		bodyBytes = processAnnotationTemplates(bodyBytes, injected)
+	if method == http.MethodPost && subPath == collectalerting.MimirAlertsPath && len(bodyBytes) > 0 {
+		bodyBytes = collectalerting.EnrichAlertPayload(bodyBytes, systemAlertContext)
 	}
 
 	// Forward request to Mimir
@@ -192,7 +137,7 @@ func ProxyMimir(c *gin.Context) {
 	req.Header.Del("Accept-Encoding")
 	req.Header.Set("X-Scope-OrgID", orgID)
 
-	resp, err := mimirHTTPClient.Do(req)
+	resp, err := collectalerting.MimirHTTPClient.Do(req)
 	if err != nil {
 		logger.Error().Err(err).Str("target", targetURL).Msg("mimir proxy: network error")
 		c.JSON(http.StatusBadGateway, response.InternalServerError("mimir is unavailable", nil))
@@ -274,7 +219,7 @@ func fetchAndCheckSilenceOwnership(orgID, subPath, systemKey string) (bool, erro
 	req.Header.Set("X-Scope-OrgID", orgID)
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := mimirHTTPClient.Do(req)
+	resp, err := collectalerting.MimirHTTPClient.Do(req)
 	if err != nil {
 		return false, fmt.Errorf("fetching silence for ownership check: %w", err)
 	}
@@ -318,52 +263,10 @@ func silenceHasSystemKeyMatcher(silenceBody []byte, systemKey string) bool {
 	return false
 }
 
-// injectLabels adds the given labels to each alert in the payload. The
-// client-provided system_key label is always replaced with the authenticated
-// system value; other labels are added only when missing.
+// injectLabels proxies to the shared alerting enrichment helper so ProxyMimir
+// and internal LinkFailed alerts use the same label injection rules.
 func injectLabels(body []byte, toInject map[string]string) []byte {
-	if len(toInject) == 0 {
-		return body
-	}
-
-	var alerts []map[string]interface{}
-	if err := json.Unmarshal(body, &alerts); err != nil {
-		return body // Not a valid alert array, pass through unchanged
-	}
-
-	modified := false
-	for _, alert := range alerts {
-		labels, ok := alert["labels"].(map[string]interface{})
-		if !ok {
-			labels = map[string]interface{}{}
-			alert["labels"] = labels
-		}
-		for key, value := range toInject {
-			if key == "system_key" {
-				current, exists := labels[key]
-				currentValue, isString := current.(string)
-				if !exists || !isString || currentValue != value {
-					labels[key] = value
-					modified = true
-				}
-				continue
-			}
-			if _, exists := labels[key]; !exists {
-				labels[key] = value
-				modified = true
-			}
-		}
-	}
-
-	if !modified {
-		return body
-	}
-
-	out, err := json.Marshal(alerts)
-	if err != nil {
-		return body
-	}
-	return out
+	return collectalerting.InjectLabels(body, toInject)
 }
 
 // processAnnotationTemplates applies Go text/template processing to annotations in alerts.
@@ -371,56 +274,5 @@ func injectLabels(body []byte, toInject map[string]string) []byte {
 // "severity={{.severity}}" will have {{.severity}} replaced with the value of the
 // severity label. If template processing fails, the annotation is left unchanged.
 func processAnnotationTemplates(body []byte, _ map[string]string) []byte {
-	var alerts []map[string]interface{}
-	if err := json.Unmarshal(body, &alerts); err != nil {
-		return body
-	}
-
-	modified := false
-	for _, alert := range alerts {
-		annotations, ok := alert["annotations"].(map[string]interface{})
-		if !ok || len(annotations) == 0 {
-			continue
-		}
-
-		labels, ok := alert["labels"].(map[string]interface{})
-		if !ok {
-			labels = map[string]interface{}{}
-		}
-
-		for key, val := range annotations {
-			annotationStr, ok := val.(string)
-			if !ok || !strings.Contains(annotationStr, "{{") {
-				continue
-			}
-
-			tmpl, err := template.New(key).Parse(annotationStr)
-			if err != nil {
-				logger.Warn().Err(err).Str("annotation", key).Str("value", annotationStr).Msg("mimir proxy: failed to parse annotation template")
-				continue
-			}
-
-			var buf bytes.Buffer
-			if err := tmpl.Execute(&buf, labels); err != nil {
-				logger.Warn().Err(err).Str("annotation", key).Msg("mimir proxy: failed to execute annotation template")
-				continue
-			}
-
-			rendered := buf.String()
-			if rendered != annotationStr {
-				annotations[key] = rendered
-				modified = true
-			}
-		}
-	}
-
-	if !modified {
-		return body
-	}
-
-	out, err := json.Marshal(alerts)
-	if err != nil {
-		return body
-	}
-	return out
+	return collectalerting.ProcessAnnotationTemplates(body)
 }

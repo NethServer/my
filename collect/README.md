@@ -86,6 +86,12 @@ LOG_LEVEL=info
   - `active` → `inactive` when heartbeat is stale (> 10 minutes)
 - Configurable timeout via `HEARTBEAT_TIMEOUT_MINUTES` (default: 10 minutes)
 
+**7. LinkFailed Synchronization**
+- **LinkFailed Monitor Cron** runs every 5 minutes
+- Fires the internal `LinkFailed` alert for inactive, non-deleted systems
+- Resolves the internal `LinkFailed` alert when a system is active again
+- Reuses the same server-side label enrichment as the Mimir proxy so internal alerts carry the same authoritative system and organization labels
+
 ### Queue Architecture
 - `collect:inventory` → Raw inventory data
 - `collect:processing` → Diff computation jobs
@@ -201,9 +207,11 @@ curl -X POST http://localhost:8081/api/systems/inventory \
 ```
 collect/
 ├── main.go                 # Application entry point
+├── alerting/              # Shared Alertmanager helpers
 ├── configuration/          # Environment configuration
 ├── cron/                  # Scheduled jobs
-│   └── heartbeat_monitor.go       # System status monitoring
+│   ├── heartbeat_monitor.go       # System status monitoring
+│   └── linkfailed_monitor.go      # LinkFailed alert synchronization
 ├── database/              # PostgreSQL connection and models
 ├── methods/               # HTTP request handlers
 ├── middleware/            # Authentication middleware
