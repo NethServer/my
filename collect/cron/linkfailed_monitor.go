@@ -26,6 +26,7 @@ const (
 	linkFailedAlertTTL = 3 * linkFailedSyncInterval
 )
 
+type listAlertsFunc func(orgID string, filters ...string) ([]models.AlertmanagerAlert, error)
 type postAlertsFunc func(orgID string, alerts []models.AlertmanagerPostAlert) error
 
 type linkFailedSystem struct {
@@ -38,6 +39,7 @@ type LinkFailedMonitor struct {
 	db             *sql.DB
 	timeoutMinutes int
 	syncInterval   time.Duration
+	listAlerts     listAlertsFunc
 	postAlerts     postAlertsFunc
 }
 
@@ -47,6 +49,7 @@ func NewLinkFailedMonitor() *LinkFailedMonitor {
 		db:             database.DB,
 		timeoutMinutes: configuration.Config.HeartbeatTimeoutMinutes,
 		syncInterval:   linkFailedSyncInterval,
+		listAlerts:     collectalerting.ListAlerts,
 		postAlerts:     collectalerting.PostAlerts,
 	}
 }
@@ -168,13 +171,12 @@ func (m *LinkFailedMonitor) loadInactiveSystems(ctx context.Context) (map[string
 	return systemsByOrg, nil
 }
 
-func (m *LinkFailedMonitor) syncOrganization(orgID string, desired map[string]linkFailedSystem) error {
-	if len(desired) == 0 {
-		return nil
-	}
-
-	alerts := make([]models.AlertmanagerPostAlert, 0, len(desired))
-	for systemKey, system := range desired {
+func (m *LinkFailedMonitor) syncOrganization(orgID string, inactive map[string]linkFailedSystem) error {
+	// Refresh alerts for all inactive systems. The short TTL means alerts auto-expire
+	// if a system becomes active and we stop refreshing, but we also post explicit
+	// resolve transitions so recovery is visible immediately rather than after TTL.
+	alerts := make([]models.AlertmanagerPostAlert, 0, len(inactive))
+	for systemKey, system := range inactive {
 		firingAlert, err := m.buildFiringAlert(system)
 		if err != nil {
 			return fmt.Errorf("build firing alert for %s: %w", systemKey, err)
@@ -187,14 +189,61 @@ func (m *LinkFailedMonitor) syncOrganization(orgID string, desired map[string]li
 			Msg("LinkFailed monitor: refreshing alert for inactive system")
 	}
 
+	// Resolve alerts for systems that are no longer inactive.
+	currentAlerts, err := m.listAlerts(
+		orgID,
+		fmt.Sprintf(`alertname="%s"`, collectalerting.LinkFailedAlert),
+		fmt.Sprintf(`%s="%s"`, collectalerting.ManagedByLabel, collectalerting.ManagedByCollect),
+	)
+	if err != nil {
+		return fmt.Errorf("list managed LinkFailed alerts: %w", err)
+	}
+
+	now := time.Now().UTC()
+	for _, alert := range currentAlerts {
+		systemKey := alert.Labels["system_key"]
+		if systemKey == "" {
+			logger.Warn().
+				Str("organization_id", orgID).
+				Str("fingerprint", alert.Fingerprint).
+				Msg("LinkFailed monitor: skipping managed alert without system_key")
+			continue
+		}
+		if _, isInactive := inactive[systemKey]; isInactive {
+			continue
+		}
+
+		endsAt := now
+		if !endsAt.After(alert.StartsAt) {
+			endsAt = alert.StartsAt.Add(time.Second)
+		}
+
+		alerts = append(alerts, models.AlertmanagerPostAlert{
+			Labels:      cloneStringMap(alert.Labels),
+			Annotations: cloneStringMap(alert.Annotations),
+			StartsAt:    alert.StartsAt,
+			EndsAt:      endsAt,
+		})
+
+		logger.Debug().
+			Str("organization_id", orgID).
+			Str("system_key", systemKey).
+			Msg("LinkFailed monitor: resolving alert for active system")
+	}
+
+	if len(alerts) == 0 {
+		return nil
+	}
+
 	if err := m.postAlerts(orgID, alerts); err != nil {
 		return fmt.Errorf("post alerts: %w", err)
 	}
 
 	logger.Info().
 		Str("organization_id", orgID).
-		Int("alerts_refreshed", len(alerts)).
-		Msg("LinkFailed monitor: refreshed alerts for inactive systems")
+		Int("alerts_refreshed", len(inactive)).
+		Int("alerts_resolved", len(alerts)-len(inactive)).
+		Msg("LinkFailed monitor: synchronized alerts")
 
 	return nil
 }
@@ -231,6 +280,17 @@ func (m *LinkFailedMonitor) buildFiringAlert(system linkFailedSystem) (models.Al
 	}
 
 	return enrichedAlerts[0], nil
+}
+
+func cloneStringMap(input map[string]string) map[string]string {
+	if len(input) == 0 {
+		return map[string]string{}
+	}
+	cloned := make(map[string]string, len(input))
+	for key, value := range input {
+		cloned[key] = value
+	}
+	return cloned
 }
 
 func nullStringValue(value sql.NullString) string {
