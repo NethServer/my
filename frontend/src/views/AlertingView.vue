@@ -23,6 +23,7 @@ import {
   NeTabs,
   NeTextArea,
   NeTextInput,
+  NeToggle,
   type FilterOption,
   type NeBadgeV2Kind,
   type NeComboboxOption,
@@ -39,6 +40,9 @@ import {
   faXmark,
   faTrash,
   faPenToSquare,
+  faPaperPlane,
+  faPlus,
+  faCircleQuestion,
 } from '@fortawesome/free-solid-svg-icons'
 import { useTabs } from '@/composables/useTabs'
 import { useLoginStore } from '@/stores/login'
@@ -274,7 +278,9 @@ async function copyYaml() {
 }
 
 function startEdit() {
-  editJson.value = JSON.stringify(config.value, null, 2)
+  // Sync telegram form state into the JSON so the editor always reflects reality
+  const merged = { ...(config.value ?? {}), ...buildTelegramConfig() } as AlertingConfig
+  editJson.value = JSON.stringify(merged, null, 2)
   editJsonError.value = null
   isEditMode.value = true
 }
@@ -312,6 +318,29 @@ async function saveConfig() {
   }
 }
 
+const isSavingTelegram = ref(false)
+const saveTelegramError = ref<string | null>(null)
+
+async function saveTelegramConfig() {
+  if (!config.value) return
+  isSavingTelegram.value = true
+  saveTelegramError.value = null
+  try {
+    const merged: AlertingConfig = { ...config.value, ...buildTelegramConfig() }
+    await postAlertingConfig(selectedOrgId.value, merged)
+    notificationsStore.createNotification({
+      kind: 'success',
+      title: t('alerting.config_saved'),
+      description: t('alerting.config_saved_description'),
+    })
+    await fetchConfig(selectedOrgId.value)
+  } catch (e: unknown) {
+    saveTelegramError.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    isSavingTelegram.value = false
+  }
+}
+
 async function disableAlerts() {
   isDisabling.value = true
   disableError.value = null
@@ -334,6 +363,50 @@ async function disableAlerts() {
 function formatMailAddresses(addresses: string[] | undefined) {
   if (!addresses || addresses.length === 0) return '-'
   return addresses.join(', ')
+}
+
+// ── Telegram form ─────────────────────────────────────────────────────────────
+
+// Internal form uses chat_id as string for NeTextInput compatibility.
+interface TelegramReceiverForm {
+  bot_token: string
+  chat_id: string
+}
+
+const telegramEnabled = ref(false)
+const telegramReceivers = ref<TelegramReceiverForm[]>([])
+const showTelegramSetup = ref(false)
+
+function initTelegramForm(cfg: AlertingConfig | null) {
+  telegramEnabled.value = cfg?.telegram_enabled ?? false
+  telegramReceivers.value =
+    cfg?.telegram_receivers?.map((r) => ({
+      bot_token: r.bot_token,
+      chat_id: String(r.chat_id),
+    })) ?? []
+}
+
+function addTelegramReceiver() {
+  telegramReceivers.value.push({ bot_token: '', chat_id: '' })
+}
+
+function removeTelegramReceiver(index: number) {
+  telegramReceivers.value.splice(index, 1)
+}
+
+watch(config, (cfg) => {
+  initTelegramForm(cfg)
+})
+
+function buildTelegramConfig(): Pick<AlertingConfig, 'telegram_enabled' | 'telegram_receivers'> {
+  return {
+    telegram_enabled: telegramEnabled.value,
+    telegram_receivers: telegramEnabled.value
+      ? telegramReceivers.value
+          .filter((r) => r.bot_token && r.chat_id)
+          .map((r) => ({ bot_token: r.bot_token, chat_id: parseInt(r.chat_id, 10) }))
+      : [],
+  }
 }
 
 // ── Owner-only guard ───────────────────────────────────────────────────────────
@@ -696,6 +769,30 @@ const isOwner = computed(() => loginStore.isOwner)
                         </div>
                       </template>
                     </DataItem>
+                    <DataItem>
+                      <template #label>{{ $t('alerting.telegram_enabled') }}</template>
+                      <template #data>
+                        <NeBadgeV2 :kind="config.telegram_enabled ? 'green' : 'gray'" size="xs">
+                          {{
+                            config.telegram_enabled ? $t('common.enabled') : $t('common.disabled')
+                          }}
+                        </NeBadgeV2>
+                      </template>
+                    </DataItem>
+                    <DataItem v-if="config.telegram_receivers?.length">
+                      <template #label>{{ $t('alerting.telegram_receivers') }}</template>
+                      <template #data>
+                        <div class="space-y-1">
+                          <div
+                            v-for="(recv, idx) in config.telegram_receivers"
+                            :key="idx"
+                            class="font-mono text-xs"
+                          >
+                            chat_id: {{ recv.chat_id }}
+                          </div>
+                        </div>
+                      </template>
+                    </DataItem>
                     <DataItem v-if="config.email_template_lang">
                       <template #label>{{ $t('alerting.email_template_lang') }}</template>
                       <template #data>{{ config.email_template_lang }}</template>
@@ -730,6 +827,9 @@ const isOwner = computed(() => loginStore.isOwner)
                         <div>
                           {{ $t('alerting.webhook_enabled') }}: {{ sv.webhook_enabled ?? '-' }}
                         </div>
+                        <div>
+                          {{ $t('alerting.telegram_enabled') }}: {{ sv.telegram_enabled ?? '-' }}
+                        </div>
                         <div v-if="sv.mail_addresses?.length">
                           {{ $t('alerting.mail_addresses') }}: {{ sv.mail_addresses.join(', ') }}
                         </div>
@@ -752,12 +852,141 @@ const isOwner = computed(() => loginStore.isOwner)
                         <div>
                           {{ $t('alerting.webhook_enabled') }}: {{ sys.webhook_enabled ?? '-' }}
                         </div>
+                        <div>
+                          {{ $t('alerting.telegram_enabled') }}: {{ sys.telegram_enabled ?? '-' }}
+                        </div>
                         <div v-if="sys.mail_addresses?.length">
                           {{ $t('alerting.mail_addresses') }}: {{ sys.mail_addresses.join(', ') }}
                         </div>
                       </div>
                     </div>
                   </div>
+                </NeCard>
+
+                <!-- Telegram configuration card -->
+                <NeCard v-if="config" class="mb-6">
+                  <div class="mb-4 flex items-center gap-2">
+                    <FontAwesomeIcon :icon="faPaperPlane" class="h-4 w-4 text-blue-500" />
+                    <NeHeading tag="h6">{{ $t('alerting.telegram_card_title') }}</NeHeading>
+                  </div>
+
+                  <NeInlineNotification
+                    v-if="saveTelegramError"
+                    kind="error"
+                    :title="$t('alerting.cannot_save_config')"
+                    :description="saveTelegramError"
+                    class="mb-4"
+                  />
+
+                  <div class="mb-4">
+                    <NeToggle v-model="telegramEnabled" :label="$t('alerting.telegram_enabled')" />
+                  </div>
+
+                  <template v-if="telegramEnabled">
+                    <div class="mb-4 space-y-3">
+                      <div
+                        v-for="(recv, idx) in telegramReceivers"
+                        :key="idx"
+                        class="flex items-end gap-3 rounded-lg border border-gray-200 p-3 dark:border-gray-700"
+                      >
+                        <NeTextInput
+                          v-model="recv.bot_token"
+                          :label="$t('alerting.telegram_bot_token')"
+                          class="flex-1"
+                          type="password"
+                        />
+                        <NeTextInput
+                          v-model="recv.chat_id"
+                          :label="$t('alerting.telegram_chat_id')"
+                          class="w-48"
+                          type="number"
+                        />
+                        <NeButton
+                          kind="tertiary"
+                          size="sm"
+                          class="mb-0.5"
+                          @click="removeTelegramReceiver(idx)"
+                        >
+                          <template #prefix>
+                            <FontAwesomeIcon :icon="faTrash" />
+                          </template>
+                          {{ $t('alerting.telegram_remove_receiver') }}
+                        </NeButton>
+                      </div>
+                    </div>
+
+                    <NeButton kind="secondary" size="sm" class="mb-4" @click="addTelegramReceiver">
+                      <template #prefix>
+                        <FontAwesomeIcon :icon="faPlus" />
+                      </template>
+                      {{ $t('alerting.telegram_add_receiver') }}
+                    </NeButton>
+
+                    <!-- Setup guide -->
+                    <div class="mb-4">
+                      <button
+                        class="flex items-center gap-1 text-sm text-blue-600 hover:underline dark:text-blue-400"
+                        @click="showTelegramSetup = !showTelegramSetup"
+                      >
+                        <FontAwesomeIcon :icon="faCircleQuestion" class="h-3.5 w-3.5" />
+                        {{ $t('alerting.telegram_setup_title') }}
+                      </button>
+                      <div
+                        v-if="showTelegramSetup"
+                        class="mt-3 space-y-3 rounded-lg bg-gray-50 p-4 text-sm text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                      >
+                        <p>{{ $t('alerting.telegram_setup_step_1') }}</p>
+                        <div>
+                          <p>{{ $t('alerting.telegram_setup_step_2') }}</p>
+                          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            {{ $t('alerting.telegram_setup_step_2_verify') }}
+                          </p>
+                          <pre
+                            class="mt-1 overflow-x-auto rounded bg-gray-100 px-3 py-2 font-mono text-xs dark:bg-gray-700"
+                            >{{ $t('alerting.telegram_setup_step_2_curl') }}</pre
+                          >
+                        </div>
+                        <p>{{ $t('alerting.telegram_setup_step_3') }}</p>
+                        <div>
+                          <p>{{ $t('alerting.telegram_setup_step_4') }}</p>
+                          <pre
+                            class="mt-1 overflow-x-auto rounded bg-gray-100 px-3 py-2 font-mono text-xs dark:bg-gray-700"
+                            >{{ $t('alerting.telegram_setup_step_4_curl') }}</pre
+                          >
+                          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            {{ $t('alerting.telegram_setup_step_4_note') }}
+                          </p>
+                        </div>
+                        <div>
+                          <p>{{ $t('alerting.telegram_setup_step_5') }}</p>
+                          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            {{ $t('alerting.telegram_setup_step_5_test') }}
+                          </p>
+                          <pre
+                            class="mt-1 overflow-x-auto rounded bg-gray-100 px-3 py-2 font-mono text-xs dark:bg-gray-700"
+                            >{{ $t('alerting.telegram_setup_step_5_test_curl') }}</pre
+                          >
+                        </div>
+                        <p
+                          class="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
+                        >
+                          ⚠️ {{ $t('alerting.telegram_setup_note') }}
+                        </p>
+                      </div>
+                    </div>
+                  </template>
+
+                  <NeButton
+                    kind="primary"
+                    size="sm"
+                    :loading="isSavingTelegram"
+                    @click="saveTelegramConfig"
+                  >
+                    <template #prefix>
+                      <FontAwesomeIcon :icon="faCheck" />
+                    </template>
+                    {{ $t('alerting.save_config') }}
+                  </NeButton>
                 </NeCard>
 
                 <!-- disable alerts section -->

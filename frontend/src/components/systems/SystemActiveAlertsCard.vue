@@ -134,12 +134,6 @@ function showSilenceAlertModal(alert: Alert) {
   isShownSilenceAlertModal.value = true
 }
 
-function showDisableSilenceModal(alert: Alert) {
-  currentAlert.value = alert
-  isShownSilenceAlertModal.value = false
-  isShownDisableSilenceModal.value = true
-}
-
 function closeAlertActionModals() {
   isShownSilenceAlertModal.value = false
   isShownDisableSilenceModal.value = false

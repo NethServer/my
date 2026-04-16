@@ -167,6 +167,21 @@ components:
           type: string
           format: uri
           description: Webhook URL
+    TelegramReceiver:
+      type: object
+      required:
+        - bot_token
+        - chat_id
+      properties:
+        bot_token:
+          type: string
+          description: Telegram bot token obtained from @BotFather
+          example: "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+        chat_id:
+          type: integer
+          format: int64
+          description: Numeric Telegram chat ID (user, group, or channel)
+          example: -1001234567890
     SeverityOverride:
       type: object
       required:
@@ -183,6 +198,10 @@ components:
           type: boolean
           description: Override global webhook_enabled for this severity
           nullable: true
+        telegram_enabled:
+          type: boolean
+          description: Override global telegram_enabled for this severity
+          nullable: true
         mail_addresses:
           type: array
           description: Email addresses for this severity. Inherits global addresses if empty.
@@ -194,6 +213,11 @@ components:
           description: Webhook receivers for this severity. Inherits global receivers if empty.
           items:
             $ref: '#/components/schemas/WebhookReceiver'
+        telegram_receivers:
+          type: array
+          description: Telegram receivers for this severity. Inherits global receivers if empty.
+          items:
+            $ref: '#/components/schemas/TelegramReceiver'
     SystemOverride:
       type: object
       required:
@@ -210,6 +234,10 @@ components:
           type: boolean
           description: Override global webhook_enabled for this system
           nullable: true
+        telegram_enabled:
+          type: boolean
+          description: Override global telegram_enabled for this system
+          nullable: true
         mail_addresses:
           type: array
           description: Email addresses for this system. Inherits global addresses if empty.
@@ -221,6 +249,11 @@ components:
           description: Webhook receivers for this system. Inherits global receivers if empty.
           items:
             $ref: '#/components/schemas/WebhookReceiver'
+        telegram_receivers:
+          type: array
+          description: Telegram receivers for this system. Inherits global receivers if empty.
+          items:
+            $ref: '#/components/schemas/TelegramReceiver'
     AlertmanagerSilenceStatus:
       type: object
       properties:
@@ -293,6 +326,10 @@ components:
           type: boolean
           description: Globally enable or disable custom webhook notifications
           default: false
+        telegram_enabled:
+          type: boolean
+          description: Globally enable or disable Telegram notifications
+          default: false
         mail_addresses:
           type: array
           description: Global default email recipients
@@ -304,6 +341,11 @@ components:
           description: Global default webhook receivers
           items:
             $ref: '#/components/schemas/WebhookReceiver'
+        telegram_receivers:
+          type: array
+          description: Global Telegram bot receivers
+          items:
+            $ref: '#/components/schemas/TelegramReceiver'
         severities:
           type: array
           description: Per-severity overrides. Empty list = use global settings for all severities.
@@ -318,14 +360,18 @@ components:
           type: string
           enum: [en, it]
           default: en
-          description: Language for email notification templates. "en" (English, default) or "it" (Italian). Templates include firing and resolved notifications styled to match the My Nethesis brand.
+          description: Language for email and Telegram notification templates. "en" (English, default) or "it" (Italian).
       example:
         mail_enabled: true
         webhook_enabled: true
+        telegram_enabled: true
         mail_addresses: ["global@example.com"]
         webhook_receivers:
           - name: "slack"
             url: "https://hooks.slack.com/services/T00/B00/XXX"
+        telegram_receivers:
+          - bot_token: "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+            chat_id: -1001234567890
         email_template_lang: "en"
         severities:
           - severity: "critical"

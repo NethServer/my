@@ -36,11 +36,18 @@ type routeEntry struct {
 	ReceiverName string // "blackhole" when notifications are disabled
 }
 
+// telegramEntry represents a single Telegram notification target inside a receiver.
+type telegramEntry struct {
+	BotToken string
+	ChatID   int64
+}
+
 // receiverEntry represents a named Alertmanager receiver.
 type receiverEntry struct {
-	Name     string
-	Emails   []string
-	Webhooks []string
+	Name      string
+	Emails    []string
+	Webhooks  []string
+	Telegrams []telegramEntry
 }
 
 // templateData holds all pre-computed values injected into the YAML template.
@@ -128,6 +135,16 @@ receivers:
         send_resolved: true
 {{- end }}
 {{- end }}
+{{- if .Telegrams }}
+    telegram_configs:
+{{- range .Telegrams }}
+      - bot_token: '{{ yamlEscape .BotToken }}'
+        chat_id: {{ .ChatID }}
+        send_resolved: true
+        parse_mode: 'MarkdownV2'
+        message: '{{ "{{" }} template "telegram.message" . {{ "}}" }}'
+{{- end }}
+{{- end }}
 {{- end }}
 {{- if .EmailTemplateLang }}
 
@@ -137,22 +154,28 @@ templates:
   - 'firing_{{ .EmailTemplateLang }}.txt'
   - 'resolved_{{ .EmailTemplateLang }}.txt'
   - '_dispatcher.tmpl'
+  - 'telegram_{{ .EmailTemplateLang }}.tmpl'
 {{- else }}
 
 templates: []
 {{- end }}
 `
 
-// effectiveSettings resolves mail/webhook settings for a given system_key and
+// effectiveSettings resolves mail/webhook/telegram settings for a given system_key and
 // severity, applying override priority: system > severity > global.
-// Returns (mailEnabled, webhookEnabled, emails, webhooks).
-func effectiveSettings(cfg *models.AlertingConfig, systemKey, severity string) (bool, bool, []string, []string) {
+// Returns (mailEnabled, webhookEnabled, telegramEnabled, emails, webhooks, telegrams).
+func effectiveSettings(cfg *models.AlertingConfig, systemKey, severity string) (bool, bool, bool, []string, []string, []telegramEntry) {
 	mailEnabled := cfg.MailEnabled
 	webhookEnabled := cfg.WebhookEnabled
+	telegramEnabled := cfg.TelegramEnabled
 	emails := cfg.MailAddresses
 	webhooks := make([]string, 0, len(cfg.WebhookReceivers))
 	for _, w := range cfg.WebhookReceivers {
 		webhooks = append(webhooks, w.URL)
+	}
+	telegrams := make([]telegramEntry, 0, len(cfg.TelegramReceivers))
+	for _, tg := range cfg.TelegramReceivers {
+		telegrams = append(telegrams, telegramEntry{BotToken: tg.BotToken, ChatID: tg.ChatID})
 	}
 
 	// Check severity override first (lower priority than system)
@@ -164,6 +187,9 @@ func effectiveSettings(cfg *models.AlertingConfig, systemKey, severity string) (
 			if sv.WebhookEnabled != nil {
 				webhookEnabled = *sv.WebhookEnabled
 			}
+			if sv.TelegramEnabled != nil {
+				telegramEnabled = *sv.TelegramEnabled
+			}
 			if len(sv.MailAddresses) > 0 {
 				emails = sv.MailAddresses
 			}
@@ -171,6 +197,12 @@ func effectiveSettings(cfg *models.AlertingConfig, systemKey, severity string) (
 				webhooks = make([]string, 0, len(sv.WebhookReceivers))
 				for _, w := range sv.WebhookReceivers {
 					webhooks = append(webhooks, w.URL)
+				}
+			}
+			if len(sv.TelegramReceivers) > 0 {
+				telegrams = make([]telegramEntry, 0, len(sv.TelegramReceivers))
+				for _, tg := range sv.TelegramReceivers {
+					telegrams = append(telegrams, telegramEntry{BotToken: tg.BotToken, ChatID: tg.ChatID})
 				}
 			}
 			break
@@ -186,6 +218,9 @@ func effectiveSettings(cfg *models.AlertingConfig, systemKey, severity string) (
 			if sys.WebhookEnabled != nil {
 				webhookEnabled = *sys.WebhookEnabled
 			}
+			if sys.TelegramEnabled != nil {
+				telegramEnabled = *sys.TelegramEnabled
+			}
 			if len(sys.MailAddresses) > 0 {
 				emails = sys.MailAddresses
 			}
@@ -195,22 +230,30 @@ func effectiveSettings(cfg *models.AlertingConfig, systemKey, severity string) (
 					webhooks = append(webhooks, w.URL)
 				}
 			}
+			if len(sys.TelegramReceivers) > 0 {
+				telegrams = make([]telegramEntry, 0, len(sys.TelegramReceivers))
+				for _, tg := range sys.TelegramReceivers {
+					telegrams = append(telegrams, telegramEntry{BotToken: tg.BotToken, ChatID: tg.ChatID})
+				}
+			}
 			break
 		}
 	}
 
-	return mailEnabled, webhookEnabled, emails, webhooks
+	return mailEnabled, webhookEnabled, telegramEnabled, emails, webhooks, telegrams
 }
 
-// buildReceiver creates a receiverEntry with effective email and webhook lists.
-// Returns nil if both mail and webhooks are disabled.
-func buildReceiver(name string, mailEnabled, webhookEnabled bool, emails, webhooks []string) *receiverEntry {
+// buildReceiver creates a receiverEntry with effective email, webhook, and telegram lists.
+func buildReceiver(name string, mailEnabled, webhookEnabled, telegramEnabled bool, emails, webhooks []string, telegrams []telegramEntry) *receiverEntry {
 	r := &receiverEntry{Name: name}
 	if mailEnabled {
 		r.Emails = emails
 	}
 	if webhookEnabled {
 		r.Webhooks = webhooks
+	}
+	if telegramEnabled {
+		r.Telegrams = telegrams
 	}
 	return r
 }
@@ -252,9 +295,9 @@ func RenderConfig(smtpHost string, smtpPort int, smtpUser, smtpPass, smtpFrom st
 
 		// Per-system routes
 		for _, sys := range cfg.Systems {
-			mailOn, webhookOn, emails, webhooks := effectiveSettings(cfg, sys.SystemKey, "")
+			mailOn, webhookOn, telegramOn, emails, webhooks, telegrams := effectiveSettings(cfg, sys.SystemKey, "")
 			recvName := "system-" + sys.SystemKey + "-receiver"
-			if !mailOn && !webhookOn {
+			if !mailOn && !webhookOn && !telegramOn {
 				recvName = "blackhole"
 			}
 			data.Routes = append(data.Routes, routeEntry{
@@ -263,15 +306,15 @@ func RenderConfig(smtpHost string, smtpPort int, smtpUser, smtpPass, smtpFrom st
 				ReceiverName: recvName,
 			})
 			if recvName != "blackhole" {
-				data.Receivers = append(data.Receivers, *buildReceiver(recvName, mailOn, webhookOn, emails, webhooks))
+				data.Receivers = append(data.Receivers, *buildReceiver(recvName, mailOn, webhookOn, telegramOn, emails, webhooks, telegrams))
 			}
 		}
 
 		// Per-severity routes
 		for _, sv := range cfg.Severities {
-			mailOn, webhookOn, emails, webhooks := effectiveSettings(cfg, "", sv.Severity)
+			mailOn, webhookOn, telegramOn, emails, webhooks, telegrams := effectiveSettings(cfg, "", sv.Severity)
 			recvName := "severity-" + sv.Severity + "-receiver"
-			if !mailOn && !webhookOn {
+			if !mailOn && !webhookOn && !telegramOn {
 				recvName = "blackhole"
 			}
 			data.Routes = append(data.Routes, routeEntry{
@@ -280,13 +323,13 @@ func RenderConfig(smtpHost string, smtpPort int, smtpUser, smtpPass, smtpFrom st
 				ReceiverName: recvName,
 			})
 			if recvName != "blackhole" {
-				data.Receivers = append(data.Receivers, *buildReceiver(recvName, mailOn, webhookOn, emails, webhooks))
+				data.Receivers = append(data.Receivers, *buildReceiver(recvName, mailOn, webhookOn, telegramOn, emails, webhooks, telegrams))
 			}
 		}
 
 		// Global fallback route
 		globalRecvName := "global-receiver"
-		if !cfg.MailEnabled && !cfg.WebhookEnabled {
+		if !cfg.MailEnabled && !cfg.WebhookEnabled && !cfg.TelegramEnabled {
 			globalRecvName = "blackhole"
 		}
 		data.Routes = append(data.Routes, routeEntry{
@@ -299,7 +342,11 @@ func RenderConfig(smtpHost string, smtpPort int, smtpUser, smtpPass, smtpFrom st
 			for _, w := range cfg.WebhookReceivers {
 				globalWebhooks = append(globalWebhooks, w.URL)
 			}
-			data.Receivers = append(data.Receivers, *buildReceiver(globalRecvName, cfg.MailEnabled, cfg.WebhookEnabled, globalEmails, globalWebhooks))
+			globalTelegrams := make([]telegramEntry, 0, len(cfg.TelegramReceivers))
+			for _, tg := range cfg.TelegramReceivers {
+				globalTelegrams = append(globalTelegrams, telegramEntry{BotToken: tg.BotToken, ChatID: tg.ChatID})
+			}
+			data.Receivers = append(data.Receivers, *buildReceiver(globalRecvName, cfg.MailEnabled, cfg.WebhookEnabled, cfg.TelegramEnabled, globalEmails, globalWebhooks, globalTelegrams))
 		}
 	}
 
@@ -325,10 +372,15 @@ type amEmailConfig struct {
 type amWebhookConfig struct {
 	URL string `yaml:"url"`
 }
+type amTelegramConfig struct {
+	BotToken string `yaml:"bot_token"`
+	ChatID   int64  `yaml:"chat_id"`
+}
 type amReceiver struct {
-	Name           string            `yaml:"name"`
-	EmailConfigs   []amEmailConfig   `yaml:"email_configs"`
-	WebhookConfigs []amWebhookConfig `yaml:"webhook_configs"`
+	Name            string             `yaml:"name"`
+	EmailConfigs    []amEmailConfig    `yaml:"email_configs"`
+	WebhookConfigs  []amWebhookConfig  `yaml:"webhook_configs"`
+	TelegramConfigs []amTelegramConfig `yaml:"telegram_configs"`
 }
 type amRoute struct {
 	Receiver string    `yaml:"receiver"`
@@ -400,8 +452,10 @@ func ParseConfig(yamlStr string) (*models.AlertingConfig, error) {
 
 		mailEnabled := recv != "blackhole"
 		webhookEnabled := recv != "blackhole"
+		telegramEnabled := recv != "blackhole"
 		var emails []string
 		var webhooks []WebhookEntry
+		var telegramReceivers []models.TelegramReceiver
 
 		if recv != "blackhole" {
 			r, ok := receiverMap[recv]
@@ -414,9 +468,13 @@ func ParseConfig(yamlStr string) (*models.AlertingConfig, error) {
 					name := strings.TrimSuffix(recv, "-receiver")
 					webhooks = append(webhooks, WebhookEntry{Name: name, URL: wc.URL})
 				}
+				for _, tc := range r.TelegramConfigs {
+					telegramReceivers = append(telegramReceivers, models.TelegramReceiver{BotToken: tc.BotToken, ChatID: tc.ChatID})
+				}
 			}
 			mailEnabled = len(emails) > 0
 			webhookEnabled = len(webhooks) > 0
+			telegramEnabled = len(telegramReceivers) > 0
 		}
 
 		switch matchKey {
@@ -424,30 +482,36 @@ func ParseConfig(yamlStr string) (*models.AlertingConfig, error) {
 			hasAnyConfig = true
 			bMailEnabled := mailEnabled
 			bWebhookEnabled := webhookEnabled
+			bTelegramEnabled := telegramEnabled
 			override := models.SystemOverride{
-				SystemKey:      matchValue,
-				MailEnabled:    &bMailEnabled,
-				WebhookEnabled: &bWebhookEnabled,
+				SystemKey:       matchValue,
+				MailEnabled:     &bMailEnabled,
+				WebhookEnabled:  &bWebhookEnabled,
+				TelegramEnabled: &bTelegramEnabled,
 			}
 			override.MailAddresses = append(override.MailAddresses, emails...)
 			for _, w := range webhooks {
 				override.WebhookReceivers = append(override.WebhookReceivers, models.WebhookReceiver{Name: w.Name, URL: w.URL})
 			}
+			override.TelegramReceivers = append(override.TelegramReceivers, telegramReceivers...)
 			cfg.Systems = append(cfg.Systems, override)
 
 		case "severity":
 			hasAnyConfig = true
 			bMailEnabled := mailEnabled
 			bWebhookEnabled := webhookEnabled
+			bTelegramEnabled := telegramEnabled
 			override := models.SeverityOverride{
-				Severity:       matchValue,
-				MailEnabled:    &bMailEnabled,
-				WebhookEnabled: &bWebhookEnabled,
+				Severity:        matchValue,
+				MailEnabled:     &bMailEnabled,
+				WebhookEnabled:  &bWebhookEnabled,
+				TelegramEnabled: &bTelegramEnabled,
 			}
 			override.MailAddresses = append(override.MailAddresses, emails...)
 			for _, w := range webhooks {
 				override.WebhookReceivers = append(override.WebhookReceivers, models.WebhookReceiver{Name: w.Name, URL: w.URL})
 			}
+			override.TelegramReceivers = append(override.TelegramReceivers, telegramReceivers...)
 			cfg.Severities = append(cfg.Severities, override)
 
 		default:
@@ -455,10 +519,12 @@ func ParseConfig(yamlStr string) (*models.AlertingConfig, error) {
 			hasAnyConfig = true
 			cfg.MailEnabled = mailEnabled
 			cfg.WebhookEnabled = webhookEnabled
+			cfg.TelegramEnabled = telegramEnabled
 			cfg.MailAddresses = append(cfg.MailAddresses, emails...)
 			for _, w := range webhooks {
 				cfg.WebhookReceivers = append(cfg.WebhookReceivers, models.WebhookReceiver{Name: w.Name, URL: w.URL})
 			}
+			cfg.TelegramReceivers = append(cfg.TelegramReceivers, telegramReceivers...)
 		}
 	}
 

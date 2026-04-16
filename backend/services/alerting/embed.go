@@ -19,7 +19,8 @@ var ValidTemplateLangs = []string{"en", "it"}
 
 // BuildTemplateFiles returns all Alertmanager template file contents for
 // the given language, plus a generated dispatcher template that routes
-// firing/resolved notifications to the correct language-specific template.
+// firing/resolved notifications to the correct language-specific template,
+// plus the Telegram message template for the same language.
 // lang defaults to "en" when empty.
 // appURL is substituted into the ${APP_URL} placeholder inside the templates,
 // used by the "view system" CTA to build a link to the frontend.
@@ -33,6 +34,7 @@ func BuildTemplateFiles(lang, appURL string) (map[string]string, error) {
 		"resolved_" + lang + ".html",
 		"firing_" + lang + ".txt",
 		"resolved_" + lang + ".txt",
+		"telegram_" + lang + ".tmpl",
 	}
 
 	files := make(map[string]string, len(names)+1)

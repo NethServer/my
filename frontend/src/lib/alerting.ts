@@ -19,27 +19,38 @@ export interface WebhookReceiver {
   url: string
 }
 
+export interface TelegramReceiver {
+  bot_token: string
+  chat_id: number
+}
+
 export interface SeverityOverride {
   severity: 'critical' | 'warning' | 'info'
   mail_enabled?: boolean
   webhook_enabled?: boolean
+  telegram_enabled?: boolean
   mail_addresses?: string[]
   webhook_receivers?: WebhookReceiver[]
+  telegram_receivers?: TelegramReceiver[]
 }
 
 export interface SystemOverride {
   system_key: string
   mail_enabled?: boolean
   webhook_enabled?: boolean
+  telegram_enabled?: boolean
   mail_addresses?: string[]
   webhook_receivers?: WebhookReceiver[]
+  telegram_receivers?: TelegramReceiver[]
 }
 
 export interface AlertingConfig {
   mail_enabled: boolean
   webhook_enabled: boolean
+  telegram_enabled: boolean
   mail_addresses: string[]
   webhook_receivers: WebhookReceiver[]
+  telegram_receivers: TelegramReceiver[]
   severities?: SeverityOverride[]
   systems?: SystemOverride[]
   email_template_lang?: string

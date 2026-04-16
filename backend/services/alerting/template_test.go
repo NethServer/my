@@ -699,3 +699,62 @@ func TestWrapForMimirWithoutTemplates(t *testing.T) {
 	assert.Contains(t, out, "alertmanager_config: |")
 	assert.NotContains(t, out, "template_files:")
 }
+
+// --- Telegram tests ---
+
+func TestRenderConfig_GlobalTelegram_ParseModeMarkdownV2(t *testing.T) {
+	host, port, user, pass, from, tls := smtpArgs()
+	cfg := &models.AlertingConfig{
+		TelegramEnabled: true,
+		TelegramReceivers: []models.TelegramReceiver{
+			{BotToken: "1234567890:AABBCCDDEEFFaabbccddeeff", ChatID: -100123456789},
+		},
+	}
+	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
+	require.NoError(t, err)
+	isValidYAML(t, out)
+
+	assert.Contains(t, out, "telegram_configs")
+	assert.Contains(t, out, "bot_token: '1234567890:AABBCCDDEEFFaabbccddeeff'")
+	assert.Contains(t, out, "chat_id: -100123456789")
+	assert.Contains(t, out, "parse_mode: 'MarkdownV2'")
+	assert.Contains(t, out, `template "telegram.message"`)
+}
+
+func TestRenderConfig_GlobalTelegram_Roundtrip(t *testing.T) {
+	host, port, user, pass, from, tls := smtpArgs()
+	original := &models.AlertingConfig{
+		TelegramEnabled: true,
+		TelegramReceivers: []models.TelegramReceiver{
+			{BotToken: "bot-token-abc", ChatID: 42},
+		},
+	}
+	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", original)
+	require.NoError(t, err)
+
+	parsed, err := ParseConfig(out)
+	require.NoError(t, err)
+	require.NotNil(t, parsed)
+
+	assert.True(t, parsed.TelegramEnabled)
+	require.Len(t, parsed.TelegramReceivers, 1)
+	assert.Equal(t, "bot-token-abc", parsed.TelegramReceivers[0].BotToken)
+	assert.Equal(t, int64(42), parsed.TelegramReceivers[0].ChatID)
+}
+
+func TestBuildTemplateFiles_IncludesTelegramTemplate(t *testing.T) {
+	firingWords := map[string]string{"en": "FIRING", "it": "ATTIV"}
+	resolvedWords := map[string]string{"en": "RESOLV", "it": "RISOLTO"}
+
+	for _, lang := range []string{"en", "it"} {
+		files, err := BuildTemplateFiles(lang, "https://my.nethesis.it")
+		require.NoError(t, err, "lang=%s", lang)
+
+		name := "telegram_" + lang + ".tmpl"
+		content, ok := files[name]
+		require.True(t, ok, "missing %s", name)
+		assert.Contains(t, content, `define "telegram.message"`, "lang=%s", lang)
+		assert.Contains(t, content, firingWords[lang], "lang=%s: firing state must be present", lang)
+		assert.Contains(t, content, resolvedWords[lang], "lang=%s: resolved state must be present", lang)
+	}
+}
