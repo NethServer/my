@@ -253,11 +253,19 @@ func (m *LinkFailedMonitor) syncOrganization(orgID string, desired map[string]li
 			continue
 		}
 
+		// Alertmanager rejects alerts where EndsAt <= StartsAt. Guard against alerts
+		// that were previously posted with a future StartsAt (e.g., from the race
+		// condition fixed in buildFiringAlert) by ensuring EndsAt is always after StartsAt.
+		endsAt := now
+		if !endsAt.After(alert.StartsAt) {
+			endsAt = alert.StartsAt.Add(time.Second)
+		}
+
 		transitions = append(transitions, models.AlertmanagerPostAlert{
 			Labels:      cloneStringMap(alert.Labels),
 			Annotations: cloneStringMap(alert.Annotations),
 			StartsAt:    alert.StartsAt,
-			EndsAt:      now,
+			EndsAt:      endsAt,
 		})
 		resolvedCount++
 	}
@@ -281,8 +289,12 @@ func (m *LinkFailedMonitor) syncOrganization(orgID string, desired map[string]li
 
 func (m *LinkFailedMonitor) buildFiringAlert(system linkFailedSystem) (models.AlertmanagerPostAlert, error) {
 	startsAt := system.LastHeartbeat.Add(time.Duration(m.timeoutMinutes) * time.Minute).UTC()
-	if startsAt.IsZero() {
-		startsAt = time.Now().UTC()
+	now := time.Now().UTC()
+	// Cap to now: if last_heartbeat was updated after the system was marked inactive
+	// (race between heartbeat ingestion and heartbeat_monitor tick), startsAt may land
+	// in the future. Alertmanager rejects resolutions where EndsAt < StartsAt.
+	if startsAt.IsZero() || startsAt.After(now) {
+		startsAt = now
 	}
 
 	enrichedAlerts, err := collectalerting.EnrichAlerts([]models.AlertmanagerPostAlert{

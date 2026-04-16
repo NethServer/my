@@ -107,6 +107,72 @@ func TestLinkFailedMonitorSyncOrganization_ResolvesOrphanedAlert(t *testing.T) {
 	assert.WithinDuration(t, time.Now().UTC(), posted[0].EndsAt, time.Second)
 }
 
+func TestLinkFailedMonitorSyncOrganization_ResolvesAlertWithFutureStartsAt(t *testing.T) {
+	// Simulate an alert previously posted with a StartsAt in the future (race condition
+	// between heartbeat ingestion and heartbeat_monitor tick). The resolve transition must
+	// set EndsAt > StartsAt to avoid a 400 from Alertmanager.
+	futureStartsAt := time.Now().UTC().Add(5 * time.Minute)
+
+	var posted []models.AlertmanagerPostAlert
+	monitor := &LinkFailedMonitor{
+		listAlerts: func(string, ...string) ([]models.AlertmanagerAlert, error) {
+			return []models.AlertmanagerAlert{
+				{
+					Labels: map[string]string{
+						"alertname":  "LinkFailed",
+						"managed_by": "my-collect",
+						"system_key": "SYS-001",
+					},
+					Annotations: map[string]string{
+						"summary_en": "No heartbeat received from system",
+					},
+					StartsAt: futureStartsAt,
+				},
+			}, nil
+		},
+		postAlerts: func(_ string, alerts []models.AlertmanagerPostAlert) error {
+			posted = alerts
+			return nil
+		},
+	}
+
+	err := monitor.syncOrganization("org-1", nil)
+	require.NoError(t, err)
+	require.Len(t, posted, 1)
+
+	assert.Equal(t, futureStartsAt, posted[0].StartsAt)
+	assert.True(t, posted[0].EndsAt.After(posted[0].StartsAt),
+		"EndsAt must be after StartsAt even when StartsAt is in the future")
+}
+
+func TestLinkFailedMonitorBuildFiringAlert_CapsStartsAtToNow(t *testing.T) {
+	// If last_heartbeat was updated recently (race with heartbeat_monitor tick),
+	// startsAt may be in the future. buildFiringAlert must cap it to now.
+	recentHeartbeat := time.Now().UTC().Add(-1 * time.Minute) // 1 min ago
+
+	monitor := &LinkFailedMonitor{
+		timeoutMinutes: 10, // startsAt would be recentHeartbeat+10min = 9min in the future
+	}
+
+	system := linkFailedSystem{
+		Context: collectalerting.BuildSystemAlertContext(collectalerting.SystemAlertMetadata{
+			SystemID:       "system-1",
+			OrganizationID: "org-1",
+			SystemKey:      "SYS-001",
+			SystemName:     "web-01",
+		}),
+		LastHeartbeat: recentHeartbeat,
+	}
+
+	alert, err := monitor.buildFiringAlert(system)
+	require.NoError(t, err)
+
+	assert.False(t, alert.StartsAt.After(time.Now().UTC()),
+		"StartsAt must not be in the future")
+	assert.True(t, alert.EndsAt.After(alert.StartsAt),
+		"EndsAt must be after StartsAt")
+}
+
 func TestLinkFailedMonitorSyncOrganization_NoOpWhenAlertAlreadyActive(t *testing.T) {
 	called := false
 	monitor := &LinkFailedMonitor{
