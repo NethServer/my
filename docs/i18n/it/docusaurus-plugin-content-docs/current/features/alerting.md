@@ -242,14 +242,14 @@ Il `chat_id` è l'identificatore numerico della destinazione (un utente privato,
    ```
    https://api.telegram.org/bot<BOT_TOKEN>/getUpdates
    ```
-
+   Eventualmente, potresti trovare il `chat_id` anche nell'URL della conversazione con il bot, nel formato `https://web.telegram.org/z/#-<CHAT_ID>` (nota il segno negativo per le chat private)
 4. Trova il campo `"id"` all'interno dell'oggetto `"chat"` nella risposta JSON — quello è il tuo `chat_id` (un intero positivo, es. `123456789`)
 
 **Per un gruppo o canale:**
 
 1. Aggiungi il tuo bot al gruppo o canale come **amministratore**
 2. Invia un messaggio nel gruppo in modo che Alertmanager abbia qualcosa da leggere
-3. Chiama `getUpdates` come sopra — il `chat_id` per gruppi e canali è un numero **negativo** (es. `-1001234567890`)
+3. Chiama `getUpdates` come sopra — il `chat_id` per gruppi e canali è un numero **negativo** (es. `-1001234567890`). Eventualmente, potresti trovare il `chat_id` anche nell'URL della conversazione con il bot, nel formato `https://web.telegram.org/z/#-<CHAT_ID>` (nota il segno negativo per gruppi/canali)
 
 ### Passaggio 3 — Configura il JSON di alerting
 
