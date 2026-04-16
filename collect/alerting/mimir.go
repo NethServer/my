@@ -31,6 +31,23 @@ const (
 	listAlertsBodySize = 4 << 20
 )
 
+// alertAPIStatus matches the Alertmanager API v2 status object shape.
+type alertAPIStatus struct {
+	State string `json:"state"`
+}
+
+// alertAPIResponse matches the Alertmanager API v2 GET /alerts response shape,
+// where "status" is an object rather than a plain string.
+type alertAPIResponse struct {
+	Status       alertAPIStatus    `json:"status"`
+	Labels       map[string]string `json:"labels"`
+	Annotations  map[string]string `json:"annotations"`
+	StartsAt     time.Time         `json:"startsAt"`
+	EndsAt       time.Time         `json:"endsAt"`
+	GeneratorURL string            `json:"generatorURL"`
+	Fingerprint  string            `json:"fingerprint"`
+}
+
 var MimirHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 // SystemAlertMetadata contains the system and organization data injected into alerts.
@@ -319,12 +336,22 @@ func ListAlerts(orgID string, filters ...string) ([]models.AlertmanagerAlert, er
 		return []models.AlertmanagerAlert{}, nil
 	}
 
-	var alerts []models.AlertmanagerAlert
-	if err := json.Unmarshal(body, &alerts); err != nil {
+	var raw []alertAPIResponse
+	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, fmt.Errorf("unmarshal alert list response: %w", err)
 	}
-	if alerts == nil {
-		alerts = []models.AlertmanagerAlert{}
+
+	alerts := make([]models.AlertmanagerAlert, 0, len(raw))
+	for _, r := range raw {
+		alerts = append(alerts, models.AlertmanagerAlert{
+			Status:       r.Status.State,
+			Labels:       r.Labels,
+			Annotations:  r.Annotations,
+			StartsAt:     r.StartsAt,
+			EndsAt:       r.EndsAt,
+			GeneratorURL: r.GeneratorURL,
+			Fingerprint:  r.Fingerprint,
+		})
 	}
 
 	return alerts, nil
