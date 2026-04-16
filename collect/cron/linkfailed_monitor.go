@@ -20,10 +20,12 @@ import (
 
 const (
 	linkFailedSyncInterval = 5 * time.Minute
-	linkFailedAlertTTL     = 10 * 365 * 24 * time.Hour
+	// Alerts auto-resolve after 3× the sync interval if not refreshed.
+	// A system must remain active for a full TTL window before its alert clears,
+	// which prevents flapping when heartbeats arrive near the timeout boundary.
+	linkFailedAlertTTL = 3 * linkFailedSyncInterval
 )
 
-type listAlertsFunc func(orgID string, filters ...string) ([]models.AlertmanagerAlert, error)
 type postAlertsFunc func(orgID string, alerts []models.AlertmanagerPostAlert) error
 
 type linkFailedSystem struct {
@@ -36,7 +38,6 @@ type LinkFailedMonitor struct {
 	db             *sql.DB
 	timeoutMinutes int
 	syncInterval   time.Duration
-	listAlerts     listAlertsFunc
 	postAlerts     postAlertsFunc
 }
 
@@ -46,7 +47,6 @@ func NewLinkFailedMonitor() *LinkFailedMonitor {
 		db:             database.DB,
 		timeoutMinutes: configuration.Config.HeartbeatTimeoutMinutes,
 		syncInterval:   linkFailedSyncInterval,
-		listAlerts:     collectalerting.ListAlerts,
 		postAlerts:     collectalerting.PostAlerts,
 	}
 }
@@ -75,50 +75,17 @@ func (m *LinkFailedMonitor) Start(ctx context.Context) {
 }
 
 func (m *LinkFailedMonitor) sync(ctx context.Context) {
-	orgIDs, err := m.loadOrganizationIDs(ctx)
-	if err != nil {
-		logger.Error().Err(err).Msg("LinkFailed monitor: failed to load organizations")
-		return
-	}
-
 	desiredByOrg, err := m.loadInactiveSystems(ctx)
 	if err != nil {
 		logger.Error().Err(err).Msg("LinkFailed monitor: failed to load inactive systems")
 		return
 	}
 
-	for _, orgID := range orgIDs {
-		if err := m.syncOrganization(orgID, desiredByOrg[orgID]); err != nil {
+	for orgID, systems := range desiredByOrg {
+		if err := m.syncOrganization(orgID, systems); err != nil {
 			logger.Error().Err(err).Str("organization_id", orgID).Msg("LinkFailed monitor: sync failed")
 		}
 	}
-}
-
-func (m *LinkFailedMonitor) loadOrganizationIDs(ctx context.Context) ([]string, error) {
-	rows, err := m.db.QueryContext(ctx, `
-		SELECT DISTINCT organization_id
-		FROM systems
-		WHERE organization_id IS NOT NULL
-		  AND organization_id <> ''
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("query organization ids: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	orgIDs := make([]string, 0)
-	for rows.Next() {
-		var orgID string
-		if err := rows.Scan(&orgID); err != nil {
-			return nil, fmt.Errorf("scan organization id: %w", err)
-		}
-		orgIDs = append(orgIDs, orgID)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate organization ids: %w", err)
-	}
-
-	return orgIDs, nil
 }
 
 func (m *LinkFailedMonitor) loadInactiveSystems(ctx context.Context) (map[string]map[string]linkFailedSystem, error) {
@@ -145,6 +112,8 @@ func (m *LinkFailedMonitor) loadInactiveSystems(ctx context.Context) (map[string
 		LEFT JOIN customers c ON (s.organization_id = c.logto_id OR s.organization_id = c.id) AND c.deleted_at IS NULL
 		WHERE s.status = 'inactive'
 		  AND s.deleted_at IS NULL
+		  AND s.organization_id IS NOT NULL
+		  AND s.organization_id <> ''
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("query inactive systems: %w", err)
@@ -200,89 +169,32 @@ func (m *LinkFailedMonitor) loadInactiveSystems(ctx context.Context) (map[string
 }
 
 func (m *LinkFailedMonitor) syncOrganization(orgID string, desired map[string]linkFailedSystem) error {
-	currentAlerts, err := m.listAlerts(
-		orgID,
-		fmt.Sprintf(`alertname="%s"`, collectalerting.LinkFailedAlert),
-		fmt.Sprintf(`%s="%s"`, collectalerting.ManagedByLabel, collectalerting.ManagedByCollect),
-	)
-	if err != nil {
-		return fmt.Errorf("list managed LinkFailed alerts: %w", err)
+	if len(desired) == 0 {
+		return nil
 	}
 
-	currentBySystemKey := make(map[string]models.AlertmanagerAlert, len(currentAlerts))
-	for _, alert := range currentAlerts {
-		systemKey := alert.Labels["system_key"]
-		if systemKey == "" {
-			logger.Warn().
-				Str("organization_id", orgID).
-				Str("fingerprint", alert.Fingerprint).
-				Msg("LinkFailed monitor: skipping managed alert without system_key")
-			continue
-		}
-		if _, exists := currentBySystemKey[systemKey]; exists {
-			logger.Warn().
-				Str("organization_id", orgID).
-				Str("system_key", systemKey).
-				Msg("LinkFailed monitor: duplicate managed alert for system")
-			continue
-		}
-		currentBySystemKey[systemKey] = alert
-	}
-
-	transitions := make([]models.AlertmanagerPostAlert, 0, len(desired)+len(currentBySystemKey))
-	firingCount := 0
-	resolvedCount := 0
-
+	alerts := make([]models.AlertmanagerPostAlert, 0, len(desired))
 	for systemKey, system := range desired {
-		if _, exists := currentBySystemKey[systemKey]; exists {
-			continue
-		}
-
 		firingAlert, err := m.buildFiringAlert(system)
 		if err != nil {
 			return fmt.Errorf("build firing alert for %s: %w", systemKey, err)
 		}
+		alerts = append(alerts, firingAlert)
 
-		transitions = append(transitions, firingAlert)
-		firingCount++
+		logger.Debug().
+			Str("organization_id", orgID).
+			Str("system_key", systemKey).
+			Msg("LinkFailed monitor: refreshing alert for inactive system")
 	}
 
-	now := time.Now().UTC()
-	for systemKey, alert := range currentBySystemKey {
-		if _, exists := desired[systemKey]; exists {
-			continue
-		}
-
-		// Alertmanager rejects alerts where EndsAt <= StartsAt. Guard against alerts
-		// that were previously posted with a future StartsAt (e.g., from the race
-		// condition fixed in buildFiringAlert) by ensuring EndsAt is always after StartsAt.
-		endsAt := now
-		if !endsAt.After(alert.StartsAt) {
-			endsAt = alert.StartsAt.Add(time.Second)
-		}
-
-		transitions = append(transitions, models.AlertmanagerPostAlert{
-			Labels:      cloneStringMap(alert.Labels),
-			Annotations: cloneStringMap(alert.Annotations),
-			StartsAt:    alert.StartsAt,
-			EndsAt:      endsAt,
-		})
-		resolvedCount++
-	}
-
-	if len(transitions) == 0 {
-		return nil
-	}
-
-	if err := m.postAlerts(orgID, transitions); err != nil {
-		return fmt.Errorf("post alert transitions: %w", err)
+	if err := m.postAlerts(orgID, alerts); err != nil {
+		return fmt.Errorf("post alerts: %w", err)
 	}
 
 	logger.Info().
 		Str("organization_id", orgID).
-		Int("firing", firingCount).
-		Int("resolved", resolvedCount).
-		Msg("LinkFailed monitor: synchronized alert transitions")
+		Int("alerts_refreshed", len(alerts)).
+		Msg("LinkFailed monitor: refreshed alerts for inactive systems")
 
 	return nil
 }
@@ -319,18 +231,6 @@ func (m *LinkFailedMonitor) buildFiringAlert(system linkFailedSystem) (models.Al
 	}
 
 	return enrichedAlerts[0], nil
-}
-
-func cloneStringMap(input map[string]string) map[string]string {
-	if len(input) == 0 {
-		return map[string]string{}
-	}
-
-	cloned := make(map[string]string, len(input))
-	for key, value := range input {
-		cloned[key] = value
-	}
-	return cloned
 }
 
 func nullStringValue(value sql.NullString) string {

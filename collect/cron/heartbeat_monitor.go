@@ -64,7 +64,7 @@ func (h *HeartbeatMonitor) Start(ctx context.Context) {
 func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 	cutoff := time.Now().Add(-time.Duration(h.timeoutMinutes) * time.Minute)
 
-	queryActive := `
+	activeRows, err := h.db.QueryContext(ctx, `
 		UPDATE systems s
 		SET status = 'active', updated_at = NOW()
 		FROM system_heartbeats h
@@ -72,24 +72,35 @@ func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 			AND h.last_heartbeat > $1
 			AND s.status != 'active'
 			AND s.deleted_at IS NULL
-	`
-
-	resultActive, err := h.db.ExecContext(ctx, queryActive, cutoff)
+		RETURNING s.system_key
+	`, cutoff)
 	if err != nil {
 		logger.Error().
 			Err(err).
 			Msg("Failed to update systems to active status")
 	} else {
-		rowsAffected, _ := resultActive.RowsAffected()
-		if rowsAffected > 0 {
+		var activatedCount int64
+		for activeRows.Next() {
+			var systemKey string
+			if err := activeRows.Scan(&systemKey); err != nil {
+				logger.Error().Err(err).Msg("Failed to scan activated system key")
+				continue
+			}
+			logger.Debug().Str("system_key", systemKey).Msg("System status changed to active")
+			activatedCount++
+		}
+		if err := activeRows.Err(); err != nil {
+			logger.Error().Err(err).Msg("Failed to iterate activated systems")
+		}
+		_ = activeRows.Close()
+		if activatedCount > 0 {
 			logger.Info().
-				Int64("systems_updated", rowsAffected).
+				Int64("systems_updated", activatedCount).
 				Msg("Updated systems to active status")
 		}
 	}
 
-	// Update systems to 'inactive' if they have old heartbeat and are currently 'active'
-	queryInactive := `
+	inactiveRows, err := h.db.QueryContext(ctx, `
 		UPDATE systems s
 		SET status = 'inactive', updated_at = NOW()
 		FROM system_heartbeats h
@@ -97,17 +108,30 @@ func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 			AND h.last_heartbeat <= $1
 			AND s.status = 'active'
 			AND s.deleted_at IS NULL
-	`
-	resultInactive, err := h.db.ExecContext(ctx, queryInactive, cutoff)
+		RETURNING s.system_key
+	`, cutoff)
 	if err != nil {
 		logger.Error().
 			Err(err).
 			Msg("Failed to update systems to inactive status")
 	} else {
-		rowsAffected, _ := resultInactive.RowsAffected()
-		if rowsAffected > 0 {
+		var deactivatedCount int64
+		for inactiveRows.Next() {
+			var systemKey string
+			if err := inactiveRows.Scan(&systemKey); err != nil {
+				logger.Error().Err(err).Msg("Failed to scan deactivated system key")
+				continue
+			}
+			logger.Debug().Str("system_key", systemKey).Msg("System status changed to inactive")
+			deactivatedCount++
+		}
+		if err := inactiveRows.Err(); err != nil {
+			logger.Error().Err(err).Msg("Failed to iterate deactivated systems")
+		}
+		_ = inactiveRows.Close()
+		if deactivatedCount > 0 {
 			logger.Warn().
-				Int64("systems_updated", rowsAffected).
+				Int64("systems_updated", deactivatedCount).
 				Msg("Updated systems to inactive status")
 		}
 	}
