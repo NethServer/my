@@ -164,7 +164,7 @@ func TestFindSystemAlertByFingerprint(t *testing.T) {
 		{
 			Fingerprint: "alert-1",
 			Labels: map[string]string{
-				"alertname":  "HostDown",
+				"alertname":  "LinkFailed",
 				"system_key": "system-1",
 			},
 		},
@@ -179,7 +179,7 @@ func TestFindSystemAlertByFingerprint(t *testing.T) {
 
 	result := findSystemAlertByFingerprint(alerts, "alert-1", "system-1")
 	require.NotNil(t, result)
-	assert.Equal(t, "HostDown", result.Labels["alertname"])
+	assert.Equal(t, "LinkFailed", result.Labels["alertname"])
 
 	assert.Nil(t, findSystemAlertByFingerprint(alerts, "alert-1", "system-2"))
 	assert.Nil(t, findSystemAlertByFingerprint(alerts, "missing", "system-1"))
@@ -190,7 +190,7 @@ func TestBuildSystemAlertSilenceRequest(t *testing.T) {
 	alert := &models.ActiveAlert{
 		Labels: map[string]string{
 			"system_key":      "forged-system-key",
-			"alertname":       "HostDown",
+			"alertname":       "LinkFailed",
 			"severity":        "critical",
 			"system_id":       "system-1",
 			"organization_id": "org-1",
@@ -213,7 +213,7 @@ func TestBuildSystemAlertSilenceRequest(t *testing.T) {
 	assert.Equal(t, "admin@example.com", req.CreatedBy)
 	assert.Equal(t, "silenced from my", req.Comment)
 	assert.Equal(t, []models.AlertmanagerMatcher{
-		{Name: "alertname", Value: "HostDown", IsRegex: false},
+		{Name: "alertname", Value: "LinkFailed", IsRegex: false},
 		{Name: "organization_id", Value: "org-1", IsRegex: false},
 		{Name: "severity", Value: "critical", IsRegex: false},
 		{Name: "system_id", Value: "system-1", IsRegex: false},
@@ -225,14 +225,14 @@ func TestBuildSystemAlertSilenceRequestAddsSystemKeyMatcher(t *testing.T) {
 	now := time.Date(2026, time.April, 14, 10, 0, 0, 0, time.UTC)
 	alert := &models.ActiveAlert{
 		Labels: map[string]string{
-			"alertname": "HostDown",
+			"alertname": "LinkFailed",
 		},
 	}
 
 	req := buildSystemAlertSilenceRequest(alert, "system-1-key", "admin@example.com", "manual silence", 30, now, time.Time{})
 
 	assert.Equal(t, []models.AlertmanagerMatcher{
-		{Name: "alertname", Value: "HostDown", IsRegex: false},
+		{Name: "alertname", Value: "LinkFailed", IsRegex: false},
 		{Name: "system_key", Value: "system-1-key", IsRegex: false},
 	}, req.Matchers)
 	assert.Equal(t, "manual silence", req.Comment)
@@ -280,7 +280,7 @@ func TestSilenceBelongsToSystem(t *testing.T) {
 			name: "missing system key matcher",
 			silence: &models.AlertmanagerSilence{
 				Matchers: []models.AlertmanagerMatcher{
-					{Name: "alertname", Value: "HostDown", IsRegex: false},
+					{Name: "alertname", Value: "LinkFailed", IsRegex: false},
 				},
 			},
 			systemKey: "system-1",

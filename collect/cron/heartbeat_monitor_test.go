@@ -73,13 +73,13 @@ func TestHeartbeatMonitor_AlertFunctions(t *testing.T) {
 		checkIntervalSec: 60,
 	}
 
-	// Test fireHostDownAlert doesn't panic (won't actually post in test)
-	err := monitor.fireHostDownAlert("TEST-KEY", "org-123", nowForTest())
+	// Test fireLinkFailedAlert doesn't panic (won't actually post in test)
+	err := monitor.fireLinkFailedAlert("TEST-KEY", "org-123", nowForTest())
 	// Note: Will fail to connect to mimir in test, but that's OK for structure validation
 	_ = err
 
-	// Test resolveHostDownAlert doesn't panic
-	err = monitor.resolveHostDownAlert("TEST-KEY", "org-123")
+	// Test resolveLinkFailedAlert doesn't panic
+	err = monitor.resolveLinkFailedAlert("TEST-KEY", "org-123")
 	// Note: Will fail to connect to mimir in test, but that's OK for structure validation
 	_ = err
 }

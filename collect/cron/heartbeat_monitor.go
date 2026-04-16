@@ -74,7 +74,7 @@ type mimirAlert struct {
 }
 
 // checkAndUpdateStatuses checks all system heartbeats, updates statuses, and
-// keeps HostDown alerts aligned with the current inactive systems.
+// keeps LinkFailed alerts aligned with the current inactive systems.
 func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 	cutoff := time.Now().Add(-time.Duration(h.timeoutMinutes) * time.Minute)
 
@@ -89,7 +89,7 @@ func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 			AND s.deleted_at IS NULL
 	`
 
-	// Update systems to 'active' and resolve HostDown alerts
+	// Update systems to 'active' and resolve LinkFailed alerts
 	resultActive, err := h.db.QueryContext(ctx, queryActive, cutoff)
 	if err != nil {
 		logger.Error().
@@ -122,11 +122,11 @@ func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 							Str("system_key", systemKey).
 							Msg("Updated system to active status")
 					}
-					if err := h.resolveHostDownAlert(systemKey, orgID); err != nil {
+					if err := h.resolveLinkFailedAlert(systemKey, orgID); err != nil {
 						logger.Error().
 							Err(err).
 							Str("system_key", systemKey).
-							Msg("Failed to resolve HostDown alert")
+							Msg("Failed to resolve LinkFailed alert")
 					}
 				}
 			}
@@ -155,10 +155,10 @@ func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 		}
 	}
 
-	// Select inactive, not-deleted systems to ensure HostDown alerts are fired.
+	// Select inactive, not-deleted systems to ensure LinkFailed alerts are fired.
 	// Only fire alerts for systems that have been inactive for at least 2 check intervals.
 	stricterCutoff := time.Now().Add(-time.Duration(h.timeoutMinutes)*time.Minute - time.Duration(h.checkIntervalSec)*time.Second)
-	queryHostDown := `
+	queryLinkFailed := `
 		SELECT s.system_key, s.organization_id
 		FROM systems s
 		INNER JOIN system_heartbeats h ON s.id = h.system_id
@@ -166,26 +166,26 @@ func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 			AND h.last_heartbeat <= $1
 			AND s.deleted_at IS NULL
 	`
-	resultHostDown, err := h.db.QueryContext(ctx, queryHostDown, stricterCutoff)
+	resultLinkFailed, err := h.db.QueryContext(ctx, queryLinkFailed, stricterCutoff)
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Msg("Failed to query systems for HostDown alert check")
+			Msg("Failed to query systems for LinkFailed alert check")
 	} else {
-		for resultHostDown.Next() {
+		for resultLinkFailed.Next() {
 			var systemKey, orgID string
-			if err := resultHostDown.Scan(&systemKey, &orgID); err != nil {
+			if err := resultLinkFailed.Scan(&systemKey, &orgID); err != nil {
 				logger.Error().
 					Err(err).
 					Str("system_key", systemKey).
-					Msg("Failed to scan inactive system row for HostDown alert")
+					Msg("Failed to scan inactive system row for LinkFailed alert")
 				continue
 			} else {
-				if err := h.fireHostDownAlert(systemKey, orgID, cutoff); err != nil {
+				if err := h.fireLinkFailedAlert(systemKey, orgID, cutoff); err != nil {
 					logger.Error().
 						Err(err).
 						Str("system_key", systemKey).
-						Msg("Failed to fire HostDown alert")
+						Msg("Failed to fire LinkFailed alert")
 				}
 			}
 		}
@@ -196,29 +196,29 @@ func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 		Msg("Heartbeat status check completed")
 }
 
-func (h *HeartbeatMonitor) fireHostDownAlert(systemKey, orgID string, startsAt time.Time) error {
+func (h *HeartbeatMonitor) fireLinkFailedAlert(systemKey, orgID string, startsAt time.Time) error {
 	endsAt := time.Now().Add(time.Duration(h.checkIntervalSec*3) * time.Second)
-	return h.postHostDownAlert(systemKey, orgID, startsAt, endsAt)
+	return h.postLinkFailedAlert(systemKey, orgID, startsAt, endsAt)
 }
 
-func (h *HeartbeatMonitor) resolveHostDownAlert(systemKey, orgID string) error {
+func (h *HeartbeatMonitor) resolveLinkFailedAlert(systemKey, orgID string) error {
 	// To resolve the alert, post a new alert with the same fingerprint but with an end time in the past.
-	return h.postHostDownAlert(systemKey, orgID, time.Now().Add(-time.Duration(h.timeoutMinutes)*time.Minute), time.Now())
+	return h.postLinkFailedAlert(systemKey, orgID, time.Now().Add(-time.Duration(h.timeoutMinutes)*time.Minute), time.Now())
 }
 
-func (h *HeartbeatMonitor) postHostDownAlert(systemKey, orgID string, startsAt, endsAt time.Time) error {
+func (h *HeartbeatMonitor) postLinkFailedAlert(systemKey, orgID string, startsAt, endsAt time.Time) error {
 	payload := []mimirAlert{
 		{
 			Labels: map[string]string{
-				"alertname":  "HostDown",
+				"alertname":  "LinkFailed",
 				"severity":   "critical",
 				"system_key": systemKey,
 			},
 			Annotations: map[string]string{
-				"summary_en":     "System is down: no heartbeat received",
-				"summary_it":     "Il sistema è inattivo: nessun heartbeat ricevuto",
-				"description_en": fmt.Sprintf("The system has not sent a heartbeat since %s, it is considered down.", startsAt.Format(time.RFC3339)),
-				"description_it": fmt.Sprintf("Il sistema non ha inviato un heartbeat dal %s, è considerato inattivo.", startsAt.Format(time.RFC3339)),
+				"summary_en":     "No heartbeat received from system",
+				"summary_it":     "Nessun heartbeat ricevuto dal sistema",
+				"description_en": fmt.Sprintf("The system has not communicated with the server since %s. Check the service connection.", startsAt.Format(time.RFC3339)),
+				"description_it": fmt.Sprintf("Il sistema non ha comunicato con il server dal %s. Verificare la connessione al servizio.", startsAt.Format(time.RFC3339)),
 			},
 			StartsAt: startsAt,
 			EndsAt:   endsAt,
@@ -244,7 +244,7 @@ func (h *HeartbeatMonitor) postHostDownAlert(systemKey, orgID string, startsAt, 
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			logger.Error().Err(err).Msg("Failed to close HostDown response body")
+			logger.Error().Err(err).Msg("Failed to close LinkFailed response body")
 		}
 	}()
 

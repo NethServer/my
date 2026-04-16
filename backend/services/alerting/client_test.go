@@ -29,7 +29,7 @@ func TestCreateSilence(t *testing.T) {
 
 	expected := models.AlertmanagerSilenceRequest{
 		Matchers: []models.AlertmanagerMatcher{
-			{Name: "alertname", Value: "HostDown", IsRegex: false},
+			{Name: "alertname", Value: "LinkFailed", IsRegex: false},
 			{Name: "system_key", Value: "system-1", IsRegex: false},
 		},
 		StartsAt:  "2026-04-14T10:00:00Z",

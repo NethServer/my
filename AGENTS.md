@@ -100,7 +100,7 @@ Source of truth for routes: `backend/main.go`. Source of truth for the API contr
 
 ### 3.2 Collect (`collect/`)
 
-Inventory ingestion + Mimir proxy + HostDown cron.
+Inventory ingestion + Mimir proxy + LinkFailed cron.
 
 ```
 main.go
@@ -111,7 +111,7 @@ main.go
   --> workers/ (InventoryWorker, DiffWorker, NotificationWorker, CleanupWorker,
                 QueueMonitorWorker, DelayedMessageWorker — all started by manager.go)
   --> differ/ (YAML-configured JSON diff engine, severity/significance)
-  --> cron/ (heartbeat_monitor.go — alive/dead/zombie + HostDown alert poster)
+  --> cron/ (heartbeat_monitor.go — alive/dead/zombie + LinkFailed alert poster)
 ```
 
 Key properties:
