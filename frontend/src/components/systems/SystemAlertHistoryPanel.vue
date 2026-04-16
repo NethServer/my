@@ -25,6 +25,7 @@ import { faBell } from '@fortawesome/free-solid-svg-icons'
 import { useAlertHistory } from '@/queries/systems/alertHistory'
 import { getAlertSummary } from '@/lib/alerting'
 import { useI18n } from 'vue-i18n'
+import { onBeforeUnmount, ref } from 'vue'
 import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import SystemActiveAlertsCard from './SystemActiveAlertsCard.vue'
@@ -32,6 +33,28 @@ import SystemAlertSilencesCard from './SystemAlertSilencesCard.vue'
 
 const { locale } = useI18n()
 const { state, asyncStatus, pageNum, pageSize } = useAlertHistory()
+const alertingRefreshNonce = ref(0)
+const isAlertingRefreshPending = ref(false)
+let alertingRefreshTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleAlertingRefresh() {
+  if (alertingRefreshTimer) {
+    clearTimeout(alertingRefreshTimer)
+  }
+
+  isAlertingRefreshPending.value = true
+  alertingRefreshTimer = setTimeout(() => {
+    alertingRefreshNonce.value += 1
+    isAlertingRefreshPending.value = false
+    alertingRefreshTimer = null
+  }, 1000)
+}
+
+onBeforeUnmount(() => {
+  if (alertingRefreshTimer) {
+    clearTimeout(alertingRefreshTimer)
+  }
+})
 
 function getSeverityBadgeKind(severity: string | null | undefined): NeBadgeV2Kind {
   switch (severity?.toLowerCase()) {
@@ -49,8 +72,18 @@ function getSeverityBadgeKind(severity: string | null | undefined): NeBadgeV2Kin
 
 <template>
   <div>
-    <SystemActiveAlertsCard class="mb-8" />
-    <SystemAlertSilencesCard class="mb-8" />
+    <SystemActiveAlertsCard
+      class="mb-8"
+      :refresh-nonce="alertingRefreshNonce"
+      :refresh-pending="isAlertingRefreshPending"
+      @alerting-action-success="scheduleAlertingRefresh"
+    />
+    <SystemAlertSilencesCard
+      class="mb-8"
+      :refresh-nonce="alertingRefreshNonce"
+      :refresh-pending="isAlertingRefreshPending"
+      @alerting-action-success="scheduleAlertingRefresh"
+    />
 
     <NeCard class="col-span-full">
       <div class="mb-4 flex flex-col items-start justify-between gap-4 xl:flex-row">

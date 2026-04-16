@@ -97,7 +97,7 @@ func TestGetSilence(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodGet, r.Method)
-		assert.Equal(t, "/alertmanager/api/v2/silences/silence-1", r.URL.Path)
+		assert.Equal(t, "/alertmanager/api/v2/silence/silence-1", r.URL.Path)
 		assert.Equal(t, "application/json", r.Header.Get("Accept"))
 		assert.Equal(t, "org-1", r.Header.Get("X-Scope-OrgID"))
 		w.Header().Set("Content-Type", "application/json")
@@ -148,7 +148,7 @@ func TestDeleteSilence(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodDelete, r.Method)
-		assert.Equal(t, "/alertmanager/api/v2/silences/silence-1", r.URL.Path)
+		assert.Equal(t, "/alertmanager/api/v2/silence/silence-1", r.URL.Path)
 		assert.Equal(t, "application/json", r.Header.Get("Accept"))
 		assert.Equal(t, "org-1", r.Header.Get("X-Scope-OrgID"))
 		w.WriteHeader(http.StatusOK)

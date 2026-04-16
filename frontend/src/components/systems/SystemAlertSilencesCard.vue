@@ -36,6 +36,11 @@ import { canManageSystems } from '@/lib/permissions'
 import { useNotificationsStore } from '@/stores/notifications'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 
+const { refreshNonce = 0, refreshPending = false } = defineProps<{
+  refreshNonce?: number
+  refreshPending?: boolean
+}>()
+const emit = defineEmits(['alerting-action-success'])
 const { locale, t } = useI18n()
 const loginStore = useLoginStore()
 const notificationsStore = useNotificationsStore()
@@ -76,7 +81,7 @@ function getSilencedAlertName(silence: AlertmanagerSilence): string {
   return silence.matchers.find((m) => m.name === 'alertname')?.value || '-'
 }
 
-async function loadSilences(sysId: string) {
+async function loadSilences(sysId: string, options: { reset?: boolean } = {}) {
   const currentRequestId = ++requestId
 
   if (!sysId || !loginStore.jwtToken) {
@@ -89,7 +94,7 @@ async function loadSilences(sysId: string) {
 
   isLoading.value = true
   error.value = null
-  if (loadedSystemId.value !== sysId) {
+  if (options.reset || loadedSystemId.value !== sysId) {
     silences.value = []
   }
 
@@ -127,7 +132,7 @@ async function deleteSilence(silenceId: string) {
       title: t('alerting.silence_deleted'),
       description: t('alerting.silence_deleted_description'),
     })
-    void loadSilences(sysId)
+    emit('alerting-action-success')
   } catch (e: unknown) {
     notificationsStore.createNotification({
       kind: 'error',
@@ -145,6 +150,31 @@ watch(
     void loadSilences(sysId)
   },
   { immediate: true },
+)
+
+watch(
+  () => refreshPending,
+  (pending) => {
+    if (!pending || !systemId.value) {
+      return
+    }
+
+    requestId += 1
+    isLoading.value = true
+    error.value = null
+    silences.value = []
+  },
+)
+
+watch(
+  () => refreshNonce,
+  () => {
+    if (!systemId.value) {
+      return
+    }
+
+    void loadSilences(systemId.value, { reset: true })
+  },
 )
 </script>
 

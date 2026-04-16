@@ -40,6 +40,11 @@ import SilenceSystemAlertModal from './SilenceSystemAlertModal.vue'
 import DisableSystemAlertSilenceModal from './DisableSystemAlertSilenceModal.vue'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 
+const { refreshNonce = 0, refreshPending = false } = defineProps<{
+  refreshNonce?: number
+  refreshPending?: boolean
+}>()
+const emit = defineEmits(['alerting-action-success'])
 const { locale, t } = useI18n()
 const loginStore = useLoginStore()
 const { state: systemDetail } = useSystemDetail()
@@ -90,7 +95,7 @@ function getAlertDescriptionText(alert: Alert) {
   return description !== getAlertSummaryText(alert) ? description : ''
 }
 
-async function loadAlerts(sysId: string) {
+async function loadAlerts(sysId: string, options: { reset?: boolean } = {}) {
   const currentRequestId = ++requestId
 
   if (!sysId || !loginStore.jwtToken) {
@@ -103,7 +108,7 @@ async function loadAlerts(sysId: string) {
 
   isLoading.value = true
   error.value = null
-  if (loadedSystemId.value !== sysId) {
+  if (options.reset || loadedSystemId.value !== sysId) {
     alerts.value = []
   }
 
@@ -142,9 +147,7 @@ function closeAlertActionModals() {
 
 function onAlertActionSuccess() {
   closeAlertActionModals()
-  if (systemId.value) {
-    void loadAlerts(systemId.value)
-  }
+  emit('alerting-action-success')
 }
 
 watch(
@@ -153,6 +156,31 @@ watch(
     void loadAlerts(sysId)
   },
   { immediate: true },
+)
+
+watch(
+  () => refreshPending,
+  (pending) => {
+    if (!pending || !systemId.value) {
+      return
+    }
+
+    requestId += 1
+    isLoading.value = true
+    error.value = null
+    alerts.value = []
+  },
+)
+
+watch(
+  () => refreshNonce,
+  () => {
+    if (!systemId.value) {
+      return
+    }
+
+    void loadAlerts(systemId.value, { reset: true })
+  },
 )
 
 function getSeverityBadgeKind(severity: string | undefined): NeBadgeV2Kind {

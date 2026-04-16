@@ -242,7 +242,7 @@ func GetSilences(orgID string) ([]models.AlertmanagerSilence, error) {
 
 // GetSilence fetches a specific Alertmanager silence for the given tenant.
 func GetSilence(orgID, silenceID string) (*models.AlertmanagerSilence, error) {
-	url := configuration.Config.MimirURL + "/alertmanager/api/v2/silences/" + url.PathEscape(silenceID)
+	url := configuration.Config.MimirURL + "/alertmanager/api/v2/silence/" + url.PathEscape(silenceID)
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -279,7 +279,7 @@ func GetSilence(orgID, silenceID string) (*models.AlertmanagerSilence, error) {
 
 // DeleteSilence deletes a specific Alertmanager silence for the given tenant.
 func DeleteSilence(orgID, silenceID string) error {
-	url := configuration.Config.MimirURL + "/alertmanager/api/v2/silences/" + url.PathEscape(silenceID)
+	url := configuration.Config.MimirURL + "/alertmanager/api/v2/silence/" + url.PathEscape(silenceID)
 
 	req, err := http.NewRequest(http.MethodDelete, url, nil)
 	if err != nil {
