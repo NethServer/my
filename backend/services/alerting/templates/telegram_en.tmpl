@@ -4,8 +4,29 @@
 
 {{ range .Alerts.Firing -}}
 <b>{{ .Labels.alertname }}</b>
-{{ if eq .Labels.severity "critical" }}🔴 <i>Critical</i>{{ else if eq .Labels.severity "warning" }}🟠 <i>Warning</i>{{ else }}🔵 <i>Info</i>{{ end }}{{ if .Labels.system_name }} | 🖥️ <code>{{ .Labels.system_name }}</code>{{ end }}
-{{ if .Annotations.summary_en }}{{ .Annotations.summary_en }}{{ else if .Annotations.summary }}{{ .Annotations.summary }}{{ end }}
+{{ if eq .Labels.severity "critical" }}🔴 <i>Critical</i>{{ else if eq .Labels.severity "warning" }}🟠 <i>Warning</i>{{ else }}🔵 <i>Info</i>{{ end }}
+{{ if .Labels.service -}}
+Service: <code>{{ .Labels.service }}</code>
+{{ end -}}
+{{ if or .Annotations.summary_en .Annotations.summary -}}
+{{ if .Annotations.summary_en }}{{ .Annotations.summary_en }}{{ else }}{{ .Annotations.summary }}{{ end }}
+{{ end -}}
+{{ if or .Annotations.description_en .Annotations.description -}}
+Details: {{ if .Annotations.description_en }}{{ .Annotations.description_en }}{{ else }}{{ .Annotations.description }}{{ end }}
+{{ end -}}
+Firing since: {{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC
+{{ if .Labels.organization_name -}}
+{{ if eq .Labels.organization_type "customer" }}Customer{{ else if eq .Labels.organization_type "reseller" }}Reseller{{ else if eq .Labels.organization_type "distributor" }}Distributor{{ else }}Organization{{ end }}: {{ if .Labels.organization_vat }}{{ .Labels.organization_vat }} - {{ end }}{{ .Labels.organization_name }}
+{{ end -}}
+{{ if or .Labels.system_name .Labels.system_key -}}
+System: {{ if .Labels.system_name }}{{ .Labels.system_name }}{{ if .Labels.system_key }} ({{ .Labels.system_key }}){{ end }}{{ else }}{{ .Labels.system_key }}{{ end }}
+{{ end -}}
+{{ if or .Labels.system_fqdn .Labels.system_ipv4 -}}
+{{ if .Labels.system_fqdn }}FQDN: {{ .Labels.system_fqdn }}{{ else }}IP: {{ .Labels.system_ipv4 }}{{ end }}
+{{ end -}}
+{{ if .Labels.system_id -}}
+View system: ${APP_URL}/systems/{{ .Labels.system_id }}
+{{ end -}}
 {{ end -}}
 {{ end -}}
 {{ if .Alerts.Resolved -}}
@@ -13,8 +34,29 @@
 
 {{ range .Alerts.Resolved -}}
 <b>{{ .Labels.alertname }}</b>
-{{ if eq .Labels.severity "critical" }}🟢 <i>Critical</i>{{ else if eq .Labels.severity "warning" }}🟡 <i>Warning</i>{{ else }}🔵 <i>Info</i>{{ end }}{{ if .Labels.system_name }} | 🖥️ <code>{{ .Labels.system_name }}</code>{{ end }}
-{{ if .Annotations.summary_en }}{{ .Annotations.summary_en }}{{ else if .Annotations.summary }}{{ .Annotations.summary }}{{ end }}
+{{ if eq .Labels.severity "critical" }}🟢 <i>Critical</i>{{ else if eq .Labels.severity "warning" }}🟡 <i>Warning</i>{{ else }}🔵 <i>Info</i>{{ end }}
+{{ if .Labels.service -}}
+Service: <code>{{ .Labels.service }}</code>
+{{ end -}}
+{{ if or .Annotations.summary_en .Annotations.summary -}}
+{{ if .Annotations.summary_en }}{{ .Annotations.summary_en }}{{ else }}{{ .Annotations.summary }}{{ end }}
+{{ end -}}
+{{ if or .Annotations.description_en .Annotations.description -}}
+Details: {{ if .Annotations.description_en }}{{ .Annotations.description_en }}{{ else }}{{ .Annotations.description }}{{ end }}
+{{ end -}}
+Started: {{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC | Resolved: {{ .EndsAt.UTC.Format "2006-01-02 15:04:05" }} UTC
+{{ if .Labels.organization_name -}}
+{{ if eq .Labels.organization_type "customer" }}Customer{{ else if eq .Labels.organization_type "reseller" }}Reseller{{ else if eq .Labels.organization_type "distributor" }}Distributor{{ else }}Organization{{ end }}: {{ if .Labels.organization_vat }}{{ .Labels.organization_vat }} - {{ end }}{{ .Labels.organization_name }}
+{{ end -}}
+{{ if or .Labels.system_name .Labels.system_key -}}
+System: {{ if .Labels.system_name }}{{ .Labels.system_name }}{{ if .Labels.system_key }} ({{ .Labels.system_key }}){{ end }}{{ else }}{{ .Labels.system_key }}{{ end }}
+{{ end -}}
+{{ if or .Labels.system_fqdn .Labels.system_ipv4 -}}
+{{ if .Labels.system_fqdn }}FQDN: {{ .Labels.system_fqdn }}{{ else }}IP: {{ .Labels.system_ipv4 }}{{ end }}
+{{ end -}}
+{{ if .Labels.system_id -}}
+View system: ${APP_URL}/systems/{{ .Labels.system_id }}
+{{ end -}}
 {{ end -}}
 {{ end -}}
 {{- end }}
