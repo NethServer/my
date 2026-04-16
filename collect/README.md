@@ -247,3 +247,44 @@ Each system (identified by `system_key`) is automatically restricted to see and 
 - Silence matchers cannot be bypassed — a `system_key` matcher is always enforced server-side
 - The `system_key` label in alerts is always server-sourced (injected via `injectLabels` in `mimir.go`), never trusted from client input
 - Failed ownership checks are logged with system and path details for audit purposes
+
+## Alert annotation templating
+
+Alert annotations support Go text/template syntax. When alerts are posted to `/api/services/mimir/alertmanager/api/v2/alerts`, the proxy processes any template expressions in annotation values, substituting alert labels.
+
+### Template syntax
+
+Use standard Go template syntax with alert labels as data:
+
+```json
+{
+  "labels": {
+    "severity": "critical",
+    "alertname": "DiskFull",
+    "system_key": "SYS-001"
+  },
+  "annotations": {
+    "summary": "Alert {{.alertname}} has severity {{.severity}}",
+    "description": "System: {{.system_key}}"
+  }
+}
+```
+
+Result after templating:
+```json
+{
+  "annotations": {
+    "summary": "Alert DiskFull has severity critical",
+    "description": "System: SYS-001"
+  }
+}
+```
+
+### Behavior
+
+- Only annotations containing `{{` are processed
+- Labels are passed as template data (accessible via `.fieldname`)
+- Non-existent labels render as `<no value>`
+- Invalid template syntax is logged as a warning; the annotation remains unchanged
+- Non-string annotation values are preserved as-is
+- Static annotations (without template syntax) pass through unchanged

@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -164,6 +165,7 @@ func ProxyMimir(c *gin.Context) {
 			injected["organization_type"] = orgType.String
 		}
 		bodyBytes = injectLabels(bodyBytes, injected)
+		bodyBytes = processAnnotationTemplates(bodyBytes, injected)
 	}
 
 	// Forward request to Mimir
@@ -348,6 +350,65 @@ func injectLabels(body []byte, toInject map[string]string) []byte {
 			}
 			if _, exists := labels[key]; !exists {
 				labels[key] = value
+				modified = true
+			}
+		}
+	}
+
+	if !modified {
+		return body
+	}
+
+	out, err := json.Marshal(alerts)
+	if err != nil {
+		return body
+	}
+	return out
+}
+
+// processAnnotationTemplates applies Go text/template processing to annotations in alerts.
+// It uses alert labels as template data. For example, an annotation value like
+// "severity={{.severity}}" will have {{.severity}} replaced with the value of the
+// severity label. If template processing fails, the annotation is left unchanged.
+func processAnnotationTemplates(body []byte, _ map[string]string) []byte {
+	var alerts []map[string]interface{}
+	if err := json.Unmarshal(body, &alerts); err != nil {
+		return body
+	}
+
+	modified := false
+	for _, alert := range alerts {
+		annotations, ok := alert["annotations"].(map[string]interface{})
+		if !ok || len(annotations) == 0 {
+			continue
+		}
+
+		labels, ok := alert["labels"].(map[string]interface{})
+		if !ok {
+			labels = map[string]interface{}{}
+		}
+
+		for key, val := range annotations {
+			annotationStr, ok := val.(string)
+			if !ok || !strings.Contains(annotationStr, "{{") {
+				continue
+			}
+
+			tmpl, err := template.New(key).Parse(annotationStr)
+			if err != nil {
+				logger.Warn().Err(err).Str("annotation", key).Str("value", annotationStr).Msg("mimir proxy: failed to parse annotation template")
+				continue
+			}
+
+			var buf bytes.Buffer
+			if err := tmpl.Execute(&buf, labels); err != nil {
+				logger.Warn().Err(err).Str("annotation", key).Msg("mimir proxy: failed to execute annotation template")
+				continue
+			}
+
+			rendered := buf.String()
+			if rendered != annotationStr {
+				annotations[key] = rendered
 				modified = true
 			}
 		}

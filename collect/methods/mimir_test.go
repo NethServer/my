@@ -12,6 +12,132 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestProcessAnnotationTemplates(t *testing.T) {
+	tests := []struct {
+		name                string
+		body                string
+		expectedAnnotations map[string]string
+	}{
+		{
+			name: "replaces severity label in template",
+			body: `[{"labels":{"severity":"critical","alertname":"DiskFull"},"annotations":{"summary":"Alert with severity {{.severity}}"}}]`,
+			expectedAnnotations: map[string]string{
+				"summary": "Alert with severity critical",
+			},
+		},
+		{
+			name: "handles multiple template variables",
+			body: `[{"labels":{"severity":"warning","alertname":"HighCPU","system_key":"SYS-001"},"annotations":{"summary":"Alert {{.alertname}} with {{.severity}} on {{.system_key}}"}}]`,
+			expectedAnnotations: map[string]string{
+				"summary": "Alert HighCPU with warning on SYS-001",
+			},
+		},
+		{
+			name: "processes multiple annotations",
+			body: `[{"labels":{"severity":"critical","system_key":"SYS-001"},"annotations":{"summary":"Severity: {{.severity}}","description":"System: {{.system_key}}"}}]`,
+			expectedAnnotations: map[string]string{
+				"summary":     "Severity: critical",
+				"description": "System: SYS-001",
+			},
+		},
+		{
+			name: "leaves annotation unchanged if no template",
+			body: `[{"labels":{"severity":"info"},"annotations":{"summary":"static text"}}]`,
+			expectedAnnotations: map[string]string{
+				"summary": "static text",
+			},
+		},
+		{
+			name:                "processes multiple alerts",
+			body:                `[{"labels":{"severity":"critical"},"annotations":{"summary":"{{.severity}}"}},{"labels":{"severity":"warning"},"annotations":{"summary":"{{.severity}}"}}]`,
+			expectedAnnotations: map[string]string{}, // We'll check both alerts separately
+		},
+		{
+			name: "handles missing label in template",
+			body: `[{"labels":{"severity":"high"},"annotations":{"summary":"Status: {{.missing_label}}"}}]`,
+			expectedAnnotations: map[string]string{
+				"summary": "Status: <no value>",
+			},
+		},
+		{
+			name:                "skips invalid JSON gracefully",
+			body:                `not json`,
+			expectedAnnotations: map[string]string{},
+		},
+		{
+			name:                "handles empty annotations",
+			body:                `[{"labels":{"severity":"critical"},"annotations":{}}]`,
+			expectedAnnotations: map[string]string{},
+		},
+		{
+			name:                "handles missing annotations object",
+			body:                `[{"labels":{"severity":"critical"}}]`,
+			expectedAnnotations: map[string]string{},
+		},
+		{
+			name: "preserves non-string annotation values",
+			body: `[{"labels":{"severity":"critical"},"annotations":{"number_val":123,"summary":"{{.severity}}"}}]`,
+			expectedAnnotations: map[string]string{
+				"summary": "critical",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := processAnnotationTemplates([]byte(tt.body), map[string]string{})
+
+			var alerts []map[string]interface{}
+			err := json.Unmarshal(result, &alerts)
+			if tt.name == "skips invalid JSON gracefully" {
+				// Invalid JSON should be returned unchanged
+				assert.Equal(t, tt.body, string(result))
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.NotEmpty(t, alerts)
+
+			// For multiple alerts test, check both
+			if tt.name == "processes multiple alerts" {
+				assert.Equal(t, 2, len(alerts))
+				annot0, _ := alerts[0]["annotations"].(map[string]interface{})
+				annot1, _ := alerts[1]["annotations"].(map[string]interface{})
+				assert.Equal(t, "critical", annot0["summary"])
+				assert.Equal(t, "warning", annot1["summary"])
+				return
+			}
+
+			annotations, ok := alerts[0]["annotations"].(map[string]interface{})
+			if len(tt.expectedAnnotations) == 0 {
+				if ok {
+					assert.Empty(t, annotations)
+				}
+				return
+			}
+
+			assert.True(t, ok, "annotations object should exist")
+			for key, expectedVal := range tt.expectedAnnotations {
+				assert.Equal(t, expectedVal, annotations[key], "annotation %s mismatch", key)
+			}
+		})
+	}
+}
+
+func TestProcessAnnotationTemplates_InvalidTemplate(t *testing.T) {
+	// Invalid template syntax should not crash but leave annotation unchanged
+	body := `[{"labels":{"severity":"critical"},"annotations":{"summary":"Invalid template {{.unclosed"}}]`
+	result := processAnnotationTemplates([]byte(body), map[string]string{})
+
+	var alerts []map[string]interface{}
+	err := json.Unmarshal(result, &alerts)
+	assert.NoError(t, err)
+
+	annotations := alerts[0]["annotations"].(map[string]interface{})
+	// When template parsing fails, annotation should remain unchanged
+	assert.Equal(t, "Invalid template {{.unclosed", annotations["summary"])
+}
+
 func TestInjectLabels(t *testing.T) {
 	tests := []struct {
 		name     string
