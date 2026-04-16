@@ -42,7 +42,6 @@ import {
   faPenToSquare,
   faPaperPlane,
   faPlus,
-  faCircleQuestion,
 } from '@fortawesome/free-solid-svg-icons'
 import { useTabs } from '@/composables/useTabs'
 import { useLoginStore } from '@/stores/login'
@@ -375,7 +374,6 @@ interface TelegramReceiverForm {
 
 const telegramEnabled = ref(false)
 const telegramReceivers = ref<TelegramReceiverForm[]>([])
-const showTelegramSetup = ref(false)
 
 function initTelegramForm(cfg: AlertingConfig | null) {
   telegramEnabled.value = cfg?.telegram_enabled ?? false
@@ -882,6 +880,30 @@ const isOwner = computed(() => loginStore.isOwner)
                     <NeToggle v-model="telegramEnabled" :label="$t('alerting.telegram_enabled')" />
                   </div>
 
+                  <div
+                    class="mb-4 space-y-3 rounded-lg bg-gray-50 p-4 text-sm text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                  >
+                    <p class="font-medium">{{ $t('alerting.telegram_setup_title') }}</p>
+                    <p>{{ $t('alerting.telegram_setup_step_1') }}</p>
+                    <p>{{ $t('alerting.telegram_setup_step_2') }}</p>
+                    <div>
+                      <p>{{ $t('alerting.telegram_setup_step_3') }}</p>
+                      <pre
+                        class="mt-1 overflow-x-auto rounded bg-gray-100 px-3 py-2 font-mono text-xs dark:bg-gray-700"
+                        >{{ $t('alerting.telegram_setup_step_4_curl') }}</pre
+                      >
+                      <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        {{ $t('alerting.telegram_setup_step_4_note') }}
+                      </p>
+                    </div>
+                    <p>{{ $t('alerting.telegram_setup_step_5') }}</p>
+                    <p
+                      class="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
+                    >
+                      ⚠️ {{ $t('alerting.telegram_setup_note') }}
+                    </p>
+                  </div>
+
                   <template v-if="telegramEnabled">
                     <div class="mb-4 space-y-3">
                       <div
@@ -921,59 +943,6 @@ const isOwner = computed(() => loginStore.isOwner)
                       </template>
                       {{ $t('alerting.telegram_add_receiver') }}
                     </NeButton>
-
-                    <!-- Setup guide -->
-                    <div class="mb-4">
-                      <button
-                        class="flex items-center gap-1 text-sm text-blue-600 hover:underline dark:text-blue-400"
-                        @click="showTelegramSetup = !showTelegramSetup"
-                      >
-                        <FontAwesomeIcon :icon="faCircleQuestion" class="h-3.5 w-3.5" />
-                        {{ $t('alerting.telegram_setup_title') }}
-                      </button>
-                      <div
-                        v-if="showTelegramSetup"
-                        class="mt-3 space-y-3 rounded-lg bg-gray-50 p-4 text-sm text-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                      >
-                        <p>{{ $t('alerting.telegram_setup_step_1') }}</p>
-                        <div>
-                          <p>{{ $t('alerting.telegram_setup_step_2') }}</p>
-                          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            {{ $t('alerting.telegram_setup_step_2_verify') }}
-                          </p>
-                          <pre
-                            class="mt-1 overflow-x-auto rounded bg-gray-100 px-3 py-2 font-mono text-xs dark:bg-gray-700"
-                            >{{ $t('alerting.telegram_setup_step_2_curl') }}</pre
-                          >
-                        </div>
-                        <p>{{ $t('alerting.telegram_setup_step_3') }}</p>
-                        <div>
-                          <p>{{ $t('alerting.telegram_setup_step_4') }}</p>
-                          <pre
-                            class="mt-1 overflow-x-auto rounded bg-gray-100 px-3 py-2 font-mono text-xs dark:bg-gray-700"
-                            >{{ $t('alerting.telegram_setup_step_4_curl') }}</pre
-                          >
-                          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            {{ $t('alerting.telegram_setup_step_4_note') }}
-                          </p>
-                        </div>
-                        <div>
-                          <p>{{ $t('alerting.telegram_setup_step_5') }}</p>
-                          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            {{ $t('alerting.telegram_setup_step_5_test') }}
-                          </p>
-                          <pre
-                            class="mt-1 overflow-x-auto rounded bg-gray-100 px-3 py-2 font-mono text-xs dark:bg-gray-700"
-                            >{{ $t('alerting.telegram_setup_step_5_test_curl') }}</pre
-                          >
-                        </div>
-                        <p
-                          class="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
-                        >
-                          ⚠️ {{ $t('alerting.telegram_setup_note') }}
-                        </p>
-                      </div>
-                    </div>
                   </template>
 
                   <NeButton
