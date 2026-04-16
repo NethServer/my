@@ -25,9 +25,6 @@ func TestLinkFailedMonitorSyncOrganization_PostsAlertForInactiveSystem(t *testin
 
 	monitor := &LinkFailedMonitor{
 		timeoutMinutes: 10,
-		listAlerts: func(string, ...string) ([]models.AlertmanagerAlert, error) {
-			return []models.AlertmanagerAlert{}, nil
-		},
 		postAlerts: func(orgID string, alerts []models.AlertmanagerPostAlert) error {
 			gotOrgID = orgID
 			posted = alerts
@@ -64,76 +61,6 @@ func TestLinkFailedMonitorSyncOrganization_PostsAlertForInactiveSystem(t *testin
 	assert.WithinDuration(t, time.Now().UTC().Add(linkFailedAlertTTL), alert.EndsAt, time.Minute)
 }
 
-func TestLinkFailedMonitorSyncOrganization_ResolvesActiveSystem(t *testing.T) {
-	startsAt := time.Date(2026, 4, 16, 10, 0, 0, 0, time.UTC)
-
-	var posted []models.AlertmanagerPostAlert
-	monitor := &LinkFailedMonitor{
-		listAlerts: func(string, ...string) ([]models.AlertmanagerAlert, error) {
-			return []models.AlertmanagerAlert{
-				{
-					Labels: map[string]string{
-						"alertname":  "LinkFailed",
-						"managed_by": "my-collect",
-						"system_key": "SYS-001",
-					},
-					Annotations: map[string]string{
-						"summary_en": "No heartbeat received from system",
-					},
-					StartsAt: startsAt,
-				},
-			}, nil
-		},
-		postAlerts: func(_ string, alerts []models.AlertmanagerPostAlert) error {
-			posted = alerts
-			return nil
-		},
-	}
-
-	// SYS-001 is not in the inactive list → it has become active → must be resolved
-	err := monitor.syncOrganization("org-1", nil)
-	require.NoError(t, err)
-	require.Len(t, posted, 1)
-
-	assert.Equal(t, "LinkFailed", posted[0].Labels["alertname"])
-	assert.Equal(t, "my-collect", posted[0].Labels["managed_by"])
-	assert.Equal(t, startsAt, posted[0].StartsAt)
-	assert.WithinDuration(t, time.Now().UTC(), posted[0].EndsAt, time.Second)
-}
-
-func TestLinkFailedMonitorSyncOrganization_ResolvesAlertWithFutureStartsAt(t *testing.T) {
-	futureStartsAt := time.Now().UTC().Add(5 * time.Minute)
-
-	var posted []models.AlertmanagerPostAlert
-	monitor := &LinkFailedMonitor{
-		listAlerts: func(string, ...string) ([]models.AlertmanagerAlert, error) {
-			return []models.AlertmanagerAlert{
-				{
-					Labels: map[string]string{
-						"alertname":  "LinkFailed",
-						"managed_by": "my-collect",
-						"system_key": "SYS-001",
-					},
-					Annotations: map[string]string{},
-					StartsAt:    futureStartsAt,
-				},
-			}, nil
-		},
-		postAlerts: func(_ string, alerts []models.AlertmanagerPostAlert) error {
-			posted = alerts
-			return nil
-		},
-	}
-
-	err := monitor.syncOrganization("org-1", nil)
-	require.NoError(t, err)
-	require.Len(t, posted, 1)
-
-	assert.Equal(t, futureStartsAt, posted[0].StartsAt)
-	assert.True(t, posted[0].EndsAt.After(posted[0].StartsAt),
-		"EndsAt must be after StartsAt even when StartsAt is in the future")
-}
-
 func TestLinkFailedMonitorBuildFiringAlert_CapsStartsAtToNow(t *testing.T) {
 	recentHeartbeat := time.Now().UTC().Add(-1 * time.Minute)
 
@@ -163,10 +90,7 @@ func TestLinkFailedMonitorBuildFiringAlert_CapsStartsAtToNow(t *testing.T) {
 func TestLinkFailedMonitorSyncOrganization_TTLIsThreeSyncIntervals(t *testing.T) {
 	monitor := &LinkFailedMonitor{
 		timeoutMinutes: 10,
-		listAlerts: func(string, ...string) ([]models.AlertmanagerAlert, error) {
-			return []models.AlertmanagerAlert{}, nil
-		},
-		postAlerts: func(_ string, _ []models.AlertmanagerPostAlert) error { return nil },
+		postAlerts:     func(_ string, _ []models.AlertmanagerPostAlert) error { return nil },
 	}
 
 	system := linkFailedSystem{
@@ -184,12 +108,9 @@ func TestLinkFailedMonitorSyncOrganization_TTLIsThreeSyncIntervals(t *testing.T)
 	assert.WithinDuration(t, time.Now().UTC().Add(3*linkFailedSyncInterval), alert.EndsAt, 5*time.Second)
 }
 
-func TestLinkFailedMonitorSyncOrganization_NoOpWhenNoAlertsAndNoInactiveSystems(t *testing.T) {
+func TestLinkFailedMonitorSyncOrganization_NoOpWhenNoInactiveSystems(t *testing.T) {
 	called := false
 	monitor := &LinkFailedMonitor{
-		listAlerts: func(string, ...string) ([]models.AlertmanagerAlert, error) {
-			return []models.AlertmanagerAlert{}, nil
-		},
 		postAlerts: func(_ string, _ []models.AlertmanagerPostAlert) error {
 			called = true
 			return nil
@@ -197,6 +118,10 @@ func TestLinkFailedMonitorSyncOrganization_NoOpWhenNoAlertsAndNoInactiveSystems(
 	}
 
 	err := monitor.syncOrganization("org-1", nil)
+	require.NoError(t, err)
+	assert.False(t, called)
+
+	err = monitor.syncOrganization("org-1", map[string]linkFailedSystem{})
 	require.NoError(t, err)
 	assert.False(t, called)
 }
