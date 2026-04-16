@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { NeInlineNotification, NeModal, NeTextArea } from '@nethesis/vue-components'
+import { NeInlineNotification, NeModal, NeTextArea, NeTextInput } from '@nethesis/vue-components'
 import { useMutation } from '@pinia/colada'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -26,6 +26,7 @@ const emit = defineEmits(['close', 'success'])
 const { t, locale } = useI18n()
 const notificationsStore = useNotificationsStore()
 const comment = ref('')
+const endAt = ref('')
 
 const alertName = computed(() => {
   if (!alert) {
@@ -33,6 +34,12 @@ const alertName = computed(() => {
   }
   return alert.labels.alertname || getAlertSummary(alert, locale.value) || alert.fingerprint
 })
+
+function defaultEndAt() {
+  const d = new Date(Date.now() + 60 * 60 * 1000)
+  // datetime-local requires "YYYY-MM-DDTHH:MM"
+  return d.toISOString().slice(0, 16)
+}
 
 const {
   mutate: createSilenceMutate,
@@ -44,12 +51,14 @@ const {
     systemId,
     fingerprint,
     comment,
+    endAt,
   }: {
     systemId: string
     fingerprint: string
     comment?: string
+    endAt?: string
   }) => {
-    return createSystemAlertSilence(systemId, fingerprint, comment)
+    return createSystemAlertSilence(systemId, fingerprint, comment, endAt)
   },
   onSuccess() {
     const silencedAlertName = alertName.value
@@ -73,6 +82,7 @@ const {
 
 function onShow() {
   comment.value = ''
+  endAt.value = defaultEndAt()
   createSilenceReset()
 }
 
@@ -81,10 +91,14 @@ function onPrimaryClick() {
     return
   }
 
+  // Convert the datetime-local value to a full RFC3339 string
+  const endAtRfc3339 = endAt.value ? new Date(endAt.value).toISOString() : undefined
+
   createSilenceMutate({
     systemId,
     fingerprint: alert.fingerprint,
     comment: comment.value,
+    endAt: endAtRfc3339,
   })
 }
 </script>
@@ -107,9 +121,12 @@ function onPrimaryClick() {
       <p>
         {{ t('alerting.silence_alert_confirmation', { name: alertName }) }}
       </p>
-      <p class="text-sm text-gray-500 dark:text-gray-400">
-        {{ $t('alerting.silence_alert_duration_notice') }}
-      </p>
+      <NeTextInput
+        v-model="endAt"
+        type="datetime-local"
+        :label="$t('alerting.silence_end_at')"
+        :helper-text="$t('alerting.silence_end_at_helper')"
+      />
       <NeTextArea
         v-model="comment"
         :label="$t('alerting.silence_comment')"

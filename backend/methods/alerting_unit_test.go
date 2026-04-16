@@ -205,6 +205,7 @@ func TestBuildSystemAlertSilenceRequest(t *testing.T) {
 		"  ",
 		0,
 		now,
+		time.Time{},
 	)
 
 	assert.Equal(t, "2026-04-14T10:00:00Z", req.StartsAt)
@@ -228,7 +229,7 @@ func TestBuildSystemAlertSilenceRequestAddsSystemKeyMatcher(t *testing.T) {
 		},
 	}
 
-	req := buildSystemAlertSilenceRequest(alert, "system-1-key", "admin@example.com", "manual silence", 30, now)
+	req := buildSystemAlertSilenceRequest(alert, "system-1-key", "admin@example.com", "manual silence", 30, now, time.Time{})
 
 	assert.Equal(t, []models.AlertmanagerMatcher{
 		{Name: "alertname", Value: "HostDown", IsRegex: false},

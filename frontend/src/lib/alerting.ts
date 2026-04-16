@@ -10,6 +10,7 @@ export const ALERTING_CONFIG_KEY = 'alertingConfig'
 export const ALERTING_ALERTS_KEY = 'alertingAlerts'
 export const ALERT_HISTORY_KEY = 'alertHistory'
 export const ALERT_HISTORY_TABLE_ID = 'alertHistoryTable'
+export const SYSTEM_ALERT_SILENCES_KEY = 'systemAlertSilences'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -61,6 +62,27 @@ export interface Alert {
   receivers?: { name: string }[]
 }
 
+export interface AlertmanagerSilenceStatus {
+  state: 'active' | 'expired' | 'pending'
+}
+
+export interface AlertmanagerMatcher {
+  name: string
+  value: string
+  isRegex: boolean
+}
+
+export interface AlertmanagerSilence {
+  id: string
+  matchers: AlertmanagerMatcher[]
+  startsAt: string
+  endsAt: string
+  updatedAt: string
+  createdBy: string
+  comment: string
+  status: AlertmanagerSilenceStatus
+}
+
 export interface AlertHistoryRecord {
   id: number
   system_key: string
@@ -109,6 +131,14 @@ interface CreateSystemAlertSilenceResponse {
   message: string
   data: {
     silence_id: string
+  }
+}
+
+interface SystemAlertSilencesResponse {
+  code: number
+  message: string
+  data: {
+    silences: AlertmanagerSilence[]
   }
 }
 
@@ -193,15 +223,28 @@ export const getSystemActiveAlerts = (systemId: string) => {
     .then((res) => res.data.data.alerts)
 }
 
+export const getSystemAlertSilences = (systemId: string) => {
+  const loginStore = useLoginStore()
+  return axios
+    .get<SystemAlertSilencesResponse>(`${API_URL}/systems/${systemId}/alerts/silences`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data.silences)
+}
+
 export const createSystemAlertSilence = (
   systemId: string,
   fingerprint: string,
   comment?: string,
+  endAt?: string,
 ) => {
   const loginStore = useLoginStore()
-  const payload = {
-    fingerprint,
-    comment: comment?.trim() || undefined,
+  const payload: Record<string, unknown> = { fingerprint }
+  if (comment?.trim()) {
+    payload.comment = comment.trim()
+  }
+  if (endAt) {
+    payload.end_at = endAt
   }
 
   return axios

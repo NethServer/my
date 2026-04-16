@@ -411,9 +411,13 @@ func buildSystemAlertSilenceRequest(
 	systemKey, createdBy, comment string,
 	durationMinutes int,
 	now time.Time,
+	endsAt time.Time, // if non-zero, overrides durationMinutes
 ) *models.AlertmanagerSilenceRequest {
-	if durationMinutes <= 0 {
-		durationMinutes = defaultSystemAlertSilenceDurationMinutes
+	if endsAt.IsZero() {
+		if durationMinutes <= 0 {
+			durationMinutes = defaultSystemAlertSilenceDurationMinutes
+		}
+		endsAt = now.Add(time.Duration(durationMinutes) * time.Minute)
 	}
 
 	labelNames := make([]string, 0, len(alert.Labels)+1)
@@ -457,7 +461,7 @@ func buildSystemAlertSilenceRequest(
 	return &models.AlertmanagerSilenceRequest{
 		Matchers:  matchers,
 		StartsAt:  now.Format(time.RFC3339),
-		EndsAt:    now.Add(time.Duration(durationMinutes) * time.Minute).Format(time.RFC3339),
+		EndsAt:    endsAt.Format(time.RFC3339),
 		Comment:   normalizeAlertSilenceComment(comment),
 		CreatedBy: createdBy,
 	}
@@ -578,13 +582,29 @@ func CreateSystemAlertSilence(c *gin.Context) {
 		return
 	}
 
+	now := time.Now().UTC()
+	var endsAt time.Time
+	if req.EndAt != "" {
+		parsed, err := time.Parse(time.RFC3339, req.EndAt)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, response.BadRequest("invalid end_at: must be RFC3339 datetime", nil))
+			return
+		}
+		if !parsed.After(now) {
+			c.JSON(http.StatusBadRequest, response.BadRequest("invalid end_at: must be in the future", nil))
+			return
+		}
+		endsAt = parsed.UTC()
+	}
+
 	silenceReq := buildSystemAlertSilenceRequest(
 		alert,
 		system.SystemKey,
 		getAlertSilenceCreatedBy(user),
 		req.Comment,
 		req.DurationMinutes,
-		time.Now().UTC(),
+		now,
+		endsAt,
 	)
 
 	silenceResp, err := alerting.CreateSilence(getSystemAlertOrgID(system), silenceReq)
@@ -652,6 +672,170 @@ func DeleteSystemAlertSilence(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response.OK("silence disabled successfully", nil))
+}
+
+// GetSystemAlertSilences handles GET /api/systems/:id/alerts/silences
+// Returns all active and pending silences in Alertmanager that are scoped to this system.
+func GetSystemAlertSilences(c *gin.Context) {
+	systemID := c.Param("id")
+	if systemID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system id required", nil))
+		return
+	}
+
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	systemsService := local.NewSystemsService()
+	system, err := systemsService.GetSystem(systemID, userOrgRole, userOrgID)
+	if helpers.HandleAccessError(c, err, "system", systemID) {
+		return
+	}
+
+	silences, err := alerting.GetSilences(getSystemAlertOrgID(system))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch silences from mimir: "+err.Error(), nil))
+		return
+	}
+
+	filtered := make([]models.AlertmanagerSilence, 0, len(silences))
+	for _, s := range silences {
+		if !silenceBelongsToSystem(&s, system.SystemKey) {
+			continue
+		}
+		// Exclude expired silences from the list
+		if s.Status != nil && s.Status.State == "expired" {
+			continue
+		}
+		filtered = append(filtered, s)
+	}
+
+	c.JSON(http.StatusOK, response.OK("silences retrieved successfully", gin.H{
+		"silences": filtered,
+	}))
+}
+
+// GetSystemAlertSilence handles GET /api/systems/:id/alerts/silences/:silence_id
+// Returns a single silence after validating it belongs to this system.
+func GetSystemAlertSilence(c *gin.Context) {
+	systemID := c.Param("id")
+	silenceID := c.Param("silence_id")
+	if systemID == "" || silenceID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system id and silence id required", nil))
+		return
+	}
+
+	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("user context required", nil))
+		return
+	}
+
+	systemsService := local.NewSystemsService()
+	system, err := systemsService.GetSystem(systemID, userOrgRole, userOrgID)
+	if helpers.HandleAccessError(c, err, "system", systemID) {
+		return
+	}
+
+	orgID := getSystemAlertOrgID(system)
+	silence, err := alerting.GetSilence(orgID, silenceID)
+	if errors.Is(err, alerting.ErrSilenceNotFound) {
+		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch silence from mimir: "+err.Error(), nil))
+		return
+	}
+	if !silenceBelongsToSystem(silence, system.SystemKey) {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied to silence", nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("silence retrieved successfully", gin.H{
+		"silence": silence,
+	}))
+}
+
+// UpdateSystemAlertSilence handles PUT /api/systems/:id/alerts/silences/:silence_id
+// Updates the end time and/or comment of an existing silence.
+// Preserves the original matchers and start time; only end time and comment change.
+func UpdateSystemAlertSilence(c *gin.Context) {
+	systemID := c.Param("id")
+	silenceID := c.Param("silence_id")
+	if systemID == "" || silenceID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system id and silence id required", nil))
+		return
+	}
+
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	systemsService := local.NewSystemsService()
+	system, err := systemsService.GetSystem(systemID, user.OrgRole, user.OrganizationID)
+	if helpers.HandleAccessError(c, err, "system", systemID) {
+		return
+	}
+	if system.SystemKey == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system is not registered", nil))
+		return
+	}
+
+	var req models.UpdateSystemAlertSilenceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body: "+err.Error(), nil))
+		return
+	}
+
+	now := time.Now().UTC()
+	endsAt, err := time.Parse(time.RFC3339, req.EndAt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid end_at: must be RFC3339 datetime", nil))
+		return
+	}
+	if !endsAt.After(now) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid end_at: must be in the future", nil))
+		return
+	}
+
+	orgID := getSystemAlertOrgID(system)
+	existing, err := alerting.GetSilence(orgID, silenceID)
+	if errors.Is(err, alerting.ErrSilenceNotFound) {
+		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch silence from mimir: "+err.Error(), nil))
+		return
+	}
+	if !silenceBelongsToSystem(existing, system.SystemKey) {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied to silence", nil))
+		return
+	}
+
+	updateReq := &models.AlertmanagerSilenceRequest{
+		ID:        existing.ID,
+		Matchers:  existing.Matchers,
+		StartsAt:  existing.StartsAt,
+		EndsAt:    endsAt.UTC().Format(time.RFC3339),
+		Comment:   normalizeAlertSilenceComment(req.Comment),
+		CreatedBy: existing.CreatedBy,
+	}
+
+	silenceResp, err := alerting.CreateSilence(orgID, updateReq)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to update silence in mimir: "+err.Error(), nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("silence updated successfully", gin.H{
+		"silence_id": silenceResp.SilenceID,
+	}))
 }
 
 // GetSystemAlertHistory handles GET /api/systems/:id/alerts/history

@@ -254,7 +254,10 @@ func main() {
 
 			// Alert endpoints (read:systems required for GET, manage:systems required for POST/DELETE)
 			systemsGroup.GET("/:id/alerts", methods.GetSystemAlerts)                                  // Get active alerts for a system
+			systemsGroup.GET("/:id/alerts/silences", methods.GetSystemAlertSilences)                  // List active silences for a system
 			systemsGroup.POST("/:id/alerts/silences", methods.CreateSystemAlertSilence)               // Create a silence for a system alert
+			systemsGroup.GET("/:id/alerts/silences/:silence_id", methods.GetSystemAlertSilence)       // Get a single silence
+			systemsGroup.PUT("/:id/alerts/silences/:silence_id", methods.UpdateSystemAlertSilence)    // Update a silence's end time / comment
 			systemsGroup.DELETE("/:id/alerts/silences/:silence_id", methods.DeleteSystemAlertSilence) // Disable a silence for a system alert
 			systemsGroup.GET("/:id/alerts/history", methods.GetSystemAlertHistory)                    // Get paginated alert history
 		}

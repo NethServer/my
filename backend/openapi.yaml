@@ -221,6 +221,63 @@ components:
           description: Webhook receivers for this system. Inherits global receivers if empty.
           items:
             $ref: '#/components/schemas/WebhookReceiver'
+    AlertmanagerSilenceStatus:
+      type: object
+      properties:
+        state:
+          type: string
+          enum: [active, expired, pending]
+          description: Runtime state of the silence
+          example: "active"
+
+    AlertmanagerMatcher:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Label name
+          example: "alertname"
+        value:
+          type: string
+          description: Label value
+          example: "HighCPU"
+        isRegex:
+          type: boolean
+          description: Whether the value is a regex
+          example: false
+
+    AlertmanagerSilence:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Alertmanager silence ID
+          example: "4e6f0c30-c383-4e22-9443-0d7b6a8bd40b"
+        matchers:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlertmanagerMatcher'
+        startsAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+        endsAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T01:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+        createdBy:
+          type: string
+          example: "admin@example.com"
+        comment:
+          type: string
+          example: "silenced during maintenance"
+        status:
+          $ref: '#/components/schemas/AlertmanagerSilenceStatus'
+
     AlertingConfig:
       type: object
       description: |
@@ -8309,6 +8366,53 @@ paths:
           $ref: '#/components/responses/NotFound'
 
   /systems/{id}/alerts/silences:
+    get:
+      operationId: getSystemAlertSilences
+      tags:
+        - Backend - Alerts
+      summary: /systems/{id}/alerts/silences - List active silences for a system
+      description: |
+        Returns all active and pending Alertmanager silences scoped to the target system.
+        Expired silences are excluded. Results are filtered server-side to silences that carry
+        an exact `system_key` matcher matching the system's key.
+        Requires `read:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID (database UUID)
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: Silences retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "silences retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      silences:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AlertmanagerSilence'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
     post:
       operationId: createSystemAlertSilence
       tags:
@@ -8319,6 +8423,7 @@ paths:
         The request identifies the live alert by fingerprint. The backend resolves the alert,
         builds the silence matchers server-side, and always uses the system's authoritative
         `system_key`.
+        If `end_at` is provided it takes precedence over `duration_minutes`.
         Requires `manage:systems` permission.
       security:
         - BearerAuth: []
@@ -8351,8 +8456,13 @@ paths:
                   type: integer
                   minimum: 1
                   maximum: 10080
-                  description: Optional silence duration in minutes. Defaults to 60 when omitted.
+                  description: Optional silence duration in minutes. Defaults to 60 when omitted. Ignored when end_at is set.
                   example: 60
+                end_at:
+                  type: string
+                  format: date-time
+                  description: Optional explicit end time (RFC3339). Takes precedence over duration_minutes.
+                  example: "2024-01-01T02:00:00Z"
       responses:
         '200':
           description: Alert silence created successfully
@@ -8383,6 +8493,129 @@ paths:
           $ref: '#/components/responses/NotFound'
 
   /systems/{id}/alerts/silences/{silence_id}:
+    get:
+      operationId: getSystemAlertSilence
+      tags:
+        - Backend - Alerts
+      summary: /systems/{id}/alerts/silences/{silence_id} - Get a single silence
+      description: |
+        Returns a specific Alertmanager silence after verifying it belongs to the target system
+        via its `system_key` matcher.
+        Requires `read:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID (database UUID)
+          schema:
+            type: string
+            example: "sys_123456789"
+        - name: silence_id
+          in: path
+          required: true
+          description: Alertmanager silence ID
+          schema:
+            type: string
+            example: "4e6f0c30-c383-4e22-9443-0d7b6a8bd40b"
+      responses:
+        '200':
+          description: Silence retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "silence retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      silence:
+                        $ref: '#/components/schemas/AlertmanagerSilence'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateSystemAlertSilence
+      tags:
+        - Backend - Alerts
+      summary: /systems/{id}/alerts/silences/{silence_id} - Update a silence
+      description: |
+        Updates the end time and/or comment of an existing silence. Preserves the original
+        matchers and start time. Ownership is verified via the `system_key` matcher.
+        Requires `manage:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID (database UUID)
+          schema:
+            type: string
+            example: "sys_123456789"
+        - name: silence_id
+          in: path
+          required: true
+          description: Alertmanager silence ID
+          schema:
+            type: string
+            example: "4e6f0c30-c383-4e22-9443-0d7b6a8bd40b"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - end_at
+              properties:
+                comment:
+                  type: string
+                  description: New comment for the silence. Defaults to previous value if empty.
+                  example: "extended for maintenance window"
+                end_at:
+                  type: string
+                  format: date-time
+                  description: New end time (RFC3339). Must be in the future.
+                  example: "2024-01-01T04:00:00Z"
+      responses:
+        '200':
+          description: Silence updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "silence updated successfully"
+                  data:
+                    type: object
+                    properties:
+                      silence_id:
+                        type: string
+                        example: "4e6f0c30-c383-4e22-9443-0d7b6a8bd40b"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
     delete:
       operationId: deleteSystemAlertSilence
       tags:
@@ -10393,12 +10626,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '413':
           $ref: '#/components/responses/RequestEntityTooLarge'
-        '502':
-          $ref: '#/components/responses/InternalServerError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
         '502':
           $ref: '#/components/responses/InternalServerError'
 

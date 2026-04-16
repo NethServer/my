@@ -27,6 +27,7 @@ import { useI18n } from 'vue-i18n'
 import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import SystemActiveAlertsCard from './SystemActiveAlertsCard.vue'
+import SystemAlertSilencesCard from './SystemAlertSilencesCard.vue'
 
 const { locale } = useI18n()
 const { state, asyncStatus, pageNum, pageSize } = useAlertHistory()
@@ -48,6 +49,7 @@ function getSeverityBadgeKind(severity: string | null | undefined): NeBadgeV2Kin
 <template>
   <div>
     <SystemActiveAlertsCard class="mb-8" />
+    <SystemAlertSilencesCard class="mb-8" />
 
     <div class="mb-8 flex flex-col items-start justify-between gap-6 xl:flex-row">
       <div>

@@ -206,6 +206,40 @@ func CreateSilence(orgID string, silence *models.AlertmanagerSilenceRequest) (*m
 	return &silenceResponse, nil
 }
 
+// GetSilences fetches all silences for the given tenant from Mimir.
+func GetSilences(orgID string) ([]models.AlertmanagerSilence, error) {
+	url := configuration.Config.MimirURL + "/alertmanager/api/v2/silences"
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("X-Scope-OrgID", orgID)
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetching silences from mimir: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading response body: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("mimir returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var silences []models.AlertmanagerSilence
+	if err := json.Unmarshal(body, &silences); err != nil {
+		return nil, fmt.Errorf("decoding silences: %w", err)
+	}
+
+	return silences, nil
+}
+
 // GetSilence fetches a specific Alertmanager silence for the given tenant.
 func GetSilence(orgID, silenceID string) (*models.AlertmanagerSilence, error) {
 	url := configuration.Config.MimirURL + "/alertmanager/api/v2/silences/" + url.PathEscape(silenceID)

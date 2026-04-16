@@ -70,10 +70,18 @@ type ActiveAlert struct {
 }
 
 // CreateSystemAlertSilenceRequest identifies the active alert to silence.
+// If EndAt is provided it takes precedence over DurationMinutes.
 type CreateSystemAlertSilenceRequest struct {
 	Fingerprint     string `json:"fingerprint" binding:"required"`
 	Comment         string `json:"comment"`
 	DurationMinutes int    `json:"duration_minutes" binding:"omitempty,min=1,max=10080"`
+	EndAt           string `json:"end_at"` // optional RFC3339 datetime; overrides duration_minutes
+}
+
+// UpdateSystemAlertSilenceRequest is the payload for changing a silence's end time or comment.
+type UpdateSystemAlertSilenceRequest struct {
+	Comment string `json:"comment"`
+	EndAt   string `json:"end_at" binding:"required"` // RFC3339 datetime
 }
 
 // AlertmanagerMatcher represents a single Alertmanager silence matcher.
@@ -83,8 +91,10 @@ type AlertmanagerMatcher struct {
 	IsRegex bool   `json:"isRegex"`
 }
 
-// AlertmanagerSilenceRequest is the payload sent to Alertmanager when creating a silence.
+// AlertmanagerSilenceRequest is the payload sent to Alertmanager when creating or updating a silence.
+// When ID is non-empty, Alertmanager updates the existing silence instead of creating a new one.
 type AlertmanagerSilenceRequest struct {
+	ID        string                `json:"id,omitempty"`
 	Matchers  []AlertmanagerMatcher `json:"matchers"`
 	StartsAt  string                `json:"startsAt"`
 	EndsAt    string                `json:"endsAt"`
@@ -97,12 +107,19 @@ type AlertmanagerSilenceResponse struct {
 	SilenceID string `json:"silenceID"`
 }
 
+// AlertmanagerSilenceStatus is the runtime state of a silence as reported by Alertmanager.
+type AlertmanagerSilenceStatus struct {
+	State string `json:"state"` // active | expired | pending
+}
+
 // AlertmanagerSilence represents a silence returned by Alertmanager.
 type AlertmanagerSilence struct {
-	ID        string                `json:"id"`
-	Matchers  []AlertmanagerMatcher `json:"matchers"`
-	StartsAt  string                `json:"startsAt,omitempty"`
-	EndsAt    string                `json:"endsAt,omitempty"`
-	CreatedBy string                `json:"createdBy,omitempty"`
-	Comment   string                `json:"comment,omitempty"`
+	ID        string                     `json:"id"`
+	Matchers  []AlertmanagerMatcher      `json:"matchers"`
+	StartsAt  string                     `json:"startsAt,omitempty"`
+	EndsAt    string                     `json:"endsAt,omitempty"`
+	UpdatedAt string                     `json:"updatedAt,omitempty"`
+	CreatedBy string                     `json:"createdBy,omitempty"`
+	Comment   string                     `json:"comment,omitempty"`
+	Status    *AlertmanagerSilenceStatus `json:"status,omitempty"`
 }
