@@ -702,7 +702,7 @@ func TestWrapForMimirWithoutTemplates(t *testing.T) {
 
 // --- Telegram tests ---
 
-func TestRenderConfig_GlobalTelegram_ParseModeMarkdownV2(t *testing.T) {
+func TestRenderConfig_GlobalTelegram_ParseModeHTML(t *testing.T) {
 	host, port, user, pass, from, tls := smtpArgs()
 	cfg := &models.AlertingConfig{
 		TelegramEnabled: true,
@@ -717,7 +717,7 @@ func TestRenderConfig_GlobalTelegram_ParseModeMarkdownV2(t *testing.T) {
 	assert.Contains(t, out, "telegram_configs")
 	assert.Contains(t, out, "bot_token: '1234567890:AABBCCDDEEFFaabbccddeeff'")
 	assert.Contains(t, out, "chat_id: -100123456789")
-	assert.Contains(t, out, "parse_mode: 'MarkdownV2'")
+	assert.Contains(t, out, "parse_mode: 'HTML'")
 	assert.Contains(t, out, `template "telegram.message"`)
 }
 

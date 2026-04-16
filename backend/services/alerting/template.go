@@ -141,7 +141,7 @@ receivers:
       - bot_token: '{{ yamlEscape .BotToken }}'
         chat_id: {{ .ChatID }}
         send_resolved: true
-        parse_mode: 'MarkdownV2'
+        parse_mode: 'HTML'
         message: '{{ "{{" }} template "telegram.message" . {{ "}}" }}'
 {{- end }}
 {{- end }}

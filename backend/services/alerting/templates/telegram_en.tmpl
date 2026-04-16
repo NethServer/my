@@ -1,15 +1,15 @@
 {{ define "telegram.message" -}}
 {{ if .Alerts.Firing -}}
-{{ if eq (len .Alerts.Firing) 1 }}🔴{{ else }}🚨{{ end }} *{{ len .Alerts.Firing }} alert{{ if gt (len .Alerts.Firing) 1 }}s{{ end }} FIRING*
+{{ if eq (len .Alerts.Firing) 1 }}🔴{{ else }}🚨{{ end }} <b>{{ len .Alerts.Firing }} alert{{ if gt (len .Alerts.Firing) 1 }}s{{ end }} FIRING</b>
 {{ range .Alerts.Firing -}}
-{{ if eq .Labels.severity "critical" }}🔴{{ else if eq .Labels.severity "warning" }}🟠{{ else }}🔵{{ end }} *{{ .Labels.alertname }}*{{ if .Labels.system_name }} — `{{ .Labels.system_name }}`{{ end }}
+{{ if eq .Labels.severity "critical" }}🔴{{ else if eq .Labels.severity "warning" }}🟠{{ else }}🔵{{ end }} <b>{{ .Labels.alertname }}</b>{{ if .Labels.system_name }} — <code>{{ .Labels.system_name }}</code>{{ end }}
 {{ if .Annotations.summary_en }}📋 {{ .Annotations.summary_en }}{{ else if .Annotations.summary }}📋 {{ .Annotations.summary }}{{ end }}
 {{ end -}}
 {{ end -}}
 {{ if .Alerts.Resolved -}}
-✅ *{{ len .Alerts.Resolved }} alert{{ if gt (len .Alerts.Resolved) 1 }}s{{ end }} RESOLVED*
+✅ <b>{{ len .Alerts.Resolved }} alert{{ if gt (len .Alerts.Resolved) 1 }}s{{ end }} RESOLVED</b>
 {{ range .Alerts.Resolved -}}
-{{ if eq .Labels.severity "critical" }}🟢{{ else if eq .Labels.severity "warning" }}🟡{{ else }}🔵{{ end }} *{{ .Labels.alertname }}*{{ if .Labels.system_name }} — `{{ .Labels.system_name }}`{{ end }}
+{{ if eq .Labels.severity "critical" }}🟢{{ else if eq .Labels.severity "warning" }}🟡{{ else }}🔵{{ end }} <b>{{ .Labels.alertname }}</b>{{ if .Labels.system_name }} — <code>{{ .Labels.system_name }}</code>{{ end }}
 {{ if .Annotations.summary_en }}📋 {{ .Annotations.summary_en }}{{ else if .Annotations.summary }}📋 {{ .Annotations.summary }}{{ end }}
 {{ end -}}
 {{ end -}}

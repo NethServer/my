@@ -226,7 +226,7 @@ Templates are available in **English** and **Italian**, selected via the `email_
 
 ## Telegram notifications
 
-When Telegram notifications are enabled, alerts are sent as formatted messages to a Telegram bot. Messages use MarkdownV2 formatting and include the alert name, severity, system key, and a localized summary.
+When Telegram notifications are enabled, alerts are sent as formatted messages to a Telegram bot. Messages use HTML formatting and include the alert name, severity, system key, and a localized summary.
 
 :::note
 Telegram messages are limited to 4096 characters. For very long alert descriptions, the message may be truncated. Consider using email or webhook for alerts with extensive metadata.

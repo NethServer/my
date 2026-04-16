@@ -216,7 +216,7 @@ I template sono disponibili in **inglese** e **italiano**, selezionati tramite i
 
 ## Notifiche Telegram
 
-Quando le notifiche Telegram sono abilitate, gli allarmi vengono inviati come messaggi formattati a un bot Telegram. I messaggi usano la formattazione MarkdownV2 e includono nome allarme, severità, system key e riepilogo localizzato.
+Quando le notifiche Telegram sono abilitate, gli allarmi vengono inviati come messaggi formattati a un bot Telegram. I messaggi usano la formattazione HTML e includono nome allarme, severità, system key e riepilogo localizzato.
 
 :::note
 I messaggi Telegram sono limitati a 4096 caratteri. Per descrizioni di allarme molto lunghe, il messaggio potrebbe essere troncato. Per allarmi con metadati estesi, considera di usare email o webhook.
