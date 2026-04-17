@@ -15,6 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	collectalerting "github.com/nethesis/my/collect/alerting"
 	"github.com/nethesis/my/collect/database"
 	"github.com/nethesis/my/collect/logger"
 	"github.com/nethesis/my/collect/models"
@@ -70,28 +71,23 @@ func ReceiveAlertHistory(c *gin.Context) {
 			endsAt = &alert.EndsAt
 		}
 
-		_, err = database.DB.Exec(
-			`INSERT INTO alert_history
-				(system_key, alertname, severity, status, fingerprint, starts_at, ends_at, summary, labels, annotations, receiver)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		err = persistResolvedAlertHistory(
+			alert,
 			systemKey,
 			alertname,
-			nullableString(severity),
-			"resolved",
-			alert.Fingerprint,
-			alert.StartsAt,
-			endsAt,
-			nullableString(summary),
+			severity,
+			summary,
+			payload.Receiver,
 			labelsJSON,
 			annotationsJSON,
-			nullableString(payload.Receiver),
+			endsAt,
 		)
 		if err != nil {
 			logger.Error().
 				Err(err).
 				Str("fingerprint", alert.Fingerprint).
 				Str("system_key", systemKey).
-				Msg("alertmanager history: failed to insert alert")
+				Msg("alertmanager history: failed to persist alert")
 			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to save alert history", nil))
 			return
 		}
@@ -107,6 +103,124 @@ func ReceiveAlertHistory(c *gin.Context) {
 		Msg("alertmanager history: processed webhook payload")
 
 	c.Status(http.StatusNoContent)
+}
+
+// LinkFailed refreshes can emit multiple resolved webhooks for the same outage.
+// starts_at stays stable for that outage, so reuse it as the history key.
+func persistResolvedAlertHistory(
+	alert models.AlertmanagerAlert,
+	systemKey, alertname, severity, summary, receiver string,
+	labelsJSON, annotationsJSON []byte,
+	endsAt *time.Time,
+) error {
+	if alertname == collectalerting.LinkFailedAlert {
+		updated, err := updateExistingLinkFailedHistory(
+			alert,
+			systemKey,
+			alertname,
+			severity,
+			summary,
+			receiver,
+			labelsJSON,
+			annotationsJSON,
+			endsAt,
+		)
+		if err != nil {
+			return err
+		}
+		if updated {
+			return nil
+		}
+	}
+
+	return insertAlertHistory(
+		alert,
+		systemKey,
+		alertname,
+		severity,
+		summary,
+		receiver,
+		labelsJSON,
+		annotationsJSON,
+		endsAt,
+	)
+}
+
+func updateExistingLinkFailedHistory(
+	alert models.AlertmanagerAlert,
+	systemKey, alertname, severity, summary, receiver string,
+	labelsJSON, annotationsJSON []byte,
+	endsAt *time.Time,
+) (bool, error) {
+	result, err := database.DB.Exec(
+		`WITH existing AS (
+			SELECT id
+			FROM alert_history
+			WHERE system_key = $1
+			  AND alertname = $2
+			  AND starts_at = $3
+			  AND status = 'resolved'
+			ORDER BY created_at DESC, id DESC
+			LIMIT 1
+		)
+		UPDATE alert_history ah
+		SET severity = $4,
+		    status = 'resolved',
+		    fingerprint = $5,
+		    ends_at = $6,
+		    summary = $7,
+		    labels = $8,
+		    annotations = $9,
+		    receiver = $10,
+		    created_at = NOW()
+		FROM existing
+		WHERE ah.id = existing.id`,
+		systemKey,
+		alertname,
+		alert.StartsAt,
+		nullableString(severity),
+		alert.Fingerprint,
+		endsAt,
+		nullableString(summary),
+		labelsJSON,
+		annotationsJSON,
+		nullableString(receiver),
+	)
+	if err != nil {
+		return false, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+
+	return rowsAffected > 0, nil
+}
+
+func insertAlertHistory(
+	alert models.AlertmanagerAlert,
+	systemKey, alertname, severity, summary, receiver string,
+	labelsJSON, annotationsJSON []byte,
+	endsAt *time.Time,
+) error {
+	_, err := database.DB.Exec(
+		`INSERT INTO alert_history
+			(system_key, alertname, severity, status, fingerprint, starts_at, ends_at, summary, labels, annotations, receiver)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		systemKey,
+		alertname,
+		nullableString(severity),
+		"resolved",
+		alert.Fingerprint,
+		alert.StartsAt,
+		endsAt,
+		nullableString(summary),
+		labelsJSON,
+		annotationsJSON,
+		nullableString(receiver),
+	)
+	return err
 }
 
 // nullableString returns nil for empty strings so they are stored as NULL.

@@ -247,6 +247,111 @@ func TestReceiveAlertHistory_ZeroTimeEndsAt(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestReceiveAlertHistory_LinkFailedUpdatesExistingStart(t *testing.T) {
+	mock, cleanup := setupMockDB(t)
+	defer cleanup()
+
+	mock.ExpectExec(`WITH existing AS`).
+		WithArgs(
+			"SYS-KEY-001",
+			"LinkFailed",
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			"link123",
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+		).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	payload := map[string]interface{}{
+		"status":   "resolved",
+		"receiver": "builtin-history",
+		"alerts": []map[string]interface{}{
+			{
+				"status": "resolved",
+				"labels": map[string]string{
+					"alertname":  "LinkFailed",
+					"severity":   "critical",
+					"system_key": "SYS-KEY-001",
+				},
+				"annotations": map[string]string{"summary": "No heartbeat received from system"},
+				"startsAt":    "2026-04-09T10:00:00Z",
+				"endsAt":      "2026-04-09T10:30:00Z",
+				"fingerprint": "link123",
+			},
+		},
+	}
+	body, _ := json.Marshal(payload)
+
+	router := gin.New()
+	router.POST("/alert_history", ReceiveAlertHistory)
+
+	req := httptest.NewRequest(http.MethodPost, "/alert_history", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestReceiveAlertHistory_LinkFailedInsertsWhenStartNotSeen(t *testing.T) {
+	mock, cleanup := setupMockDB(t)
+	defer cleanup()
+
+	mock.ExpectExec(`WITH existing AS`).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(`INSERT INTO alert_history`).
+		WithArgs(
+			"SYS-KEY-001",
+			"LinkFailed",
+			sqlmock.AnyArg(),
+			"resolved",
+			"link123",
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+		).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	payload := map[string]interface{}{
+		"status":   "resolved",
+		"receiver": "builtin-history",
+		"alerts": []map[string]interface{}{
+			{
+				"status": "resolved",
+				"labels": map[string]string{
+					"alertname":  "LinkFailed",
+					"severity":   "critical",
+					"system_key": "SYS-KEY-001",
+				},
+				"annotations": map[string]string{"summary": "No heartbeat received from system"},
+				"startsAt":    "2026-04-09T10:00:00Z",
+				"endsAt":      "2026-04-09T10:30:00Z",
+				"fingerprint": "link123",
+			},
+		},
+	}
+	body, _ := json.Marshal(payload)
+
+	router := gin.New()
+	router.POST("/alert_history", ReceiveAlertHistory)
+
+	req := httptest.NewRequest(http.MethodPost, "/alert_history", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestNullableString(t *testing.T) {
 	tests := []struct {
 		name    string
