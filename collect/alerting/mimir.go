@@ -389,6 +389,8 @@ func PostAlerts(orgID string, alerts []models.AlertmanagerPostAlert) error {
 	if resp.StatusCode >= http.StatusMultipleChoices {
 		responseBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 		return fmt.Errorf("post alerts returned status %d: %s", resp.StatusCode, strings.TrimSpace(string(responseBody)))
+	} else {
+		logger.Debug().Int("status_code", resp.StatusCode).Int("alerts_posted", len(alerts)).Msg("successfully posted alerts to mimir")
 	}
 
 	return nil
