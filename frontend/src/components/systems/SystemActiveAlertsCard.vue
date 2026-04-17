@@ -18,10 +18,16 @@ import {
   NeTableHead,
   NeTableHeadCell,
   NeTableRow,
+  NeTooltip,
   type NeBadgeV2Kind,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faBell, faBellSlash, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons'
+import {
+  faBell,
+  faBellSlash,
+  faExclamationTriangle,
+  faCircleInfo,
+} from '@fortawesome/free-solid-svg-icons'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { useLoginStore } from '@/stores/login'
 import {
@@ -234,6 +240,38 @@ function getAlertSilenceCountText(alert: Alert) {
 function isSuppressed(alert: Alert) {
   return alert.status?.state?.toLowerCase() === 'suppressed'
 }
+
+function formatAlertDetails(alert: Alert): string {
+  const lines: string[] = []
+
+  // Labels section
+  if (Object.keys(alert.labels).length > 0) {
+    lines.push('Labels:')
+    Object.entries(alert.labels).forEach(([key, value]) => {
+      lines.push(`  ${key}: ${value}`)
+    })
+  }
+
+  // Annotations section
+  if (Object.keys(alert.annotations).length > 0) {
+    lines.push('Annotations:')
+    Object.entries(alert.annotations).forEach(([key, value]) => {
+      lines.push(`  ${key}: ${value}`)
+    })
+  }
+
+  // Fingerprint
+  if (alert.fingerprint) {
+    lines.push(`Fingerprint: ${alert.fingerprint}`)
+  }
+
+  // Generator URL
+  if (alert.generatorURL) {
+    lines.push(`Generator: ${alert.generatorURL}`)
+  }
+
+  return lines.join('\n') || 'No additional details'
+}
 </script>
 
 <template>
@@ -317,14 +355,37 @@ function isSuppressed(alert: Alert) {
           </NeTableCell>
           <NeTableCell :data-label="$t('alerting.summary')">
             <div class="space-y-1">
-              <div class="font-medium text-gray-700 dark:text-gray-300">
-                {{ getAlertSummaryText(alert) || '-' }}
-              </div>
-              <div
-                v-if="getAlertDescriptionText(alert)"
-                class="text-sm text-gray-600 dark:text-gray-400"
-              >
-                {{ getAlertDescriptionText(alert) }}
+              <div class="flex items-start justify-between gap-2">
+                <div class="flex-1">
+                  <div class="font-medium text-gray-700 dark:text-gray-300">
+                    {{ getAlertSummaryText(alert) || '-' }}
+                  </div>
+                  <div
+                    v-if="getAlertDescriptionText(alert)"
+                    class="text-sm text-gray-600 dark:text-gray-400"
+                  >
+                    {{ getAlertDescriptionText(alert) }}
+                  </div>
+                </div>
+                <NeTooltip :placement="'left'" :trigger-event="'click'" class="shrink-0">
+                  <template #trigger>
+                    <NeButton
+                      kind="tertiary"
+                      size="sm"
+                      class="!p-2"
+                      :title="$t('alerting.view_alert_details')"
+                    >
+                      <FontAwesomeIcon :icon="faCircleInfo" aria-hidden="true" />
+                    </NeButton>
+                  </template>
+                  <template #content>
+                    <div
+                      class="max-w-sm rounded bg-gray-900 p-2 text-sm break-words whitespace-pre-wrap text-gray-50 dark:bg-gray-800"
+                    >
+                      {{ formatAlertDetails(alert) }}
+                    </div>
+                  </template>
+                </NeTooltip>
               </div>
             </div>
           </NeTableCell>

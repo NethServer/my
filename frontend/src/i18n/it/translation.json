@@ -719,6 +719,7 @@
     "cannot_retrieve_organizations": "Impossibile recuperare le organizzazioni",
     "alerting_title": "Alerting",
     "alerting_page_description": "Visualizza gli avvisi attivi e gestisci la configurazione degli avvisi per qualsiasi organizzazione",
+    "view_alert_details": "Visualizza i dettagli dell'avviso",
     "select_organization": "Organizzazione",
     "no_organizations_description": "Non ci sono organizzazioni disponibili per l'alerting"
   }

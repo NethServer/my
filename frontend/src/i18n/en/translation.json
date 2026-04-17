@@ -797,6 +797,7 @@
     "cannot_retrieve_organizations": "Cannot retrieve organizations",
     "alerting_title": "Alerting",
     "alerting_page_description": "View active alerts and manage alerting configuration for any organization",
+    "view_alert_details": "View alert details",
     "select_organization": "Organization",
     "no_organizations_description": "There are no organizations available for alerting"
   }
