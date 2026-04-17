@@ -20,10 +20,10 @@ import (
 
 const (
 	linkFailedSyncInterval = 5 * time.Minute
-	// Alerts auto-resolve after 3× the sync interval if not refreshed.
+	// Alerts auto-resolve after 2× the sync interval if not refreshed.
 	// A system must remain active for a full TTL window before its alert clears,
 	// which prevents flapping when heartbeats arrive near the timeout boundary.
-	linkFailedAlertTTL = 3 * linkFailedSyncInterval
+	linkFailedAlertTTL = 2 * linkFailedSyncInterval
 )
 
 type postAlertsFunc func(orgID string, alerts []models.AlertmanagerPostAlert) error
