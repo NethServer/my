@@ -88,8 +88,9 @@ LOG_LEVEL=info
 
 **7. LinkFailed Synchronization**
 - **LinkFailed Monitor Cron** runs every 5 minutes
-- Fires the internal `LinkFailed` alert for inactive, non-deleted systems
-- Resolves the internal `LinkFailed` alert when a system is active again
+- Fires the internal `LinkFailed` alert for inactive, non-deleted systems after `HEARTBEAT_TIMEOUT_MINUTES` (10 minutes by default)
+- Stops refreshing the alert when a system is active again, so Alertmanager resolves it after the 10 minute TTL from the last refresh
+- This can keep the alert visible for up to 10 minutes after heartbeat recovery
 - Reuses the same server-side label enrichment as the Mimir proxy so internal alerts carry the same authoritative system and organization labels
 
 ### Queue Architecture

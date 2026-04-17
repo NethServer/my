@@ -192,6 +192,10 @@ Cliccando appare un passaggio di conferma prima dell'esecuzione.
 
 Nella pagina di dettaglio di ciascun sistema trovi due widget aggiuntivi:
 
+:::note
+`LinkFailed` è l'alert interno per l'heartbeat creato da Collect. Segue il timeout heartbeat configurato (10 minuti di default), separato dalla soglia di stato del sistema usata in Sistemi, e può restare attivo fino a 10 minuti dopo che il sistema torna a inviare heartbeat.
+:::
+
 ### Card Allarmi attivi
 
 Mostra gli allarmi attualmente attivi per quel sistema specifico, filtrati per la system key. Ogni voce mostra nome allarme, severità, stato, riepilogo e ora di inizio. Se il sistema non ha allarmi attivi, viene mostrato un messaggio di stato vuoto.

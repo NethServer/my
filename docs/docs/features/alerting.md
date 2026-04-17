@@ -192,6 +192,10 @@ When clicked, a confirmation step appears before the action is executed.
 
 On each system's detail page you can find two additional alerting widgets:
 
+:::note
+`LinkFailed` is the internal heartbeat alert created by Collect. It follows the configured heartbeat timeout (10 minutes by default), separate from the system-status threshold used in Systems, and can remain active for up to 10 minutes after the system starts sending heartbeats again.
+:::
+
 ### Active Alerts card
 
 Shows alerts currently firing for that specific system, filtered by the system's key. Each entry displays alert name, severity, state, summary, and start time. If the system has no active alerts, an empty-state message is shown.
