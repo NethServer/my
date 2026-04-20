@@ -87,7 +87,7 @@ func TestLinkFailedMonitorBuildFiringAlert_CapsStartsAtToNow(t *testing.T) {
 		"EndsAt must be after StartsAt")
 }
 
-func TestLinkFailedMonitorSyncOrganization_TTLIsThreeSyncIntervals(t *testing.T) {
+func TestLinkFailedMonitorSyncOrganization_TTLMatchesAlertTTLConstant(t *testing.T) {
 	monitor := &LinkFailedMonitor{
 		timeoutMinutes: 10,
 		postAlerts:     func(_ string, _ []models.AlertmanagerPostAlert) error { return nil },
@@ -105,7 +105,7 @@ func TestLinkFailedMonitorSyncOrganization_TTLIsThreeSyncIntervals(t *testing.T)
 	alert, err := monitor.buildFiringAlert(system)
 	require.NoError(t, err)
 
-	assert.WithinDuration(t, time.Now().UTC().Add(3*linkFailedSyncInterval), alert.EndsAt, 5*time.Second)
+	assert.WithinDuration(t, time.Now().UTC().Add(linkFailedAlertTTL), alert.EndsAt, 5*time.Second)
 }
 
 func TestLinkFailedMonitorSyncOrganization_NoOpWhenNoInactiveSystems(t *testing.T) {

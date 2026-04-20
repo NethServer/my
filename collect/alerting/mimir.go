@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"text/template"
 	"time"
@@ -24,29 +23,11 @@ import (
 )
 
 const (
-	MimirAlertsPath    = "/alertmanager/api/v2/alerts"
-	LinkFailedAlert    = "LinkFailed"
-	ManagedByLabel     = "managed_by"
-	ManagedByCollect   = "my-collect"
-	listAlertsBodySize = 4 << 20
+	MimirAlertsPath  = "/alertmanager/api/v2/alerts"
+	LinkFailedAlert  = "LinkFailed"
+	ManagedByLabel   = "managed_by"
+	ManagedByCollect = "my-collect"
 )
-
-// alertAPIStatus matches the Alertmanager API v2 status object shape.
-type alertAPIStatus struct {
-	State string `json:"state"`
-}
-
-// alertAPIResponse matches the Alertmanager API v2 GET /alerts response shape,
-// where "status" is an object rather than a plain string.
-type alertAPIResponse struct {
-	Status       alertAPIStatus    `json:"status"`
-	Labels       map[string]string `json:"labels"`
-	Annotations  map[string]string `json:"annotations"`
-	StartsAt     time.Time         `json:"startsAt"`
-	EndsAt       time.Time         `json:"endsAt"`
-	GeneratorURL string            `json:"generatorURL"`
-	Fingerprint  string            `json:"fingerprint"`
-}
 
 var MimirHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
@@ -295,68 +276,6 @@ func ProcessAnnotationTemplates(body []byte) []byte {
 	return out
 }
 
-// ListAlerts fetches active alerts for a tenant, optionally applying Alertmanager filters.
-func ListAlerts(orgID string, filters ...string) ([]models.AlertmanagerAlert, error) {
-	targetURL := fmt.Sprintf("%s%s", configuration.Config.MimirURL, MimirAlertsPath)
-	if len(filters) > 0 {
-		query := url.Values{}
-		for _, filter := range filters {
-			query.Add("filter", filter)
-		}
-		targetURL += "?" + query.Encode()
-	}
-
-	req, err := http.NewRequest(http.MethodGet, targetURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("create alert list request: %w", err)
-	}
-	req.Header.Set("X-Scope-OrgID", orgID)
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := MimirHTTPClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("list alerts from mimir: %w", err)
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			logger.Error().Err(err).Msg("alerting: failed to close alert list response body")
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-		return nil, fmt.Errorf("list alerts returned status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, listAlertsBodySize))
-	if err != nil {
-		return nil, fmt.Errorf("read alert list response: %w", err)
-	}
-	if len(bytes.TrimSpace(body)) == 0 {
-		return []models.AlertmanagerAlert{}, nil
-	}
-
-	var raw []alertAPIResponse
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return nil, fmt.Errorf("unmarshal alert list response: %w", err)
-	}
-
-	alerts := make([]models.AlertmanagerAlert, 0, len(raw))
-	for _, r := range raw {
-		alerts = append(alerts, models.AlertmanagerAlert{
-			Status:       r.Status.State,
-			Labels:       r.Labels,
-			Annotations:  r.Annotations,
-			StartsAt:     r.StartsAt,
-			EndsAt:       r.EndsAt,
-			GeneratorURL: r.GeneratorURL,
-			Fingerprint:  r.Fingerprint,
-		})
-	}
-
-	return alerts, nil
-}
-
 // PostAlerts sends a batch of alerts to Alertmanager for the given tenant.
 func PostAlerts(orgID string, alerts []models.AlertmanagerPostAlert) error {
 	if len(alerts) == 0 {
@@ -389,9 +308,8 @@ func PostAlerts(orgID string, alerts []models.AlertmanagerPostAlert) error {
 	if resp.StatusCode >= http.StatusMultipleChoices {
 		responseBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 		return fmt.Errorf("post alerts returned status %d: %s", resp.StatusCode, strings.TrimSpace(string(responseBody)))
-	} else {
-		logger.Debug().Int("status_code", resp.StatusCode).Int("alerts_posted", len(alerts)).Msg("successfully posted alerts to mimir")
 	}
+	logger.Debug().Int("status_code", resp.StatusCode).Int("alerts_posted", len(alerts)).Msg("successfully posted alerts to mimir")
 
 	return nil
 }

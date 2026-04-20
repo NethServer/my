@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	collectalerting "github.com/nethesis/my/collect/alerting"
 )
 
 func TestProcessAnnotationTemplates(t *testing.T) {
@@ -85,7 +87,7 @@ func TestProcessAnnotationTemplates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := processAnnotationTemplates([]byte(tt.body), map[string]string{})
+			result := collectalerting.ProcessAnnotationTemplates([]byte(tt.body))
 
 			var alerts []map[string]interface{}
 			err := json.Unmarshal(result, &alerts)
@@ -127,7 +129,7 @@ func TestProcessAnnotationTemplates(t *testing.T) {
 func TestProcessAnnotationTemplates_InvalidTemplate(t *testing.T) {
 	// Invalid template syntax should not crash but leave annotation unchanged
 	body := `[{"labels":{"severity":"critical"},"annotations":{"summary":"Invalid template {{.unclosed"}}]`
-	result := processAnnotationTemplates([]byte(body), map[string]string{})
+	result := collectalerting.ProcessAnnotationTemplates([]byte(body))
 
 	var alerts []map[string]interface{}
 	err := json.Unmarshal(result, &alerts)
@@ -199,7 +201,7 @@ func TestInjectLabels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := injectLabels([]byte(tt.body), tt.toInject)
+			result := collectalerting.InjectLabels([]byte(tt.body), tt.toInject)
 
 			var alerts []map[string]interface{}
 			err := json.Unmarshal(result, &alerts)
@@ -219,13 +221,13 @@ func TestInjectLabels(t *testing.T) {
 
 func TestInjectLabels_InvalidJSON(t *testing.T) {
 	body := []byte("not json")
-	result := injectLabels(body, map[string]string{"system_key": "SYS-001"})
+	result := collectalerting.InjectLabels(body, map[string]string{"system_key": "SYS-001"})
 	assert.Equal(t, body, result, "invalid JSON must be returned unchanged")
 }
 
 func TestInjectLabels_EmptyInjection(t *testing.T) {
 	body := []byte(`[{"labels":{"alertname":"Test"}}]`)
-	result := injectLabels(body, map[string]string{})
+	result := collectalerting.InjectLabels(body, map[string]string{})
 	assert.Equal(t, body, result, "empty injection must return body unchanged")
 }
 

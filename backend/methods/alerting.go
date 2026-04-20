@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -83,18 +84,9 @@ func ConfigureAlerts(c *gin.Context) {
 	}
 
 	// Validate email template language
-	if req.EmailTemplateLang != "" {
-		valid := false
-		for _, lang := range alerting.ValidTemplateLangs {
-			if req.EmailTemplateLang == lang {
-				valid = true
-				break
-			}
-		}
-		if !valid {
-			c.JSON(http.StatusBadRequest, response.BadRequest("invalid email_template_lang: allowed values are "+strings.Join(alerting.ValidTemplateLangs, ", "), nil))
-			return
-		}
+	if req.EmailTemplateLang != "" && !slices.Contains(alerting.ValidTemplateLangs, req.EmailTemplateLang) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid email_template_lang: allowed values are "+strings.Join(alerting.ValidTemplateLangs, ", "), nil))
+		return
 	}
 
 	cfg := configuration.Config
@@ -264,20 +256,22 @@ func GetAlertsTotals(c *gin.Context) {
 	} else {
 		var alerts []map[string]interface{}
 		if err := json.Unmarshal(body, &alerts); err == nil {
-			result["active"] = len(alerts)
+			var critical, warning, info int
 			for _, alert := range alerts {
 				labels, _ := alert["labels"].(map[string]interface{})
-				if sev, ok := labels["severity"].(string); ok {
-					switch sev {
-					case "critical":
-						result["critical"] = result["critical"].(int) + 1
-					case "warning":
-						result["warning"] = result["warning"].(int) + 1
-					case "info":
-						result["info"] = result["info"].(int) + 1
-					}
+				switch sev, _ := labels["severity"].(string); sev {
+				case "critical":
+					critical++
+				case "warning":
+					warning++
+				case "info":
+					info++
 				}
 			}
+			result["active"] = len(alerts)
+			result["critical"] = critical
+			result["warning"] = warning
+			result["info"] = info
 		}
 	}
 
@@ -436,13 +430,7 @@ func buildSystemAlertSilenceRequest(
 	sort.Strings(labelNames)
 
 	matchers := make([]models.AlertmanagerMatcher, 0, len(labelNames))
-	seen := make(map[string]struct{}, len(labelNames))
 	for _, name := range labelNames {
-		if _, found := seen[name]; found {
-			continue
-		}
-		seen[name] = struct{}{}
-
 		value := alert.Labels[name]
 		if name == "system_key" {
 			value = systemKey

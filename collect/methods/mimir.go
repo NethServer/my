@@ -262,17 +262,3 @@ func silenceHasSystemKeyMatcher(silenceBody []byte, systemKey string) bool {
 	}
 	return false
 }
-
-// injectLabels proxies to the shared alerting enrichment helper so ProxyMimir
-// and internal LinkFailed alerts use the same label injection rules.
-func injectLabels(body []byte, toInject map[string]string) []byte {
-	return collectalerting.InjectLabels(body, toInject)
-}
-
-// processAnnotationTemplates applies Go text/template processing to annotations in alerts.
-// It uses alert labels as template data. For example, an annotation value like
-// "severity={{.severity}}" will have {{.severity}} replaced with the value of the
-// severity label. If template processing fails, the annotation is left unchanged.
-func processAnnotationTemplates(body []byte, _ map[string]string) []byte {
-	return collectalerting.ProcessAnnotationTemplates(body)
-}
