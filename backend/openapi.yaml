@@ -3170,6 +3170,24 @@ components:
                 nullable: true
                 example: null
 
+    RequestEntityTooLarge:
+      description: Request body exceeds the configured maximum size
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              code:
+                type: integer
+                example: 413
+              message:
+                type: string
+                example: "request entity too large"
+              data:
+                type: object
+                nullable: true
+                example: null
+
 paths:
   # ===========================================================================
   # USER MANAGEMENT
