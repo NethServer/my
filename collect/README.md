@@ -203,13 +203,11 @@ curl -X POST http://localhost:8081/api/systems/inventory \
   -d '{"system_id": "test", "timestamp": "2025-07-13T10:00:00Z", "data": {"os": {"name": "TestOS"}}}'
 
 # Upload a configuration backup (streams the file body; GPG encryption is
-# up to the appliance). X-Filename is the user-facing name shown in the
-# UI; X-System-Version tracks the appliance OS release that produced it.
+# up to the appliance). X-Filename is the user-facing name shown in the UI.
 curl -X POST http://localhost:8081/api/systems/backups \
   -u "system_key:system_secret" \
   -H "Content-Type: application/octet-stream" \
   -H "X-Filename: dump.json.gz.gpg" \
-  -H "X-System-Version: ns8-3.0.0" \
   --data-binary @/path/to/backup.gpg
 ```
 
@@ -264,7 +262,6 @@ metadata is stored as standard `x-amz-meta-*` headers:
 | `x-amz-meta-sha256`      | Computed by collect via streaming tee at ingest                      |
 | `x-amz-meta-filename`    | From the appliance request header `X-Filename` (user-facing name)    |
 | `x-amz-meta-uploader-ip` | Client IP observed by collect                                        |
-| `x-amz-meta-system-ver`  | Optional appliance OS version from `X-System-Version`                |
 
 ### Testing the backup round-trip end-to-end
 
@@ -295,7 +292,6 @@ gpg --batch --yes -c --pinentry-mode loopback --cipher-algo AES256 \
 # Upload as an authenticated appliance
 curl --user "$SYSTEM_KEY:$SYSTEM_SECRET" \
      -H "X-Filename: dump.json.gz.gpg" \
-     -H "X-System-Version: simulated-ns8-3.0.0" \
      -H "Content-Type: application/octet-stream" \
      --data-binary @/tmp/dump.json.gz.gpg \
      http://localhost:8081/api/systems/backups

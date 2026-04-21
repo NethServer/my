@@ -51,7 +51,6 @@ type BackupMetadata struct {
 	MimeType   string    `json:"mimetype"`
 	UploadedAt time.Time `json:"uploaded_at"`
 	UploaderIP string    `json:"uploader_ip,omitempty"`
-	SystemVer  string    `json:"system_version,omitempty"`
 }
 
 // BackupListResponse wraps the list of backups with aggregate usage counters
@@ -310,7 +309,6 @@ func listSystemBackups(ctx context.Context, client *s3.Client, orgID, systemKey 
 				MimeType:   aws.ToString(head.ContentType),
 				UploadedAt: aws.ToTime(o.LastModified),
 				UploaderIP: md["uploader-ip"],
-				SystemVer:  md["system-ver"],
 			})
 		}
 	}

@@ -51,7 +51,6 @@ Per-object metadata travels as standard `x-amz-meta-*` headers:
 | `x-amz-meta-sha256`      | SHA-256 of the encrypted blob, computed by `collect` during the stream. |
 | `x-amz-meta-filename`    | User-facing name provided by the appliance (`X-Filename` header).       |
 | `x-amz-meta-uploader-ip` | Peer address seen by `collect` at ingest — not forgeable via proxies.   |
-| `x-amz-meta-system-ver`  | Optional OS version string from the `X-System-Version` header.          |
 
 ## Retention and quotas
 

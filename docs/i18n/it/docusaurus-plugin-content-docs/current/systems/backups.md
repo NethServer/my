@@ -51,7 +51,6 @@ I metadati per oggetto viaggiano come header `x-amz-meta-*` standard:
 | `x-amz-meta-sha256`      | SHA-256 del blob cifrato, calcolato da `collect` durante lo streaming.   |
 | `x-amz-meta-filename`    | Nome user-facing fornito dall'appliance tramite l'header `X-Filename`.   |
 | `x-amz-meta-uploader-ip` | Indirizzo del peer visto da `collect` — non falsificabile via proxy.     |
-| `x-amz-meta-system-ver`  | Versione OS opzionale dall'header `X-System-Version`.                    |
 
 ## Retention e quote
 

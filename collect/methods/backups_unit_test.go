@@ -115,24 +115,6 @@ func TestSanitizeFilename(t *testing.T) {
 	}
 }
 
-func TestSanitizeSystemVersion(t *testing.T) {
-	tests := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{"keeps version-ish", "ns8-3.0.0+dev", "ns8-3.0.0+dev"},
-		{"drops spaces", "ns8 3.0.0", "ns83.0.0"},
-		{"drops parens", "NethServer (8.4.2)", "NethServer8.4.2"},
-		{"caps at 64 chars", strings.Repeat("9", 100), strings.Repeat("9", 64)},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, sanitizeSystemVersion(tc.in))
-		})
-	}
-}
-
 func TestUploadBackupNoSystemID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

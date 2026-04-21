@@ -84,28 +84,6 @@ func sanitizeFilename(raw string) string {
 	return s
 }
 
-// sanitizeSystemVersion whitelists a narrower set than filenames: no
-// whitespace, no punctuation beyond what shows up in real version
-// strings, capped at 64 chars.
-func sanitizeSystemVersion(raw string) string {
-	mapFn := func(r rune) rune {
-		switch {
-		case r >= 'A' && r <= 'Z':
-		case r >= 'a' && r <= 'z':
-		case r >= '0' && r <= '9':
-		case r == '.' || r == '-' || r == '_' || r == '+':
-		default:
-			return -1
-		}
-		return r
-	}
-	s := strings.Map(mapFn, raw)
-	if len(s) > 64 {
-		s = s[:64]
-	}
-	return s
-}
-
 // enforceIngestRateLimit keeps a Redis-backed sliding counter per
 // system and rejects requests past the per-minute and per-hour caps.
 // Returns (allowed, retryAfterSeconds). A Redis outage fails open —
@@ -199,7 +177,6 @@ type BackupMetadata struct {
 	MimeType   string    `json:"mimetype"`
 	UploadedAt time.Time `json:"uploaded_at"`
 	UploaderIP string    `json:"uploader_ip,omitempty"`
-	SystemVer  string    `json:"system_version,omitempty"`
 }
 
 // UploadBackup streams a configuration backup uploaded by an authenticated
@@ -291,9 +268,6 @@ func UploadBackup(c *gin.Context) {
 		"filename":    sanitizeFilename(filename),
 		"uploader-ip": remoteAddrIP(c),
 		"sha256":      "pending",
-	}
-	if sv := sanitizeSystemVersion(c.GetHeader("X-System-Version")); sv != "" {
-		metadata["system-ver"] = sv
 	}
 
 	_, err = client.PutObject(ctx, &s3.PutObjectInput{
@@ -392,7 +366,6 @@ func UploadBackup(c *gin.Context) {
 		MimeType:   contentType,
 		UploadedAt: time.Now().UTC(),
 		UploaderIP: metadata["uploader-ip"],
-		SystemVer:  metadata["system-ver"],
 	}))
 }
 
@@ -543,7 +516,6 @@ func listBackupsForSystem(ctx context.Context, client *s3.Client, orgID, systemK
 				MimeType:   aws.ToString(head.ContentType),
 				UploadedAt: aws.ToTime(o.LastModified),
 				UploaderIP: md["uploader-ip"],
-				SystemVer:  md["system-ver"],
 			})
 		}
 	}
