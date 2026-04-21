@@ -92,7 +92,7 @@ func ConfigureAlerts(c *gin.Context) {
 	cfg := configuration.Config
 	yamlConfig, err := alerting.RenderConfig(
 		cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.SMTPTLS,
-		cfg.AlertingHistoryWebhookURL, cfg.AlertingHistoryWebhookToken,
+		cfg.AlertingHistoryWebhookURL, cfg.AlertingHistoryWebhookSecret,
 		&req,
 	)
 	if err != nil {
@@ -129,7 +129,7 @@ func DisableAlerts(c *gin.Context) {
 	cfg := configuration.Config
 	yamlConfig, err := alerting.RenderConfig(
 		cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.SMTPTLS,
-		cfg.AlertingHistoryWebhookURL, cfg.AlertingHistoryWebhookToken,
+		cfg.AlertingHistoryWebhookURL, cfg.AlertingHistoryWebhookSecret,
 		nil,
 	)
 	if err != nil {

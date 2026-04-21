@@ -59,7 +59,7 @@ func ProvisionDefaultConfig(orgID, defaultEmail, defaultLang string) error {
 
 	yamlConfig, err := RenderConfig(
 		cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.SMTPTLS,
-		cfg.AlertingHistoryWebhookURL, cfg.AlertingHistoryWebhookToken,
+		cfg.AlertingHistoryWebhookURL, cfg.AlertingHistoryWebhookSecret,
 		defaultAlerting,
 	)
 	if err != nil {

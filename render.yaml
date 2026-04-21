@@ -121,7 +121,7 @@ services:
       # Alerting Configuration
       - key: ALERTING_HISTORY_WEBHOOK_URL
         sync: false
-      - key: ALERTING_HISTORY_WEBHOOK_TOKEN
+      - key: ALERTING_HISTORY_WEBHOOK_SECRET
         sync: false
 
   # Production Collect Service (Private Service)
@@ -309,7 +309,7 @@ services:
       # Alerting Configuration
       - key: ALERTING_HISTORY_WEBHOOK_URL
         sync: false
-      - key: ALERTING_HISTORY_WEBHOOK_TOKEN
+      - key: ALERTING_HISTORY_WEBHOOK_SECRET
         sync: false
 
     autoDeploy: true   # Auto-deploy on every commit

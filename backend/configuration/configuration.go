@@ -70,8 +70,8 @@ type Configuration struct {
 	// Mimir configuration
 	MimirURL string `json:"mimir_url"`
 	// Alerting configuration
-	AlertingHistoryWebhookURL   string `json:"alerting_history_webhook_url"`
-	AlertingHistoryWebhookToken string `json:"alerting_history_webhook_token"`
+	AlertingHistoryWebhookURL    string `json:"alerting_history_webhook_url"`
+	AlertingHistoryWebhookSecret string `json:"alerting_history_webhook_secret"`
 }
 
 var Config = Configuration{}
@@ -219,7 +219,7 @@ func Init() {
 
 	// Alerting configuration — optional, empty means no built-in history webhook
 	Config.AlertingHistoryWebhookURL = os.Getenv("ALERTING_HISTORY_WEBHOOK_URL")
-	Config.AlertingHistoryWebhookToken = os.Getenv("ALERTING_HISTORY_WEBHOOK_TOKEN")
+	Config.AlertingHistoryWebhookSecret = os.Getenv("ALERTING_HISTORY_WEBHOOK_SECRET")
 
 	// Log successful configuration load
 	logger.LogConfigLoad("env", "configuration", true, nil)
