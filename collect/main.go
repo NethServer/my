@@ -92,6 +92,10 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to start worker manager")
 	}
 
+	// Subscribe to the cross-service auth invalidation bus so credential
+	// changes made on the backend propagate to this cache within seconds.
+	middleware.StartAuthInvalidator(ctx)
+
 	// Start heartbeat monitor cron job
 	heartbeatMonitor := cron.NewHeartbeatMonitor()
 	go heartbeatMonitor.Start(ctx)

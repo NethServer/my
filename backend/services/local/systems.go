@@ -10,6 +10,7 @@
 package local
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
@@ -21,6 +22,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 
+	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/helpers"
@@ -409,6 +411,8 @@ func (s *LocalSystemsService) DeleteSystem(systemID, userID, userOrgID, userOrgR
 		return fmt.Errorf("system not found")
 	}
 
+	cache.InvalidateSystemAuth(context.Background(), system.SystemKey)
+
 	logger.Info().
 		Str("system_id", systemID).
 		Str("deleted_by", userID).
@@ -585,6 +589,8 @@ func (s *LocalSystemsService) DestroySystem(systemID, userID, userOrgID, userOrg
 		return fmt.Errorf("failed to hard-delete system: %w", err)
 	}
 
+	cache.InvalidateSystemAuth(context.Background(), system.SystemKey)
+
 	logger.Info().
 		Str("system_id", systemID).
 		Str("destroyed_by", userID).
@@ -635,6 +641,8 @@ func (s *LocalSystemsService) RegenerateSystemSecret(systemID, userID, userOrgID
 	// Update the existing system object in memory instead of re-fetching
 	system.UpdatedAt = now
 	system.SystemSecret = fullToken
+
+	cache.InvalidateSystemAuth(context.Background(), system.SystemKey)
 
 	logger.Info().
 		Str("system_id", systemID).

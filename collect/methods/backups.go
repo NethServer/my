@@ -255,6 +255,21 @@ func UploadBackup(c *gin.Context) {
 		return
 	}
 
+	// Per-org aggregate quota — reject before streaming the body if the
+	// incoming upload would push the org over its ceiling.
+	if configuration.Config.BackupMaxSizePerOrg > 0 {
+		used, err := computeOrgBackupUsage(ctx, client, orgID)
+		if err != nil {
+			logger.Warn().Err(err).Str("org_id", orgID).Msg("failed to compute org quota, allowing upload")
+		} else if used+c.Request.ContentLength > configuration.Config.BackupMaxSizePerOrg {
+			c.JSON(http.StatusRequestEntityTooLarge, response.Error(http.StatusRequestEntityTooLarge, "organization backup quota exceeded", gin.H{
+				"used_bytes": used,
+				"max_bytes":  configuration.Config.BackupMaxSizePerOrg,
+			}))
+			return
+		}
+	}
+
 	backupID := uuid.Must(uuid.NewV7())
 	filename := extractFilename(c.GetHeader("X-Filename"), backupID.String())
 	ext := extractExtension(filename)
@@ -613,6 +628,28 @@ func enforceBackupRetention(ctx context.Context, client *s3.Client, orgID, syste
 	}
 
 	return nil
+}
+
+// computeOrgBackupUsage returns the sum of every backup object size
+// stored under the given organization prefix. Paginates to handle orgs
+// with many systems × many retained backups.
+func computeOrgBackupUsage(ctx context.Context, client *s3.Client, orgID string) (int64, error) {
+	prefix := fmt.Sprintf("%s/", orgID)
+	var total int64
+	paginator := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
+		Bucket: aws.String(configuration.Config.BackupS3Bucket),
+		Prefix: aws.String(prefix),
+	})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return 0, err
+		}
+		for _, o := range page.Contents {
+			total += aws.ToInt64(o.Size)
+		}
+	}
+	return total, nil
 }
 
 // lookupSystemOrgID returns the organization_id for the given system_id.

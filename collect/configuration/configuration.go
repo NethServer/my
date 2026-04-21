@@ -102,6 +102,10 @@ type Configuration struct {
 	BackupMaxUploadSize    int64  `json:"backup_max_upload_size"`
 	BackupMaxPerSystem     int    `json:"backup_max_per_system"`
 	BackupMaxSizePerSystem int64  `json:"backup_max_size_per_system"`
+	// Aggregate cap across every system owned by the same
+	// organization. 0 disables the check. Useful to contain blast
+	// radius when a single org's credentials are compromised.
+	BackupMaxSizePerOrg int64 `json:"backup_max_size_per_org"`
 	// Ingest rate limits (per system_id, Redis-backed). Legitimate
 	// appliances upload on a daily timer, so these numbers are set
 	// generously — their job is to block flood-style abuse, not to
@@ -214,6 +218,7 @@ func Init() {
 	Config.BackupMaxUploadSize = parseInt64WithDefault("BACKUP_MAX_UPLOAD_SIZE", 2*1024*1024*1024)
 	Config.BackupMaxPerSystem = parseIntWithDefault("BACKUP_MAX_PER_SYSTEM", 10)
 	Config.BackupMaxSizePerSystem = parseInt64WithDefault("BACKUP_MAX_SIZE_PER_SYSTEM", 500*1024*1024)
+	Config.BackupMaxSizePerOrg = parseInt64WithDefault("BACKUP_MAX_SIZE_PER_ORG", 0)
 	Config.BackupRateLimitPerMinute = parseIntWithDefault("BACKUP_RATE_LIMIT_PER_MINUTE", 6)
 	Config.BackupRateLimitPerHour = parseIntWithDefault("BACKUP_RATE_LIMIT_PER_HOUR", 60)
 
