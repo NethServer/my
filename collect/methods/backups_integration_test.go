@@ -40,9 +40,10 @@ import (
 // Garage, Spaces, AWS S3) accepts.
 //
 // Runs only under `go test -tags=integration` and only when the
-// `BACKUP_S3_*` environment variables are set. CI supplies them via a
-// MinIO container; operators can point the same test at any bucket
-// they own.
+// `BACKUP_S3_*` environment variables are set — point it at any
+// bucket you own (DO Spaces, AWS S3, R2, MinIO, …). It is not part
+// of the default CI pipeline; run it manually when touching the S3
+// integration layer.
 func TestBackupStorageRoundTrip(t *testing.T) {
 	endpoint := os.Getenv("BACKUP_S3_ENDPOINT")
 	bucket := os.Getenv("BACKUP_S3_BUCKET")
