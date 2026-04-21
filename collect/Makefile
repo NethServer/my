@@ -74,6 +74,16 @@ test-coverage:
 	@go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
 
+# Run the backup S3 integration test against a real endpoint. The test
+# exercises PutObject/CopyObject/HeadObject/ListObjectsV2/GetObject/
+# DeleteObject against the bucket pointed at by BACKUP_S3_* env vars.
+# It skips when those env vars are unset, so an accidental invocation
+# never mutates a production bucket.
+.PHONY: test-integration
+test-integration:
+	@echo "Running backup S3 integration test (requires BACKUP_S3_* env)..."
+	@go test -tags=integration -timeout 60s -v ./methods/ -run TestBackupStorageRoundTrip
+
 # Run linting
 .PHONY: lint
 lint:
