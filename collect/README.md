@@ -242,6 +242,17 @@ bucket on your S3 provider of choice. Backend and collect must share
 the same bucket — collect writes, backend reads and issues presigned
 download URLs.
 
+**Separate credentials (optional).** Nothing in the code forces backend
+and collect to share the same `BACKUP_S3_ACCESS_KEY` / `BACKUP_S3_SECRET_KEY`.
+If your S3 provider supports per-key policies (AWS S3 IAM, Cloudflare
+R2 scoped tokens, MinIO user policies), issue two keys: one for
+**collect** scoped to `PutObject`/`CopyObject`/`DeleteObject`/
+`ListObjectsV2`/`HeadObject` on the bucket prefix, and one for
+**backend** scoped to `GetObject`/`ListObjectsV2`/`HeadObject`/
+`DeleteObject`. Then set a different `BACKUP_S3_ACCESS_KEY` /
+`BACKUP_S3_SECRET_KEY` pair on each service. This contains blast
+radius if one component is ever compromised.
+
 Object keys follow `{org_id}/{system_id}/{backup_id}.{ext}`. Per-object
 metadata is stored as standard `x-amz-meta-*` headers:
 
