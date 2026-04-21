@@ -56,6 +56,30 @@ DATABASE_URL=postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disab
 REDIS_URL=redis://localhost:6379
 
 # ===========================================
+# BACKUP STORAGE (S3-compatible)
+# ===========================================
+# Any S3-compatible endpoint works: DigitalOcean Spaces, AWS S3,
+# Cloudflare R2, Backblaze B2, self-hosted MinIO / Garage, etc.
+# Both backend and collect must point at the SAME bucket; backend
+# reads and issues presigned URLs, collect writes uploads from
+# appliances. See collect/README.md for the bucket layout.
+BACKUP_S3_ENDPOINT=https://ams3.digitaloceanspaces.com
+BACKUP_S3_REGION=us-east-1
+BACKUP_S3_BUCKET=my-backups
+BACKUP_S3_ACCESS_KEY=your-access-key
+BACKUP_S3_SECRET_KEY=your-secret-key
+# Set to "true" only against local emulators that do not serve
+# virtual-hosted-style URLs. Spaces / S3 / R2 use the default (false).
+BACKUP_S3_USE_PATH_STYLE=false
+# Optional: override the endpoint used for signing download URLs so the
+# browser can follow them when backend and the S3 emulator are reached
+# via different hostnames (compose network vs. host ports). Empty in
+# production.
+#BACKUP_S3_PRESIGN_ENDPOINT=
+# Lifetime of a presigned download URL (capped server-side at 15m).
+#BACKUP_PRESIGN_TTL=5m
+
+# ===========================================
 # SMTP EMAIL CONFIGURATION (Optional)
 # ===========================================
 # SMTP server configuration for welcome emails
