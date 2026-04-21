@@ -50,6 +50,7 @@ func TestReceiveAlertHistory_ResolvedAlert(t *testing.T) {
 	mock.ExpectExec(`INSERT INTO alert_history`).
 		WithArgs(
 			"SYS-KEY-001",
+			"org-1",
 			"DiskFull",
 			sqlmock.AnyArg(), // severity
 			"resolved",
@@ -255,6 +256,7 @@ func TestReceiveAlertHistory_ZeroTimeEndsAt(t *testing.T) {
 	mock.ExpectExec(`INSERT INTO alert_history`).
 		WithArgs(
 			"SYS-KEY-001",
+			"org-1",
 			"TestAlert",
 			sqlmock.AnyArg(),
 			"resolved",
@@ -317,6 +319,7 @@ func TestReceiveAlertHistory_LinkFailedUpdatesExistingStart(t *testing.T) {
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
+			"org-1", // organization_id
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -365,6 +368,7 @@ func TestReceiveAlertHistory_LinkFailedInsertsWhenStartNotSeen(t *testing.T) {
 	mock.ExpectExec(`INSERT INTO alert_history`).
 		WithArgs(
 			"SYS-KEY-001",
+			"org-1",
 			"LinkFailed",
 			sqlmock.AnyArg(),
 			"resolved",

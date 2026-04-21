@@ -7,8 +7,8 @@ package models
 
 // WebhookReceiver represents a generic webhook receiver with name and URL
 type WebhookReceiver struct {
-	Name string `json:"name" binding:"required"`
-	URL  string `json:"url" binding:"required,url"`
+	Name string `json:"name" binding:"required,max=100"`
+	URL  string `json:"url" binding:"required,url,max=2048"`
 }
 
 // TelegramReceiver represents a Telegram bot notification target.
@@ -25,9 +25,9 @@ type SeverityOverride struct {
 	MailEnabled       *bool              `json:"mail_enabled"`
 	WebhookEnabled    *bool              `json:"webhook_enabled"`
 	TelegramEnabled   *bool              `json:"telegram_enabled"`
-	MailAddresses     []string           `json:"mail_addresses,omitempty"`
-	WebhookReceivers  []WebhookReceiver  `json:"webhook_receivers,omitempty"`
-	TelegramReceivers []TelegramReceiver `json:"telegram_receivers,omitempty"`
+	MailAddresses     []string           `json:"mail_addresses,omitempty" binding:"max=50,dive,email"`
+	WebhookReceivers  []WebhookReceiver  `json:"webhook_receivers,omitempty" binding:"max=20"`
+	TelegramReceivers []TelegramReceiver `json:"telegram_receivers,omitempty" binding:"max=20"`
 }
 
 // SystemOverride defines mail/webhook/telegram settings for a specific system_key
@@ -36,9 +36,9 @@ type SystemOverride struct {
 	MailEnabled       *bool              `json:"mail_enabled"`
 	WebhookEnabled    *bool              `json:"webhook_enabled"`
 	TelegramEnabled   *bool              `json:"telegram_enabled"`
-	MailAddresses     []string           `json:"mail_addresses,omitempty"`
-	WebhookReceivers  []WebhookReceiver  `json:"webhook_receivers,omitempty"`
-	TelegramReceivers []TelegramReceiver `json:"telegram_receivers,omitempty"`
+	MailAddresses     []string           `json:"mail_addresses,omitempty" binding:"max=50,dive,email"`
+	WebhookReceivers  []WebhookReceiver  `json:"webhook_receivers,omitempty" binding:"max=20"`
+	TelegramReceivers []TelegramReceiver `json:"telegram_receivers,omitempty" binding:"max=20"`
 }
 
 // AlertingConfig is the main configuration structure for alerting
@@ -47,13 +47,13 @@ type AlertingConfig struct {
 	MailEnabled       bool               `json:"mail_enabled"`
 	WebhookEnabled    bool               `json:"webhook_enabled"`
 	TelegramEnabled   bool               `json:"telegram_enabled"`
-	MailAddresses     []string           `json:"mail_addresses"`
-	WebhookReceivers  []WebhookReceiver  `json:"webhook_receivers"`
-	TelegramReceivers []TelegramReceiver `json:"telegram_receivers"`
+	MailAddresses     []string           `json:"mail_addresses" binding:"max=50,dive,email"`
+	WebhookReceivers  []WebhookReceiver  `json:"webhook_receivers" binding:"max=20"`
+	TelegramReceivers []TelegramReceiver `json:"telegram_receivers" binding:"max=20"`
 	// Per-severity overrides
-	Severities []SeverityOverride `json:"severities,omitempty"`
+	Severities []SeverityOverride `json:"severities,omitempty" binding:"max=10"`
 	// Per-system_key overrides
-	Systems []SystemOverride `json:"systems,omitempty"`
+	Systems []SystemOverride `json:"systems,omitempty" binding:"max=500"`
 	// Email template language: "en" (default) or "it"
 	EmailTemplateLang string `json:"email_template_lang,omitempty"`
 }

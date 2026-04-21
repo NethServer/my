@@ -299,3 +299,41 @@ func TestSilenceBelongsToSystem(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateWebhookURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		url     string
+		wantErr bool
+		errMsg  string
+	}{
+		{"valid https with public ip", "https://93.184.216.34/alert", false, ""},
+		{"valid http with public ip", "http://93.184.216.34/alert", false, ""},
+		{"reject ftp scheme", "ftp://example.com/file", true, "must use http or https"},
+		{"reject gopher", "gopher://internal:6379", true, "must use http or https"},
+		{"reject credentials in url", "https://user:pass@example.com/hook", true, "must not contain credentials"},
+		{"reject loopback ip", "https://127.0.0.1/hook", true, "not allowed"},
+		{"reject private 10.x", "https://10.0.0.1/hook", true, "not allowed"},
+		{"reject private 192.168.x", "https://192.168.1.1/hook", true, "not allowed"},
+		{"reject private 172.16.x", "https://172.16.0.1/hook", true, "not allowed"},
+		{"reject link-local", "https://169.254.169.254/latest", true, "not allowed"},
+		{"reject unspecified", "https://0.0.0.0/hook", true, "not allowed"},
+		{"reject ipv6 loopback", "https://[::1]/hook", true, "not allowed"},
+		{"reject ipv6 mapped loopback", "https://[::ffff:127.0.0.1]/hook", true, "not publicly routable"},
+		{"reject ipv6 mapped private", "https://[::ffff:10.0.0.1]/hook", true, "not publicly routable"},
+		{"reject empty host", "https:///path", true, "missing a host"},
+		{"reject localhost string", "https://localhost/hook", true, "not allowed"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateWebhookURL(tt.url)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

@@ -25,14 +25,21 @@ import (
 var httpClient = &http.Client{Timeout: 30 * time.Second}
 var ErrSilenceNotFound = errors.New("silence not found")
 
+// maxMimirResponseSize caps how much data we read from Mimir responses.
+// Prevents memory exhaustion if a tenant has a very large number of alerts,
+// silences, or rules.
+const maxMimirResponseSize = 10 << 20 // 10 MB
+
 var smtpSensitiveFields = regexp.MustCompile(`(?m)^(\s*smtp_(?:smarthost|auth_username|auth_password):\s*).*$`)
 var bearerTokenField = regexp.MustCompile(`(?m)^(\s*credentials:\s*).*$`)
+var telegramTokenField = regexp.MustCompile(`(?m)^(\s*bot_token:\s*).*$`)
 
 // RedactSensitiveConfig replaces sensitive SMTP and bearer token fields in an alertmanager config
 // YAML string with a redaction placeholder before returning to clients.
 func RedactSensitiveConfig(config string) string {
 	config = smtpSensitiveFields.ReplaceAllString(config, "${1}'[REDACTED]'")
 	config = bearerTokenField.ReplaceAllString(config, "${1}'[REDACTED]'")
+	config = telegramTokenField.ReplaceAllString(config, "${1}'[REDACTED]'")
 	return config
 }
 
@@ -90,7 +97,7 @@ func PushConfig(orgID, yamlConfig string, templateFiles map[string]string) error
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxMimirResponseSize))
 		return fmt.Errorf("mimir returned %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -114,7 +121,7 @@ func GetAlerts(orgID string) ([]byte, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxMimirResponseSize))
 	if err != nil {
 		return nil, fmt.Errorf("reading response body: %w", err)
 	}
@@ -150,7 +157,7 @@ func GetConfig(orgID string) ([]byte, error) {
 		return nil, nil
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxMimirResponseSize))
 	if err != nil {
 		return nil, fmt.Errorf("reading response body: %w", err)
 	}
@@ -185,7 +192,7 @@ func CreateSilence(orgID string, silence *models.AlertmanagerSilenceRequest) (*m
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxMimirResponseSize))
 	if err != nil {
 		return nil, fmt.Errorf("reading response body: %w", err)
 	}
@@ -223,7 +230,7 @@ func GetSilences(orgID string) ([]models.AlertmanagerSilence, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxMimirResponseSize))
 	if err != nil {
 		return nil, fmt.Errorf("reading response body: %w", err)
 	}
@@ -257,7 +264,7 @@ func GetSilence(orgID, silenceID string) (*models.AlertmanagerSilence, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxMimirResponseSize))
 	if err != nil {
 		return nil, fmt.Errorf("reading response body: %w", err)
 	}
@@ -294,7 +301,7 @@ func DeleteSilence(orgID, silenceID string) error {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxMimirResponseSize))
 	if err != nil {
 		return fmt.Errorf("reading response body: %w", err)
 	}

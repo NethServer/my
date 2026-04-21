@@ -13,8 +13,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/nethesis/my/collect/configuration"
@@ -200,8 +200,16 @@ func InjectLabels(body []byte, toInject map[string]string) []byte {
 	return out
 }
 
-// ProcessAnnotationTemplates renders Go text/template expressions inside annotations
-// using the alert labels as the template data source.
+// simplePlaceholderRe matches only simple {{.label_name}} placeholders.
+// It intentionally rejects any Go template directive (range, call, index, if,
+// with, printf, etc.) so that attacker-controlled annotations cannot enumerate
+// server-injected labels or cause resource exhaustion.
+var simplePlaceholderRe = regexp.MustCompile(`\{\{\s*\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}`)
+
+// ProcessAnnotationTemplates performs safe string substitution of {{.label}}
+// placeholders in alert annotations using the alert's own labels as values.
+// Only simple {{.variable_name}} placeholders are expanded; all other Go
+// template constructs (range, call, index, printf, etc.) are left as-is.
 func ProcessAnnotationTemplates(body []byte) []byte {
 	var alerts []map[string]interface{}
 	if err := json.Unmarshal(body, &alerts); err != nil {
@@ -226,19 +234,20 @@ func ProcessAnnotationTemplates(body []byte) []byte {
 				continue
 			}
 
-			tmpl, err := template.New(key).Parse(annotationStr)
-			if err != nil {
-				logger.Warn().Err(err).Str("annotation", key).Str("value", annotationStr).Msg("alerting: failed to parse annotation template")
-				continue
-			}
+			rendered := simplePlaceholderRe.ReplaceAllStringFunc(annotationStr, func(match string) string {
+				sub := simplePlaceholderRe.FindStringSubmatch(match)
+				if len(sub) < 2 {
+					return match
+				}
+				labelName := sub[1]
+				if v, exists := labels[labelName]; exists {
+					if s, ok := v.(string); ok {
+						return s
+					}
+				}
+				return match
+			})
 
-			var buf bytes.Buffer
-			if err := tmpl.Execute(&buf, labels); err != nil {
-				logger.Warn().Err(err).Str("annotation", key).Msg("alerting: failed to execute annotation template")
-				continue
-			}
-
-			rendered := buf.String()
 			if rendered != annotationStr {
 				annotations[key] = rendered
 				modified = true

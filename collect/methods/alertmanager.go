@@ -56,7 +56,7 @@ func ReceiveAlertHistory(c *gin.Context) {
 		// authoritative. Unknown system_keys are dropped.
 		var organizationID string
 		err := database.DB.QueryRow(
-			`SELECT organization_id FROM systems WHERE system_key = $1`,
+			`SELECT organization_id FROM systems WHERE system_key = $1 AND deleted_at IS NULL`,
 			systemKey,
 		).Scan(&organizationID)
 		if err == sql.ErrNoRows {
@@ -101,6 +101,7 @@ func ReceiveAlertHistory(c *gin.Context) {
 		err = persistResolvedAlertHistory(
 			alert,
 			systemKey,
+			organizationID,
 			alertname,
 			severity,
 			summary,
@@ -136,7 +137,7 @@ func ReceiveAlertHistory(c *gin.Context) {
 // starts_at stays stable for that outage, so reuse it as the history key.
 func persistResolvedAlertHistory(
 	alert models.AlertmanagerAlert,
-	systemKey, alertname, severity, summary, receiver string,
+	systemKey, organizationID, alertname, severity, summary, receiver string,
 	labelsJSON, annotationsJSON []byte,
 	endsAt *time.Time,
 ) error {
@@ -144,6 +145,7 @@ func persistResolvedAlertHistory(
 		updated, err := updateExistingLinkFailedHistory(
 			alert,
 			systemKey,
+			organizationID,
 			alertname,
 			severity,
 			summary,
@@ -163,6 +165,7 @@ func persistResolvedAlertHistory(
 	return insertAlertHistory(
 		alert,
 		systemKey,
+		organizationID,
 		alertname,
 		severity,
 		summary,
@@ -175,7 +178,7 @@ func persistResolvedAlertHistory(
 
 func updateExistingLinkFailedHistory(
 	alert models.AlertmanagerAlert,
-	systemKey, alertname, severity, summary, receiver string,
+	systemKey, organizationID, alertname, severity, summary, receiver string,
 	labelsJSON, annotationsJSON []byte,
 	endsAt *time.Time,
 ) (bool, error) {
@@ -199,6 +202,7 @@ func updateExistingLinkFailedHistory(
 		    labels = $8,
 		    annotations = $9,
 		    receiver = $10,
+		    organization_id = $11,
 		    created_at = NOW()
 		FROM existing
 		WHERE ah.id = existing.id`,
@@ -212,6 +216,7 @@ func updateExistingLinkFailedHistory(
 		labelsJSON,
 		annotationsJSON,
 		nullableString(receiver),
+		organizationID,
 	)
 	if err != nil {
 		return false, err
@@ -227,15 +232,16 @@ func updateExistingLinkFailedHistory(
 
 func insertAlertHistory(
 	alert models.AlertmanagerAlert,
-	systemKey, alertname, severity, summary, receiver string,
+	systemKey, organizationID, alertname, severity, summary, receiver string,
 	labelsJSON, annotationsJSON []byte,
 	endsAt *time.Time,
 ) error {
 	_, err := database.DB.Exec(
 		`INSERT INTO alert_history
-			(system_key, alertname, severity, status, fingerprint, starts_at, ends_at, summary, labels, annotations, receiver)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+			(system_key, organization_id, alertname, severity, status, fingerprint, starts_at, ends_at, summary, labels, annotations, receiver)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
 		systemKey,
+		organizationID,
 		alertname,
 		nullableString(severity),
 		"resolved",

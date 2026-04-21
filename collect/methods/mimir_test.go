@@ -58,7 +58,7 @@ func TestProcessAnnotationTemplates(t *testing.T) {
 			name: "handles missing label in template",
 			body: `[{"labels":{"severity":"high"},"annotations":{"summary":"Status: {{.missing_label}}"}}]`,
 			expectedAnnotations: map[string]string{
-				"summary": "Status: <no value>",
+				"summary": "Status: {{.missing_label}}",
 			},
 		},
 		{
@@ -138,6 +138,44 @@ func TestProcessAnnotationTemplates_InvalidTemplate(t *testing.T) {
 	annotations := alerts[0]["annotations"].(map[string]interface{})
 	// When template parsing fails, annotation should remain unchanged
 	assert.Equal(t, "Invalid template {{.unclosed", annotations["summary"])
+}
+
+func TestProcessAnnotationTemplates_RejectsDangerousConstructs(t *testing.T) {
+	// Dangerous Go template constructs must NOT be executed — they should be
+	// left as-is to prevent SSTI (label enumeration, DoS).
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{"range enumeration",
+			`[{"labels":{"severity":"critical","org_vat":"SECRET"},"annotations":{"summary":"{{range $k, $v := .}}{{$k}}={{$v}}{{end}}"}}]`,
+			`{{range $k, $v := .}}{{$k}}={{$v}}{{end}}`},
+		{"printf call",
+			`[{"labels":{"severity":"critical"},"annotations":{"summary":"{{printf \"%s\" .severity}}"}}]`,
+			`{{printf "%s" .severity}}`},
+		{"if conditional",
+			`[{"labels":{"severity":"critical"},"annotations":{"summary":"{{if .severity}}yes{{end}}"}}]`,
+			`{{if .severity}}yes{{end}}`},
+		{"len call",
+			`[{"labels":{"severity":"critical"},"annotations":{"summary":"{{len .}}"}}]`,
+			`{{len .}}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := collectalerting.ProcessAnnotationTemplates([]byte(tt.body))
+
+			var alerts []map[string]interface{}
+			err := json.Unmarshal(result, &alerts)
+			assert.NoError(t, err)
+
+			annotations := alerts[0]["annotations"].(map[string]interface{})
+			// Dangerous constructs must be preserved verbatim, not executed
+			assert.Equal(t, tt.want, annotations["summary"],
+				"dangerous template construct should not be executed")
+		})
+	}
 }
 
 func TestInjectLabels(t *testing.T) {

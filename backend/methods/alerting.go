@@ -984,6 +984,9 @@ func validateWebhookURL(raw string) error {
 	if scheme != "http" && scheme != "https" {
 		return fmt.Errorf("webhook url must use http or https, got %q", u.Scheme)
 	}
+	if u.User != nil {
+		return fmt.Errorf("webhook url must not contain credentials")
+	}
 	host := u.Hostname()
 	if host == "" {
 		return fmt.Errorf("webhook url is missing a host")
@@ -997,13 +1000,48 @@ func validateWebhookURL(raw string) error {
 	}
 
 	// Reject IP literals pointing to private/loopback/link-local/multicast/unspecified.
+	// Also handles IPv6-mapped IPv4 (e.g. ::ffff:127.0.0.1) via ip.To4() unmasking.
 	if ip := net.ParseIP(host); ip != nil {
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() ||
-			ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast() ||
-			ip.IsMulticast() || ip.IsUnspecified() {
-			return fmt.Errorf("webhook url host %q resolves to a non-public ip", host)
+		if err := rejectNonPublicIP(ip); err != nil {
+			return fmt.Errorf("webhook url host %q: %w", host, err)
 		}
 	}
 
+	// DNS resolution: resolve the hostname and reject if ANY address is private.
+	// This mitigates DNS rebinding attacks where the hostname initially resolves
+	// to a public IP at validation time but later resolves to an internal IP when
+	// Alertmanager delivers the webhook.
+	if net.ParseIP(host) == nil {
+		addrs, err := net.LookupHost(host)
+		if err != nil {
+			return fmt.Errorf("webhook url host %q: dns resolution failed: %w", host, err)
+		}
+		for _, addr := range addrs {
+			ip := net.ParseIP(addr)
+			if ip == nil {
+				return fmt.Errorf("webhook url host %q resolved to unparseable address %q", host, addr)
+			}
+			if err := rejectNonPublicIP(ip); err != nil {
+				return fmt.Errorf("webhook url host %q resolved to non-public address %s: %w", host, addr, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// rejectNonPublicIP returns an error if the IP is loopback, private, link-local,
+// multicast, or unspecified. For IPv6-mapped IPv4 addresses (::ffff:A.B.C.D),
+// the underlying IPv4 is checked.
+func rejectNonPublicIP(ip net.IP) error {
+	// Unmask IPv6-mapped IPv4 so checks work on the real address.
+	if v4 := ip.To4(); v4 != nil {
+		ip = v4
+	}
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast() ||
+		ip.IsMulticast() || ip.IsUnspecified() {
+		return fmt.Errorf("address is not publicly routable")
+	}
 	return nil
 }
