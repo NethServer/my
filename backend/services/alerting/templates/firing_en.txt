@@ -1,0 +1,49 @@
+{{ define "firing_en.txt" }}My Nethesis - Alert Notification
+
+{{ len .Alerts.Firing }} alert{{ if gt (len .Alerts.Firing) 1 }}s{{ end }} currently firing.
+
+{{ range .Alerts.Firing -}}
+═══════════════════════════════════════════════════════════════
+  ALERT
+═══════════════════════════════════════════════════════════════
+
+ALERT:    {{ .Labels.alertname }}
+SEVERITY: {{ .Labels.severity | toUpper }}
+{{ if .Labels.service -}}
+SERVICE:  {{ .Labels.service }}
+{{ end -}}
+{{ if .Annotations.summary_en -}}
+SUMMARY:  {{ .Annotations.summary_en }}
+{{ else if .Annotations.summary -}}
+SUMMARY:  {{ .Annotations.summary }}
+{{ end -}}
+{{ if .Annotations.description_en -}}
+DETAILS:  {{ .Annotations.description_en }}
+{{ else if .Annotations.description -}}
+DETAILS:  {{ .Annotations.description }}
+{{ end -}}
+SINCE:    {{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC
+
+───────────────────────────────────────────────────────────────
+  SYSTEM
+───────────────────────────────────────────────────────────────
+
+{{ if .Labels.organization_name -}}
+{{ if eq .Labels.organization_type "customer" }}CUSTOMER: {{ else if eq .Labels.organization_type "reseller" }}RESELLER: {{ else if eq .Labels.organization_type "distributor" }}DISTRIB.: {{ else }}ORG.:     {{ end }}{{ if .Labels.organization_vat }}{{ .Labels.organization_vat }} - {{ end }}{{ .Labels.organization_name }}
+{{ end -}}
+{{ if or .Labels.system_name .Labels.system_key -}}
+SYSTEM:   {{ if .Labels.system_name }}{{ .Labels.system_name }}{{ if .Labels.system_key }} ({{ .Labels.system_key }}){{ end }}{{ else }}{{ .Labels.system_key }}{{ end }}
+{{ end -}}
+{{ if or .Labels.system_fqdn .Labels.system_ipv4 -}}
+{{ if .Labels.system_fqdn }}FQDN:     {{ .Labels.system_fqdn }}{{ else }}IP:       {{ .Labels.system_ipv4 }}{{ end }}
+{{ end }}
+{{ if .Labels.system_id -}}
+View system: ${APP_URL}/systems/{{ .Labels.system_id }}
+{{ end }}
+{{ end -}}
+═══════════════════════════════════════════════════════════════
+
+My Nethesis
+Need help? Contact us at info@nethesis.it
+This email was sent automatically. Please do not reply.
+{{ end }}

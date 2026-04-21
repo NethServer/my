@@ -567,6 +567,10 @@ Automatic alerts for:
 - System version mismatch
 - Security vulnerabilities detected
 
+:::note
+The built-in `LinkFailed` alert is raised by Collect after the configured heartbeat timeout (10 minutes by default), separate from the 15+ minute system-status threshold shown above. Collect refreshes it every 5 minutes while the system stays inactive, so it can remain visible for up to 10 minutes after heartbeat resumes.
+:::
+
 ### System Health
 
 **Health score based on:**

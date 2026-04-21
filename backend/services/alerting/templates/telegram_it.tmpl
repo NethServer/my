@@ -1,0 +1,62 @@
+{{ define "telegram.message" -}}
+{{ if .Alerts.Firing -}}
+{{ if eq (len .Alerts.Firing) 1 }}🔴 <b>ALLARME ATTIVO</b>{{ else }}🚨 <b>{{ len .Alerts.Firing }} ALLARMI ATTIVI</b>{{ end }}
+
+{{ range .Alerts.Firing -}}
+<b>{{ .Labels.alertname }}</b>
+{{ if eq .Labels.severity "critical" }}🔴 <i>Critico</i>{{ else if eq .Labels.severity "warning" }}🟠 <i>Avviso</i>{{ else }}🔵 <i>Info</i>{{ end }}
+{{ if .Labels.service -}}
+Servizio: <code>{{ .Labels.service }}</code>
+{{ end -}}
+{{ if or .Annotations.summary_it .Annotations.summary -}}
+{{ if .Annotations.summary_it }}{{ .Annotations.summary_it }}{{ else }}{{ .Annotations.summary }}{{ end }}
+{{ end -}}
+{{ if or .Annotations.description_it .Annotations.description_en .Annotations.description -}}
+Dettagli: {{ if .Annotations.description_it }}{{ .Annotations.description_it }}{{ else if .Annotations.description_en }}{{ .Annotations.description_en }}{{ else }}{{ .Annotations.description }}{{ end }}
+{{ end -}}
+Attivo da: {{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC
+{{ if .Labels.organization_name -}}
+{{ if eq .Labels.organization_type "customer" }}Cliente{{ else if eq .Labels.organization_type "reseller" }}Rivenditore{{ else if eq .Labels.organization_type "distributor" }}Distributore{{ else }}Organizzazione{{ end }}: {{ if .Labels.organization_vat }}{{ .Labels.organization_vat }} - {{ end }}{{ .Labels.organization_name }}
+{{ end -}}
+{{ if or .Labels.system_name .Labels.system_key -}}
+Sistema: {{ if .Labels.system_name }}{{ .Labels.system_name }}{{ if .Labels.system_key }} ({{ .Labels.system_key }}){{ end }}{{ else }}{{ .Labels.system_key }}{{ end }}
+{{ end -}}
+{{ if or .Labels.system_fqdn .Labels.system_ipv4 -}}
+{{ if .Labels.system_fqdn }}FQDN: {{ .Labels.system_fqdn }}{{ else }}IP: {{ .Labels.system_ipv4 }}{{ end }}
+{{ end -}}
+{{ if .Labels.system_id -}}
+Visualizza sistema: ${APP_URL}/systems/{{ .Labels.system_id }}
+{{ end -}}
+{{ end -}}
+{{ end -}}
+{{ if .Alerts.Resolved -}}
+✅ <b>{{ len .Alerts.Resolved }} allarme{{ if gt (len .Alerts.Resolved) 1 }}i{{ end }} RISOLTO{{ if gt (len .Alerts.Resolved) 1 }}I{{ end }}</b>
+
+{{ range .Alerts.Resolved -}}
+<b>{{ .Labels.alertname }}</b>
+{{ if eq .Labels.severity "critical" }}🟢 <i>Critico</i>{{ else if eq .Labels.severity "warning" }}🟡 <i>Avviso</i>{{ else }}🔵 <i>Info</i>{{ end }}
+{{ if .Labels.service -}}
+Servizio: <code>{{ .Labels.service }}</code>
+{{ end -}}
+{{ if or .Annotations.summary_it .Annotations.summary -}}
+{{ if .Annotations.summary_it }}{{ .Annotations.summary_it }}{{ else }}{{ .Annotations.summary }}{{ end }}
+{{ end -}}
+{{ if or .Annotations.description_it .Annotations.description_en .Annotations.description -}}
+Dettagli: {{ if .Annotations.description_it }}{{ .Annotations.description_it }}{{ else if .Annotations.description_en }}{{ .Annotations.description_en }}{{ else }}{{ .Annotations.description }}{{ end }}
+{{ end -}}
+Attivo da: {{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC | Risolto: {{ .EndsAt.UTC.Format "2006-01-02 15:04:05" }} UTC
+{{ if .Labels.organization_name -}}
+{{ if eq .Labels.organization_type "customer" }}Cliente{{ else if eq .Labels.organization_type "reseller" }}Rivenditore{{ else if eq .Labels.organization_type "distributor" }}Distributore{{ else }}Organizzazione{{ end }}: {{ if .Labels.organization_vat }}{{ .Labels.organization_vat }} - {{ end }}{{ .Labels.organization_name }}
+{{ end -}}
+{{ if or .Labels.system_name .Labels.system_key -}}
+Sistema: {{ if .Labels.system_name }}{{ .Labels.system_name }}{{ if .Labels.system_key }} ({{ .Labels.system_key }}){{ end }}{{ else }}{{ .Labels.system_key }}{{ end }}
+{{ end -}}
+{{ if or .Labels.system_fqdn .Labels.system_ipv4 -}}
+{{ if .Labels.system_fqdn }}FQDN: {{ .Labels.system_fqdn }}{{ else }}IP: {{ .Labels.system_ipv4 }}{{ end }}
+{{ end -}}
+{{ if .Labels.system_id -}}
+Visualizza sistema: ${APP_URL}/systems/{{ .Labels.system_id }}
+{{ end -}}
+{{ end -}}
+{{ end -}}
+{{- end }}

@@ -1,0 +1,52 @@
+{{ define "resolved_it.txt" }}My Nethesis - Allarme Risolto
+
+{{ len .Alerts.Resolved }} allarme{{ if gt (len .Alerts.Resolved) 1 }}i{{ end }} risolto{{ if gt (len .Alerts.Resolved) 1 }}i{{ end }}.
+
+{{ range .Alerts.Resolved -}}
+═══════════════════════════════════════════════════════════════
+  ALLARME RISOLTO
+═══════════════════════════════════════════════════════════════
+
+ALLARME:    {{ .Labels.alertname }}
+SEVERITA':  {{ .Labels.severity | toUpper }}
+{{ if .Labels.service -}}
+SERVIZIO:   {{ .Labels.service }}
+{{ end -}}
+{{ if .Annotations.summary_it -}}
+RIEPILOGO:  {{ .Annotations.summary_it }}
+{{ else if .Annotations.summary -}}
+RIEPILOGO:  {{ .Annotations.summary }}
+{{ end -}}
+{{ if .Annotations.description_it -}}
+DETTAGLI:   {{ .Annotations.description_it }}
+{{ else if .Annotations.description_en -}}
+DETTAGLI:   {{ .Annotations.description_en }}
+{{ else if .Annotations.description -}}
+DETTAGLI:   {{ .Annotations.description }}
+{{ end -}}
+INIZIO:     {{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC
+RISOLTO:    {{ .EndsAt.UTC.Format "2006-01-02 15:04:05" }} UTC
+
+───────────────────────────────────────────────────────────────
+  SISTEMA
+───────────────────────────────────────────────────────────────
+
+{{ if .Labels.organization_name -}}
+{{ if eq .Labels.organization_type "customer" }}CLIENTE:    {{ else if eq .Labels.organization_type "reseller" }}RIVEND.:    {{ else if eq .Labels.organization_type "distributor" }}DISTRIB.:   {{ else }}ORG.:       {{ end }}{{ if .Labels.organization_vat }}{{ .Labels.organization_vat }} - {{ end }}{{ .Labels.organization_name }}
+{{ end -}}
+{{ if or .Labels.system_name .Labels.system_key -}}
+SISTEMA:    {{ if .Labels.system_name }}{{ .Labels.system_name }}{{ if .Labels.system_key }} ({{ .Labels.system_key }}){{ end }}{{ else }}{{ .Labels.system_key }}{{ end }}
+{{ end -}}
+{{ if or .Labels.system_fqdn .Labels.system_ipv4 -}}
+{{ if .Labels.system_fqdn }}FQDN:       {{ .Labels.system_fqdn }}{{ else }}IP:         {{ .Labels.system_ipv4 }}{{ end }}
+{{ end }}
+{{ if .Labels.system_id -}}
+Visualizza sistema: ${APP_URL}/systems/{{ .Labels.system_id }}
+{{ end }}
+{{ end -}}
+═══════════════════════════════════════════════════════════════
+
+My Nethesis
+Hai bisogno di aiuto? Contattaci a info@nethesis.it
+Questa email è stata inviata automaticamente. Si prega di non rispondere.
+{{ end }}

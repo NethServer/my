@@ -67,6 +67,11 @@ type Configuration struct {
 	SMTPFrom     string `json:"smtp_from"`
 	SMTPFromName string `json:"smtp_from_name"`
 	SMTPTLS      bool   `json:"smtp_tls"`
+	// Mimir configuration
+	MimirURL string `json:"mimir_url"`
+	// Alerting configuration
+	AlertingHistoryWebhookURL   string `json:"alerting_history_webhook_url"`
+	AlertingHistoryWebhookToken string `json:"alerting_history_webhook_token"`
 }
 
 var Config = Configuration{}
@@ -203,6 +208,18 @@ func Init() {
 		Config.SMTPFromName = "My Nethesis"
 	}
 	Config.SMTPTLS = parseBoolWithDefault("SMTP_TLS", true)
+
+	// Mimir configuration
+	if mimirURL := os.Getenv("MIMIR_URL"); mimirURL != "" {
+		Config.MimirURL = mimirURL
+	} else {
+		Config.MimirURL = "http://localhost:9009"
+		logger.LogConfigLoad("env", "MIMIR_URL", true, fmt.Errorf("MIMIR_URL variable is empty, using default http://localhost:9009"))
+	}
+
+	// Alerting configuration — optional, empty means no built-in history webhook
+	Config.AlertingHistoryWebhookURL = os.Getenv("ALERTING_HISTORY_WEBHOOK_URL")
+	Config.AlertingHistoryWebhookToken = os.Getenv("ALERTING_HISTORY_WEBHOOK_TOKEN")
 
 	// Log successful configuration load
 	logger.LogConfigLoad("env", "configuration", true, nil)

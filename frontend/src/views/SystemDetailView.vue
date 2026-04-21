@@ -20,6 +20,7 @@ import { useTabs } from '@/composables/useTabs'
 import { useI18n } from 'vue-i18n'
 import SystemOverviewPanel from '@/components/systems/SystemOverviewPanel.vue'
 import SystemChangeHistoryPanel from '@/components/systems/SystemChangeHistoryPanel.vue'
+import SystemAlertHistoryPanel from '@/components/systems/SystemAlertHistoryPanel.vue'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 import { useSystemReachability } from '@/queries/systems/systemReachability'
 import { computed } from 'vue'
@@ -31,6 +32,7 @@ const { state: reachabilityState, asyncStatus: reachabilityAsyncStatus } = useSy
 const { tabs, selectedTab } = useTabs([
   { name: 'overview', label: t('system_detail.overview') },
   { name: 'change_history', label: t('system_detail.change_history') },
+  { name: 'alert_history', label: t('alerting.title') },
 ])
 
 const isSystemReachable = computed(() => !!reachabilityState.value.data?.reachable)
@@ -127,5 +129,6 @@ const openSystem = () => {
     />
     <SystemOverviewPanel v-if="selectedTab === 'overview'" />
     <SystemChangeHistoryPanel v-else-if="selectedTab === 'change_history'" />
+    <SystemAlertHistoryPanel v-else-if="selectedTab === 'alert_history'" />
   </div>
 </template>

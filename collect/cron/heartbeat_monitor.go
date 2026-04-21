@@ -46,7 +46,7 @@ func (h *HeartbeatMonitor) Start(ctx context.Context) {
 	defer ticker.Stop()
 
 	// Run immediately on start
-	h.checkAndUpdateStatuses()
+	h.checkAndUpdateStatuses(ctx)
 
 	// Then run on ticker, stopping when context is cancelled
 	for {
@@ -55,17 +55,15 @@ func (h *HeartbeatMonitor) Start(ctx context.Context) {
 			logger.Info().Msg("Heartbeat monitor stopped")
 			return
 		case <-ticker.C:
-			h.checkAndUpdateStatuses()
+			h.checkAndUpdateStatuses(ctx)
 		}
 	}
 }
 
-// checkAndUpdateStatuses checks all system heartbeats and updates statuses
-func (h *HeartbeatMonitor) checkAndUpdateStatuses() {
+// checkAndUpdateStatuses checks all system heartbeats and updates statuses.
+func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 	cutoff := time.Now().Add(-time.Duration(h.timeoutMinutes) * time.Minute)
 
-	// Update systems to 'active' if they have recent heartbeat and are not currently 'active'
-	// This handles: unknown -> active, inactive -> active
 	queryActive := `
 		UPDATE systems s
 		SET status = 'active', updated_at = NOW()
@@ -76,7 +74,7 @@ func (h *HeartbeatMonitor) checkAndUpdateStatuses() {
 			AND s.deleted_at IS NULL
 	`
 
-	resultActive, err := h.db.Exec(queryActive, cutoff)
+	resultActive, err := h.db.ExecContext(ctx, queryActive, cutoff)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -100,8 +98,7 @@ func (h *HeartbeatMonitor) checkAndUpdateStatuses() {
 			AND s.status = 'active'
 			AND s.deleted_at IS NULL
 	`
-
-	resultInactive, err := h.db.Exec(queryInactive, cutoff)
+	resultInactive, err := h.db.ExecContext(ctx, queryInactive, cutoff)
 	if err != nil {
 		logger.Error().
 			Err(err).

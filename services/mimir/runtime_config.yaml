@@ -1,0 +1,9 @@
+# Mimir runtime configuration — reloaded every 10s without restart.
+# Use this file to set per-tenant limit overrides.
+#
+# Example:
+# overrides:
+#   my-tenant-id:
+#     ingestion_rate: 10000
+#     max_label_names_per_series: 30
+#     compactor_blocks_retention_period: 48h

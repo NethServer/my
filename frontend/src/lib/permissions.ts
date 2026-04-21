@@ -21,6 +21,7 @@ const DESTROY_RESELLERS = 'destroy:resellers'
 const DESTROY_CUSTOMERS = 'destroy:customers'
 const DESTROY_USERS = 'destroy:users'
 const DESTROY_SYSTEMS = 'destroy:systems'
+const MANAGE_ALERTING = 'manage:systems'
 
 export const canReadDistributors = () => {
   const loginStore = useLoginStore()
@@ -110,4 +111,9 @@ export const canDestroyUsers = () => {
 export const canDestroySystems = () => {
   const loginStore = useLoginStore()
   return loginStore.permissions.includes(DESTROY_SYSTEMS)
+}
+
+export const canManageAlerting = () => {
+  const loginStore = useLoginStore()
+  return loginStore.permissions.includes(MANAGE_ALERTING)
 }

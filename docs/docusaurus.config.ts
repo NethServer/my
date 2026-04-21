@@ -96,6 +96,10 @@ const config: Config = {
               href: 'https://github.com/NethServer/my/blob/main/collect/README.md',
             },
             {
+              label: 'Alerting System',
+              href: 'https://github.com/NethServer/my/blob/main/services/mimir/README.md',
+            },
+            {
               label: 'Sync Tool',
               href: 'https://github.com/NethServer/my/blob/main/sync/README.md',
             },
@@ -142,6 +146,10 @@ const config: Config = {
             {
               label: 'Collect Service',
               href: 'https://github.com/NethServer/my/blob/main/collect/README.md',
+            },
+            {
+              label: 'Alerting System',
+              href: 'https://github.com/NethServer/my/blob/main/services/mimir/README.md',
             },
             {
               label: 'Sync Tool',

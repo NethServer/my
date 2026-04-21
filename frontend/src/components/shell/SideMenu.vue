@@ -21,6 +21,7 @@ import {
   faBuilding as fasBuilding,
   faUserGroup as fasUserGroup,
   faServer as fasServer,
+  faBell,
 } from '@fortawesome/free-solid-svg-icons'
 import { faGridOne as fasGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import {
@@ -117,6 +118,16 @@ const navigation = computed(() => {
       lightIcon: falUserGroup,
     })
   }
+
+  if (loginStore.isOwner) {
+    menuItems.push({
+      name: 'alerting.alerting_title',
+      to: 'alerting',
+      solidIcon: faBell,
+      lightIcon: faBell,
+    })
+  }
+
   return menuItems
 })
 

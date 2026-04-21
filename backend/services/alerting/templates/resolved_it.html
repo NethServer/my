@@ -1,0 +1,308 @@
+{{- define "resolved_it.subject" -}}
+[RISOLTO{{ if gt (len .Alerts.Resolved) 1 }} x{{ len .Alerts.Resolved }}{{ end }}][{{ if .CommonLabels.alertname }}{{ .CommonLabels.alertname }}{{ else }}Allarme{{ end }}]{{ if .CommonLabels.system_key }} - {{ .CommonLabels.system_key }}{{ end }}
+{{- end }}
+
+{{ define "resolved_it.html" }}<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Allarme Risolto</title>
+    <!--[if mso]>
+    <noscript>
+      <xml>
+        <o:OfficeDocumentSettings>
+          <o:PixelsPerInch>96</o:PixelsPerInch>
+        </o:OfficeDocumentSettings>
+      </xml>
+    </noscript>
+    <![endif]-->
+    <style type="text/css">
+      /* Client-specific Styles */
+      #outlook a { padding: 0; }
+      body { width: 100% !important; min-width: 100%; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; margin: 0; padding: 0; }
+      .ExternalClass { width: 100%; }
+      .ExternalClass, .ExternalClass p, .ExternalClass span, .ExternalClass font, .ExternalClass td, .ExternalClass div { line-height: 100%; }
+      #backgroundTable { margin: 0; padding: 0; width: 100% !important; line-height: 100% !important; }
+
+      /* General Styles */
+      img { outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
+      a img { border: none; }
+      .image_fix { display: block; }
+      p { margin: 0px 0px !important; }
+
+      /* Gmail specific fixes */
+      u + .body .gmail-fix { display: none; }
+
+      /* Mobile Styles */
+      @media only screen and (max-width: 640px) {
+        .mobile-hide { display: none !important; }
+        .mobile-center { text-align: center !important; }
+        .mobile-full { width: 100% !important; max-width: 100% !important; }
+        .mobile-padding { padding: 20px !important; }
+        .mobile-font-16 { font-size: 16px !important; }
+        .mobile-font-14 { font-size: 14px !important; }
+        .mobile-font-12 { font-size: 12px !important; }
+      }
+    </style>
+  </head>
+  <body style="background-color: #f9fafb; margin: 0; padding: 0; font-family: 'Poppins', Arial, Helvetica, sans-serif;">
+    <!-- 100% background wrapper (Gmail fix) -->
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" id="backgroundTable" style="background-color: #f9fafb; margin: 0; padding: 0;">
+      <tr>
+        <td align="center" valign="top" style="padding: 20px;">
+          <!-- Main email container -->
+          <table border="0" cellpadding="0" cellspacing="0" width="600" class="mobile-full" style="background-color: #ffffff; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0; max-width: 600px;">
+
+            <!-- Intestazione -->
+            <tr>
+              <td align="center" valign="top" style="background: linear-gradient(135deg, #064e3b 0%, #065f46 50%, #047857 100%); border-radius: 16px 16px 0 0; padding: 48px 32px;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td align="center" style="padding-bottom: 16px;">
+                      <img src="https://www.nethesis.it/assets/uploads/2025/07/nethesis.png" alt="Nethesis logo" width="80" height="auto" style="display: block; border: 0;" />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="center" style="color: #ffffff; font-size: 32px; font-weight: 700; line-height: 1.2; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 16px;">
+                      Allarme Risolto
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="center" style="color: rgba(255, 255, 255, 0.8); font-size: 18px; font-weight: 400; font-family: 'Poppins', Arial, sans-serif;">
+                      {{ len .Alerts.Resolved }} allarme{{ if gt (len .Alerts.Resolved) 1 }}i{{ end }} risolto{{ if gt (len .Alerts.Resolved) 1 }}i{{ end }}
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Contenuto -->
+            <tr>
+              <td style="padding: 48px 32px;" class="mobile-padding">
+
+                {{ range .Alerts.Resolved }}
+                <!-- Card 1: Allarme risolto (sfondo verde) -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 20px;">
+                  <tr>
+                    <td style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-left: 4px solid #16a34a; border-radius: 12px; padding: 28px;">
+                      <table border="0" cellpadding="0" cellspacing="0" width="100%">
+
+                        <!-- Nome allarme + severita -->
+                        <tr>
+                          <td style="padding-bottom: 18px;">
+                            <table border="0" cellpadding="0" cellspacing="0">
+                              <tr>
+                                <td style="font-size: 20px; font-weight: 700; color: #111827; font-family: 'Poppins', Arial, sans-serif; padding-right: 12px; vertical-align: middle;">
+                                  {{ .Labels.alertname }}
+                                </td>
+                                <td style="vertical-align: middle;">
+                                  {{ if eq .Labels.severity "critical" }}
+                                  <span style="display: inline-block; padding: 4px 12px; background-color: #dc2626; color: #ffffff; border-radius: 50px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; font-family: 'Poppins', Arial, sans-serif;">CRITICO</span>
+                                  {{ else if eq .Labels.severity "warning" }}
+                                  <span style="display: inline-block; padding: 4px 12px; background-color: #d97706; color: #ffffff; border-radius: 50px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; font-family: 'Poppins', Arial, sans-serif;">AVVISO</span>
+                                  {{ else }}
+                                  <span style="display: inline-block; padding: 4px 12px; background-color: #2563eb; color: #ffffff; border-radius: 50px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; font-family: 'Poppins', Arial, sans-serif;">{{ .Labels.severity | toUpper }}</span>
+                                  {{ end }}
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+
+                        <!-- Servizio -->
+                        {{ if .Labels.service }}
+                        <tr>
+                          <td style="padding-bottom: 18px;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">SERVIZIO</td>
+                              </tr>
+                              <tr>
+                                <td style="font-size: 14px; color: #374151; font-family: 'Poppins', Arial, sans-serif; font-weight: 600;">{{ .Labels.service }}</td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        {{ end }}
+
+                        <!-- Riepilogo -->
+                        {{ if or .Annotations.summary_it .Annotations.summary }}
+                        <tr>
+                          <td style="padding-bottom: 18px;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">RIEPILOGO</td>
+                              </tr>
+                              <tr>
+                                <td style="font-size: 14px; color: #374151; line-height: 1.5; font-family: 'Poppins', Arial, sans-serif;">{{ if .Annotations.summary_it }}{{ .Annotations.summary_it }}{{ else }}{{ .Annotations.summary }}{{ end }}</td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        {{ end }}
+
+                        <!-- Descrizione -->
+                        {{ if or .Annotations.description_it .Annotations.description }}
+                        <tr>
+                          <td style="padding-bottom: 18px;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">DESCRIZIONE</td>
+                              </tr>
+                              <tr>
+                                <td style="font-size: 14px; color: #374151; line-height: 1.5; font-family: 'Poppins', Arial, sans-serif;">{{ if .Annotations.description_it }}{{ .Annotations.description_it }}{{ else }}{{ .Annotations.description }}{{ end }}</td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        {{ end }}
+
+                        <!-- Durata -->
+                        <tr>
+                          <td style="padding-top: 14px; border-top: 1px solid #bbf7d0;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td width="50%" style="padding-right: 8px;">
+                                  <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                    <tr>
+                                      <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">INIZIO</td>
+                                    </tr>
+                                    <tr>
+                                      <td style="font-size: 13px; color: #374151; font-family: 'Poppins', Arial, sans-serif;">{{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC</td>
+                                    </tr>
+                                  </table>
+                                </td>
+                                <td width="50%">
+                                  <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                    <tr>
+                                      <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">RISOLTO</td>
+                                    </tr>
+                                    <tr>
+                                      <td style="font-size: 13px; color: #16a34a; font-family: 'Poppins', Arial, sans-serif; font-weight: 600;">{{ .EndsAt.UTC.Format "2006-01-02 15:04:05" }} UTC</td>
+                                    </tr>
+                                  </table>
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Card 2: Informazioni sistema + CTA (sfondo neutro) -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 20px;">
+                  <tr>
+                    <td style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px;">
+                      <table border="0" cellpadding="0" cellspacing="0" width="100%">
+
+                        <!-- Organizzazione -->
+                        {{ if .Labels.organization_name }}
+                        <tr>
+                          <td style="padding-bottom: 18px;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #64748b; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">{{ if eq .Labels.organization_type "customer" }}CLIENTE{{ else if eq .Labels.organization_type "reseller" }}RIVENDITORE{{ else if eq .Labels.organization_type "distributor" }}DISTRIBUTORE{{ else }}ORGANIZZAZIONE{{ end }}</td>
+                              </tr>
+                              <tr>
+                                <td style="font-size: 14px; color: #1e293b; font-family: 'Poppins', Arial, sans-serif; font-weight: 600;">{{ if .Labels.organization_vat }}{{ .Labels.organization_vat }} - {{ end }}{{ .Labels.organization_name }}</td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        {{ end }}
+
+                        <!-- Sistema -->
+                        {{ if or .Labels.system_name .Labels.system_key }}
+                        <tr>
+                          <td style="padding-bottom: 18px;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #64748b; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">SISTEMA</td>
+                              </tr>
+                              <tr>
+                                <td style="font-size: 14px; color: #1e293b; font-family: 'Poppins', Arial, sans-serif; font-weight: 600;">{{ if .Labels.system_name }}{{ .Labels.system_name }}{{ else }}{{ .Labels.system_key }}{{ end }}</td>
+                              </tr>
+                              {{ if and .Labels.system_name .Labels.system_key }}
+                              <tr>
+                                <td style="font-size: 12px; color: #64748b; font-family: 'Poppins', Arial, sans-serif; padding-top: 4px;">{{ .Labels.system_key }}</td>
+                              </tr>
+                              {{ end }}
+                            </table>
+                          </td>
+                        </tr>
+                        {{ end }}
+
+                        <!-- FQDN o IP -->
+                        {{ if or .Labels.system_fqdn .Labels.system_ipv4 }}
+                        <tr>
+                          <td style="padding-bottom: 24px;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #64748b; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">{{ if .Labels.system_fqdn }}FQDN{{ else }}IP{{ end }}</td>
+                              </tr>
+                              <tr>
+                                <td style="font-size: 14px; color: #1e293b; font-family: 'Poppins', Arial, sans-serif;">{{ if .Labels.system_fqdn }}{{ .Labels.system_fqdn }}{{ else }}{{ .Labels.system_ipv4 }}{{ end }}</td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        {{ end }}
+
+                        <!-- CTA: visualizza sistema -->
+                        {{ if .Labels.system_id }}
+                        <tr>
+                          <td align="center" style="padding-top: 8px; border-top: 1px solid #e2e8f0;">
+                            <table border="0" cellpadding="0" cellspacing="0">
+                              <tr>
+                                <td align="center" style="padding-top: 20px;">
+                                  <a href="${APP_URL}/systems/{{ .Labels.system_id }}" style="background-color: rgb(0, 105, 168); border-radius: 8px; color: #ffffff; display: inline-block; font-family: 'Poppins', Arial, sans-serif; font-size: 16px; font-weight: 600; line-height: 52px; text-align: center; text-decoration: none; width: 280px;">Visualizza sistema</a>
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        {{ end }}
+
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+                {{ end }}
+
+              </td>
+            </tr>
+
+            <!-- Pie di pagina -->
+            <tr>
+              <td style="background-color: #f8fafc; padding: 32px; text-align: center; border-top: 1px solid #e2e8f0; border-radius: 0 0 16px 16px;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td style="font-size: 14px; color: #64748b; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 8px;">
+                      <strong>My Nethesis</strong>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="font-size: 13px; color: #94a3b8; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 4px;">
+                      Hai bisogno di aiuto? Contattaci a <a href="mailto:info@nethesis.it" style="color: #3b82f6; text-decoration: none;">info@nethesis.it</a>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="font-size: 13px; color: #94a3b8; font-family: 'Poppins', Arial, sans-serif;">
+                      Questa email è stata inviata automaticamente. Si prega di non rispondere.
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+{{ end }}

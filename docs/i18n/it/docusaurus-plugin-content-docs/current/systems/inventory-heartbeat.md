@@ -421,6 +421,10 @@ Avvisi automatici per:
 - Discordanza versione sistema
 - Vulnerabilità di sicurezza rilevate
 
+:::note
+L'alert interno `LinkFailed` viene generato da Collect dopo il timeout heartbeat configurato (10 minuti di default), separato dalla soglia di stato del sistema a 15+ minuti mostrata sopra. Collect lo aggiorna ogni 5 minuti finché il sistema resta inattivo, quindi può rimanere visibile fino a 10 minuti dopo la ripresa dell'heartbeat.
+:::
+
 ### Salute Sistema
 
 Punteggio salute basato su:

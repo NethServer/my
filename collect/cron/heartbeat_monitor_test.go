@@ -32,10 +32,15 @@ func TestNewHeartbeatMonitor(t *testing.T) {
 	if monitor.checkIntervalSec != 60 {
 		t.Errorf("Expected check interval 60 seconds, got %d", monitor.checkIntervalSec)
 	}
+
+	if monitor.timeoutMinutes != configuration.Config.HeartbeatTimeoutMinutes {
+		t.Errorf("Expected timeout to match config value %d, got %d", configuration.Config.HeartbeatTimeoutMinutes, monitor.timeoutMinutes)
+	}
 }
 
 func TestHeartbeatMonitor_Structure(t *testing.T) {
 	monitor := &HeartbeatMonitor{
+		db:               nil,
 		timeoutMinutes:   10,
 		checkIntervalSec: 60,
 	}
@@ -47,4 +52,5 @@ func TestHeartbeatMonitor_Structure(t *testing.T) {
 	if monitor.checkIntervalSec != 60 {
 		t.Errorf("Expected interval 60 seconds, got %d", monitor.checkIntervalSec)
 	}
+
 }

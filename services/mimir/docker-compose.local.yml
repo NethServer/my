@@ -1,0 +1,25 @@
+# Local development - filesystem storage, no S3 needed
+#
+# Start: podman-compose -f services/mimir/docker-compose.local.yml up -d
+# Stop:  podman-compose -f services/mimir/docker-compose.local.yml down
+#
+# Mimir: http://localhost:19009
+
+services:
+  mimir:
+    image: docker.io/grafana/mimir:3.0.5
+    container_name: my-mimir
+    restart: unless-stopped
+    command:
+      - -config.file=/etc/mimir/my.yaml
+    volumes:
+      - ./my-local.yaml:/etc/mimir/my.yaml:ro
+      - ./runtime_config.yaml:/etc/mimir/runtime_config.yaml:ro
+      - mimir-data:/data
+    ports:
+      - "9009:9009"
+    environment:
+      PORT: 9009
+
+volumes:
+  mimir-data:

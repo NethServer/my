@@ -251,6 +251,33 @@ func main() {
 			systemsGroup.GET("/:id/inventory/diffs", methods.GetSystemInventoryDiffs)                  // Get paginated diffs
 			systemsGroup.GET("/:id/inventory/diffs/latest", methods.GetSystemLatestInventoryDiff)      // Get latest diff
 			systemsGroup.GET("/:id/inventory/timeline", methods.GetSystemInventoryTimeline)            // Get date-grouped timeline with summary
+
+			// Alert endpoints (read:systems required for GET, manage:systems required for POST/DELETE)
+			systemsGroup.GET("/:id/alerts", methods.GetSystemAlerts)                                  // Get active alerts for a system
+			systemsGroup.GET("/:id/alerts/silences", methods.GetSystemAlertSilences)                  // List active silences for a system
+			systemsGroup.POST("/:id/alerts/silences", methods.CreateSystemAlertSilence)               // Create a silence for a system alert
+			systemsGroup.GET("/:id/alerts/silences/:silence_id", methods.GetSystemAlertSilence)       // Get a single silence
+			systemsGroup.PUT("/:id/alerts/silences/:silence_id", methods.UpdateSystemAlertSilence)    // Update a silence's end time / comment
+			systemsGroup.DELETE("/:id/alerts/silences/:silence_id", methods.DeleteSystemAlertSilence) // Disable a silence for a system alert
+			systemsGroup.GET("/:id/alerts/history", methods.GetSystemAlertHistory)                    // Get paginated alert history
+		}
+
+		// ===========================================
+		// ALERTS - resource-based permission validation (read:systems for GET, manage:systems for POST/DELETE)
+		// ===========================================
+		alertsGroup := customAuthWithAudit.Group("/alerts", middleware.RequireResourcePermission("systems"))
+		{
+			// Active alerts
+			alertsGroup.GET("", methods.GetAlerts) // List active alerts for an organization
+
+			// Totals and trend endpoints
+			alertsGroup.GET("/totals", methods.GetAlertsTotals) // Alert counts by severity + history total
+			alertsGroup.GET("/trend", methods.GetAlertsTrend)   // Alert history trend with daily data points
+
+			// Configuration management
+			alertsGroup.GET("/config", methods.GetAlertingConfig) // Get current alerting configuration
+			alertsGroup.POST("/config", methods.ConfigureAlerts)  // Configure alert routing (manage:systems required)
+			alertsGroup.DELETE("/config", methods.DisableAlerts)  // Disable all alerts (manage:systems required)
 		}
 
 		// ===========================================

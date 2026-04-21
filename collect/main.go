@@ -96,6 +96,10 @@ func main() {
 	heartbeatMonitor := cron.NewHeartbeatMonitor()
 	go heartbeatMonitor.Start(ctx)
 
+	// Start LinkFailed monitor cron job
+	linkFailedMonitor := cron.NewLinkFailedMonitor()
+	go linkFailedMonitor.Start(ctx)
+
 	// Init router
 	router := gin.Default()
 
@@ -105,8 +109,11 @@ func main() {
 	// Add security monitoring middleware
 	router.Use(logger.SecurityMiddleware())
 
-	// Add compression
-	router.Use(gzip.Gzip(gzip.DefaultCompression))
+	// Add compression (excluding Mimir proxy endpoints to avoid double-compression)
+	router.Use(gzip.Gzip(
+		gzip.DefaultCompression,
+		gzip.WithExcludedPathsRegexs([]string{"^/api/services/mimir"}),
+	))
 
 	// CORS configuration in debug mode
 	if gin.Mode() == gin.DebugMode {
@@ -144,6 +151,27 @@ func main() {
 		systemsGroup.GET("/rebranding", methods.GetSystemRebranding)
 		systemsGroup.GET("/rebranding/:product_id/:asset", methods.GetSystemRebrandingAsset)
 	}
+
+	// ===========================================
+	// EXTERNAL SERVICES PROXY
+	// ===========================================
+	// Each machine can only access its own alerts and silences (scoped by system_key).
+	// Allowed operations: GET/POST alerts, GET/POST silences, GET/DELETE silence by ID.
+	mimirGroup := api.Group("/services/mimir", middleware.BasicAuthMiddleware())
+	{
+		mimirGroup.GET("/alertmanager/api/v2/alerts", methods.ProxyMimir)
+		mimirGroup.POST("/alertmanager/api/v2/alerts", methods.ProxyMimir)
+		mimirGroup.GET("/alertmanager/api/v2/silences", methods.ProxyMimir)
+		mimirGroup.POST("/alertmanager/api/v2/silences", methods.ProxyMimir)
+		mimirGroup.GET("/alertmanager/api/v2/silences/:silenceID", methods.ProxyMimir)
+		mimirGroup.DELETE("/alertmanager/api/v2/silences/:silenceID", methods.ProxyMimir)
+	}
+
+	// ===========================================
+	// ALERTMANAGER HISTORY WEBHOOK
+	// ===========================================
+	// Receives resolved/inactive alert webhooks from Alertmanager and persists them.
+	api.POST("/alert_history", middleware.WebhookAuthMiddleware(), methods.ReceiveAlertHistory)
 
 	// Handle missing endpoints
 	router.NoRoute(func(c *gin.Context) {

@@ -39,6 +39,7 @@ const sidebars: SidebarsConfig = {
         'features/avatar',
         'features/rebranding',
         'features/export',
+        'features/alerting',
       ],
     },
     'contributing',
