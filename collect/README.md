@@ -216,7 +216,7 @@ curl -X POST http://localhost:8081/api/systems/backups \
 ### Appliance integration (NS8 / NethSecurity)
 
 Each authenticated system owns a prefix in the backup bucket
-(`{org_id}/{system_id}/...`) and the three endpoints below are all the
+(`{org_id}/{system_key}/...`) and the three endpoints below are all the
 appliance needs. Auth is always HTTP Basic with the system_key and the
 system_secret returned at registration:
 
@@ -253,7 +253,10 @@ R2 scoped tokens, MinIO user policies), issue two keys: one for
 `BACKUP_S3_SECRET_KEY` pair on each service. This contains blast
 radius if one component is ever compromised.
 
-Object keys follow `{org_id}/{system_id}/{backup_id}.{ext}`. Per-object
+Object keys follow `{org_id}/{system_key}/{backup_id}.{ext}` — the
+user-facing `system_key` (`NETH-…`) is preferred over the internal UUID
+so operators browsing a raw bucket listing can recognise each system at
+a glance. Per-object
 metadata is stored as standard `x-amz-meta-*` headers:
 
 | Header                   | Source                                                               |
@@ -299,7 +302,7 @@ curl --user "$SYSTEM_KEY:$SYSTEM_SECRET" \
      http://localhost:8081/api/systems/backups
 ```
 
-Verify the object shows up under `{org_id}/{system_id}/<uuidv7>.gpg`
+Verify the object shows up under `{org_id}/{system_key}/<uuidv7>.gpg`
 in the bucket (via the provider's console or the AWS CLI).
 
 ## Project Structure

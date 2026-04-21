@@ -26,3 +26,20 @@ func getAuthenticatedSystemID(c *gin.Context) (string, bool) {
 	}
 	return systemIDStr, true
 }
+
+// getAuthenticatedSystemKey extracts the system_key from the gin context
+// set by BasicAuthMiddleware. The key is the stable user-facing identifier
+// (NETH-XXXX-…) used both for BasicAuth and for the S3 object prefix, so
+// operators reading a raw bucket listing can tie each object back to a
+// recognisable system without an extra DB lookup.
+func getAuthenticatedSystemKey(c *gin.Context) (string, bool) {
+	systemKey, exists := c.Get("system_key")
+	if !exists {
+		return "", false
+	}
+	systemKeyStr, ok := systemKey.(string)
+	if !ok {
+		return "", false
+	}
+	return systemKeyStr, true
+}

@@ -375,7 +375,7 @@ func DestroySystem(c *gin.Context) {
 	// if the row is already missing — DestroySystem will surface the
 	// 404 below.
 	if system, lookupErr := systemsService.GetSystem(systemID, user.OrgRole, user.OrganizationID); lookupErr == nil {
-		if purgeErr := purgeSystemBackups(c.Request.Context(), system.Organization.LogtoID, system.ID); purgeErr != nil {
+		if purgeErr := purgeSystemBackups(c.Request.Context(), system.Organization.LogtoID, system.SystemKey); purgeErr != nil {
 			logger.Error().Err(purgeErr).Str("system_id", systemID).Msg("backup purge failed; refusing to destroy system")
 			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to purge system backups", nil))
 			return

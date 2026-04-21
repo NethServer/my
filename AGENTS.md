@@ -119,7 +119,7 @@ Key properties:
 - Systems auth with HTTP Basic (`system_key:system_secret`, SHA256 in DB).
 - `/api/services/mimir/alertmanager/api/v2/{alerts,silences}[/*subpath]` proxied to Mimir with server-set `X-Scope-OrgID` and authoritative identity labels (`injectLabels` overwrites client values, strips when DB is NULL).
 - `/api/alert_history` receives Alertmanager resolved-alert webhooks with Bearer auth (constant-time compare, fail-closed). `organization_id` is resolved at write-time from `systems.system_key`; unknown keys are dropped.
-- `/api/systems/backups` ingests GPG-encrypted configuration backups from appliances. Stream body → S3 with SHA-256 `io.TeeReader`, metadata reconciled via same-key `CopyObject`, retention enforced inline under a Redis `SET NX` lock, per-system rate limit. Keys: `{org_id}/{system_id}/{backup_id}.{ext}`. Storage is any S3-compatible bucket configured via `BACKUP_S3_*` env vars (see `collect/README.md`).
+- `/api/systems/backups` ingests GPG-encrypted configuration backups from appliances. Stream body → S3 with SHA-256 `io.TeeReader`, metadata reconciled via same-key `CopyObject`, retention enforced inline under a Redis `SET NX` lock, per-system rate limit. Keys: `{org_id}/{system_key}/{backup_id}.{ext}`. Storage is any S3-compatible bucket configured via `BACKUP_S3_*` env vars (see `collect/README.md`).
 
 ### 3.3 Sync (`sync/`)
 

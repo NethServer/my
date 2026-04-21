@@ -92,7 +92,7 @@ func GetSystemBackups(c *gin.Context) {
 		return
 	}
 
-	items, used, err := listSystemBackups(ctx, client, system.Organization.LogtoID, system.ID)
+	items, used, err := listSystemBackups(ctx, client, system.Organization.LogtoID, system.SystemKey)
 	if err != nil {
 		logger.Error().Err(err).Str("system_id", systemID).Msg("list backups failed")
 		c.JSON(http.StatusBadGateway, response.Error(http.StatusBadGateway, "failed to list backups", nil))
@@ -139,7 +139,7 @@ func DownloadSystemBackup(c *gin.Context) {
 		return
 	}
 
-	key := fmt.Sprintf("%s/%s/%s", system.Organization.LogtoID, system.ID, backupID)
+	key := fmt.Sprintf("%s/%s/%s", system.Organization.LogtoID, system.SystemKey, backupID)
 	presigned, err := presigner.PresignGetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(configuration.Config.BackupS3Bucket),
 		Key:    aws.String(key),
@@ -196,7 +196,7 @@ func DeleteSystemBackup(c *gin.Context) {
 		return
 	}
 
-	key := fmt.Sprintf("%s/%s/%s", system.Organization.LogtoID, system.ID, backupID)
+	key := fmt.Sprintf("%s/%s/%s", system.Organization.LogtoID, system.SystemKey, backupID)
 	_, err = client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(configuration.Config.BackupS3Bucket),
 		Key:    aws.String(key),
@@ -229,15 +229,15 @@ func DeleteSystemBackup(c *gin.Context) {
 // The function is a no-op when the backup storage client is not
 // configured (e.g. dev environments without BACKUP_S3_ENDPOINT set);
 // in that case there is nothing to purge.
-func purgeSystemBackups(ctx context.Context, orgID, systemID string) error {
+func purgeSystemBackups(ctx context.Context, orgID, systemKey string) error {
 	client, _, err := storage.BackupClient(ctx)
 	if err != nil {
 		// No backup storage configured for this environment.
-		logger.Warn().Err(err).Str("system_id", systemID).Msg("backup storage unavailable; skipping purge")
+		logger.Warn().Err(err).Str("system_key", systemKey).Msg("backup storage unavailable; skipping purge")
 		return nil
 	}
 
-	prefix := fmt.Sprintf("%s/%s/", orgID, systemID)
+	prefix := fmt.Sprintf("%s/%s/", orgID, systemKey)
 	purged := 0
 	paginator := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
 		Bucket: aws.String(configuration.Config.BackupS3Bucket),
@@ -261,7 +261,7 @@ func purgeSystemBackups(ctx context.Context, orgID, systemID string) error {
 	}
 
 	logger.Info().
-		Str("system_id", systemID).
+		Str("system_key", systemKey).
 		Str("org_id", orgID).
 		Int("objects_purged", purged).
 		Msg("system backups purged")
@@ -272,8 +272,8 @@ func purgeSystemBackups(ctx context.Context, orgID, systemID string) error {
 // total bytes stored under the prefix. Paginates explicitly so the
 // per-system list is never silently truncated at the S3 1000-item
 // response cap.
-func listSystemBackups(ctx context.Context, client *s3.Client, orgID, systemID string) ([]BackupMetadata, int64, error) {
-	prefix := fmt.Sprintf("%s/%s/", orgID, systemID)
+func listSystemBackups(ctx context.Context, client *s3.Client, orgID, systemKey string) ([]BackupMetadata, int64, error) {
+	prefix := fmt.Sprintf("%s/%s/", orgID, systemKey)
 
 	items := make([]BackupMetadata, 0)
 	var total int64

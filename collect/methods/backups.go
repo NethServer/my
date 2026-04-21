@@ -115,7 +115,7 @@ func sanitizeSystemVersion(raw string) string {
 // Setting BackupRateLimitPerMinute or BackupRateLimitPerHour to 0 or
 // below disables the corresponding check; setting both to 0 turns the
 // limiter off entirely (useful in tests and for emergencies).
-func enforceIngestRateLimit(ctx context.Context, systemID string) (bool, int) {
+func enforceIngestRateLimit(ctx context.Context, systemKey string) (bool, int) {
 	perMin := configuration.Config.BackupRateLimitPerMinute
 	perHour := configuration.Config.BackupRateLimitPerHour
 	if perMin <= 0 && perHour <= 0 {
@@ -131,12 +131,12 @@ func enforceIngestRateLimit(ctx context.Context, systemID string) (bool, int) {
 
 	minuteBucket := now / 60
 	hourBucket := now / 3600
-	minuteKey := fmt.Sprintf("backup:rate:min:%s:%d", systemID, minuteBucket)
-	hourKey := fmt.Sprintf("backup:rate:hour:%s:%d", systemID, hourBucket)
+	minuteKey := fmt.Sprintf("backup:rate:min:%s:%d", systemKey, minuteBucket)
+	hourKey := fmt.Sprintf("backup:rate:hour:%s:%d", systemKey, hourBucket)
 
 	minCount, err := rdb.Incr(ctx, minuteKey).Result()
 	if err != nil {
-		logger.Warn().Err(err).Str("system_id", systemID).Msg("rate-limit counter unreachable, failing open")
+		logger.Warn().Err(err).Str("system_key", systemKey).Msg("rate-limit counter unreachable, failing open")
 		return true, 0
 	}
 	if minCount == 1 {
@@ -149,7 +149,7 @@ func enforceIngestRateLimit(ctx context.Context, systemID string) (bool, int) {
 
 	hourCount, err := rdb.Incr(ctx, hourKey).Result()
 	if err != nil {
-		logger.Warn().Err(err).Str("system_id", systemID).Msg("rate-limit counter unreachable, failing open")
+		logger.Warn().Err(err).Str("system_key", systemKey).Msg("rate-limit counter unreachable, failing open")
 		return true, 0
 	}
 	if hourCount == 1 {
@@ -215,10 +215,11 @@ func UploadBackup(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("authentication required", nil))
 		return
 	}
+	systemKey, _ := getAuthenticatedSystemKey(c)
 
 	// Per-system ingest rate limit — blocks flood-style abuse ahead of
 	// the expensive storage path.
-	if ok, retry := enforceIngestRateLimit(c.Request.Context(), systemID); !ok {
+	if ok, retry := enforceIngestRateLimit(c.Request.Context(), systemKey); !ok {
 		c.Header("Retry-After", fmt.Sprintf("%d", retry))
 		c.JSON(http.StatusTooManyRequests, response.Error(http.StatusTooManyRequests, "upload rate limit exceeded", gin.H{
 			"retry_after_seconds": retry,
@@ -273,7 +274,10 @@ func UploadBackup(c *gin.Context) {
 	backupID := uuid.Must(uuid.NewV7())
 	filename := extractFilename(c.GetHeader("X-Filename"), backupID.String())
 	ext := extractExtension(filename)
-	key := fmt.Sprintf("%s/%s/%s%s", orgID, systemID, backupID.String(), ext)
+	// Object key uses system_key (the stable NETH-…-shaped identifier)
+	// instead of the internal UUID system_id so operators browsing a raw
+	// bucket listing can recognise each system at a glance.
+	key := fmt.Sprintf("%s/%s/%s%s", orgID, systemKey, backupID.String(), ext)
 	contentType := c.GetHeader("Content-Type")
 	if contentType == "" {
 		contentType = "application/octet-stream"
@@ -368,8 +372,8 @@ func UploadBackup(c *gin.Context) {
 		size = aws.ToInt64(head.ContentLength)
 	}
 
-	if err := enforceBackupRetention(ctx, client, orgID, systemID); err != nil {
-		logger.Warn().Err(err).Str("system_id", systemID).Msg("retention enforcement failed")
+	if err := enforceBackupRetention(ctx, client, orgID, systemKey); err != nil {
+		logger.Warn().Err(err).Str("system_id", systemID).Str("system_key", systemKey).Msg("retention enforcement failed")
 	}
 
 	logger.Info().
@@ -402,6 +406,7 @@ func ListBackups(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("authentication required", nil))
 		return
 	}
+	systemKey, _ := getAuthenticatedSystemKey(c)
 
 	orgID, err := lookupSystemOrgID(systemID)
 	if err != nil {
@@ -416,9 +421,9 @@ func ListBackups(c *gin.Context) {
 		return
 	}
 
-	items, err := listBackupsForSystem(ctx, client, orgID, systemID)
+	items, err := listBackupsForSystem(ctx, client, orgID, systemKey)
 	if err != nil {
-		logger.Error().Err(err).Str("system_id", systemID).Msg("list backups failed")
+		logger.Error().Err(err).Str("system_id", systemID).Str("system_key", systemKey).Msg("list backups failed")
 		c.JSON(http.StatusBadGateway, response.Error(http.StatusBadGateway, "failed to list backups", nil))
 		return
 	}
@@ -434,6 +439,7 @@ func DownloadBackup(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, response.Unauthorized("authentication required", nil))
 		return
 	}
+	systemKey, _ := getAuthenticatedSystemKey(c)
 
 	backupID := c.Param("id")
 	if backupID == "" {
@@ -458,7 +464,7 @@ func DownloadBackup(c *gin.Context) {
 		return
 	}
 
-	key := fmt.Sprintf("%s/%s/%s", orgID, systemID, backupID)
+	key := fmt.Sprintf("%s/%s/%s", orgID, systemKey, backupID)
 	obj, err := client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(configuration.Config.BackupS3Bucket),
 		Key:    aws.String(key),
@@ -501,12 +507,12 @@ func DownloadBackup(c *gin.Context) {
 	}
 }
 
-// listBackupsForSystem lists every backup object under the {org}/{system}
-// prefix and maps it to BackupMetadata. Paginates explicitly so the
-// per-system list is never silently truncated at the S3 1000-item
-// response cap.
-func listBackupsForSystem(ctx context.Context, client *s3.Client, orgID, systemID string) ([]BackupMetadata, error) {
-	prefix := fmt.Sprintf("%s/%s/", orgID, systemID)
+// listBackupsForSystem lists every backup object under the
+// {org}/{system_key} prefix and maps it to BackupMetadata. Paginates
+// explicitly so the per-system list is never silently truncated at the
+// S3 1000-item response cap.
+func listBackupsForSystem(ctx context.Context, client *s3.Client, orgID, systemKey string) ([]BackupMetadata, error) {
+	prefix := fmt.Sprintf("%s/%s/", orgID, systemKey)
 
 	items := make([]BackupMetadata, 0)
 	paginator := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
@@ -560,15 +566,15 @@ func listBackupsForSystem(ctx context.Context, client *s3.Client, orgID, systemI
 // race over the survivor count) and orders objects by their key —
 // because the keys embed a UUIDv7, lexicographic order is monotonic in
 // upload time and immune to S3 LastModified clock skew.
-func enforceBackupRetention(ctx context.Context, client *s3.Client, orgID, systemID string) error {
-	lockKey := fmt.Sprintf("backup:retention:%s", systemID)
+func enforceBackupRetention(ctx context.Context, client *s3.Client, orgID, systemKey string) error {
+	lockKey := fmt.Sprintf("backup:retention:%s", systemKey)
 	rdb := queue.GetClient()
 	locked, err := rdb.SetNX(ctx, lockKey, "1", 60*time.Second).Result()
 	if err != nil {
 		// Redis unreachable — skip retention this round; the next
 		// upload will retry. Better to leave one extra backup than
 		// to delete the wrong one.
-		logger.Warn().Err(err).Str("system_id", systemID).Msg("retention: lock acquire failed, skipping")
+		logger.Warn().Err(err).Str("system_key", systemKey).Msg("retention: lock acquire failed, skipping")
 		return nil
 	}
 	if !locked {
@@ -577,11 +583,11 @@ func enforceBackupRetention(ctx context.Context, client *s3.Client, orgID, syste
 	}
 	defer func() {
 		if _, err := rdb.Del(ctx, lockKey).Result(); err != nil {
-			logger.Warn().Err(err).Str("system_id", systemID).Msg("retention: lock release failed")
+			logger.Warn().Err(err).Str("system_key", systemKey).Msg("retention: lock release failed")
 		}
 	}()
 
-	prefix := fmt.Sprintf("%s/%s/", orgID, systemID)
+	prefix := fmt.Sprintf("%s/%s/", orgID, systemKey)
 
 	objs := make([]s3types.Object, 0)
 	paginator := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{

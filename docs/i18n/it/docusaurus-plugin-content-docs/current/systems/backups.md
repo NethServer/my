@@ -36,11 +36,11 @@ Le letture da parte degli utenti passano per `backend` con il normale JWT Logto 
 Ogni oggetto di backup ha la chiave:
 
 ```
-{org_id}/{system_id}/{backup_id}.{ext}
+{org_id}/{system_key}/{backup_id}.{ext}
 ```
 
 - `org_id` è l'organizzazione che possiede il sistema.
-- `system_id` è l'identificatore interno stabile assegnato alla creazione.
+- `system_key` è l'identificatore utente stabile (`NETH-…`) con cui l'appliance si autentica — scelto rispetto all'UUID interno per permettere agli operatori di riconoscere a colpo d'occhio ogni sistema sfogliando il bucket.
 - `backup_id` è uno UUIDv7 ordinabile nel tempo, generato al momento dell'upload.
 - `ext` riflette il formato di compressione/cifratura rilevato dal filename che l'appliance invia (`.tar.gz`, `.tar.xz`, `.gpg`, `.bin`).
 
