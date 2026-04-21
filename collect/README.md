@@ -264,7 +264,6 @@ metadata is stored as standard `x-amz-meta-*` headers:
 | `x-amz-meta-sha256`      | Computed by collect via streaming tee at ingest                      |
 | `x-amz-meta-filename`    | From the appliance request header `X-Filename` (user-facing name)    |
 | `x-amz-meta-uploader-ip` | Client IP observed by collect                                        |
-| `x-amz-meta-uploader-ua` | Appliance `User-Agent` (software version tracking)                   |
 | `x-amz-meta-system-ver`  | Optional appliance OS version from `X-System-Version`                |
 
 ### Testing the backup round-trip end-to-end

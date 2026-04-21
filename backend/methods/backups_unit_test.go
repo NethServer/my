@@ -106,7 +106,6 @@ func TestBackupMetadataSerialization(t *testing.T) {
 		SHA256:     "3a7bd3e2360a3d29eea436fcfb7e44c735d117c42d1c1835420b6b9942dd4f1b",
 		MimeType:   "application/gzip",
 		UploaderIP: "89.96.200.12",
-		UploaderUA: "NethServer-backup/8.4.2",
 		SystemVer:  "ns8 3.0.0",
 	}
 
@@ -122,7 +121,6 @@ func TestBackupMetadataSerialization(t *testing.T) {
 	assert.Equal(t, m.SHA256, decoded["sha256"])
 	assert.Equal(t, m.MimeType, decoded["mimetype"])
 	assert.Equal(t, m.UploaderIP, decoded["uploader_ip"])
-	assert.Equal(t, m.UploaderUA, decoded["uploader_ua"])
 	assert.Equal(t, m.SystemVer, decoded["system_version"])
 }
 

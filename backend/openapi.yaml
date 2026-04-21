@@ -768,10 +768,6 @@ components:
           type: string
           description: Client IP observed by the ingest service
           example: "89.96.200.12"
-        uploader_ua:
-          type: string
-          description: User-Agent sent by the appliance (software version tracking)
-          example: "NethServer-backup/8.4.2"
         system_version:
           type: string
           description: Appliance OS version advertised via X-System-Version at ingest
@@ -9297,8 +9293,8 @@ paths:
         here read-only.
 
         Each entry carries `size`, `sha256`, `uploaded_at`, and the
-        identity observed at ingest (`uploader_ip`, `uploader_ua`,
-        `system_version`). The `sha256` field may be empty for a short
+        identity observed at ingest (`uploader_ip`, `system_version`).
+        The `sha256` field may be empty for a short
         window right after upload until the final checksum is persisted
         as object metadata.
 
