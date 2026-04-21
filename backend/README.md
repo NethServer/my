@@ -64,7 +64,7 @@ REDIS_URL=redis://localhost:6379
 # reads and issues presigned URLs, collect writes uploads from
 # appliances. See collect/README.md for the bucket layout.
 BACKUP_S3_ENDPOINT=https://ams3.digitaloceanspaces.com
-BACKUP_S3_REGION=us-east-1
+BACKUP_S3_REGION=ams3
 BACKUP_S3_BUCKET=my-backups
 BACKUP_S3_ACCESS_KEY=your-access-key
 BACKUP_S3_SECRET_KEY=your-secret-key

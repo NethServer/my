@@ -273,7 +273,7 @@ set the values in `backend/.env` and `collect/.env`:
 
 ```
 BACKUP_S3_ENDPOINT=...        # e.g. https://ams3.digitaloceanspaces.com
-BACKUP_S3_REGION=us-east-1
+BACKUP_S3_REGION=ams3         # DO Spaces region code; any non-empty value works for MinIO/Garage
 BACKUP_S3_BUCKET=my-backups-dev
 BACKUP_S3_ACCESS_KEY=...
 BACKUP_S3_SECRET_KEY=...
