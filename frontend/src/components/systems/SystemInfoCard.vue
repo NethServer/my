@@ -192,7 +192,7 @@ function getKebabMenuItems() {
     <NeSkeleton v-else-if="systemDetail.status === 'pending'" :lines="10" />
     <div v-else-if="systemDetail.data">
       <!-- product logo and name -->
-      <div class="mb-4 flex items-center justify-between gap-4">
+      <div class="mb-4 flex h-10 items-center justify-between gap-4">
         <div class="flex items-center gap-4">
           <SystemLogo :system="systemDetail.data.type" />
           <NeHeading tag="h6">

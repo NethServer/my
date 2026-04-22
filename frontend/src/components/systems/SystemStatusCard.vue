@@ -89,7 +89,7 @@ const timezone = computed(() => {
 
 <template>
   <NeCard>
-    <div class="mb-4 flex items-center gap-4">
+    <div class="mb-4 flex h-10 items-center gap-4">
       <FontAwesomeIcon :icon="faCircleInfo" class="size-5 shrink-0" aria-hidden="true" />
       <NeHeading tag="h6">
         {{ $t('common.status').toUpperCase() }}

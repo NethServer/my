@@ -54,7 +54,7 @@ function onCloseSecretRegeneratedModal() {
 
 <template>
   <NeCard>
-    <div class="mb-4 flex items-center justify-between gap-4">
+    <div class="mb-4 flex h-10 items-center justify-between gap-4">
       <div class="flex items-center gap-4">
         <FontAwesomeIcon :icon="faAward" class="size-5 shrink-0" aria-hidden="true" />
         <NeHeading tag="h6">
