@@ -13,10 +13,16 @@ import {
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
-import { faCircleInfo, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons'
+import {
+  faCircleCheck,
+  faCircleInfo,
+  faTriangleExclamation,
+} from '@fortawesome/free-solid-svg-icons'
 import { formatDateTimeNoSeconds, formatTimeAgo, formatUptime } from '@/lib/dateTime'
 import { useI18n } from 'vue-i18n'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
+import { useSystemActiveAlerts } from '@/queries/systems/activeAlerts'
+import { useSystemBackups } from '@/queries/systems/backups'
 import DataItem from '../DataItem.vue'
 import { computed } from 'vue'
 import SystemStatusIcon from './SystemStatusIcon.vue'
@@ -26,6 +32,13 @@ import type { NsecFacts } from '@/lib/systems/nsecFacts'
 const { t, locale } = useI18n()
 const { state: systemDetail } = useSystemDetail()
 const { state: latestInventory } = useLatestInventory()
+const { state: activeAlerts } = useSystemActiveAlerts()
+const { state: systemBackups } = useSystemBackups()
+
+const activeAlertsCount = computed(() => activeAlerts.value.data?.length ?? 0)
+const backupsCount = computed(() => systemBackups.value.data?.backups?.length ?? 0)
+const hasActiveAlerts = computed(() => activeAlertsCount.value > 0)
+const hasBackups = computed(() => backupsCount.value > 0)
 
 const uptimeLabel = computed(() => {
   return systemType.value === 'ns8'
@@ -175,6 +188,70 @@ const timezone = computed(() => {
         </template>
         <template #data>
           {{ timezone ? timezone : '-' }}
+        </template>
+      </DataItem>
+      <!-- alerts indicator -->
+      <DataItem>
+        <template #label>
+          {{ $t('alerting.title') }}
+        </template>
+        <template #data>
+          <div class="flex items-center gap-2">
+            <template v-if="activeAlerts.status === 'pending'">
+              <span>-</span>
+            </template>
+            <template v-else-if="activeAlerts.status === 'error'">
+              <span>-</span>
+            </template>
+            <template v-else-if="hasActiveAlerts">
+              <FontAwesomeIcon
+                :icon="faTriangleExclamation"
+                class="size-4 text-amber-700 dark:text-amber-500"
+                aria-hidden="true"
+              />
+              {{ $t('system_detail.n_active_alerts', { n: activeAlertsCount }, activeAlertsCount) }}
+            </template>
+            <template v-else>
+              <FontAwesomeIcon
+                :icon="faCircleCheck"
+                class="size-4 text-green-700 dark:text-green-500"
+                aria-hidden="true"
+              />
+              {{ $t('system_detail.no_active_alerts') }}
+            </template>
+          </div>
+        </template>
+      </DataItem>
+      <!-- backups indicator -->
+      <DataItem>
+        <template #label>
+          {{ $t('backups.title') }}
+        </template>
+        <template #data>
+          <div class="flex items-center gap-2">
+            <template v-if="systemBackups.status === 'pending'">
+              <span>-</span>
+            </template>
+            <template v-else-if="systemBackups.status === 'error'">
+              <span>-</span>
+            </template>
+            <template v-else-if="hasBackups">
+              <FontAwesomeIcon
+                :icon="faCircleCheck"
+                class="size-4 text-green-700 dark:text-green-500"
+                aria-hidden="true"
+              />
+              {{ $t('system_detail.n_backups_stored', { n: backupsCount }, backupsCount) }}
+            </template>
+            <template v-else>
+              <FontAwesomeIcon
+                :icon="faTriangleExclamation"
+                class="size-4 text-amber-700 dark:text-amber-500"
+                aria-hidden="true"
+              />
+              {{ $t('system_detail.no_backups_stored') }}
+            </template>
+          </div>
         </template>
       </DataItem>
     </div>
