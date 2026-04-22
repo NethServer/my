@@ -350,6 +350,14 @@ make build-all    # linux/darwin/windows × amd64/arm64
 4. **Update `backend/openapi.yaml`** (mandatory — validated by `make validate-docs`).
 5. `make pre-commit`.
 
+### 10.1b Naming — plural vs singular in path segments
+
+- **Plural** for collections with N elements addressable by ID: `/users`, `/systems`, `/alerts`, `/alerts/silences`, `/backups`. Any endpoint that supports `GET` list, `GET /:id`, `POST` create, or `DELETE /:id` belongs here.
+- **Singular** for singletons (one resource per parent) and for command/snapshot endpoints that accept a single payload and don't expose a collection: `/alerts/config`, `/me`, `/inventory`, `/heartbeat`.
+- Aggregate queries over a collection stay plural: `/alerts/totals`, `/alerts/trend`, `/systems/totals`.
+
+Apparent asymmetry like `/systems/:id/backups` (plural) next to `/systems/inventory` (singular) reflects this rule — `backups` is a multi-item collection, `inventory` is a single snapshot the client pushes and the server replaces.
+
 ### 10.2 API reference
 
 Authoritative: `backend/openapi.yaml` (also `make docs` / redocly). High-level route groups in `backend/main.go`:
