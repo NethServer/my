@@ -131,13 +131,33 @@ func DownloadSystemBackup(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	_, presigner, err := storage.BackupClient(ctx)
+	client, presigner, err := storage.BackupClient(ctx)
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, response.Error(http.StatusServiceUnavailable, "backup storage unavailable", nil))
 		return
 	}
 
 	key := fmt.Sprintf("%s/%s/%s", system.Organization.LogtoID, system.SystemKey, backupID)
+
+	// Verify the object exists before issuing a presigned URL. Otherwise
+	// the client gets a 200 with a URL that 404s on GET, which is
+	// confusing UX and leaks that the ID didn't exist only after an
+	// extra round-trip.
+	_, err = client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(configuration.Config.BackupS3Bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		var nf *s3types.NotFound
+		if errors.As(err, &nf) {
+			c.JSON(http.StatusNotFound, response.NotFound("backup not found", nil))
+			return
+		}
+		logger.Error().Err(err).Str("key", key).Msg("head backup failed")
+		c.JSON(http.StatusBadGateway, response.Error(http.StatusBadGateway, "failed to generate download URL", nil))
+		return
+	}
+
 	presigned, err := presigner.PresignGetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(configuration.Config.BackupS3Bucket),
 		Key:    aws.String(key),
@@ -195,16 +215,31 @@ func DeleteSystemBackup(c *gin.Context) {
 	}
 
 	key := fmt.Sprintf("%s/%s/%s", system.Organization.LogtoID, system.SystemKey, backupID)
+
+	// S3's DeleteObject is idempotent — it returns success whether the
+	// key existed or not — so a NoSuchKey error is never surfaced. Probe
+	// with HeadObject first so the caller sees a 404 for phantom IDs
+	// instead of a misleading 200.
+	_, err = client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(configuration.Config.BackupS3Bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		var nf *s3types.NotFound
+		if errors.As(err, &nf) {
+			c.JSON(http.StatusNotFound, response.NotFound("backup not found", nil))
+			return
+		}
+		logger.Error().Err(err).Str("key", key).Msg("head backup failed")
+		c.JSON(http.StatusBadGateway, response.Error(http.StatusBadGateway, "failed to delete backup", nil))
+		return
+	}
+
 	_, err = client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(configuration.Config.BackupS3Bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		var nsk *s3types.NoSuchKey
-		if errors.As(err, &nsk) {
-			c.JSON(http.StatusNotFound, response.NotFound("backup not found", nil))
-			return
-		}
 		logger.Error().Err(err).Str("key", key).Msg("delete backup failed")
 		c.JSON(http.StatusBadGateway, response.Error(http.StatusBadGateway, "failed to delete backup", nil))
 		return
