@@ -159,6 +159,7 @@ func main() {
 		systemsGroup.POST("/backups", methods.UploadBackup)
 		systemsGroup.GET("/backups", methods.ListBackups)
 		systemsGroup.GET("/backups/:id", methods.DownloadBackup)
+		systemsGroup.DELETE("/backups/:id", methods.DeleteBackup)
 	}
 
 	// ===========================================

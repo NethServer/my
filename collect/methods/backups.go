@@ -484,6 +484,82 @@ func DownloadBackup(c *gin.Context) {
 	}
 }
 
+// DeleteBackup removes a single backup belonging to the authenticated
+// appliance. The object key is server-derived from the Basic-Auth
+// identity and the :id path parameter, so the caller can only target
+// backups under its own {org_id}/{system_key}/ prefix.
+func DeleteBackup(c *gin.Context) {
+	systemID, ok := getAuthenticatedSystemID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("authentication required", nil))
+		return
+	}
+	systemKey, _ := getAuthenticatedSystemKey(c)
+
+	backupID := c.Param("id")
+	if backupID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("backup id required", nil))
+		return
+	}
+	if !isValidBackupID(backupID) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid backup id", nil))
+		return
+	}
+
+	orgID, err := lookupSystemOrgID(systemID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve system organization", nil))
+		return
+	}
+
+	ctx := c.Request.Context()
+	client, _, err := storage.BackupClient(ctx)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, response.Error(http.StatusServiceUnavailable, "backup storage unavailable", nil))
+		return
+	}
+
+	key := fmt.Sprintf("%s/%s/%s", orgID, systemKey, backupID)
+
+	// S3 DeleteObject is idempotent and does not return NoSuchKey —
+	// probe with HeadObject first so a phantom id surfaces as 404
+	// instead of a misleading 200.
+	_, err = client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(configuration.Config.BackupS3Bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		var nf *s3types.NotFound
+		if errors.As(err, &nf) {
+			c.JSON(http.StatusNotFound, response.NotFound("backup not found", nil))
+			return
+		}
+		logger.Error().Err(err).Str("key", key).Msg("head backup failed")
+		c.JSON(http.StatusBadGateway, response.Error(http.StatusBadGateway, "failed to delete backup", nil))
+		return
+	}
+
+	_, err = client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(configuration.Config.BackupS3Bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		logger.Error().Err(err).Str("key", key).Msg("delete backup failed")
+		c.JSON(http.StatusBadGateway, response.Error(http.StatusBadGateway, "failed to delete backup", nil))
+		return
+	}
+
+	logger.Info().
+		Str("component", "backup").
+		Str("operation", "delete").
+		Str("system_id", systemID).
+		Str("org_id", orgID).
+		Str("key", key).
+		Msg("backup deleted by appliance")
+
+	c.JSON(http.StatusOK, response.OK("backup deleted", gin.H{"id": backupID}))
+}
+
 // listBackupsForSystem lists every backup object under the
 // {org}/{system_key} prefix and maps it to BackupMetadata. Paginates
 // explicitly so the per-system list is never silently truncated at the
