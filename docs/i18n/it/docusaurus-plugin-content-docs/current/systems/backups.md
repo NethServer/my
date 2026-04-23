@@ -62,11 +62,11 @@ L'ingest applica tre limiti indipendenti per sistema:
 | `BACKUP_MAX_SIZE_PER_SYSTEM`       | 500&nbsp;MB | Totale byte massimo per sistema.                   |
 | `BACKUP_MAX_UPLOAD_SIZE`           | 2&nbsp;GB   | Limite duro per singolo upload.                    |
 
-È disponibile anche un tetto per-organizzazione opzionale:
+È attivo anche un tetto per-organizzazione:
 
 | Parametro                      | Default    | Significato                                                   |
 |--------------------------------|------------|---------------------------------------------------------------|
-| `BACKUP_MAX_SIZE_PER_ORG`      | illimitato | Se diverso da zero, totale byte aggregato su tutti i sistemi della stessa organizzazione. |
+| `BACKUP_MAX_SIZE_PER_ORG`      | 100&nbsp;GB | Totale byte aggregato su tutti i sistemi della stessa organizzazione. Impostare a `0` per disabilitare (viene loggato un warning all'avvio). |
 
 Quando una delle soglie (count o size) viene superata, l'oggetto più vecchio sotto il prefisso del sistema viene eliminato finché il backup non rientra nei limiti. La pruning è serializzata da un lock Redis: upload concorrenti dallo stesso appliance non possono mai correre sullo stesso oggetto vittima.
 
@@ -74,7 +74,7 @@ Gli upload dell'appliance sono inoltre sottoposti a rate limit per sistema (defa
 
 ## Eliminazione e GDPR
 
-L'eliminazione di un sistema dalla UI di MY — sia soft delete che hard destroy — rimuove i backup del sistema dal bucket prima che la riga nel database venga cancellata. Se il cleanup dello storage fallisce, il destroy viene rifiutato in modo che l'operatore possa riprovare; nessun ciphertext orfano rimane mai sotto il prefisso di un sistema eliminato. Le modifiche delle credenziali (rotazione del secret, soft delete) invalidano ogni cache di auth su `collect` entro un secondo, tramite un bus Redis pub/sub cross-service.
+Un **soft delete** lascia i backup al loro posto: la riga del sistema viene marcata con `deleted_at` ma può ancora essere ripristinata dalla UI, e i suoi backup devono sopravvivere perché il ripristino sia utile. Un **hard destroy** è irreversibile ed esegue un'erasure GDPR-compliant: ogni oggetto sotto il prefisso `{org_id}/{system_key}/` del sistema viene rimosso dal bucket prima che la riga nel database venga cancellata, sia che il sistema sia stato soft-deleted in precedenza sia che no. Se il cleanup dello storage fallisce, il destroy viene rifiutato in modo che l'operatore possa riprovare; nessun ciphertext orfano rimane mai sotto il prefisso di un sistema distrutto. Le modifiche delle credenziali (rotazione del secret, soft delete) invalidano ogni cache di auth su `collect` entro un secondo, tramite un bus Redis pub/sub cross-service.
 
 ## Gestione dei backup
 

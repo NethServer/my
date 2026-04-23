@@ -42,6 +42,21 @@ func (r *LocalSystemRepository) Create(req *models.CreateSystemRequest) (*models
 
 // GetByID retrieves a specific system by ID without access validation (validation is done at service level)
 func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
+	return r.getByID(id, false)
+}
+
+// GetByIDIncludingDeleted is like GetByID but also returns soft-deleted rows.
+// Destructive flows that still need (org_id, system_key) after a soft delete
+// (GDPR-compliant backup purge before hard destroy) go through this method.
+func (r *LocalSystemRepository) GetByIDIncludingDeleted(id string) (*models.System, error) {
+	return r.getByID(id, true)
+}
+
+func (r *LocalSystemRepository) getByID(id string, includeDeleted bool) (*models.System, error) {
+	whereClause := "WHERE s.id = $1 AND s.deleted_at IS NULL"
+	if includeDeleted {
+		whereClause = "WHERE s.id = $1"
+	}
 	query := `
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
 		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, s.registered_at, s.suspended_at, s.suspended_by_org_id, h.last_heartbeat, s.last_inventory_at,
@@ -51,8 +66,7 @@ func (r *LocalSystemRepository) GetByID(id string) (*models.System, error) {
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
 		LEFT JOIN unified_organizations uo ON s.organization_id = uo.logto_id
-		WHERE s.id = $1 AND s.deleted_at IS NULL
-	`
+		` + whereClause
 
 	system := &models.System{}
 	var customDataJSON []byte

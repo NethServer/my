@@ -16,7 +16,6 @@ export interface BackupMetadata {
   sha256: string
   mimetype: string
   uploaded_at: string
-  uploader_ip?: string
 }
 
 export interface BackupListData {

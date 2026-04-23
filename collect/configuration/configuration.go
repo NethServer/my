@@ -218,7 +218,14 @@ func Init() {
 	Config.BackupMaxUploadSize = parseInt64WithDefault("BACKUP_MAX_UPLOAD_SIZE", 2*1024*1024*1024)
 	Config.BackupMaxPerSystem = parseIntWithDefault("BACKUP_MAX_PER_SYSTEM", 10)
 	Config.BackupMaxSizePerSystem = parseInt64WithDefault("BACKUP_MAX_SIZE_PER_SYSTEM", 500*1024*1024)
-	Config.BackupMaxSizePerOrg = parseInt64WithDefault("BACKUP_MAX_SIZE_PER_ORG", 0)
+	// Default 100 GiB per organization. An unset env var would otherwise
+	// leave the aggregate quota disabled, making a compromised system_key
+	// capable of saturating the backing bucket on behalf of its org.
+	// Set BACKUP_MAX_SIZE_PER_ORG=0 explicitly to disable.
+	Config.BackupMaxSizePerOrg = parseInt64WithDefault("BACKUP_MAX_SIZE_PER_ORG", 100*1024*1024*1024)
+	if os.Getenv("BACKUP_MAX_SIZE_PER_ORG") == "0" {
+		logger.Warn().Msg("BACKUP_MAX_SIZE_PER_ORG=0: per-organization aggregate backup quota disabled")
+	}
 	Config.BackupRateLimitPerMinute = parseIntWithDefault("BACKUP_RATE_LIMIT_PER_MINUTE", 6)
 	Config.BackupRateLimitPerHour = parseIntWithDefault("BACKUP_RATE_LIMIT_PER_HOUR", 60)
 

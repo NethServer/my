@@ -87,6 +87,8 @@ func TestExtractExtension(t *testing.T) {
 		{"uppercase normalized", "backup.GPG", ".gpg"},
 		{"no extension defaults to .bin", "backup", ".bin"},
 		{"trailing dot defaults to .bin", "backup.", ".bin"},
+		{"unknown extension coerced to .bin", "backup.rar", ".bin"},
+		{"script extension coerced to .bin", "backup.sh", ".bin"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

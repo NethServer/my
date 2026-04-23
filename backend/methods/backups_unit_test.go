@@ -100,12 +100,11 @@ func TestBackupMetadataSerialization(t *testing.T) {
 	// Document the JSON shape the UI consumes. If any field name or
 	// casing shifts, this test highlights it before the frontend breaks.
 	m := BackupMetadata{
-		ID:         "01934fab-bc33-7890-a1b2-c3d4e5f6a7b8.tar.gz",
-		Filename:   "daily-backup.tar.gz",
-		Size:       42 * 1024 * 1024,
-		SHA256:     "3a7bd3e2360a3d29eea436fcfb7e44c735d117c42d1c1835420b6b9942dd4f1b",
-		MimeType:   "application/gzip",
-		UploaderIP: "89.96.200.12",
+		ID:       "01934fab-bc33-7890-a1b2-c3d4e5f6a7b8.tar.gz",
+		Filename: "daily-backup.tar.gz",
+		Size:     42 * 1024 * 1024,
+		SHA256:   "3a7bd3e2360a3d29eea436fcfb7e44c735d117c42d1c1835420b6b9942dd4f1b",
+		MimeType: "application/gzip",
 	}
 
 	payload, err := json.Marshal(m)
@@ -119,7 +118,8 @@ func TestBackupMetadataSerialization(t *testing.T) {
 	assert.Equal(t, float64(m.Size), decoded["size"])
 	assert.Equal(t, m.SHA256, decoded["sha256"])
 	assert.Equal(t, m.MimeType, decoded["mimetype"])
-	assert.Equal(t, m.UploaderIP, decoded["uploader_ip"])
+	_, hasUploader := decoded["uploader_ip"]
+	assert.False(t, hasUploader, "uploader_ip must not be exposed in BackupMetadata")
 }
 
 func TestBackupListResponseSerialization(t *testing.T) {

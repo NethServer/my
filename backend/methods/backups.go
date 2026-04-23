@@ -42,7 +42,10 @@ func isValidBackupID(id string) bool {
 }
 
 // BackupMetadata is the JSON payload returned in list responses for a single
-// backup object.
+// backup object. The uploader IP is intentionally not exposed: on traffic
+// that transits the translation proxy the stored value is the proxy's IP
+// (not the appliance's), and where it is accurate it would still be a
+// reconnaissance aid for any admin above the customer tier.
 type BackupMetadata struct {
 	ID         string    `json:"id"`
 	Filename   string    `json:"filename"`
@@ -50,7 +53,6 @@ type BackupMetadata struct {
 	SHA256     string    `json:"sha256"`
 	MimeType   string    `json:"mimetype"`
 	UploadedAt time.Time `json:"uploaded_at"`
-	UploaderIP string    `json:"uploader_ip,omitempty"`
 }
 
 // BackupListResponse wraps the list of backups with aggregate usage counters
@@ -343,7 +345,6 @@ func listSystemBackups(ctx context.Context, client *s3.Client, orgID, systemKey 
 				SHA256:     md["sha256"],
 				MimeType:   aws.ToString(head.ContentType),
 				UploadedAt: aws.ToTime(o.LastModified),
-				UploaderIP: md["uploader-ip"],
 			})
 		}
 	}

@@ -704,7 +704,6 @@
     "filename": "Filename",
     "size": "Size",
     "sha256": "SHA-256",
-    "uploader_ip": "Uploader IP",
     "actions": "Actions",
     "download": "Download",
     "delete": "Delete",

@@ -371,10 +371,13 @@ func DestroySystem(c *gin.Context) {
 	systemsService := local.NewSystemsService()
 
 	// Resolve the system before destroy so we know which S3 prefix to
-	// purge (the row will be gone after DestroySystem). Skip the purge
-	// if the row is already missing — DestroySystem will surface the
-	// 404 below.
-	if system, lookupErr := systemsService.GetSystem(systemID, user.OrgRole, user.OrganizationID); lookupErr == nil {
+	// purge (the row will be gone after DestroySystem). The lookup
+	// bypasses the deleted_at filter so the two-step "soft delete, then
+	// destroy" flow still runs the purge — GetSystem would otherwise
+	// return "not found" on an already soft-deleted row and the GDPR
+	// erasure would be silently skipped. Skip the purge only when the
+	// row is genuinely missing; DestroySystem will surface the 404 below.
+	if system, lookupErr := systemsService.GetSystemIncludingDeleted(systemID, user.OrgRole, user.OrganizationID); lookupErr == nil {
 		if purgeErr := purgeSystemBackups(c.Request.Context(), system.Organization.LogtoID, system.SystemKey); purgeErr != nil {
 			logger.Error().Err(purgeErr).Str("system_id", systemID).Msg("backup purge failed; refusing to destroy system")
 			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to purge system backups", nil))

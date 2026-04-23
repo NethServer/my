@@ -62,11 +62,11 @@ The ingest path enforces three independent caps per system:
 | `BACKUP_MAX_SIZE_PER_SYSTEM`     | 500&nbsp;MB | Maximum total bytes stored per system.            |
 | `BACKUP_MAX_UPLOAD_SIZE`         | 2&nbsp;GB   | Hard limit on a single upload.                    |
 
-An optional per-organization ceiling is also available:
+A per-organization ceiling is also enforced:
 
 | Setting                      | Default    | Meaning                                                   |
 |------------------------------|------------|-----------------------------------------------------------|
-| `BACKUP_MAX_SIZE_PER_ORG`    | unlimited  | If non-zero, total bytes across every system in the same organization. |
+| `BACKUP_MAX_SIZE_PER_ORG`    | 100&nbsp;GB | Total bytes across every system in the same organization. Set to `0` to disable (logged as a warning at startup). |
 
 When either the count or size threshold is exceeded the oldest object under the system's prefix is pruned until the backup fits. Pruning is serialised by a Redis lock so concurrent uploads from the same appliance cannot race over the victim.
 
@@ -74,7 +74,7 @@ Appliance uploads are additionally rate-limited per system (default 6 per minute
 
 ## Deletion and GDPR
 
-Deleting a system from the MY UI — either as a soft delete or a hard destroy — removes the system's backups from the bucket before the database row is dropped. If the storage cleanup fails the destroy is refused so the operator can retry; no orphan ciphertext is ever left behind under a deleted system's prefix. Credential changes (secret rotation, soft delete) invalidate every cached auth entry on `collect` within a second through a cross-service Redis pub/sub bus.
+A **soft delete** keeps the backups in place: the system row is flagged with `deleted_at` but can still be restored via the UI, and its backups must survive so the restore is useful. A **hard destroy** is irreversible and runs a GDPR-aligned erasure — every object under the system's `{org_id}/{system_key}/` prefix is removed from the bucket before the database row is dropped, whether the system was previously soft-deleted or not. If the storage cleanup fails the destroy is refused so the operator can retry; no orphan ciphertext is ever left behind under a destroyed system's prefix. Credential changes (secret rotation, soft delete) invalidate every cached auth entry on `collect` within a second through a cross-service Redis pub/sub bus.
 
 ## Managing backups
 

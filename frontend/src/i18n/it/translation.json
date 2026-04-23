@@ -626,7 +626,6 @@
     "filename": "Nome file",
     "size": "Dimensione",
     "sha256": "SHA-256",
-    "uploader_ip": "IP di origine",
     "actions": "Azioni",
     "download": "Scarica",
     "delete": "Elimina",

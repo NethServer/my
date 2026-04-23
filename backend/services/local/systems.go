@@ -314,6 +314,25 @@ func (s *LocalSystemsService) GetSystem(systemID, userOrgRole, userOrgID string)
 	return system, nil
 }
 
+// GetSystemIncludingDeleted is like GetSystem but also returns a system that
+// has already been soft-deleted. It is used by the destroy flow so a backup
+// purge can resolve the (org_id, system_key) tuple even for a row whose
+// deleted_at is set — GetSystem would otherwise return "system not found"
+// and the purge would be silently skipped, leaving ciphertext in the bucket.
+func (s *LocalSystemsService) GetSystemIncludingDeleted(systemID, userOrgRole, userOrgID string) (*models.System, error) {
+	systemRepo := entities.NewLocalSystemRepository()
+	system, err := systemRepo.GetByIDIncludingDeleted(systemID)
+	if err != nil {
+		return nil, err
+	}
+
+	if canAccess, reason := s.CanAccessSystem(system, userOrgRole, userOrgID); !canAccess {
+		return nil, fmt.Errorf("access denied: %s", reason)
+	}
+
+	return system, nil
+}
+
 // UpdateSystem updates an existing system with access validation
 func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.UpdateSystemRequest, userID, userOrgID, userOrgRole string) (*models.System, error) {
 	// Get the system first to check permissions

@@ -169,6 +169,8 @@ func (c *countingReader) Read(p []byte) (int, error) {
 }
 
 // BackupMetadata is the JSON payload returned for list/upload operations.
+// The uploader IP stays in S3 object metadata (audit) but is not surfaced
+// back to the appliance nor to the admin API.
 type BackupMetadata struct {
 	ID         string    `json:"id"`
 	Filename   string    `json:"filename"`
@@ -176,7 +178,6 @@ type BackupMetadata struct {
 	SHA256     string    `json:"sha256"`
 	MimeType   string    `json:"mimetype"`
 	UploadedAt time.Time `json:"uploaded_at"`
-	UploaderIP string    `json:"uploader_ip,omitempty"`
 }
 
 // UploadBackup streams a configuration backup uploaded by an authenticated
@@ -239,10 +240,17 @@ func UploadBackup(c *gin.Context) {
 		if err != nil {
 			logger.Warn().Err(err).Str("org_id", orgID).Msg("failed to compute org quota, allowing upload")
 		} else if used+c.Request.ContentLength > configuration.Config.BackupMaxSizePerOrg {
-			c.JSON(http.StatusRequestEntityTooLarge, response.Error(http.StatusRequestEntityTooLarge, "organization backup quota exceeded", gin.H{
-				"used_bytes": used,
-				"max_bytes":  configuration.Config.BackupMaxSizePerOrg,
-			}))
+			// Do not echo the measured usage back to the appliance — it
+			// would let a compromised client profile the entire org's
+			// consumption. The operator can inspect the server log.
+			logger.Warn().
+				Str("system_id", systemID).
+				Str("org_id", orgID).
+				Int64("used_bytes", used).
+				Int64("incoming_bytes", c.Request.ContentLength).
+				Int64("max_bytes", configuration.Config.BackupMaxSizePerOrg).
+				Msg("organization backup quota exceeded")
+			c.JSON(http.StatusRequestEntityTooLarge, response.Error(http.StatusRequestEntityTooLarge, "organization backup quota exceeded", nil))
 			return
 		}
 	}
@@ -365,7 +373,6 @@ func UploadBackup(c *gin.Context) {
 		SHA256:     sha,
 		MimeType:   contentType,
 		UploadedAt: time.Now().UTC(),
-		UploaderIP: metadata["uploader-ip"],
 	}))
 }
 
@@ -455,12 +462,12 @@ func DownloadBackup(c *gin.Context) {
 		}
 	}()
 
-	contentType := aws.ToString(obj.ContentType)
-	if contentType == "" {
-		contentType = "application/octet-stream"
-	}
-
-	c.Header("Content-Type", contentType)
+	// Force a fixed binary content type regardless of what the appliance
+	// declared at upload. Echoing a client-supplied Content-Type back on
+	// a GET turns a compromised appliance into a reflected-XSS vector on
+	// this domain for anyone who opens the URL in a browser.
+	c.Header("Content-Type", "application/octet-stream")
+	c.Header("X-Content-Type-Options", "nosniff")
 	if obj.ContentLength != nil {
 		c.Header("Content-Length", fmt.Sprintf("%d", aws.ToInt64(obj.ContentLength)))
 	}
@@ -515,7 +522,6 @@ func listBackupsForSystem(ctx context.Context, client *s3.Client, orgID, systemK
 				SHA256:     md["sha256"],
 				MimeType:   aws.ToString(head.ContentType),
 				UploadedAt: aws.ToTime(o.LastModified),
-				UploaderIP: md["uploader-ip"],
 			})
 		}
 	}
@@ -667,17 +673,23 @@ func deleteOrphanObject(ctx context.Context, client *s3.Client, key string) {
 }
 
 // extractExtension returns the file extension from a filename, including the
-// leading dot. Falls back to ".bin" when no extension is present.
+// leading dot. Only the small set of extensions the backend's download/delete
+// handlers recognise (backupIDPattern) is accepted — anything else collapses
+// to ".bin" so a backup object can never end up with a suffix the admin UI
+// cannot match and therefore cannot download or delete.
 func extractExtension(filename string) string {
-	// Preserve compound extensions like ".tar.gz" and ".tar.xz".
 	lower := strings.ToLower(filename)
 	for _, compound := range []string{".tar.gz", ".tar.xz", ".tar.bz2", ".tar.zst"} {
 		if strings.HasSuffix(lower, compound) {
 			return compound
 		}
 	}
-	if i := strings.LastIndex(filename, "."); i >= 0 && i < len(filename)-1 {
-		return strings.ToLower(filename[i:])
+	if i := strings.LastIndex(lower, "."); i >= 0 && i < len(lower)-1 {
+		ext := lower[i:]
+		switch ext {
+		case ".gpg", ".bin":
+			return ext
+		}
 	}
 	return ".bin"
 }
