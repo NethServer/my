@@ -10,6 +10,7 @@
 package csvimport
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -148,13 +149,28 @@ func ResolveRolesByNames(rolesStr string) ([]string, []string) {
 
 // CheckUserExistsByEmail checks if a user with the given email exists in the database.
 func CheckUserExistsByEmail(email string) (bool, error) {
-	query := `SELECT COUNT(*) FROM users WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL`
-	var count int
-	err := database.DB.QueryRow(query, strings.TrimSpace(email)).Scan(&count)
+	id, err := GetUserIDByEmail(email)
 	if err != nil {
 		return false, err
 	}
-	return count > 0, nil
+	return id != "", nil
+}
+
+// GetUserIDByEmail returns the user's Logto ID for the given email (case-insensitive match
+// against non-deleted users). Returns "" if no user matches. The repository methods that
+// consume this value (GetByID, UpdateUser) all key off `logto_id`, despite the misleading
+// parameter name.
+func GetUserIDByEmail(email string) (string, error) {
+	query := `SELECT logto_id FROM users WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL AND logto_id IS NOT NULL LIMIT 1`
+	var logtoID string
+	err := database.DB.QueryRow(query, strings.TrimSpace(email)).Scan(&logtoID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil
+		}
+		return "", err
+	}
+	return logtoID, nil
 }
 
 // UserRowToData converts a validated CSV row into the data map stored in ImportRow,

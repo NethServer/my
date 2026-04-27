@@ -10,6 +10,7 @@
 package csvimport
 
 import (
+	"database/sql"
 	"strings"
 
 	"github.com/nethesis/my/backend/database"
@@ -60,13 +61,28 @@ func ValidateOrganizationRow(row map[string]string) []models.ImportFieldError {
 // CheckOrganizationExistsByName checks if an organization with the given name exists in the specified table.
 // entityType must be one of: "distributors", "resellers", "customers".
 func CheckOrganizationExistsByName(name, entityType string) (bool, error) {
-	query := `SELECT COUNT(*) FROM ` + entityType + ` WHERE LOWER(name) = LOWER($1) AND deleted_at IS NULL`
-	var count int
-	err := database.DB.QueryRow(query, strings.TrimSpace(name)).Scan(&count)
+	id, err := GetOrganizationIDByName(name, entityType)
 	if err != nil {
 		return false, err
 	}
-	return count > 0, nil
+	return id != "", nil
+}
+
+// GetOrganizationIDByName returns the Logto ID of the (non-deleted) organization matching
+// the given name in the specified table. entityType must be one of: "distributors",
+// "resellers", "customers". Returns "" if no row matches. The repository GetByID / Update*
+// methods all key off `logto_id` despite the parameter being called `id`.
+func GetOrganizationIDByName(name, entityType string) (string, error) {
+	query := `SELECT logto_id FROM ` + entityType + ` WHERE LOWER(name) = LOWER($1) AND deleted_at IS NULL AND logto_id IS NOT NULL LIMIT 1`
+	var logtoID string
+	err := database.DB.QueryRow(query, strings.TrimSpace(name)).Scan(&logtoID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil
+		}
+		return "", err
+	}
+	return logtoID, nil
 }
 
 // OrganizationRowToData converts a validated CSV row map into the data map stored in ImportRow.

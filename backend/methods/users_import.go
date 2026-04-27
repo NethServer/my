@@ -175,25 +175,30 @@ func ValidateUsersImport(c *gin.Context) {
 			Data:      csvimport.UserRowToData(rowMap, orgLogtoID, roleIDs),
 		}
 
-		// Database duplicate check
+		// Database duplicate check — emits a non-blocking WARNING that the caller can turn
+		// into an UPDATE by passing override=true at confirm time.
+		var warns []models.ImportFieldError
 		if rowMap["email"] != "" && !hasFieldError(errs, "email") {
 			exists, dbErr := csvimport.CheckUserExistsByEmail(rowMap["email"])
 			if dbErr != nil {
 				logger.Error().Err(dbErr).Str("email", rowMap["email"]).Msg("Failed to check user duplicate")
 			} else if exists {
-				importRow.Status = models.ImportRowDuplicate
-				importRow.Errors = append(errs, models.ImportFieldError{
+				warns = append(warns, models.ImportFieldError{
 					Field:   "email",
 					Message: "already_exists",
 					Value:   rowMap["email"],
 				})
-				result.DuplicateRows++
-				result.Rows = append(result.Rows, importRow)
-				continue
 			}
 		}
 
-		if ambiguousCandidates != nil && len(errs) == 0 {
+		switch {
+		case len(errs) > 0:
+			// Errors are blocking — they win over warnings and ambiguity.
+			importRow.Status = models.ImportRowInvalid
+			importRow.Errors = errs
+			importRow.Warnings = warns
+			result.ErrorRows++
+		case ambiguousCandidates != nil:
 			importRow.Status = models.ImportRowAmbiguous
 			importRow.Errors = []models.ImportFieldError{{
 				Field:      "organization",
@@ -201,12 +206,13 @@ func ValidateUsersImport(c *gin.Context) {
 				Value:      rowMap["organization"],
 				Candidates: ambiguousCandidates,
 			}}
+			importRow.Warnings = warns
 			result.AmbiguousRows++
-		} else if len(errs) > 0 {
-			importRow.Status = models.ImportRowInvalid
-			importRow.Errors = errs
-			result.ErrorRows++
-		} else {
+		case len(warns) > 0:
+			importRow.Status = models.ImportRowWarning
+			importRow.Warnings = warns
+			result.WarningRows++
+		default:
 			importRow.Status = models.ImportRowValid
 			result.ValidRows++
 		}
@@ -237,7 +243,7 @@ func ValidateUsersImport(c *gin.Context) {
 		Int("total_rows", result.TotalRows).
 		Int("valid_rows", result.ValidRows).
 		Int("error_rows", result.ErrorRows).
-		Int("duplicate_rows", result.DuplicateRows).
+		Int("warning_rows", result.WarningRows).
 		Int("ambiguous_rows", result.AmbiguousRows).
 		Str("import_id", importID).
 		Msg("CSV import validated")
@@ -245,7 +251,17 @@ func ValidateUsersImport(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("users import validated", result))
 }
 
-// ConfirmUsersImport handles POST /api/users/import/confirm
+// ConfirmUsersImport handles POST /api/users/import/confirm.
+//
+// Behavior matrix:
+//
+//	valid     → CREATE
+//	error     → skipped (reason=error)
+//	ambiguous → CREATE with the chosen org if a resolution is provided, otherwise skipped
+//	warning   → UPDATE the existing user (looked up by email) when override=true,
+//	            otherwise skipped
+//
+// `skip_rows` no longer exists in the request: the backend computes skips automatically.
 func ConfirmUsersImport(c *gin.Context) {
 	var req models.ImportConfirmRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -280,21 +296,23 @@ func ConfirmUsersImport(c *gin.Context) {
 		return
 	}
 
-	// Build skip set
-	skipSet := make(map[int]bool, len(req.SkipRows))
-	for _, row := range req.SkipRows {
-		skipSet[row] = true
-	}
-
-	// Create users
 	userService := local.NewUserService()
+	userOrgRole := strings.ToLower(user.OrgRole)
 	result := models.ImportConfirmResult{
 		Results: make([]models.ImportResultRow, 0),
 	}
 
 	for _, row := range session.Rows {
-		// Handle ambiguous rows: import only if a resolution is provided
-		if row.Status == models.ImportRowAmbiguous {
+		switch row.Status {
+		case models.ImportRowInvalid:
+			result.Skipped++
+			result.Results = append(result.Results, models.ImportResultRow{
+				RowNumber: row.RowNumber,
+				Status:    models.ImportResultSkipped,
+				Reason:    models.ImportSkipError,
+			})
+
+		case models.ImportRowAmbiguous:
 			rowKey := fmt.Sprintf("%d", row.RowNumber)
 			resolution, hasResolution := req.Resolutions[rowKey]
 			if !hasResolution || resolution.OrganizationID == "" {
@@ -302,6 +320,7 @@ func ConfirmUsersImport(c *gin.Context) {
 				result.Results = append(result.Results, models.ImportResultRow{
 					RowNumber: row.RowNumber,
 					Status:    models.ImportResultSkipped,
+					Reason:    models.ImportSkipAmbiguousUnresolve,
 				})
 				continue
 			}
@@ -309,8 +328,8 @@ func ConfirmUsersImport(c *gin.Context) {
 			// Validate the chosen org ID is among the candidates
 			validChoice := false
 			for _, e := range row.Errors {
-				for _, c := range e.Candidates {
-					if c.LogtoID == resolution.OrganizationID {
+				for _, cand := range e.Candidates {
+					if cand.LogtoID == resolution.OrganizationID {
 						validChoice = true
 						break
 					}
@@ -326,50 +345,23 @@ func ConfirmUsersImport(c *gin.Context) {
 				continue
 			}
 
-			// Apply the resolution to the row data
 			row.Data["organization_id"] = resolution.OrganizationID
-		} else if row.Status != models.ImportRowValid {
-			result.Skipped++
-			result.Results = append(result.Results, models.ImportResultRow{
-				RowNumber: row.RowNumber,
-				Status:    models.ImportResultSkipped,
-			})
-			continue
-		}
+			createUserFromImportRow(c, userService, user, row, &result)
 
-		if skipSet[row.RowNumber] {
-			result.Skipped++
-			result.Results = append(result.Results, models.ImportResultRow{
-				RowNumber: row.RowNumber,
-				Status:    models.ImportResultSkipped,
-			})
-			continue
-		}
+		case models.ImportRowWarning:
+			if !req.Override {
+				result.Skipped++
+				result.Results = append(result.Results, models.ImportResultRow{
+					RowNumber: row.RowNumber,
+					Status:    models.ImportResultSkipped,
+					Reason:    models.ImportSkipWarningNotOverride,
+				})
+				continue
+			}
+			updateUserFromImportRow(c, userService, user, userOrgRole, row, &result)
 
-		createReq := csvimport.UserDataToCreateRequest(row.Data)
-
-		account, createErr := userService.CreateUser(createReq, user.ID, user.OrganizationID)
-		if createErr != nil {
-			result.Failed++
-			result.Results = append(result.Results, models.ImportResultRow{
-				RowNumber: row.RowNumber,
-				Status:    models.ImportResultFailed,
-				Error:     formatImportError(createErr),
-			})
-			logger.Error().
-				Err(createErr).
-				Int("row_number", row.RowNumber).
-				Str("email", createReq.Email).
-				Msg("Failed to create user from import")
-		} else {
-			result.Created++
-			result.Results = append(result.Results, models.ImportResultRow{
-				RowNumber: row.RowNumber,
-				Status:    models.ImportResultCreated,
-				ID:        account.ID,
-			})
-
-			logger.LogBusinessOperation(c, "users", "create", "user", account.ID, true, nil)
+		case models.ImportRowValid:
+			createUserFromImportRow(c, userService, user, row, &result)
 		}
 	}
 
@@ -382,10 +374,109 @@ func ConfirmUsersImport(c *gin.Context) {
 	logger.RequestLogger(c, "users").Info().
 		Str("operation", "import_confirm").
 		Int("created", result.Created).
+		Int("updated", result.Updated).
 		Int("skipped", result.Skipped).
 		Int("failed", result.Failed).
+		Bool("override", req.Override).
 		Str("import_id", req.ImportID).
 		Msg("Users CSV import confirmed")
 
 	c.JSON(http.StatusOK, response.OK("users imported successfully", result))
+}
+
+// createUserFromImportRow creates a new user from an import row and appends the result.
+func createUserFromImportRow(c *gin.Context, userService *local.LocalUserService, user *models.User, row models.ImportRow, result *models.ImportConfirmResult) {
+	createReq := csvimport.UserDataToCreateRequest(row.Data)
+	account, createErr := userService.CreateUser(createReq, user.ID, user.OrganizationID)
+	if createErr != nil {
+		result.Failed++
+		result.Results = append(result.Results, models.ImportResultRow{
+			RowNumber: row.RowNumber,
+			Status:    models.ImportResultFailed,
+			Error:     formatImportError(createErr),
+		})
+		logger.Error().
+			Err(createErr).
+			Int("row_number", row.RowNumber).
+			Str("email", createReq.Email).
+			Msg("Failed to create user from import")
+		return
+	}
+	result.Created++
+	result.Results = append(result.Results, models.ImportResultRow{
+		RowNumber: row.RowNumber,
+		Status:    models.ImportResultCreated,
+		ID:        account.ID,
+	})
+	logger.LogBusinessOperation(c, "users", "create", "user", account.ID, true, nil)
+}
+
+// updateUserFromImportRow looks up the existing user by email and overwrites all CSV-provided
+// fields (name, phone, organization, roles). RBAC is enforced explicitly: the caller must be
+// allowed to update the existing user (target user's current org must be in caller's hierarchy).
+// Moving a user across orgs is allowed because the destination org has already been resolved
+// against the caller's hierarchy at validate time.
+func updateUserFromImportRow(c *gin.Context, userService *local.LocalUserService, user *models.User, userOrgRole string, row models.ImportRow, result *models.ImportConfirmResult) {
+	createReq := csvimport.UserDataToCreateRequest(row.Data)
+
+	existingID, err := csvimport.GetUserIDByEmail(createReq.Email)
+	if err != nil || existingID == "" {
+		// Race: row was a warning at validate time but the user is gone now.
+		result.Failed++
+		errMsg := "user not found in database"
+		if err != nil {
+			errMsg = err.Error()
+		}
+		result.Results = append(result.Results, models.ImportResultRow{
+			RowNumber: row.RowNumber,
+			Status:    models.ImportResultFailed,
+			Error:     errMsg,
+		})
+		return
+	}
+
+	// RBAC check on the existing target user — fails fast with a per-row error if the caller
+	// has no permission to update users in the target user's current org.
+	existing, err := userService.GetUser(existingID, userOrgRole, user.OrganizationID)
+	if err != nil {
+		result.Failed++
+		result.Results = append(result.Results, models.ImportResultRow{
+			RowNumber: row.RowNumber,
+			Status:    models.ImportResultFailed,
+			Error:     formatImportError(err),
+		})
+		return
+	}
+	_ = existing // existence + RBAC verified
+
+	// Email is the lookup key — we deliberately do not allow changing it via import.
+	updateReq := &models.UpdateLocalUserRequest{
+		Name:           &createReq.Name,
+		Phone:          createReq.Phone,
+		UserRoleIDs:    &createReq.UserRoleIDs,
+		OrganizationID: createReq.OrganizationID,
+	}
+
+	updated, err := userService.UpdateUser(existingID, updateReq, user.ID, user.OrganizationID)
+	if err != nil {
+		result.Failed++
+		result.Results = append(result.Results, models.ImportResultRow{
+			RowNumber: row.RowNumber,
+			Status:    models.ImportResultFailed,
+			Error:     formatImportError(err),
+		})
+		logger.Error().
+			Err(err).
+			Int("row_number", row.RowNumber).
+			Str("email", createReq.Email).
+			Msg("Failed to update user from import")
+		return
+	}
+	result.Updated++
+	result.Results = append(result.Results, models.ImportResultRow{
+		RowNumber: row.RowNumber,
+		Status:    models.ImportResultUpdated,
+		ID:        updated.ID,
+	})
+	logger.LogBusinessOperation(c, "users", "update", "user", updated.ID, true, nil)
 }

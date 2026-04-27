@@ -114,29 +114,33 @@ func validateOrganizationImport(c *gin.Context, entityType string) {
 			errs = append(errs, *dupErr)
 		}
 
-		// Database duplicate check (only if no field errors on name)
+		// Database duplicate check — emits a non-blocking WARNING that the caller can turn
+		// into an UPDATE by passing override=true at confirm time.
+		var warns []models.ImportFieldError
 		if rowMap["name"] != "" && !hasFieldError(errs, "name") {
 			exists, dbErr := csvimport.CheckOrganizationExistsByName(rowMap["name"], entityType)
 			if dbErr != nil {
 				logger.Error().Err(dbErr).Str("name", rowMap["name"]).Msg("Failed to check organization duplicate")
 			} else if exists {
-				importRow.Status = models.ImportRowDuplicate
-				importRow.Errors = append(errs, models.ImportFieldError{
+				warns = append(warns, models.ImportFieldError{
 					Field:   "name",
 					Message: "already_exists",
 					Value:   rowMap["name"],
 				})
-				result.DuplicateRows++
-				result.Rows = append(result.Rows, importRow)
-				continue
 			}
 		}
 
-		if len(errs) > 0 {
+		switch {
+		case len(errs) > 0:
 			importRow.Status = models.ImportRowInvalid
 			importRow.Errors = errs
+			importRow.Warnings = warns
 			result.ErrorRows++
-		} else {
+		case len(warns) > 0:
+			importRow.Status = models.ImportRowWarning
+			importRow.Warnings = warns
+			result.WarningRows++
+		default:
 			importRow.Status = models.ImportRowValid
 			result.ValidRows++
 		}
@@ -167,7 +171,7 @@ func validateOrganizationImport(c *gin.Context, entityType string) {
 		Int("total_rows", result.TotalRows).
 		Int("valid_rows", result.ValidRows).
 		Int("error_rows", result.ErrorRows).
-		Int("duplicate_rows", result.DuplicateRows).
+		Int("warning_rows", result.WarningRows).
 		Str("import_id", importID).
 		Msg("CSV import validated")
 
@@ -210,99 +214,35 @@ func confirmOrganizationImport(c *gin.Context, entityType string) {
 		return
 	}
 
-	// Build skip set
-	skipSet := make(map[int]bool, len(req.SkipRows))
-	for _, row := range req.SkipRows {
-		skipSet[row] = true
-	}
-
-	// Create the organizations
 	service := local.NewOrganizationService()
 	result := models.ImportConfirmResult{
 		Results: make([]models.ImportResultRow, 0),
 	}
 
 	for _, row := range session.Rows {
-		// Skip non-valid rows
-		if row.Status != models.ImportRowValid {
+		switch row.Status {
+		case models.ImportRowInvalid:
 			result.Skipped++
 			result.Results = append(result.Results, models.ImportResultRow{
 				RowNumber: row.RowNumber,
 				Status:    models.ImportResultSkipped,
+				Reason:    models.ImportSkipError,
 			})
-			continue
-		}
 
-		// Skip manually excluded rows
-		if skipSet[row.RowNumber] {
-			result.Skipped++
-			result.Results = append(result.Results, models.ImportResultRow{
-				RowNumber: row.RowNumber,
-				Status:    models.ImportResultSkipped,
-			})
-			continue
-		}
+		case models.ImportRowWarning:
+			if !req.Override {
+				result.Skipped++
+				result.Results = append(result.Results, models.ImportResultRow{
+					RowNumber: row.RowNumber,
+					Status:    models.ImportResultSkipped,
+					Reason:    models.ImportSkipWarningNotOverride,
+				})
+				continue
+			}
+			updateOrganizationFromImportRow(c, service, user, entityType, row, &result)
 
-		// Convert to create request
-		createReq := csvimport.OrganizationDataToCreateRequest(row.Data)
-
-		// Create the organization using the same service as single creation
-		var createdID string
-		var createErr error
-
-		switch entityType {
-		case "distributors":
-			org, err := service.CreateDistributor(createReq, user.ID, user.OrganizationID)
-			if err != nil {
-				createErr = err
-			} else {
-				createdID = org.ID
-			}
-		case "resellers":
-			resellerReq := &models.CreateLocalResellerRequest{
-				Name:        createReq.Name,
-				Description: createReq.Description,
-				CustomData:  createReq.CustomData,
-			}
-			org, err := service.CreateReseller(resellerReq, user.ID, user.OrganizationID)
-			if err != nil {
-				createErr = err
-			} else {
-				createdID = org.ID
-			}
-		case "customers":
-			customerReq := &models.CreateLocalCustomerRequest{
-				Name:        createReq.Name,
-				Description: createReq.Description,
-				CustomData:  createReq.CustomData,
-			}
-			org, err := service.CreateCustomer(customerReq, user.ID, user.OrganizationID)
-			if err != nil {
-				createErr = err
-			} else {
-				createdID = org.ID
-			}
-		}
-
-		if createErr != nil {
-			result.Failed++
-			result.Results = append(result.Results, models.ImportResultRow{
-				RowNumber: row.RowNumber,
-				Status:    models.ImportResultFailed,
-				Error:     formatImportError(createErr),
-			})
-			logger.Error().
-				Err(createErr).
-				Int("row_number", row.RowNumber).
-				Str("entity_type", entityType).
-				Msg("Failed to create organization from import")
-		} else {
-			result.Created++
-			result.Results = append(result.Results, models.ImportResultRow{
-				RowNumber: row.RowNumber,
-				Status:    models.ImportResultCreated,
-				ID:        createdID,
-			})
+		case models.ImportRowValid:
+			createOrganizationFromImportRow(c, service, user, entityType, row, &result)
 		}
 	}
 
@@ -315,12 +255,168 @@ func confirmOrganizationImport(c *gin.Context, entityType string) {
 	logger.RequestLogger(c, entityType).Info().
 		Str("operation", "import_confirm").
 		Int("created", result.Created).
+		Int("updated", result.Updated).
 		Int("skipped", result.Skipped).
 		Int("failed", result.Failed).
+		Bool("override", req.Override).
 		Str("import_id", req.ImportID).
 		Msg("CSV import confirmed")
 
 	c.JSON(http.StatusOK, response.OK(entityType+" imported successfully", result))
+}
+
+// createOrganizationFromImportRow creates a distributor/reseller/customer from a validated row.
+func createOrganizationFromImportRow(c *gin.Context, service *local.LocalOrganizationService, user *models.User, entityType string, row models.ImportRow, result *models.ImportConfirmResult) {
+	createReq := csvimport.OrganizationDataToCreateRequest(row.Data)
+
+	var createdID string
+	var createErr error
+
+	switch entityType {
+	case "distributors":
+		org, err := service.CreateDistributor(createReq, user.ID, user.OrganizationID)
+		if err != nil {
+			createErr = err
+		} else {
+			createdID = org.ID
+		}
+	case "resellers":
+		resellerReq := &models.CreateLocalResellerRequest{
+			Name:        createReq.Name,
+			Description: createReq.Description,
+			CustomData:  createReq.CustomData,
+		}
+		org, err := service.CreateReseller(resellerReq, user.ID, user.OrganizationID)
+		if err != nil {
+			createErr = err
+		} else {
+			createdID = org.ID
+		}
+	case "customers":
+		customerReq := &models.CreateLocalCustomerRequest{
+			Name:        createReq.Name,
+			Description: createReq.Description,
+			CustomData:  createReq.CustomData,
+		}
+		org, err := service.CreateCustomer(customerReq, user.ID, user.OrganizationID)
+		if err != nil {
+			createErr = err
+		} else {
+			createdID = org.ID
+		}
+	}
+
+	if createErr != nil {
+		result.Failed++
+		result.Results = append(result.Results, models.ImportResultRow{
+			RowNumber: row.RowNumber,
+			Status:    models.ImportResultFailed,
+			Error:     formatImportError(createErr),
+		})
+		logger.Error().
+			Err(createErr).
+			Int("row_number", row.RowNumber).
+			Str("entity_type", entityType).
+			Msg("Failed to create organization from import")
+		return
+	}
+	result.Created++
+	result.Results = append(result.Results, models.ImportResultRow{
+		RowNumber: row.RowNumber,
+		Status:    models.ImportResultCreated,
+		ID:        createdID,
+	})
+	logger.LogBusinessOperation(c, entityType, "create", entityType, createdID, true, nil)
+}
+
+// updateOrganizationFromImportRow looks up the existing org by name (within the entity type)
+// and overwrites name, description and custom_data with the CSV-provided values. RBAC is
+// already enforced at validate time (CanCreateDistributor/Reseller/Customer for the caller),
+// and the underlying Update*  service performs additional checks.
+func updateOrganizationFromImportRow(c *gin.Context, service *local.LocalOrganizationService, user *models.User, entityType string, row models.ImportRow, result *models.ImportConfirmResult) {
+	createReq := csvimport.OrganizationDataToCreateRequest(row.Data)
+
+	existingID, err := csvimport.GetOrganizationIDByName(createReq.Name, entityType)
+	if err != nil || existingID == "" {
+		result.Failed++
+		errMsg := "organization not found in database"
+		if err != nil {
+			errMsg = err.Error()
+		}
+		result.Results = append(result.Results, models.ImportResultRow{
+			RowNumber: row.RowNumber,
+			Status:    models.ImportResultFailed,
+			Error:     errMsg,
+		})
+		return
+	}
+
+	customDataPtr := &createReq.CustomData
+	descPtr := &createReq.Description
+
+	var updatedID string
+	var updateErr error
+
+	switch entityType {
+	case "distributors":
+		updateReq := &models.UpdateLocalDistributorRequest{
+			Name:        &createReq.Name,
+			Description: descPtr,
+			CustomData:  customDataPtr,
+		}
+		org, err := service.UpdateDistributor(existingID, updateReq, user.ID, user.OrganizationID)
+		if err != nil {
+			updateErr = err
+		} else {
+			updatedID = org.ID
+		}
+	case "resellers":
+		updateReq := &models.UpdateLocalResellerRequest{
+			Name:        &createReq.Name,
+			Description: descPtr,
+			CustomData:  customDataPtr,
+		}
+		org, err := service.UpdateReseller(existingID, updateReq, user.ID, user.OrganizationID)
+		if err != nil {
+			updateErr = err
+		} else {
+			updatedID = org.ID
+		}
+	case "customers":
+		updateReq := &models.UpdateLocalCustomerRequest{
+			Name:        &createReq.Name,
+			Description: descPtr,
+			CustomData:  customDataPtr,
+		}
+		org, err := service.UpdateCustomer(existingID, updateReq, user.ID, user.OrganizationID)
+		if err != nil {
+			updateErr = err
+		} else {
+			updatedID = org.ID
+		}
+	}
+
+	if updateErr != nil {
+		result.Failed++
+		result.Results = append(result.Results, models.ImportResultRow{
+			RowNumber: row.RowNumber,
+			Status:    models.ImportResultFailed,
+			Error:     formatImportError(updateErr),
+		})
+		logger.Error().
+			Err(updateErr).
+			Int("row_number", row.RowNumber).
+			Str("entity_type", entityType).
+			Msg("Failed to update organization from import")
+		return
+	}
+	result.Updated++
+	result.Results = append(result.Results, models.ImportResultRow{
+		RowNumber: row.RowNumber,
+		Status:    models.ImportResultUpdated,
+		ID:        updatedID,
+	})
+	logger.LogBusinessOperation(c, entityType, "update", entityType, updatedID, true, nil)
 }
 
 // hasFieldError checks if there's already an error for the given field

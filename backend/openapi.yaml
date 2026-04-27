@@ -2355,8 +2355,12 @@ components:
     ImportFieldError:
       type: object
       description: |
-        Field-level validation error returned by `/import/validate`. The `message` field is a stable
-        machine-readable code that the frontend translates via i18n. Possible values:
+        Field-level diagnostic returned by `/import/validate`. The same struct is used inside
+        both `errors[]` (blocking — row will never be imported) and `warnings[]` (non-blocking —
+        row can be turned into an UPDATE by passing `override: true` to `/import/confirm`).
+        The `message` field is a stable machine-readable code that the frontend translates via i18n.
+
+        **Error codes (always blocking)**
 
         | Code | Where it can occur | Meaning |
         |------|--------------------|---------|
@@ -2373,7 +2377,12 @@ components:
         | `unknown_roles: <names>` | `roles` (users) | One or more role names are not recognized; offending names are listed after the colon |
         | `at_least_one_role_required` | `roles` (users) | Roles field present but parsed to zero entries |
         | `insufficient_privileges_to_assign_role` | `roles` (users) | Caller's org role cannot assign one of the requested roles |
-        | `already_exists` | `email` (users), `name` (orgs) | An entity with the same key already exists in the database. Row status is `duplicate` |
+
+        **Warning codes (non-blocking, override-able)**
+
+        | Code | Where it can occur | Meaning |
+        |------|--------------------|---------|
+        | `already_exists` | `email` (users), `name` (orgs) | An entity with the same key already exists in the database. Row status is `warning` — pass `override: true` at confirm to turn this into an UPDATE instead of a CREATE |
       properties:
         field:
           type: string
@@ -2419,13 +2428,15 @@ components:
           example: 2
         status:
           type: string
-          enum: [valid, error, duplicate, ambiguous]
+          enum: [valid, error, warning, ambiguous]
           description: |
-            Validation status for the row:
-            - `valid` — passes all checks and will be imported by `/import/confirm` unless added to `skip_rows`.
-            - `error` — one or more field-level validations failed (see `errors`). Will be skipped at confirm.
-            - `duplicate` — the entity already exists in the DB (e.g. user email or org name). Will be skipped at confirm.
-            - `ambiguous` — only for users: the `organization` name matches multiple orgs in the caller's hierarchy. Must be resolved at confirm time via `resolutions[row_number].organization_id`, otherwise the row is skipped.
+            Validation verdict for the row:
+            - `valid` — passes all checks; will be CREATEd by `/import/confirm`.
+            - `error` — at least one blocking error (see `errors[]`). Always skipped at confirm.
+            - `warning` — entity already exists in the DB (see `warnings[]`). At confirm time it is **UPDATEd** with the CSV values when `override: true` is passed, otherwise skipped.
+            - `ambiguous` — only for users: the `organization` name matches multiple orgs in the caller's hierarchy. Must be resolved at confirm time via `resolutions[row_number].organization_id`, otherwise skipped.
+
+            Status precedence: `error` > `ambiguous` > `warning` > `valid`. When a row qualifies for multiple categories (e.g. has both an error and a warning), the higher-precedence one wins; the lower-precedence diagnostics are still reported in their array for context.
         data:
           type: object
           description: |
@@ -2435,15 +2446,22 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ImportFieldError'
-          description: Field-level errors. Empty/omitted when status is `valid`. For `ambiguous` rows contains exactly one entry with `message=ambiguous_name` and populated `candidates`.
+          description: |
+            Blocking field-level errors. Empty/omitted when none. For `ambiguous` rows contains exactly one entry with `message=ambiguous_name` and populated `candidates`.
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportFieldError'
+          description: |
+            Non-blocking diagnostics. Empty/omitted when none. Currently only `already_exists` is emitted as a warning. Rows that have only warnings (no errors, no ambiguity) get `status=warning` and can be turned into UPDATEs with `override: true`.
 
     ImportValidationResult:
       type: object
       description: |
         Row-by-row validation report produced by `/import/validate`. The full set of CSV rows is
         always returned in `rows` (good and bad alike) so the frontend can render a preview and
-        let the user pick which rows to import. The accompanying counters are pre-computed for
-        UX summaries.
+        let the user decide whether to enable `override` for warnings or pick `resolutions` for
+        ambiguous rows. The accompanying counters are pre-computed for UX summaries.
       properties:
         import_id:
           type: string
@@ -2460,8 +2478,9 @@ components:
         error_rows:
           type: integer
           example: 2
-        duplicate_rows:
+        warning_rows:
           type: integer
+          description: "Rows where the entity already exists in the DB. They will be UPDATEd if the caller passes `override: true` at confirm time, otherwise skipped."
           example: 1
         ambiguous_rows:
           type: integer
@@ -2476,7 +2495,7 @@ components:
         total_rows: 6
         valid_rows: 2
         error_rows: 2
-        duplicate_rows: 1
+        warning_rows: 1
         ambiguous_rows: 1
         rows:
           - row_number: 2
@@ -2528,19 +2547,19 @@ components:
                 message: "not_found"
                 value: "Organization That Does Not Exist"
           - row_number: 6
-            status: duplicate
+            status: warning
             data:
-              email: "already.present@nethesis.it"
-              name: "Already Present"
+              email: "edoardo.spadoni@nethesis.it"
+              name: "Mario Rossi"
               phone: ""
               organization: "Acme Corp"
               organization_id: "zm45rltjc9rr"
               roles: "Admin"
               role_ids: ["7jmz7ryag1m254m4428n8"]
-            errors:
+            warnings:
               - field: "email"
                 message: "already_exists"
-                value: "already.present@nethesis.it"
+                value: "edoardo.spadoni@nethesis.it"
           - row_number: 7
             status: ambiguous
             data:
@@ -2567,34 +2586,44 @@ components:
       type: object
       required:
         - import_id
+      description: |
+        Body of `/import/confirm`. The backend computes skips automatically based on the
+        validate report — there is no `skip_rows` field. The caller only chooses two things:
+
+        - `override` — global toggle. When `true`, every row with status `warning` (entity
+          already exists in DB) is UPDATEd with the CSV values instead of being skipped.
+          When `false` or omitted, warning rows are skipped.
+        - `resolutions` — per-row choice for rows with status `ambiguous` (only happens for
+          users when the organization name matches multiple orgs).
       properties:
         import_id:
           type: string
           format: uuid
-          description: Import session ID from the validate response
+          description: Import session ID from the validate response. Sessions expire after 30 min.
           example: "550e8400-e29b-41d4-a716-446655440000"
-        skip_rows:
-          type: array
-          items:
-            type: integer
+        override:
+          type: boolean
+          default: false
           description: |
-            Row numbers (matching `row_number` in the validate response) to skip even if they were `valid`.
-            Rows with status `error` or `duplicate` are always skipped regardless of this list.
-          example: [4, 5, 6]
+            When `true`, all rows with status `warning` are UPDATEd using the CSV values
+            (existing entity is looked up by email/name and overwritten field-by-field).
+            When `false` or omitted, warning rows are skipped.
+          example: true
         resolutions:
           type: object
           additionalProperties:
             $ref: '#/components/schemas/ImportResolution'
           description: |
-            Resolutions for `ambiguous` rows, keyed by row number as a string (e.g. `"7"`).
-            Pick one of the `candidates[].logto_id` values returned by `/import/validate`.
-            Ambiguous rows without a resolution are skipped.
+            Per-row organization choices for `ambiguous` rows, keyed by row number as a string
+            (e.g. `"7"`). The chosen `organization_id` must be one of the `candidates[].logto_id`
+            values returned by `/import/validate` for that row. Ambiguous rows without a
+            resolution are skipped.
           example:
             "7":
               organization_id: "abc123"
       example:
         import_id: "3312b187-a8b0-45f5-b23a-98798b64eb31"
-        skip_rows: [4, 5, 6]
+        override: true
         resolutions:
           "7":
             organization_id: "abc123"
@@ -2617,33 +2646,46 @@ components:
           example: 2
         status:
           type: string
-          enum: [created, skipped, failed]
+          enum: [created, updated, skipped, failed]
           description: |
             Per-row outcome:
             - `created` — entity successfully created (`id` populated).
-            - `skipped` — row was in `skip_rows`, had `error`/`duplicate` status, or was `ambiguous` without a resolution.
-            - `failed` — creation attempted but rejected (e.g. Logto sync failure). `error` is populated.
+            - `updated` — entity already existed and was overwritten (only when `override: true` was passed and the row had status `warning` at validate time). `id` populated.
+            - `skipped` — row was not imported. The `reason` field explains why.
+            - `failed` — import was attempted but rejected (e.g. Logto sync failure, RBAC denial when moving a user to a non-managed org). `error` populated.
         id:
           type: string
-          description: Created entity ID. Only present when status is `created`.
-          example: "abc123"
+          description: Entity ID. Populated when status is `created` or `updated`.
+          example: "usr_2k3lf9d8sn"
+        reason:
+          type: string
+          enum: [error, warning_not_overridden, ambiguous_unresolved]
+          description: |
+            Populated only when status is `skipped`:
+            - `error` — the row had blocking errors at validate time.
+            - `warning_not_overridden` — the row was a `warning` (existing entity) but `override` was not set.
+            - `ambiguous_unresolved` — the row was `ambiguous` and no resolution was provided.
         error:
           type: string
-          description: Failure reason. Only present when status is `failed`.
+          description: Failure reason. Populated only when status is `failed`.
           example: "logto sync failed: rate limit exceeded"
 
     ImportConfirmResult:
       type: object
       description: |
         Per-row outcome of `/import/confirm`. The operation is non-atomic: a partial failure does
-        not roll back the rows that were already created.
+        not roll back the rows that were already created or updated. The four counters always
+        sum to `total_rows` of the validate response.
       properties:
         created:
           type: integer
           example: 2
+        updated:
+          type: integer
+          example: 1
         skipped:
           type: integer
-          example: 3
+          example: 2
         failed:
           type: integer
           example: 1
@@ -2653,7 +2695,8 @@ components:
             $ref: '#/components/schemas/ImportResultRow'
       example:
         created: 2
-        skipped: 3
+        updated: 1
+        skipped: 2
         failed: 1
         results:
           - row_number: 2
@@ -2664,10 +2707,13 @@ components:
             id: "usr_8skd0w29df"
           - row_number: 4
             status: skipped
+            reason: "error"
           - row_number: 5
             status: skipped
+            reason: "error"
           - row_number: 6
-            status: skipped
+            status: updated
+            id: "usr_existing01"
           - row_number: 7
             status: failed
             error: "logto sync failed: rate limit exceeded"
@@ -3038,6 +3084,13 @@ components:
 
     UnprocessableEntity:
       description: Unprocessable entity - business logic error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    RequestEntityTooLarge:
+      description: Payload too large
       content:
         application/json:
           schema:
@@ -3807,10 +3860,11 @@ paths:
         - Backend - Users Import/Export
       summary: /users/import/validate - Validate CSV file for user import
       description: |
-        Upload and validate a CSV file for bulk user import. Returns a row-by-row validation
-        report (`valid` / `error` / `duplicate` / `ambiguous`) with field-level errors.
-        Validated data is stored in a temporary session (30 min TTL) keyed by `import_id`,
-        which must be passed to `/users/import/confirm` to actually create the users.
+        Upload and validate a CSV file for bulk user import. Returns a row-by-row report with
+        a verdict per row (`valid` / `error` / `warning` / `ambiguous`), separating blocking
+        `errors[]` from non-blocking `warnings[]`. Validated data is stored in a temporary
+        session (30 min TTL) keyed by `import_id`, which must be passed to
+        `/users/import/confirm` to actually create or update the users.
 
         **CSV format**
 
@@ -3825,12 +3879,14 @@ paths:
 
         **Row outcomes**
 
-        | status | What it means |
-        |--------|---------------|
-        | `valid` | All checks passed, will be imported by `/confirm` unless added to `skip_rows`. |
-        | `error` | Field-level validation failed (`required`, `invalid_email`, `invalid_phone`, `duplicate_in_csv`, `not_found` org, `unknown_roles`, etc.). Always skipped. |
-        | `duplicate` | A user with the same email already exists in the database. Always skipped. |
-        | `ambiguous` | Organization name matches multiple orgs. Skipped unless resolved in `resolutions[row_number]`. |
+        | status | What it means | Confirm action |
+        |--------|---------------|----------------|
+        | `valid` | All checks passed | CREATE |
+        | `error` | At least one blocking error in `errors[]` (`required`, `invalid_email`, `invalid_phone`, `duplicate_in_csv`, `not_found` org, `unknown_roles`, …) | always skipped |
+        | `warning` | `email` already exists in DB (in `warnings[]`) | UPDATE if `override: true`, else skipped |
+        | `ambiguous` | Organization name matches multiple orgs | CREATE with chosen org if `resolutions[row]` is set, else skipped |
+
+        Errors and warnings can coexist on the same row; status precedence is `error` > `ambiguous` > `warning` > `valid`.
 
         **Limits** — max 10 MB, max 1000 rows. Larger files return `400`.
       requestBody:
@@ -3876,24 +3932,39 @@ paths:
         - Backend - Users Import/Export
       summary: /users/import/confirm - Execute validated user import
       description: |
-        Confirm and execute a previously validated user import. Reuses the same creation pipeline
-        as `POST /users` for each row (Logto sync, welcome email, RBAC validation), so caller
-        permissions are still enforced per-row.
+        Confirm and execute a previously validated user import. Reuses the same pipelines as
+        `POST /users` (CREATE) and `PUT /users/{id}` (UPDATE) for each row, so caller permissions
+        are enforced per-row.
 
         **Inputs**
 
         - `import_id` — from the `/validate` response. Must still be valid (sessions expire after 30 min).
-        - `skip_rows` — row numbers to skip on top of the automatic skips.
+        - `override` — global flag. When `true`, every row with status `warning` (the user
+          already exists, matched by email) is UPDATEd with the CSV values. When omitted/false,
+          warning rows are skipped.
         - `resolutions` — required for any row with status `ambiguous` that you want to import;
-          keyed by row number as a string, value is `{ organization_id }` picked from `candidates`.
+          keyed by row number as a string, value is `{ organization_id }` picked from `candidates[]`.
 
-        **Behaviour**
+        **Behaviour per row status**
 
-        - Rows with status `error` or `duplicate` are always skipped.
-        - Rows with status `ambiguous` are skipped unless resolved.
-        - Non-atomic: failures during creation (e.g. Logto rate limit) are reported per-row in
-          `results[]` with status `failed` and an `error` message; rows that were already created
-          before the failure are kept.
+        | status | `override` false | `override` true |
+        |--------|------------------|------------------|
+        | `valid` | CREATE | CREATE |
+        | `error` | skipped (`reason: error`) | skipped (`reason: error`) |
+        | `warning` | skipped (`reason: warning_not_overridden`) | UPDATE — name, phone, organization, roles overwritten from CSV (email is the lookup key, never changed) |
+        | `ambiguous` (no resolution) | skipped (`reason: ambiguous_unresolved`) | same |
+        | `ambiguous` (resolution provided) | CREATE with chosen org | same |
+
+        **RBAC for override**
+
+        Updating an existing user requires the caller to have permission on the user's *current*
+        organization (their hierarchy must include the target user's org). Organization changes
+        ("moves") via override are allowed because the destination org has already been resolved
+        against the caller's hierarchy at validate time. Per-row failures (status `failed`) are
+        emitted when the caller cannot manage the existing user.
+
+        **Atomicity** — non-atomic: failures during creation/update (Logto rate limits, RBAC
+        denials) are reported per-row; rows that succeeded before the failure are kept.
       requestBody:
         required: true
         content:
@@ -6158,10 +6229,11 @@ paths:
         - Backend - Distributors Import/Export
       summary: /distributors/import/validate - Validate CSV for distributor import
       description: |
-        Upload and validate a CSV file for bulk distributor import. Returns a row-by-row
-        validation report (`valid` / `error` / `duplicate`) with field-level errors. Validated
-        data is stored in a temporary session (30 min TTL) keyed by `import_id`, which must be
-        passed to `/distributors/import/confirm` to actually create the distributors.
+        Upload and validate a CSV file for bulk distributor import. Returns a row-by-row report
+        with a verdict per row (`valid` / `error` / `warning`), separating blocking `errors[]`
+        from non-blocking `warnings[]`. Validated data is stored in a temporary session
+        (30 min TTL) keyed by `import_id`, which must be passed to `/distributors/import/confirm`
+        to actually create or update the distributors.
 
         **CSV format**
 
@@ -6173,11 +6245,11 @@ paths:
 
         **Row outcomes**
 
-        | status | What it means |
-        |--------|---------------|
-        | `valid` | All checks passed, will be imported by `/confirm` unless added to `skip_rows`. |
-        | `error` | Field-level validation failed (`required`, `invalid_email`, `invalid_phone`, `invalid_language`, `too_long`, `duplicate_in_csv` on `name`/`vat`). Always skipped. |
-        | `duplicate` | A distributor with the same `name` already exists in the database. Always skipped. |
+        | status | What it means | Confirm action |
+        |--------|---------------|----------------|
+        | `valid` | All checks passed | CREATE |
+        | `error` | At least one blocking error in `errors[]` (`required`, `invalid_email`, `invalid_phone`, `invalid_language`, `too_long`, `duplicate_in_csv` on `name`/`vat`) | always skipped |
+        | `warning` | A distributor with the same `name` already exists in the database (in `warnings[]`) | UPDATE if `override: true`, else skipped |
 
         Distributor imports cannot produce `ambiguous` rows — that status only applies to user imports.
 
@@ -6224,20 +6296,28 @@ paths:
         - Backend - Distributors Import/Export
       summary: /distributors/import/confirm - Execute validated distributor import
       description: |
-        Confirm and execute a previously validated distributor import. Reuses the same creation
-        pipeline as `POST /distributors` for each row.
+        Confirm and execute a previously validated distributor import. Reuses `POST /distributors`
+        (CREATE) and `PUT /distributors/{id}` (UPDATE) for each row.
 
         **Inputs**
 
         - `import_id` — from the `/validate` response. Must still be valid (sessions expire after 30 min).
-        - `skip_rows` — additional row numbers to skip on top of the automatic skips.
-        - `resolutions` — not applicable for distributors (org imports never produce ambiguous rows).
+        - `override` — global flag. When `true`, every row with status `warning` (the distributor
+          name already exists in the DB) is UPDATEd with the CSV values; description, vat,
+          address, city, main_contact, email, phone, language, notes all get overwritten.
+          When omitted/false, warning rows are skipped.
+        - `resolutions` — not applicable to distributors.
 
-        **Behaviour**
+        **Behaviour per row status**
 
-        - Rows with status `error` or `duplicate` are always skipped.
-        - Non-atomic: failures during creation are reported per-row in `results[]`; rows already
-          created before the failure are kept.
+        | status | `override` false | `override` true |
+        |--------|------------------|------------------|
+        | `valid` | CREATE | CREATE |
+        | `error` | skipped (`reason: error`) | skipped (`reason: error`) |
+        | `warning` | skipped (`reason: warning_not_overridden`) | UPDATE — all custom_data fields overwritten from CSV (name is the lookup key, never changed) |
+
+        **Atomicity** — non-atomic: failures during creation/update are reported per-row;
+        rows that succeeded before the failure are kept.
       requestBody:
         required: true
         content:
@@ -6301,10 +6381,11 @@ paths:
         - Backend - Resellers Import/Export
       summary: /resellers/import/validate - Validate CSV for reseller import
       description: |
-        Upload and validate a CSV file for bulk reseller import. Returns a row-by-row
-        validation report (`valid` / `error` / `duplicate`) with field-level errors. Validated
-        data is stored in a temporary session (30 min TTL) keyed by `import_id`, which must be
-        passed to `/resellers/import/confirm` to actually create the resellers.
+        Upload and validate a CSV file for bulk reseller import. Returns a row-by-row report
+        with a verdict per row (`valid` / `error` / `warning`), separating blocking `errors[]`
+        from non-blocking `warnings[]`. Validated data is stored in a temporary session
+        (30 min TTL) keyed by `import_id`, which must be passed to `/resellers/import/confirm`
+        to actually create or update the resellers.
 
         **CSV format**
 
@@ -6316,11 +6397,11 @@ paths:
 
         **Row outcomes**
 
-        | status | What it means |
-        |--------|---------------|
-        | `valid` | All checks passed, will be imported by `/confirm` unless added to `skip_rows`. |
-        | `error` | Field-level validation failed (`required`, `invalid_email`, `invalid_phone`, `invalid_language`, `too_long`, `duplicate_in_csv` on `name`/`vat`). Always skipped. |
-        | `duplicate` | A reseller with the same `name` already exists in the database. Always skipped. |
+        | status | What it means | Confirm action |
+        |--------|---------------|----------------|
+        | `valid` | All checks passed | CREATE |
+        | `error` | At least one blocking error in `errors[]` (`required`, `invalid_email`, `invalid_phone`, `invalid_language`, `too_long`, `duplicate_in_csv` on `name`/`vat`) | always skipped |
+        | `warning` | A reseller with the same `name` already exists in the database (in `warnings[]`) | UPDATE if `override: true`, else skipped |
 
         Reseller imports cannot produce `ambiguous` rows — that status only applies to user imports.
 
@@ -6367,20 +6448,27 @@ paths:
         - Backend - Resellers Import/Export
       summary: /resellers/import/confirm - Execute validated reseller import
       description: |
-        Confirm and execute a previously validated reseller import. Reuses the same creation
-        pipeline as `POST /resellers` for each row.
+        Confirm and execute a previously validated reseller import. Reuses `POST /resellers`
+        (CREATE) and `PUT /resellers/{id}` (UPDATE) for each row.
 
         **Inputs**
 
         - `import_id` — from the `/validate` response. Must still be valid (sessions expire after 30 min).
-        - `skip_rows` — additional row numbers to skip on top of the automatic skips.
-        - `resolutions` — not applicable for resellers (org imports never produce ambiguous rows).
+        - `override` — global flag. When `true`, every row with status `warning` (the reseller
+          name already exists in the DB) is UPDATEd with the CSV values. When omitted/false,
+          warning rows are skipped.
+        - `resolutions` — not applicable to resellers.
 
-        **Behaviour**
+        **Behaviour per row status**
 
-        - Rows with status `error` or `duplicate` are always skipped.
-        - Non-atomic: failures during creation are reported per-row in `results[]`; rows already
-          created before the failure are kept.
+        | status | `override` false | `override` true |
+        |--------|------------------|------------------|
+        | `valid` | CREATE | CREATE |
+        | `error` | skipped (`reason: error`) | skipped (`reason: error`) |
+        | `warning` | skipped (`reason: warning_not_overridden`) | UPDATE — all custom_data fields overwritten from CSV |
+
+        **Atomicity** — non-atomic: failures during creation/update are reported per-row;
+        rows that succeeded before the failure are kept.
       requestBody:
         required: true
         content:
@@ -6444,10 +6532,11 @@ paths:
         - Backend - Customers Import/Export
       summary: /customers/import/validate - Validate CSV for customer import
       description: |
-        Upload and validate a CSV file for bulk customer import. Returns a row-by-row
-        validation report (`valid` / `error` / `duplicate`) with field-level errors. Validated
-        data is stored in a temporary session (30 min TTL) keyed by `import_id`, which must be
-        passed to `/customers/import/confirm` to actually create the customers.
+        Upload and validate a CSV file for bulk customer import. Returns a row-by-row report
+        with a verdict per row (`valid` / `error` / `warning`), separating blocking `errors[]`
+        from non-blocking `warnings[]`. Validated data is stored in a temporary session
+        (30 min TTL) keyed by `import_id`, which must be passed to `/customers/import/confirm`
+        to actually create or update the customers.
 
         **CSV format**
 
@@ -6459,11 +6548,11 @@ paths:
 
         **Row outcomes**
 
-        | status | What it means |
-        |--------|---------------|
-        | `valid` | All checks passed, will be imported by `/confirm` unless added to `skip_rows`. |
-        | `error` | Field-level validation failed (`required`, `invalid_email`, `invalid_phone`, `invalid_language`, `too_long`, `duplicate_in_csv` on `name`/`vat`). Always skipped. |
-        | `duplicate` | A customer with the same `name` already exists in the database. Always skipped. |
+        | status | What it means | Confirm action |
+        |--------|---------------|----------------|
+        | `valid` | All checks passed | CREATE |
+        | `error` | At least one blocking error in `errors[]` (`required`, `invalid_email`, `invalid_phone`, `invalid_language`, `too_long`, `duplicate_in_csv` on `name`/`vat`) | always skipped |
+        | `warning` | A customer with the same `name` already exists in the database (in `warnings[]`) | UPDATE if `override: true`, else skipped |
 
         Customer imports cannot produce `ambiguous` rows — that status only applies to user imports.
 
@@ -6510,20 +6599,27 @@ paths:
         - Backend - Customers Import/Export
       summary: /customers/import/confirm - Execute validated customer import
       description: |
-        Confirm and execute a previously validated customer import. Reuses the same creation
-        pipeline as `POST /customers` for each row.
+        Confirm and execute a previously validated customer import. Reuses `POST /customers`
+        (CREATE) and `PUT /customers/{id}` (UPDATE) for each row.
 
         **Inputs**
 
         - `import_id` — from the `/validate` response. Must still be valid (sessions expire after 30 min).
-        - `skip_rows` — additional row numbers to skip on top of the automatic skips.
-        - `resolutions` — not applicable for customers (org imports never produce ambiguous rows).
+        - `override` — global flag. When `true`, every row with status `warning` (the customer
+          name already exists in the DB) is UPDATEd with the CSV values. When omitted/false,
+          warning rows are skipped.
+        - `resolutions` — not applicable to customers.
 
-        **Behaviour**
+        **Behaviour per row status**
 
-        - Rows with status `error` or `duplicate` are always skipped.
-        - Non-atomic: failures during creation are reported per-row in `results[]`; rows already
-          created before the failure are kept.
+        | status | `override` false | `override` true |
+        |--------|------------------|------------------|
+        | `valid` | CREATE | CREATE |
+        | `error` | skipped (`reason: error`) | skipped (`reason: error`) |
+        | `warning` | skipped (`reason: warning_not_overridden`) | UPDATE — all custom_data fields overwritten from CSV |
+
+        **Atomicity** — non-atomic: failures during creation/update are reported per-row;
+        rows that succeeded before the failure are kept.
       requestBody:
         required: true
         content:

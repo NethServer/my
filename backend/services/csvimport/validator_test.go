@@ -110,8 +110,7 @@ func TestCheckDuplicateInSet(t *testing.T) {
 	err = CheckDuplicateInSet("name", "alice", seen, 3)
 	if err == nil {
 		t.Fatal("expected duplicate error for case-insensitive match")
-	}
-	if err.Message != "duplicate_in_csv" {
+	} else if err.Message != "duplicate_in_csv" {
 		t.Fatalf("expected duplicate_in_csv message, got: %s", err.Message)
 	}
 
