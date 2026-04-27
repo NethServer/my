@@ -52,6 +52,7 @@ config.yaml
 .DS_Store
 Thumbs.db
 
-# Copilot instructions (local only)
+# Copilot instructions and agents (local only)
 .github/copilot-instructions.md
 .github/instructions/frontend.instructions.md
+.github/agents/
