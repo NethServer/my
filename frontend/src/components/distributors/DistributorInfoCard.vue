@@ -113,6 +113,7 @@ function getKebabMenuItems() {
               :href="`mailto:${distributorDetail.data.custom_data.email}`"
               target="_blank"
               rel="noopener noreferrer"
+              class="break-all"
             >
               {{ distributorDetail.data.custom_data.email }}
             </NeLink>
