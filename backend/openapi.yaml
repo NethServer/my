@@ -2354,35 +2354,55 @@ components:
 
     ImportFieldError:
       type: object
+      description: |
+        Field-level validation error returned by `/import/validate`. The `message` field is a stable
+        machine-readable code that the frontend translates via i18n. Possible values:
+
+        | Code | Where it can occur | Meaning |
+        |------|--------------------|---------|
+        | `required` | any required field | Field is empty or whitespace |
+        | `too_long` | any string field | Value exceeds the field max length |
+        | `invalid_email` | `email` | Value is not a parseable email address |
+        | `invalid_phone` | `phone` | Value does not match the phone regex |
+        | `invalid_language` | `language` | Value is not one of `it` / `en` |
+        | `invalid_value` | enum-like fields | Value is not in the allowed set |
+        | `duplicate_in_csv` | `email` (users), `name`/`vat` (orgs) | Same value appears in an earlier row of the same file. The `value` field is suffixed with `(same as row N)` |
+        | `not_found` | `organization` (users) | Organization name does not match any organization in the user's hierarchy |
+        | `lookup_failed` | `organization` (users) | Database error while resolving the organization (transient — retry) |
+        | `ambiguous_name` | `organization` (users) | Multiple organizations match the given name; `candidates` is populated and must be resolved at confirm time. Row status is `ambiguous` |
+        | `unknown_roles: <names>` | `roles` (users) | One or more role names are not recognized; offending names are listed after the colon |
+        | `at_least_one_role_required` | `roles` (users) | Roles field present but parsed to zero entries |
+        | `insufficient_privileges_to_assign_role` | `roles` (users) | Caller's org role cannot assign one of the requested roles |
+        | `already_exists` | `email` (users), `name` (orgs) | An entity with the same key already exists in the database. Row status is `duplicate` |
       properties:
         field:
           type: string
-          description: Field name that failed validation
+          description: Name of the CSV column that failed validation
           example: "email"
         message:
           type: string
-          description: Error code
-          example: "required"
+          description: Stable error code (see table above). May contain inline detail for `unknown_roles:` and similar codes.
+          example: "invalid_email"
         value:
           type: string
-          description: The value that failed validation
+          description: The offending value (omitted for `required`)
           example: "not-an-email"
         candidates:
           type: array
           items:
             $ref: '#/components/schemas/ImportOrgCandidate'
-          description: Candidate organizations for disambiguation (only present when message is ambiguous_name)
+          description: Candidate organizations to choose from. Present only when `message` is `ambiguous_name`.
 
     ImportOrgCandidate:
       type: object
       properties:
         logto_id:
           type: string
-          description: Organization Logto ID
+          description: Organization Logto ID — pass this back as `organization_id` in `resolutions` at confirm time
           example: "abc123"
         name:
           type: string
-          description: Organization name
+          description: Organization name as stored in the database
           example: "Acme Corp"
         type:
           type: string
@@ -2395,50 +2415,153 @@ components:
       properties:
         row_number:
           type: integer
-          description: CSV row number (1-indexed, excluding header)
+          description: CSV row number (1-indexed, excluding header — i.e. the first data row is `2`)
           example: 2
         status:
           type: string
           enum: [valid, error, duplicate, ambiguous]
-          description: Validation status for this row. Ambiguous rows have multiple matching organizations and require resolution during confirm.
+          description: |
+            Validation status for the row:
+            - `valid` — passes all checks and will be imported by `/import/confirm` unless added to `skip_rows`.
+            - `error` — one or more field-level validations failed (see `errors`). Will be skipped at confirm.
+            - `duplicate` — the entity already exists in the DB (e.g. user email or org name). Will be skipped at confirm.
+            - `ambiguous` — only for users: the `organization` name matches multiple orgs in the caller's hierarchy. Must be resolved at confirm time via `resolutions[row_number].organization_id`, otherwise the row is skipped.
         data:
           type: object
-          description: Parsed row data
+          description: |
+            Parsed CSV row. For users, the backend additionally enriches it with `organization_id` (resolved Logto ID, empty string if unresolved) and `role_ids` (array of resolved role IDs).
           additionalProperties: true
         errors:
           type: array
           items:
             $ref: '#/components/schemas/ImportFieldError'
-          description: Validation errors (empty if status is valid). For ambiguous rows, errors contain candidates for disambiguation.
+          description: Field-level errors. Empty/omitted when status is `valid`. For `ambiguous` rows contains exactly one entry with `message=ambiguous_name` and populated `candidates`.
 
     ImportValidationResult:
       type: object
+      description: |
+        Row-by-row validation report produced by `/import/validate`. The full set of CSV rows is
+        always returned in `rows` (good and bad alike) so the frontend can render a preview and
+        let the user pick which rows to import. The accompanying counters are pre-computed for
+        UX summaries.
       properties:
         import_id:
           type: string
           format: uuid
-          description: Session ID to use when confirming the import
+          description: Session ID — must be passed verbatim to `/import/confirm`. Sessions expire after 30 minutes.
           example: "550e8400-e29b-41d4-a716-446655440000"
         total_rows:
           type: integer
-          example: 50
+          description: Number of data rows in the CSV (excluding the header row)
+          example: 6
         valid_rows:
           type: integer
-          example: 45
+          example: 2
         error_rows:
           type: integer
-          example: 3
+          example: 2
         duplicate_rows:
           type: integer
-          example: 2
+          example: 1
         ambiguous_rows:
           type: integer
-          description: Rows where the organization name matches multiple organizations and requires disambiguation
+          description: Rows where the organization name matches multiple organizations and requires disambiguation at confirm time
           example: 1
         rows:
           type: array
           items:
             $ref: '#/components/schemas/ImportRow'
+      example:
+        import_id: "3312b187-a8b0-45f5-b23a-98798b64eb31"
+        total_rows: 6
+        valid_rows: 2
+        error_rows: 2
+        duplicate_rows: 1
+        ambiguous_rows: 1
+        rows:
+          - row_number: 2
+            status: valid
+            data:
+              email: "marco.rossi@nethesis.it"
+              name: "Marco Rossi"
+              phone: "+39 333 1234567"
+              organization: "Acme Corp"
+              organization_id: "zm45rltjc9rr"
+              roles: "Admin"
+              role_ids: ["7jmz7ryag1m254m4428n8"]
+          - row_number: 3
+            status: valid
+            data:
+              email: "support@beta.it"
+              name: "Beta Support"
+              phone: ""
+              organization: "Beta Solutions"
+              organization_id: "jl6lgn3l6nsi"
+              roles: "Support"
+              role_ids: ["77evvdf876ze8oykdk4y9"]
+          - row_number: 4
+            status: error
+            data:
+              email: "not-an-email"
+              name: "Bad Email"
+              phone: "+39 333 0000000"
+              organization: "Acme Corp"
+              organization_id: ""
+              roles: "Admin"
+              role_ids: ["7jmz7ryag1m254m4428n8"]
+            errors:
+              - field: "email"
+                message: "invalid_email"
+                value: "not-an-email"
+          - row_number: 5
+            status: error
+            data:
+              email: "test@nethesis.it"
+              name: "Wrong Org"
+              phone: ""
+              organization: "Organization That Does Not Exist"
+              organization_id: ""
+              roles: "Support"
+              role_ids: ["77evvdf876ze8oykdk4y9"]
+            errors:
+              - field: "organization"
+                message: "not_found"
+                value: "Organization That Does Not Exist"
+          - row_number: 6
+            status: duplicate
+            data:
+              email: "already.present@nethesis.it"
+              name: "Already Present"
+              phone: ""
+              organization: "Acme Corp"
+              organization_id: "zm45rltjc9rr"
+              roles: "Admin"
+              role_ids: ["7jmz7ryag1m254m4428n8"]
+            errors:
+              - field: "email"
+                message: "already_exists"
+                value: "already.present@nethesis.it"
+          - row_number: 7
+            status: ambiguous
+            data:
+              email: "ambig@nethesis.it"
+              name: "Ambiguous Org"
+              phone: ""
+              organization: "Gamma"
+              organization_id: ""
+              roles: "Support"
+              role_ids: ["77evvdf876ze8oykdk4y9"]
+            errors:
+              - field: "organization"
+                message: "ambiguous_name"
+                value: "Gamma"
+                candidates:
+                  - logto_id: "abc123"
+                    name: "Gamma Tech"
+                    type: "distributor"
+                  - logto_id: "def456"
+                    name: "Gamma Group"
+                    type: "customer"
 
     ImportConfirmRequest:
       type: object
@@ -2454,23 +2577,36 @@ components:
           type: array
           items:
             type: integer
-          description: Row numbers to skip during import
-          example: [3, 7]
+          description: |
+            Row numbers (matching `row_number` in the validate response) to skip even if they were `valid`.
+            Rows with status `error` or `duplicate` are always skipped regardless of this list.
+          example: [4, 5, 6]
         resolutions:
           type: object
           additionalProperties:
             $ref: '#/components/schemas/ImportResolution'
-          description: Resolutions for ambiguous rows, keyed by row number (e.g. "3")
+          description: |
+            Resolutions for `ambiguous` rows, keyed by row number as a string (e.g. `"7"`).
+            Pick one of the `candidates[].logto_id` values returned by `/import/validate`.
+            Ambiguous rows without a resolution are skipped.
           example:
-            "3":
+            "7":
               organization_id: "abc123"
+      example:
+        import_id: "3312b187-a8b0-45f5-b23a-98798b64eb31"
+        skip_rows: [4, 5, 6]
+        resolutions:
+          "7":
+            organization_id: "abc123"
 
     ImportResolution:
       type: object
+      required:
+        - organization_id
       properties:
         organization_id:
           type: string
-          description: The chosen organization Logto ID from the candidates list
+          description: The chosen organization Logto ID — must match one of the `candidates[].logto_id` returned for that row
           example: "abc123"
 
     ImportResultRow:
@@ -2482,29 +2618,59 @@ components:
         status:
           type: string
           enum: [created, skipped, failed]
+          description: |
+            Per-row outcome:
+            - `created` — entity successfully created (`id` populated).
+            - `skipped` — row was in `skip_rows`, had `error`/`duplicate` status, or was `ambiguous` without a resolution.
+            - `failed` — creation attempted but rejected (e.g. Logto sync failure). `error` is populated.
         id:
           type: string
-          description: Created entity ID (only if status is created)
+          description: Created entity ID. Only present when status is `created`.
+          example: "abc123"
         error:
           type: string
-          description: Error message (only if status is failed)
+          description: Failure reason. Only present when status is `failed`.
+          example: "logto sync failed: rate limit exceeded"
 
     ImportConfirmResult:
       type: object
+      description: |
+        Per-row outcome of `/import/confirm`. The operation is non-atomic: a partial failure does
+        not roll back the rows that were already created.
       properties:
         created:
           type: integer
-          example: 45
+          example: 2
         skipped:
           type: integer
-          example: 5
+          example: 3
         failed:
           type: integer
-          example: 0
+          example: 1
         results:
           type: array
           items:
             $ref: '#/components/schemas/ImportResultRow'
+      example:
+        created: 2
+        skipped: 3
+        failed: 1
+        results:
+          - row_number: 2
+            status: created
+            id: "usr_2k3lf9d8sn"
+          - row_number: 3
+            status: created
+            id: "usr_8skd0w29df"
+          - row_number: 4
+            status: skipped
+          - row_number: 5
+            status: skipped
+          - row_number: 6
+            status: skipped
+          - row_number: 7
+            status: failed
+            error: "logto sync failed: rate limit exceeded"
 
   parameters:
     PageParam:
@@ -3617,7 +3783,10 @@ paths:
       tags:
         - Backend - Users Import/Export
       summary: /users/import/template - Download CSV import template
-      description: Download a CSV template with headers and example rows for user import
+      description: |
+        Download a UTF-8 CSV file pre-populated with the expected header row and a few example
+        data rows for the user import flow. Columns: `email`, `name`, `phone`, `organization`,
+        `roles`. Sent as a `text/csv` attachment with `Content-Disposition: attachment; filename="users_import_template.csv"`.
       responses:
         '200':
           description: CSV template downloaded
@@ -3638,14 +3807,32 @@ paths:
         - Backend - Users Import/Export
       summary: /users/import/validate - Validate CSV file for user import
       description: |
-        Upload and validate a CSV file for bulk user import. Returns a row-by-row validation report
-        with status (valid/error/duplicate) and field-level errors. Validated data is stored in a
-        temporary session (30 min TTL) for confirmation.
+        Upload and validate a CSV file for bulk user import. Returns a row-by-row validation
+        report (`valid` / `error` / `duplicate` / `ambiguous`) with field-level errors.
+        Validated data is stored in a temporary session (30 min TTL) keyed by `import_id`,
+        which must be passed to `/users/import/confirm` to actually create the users.
 
-        CSV columns: email, name, phone, organization, roles.
-        Roles are semicolon-separated names (e.g. "Admin;Support").
-        Organization is matched by name (case-insensitive).
-        Max 1000 rows, max 10MB file size.
+        **CSV format**
+
+        - Columns (in any order): `email`, `name`, `phone`, `organization`, `roles`.
+        - Required: `email`, `name`, `organization`, `roles`. `phone` is optional.
+        - `roles` is a semicolon-separated list of role names (e.g. `Admin;Support`); names are
+          resolved against the in-memory role cache.
+        - `organization` is matched by name (case-insensitive) against the caller's hierarchy.
+          If multiple organizations share that name the row is marked `ambiguous` and the
+          response includes the candidates — the caller picks one in `resolutions` at confirm time.
+        - The first data row is row `2` (the header row is row `1`).
+
+        **Row outcomes**
+
+        | status | What it means |
+        |--------|---------------|
+        | `valid` | All checks passed, will be imported by `/confirm` unless added to `skip_rows`. |
+        | `error` | Field-level validation failed (`required`, `invalid_email`, `invalid_phone`, `duplicate_in_csv`, `not_found` org, `unknown_roles`, etc.). Always skipped. |
+        | `duplicate` | A user with the same email already exists in the database. Always skipped. |
+        | `ambiguous` | Organization name matches multiple orgs. Skipped unless resolved in `resolutions[row_number]`. |
+
+        **Limits** — max 10 MB, max 1000 rows. Larger files return `400`.
       requestBody:
         required: true
         content:
@@ -3689,9 +3876,24 @@ paths:
         - Backend - Users Import/Export
       summary: /users/import/confirm - Execute validated user import
       description: |
-        Confirm and execute a validated user import. Creates users using the same logic as single
-        user creation (Logto sync, welcome emails, RBAC validation). Non-atomic: partial failures
-        are reported per-row.
+        Confirm and execute a previously validated user import. Reuses the same creation pipeline
+        as `POST /users` for each row (Logto sync, welcome email, RBAC validation), so caller
+        permissions are still enforced per-row.
+
+        **Inputs**
+
+        - `import_id` — from the `/validate` response. Must still be valid (sessions expire after 30 min).
+        - `skip_rows` — row numbers to skip on top of the automatic skips.
+        - `resolutions` — required for any row with status `ambiguous` that you want to import;
+          keyed by row number as a string, value is `{ organization_id }` picked from `candidates`.
+
+        **Behaviour**
+
+        - Rows with status `error` or `duplicate` are always skipped.
+        - Rows with status `ambiguous` are skipped unless resolved.
+        - Non-atomic: failures during creation (e.g. Logto rate limit) are reported per-row in
+          `results[]` with status `failed` and an `error` message; rows that were already created
+          before the failure are kept.
       requestBody:
         required: true
         content:
@@ -5931,7 +6133,11 @@ paths:
       tags:
         - Backend - Distributors Import/Export
       summary: /distributors/import/template - Download CSV import template
-      description: Download a CSV template with headers and example rows for distributor import
+      description: |
+        Download a UTF-8 CSV file pre-populated with the expected header row and a few example
+        data rows for the distributor import flow. Columns: `name`, `description`, `vat`,
+        `address`, `city`, `main_contact`, `email`, `phone`, `language`, `notes`. Sent as a
+        `text/csv` attachment with `Content-Disposition: attachment; filename="distributors_import_template.csv"`.
       responses:
         '200':
           description: CSV template downloaded
@@ -5952,9 +6158,30 @@ paths:
         - Backend - Distributors Import/Export
       summary: /distributors/import/validate - Validate CSV for distributor import
       description: |
-        Upload and validate a CSV file for bulk distributor import. Returns row-by-row validation report.
-        CSV columns: name, description, vat, address, city, main_contact, email, phone, language, notes.
-        Max 1000 rows, max 10MB.
+        Upload and validate a CSV file for bulk distributor import. Returns a row-by-row
+        validation report (`valid` / `error` / `duplicate`) with field-level errors. Validated
+        data is stored in a temporary session (30 min TTL) keyed by `import_id`, which must be
+        passed to `/distributors/import/confirm` to actually create the distributors.
+
+        **CSV format**
+
+        - Columns (in any order): `name`, `description`, `vat`, `address`, `city`, `main_contact`,
+          `email`, `phone`, `language`, `notes`.
+        - Required: `name`, `vat`. All other columns are optional.
+        - `language` accepts `it` or `en` (defaults to `it` when empty).
+        - The first data row is row `2`.
+
+        **Row outcomes**
+
+        | status | What it means |
+        |--------|---------------|
+        | `valid` | All checks passed, will be imported by `/confirm` unless added to `skip_rows`. |
+        | `error` | Field-level validation failed (`required`, `invalid_email`, `invalid_phone`, `invalid_language`, `too_long`, `duplicate_in_csv` on `name`/`vat`). Always skipped. |
+        | `duplicate` | A distributor with the same `name` already exists in the database. Always skipped. |
+
+        Distributor imports cannot produce `ambiguous` rows — that status only applies to user imports.
+
+        **Limits** — max 10 MB, max 1000 rows. Larger files return `400`.
       requestBody:
         required: true
         content:
@@ -5996,7 +6223,21 @@ paths:
       tags:
         - Backend - Distributors Import/Export
       summary: /distributors/import/confirm - Execute validated distributor import
-      description: Confirm and execute a validated distributor import. Non-atomic.
+      description: |
+        Confirm and execute a previously validated distributor import. Reuses the same creation
+        pipeline as `POST /distributors` for each row.
+
+        **Inputs**
+
+        - `import_id` — from the `/validate` response. Must still be valid (sessions expire after 30 min).
+        - `skip_rows` — additional row numbers to skip on top of the automatic skips.
+        - `resolutions` — not applicable for distributors (org imports never produce ambiguous rows).
+
+        **Behaviour**
+
+        - Rows with status `error` or `duplicate` are always skipped.
+        - Non-atomic: failures during creation are reported per-row in `results[]`; rows already
+          created before the failure are kept.
       requestBody:
         required: true
         content:
@@ -6035,7 +6276,11 @@ paths:
       tags:
         - Backend - Resellers Import/Export
       summary: /resellers/import/template - Download CSV import template
-      description: Download a CSV template with headers and example rows for reseller import
+      description: |
+        Download a UTF-8 CSV file pre-populated with the expected header row and a few example
+        data rows for the reseller import flow. Columns: `name`, `description`, `vat`,
+        `address`, `city`, `main_contact`, `email`, `phone`, `language`, `notes`. Sent as a
+        `text/csv` attachment with `Content-Disposition: attachment; filename="resellers_import_template.csv"`.
       responses:
         '200':
           description: CSV template downloaded
@@ -6056,9 +6301,30 @@ paths:
         - Backend - Resellers Import/Export
       summary: /resellers/import/validate - Validate CSV for reseller import
       description: |
-        Upload and validate a CSV file for bulk reseller import. Returns row-by-row validation report.
-        CSV columns: name, description, vat, address, city, main_contact, email, phone, language, notes.
-        Max 1000 rows, max 10MB.
+        Upload and validate a CSV file for bulk reseller import. Returns a row-by-row
+        validation report (`valid` / `error` / `duplicate`) with field-level errors. Validated
+        data is stored in a temporary session (30 min TTL) keyed by `import_id`, which must be
+        passed to `/resellers/import/confirm` to actually create the resellers.
+
+        **CSV format**
+
+        - Columns (in any order): `name`, `description`, `vat`, `address`, `city`, `main_contact`,
+          `email`, `phone`, `language`, `notes`.
+        - Required: `name`, `vat`. All other columns are optional.
+        - `language` accepts `it` or `en` (defaults to `it` when empty).
+        - The first data row is row `2`.
+
+        **Row outcomes**
+
+        | status | What it means |
+        |--------|---------------|
+        | `valid` | All checks passed, will be imported by `/confirm` unless added to `skip_rows`. |
+        | `error` | Field-level validation failed (`required`, `invalid_email`, `invalid_phone`, `invalid_language`, `too_long`, `duplicate_in_csv` on `name`/`vat`). Always skipped. |
+        | `duplicate` | A reseller with the same `name` already exists in the database. Always skipped. |
+
+        Reseller imports cannot produce `ambiguous` rows — that status only applies to user imports.
+
+        **Limits** — max 10 MB, max 1000 rows. Larger files return `400`.
       requestBody:
         required: true
         content:
@@ -6100,7 +6366,21 @@ paths:
       tags:
         - Backend - Resellers Import/Export
       summary: /resellers/import/confirm - Execute validated reseller import
-      description: Confirm and execute a validated reseller import. Non-atomic.
+      description: |
+        Confirm and execute a previously validated reseller import. Reuses the same creation
+        pipeline as `POST /resellers` for each row.
+
+        **Inputs**
+
+        - `import_id` — from the `/validate` response. Must still be valid (sessions expire after 30 min).
+        - `skip_rows` — additional row numbers to skip on top of the automatic skips.
+        - `resolutions` — not applicable for resellers (org imports never produce ambiguous rows).
+
+        **Behaviour**
+
+        - Rows with status `error` or `duplicate` are always skipped.
+        - Non-atomic: failures during creation are reported per-row in `results[]`; rows already
+          created before the failure are kept.
       requestBody:
         required: true
         content:
@@ -6139,7 +6419,11 @@ paths:
       tags:
         - Backend - Customers Import/Export
       summary: /customers/import/template - Download CSV import template
-      description: Download a CSV template with headers and example rows for customer import
+      description: |
+        Download a UTF-8 CSV file pre-populated with the expected header row and a few example
+        data rows for the customer import flow. Columns: `name`, `description`, `vat`,
+        `address`, `city`, `main_contact`, `email`, `phone`, `language`, `notes`. Sent as a
+        `text/csv` attachment with `Content-Disposition: attachment; filename="customers_import_template.csv"`.
       responses:
         '200':
           description: CSV template downloaded
@@ -6160,9 +6444,30 @@ paths:
         - Backend - Customers Import/Export
       summary: /customers/import/validate - Validate CSV for customer import
       description: |
-        Upload and validate a CSV file for bulk customer import. Returns row-by-row validation report.
-        CSV columns: name, description, vat, address, city, main_contact, email, phone, language, notes.
-        Max 1000 rows, max 10MB.
+        Upload and validate a CSV file for bulk customer import. Returns a row-by-row
+        validation report (`valid` / `error` / `duplicate`) with field-level errors. Validated
+        data is stored in a temporary session (30 min TTL) keyed by `import_id`, which must be
+        passed to `/customers/import/confirm` to actually create the customers.
+
+        **CSV format**
+
+        - Columns (in any order): `name`, `description`, `vat`, `address`, `city`, `main_contact`,
+          `email`, `phone`, `language`, `notes`.
+        - Required: `name`, `vat`. All other columns are optional.
+        - `language` accepts `it` or `en` (defaults to `it` when empty).
+        - The first data row is row `2`.
+
+        **Row outcomes**
+
+        | status | What it means |
+        |--------|---------------|
+        | `valid` | All checks passed, will be imported by `/confirm` unless added to `skip_rows`. |
+        | `error` | Field-level validation failed (`required`, `invalid_email`, `invalid_phone`, `invalid_language`, `too_long`, `duplicate_in_csv` on `name`/`vat`). Always skipped. |
+        | `duplicate` | A customer with the same `name` already exists in the database. Always skipped. |
+
+        Customer imports cannot produce `ambiguous` rows — that status only applies to user imports.
+
+        **Limits** — max 10 MB, max 1000 rows. Larger files return `400`.
       requestBody:
         required: true
         content:
@@ -6204,7 +6509,21 @@ paths:
       tags:
         - Backend - Customers Import/Export
       summary: /customers/import/confirm - Execute validated customer import
-      description: Confirm and execute a validated customer import. Non-atomic.
+      description: |
+        Confirm and execute a previously validated customer import. Reuses the same creation
+        pipeline as `POST /customers` for each row.
+
+        **Inputs**
+
+        - `import_id` — from the `/validate` response. Must still be valid (sessions expire after 30 min).
+        - `skip_rows` — additional row numbers to skip on top of the automatic skips.
+        - `resolutions` — not applicable for customers (org imports never produce ambiguous rows).
+
+        **Behaviour**
+
+        - Rows with status `error` or `duplicate` are always skipped.
+        - Non-atomic: failures during creation are reported per-row in `results[]`; rows already
+          created before the failure are kept.
       requestBody:
         required: true
         content:
