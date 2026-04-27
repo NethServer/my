@@ -7,7 +7,7 @@
 
 services:
   mimir:
-    image: docker.io/grafana/mimir:3.0.5
+    image: docker.io/grafana/mimir:3.0.6
     container_name: my-mimir
     restart: unless-stopped
     command:
