@@ -138,10 +138,13 @@ func ValidateUsersImport(c *gin.Context) {
 		if rowMap["roles"] != "" && !hasFieldError(errs, "roles") {
 			ids, invalidNames := csvimport.ResolveRolesByNames(rowMap["roles"])
 			if len(invalidNames) > 0 {
+				// `message` stays a stable i18n key; the offending role names go into `value`
+				// as a comma-and-space separated list so the frontend can render
+				// e.g. "Unknown roles: Foo, Bar" with proper translation.
 				errs = append(errs, models.ImportFieldError{
 					Field:   "roles",
-					Message: "unknown_roles: " + strings.Join(invalidNames, ", "),
-					Value:   rowMap["roles"],
+					Message: "unknown_roles",
+					Value:   strings.Join(invalidNames, ", "),
 				})
 			} else if len(ids) == 0 {
 				errs = append(errs, models.ImportFieldError{

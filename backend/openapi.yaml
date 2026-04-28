@@ -2374,7 +2374,7 @@ components:
         | `not_found` | `organization` (users) | Organization name does not match any organization in the user's hierarchy |
         | `lookup_failed` | `organization` (users) | Database error while resolving the organization (transient — retry) |
         | `ambiguous_name` | `organization` (users) | Multiple organizations match the given name; `candidates` is populated and must be resolved at confirm time. Row status is `ambiguous` |
-        | `unknown_roles: <names>` | `roles` (users) | One or more role names are not recognized; offending names are listed after the colon |
+        | `unknown_roles` | `roles` (users) | One or more role names are not recognized. The offending names are returned in `value` as a comma-and-space separated list (e.g. `"Foo, Bar"`) — the frontend uses `message` as the i18n key and `value` as the substitution. |
         | `at_least_one_role_required` | `roles` (users) | Roles field present but parsed to zero entries |
         | `insufficient_privileges_to_assign_role` | `roles` (users) | Caller's org role cannot assign one of the requested roles |
 
