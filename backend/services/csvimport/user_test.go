@@ -59,12 +59,12 @@ func TestValidateUserRow_InvalidEmail(t *testing.T) {
 	errs := ValidateUserRow(row)
 	found := false
 	for _, e := range errs {
-		if e.Field == "email" && e.Message == "invalid_email" {
+		if e.Field == "email" && e.Message == "invalid_format" {
 			found = true
 		}
 	}
 	if !found {
-		t.Error("expected invalid_email error for email field")
+		t.Error("expected invalid_format error for email field")
 	}
 }
 

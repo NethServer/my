@@ -21,7 +21,7 @@ import (
 // The single-user create/edit UI handles country selection in a dropdown and
 // always submits a "+CC ..." value, so it stays compatible. CSV authors must
 // write "+39 333 1234567" (or any other country code) — a leading bare local
-// number like "333 1234567" is rejected with `invalid_phone` at validate time.
+// number like "333 1234567" is rejected with `invalid_format` at validate time.
 var phoneRegex = regexp.MustCompile(`^\+[\d\s\-\(\)]{7,20}$`)
 
 // ValidateRequired checks that the field value is not empty.
@@ -41,7 +41,7 @@ func ValidateMaxLength(field, value string, maxLen int) *models.ImportFieldError
 		return &models.ImportFieldError{
 			Field:   field,
 			Message: "too_long",
-			Value:   value,
+			Values:  []string{value},
 		}
 	}
 	return nil
@@ -56,8 +56,8 @@ func ValidateEmail(field, value string) *models.ImportFieldError {
 	if err != nil {
 		return &models.ImportFieldError{
 			Field:   field,
-			Message: "invalid_email",
-			Value:   value,
+			Message: "invalid_format",
+			Values:  []string{value},
 		}
 	}
 	return nil
@@ -71,8 +71,8 @@ func ValidatePhone(field, value string) *models.ImportFieldError {
 	if !phoneRegex.MatchString(value) {
 		return &models.ImportFieldError{
 			Field:   field,
-			Message: "invalid_phone",
-			Value:   value,
+			Message: "invalid_format",
+			Values:  []string{value},
 		}
 	}
 	return nil
@@ -89,8 +89,8 @@ func ValidateLanguage(field, value string) *models.ImportFieldError {
 	default:
 		return &models.ImportFieldError{
 			Field:   field,
-			Message: "invalid_language",
-			Value:   value,
+			Message: "invalid_format",
+			Values:  []string{value},
 		}
 	}
 }
@@ -109,12 +109,16 @@ func ValidateInSet(field, value string, allowed []string) *models.ImportFieldErr
 	return &models.ImportFieldError{
 		Field:   field,
 		Message: "invalid_value",
-		Value:   value,
+		Values:  []string{value},
 	}
 }
 
 // CheckDuplicateInSet checks if the value already exists in the seen set.
 // If it does, returns a duplicate error. Otherwise, adds it to the set.
+//
+// `values[0]` is the offending value, `values[1]` is the row number (as a
+// string) where it first appeared. Keeping the row reference out of the
+// value itself makes the message i18n-clean.
 func CheckDuplicateInSet(field, value string, seen map[string]int, currentRow int) *models.ImportFieldError {
 	key := strings.ToLower(strings.TrimSpace(value))
 	if key == "" {
@@ -124,7 +128,7 @@ func CheckDuplicateInSet(field, value string, seen map[string]int, currentRow in
 		return &models.ImportFieldError{
 			Field:   field,
 			Message: "duplicate_in_csv",
-			Value:   value + " (same as row " + strings.TrimSpace(intToStr(firstRow)) + ")",
+			Values:  []string{value, intToStr(firstRow)},
 		}
 	}
 	seen[key] = currentRow

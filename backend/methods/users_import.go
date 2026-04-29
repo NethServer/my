@@ -119,14 +119,14 @@ func ValidateUsersImport(c *gin.Context) {
 					errs = append(errs, models.ImportFieldError{
 						Field:   "organization",
 						Message: "lookup_failed",
-						Value:   rowMap["organization"],
+						Values:  []string{rowMap["organization"]},
 					})
 				}
 			} else if orgID == "" {
 				errs = append(errs, models.ImportFieldError{
 					Field:   "organization",
 					Message: "not_found",
-					Value:   rowMap["organization"],
+					Values:  []string{rowMap["organization"]},
 				})
 			} else {
 				orgLogtoID = orgID
@@ -138,19 +138,17 @@ func ValidateUsersImport(c *gin.Context) {
 		if rowMap["roles"] != "" && !hasFieldError(errs, "roles") {
 			ids, invalidNames := csvimport.ResolveRolesByNames(rowMap["roles"])
 			if len(invalidNames) > 0 {
-				// `message` stays a stable i18n key; the offending role names go into `value`
-				// as a comma-and-space separated list so the frontend can render
-				// e.g. "Unknown roles: Foo, Bar" with proper translation.
+				// `unknown_roles`: each invalid role name becomes its own value, so
+				// the frontend can render the list with proper i18n separators.
 				errs = append(errs, models.ImportFieldError{
 					Field:   "roles",
-					Message: "unknown_roles",
-					Value:   strings.Join(invalidNames, ", "),
+					Message: "unknown",
+					Values:  invalidNames,
 				})
 			} else if len(ids) == 0 {
 				errs = append(errs, models.ImportFieldError{
 					Field:   "roles",
-					Message: "at_least_one_role_required",
-					Value:   rowMap["roles"],
+					Message: "at_least_one_required",
 				})
 			} else {
 				roleIDs = ids
@@ -160,11 +158,10 @@ func ValidateUsersImport(c *gin.Context) {
 					accessControl, exists := roleCache.GetAccessControl(roleID)
 					if exists && accessControl.HasAccessControl {
 						if !HasOrgRolePermission(user.OrgRole, accessControl.RequiredOrgRole) {
-							roleName := rowMap["roles"]
 							errs = append(errs, models.ImportFieldError{
 								Field:   "roles",
-								Message: "insufficient_privileges_to_assign_role",
-								Value:   roleName,
+								Message: "insufficient_privileges",
+								Values:  []string{rowMap["roles"]},
 							})
 							break
 						}
@@ -193,13 +190,13 @@ func ValidateUsersImport(c *gin.Context) {
 					warns = append(warns, models.ImportFieldError{
 						Field:   "email",
 						Message: "already_exists",
-						Value:   rowMap["email"],
+						Values:  []string{rowMap["email"]},
 					})
 				case csvimport.UserSoftDeleted:
 					errs = append(errs, models.ImportFieldError{
 						Field:   "email",
-						Message: "email_already_used_archived",
-						Value:   rowMap["email"],
+						Message: "archived",
+						Values:  []string{rowMap["email"]},
 					})
 				}
 			}
@@ -217,8 +214,8 @@ func ValidateUsersImport(c *gin.Context) {
 			} else if collidingEmail != "" {
 				errs = append(errs, models.ImportFieldError{
 					Field:   "phone",
-					Message: "phone_already_used",
-					Value:   collidingEmail,
+					Message: "already_used",
+					Values:  []string{rowMap["phone"], collidingEmail},
 				})
 			}
 		}
@@ -234,8 +231,8 @@ func ValidateUsersImport(c *gin.Context) {
 			importRow.Status = models.ImportRowAmbiguous
 			importRow.Errors = []models.ImportFieldError{{
 				Field:      "organization",
-				Message:    "ambiguous_name",
-				Value:      rowMap["organization"],
+				Message:    "ambiguous",
+				Values:     []string{rowMap["organization"]},
 				Candidates: ambiguousCandidates,
 			}}
 			importRow.Warnings = warns

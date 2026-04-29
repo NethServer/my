@@ -129,13 +129,13 @@ func validateOrganizationImport(c *gin.Context, entityType string) {
 					warns = append(warns, models.ImportFieldError{
 						Field:   "name",
 						Message: "already_exists",
-						Value:   rowMap["name"],
+						Values:  []string{rowMap["name"]},
 					})
 				case csvimport.OrgSoftDeleted:
 					errs = append(errs, models.ImportFieldError{
 						Field:   "name",
-						Message: "name_already_used_archived",
-						Value:   rowMap["name"],
+						Message: "archived",
+						Values:  []string{rowMap["name"]},
 					})
 				}
 			}

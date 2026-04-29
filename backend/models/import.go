@@ -30,10 +30,17 @@ const (
 
 // ImportFieldError carries a single field-level validation issue. The same struct is used
 // for both blocking errors (in `errors[]`) and non-blocking warnings (in `warnings[]`).
+//
+// `values` is an ordered list of message-specific parameters: `message` is the stable
+// i18n key, the frontend interpolates `values[0]`, `values[1]`, … positionally. The
+// slot order per `message` is documented in the OpenAPI ImportFieldError schema. For
+// messages that don't need parameters (e.g. `required`) `values` is omitted.
+//
+// `candidates` is populated only for `ambiguous_name`.
 type ImportFieldError struct {
 	Field      string               `json:"field"`
 	Message    string               `json:"message"`
-	Value      string               `json:"value,omitempty"`
+	Values     []string             `json:"values,omitempty"`
 	Candidates []ImportOrgCandidate `json:"candidates,omitempty"`
 }
 

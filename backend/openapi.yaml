@@ -2358,52 +2358,63 @@ components:
         Field-level diagnostic returned by `/import/validate`. The same struct is used inside
         both `errors[]` (blocking — row will never be imported) and `warnings[]` (non-blocking —
         row can be turned into an UPDATE by passing `override: true` to `/import/confirm`).
-        The `message` field is a stable machine-readable code that the frontend translates via i18n.
+
+        Conventions:
+          - `field` is the CSV column the diagnostic refers to.
+          - `message` is a stable machine-readable code, kept short and field-agnostic — the
+            field is already in `field`, the frontend builds the localised string by keying off
+            `(field, message)` (or just `message` for a generic fallback).
+          - `values` is an ordered list of message-specific parameters: the frontend
+            substitutes `values[i]` positionally into the i18n template. The slot order per
+            code is documented in the tables below. Codes whose row says `—` carry no values.
+          - `candidates` is populated only when `message=ambiguous`.
 
         **Error codes (always blocking)**
 
-        | Code | Where it can occur | Meaning |
-        |------|--------------------|---------|
-        | `required` | any required field | Field is empty or whitespace |
-        | `too_long` | any string field | Value exceeds the field max length |
-        | `invalid_email` | `email` | Value is not a parseable email address |
-        | `invalid_phone` | `phone` | Value is missing the leading `+CC` country prefix or doesn't match the phone regex |
-        | `phone_already_used` | `phone` (users) | The phone number is already in use by a *different* user. `value` carries that user's email so the caller can reconcile. Logto enforces phone uniqueness, so the row would otherwise fail at confirm time |
-        | `email_already_used_archived` | `email` (users) | An email matches an archived (soft-deleted) user. The row cannot be imported as-is — the admin must restore the user (and re-run import) or destroy them definitively first |
-        | `name_already_used_archived` | `name` (orgs) | A name matches an archived (soft-deleted) organization. Same handling as the user variant above |
-        | `invalid_language` | `language` | Value is not one of `it` / `en` |
-        | `invalid_value` | enum-like fields | Value is not in the allowed set |
-        | `duplicate_in_csv` | `email` (users), `name`/`vat` (orgs) | Same value appears in an earlier row of the same file. The `value` field is suffixed with `(same as row N)` |
-        | `not_found` | `organization` (users) | Organization name does not match any organization in the user's hierarchy |
-        | `lookup_failed` | `organization` (users) | Database error while resolving the organization (transient — retry) |
-        | `ambiguous_name` | `organization` (users) | Multiple organizations match the given name; `candidates` is populated and must be resolved at confirm time. Row status is `ambiguous` |
-        | `unknown_roles` | `roles` (users) | One or more role names are not recognized. The offending names are returned in `value` as a comma-and-space separated list (e.g. `"Foo, Bar"`) — the frontend uses `message` as the i18n key and `value` as the substitution. |
-        | `at_least_one_role_required` | `roles` (users) | Roles field present but parsed to zero entries |
-        | `insufficient_privileges_to_assign_role` | `roles` (users) | Caller's org role cannot assign one of the requested roles |
+        | Code | Where it can occur | `values` slots | Meaning |
+        |------|--------------------|---------------|---------|
+        | `required` | any required field | — | Field is empty or whitespace |
+        | `too_long` | any string field | `[value]` | Value exceeds the field max length |
+        | `invalid_format` | `email`, `phone`, `language` | `[value]` | Value is not a valid email / phone / language code. For `phone` this also catches a missing leading `+CC` |
+        | `invalid_value` | enum-like fields | `[value]` | Value is not in the allowed set |
+        | `duplicate_in_csv` | `email` (users), `name`/`vat` (orgs) | `[value, firstRowNumber]` | Same value appears in an earlier row of the same file (slot 1 is the row number as a string, e.g. `"2"`) |
+        | `not_found` | `organization` (users) | `[value]` | Value does not match any entity in the caller's hierarchy |
+        | `lookup_failed` | `organization` (users) | `[value]` | Database error while resolving the value (transient — retry) |
+        | `ambiguous` | `organization` (users) | `[value]` | Multiple matches for the value; `candidates` is populated and must be resolved at confirm. Row status is `ambiguous` |
+        | `unknown` | `roles` (users) | `[name1, name2, …]` | One or more values are not recognised; each unknown entry occupies its own slot |
+        | `at_least_one_required` | `roles` (users) | — | Field present but parsed to zero entries |
+        | `insufficient_privileges` | `roles` (users) | `[value]` | Caller cannot assign one of the requested roles |
+        | `already_used` | `phone` (users) | `[value, otherEmail]` | Value is already in use by a *different* entity. For `phone`, slot 1 is the email of the user that already owns it. Logto enforces uniqueness, so the row would otherwise fail at confirm time |
+        | `archived` | `email` (users), `name` (orgs) | `[value]` | The value matches a soft-deleted entity. The row cannot be imported as-is — the admin must restore (and re-run import) or destroy definitively first |
 
         **Warning codes (non-blocking, override-able)**
 
-        | Code | Where it can occur | Meaning |
-        |------|--------------------|---------|
-        | `already_exists` | `email` (users), `name` (orgs) | An entity with the same key already exists in the database. Row status is `warning` — pass `override: true` at confirm to turn this into an UPDATE instead of a CREATE |
+        | Code | Where it can occur | `values` slots | Meaning |
+        |------|--------------------|---------------|---------|
+        | `already_exists` | `email` (users), `name` (orgs) | `[value]` | An active entity with the same key already exists. Row status is `warning` — pass `override: true` at confirm to turn this into an UPDATE instead of a CREATE |
       properties:
         field:
           type: string
-          description: Name of the CSV column that failed validation
+          description: Name of the CSV column the diagnostic refers to.
           example: "email"
         message:
           type: string
-          description: Stable error code (see table above). May contain inline detail for `unknown_roles:` and similar codes.
-          example: "invalid_email"
-        value:
-          type: string
-          description: The offending value (omitted for `required`)
-          example: "not-an-email"
+          description: Stable, field-agnostic i18n key (see tables above).
+          example: "invalid_format"
+        values:
+          type: array
+          items:
+            type: string
+          description: |
+            Ordered list of message-specific parameters. Frontend substitutes them positionally
+            into the i18n template using the slot order documented per `message` above.
+            Omitted when the message takes no parameters (e.g. `required`).
+          example: ["not-an-email"]
         candidates:
           type: array
           items:
             $ref: '#/components/schemas/ImportOrgCandidate'
-          description: Candidate organizations to choose from. Present only when `message` is `ambiguous_name`.
+          description: Candidate organizations to choose from. Populated only when `message=ambiguous`.
 
     ImportOrgCandidate:
       type: object
@@ -2450,7 +2461,7 @@ components:
           items:
             $ref: '#/components/schemas/ImportFieldError'
           description: |
-            Blocking field-level errors. Empty/omitted when none. For `ambiguous` rows contains exactly one entry with `message=ambiguous_name` and populated `candidates`.
+            Blocking field-level errors. Empty/omitted when none. For `ambiguous` rows contains exactly one entry with `message=ambiguous` and populated `candidates`.
         warnings:
           type: array
           items:
@@ -2533,8 +2544,8 @@ components:
               role_ids: ["7jmz7ryag1m254m4428n8"]
             errors:
               - field: "email"
-                message: "invalid_email"
-                value: "not-an-email"
+                message: "invalid_format"
+                values: ["not-an-email"]
           - row_number: 5
             status: error
             data:
@@ -2548,7 +2559,7 @@ components:
             errors:
               - field: "organization"
                 message: "not_found"
-                value: "Organization That Does Not Exist"
+                values: ["Organization That Does Not Exist"]
           - row_number: 6
             status: warning
             data:
@@ -2562,7 +2573,7 @@ components:
             warnings:
               - field: "email"
                 message: "already_exists"
-                value: "edoardo.spadoni@nethesis.it"
+                values: ["edoardo.spadoni@nethesis.it"]
           - row_number: 7
             status: ambiguous
             data:
@@ -2575,8 +2586,8 @@ components:
               role_ids: ["77evvdf876ze8oykdk4y9"]
             errors:
               - field: "organization"
-                message: "ambiguous_name"
-                value: "Gamma"
+                message: "ambiguous"
+                values: ["Gamma"]
                 candidates:
                   - logto_id: "abc123"
                     name: "Gamma Tech"
@@ -3875,8 +3886,8 @@ paths:
         - Required: `email`, `name`, `organization`, `roles`. `phone` is optional.
         - `phone`, when present, must include the leading `+CC` country prefix
           (e.g. `+39 333 1234567`). Bare local numbers without `+CC` are rejected
-          with `invalid_phone` at validate time. Phone uniqueness is also checked
-          against existing users (`phone_already_used`).
+          with `invalid_format` at validate time. Phone uniqueness against existing
+          users is also checked (`already_used`).
         - `roles` is a semicolon-separated list of role names (e.g. `Admin;Support`); names are
           resolved against the in-memory role cache.
         - `organization` is matched by name (case-insensitive) against the caller's hierarchy.
@@ -3889,7 +3900,7 @@ paths:
         | status | What it means | Confirm action |
         |--------|---------------|----------------|
         | `valid` | All checks passed | CREATE |
-        | `error` | At least one blocking error in `errors[]` (`required`, `invalid_email`, `invalid_phone`, `duplicate_in_csv`, `not_found` org, `unknown_roles`, …) | always skipped |
+        | `error` | At least one blocking error in `errors[]` (`required`, `invalid_format`, `duplicate_in_csv`, `not_found`, `unknown`, `archived`, `already_used`, …) | always skipped |
         | `warning` | `email` already exists in DB (in `warnings[]`) | UPDATE if `override: true`, else skipped |
         | `ambiguous` | Organization name matches multiple orgs | CREATE with chosen org if `resolutions[row]` is set, else skipped |
 
@@ -6248,7 +6259,7 @@ paths:
           `email`, `phone`, `language`, `notes`.
         - Required: `name`, `vat`. All other columns are optional.
         - `phone`, when present, must include the leading `+CC` country prefix
-          (e.g. `+39 02 1234567`). Bare local numbers are rejected with `invalid_phone`.
+          (e.g. `+39 02 1234567`). Bare local numbers are rejected with `invalid_format`.
         - `language` accepts `it` or `en` (defaults to `it` when empty).
         - The first data row is row `2`.
 
@@ -6257,7 +6268,7 @@ paths:
         | status | What it means | Confirm action |
         |--------|---------------|----------------|
         | `valid` | All checks passed | CREATE |
-        | `error` | At least one blocking error in `errors[]` (`required`, `invalid_email`, `invalid_phone`, `invalid_language`, `too_long`, `duplicate_in_csv` on `name`/`vat`) | always skipped |
+        | `error` | At least one blocking error in `errors[]` (`required`, `invalid_format`, `too_long`, `duplicate_in_csv`, `archived`, …) | always skipped |
         | `warning` | A distributor with the same `name` already exists in the database (in `warnings[]`) | UPDATE if `override: true`, else skipped |
 
         Distributor imports cannot produce `ambiguous` rows — that status only applies to user imports.
@@ -6402,7 +6413,7 @@ paths:
           `email`, `phone`, `language`, `notes`.
         - Required: `name`, `vat`. All other columns are optional.
         - `phone`, when present, must include the leading `+CC` country prefix
-          (e.g. `+39 02 1234567`). Bare local numbers are rejected with `invalid_phone`.
+          (e.g. `+39 02 1234567`). Bare local numbers are rejected with `invalid_format`.
         - `language` accepts `it` or `en` (defaults to `it` when empty).
         - The first data row is row `2`.
 
@@ -6411,7 +6422,7 @@ paths:
         | status | What it means | Confirm action |
         |--------|---------------|----------------|
         | `valid` | All checks passed | CREATE |
-        | `error` | At least one blocking error in `errors[]` (`required`, `invalid_email`, `invalid_phone`, `invalid_language`, `too_long`, `duplicate_in_csv` on `name`/`vat`) | always skipped |
+        | `error` | At least one blocking error in `errors[]` (`required`, `invalid_format`, `too_long`, `duplicate_in_csv`, `archived`, …) | always skipped |
         | `warning` | A reseller with the same `name` already exists in the database (in `warnings[]`) | UPDATE if `override: true`, else skipped |
 
         Reseller imports cannot produce `ambiguous` rows — that status only applies to user imports.
@@ -6555,7 +6566,7 @@ paths:
           `email`, `phone`, `language`, `notes`.
         - Required: `name`, `vat`. All other columns are optional.
         - `phone`, when present, must include the leading `+CC` country prefix
-          (e.g. `+39 02 1234567`). Bare local numbers are rejected with `invalid_phone`.
+          (e.g. `+39 02 1234567`). Bare local numbers are rejected with `invalid_format`.
         - `language` accepts `it` or `en` (defaults to `it` when empty).
         - The first data row is row `2`.
 
@@ -6564,7 +6575,7 @@ paths:
         | status | What it means | Confirm action |
         |--------|---------------|----------------|
         | `valid` | All checks passed | CREATE |
-        | `error` | At least one blocking error in `errors[]` (`required`, `invalid_email`, `invalid_phone`, `invalid_language`, `too_long`, `duplicate_in_csv` on `name`/`vat`) | always skipped |
+        | `error` | At least one blocking error in `errors[]` (`required`, `invalid_format`, `too_long`, `duplicate_in_csv`, `archived`, …) | always skipped |
         | `warning` | A customer with the same `name` already exists in the database (in `warnings[]`) | UPDATE if `override: true`, else skipped |
 
         Customer imports cannot produce `ambiguous` rows — that status only applies to user imports.

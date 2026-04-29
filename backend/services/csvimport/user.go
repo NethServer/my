@@ -116,7 +116,7 @@ type AmbiguousOrgError struct {
 }
 
 func (e *AmbiguousOrgError) Error() string {
-	return "ambiguous_name"
+	return "ambiguous"
 }
 
 // ResolveRolesByNames converts semicolon-separated role names to role IDs.
