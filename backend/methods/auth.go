@@ -627,7 +627,8 @@ func ChangeInfo(c *gin.Context) {
 			updateData.PrimaryPhone = &emptyPhone
 			changedFields = append(changedFields, "phone (removed)")
 		} else {
-			updateData.PrimaryPhone = req.Phone
+			normalizedPhone := local.NormalizePhoneForLogto(*req.Phone)
+			updateData.PrimaryPhone = &normalizedPhone
 			changedFields = append(changedFields, "phone")
 		}
 	}

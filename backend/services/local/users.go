@@ -133,7 +133,7 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, create
 
 	// Add phone if provided, normalized to digits-only format for Logto
 	if req.Phone != nil && *req.Phone != "" {
-		logtoUserReq.PrimaryPhone = normalizePhoneForLogto(*req.Phone)
+		logtoUserReq.PrimaryPhone = NormalizePhoneForLogto(*req.Phone)
 	}
 
 	logtoUser, err := s.logtoClient.CreateUser(logtoUserReq)
@@ -560,7 +560,8 @@ func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequ
 			emptyPhone := ""
 			updateReq.PrimaryPhone = &emptyPhone
 		} else {
-			updateReq.PrimaryPhone = req.Phone
+			normalizedPhone := NormalizePhoneForLogto(*req.Phone)
+			updateReq.PrimaryPhone = &normalizedPhone
 		}
 	}
 
@@ -1429,12 +1430,22 @@ func (s *LocalUserService) markUserSynced(id, logtoID string) error {
 	return err
 }
 
-// normalizePhoneForLogto strips spaces, dashes, parentheses, and the leading "+"
-// to produce the digits-only format that Logto accepts.
-// Example: "+39 333 1234567" -> "393331234567"
-func normalizePhoneForLogto(phone string) string {
-	replacer := strings.NewReplacer(" ", "", "-", "", "(", "", ")", "", "+", "")
-	return replacer.Replace(phone)
+// NormalizePhoneForLogto keeps only the decimal digits of `phone` and drops
+// everything else (the leading `+`, spaces, tabs, dots, dashes, parentheses, …)
+// so that every path that hands a phone over to Logto (single create, single
+// update, account self-service, CSV bulk import) feeds Logto the same shape
+// it expects: digits only.
+//
+// Example: "+39 333 1234567" -> "393331234567", "(+39) 333.123-4567" -> "393331234567"
+func NormalizePhoneForLogto(phone string) string {
+	var b strings.Builder
+	b.Grow(len(phone))
+	for _, r := range phone {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // generateUsernameFromEmail converts email to valid Logto username format with conflict resolution
