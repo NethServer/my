@@ -56,6 +56,15 @@ func NewUserService() *LocalUserService {
 
 // CreateUser creates a user locally and syncs to Logto
 func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, createdByUserID, createdByOrgID string) (*models.LocalUser, error) {
+	// Normalize phone to digits-only at the entry point so both the local DB write
+	// and the Logto call see the same shape — avoids drift where the local DB ends
+	// up with formatted values (e.g. "+39 333 1234567") while Logto stores the
+	// digits-only version.
+	if req.Phone != nil && *req.Phone != "" {
+		normalized := NormalizePhoneForLogto(*req.Phone)
+		req.Phone = &normalized
+	}
+
 	// Generate username from email if not provided (clean for Logto format)
 	if req.Username == "" {
 		req.Username = s.generateUsernameFromEmail(req.Email)
@@ -131,9 +140,9 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, create
 		CustomData:   customData,
 	}
 
-	// Add phone if provided, normalized to digits-only format for Logto
+	// Phone is already normalized at the entry point of CreateUser
 	if req.Phone != nil && *req.Phone != "" {
-		logtoUserReq.PrimaryPhone = NormalizePhoneForLogto(*req.Phone)
+		logtoUserReq.PrimaryPhone = *req.Phone
 	}
 
 	logtoUser, err := s.logtoClient.CreateUser(logtoUserReq)
@@ -495,6 +504,14 @@ func (s *LocalUserService) GetUsersTrend(period int, userOrgRole, userOrgID stri
 
 // UpdateUser updates a user locally and syncs to Logto
 func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequest, updatedByUserID, updatedByOrgID string) (*models.LocalUser, error) {
+	// Normalize phone at the entry point so both the local DB write and the Logto
+	// call see the same shape (digits-only). The empty-string case is preserved —
+	// it signals an explicit "clear the phone".
+	if req.Phone != nil && *req.Phone != "" {
+		normalized := NormalizePhoneForLogto(*req.Phone)
+		req.Phone = &normalized
+	}
+
 	// 1. Get current user before update to detect organization changes and for validation
 	currentUser, err := s.userRepo.GetByID(id)
 	if err != nil {
@@ -555,14 +572,9 @@ func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequ
 		updateReq.PrimaryEmail = req.Email
 	}
 	if req.Phone != nil {
-		if *req.Phone == "" {
-			// Phone is being cleared, send empty string to clear it in Logto
-			emptyPhone := ""
-			updateReq.PrimaryPhone = &emptyPhone
-		} else {
-			normalizedPhone := NormalizePhoneForLogto(*req.Phone)
-			updateReq.PrimaryPhone = &normalizedPhone
-		}
+		// req.Phone has already been normalized at the entry point of UpdateUser.
+		// Empty string is preserved as the "clear phone" signal.
+		updateReq.PrimaryPhone = req.Phone
 	}
 
 	// Update custom data with user info
