@@ -21,6 +21,7 @@ import {
   putUser,
   USERS_KEY,
   USERS_TOTAL_KEY,
+  formatPhoneForDisplay,
   type CreateUser,
   type EditUser,
   type User,
@@ -187,7 +188,7 @@ watch(
         // editing user
         email.value = currentUser.email
         name.value = currentUser.name
-        phone.value = currentUser.phone || ''
+        phone.value = formatPhoneForDisplay(currentUser.phone)
         organizationId.value = currentUser.organization?.logto_id || ''
         userRoles.value = mapUserRoles()
       } else {
@@ -298,7 +299,7 @@ async function saveUser() {
     name: name.value,
     user_role_ids: userRoles.value.map((role) => role.id),
     organization_id: organizationId.value,
-    phone: phone.value.replace(/[\+\s\.\-]/g, ''), // remove formatting characters from phone number
+    phone: phone.value,
     custom_data: {},
   }
 

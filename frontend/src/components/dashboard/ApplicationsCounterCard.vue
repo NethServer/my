@@ -28,7 +28,7 @@ const { state: applicationsTotal } = useApplicationsTotal()
       <NeBadgeV2 kind="blue">
         <FontAwesomeIcon :icon="faCircleInfo" class="size-4" />
 
-        {{ t('applications.num_unassigned', { num: applicationsTotal.data?.unassigned ?? 0 }) }}
+        {{ t('applications.num_unassigned', { count: applicationsTotal.data?.unassigned ?? 0 }) }}
       </NeBadgeV2>
     </div>
   </CounterCard>
