@@ -17,7 +17,12 @@ import (
 	"github.com/nethesis/my/backend/models"
 )
 
-var phoneRegex = regexp.MustCompile(`^\+?[\d\s\-\(\)]{7,20}$`)
+// Phone numbers in CSV imports must include the international "+CC" prefix.
+// The single-user create/edit UI handles country selection in a dropdown and
+// always submits a "+CC ..." value, so it stays compatible. CSV authors must
+// write "+39 333 1234567" (or any other country code) — a leading bare local
+// number like "333 1234567" is rejected with `invalid_phone` at validate time.
+var phoneRegex = regexp.MustCompile(`^\+[\d\s\-\(\)]{7,20}$`)
 
 // ValidateRequired checks that the field value is not empty.
 func ValidateRequired(field, value string) *models.ImportFieldError {

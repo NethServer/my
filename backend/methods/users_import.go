@@ -178,18 +178,47 @@ func ValidateUsersImport(c *gin.Context) {
 			Data:      csvimport.UserRowToData(rowMap, orgLogtoID, roleIDs),
 		}
 
-		// Database duplicate check — emits a non-blocking WARNING that the caller can turn
-		// into an UPDATE by passing override=true at confirm time.
+		// Database email check — three outcomes:
+		//   - active user with same email  → WARNING (override=true turns it into UPDATE)
+		//   - soft-deleted user same email → ERROR (admin must restore or destroy first)
+		//   - no user                       → no flag, row stays valid
 		var warns []models.ImportFieldError
 		if rowMap["email"] != "" && !hasFieldError(errs, "email") {
-			exists, dbErr := csvimport.CheckUserExistsByEmail(rowMap["email"])
+			state, dbErr := csvimport.CheckUserExistenceState(rowMap["email"])
 			if dbErr != nil {
 				logger.Error().Err(dbErr).Str("email", rowMap["email"]).Msg("Failed to check user duplicate")
-			} else if exists {
-				warns = append(warns, models.ImportFieldError{
-					Field:   "email",
-					Message: "already_exists",
-					Value:   rowMap["email"],
+			} else {
+				switch state {
+				case csvimport.UserExistsActive:
+					warns = append(warns, models.ImportFieldError{
+						Field:   "email",
+						Message: "already_exists",
+						Value:   rowMap["email"],
+					})
+				case csvimport.UserSoftDeleted:
+					errs = append(errs, models.ImportFieldError{
+						Field:   "email",
+						Message: "email_already_used_archived",
+						Value:   rowMap["email"],
+					})
+				}
+			}
+		}
+
+		// Phone uniqueness check — Logto enforces phone uniqueness, so a row
+		// whose phone is already used by a *different* user would fail at confirm
+		// time. Catching it here surfaces the conflict at validate.
+		// The check is excluded for self-referential warning rows (same email
+		// just keeping their existing phone) so override=true still works.
+		if rowMap["phone"] != "" && !hasFieldError(errs, "phone") {
+			collidingEmail, dbErr := csvimport.GetUserEmailByPhone(rowMap["phone"], rowMap["email"])
+			if dbErr != nil {
+				logger.Error().Err(dbErr).Str("phone", rowMap["phone"]).Msg("Failed to check phone collision")
+			} else if collidingEmail != "" {
+				errs = append(errs, models.ImportFieldError{
+					Field:   "phone",
+					Message: "phone_already_used",
+					Value:   collidingEmail,
 				})
 			}
 		}

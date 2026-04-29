@@ -114,19 +114,30 @@ func validateOrganizationImport(c *gin.Context, entityType string) {
 			errs = append(errs, *dupErr)
 		}
 
-		// Database duplicate check — emits a non-blocking WARNING that the caller can turn
-		// into an UPDATE by passing override=true at confirm time.
+		// Database name check — three outcomes:
+		//   - active org with same name  → WARNING (override=true turns it into UPDATE)
+		//   - soft-deleted org same name → ERROR (admin must restore or destroy first)
+		//   - no org                      → no flag, row stays valid
 		var warns []models.ImportFieldError
 		if rowMap["name"] != "" && !hasFieldError(errs, "name") {
-			exists, dbErr := csvimport.CheckOrganizationExistsByName(rowMap["name"], entityType)
+			state, dbErr := csvimport.CheckOrganizationExistenceState(rowMap["name"], entityType)
 			if dbErr != nil {
 				logger.Error().Err(dbErr).Str("name", rowMap["name"]).Msg("Failed to check organization duplicate")
-			} else if exists {
-				warns = append(warns, models.ImportFieldError{
-					Field:   "name",
-					Message: "already_exists",
-					Value:   rowMap["name"],
-				})
+			} else {
+				switch state {
+				case csvimport.OrgExistsActive:
+					warns = append(warns, models.ImportFieldError{
+						Field:   "name",
+						Message: "already_exists",
+						Value:   rowMap["name"],
+					})
+				case csvimport.OrgSoftDeleted:
+					errs = append(errs, models.ImportFieldError{
+						Field:   "name",
+						Message: "name_already_used_archived",
+						Value:   rowMap["name"],
+					})
+				}
 			}
 		}
 

@@ -147,13 +147,89 @@ func ResolveRolesByNames(rolesStr string) ([]string, []string) {
 	return roleIDs, invalid
 }
 
-// CheckUserExistsByEmail checks if a user with the given email exists in the database.
+// CheckUserExistsByEmail checks if a user with the given email exists (and is
+// not soft-deleted) in the database.
 func CheckUserExistsByEmail(email string) (bool, error) {
 	id, err := GetUserIDByEmail(email)
 	if err != nil {
 		return false, err
 	}
 	return id != "", nil
+}
+
+// UserExistenceState tells whether a user with a given email is missing,
+// active, or soft-deleted in the local database.
+type UserExistenceState int
+
+const (
+	UserNotExisting UserExistenceState = iota
+	UserExistsActive
+	UserSoftDeleted
+)
+
+// CheckUserExistenceState returns the user-existence state for the given email
+// (case-insensitive). Used at validate-time to distinguish three import outcomes:
+// new user (valid → CREATE), already-active user (warning → optional UPDATE
+// via override), and soft-deleted user (error → admin must restore or destroy
+// before the row can be imported).
+func CheckUserExistenceState(email string) (UserExistenceState, error) {
+	query := `SELECT deleted_at IS NULL FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`
+	var isActive bool
+	err := database.DB.QueryRow(query, strings.TrimSpace(email)).Scan(&isActive)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return UserNotExisting, nil
+		}
+		return UserNotExisting, err
+	}
+	if isActive {
+		return UserExistsActive, nil
+	}
+	return UserSoftDeleted, nil
+}
+
+// GetUserEmailByPhone looks up whether the given phone (in any format — formatted
+// or already digits-only) is currently used by a user other than the one owning
+// `excludeEmail`. Used at validate-time to surface phone collisions before the
+// import is confirmed (Logto enforces phone uniqueness and would otherwise
+// reject the row at confirm). The phone column is normalized in-query so legacy
+// rows still stored as "+39 333 1234567" match against the digits-only candidate.
+//
+// Returns the colliding user's email, or "" if no conflict.
+func GetUserEmailByPhone(phone, excludeEmail string) (string, error) {
+	digits := digitsOnly(phone)
+	if digits == "" {
+		return "", nil
+	}
+	query := `
+		SELECT email FROM users
+		WHERE regexp_replace(COALESCE(phone, ''), '[^0-9]', '', 'g') = $1
+		  AND LOWER(email) != LOWER($2)
+		  AND deleted_at IS NULL
+		LIMIT 1
+	`
+	var email string
+	err := database.DB.QueryRow(query, digits, strings.TrimSpace(excludeEmail)).Scan(&email)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil
+		}
+		return "", err
+	}
+	return email, nil
+}
+
+// digitsOnly is the lightweight, dependency-free counterpart to the backend's
+// NormalizePhoneForLogto, kept here to avoid an import cycle into services/local.
+func digitsOnly(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // GetUserIDByEmail returns the user's Logto ID for the given email (case-insensitive match

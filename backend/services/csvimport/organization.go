@@ -58,7 +58,8 @@ func ValidateOrganizationRow(row map[string]string) []models.ImportFieldError {
 	return errs
 }
 
-// CheckOrganizationExistsByName checks if an organization with the given name exists in the specified table.
+// CheckOrganizationExistsByName checks if an organization with the given name
+// exists (and is not soft-deleted) in the specified table.
 // entityType must be one of: "distributors", "resellers", "customers".
 func CheckOrganizationExistsByName(name, entityType string) (bool, error) {
 	id, err := GetOrganizationIDByName(name, entityType)
@@ -66,6 +67,37 @@ func CheckOrganizationExistsByName(name, entityType string) (bool, error) {
 		return false, err
 	}
 	return id != "", nil
+}
+
+// OrgExistenceState tells whether an organization with a given name is missing,
+// active, or soft-deleted in the specified table.
+type OrgExistenceState int
+
+const (
+	OrgNotExisting OrgExistenceState = iota
+	OrgExistsActive
+	OrgSoftDeleted
+)
+
+// CheckOrganizationExistenceState returns the org-existence state for the given
+// name in the specified table (case-insensitive). Mirrors the user version so
+// the import flow can distinguish new orgs (valid → CREATE), active duplicates
+// (warning → optional UPDATE via override), and soft-deleted records (error →
+// admin must restore or destroy first).
+func CheckOrganizationExistenceState(name, entityType string) (OrgExistenceState, error) {
+	query := `SELECT deleted_at IS NULL FROM ` + entityType + ` WHERE LOWER(name) = LOWER($1) LIMIT 1`
+	var isActive bool
+	err := database.DB.QueryRow(query, strings.TrimSpace(name)).Scan(&isActive)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return OrgNotExisting, nil
+		}
+		return OrgNotExisting, err
+	}
+	if isActive {
+		return OrgExistsActive, nil
+	}
+	return OrgSoftDeleted, nil
 }
 
 // GetOrganizationIDByName returns the Logto ID of the (non-deleted) organization matching

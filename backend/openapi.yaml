@@ -2367,7 +2367,10 @@ components:
         | `required` | any required field | Field is empty or whitespace |
         | `too_long` | any string field | Value exceeds the field max length |
         | `invalid_email` | `email` | Value is not a parseable email address |
-        | `invalid_phone` | `phone` | Value does not match the phone regex |
+        | `invalid_phone` | `phone` | Value is missing the leading `+CC` country prefix or doesn't match the phone regex |
+        | `phone_already_used` | `phone` (users) | The phone number is already in use by a *different* user. `value` carries that user's email so the caller can reconcile. Logto enforces phone uniqueness, so the row would otherwise fail at confirm time |
+        | `email_already_used_archived` | `email` (users) | An email matches an archived (soft-deleted) user. The row cannot be imported as-is — the admin must restore the user (and re-run import) or destroy them definitively first |
+        | `name_already_used_archived` | `name` (orgs) | A name matches an archived (soft-deleted) organization. Same handling as the user variant above |
         | `invalid_language` | `language` | Value is not one of `it` / `en` |
         | `invalid_value` | enum-like fields | Value is not in the allowed set |
         | `duplicate_in_csv` | `email` (users), `name`/`vat` (orgs) | Same value appears in an earlier row of the same file. The `value` field is suffixed with `(same as row N)` |
@@ -3870,6 +3873,10 @@ paths:
 
         - Columns (in any order): `email`, `name`, `phone`, `organization`, `roles`.
         - Required: `email`, `name`, `organization`, `roles`. `phone` is optional.
+        - `phone`, when present, must include the leading `+CC` country prefix
+          (e.g. `+39 333 1234567`). Bare local numbers without `+CC` are rejected
+          with `invalid_phone` at validate time. Phone uniqueness is also checked
+          against existing users (`phone_already_used`).
         - `roles` is a semicolon-separated list of role names (e.g. `Admin;Support`); names are
           resolved against the in-memory role cache.
         - `organization` is matched by name (case-insensitive) against the caller's hierarchy.
@@ -6240,6 +6247,8 @@ paths:
         - Columns (in any order): `name`, `description`, `vat`, `address`, `city`, `main_contact`,
           `email`, `phone`, `language`, `notes`.
         - Required: `name`, `vat`. All other columns are optional.
+        - `phone`, when present, must include the leading `+CC` country prefix
+          (e.g. `+39 02 1234567`). Bare local numbers are rejected with `invalid_phone`.
         - `language` accepts `it` or `en` (defaults to `it` when empty).
         - The first data row is row `2`.
 
@@ -6392,6 +6401,8 @@ paths:
         - Columns (in any order): `name`, `description`, `vat`, `address`, `city`, `main_contact`,
           `email`, `phone`, `language`, `notes`.
         - Required: `name`, `vat`. All other columns are optional.
+        - `phone`, when present, must include the leading `+CC` country prefix
+          (e.g. `+39 02 1234567`). Bare local numbers are rejected with `invalid_phone`.
         - `language` accepts `it` or `en` (defaults to `it` when empty).
         - The first data row is row `2`.
 
@@ -6543,6 +6554,8 @@ paths:
         - Columns (in any order): `name`, `description`, `vat`, `address`, `city`, `main_contact`,
           `email`, `phone`, `language`, `notes`.
         - Required: `name`, `vat`. All other columns are optional.
+        - `phone`, when present, must include the leading `+CC` country prefix
+          (e.g. `+39 02 1234567`). Bare local numbers are rejected with `invalid_phone`.
         - `language` accepts `it` or `en` (defaults to `it` when empty).
         - The first data row is row `2`.
 

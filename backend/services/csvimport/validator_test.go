@@ -62,12 +62,14 @@ func TestValidatePhone(t *testing.T) {
 		value   string
 		wantErr bool
 	}{
-		{"", false},
-		{"+39 02 1234567", false},
-		{"1234567", false},
-		{"+1 (555) 123-4567", false},
-		{"abc", true},
-		{"123", true}, // too short (< 7)
+		{"", false},                  // optional, empty is fine
+		{"+39 02 1234567", false},    // standard formatted
+		{"+1 (555) 123-4567", false}, // US with parens and dash
+		{"+393331234567", false},     // E.164 no spaces
+		{"1234567", true},            // missing "+CC" prefix → rejected
+		{"393331234567", true},       // missing "+" → rejected
+		{"abc", true},                // not a phone
+		{"+12", true},                // too short (< 7 digits/spacing chars after +)
 	}
 	for _, tt := range tests {
 		err := ValidatePhone("phone", tt.value)
