@@ -76,7 +76,7 @@ const goToApplications = () => {
       </div>
       <div v-if="moreApplications > 0" class="py-3">
         <NeLink @click="goToApplications()">
-          {{ t('common.plus_n_more', { num: moreApplications }) }}
+          {{ t('common.plus_n_more', { count: moreApplications }) }}
         </NeLink>
       </div>
     </div>

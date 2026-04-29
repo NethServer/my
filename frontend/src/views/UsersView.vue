@@ -6,12 +6,14 @@
 <script setup lang="ts">
 import { NeButton, NeDropdown, NeHeading } from '@nethesis/vue-components'
 import UsersTable from '@/components/users/UsersTable.vue'
+import ImportUsersModal from '@/components/users/ImportUsersModal.vue'
 import { ref } from 'vue'
 import {
   faChevronDown,
   faCirclePlus,
   faFileCsv,
   faFilePdf,
+  faCircleArrowUp,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { PRODUCT_NAME } from '@/lib/config'
@@ -33,9 +35,20 @@ const {
 } = useUsers()
 
 const isShownCreateUserDrawer = ref(false)
+const isShownImportUsersModal = ref(false)
 
 function getBulkActionsMenuItems() {
   return [
+    ...(canManageUsers()
+      ? [
+          {
+            id: 'importUsers',
+            label: t('users.import_users'),
+            icon: faCircleArrowUp,
+            action: () => (isShownImportUsersModal.value = true),
+          },
+        ]
+      : []),
     {
       id: 'exportFilteredToPdf',
       label: t('users.export_users_to_pdf'),
@@ -113,6 +126,11 @@ async function exportUsers(format: 'pdf' | 'csv') {
     <UsersTable
       :isShownCreateUserDrawer="isShownCreateUserDrawer"
       @close-drawer="isShownCreateUserDrawer = false"
+    />
+    <!-- import users drawer -->
+    <ImportUsersModal
+      :is-shown="isShownImportUsersModal"
+      @close="isShownImportUsersModal = false"
     />
   </div>
 </template>
