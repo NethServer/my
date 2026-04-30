@@ -18,21 +18,27 @@ import { computed, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import {
-  getImportTemplate,
-  validateUsersImport,
-  confirmUsersImport,
-  USERS_KEY,
-  USERS_TOTAL_KEY,
   type ImportValidationResult,
+  type ImportConfirmResult,
   type ImportRow,
-  type ImportFieldError,
-} from '@/lib/users/users'
+} from '@/lib/organizations/organizations'
 import { useNotificationsStore } from '@/stores/notifications'
-import ImportUsersPreviewTable from './ImportUsersPreviewTable.vue'
+import ImportOrganizationsPreviewTable from './ImportOrganizationsPreviewTable.vue'
 import capitalize from 'lodash/capitalize'
 
-const { isShown = false } = defineProps<{
+const props = defineProps<{
   isShown: boolean
+  entityName: 'distributors' | 'resellers' | 'customers'
+  entityLabel: string
+  cacheKeys: {
+    main: string
+    total: string
+  }
+  api: {
+    getTemplate: () => Promise<Blob>
+    validate: (file: File) => Promise<ImportValidationResult>
+    confirm: (importId: string, override: boolean) => Promise<ImportConfirmResult>
+  }
 }>()
 
 const emit = defineEmits(['close'])
@@ -54,16 +60,14 @@ const ERROR_PREVIEW_COUNT = 5
 const ERROR_INCREMENT = 5
 const visibleErrorCount = ref(ERROR_PREVIEW_COUNT)
 const visibleWarningCount = ref(ERROR_PREVIEW_COUNT)
-const existingUsersOption = ref<'skip' | 'update'>('skip')
+const existingOrgsOption = ref<'skip' | 'update'>('skip')
 const importTypeOptions = computed<RadioOption[]>(() => [
-  { id: 'skip', label: t('import.users.import_type_skip') },
-  { id: 'update', label: t('import.users.import_type_overwrite') },
+  { id: 'skip', label: t('import.organizations.import_type_skip') },
+  { id: 'update', label: t('import.organizations.import_type_overwrite') },
 ])
 
 const errorRows = computed(
-  () =>
-    validationResult.value?.rows.filter((r) => r.status === 'error' || r.status === 'ambiguous') ??
-    [],
+  () => validationResult.value?.rows.filter((r) => r.status === 'error') ?? [],
 )
 const warningRows = computed(
   () => validationResult.value?.rows.filter((r) => r.status === 'warning') ?? [],
@@ -77,15 +81,26 @@ const hiddenWarningCount = computed(() =>
   Math.max(0, warningRows.value.length - visibleWarningCount.value),
 )
 
-// Count of users to import based on the selected option
+// Count of orgs to import based on the selected option
 const importCount = computed(() => {
   if (!validationResult.value) return 0
-  if (existingUsersOption.value === 'skip') {
-    // Only new users (valid_rows excludes warning rows)
+  if (existingOrgsOption.value === 'skip') {
     return validationResult.value.valid_rows
   } else {
-    // New users + existing users to update (warning_rows are existing users)
     return validationResult.value.valid_rows + validationResult.value.warning_rows
+  }
+})
+
+const singleEntity = computed(() => {
+  switch (props.entityName) {
+    case 'distributors':
+      return t('organizations.distributors_lc', { count: 1 })
+    case 'resellers':
+      return t('organizations.resellers_lc', { count: 1 })
+    case 'customers':
+      return t('organizations.customers_lc', { count: 1 })
+    default:
+      return props.entityLabel
   }
 })
 
@@ -98,13 +113,13 @@ const {
   reset: validateReset,
   error: validateError,
 } = useMutation({
-  mutation: (file: File) => validateUsersImport(file),
+  mutation: (file: File) => props.api.validate(file),
   onSuccess(data) {
     validationResult.value = data
     step.value = 'preview'
   },
   onError: (error) => {
-    console.error('Error validating users import:', error)
+    console.error(`Error validating ${props.entityName} import:`, error)
   },
 })
 
@@ -119,8 +134,8 @@ const {
 } = useMutation({
   mutation: () => {
     if (!validationResult.value) throw new Error('No validation result')
-    const override = existingUsersOption.value === 'update'
-    return confirmUsersImport(validationResult.value.import_id, override)
+    const override = existingOrgsOption.value === 'update'
+    return props.api.confirm(validationResult.value.import_id, override)
   },
   onSuccess(data) {
     emit('close')
@@ -137,17 +152,17 @@ const {
 
       notificationsStore.createNotification({
         kind: 'success',
-        title: t('import.users.users_imported'),
+        title: t(`${props.entityName}.${props.entityName}_imported`),
         description: capitalize(resultParts.join(', ')),
       })
     }, 500)
   },
   onError: (error) => {
-    console.error('Error confirming users import:', error)
+    console.error(`Error confirming ${props.entityName} import:`, error)
   },
   onSettled: () => {
-    queryCache.invalidateQueries({ key: [USERS_KEY] })
-    queryCache.invalidateQueries({ key: [USERS_TOTAL_KEY] })
+    queryCache.invalidateQueries({ key: [props.cacheKeys.main] })
+    queryCache.invalidateQueries({ key: [props.cacheKeys.total] })
   },
 })
 
@@ -155,9 +170,9 @@ const {
 // Lifecycle
 // ---------------------------------------------------------------
 watch(
-  () => isShown,
+  () => props.isShown,
   () => {
-    if (isShown) {
+    if (props.isShown) {
       reset()
       focusElement(fileInputRef)
     }
@@ -171,7 +186,7 @@ function reset() {
   validationResult.value = null
   visibleErrorCount.value = ERROR_PREVIEW_COUNT
   visibleWarningCount.value = ERROR_PREVIEW_COUNT
-  existingUsersOption.value = 'skip'
+  existingOrgsOption.value = 'skip'
   validateReset()
   confirmReset()
 }
@@ -190,7 +205,7 @@ function goBack() {
   validationResult.value = null
   visibleErrorCount.value = ERROR_PREVIEW_COUNT
   visibleWarningCount.value = ERROR_PREVIEW_COUNT
-  existingUsersOption.value = 'skip'
+  existingOrgsOption.value = 'skip'
   confirmReset()
 }
 
@@ -208,11 +223,11 @@ function showMoreWarnings() {
 async function downloadTemplate() {
   downloadingTemplate.value = true
   try {
-    const blob = await getImportTemplate()
+    const blob = await props.api.getTemplate()
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = 'users_import_template.csv'
+    link.download = `${props.entityName}_import_template.csv`
     link.click()
     URL.revokeObjectURL(url)
   } catch (error) {
@@ -241,35 +256,20 @@ function onValidate() {
   validateMutate(csvFile.value)
 }
 
-// ---------------------------------------------------------------
-// Row helpers
-// ---------------------------------------------------------------
-function formatErrorParams(issue: ImportFieldError): string[] {
-  if (issue.candidates) {
-    // Deduplicate translated organization labels from candidate matches
-    // before joining them into a comma-separated string.
-    // Using Set preserves first-seen order while removing duplicates.
-    const candidateLabels = Array.from(
-      new Set(issue.candidates.map((c) => t(`organizations.${c.type}`))),
-    ).join(', ')
-    return [`${issue.values[0]} (${candidateLabels})`]
-  } else if (issue.field === 'roles' && issue.message === 'unknown') {
-    return [issue.values.join(', ')]
-  } else {
-    return issue.values
-  }
-}
-
 function errorSummaryText(row: ImportRow): string {
-  const name = String(row.data?.name || row.data?.email || '-')
+  const name = String(row.data?.company_name || '-')
   const issue = row.errors?.[0]
 
   if (!issue) {
-    return t('users.import_row_and_name', { row_number: row.row_number, name })
+    return t('import.import_row_and_name', { row_number: row.row_number, name })
   }
-  const params = formatErrorParams(issue)
-  const message = t(`import.import_error_${issue.field}_${issue.message}`, params)
-  return t('import.import_row_and_message', { row_number: row.row_number, name, message })
+
+  const message = t(`import.import_error_${issue.field}_${issue.message}`, issue.values)
+  return t('import.import_row_and_message', {
+    row_number: row.row_number,
+    name,
+    message,
+  })
 }
 </script>
 
@@ -277,13 +277,13 @@ function errorSummaryText(row: ImportRow): string {
   <NeModal
     :visible="isShown"
     :size="step === 'preview' ? 'xxl' : 'md'"
-    :title="$t('import.users.import_users')"
+    :title="$t(`${entityName}.import_${entityName}`)"
     :close-aria-label="$t('common.close')"
     :cancel-label="$t('common.cancel')"
     :primary-label="
       step === 'upload'
         ? $t('common.next')
-        : $t('import.users.import_confirm', { count: importCount })
+        : $t(`import.organizations.import_num_${entityName}`, { count: importCount })
     "
     :primary-button-disabled="
       step === 'upload' ? validateLoading : confirmLoading || importCount === 0
@@ -299,7 +299,12 @@ function errorSummaryText(row: ImportRow): string {
     <!-- ===== STEP 1: UPLOAD ===== -->
     <div v-if="step === 'upload'" class="space-y-6">
       <p class="text-sm text-gray-500 dark:text-gray-400">
-        {{ $t('import.users.import_description') }}
+        {{
+          $t('import.organizations.import_description', {
+            entities: t(`organizations.${entityName}_lc`, { count: 2 }),
+            entity: singleEntity,
+          })
+        }}
       </p>
       <div class="space-y-1.5">
         <NeFileInput
@@ -354,18 +359,18 @@ function errorSummaryText(row: ImportRow): string {
     <!-- ===== STEP 2: PREVIEW ===== -->
     <div v-else-if="step === 'preview' && validationResult" class="space-y-6">
       <!-- file preview table -->
-      <ImportUsersPreviewTable :rows="validationResult.rows" />
+      <ImportOrganizationsPreviewTable :rows="validationResult.rows" />
 
-      <!-- existing users option -->
+      <!-- existing orgs option -->
       <NeRadioSelection
-        v-model="existingUsersOption"
+        v-model="existingOrgsOption"
         :options="importTypeOptions"
-        :label="$t('import.users.import_existing_users_label')"
+        :label="$t('import.organizations.import_existing_label')"
       >
         <template #tooltip>
           <NeTooltip>
             <template #content>
-              {{ $t('import.users.import_existing_users_tooltip') }}
+              {{ $t('import.organizations.import_existing_tooltip') }}
             </template>
           </NeTooltip>
         </template>
@@ -373,31 +378,36 @@ function errorSummaryText(row: ImportRow): string {
 
       <!-- summary -->
       <div class="text-sm text-gray-600 dark:text-gray-300">
-        <NeFormItemLabel>{{ $t('import.users.import_summary') }}</NeFormItemLabel>
+        <NeFormItemLabel>{{ $t('import.import_summary') }}</NeFormItemLabel>
         <p>
-          {{ $t('import.users.import_summary_detected', { count: validationResult.total_rows }) }}
+          {{
+            $t('import.organizations.import_summary_detected', {
+              count: validationResult.total_rows,
+            })
+          }}
         </p>
         <ul class="mt-1 ml-5 list-disc space-y-0.5">
           <li>
-            {{ $t('import.import_summary_valid', { count: validationResult.valid_rows }) }}
+            {{
+              $t('import.import_summary_valid', {
+                count: validationResult.valid_rows,
+              })
+            }}
           </li>
-          <li
-            v-if="validationResult.error_rows + validationResult.ambiguous_rows > 0"
-            class="text-rose-700 dark:text-rose-500"
-          >
+          <li v-if="validationResult.error_rows > 0" class="text-rose-700 dark:text-rose-500">
             {{
               $t('import.import_summary_errors', {
-                count: validationResult.error_rows + validationResult.ambiguous_rows,
+                count: validationResult.error_rows,
               })
             }}
           </li>
           <li v-if="validationResult.warning_rows > 0" class="text-amber-700 dark:text-amber-500">
             {{
-              existingUsersOption === 'skip'
-                ? $t('import.users.import_summary_warnings_skip', {
+              existingOrgsOption === 'skip'
+                ? $t('import.organizations.import_summary_warnings_skip', {
                     count: validationResult.warning_rows,
                   })
-                : $t('import.users.import_summary_warnings_update', {
+                : $t('import.organizations.import_summary_warnings_update', {
                     count: validationResult.warning_rows,
                   })
             }}
@@ -405,7 +415,7 @@ function errorSummaryText(row: ImportRow): string {
         </ul>
       </div>
 
-      <!-- error rows (blocking + ambiguous) -->
+      <!-- error rows -->
       <NeInlineNotification
         v-if="errorRows.length > 0"
         kind="error"
@@ -428,14 +438,18 @@ function errorSummaryText(row: ImportRow): string {
         </template>
       </NeInlineNotification>
 
-      <!-- warning rows (existing users) -->
+      <!-- warning rows (existing orgs) -->
       <NeInlineNotification
         v-if="warningRows.length > 0"
         kind="warning"
         :title="
-          existingUsersOption === 'skip'
-            ? $t('import.users.import_rows_with_warnings_skip', { count: warningRows.length })
-            : $t('import.users.import_rows_with_warnings_update', { count: warningRows.length })
+          existingOrgsOption === 'skip'
+            ? $t('import.organizations.import_rows_with_warnings_skip', {
+                count: warningRows.length,
+              })
+            : $t('import.organizations.import_rows_with_warnings_update', {
+                count: warningRows.length,
+              })
         "
       >
         <template #description>

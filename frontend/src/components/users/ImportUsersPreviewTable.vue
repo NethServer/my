@@ -44,13 +44,13 @@ function rowField(row: ImportRow, field: string): string {
       <div
         class="inline-block rounded-t-md bg-indigo-300 px-3 py-1 text-sm font-medium text-gray-900 dark:bg-indigo-900 dark:text-gray-50"
       >
-        {{ $t('users.import_file_preview') }}
+        {{ $t('import.import_file_preview') }}
       </div>
       <div class="text-gray-500 dark:text-gray-400">
-        {{ $t('users.import_file_preview_description', { count: PREVIEW_ROWS }) }}
+        {{ $t('import.import_file_preview_description', { count: PREVIEW_ROWS }) }}
       </div>
     </div>
-    <NeTable :aria-label="$t('users.import_file_preview')" card-breakpoint="md">
+    <NeTable :aria-label="$t('import.import_file_preview')" card-breakpoint="md">
       <NeTableHead>
         <NeTableHeadCell>{{ $t('users.email') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('users.name') }}</NeTableHeadCell>
@@ -70,7 +70,7 @@ function rowField(row: ImportRow, field: string): string {
             {{ rowField(row, 'phone') }}
           </NeTableCell>
           <NeTableCell :data-label="$t('users.organization')">
-            {{ rowField(row, 'organization') }}
+            {{ rowField(row, 'company_name') }}
           </NeTableCell>
           <NeTableCell :data-label="$t('users.roles')">
             {{ rowField(row, 'roles') }}

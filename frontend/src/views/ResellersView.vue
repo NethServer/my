@@ -6,9 +6,11 @@
 <script setup lang="ts">
 import { NeButton, NeDropdown, NeHeading } from '@nethesis/vue-components'
 import ResellersTable from '@/components/resellers/ResellersTable.vue'
+import ImportOrganizationsModal from '@/components/organizations/ImportOrganizationsModal.vue'
 import { ref } from 'vue'
 import {
   faChevronDown,
+  faCircleArrowUp,
   faCirclePlus,
   faFileCsv,
   faFilePdf,
@@ -17,16 +19,34 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { canManageResellers } from '@/lib/permissions'
 import { useResellers } from '@/queries/organizations/resellers'
 import { useI18n } from 'vue-i18n'
-import { getExport } from '@/lib/organizations/resellers'
+import {
+  getExport,
+  getImportTemplate,
+  validateResellersImport,
+  confirmResellersImport,
+  RESELLERS_KEY,
+  RESELLERS_TOTAL_KEY,
+} from '@/lib/organizations/resellers'
 import { downloadFile } from '@/lib/common'
 
 const { t } = useI18n()
 const { state, debouncedTextFilter, statusFilter, sortBy, sortDescending } = useResellers()
 
 const isShownCreateResellerDrawer = ref(false)
+const isShownImportResellersModal = ref(false)
 
 function getBulkActionsMenuItems() {
   return [
+    ...(canManageResellers()
+      ? [
+          {
+            id: 'importResellers',
+            label: t('resellers.import_resellers'),
+            icon: faCircleArrowUp,
+            action: () => (isShownImportResellersModal.value = true),
+          },
+        ]
+      : []),
     {
       id: 'exportFilteredToPdf',
       label: t('resellers.export_resellers_to_pdf'),
@@ -105,6 +125,19 @@ async function exportResellers(format: 'pdf' | 'csv') {
     <ResellersTable
       :isShownCreateResellerDrawer="isShownCreateResellerDrawer"
       @close-drawer="isShownCreateResellerDrawer = false"
+    />
+    <!-- import resellers modal -->
+    <ImportOrganizationsModal
+      :is-shown="isShownImportResellersModal"
+      entity-name="resellers"
+      entity-label="reseller"
+      :cache-keys="{ main: RESELLERS_KEY, total: RESELLERS_TOTAL_KEY }"
+      :api="{
+        getTemplate: getImportTemplate,
+        validate: validateResellersImport,
+        confirm: confirmResellersImport,
+      }"
+      @close="isShownImportResellersModal = false"
     />
   </div>
 </template>

@@ -168,6 +168,7 @@ Use `canRead*()`, `canManage*()`, `canDestroy*()` from `@/lib/permissions` to gu
 - DO NOT bypass `@nethesis/vue-components` — always prefer its components over raw HTML when they meet the need. Check the Storybook if unsure.
 - DO NOT add inline styles; use Tailwind utility classes only.
 - DO NOT add i18n keys to Italian or other locale files unless explicitly asked.
+- NEVER use hardcoded strings in components — always use i18n keys, even for button labels, error messages, notification titles, etc.
 - ALWAYS preserve the license header on every file you edit or create.
 - ALWAYS use semantic HTML before reaching for ARIA roles.
 
