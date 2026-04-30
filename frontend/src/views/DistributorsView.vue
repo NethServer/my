@@ -6,9 +6,11 @@
 <script setup lang="ts">
 import { NeButton, NeDropdown, NeHeading } from '@nethesis/vue-components'
 import DistributorsTable from '@/components/distributors/DistributorsTable.vue'
+import ImportOrganizationsModal from '@/components/organizations/ImportOrganizationsModal.vue'
 import { ref } from 'vue'
 import {
   faChevronDown,
+  faCircleArrowUp,
   faCirclePlus,
   faFileCsv,
   faFilePdf,
@@ -17,16 +19,34 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { canManageDistributors } from '@/lib/permissions'
 import { useDistributors } from '@/queries/organizations/distributors'
 import { useI18n } from 'vue-i18n'
-import { getExport } from '@/lib/organizations/distributors'
+import {
+  getExport,
+  getImportTemplate,
+  validateDistributorsImport,
+  confirmDistributorsImport,
+  DISTRIBUTORS_KEY,
+  DISTRIBUTORS_TOTAL_KEY,
+} from '@/lib/organizations/distributors'
 import { downloadFile } from '@/lib/common'
 
 const { t } = useI18n()
 const { state, debouncedTextFilter, statusFilter, sortBy, sortDescending } = useDistributors()
 
 const isShownCreateDistributorDrawer = ref(false)
+const isShownImportDistributorsModal = ref(false)
 
 function getBulkActionsMenuItems() {
   return [
+    ...(canManageDistributors()
+      ? [
+          {
+            id: 'importDistributors',
+            label: t('distributors.import_distributors'),
+            icon: faCircleArrowUp,
+            action: () => (isShownImportDistributorsModal.value = true),
+          },
+        ]
+      : []),
     {
       id: 'exportFilteredToPdf',
       label: t('distributors.export_distributors_to_pdf'),
@@ -106,6 +126,19 @@ async function exportDistributors(format: 'pdf' | 'csv') {
     <DistributorsTable
       :isShownCreateDistributorDrawer="isShownCreateDistributorDrawer"
       @close-drawer="isShownCreateDistributorDrawer = false"
+    />
+    <!-- import distributors modal -->
+    <ImportOrganizationsModal
+      :is-shown="isShownImportDistributorsModal"
+      entity-name="distributors"
+      entity-label="distributor"
+      :cache-keys="{ main: DISTRIBUTORS_KEY, total: DISTRIBUTORS_TOTAL_KEY }"
+      :api="{
+        getTemplate: getImportTemplate,
+        validate: validateDistributorsImport,
+        confirm: confirmDistributorsImport,
+      }"
+      @close="isShownImportDistributorsModal = false"
     />
   </div>
 </template>

@@ -6,9 +6,11 @@
 <script setup lang="ts">
 import { NeButton, NeDropdown, NeHeading } from '@nethesis/vue-components'
 import CustomersTable from '@/components/customers/CustomersTable.vue'
+import ImportOrganizationsModal from '@/components/organizations/ImportOrganizationsModal.vue'
 import { ref } from 'vue'
 import {
   faChevronDown,
+  faCircleArrowUp,
   faCirclePlus,
   faFileCsv,
   faFilePdf,
@@ -17,16 +19,34 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { canManageCustomers } from '@/lib/permissions'
 import { useCustomers } from '@/queries/organizations/customers'
 import { useI18n } from 'vue-i18n'
-import { getExport } from '@/lib/organizations/customers'
+import {
+  getExport,
+  getImportTemplate,
+  validateCustomersImport,
+  confirmCustomersImport,
+  CUSTOMERS_KEY,
+  CUSTOMERS_TOTAL_KEY,
+} from '@/lib/organizations/customers'
 import { downloadFile } from '@/lib/common'
 
 const { t } = useI18n()
 const { state, debouncedTextFilter, statusFilter, sortBy, sortDescending } = useCustomers()
 
 const isShownCreateCustomerDrawer = ref(false)
+const isShownImportCustomersModal = ref(false)
 
 function getBulkActionsMenuItems() {
   return [
+    ...(canManageCustomers()
+      ? [
+          {
+            id: 'importCustomers',
+            label: t('customers.import_customers'),
+            icon: faCircleArrowUp,
+            action: () => (isShownImportCustomersModal.value = true),
+          },
+        ]
+      : []),
     {
       id: 'exportFilteredToPdf',
       label: t('customers.export_customers_to_pdf'),
@@ -105,6 +125,19 @@ async function exportCustomers(format: 'pdf' | 'csv') {
     <CustomersTable
       :isShownCreateCustomerDrawer="isShownCreateCustomerDrawer"
       @close-drawer="isShownCreateCustomerDrawer = false"
+    />
+    <!-- import customers modal -->
+    <ImportOrganizationsModal
+      :is-shown="isShownImportCustomersModal"
+      entity-name="customers"
+      entity-label="customer"
+      :cache-keys="{ main: CUSTOMERS_KEY, total: CUSTOMERS_TOTAL_KEY }"
+      :api="{
+        getTemplate: getImportTemplate,
+        validate: validateCustomersImport,
+        confirm: confirmCustomersImport,
+      }"
+      @close="isShownImportCustomersModal = false"
     />
   </div>
 </template>

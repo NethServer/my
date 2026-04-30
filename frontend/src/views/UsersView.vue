@@ -43,7 +43,7 @@ function getBulkActionsMenuItems() {
       ? [
           {
             id: 'importUsers',
-            label: t('users.import_users'),
+            label: t('import.users.import_users'),
             icon: faCircleArrowUp,
             action: () => (isShownImportUsersModal.value = true),
           },
