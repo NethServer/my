@@ -19,7 +19,7 @@ import (
 
 // OrganizationCSVHeaders defines the expected CSV columns for organization import
 var OrganizationCSVHeaders = []string{
-	"name", "description", "vat", "address", "city",
+	"company_name", "description", "vat_number", "address", "city",
 	"main_contact", "email", "phone", "language", "notes",
 }
 
@@ -41,9 +41,9 @@ func ValidateOrganizationRow(row map[string]string) []models.ImportFieldError {
 	}
 
 	// Required fields
-	addErr(ValidateRequired("name", row["name"]))
-	addErr(ValidateMaxLength("name", row["name"], 255))
-	addErr(ValidateRequired("vat", row["vat"]))
+	addErr(ValidateRequired("company_name", row["company_name"]))
+	addErr(ValidateMaxLength("company_name", row["company_name"], 255))
+	addErr(ValidateRequired("vat_number", row["vat_number"]))
 
 	// Optional fields with format validation
 	addErr(ValidateMaxLength("description", row["description"], 500))
@@ -58,19 +58,8 @@ func ValidateOrganizationRow(row map[string]string) []models.ImportFieldError {
 	return errs
 }
 
-// CheckOrganizationExistsByName checks if an organization with the given name
-// exists (and is not soft-deleted) in the specified table.
-// entityType must be one of: "distributors", "resellers", "customers".
-func CheckOrganizationExistsByName(name, entityType string) (bool, error) {
-	id, err := GetOrganizationIDByName(name, entityType)
-	if err != nil {
-		return false, err
-	}
-	return id != "", nil
-}
-
-// OrgExistenceState tells whether an organization with a given name is missing,
-// active, or soft-deleted in the specified table.
+// OrgExistenceState tells whether an organization is missing, active, or
+// soft-deleted in the specified table.
 type OrgExistenceState int
 
 const (
@@ -79,15 +68,25 @@ const (
 	OrgSoftDeleted
 )
 
-// CheckOrganizationExistenceState returns the org-existence state for the given
-// name in the specified table (case-insensitive). Mirrors the user version so
-// the import flow can distinguish new orgs (valid → CREATE), active duplicates
-// (warning → optional UPDATE via override), and soft-deleted records (error →
-// admin must restore or destroy first).
-func CheckOrganizationExistenceState(name, entityType string) (OrgExistenceState, error) {
-	query := `SELECT deleted_at IS NULL FROM ` + entityType + ` WHERE LOWER(name) = LOWER($1) LIMIT 1`
+// CheckOrganizationExistenceStateByVAT returns the org-existence state for the
+// given VAT in the specified table.
+//
+// Uniqueness is keyed off `vat` because the DB triggers
+// (check_unique_vat_distributors / check_unique_vat_resellers) only enforce
+// uniqueness on the VAT, not on the name — two distributors can share a name
+// as long as their VAT differs. Customers carry no DB-level uniqueness at all,
+// so callers are expected not to invoke this for the "customers" table.
+func CheckOrganizationExistenceStateByVAT(vat, entityType string) (OrgExistenceState, error) {
+	trimmed := strings.TrimSpace(vat)
+	if trimmed == "" {
+		return OrgNotExisting, nil
+	}
+	// Prefer the active row when both an active and a soft-deleted row share
+	// the same VAT, so the caller sees `already_exists` (override-able) rather
+	// than `archived` (blocking).
+	query := `SELECT deleted_at IS NULL FROM ` + entityType + ` WHERE TRIM(custom_data->>'vat') = $1 ORDER BY deleted_at IS NULL DESC LIMIT 1`
 	var isActive bool
-	err := database.DB.QueryRow(query, strings.TrimSpace(name)).Scan(&isActive)
+	err := database.DB.QueryRow(query, trimmed).Scan(&isActive)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return OrgNotExisting, nil
@@ -100,14 +99,18 @@ func CheckOrganizationExistenceState(name, entityType string) (OrgExistenceState
 	return OrgSoftDeleted, nil
 }
 
-// GetOrganizationIDByName returns the Logto ID of the (non-deleted) organization matching
-// the given name in the specified table. entityType must be one of: "distributors",
-// "resellers", "customers". Returns "" if no row matches. The repository GetByID / Update*
-// methods all key off `logto_id` despite the parameter being called `id`.
-func GetOrganizationIDByName(name, entityType string) (string, error) {
-	query := `SELECT logto_id FROM ` + entityType + ` WHERE LOWER(name) = LOWER($1) AND deleted_at IS NULL AND logto_id IS NOT NULL LIMIT 1`
+// GetOrganizationIDByVAT returns the Logto ID of the active organization with
+// the given VAT in the specified table. Returns "" if no row matches. Mirrors
+// the by-VAT semantics of the validate-time check so the override-driven UPDATE
+// path looks up the same row that was flagged as a duplicate.
+func GetOrganizationIDByVAT(vat, entityType string) (string, error) {
+	trimmed := strings.TrimSpace(vat)
+	if trimmed == "" {
+		return "", nil
+	}
+	query := `SELECT logto_id FROM ` + entityType + ` WHERE TRIM(custom_data->>'vat') = $1 AND deleted_at IS NULL AND logto_id IS NOT NULL LIMIT 1`
 	var logtoID string
-	err := database.DB.QueryRow(query, strings.TrimSpace(name)).Scan(&logtoID)
+	err := database.DB.QueryRow(query, trimmed).Scan(&logtoID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "", nil
@@ -117,12 +120,14 @@ func GetOrganizationIDByName(name, entityType string) (string, error) {
 	return logtoID, nil
 }
 
-// OrganizationRowToData converts a validated CSV row map into the data map stored in ImportRow.
+// OrganizationRowToData converts a validated CSV row map into the data map stored
+// in ImportRow. Keys mirror the CSV column names so the validate response (which
+// echoes `data` back to the frontend) lines up 1:1 with what the user typed.
 func OrganizationRowToData(row map[string]string) map[string]interface{} {
 	data := map[string]interface{}{
-		"name":         row["name"],
+		"company_name": row["company_name"],
 		"description":  row["description"],
-		"vat":          row["vat"],
+		"vat_number":   row["vat_number"],
 		"address":      row["address"],
 		"city":         row["city"],
 		"main_contact": row["main_contact"],
@@ -134,10 +139,12 @@ func OrganizationRowToData(row map[string]string) map[string]interface{} {
 	return data
 }
 
-// OrganizationDataToCreateRequest converts import data to a CreateLocalDistributorRequest
-// (same struct shape for resellers and customers).
+// OrganizationDataToCreateRequest converts the CSV-side data map (CSV column
+// names) into a CreateLocalDistributorRequest (which uses the internal Logto
+// schema: `Name` for company_name and `custom_data.vat` for vat_number).
+// Same struct shape works for resellers and customers.
 func OrganizationDataToCreateRequest(data map[string]interface{}) *models.CreateLocalDistributorRequest {
-	name, _ := data["name"].(string)
+	name, _ := data["company_name"].(string)
 	description, _ := data["description"].(string)
 
 	language, _ := data["language"].(string)
@@ -146,7 +153,7 @@ func OrganizationDataToCreateRequest(data map[string]interface{}) *models.Create
 	}
 
 	customData := map[string]interface{}{
-		"vat":          data["vat"],
+		"vat":          data["vat_number"],
 		"address":      data["address"],
 		"city":         data["city"],
 		"main_contact": data["main_contact"],

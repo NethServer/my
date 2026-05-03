@@ -2377,21 +2377,21 @@ components:
         | `too_long` | any string field | `[value]` | Value exceeds the field max length |
         | `invalid_format` | `email`, `phone`, `language` | `[value]` | Value is not a valid email / phone / language code. For `phone` this also catches a missing leading `+CC` |
         | `invalid_value` | enum-like fields | `[value]` | Value is not in the allowed set |
-        | `duplicate_in_csv` | `email` (users), `name`/`vat` (orgs) | `[value, firstRowNumber]` | Same value appears in an earlier row of the same file (slot 1 is the row number as a string, e.g. `"2"`) |
-        | `not_found` | `organization` (users) | `[value]` | Value does not match any entity in the caller's hierarchy |
-        | `lookup_failed` | `organization` (users) | `[value]` | Database error while resolving the value (transient — retry) |
-        | `ambiguous` | `organization` (users) | `[value]` | Multiple matches for the value; `candidates` is populated and must be resolved at confirm. Row status is `ambiguous` |
+        | `duplicate_in_csv` | `email` (users), `vat_number` (orgs) | `[value, firstRowNumber]` | Same value appears in an earlier row of the same file (slot 1 is the row number as a string, e.g. `"2"`). Org `company_name` is NOT checked for duplicates because the DB does not enforce name uniqueness on any org type |
+        | `not_found` | `company_name` (users) | `[value]` | Value does not match any entity in the caller's hierarchy |
+        | `lookup_failed` | `company_name` (users) | `[value]` | Database error while resolving the value (transient — retry) |
+        | `ambiguous` | `company_name` (users) | `[value]` | Multiple matches for the value; `candidates` is populated and must be resolved at confirm. Row status is `ambiguous` |
         | `unknown` | `roles` (users) | `[name1, name2, …]` | One or more values are not recognised; each unknown entry occupies its own slot |
         | `at_least_one_required` | `roles` (users) | — | Field present but parsed to zero entries |
         | `insufficient_privileges` | `roles` (users) | `[value]` | Caller cannot assign one of the requested roles |
         | `already_used` | `phone` (users) | `[value, otherEmail]` | Value is already in use by a *different* entity. For `phone`, slot 1 is the email of the user that already owns it. Logto enforces uniqueness, so the row would otherwise fail at confirm time |
-        | `archived` | `email` (users), `name` (orgs) | `[value]` | The value matches a soft-deleted entity. The row cannot be imported as-is — the admin must restore (and re-run import) or destroy definitively first |
+        | `archived` | `email` (users), `vat_number` (distributors, resellers) | `[value]` | The value matches a soft-deleted entity. The row cannot be imported as-is — the admin must restore (and re-run import) or destroy definitively first. Customers carry no DB-level uniqueness so this code is never emitted for them |
 
         **Warning codes (non-blocking, override-able)**
 
         | Code | Where it can occur | `values` slots | Meaning |
         |------|--------------------|---------------|---------|
-        | `already_exists` | `email` (users), `name` (orgs) | `[value]` | An active entity with the same key already exists. Row status is `warning` — pass `override: true` at confirm to turn this into an UPDATE instead of a CREATE |
+        | `already_exists` | `email` (users), `vat_number` (distributors, resellers) | `[value]` | An active entity with the same key already exists. Row status is `warning` — pass `override: true` at confirm to turn this into an UPDATE instead of a CREATE. Customers never emit this code (no DB-level uniqueness on either name or VAT) |
       properties:
         field:
           type: string
@@ -2518,7 +2518,7 @@ components:
               email: "marco.rossi@nethesis.it"
               name: "Marco Rossi"
               phone: "+39 333 1234567"
-              organization: "Acme Corp"
+              company_name: "Acme Corp"
               organization_id: "zm45rltjc9rr"
               roles: "Admin"
               role_ids: ["7jmz7ryag1m254m4428n8"]
@@ -2528,7 +2528,7 @@ components:
               email: "support@beta.it"
               name: "Beta Support"
               phone: ""
-              organization: "Beta Solutions"
+              company_name: "Beta Solutions"
               organization_id: "jl6lgn3l6nsi"
               roles: "Support"
               role_ids: ["77evvdf876ze8oykdk4y9"]
@@ -2538,7 +2538,7 @@ components:
               email: "not-an-email"
               name: "Bad Email"
               phone: "+39 333 0000000"
-              organization: "Acme Corp"
+              company_name: "Acme Corp"
               organization_id: ""
               roles: "Admin"
               role_ids: ["7jmz7ryag1m254m4428n8"]
@@ -2552,12 +2552,12 @@ components:
               email: "test@nethesis.it"
               name: "Wrong Org"
               phone: ""
-              organization: "Organization That Does Not Exist"
+              company_name: "Organization That Does Not Exist"
               organization_id: ""
               roles: "Support"
               role_ids: ["77evvdf876ze8oykdk4y9"]
             errors:
-              - field: "organization"
+              - field: "company_name"
                 message: "not_found"
                 values: ["Organization That Does Not Exist"]
           - row_number: 6
@@ -2566,7 +2566,7 @@ components:
               email: "edoardo.spadoni@nethesis.it"
               name: "Mario Rossi"
               phone: ""
-              organization: "Acme Corp"
+              company_name: "Acme Corp"
               organization_id: "zm45rltjc9rr"
               roles: "Admin"
               role_ids: ["7jmz7ryag1m254m4428n8"]
@@ -2580,12 +2580,12 @@ components:
               email: "ambig@nethesis.it"
               name: "Ambiguous Org"
               phone: ""
-              organization: "Gamma"
+              company_name: "Gamma"
               organization_id: ""
               roles: "Support"
               role_ids: ["77evvdf876ze8oykdk4y9"]
             errors:
-              - field: "organization"
+              - field: "company_name"
                 message: "ambiguous"
                 values: ["Gamma"]
                 candidates:
@@ -3852,7 +3852,7 @@ paths:
       summary: /users/import/template - Download CSV import template
       description: |
         Download a UTF-8 CSV file pre-populated with the expected header row and a few example
-        data rows for the user import flow. Columns: `email`, `name`, `phone`, `organization`,
+        data rows for the user import flow. Columns: `email`, `name`, `phone`, `company_name`,
         `roles`. Sent as a `text/csv` attachment with `Content-Disposition: attachment; filename="users_import_template.csv"`.
       responses:
         '200':
@@ -3882,18 +3882,22 @@ paths:
 
         **CSV format**
 
-        - Columns (in any order): `email`, `name`, `phone`, `organization`, `roles`.
-        - Required: `email`, `name`, `organization`, `roles`. `phone` is optional.
+        - Columns (in any order): `email`, `name`, `phone`, `company_name`, `roles`.
+        - Required: `email`, `name`, `company_name`, `roles`. `phone` is optional.
+        - `company_name` is the visible name of the user's organization (matched against
+          distributors/resellers/customers in the caller's hierarchy).
         - `phone`, when present, must include the leading `+CC` country prefix
           (e.g. `+39 333 1234567`). Bare local numbers without `+CC` are rejected
           with `invalid_format` at validate time. Phone uniqueness against existing
           users is also checked (`already_used`).
         - `roles` is a semicolon-separated list of role names (e.g. `Admin;Support`); names are
           resolved against the in-memory role cache.
-        - `organization` is matched by name (case-insensitive) against the caller's hierarchy.
+        - `company_name` is matched case-insensitively against the caller's hierarchy.
           If multiple organizations share that name the row is marked `ambiguous` and the
           response includes the candidates — the caller picks one in `resolutions` at confirm time.
         - The first data row is row `2` (the header row is row `1`).
+        - Standard CSV (RFC 4180) — fields containing commas, quotes or newlines must be
+          double-quoted (`"value, with comma"`). Spreadsheet tools auto-quote on save.
 
         **Row outcomes**
 
@@ -3969,7 +3973,7 @@ paths:
         |--------|------------------|------------------|
         | `valid` | CREATE | CREATE |
         | `error` | skipped (`reason: error`) | skipped (`reason: error`) |
-        | `warning` | skipped (`reason: warning_not_overridden`) | UPDATE — name, phone, organization, roles overwritten from CSV (email is the lookup key, never changed) |
+        | `warning` | skipped (`reason: warning_not_overridden`) | UPDATE — `name`, `phone`, `company_name`, `roles` overwritten from CSV (`email` is the lookup key, never changed) |
         | `ambiguous` (no resolution) | skipped (`reason: ambiguous_unresolved`) | same |
         | `ambiguous` (resolution provided) | CREATE with chosen org | same |
 
@@ -6224,7 +6228,7 @@ paths:
       summary: /distributors/import/template - Download CSV import template
       description: |
         Download a UTF-8 CSV file pre-populated with the expected header row and a few example
-        data rows for the distributor import flow. Columns: `name`, `description`, `vat`,
+        data rows for the distributor import flow. Columns: `company_name`, `description`, `vat_number`,
         `address`, `city`, `main_contact`, `email`, `phone`, `language`, `notes`. Sent as a
         `text/csv` attachment with `Content-Disposition: attachment; filename="distributors_import_template.csv"`.
       responses:
@@ -6255,13 +6259,15 @@ paths:
 
         **CSV format**
 
-        - Columns (in any order): `name`, `description`, `vat`, `address`, `city`, `main_contact`,
-          `email`, `phone`, `language`, `notes`.
-        - Required: `name`, `vat`. All other columns are optional.
+        - Columns (in any order): `company_name`, `description`, `vat_number`, `address`, `city`,
+          `main_contact`, `email`, `phone`, `language`, `notes`.
+        - Required: `company_name`, `vat_number`. All other columns are optional.
         - `phone`, when present, must include the leading `+CC` country prefix
           (e.g. `+39 02 1234567`). Bare local numbers are rejected with `invalid_format`.
         - `language` accepts `it` or `en` (defaults to `it` when empty).
         - The first data row is row `2`.
+        - Standard CSV (RFC 4180) — fields containing commas, quotes or newlines must be
+          double-quoted (`"note, with comma"`). Spreadsheet tools auto-quote on save.
 
         **Row outcomes**
 
@@ -6269,7 +6275,7 @@ paths:
         |--------|---------------|----------------|
         | `valid` | All checks passed | CREATE |
         | `error` | At least one blocking error in `errors[]` (`required`, `invalid_format`, `too_long`, `duplicate_in_csv`, `archived`, …) | always skipped |
-        | `warning` | A distributor with the same `name` already exists in the database (in `warnings[]`) | UPDATE if `override: true`, else skipped |
+        | `warning` | A distributor with the same `vat` already exists in the database (in `warnings[]`) | UPDATE if `override: true`, else skipped |
 
         Distributor imports cannot produce `ambiguous` rows — that status only applies to user imports.
 
@@ -6322,10 +6328,10 @@ paths:
         **Inputs**
 
         - `import_id` — from the `/validate` response. Must still be valid (sessions expire after 30 min).
-        - `override` — global flag. When `true`, every row with status `warning` (the distributor
-          name already exists in the DB) is UPDATEd with the CSV values; description, vat,
-          address, city, main_contact, email, phone, language, notes all get overwritten.
-          When omitted/false, warning rows are skipped.
+        - `override` — global flag. When `true`, every row with status `warning` (a
+          distributor with the same VAT already exists in the DB) is UPDATEd with the CSV
+          values; name, description, address, city, main_contact, email, phone, language,
+          notes all get overwritten. When omitted/false, warning rows are skipped.
         - `resolutions` — not applicable to distributors.
 
         **Behaviour per row status**
@@ -6378,7 +6384,7 @@ paths:
       summary: /resellers/import/template - Download CSV import template
       description: |
         Download a UTF-8 CSV file pre-populated with the expected header row and a few example
-        data rows for the reseller import flow. Columns: `name`, `description`, `vat`,
+        data rows for the reseller import flow. Columns: `company_name`, `description`, `vat_number`,
         `address`, `city`, `main_contact`, `email`, `phone`, `language`, `notes`. Sent as a
         `text/csv` attachment with `Content-Disposition: attachment; filename="resellers_import_template.csv"`.
       responses:
@@ -6409,13 +6415,15 @@ paths:
 
         **CSV format**
 
-        - Columns (in any order): `name`, `description`, `vat`, `address`, `city`, `main_contact`,
-          `email`, `phone`, `language`, `notes`.
-        - Required: `name`, `vat`. All other columns are optional.
+        - Columns (in any order): `company_name`, `description`, `vat_number`, `address`, `city`,
+          `main_contact`, `email`, `phone`, `language`, `notes`.
+        - Required: `company_name`, `vat_number`. All other columns are optional.
         - `phone`, when present, must include the leading `+CC` country prefix
           (e.g. `+39 02 1234567`). Bare local numbers are rejected with `invalid_format`.
         - `language` accepts `it` or `en` (defaults to `it` when empty).
         - The first data row is row `2`.
+        - Standard CSV (RFC 4180) — fields containing commas, quotes or newlines must be
+          double-quoted (`"note, with comma"`). Spreadsheet tools auto-quote on save.
 
         **Row outcomes**
 
@@ -6423,7 +6431,7 @@ paths:
         |--------|---------------|----------------|
         | `valid` | All checks passed | CREATE |
         | `error` | At least one blocking error in `errors[]` (`required`, `invalid_format`, `too_long`, `duplicate_in_csv`, `archived`, …) | always skipped |
-        | `warning` | A reseller with the same `name` already exists in the database (in `warnings[]`) | UPDATE if `override: true`, else skipped |
+        | `warning` | A reseller with the same `vat` already exists in the database (in `warnings[]`) | UPDATE if `override: true`, else skipped |
 
         Reseller imports cannot produce `ambiguous` rows — that status only applies to user imports.
 
@@ -6476,9 +6484,9 @@ paths:
         **Inputs**
 
         - `import_id` — from the `/validate` response. Must still be valid (sessions expire after 30 min).
-        - `override` — global flag. When `true`, every row with status `warning` (the reseller
-          name already exists in the DB) is UPDATEd with the CSV values. When omitted/false,
-          warning rows are skipped.
+        - `override` — global flag. When `true`, every row with status `warning` (a reseller
+          with the same VAT already exists in the DB) is UPDATEd with the CSV values. When
+          omitted/false, warning rows are skipped.
         - `resolutions` — not applicable to resellers.
 
         **Behaviour per row status**
@@ -6531,7 +6539,7 @@ paths:
       summary: /customers/import/template - Download CSV import template
       description: |
         Download a UTF-8 CSV file pre-populated with the expected header row and a few example
-        data rows for the customer import flow. Columns: `name`, `description`, `vat`,
+        data rows for the customer import flow. Columns: `company_name`, `description`, `vat_number`,
         `address`, `city`, `main_contact`, `email`, `phone`, `language`, `notes`. Sent as a
         `text/csv` attachment with `Content-Disposition: attachment; filename="customers_import_template.csv"`.
       responses:
@@ -6562,23 +6570,27 @@ paths:
 
         **CSV format**
 
-        - Columns (in any order): `name`, `description`, `vat`, `address`, `city`, `main_contact`,
-          `email`, `phone`, `language`, `notes`.
-        - Required: `name`, `vat`. All other columns are optional.
+        - Columns (in any order): `company_name`, `description`, `vat_number`, `address`, `city`,
+          `main_contact`, `email`, `phone`, `language`, `notes`.
+        - Required: `company_name`, `vat_number`. All other columns are optional.
         - `phone`, when present, must include the leading `+CC` country prefix
           (e.g. `+39 02 1234567`). Bare local numbers are rejected with `invalid_format`.
         - `language` accepts `it` or `en` (defaults to `it` when empty).
         - The first data row is row `2`.
+        - Standard CSV (RFC 4180) — fields containing commas, quotes or newlines must be
+          double-quoted (`"note, with comma"`). Spreadsheet tools auto-quote on save.
 
         **Row outcomes**
 
         | status | What it means | Confirm action |
         |--------|---------------|----------------|
         | `valid` | All checks passed | CREATE |
-        | `error` | At least one blocking error in `errors[]` (`required`, `invalid_format`, `too_long`, `duplicate_in_csv`, `archived`, …) | always skipped |
-        | `warning` | A customer with the same `name` already exists in the database (in `warnings[]`) | UPDATE if `override: true`, else skipped |
+        | `error` | At least one blocking error in `errors[]` (`required`, `invalid_format`, `too_long`, `duplicate_in_csv`, …) | always skipped |
 
-        Customer imports cannot produce `ambiguous` rows — that status only applies to user imports.
+        Customer imports never produce `warning`, `archived` or `ambiguous` rows. The DB
+        does not enforce uniqueness on customer name or VAT, so every well-formed customer
+        row is `valid` and creates a new record at confirm. The `override` flag is
+        therefore a no-op for `/customers/import/confirm`.
 
         **Limits** — max 10 MB, max 1000 rows. Larger files return `400`.
       requestBody:
@@ -6623,26 +6635,24 @@ paths:
         - Backend - Customers Import/Export
       summary: /customers/import/confirm - Execute validated customer import
       description: |
-        Confirm and execute a previously validated customer import. Reuses `POST /customers`
-        (CREATE) and `PUT /customers/{id}` (UPDATE) for each row.
+        Confirm and execute a previously validated customer import. Calls `POST /customers`
+        (CREATE) for every `valid` row.
 
         **Inputs**
 
         - `import_id` — from the `/validate` response. Must still be valid (sessions expire after 30 min).
-        - `override` — global flag. When `true`, every row with status `warning` (the customer
-          name already exists in the DB) is UPDATEd with the CSV values. When omitted/false,
-          warning rows are skipped.
+        - `override` — **no-op for customers**: validate never emits `warning` rows since the
+          DB enforces no uniqueness on customer name or VAT, so there is nothing to UPDATE.
         - `resolutions` — not applicable to customers.
 
         **Behaviour per row status**
 
-        | status | `override` false | `override` true |
-        |--------|------------------|------------------|
-        | `valid` | CREATE | CREATE |
-        | `error` | skipped (`reason: error`) | skipped (`reason: error`) |
-        | `warning` | skipped (`reason: warning_not_overridden`) | UPDATE — all custom_data fields overwritten from CSV |
+        | status | confirm action |
+        |--------|----------------|
+        | `valid` | CREATE |
+        | `error` | skipped (`reason: error`) |
 
-        **Atomicity** — non-atomic: failures during creation/update are reported per-row;
+        **Atomicity** — non-atomic: failures during creation are reported per-row;
         rows that succeeded before the failure are kept.
       requestBody:
         required: true

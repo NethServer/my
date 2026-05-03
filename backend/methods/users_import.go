@@ -100,8 +100,8 @@ func ValidateUsersImport(c *gin.Context) {
 		// Resolve organization name to ID (scoped to user's hierarchy)
 		var orgLogtoID string
 		var ambiguousCandidates []models.ImportOrgCandidate
-		if rowMap["organization"] != "" && !hasFieldError(errs, "organization") {
-			orgID, _, resolveErr := csvimport.ResolveOrganizationByName(rowMap["organization"], allowedOrgIDs)
+		if rowMap["company_name"] != "" && !hasFieldError(errs, "company_name") {
+			orgID, _, resolveErr := csvimport.ResolveOrganizationByName(rowMap["company_name"], allowedOrgIDs)
 			if resolveErr != nil {
 				var ambErr *csvimport.AmbiguousOrgError
 				if errors.As(resolveErr, &ambErr) {
@@ -115,18 +115,18 @@ func ValidateUsersImport(c *gin.Context) {
 					}
 					ambiguousCandidates = candidates
 				} else {
-					logger.Error().Err(resolveErr).Str("organization", rowMap["organization"]).Msg("Failed to resolve organization")
+					logger.Error().Err(resolveErr).Str("organization", rowMap["company_name"]).Msg("Failed to resolve organization")
 					errs = append(errs, models.ImportFieldError{
-						Field:   "organization",
+						Field:   "company_name",
 						Message: "lookup_failed",
-						Values:  []string{rowMap["organization"]},
+						Values:  []string{rowMap["company_name"]},
 					})
 				}
 			} else if orgID == "" {
 				errs = append(errs, models.ImportFieldError{
-					Field:   "organization",
+					Field:   "company_name",
 					Message: "not_found",
-					Values:  []string{rowMap["organization"]},
+					Values:  []string{rowMap["company_name"]},
 				})
 			} else {
 				orgLogtoID = orgID
@@ -230,9 +230,9 @@ func ValidateUsersImport(c *gin.Context) {
 		case ambiguousCandidates != nil:
 			importRow.Status = models.ImportRowAmbiguous
 			importRow.Errors = []models.ImportFieldError{{
-				Field:      "organization",
+				Field:      "company_name",
 				Message:    "ambiguous",
-				Values:     []string{rowMap["organization"]},
+				Values:     []string{rowMap["company_name"]},
 				Candidates: ambiguousCandidates,
 			}}
 			importRow.Warnings = warns

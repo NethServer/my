@@ -21,7 +21,7 @@ import (
 
 // UserCSVHeaders defines the expected CSV columns for user import
 var UserCSVHeaders = []string{
-	"email", "name", "phone", "organization", "roles",
+	"email", "name", "phone", "company_name", "roles",
 }
 
 // UserTemplateExamples provides example rows for the CSV template
@@ -47,7 +47,7 @@ func ValidateUserRow(row map[string]string) []models.ImportFieldError {
 	addErr(ValidateMaxLength("email", row["email"], 255))
 	addErr(ValidateRequired("name", row["name"]))
 	addErr(ValidateMaxLength("name", row["name"], 255))
-	addErr(ValidateRequired("organization", row["organization"]))
+	addErr(ValidateRequired("company_name", row["company_name"]))
 	addErr(ValidateRequired("roles", row["roles"]))
 
 	// Optional fields
@@ -173,7 +173,10 @@ const (
 // via override), and soft-deleted user (error → admin must restore or destroy
 // before the row can be imported).
 func CheckUserExistenceState(email string) (UserExistenceState, error) {
-	query := `SELECT deleted_at IS NULL FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`
+	// Prefer the active row when both an active and a soft-deleted row share
+	// the same email, so the caller sees `already_exists` (override-able) rather
+	// than `archived` (blocking).
+	query := `SELECT deleted_at IS NULL FROM users WHERE LOWER(email) = LOWER($1) ORDER BY deleted_at IS NULL DESC LIMIT 1`
 	var isActive bool
 	err := database.DB.QueryRow(query, strings.TrimSpace(email)).Scan(&isActive)
 	if err != nil {
@@ -256,7 +259,7 @@ func UserRowToData(row map[string]string, orgLogtoID string, roleIDs []string) m
 		"email":           row["email"],
 		"name":            row["name"],
 		"phone":           row["phone"],
-		"organization":    row["organization"],
+		"company_name":    row["company_name"],
 		"roles":           row["roles"],
 		"organization_id": orgLogtoID,
 		"role_ids":        roleIDs,

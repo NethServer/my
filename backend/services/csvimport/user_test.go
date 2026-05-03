@@ -16,7 +16,7 @@ func TestValidateUserRow_Valid(t *testing.T) {
 		"email":        "user@example.com",
 		"name":         "Test User",
 		"phone":        "+39 333 1234567",
-		"organization": "Acme Corp",
+		"company_name": "Acme Corp",
 		"roles":        "Admin",
 	}
 	errs := ValidateUserRow(row)
@@ -30,7 +30,7 @@ func TestValidateUserRow_MissingRequired(t *testing.T) {
 		"email":        "",
 		"name":         "",
 		"phone":        "",
-		"organization": "",
+		"company_name": "",
 		"roles":        "",
 	}
 	errs := ValidateUserRow(row)
@@ -40,7 +40,7 @@ func TestValidateUserRow_MissingRequired(t *testing.T) {
 		fields[e.Field] = true
 	}
 
-	requiredFields := []string{"email", "name", "organization", "roles"}
+	requiredFields := []string{"email", "name", "company_name", "roles"}
 	for _, f := range requiredFields {
 		if !fields[f] {
 			t.Errorf("expected error for missing %s", f)
@@ -53,7 +53,7 @@ func TestValidateUserRow_InvalidEmail(t *testing.T) {
 		"email":        "not-an-email",
 		"name":         "Test",
 		"phone":        "",
-		"organization": "Org",
+		"company_name": "Org",
 		"roles":        "Admin",
 	}
 	errs := ValidateUserRow(row)
@@ -73,7 +73,7 @@ func TestValidateUserRow_InvalidPhone(t *testing.T) {
 		"email":        "user@test.com",
 		"name":         "Test",
 		"phone":        "abc",
-		"organization": "Org",
+		"company_name": "Org",
 		"roles":        "Admin",
 	}
 	errs := ValidateUserRow(row)
@@ -93,7 +93,7 @@ func TestUserRowToData(t *testing.T) {
 		"email":        "test@test.com",
 		"name":         "Test User",
 		"phone":        "+39 123",
-		"organization": "Acme Corp",
+		"company_name": "Acme Corp",
 		"roles":        "Admin;Support",
 	}
 	data := UserRowToData(row, "org-123", []string{"role-1", "role-2"})
@@ -115,7 +115,7 @@ func TestUserDataToCreateRequest(t *testing.T) {
 		"email":           "test@test.com",
 		"name":            "Test User",
 		"phone":           "+39 333 1234567",
-		"organization":    "Acme Corp",
+		"company_name":    "Acme Corp",
 		"roles":           "Admin",
 		"organization_id": "org-123",
 		"role_ids":        []string{"role-1"},
@@ -144,7 +144,7 @@ func TestUserDataToCreateRequest_NoPhone(t *testing.T) {
 		"email":           "test@test.com",
 		"name":            "Test",
 		"phone":           "",
-		"organization":    "Org",
+		"company_name":    "Org",
 		"roles":           "Admin",
 		"organization_id": "org-1",
 		"role_ids":        []string{"r1"},

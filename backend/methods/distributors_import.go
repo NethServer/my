@@ -91,7 +91,6 @@ func validateOrganizationImport(c *gin.Context, entityType string) {
 		Rows:      make([]models.ImportRow, 0, len(rows)),
 	}
 
-	seenNames := make(map[string]int)
 	seenVATs := make(map[string]int)
 
 	for i, row := range rows {
@@ -106,36 +105,38 @@ func validateOrganizationImport(c *gin.Context, entityType string) {
 		// Field-level validation
 		errs := csvimport.ValidateOrganizationRow(rowMap)
 
-		// Duplicate checks within CSV
-		if dupErr := csvimport.CheckDuplicateInSet("name", rowMap["name"], seenNames, rowNum); dupErr != nil {
-			errs = append(errs, *dupErr)
-		}
-		if dupErr := csvimport.CheckDuplicateInSet("vat", rowMap["vat"], seenVATs, rowNum); dupErr != nil {
+		// Duplicate-in-CSV check on VAT — sanity-level, applied to all entity
+		// types. Name uniqueness isn't enforced by the DB (two distributors
+		// can share a name as long as their VAT differs), so we don't flag
+		// duplicate names in the CSV either.
+		if dupErr := csvimport.CheckDuplicateInSet("vat_number", rowMap["vat_number"], seenVATs, rowNum); dupErr != nil {
 			errs = append(errs, *dupErr)
 		}
 
-		// Database name check — three outcomes:
-		//   - active org with same name  → WARNING (override=true turns it into UPDATE)
-		//   - soft-deleted org same name → ERROR (admin must restore or destroy first)
-		//   - no org                      → no flag, row stays valid
+		// Database VAT check — DB triggers enforce VAT uniqueness for
+		// distributors and resellers; customers carry no uniqueness so the
+		// check is skipped entirely for them (every customer row imports as a
+		// fresh CREATE).
+		//   - active org with same VAT  → WARNING (override=true turns it into UPDATE)
+		//   - soft-deleted org same VAT → ERROR (admin must restore or destroy first)
 		var warns []models.ImportFieldError
-		if rowMap["name"] != "" && !hasFieldError(errs, "name") {
-			state, dbErr := csvimport.CheckOrganizationExistenceState(rowMap["name"], entityType)
+		if entityType != "customers" && rowMap["vat_number"] != "" && !hasFieldError(errs, "vat_number") {
+			state, dbErr := csvimport.CheckOrganizationExistenceStateByVAT(rowMap["vat_number"], entityType)
 			if dbErr != nil {
-				logger.Error().Err(dbErr).Str("name", rowMap["name"]).Msg("Failed to check organization duplicate")
+				logger.Error().Err(dbErr).Str("vat_number", rowMap["vat_number"]).Msg("Failed to check organization duplicate")
 			} else {
 				switch state {
 				case csvimport.OrgExistsActive:
 					warns = append(warns, models.ImportFieldError{
-						Field:   "name",
+						Field:   "vat_number",
 						Message: "already_exists",
-						Values:  []string{rowMap["name"]},
+						Values:  []string{rowMap["vat_number"]},
 					})
 				case csvimport.OrgSoftDeleted:
 					errs = append(errs, models.ImportFieldError{
-						Field:   "name",
+						Field:   "vat_number",
 						Message: "archived",
-						Values:  []string{rowMap["name"]},
+						Values:  []string{rowMap["vat_number"]},
 					})
 				}
 			}
@@ -340,14 +341,20 @@ func createOrganizationFromImportRow(c *gin.Context, service *local.LocalOrganiz
 	logger.LogBusinessOperation(c, entityType, "create", entityType, createdID, true, nil)
 }
 
-// updateOrganizationFromImportRow looks up the existing org by name (within the entity type)
-// and overwrites name, description and custom_data with the CSV-provided values. RBAC is
-// already enforced at validate time (CanCreateDistributor/Reseller/Customer for the caller),
-// and the underlying Update*  service performs additional checks.
+// updateOrganizationFromImportRow looks up the existing org by VAT (matching
+// the validate-time uniqueness check) and overwrites name, description and
+// custom_data with the CSV-provided values. RBAC is already enforced at
+// validate time (CanCreateDistributor/Reseller/Customer for the caller); the
+// underlying Update*  service performs additional checks.
+//
+// Only ever called for distributors and resellers (the validate path skips
+// the warning state entirely for customers, since they have no DB-level
+// uniqueness on VAT or name).
 func updateOrganizationFromImportRow(c *gin.Context, service *local.LocalOrganizationService, user *models.User, entityType string, row models.ImportRow, result *models.ImportConfirmResult) {
 	createReq := csvimport.OrganizationDataToCreateRequest(row.Data)
 
-	existingID, err := csvimport.GetOrganizationIDByName(createReq.Name, entityType)
+	vat, _ := createReq.CustomData["vat"].(string)
+	existingID, err := csvimport.GetOrganizationIDByVAT(vat, entityType)
 	if err != nil || existingID == "" {
 		result.Failed++
 		errMsg := "organization not found in database"

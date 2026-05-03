@@ -13,9 +13,9 @@ import (
 
 func TestValidateOrganizationRow_Valid(t *testing.T) {
 	row := map[string]string{
-		"name":         "Acme Corp",
+		"company_name": "Acme Corp",
 		"description":  "Main distributor",
-		"vat":          "IT12345678901",
+		"vat_number":   "IT12345678901",
 		"address":      "Via Roma 1",
 		"city":         "Milano",
 		"main_contact": "Mario Rossi",
@@ -32,9 +32,9 @@ func TestValidateOrganizationRow_Valid(t *testing.T) {
 
 func TestValidateOrganizationRow_MissingRequired(t *testing.T) {
 	row := map[string]string{
-		"name":         "",
+		"company_name": "",
 		"description":  "",
-		"vat":          "",
+		"vat_number":   "",
 		"address":      "",
 		"city":         "",
 		"main_contact": "",
@@ -45,26 +45,26 @@ func TestValidateOrganizationRow_MissingRequired(t *testing.T) {
 	}
 	errs := ValidateOrganizationRow(row)
 	if len(errs) < 2 {
-		t.Fatalf("expected at least 2 errors (name, vat), got: %d", len(errs))
+		t.Fatalf("expected at least 2 errors (company_name, vat_number), got: %d", len(errs))
 	}
 
 	fields := make(map[string]bool)
 	for _, e := range errs {
 		fields[e.Field] = true
 	}
-	if !fields["name"] {
-		t.Error("expected error for missing name")
+	if !fields["company_name"] {
+		t.Error("expected error for missing company_name")
 	}
-	if !fields["vat"] {
-		t.Error("expected error for missing vat")
+	if !fields["vat_number"] {
+		t.Error("expected error for missing vat_number")
 	}
 }
 
 func TestValidateOrganizationRow_InvalidOptionalFields(t *testing.T) {
 	row := map[string]string{
-		"name":         "Test",
+		"company_name": "Test",
 		"description":  "",
-		"vat":          "IT123",
+		"vat_number":   "IT123",
 		"address":      "",
 		"city":         "",
 		"main_contact": "",
@@ -92,9 +92,9 @@ func TestValidateOrganizationRow_InvalidOptionalFields(t *testing.T) {
 
 func TestOrganizationRowToData(t *testing.T) {
 	row := map[string]string{
-		"name":         "Test Corp",
+		"company_name": "Test Corp",
 		"description":  "desc",
-		"vat":          "IT123",
+		"vat_number":   "IT123",
 		"address":      "addr",
 		"city":         "city",
 		"main_contact": "contact",
@@ -104,19 +104,19 @@ func TestOrganizationRowToData(t *testing.T) {
 		"notes":        "notes",
 	}
 	data := OrganizationRowToData(row)
-	if data["name"] != "Test Corp" {
-		t.Fatalf("expected name 'Test Corp', got %v", data["name"])
+	if data["company_name"] != "Test Corp" {
+		t.Fatalf("expected company_name 'Test Corp', got %v", data["company_name"])
 	}
-	if data["vat"] != "IT123" {
-		t.Fatalf("expected vat 'IT123', got %v", data["vat"])
+	if data["vat_number"] != "IT123" {
+		t.Fatalf("expected vat_number 'IT123', got %v", data["vat_number"])
 	}
 }
 
 func TestOrganizationDataToCreateRequest(t *testing.T) {
 	data := map[string]interface{}{
-		"name":         "Test Corp",
+		"company_name": "Test Corp",
 		"description":  "desc",
-		"vat":          "IT123",
+		"vat_number":   "IT123",
 		"address":      "addr",
 		"city":         "city",
 		"main_contact": "contact",
@@ -127,10 +127,10 @@ func TestOrganizationDataToCreateRequest(t *testing.T) {
 	}
 	req := OrganizationDataToCreateRequest(data)
 	if req.Name != "Test Corp" {
-		t.Fatalf("expected name 'Test Corp', got %q", req.Name)
+		t.Fatalf("expected Name 'Test Corp', got %q", req.Name)
 	}
 	if req.CustomData["vat"] != "IT123" {
-		t.Fatalf("expected vat 'IT123', got %v", req.CustomData["vat"])
+		t.Fatalf("expected custom_data.vat 'IT123' (Logto schema unchanged), got %v", req.CustomData["vat"])
 	}
 	if req.CustomData["language"] != "it" {
 		t.Fatalf("expected default language 'it', got %v", req.CustomData["language"])
