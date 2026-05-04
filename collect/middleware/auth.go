@@ -10,6 +10,7 @@
 package middleware
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
@@ -239,7 +240,10 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 		WHERE system_key = $1 AND deleted_at IS NULL
 	`
 
-	err := database.DB.QueryRow(query, systemKey).Scan(
+	queryCtx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	err := database.DB.QueryRowContext(queryCtx, query, systemKey).Scan(
 		&creds.systemID,
 		&creds.secretPublic,
 		&creds.secretSHA256,

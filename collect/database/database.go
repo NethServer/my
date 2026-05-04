@@ -82,8 +82,7 @@ func initPostgreSQL() error {
 	DB.SetConnMaxLifetime(connMaxAge)
 	DB.SetConnMaxIdleTime(1 * time.Minute) // Force cleanup of idle connections
 
-	// Test connection
-	if err := DB.Ping(); err != nil {
+	if err := pingWithRetry(); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
@@ -95,6 +94,45 @@ func initPostgreSQL() error {
 		Msg("PostgreSQL connection established")
 
 	return nil
+}
+
+func pingWithRetry() error {
+	budget := 90 * time.Second
+	if v := os.Getenv("DATABASE_PING_TIMEOUT"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			budget = d
+		}
+	}
+	interval := 2 * time.Second
+	if v := os.Getenv("DATABASE_PING_INTERVAL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			interval = d
+		}
+	}
+
+	deadline := time.Now().Add(budget)
+	attempt := 0
+	for {
+		attempt++
+		err := DB.Ping()
+		if err == nil {
+			if attempt > 1 {
+				logger.ComponentLogger("database").Info().
+					Int("attempts", attempt).
+					Msg("PostgreSQL became reachable")
+			}
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("database unreachable after %d attempts in %s: %w", attempt, budget, err)
+		}
+		logger.ComponentLogger("database").Warn().
+			Err(err).
+			Int("attempt", attempt).
+			Dur("retry_in", interval).
+			Msg("PostgreSQL not ready, retrying")
+		time.Sleep(interval)
+	}
 }
 
 // Close closes the database connection
