@@ -251,3 +251,28 @@ func (r *LocalAlertHistoryRepository) GetAlertHistoryTrend(period int, orgID str
 		DataPoints:      dataPoints,
 	}, nil
 }
+
+// ReassignSystemAlertHistory rewrites the denormalized organization_id on every
+// alert_history row that belongs to the given system_key and was previously
+// scoped to fromOrgID. Used by the org-reassignment flow so the new owner can
+// see the system's full history while the donor org loses access along with
+// the system. Returns the number of rows updated; idempotent (a second call
+// matches no rows because organization_id has already moved).
+func (r *LocalAlertHistoryRepository) ReassignSystemAlertHistory(systemKey, fromOrgID, toOrgID string) (int64, error) {
+	if systemKey == "" || fromOrgID == "" || toOrgID == "" {
+		return 0, fmt.Errorf("systemKey, fromOrgID and toOrgID are required")
+	}
+	if fromOrgID == toOrgID {
+		return 0, nil
+	}
+	result, err := r.db.Exec(
+		`UPDATE alert_history
+		 SET organization_id = $1
+		 WHERE system_key = $2 AND organization_id = $3`,
+		toOrgID, systemKey, fromOrgID,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to reassign alert history: %w", err)
+	}
+	return result.RowsAffected()
+}

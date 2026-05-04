@@ -284,6 +284,59 @@ func GetSilence(orgID, silenceID string) (*models.AlertmanagerSilence, error) {
 	return &silence, nil
 }
 
+// CleanupSystemSilences removes every silence in the given Mimir tenant that
+// targets the supplied system_key — typically the donor organization right
+// after a system has been reassigned away from it. The match must be exact
+// and non-regex, so silences that were broadened to cover a wider set of
+// systems are left in place. Already-expired silences are skipped because
+// Mimir garbage-collects them on its own.
+//
+// The function is best-effort: a partial failure (one silence DELETE returns
+// an error) is logged and the loop continues so as many orphans as possible
+// are cleared. Returns the count of silences deleted along with the first
+// error encountered, if any.
+func CleanupSystemSilences(orgID, systemKey string) (int, error) {
+	silences, err := GetSilences(orgID)
+	if err != nil {
+		return 0, fmt.Errorf("list silences in org %s: %w", orgID, err)
+	}
+
+	deleted := 0
+	var firstErr error
+	for _, s := range silences {
+		if s.Status != nil && s.Status.State == "expired" {
+			continue
+		}
+		if !silenceTargetsSystem(s.Matchers, systemKey) {
+			continue
+		}
+		if err := DeleteSilence(orgID, s.ID); err != nil {
+			if errors.Is(err, ErrSilenceNotFound) {
+				continue
+			}
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		deleted++
+	}
+
+	return deleted, firstErr
+}
+
+// silenceTargetsSystem reports whether the matchers identify exactly one
+// system_key. A silence with a broader scope (regex or extra matchers that
+// hit other systems) is intentionally left untouched.
+func silenceTargetsSystem(matchers []models.AlertmanagerMatcher, systemKey string) bool {
+	for _, m := range matchers {
+		if m.Name == "system_key" && m.Value == systemKey && !m.IsRegex {
+			return true
+		}
+	}
+	return false
+}
+
 // DeleteSilence deletes a specific Alertmanager silence for the given tenant.
 func DeleteSilence(orgID, silenceID string) error {
 	url := configuration.Config.MimirURL + "/alertmanager/api/v2/silence/" + url.PathEscape(silenceID)

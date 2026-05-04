@@ -28,7 +28,9 @@ import (
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
+	"github.com/nethesis/my/backend/services/alerting"
 	"github.com/nethesis/my/backend/services/logto"
+	"github.com/nethesis/my/backend/storage"
 )
 
 // LocalSystemsService handles business logic for systems management
@@ -354,7 +356,9 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 	}
 	// Note: Type and SystemKey are not modifiable via update API
 	// Validate organization_id change if provided
-	if request.OrganizationID != "" && request.OrganizationID != system.Organization.LogtoID {
+	previousOrgID := system.Organization.LogtoID
+	orgChanging := request.OrganizationID != "" && request.OrganizationID != previousOrgID
+	if orgChanging {
 		// Validate user can assign system to the new organization
 		if canCreate, reason := s.CanCreateSystemForOrganization(userOrgRole, userOrgID, request.OrganizationID); !canCreate {
 			return nil, fmt.Errorf("access denied for organization change: %s", reason)
@@ -379,6 +383,20 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 		return nil, fmt.Errorf("failed to marshal custom_data: %w", err)
 	}
 
+	// Copy backups onto the destination organization's S3 prefix BEFORE the
+	// authoritative organization_id flip. Backup reads on `my` resolve the
+	// prefix from the system's current organization, so the new owner must
+	// see its objects from the moment the row updates. CopyObject is
+	// idempotent: a partial run can be retried without producing duplicates.
+	// A failure here aborts the reassignment so the source prefix stays
+	// authoritative and the admin can retry safely.
+	if orgChanging {
+		ctx := context.Background()
+		if _, err := storage.CopyBackupPrefix(ctx, previousOrgID, system.Organization.LogtoID, system.SystemKey); err != nil {
+			return nil, fmt.Errorf("failed to migrate system backups across organizations: %w", err)
+		}
+	}
+
 	// Update system in database (FQDN and IP addresses are managed by collect service)
 	// Note: type and system_key are not modifiable
 	query := `
@@ -390,6 +408,62 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 	_, err = database.DB.Exec(query, systemID, system.Name, system.Organization.LogtoID, customDataJSON, system.Notes, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update system: %w", err)
+	}
+
+	// After the row has flipped, drop the source-org backups and prune any
+	// silences that were targeting this system in the donor tenant. Both
+	// steps are best-effort: a failure leaves orphan bytes (consuming the
+	// donor's quota until a sweep removes them) or stale silences (which
+	// expire naturally at endsAt), but the system is already correctly
+	// owned by the new organization, so we surface a warning and return
+	// success rather than misleading the admin into a retry.
+	if orgChanging {
+		ctx := context.Background()
+		if _, err := storage.DeleteBackupPrefix(ctx, previousOrgID, system.SystemKey); err != nil {
+			logger.Warn().Err(err).
+				Str("system_id", systemID).
+				Str("system_key", system.SystemKey).
+				Str("previous_org_id", previousOrgID).
+				Msg("source-org backup cleanup failed after reassignment; orphan objects left under donor prefix")
+		}
+		if _, err := alerting.CleanupSystemSilences(previousOrgID, system.SystemKey); err != nil {
+			logger.Warn().Err(err).
+				Str("system_id", systemID).
+				Str("system_key", system.SystemKey).
+				Str("previous_org_id", previousOrgID).
+				Msg("source-org silence cleanup failed after reassignment; donor-tenant silences will expire naturally")
+		}
+		// Move alert_history rows to the new organization so the new owner
+		// sees the system's full history and the donor — which no longer
+		// owns the system — loses visibility along with the row.
+		// alert_history is denormalized (organization_id captured at
+		// webhook write-time for tenant isolation); without this rewrite the
+		// rows would stay attributed to the donor and become unreachable
+		// from any UI.
+		alertHistoryRepo := entities.NewLocalAlertHistoryRepository()
+		if _, err := alertHistoryRepo.ReassignSystemAlertHistory(system.SystemKey, previousOrgID, system.Organization.LogtoID); err != nil {
+			logger.Warn().Err(err).
+				Str("system_id", systemID).
+				Str("system_key", system.SystemKey).
+				Str("previous_org_id", previousOrgID).
+				Msg("alert history reassignment failed after org change; rows remain attributed to donor and will be invisible to the new owner")
+		}
+		// Strip organization assignments from every application that lives
+		// on this system. App-to-org assignments are made manually within
+		// the donor's RBAC hierarchy; the new owner may sit in a different
+		// hierarchy where the previously chosen organization_id has no
+		// meaning, so we drop the assignment and let the new owner pick
+		// targets via the regular assign endpoint. The apps themselves
+		// (system_id FK, inventory data) stay with the system.
+		appsRepo := entities.NewLocalApplicationRepository()
+		if _, err := appsRepo.UnassignAllForSystem(systemID); err != nil {
+			logger.Warn().Err(err).
+				Str("system_id", systemID).
+				Str("previous_org_id", previousOrgID).
+				Msg("failed to clear app organization assignments after org change; apps remain assigned to the donor's hierarchy")
+		} else {
+			cache.GetAppsCache().InvalidateAll()
+		}
 	}
 
 	logger.Info().

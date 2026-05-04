@@ -261,3 +261,59 @@ func TestGetAlertHistoryTrend_Down(t *testing.T) {
 	assert.Len(t, trend.DataPoints, 30)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestReassignSystemAlertHistory(t *testing.T) {
+	repo, mock, cleanup := setupAlertHistoryMock(t)
+	defer cleanup()
+
+	mock.ExpectExec(`UPDATE alert_history\s+SET organization_id = \$1\s+WHERE system_key = \$2 AND organization_id = \$3`).
+		WithArgs("org-new", "SYS-001", "org-old").
+		WillReturnResult(sqlmock.NewResult(0, 7))
+
+	rows, err := repo.ReassignSystemAlertHistory("SYS-001", "org-old", "org-new")
+	require.NoError(t, err)
+	assert.Equal(t, int64(7), rows)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestReassignSystemAlertHistoryNoopWhenSameOrg(t *testing.T) {
+	repo, _, cleanup := setupAlertHistoryMock(t)
+	defer cleanup()
+
+	// Same source and destination: must not hit the database at all
+	// (any unexpected Exec would be flagged by sqlmock on close).
+	rows, err := repo.ReassignSystemAlertHistory("SYS-001", "org-1", "org-1")
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), rows)
+}
+
+func TestReassignSystemAlertHistoryRejectsEmptyArgs(t *testing.T) {
+	repo, _, cleanup := setupAlertHistoryMock(t)
+	defer cleanup()
+
+	cases := []struct{ key, from, to string }{
+		{"", "org-old", "org-new"},
+		{"SYS-001", "", "org-new"},
+		{"SYS-001", "org-old", ""},
+	}
+	for _, tc := range cases {
+		_, err := repo.ReassignSystemAlertHistory(tc.key, tc.from, tc.to)
+		assert.Error(t, err)
+	}
+}
+
+func TestReassignSystemAlertHistoryReturnsZeroWhenNoMatch(t *testing.T) {
+	repo, mock, cleanup := setupAlertHistoryMock(t)
+	defer cleanup()
+
+	// Idempotency: a re-run on a system whose history has already moved
+	// matches no rows but is still a successful no-op.
+	mock.ExpectExec(`UPDATE alert_history`).
+		WithArgs("org-new", "SYS-001", "org-old").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	rows, err := repo.ReassignSystemAlertHistory("SYS-001", "org-old", "org-new")
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), rows)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
