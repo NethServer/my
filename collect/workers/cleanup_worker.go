@@ -201,18 +201,13 @@ func (cw *CleanupWorker) cleanupInventoryRecordsExponential(ctx context.Context,
 
 // loadInventoryEdgeIDs returns the set of record ids that must always be
 // preserved: the first and last record per system. Computed once per cleanup
-// run and reused across all tier DELETEs.
+// run and reused across all tier DELETEs. id is BIGSERIAL (monotonic), so
+// MIN/MAX(id) per system_id matches "first/last record" chronologically.
 func loadInventoryEdgeIDs(ctx context.Context) ([]int64, error) {
 	const q = `
-		SELECT id FROM (
-			SELECT DISTINCT ON (system_id) id
-			FROM inventory_records
-			ORDER BY system_id, created_at ASC, id ASC
-			UNION
-			SELECT DISTINCT ON (system_id) id
-			FROM inventory_records
-			ORDER BY system_id, created_at DESC, id DESC
-		) edges
+		SELECT MIN(id) AS edge_id FROM inventory_records GROUP BY system_id
+		UNION
+		SELECT MAX(id) FROM inventory_records GROUP BY system_id
 	`
 	rows, err := database.DB.QueryContext(ctx, q)
 	if err != nil {
