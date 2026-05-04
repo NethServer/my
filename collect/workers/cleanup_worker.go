@@ -236,6 +236,10 @@ func deleteInventoryTier(ctx context.Context, tier retentionTier, edges []int64,
 	if tier.maxAge != "" {
 		upperBound = "AND created_at >= NOW() - $5::interval"
 	}
+	// inventory_diffs.current_id is NOT NULL; the FK declares ON DELETE SET NULL
+	// but the column constraint refuses NULLs, so deleting a record referenced
+	// as current_id raises a not-null violation. Skip such records here until
+	// the schema is reconciled (current_id should be made nullable).
 	query := fmt.Sprintf(`
 		DELETE FROM inventory_records
 		WHERE id IN (
@@ -246,10 +250,13 @@ func deleteInventoryTier(ctx context.Context, tier retentionTier, edges []int64,
 						PARTITION BY system_id, DATE_TRUNC($1, created_at)
 						ORDER BY created_at DESC, id DESC
 					) AS rn
-				FROM inventory_records
+				FROM inventory_records ir
 				WHERE created_at < NOW() - $2::interval
 					%s
 					AND id <> ALL($3::bigint[])
+					AND NOT EXISTS (
+						SELECT 1 FROM inventory_diffs d WHERE d.current_id = ir.id
+					)
 			) ranked
 			WHERE rn > 1
 			LIMIT $4
