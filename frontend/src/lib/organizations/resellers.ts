@@ -6,6 +6,7 @@ import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 import { type Pagination } from '../common'
+import type { ImportValidationResult, ImportConfirmResult } from './organizations'
 
 export const RESELLERS_KEY = 'resellers'
 export const RESELLERS_TOTAL_KEY = 'resellersTotal'
@@ -249,4 +250,49 @@ export const getExport = (
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data)
+}
+
+// ============================================================
+// Import API functions
+// ============================================================
+
+export const getImportTemplate = () => {
+  const loginStore = useLoginStore()
+  return axios
+    .get<Blob>(`${API_URL}/resellers/import/template`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+      responseType: 'blob',
+    })
+    .then((res) => res.data)
+}
+
+export const validateResellersImport = (file: File) => {
+  const loginStore = useLoginStore()
+  const formData = new FormData()
+  formData.append('file', file)
+  return axios
+    .post<{ code: number; message: string; data: ImportValidationResult }>(
+      `${API_URL}/resellers/import/validate`,
+      formData,
+      {
+        headers: {
+          Authorization: `Bearer ${loginStore.jwtToken}`,
+          'Content-Type': null,
+        },
+      },
+    )
+    .then((res) => res.data.data)
+}
+
+export const confirmResellersImport = (importId: string, override: boolean) => {
+  const loginStore = useLoginStore()
+  return axios
+    .post<{ code: number; message: string; data: ImportConfirmResult }>(
+      `${API_URL}/resellers/import/confirm`,
+      { import_id: importId, override },
+      {
+        headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+      },
+    )
+    .then((res) => res.data.data)
 }

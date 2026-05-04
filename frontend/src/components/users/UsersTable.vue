@@ -448,7 +448,7 @@ const onClosePasswordChangedModal = () => {
       :sort-key="sortBy"
       :sort-descending="sortDescending"
       :aria-label="$t('users.title')"
-      card-breakpoint="xl"
+      card-breakpoint="2xl"
       :loading="state.status === 'pending'"
       :skeleton-columns="5"
       :skeleton-rows="7"
@@ -486,7 +486,7 @@ const onClosePasswordChangedModal = () => {
           </NeTableCell>
           <NeTableCell
             :data-label="$t('users.email')"
-            class="break-all xl:break-normal"
+            class="break-all 2xl:break-normal"
             :class="{ 'opacity-50': item.deleted_at }"
           >
             {{ item.email }}
@@ -561,7 +561,7 @@ const onClosePasswordChangedModal = () => {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div v-if="canManageUsers()" class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+            <div v-if="canManageUsers()" class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
               <NeButton v-if="!item.deleted_at" kind="tertiary" @click="showEditUserDrawer(item)">
                 <template #prefix>
                   <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />

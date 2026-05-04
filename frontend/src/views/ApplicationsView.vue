@@ -62,13 +62,9 @@ const dontShowUnassignedAppsNotificationAgain = () => {
       v-if="showUnassignedAppsNotification"
       kind="info"
       :description="
-        $t(
-          'applications.num_applications_not_assigned',
-          {
-            num: applicationsTotal.data?.unassigned,
-          },
-          applicationsTotal.data?.unassigned || 0,
-        )
+        $t('applications.num_applications_not_assigned', {
+          count: applicationsTotal.data?.unassigned,
+        })
       "
       :primary-button-label="t('applications.show_unassigned')"
       :secondary-button-label="t('applications.dont_show_again')"
