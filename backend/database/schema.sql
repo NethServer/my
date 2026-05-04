@@ -547,6 +547,7 @@ COMMENT ON COLUMN inventory_records.change_count IS 'Number of significant chang
 
 -- Performance indexes
 CREATE INDEX IF NOT EXISTS idx_inventory_records_system_id_timestamp ON inventory_records(system_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_inventory_records_system_id_created_at ON inventory_records(system_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_inventory_records_data_hash ON inventory_records(data_hash);
 CREATE INDEX IF NOT EXISTS idx_inventory_records_processed_at ON inventory_records(processed_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_inventory_records_system_data_hash ON inventory_records(system_id, data_hash);

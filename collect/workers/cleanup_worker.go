@@ -11,10 +11,12 @@ package workers
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/lib/pq"
 	"github.com/nethesis/my/collect/database"
 	"github.com/nethesis/my/collect/logger"
 	"github.com/rs/zerolog"
@@ -124,6 +126,36 @@ func (cw *CleanupWorker) runCleanup(ctx context.Context, workerLogger *zerolog.L
 		Msg("Cleanup operations completed")
 }
 
+// retentionTier describes one age band of the exponential retention policy:
+// records older than minAge but younger than maxAge keep a single representative
+// per (system_id, bucket). maxAge="" means "no upper bound" (the oldest tier).
+type retentionTier struct {
+	name   string // for logging
+	minAge string // pg interval, e.g. "7 days"
+	maxAge string // pg interval, e.g. "1 month"; empty for the oldest tier
+	bucket string // DATE_TRUNC unit: day | week | month | quarter
+}
+
+// inventoryRetentionTiers preserves the original semantics:
+//   - 7 days – 1 month: keep 1 per day
+//   - 1 month – 3 months: keep 1 per week
+//   - 3 months – 1 year: keep 1 per month
+//   - Older than 1 year: keep 1 per quarter
+var inventoryRetentionTiers = []retentionTier{
+	{name: "7d-1m", minAge: "7 days", maxAge: "1 month", bucket: "day"},
+	{name: "1m-3m", minAge: "1 month", maxAge: "3 months", bucket: "week"},
+	{name: "3m-1y", minAge: "3 months", maxAge: "1 year", bucket: "month"},
+	{name: "1y+", minAge: "1 year", maxAge: "", bucket: "quarter"},
+}
+
+// inventoryCleanupBatchSize bounds how many rows a single DELETE materializes,
+// keeping peak working memory bounded on small postgres tiers.
+const inventoryCleanupBatchSize = 1000
+
+// inventoryCleanupStmtTimeout caps each cleanup statement so a slow plan
+// can't hold a connection indefinitely.
+const inventoryCleanupStmtTimeout = 60 * time.Second
+
 // cleanupInventoryRecordsExponential applies exponential retention to inventory_records.
 //
 // The strategy preserves historical coverage while controlling storage growth:
@@ -138,85 +170,134 @@ func (cw *CleanupWorker) runCleanup(ctx context.Context, workerLogger *zerolog.L
 // are self-contained (field_path, previous_value, current_value). The FK from
 // inventory_diffs to inventory_records uses ON DELETE SET NULL so diffs survive
 // when their referenced snapshot is pruned.
+//
+// Implementation: per-tier batched DELETEs with a precomputed edge set, so
+// peak working memory per statement stays bounded.
 func (cw *CleanupWorker) cleanupInventoryRecordsExponential(ctx context.Context, workerLogger *zerolog.Logger) error {
-	// Each tier: delete records in the age window that are NOT the representative
-	// for their bucket (day/week/month/quarter), and NOT the first or last per system.
-	//
-	// We use ROW_NUMBER() within each bucket, keeping only row 1 (most recent within bucket).
-	// The first and last record per system are always excluded from deletion via a subquery.
-	query := `
+	edges, err := loadInventoryEdgeIDs(ctx)
+	if err != nil {
+		return fmt.Errorf("load edge ids: %w", err)
+	}
+	workerLogger.Debug().
+		Int("edge_ids", len(edges)).
+		Msg("Loaded first/last record ids per system")
+
+	totalDeleted := int64(0)
+	for _, tier := range inventoryRetentionTiers {
+		deleted, err := deleteInventoryTier(ctx, tier, edges, workerLogger)
+		if err != nil {
+			return fmt.Errorf("tier %s: %w", tier.name, err)
+		}
+		totalDeleted += deleted
+	}
+
+	if totalDeleted > 0 {
+		workerLogger.Info().
+			Int64("rows_deleted", totalDeleted).
+			Msg("Cleaned up inventory records (exponential retention)")
+	}
+	return nil
+}
+
+// loadInventoryEdgeIDs returns the set of record ids that must always be
+// preserved: the first and last record per system. Computed once per cleanup
+// run and reused across all tier DELETEs.
+func loadInventoryEdgeIDs(ctx context.Context) ([]int64, error) {
+	const q = `
+		SELECT id FROM (
+			SELECT DISTINCT ON (system_id) id
+			FROM inventory_records
+			ORDER BY system_id, created_at ASC, id ASC
+			UNION
+			SELECT DISTINCT ON (system_id) id
+			FROM inventory_records
+			ORDER BY system_id, created_at DESC, id DESC
+		) edges
+	`
+	rows, err := database.DB.QueryContext(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	ids := make([]int64, 0, 1024)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// deleteInventoryTier removes records for a single age tier, batched by
+// inventoryCleanupBatchSize and bounded by inventoryCleanupStmtTimeout per
+// statement, looping until a batch returns fewer rows than the limit.
+func deleteInventoryTier(ctx context.Context, tier retentionTier, edges []int64, workerLogger *zerolog.Logger) (int64, error) {
+	// $1=bucket unit, $2=minAge interval, $3=excluded edge ids,
+	// $4=batch size, and (when present) $5=maxAge interval.
+	upperBound := ""
+	if tier.maxAge != "" {
+		upperBound = "AND created_at >= NOW() - $5::interval"
+	}
+	query := fmt.Sprintf(`
 		DELETE FROM inventory_records
 		WHERE id IN (
 			SELECT id FROM (
 				SELECT
 					id,
-					created_at,
-					system_id,
-					-- Bucket label varies by age tier
-					CASE
-						WHEN created_at >= NOW() - INTERVAL '7 days'
-							THEN NULL -- never delete records from last 7 days
-						WHEN created_at >= NOW() - INTERVAL '1 month'
-							THEN DATE_TRUNC('day', created_at)::text
-						WHEN created_at >= NOW() - INTERVAL '3 months'
-							THEN DATE_TRUNC('week', created_at)::text
-						WHEN created_at >= NOW() - INTERVAL '1 year'
-							THEN DATE_TRUNC('month', created_at)::text
-						ELSE
-							DATE_TRUNC('quarter', created_at)::text
-					END AS bucket,
 					ROW_NUMBER() OVER (
-						PARTITION BY system_id,
-						CASE
-							WHEN created_at >= NOW() - INTERVAL '7 days'
-								THEN NULL
-							WHEN created_at >= NOW() - INTERVAL '1 month'
-								THEN DATE_TRUNC('day', created_at)::text
-							WHEN created_at >= NOW() - INTERVAL '3 months'
-								THEN DATE_TRUNC('week', created_at)::text
-							WHEN created_at >= NOW() - INTERVAL '1 year'
-								THEN DATE_TRUNC('month', created_at)::text
-							ELSE
-								DATE_TRUNC('quarter', created_at)::text
-						END
-						ORDER BY created_at DESC
+						PARTITION BY system_id, DATE_TRUNC($1, created_at)
+						ORDER BY created_at DESC, id DESC
 					) AS rn
 				FROM inventory_records
-				-- Never touch the first or last record per system
-				WHERE id NOT IN (
-					SELECT DISTINCT ON (system_id) id
-					FROM inventory_records
-					ORDER BY system_id, created_at ASC
-				)
-				AND id NOT IN (
-					SELECT DISTINCT ON (system_id) id
-					FROM inventory_records
-					ORDER BY system_id, created_at DESC
-				)
+				WHERE created_at < NOW() - $2::interval
+					%s
+					AND id <> ALL($3::bigint[])
 			) ranked
-			-- Keep row 1 per bucket (most recent in bucket), delete the rest
-			-- Also skip the last-7-days tier (bucket IS NULL)
-			WHERE rn > 1 AND bucket IS NOT NULL
+			WHERE rn > 1
+			LIMIT $4
 		)
-	`
+	`, upperBound)
 
-	result, err := database.DB.ExecContext(ctx, query)
-	if err != nil {
-		return err
+	args := []interface{}{tier.bucket, tier.minAge, pq.Array(edges), inventoryCleanupBatchSize}
+	if tier.maxAge != "" {
+		args = append(args, tier.maxAge)
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
+	totalDeleted := int64(0)
+	for {
+		stmtCtx, cancel := context.WithTimeout(ctx, inventoryCleanupStmtTimeout)
+		result, err := database.DB.ExecContext(stmtCtx, query, args...)
+		cancel()
+		if err != nil {
+			return totalDeleted, err
+		}
+		n, err := result.RowsAffected()
+		if err != nil {
+			return totalDeleted, err
+		}
+		totalDeleted += n
+		if n < inventoryCleanupBatchSize {
+			break
+		}
+		// Yield to the DB between batches so concurrent traffic
+		// (heartbeats, auth lookups) gets connections back.
+		select {
+		case <-ctx.Done():
+			return totalDeleted, ctx.Err()
+		case <-time.After(200 * time.Millisecond):
+		}
 	}
 
-	if rowsAffected > 0 {
-		workerLogger.Info().
-			Int64("rows_deleted", rowsAffected).
-			Msg("Cleaned up inventory records (exponential retention)")
+	if totalDeleted > 0 {
+		workerLogger.Debug().
+			Str("tier", tier.name).
+			Int64("rows_deleted", totalDeleted).
+			Msg("Tier cleanup completed")
 	}
-
-	return nil
+	return totalDeleted, nil
 }
 
 // cleanupResolvedAlerts removes old resolved alerts
