@@ -8,6 +8,7 @@
 package methods
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -23,6 +24,11 @@ import (
 	"github.com/nethesis/my/collect/response"
 )
 
+// alertHistoryRequestTimeout caps the per-webhook DB work. Typical payloads
+// hold 1–50 resolved alerts and each costs ~10ms of DB time, so 15s is well
+// above expected and bounds the worst case.
+const alertHistoryRequestTimeout = 15 * time.Second
+
 // zeroTime is Alertmanager's sentinel for "no end time" on firing alerts.
 var zeroTime = time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
 
@@ -35,6 +41,9 @@ func ReceiveAlertHistory(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), alertHistoryRequestTimeout)
+	defer cancel()
 
 	saved := 0
 	for _, alert := range payload.Alerts {
@@ -55,7 +64,7 @@ func ReceiveAlertHistory(c *gin.Context) {
 		// never trust a claimed organization_id from the payload — the DB is
 		// authoritative. Unknown system_keys are dropped.
 		var organizationID string
-		err := database.DB.QueryRow(
+		err := database.DB.QueryRowContext(ctx,
 			`SELECT organization_id FROM systems WHERE system_key = $1 AND deleted_at IS NULL`,
 			systemKey,
 		).Scan(&organizationID)
@@ -99,6 +108,7 @@ func ReceiveAlertHistory(c *gin.Context) {
 		}
 
 		err = persistResolvedAlertHistory(
+			ctx,
 			alert,
 			systemKey,
 			organizationID,
@@ -136,6 +146,7 @@ func ReceiveAlertHistory(c *gin.Context) {
 // LinkFailed refreshes can emit multiple resolved webhooks for the same outage.
 // starts_at stays stable for that outage, so reuse it as the history key.
 func persistResolvedAlertHistory(
+	ctx context.Context,
 	alert models.AlertmanagerAlert,
 	systemKey, organizationID, alertname, severity, summary, receiver string,
 	labelsJSON, annotationsJSON []byte,
@@ -143,6 +154,7 @@ func persistResolvedAlertHistory(
 ) error {
 	if alertname == collectalerting.LinkFailedAlert {
 		updated, err := updateExistingLinkFailedHistory(
+			ctx,
 			alert,
 			systemKey,
 			organizationID,
@@ -163,6 +175,7 @@ func persistResolvedAlertHistory(
 	}
 
 	return insertAlertHistory(
+		ctx,
 		alert,
 		systemKey,
 		organizationID,
@@ -177,12 +190,13 @@ func persistResolvedAlertHistory(
 }
 
 func updateExistingLinkFailedHistory(
+	ctx context.Context,
 	alert models.AlertmanagerAlert,
 	systemKey, organizationID, alertname, severity, summary, receiver string,
 	labelsJSON, annotationsJSON []byte,
 	endsAt *time.Time,
 ) (bool, error) {
-	result, err := database.DB.Exec(
+	result, err := database.DB.ExecContext(ctx,
 		`WITH existing AS (
 			SELECT id
 			FROM alert_history
@@ -231,12 +245,13 @@ func updateExistingLinkFailedHistory(
 }
 
 func insertAlertHistory(
+	ctx context.Context,
 	alert models.AlertmanagerAlert,
 	systemKey, organizationID, alertname, severity, summary, receiver string,
 	labelsJSON, annotationsJSON []byte,
 	endsAt *time.Time,
 ) error {
-	_, err := database.DB.Exec(
+	_, err := database.DB.ExecContext(ctx,
 		`INSERT INTO alert_history
 			(system_key, organization_id, alertname, severity, status, fingerprint, starts_at, ends_at, summary, labels, annotations, receiver)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
