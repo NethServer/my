@@ -1018,7 +1018,15 @@ func (s *LocalSystemsService) CanCreateSystemForOrganization(userOrgRole, userOr
 
 	switch normalizedOrgRole {
 	case "owner":
-		return true, ""
+		// Owner can assign to any organization in the hierarchy. We still
+		// gate the assignment on existence so a typo or stale logto_id can't
+		// strand a system under a phantom organization (which would silently
+		// route its backups to an unreachable S3 prefix on reassignment).
+		userService := NewUserService()
+		if userService.IsOrganizationInHierarchy(normalizedOrgRole, userOrgID, targetOrgID) {
+			return true, ""
+		}
+		return false, "target organization does not exist"
 	case "distributor":
 		// Distributor can create systems for organizations they manage hierarchically
 		userService := NewUserService()
