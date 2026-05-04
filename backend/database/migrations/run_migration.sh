@@ -101,6 +101,40 @@ check_migration_status() {
     [ "$COUNT" = "1" ]
 }
 
+get_stored_checksum() {
+    $CONTAINER_ENGINE run --rm -i \
+        --network=host \
+        "$POSTGRES_IMAGE" \
+        psql "$DATABASE_URL" -t -A -c \
+        "SELECT COALESCE(checksum, '') FROM schema_migrations WHERE migration_number='$1';"
+}
+
+# Refuse to no-op if the on-disk file's checksum differs from what was recorded
+# at apply time. Editing an applied migration silently lets the new content
+# slip past CREATE TABLE IF NOT EXISTS and similar idempotent guards.
+report_checksum_drift() {
+    local mig="$1" file="$2"
+    local stored actual
+    stored=$(get_stored_checksum "$mig")
+    actual=$(get_file_checksum "$file")
+
+    if [ -z "$stored" ]; then
+        log_warning "Migration $mig has no recorded checksum (legacy row)"
+        return 0
+    fi
+
+    if [ "$stored" = "$actual" ]; then
+        return 0
+    fi
+
+    log_error "Migration $mig drift: file changed after apply"
+    log_error "  recorded: $stored"
+    log_error "  on-disk:  $actual"
+    log_error "Editing an applied migration is unsafe. Add a new migration with"
+    log_error "the schema change, or roll this one back first."
+    return 1
+}
+
 apply_migration() {
     MIG="$1"
     FILE=$(find_migration_file "$MIG")
@@ -111,6 +145,9 @@ apply_migration() {
     fi
 
     if check_migration_status "$MIG"; then
+        if ! report_checksum_drift "$MIG" "$FILE"; then
+            exit 2
+        fi
         log_warning "Migration $MIG already applied"
         return 0
     fi
@@ -160,11 +197,63 @@ rollback_migration() {
     log_success "Migration $MIG rolled back"
 }
 
+verify_all() {
+    create_migrations_table
+
+    local mig stored file actual
+    local ok=0 drift=0 missing_file=0 no_checksum=0
+
+    while IFS='|' read -r mig stored; do
+        mig="${mig// /}"
+        stored="${stored// /}"
+        [ -z "$mig" ] && continue
+
+        file=$(find_migration_file "$mig")
+        if [ -z "$file" ]; then
+            log_warning "Migration $mig: applied but file not present (renamed?)"
+            missing_file=$((missing_file + 1))
+            continue
+        fi
+
+        if [ -z "$stored" ]; then
+            log_warning "Migration $mig: applied but no checksum recorded"
+            no_checksum=$((no_checksum + 1))
+            continue
+        fi
+
+        actual=$(get_file_checksum "$file")
+        if [ "$stored" = "$actual" ]; then
+            ok=$((ok + 1))
+        else
+            log_error "Migration $mig: DRIFT (file edited after apply)"
+            log_error "  recorded: $stored"
+            log_error "  on-disk:  $actual"
+            drift=$((drift + 1))
+        fi
+    done < <($CONTAINER_ENGINE run --rm -i \
+        --network=host \
+        "$POSTGRES_IMAGE" \
+        psql "$DATABASE_URL" -t -A -F'|' \
+        -c "SELECT migration_number, COALESCE(checksum,'') FROM schema_migrations ORDER BY migration_number;")
+
+    log_info "verify: ok=$ok drift=$drift missing_file=$missing_file no_checksum=$no_checksum"
+    [ "$drift" = "0" ]
+}
+
 show_usage() {
     echo "Usage: $0 <migration_number> {apply|rollback|status}"
+    echo "       $0 verify"
 }
 
 main() {
+    detect_container_engine
+    check_database_url
+
+    if [ $# -eq 1 ] && [ "$1" = "verify" ]; then
+        verify_all
+        exit $?
+    fi
+
     if [ $# -ne 2 ]; then
         show_usage
         exit 1
@@ -172,9 +261,6 @@ main() {
 
     MIG="$1"
     ACTION="$2"
-
-    detect_container_engine
-    check_database_url
 
     case "$ACTION" in
         apply)    apply_migration "$MIG" ;;
