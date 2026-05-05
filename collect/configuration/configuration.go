@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/nethesis/my/collect/logger"
@@ -259,9 +260,17 @@ func Init() {
 // well-known dev loopback name; misconfigured prod deployments would
 // otherwise send signed S3 traffic in plaintext. Empty values are
 // returned unchanged (the storage package surfaces a clearer error).
+//
+// A bare hostname (e.g. "ams3.digitaloceanspaces.com") is accepted and
+// rewritten to "https://<host>" so the env var format is coherent with
+// Mimir's S3 endpoint config (which takes a bare host) and the AWS SDK
+// still receives a parseable URL for BaseEndpoint.
 func validateBackupEndpoint(name, raw string) string {
 	if raw == "" {
 		return ""
+	}
+	if !strings.Contains(raw, "://") {
+		raw = "https://" + raw
 	}
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" {
