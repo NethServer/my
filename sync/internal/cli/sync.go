@@ -34,7 +34,7 @@ var syncCmd = &cobra.Command{
 
 ⚠️  REQUIREMENTS:
   🔧 Properly initialized Logto instance (run 'sync init' first)
-  🔑 Valid environment variables (TENANT_ID, BACKEND_APP_ID, etc.)
+  🔑 Valid environment variables (LOGTO_TENANT_ID, LOGTO_BACKEND_APP_ID, etc.)
 
 📝 EXAMPLES:
   sync sync -c config.yml                   # 🔄 Standard sync
@@ -87,10 +87,10 @@ func runSync(cmd *cobra.Command, args []string) error {
 	}
 
 	// Log tenant information for consistency with init command
-	if tenantID := os.Getenv("TENANT_ID"); tenantID != "" {
+	if tenantID := os.Getenv("LOGTO_TENANT_ID"); tenantID != "" {
 		logger.Info("Using tenant ID: %s", tenantID)
 	}
-	if tenantDomain := os.Getenv("TENANT_DOMAIN"); tenantDomain != "" {
+	if tenantDomain := os.Getenv("LOGTO_TENANT_DOMAIN"); tenantDomain != "" {
 		logger.Info("Using tenant domain: %s", tenantDomain)
 	}
 

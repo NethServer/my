@@ -76,9 +76,9 @@ Should return `ready`.
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `MIMIR_S3_ENDPOINT` | S3-compatible storage endpoint | `ams3.digitaloceanspaces.com` |
-| `MIMIR_S3_ACCESS_KEY` | S3 access key | `your-access-key` |
-| `MIMIR_S3_SECRET_KEY` | S3 secret key | `your-secret-key` |
+| `S3_ENDPOINT` | S3-compatible storage endpoint | `ams3.digitaloceanspaces.com` |
+| `S3_ACCESS_KEY` | S3 access key | `your-access-key` |
+| `S3_SECRET_KEY` | S3 secret key | `your-secret-key` |
 | `MIMIR_S3_ALERTMANAGER_BUCKET` | Bucket for Alertmanager state | `my-mimir-alertmanager` |
 
 Copy `services/mimir/.env.example` to `services/mimir/.env` and fill in every value before starting the stack.

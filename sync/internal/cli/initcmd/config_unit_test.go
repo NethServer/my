@@ -20,7 +20,7 @@ import (
 func TestValidateAndGetConfig(t *testing.T) {
 	// Save original environment
 	originalEnvs := make(map[string]string)
-	envVars := []string{"TENANT_ID", "BACKEND_APP_ID", "BACKEND_APP_SECRET", "TENANT_DOMAIN", "APP_URL"}
+	envVars := []string{"LOGTO_TENANT_ID", "LOGTO_BACKEND_APP_ID", "LOGTO_BACKEND_APP_SECRET", "LOGTO_TENANT_DOMAIN", "APP_URL"}
 	for _, env := range envVars {
 		originalEnvs[env] = os.Getenv(env)
 	}
@@ -67,10 +67,10 @@ func TestValidateAndGetConfig(t *testing.T) {
 
 	t.Run("environment mode - all vars set", func(t *testing.T) {
 		// Set environment variables
-		_ = os.Setenv("TENANT_ID", "env-tenant")
-		_ = os.Setenv("TENANT_DOMAIN", "env-domain.com")
-		_ = os.Setenv("BACKEND_APP_ID", "env-client")
-		_ = os.Setenv("BACKEND_APP_SECRET", "env-secret")
+		_ = os.Setenv("LOGTO_TENANT_ID", "env-tenant")
+		_ = os.Setenv("LOGTO_TENANT_DOMAIN", "env-domain.com")
+		_ = os.Setenv("LOGTO_BACKEND_APP_ID", "env-client")
+		_ = os.Setenv("LOGTO_BACKEND_APP_SECRET", "env-secret")
 		_ = os.Setenv("APP_URL", "https://env-app.com")
 
 		config, err := ValidateAndGetConfig("", "", "", "", "")
@@ -98,10 +98,10 @@ func TestValidateAndGetConfig(t *testing.T) {
 
 	t.Run("CLI flags take precedence over environment", func(t *testing.T) {
 		// Set environment variables
-		_ = os.Setenv("TENANT_ID", "env-tenant")
-		_ = os.Setenv("TENANT_DOMAIN", "env-domain.com")
-		_ = os.Setenv("BACKEND_APP_ID", "env-client")
-		_ = os.Setenv("BACKEND_APP_SECRET", "env-secret")
+		_ = os.Setenv("LOGTO_TENANT_ID", "env-tenant")
+		_ = os.Setenv("LOGTO_TENANT_DOMAIN", "env-domain.com")
+		_ = os.Setenv("LOGTO_BACKEND_APP_ID", "env-client")
+		_ = os.Setenv("LOGTO_BACKEND_APP_SECRET", "env-secret")
 		_ = os.Setenv("APP_URL", "https://env-app.com")
 
 		// Override with CLI flags

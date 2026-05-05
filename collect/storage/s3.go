@@ -48,16 +48,16 @@ func BackupClient(ctx context.Context) (*s3.Client, *s3.PresignClient, error) {
 }
 
 func buildBackupClient(ctx context.Context) (*s3.Client, *s3.PresignClient, error) {
-	if configuration.Config.BackupS3Endpoint == "" {
-		return nil, nil, fmt.Errorf("BACKUP_S3_ENDPOINT is not set")
+	if configuration.Config.S3Endpoint == "" {
+		return nil, nil, fmt.Errorf("S3_ENDPOINT is not set")
 	}
-	if configuration.Config.BackupS3AccessKey == "" || configuration.Config.BackupS3SecretKey == "" {
-		return nil, nil, fmt.Errorf("BACKUP_S3_ACCESS_KEY and BACKUP_S3_SECRET_KEY must be set")
+	if configuration.Config.S3AccessKey == "" || configuration.Config.S3SecretKey == "" {
+		return nil, nil, fmt.Errorf("S3_ACCESS_KEY and S3_SECRET_KEY must be set")
 	}
 
 	creds := credentials.NewStaticCredentialsProvider(
-		configuration.Config.BackupS3AccessKey,
-		configuration.Config.BackupS3SecretKey,
+		configuration.Config.S3AccessKey,
+		configuration.Config.S3SecretKey,
 		"",
 	)
 
@@ -70,7 +70,7 @@ func buildBackupClient(ctx context.Context) (*s3.Client, *s3.PresignClient, erro
 	}
 
 	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String(configuration.Config.BackupS3Endpoint)
+		o.BaseEndpoint = aws.String(configuration.Config.S3Endpoint)
 		o.UsePathStyle = configuration.Config.BackupS3UsePathStyle
 	})
 

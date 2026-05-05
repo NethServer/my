@@ -36,7 +36,7 @@ func ValidateAndGetConfig(tenantID, backendAppID, backendAppSecret, logtoDomain,
 		if tenantID == "" || backendAppID == "" || backendAppSecret == "" || logtoDomain == "" || appURL == "" {
 			return nil, fmt.Errorf("when using CLI flags, all must be provided:\n" +
 				"  --tenant-id, --backend-app-id, --backend-app-secret, --logto-domain, --app-url\n" +
-				"Or use environment variables: TENANT_ID, BACKEND_APP_ID, BACKEND_APP_SECRET, TENANT_DOMAIN, APP_URL")
+				"Or use environment variables: LOGTO_TENANT_ID, LOGTO_BACKEND_APP_ID, LOGTO_BACKEND_APP_SECRET, LOGTO_TENANT_DOMAIN, APP_URL")
 		}
 
 		logger.Info("Using CLI mode")
@@ -51,15 +51,15 @@ func ValidateAndGetConfig(tenantID, backendAppID, backendAppSecret, logtoDomain,
 	}
 
 	// Environment mode - check all required env vars
-	envTenantID := os.Getenv("TENANT_ID")
-	envBackendAppID := os.Getenv("BACKEND_APP_ID")
-	envBackendAppSecret := os.Getenv("BACKEND_APP_SECRET")
-	envTenantDomain := os.Getenv("TENANT_DOMAIN")
+	envTenantID := os.Getenv("LOGTO_TENANT_ID")
+	envBackendAppID := os.Getenv("LOGTO_BACKEND_APP_ID")
+	envBackendAppSecret := os.Getenv("LOGTO_BACKEND_APP_SECRET")
+	envTenantDomain := os.Getenv("LOGTO_TENANT_DOMAIN")
 	envAppURL := os.Getenv("APP_URL")
 
 	if envTenantID == "" || envBackendAppID == "" || envBackendAppSecret == "" || envTenantDomain == "" || envAppURL == "" {
 		return nil, fmt.Errorf("required environment variables missing:\n" +
-			"  TENANT_ID, BACKEND_APP_ID, BACKEND_APP_SECRET, TENANT_DOMAIN, APP_URL\n" +
+			"  LOGTO_TENANT_ID, LOGTO_BACKEND_APP_ID, LOGTO_BACKEND_APP_SECRET, LOGTO_TENANT_DOMAIN, APP_URL\n" +
 			"Or use CLI flags: --tenant-id, --backend-app-id, --backend-app-secret, --logto-domain, --app-url")
 	}
 

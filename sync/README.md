@@ -87,15 +87,15 @@ The sync tool loads environment variables from a `.env` file by default. You can
 #### Required Environment Variables
 ```bash
 # Logto tenant configuration
-TENANT_ID=your-tenant-id
-TENANT_DOMAIN=your-domain.com
+LOGTO_TENANT_ID=your-tenant-id
+LOGTO_TENANT_DOMAIN=your-domain.com
 
 # App URL configuration (required for init command)
 APP_URL=https://your-app-domain.com
 
 # Logto Management API (M2M app credentials)
-BACKEND_APP_ID=your-backend-m2m-app-id
-BACKEND_APP_SECRET=your-backend-m2m-app-secret
+LOGTO_BACKEND_APP_ID=your-backend-m2m-app-id
+LOGTO_BACKEND_APP_SECRET=your-backend-m2m-app-secret
 
 # Database connection (required for pull and prune commands)
 DATABASE_URL=postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disable

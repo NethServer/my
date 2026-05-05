@@ -20,13 +20,13 @@ import (
 // CreateLogtoClient creates and tests a Logto client connection
 func CreateLogtoClient() (*client.LogtoClient, error) {
 	// Create Logto client using derived base URL
-	tenantID := os.Getenv("TENANT_ID")
+	tenantID := os.Getenv("LOGTO_TENANT_ID")
 	baseURL := fmt.Sprintf("https://%s.logto.app", tenantID)
 
 	logtoClient := client.NewLogtoClient(
 		baseURL,
-		os.Getenv("BACKEND_APP_ID"),
-		os.Getenv("BACKEND_APP_SECRET"),
+		os.Getenv("LOGTO_BACKEND_APP_ID"),
+		os.Getenv("LOGTO_BACKEND_APP_SECRET"),
 	)
 
 	// Test connection

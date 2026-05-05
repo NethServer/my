@@ -51,10 +51,10 @@ var initCmd = &cobra.Command{
 📝 USAGE MODES:
 
 🔤 Mode 1 - Environment Variables:
-  TENANT_ID=your-tenant-id
-  BACKEND_APP_ID=your-backend-app-id
-  BACKEND_APP_SECRET=your-secret
-  TENANT_DOMAIN=your-domain.com
+  LOGTO_TENANT_ID=your-tenant-id
+  LOGTO_BACKEND_APP_ID=your-backend-app-id
+  LOGTO_BACKEND_APP_SECRET=your-secret
+  LOGTO_TENANT_DOMAIN=your-domain.com
 
   sync init
 

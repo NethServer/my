@@ -55,12 +55,12 @@ func runPrune(cmd *cobra.Command, args []string) error {
 	logger.Info("Starting prune operation...")
 
 	// Get credentials from environment
-	tenantID := os.Getenv("TENANT_ID")
-	clientID := os.Getenv("BACKEND_APP_ID")
-	clientSecret := os.Getenv("BACKEND_APP_SECRET")
+	tenantID := os.Getenv("LOGTO_TENANT_ID")
+	clientID := os.Getenv("LOGTO_BACKEND_APP_ID")
+	clientSecret := os.Getenv("LOGTO_BACKEND_APP_SECRET")
 
 	if tenantID == "" || clientID == "" || clientSecret == "" {
-		return fmt.Errorf("missing required environment variables: TENANT_ID, BACKEND_APP_ID, BACKEND_APP_SECRET")
+		return fmt.Errorf("missing required environment variables: LOGTO_TENANT_ID, LOGTO_BACKEND_APP_ID, LOGTO_BACKEND_APP_SECRET")
 	}
 
 	// Create Logto client

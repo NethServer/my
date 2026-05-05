@@ -47,11 +47,11 @@ func TestDeriveEnvironmentVariables(t *testing.T) {
 		assert.NotNil(t, backendEnv)
 
 		expectedBackendVars := []string{
-			"TENANT_ID",
-			"TENANT_DOMAIN",
+			"LOGTO_TENANT_ID",
+			"LOGTO_TENANT_DOMAIN",
 			"APP_URL",
-			"BACKEND_APP_ID",
-			"BACKEND_APP_SECRET",
+			"LOGTO_BACKEND_APP_ID",
+			"LOGTO_BACKEND_APP_SECRET",
 			"JWT_SECRET",
 			"DATABASE_URL",
 			"REDIS_URL",
@@ -77,11 +77,11 @@ func TestDeriveEnvironmentVariables(t *testing.T) {
 		}
 
 		// Check specific values
-		assert.Equal(t, "test-tenant", backendEnv["TENANT_ID"])
-		assert.Equal(t, "example.com", backendEnv["TENANT_DOMAIN"])
+		assert.Equal(t, "test-tenant", backendEnv["LOGTO_TENANT_ID"])
+		assert.Equal(t, "example.com", backendEnv["LOGTO_TENANT_DOMAIN"])
 		assert.Equal(t, "https://app.example.com", backendEnv["APP_URL"])
-		assert.Equal(t, "backend-client", backendEnv["BACKEND_APP_ID"])
-		assert.Equal(t, "backend-secret", backendEnv["BACKEND_APP_SECRET"])
+		assert.Equal(t, "backend-client", backendEnv["LOGTO_BACKEND_APP_ID"])
+		assert.Equal(t, "backend-secret", backendEnv["LOGTO_BACKEND_APP_SECRET"])
 		assert.Equal(t, "postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disable", backendEnv["DATABASE_URL"])
 		assert.Equal(t, "redis://localhost:6379", backendEnv["REDIS_URL"])
 		assert.Equal(t, "frontend-client-id", frontendEnv["VITE_LOGTO_APP_ID"])
@@ -136,8 +136,8 @@ func TestDeriveEnvironmentVariables(t *testing.T) {
 		backendEnv := testBackend.EnvironmentVars
 
 		// Test that environment variables are populated correctly
-		assert.Equal(t, "my-tenant", backendEnv["TENANT_ID"])
-		assert.Equal(t, "mydomain.com", backendEnv["TENANT_DOMAIN"])
+		assert.Equal(t, "my-tenant", backendEnv["LOGTO_TENANT_ID"])
+		assert.Equal(t, "mydomain.com", backendEnv["LOGTO_TENANT_DOMAIN"])
 		assert.Equal(t, "postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disable", backendEnv["DATABASE_URL"])
 		assert.Equal(t, "redis://localhost:6379", backendEnv["REDIS_URL"])
 

@@ -15,14 +15,14 @@ func setupConfigTestEnvironment() {
 	// Clear environment variables
 	envVars := []string{
 		"LISTEN_ADDRESS",
-		"TENANT_ID",
-		"TENANT_DOMAIN",
+		"LOGTO_TENANT_ID",
+		"LOGTO_TENANT_DOMAIN",
 		"APP_URL",
 		"JWT_SECRET",
 		"JWT_EXPIRATION",
 		"JWT_REFRESH_EXPIRATION",
-		"BACKEND_APP_ID",
-		"BACKEND_APP_SECRET",
+		"LOGTO_BACKEND_APP_ID",
+		"LOGTO_BACKEND_APP_SECRET",
 		"DATABASE_URL",
 	}
 
@@ -35,12 +35,12 @@ func TestConfigurationDefaults(t *testing.T) {
 	setupConfigTestEnvironment()
 
 	// Test with minimal required environment variables
-	_ = os.Setenv("TENANT_ID", "test-tenant")
-	_ = os.Setenv("TENANT_DOMAIN", "test-domain.com")
+	_ = os.Setenv("LOGTO_TENANT_ID", "test-tenant")
+	_ = os.Setenv("LOGTO_TENANT_DOMAIN", "test-domain.com")
 	_ = os.Setenv("APP_URL", "https://test-app.com")
 	_ = os.Setenv("JWT_SECRET", "test-secret-key")
-	_ = os.Setenv("BACKEND_APP_ID", "test-client-id")
-	_ = os.Setenv("BACKEND_APP_SECRET", "test-client-secret")
+	_ = os.Setenv("LOGTO_BACKEND_APP_ID", "test-client-id")
+	_ = os.Setenv("LOGTO_BACKEND_APP_SECRET", "test-client-secret")
 	_ = os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test_db")
 
 	Init()
@@ -67,14 +67,14 @@ func TestConfigurationCustomValues(t *testing.T) {
 
 	// Set custom environment variables
 	_ = os.Setenv("LISTEN_ADDRESS", "0.0.0.0:9000")
-	_ = os.Setenv("TENANT_ID", "custom-tenant")
-	_ = os.Setenv("TENANT_DOMAIN", "custom.example.com")
+	_ = os.Setenv("LOGTO_TENANT_ID", "custom-tenant")
+	_ = os.Setenv("LOGTO_TENANT_DOMAIN", "custom.example.com")
 	_ = os.Setenv("APP_URL", "https://custom-app.example.com")
 	_ = os.Setenv("JWT_SECRET", "custom-secret-key")
 	_ = os.Setenv("JWT_EXPIRATION", "12h")
 	_ = os.Setenv("JWT_REFRESH_EXPIRATION", "72h")
-	_ = os.Setenv("BACKEND_APP_ID", "custom-client-id")
-	_ = os.Setenv("BACKEND_APP_SECRET", "custom-client-secret")
+	_ = os.Setenv("LOGTO_BACKEND_APP_ID", "custom-client-id")
+	_ = os.Setenv("LOGTO_BACKEND_APP_SECRET", "custom-client-secret")
 	_ = os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test_db")
 
 	Init()
@@ -151,12 +151,12 @@ func TestConfigurationEdgeCases(t *testing.T) {
 				_ = os.Setenv("LISTEN_ADDRESS", "")
 				_ = os.Setenv("JWT_EXPIRATION", "")
 				_ = os.Setenv("JWT_REFRESH_EXPIRATION", "")
-				_ = os.Setenv("TENANT_ID", "test-tenant")
-				_ = os.Setenv("TENANT_DOMAIN", "test.example.com")
+				_ = os.Setenv("LOGTO_TENANT_ID", "test-tenant")
+				_ = os.Setenv("LOGTO_TENANT_DOMAIN", "test.example.com")
 				_ = os.Setenv("APP_URL", "https://test-app.com")
 				_ = os.Setenv("JWT_SECRET", "test-secret")
-				_ = os.Setenv("BACKEND_APP_ID", "test-id")
-				_ = os.Setenv("BACKEND_APP_SECRET", "test-secret")
+				_ = os.Setenv("LOGTO_BACKEND_APP_ID", "test-id")
+				_ = os.Setenv("LOGTO_BACKEND_APP_SECRET", "test-secret")
 				_ = os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test_db")
 			},
 			checkField:  func() interface{} { return Config.ListenAddress },
@@ -168,12 +168,12 @@ func TestConfigurationEdgeCases(t *testing.T) {
 			setup: func() {
 				setupConfigTestEnvironment()
 				_ = os.Setenv("LISTEN_ADDRESS", "  0.0.0.0:8080  ")
-				_ = os.Setenv("TENANT_ID", "test-tenant")
-				_ = os.Setenv("TENANT_DOMAIN", "test.example.com")
+				_ = os.Setenv("LOGTO_TENANT_ID", "test-tenant")
+				_ = os.Setenv("LOGTO_TENANT_DOMAIN", "test.example.com")
 				_ = os.Setenv("APP_URL", "https://test-app.com")
 				_ = os.Setenv("JWT_SECRET", "test-secret")
-				_ = os.Setenv("BACKEND_APP_ID", "test-id")
-				_ = os.Setenv("BACKEND_APP_SECRET", "test-secret")
+				_ = os.Setenv("LOGTO_BACKEND_APP_ID", "test-id")
+				_ = os.Setenv("LOGTO_BACKEND_APP_SECRET", "test-secret")
 				_ = os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test_db")
 			},
 			checkField:  func() interface{} { return Config.ListenAddress },
@@ -196,20 +196,20 @@ func TestConfigurationInitMultipleTimes(t *testing.T) {
 
 	// Set initial values
 	_ = os.Setenv("LISTEN_ADDRESS", "127.0.0.1:8080")
-	_ = os.Setenv("TENANT_ID", "first-tenant")
-	_ = os.Setenv("TENANT_DOMAIN", "first.example.com")
+	_ = os.Setenv("LOGTO_TENANT_ID", "first-tenant")
+	_ = os.Setenv("LOGTO_TENANT_DOMAIN", "first.example.com")
 	_ = os.Setenv("APP_URL", "https://first-app.com")
 	_ = os.Setenv("JWT_SECRET", "first-secret")
-	_ = os.Setenv("BACKEND_APP_ID", "first-id")
-	_ = os.Setenv("BACKEND_APP_SECRET", "first-secret")
+	_ = os.Setenv("LOGTO_BACKEND_APP_ID", "first-id")
+	_ = os.Setenv("LOGTO_BACKEND_APP_SECRET", "first-secret")
 	_ = os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test_db")
 
 	Init()
 	firstIssuer := Config.LogtoIssuer
 
 	// Change environment variables
-	_ = os.Setenv("TENANT_ID", "second-tenant")
-	_ = os.Setenv("TENANT_DOMAIN", "second.example.com")
+	_ = os.Setenv("LOGTO_TENANT_ID", "second-tenant")
+	_ = os.Setenv("LOGTO_TENANT_DOMAIN", "second.example.com")
 
 	Init() // Call again
 

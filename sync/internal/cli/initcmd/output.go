@@ -87,7 +87,7 @@ func outputText(result *InitResult) {
 
 	fmt.Println("📋 SETUP INSTRUCTIONS")
 	fmt.Println()
-	fmt.Printf("Tenant: %s\n", backendEnv["TENANT_ID"])
+	fmt.Printf("Tenant: %s\n", backendEnv["LOGTO_TENANT_ID"])
 	if mgmtURL, ok := backendEnv["LOGTO_MANAGEMENT_BASE_URL"].(string); ok {
 		fmt.Printf("Base URL: %s\n", mgmtURL)
 	}
@@ -108,13 +108,13 @@ func outputText(result *InitResult) {
 	fmt.Printf("Copy and paste these to your backend/%s file:\n", envFileRef)
 	fmt.Println()
 	fmt.Printf("# Logto tenant configuration (all other URLs auto-derived)\n")
-	fmt.Printf("TENANT_ID=%v\n", backendEnv["TENANT_ID"])
-	fmt.Printf("TENANT_DOMAIN=%v\n", backendEnv["TENANT_DOMAIN"])
+	fmt.Printf("LOGTO_TENANT_ID=%v\n", backendEnv["LOGTO_TENANT_ID"])
+	fmt.Printf("LOGTO_TENANT_DOMAIN=%v\n", backendEnv["LOGTO_TENANT_DOMAIN"])
 	fmt.Printf("\n# App URL configuration (frontend application URL)\n")
 	fmt.Printf("APP_URL=%v\n", backendEnv["APP_URL"])
 	fmt.Printf("\n# Logto Management API (from your M2M app)\n")
-	fmt.Printf("BACKEND_APP_ID=%v\n", backendEnv["BACKEND_APP_ID"])
-	fmt.Printf("BACKEND_APP_SECRET=%v\n", backendEnv["BACKEND_APP_SECRET"])
+	fmt.Printf("LOGTO_BACKEND_APP_ID=%v\n", backendEnv["LOGTO_BACKEND_APP_ID"])
+	fmt.Printf("LOGTO_BACKEND_APP_SECRET=%v\n", backendEnv["LOGTO_BACKEND_APP_SECRET"])
 	fmt.Printf("\n# Custom JWT for resilient offline operation\n")
 	fmt.Printf("JWT_SECRET=%v\n", backendEnv["JWT_SECRET"])
 	fmt.Printf("\n# PostgreSQL connection string (shared 'noc' database)\n")

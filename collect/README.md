@@ -241,14 +241,14 @@ the same bucket — collect writes, backend reads and issues presigned
 download URLs.
 
 **Separate credentials (optional).** Nothing in the code forces backend
-and collect to share the same `BACKUP_S3_ACCESS_KEY` / `BACKUP_S3_SECRET_KEY`.
+and collect to share the same `S3_ACCESS_KEY` / `S3_SECRET_KEY`.
 If your S3 provider supports per-key policies (AWS S3 IAM, Cloudflare
 R2 scoped tokens, MinIO user policies), issue two keys: one for
 **collect** scoped to `PutObject`/`CopyObject`/`DeleteObject`/
 `ListObjectsV2`/`HeadObject` on the bucket prefix, and one for
 **backend** scoped to `GetObject`/`ListObjectsV2`/`HeadObject`/
-`DeleteObject`. Then set a different `BACKUP_S3_ACCESS_KEY` /
-`BACKUP_S3_SECRET_KEY` pair on each service. This contains blast
+`DeleteObject`. Then set a different `S3_ACCESS_KEY` /
+`S3_SECRET_KEY` pair on each service. This contains blast
 radius if one component is ever compromised.
 
 Object keys follow `{org_id}/{system_key}/{backup_id}.{ext}` — the
@@ -271,11 +271,11 @@ MinIO/Garage, …), issue an access key pair scoped to that bucket, and
 set the values in `backend/.env` and `collect/.env`:
 
 ```
-BACKUP_S3_ENDPOINT=...        # e.g. https://ams3.digitaloceanspaces.com
+S3_ENDPOINT=...        # e.g. https://ams3.digitaloceanspaces.com
 BACKUP_S3_REGION=ams3         # DO Spaces region code; any non-empty value works for MinIO/Garage
 BACKUP_S3_BUCKET=my-backups-dev
-BACKUP_S3_ACCESS_KEY=...
-BACKUP_S3_SECRET_KEY=...
+S3_ACCESS_KEY=...
+S3_SECRET_KEY=...
 BACKUP_S3_USE_PATH_STYLE=false   # set to true only for MinIO/Garage
 ```
 

@@ -40,16 +40,16 @@ import (
 // pipeline. Run with `go test -tags=integration ./storage/...` after pointing
 // the BACKUP_S3_* env vars at any reachable bucket (MinIO, DO Spaces, R2, AWS).
 func TestCopyAndDeleteBackupPrefix(t *testing.T) {
-	endpoint := os.Getenv("BACKUP_S3_ENDPOINT")
+	endpoint := os.Getenv("S3_ENDPOINT")
 	bucket := os.Getenv("BACKUP_S3_BUCKET")
 	if endpoint == "" || bucket == "" {
 		t.Skip("BACKUP_S3_* env vars not set; skipping integration test")
 	}
 
-	configuration.Config.BackupS3Endpoint = endpoint
+	configuration.Config.S3Endpoint = endpoint
 	configuration.Config.BackupS3Bucket = bucket
-	configuration.Config.BackupS3AccessKey = os.Getenv("BACKUP_S3_ACCESS_KEY")
-	configuration.Config.BackupS3SecretKey = os.Getenv("BACKUP_S3_SECRET_KEY")
+	configuration.Config.S3AccessKey = os.Getenv("S3_ACCESS_KEY")
+	configuration.Config.S3SecretKey = os.Getenv("S3_SECRET_KEY")
 	configuration.Config.BackupS3Region = os.Getenv("BACKUP_S3_REGION")
 	if configuration.Config.BackupS3Region == "" {
 		configuration.Config.BackupS3Region = "us-east-1"

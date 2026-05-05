@@ -45,10 +45,10 @@ import (
 // of the default CI pipeline; run it manually when touching the S3
 // integration layer.
 func TestBackupStorageRoundTrip(t *testing.T) {
-	endpoint := os.Getenv("BACKUP_S3_ENDPOINT")
+	endpoint := os.Getenv("S3_ENDPOINT")
 	bucket := os.Getenv("BACKUP_S3_BUCKET")
-	accessKey := os.Getenv("BACKUP_S3_ACCESS_KEY")
-	secretKey := os.Getenv("BACKUP_S3_SECRET_KEY")
+	accessKey := os.Getenv("S3_ACCESS_KEY")
+	secretKey := os.Getenv("S3_SECRET_KEY")
 	if endpoint == "" || bucket == "" || accessKey == "" || secretKey == "" {
 		t.Skip("BACKUP_S3_* env vars not set; skipping integration test")
 	}

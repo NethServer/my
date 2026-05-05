@@ -5,9 +5,9 @@ common:
   storage:
     backend: s3
     s3:
-      endpoint: ${MIMIR_S3_ENDPOINT}
-      secret_access_key: ${MIMIR_S3_SECRET_KEY}
-      access_key_id: ${MIMIR_S3_ACCESS_KEY}
+      endpoint: ${S3_ENDPOINT}
+      secret_access_key: ${S3_SECRET_KEY}
+      access_key_id: ${S3_ACCESS_KEY}
 
 alertmanager_storage:
   s3:

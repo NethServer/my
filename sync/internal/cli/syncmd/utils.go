@@ -14,12 +14,12 @@ import (
 	"os"
 )
 
-// GetAPIBaseURL returns the API base URL from environment or derives it from TENANT_DOMAIN
+// GetAPIBaseURL returns the API base URL from environment or derives it from LOGTO_TENANT_DOMAIN
 func GetAPIBaseURL() string {
 	apiBaseURL := os.Getenv("API_BASE_URL")
 	if apiBaseURL == "" {
-		// Derive from TENANT_DOMAIN if API_BASE_URL is not set
-		tenantDomain := os.Getenv("TENANT_DOMAIN")
+		// Derive from LOGTO_TENANT_DOMAIN if API_BASE_URL is not set
+		tenantDomain := os.Getenv("LOGTO_TENANT_DOMAIN")
 		if tenantDomain != "" {
 			apiBaseURL = fmt.Sprintf("https://%s/api", tenantDomain)
 		} else {

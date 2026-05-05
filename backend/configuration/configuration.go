@@ -94,12 +94,12 @@ type Configuration struct {
 	// backups. The same Spaces account also hosts the Mimir buckets;
 	// values for endpoint, access key, and secret key are the shared
 	// S3 credentials.
-	BackupS3Endpoint        string        `json:"backup_s3_endpoint"`
+	S3Endpoint        string        `json:"s3_endpoint"`
 	BackupS3PresignEndpoint string        `json:"backup_s3_presign_endpoint"`
 	BackupS3Region          string        `json:"backup_s3_region"`
 	BackupS3Bucket          string        `json:"backup_s3_bucket"`
-	BackupS3AccessKey       string        `json:"backup_s3_access_key"`
-	BackupS3SecretKey       string        `json:"backup_s3_secret_key"`
+	S3AccessKey       string        `json:"s3_access_key"`
+	S3SecretKey       string        `json:"s3_secret_key"`
 	BackupS3UsePathStyle    bool          `json:"backup_s3_use_path_style"`
 	BackupPresignTTL        time.Duration `json:"backup_presign_ttl"`
 }
@@ -121,19 +121,19 @@ func Init() {
 	}
 
 	// Tenant ID configuration (required)
-	if os.Getenv("TENANT_ID") != "" {
-		Config.TenantID = os.Getenv("TENANT_ID")
+	if os.Getenv("LOGTO_TENANT_ID") != "" {
+		Config.TenantID = os.Getenv("LOGTO_TENANT_ID")
 		// Derive base URL from tenant ID
 		Config.LogtoIssuer = fmt.Sprintf("https://%s.logto.app", Config.TenantID)
 	} else {
-		logger.LogConfigLoad("env", "TENANT_ID", false, fmt.Errorf("TENANT_ID variable is empty"))
+		logger.LogConfigLoad("env", "LOGTO_TENANT_ID", false, fmt.Errorf("LOGTO_TENANT_ID variable is empty"))
 	}
 
 	// Tenant domain configuration (required for JWT issuer)
-	if os.Getenv("TENANT_DOMAIN") != "" {
-		Config.TenantDomain = os.Getenv("TENANT_DOMAIN")
+	if os.Getenv("LOGTO_TENANT_DOMAIN") != "" {
+		Config.TenantDomain = os.Getenv("LOGTO_TENANT_DOMAIN")
 	} else {
-		logger.LogConfigLoad("env", "TENANT_DOMAIN", false, fmt.Errorf("TENANT_DOMAIN variable is empty"))
+		logger.LogConfigLoad("env", "LOGTO_TENANT_DOMAIN", false, fmt.Errorf("LOGTO_TENANT_DOMAIN variable is empty"))
 	}
 
 	// App URL configuration (required for app URL)
@@ -143,7 +143,7 @@ func Init() {
 		logger.LogConfigLoad("env", "APP_URL", false, fmt.Errorf("APP_URL variable is empty"))
 	}
 
-	// LOGTO_AUDIENCE (auto-derived from TENANT_DOMAIN)
+	// LOGTO_AUDIENCE (auto-derived from LOGTO_TENANT_DOMAIN)
 	Config.LogtoAudience = fmt.Sprintf("https://%s/api", Config.TenantDomain)
 
 	// JWKS endpoint (auto-derived from LogtoIssuer)
@@ -180,16 +180,16 @@ func Init() {
 	}
 
 	// Logto Management API configuration
-	if os.Getenv("BACKEND_APP_ID") != "" {
-		Config.LogtoManagementClientID = os.Getenv("BACKEND_APP_ID")
+	if os.Getenv("LOGTO_BACKEND_APP_ID") != "" {
+		Config.LogtoManagementClientID = os.Getenv("LOGTO_BACKEND_APP_ID")
 	} else {
-		logger.LogConfigLoad("env", "BACKEND_APP_ID", false, fmt.Errorf("BACKEND_APP_ID variable is empty"))
+		logger.LogConfigLoad("env", "LOGTO_BACKEND_APP_ID", false, fmt.Errorf("LOGTO_BACKEND_APP_ID variable is empty"))
 	}
 
-	if os.Getenv("BACKEND_APP_SECRET") != "" {
-		Config.LogtoManagementClientSecret = os.Getenv("BACKEND_APP_SECRET")
+	if os.Getenv("LOGTO_BACKEND_APP_SECRET") != "" {
+		Config.LogtoManagementClientSecret = os.Getenv("LOGTO_BACKEND_APP_SECRET")
 	} else {
-		logger.LogConfigLoad("env", "BACKEND_APP_SECRET", false, fmt.Errorf("BACKEND_APP_SECRET variable is empty"))
+		logger.LogConfigLoad("env", "LOGTO_BACKEND_APP_SECRET", false, fmt.Errorf("LOGTO_BACKEND_APP_SECRET variable is empty"))
 	}
 
 	// Logto Management API base URL (auto-derived from LogtoIssuer)
@@ -278,7 +278,7 @@ func Init() {
 	}
 
 	// Backup storage — S3 client credentials (DigitalOcean Spaces)
-	Config.BackupS3Endpoint = validateBackupEndpoint("BACKUP_S3_ENDPOINT", os.Getenv("BACKUP_S3_ENDPOINT"))
+	Config.S3Endpoint = validateBackupEndpoint("S3_ENDPOINT", os.Getenv("S3_ENDPOINT"))
 	// Optional override used only when the API-facing endpoint differs
 	// from the endpoint the user's browser can reach (typical for local
 	// dev where backend runs inside a container and MinIO is exposed on
@@ -290,8 +290,8 @@ func Init() {
 		Config.BackupS3Region = "us-east-1"
 	}
 	Config.BackupS3Bucket = os.Getenv("BACKUP_S3_BUCKET")
-	Config.BackupS3AccessKey = os.Getenv("BACKUP_S3_ACCESS_KEY")
-	Config.BackupS3SecretKey = os.Getenv("BACKUP_S3_SECRET_KEY")
+	Config.S3AccessKey = os.Getenv("S3_ACCESS_KEY")
+	Config.S3SecretKey = os.Getenv("S3_SECRET_KEY")
 	Config.BackupS3UsePathStyle = parseBoolWithDefault("BACKUP_S3_USE_PATH_STYLE", false)
 	// Cap the presigned URL lifetime at 15 minutes so a misconfigured
 	// env can never mint long-lived bearer URLs to backup objects.

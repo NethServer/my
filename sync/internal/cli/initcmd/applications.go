@@ -182,11 +182,11 @@ func DeriveEnvironmentVariables(config *InitConfig, backendApp, frontendApp *App
 	// Backend environment variables
 	backendApp.EnvironmentVars = map[string]interface{}{
 		// Required configuration
-		"TENANT_ID":          config.TenantID,
-		"TENANT_DOMAIN":      config.TenantDomain,
+		"LOGTO_TENANT_ID":          config.TenantID,
+		"LOGTO_TENANT_DOMAIN":      config.TenantDomain,
 		"APP_URL":            config.AppURL,
-		"BACKEND_APP_ID":     config.BackendAppID,
-		"BACKEND_APP_SECRET": config.BackendAppSecret,
+		"LOGTO_BACKEND_APP_ID":     config.BackendAppID,
+		"LOGTO_BACKEND_APP_SECRET": config.BackendAppSecret,
 		"JWT_SECRET":         "", // populated in init step 5
 		"DATABASE_URL":       "postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disable",
 		"REDIS_URL":          "redis://localhost:6379",

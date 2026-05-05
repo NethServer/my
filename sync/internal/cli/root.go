@@ -119,9 +119,9 @@ func initConfig() {
 
 func validateEnvironment() error {
 	required := []string{
-		"TENANT_ID",
-		"BACKEND_APP_ID",
-		"BACKEND_APP_SECRET",
+		"LOGTO_TENANT_ID",
+		"LOGTO_BACKEND_APP_ID",
+		"LOGTO_BACKEND_APP_SECRET",
 	}
 
 	for _, env := range required {

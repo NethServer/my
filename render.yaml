@@ -3,6 +3,15 @@
 # Architecture: Private services exposed via proxy
 # PRODUCTION: my.nethesis.it (release-based deployment)
 # QA: qa.my.nethesis.it (auto-deploy + PR previews)
+#
+# Env vars are organized in 5 groups per environment (qa, prod):
+#   - infra-{env}        internal service URLs (e.g. MIMIR_URL)
+#   - spaces-{env}       DigitalOcean Spaces credentials and buckets
+#   - app-secrets-{env}  cross-service shared secrets
+#   - logto-{env}        Logto tenant + JWT auth config
+#   - smtp-{env}         SMTP / email config
+# Group values are managed in Render Dashboard. Values declared with
+# `sync: false` must be set there before first deploy.
 # =============================================================================
 
 # =============================================================================
@@ -21,6 +30,129 @@ databases:
     plan: basic-256mb
     databaseName: noc
     ipAllowList: []
+
+# =============================================================================
+# ENVIRONMENT VARIABLE GROUPS
+# =============================================================================
+
+envVarGroups:
+  # ---------- PROD ----------
+
+  - name: infra-prod
+    envVars:
+      - key: MIMIR_URL
+        value: http://my-mimir-prod:9009
+
+  - name: spaces-prod
+    envVars:
+      # Shared DigitalOcean Spaces credentials (used by mimir, backend, collect)
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+      # Service-specific buckets
+      - key: MIMIR_S3_ALERTMANAGER_BUCKET
+        sync: false
+      - key: BACKUP_S3_BUCKET
+        sync: false
+
+  - name: app-secrets-prod
+    envVars:
+      - key: ALERTING_HISTORY_WEBHOOK_SECRET
+        sync: false
+
+  - name: logto-prod
+    envVars:
+      - key: LOGTO_TENANT_ID
+        sync: false
+      - key: LOGTO_TENANT_DOMAIN
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: LOGTO_BACKEND_APP_ID
+        sync: false
+      - key: LOGTO_BACKEND_APP_SECRET
+        sync: false
+
+  - name: smtp-prod
+    envVars:
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: SMTP_FROM_NAME
+        sync: false
+      - key: SMTP_TLS
+        sync: false
+
+  # ---------- QA ----------
+
+  - name: infra-qa
+    envVars:
+      - key: MIMIR_URL
+        value: http://my-mimir-qa:9009
+
+  - name: spaces-qa
+    envVars:
+      # Shared DigitalOcean Spaces credentials (used by mimir, backend, collect)
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+      # Service-specific buckets
+      - key: MIMIR_S3_ALERTMANAGER_BUCKET
+        sync: false
+      - key: BACKUP_S3_BUCKET
+        sync: false
+
+  - name: app-secrets-qa
+    envVars:
+      - key: ALERTING_HISTORY_WEBHOOK_SECRET
+        sync: false
+
+  - name: logto-qa
+    envVars:
+      - key: LOGTO_TENANT_ID
+        sync: false
+      - key: LOGTO_TENANT_DOMAIN
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: LOGTO_BACKEND_APP_ID
+        sync: false
+      - key: LOGTO_BACKEND_APP_SECRET
+        sync: false
+
+  - name: smtp-qa
+    envVars:
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: SMTP_FROM_NAME
+        sync: false
+      - key: SMTP_TLS
+        sync: false
 
 services:
 # =============================================================================
@@ -43,17 +175,9 @@ services:
     image:
       url: ghcr.io/nethserver/my/mimir:v0.3.0
     envVars:
+      - fromGroup: spaces-prod
       - key: PORT
         value: 9009
-      # S3 storage credentials (configure in Render dashboard)
-      - key: MIMIR_S3_ENDPOINT
-        sync: false
-      - key: MIMIR_S3_ACCESS_KEY
-        sync: false
-      - key: MIMIR_S3_SECRET_KEY
-        sync: false
-      - key: MIMIR_S3_ALERTMANAGER_BUCKET
-        sync: false
 
   # Production Backend API Server (Private Service)
   - type: web
@@ -63,6 +187,12 @@ services:
     image:
       url: ghcr.io/nethserver/my/backend:v0.3.0
     envVars:
+      - fromGroup: infra-prod
+      - fromGroup: spaces-prod
+      - fromGroup: app-secrets-prod
+      - fromGroup: logto-prod
+      - fromGroup: smtp-prod
+
       # Server Configuration
       - key: GIN_MODE
         value: release
@@ -88,50 +218,8 @@ services:
           name: my-postgres-prod
           property: connectionString
 
-      # Environment-specific variables (configure in Render dashboard)
-      - key: TENANT_ID
-        sync: false
-      - key: TENANT_DOMAIN
-        sync: false
-      - key: APP_URL
-        sync: false
-      - key: JWT_SECRET
-        sync: false
-      - key: BACKEND_APP_ID
-        sync: false
-      - key: BACKEND_APP_SECRET
-        sync: false
-
-      # SMTP Configuration
-      - key: SMTP_HOST
-        sync: false
-      - key: SMTP_PORT
-        sync: false
-      - key: SMTP_USERNAME
-        sync: false
-      - key: SMTP_PASSWORD
-        sync: false
-      - key: SMTP_FROM
-        sync: false
-      - key: SMTP_FROM_NAME
-        sync: false
-      - key: SMTP_TLS
-        sync: false
-
-      # Alerting Configuration
+      # Backend-only alerting webhook URL (env-specific public URL)
       - key: ALERTING_HISTORY_WEBHOOK_URL
-        sync: false
-      - key: ALERTING_HISTORY_WEBHOOK_SECRET
-        sync: false
-
-      # Backup storage (same DO Spaces account as Mimir; bucket is distinct)
-      - key: BACKUP_S3_ENDPOINT
-        sync: false
-      - key: BACKUP_S3_ACCESS_KEY
-        sync: false
-      - key: BACKUP_S3_SECRET_KEY
-        sync: false
-      - key: BACKUP_S3_BUCKET
         sync: false
 
   # Production Collect Service (Private Service)
@@ -142,6 +230,10 @@ services:
     image:
       url: ghcr.io/nethserver/my/collect:v0.3.0
     envVars:
+      - fromGroup: infra-prod
+      - fromGroup: spaces-prod
+      - fromGroup: app-secrets-prod
+
       # Server Configuration
       - key: GIN_MODE
         value: release
@@ -166,24 +258,6 @@ services:
         fromDatabase:
           name: my-postgres-prod
           property: connectionString
-
-      # Mimir Configuration
-      - key: MIMIR_URL
-        value: http://my-mimir-prod:9009
-
-      # Alerting Configuration
-      - key: ALERTING_HISTORY_WEBHOOK_SECRET
-        sync: false
-
-      # Backup storage (same DO Spaces account as Mimir; bucket is distinct)
-      - key: BACKUP_S3_ENDPOINT
-        sync: false
-      - key: BACKUP_S3_ACCESS_KEY
-        sync: false
-      - key: BACKUP_S3_SECRET_KEY
-        sync: false
-      - key: BACKUP_S3_BUCKET
-        sync: false
 
   # Production Frontend (Private Service)
   - type: web
@@ -245,16 +319,9 @@ services:
     rootDir: services/mimir
     dockerfilePath: Containerfile
     envVars:
+      - fromGroup: spaces-qa
       - key: PORT
         value: 9009
-      - key: MIMIR_S3_ENDPOINT
-        sync: false
-      - key: MIMIR_S3_ACCESS_KEY
-        sync: false
-      - key: MIMIR_S3_SECRET_KEY
-        sync: false
-      - key: MIMIR_S3_ALERTMANAGER_BUCKET
-        sync: false
     autoDeploy: true
     branch: main
     pullRequestPreviewsEnabled: true
@@ -267,6 +334,12 @@ services:
     rootDir: backend
     dockerfilePath: Containerfile
     envVars:
+      - fromGroup: infra-qa
+      - fromGroup: spaces-qa
+      - fromGroup: app-secrets-qa
+      - fromGroup: logto-qa
+      - fromGroup: smtp-qa
+
       # Server Configuration
       - key: GIN_MODE
         value: debug
@@ -292,54 +365,8 @@ services:
           name: my-postgres-qa
           property: connectionString
 
-      # Environment-specific variables (configure in Render dashboard)
-      - key: TENANT_ID
-        sync: false
-      - key: TENANT_DOMAIN
-        sync: false
-      - key: APP_URL
-        sync: false
-      - key: JWT_SECRET
-        sync: false
-      - key: BACKEND_APP_ID
-        sync: false
-      - key: BACKEND_APP_SECRET
-        sync: false
-
-      # Mimir Configuration
-      - key: MIMIR_URL
-        value: http://my-mimir-qa:9009
-
-      # SMTP Configuration
-      - key: SMTP_HOST
-        sync: false
-      - key: SMTP_PORT
-        sync: false
-      - key: SMTP_USERNAME
-        sync: false
-      - key: SMTP_PASSWORD
-        sync: false
-      - key: SMTP_FROM
-        sync: false
-      - key: SMTP_FROM_NAME
-        sync: false
-      - key: SMTP_TLS
-        sync: false
-
-      # Alerting Configuration
+      # Backend-only alerting webhook URL (env-specific public URL)
       - key: ALERTING_HISTORY_WEBHOOK_URL
-        sync: false
-      - key: ALERTING_HISTORY_WEBHOOK_SECRET
-        sync: false
-
-      # Backup storage (same DO Spaces account as Mimir; bucket is distinct)
-      - key: BACKUP_S3_ENDPOINT
-        sync: false
-      - key: BACKUP_S3_ACCESS_KEY
-        sync: false
-      - key: BACKUP_S3_SECRET_KEY
-        sync: false
-      - key: BACKUP_S3_BUCKET
         sync: false
 
     autoDeploy: true   # Auto-deploy on every commit
@@ -354,6 +381,10 @@ services:
     rootDir: collect
     dockerfilePath: Containerfile
     envVars:
+      - fromGroup: infra-qa
+      - fromGroup: spaces-qa
+      - fromGroup: app-secrets-qa
+
       # Server Configuration
       - key: GIN_MODE
         value: debug
@@ -378,24 +409,6 @@ services:
         fromDatabase:
           name: my-postgres-qa
           property: connectionString
-
-      # Mimir Configuration
-      - key: MIMIR_URL
-        value: http://my-mimir-qa:9009
-
-      # Alerting Configuration
-      - key: ALERTING_HISTORY_WEBHOOK_SECRET
-        sync: false
-
-      # Backup storage (same DO Spaces account as Mimir; bucket is distinct)
-      - key: BACKUP_S3_ENDPOINT
-        sync: false
-      - key: BACKUP_S3_ACCESS_KEY
-        sync: false
-      - key: BACKUP_S3_SECRET_KEY
-        sync: false
-      - key: BACKUP_S3_BUCKET
-        sync: false
 
     autoDeploy: true   # Auto-deploy on every commit
     branch: main

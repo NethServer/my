@@ -30,7 +30,7 @@ import (
 // authoritative organization_id flip has been committed in the database.
 //
 // A no-op when the backup storage client is not configured (dev environments
-// without BACKUP_S3_ENDPOINT): the system has no backups to migrate anywhere.
+// without S3_ENDPOINT): the system has no backups to migrate anywhere.
 func CopyBackupPrefix(ctx context.Context, fromOrgID, toOrgID, systemKey string) (int, error) {
 	if fromOrgID == toOrgID {
 		return 0, nil

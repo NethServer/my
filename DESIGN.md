@@ -386,10 +386,10 @@ sync init \
   --app-url https://your-app.com
 
 # Alternative: Environment variables mode
-export TENANT_ID=your-tenant-id
-export BACKEND_APP_ID=your-backend-app-id
-export BACKEND_APP_SECRET=your-secret-here
-export TENANT_DOMAIN=your-domain.com
+export LOGTO_TENANT_ID=your-tenant-id
+export LOGTO_BACKEND_APP_ID=your-backend-app-id
+export LOGTO_BACKEND_APP_SECRET=your-secret-here
+export LOGTO_TENANT_DOMAIN=your-domain.com
 sync init
 
 # JSON/YAML output for automation
@@ -424,8 +424,8 @@ LOGTO_ISSUER=https://your-tenant-id.logto.app
 LOGTO_AUDIENCE=https://your-domain.com/api
 LOGTO_JWKS_ENDPOINT=https://your-tenant-id.logto.app/oidc/jwks
 JWT_SECRET=generated-32-char-secret
-BACKEND_APP_ID=your-backend-app-id
-BACKEND_APP_SECRET=your-secret-here
+LOGTO_BACKEND_APP_ID=your-backend-app-id
+LOGTO_BACKEND_APP_SECRET=your-secret-here
 LOGTO_MANAGEMENT_BASE_URL=https://your-tenant-id.logto.app
 
 # Frontend Configuration

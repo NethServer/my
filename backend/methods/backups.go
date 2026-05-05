@@ -108,8 +108,8 @@ func GetSystemBackups(c *gin.Context) {
 }
 
 // DownloadSystemBackup handles GET /api/systems/:id/backups/:backup_id/download.
-// It responds with a 302 redirect to a short-lived presigned URL so the user's
-// browser can stream the object directly from Spaces.
+// It returns 200 with a JSON body containing a short-lived presigned URL so
+// the caller can fetch the object directly from Spaces.
 func DownloadSystemBackup(c *gin.Context) {
 	systemID := c.Param("id")
 	backupID := c.Param("backup_id")
@@ -268,7 +268,7 @@ func DeleteSystemBackup(c *gin.Context) {
 // error means the destroy must be refused so the operator can retry.
 //
 // The function is a no-op when the backup storage client is not
-// configured (e.g. dev environments without BACKUP_S3_ENDPOINT set);
+// configured (e.g. dev environments without S3_ENDPOINT set);
 // in that case there is nothing to purge.
 func purgeSystemBackups(ctx context.Context, orgID, systemKey string) error {
 	client, _, err := storage.BackupClient(ctx)

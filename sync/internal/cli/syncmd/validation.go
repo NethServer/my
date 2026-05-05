@@ -20,7 +20,7 @@ import (
 // CheckLogtoInitialization checks if Logto is properly initialized for Operation Center
 func CheckLogtoInitialization(client *client.LogtoClient) (bool, error) {
 	// Check if backend and frontend applications exist
-	backendAppID := os.Getenv("BACKEND_APP_ID")
+	backendAppID := os.Getenv("LOGTO_BACKEND_APP_ID")
 
 	apps, err := client.GetApplications()
 	if err != nil {

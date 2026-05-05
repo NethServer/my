@@ -36,15 +36,15 @@ make dev-down
 # REQUIRED CONFIGURATION
 # ===========================================
 # Logto tenant configuration (all other URLs auto-derived)
-TENANT_ID=your-tenant-id
-TENANT_DOMAIN=your-domain.com
+LOGTO_TENANT_ID=your-tenant-id
+LOGTO_TENANT_DOMAIN=your-domain.com
 
 # App URL configuration (frontend application URL)
 APP_URL=https://your-app-domain.com
 
 # Logto Management API (from your M2M app)
-BACKEND_APP_ID=your-management-api-app-id
-BACKEND_APP_SECRET=your-management-api-app-secret
+LOGTO_BACKEND_APP_ID=your-management-api-app-id
+LOGTO_BACKEND_APP_SECRET=your-management-api-app-secret
 
 # Custom JWT for resilient offline operation
 JWT_SECRET=your-super-secret-jwt-signing-key-min-32-chars
@@ -63,11 +63,11 @@ REDIS_URL=redis://localhost:6379
 # Both backend and collect must point at the SAME bucket; backend
 # reads and issues presigned URLs, collect writes uploads from
 # appliances. See collect/README.md for the bucket layout.
-BACKUP_S3_ENDPOINT=https://ams3.digitaloceanspaces.com
+S3_ENDPOINT=https://ams3.digitaloceanspaces.com
 BACKUP_S3_REGION=ams3
 BACKUP_S3_BUCKET=my-backups
-BACKUP_S3_ACCESS_KEY=your-access-key
-BACKUP_S3_SECRET_KEY=your-secret-key
+S3_ACCESS_KEY=your-access-key
+S3_SECRET_KEY=your-secret-key
 # Set to "true" only against local emulators that do not serve
 # virtual-hosted-style URLs. Spaces / S3 / R2 use the default (false).
 BACKUP_S3_USE_PATH_STYLE=false
@@ -94,11 +94,11 @@ SMTP_TLS=true
 ```
 
 **Auto-derived URLs:**
-- `LOGTO_ISSUER` = `https://{TENANT_ID}.logto.app`
-- `LOGTO_AUDIENCE` = `https://{TENANT_DOMAIN}/api`
-- `JWKS_ENDPOINT` = `https://{TENANT_ID}.logto.app/oidc/jwks`
-- `LOGTO_MANAGEMENT_BASE_URL` = `https://{TENANT_ID}.logto.app/api`
-- `JWT_ISSUER` = `{TENANT_DOMAIN}`
+- `LOGTO_ISSUER` = `https://{LOGTO_TENANT_ID}.logto.app`
+- `LOGTO_AUDIENCE` = `https://{LOGTO_TENANT_DOMAIN}/api`
+- `JWKS_ENDPOINT` = `https://{LOGTO_TENANT_ID}.logto.app/oidc/jwks`
+- `LOGTO_MANAGEMENT_BASE_URL` = `https://{LOGTO_TENANT_ID}.logto.app/api`
+- `JWT_ISSUER` = `{LOGTO_TENANT_DOMAIN}`
 
 ## Email Configuration
 

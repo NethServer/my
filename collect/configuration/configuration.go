@@ -96,11 +96,11 @@ type Configuration struct {
 	// Spaces bucket that holds appliance configuration backups. The same
 	// Spaces account also hosts the Mimir buckets; values for endpoint,
 	// access key, and secret key are the shared S3 credentials.
-	BackupS3Endpoint       string `json:"backup_s3_endpoint"`
+	S3Endpoint       string `json:"s3_endpoint"`
 	BackupS3Region         string `json:"backup_s3_region"`
 	BackupS3Bucket         string `json:"backup_s3_bucket"`
-	BackupS3AccessKey      string `json:"backup_s3_access_key"`
-	BackupS3SecretKey      string `json:"backup_s3_secret_key"`
+	S3AccessKey      string `json:"s3_access_key"`
+	S3SecretKey      string `json:"s3_secret_key"`
 	BackupS3UsePathStyle   bool   `json:"backup_s3_use_path_style"`
 	BackupMaxUploadSize    int64  `json:"backup_max_upload_size"`
 	BackupMaxPerSystem     int    `json:"backup_max_per_system"`
@@ -231,11 +231,11 @@ func Init() {
 	}
 
 	// Backup storage — S3 client credentials (DigitalOcean Spaces)
-	Config.BackupS3Endpoint = validateBackupEndpoint("BACKUP_S3_ENDPOINT", os.Getenv("BACKUP_S3_ENDPOINT"))
+	Config.S3Endpoint = validateBackupEndpoint("S3_ENDPOINT", os.Getenv("S3_ENDPOINT"))
 	Config.BackupS3Region = getStringWithDefault("BACKUP_S3_REGION", "us-east-1")
 	Config.BackupS3Bucket = os.Getenv("BACKUP_S3_BUCKET")
-	Config.BackupS3AccessKey = os.Getenv("BACKUP_S3_ACCESS_KEY")
-	Config.BackupS3SecretKey = os.Getenv("BACKUP_S3_SECRET_KEY")
+	Config.S3AccessKey = os.Getenv("S3_ACCESS_KEY")
+	Config.S3SecretKey = os.Getenv("S3_SECRET_KEY")
 	Config.BackupS3UsePathStyle = parseBoolWithDefault("BACKUP_S3_USE_PATH_STYLE", false)
 	Config.BackupMaxUploadSize = parseInt64WithDefault("BACKUP_MAX_UPLOAD_SIZE", 2*1024*1024*1024)
 	Config.BackupMaxPerSystem = parseIntWithDefault("BACKUP_MAX_PER_SYSTEM", 10)

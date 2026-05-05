@@ -26,7 +26,7 @@ type tokenDef struct {
 }
 
 func main() {
-	// Initialize configuration (reads JWT_SECRET, TENANT_ID, TENANT_DOMAIN from env)
+	// Initialize configuration (reads JWT_SECRET, LOGTO_TENANT_ID, LOGTO_TENANT_DOMAIN from env)
 	configuration.Init()
 
 	// Determine output directory (same directory as the backend project root)

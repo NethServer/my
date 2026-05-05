@@ -264,7 +264,7 @@ func main() {
 			// Backup endpoints — list stored backups, issue short-lived presigned
 			// download URLs, and delete backups. Ingest happens on collect.
 			systemsGroup.GET("/:id/backups", methods.GetSystemBackups)                         // List backups for a system
-			systemsGroup.GET("/:id/backups/:backup_id/download", methods.DownloadSystemBackup) // 302 to presigned URL
+			systemsGroup.GET("/:id/backups/:backup_id/download", methods.DownloadSystemBackup) // 200 with {download_url} presigned URL
 			systemsGroup.DELETE("/:id/backups/:backup_id", methods.DeleteSystemBackup)         // Delete a backup
 		}
 
