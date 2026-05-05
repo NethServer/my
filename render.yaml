@@ -22,6 +22,7 @@ databases:
   # Production PostgreSQL Database
   - name: my-postgres-prod
     plan: free
+    region: frankfurt
     databaseName: noc
     ipAllowList: []
 
@@ -164,6 +165,7 @@ services:
   - type: keyvalue
     name: my-redis-prod
     plan: free
+    region: frankfurt
     maxmemoryPolicy: allkeys-lru
     ipAllowList: []
 
@@ -172,8 +174,9 @@ services:
     name: my-mimir-prod
     runtime: image
     plan: starter
+    region: frankfurt
     image:
-      url: ghcr.io/nethserver/my/mimir:v0.3.0
+      url: ghcr.io/nethserver/my/mimir:v0.5.0
     envVars:
       - fromGroup: spaces-prod
       - key: PORT
@@ -184,8 +187,9 @@ services:
     name: my-backend-prod
     runtime: image
     plan: free
+    region: frankfurt
     image:
-      url: ghcr.io/nethserver/my/backend:v0.3.0
+      url: ghcr.io/nethserver/my/backend:v0.5.0
     envVars:
       - fromGroup: infra-prod
       - fromGroup: spaces-prod
@@ -227,8 +231,9 @@ services:
     name: my-collect-prod
     runtime: image
     plan: free
+    region: frankfurt
     image:
-      url: ghcr.io/nethserver/my/collect:v0.3.0
+      url: ghcr.io/nethserver/my/collect:v0.5.0
     envVars:
       - fromGroup: infra-prod
       - fromGroup: spaces-prod
@@ -264,8 +269,9 @@ services:
     name: my-frontend-prod
     runtime: image
     plan: free
+    region: frankfurt
     image:
-      url: ghcr.io/nethserver/my/frontend:v0.3.0
+      url: ghcr.io/nethserver/my/frontend:v0.5.0
     envVars:
       - key: VITE_PRODUCT_NAME
         value: "My Nethesis"
@@ -285,8 +291,9 @@ services:
     name: my-proxy-prod
     runtime: image
     plan: free
+    region: frankfurt
     image:
-      url: ghcr.io/nethserver/my/proxy:v0.3.0
+      url: ghcr.io/nethserver/my/proxy:v0.5.0
     domains:
       - my.nethesis.it
     envVars:
