@@ -88,7 +88,7 @@ verify_docker_images() {
 
     info "Verifying Docker images exist for version $version..."
 
-    for image in backend collect frontend proxy; do
+    for image in backend collect frontend proxy mimir; do
         local image_url="ghcr.io/nethserver/my/$image:$version"
         info "Checking: $image_url"
 
@@ -122,6 +122,9 @@ update_render_yaml() {
 
     # Update proxy image tag
     sed -i.tmp 's|ghcr\.io/nethserver/my/proxy:v[0-9]*\.[0-9]*\.[0-9]*|ghcr.io/nethserver/my/proxy:'"$version"'|g' render.yaml
+
+    # Update mimir image tag
+    sed -i.tmp 's|ghcr\.io/nethserver/my/mimir:v[0-9]*\.[0-9]*\.[0-9]*|ghcr.io/nethserver/my/mimir:'"$version"'|g' render.yaml
 
     # Remove sed backup file
     rm -f render.yaml.tmp
@@ -269,6 +272,7 @@ main() {
     info "- Collect: ghcr.io/nethserver/my/collect:$latest_tag"
     info "- Frontend: ghcr.io/nethserver/my/frontend:$latest_tag"
     info "- Proxy: ghcr.io/nethserver/my/proxy:$latest_tag"
+    info "- Mimir: ghcr.io/nethserver/my/mimir:$latest_tag"
 }
 
 # Run main function
