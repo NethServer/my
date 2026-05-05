@@ -173,12 +173,15 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	var whereClause string
 	var args []interface{}
 	if allowedOrgIDs != nil {
-		// Use ANY($1::text[]) instead of individual placeholders for efficiency
+		// Use ANY($1::text[]) instead of individual placeholders for efficiency.
+		// Filter on the current owning organization (systems.organization_id),
+		// not on the creator org (created_by ->> 'organization_id'): a
+		// reassigned system must follow the new owner's RBAC scope.
 		args = []interface{}{pq.Array(allowedOrgIDs)}
 		if hasDeletedFilter {
-			whereClause = "s.created_by ->> 'organization_id' = ANY($1::text[])"
+			whereClause = "s.organization_id = ANY($1::text[])"
 		} else {
-			whereClause = "s.deleted_at IS NULL AND s.created_by ->> 'organization_id' = ANY($1::text[])"
+			whereClause = "s.deleted_at IS NULL AND s.organization_id = ANY($1::text[])"
 		}
 	} else {
 		// Owner: no org filter needed

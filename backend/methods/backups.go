@@ -20,6 +20,7 @@ import (
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/gin-gonic/gin"
 
+	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
@@ -247,6 +248,11 @@ func DeleteSystemBackup(c *gin.Context) {
 		return
 	}
 
+	// Invalidate the per-org usage counter on the shared Redis so collect's
+	// next quota check recomputes from S3 instead of trusting a value that
+	// no longer reflects what's in the bucket.
+	cache.InvalidateOrgBackupUsage(ctx, system.Organization.LogtoID)
+
 	logger.LogBusinessOperation(c, "systems", "delete_backup", "backup", backupID, true, nil)
 
 	c.JSON(http.StatusOK, response.OK("backup deleted", gin.H{
@@ -293,6 +299,12 @@ func purgeSystemBackups(ctx context.Context, orgID, systemKey string) error {
 			}
 			purged++
 		}
+	}
+
+	// Invalidate the per-org usage counter so collect's next upload's quota
+	// check sees the freed space.
+	if purged > 0 {
+		cache.InvalidateOrgBackupUsage(ctx, orgID)
 	}
 
 	logger.Info().

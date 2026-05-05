@@ -40,6 +40,10 @@ type RedisClient struct {
 var (
 	redisClient *RedisClient
 	once        sync.Once
+
+	sharedRedisClient *redis.Client
+	sharedOnce        sync.Once
+	sharedErr         error
 )
 
 // redisConfig holds Redis connection configuration
@@ -146,6 +150,47 @@ func GetRedisClient() *RedisClient {
 		return nil
 	}
 	return redisClient
+}
+
+// GetSharedRedisClient returns a Redis client connected to the cross-service
+// database (REDIS_DB_SHARED, default 1, matching collect's default REDIS_DB).
+// Used for keys mutated by both backend and collect — currently the per-org
+// backup-usage counter (`backup:org_usage:{org}`). Backend's primary client
+// (DB 0 by default) cannot DEL keys that collect wrote on its own DB.
+//
+// Lazy-initialised on first call; safe for concurrent use. Returns nil on
+// connection failure so callers can fall back to a no-op.
+func GetSharedRedisClient() *redis.Client {
+	sharedOnce.Do(func() {
+		opts, err := redis.ParseURL(configuration.Config.RedisURL)
+		if err != nil {
+			sharedErr = fmt.Errorf("failed to parse Redis URL: %w", err)
+			return
+		}
+		opts.DB = configuration.Config.RedisDBShared
+		if configuration.Config.RedisPassword != "" {
+			opts.Password = configuration.Config.RedisPassword
+		}
+		opts.PoolSize = 4
+		opts.MinIdleConns = 1
+		opts.ConnMaxIdleTime = 5 * time.Minute
+		opts.ConnMaxLifetime = 30 * time.Minute
+
+		client := redis.NewClient(opts)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if _, err := client.Ping(ctx).Result(); err != nil {
+			_ = client.Close()
+			sharedErr = fmt.Errorf("ping shared Redis (DB %d): %w", opts.DB, err)
+			return
+		}
+		sharedRedisClient = client
+		log.Info().Str("component", "redis-shared").Int("db", opts.DB).Msg("shared Redis client initialised")
+	})
+	if sharedErr != nil {
+		return nil
+	}
+	return sharedRedisClient
 }
 
 // IsRedisAvailable checks if Redis client is available and connected

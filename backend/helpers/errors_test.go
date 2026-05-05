@@ -60,10 +60,8 @@ func TestHandleAccessError_AccessDenied(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	assert.NoError(t, err)
 	assert.Equal(t, "access denied to system", resp["message"])
-
-	data, ok := resp["data"].(map[string]interface{})
-	assert.True(t, ok)
-	assert.Equal(t, "sys-123", data["system_id"])
+	// Entity ID must not be echoed back so the body itself isn't an oracle.
+	assert.Nil(t, resp["data"])
 }
 
 func TestHandleAccessError_GenericError(t *testing.T) {
@@ -79,10 +77,8 @@ func TestHandleAccessError_GenericError(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	assert.NoError(t, err)
 	assert.Equal(t, "failed to process application request", resp["message"])
-
-	data, ok := resp["data"].(map[string]interface{})
-	assert.True(t, ok)
-	assert.Equal(t, "database connection failed", data["error"])
+	// Internal error message must not leak to the client either.
+	assert.Nil(t, resp["data"])
 }
 
 func TestHandleAccessError_DifferentEntityTypes(t *testing.T) {

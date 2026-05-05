@@ -335,16 +335,28 @@ func (s *LocalSystemsService) GetSystemIncludingDeleted(systemID, userOrgRole, u
 	return system, nil
 }
 
-// UpdateSystem updates an existing system with access validation
-func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.UpdateSystemRequest, userID, userOrgID, userOrgRole string) (*models.System, error) {
+// UpdateSystemRequestContext carries the actor metadata used by the audit log
+// (cross-org transfer events) and ties a reassignment back to the originating
+// HTTP request. Pass an empty struct from non-HTTP code paths.
+type UpdateSystemRequestContext struct {
+	ActorIP   string
+	UserAgent string
+}
+
+// UpdateSystem updates an existing system with access validation. When the
+// caller changes organization_id the function also runs the cross-org
+// migration of system-scoped resources (backups, silences, alert history,
+// app assignments) under a Redis advisory lock that serialises concurrent
+// PUTs against the same system, and writes an immutable audit row.
+func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.UpdateSystemRequest, userID, userOrgID, userOrgRole string, reqCtx UpdateSystemRequestContext) (*models.System, error) {
 	// Get the system first to check permissions
 	system, err := s.GetSystem(systemID, userOrgRole, userOrgID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Validate update permissions based on created_by
-	if canUpdate, reason := s.CanUpdateSystemByCreator(userOrgRole, userOrgID, &system.CreatedBy); !canUpdate {
+	// Validate update permissions on the current owning org
+	if canUpdate, reason := s.CanUpdateSystem(system, userOrgRole, userOrgID); !canUpdate {
 		return nil, fmt.Errorf("access denied: %s", reason)
 	}
 
@@ -383,6 +395,21 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 		return nil, fmt.Errorf("failed to marshal custom_data: %w", err)
 	}
 
+	// Take a Redis-backed advisory lock for the entire reassignment block.
+	// Without it, two concurrent PUTs with different target orgs would both
+	// pass validation, both copy the donor prefix to their respective
+	// destinations, and only one's UPDATE would commit — leaving live
+	// ciphertext under the losing destination's prefix where it is readable
+	// by that org's admin (a real cross-tenant data leak). Failure to
+	// acquire the lock returns 409.
+	if orgChanging {
+		release, err := cache.AcquireSystemReassignLock(context.Background(), systemID, 5*time.Minute)
+		if err != nil {
+			return nil, err
+		}
+		defer release()
+	}
+
 	// Copy backups onto the destination organization's S3 prefix BEFORE the
 	// authoritative organization_id flip. Backup reads on `my` resolve the
 	// prefix from the system's current organization, so the new owner must
@@ -390,11 +417,14 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 	// idempotent: a partial run can be retried without producing duplicates.
 	// A failure here aborts the reassignment so the source prefix stays
 	// authoritative and the admin can retry safely.
+	var backupsCopied int
 	if orgChanging {
 		ctx := context.Background()
-		if _, err := storage.CopyBackupPrefix(ctx, previousOrgID, system.Organization.LogtoID, system.SystemKey); err != nil {
+		copied, err := storage.CopyBackupPrefix(ctx, previousOrgID, system.Organization.LogtoID, system.SystemKey)
+		if err != nil {
 			return nil, fmt.Errorf("failed to migrate system backups across organizations: %w", err)
 		}
+		backupsCopied = copied
 	}
 
 	// Update system in database (FQDN and IP addresses are managed by collect service)
@@ -410,65 +440,104 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 		return nil, fmt.Errorf("failed to update system: %w", err)
 	}
 
-	// After the row has flipped, drop the source-org backups and prune any
-	// silences that were targeting this system in the donor tenant. Both
-	// steps are best-effort: a failure leaves orphan bytes (consuming the
-	// donor's quota until a sweep removes them) or stale silences (which
-	// expire naturally at endsAt), but the system is already correctly
-	// owned by the new organization, so we surface a warning and return
-	// success rather than misleading the admin into a retry.
+	// After the row has flipped, drop the source-org backups, prune silences
+	// targeting this system in the donor tenant, follow alert history into
+	// the new tenant, and clear app-to-org assignments scoped to the donor's
+	// RBAC hierarchy. Each step is best-effort and tracked with a counter
+	// for the audit row.
+	var backupsDeleted, silencesCleared, historyRows, appsUnassigned int
 	if orgChanging {
 		ctx := context.Background()
-		if _, err := storage.DeleteBackupPrefix(ctx, previousOrgID, system.SystemKey); err != nil {
+		if deleted, err := storage.DeleteBackupPrefix(ctx, previousOrgID, system.SystemKey); err != nil {
 			logger.Warn().Err(err).
 				Str("system_id", systemID).
 				Str("system_key", system.SystemKey).
 				Str("previous_org_id", previousOrgID).
 				Msg("source-org backup cleanup failed after reassignment; orphan objects left under donor prefix")
+		} else {
+			backupsDeleted = deleted
 		}
-		if _, err := alerting.CleanupSystemSilences(previousOrgID, system.SystemKey); err != nil {
+		// Both org-usage counters in Redis are now stale: the donor lost
+		// `backupsDeleted` bytes and the recipient gained `backupsCopied`
+		// bytes, but neither was incrementally updated by collect (collect
+		// only sees the appliance's own writes). Drop both keys so the next
+		// quota check on either side recomputes from S3.
+		cache.InvalidateOrgBackupUsage(ctx, previousOrgID)
+		cache.InvalidateOrgBackupUsage(ctx, system.Organization.LogtoID)
+		if cleared, err := alerting.CleanupSystemSilences(previousOrgID, system.SystemKey); err != nil {
 			logger.Warn().Err(err).
 				Str("system_id", systemID).
 				Str("system_key", system.SystemKey).
 				Str("previous_org_id", previousOrgID).
 				Msg("source-org silence cleanup failed after reassignment; donor-tenant silences will expire naturally")
+			silencesCleared = cleared
+		} else {
+			silencesCleared = cleared
 		}
 		// Move alert_history rows to the new organization so the new owner
 		// sees the system's full history and the donor — which no longer
 		// owns the system — loses visibility along with the row.
-		// alert_history is denormalized (organization_id captured at
-		// webhook write-time for tenant isolation); without this rewrite the
-		// rows would stay attributed to the donor and become unreachable
-		// from any UI.
 		alertHistoryRepo := entities.NewLocalAlertHistoryRepository()
-		if _, err := alertHistoryRepo.ReassignSystemAlertHistory(system.SystemKey, previousOrgID, system.Organization.LogtoID); err != nil {
+		if rows, err := alertHistoryRepo.ReassignSystemAlertHistory(system.SystemKey, previousOrgID, system.Organization.LogtoID); err != nil {
 			logger.Warn().Err(err).
 				Str("system_id", systemID).
 				Str("system_key", system.SystemKey).
 				Str("previous_org_id", previousOrgID).
 				Msg("alert history reassignment failed after org change; rows remain attributed to donor and will be invisible to the new owner")
+		} else {
+			historyRows = int(rows)
 		}
-		// Strip organization assignments from every application that lives
-		// on this system. App-to-org assignments are made manually within
-		// the donor's RBAC hierarchy; the new owner may sit in a different
-		// hierarchy where the previously chosen organization_id has no
-		// meaning, so we drop the assignment and let the new owner pick
-		// targets via the regular assign endpoint. The apps themselves
-		// (system_id FK, inventory data) stay with the system.
+		// Strip organization assignments from every application that lives on
+		// this system: the donor's RBAC scope is gone; the new owner may sit
+		// in a different hierarchy where the previously chosen org has no
+		// meaning. The apps themselves (system_id FK, inventory data) stay
+		// with the system.
 		appsRepo := entities.NewLocalApplicationRepository()
-		if _, err := appsRepo.UnassignAllForSystem(systemID); err != nil {
+		if rows, err := appsRepo.UnassignAllForSystem(systemID); err != nil {
 			logger.Warn().Err(err).
 				Str("system_id", systemID).
 				Str("previous_org_id", previousOrgID).
 				Msg("failed to clear app organization assignments after org change; apps remain assigned to the donor's hierarchy")
 		} else {
+			appsUnassigned = int(rows)
 			cache.GetAppsCache().InvalidateAll()
+		}
+
+		// Append the immutable audit row last, so a forensic query has both
+		// the actor identity and the outcome counters in a single record.
+		// Failure to write the audit row degrades to a warning: the system
+		// is already authoritatively owned by the new organization, refusing
+		// the request now would be misleading. The structured logger keeps
+		// a fallback trace.
+		auditRepo := entities.NewLocalSystemOrgTransfersRepository()
+		auditRow := &entities.SystemOrgTransfer{
+			SystemID:              systemID,
+			SystemKey:             system.SystemKey,
+			FromOrgID:             previousOrgID,
+			ToOrgID:               system.Organization.LogtoID,
+			ActorUserID:           sql.NullString{String: userID, Valid: userID != ""},
+			ActorOrganizationID:   sql.NullString{String: userOrgID, Valid: userOrgID != ""},
+			ActorIP:               sql.NullString{String: reqCtx.ActorIP, Valid: reqCtx.ActorIP != ""},
+			UserAgent:             sql.NullString{String: reqCtx.UserAgent, Valid: reqCtx.UserAgent != ""},
+			BackupsCopied:         backupsCopied,
+			BackupsDeleted:        backupsDeleted,
+			SilencesCleared:       silencesCleared,
+			HistoryRowsReassigned: historyRows,
+			AppsUnassigned:        appsUnassigned,
+		}
+		if _, err := auditRepo.Insert(auditRow); err != nil {
+			logger.Warn().Err(err).
+				Str("system_id", systemID).
+				Str("from_org_id", previousOrgID).
+				Str("to_org_id", system.Organization.LogtoID).
+				Msg("failed to record cross-org transfer audit row")
 		}
 	}
 
 	logger.Info().
 		Str("system_id", systemID).
 		Str("updated_by", userID).
+		Bool("org_changed", orgChanging).
 		Msg("System updated successfully")
 
 	return system, nil
@@ -483,7 +552,7 @@ func (s *LocalSystemsService) DeleteSystem(systemID, userID, userOrgID, userOrgR
 	}
 
 	// Validate delete permissions based on created_by
-	if canDelete, reason := s.CanDeleteSystemByCreator(userOrgRole, userOrgID, &system.CreatedBy); !canDelete {
+	if canDelete, reason := s.CanDeleteSystem(system, userOrgRole, userOrgID); !canDelete {
 		return fmt.Errorf("access denied: %s", reason)
 	}
 
@@ -593,7 +662,7 @@ func (s *LocalSystemsService) RestoreSystem(systemID, userID, userOrgID, userOrg
 
 	// Validate delete permissions based on created_by
 	// Use same permission check as delete - if user could delete it, they can restore it
-	if canDelete, reason := s.CanDeleteSystemByCreator(userOrgRole, userOrgID, &system.CreatedBy); !canDelete {
+	if canDelete, reason := s.CanDeleteSystem(system, userOrgRole, userOrgID); !canDelete {
 		return fmt.Errorf("access denied: %s", reason)
 	}
 
@@ -671,7 +740,7 @@ func (s *LocalSystemsService) DestroySystem(systemID, userID, userOrgID, userOrg
 	}
 
 	// Validate permissions based on created_by
-	if canDelete, reason := s.CanDeleteSystemByCreator(userOrgRole, userOrgID, &system.CreatedBy); !canDelete {
+	if canDelete, reason := s.CanDeleteSystem(system, userOrgRole, userOrgID); !canDelete {
 		return fmt.Errorf("access denied: %s", reason)
 	}
 
@@ -701,7 +770,7 @@ func (s *LocalSystemsService) RegenerateSystemSecret(systemID, userID, userOrgID
 	}
 
 	// Validate update permissions (regenerating secret is an update operation) based on created_by
-	if canUpdate, reason := s.CanUpdateSystemByCreator(userOrgRole, userOrgID, &system.CreatedBy); !canUpdate {
+	if canUpdate, reason := s.CanUpdateSystem(system, userOrgRole, userOrgID); !canUpdate {
 		return nil, fmt.Errorf("access denied: %s", reason)
 	}
 
@@ -860,100 +929,63 @@ func (s *LocalSystemsService) GetTotals(userOrgRole, userOrgID string, timeoutMi
 // Systems can now be created by any authenticated user
 // Access control is based on the created_by field which is set to the creator's organization
 
-// CanUpdateSystemByCreator validates if a user can update a system based on created_by organization
-func (s *LocalSystemsService) CanUpdateSystemByCreator(userOrgRole, userOrgID string, creator *models.SystemCreator) (bool, string) {
-	// Normalize organization role to lowercase for case-insensitive comparison
-	normalizedOrgRole := strings.ToLower(userOrgRole)
-
-	switch normalizedOrgRole {
-	case "owner":
-		return true, ""
-	case "distributor":
-		// Distributor can update systems created by organizations they manage hierarchically
-		userService := NewUserService()
-		if userService.IsOrganizationInHierarchy(normalizedOrgRole, userOrgID, creator.OrganizationID) {
-			return true, ""
-		}
-		return false, "distributors can only update systems created by organizations they manage"
-	case "reseller":
-		// Reseller can update systems created by their own organization
-		if creator.OrganizationID == userOrgID {
-			return true, ""
-		}
-		return false, "resellers can only update systems created by their own organization"
-	case "customer":
-		// Customers can only update systems they created themselves
-		if creator.OrganizationID == userOrgID {
-			return true, ""
-		}
-		return false, "customers can only update systems created by their own organization"
-	default:
-		return false, "insufficient permissions to update systems"
-	}
-}
-
-// CanDeleteSystemByCreator validates if a user can delete a system based on created_by organization
-func (s *LocalSystemsService) CanDeleteSystemByCreator(userOrgRole, userOrgID string, creator *models.SystemCreator) (bool, string) {
-	// Normalize organization role to lowercase for case-insensitive comparison
-	normalizedOrgRole := strings.ToLower(userOrgRole)
-
-	switch normalizedOrgRole {
-	case "owner":
-		return true, ""
-	case "distributor":
-		// Distributor can delete systems created by organizations they manage hierarchically
-		userService := NewUserService()
-		if userService.IsOrganizationInHierarchy(normalizedOrgRole, userOrgID, creator.OrganizationID) {
-			return true, ""
-		}
-		return false, "distributors can only delete systems created by organizations they manage"
-	case "reseller":
-		// Reseller can delete systems created by their own organization
-		if creator.OrganizationID == userOrgID {
-			return true, ""
-		}
-		return false, "resellers can only delete systems created by their own organization"
-	case "customer":
-		// Customers can only delete systems they created themselves
-		if creator.OrganizationID == userOrgID {
-			return true, ""
-		}
-		return false, "customers can only delete systems created by their own organization"
-	default:
-		return false, "insufficient permissions to delete systems"
-	}
-}
-
-// CanAccessSystem validates if a user can access a specific system based on created_by organization
-func (s *LocalSystemsService) CanAccessSystem(system *models.System, userOrgRole, userOrgID string) (bool, string) {
-	// Normalize role to lowercase for case-insensitive comparison
+// canActOnSystem implements the read/update/delete RBAC gate. The decision
+// is taken on the system's CURRENT owning organization (system.Organization.LogtoID),
+// not on the creator org (system.CreatedBy.OrganizationID): a system that has
+// been reassigned to another customer must lose visibility from the donor and
+// gain visibility from the recipient. The creator field stays as audit metadata.
+//
+// `verb` is purely cosmetic — it shapes the denial message ("access" / "update"
+// / "delete") so audit logs and API errors stay readable.
+func (s *LocalSystemsService) canActOnSystem(system *models.System, userOrgRole, userOrgID, verb string) (bool, string) {
 	normalizedRole := strings.ToLower(userOrgRole)
+	ownerOrgID := system.Organization.LogtoID
 
 	switch normalizedRole {
 	case "owner":
 		return true, ""
 	case "distributor":
-		// Distributor can access systems created by organizations they manage hierarchically
 		userService := NewUserService()
-		if userService.IsOrganizationInHierarchy(normalizedRole, userOrgID, system.CreatedBy.OrganizationID) {
+		if userService.IsOrganizationInHierarchy(normalizedRole, userOrgID, ownerOrgID) {
 			return true, ""
 		}
-		return false, "distributors can only access systems created by organizations they manage"
+		return false, fmt.Sprintf("distributors can only %s systems owned by organizations they manage", verb)
 	case "reseller":
-		// Reseller can access systems created by their own organization
-		if system.CreatedBy.OrganizationID == userOrgID {
+		if ownerOrgID == userOrgID {
 			return true, ""
 		}
-		return false, "resellers can only access systems created by their own organization"
+		userService := NewUserService()
+		if userService.IsOrganizationInHierarchy(normalizedRole, userOrgID, ownerOrgID) {
+			return true, ""
+		}
+		return false, fmt.Sprintf("resellers can only %s systems owned by their own organization or by customers they manage", verb)
 	case "customer":
-		// Customers can access systems created by their own organization
-		if system.CreatedBy.OrganizationID == userOrgID {
+		if ownerOrgID == userOrgID {
 			return true, ""
 		}
-		return false, "customers can only access systems created by their own organization"
+		return false, fmt.Sprintf("customers can only %s systems owned by their own organization", verb)
 	default:
-		return false, "insufficient permissions to access systems"
+		return false, fmt.Sprintf("insufficient permissions to %s systems", verb)
 	}
+}
+
+// CanAccessSystem validates if a user can read a specific system. Gates on the
+// current owning organization, NOT the creator: a reassigned system follows
+// the new owner.
+func (s *LocalSystemsService) CanAccessSystem(system *models.System, userOrgRole, userOrgID string) (bool, string) {
+	return s.canActOnSystem(system, userOrgRole, userOrgID, "access")
+}
+
+// CanUpdateSystem validates if a user can update a system. Same gating as
+// CanAccessSystem (current owner-based).
+func (s *LocalSystemsService) CanUpdateSystem(system *models.System, userOrgRole, userOrgID string) (bool, string) {
+	return s.canActOnSystem(system, userOrgRole, userOrgID, "update")
+}
+
+// CanDeleteSystem validates if a user can delete a system. Same gating as
+// CanAccessSystem (current owner-based).
+func (s *LocalSystemsService) CanDeleteSystem(system *models.System, userOrgRole, userOrgID string) (bool, string) {
+	return s.canActOnSystem(system, userOrgRole, userOrgID, "delete")
 }
 
 // =============================================================================
@@ -1056,7 +1088,9 @@ func (s *LocalSystemsService) GetTotalsByCreatedByOrganizations(allowedOrgIDs []
 	orgClause := ""
 	if allowedOrgIDs != nil {
 		args = append(args, pq.Array(allowedOrgIDs))
-		orgClause = " AND s.created_by ->> 'organization_id' = ANY($2::text[])"
+		// Filter on current owning organization, not creator: a reassigned
+		// system must contribute to the new owner's totals.
+		orgClause = " AND s.organization_id = ANY($2::text[])"
 	}
 
 	query := fmt.Sprintf(`
@@ -1227,7 +1261,7 @@ func (s *LocalSystemsService) GetSystemsTrend(period int, userOrgRole, userOrgID
 					(SELECT COUNT(*)
 					 FROM systems
 					 WHERE deleted_at IS NULL
-					   AND created_by ->> 'organization_id' IN (%s)
+					   AND organization_id IN (%s)
 					   AND created_at <= ds.date + INTERVAL '23 hours 59 minutes 59 seconds'),
 					0
 				) AS count
@@ -1249,7 +1283,7 @@ func (s *LocalSystemsService) GetSystemsTrend(period int, userOrgRole, userOrgID
 					(SELECT COUNT(*)
 					 FROM systems
 					 WHERE deleted_at IS NULL
-					   AND created_by ->> 'organization_id' IN (%s)
+					   AND organization_id IN (%s)
 					   AND created_at <= ws.week_start + INTERVAL '6 days 23 hours 59 minutes 59 seconds'),
 					0
 				) AS count
@@ -1271,7 +1305,7 @@ func (s *LocalSystemsService) GetSystemsTrend(period int, userOrgRole, userOrgID
 					(SELECT COUNT(*)
 					 FROM systems
 					 WHERE deleted_at IS NULL
-					   AND created_by ->> 'organization_id' IN (%s)
+					   AND organization_id IN (%s)
 					   AND created_at <= ms.month_start + INTERVAL '1 month' - INTERVAL '1 second'),
 					0
 				) AS count

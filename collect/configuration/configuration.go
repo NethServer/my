@@ -14,7 +14,6 @@ import (
 	"net/url"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/nethesis/my/collect/logger"
@@ -88,6 +87,10 @@ type Configuration struct {
 
 	// Alertmanager webhook authentication
 	AlertmanagerWebhookSecret string `json:"alertmanager_webhook_secret"`
+
+	// Cross-service plumbing — must match backend's APP_ENV / INTERNAL_HMAC_SECRET.
+	AppEnv             string `json:"app_env"`
+	InternalHMACSecret string `json:"internal_hmac_secret"`
 
 	// Backup storage — S3 client credentials used to reach the DigitalOcean
 	// Spaces bucket that holds appliance configuration backups. The same
@@ -205,8 +208,27 @@ func Init() {
 		Config.MimirURL = "http://localhost:9009"
 	}
 
-	// Alerting history webhook authentication
+	// Alerting history webhook authentication. Refuse weak secrets at boot:
+	// the secret is also pushed into Mimir's Alertmanager YAML so anyone
+	// with read on the Mimir S3 bucket recovers it; a short value reduces
+	// brute-force resistance to nothing. An empty value is permitted (the
+	// webhook receiver returns 503 in that case) for dev configurations
+	// that don't run Alertmanager locally.
 	Config.AlertmanagerWebhookSecret = os.Getenv("ALERTING_HISTORY_WEBHOOK_SECRET")
+	if Config.AlertmanagerWebhookSecret != "" && len(Config.AlertmanagerWebhookSecret) < 32 {
+		logger.Fatal().
+			Int("length", len(Config.AlertmanagerWebhookSecret)).
+			Msg("ALERTING_HISTORY_WEBHOOK_SECRET must be at least 32 characters; refusing to start with a weak secret")
+	}
+
+	// Internal cross-service plumbing — must match backend's settings.
+	Config.AppEnv = getStringWithDefault("APP_ENV", "dev")
+	Config.InternalHMACSecret = os.Getenv("INTERNAL_HMAC_SECRET")
+	if Config.InternalHMACSecret != "" && len(Config.InternalHMACSecret) < 32 {
+		logger.Fatal().
+			Int("length", len(Config.InternalHMACSecret)).
+			Msg("INTERNAL_HMAC_SECRET must be at least 32 characters; refusing to start with a weak secret")
+	}
 
 	// Backup storage — S3 client credentials (DigitalOcean Spaces)
 	Config.BackupS3Endpoint = validateBackupEndpoint("BACKUP_S3_ENDPOINT", os.Getenv("BACKUP_S3_ENDPOINT"))
@@ -214,7 +236,7 @@ func Init() {
 	Config.BackupS3Bucket = os.Getenv("BACKUP_S3_BUCKET")
 	Config.BackupS3AccessKey = os.Getenv("BACKUP_S3_ACCESS_KEY")
 	Config.BackupS3SecretKey = os.Getenv("BACKUP_S3_SECRET_KEY")
-	Config.BackupS3UsePathStyle = os.Getenv("BACKUP_S3_USE_PATH_STYLE") == "true"
+	Config.BackupS3UsePathStyle = parseBoolWithDefault("BACKUP_S3_USE_PATH_STYLE", false)
 	Config.BackupMaxUploadSize = parseInt64WithDefault("BACKUP_MAX_UPLOAD_SIZE", 2*1024*1024*1024)
 	Config.BackupMaxPerSystem = parseIntWithDefault("BACKUP_MAX_PER_SYSTEM", 10)
 	Config.BackupMaxSizePerSystem = parseInt64WithDefault("BACKUP_MAX_SIZE_PER_SYSTEM", 500*1024*1024)
@@ -246,14 +268,30 @@ func validateBackupEndpoint(name, raw string) string {
 		logger.LogConfigLoad("env", name, false, fmt.Errorf("invalid URL %q", raw))
 		return ""
 	}
+	// Reject userinfo (https://attacker:pw@host) — the AWS SDK ignores it but
+	// some HTTP clients down the chain may not, and there is no legitimate
+	// reason to embed credentials in the bucket endpoint URL.
+	if u.User != nil {
+		logger.LogConfigLoad("env", name, false, fmt.Errorf("userinfo in endpoint URL is not allowed"))
+		return ""
+	}
+	// The endpoint must be the bucket service root, not a sub-path. The S3
+	// SDK appends `/<bucket>/<key>` to whatever is given, so a non-root path
+	// silently mis-targets traffic.
+	if u.Path != "" && u.Path != "/" {
+		logger.LogConfigLoad("env", name, false, fmt.Errorf("non-root path %q in endpoint URL is not allowed", u.Path))
+		return ""
+	}
 	if u.Scheme == "https" {
 		return raw
 	}
 	if u.Scheme == "http" {
 		host := u.Hostname()
+		// Allowlist exact loopback hosts only. Suffix-matching `.local` /
+		// `.localtest.me` would otherwise admit `evil.local` /
+		// `evil.localtest.me` shipped over plaintext.
 		if host == "localhost" || host == "127.0.0.1" || host == "::1" ||
-			strings.HasSuffix(host, ".local") ||
-			strings.HasSuffix(host, ".localtest.me") ||
+			host == "my.localtest.me" ||
 			os.Getenv("BACKUP_S3_ALLOW_INSECURE") == "true" {
 			return raw
 		}
@@ -330,4 +368,21 @@ func getStringWithDefault(envVar string, defaultValue string) string {
 		return envValue
 	}
 	return defaultValue
+}
+
+// parseBoolWithDefault parses a boolean from an env var or returns the default.
+// Accepts the same set of literals as strconv.ParseBool ("1"/"true"/"True"/"t"
+// /"TRUE" for true; "0"/"false"/"False"/"f"/"FALSE" for false). Aligning on
+// this helper keeps backend and collect from disagreeing on the same env value
+// (e.g. "1" being true on backend but false on collect).
+func parseBoolWithDefault(envVar string, defaultValue bool) bool {
+	v := os.Getenv(envVar)
+	if v == "" {
+		return defaultValue
+	}
+	parsed, err := strconv.ParseBool(v)
+	if err != nil {
+		return defaultValue
+	}
+	return parsed
 }

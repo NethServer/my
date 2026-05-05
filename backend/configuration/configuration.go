@@ -40,8 +40,12 @@ type Configuration struct {
 	LogtoManagementClientSecret string `json:"logto_management_client_secret"`
 	LogtoManagementBaseURL      string `json:"logto_management_base_url"`
 	// Redis configuration
-	RedisURL          string        `json:"redis_url"`
-	RedisDB           int           `json:"redis_db"`
+	RedisURL string `json:"redis_url"`
+	RedisDB  int    `json:"redis_db"`
+	// RedisDBShared is the Redis logical DB used for cross-service keys
+	// (currently the per-org backup-usage counter). Default 1 to match
+	// collect's default REDIS_DB.
+	RedisDBShared     int           `json:"redis_db_shared"`
 	RedisPassword     string        `json:"redis_password"`
 	RedisMaxRetries   int           `json:"redis_max_retries"`
 	RedisDialTimeout  time.Duration `json:"redis_dial_timeout"`
@@ -73,6 +77,17 @@ type Configuration struct {
 	// Alerting configuration
 	AlertingHistoryWebhookURL    string `json:"alerting_history_webhook_url"`
 	AlertingHistoryWebhookSecret string `json:"alerting_history_webhook_secret"`
+
+	// Cross-service plumbing.
+	// AppEnv namespaces internal pub/sub channels (auth invalidation, etc.)
+	// so a Redis instance shared between dev/qa/prod stops cross-pollinating.
+	// Default "dev"; canonical values: dev, qa, prod.
+	AppEnv string `json:"app_env"`
+	// InternalHMACSecret signs internal pub/sub payloads so a network-adjacent
+	// attacker with PUBLISH access cannot forge invalidations. Optional in dev
+	// (empty disables the verification on the consumer side); required for
+	// production-grade isolation.
+	InternalHMACSecret string `json:"internal_hmac_secret"`
 
 	// Backup storage — S3 client credentials used to read from the
 	// DigitalOcean Spaces bucket that holds client configuration
@@ -188,6 +203,7 @@ func Init() {
 	}
 
 	Config.RedisDB = parseIntWithDefault("REDIS_DB", 0)
+	Config.RedisDBShared = parseIntWithDefault("REDIS_DB_SHARED", 1)
 	Config.RedisPassword = os.Getenv("REDIS_PASSWORD")
 	Config.RedisMaxRetries = parseIntWithDefault("REDIS_MAX_RETRIES", 3)
 	Config.RedisDialTimeout = parseDurationWithDefault("REDIS_DIAL_TIMEOUT", 5*time.Second)
@@ -232,9 +248,34 @@ func Init() {
 		logger.LogConfigLoad("env", "MIMIR_URL", true, fmt.Errorf("MIMIR_URL variable is empty, using default http://localhost:9009"))
 	}
 
-	// Alerting configuration — optional, empty means no built-in history webhook
+	// Alerting configuration — optional, empty means no built-in history webhook.
+	// Backend renders the secret into the Alertmanager YAML pushed to Mimir, so
+	// a short value would be cheaply brute-forced from any read of the Mimir
+	// alertmanager-config bucket. Refuse to boot with a too-short secret.
 	Config.AlertingHistoryWebhookURL = os.Getenv("ALERTING_HISTORY_WEBHOOK_URL")
 	Config.AlertingHistoryWebhookSecret = os.Getenv("ALERTING_HISTORY_WEBHOOK_SECRET")
+	if Config.AlertingHistoryWebhookSecret != "" && len(Config.AlertingHistoryWebhookSecret) < 32 {
+		logger.Fatal().
+			Int("length", len(Config.AlertingHistoryWebhookSecret)).
+			Msg("ALERTING_HISTORY_WEBHOOK_SECRET must be at least 32 characters; refusing to start with a weak secret")
+	}
+
+	// Internal cross-service plumbing. APP_ENV scopes pub/sub channel names so
+	// dev/qa/prod sharing a Redis instance never invalidate each other's caches.
+	// INTERNAL_HMAC_SECRET, when set, signs the system_key payload on the
+	// auth-invalidation channel; collect drops messages with a missing or
+	// invalid HMAC. A short secret is refused (< 32 chars).
+	if v := os.Getenv("APP_ENV"); v != "" {
+		Config.AppEnv = v
+	} else {
+		Config.AppEnv = "dev"
+	}
+	Config.InternalHMACSecret = os.Getenv("INTERNAL_HMAC_SECRET")
+	if Config.InternalHMACSecret != "" && len(Config.InternalHMACSecret) < 32 {
+		logger.Fatal().
+			Int("length", len(Config.InternalHMACSecret)).
+			Msg("INTERNAL_HMAC_SECRET must be at least 32 characters; refusing to start with a weak secret")
+	}
 
 	// Backup storage — S3 client credentials (DigitalOcean Spaces)
 	Config.BackupS3Endpoint = validateBackupEndpoint("BACKUP_S3_ENDPOINT", os.Getenv("BACKUP_S3_ENDPOINT"))
@@ -281,14 +322,29 @@ func validateBackupEndpoint(name, raw string) string {
 		logger.LogConfigLoad("env", name, false, fmt.Errorf("invalid URL %q", raw))
 		return ""
 	}
+	// Reject userinfo (https://attacker:pw@host) — there is no legitimate
+	// reason to embed credentials in a bucket endpoint URL.
+	if u.User != nil {
+		logger.LogConfigLoad("env", name, false, fmt.Errorf("userinfo in endpoint URL is not allowed"))
+		return ""
+	}
+	// The endpoint must be the bucket service root, not a sub-path. The S3
+	// SDK appends `/<bucket>/<key>` to whatever is given, so a non-root path
+	// silently mis-targets traffic.
+	if u.Path != "" && u.Path != "/" {
+		logger.LogConfigLoad("env", name, false, fmt.Errorf("non-root path %q in endpoint URL is not allowed", u.Path))
+		return ""
+	}
 	if u.Scheme == "https" {
 		return raw
 	}
 	if u.Scheme == "http" {
 		host := u.Hostname()
+		// Allowlist exact loopback hosts only. Suffix-matching `.local` /
+		// `.localtest.me` would otherwise admit `evil.local` /
+		// `evil.localtest.me` shipped over plaintext.
 		if host == "localhost" || host == "127.0.0.1" || host == "::1" ||
-			strings.HasSuffix(host, ".local") ||
-			strings.HasSuffix(host, ".localtest.me") ||
+			host == "my.localtest.me" ||
 			parseBoolWithDefault("BACKUP_S3_ALLOW_INSECURE", false) {
 			return raw
 		}

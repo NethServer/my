@@ -219,6 +219,16 @@ func TestCleanupSystemSilencesDeletesOnlyExactMatches(t *testing.T) {
 			},
 			Status: &models.AlertmanagerSilenceStatus{State: "active"},
 		},
+		{
+			// Narrow-scope silence (system_key + alertname). The donor admin
+			// set this up intentionally; reassignment must NOT wipe it.
+			ID: "multi-matcher-narrow-scope",
+			Matchers: []models.AlertmanagerMatcher{
+				{Name: "system_key", Value: "system-1", IsRegex: false},
+				{Name: "alertname", Value: "DiskFull", IsRegex: false},
+			},
+			Status: &models.AlertmanagerSilenceStatus{State: "active"},
+		},
 	}
 
 	deleted := map[string]bool{}

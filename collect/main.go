@@ -188,13 +188,19 @@ func main() {
 		c.JSON(http.StatusNotFound, response.NotFound("api not found", nil))
 	})
 
-	// Setup graceful shutdown with timeouts to prevent slowloris attacks
+	// Setup graceful shutdown. Use ReadHeaderTimeout (slowloris guard on the
+	// request line + headers) instead of ReadTimeout / WriteTimeout, since the
+	// latter cap the entire request lifetime including body streaming and
+	// would truncate large backup uploads / downloads — a 2 GB upload at
+	// 50 Mbps takes ~5 minutes, far past WriteTimeout=60s. Body-size limits
+	// are enforced per-handler via http.MaxBytesReader; per-request lifetime
+	// is bounded by the gin context (cancelled on client disconnect) and the
+	// upstream nginx timeouts (relaxed to 600s for /collect/api/systems/backups).
 	srv := &http.Server{
-		Addr:         configuration.Config.ListenAddress,
-		Handler:      router,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 60 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		Addr:              configuration.Config.ListenAddress,
+		Handler:           router,
+		ReadHeaderTimeout: 30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	// Start server in a goroutine

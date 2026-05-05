@@ -325,16 +325,22 @@ func CleanupSystemSilences(orgID, systemKey string) (int, error) {
 	return deleted, firstErr
 }
 
-// silenceTargetsSystem reports whether the matchers identify exactly one
-// system_key. A silence with a broader scope (regex or extra matchers that
-// hit other systems) is intentionally left untouched.
+// silenceTargetsSystem reports whether the silence is *exclusively* scoped
+// to the given system. We require exactly one matcher equal to
+// `system_key=<key>`, non-regex, non-negated. A silence with extra matchers
+// (e.g. `system_key=X AND alertname=DiskFull`) carries a narrower intent
+// the donor admin set up — we leave it alone rather than risk wiping a
+// maintenance window. Such silences expire naturally at endsAt.
+//
+// Regex matchers and `isEqual=false` (negation) matchers are likewise
+// rejected: both alias to "wider scope than just this system" and must
+// never be silently deleted by an org reassignment.
 func silenceTargetsSystem(matchers []models.AlertmanagerMatcher, systemKey string) bool {
-	for _, m := range matchers {
-		if m.Name == "system_key" && m.Value == systemKey && !m.IsRegex {
-			return true
-		}
+	if len(matchers) != 1 {
+		return false
 	}
-	return false
+	m := matchers[0]
+	return m.Name == "system_key" && m.Value == systemKey && !m.IsRegex
 }
 
 // DeleteSilence deletes a specific Alertmanager silence for the given tenant.

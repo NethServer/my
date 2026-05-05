@@ -11,18 +11,94 @@ package middleware
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"regexp"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 
+	"github.com/nethesis/my/collect/configuration"
 	"github.com/nethesis/my/collect/logger"
 	"github.com/nethesis/my/collect/queue"
 )
 
-// systemAuthInvalidationChannel is the cross-service Redis pub/sub channel
-// backend publishes on when a system is deleted, destroyed, or has its
-// secret regenerated. The payload is the plain system_key string.
-const systemAuthInvalidationChannel = "my:auth:invalidate"
+// systemKeyFormat pins the shape of a legitimate system_key so a malicious or
+// misconfigured publisher cannot smuggle Redis SCAN globs (`*`, `?`, `[…]`) or
+// other metacharacters into the invalidation payload. A `*` payload would
+// otherwise expand to a SCAN pattern matching every cached credential and
+// produce a thundering-herd auth lookup against Postgres on the next request
+// from each appliance.
+var systemKeyFormat = regexp.MustCompile(`^NETH(-[A-F0-9]{4}){9}$`)
+
+// systemAuthInvalidationChannelBase is the channel namespace; APP_ENV is
+// appended at runtime so a Redis instance shared across deployments stops
+// cross-pollinating invalidations.
+const systemAuthInvalidationChannelBase = "my:auth:invalidate"
+
+// lastInvalidatedAt tracks the wall-clock moment when each system_key was last
+// invalidated. checkInProcessCache (auth.go) consults this map to drop entries
+// inserted before the invalidation arrived: sync.Map.Range used by
+// purgeSystemAuthCache is not a snapshot, so a request that lands while the
+// purge is in flight could install a stale entry that Range never sees. The
+// timestamp closes that race without taking a global lock.
+var lastInvalidatedAt sync.Map
+
+// LastInvalidatedAt returns the most recent invalidation time for the given
+// system_key, or the zero time if none was ever recorded.
+func LastInvalidatedAt(systemKey string) time.Time {
+	if v, ok := lastInvalidatedAt.Load(systemKey); ok {
+		if t, ok := v.(time.Time); ok {
+			return t
+		}
+	}
+	return time.Time{}
+}
+
+// authInvalidationChannel returns the env-namespaced channel name. Must match
+// what backend publishes on (see backend/cache/system_auth.go).
+func authInvalidationChannel() string {
+	env := configuration.Config.AppEnv
+	if env == "" {
+		env = "dev"
+	}
+	return systemAuthInvalidationChannelBase + ":" + env
+}
+
+// verifyInvalidationPayload accepts either a bare system_key (when no shared
+// HMAC secret is configured locally) or `<systemKey>|<hex(hmac)>` and returns
+// the validated system_key. Mismatched HMAC, missing HMAC when one is
+// expected, or invalid system_key shape all return ("", false) so the caller
+// drops the message.
+func verifyInvalidationPayload(payload string) (string, bool) {
+	secret := configuration.Config.InternalHMACSecret
+	parts := strings.SplitN(strings.TrimSpace(payload), "|", 2)
+	systemKey := parts[0]
+	if !systemKeyFormat.MatchString(systemKey) {
+		return "", false
+	}
+	if secret == "" {
+		// No verification key configured — accept legacy bare-system_key
+		// payloads. A future hardening can flip this to "reject if no HMAC".
+		return systemKey, true
+	}
+	if len(parts) != 2 {
+		return "", false
+	}
+	expected, err := hex.DecodeString(parts[1])
+	if err != nil {
+		return "", false
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(systemKey))
+	if !hmac.Equal(expected, mac.Sum(nil)) {
+		return "", false
+	}
+	return systemKey, true
+}
 
 // StartAuthInvalidator subscribes to the cross-service auth invalidation
 // channel and purges every cached credential entry for a system as soon
@@ -40,7 +116,8 @@ func StartAuthInvalidator(ctx context.Context) {
 		return
 	}
 
-	pubsub := rdb.Subscribe(ctx, systemAuthInvalidationChannel)
+	channel := authInvalidationChannel()
+	pubsub := rdb.Subscribe(ctx, channel)
 	go func() {
 		defer func() {
 			if err := pubsub.Close(); err != nil {
@@ -48,7 +125,7 @@ func StartAuthInvalidator(ctx context.Context) {
 			}
 		}()
 		ch := pubsub.Channel()
-		logger.Info().Str("channel", systemAuthInvalidationChannel).Msg("auth invalidation bus started")
+		logger.Info().Str("channel", channel).Msg("auth invalidation bus started")
 		for {
 			select {
 			case <-ctx.Done():
@@ -57,10 +134,16 @@ func StartAuthInvalidator(ctx context.Context) {
 				if !ok {
 					return
 				}
-				systemKey := strings.TrimSpace(msg.Payload)
-				if systemKey == "" {
+				systemKey, ok := verifyInvalidationPayload(msg.Payload)
+				if !ok {
+					logger.Warn().
+						Int("payload_bytes", len(msg.Payload)).
+						Msg("auth invalidation: dropping payload with bad shape or signature")
 					continue
 				}
+				// Stamp the invalidation moment BEFORE purging so any
+				// concurrent cache insert is detectable by checkInProcessCache.
+				lastInvalidatedAt.Store(systemKey, time.Now())
 				purgeSystemAuthCache(ctx, rdb, systemKey)
 			}
 		}

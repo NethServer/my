@@ -3,3 +3,4 @@
 openapi.yaml:
   no-ambiguous-paths:
     - '#/paths/~1systems~1rebranding~1{product_id}~1{asset}'
+    - '#/paths/~1systems~1backups~1{id}'

@@ -16,6 +16,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/logger"
@@ -70,6 +71,12 @@ func CopyBackupPrefix(ctx context.Context, fromOrgID, toOrgID, systemKey string)
 				Key:               aws.String(dstKey),
 				CopySource:        aws.String(copySource),
 				MetadataDirective: "COPY",
+				// Re-assert SSE on the destination so the copy doesn't
+				// silently land unencrypted if the bucket-default policy
+				// drifts. The ingest path on collect always sets AES256;
+				// matching it here keeps every object on the bucket
+				// uniformly encrypted.
+				ServerSideEncryption: s3types.ServerSideEncryptionAes256,
 			})
 			if err != nil {
 				return copied, fmt.Errorf("copy %s -> %s: %w", srcKey, dstKey, err)

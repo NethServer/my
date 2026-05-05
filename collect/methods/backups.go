@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -194,19 +195,10 @@ func UploadBackup(c *gin.Context) {
 	}
 	systemKey, _ := getAuthenticatedSystemKey(c)
 
-	// Per-system ingest rate limit — blocks flood-style abuse ahead of
-	// the expensive storage path.
-	if ok, retry := enforceIngestRateLimit(c.Request.Context(), systemKey); !ok {
-		c.Header("Retry-After", fmt.Sprintf("%d", retry))
-		c.JSON(http.StatusTooManyRequests, response.Error(http.StatusTooManyRequests, "upload rate limit exceeded", gin.H{
-			"retry_after_seconds": retry,
-		}))
-		return
-	}
-
-	// Require an explicit Content-Length. A missing or -1 value would
-	// leave the handler dependent on MaxBytesReader alone and make the
-	// post-upload byte reconciliation impossible.
+	// Run the cheap header validations BEFORE consuming a rate-limit slot
+	// so a misbehaving appliance shipping zero-length or oversized requests
+	// does not lock itself out of legitimate retries. Rate limiting still
+	// protects against floods of well-formed requests.
 	if c.Request.ContentLength <= 0 {
 		c.JSON(http.StatusLengthRequired, response.Error(http.StatusLengthRequired, "Content-Length required", nil))
 		return
@@ -214,6 +206,16 @@ func UploadBackup(c *gin.Context) {
 	if c.Request.ContentLength > configuration.Config.BackupMaxUploadSize {
 		c.JSON(http.StatusRequestEntityTooLarge, response.Error(http.StatusRequestEntityTooLarge, "backup exceeds max upload size", gin.H{
 			"max_bytes": configuration.Config.BackupMaxUploadSize,
+		}))
+		return
+	}
+
+	// Per-system ingest rate limit — blocks flood-style abuse ahead of
+	// the expensive storage path.
+	if ok, retry := enforceIngestRateLimit(c.Request.Context(), systemKey); !ok {
+		c.Header("Retry-After", fmt.Sprintf("%d", retry))
+		c.JSON(http.StatusTooManyRequests, response.Error(http.StatusTooManyRequests, "upload rate limit exceeded", gin.H{
+			"retry_after_seconds": retry,
 		}))
 		return
 	}
@@ -234,12 +236,22 @@ func UploadBackup(c *gin.Context) {
 	}
 
 	// Per-org aggregate quota — reject before streaming the body if the
-	// incoming upload would push the org over its ceiling.
+	// incoming upload would push the org over its ceiling. The check uses a
+	// Redis counter that's maintained incrementally on uploads and deletes
+	// (with TTL self-heal); the hot path no longer pays the cost of listing
+	// every backup object in the org on every upload. A failure to read AND
+	// recompute the counter fails CLOSED with 503 — the per-org quota is the
+	// principal blast-radius cap if an appliance credential is compromised,
+	// silently allowing the upload would let an attacker who can induce S3
+	// list errors lift the cap entirely.
 	if configuration.Config.BackupMaxSizePerOrg > 0 {
-		used, err := computeOrgBackupUsage(ctx, client, orgID)
+		used, err := getOrgBackupUsage(ctx, client, orgID)
 		if err != nil {
-			logger.Warn().Err(err).Str("org_id", orgID).Msg("failed to compute org quota, allowing upload")
-		} else if used+c.Request.ContentLength > configuration.Config.BackupMaxSizePerOrg {
+			logger.Error().Err(err).Str("org_id", orgID).Msg("org quota lookup failed; refusing upload (fail-closed)")
+			c.JSON(http.StatusServiceUnavailable, response.Error(http.StatusServiceUnavailable, "backup quota service unavailable, retry later", nil))
+			return
+		}
+		if used+c.Request.ContentLength > configuration.Config.BackupMaxSizePerOrg {
 			// Do not echo the measured usage back to the appliance — it
 			// would let a compromised client profile the entire org's
 			// consumption. The operator can inspect the server log.
@@ -351,6 +363,11 @@ func UploadBackup(c *gin.Context) {
 	if head != nil {
 		size = aws.ToInt64(head.ContentLength)
 	}
+
+	// Bump the org-usage counter BEFORE retention runs, so any subsequent
+	// prune correctly subtracts what it removes. Retention may push the
+	// total back down within the same request.
+	adjustOrgBackupUsage(ctx, orgID, size)
 
 	if err := enforceBackupRetention(ctx, client, orgID, systemKey); err != nil {
 		logger.Warn().Err(err).Str("system_id", systemID).Str("system_key", systemKey).Msg("retention enforcement failed")
@@ -524,7 +541,7 @@ func DeleteBackup(c *gin.Context) {
 	// S3 DeleteObject is idempotent and does not return NoSuchKey —
 	// probe with HeadObject first so a phantom id surfaces as 404
 	// instead of a misleading 200.
-	_, err = client.HeadObject(ctx, &s3.HeadObjectInput{
+	head, err := client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(configuration.Config.BackupS3Bucket),
 		Key:    aws.String(key),
 	})
@@ -538,6 +555,7 @@ func DeleteBackup(c *gin.Context) {
 		c.JSON(http.StatusBadGateway, response.Error(http.StatusBadGateway, "failed to delete backup", nil))
 		return
 	}
+	deletedSize := aws.ToInt64(head.ContentLength)
 
 	_, err = client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(configuration.Config.BackupS3Bucket),
@@ -548,6 +566,10 @@ func DeleteBackup(c *gin.Context) {
 		c.JSON(http.StatusBadGateway, response.Error(http.StatusBadGateway, "failed to delete backup", nil))
 		return
 	}
+
+	// Keep the org-usage counter consistent so the next upload's quota
+	// check sees the freed space.
+	adjustOrgBackupUsage(ctx, orgID, -deletedSize)
 
 	logger.Info().
 		Str("component", "backup").
@@ -671,6 +693,7 @@ func enforceBackupRetention(ctx context.Context, client *s3.Client, orgID, syste
 	for len(objs) > 0 && (len(objs) > maxCount || totalSize > maxSize) {
 		victim := objs[0]
 		objs = objs[1:]
+		victimSize := aws.ToInt64(victim.Size)
 		_, delErr := client.DeleteObject(ctx, &s3.DeleteObjectInput{
 			Bucket: aws.String(configuration.Config.BackupS3Bucket),
 			Key:    victim.Key,
@@ -679,7 +702,10 @@ func enforceBackupRetention(ctx context.Context, client *s3.Client, orgID, syste
 			logger.Warn().Err(delErr).Str("key", aws.ToString(victim.Key)).Msg("retention: delete failed")
 			continue
 		}
-		totalSize -= aws.ToInt64(victim.Size)
+		totalSize -= victimSize
+		// Keep the org-usage counter consistent so the next upload's quota
+		// check sees the freed space.
+		adjustOrgBackupUsage(ctx, orgID, -victimSize)
 		logger.Info().Str("key", aws.ToString(victim.Key)).Msg("retention: oldest backup pruned")
 	}
 
@@ -706,6 +732,71 @@ func computeOrgBackupUsage(ctx context.Context, client *s3.Client, orgID string)
 		}
 	}
 	return total, nil
+}
+
+// orgUsageCacheKey returns the Redis key holding the current per-org backup
+// usage in bytes. The counter is maintained incrementally on every
+// successful upload and on every retention/delete; a 25h TTL bounds the
+// drift caused by out-of-band changes (e.g. backend-side purge on system
+// destroy) and lets the next missed read self-heal via S3 list.
+func orgUsageCacheKey(orgID string) string {
+	return fmt.Sprintf("backup:org_usage:%s", orgID)
+}
+
+const orgUsageCacheTTL = 25 * time.Hour
+
+// getOrgBackupUsage returns the org-level usage in bytes. It tries the Redis
+// counter first; on miss it recomputes by listing S3 and caches the result.
+// A failure to recompute (S3 list error) is propagated so the caller can
+// fail closed: the per-org quota is the principal blast-radius cap when an
+// appliance is compromised, so silently allowing the upload would let an
+// attacker who induces S3 errors lift the cap entirely.
+func getOrgBackupUsage(ctx context.Context, client *s3.Client, orgID string) (int64, error) {
+	rdb := queue.GetClient()
+	if rdb != nil {
+		key := orgUsageCacheKey(orgID)
+		if raw, err := rdb.Get(ctx, key).Result(); err == nil {
+			if n, parseErr := strconv.ParseInt(raw, 10, 64); parseErr == nil {
+				return n, nil
+			}
+			// Stale or malformed value — drop it and fall through to recompute.
+			_ = rdb.Del(ctx, key).Err()
+		}
+	}
+
+	used, err := computeOrgBackupUsage(ctx, client, orgID)
+	if err != nil {
+		return 0, err
+	}
+	if rdb != nil {
+		// Best-effort cache write; a Redis hiccup costs the next request a
+		// second list but does not break correctness.
+		_ = rdb.Set(ctx, orgUsageCacheKey(orgID), used, orgUsageCacheTTL).Err()
+	}
+	return used, nil
+}
+
+// adjustOrgBackupUsage shifts the counter by delta (positive on upload,
+// negative on retention or admin delete). Best-effort: a Redis miss skips
+// the update, the next read recomputes from S3.
+func adjustOrgBackupUsage(ctx context.Context, orgID string, delta int64) {
+	if delta == 0 {
+		return
+	}
+	rdb := queue.GetClient()
+	if rdb == nil {
+		return
+	}
+	key := orgUsageCacheKey(orgID)
+	if err := rdb.IncrBy(ctx, key, delta).Err(); err != nil {
+		// Counter is missing or Redis errored — invalidate so the next
+		// read goes back to the S3 list.
+		_ = rdb.Del(ctx, key).Err()
+		return
+	}
+	// Refresh TTL on every increment so an org that's actively using
+	// backups never lets its counter expire underneath it.
+	_ = rdb.Expire(ctx, key, orgUsageCacheTTL).Err()
 }
 
 // lookupSystemOrgID returns the organization_id for the given system_id.
