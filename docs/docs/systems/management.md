@@ -164,6 +164,15 @@ See [Inventory and Heartbeat](inventory-heartbeat) for details.
    - Notes
 4. Click **Save system**
 
+:::tip
+Changing the **Organization** moves the system to a different owner.
+The system's backups, alert history, and inventory follow the new
+owner; the previous owner loses access immediately. See
+[Reassigning a system to another organization](org-reassignment) for
+the full behaviour, who is allowed to do it, and what happens to
+silences and app assignments.
+:::
+
 ### Regenerating System Secret
 
 If the `system_secret` is compromised or lost:

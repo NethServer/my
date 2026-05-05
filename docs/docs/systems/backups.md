@@ -74,7 +74,16 @@ Appliance uploads are additionally rate-limited per system (default 6 per minute
 
 ## Deletion and GDPR
 
-A **soft delete** keeps the backups in place: the system row is flagged with `deleted_at` but can still be restored via the UI, and its backups must survive so the restore is useful. A **hard destroy** is irreversible and runs a GDPR-aligned erasure — every object under the system's `{org_id}/{system_key}/` prefix is removed from the bucket before the database row is dropped, whether the system was previously soft-deleted or not. If the storage cleanup fails the destroy is refused so the operator can retry; no orphan ciphertext is ever left behind under a destroyed system's prefix. Credential changes (secret rotation, soft delete) invalidate every cached auth entry on `collect` within a second through a cross-service Redis pub/sub bus.
+A **soft delete** keeps the backups in place: the system row is flagged with `deleted_at` but can still be restored via the UI, and its backups must survive so the restore is useful. A **hard destroy** is irreversible and runs a GDPR-aligned erasure — every object under the system's `{org_id}/{system_key}/` prefix is removed from the bucket before the database row is dropped, whether the system was previously soft-deleted or not. If the system was previously reassigned across organizations, every prior `org_id` prefix is swept too, so a partial cleanup failure during a past reassignment cannot leak ciphertext past the destroy. If the storage cleanup fails the destroy is refused so the operator can retry; no orphan ciphertext is ever left behind under a destroyed system's prefix. Credential changes (secret rotation, soft delete) invalidate every cached auth entry on `collect` within a second through a cross-service Redis pub/sub bus.
+
+## Cross-organization reassignment
+
+When a system is moved from one organization to another, its backups
+follow the new owner: everything under the previous owner's prefix is
+copied to the new owner's prefix before the change is committed, and
+the previous prefix is then cleared. The full mechanics — what carries
+over, who can trigger it, what the previous owner sees after the
+move — are documented in [Reassigning a system to another organization](org-reassignment).
 
 ## Managing backups
 
@@ -93,5 +102,6 @@ A UI for listing, downloading, and deleting backups lives under the system detai
 ## Related
 
 - [System registration](registration) — how an appliance obtains the credentials used for backup uploads.
+- [Reassigning a system to another organization](org-reassignment) — what happens to backups when a system changes owner.
 - [`collect/README.md`](https://github.com/NethServer/my/blob/main/collect/README.md) — storage configuration (`BACKUP_S3_*`) and a copy-paste `curl` recipe for simulating an appliance upload.
 - [`backend/README.md`](https://github.com/NethServer/my/blob/main/backend/README.md) — matching read-side storage configuration.

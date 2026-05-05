@@ -74,7 +74,17 @@ Gli upload dell'appliance sono inoltre sottoposti a rate limit per sistema (defa
 
 ## Eliminazione e GDPR
 
-Un **soft delete** lascia i backup al loro posto: la riga del sistema viene marcata con `deleted_at` ma può ancora essere ripristinata dalla UI, e i suoi backup devono sopravvivere perché il ripristino sia utile. Un **hard destroy** è irreversibile ed esegue un'erasure GDPR-compliant: ogni oggetto sotto il prefisso `{org_id}/{system_key}/` del sistema viene rimosso dal bucket prima che la riga nel database venga cancellata, sia che il sistema sia stato soft-deleted in precedenza sia che no. Se il cleanup dello storage fallisce, il destroy viene rifiutato in modo che l'operatore possa riprovare; nessun ciphertext orfano rimane mai sotto il prefisso di un sistema distrutto. Le modifiche delle credenziali (rotazione del secret, soft delete) invalidano ogni cache di auth su `collect` entro un secondo, tramite un bus Redis pub/sub cross-service.
+Un **soft delete** lascia i backup al loro posto: la riga del sistema viene marcata con `deleted_at` ma può ancora essere ripristinata dalla UI, e i suoi backup devono sopravvivere perché il ripristino sia utile. Un **hard destroy** è irreversibile ed esegue un'erasure GDPR-compliant: ogni oggetto sotto il prefisso `{org_id}/{system_key}/` del sistema viene rimosso dal bucket prima che la riga nel database venga cancellata, sia che il sistema sia stato soft-deleted in precedenza sia che no. Se il sistema era stato in passato riassegnato fra organizzazioni, il destroy spazza anche tutti i prefissi `org_id` precedenti, quindi un cleanup parziale fallito durante una riassegnazione passata non lascia ciphertext residuo dopo il destroy. Se il cleanup dello storage fallisce, il destroy viene rifiutato in modo che l'operatore possa riprovare; nessun ciphertext orfano rimane mai sotto il prefisso di un sistema distrutto. Le modifiche delle credenziali (rotazione del secret, soft delete) invalidano ogni cache di auth su `collect` entro un secondo, tramite un bus Redis pub/sub cross-service.
+
+## Riassegnazione fra organizzazioni
+
+Quando un sistema viene spostato da un'organizzazione a un'altra, i suoi
+backup seguono il nuovo proprietario: tutto ciò che si trovava sotto il
+prefisso del precedente proprietario viene copiato sotto il prefisso
+del nuovo prima che il cambio venga confermato, e il prefisso precedente
+viene poi svuotato. La meccanica completa — cosa segue il sistema, chi
+può triggerare la riassegnazione, cosa vede il proprietario precedente
+dopo lo spostamento — è documentata in [Riassegnare un sistema a un'altra organizzazione](org-reassignment).
 
 ## Gestione dei backup
 
@@ -93,5 +103,6 @@ La UI per listare, scaricare ed eliminare i backup si trova nella vista di detta
 ## Riferimenti
 
 - [Registrazione del sistema](registration) — come un'appliance ottiene le credenziali usate per gli upload di backup.
+- [Riassegnare un sistema a un'altra organizzazione](org-reassignment) — cosa succede ai backup quando un sistema cambia proprietario.
 - [`collect/README.md`](https://github.com/NethServer/my/blob/main/collect/README.md) — configurazione dello storage (`BACKUP_S3_*`) e una ricetta `curl` per simulare un upload appliance.
 - [`backend/README.md`](https://github.com/NethServer/my/blob/main/backend/README.md) — stessa configurazione lato letture.
