@@ -11,6 +11,7 @@ package configuration
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"time"
@@ -86,6 +87,34 @@ type Configuration struct {
 
 	// Alertmanager webhook authentication
 	AlertmanagerWebhookSecret string `json:"alertmanager_webhook_secret"`
+
+	// Cross-service plumbing — must match backend's APP_ENV / INTERNAL_HMAC_SECRET.
+	AppEnv             string `json:"app_env"`
+	InternalHMACSecret string `json:"internal_hmac_secret"`
+
+	// Backup storage — S3 client credentials used to reach the DigitalOcean
+	// Spaces bucket that holds appliance configuration backups. The same
+	// Spaces account also hosts the Mimir buckets; values for endpoint,
+	// access key, and secret key are the shared S3 credentials.
+	BackupS3Endpoint       string `json:"backup_s3_endpoint"`
+	BackupS3Region         string `json:"backup_s3_region"`
+	BackupS3Bucket         string `json:"backup_s3_bucket"`
+	BackupS3AccessKey      string `json:"backup_s3_access_key"`
+	BackupS3SecretKey      string `json:"backup_s3_secret_key"`
+	BackupS3UsePathStyle   bool   `json:"backup_s3_use_path_style"`
+	BackupMaxUploadSize    int64  `json:"backup_max_upload_size"`
+	BackupMaxPerSystem     int    `json:"backup_max_per_system"`
+	BackupMaxSizePerSystem int64  `json:"backup_max_size_per_system"`
+	// Aggregate cap across every system owned by the same
+	// organization. 0 disables the check. Useful to contain blast
+	// radius when a single org's credentials are compromised.
+	BackupMaxSizePerOrg int64 `json:"backup_max_size_per_org"`
+	// Ingest rate limits (per system_id, Redis-backed). Legitimate
+	// appliances upload on a daily timer, so these numbers are set
+	// generously — their job is to block flood-style abuse, not to
+	// shape normal traffic.
+	BackupRateLimitPerMinute int `json:"backup_rate_limit_per_minute"`
+	BackupRateLimitPerHour   int `json:"backup_rate_limit_per_hour"`
 }
 
 var Config = Configuration{}
@@ -152,7 +181,12 @@ func Init() {
 
 	// System authentication configuration
 	Config.SystemSecretMinLength = parseIntWithDefault("SYSTEM_SECRET_MIN_LENGTH", 32)
-	Config.SystemAuthCacheTTL = parseDurationWithDefault("SYSTEM_AUTH_CACHE_TTL", 24*time.Hour)
+	// Cache positive auth results for 10 minutes by default. Shorter
+	// than a day so that credential rotations and system deletions
+	// done on the backend propagate to collect within that window
+	// without a dedicated invalidation bus. Each cache miss falls
+	// through to Redis and then to Postgres.
+	Config.SystemAuthCacheTTL = parseDurationWithDefault("SYSTEM_AUTH_CACHE_TTL", 10*time.Minute)
 
 	// API configuration
 	Config.APIMaxRequestSize = parseInt64WithDefault("API_MAX_REQUEST_SIZE", 10*1024*1024) // 10MB
@@ -174,11 +208,98 @@ func Init() {
 		Config.MimirURL = "http://localhost:9009"
 	}
 
-	// Alerting history webhook authentication
+	// Alerting history webhook authentication. Refuse weak secrets at boot:
+	// the secret is also pushed into Mimir's Alertmanager YAML so anyone
+	// with read on the Mimir S3 bucket recovers it; a short value reduces
+	// brute-force resistance to nothing. An empty value is permitted (the
+	// webhook receiver returns 503 in that case) for dev configurations
+	// that don't run Alertmanager locally.
 	Config.AlertmanagerWebhookSecret = os.Getenv("ALERTING_HISTORY_WEBHOOK_SECRET")
+	if Config.AlertmanagerWebhookSecret != "" && len(Config.AlertmanagerWebhookSecret) < 32 {
+		logger.Fatal().
+			Int("length", len(Config.AlertmanagerWebhookSecret)).
+			Msg("ALERTING_HISTORY_WEBHOOK_SECRET must be at least 32 characters; refusing to start with a weak secret")
+	}
+
+	// Internal cross-service plumbing — must match backend's settings.
+	Config.AppEnv = getStringWithDefault("APP_ENV", "dev")
+	Config.InternalHMACSecret = os.Getenv("INTERNAL_HMAC_SECRET")
+	if Config.InternalHMACSecret != "" && len(Config.InternalHMACSecret) < 32 {
+		logger.Fatal().
+			Int("length", len(Config.InternalHMACSecret)).
+			Msg("INTERNAL_HMAC_SECRET must be at least 32 characters; refusing to start with a weak secret")
+	}
+
+	// Backup storage — S3 client credentials (DigitalOcean Spaces)
+	Config.BackupS3Endpoint = validateBackupEndpoint("BACKUP_S3_ENDPOINT", os.Getenv("BACKUP_S3_ENDPOINT"))
+	Config.BackupS3Region = getStringWithDefault("BACKUP_S3_REGION", "us-east-1")
+	Config.BackupS3Bucket = os.Getenv("BACKUP_S3_BUCKET")
+	Config.BackupS3AccessKey = os.Getenv("BACKUP_S3_ACCESS_KEY")
+	Config.BackupS3SecretKey = os.Getenv("BACKUP_S3_SECRET_KEY")
+	Config.BackupS3UsePathStyle = parseBoolWithDefault("BACKUP_S3_USE_PATH_STYLE", false)
+	Config.BackupMaxUploadSize = parseInt64WithDefault("BACKUP_MAX_UPLOAD_SIZE", 2*1024*1024*1024)
+	Config.BackupMaxPerSystem = parseIntWithDefault("BACKUP_MAX_PER_SYSTEM", 10)
+	Config.BackupMaxSizePerSystem = parseInt64WithDefault("BACKUP_MAX_SIZE_PER_SYSTEM", 500*1024*1024)
+	// Default 100 GiB per organization. An unset env var would otherwise
+	// leave the aggregate quota disabled, making a compromised system_key
+	// capable of saturating the backing bucket on behalf of its org.
+	// Set BACKUP_MAX_SIZE_PER_ORG=0 explicitly to disable.
+	Config.BackupMaxSizePerOrg = parseInt64WithDefault("BACKUP_MAX_SIZE_PER_ORG", 100*1024*1024*1024)
+	if os.Getenv("BACKUP_MAX_SIZE_PER_ORG") == "0" {
+		logger.Warn().Msg("BACKUP_MAX_SIZE_PER_ORG=0: per-organization aggregate backup quota disabled")
+	}
+	Config.BackupRateLimitPerMinute = parseIntWithDefault("BACKUP_RATE_LIMIT_PER_MINUTE", 6)
+	Config.BackupRateLimitPerHour = parseIntWithDefault("BACKUP_RATE_LIMIT_PER_HOUR", 60)
 
 	// Log successful configuration load
 	logger.LogConfigLoad("env", "configuration", true, nil)
+}
+
+// validateBackupEndpoint refuses HTTP endpoints unless the host is a
+// well-known dev loopback name; misconfigured prod deployments would
+// otherwise send signed S3 traffic in plaintext. Empty values are
+// returned unchanged (the storage package surfaces a clearer error).
+func validateBackupEndpoint(name, raw string) string {
+	if raw == "" {
+		return ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		logger.LogConfigLoad("env", name, false, fmt.Errorf("invalid URL %q", raw))
+		return ""
+	}
+	// Reject userinfo (https://attacker:pw@host) — the AWS SDK ignores it but
+	// some HTTP clients down the chain may not, and there is no legitimate
+	// reason to embed credentials in the bucket endpoint URL.
+	if u.User != nil {
+		logger.LogConfigLoad("env", name, false, fmt.Errorf("userinfo in endpoint URL is not allowed"))
+		return ""
+	}
+	// The endpoint must be the bucket service root, not a sub-path. The S3
+	// SDK appends `/<bucket>/<key>` to whatever is given, so a non-root path
+	// silently mis-targets traffic.
+	if u.Path != "" && u.Path != "/" {
+		logger.LogConfigLoad("env", name, false, fmt.Errorf("non-root path %q in endpoint URL is not allowed", u.Path))
+		return ""
+	}
+	if u.Scheme == "https" {
+		return raw
+	}
+	if u.Scheme == "http" {
+		host := u.Hostname()
+		// Allowlist exact loopback hosts only. Suffix-matching `.local` /
+		// `.localtest.me` would otherwise admit `evil.local` /
+		// `evil.localtest.me` shipped over plaintext.
+		if host == "localhost" || host == "127.0.0.1" || host == "::1" ||
+			host == "my.localtest.me" ||
+			os.Getenv("BACKUP_S3_ALLOW_INSECURE") == "true" {
+			return raw
+		}
+		logger.LogConfigLoad("env", name, false, fmt.Errorf("HTTP endpoint to non-loopback host %q rejected; set BACKUP_S3_ALLOW_INSECURE=true to override", host))
+		return ""
+	}
+	logger.LogConfigLoad("env", name, false, fmt.Errorf("unsupported scheme %q", u.Scheme))
+	return ""
 }
 
 // parseDurationWithDefault parses a duration from environment variable or returns default
@@ -247,4 +368,21 @@ func getStringWithDefault(envVar string, defaultValue string) string {
 		return envValue
 	}
 	return defaultValue
+}
+
+// parseBoolWithDefault parses a boolean from an env var or returns the default.
+// Accepts the same set of literals as strconv.ParseBool ("1"/"true"/"True"/"t"
+// /"TRUE" for true; "0"/"false"/"False"/"f"/"FALSE" for false). Aligning on
+// this helper keeps backend and collect from disagreeing on the same env value
+// (e.g. "1" being true on backend but false on collect).
+func parseBoolWithDefault(envVar string, defaultValue bool) bool {
+	v := os.Getenv(envVar)
+	if v == "" {
+		return defaultValue
+	}
+	parsed, err := strconv.ParseBool(v)
+	if err != nil {
+		return defaultValue
+	}
+	return parsed
 }

@@ -65,7 +65,7 @@ const sortedServices = computed<ServiceItem[]>(() =>
 
 <template>
   <NeCard>
-    <div class="mb-4 flex items-center gap-4">
+    <div class="mb-4 flex h-10 items-center gap-4">
       <FontAwesomeIcon :icon="faFolderPlus" class="size-5 shrink-0" aria-hidden="true" />
       <NeHeading tag="h6">
         {{ $t('system_detail.additional_services').toUpperCase() }}
@@ -87,12 +87,12 @@ const sortedServices = computed<ServiceItem[]>(() =>
       <div
         v-for="service in sortedServices"
         :key="service.key"
-        class="flex items-center justify-between py-3"
+        class="flex items-center justify-between gap-2 py-4"
       >
         <span class="font-medium text-gray-900 dark:text-gray-50">
           {{ service.label }}
         </span>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 text-end text-gray-600 dark:text-gray-300">
           <FontAwesomeIcon
             :icon="service.enabled ? faCircleCheck : faCircleXmark"
             class="size-4"
@@ -103,7 +103,7 @@ const sortedServices = computed<ServiceItem[]>(() =>
             "
             aria-hidden="true"
           />
-          <span class="text-xs font-medium text-gray-600 dark:text-gray-300">
+          <span class="text-xs font-medium">
             {{ service.enabled ? $t('common.enabled') : $t('common.disabled') }}
           </span>
         </div>

@@ -43,9 +43,10 @@ func jitteredTTL(base time.Duration) time.Duration {
 var inProcessAuthCache sync.Map
 
 type authCacheEntry struct {
-	systemID  string
-	valid     bool
-	expiresAt time.Time
+	systemID   string
+	valid      bool
+	insertedAt time.Time
+	expiresAt  time.Time
 }
 
 // authCacheKey returns a consistent cache key for in-process and Redis caches
@@ -56,6 +57,12 @@ func authCacheKey(systemKey, systemSecret string) string {
 
 // checkInProcessCache checks the in-process auth cache.
 // Returns (systemID, valid, found).
+//
+// An entry is dropped when:
+//   - it has reached its expiresAt, OR
+//   - it was inserted before the most recent invalidation for this
+//     system_key (closes the race where sync.Map.Range used by
+//     purgeSystemAuthCache might miss an entry installed during the iteration).
 func checkInProcessCache(systemKey, systemSecret string) (string, bool, bool) {
 	key := authCacheKey(systemKey, systemSecret)
 	val, ok := inProcessAuthCache.Load(key)
@@ -63,7 +70,12 @@ func checkInProcessCache(systemKey, systemSecret string) (string, bool, bool) {
 		return "", false, false
 	}
 	entry := val.(*authCacheEntry)
-	if time.Now().After(entry.expiresAt) {
+	now := time.Now()
+	if now.After(entry.expiresAt) {
+		inProcessAuthCache.Delete(key)
+		return "", false, false
+	}
+	if invalidatedAt := LastInvalidatedAt(systemKey); !invalidatedAt.IsZero() && entry.insertedAt.Before(invalidatedAt) {
 		inProcessAuthCache.Delete(key)
 		return "", false, false
 	}
@@ -79,10 +91,12 @@ func setInProcessCache(systemKey, systemSecret, systemID string, valid bool) {
 	} else {
 		ttl = 1 * time.Minute
 	}
+	now := time.Now()
 	inProcessAuthCache.Store(key, &authCacheEntry{
-		systemID:  systemID,
-		valid:     valid,
-		expiresAt: time.Now().Add(ttl),
+		systemID:   systemID,
+		valid:      valid,
+		insertedAt: now,
+		expiresAt:  now.Add(ttl),
 	})
 }
 

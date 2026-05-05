@@ -1,18 +1,18 @@
 # My Nethesis - Local Development Infrastructure
 #
-# 🚀 READY! Access your application at: http://localhost:9090
+# Access the application at http://localhost:9090 once the stack is up.
 #
-# 🌐 Service URLs:
+# Service URLs:
 #   - Main App:    http://localhost:9090
 #   - Backend:     http://localhost:18080/api/health
 #   - Collect:     http://localhost:18081/api/health
 #   - Frontend:    http://localhost:13000
 #
-# 💾 Databases:
+# Databases:
 #   - PostgreSQL:  localhost:15432 (user: noc_user, db: noc)
 #   - Redis:       localhost:16379
 #
-# 🛠️ Management:
+# Management:
 #   - Start:       docker-compose up -d  OR  podman-compose up -d
 #   - Stop:        docker-compose down   OR  podman-compose down
 #   - Logs:        docker-compose logs -f [service]  OR  podman-compose logs -f [service]

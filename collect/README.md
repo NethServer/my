@@ -201,7 +201,104 @@ curl -X POST http://localhost:8081/api/systems/inventory \
   -H "Content-Type: application/json" \
   -u "system_key:system_secret" \
   -d '{"system_id": "test", "timestamp": "2025-07-13T10:00:00Z", "data": {"os": {"name": "TestOS"}}}'
+
+# Upload a configuration backup (streams the file body; GPG encryption is
+# up to the appliance). X-Filename is the user-facing name shown in the UI.
+curl -X POST http://localhost:8081/api/systems/backups \
+  -u "system_key:system_secret" \
+  -H "Content-Type: application/octet-stream" \
+  -H "X-Filename: dump.json.gz.gpg" \
+  --data-binary @/path/to/backup.gpg
 ```
+
+### Appliance integration (NS8 / NethSecurity)
+
+Each authenticated system owns a prefix in the backup bucket
+(`{org_id}/{system_key}/...`) and the three endpoints below are all the
+appliance needs. Auth is always HTTP Basic with the system_key and the
+system_secret returned at registration:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/systems/backups`   | Stream a new backup. 201 on success with `{id, sha256, size, uploaded_at}` in the body. |
+| `GET /api/systems/backups`    | List own backups with metadata. |
+| `GET /api/systems/backups/:id` | Download a stored backup for restore. |
+
+Retention is enforced server-side: after each upload the oldest entries
+beyond `BACKUP_MAX_PER_SYSTEM` or `BACKUP_MAX_SIZE_PER_SYSTEM` are
+pruned. Client-side dedup via local MD5 is still useful — if the hash
+of the just-encrypted blob equals the one from the previous run the
+appliance can skip the upload entirely.
+
+### Backup storage
+
+Backup objects are stored on any S3-compatible bucket. In production
+the project targets DigitalOcean Spaces (the same account that backs
+Mimir); for local development point the `BACKUP_S3_*` env vars at your
+preferred emulator (MinIO, Garage, LocalStack, …) or at a dedicated dev
+bucket on your S3 provider of choice. Backend and collect must share
+the same bucket — collect writes, backend reads and issues presigned
+download URLs.
+
+**Separate credentials (optional).** Nothing in the code forces backend
+and collect to share the same `BACKUP_S3_ACCESS_KEY` / `BACKUP_S3_SECRET_KEY`.
+If your S3 provider supports per-key policies (AWS S3 IAM, Cloudflare
+R2 scoped tokens, MinIO user policies), issue two keys: one for
+**collect** scoped to `PutObject`/`CopyObject`/`DeleteObject`/
+`ListObjectsV2`/`HeadObject` on the bucket prefix, and one for
+**backend** scoped to `GetObject`/`ListObjectsV2`/`HeadObject`/
+`DeleteObject`. Then set a different `BACKUP_S3_ACCESS_KEY` /
+`BACKUP_S3_SECRET_KEY` pair on each service. This contains blast
+radius if one component is ever compromised.
+
+Object keys follow `{org_id}/{system_key}/{backup_id}.{ext}` — the
+user-facing `system_key` (`NETH-…`) is preferred over the internal UUID
+so operators browsing a raw bucket listing can recognise each system at
+a glance. Per-object
+metadata is stored as standard `x-amz-meta-*` headers:
+
+| Header                   | Source                                                               |
+|--------------------------|----------------------------------------------------------------------|
+| `x-amz-meta-sha256`      | Computed by collect via streaming tee at ingest                      |
+| `x-amz-meta-filename`    | From the appliance request header `X-Filename` (user-facing name)    |
+| `x-amz-meta-uploader-ip` | Client IP observed by collect                                        |
+
+### Testing the backup round-trip end-to-end
+
+Any S3-compatible bucket works. Provision one on your preferred
+provider (DigitalOcean Spaces, Cloudflare R2, AWS S3, a self-hosted
+MinIO/Garage, …), issue an access key pair scoped to that bucket, and
+set the values in `backend/.env` and `collect/.env`:
+
+```
+BACKUP_S3_ENDPOINT=...        # e.g. https://ams3.digitaloceanspaces.com
+BACKUP_S3_REGION=ams3         # DO Spaces region code; any non-empty value works for MinIO/Garage
+BACKUP_S3_BUCKET=my-backups-dev
+BACKUP_S3_ACCESS_KEY=...
+BACKUP_S3_SECRET_KEY=...
+BACKUP_S3_USE_PATH_STYLE=false   # set to true only for MinIO/Garage
+```
+
+Restart backend and collect, then simulate an appliance upload — the
+GPG pipeline below matches exactly what NS8's `send-cluster-backup`
+and NethSecurity's `send-backup` produce today:
+
+```bash
+# Prepare a fake GPG-encrypted blob
+echo '{"simulation": true}' | gzip > /tmp/dump.json.gz
+gpg --batch --yes -c --pinentry-mode loopback --cipher-algo AES256 \
+    --passphrase-fd 0 /tmp/dump.json.gz <<< "local-dev-passphrase"
+
+# Upload as an authenticated appliance
+curl --user "$SYSTEM_KEY:$SYSTEM_SECRET" \
+     -H "X-Filename: dump.json.gz.gpg" \
+     -H "Content-Type: application/octet-stream" \
+     --data-binary @/tmp/dump.json.gz.gpg \
+     http://localhost:8081/api/systems/backups
+```
+
+Verify the object shows up under `{org_id}/{system_key}/<uuidv7>.gpg`
+in the bucket (via the provider's console or the AWS CLI).
 
 ## Project Structure
 
@@ -218,6 +315,7 @@ collect/
 ├── middleware/            # Authentication middleware
 ├── models/                # Data structures
 ├── queue/                 # Redis queue management
+├── storage/               # S3 client for backup ingest
 ├── workers/               # Background processing workers
 │   ├── inventory_worker.go        # Batch inventory processing
 │   ├── diff_worker.go             # Change detection

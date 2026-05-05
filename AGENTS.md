@@ -93,6 +93,7 @@ Notable `methods/` groupings:
 - Resource CRUD: `distributors.go`, `resellers.go`, `customers.go`, `users.go`, `systems.go`, `applications.go`
 - Bulk import/export: `*_import.go`, `*_export.go`, `import_helpers.go`
 - Alerting: `alerting.go` (backend-side — per-tenant config, active alerts from Mimir, history from DB)
+- Backups: `backups.go` (list/download/delete of appliance configuration backups stored on S3; purges the system's prefix on hard delete for GDPR)
 - Filters: `systems_filters.go`, `users_filters.go` — aggregation endpoints for UI filters
 - Other: `auth.go`, `impersonate.go`, `rebranding.go`, `inventory.go`, `organizations.go`, `roles.go`, `totals.go`, `validators/`
 
@@ -118,6 +119,7 @@ Key properties:
 - Systems auth with HTTP Basic (`system_key:system_secret`, SHA256 in DB).
 - `/api/services/mimir/alertmanager/api/v2/{alerts,silences}[/*subpath]` proxied to Mimir with server-set `X-Scope-OrgID` and authoritative identity labels (`injectLabels` overwrites client values, strips when DB is NULL).
 - `/api/alert_history` receives Alertmanager resolved-alert webhooks with Bearer auth (constant-time compare, fail-closed). `organization_id` is resolved at write-time from `systems.system_key`; unknown keys are dropped.
+- `/api/systems/backups` ingests GPG-encrypted configuration backups from appliances. Stream body → S3 with SHA-256 `io.TeeReader`, metadata reconciled via same-key `CopyObject`, retention enforced inline under a Redis `SET NX` lock, per-system rate limit. Keys: `{org_id}/{system_key}/{backup_id}.{ext}`. Storage is any S3-compatible bucket configured via `BACKUP_S3_*` env vars (see `collect/README.md`).
 
 ### 3.3 Sync (`sync/`)
 
@@ -347,6 +349,14 @@ make build-all    # linux/darwin/windows × amd64/arm64
 3. Request/response models in `backend/models/`.
 4. **Update `backend/openapi.yaml`** (mandatory — validated by `make validate-docs`).
 5. `make pre-commit`.
+
+### 10.1b Naming — plural vs singular in path segments
+
+- **Plural** for collections with N elements addressable by ID: `/users`, `/systems`, `/alerts`, `/alerts/silences`, `/backups`. Any endpoint that supports `GET` list, `GET /:id`, `POST` create, or `DELETE /:id` belongs here.
+- **Singular** for singletons (one resource per parent) and for command/snapshot endpoints that accept a single payload and don't expose a collection: `/alerts/config`, `/me`, `/inventory`, `/heartbeat`.
+- Aggregate queries over a collection stay plural: `/alerts/totals`, `/alerts/trend`, `/systems/totals`.
+
+Apparent asymmetry like `/systems/:id/backups` (plural) next to `/systems/inventory` (singular) reflects this rule — `backups` is a multi-item collection, `inventory` is a single snapshot the client pushes and the server replaces.
 
 ### 10.2 API reference
 

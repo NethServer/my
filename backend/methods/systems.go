@@ -7,6 +7,7 @@ package methods
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -15,6 +16,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 
+	"github.com/nethesis/my/backend/cache"
+	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
@@ -250,8 +253,18 @@ func UpdateSystem(c *gin.Context) {
 	// Create systems service
 	systemsService := local.NewSystemsService()
 
-	// Update system with access validation
-	system, err := systemsService.UpdateSystem(systemID, &request, user.ID, user.OrganizationID, user.OrgRole)
+	// Update system with access validation. Pass actor metadata so the
+	// cross-org transfer audit row (if any) records who made the change
+	// and from where.
+	reqCtx := local.UpdateSystemRequestContext{
+		ActorIP:   c.ClientIP(),
+		UserAgent: c.Request.UserAgent(),
+	}
+	system, err := systemsService.UpdateSystem(systemID, &request, user.ID, user.OrganizationID, user.OrgRole, reqCtx)
+	if errors.Is(err, cache.ErrSystemReassignLocked) {
+		c.JSON(http.StatusConflict, response.Error(http.StatusConflict, err.Error(), nil))
+		return
+	}
 	if helpers.HandleAccessError(c, err, "system", systemID) {
 		return
 	}
@@ -369,6 +382,41 @@ func DestroySystem(c *gin.Context) {
 	}
 
 	systemsService := local.NewSystemsService()
+
+	// Resolve the system before destroy so we know which S3 prefix to
+	// purge (the row will be gone after DestroySystem). The lookup
+	// bypasses the deleted_at filter so the two-step "soft delete, then
+	// destroy" flow still runs the purge — GetSystem would otherwise
+	// return "not found" on an already soft-deleted row and the GDPR
+	// erasure would be silently skipped. Skip the purge only when the
+	// row is genuinely missing; DestroySystem will surface the 404 below.
+	if system, lookupErr := systemsService.GetSystemIncludingDeleted(systemID, user.OrgRole, user.OrganizationID); lookupErr == nil {
+		// Build the set of orgs whose prefix may hold backups for this
+		// system: the current owner plus every donor recorded in the audit
+		// log. Without this, a partial cleanup failure during a previous
+		// reassignment can leave ciphertext under a donor prefix that the
+		// destroy never visits — a silent GDPR Article 17 gap.
+		orgsToPurge := []string{system.Organization.LogtoID}
+		seen := map[string]bool{system.Organization.LogtoID: true}
+		auditRepo := entities.NewLocalSystemOrgTransfersRepository()
+		if priorOrgs, err := auditRepo.PriorOrgIDsForSystem(systemID); err == nil {
+			for _, orgID := range priorOrgs {
+				if !seen[orgID] {
+					seen[orgID] = true
+					orgsToPurge = append(orgsToPurge, orgID)
+				}
+			}
+		} else {
+			logger.Warn().Err(err).Str("system_id", systemID).Msg("could not load prior orgs for purge; falling back to current org only")
+		}
+		for _, orgID := range orgsToPurge {
+			if purgeErr := purgeSystemBackups(c.Request.Context(), orgID, system.SystemKey); purgeErr != nil {
+				logger.Error().Err(purgeErr).Str("system_id", systemID).Str("org_id", orgID).Msg("backup purge failed; refusing to destroy system")
+				c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to purge system backups", nil))
+				return
+			}
+		}
+	}
 
 	err := systemsService.DestroySystem(systemID, user.ID, user.OrganizationID, user.OrgRole)
 	if err != nil {

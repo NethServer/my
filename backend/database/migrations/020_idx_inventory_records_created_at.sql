@@ -1,4 +1,4 @@
--- Migration 023: Index inventory_records on (system_id, created_at)
+-- Migration 020: Index inventory_records on (system_id, created_at)
 --
 -- Supports the exponential-retention cleanup in
 -- collect/workers/cleanup_worker.go which filters and partitions by

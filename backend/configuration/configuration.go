@@ -11,6 +11,7 @@ package configuration
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -39,8 +40,12 @@ type Configuration struct {
 	LogtoManagementClientSecret string `json:"logto_management_client_secret"`
 	LogtoManagementBaseURL      string `json:"logto_management_base_url"`
 	// Redis configuration
-	RedisURL          string        `json:"redis_url"`
-	RedisDB           int           `json:"redis_db"`
+	RedisURL string `json:"redis_url"`
+	RedisDB  int    `json:"redis_db"`
+	// RedisDBShared is the Redis logical DB used for cross-service keys
+	// (currently the per-org backup-usage counter). Default 1 to match
+	// collect's default REDIS_DB.
+	RedisDBShared     int           `json:"redis_db_shared"`
 	RedisPassword     string        `json:"redis_password"`
 	RedisMaxRetries   int           `json:"redis_max_retries"`
 	RedisDialTimeout  time.Duration `json:"redis_dial_timeout"`
@@ -72,6 +77,31 @@ type Configuration struct {
 	// Alerting configuration
 	AlertingHistoryWebhookURL    string `json:"alerting_history_webhook_url"`
 	AlertingHistoryWebhookSecret string `json:"alerting_history_webhook_secret"`
+
+	// Cross-service plumbing.
+	// AppEnv namespaces internal pub/sub channels (auth invalidation, etc.)
+	// so a Redis instance shared between dev/qa/prod stops cross-pollinating.
+	// Default "dev"; canonical values: dev, qa, prod.
+	AppEnv string `json:"app_env"`
+	// InternalHMACSecret signs internal pub/sub payloads so a network-adjacent
+	// attacker with PUBLISH access cannot forge invalidations. Optional in dev
+	// (empty disables the verification on the consumer side); required for
+	// production-grade isolation.
+	InternalHMACSecret string `json:"internal_hmac_secret"`
+
+	// Backup storage — S3 client credentials used to read from the
+	// DigitalOcean Spaces bucket that holds client configuration
+	// backups. The same Spaces account also hosts the Mimir buckets;
+	// values for endpoint, access key, and secret key are the shared
+	// S3 credentials.
+	BackupS3Endpoint        string        `json:"backup_s3_endpoint"`
+	BackupS3PresignEndpoint string        `json:"backup_s3_presign_endpoint"`
+	BackupS3Region          string        `json:"backup_s3_region"`
+	BackupS3Bucket          string        `json:"backup_s3_bucket"`
+	BackupS3AccessKey       string        `json:"backup_s3_access_key"`
+	BackupS3SecretKey       string        `json:"backup_s3_secret_key"`
+	BackupS3UsePathStyle    bool          `json:"backup_s3_use_path_style"`
+	BackupPresignTTL        time.Duration `json:"backup_presign_ttl"`
 }
 
 var Config = Configuration{}
@@ -173,6 +203,7 @@ func Init() {
 	}
 
 	Config.RedisDB = parseIntWithDefault("REDIS_DB", 0)
+	Config.RedisDBShared = parseIntWithDefault("REDIS_DB_SHARED", 1)
 	Config.RedisPassword = os.Getenv("REDIS_PASSWORD")
 	Config.RedisMaxRetries = parseIntWithDefault("REDIS_MAX_RETRIES", 3)
 	Config.RedisDialTimeout = parseDurationWithDefault("REDIS_DIAL_TIMEOUT", 5*time.Second)
@@ -217,12 +248,111 @@ func Init() {
 		logger.LogConfigLoad("env", "MIMIR_URL", true, fmt.Errorf("MIMIR_URL variable is empty, using default http://localhost:9009"))
 	}
 
-	// Alerting configuration — optional, empty means no built-in history webhook
+	// Alerting configuration — optional, empty means no built-in history webhook.
+	// Backend renders the secret into the Alertmanager YAML pushed to Mimir, so
+	// a short value would be cheaply brute-forced from any read of the Mimir
+	// alertmanager-config bucket. Refuse to boot with a too-short secret.
 	Config.AlertingHistoryWebhookURL = os.Getenv("ALERTING_HISTORY_WEBHOOK_URL")
 	Config.AlertingHistoryWebhookSecret = os.Getenv("ALERTING_HISTORY_WEBHOOK_SECRET")
+	if Config.AlertingHistoryWebhookSecret != "" && len(Config.AlertingHistoryWebhookSecret) < 32 {
+		logger.Fatal().
+			Int("length", len(Config.AlertingHistoryWebhookSecret)).
+			Msg("ALERTING_HISTORY_WEBHOOK_SECRET must be at least 32 characters; refusing to start with a weak secret")
+	}
+
+	// Internal cross-service plumbing. APP_ENV scopes pub/sub channel names so
+	// dev/qa/prod sharing a Redis instance never invalidate each other's caches.
+	// INTERNAL_HMAC_SECRET, when set, signs the system_key payload on the
+	// auth-invalidation channel; collect drops messages with a missing or
+	// invalid HMAC. A short secret is refused (< 32 chars).
+	if v := os.Getenv("APP_ENV"); v != "" {
+		Config.AppEnv = v
+	} else {
+		Config.AppEnv = "dev"
+	}
+	Config.InternalHMACSecret = os.Getenv("INTERNAL_HMAC_SECRET")
+	if Config.InternalHMACSecret != "" && len(Config.InternalHMACSecret) < 32 {
+		logger.Fatal().
+			Int("length", len(Config.InternalHMACSecret)).
+			Msg("INTERNAL_HMAC_SECRET must be at least 32 characters; refusing to start with a weak secret")
+	}
+
+	// Backup storage — S3 client credentials (DigitalOcean Spaces)
+	Config.BackupS3Endpoint = validateBackupEndpoint("BACKUP_S3_ENDPOINT", os.Getenv("BACKUP_S3_ENDPOINT"))
+	// Optional override used only when the API-facing endpoint differs
+	// from the endpoint the user's browser can reach (typical for local
+	// dev where backend runs inside a container and MinIO is exposed on
+	// the host). Empty in production.
+	Config.BackupS3PresignEndpoint = validateBackupEndpoint("BACKUP_S3_PRESIGN_ENDPOINT", os.Getenv("BACKUP_S3_PRESIGN_ENDPOINT"))
+	if envRegion := os.Getenv("BACKUP_S3_REGION"); envRegion != "" {
+		Config.BackupS3Region = envRegion
+	} else {
+		Config.BackupS3Region = "us-east-1"
+	}
+	Config.BackupS3Bucket = os.Getenv("BACKUP_S3_BUCKET")
+	Config.BackupS3AccessKey = os.Getenv("BACKUP_S3_ACCESS_KEY")
+	Config.BackupS3SecretKey = os.Getenv("BACKUP_S3_SECRET_KEY")
+	Config.BackupS3UsePathStyle = parseBoolWithDefault("BACKUP_S3_USE_PATH_STYLE", false)
+	// Cap the presigned URL lifetime at 15 minutes so a misconfigured
+	// env can never mint long-lived bearer URLs to backup objects.
+	ttl := parseDurationWithDefault("BACKUP_PRESIGN_TTL", 5*time.Minute)
+	if ttl > 15*time.Minute {
+		logger.LogConfigLoad("env", "BACKUP_PRESIGN_TTL", false, fmt.Errorf("value %s exceeds the 15m hard cap, clamping", ttl))
+		ttl = 15 * time.Minute
+	}
+	if ttl <= 0 {
+		ttl = 5 * time.Minute
+	}
+	Config.BackupPresignTTL = ttl
 
 	// Log successful configuration load
 	logger.LogConfigLoad("env", "configuration", true, nil)
+}
+
+// validateBackupEndpoint refuses HTTP endpoints unless the host is one
+// of the well-known dev loopback names; misconfigured prod deployments
+// would otherwise send signed S3 traffic in plaintext. Empty values are
+// returned unchanged (the storage package surfaces a clearer error).
+func validateBackupEndpoint(name, raw string) string {
+	if raw == "" {
+		return ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		logger.LogConfigLoad("env", name, false, fmt.Errorf("invalid URL %q", raw))
+		return ""
+	}
+	// Reject userinfo (https://attacker:pw@host) — there is no legitimate
+	// reason to embed credentials in a bucket endpoint URL.
+	if u.User != nil {
+		logger.LogConfigLoad("env", name, false, fmt.Errorf("userinfo in endpoint URL is not allowed"))
+		return ""
+	}
+	// The endpoint must be the bucket service root, not a sub-path. The S3
+	// SDK appends `/<bucket>/<key>` to whatever is given, so a non-root path
+	// silently mis-targets traffic.
+	if u.Path != "" && u.Path != "/" {
+		logger.LogConfigLoad("env", name, false, fmt.Errorf("non-root path %q in endpoint URL is not allowed", u.Path))
+		return ""
+	}
+	if u.Scheme == "https" {
+		return raw
+	}
+	if u.Scheme == "http" {
+		host := u.Hostname()
+		// Allowlist exact loopback hosts only. Suffix-matching `.local` /
+		// `.localtest.me` would otherwise admit `evil.local` /
+		// `evil.localtest.me` shipped over plaintext.
+		if host == "localhost" || host == "127.0.0.1" || host == "::1" ||
+			host == "my.localtest.me" ||
+			parseBoolWithDefault("BACKUP_S3_ALLOW_INSECURE", false) {
+			return raw
+		}
+		logger.LogConfigLoad("env", name, false, fmt.Errorf("HTTP endpoint to non-loopback host %q rejected; set BACKUP_S3_ALLOW_INSECURE=true to override", host))
+		return ""
+	}
+	logger.LogConfigLoad("env", name, false, fmt.Errorf("unsupported scheme %q", u.Scheme))
+	return ""
 }
 
 // parseDurationWithDefault parses a duration from environment variable or returns default

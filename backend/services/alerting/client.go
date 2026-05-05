@@ -284,6 +284,65 @@ func GetSilence(orgID, silenceID string) (*models.AlertmanagerSilence, error) {
 	return &silence, nil
 }
 
+// CleanupSystemSilences removes every silence in the given Mimir tenant that
+// targets the supplied system_key — typically the donor organization right
+// after a system has been reassigned away from it. The match must be exact
+// and non-regex, so silences that were broadened to cover a wider set of
+// systems are left in place. Already-expired silences are skipped because
+// Mimir garbage-collects them on its own.
+//
+// The function is best-effort: a partial failure (one silence DELETE returns
+// an error) is logged and the loop continues so as many orphans as possible
+// are cleared. Returns the count of silences deleted along with the first
+// error encountered, if any.
+func CleanupSystemSilences(orgID, systemKey string) (int, error) {
+	silences, err := GetSilences(orgID)
+	if err != nil {
+		return 0, fmt.Errorf("list silences in org %s: %w", orgID, err)
+	}
+
+	deleted := 0
+	var firstErr error
+	for _, s := range silences {
+		if s.Status != nil && s.Status.State == "expired" {
+			continue
+		}
+		if !silenceTargetsSystem(s.Matchers, systemKey) {
+			continue
+		}
+		if err := DeleteSilence(orgID, s.ID); err != nil {
+			if errors.Is(err, ErrSilenceNotFound) {
+				continue
+			}
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		deleted++
+	}
+
+	return deleted, firstErr
+}
+
+// silenceTargetsSystem reports whether the silence is *exclusively* scoped
+// to the given system. We require exactly one matcher equal to
+// `system_key=<key>`, non-regex, non-negated. A silence with extra matchers
+// (e.g. `system_key=X AND alertname=DiskFull`) carries a narrower intent
+// the donor admin set up — we leave it alone rather than risk wiping a
+// maintenance window. Such silences expire naturally at endsAt.
+//
+// Regex matchers and `isEqual=false` (negation) matchers are likewise
+// rejected: both alias to "wider scope than just this system" and must
+// never be silently deleted by an org reassignment.
+func silenceTargetsSystem(matchers []models.AlertmanagerMatcher, systemKey string) bool {
+	if len(matchers) != 1 {
+		return false
+	}
+	m := matchers[0]
+	return m.Name == "system_key" && m.Value == systemKey && !m.IsRegex
+}
+
 // DeleteSilence deletes a specific Alertmanager silence for the given tenant.
 func DeleteSilence(orgID, silenceID string) error {
 	url := configuration.Config.MimirURL + "/alertmanager/api/v2/silence/" + url.PathEscape(silenceID)

@@ -29,6 +29,17 @@ import (
 // above expected and bounds the worst case.
 const alertHistoryRequestTimeout = 15 * time.Second
 
+// alertHistoryMaxBodyBytes caps the JSON body size for alertmanager webhook
+// payloads. Alertmanager sends JSON arrays of resolved alerts; legitimate
+// payloads are at most a few KB. Cap at 1 MiB so a holder of the webhook
+// secret cannot exhaust memory or DB connections by shipping a giant body.
+const alertHistoryMaxBodyBytes = 1 << 20 // 1 MiB
+
+// alertHistoryMaxAlertsPerPayload caps the number of alerts processed in a
+// single webhook payload. Each alert costs an extra DB lookup + insert, so
+// a long array would still be expensive even within the byte cap.
+const alertHistoryMaxAlertsPerPayload = 1000
+
 // zeroTime is Alertmanager's sentinel for "no end time" on firing alerts.
 var zeroTime = time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
 
@@ -36,9 +47,18 @@ var zeroTime = time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
 // It persists resolved alerts from Alertmanager webhook payloads.
 // Firing alerts are ignored; only resolved alerts contain valid startsAt/endsAt.
 func ReceiveAlertHistory(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, alertHistoryMaxBodyBytes)
 	var payload models.AlertmanagerWebhookPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body: "+err.Error(), nil))
+		return
+	}
+	if len(payload.Alerts) > alertHistoryMaxAlertsPerPayload {
+		logger.Warn().
+			Int("alerts_received", len(payload.Alerts)).
+			Int("alerts_max", alertHistoryMaxAlertsPerPayload).
+			Msg("alertmanager history: rejecting oversized payload")
+		c.JSON(http.StatusRequestEntityTooLarge, response.Error(http.StatusRequestEntityTooLarge, "too many alerts in payload", nil))
 		return
 	}
 

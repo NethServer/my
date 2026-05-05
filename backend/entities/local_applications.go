@@ -889,6 +889,35 @@ func (r *LocalApplicationRepository) UnassignOrganization(id string) error {
 	return nil
 }
 
+// UnassignAllForSystem clears the organization assignment on every application
+// that belongs to the given system. Invoked when the system itself is moved to
+// a different organization: the previous owner's RBAC scope is gone, and the
+// new owner may sit in a different hierarchy where the previously chosen
+// org_id has no meaning. The new owner reassigns each app explicitly.
+//
+// Returns the number of applications reset; idempotent (a rerun matches no
+// rows because everything is already unassigned).
+func (r *LocalApplicationRepository) UnassignAllForSystem(systemID string) (int64, error) {
+	if systemID == "" {
+		return 0, fmt.Errorf("systemID is required")
+	}
+	result, err := r.db.Exec(
+		`UPDATE applications
+		 SET organization_id = NULL,
+		     organization_type = NULL,
+		     status = 'unassigned',
+		     updated_at = $2
+		 WHERE system_id = $1
+		   AND deleted_at IS NULL
+		   AND organization_id IS NOT NULL`,
+		systemID, time.Now(),
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to unassign applications for system: %w", err)
+	}
+	return result.RowsAffected()
+}
+
 // Delete soft-deletes an application
 func (r *LocalApplicationRepository) Delete(id string) error {
 	query := `

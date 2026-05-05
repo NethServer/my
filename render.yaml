@@ -124,6 +124,16 @@ services:
       - key: ALERTING_HISTORY_WEBHOOK_SECRET
         sync: false
 
+      # Backup storage (same DO Spaces account as Mimir; bucket is distinct)
+      - key: BACKUP_S3_ENDPOINT
+        sync: false
+      - key: BACKUP_S3_ACCESS_KEY
+        sync: false
+      - key: BACKUP_S3_SECRET_KEY
+        sync: false
+      - key: BACKUP_S3_BUCKET
+        sync: false
+
   # Production Collect Service (Private Service)
   - type: web
     name: my-collect-prod
@@ -163,6 +173,16 @@ services:
 
       # Alerting Configuration
       - key: ALERTING_HISTORY_WEBHOOK_SECRET
+        sync: false
+
+      # Backup storage (same DO Spaces account as Mimir; bucket is distinct)
+      - key: BACKUP_S3_ENDPOINT
+        sync: false
+      - key: BACKUP_S3_ACCESS_KEY
+        sync: false
+      - key: BACKUP_S3_SECRET_KEY
+        sync: false
+      - key: BACKUP_S3_BUCKET
         sync: false
 
   # Production Frontend (Private Service)
@@ -312,6 +332,16 @@ services:
       - key: ALERTING_HISTORY_WEBHOOK_SECRET
         sync: false
 
+      # Backup storage (same DO Spaces account as Mimir; bucket is distinct)
+      - key: BACKUP_S3_ENDPOINT
+        sync: false
+      - key: BACKUP_S3_ACCESS_KEY
+        sync: false
+      - key: BACKUP_S3_SECRET_KEY
+        sync: false
+      - key: BACKUP_S3_BUCKET
+        sync: false
+
     autoDeploy: true   # Auto-deploy on every commit
     branch: main
     pullRequestPreviewsEnabled: true  # PR previews enabled
@@ -355,6 +385,16 @@ services:
 
       # Alerting Configuration
       - key: ALERTING_HISTORY_WEBHOOK_SECRET
+        sync: false
+
+      # Backup storage (same DO Spaces account as Mimir; bucket is distinct)
+      - key: BACKUP_S3_ENDPOINT
+        sync: false
+      - key: BACKUP_S3_ACCESS_KEY
+        sync: false
+      - key: BACKUP_S3_SECRET_KEY
+        sync: false
+      - key: BACKUP_S3_BUCKET
         sync: false
 
     autoDeploy: true   # Auto-deploy on every commit

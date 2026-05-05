@@ -757,6 +757,40 @@ CREATE INDEX IF NOT EXISTS idx_alert_history_starts_at ON alert_history(starts_a
 CREATE INDEX IF NOT EXISTS idx_alert_history_org_id_created_at ON alert_history(organization_id, created_at DESC);
 
 -- =============================================================================
+-- SYSTEM ORG TRANSFERS (audit log, append-only)
+-- =============================================================================
+-- Append-only audit log of cross-organization system reassignments. See
+-- migration 021 for the full rationale and column documentation.
+
+CREATE TABLE IF NOT EXISTS system_org_transfers (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    system_id     VARCHAR(255) NOT NULL,
+    system_key    VARCHAR(255) NOT NULL,
+    from_org_id   VARCHAR(255) NOT NULL,
+    to_org_id     VARCHAR(255) NOT NULL,
+    actor_user_id          VARCHAR(255),
+    actor_user_email       VARCHAR(255),
+    actor_organization_id  VARCHAR(255),
+    actor_ip      VARCHAR(64),
+    user_agent    TEXT,
+    backups_copied   INTEGER NOT NULL DEFAULT 0,
+    backups_deleted  INTEGER NOT NULL DEFAULT 0,
+    silences_cleared INTEGER NOT NULL DEFAULT 0,
+    history_rows_reassigned INTEGER NOT NULL DEFAULT 0,
+    apps_unassigned  INTEGER NOT NULL DEFAULT 0,
+    occurred_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE system_org_transfers IS 'Append-only audit log of cross-organization system reassignments';
+
+CREATE INDEX IF NOT EXISTS idx_system_org_transfers_system_id_occurred_at
+  ON system_org_transfers(system_id, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_system_org_transfers_from_org_id
+  ON system_org_transfers(from_org_id);
+CREATE INDEX IF NOT EXISTS idx_system_org_transfers_to_org_id
+  ON system_org_transfers(to_org_id);
+
+-- =============================================================================
 -- SCHEMA MIGRATIONS TABLE
 -- =============================================================================
 -- Tracks applied database migrations

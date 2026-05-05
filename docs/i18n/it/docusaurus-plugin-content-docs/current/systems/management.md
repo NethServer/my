@@ -155,6 +155,15 @@ Per modificare un sistema:
 4. Aggiorna i campi desiderati (nome, descrizione, organizzazione)
 5. Clicca su **Salva**
 
+:::tip
+Cambiare l'**Organizzazione** sposta il sistema a un proprietario
+diverso. I backup, lo storico allarmi e l'inventario seguono il nuovo
+proprietario; il precedente perde l'accesso immediatamente. Per il
+comportamento completo, chi è autorizzato a farlo, e cosa succede a
+silence e assegnazioni applicazioni, vedi
+[Riassegnare un sistema a un'altra organizzazione](org-reassignment).
+:::
+
 ### Rigenerazione Secret
 
 Se il secret del sistema è stato perso:

@@ -28,6 +28,7 @@ const sidebars: SidebarsConfig = {
         'systems/management',
         'systems/registration',
         'systems/inventory-heartbeat',
+        'systems/backups',
       ],
     },
     {

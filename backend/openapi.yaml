@@ -735,6 +735,36 @@ components:
             format: int64
           example: [42, 43]
 
+    BackupMetadata:
+      type: object
+      description: Metadata describing a single configuration backup stored for a system.
+      properties:
+        id:
+          type: string
+          description: Backup object ID (UUIDv7 plus original extension)
+          example: "01934fab-bc33-7890-a1b2-c3d4e5f6a7b8.tar.gz"
+        filename:
+          type: string
+          description: User-facing filename as supplied by the appliance via X-Filename
+          example: "daily-backup-2026-04-12.tar.gz"
+        size:
+          type: integer
+          format: int64
+          description: Object size in bytes
+          example: 82944000
+        sha256:
+          type: string
+          description: Hex SHA-256 checksum computed at ingest; always present once the upload returns 201
+          example: "3a7bd3e2360a3d29eea436fcfb7e44c735d117c42d1c1835420b6b9942dd4f1b"
+        mimetype:
+          type: string
+          example: "application/gzip"
+        uploaded_at:
+          type: string
+          format: date-time
+          description: Server-observed timestamp of the upload
+          example: "2026-04-12T02:15:00Z"
+
     Pagination:
       type: object
       properties:
@@ -9222,6 +9252,211 @@ paths:
           $ref: '#/components/responses/NotFound'
 
   # ===========================================================================
+  # SYSTEM BACKUPS
+  # ===========================================================================
+  /systems/{id}/backups:
+    get:
+      operationId: getSystemBackups
+      tags:
+        - Backend - Systems Backups
+      summary: /systems/{id}/backups - List configuration backups for a system
+      description: |
+        Returns the list of configuration backups stored for the system,
+        together with aggregate usage counters. Backups are produced by
+        the appliance itself (see collect ingest endpoint) and consumed
+        here read-only.
+
+        Each entry carries `size`, `sha256`, and `uploaded_at`. The
+        peer IP observed at ingest is intentionally not exposed: on
+        traffic that transits the translation proxy the recorded value
+        would be the proxy's IP, and even when it is accurate it is a
+        reconnaissance aid for higher-tier admins.
+
+        Access is gated by the same RBAC rules as `GET /systems/{id}`:
+        the caller must belong to the organization that currently owns
+        the system. After a cross-org reassignment, the new owner sees
+        the full backup list and the previous owner loses visibility.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: Backups retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "backups retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      backups:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/BackupMetadata'
+                      quota_used_bytes:
+                        type: integer
+                        format: int64
+                        description: Sum of backup sizes stored for this system
+                        example: 314572800
+                      slots_used:
+                        type: integer
+                        description: Number of backups currently stored
+                        example: 4
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          description: Backup storage unreachable or returned an error
+        '503':
+          description: Backup storage is not configured
+
+  /systems/{id}/backups/{backup_id}/download:
+    get:
+      operationId: downloadSystemBackup
+      tags:
+        - Backend - Systems Backups
+      summary: /systems/{id}/backups/{backup_id}/download - Issue a short-lived download URL
+      description: |
+        Returns a short-lived presigned S3 URL that the user's browser
+        uses to stream the backup object directly from storage. The API
+        never proxies the object body itself.
+
+        The backend does not perform a redirect because the frontend
+        sends its JWT on the initial request — browsers would drop the
+        `Authorization` header when following a 3xx redirect, so the
+        frontend receives the URL in the JSON response and navigates to
+        it explicitly.
+
+        The presigned URL's lifetime is controlled by the
+        `BACKUP_PRESIGN_TTL` environment variable (default 5 minutes).
+
+        Access is gated by the same RBAC rules as `GET /systems/{id}`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+        - name: backup_id
+          in: path
+          required: true
+          description: Backup object ID (UUIDv7 + extension, e.g. "01934f...tar.gz")
+          schema:
+            type: string
+            example: "01934fab-bc33-7890-a1b2-c3d4e5f6a7b8.tar.gz"
+      responses:
+        '200':
+          description: Download URL issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "download URL issued"
+                  data:
+                    type: object
+                    properties:
+                      download_url:
+                        type: string
+                        format: uri
+                        description: Short-lived presigned S3 URL
+                      expires_in_seconds:
+                        type: integer
+                        description: How long the URL remains valid
+                        example: 300
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          description: Backup storage unreachable or returned an error
+        '503':
+          description: Backup storage is not configured
+
+    delete:
+      operationId: deleteSystemBackup
+      tags:
+        - Backend - Systems Backups
+      summary: /systems/{id}/backups/{backup_id} - Delete a stored backup
+      description: |
+        Deletes a backup object from storage. The operation is final —
+        storage uses object-level deletion, not a soft-delete table.
+
+        Access is gated by the same RBAC rules as `GET /systems/{id}`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+        - name: backup_id
+          in: path
+          required: true
+          description: Backup object ID
+          schema:
+            type: string
+            example: "01934fab-bc33-7890-a1b2-c3d4e5f6a7b8.tar.gz"
+      responses:
+        '200':
+          description: Backup deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "backup deleted"
+                  data:
+                    type: object
+                    properties:
+                      system_id:
+                        type: string
+                        example: "sys_123456789"
+                      backup_id:
+                        type: string
+                        example: "01934fab-bc33-7890-a1b2-c3d4e5f6a7b8.tar.gz"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          description: Backup storage unreachable or returned an error
+        '503':
+          description: Backup storage is not configured
+
+  # ===========================================================================
   # APPLICATIONS MANAGEMENT
   # ===========================================================================
   /applications:
@@ -10210,6 +10445,179 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
+
+  /systems/backups:
+    post:
+      operationId: uploadSystemBackup
+      servers:
+        - url: https://collect.your-domain.com/api
+          description: Collect API server (port 8081)
+      tags:
+        - Collect - Systems
+      summary: /systems/backups - Upload a configuration backup
+      description: |
+        Stream a GPG-encrypted configuration snapshot to the backup store.
+        The body is the ciphertext; SHA-256 is computed at ingest. The
+        appliance authenticates with HTTP Basic auth using its
+        `system_key:system_secret`.
+
+        Server-side limits enforced before/during ingest:
+        - Per-system rate limit (default 6/min, 60/hour) — `429 Retry-After` on hit
+        - Per-system slot cap (default 10) — oldest pruned at retention
+        - Per-system size cap (default 500 MiB total) — oldest pruned
+        - Per-org aggregate quota (default 100 GiB) — `413` on hit
+        - Per-upload size cap (default 2 GiB) — `413` on hit
+
+        Object key shape: `{org_id}/{system_key}/{uuidv7}.{ext}`. The
+        appliance never picks the destination prefix; it is server-derived
+        from the authenticated identity.
+      security:
+        - BasicAuth: [system_key:system_secret]
+      parameters:
+        - name: X-Filename
+          in: header
+          required: false
+          description: User-facing filename (sanitized server-side)
+          schema:
+            type: string
+            example: "daily-backup-2026-04-12.tar.gz.gpg"
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '201':
+          description: Backup stored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: "backup stored"
+                  data:
+                    $ref: '#/components/schemas/BackupMetadata'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
+        '429':
+          description: Rate limit exceeded; retry after the time indicated by `Retry-After`.
+        '503':
+          description: Backup storage or org-quota service unavailable; retry later.
+    get:
+      operationId: listSystemBackupsAppliance
+      servers:
+        - url: https://collect.your-domain.com/api
+          description: Collect API server (port 8081)
+      tags:
+        - Collect - Systems
+      summary: /systems/backups - List backups for the authenticated system
+      description: |
+        Returns metadata for every backup currently stored under the
+        authenticated system's prefix. Cross-tenant access is impossible
+        — the listing scope is server-derived from the credentials.
+      security:
+        - BasicAuth: [system_key:system_secret]
+      responses:
+        '200':
+          description: Backups listed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  data:
+                    type: object
+                    properties:
+                      backups:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/BackupMetadata'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          description: Backup storage unavailable.
+
+  /systems/backups/{id}:
+    get:
+      operationId: downloadSystemBackupAppliance
+      servers:
+        - url: https://collect.your-domain.com/api
+          description: Collect API server (port 8081)
+      tags:
+        - Collect - Systems
+      summary: /systems/backups/{id} - Download a backup
+      description: |
+        Stream the ciphertext body for a specific backup belonging to the
+        authenticated system. Foreign IDs return `404`; the path can never
+        escape the authenticated system's prefix.
+      security:
+        - BasicAuth: [system_key:system_secret]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Backup ID (UUIDv7 plus extension)
+          schema:
+            type: string
+            example: "01934fab-bc33-7890-a1b2-c3d4e5f6a7b8.tar.gz"
+      responses:
+        '200':
+          description: Backup body streamed as `application/octet-stream`
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          description: Backup storage unavailable.
+    delete:
+      operationId: deleteSystemBackupAppliance
+      servers:
+        - url: https://collect.your-domain.com/api
+          description: Collect API server (port 8081)
+      tags:
+        - Collect - Systems
+      summary: /systems/backups/{id} - Delete a backup
+      description: |
+        Remove a specific backup belonging to the authenticated system.
+        Foreign IDs return `404`.
+      security:
+        - BasicAuth: [system_key:system_secret]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Backup deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   # ===========================================================================
   # VALIDATORS
