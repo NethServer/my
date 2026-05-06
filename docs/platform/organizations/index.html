@@ -1,0 +1,270 @@
+<!doctype html><html lang=en dir=ltr class="docs-wrapper plugin-docs plugin-id-default docs-version-current docs-doc-page docs-doc-id-platform/organizations" data-has-hydrated=false><head><meta charset=UTF-8><meta name=generator content="Docusaurus v3.10.1"><title data-rh=true>Organizations Management | My</title><meta data-rh=true name=viewport content="width=device-width, initial-scale=1.0"/><meta data-rh=true name=twitter:card content=summary_large_image /><meta data-rh=true property=og:image content=https://nethserver.github.io/my/img/logo.svg /><meta data-rh=true name=twitter:image content=https://nethserver.github.io/my/img/logo.svg /><meta data-rh=true property=og:url content=https://nethserver.github.io/my/docs/platform/organizations /><meta data-rh=true property=og:locale content=en /><meta data-rh=true property=og:locale:alternate content=it /><meta data-rh=true name=docusaurus_locale content=en /><meta data-rh=true name=docsearch:language content=en /><meta data-rh=true name=docusaurus_version content=current /><meta data-rh=true name=docusaurus_tag content=docs-default-current /><meta data-rh=true name=docsearch:version content=current /><meta data-rh=true name=docsearch:docusaurus_tag content=docs-default-current /><meta data-rh=true property=og:title content="Organizations Management | My"/><meta data-rh=true name=description content="Learn how to manage the business hierarchy in My platform."/><meta data-rh=true property=og:description content="Learn how to manage the business hierarchy in My platform."/><link data-rh=true rel=icon href=/my/img/favicon.ico /><link data-rh=true rel=canonical href=https://nethserver.github.io/my/docs/platform/organizations /><link data-rh=true rel=alternate href=https://nethserver.github.io/my/docs/platform/organizations hreflang=en /><link data-rh=true rel=alternate href=https://nethserver.github.io/my/it/docs/platform/organizations hreflang=it /><link data-rh=true rel=alternate href=https://nethserver.github.io/my/docs/platform/organizations hreflang=x-default /><script data-rh=true type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://nethserver.github.io/my/docs/platform/organizations","name":"Organizations Management","position":1}]}</script><link rel=stylesheet href=/my/assets/css/styles.58b825bf.css /><script src=/my/assets/js/runtime~main.8181c14c.js defer></script><script src=/my/assets/js/main.8a21b341.js defer></script></head><body><svg style="display: none;"><defs>
+<symbol id=theme-svg-external-link viewBox="0 0 24 24"><path fill=currentColor d="M21 13v10h-21v-19h12v2h-10v15h17v-8h2zm3-12h-10.988l4.035 4-6.977 7.07 2.828 2.828 6.977-7.07 4.125 4.172v-11z"/></symbol>
+</defs></svg>
+<script>!function(){var t=function(){try{return new URLSearchParams(window.location.search).get("docusaurus-theme")}catch(t){}}()||function(){try{return window.localStorage.getItem("theme-e91")}catch(t){}}();document.documentElement.setAttribute("data-theme",t||(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")),document.documentElement.setAttribute("data-theme-choice",t||"system")}(),function(){try{for(var[t,e]of new URLSearchParams(window.location.search).entries())if(t.startsWith("docusaurus-data-")){var a=t.replace("docusaurus-data-","data-");document.documentElement.setAttribute(a,e)}}catch(t){}}()</script><div id=__docusaurus><link rel=preload as=image href=/my/img/logo-dark.svg /><link rel=preload as=image href=/my/img/logo.svg /><div role=region aria-label="Skip to main content"><a class=skipToContent_fXgn href=#__docusaurus_skipToContent_fallback>Skip to main content</a></div><nav aria-label=Main class="theme-layout-navbar navbar navbar--fixed-top"><div class=navbar__inner><div class="theme-layout-navbar-left navbar__items"><button aria-label="Toggle navigation bar" aria-expanded=false class="navbar__toggle clean-btn" type=button><svg width=30 height=30 viewBox="0 0 30 30" aria-hidden=true><path stroke=currentColor stroke-linecap=round stroke-miterlimit=10 stroke-width=2 d="M4 7h22M4 15h22M4 23h22"/></svg></button><a class=navbar__brand href=/my/><div class=navbar__logo><img src=/my/img/logo-dark.svg alt="My Nethesis" class="themedComponent_mlkZ themedComponent--light_NVdE"/><img src=/my/img/logo.svg alt="My Nethesis" class="themedComponent_mlkZ themedComponent--dark_xIcU"/></div><b class="navbar__title text--truncate"></b></a><a aria-current=page class="navbar__item navbar__link navbar__link--active" href=/my/docs/intro>User Guide</a><div class="navbar__item dropdown dropdown--hoverable"><a href=# aria-haspopup=true aria-expanded=false role=button class=navbar__link>Developer Docs</a><ul class=dropdown__menu><li><a href=https://github.com/NethServer/my/blob/main/README.md target=_blank rel="noopener noreferrer" class=dropdown__link>Project Overview<svg width=12 height=12 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li><a href=https://api.my.nethesis.it/ target=_blank rel="noopener noreferrer" class=dropdown__link>Backend API<svg width=12 height=12 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li><a href=https://github.com/NethServer/my/blob/main/collect/README.md target=_blank rel="noopener noreferrer" class=dropdown__link>Collect Service<svg width=12 height=12 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li><a href=https://github.com/NethServer/my/blob/main/services/mimir/README.md target=_blank rel="noopener noreferrer" class=dropdown__link>Alerting System<svg width=12 height=12 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li><a href=https://github.com/NethServer/my/blob/main/sync/README.md target=_blank rel="noopener noreferrer" class=dropdown__link>Sync Tool<svg width=12 height=12 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a></ul></div></div><div class="theme-layout-navbar-right navbar__items navbar__items--right"><div class="navbar__item dropdown dropdown--hoverable dropdown--right"><a href=# aria-haspopup=true aria-expanded=false role=button class=navbar__link><svg viewBox="0 0 24 24" width=20 height=20 aria-hidden=true class=iconLanguage_nlXk><path fill=currentColor d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>English</a><ul class=dropdown__menu><li><a href=/my/docs/platform/organizations target=_self rel="noopener noreferrer" class="dropdown__link dropdown__link--active" lang=en>English</a><li><a href=/my/it/docs/platform/organizations target=_self rel="noopener noreferrer" class=dropdown__link lang=it>Italiano</a></ul></div><a href=https://github.com/NethServer/my target=_blank rel="noopener noreferrer" class="navbar__item navbar__link">GitHub<svg width=13.5 height=13.5 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><div class="toggle_vylO colorModeToggle_DEke"><button class="clean-btn toggleButton_gllP toggleButtonDisabled_aARS" type=button disabled title="system mode" aria-label="Switch between dark and light mode (currently system mode)"><svg viewBox="0 0 24 24" width=24 height=24 aria-hidden=true class="toggleIcon_g3eP lightToggleIcon_pyhR"><path fill=currentColor d="M12,9c1.65,0,3,1.35,3,3s-1.35,3-3,3s-3-1.35-3-3S10.35,9,12,9 M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5 S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S1.45,13,2,13z M20,13l2,0c0.55,0,1-0.45,1-1 s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2c0-0.55-0.45-1-1-1C11.45,19,11,19.45,11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0 c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95 c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41 L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41 s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06 c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z"/></svg><svg viewBox="0 0 24 24" width=24 height=24 aria-hidden=true class="toggleIcon_g3eP darkToggleIcon_wfgR"><path fill=currentColor d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"/></svg><svg viewBox="0 0 24 24" width=24 height=24 aria-hidden=true class="toggleIcon_g3eP systemToggleIcon_QzmC"><path fill=currentColor d="m12 21c4.971 0 9-4.029 9-9s-4.029-9-9-9-9 4.029-9 9 4.029 9 9 9zm4.95-13.95c1.313 1.313 2.05 3.093 2.05 4.95s-0.738 3.637-2.05 4.95c-1.313 1.313-3.093 2.05-4.95 2.05v-14c1.857 0 3.637 0.737 4.95 2.05z"/></svg></button></div><div class=navbarSearchContainer_Bca1></div></div></div><div role=presentation class=navbar-sidebar__backdrop></div></nav><div id=__docusaurus_skipToContent_fallback class="theme-layout-main main-wrapper mainWrapper_z2l0"><div class=docsWrapper_hBAB><button aria-label="Scroll back to top" class="clean-btn theme-back-to-top-button backToTopButton_sjWU" type=button></button><div class=docRoot_UBD9><aside class="theme-doc-sidebar-container docSidebarContainer_YfHR"><div class=sidebarViewport_aRkj><div class=sidebar_njMd><nav aria-label="Docs sidebar" class="menu thin-scrollbar menu_SIkG"><ul class="theme-doc-sidebar-menu menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class=menu__link href=/my/docs/intro><span title="Welcome to My" class=linkLabel_WmDU>Welcome to My</span></a><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class=menu__list-item-collapsible><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role=button aria-expanded=true href=/my/docs/getting-started/authentication><span title="Getting Started" class=categoryLinkLabel_W154>Getting Started</span></a></div><ul class=menu__list><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class=menu__link tabindex=0 href=/my/docs/getting-started/authentication><span title=Authentication class=linkLabel_WmDU>Authentication</span></a><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class=menu__link tabindex=0 href=/my/docs/getting-started/account><span title="Account Settings" class=linkLabel_WmDU>Account Settings</span></a></ul><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class=menu__list-item-collapsible><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret menu__link--active" role=button aria-expanded=true href=/my/docs/platform/organizations><span title="Platform Management" class=categoryLinkLabel_W154>Platform Management</span></a></div><ul class=menu__list><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link menu__link--active" aria-current=page tabindex=0 href=/my/docs/platform/organizations><span title="Organizations Management" class=linkLabel_WmDU>Organizations Management</span></a><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class=menu__link tabindex=0 href=/my/docs/platform/users><span title="Users Management" class=linkLabel_WmDU>Users Management</span></a><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class=menu__link tabindex=0 href=/my/docs/platform/impersonation><span title="User Impersonation" class=linkLabel_WmDU>User Impersonation</span></a></ul><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item menu__list-item--collapsed"><div class=menu__list-item-collapsible><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role=button aria-expanded=false href=/my/docs/systems/management><span title=Systems class=categoryLinkLabel_W154>Systems</span></a></div><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item menu__list-item--collapsed"><div class=menu__list-item-collapsible><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role=button aria-expanded=false href=/my/docs/features/dashboard><span title=Features class=categoryLinkLabel_W154>Features</span></a></div><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class=menu__link href=/my/docs/contributing><span title="Contributing to My Documentation" class=linkLabel_WmDU>Contributing to My Documentation</span></a></ul></nav></div></div></aside><main class=docMainContainer_TBSr><div class="container padding-top--md padding-bottom--lg"><div class=row><div class="col docItemCol_VOVn"><div class=docItemContainer_Djhp><article><nav class="theme-doc-breadcrumbs breadcrumbsContainer_Z_bl" aria-label=Breadcrumbs><ul class=breadcrumbs><li class=breadcrumbs__item><a aria-label="Home page" class=breadcrumbs__link href=/my/><svg viewBox="0 0 24 24" class=breadcrumbHomeIcon_YNFT><path d="M10 19v-5h4v5c0 .55.45 1 1 1h3c.55 0 1-.45 1-1v-7h1.7c.46 0 .68-.57.33-.87L12.67 3.6c-.38-.34-.96-.34-1.34 0l-8.36 7.53c-.34.3-.13.87.33.87H5v7c0 .55.45 1 1 1h3c.55 0 1-.45 1-1z" fill=currentColor /></svg></a><li class=breadcrumbs__item><span class=breadcrumbs__link>Platform Management</span><li class="breadcrumbs__item breadcrumbs__item--active"><span class=breadcrumbs__link>Organizations Management</span></ul></nav><div class="tocCollapsible_ETCw theme-doc-toc-mobile tocMobile_ITEo"><button type=button class="clean-btn tocCollapsibleButton_TO0P">On this page</button></div><div class="theme-doc-markdown markdown"><header><h1>Organizations Management</h1></header>
+<p>Learn how to manage the business hierarchy in My platform.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=understanding-organization-hierarchy>Understanding Organization Hierarchy<a href=#understanding-organization-hierarchy class=hash-link aria-label="Direct link to Understanding Organization Hierarchy" title="Direct link to Understanding Organization Hierarchy" translate=no>​</a></h2>
+<p>My uses a hierarchical organization structure that reflects the business relationships:</p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style=--prism-color:#393A34;--prism-background-color:#f6f8fa><div class=codeBlockContent_QJqH><pre tabindex=0 class="prism-code language-text codeBlock_bY9V thin-scrollbar" style=color:#393A34;background-color:#f6f8fa><code class=codeBlockLines_e6Vv><div class=token-line style=color:#393A34><span class="token plain">Owner (Nethesis)</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">    ↓</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">Distributors</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">    ↓</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">Resellers</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">    ↓</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">Customers</span><br/></div></code></pre></div></div>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=organization-types>Organization Types<a href=#organization-types class=hash-link aria-label="Direct link to Organization Types" title="Direct link to Organization Types" translate=no>​</a></h3>
+<p><strong>Owner (Nethesis)</strong></p>
+<ul>
+<li class="">Top-level organization</li>
+<li class="">Complete platform control</li>
+<li class="">Can manage all distributors, resellers, and customers</li>
+<li class="">Only one Owner organization exists</li>
+</ul>
+<p><strong>Distributors</strong></p>
+<ul>
+<li class="">Created by Owner</li>
+<li class="">Can manage their resellers and customers</li>
+<li class="">Cannot see other distributors' data</li>
+<li class="">Full control over their branch of the hierarchy</li>
+</ul>
+<p><strong>Resellers</strong></p>
+<ul>
+<li class="">Created by Owner or Distributors</li>
+<li class="">Can manage their customers</li>
+<li class="">Cannot see other resellers' data</li>
+<li class="">Work within their assigned distributor</li>
+</ul>
+<p><strong>Customers</strong></p>
+<ul>
+<li class="">Created by Owner, Distributors, or Resellers</li>
+<li class="">End-user organizations</li>
+<li class="">Can only view their own data</li>
+<li class="">Cannot create sub-organizations</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=permissions-by-organization-type>Permissions by Organization Type<a href=#permissions-by-organization-type class=hash-link aria-label="Direct link to Permissions by Organization Type" title="Direct link to Permissions by Organization Type" translate=no>​</a></h3>
+<table><thead><tr><th>Action<th>Owner<th>Distributor<th>Reseller<th>Customer<tbody><tr><td>Create Distributors<td>✓<td>✗<td>✗<td>✗<tr><td>Manage Distributors<td>✓<td>✗<td>✗<td>✗<tr><td>Create Resellers<td>✓<td>✓<td>✗<td>✗<tr><td>Manage Resellers<td>✓<td>✓ (own)<td>✗<td>✗<tr><td>Create Customers<td>✓<td>✓<td>✓<td>✗<tr><td>Manage Customers<td>✓<td>✓ (own)<td>✓ (own)<td>✗<tr><td>View All Data<td>✓<td>✗<td>✗<td>✗</table>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=creating-organizations>Creating Organizations<a href=#creating-organizations class=hash-link aria-label="Direct link to Creating Organizations" title="Direct link to Creating Organizations" translate=no>​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=prerequisites>Prerequisites<a href=#prerequisites class=hash-link aria-label="Direct link to Prerequisites" title="Direct link to Prerequisites" translate=no>​</a></h3>
+<ul>
+<li class="">You must be logged in with appropriate permissions</li>
+<li class="">Owner users can create all organization types</li>
+<li class="">Distributor users can create resellers and customers</li>
+<li class="">Reseller users can create customers only</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=creating-a-distributor>Creating a Distributor<a href=#creating-a-distributor class=hash-link aria-label="Direct link to Creating a Distributor" title="Direct link to Creating a Distributor" translate=no>​</a></h3>
+<p><strong>Required Role:</strong> Owner organization member</p>
+<ol>
+<li class="">Navigate to <strong>Organizations</strong> > <strong>Distributors</strong></li>
+<li class="">Click <strong>Create distributor</strong></li>
+<li class="">Fill in the form:<!-- -->
+<ul>
+<li class=""><strong>Company name</strong>: Distributor company name (e.g., "ACME Distribution Ltd")</li>
+<li class=""><strong>Description</strong> (optional): Additional information</li>
+<li class=""><strong>VAT number</strong>: unique VAT identification for a company</li>
+</ul>
+</li>
+<li class="">Click <strong>Create distributor</strong></li>
+</ol>
+<p><strong>Example:</strong></p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style=--prism-color:#393A34;--prism-background-color:#f6f8fa><div class=codeBlockContent_QJqH><pre tabindex=0 class="prism-code language-text codeBlock_bY9V thin-scrollbar" style=color:#393A34;background-color:#f6f8fa><code class=codeBlockLines_e6Vv><div class=token-line style=color:#393A34><span class="token plain">Name: ACME Distribution Europe</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">Description: Main distributor for European market</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">VAT: 12345678901</span><br/></div></code></pre></div></div>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=creating-a-reseller>Creating a Reseller<a href=#creating-a-reseller class=hash-link aria-label="Direct link to Creating a Reseller" title="Direct link to Creating a Reseller" translate=no>​</a></h3>
+<p><strong>Required Role:</strong> Owner or Distributor organization member</p>
+<ol>
+<li class="">Navigate to <strong>Organizations</strong> > <strong>Resellers</strong></li>
+<li class="">Click <strong>Create reseller</strong></li>
+<li class="">Fill in the form:<!-- -->
+<ul>
+<li class=""><strong>Company name</strong>: Reseller company name (e.g., "ACME Distribution Ltd")</li>
+<li class=""><strong>Description</strong> (optional): Additional information</li>
+<li class=""><strong>VAT number</strong>: unique VAT identification for a company</li>
+</ul>
+</li>
+<li class="">Click <strong>Create reseller</strong></li>
+</ol>
+<p><strong>Example:</strong></p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style=--prism-color:#393A34;--prism-background-color:#f6f8fa><div class=codeBlockContent_QJqH><pre tabindex=0 class="prism-code language-text codeBlock_bY9V thin-scrollbar" style=color:#393A34;background-color:#f6f8fa><code class=codeBlockLines_e6Vv><div class=token-line style=color:#393A34><span class="token plain">Name: Tech Solutions Italia</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">Description: IT solutions provider for SMB market</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">VAT: 12345678901</span><br/></div></code></pre></div></div>
+<div class="theme-admonition theme-admonition-note admonition_xJq3 alert alert--secondary"><div class=admonitionHeading_Gvgb><span class=admonitionIcon_Rf37><svg viewBox="0 0 14 16"><path fill-rule=evenodd d="M6.3 5.69a.942.942 0 0 1-.28-.7c0-.28.09-.52.28-.7.19-.18.42-.28.7-.28.28 0 .52.09.7.28.18.19.28.42.28.7 0 .28-.09.52-.28.7a1 1 0 0 1-.7.3c-.28 0-.52-.11-.7-.3zM8 7.99c-.02-.25-.11-.48-.31-.69-.2-.19-.42-.3-.69-.31H6c-.27.02-.48.13-.69.31-.2.2-.3.44-.31.69h1v3c.02.27.11.5.31.69.2.2.42.31.69.31h1c.27 0 .48-.11.69-.31.2-.19.3-.42.31-.69H8V7.98v.01zM7 2.3c-3.14 0-5.7 2.54-5.7 5.68 0 3.14 2.56 5.7 5.7 5.7s5.7-2.55 5.7-5.7c0-3.15-2.56-5.69-5.7-5.69v.01zM7 .98c3.86 0 7 3.14 7 7s-3.14 7-7 7-7-3.12-7-7 3.14-7 7-7z"/></svg></span>note</div><div class=admonitionContent_BuS1><p>If you are logged in as a Distributor, you can only create resellers under your own organization.</div></div>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=creating-a-customer>Creating a Customer<a href=#creating-a-customer class=hash-link aria-label="Direct link to Creating a Customer" title="Direct link to Creating a Customer" translate=no>​</a></h3>
+<p><strong>Required Role:</strong> Owner, Distributor, or Reseller organization member</p>
+<ol>
+<li class="">Navigate to <strong>Organizations</strong> > <strong>Customers</strong></li>
+<li class="">Click <strong>Create customer</strong></li>
+<li class="">Fill in the form:<!-- -->
+<ul>
+<li class=""><strong>Company name</strong>: Customer company name (e.g., "ACME Distribution Ltd")</li>
+<li class=""><strong>Description</strong> (optional): Additional information</li>
+<li class=""><strong>VAT number</strong>: unique VAT identification for a company</li>
+</ul>
+</li>
+<li class="">Click <strong>Create customer</strong></li>
+</ol>
+<p><strong>Example:</strong></p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style=--prism-color:#393A34;--prism-background-color:#f6f8fa><div class=codeBlockContent_QJqH><pre tabindex=0 class="prism-code language-text codeBlock_bY9V thin-scrollbar" style=color:#393A34;background-color:#f6f8fa><code class=codeBlockLines_e6Vv><div class=token-line style=color:#393A34><span class="token plain">Name: Pizza Express Milano</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">Description: Restaurant chain with 5 locations</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">VAT: 12345678901</span><br/></div></code></pre></div></div>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=viewing-organizations>Viewing Organizations<a href=#viewing-organizations class=hash-link aria-label="Direct link to Viewing Organizations" title="Direct link to Viewing Organizations" translate=no>​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=organization-list>Organization List<a href=#organization-list class=hash-link aria-label="Direct link to Organization List" title="Direct link to Organization List" translate=no>​</a></h3>
+<p>Each organization type has its own list view:</p>
+<ol>
+<li class="">Navigate to <strong>[Type]</strong> (Distributors/Resellers/Customers)</li>
+<li class="">View the list with the following information:<!-- -->
+<ul>
+<li class="">Organization name</li>
+<li class="">Description</li>
+<li class="">Number of users</li>
+<li class="">Number of systems</li>
+<li class="">Creation date</li>
+</ul>
+</li>
+</ol>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=filtering-and-search>Filtering and Search<a href=#filtering-and-search class=hash-link aria-label="Direct link to Filtering and Search" title="Direct link to Filtering and Search" translate=no>​</a></h3>
+<p>Use the filter options to find specific organizations:</p>
+<ul>
+<li class=""><strong>Search by name</strong>: Type in the search box</li>
+<li class=""><strong>Sort by</strong>: Name, description</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=organization-details>Organization Details<a href=#organization-details class=hash-link aria-label="Direct link to Organization Details" title="Direct link to Organization Details" translate=no>​</a></h3>
+<p>Click on an organization to view detailed information:</p>
+<ul>
+<li class=""><strong>Overview</strong>: Name, description, creation date</li>
+<li class=""><strong>Users</strong>: All users belonging to this organization</li>
+<li class=""><strong>Systems</strong>: Systems associated with this organization (if applicable)</li>
+<li class=""><strong>Statistics</strong>: Usage metrics and activity</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=managing-organizations>Managing Organizations<a href=#managing-organizations class=hash-link aria-label="Direct link to Managing Organizations" title="Direct link to Managing Organizations" translate=no>​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=editing-organization-information>Editing Organization Information<a href=#editing-organization-information class=hash-link aria-label="Direct link to Editing Organization Information" title="Direct link to Editing Organization Information" translate=no>​</a></h3>
+<ol>
+<li class="">Navigate to the organization details page</li>
+<li class="">Click <strong>Edit</strong></li>
+<li class="">Update the fields:<!-- -->
+<ul>
+<li class="">Company name</li>
+<li class="">Description</li>
+<li class="">VAT</li>
+</ul>
+</li>
+<li class="">Click <strong>Save [Type]</strong></li>
+</ol>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=deleting-organizations>Deleting Organizations<a href=#deleting-organizations class=hash-link aria-label="Direct link to Deleting Organizations" title="Direct link to Deleting Organizations" translate=no>​</a></h3>
+<div class="theme-admonition theme-admonition-danger admonition_xJq3 alert alert--danger"><div class=admonitionHeading_Gvgb><span class=admonitionIcon_Rf37><svg viewBox="0 0 12 16"><path fill-rule=evenodd d="M5.05.31c.81 2.17.41 3.38-.52 4.31C3.55 5.67 1.98 6.45.9 7.98c-1.45 2.05-1.7 6.53 3.53 7.7-2.2-1.16-2.67-4.52-.3-6.61-.61 2.03.53 3.33 1.94 2.86 1.39-.47 2.3.53 2.27 1.67-.02.78-.31 1.44-1.13 1.81 3.42-.59 4.78-3.42 4.78-5.56 0-2.84-2.53-3.22-1.25-5.61-1.52.13-2.03 1.13-1.89 2.75.09 1.08-1.02 1.8-1.86 1.33-.67-.41-.66-1.19-.06-1.78C8.18 5.31 8.68 2.45 5.05.32L5.03.3l.02.01z"/></svg></span>danger</div><div class=admonitionContent_BuS1><p>Deleting an organization is permanent and will:<ul>
+<li class="">Remove all users in that organization</li>
+<li class="">Delete all systems associated with it</li>
+<li class="">Remove all child organizations (cascade delete)</li>
+</ul></div></div>
+<p>To delete an organization:</p>
+<ol>
+<li class="">Navigate to the organization page</li>
+<li class="">Click <strong>Delete</strong> (use the kebab menu)</li>
+<li class="">Click <strong>Delete</strong></li>
+</ol>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=suspending-organizations>Suspending Organizations<a href=#suspending-organizations class=hash-link aria-label="Direct link to Suspending Organizations" title="Direct link to Suspending Organizations" translate=no>​</a></h3>
+<p>Instead of deleting, you can suspend an organization:</p>
+<ol>
+<li class="">Navigate to the organization page</li>
+<li class="">Click <strong>Suspend</strong></li>
+<li class="">Confirm the action</li>
+</ol>
+<p><strong>Effects of suspension:</strong></p>
+<ul>
+<li class="">Users cannot log in</li>
+<li class="">Systems cannot send data</li>
+<li class="">Can be reactivated later</li>
+</ul>
+<p>To reactivate:</p>
+<ol>
+<li class="">Filter by "Suspended" status</li>
+<li class="">Select the organization</li>
+<li class="">Click <strong>Reactivate</strong></li>
+</ol>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=organization-statistics>Organization Statistics<a href=#organization-statistics class=hash-link aria-label="Direct link to Organization Statistics" title="Direct link to Organization Statistics" translate=no>​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=viewing-statistics>Viewing Statistics<a href=#viewing-statistics class=hash-link aria-label="Direct link to Viewing Statistics" title="Direct link to Viewing Statistics" translate=no>​</a></h3>
+<p>Navigate to <strong>Dashboard</strong> to see:</p>
+<ul>
+<li class="">
+<p><strong>Distributors Overview</strong>:</p>
+<ul>
+<li class="">Total number of distributors</li>
+<li class="">Active vs. suspended</li>
+<li class="">Trend graph (last 30/60/90 days)</li>
+</ul>
+</li>
+<li class="">
+<p><strong>Resellers Overview</strong>:</p>
+<ul>
+<li class="">Total resellers per distributor</li>
+<li class="">Active vs. suspended</li>
+<li class="">Trend graph</li>
+</ul>
+</li>
+<li class="">
+<p><strong>Customers Overview</strong>:</p>
+<ul>
+<li class="">Total customers</li>
+<li class="">Distribution by reseller/distributor</li>
+<li class="">Growth trend</li>
+</ul>
+</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=exporting-data>Exporting Data<a href=#exporting-data class=hash-link aria-label="Direct link to Exporting Data" title="Direct link to Exporting Data" translate=no>​</a></h3>
+<p>Export organization data for reporting:</p>
+<ol>
+<li class="">Navigate to the organization list</li>
+<li class="">Apply filters if needed</li>
+<li class="">Click <strong>Export</strong></li>
+<li class="">Choose format: CSV or PDF</li>
+<li class="">Download the file</li>
+</ol>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=best-practices>Best Practices<a href=#best-practices class=hash-link aria-label="Direct link to Best Practices" title="Direct link to Best Practices" translate=no>​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=naming-conventions>Naming Conventions<a href=#naming-conventions class=hash-link aria-label="Direct link to Naming Conventions" title="Direct link to Naming Conventions" translate=no>​</a></h3>
+<ul>
+<li class="">Use clear, descriptive names</li>
+<li class="">Include geographical information if relevant (e.g., "ACME Europe", "Tech Solutions Italia")</li>
+<li class="">Avoid special characters in names</li>
+<li class="">Keep names concise but meaningful</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=organization-structure>Organization Structure<a href=#organization-structure class=hash-link aria-label="Direct link to Organization Structure" title="Direct link to Organization Structure" translate=no>​</a></h3>
+<ul>
+<li class="">Plan your hierarchy before creating organizations</li>
+<li class="">Keep the structure simple and logical</li>
+<li class="">Avoid creating unnecessary intermediate levels</li>
+<li class="">Document the business relationships</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=access-control>Access Control<a href=#access-control class=hash-link aria-label="Direct link to Access Control" title="Direct link to Access Control" translate=no>​</a></h3>
+<ul>
+<li class="">Assign users to the correct organization</li>
+<li class="">Review organization membership regularly</li>
+<li class="">Use descriptive organization names for clarity</li>
+<li class="">Keep contact information up to date</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=troubleshooting>Troubleshooting<a href=#troubleshooting class=hash-link aria-label="Direct link to Troubleshooting" title="Direct link to Troubleshooting" translate=no>​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=cannot-create-organization>Cannot Create Organization<a href=#cannot-create-organization class=hash-link aria-label="Direct link to Cannot Create Organization" title="Direct link to Cannot Create Organization" translate=no>​</a></h3>
+<p><strong>Problem:</strong> "Access denied" error when creating an organization</p>
+<p><strong>Solutions:</strong></p>
+<ul>
+<li class="">Verify you have the correct role (Owner/Distributor/Reseller)</li>
+<li class="">Check you're trying to create the correct organization type</li>
+<li class="">Ensure your organization membership is correct</li>
+<li class="">Contact your administrator</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=cannot-see-organization>Cannot See Organization<a href=#cannot-see-organization class=hash-link aria-label="Direct link to Cannot See Organization" title="Direct link to Cannot See Organization" translate=no>​</a></h3>
+<p><strong>Problem:</strong> Expected organization not visible in the list</p>
+<p><strong>Solutions:</strong></p>
+<ul>
+<li class="">Check if organization is suspended (use filters)</li>
+<li class="">Verify you have permission to view that organization type</li>
+<li class="">Ensure you're viewing the correct organization level</li>
+<li class="">Check if the organization belongs to your hierarchy branch</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=cannot-delete-organization>Cannot Delete Organization<a href=#cannot-delete-organization class=hash-link aria-label="Direct link to Cannot Delete Organization" title="Direct link to Cannot Delete Organization" translate=no>​</a></h3>
+<p><strong>Problem:</strong> Delete button is disabled or shows error</p>
+<p><strong>Solutions:</strong></p>
+<ul>
+<li class="">Remove all systems from the organization first</li>
+<li class="">Delete all child organizations first</li>
+<li class="">Check if you have permission to delete</li>
+<li class="">Ensure the organization is not the Owner organization</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=next-steps>Next Steps<a href=#next-steps class=hash-link aria-label="Direct link to Next Steps" title="Direct link to Next Steps" translate=no>​</a></h2>
+<p>After creating organizations:</p>
+<ul>
+<li class=""><a class="" href=/my/docs/platform/users>Create users</a> and assign them to organizations</li>
+<li class=""><a class="" href=/my/docs/systems/management>Create systems</a> associated with customer organizations</li>
+<li class="">Set up appropriate permissions for each user</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=related-documentation>Related Documentation<a href=#related-documentation class=hash-link aria-label="Direct link to Related Documentation" title="Direct link to Related Documentation" translate=no>​</a></h2>
+<ul>
+<li class=""><a class="" href=/my/docs/platform/users>Users Management</a></li>
+<li class=""><a class="" href=/my/docs/systems/management>Systems Management</a></li>
+</ul></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href=https://github.com/NethServer/my/tree/main/docs/docs/platform/organizations.md target=_blank rel="noopener noreferrer" class=theme-edit-this-page><svg fill=currentColor height=20 width=20 viewBox="0 0 40 40" class=iconEdit_Z9Sw aria-hidden=true><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"/></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href=/my/docs/getting-started/account><div class=pagination-nav__sublabel>Previous</div><div class=pagination-nav__label>Account Settings</div></a><a class="pagination-nav__link pagination-nav__link--next" href=/my/docs/platform/users><div class=pagination-nav__sublabel>Next</div><div class=pagination-nav__label>Users Management</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href=#understanding-organization-hierarchy class="table-of-contents__link toc-highlight">Understanding Organization Hierarchy</a><ul><li><a href=#organization-types class="table-of-contents__link toc-highlight">Organization Types</a><li><a href=#permissions-by-organization-type class="table-of-contents__link toc-highlight">Permissions by Organization Type</a></ul><li><a href=#creating-organizations class="table-of-contents__link toc-highlight">Creating Organizations</a><ul><li><a href=#prerequisites class="table-of-contents__link toc-highlight">Prerequisites</a><li><a href=#creating-a-distributor class="table-of-contents__link toc-highlight">Creating a Distributor</a><li><a href=#creating-a-reseller class="table-of-contents__link toc-highlight">Creating a Reseller</a><li><a href=#creating-a-customer class="table-of-contents__link toc-highlight">Creating a Customer</a></ul><li><a href=#viewing-organizations class="table-of-contents__link toc-highlight">Viewing Organizations</a><ul><li><a href=#organization-list class="table-of-contents__link toc-highlight">Organization List</a><li><a href=#filtering-and-search class="table-of-contents__link toc-highlight">Filtering and Search</a><li><a href=#organization-details class="table-of-contents__link toc-highlight">Organization Details</a></ul><li><a href=#managing-organizations class="table-of-contents__link toc-highlight">Managing Organizations</a><ul><li><a href=#editing-organization-information class="table-of-contents__link toc-highlight">Editing Organization Information</a><li><a href=#deleting-organizations class="table-of-contents__link toc-highlight">Deleting Organizations</a><li><a href=#suspending-organizations class="table-of-contents__link toc-highlight">Suspending Organizations</a></ul><li><a href=#organization-statistics class="table-of-contents__link toc-highlight">Organization Statistics</a><ul><li><a href=#viewing-statistics class="table-of-contents__link toc-highlight">Viewing Statistics</a><li><a href=#exporting-data class="table-of-contents__link toc-highlight">Exporting Data</a></ul><li><a href=#best-practices class="table-of-contents__link toc-highlight">Best Practices</a><ul><li><a href=#naming-conventions class="table-of-contents__link toc-highlight">Naming Conventions</a><li><a href=#organization-structure class="table-of-contents__link toc-highlight">Organization Structure</a><li><a href=#access-control class="table-of-contents__link toc-highlight">Access Control</a></ul><li><a href=#troubleshooting class="table-of-contents__link toc-highlight">Troubleshooting</a><ul><li><a href=#cannot-create-organization class="table-of-contents__link toc-highlight">Cannot Create Organization</a><li><a href=#cannot-see-organization class="table-of-contents__link toc-highlight">Cannot See Organization</a><li><a href=#cannot-delete-organization class="table-of-contents__link toc-highlight">Cannot Delete Organization</a></ul><li><a href=#next-steps class="table-of-contents__link toc-highlight">Next Steps</a><li><a href=#related-documentation class="table-of-contents__link toc-highlight">Related Documentation</a></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class=footer__title>Documentation</div><ul class="footer__items clean-list"><li class=footer__item><a class=footer__link-item href=/my/docs/intro>User Guide</a><li class=footer__item><a class=footer__link-item href=/my/docs/getting-started/authentication>Authentication</a><li class=footer__item><a class=footer__link-item href=/my/docs/systems/management>Systems</a></ul></div><div class="theme-layout-footer-column col footer__col"><div class=footer__title>Developer</div><ul class="footer__items clean-list"><li class=footer__item><a href=https://api.my.nethesis.it/ target=_blank rel="noopener noreferrer" class=footer__link-item>Backend API<svg width=13.5 height=13.5 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li class=footer__item><a href=https://github.com/NethServer/my/blob/main/collect/README.md target=_blank rel="noopener noreferrer" class=footer__link-item>Collect Service<svg width=13.5 height=13.5 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li class=footer__item><a href=https://github.com/NethServer/my/blob/main/services/mimir/README.md target=_blank rel="noopener noreferrer" class=footer__link-item>Alerting System<svg width=13.5 height=13.5 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li class=footer__item><a href=https://github.com/NethServer/my/blob/main/sync/README.md target=_blank rel="noopener noreferrer" class=footer__link-item>Sync Tool<svg width=13.5 height=13.5 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a></ul></div><div class="theme-layout-footer-column col footer__col"><div class=footer__title>Community</div><ul class="footer__items clean-list"><li class=footer__item><a href=https://github.com/NethServer/my target=_blank rel="noopener noreferrer" class=footer__link-item>GitHub<svg width=13.5 height=13.5 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li class=footer__item><a href=https://www.nethesis.it target=_blank rel="noopener noreferrer" class=footer__link-item>Nethesis<svg width=13.5 height=13.5 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a></ul></div></div><div class="footer__bottom text--center"><div class=footer__copyright>Copyright © 2026 Nethesis S.r.l.</div></div></div></footer></div></body>

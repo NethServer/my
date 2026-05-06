@@ -1,0 +1,259 @@
+<!doctype html><html lang=it dir=ltr class="docs-wrapper plugin-docs plugin-id-default docs-version-current docs-doc-page docs-doc-id-systems/management" data-has-hydrated=false><head><meta charset=UTF-8><meta name=generator content="Docusaurus v3.10.1"><title data-rh=true>Gestione Sistemi | My</title><meta data-rh=true name=viewport content="width=device-width, initial-scale=1.0"/><meta data-rh=true name=twitter:card content=summary_large_image /><meta data-rh=true property=og:image content=https://nethserver.github.io/my/it/img/logo.svg /><meta data-rh=true name=twitter:image content=https://nethserver.github.io/my/it/img/logo.svg /><meta data-rh=true property=og:url content=https://nethserver.github.io/my/it/docs/systems/management /><meta data-rh=true property=og:locale content=it /><meta data-rh=true property=og:locale:alternate content=en /><meta data-rh=true name=docusaurus_locale content=it /><meta data-rh=true name=docsearch:language content=it /><meta data-rh=true name=docusaurus_version content=current /><meta data-rh=true name=docusaurus_tag content=docs-default-current /><meta data-rh=true name=docsearch:version content=current /><meta data-rh=true name=docsearch:docusaurus_tag content=docs-default-current /><meta data-rh=true property=og:title content="Gestione Sistemi | My"/><meta data-rh=true name=description content="I sistemi rappresentano le installazioni software monitorate dalla piattaforma My. Ogni sistema è associato a un'organizzazione e può inviare dati di inventario e heartbeat."/><meta data-rh=true property=og:description content="I sistemi rappresentano le installazioni software monitorate dalla piattaforma My. Ogni sistema è associato a un'organizzazione e può inviare dati di inventario e heartbeat."/><link data-rh=true rel=icon href=/my/it/img/favicon.ico /><link data-rh=true rel=canonical href=https://nethserver.github.io/my/it/docs/systems/management /><link data-rh=true rel=alternate href=https://nethserver.github.io/my/docs/systems/management hreflang=en /><link data-rh=true rel=alternate href=https://nethserver.github.io/my/it/docs/systems/management hreflang=it /><link data-rh=true rel=alternate href=https://nethserver.github.io/my/docs/systems/management hreflang=x-default /><script data-rh=true type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://nethserver.github.io/my/it/docs/systems/management","name":"Gestione Sistemi","position":1}]}</script><link rel=stylesheet href=/my/it/assets/css/styles.58b825bf.css /><script src=/my/it/assets/js/runtime~main.f4fafea1.js defer></script><script src=/my/it/assets/js/main.4da3b994.js defer></script></head><body><svg style="display: none;"><defs>
+<symbol id=theme-svg-external-link viewBox="0 0 24 24"><path fill=currentColor d="M21 13v10h-21v-19h12v2h-10v15h17v-8h2zm3-12h-10.988l4.035 4-6.977 7.07 2.828 2.828 6.977-7.07 4.125 4.172v-11z"/></symbol>
+</defs></svg>
+<script>!function(){var t=function(){try{return new URLSearchParams(window.location.search).get("docusaurus-theme")}catch(t){}}()||function(){try{return window.localStorage.getItem("theme-094")}catch(t){}}();document.documentElement.setAttribute("data-theme",t||(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")),document.documentElement.setAttribute("data-theme-choice",t||"system")}(),function(){try{for(var[t,e]of new URLSearchParams(window.location.search).entries())if(t.startsWith("docusaurus-data-")){var a=t.replace("docusaurus-data-","data-");document.documentElement.setAttribute(a,e)}}catch(t){}}()</script><div id=__docusaurus><link rel=preload as=image href=/my/it/img/logo-dark.svg /><link rel=preload as=image href=/my/it/img/logo.svg /><div role=region aria-label="Passa al contenuto principale"><a class=skipToContent_fXgn href=#__docusaurus_skipToContent_fallback>Passa al contenuto principale</a></div><nav aria-label=Principale class="theme-layout-navbar navbar navbar--fixed-top"><div class=navbar__inner><div class="theme-layout-navbar-left navbar__items"><button aria-label="Attiva/disattiva la barra di navigazione" aria-expanded=false class="navbar__toggle clean-btn" type=button><svg width=30 height=30 viewBox="0 0 30 30" aria-hidden=true><path stroke=currentColor stroke-linecap=round stroke-miterlimit=10 stroke-width=2 d="M4 7h22M4 15h22M4 23h22"/></svg></button><a class=navbar__brand href=/my/it/><div class=navbar__logo><img src=/my/it/img/logo-dark.svg alt="My Nethesis" class="themedComponent_mlkZ themedComponent--light_NVdE"/><img src=/my/it/img/logo.svg alt="My Nethesis" class="themedComponent_mlkZ themedComponent--dark_xIcU"/></div><b class="navbar__title text--truncate"></b></a><a aria-current=page class="navbar__item navbar__link navbar__link--active" href=/my/it/docs/intro>Guida Utente</a><div class="navbar__item dropdown dropdown--hoverable"><a href=# aria-haspopup=true aria-expanded=false role=button class=navbar__link>Documentazione Sviluppatori</a><ul class=dropdown__menu><li><a href=https://github.com/NethServer/my/blob/main/README.md target=_blank rel="noopener noreferrer" class=dropdown__link>Project Overview<svg width=12 height=12 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li><a href=https://api.my.nethesis.it/ target=_blank rel="noopener noreferrer" class=dropdown__link>Backend API<svg width=12 height=12 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li><a href=https://github.com/NethServer/my/blob/main/collect/README.md target=_blank rel="noopener noreferrer" class=dropdown__link>Collect Service<svg width=12 height=12 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li><a href=https://github.com/NethServer/my/blob/main/services/mimir/README.md target=_blank rel="noopener noreferrer" class=dropdown__link>Sistema di alerting<svg width=12 height=12 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li><a href=https://github.com/NethServer/my/blob/main/sync/README.md target=_blank rel="noopener noreferrer" class=dropdown__link>Sync Tool<svg width=12 height=12 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a></ul></div></div><div class="theme-layout-navbar-right navbar__items navbar__items--right"><div class="navbar__item dropdown dropdown--hoverable dropdown--right"><a href=# aria-haspopup=true aria-expanded=false role=button class=navbar__link><svg viewBox="0 0 24 24" width=20 height=20 aria-hidden=true class=iconLanguage_nlXk><path fill=currentColor d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>Italiano</a><ul class=dropdown__menu><li><a href=/my/docs/systems/management target=_self rel="noopener noreferrer" class=dropdown__link lang=en>English</a><li><a href=/my/it/docs/systems/management target=_self rel="noopener noreferrer" class="dropdown__link dropdown__link--active" lang=it>Italiano</a></ul></div><a href=https://github.com/NethServer/my target=_blank rel="noopener noreferrer" class="navbar__item navbar__link">GitHub<svg width=13.5 height=13.5 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><div class="toggle_vylO colorModeToggle_DEke"><button class="clean-btn toggleButton_gllP toggleButtonDisabled_aARS" type=button disabled title="system mode" aria-label="Passa dalla modalità scura a quella chiara (currently system mode)"><svg viewBox="0 0 24 24" width=24 height=24 aria-hidden=true class="toggleIcon_g3eP lightToggleIcon_pyhR"><path fill=currentColor d="M12,9c1.65,0,3,1.35,3,3s-1.35,3-3,3s-3-1.35-3-3S10.35,9,12,9 M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5 S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S1.45,13,2,13z M20,13l2,0c0.55,0,1-0.45,1-1 s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2c0-0.55-0.45-1-1-1C11.45,19,11,19.45,11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0 c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95 c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41 L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41 s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06 c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z"/></svg><svg viewBox="0 0 24 24" width=24 height=24 aria-hidden=true class="toggleIcon_g3eP darkToggleIcon_wfgR"><path fill=currentColor d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"/></svg><svg viewBox="0 0 24 24" width=24 height=24 aria-hidden=true class="toggleIcon_g3eP systemToggleIcon_QzmC"><path fill=currentColor d="m12 21c4.971 0 9-4.029 9-9s-4.029-9-9-9-9 4.029-9 9 4.029 9 9 9zm4.95-13.95c1.313 1.313 2.05 3.093 2.05 4.95s-0.738 3.637-2.05 4.95c-1.313 1.313-3.093 2.05-4.95 2.05v-14c1.857 0 3.637 0.737 4.95 2.05z"/></svg></button></div><div class=navbarSearchContainer_Bca1></div></div></div><div role=presentation class=navbar-sidebar__backdrop></div></nav><div id=__docusaurus_skipToContent_fallback class="theme-layout-main main-wrapper mainWrapper_z2l0"><div class=docsWrapper_hBAB><button aria-label="Torna indietro all'inizio" class="clean-btn theme-back-to-top-button backToTopButton_sjWU" type=button></button><div class=docRoot_UBD9><aside class="theme-doc-sidebar-container docSidebarContainer_YfHR"><div class=sidebarViewport_aRkj><div class=sidebar_njMd><nav aria-label="Barra laterale dei documenti" class="menu thin-scrollbar menu_SIkG"><ul class="theme-doc-sidebar-menu menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class=menu__link href=/my/it/docs/intro><span title="Benvenuto in My" class=linkLabel_WmDU>Benvenuto in My</span></a><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class=menu__list-item-collapsible><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role=button aria-expanded=true href=/my/it/docs/getting-started/authentication><span title="Getting Started" class=categoryLinkLabel_W154>Getting Started</span></a></div><ul class=menu__list><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class=menu__link tabindex=0 href=/my/it/docs/getting-started/authentication><span title=Autenticazione class=linkLabel_WmDU>Autenticazione</span></a><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class=menu__link tabindex=0 href=/my/it/docs/getting-started/account><span title="Impostazioni Account" class=linkLabel_WmDU>Impostazioni Account</span></a></ul><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item menu__list-item--collapsed"><div class=menu__list-item-collapsible><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role=button aria-expanded=false href=/my/it/docs/platform/organizations><span title="Platform Management" class=categoryLinkLabel_W154>Platform Management</span></a></div><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class=menu__list-item-collapsible><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret menu__link--active" role=button aria-expanded=true href=/my/it/docs/systems/management><span title=Systems class=categoryLinkLabel_W154>Systems</span></a></div><ul class=menu__list><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link menu__link--active" aria-current=page tabindex=0 href=/my/it/docs/systems/management><span title="Gestione Sistemi" class=linkLabel_WmDU>Gestione Sistemi</span></a><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class=menu__link tabindex=0 href=/my/it/docs/systems/registration><span title="Registrazione Sistema" class=linkLabel_WmDU>Registrazione Sistema</span></a><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class=menu__link tabindex=0 href=/my/it/docs/systems/inventory-heartbeat><span title="Inventario e Heartbeat" class=linkLabel_WmDU>Inventario e Heartbeat</span></a><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class=menu__link tabindex=0 href=/my/it/docs/systems/backups><span title="Backup di configurazione" class=linkLabel_WmDU>Backup di configurazione</span></a></ul><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item menu__list-item--collapsed"><div class=menu__list-item-collapsible><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role=button aria-expanded=false href=/my/it/docs/features/dashboard><span title=Features class=categoryLinkLabel_W154>Features</span></a></div><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class=menu__link href=/my/it/docs/contributing><span title="Contribuire alla Documentazione My" class=linkLabel_WmDU>Contribuire alla Documentazione My</span></a></ul></nav></div></div></aside><main class=docMainContainer_TBSr><div class="container padding-top--md padding-bottom--lg"><div class=row><div class="col docItemCol_VOVn"><div class=docItemContainer_Djhp><article><nav class="theme-doc-breadcrumbs breadcrumbsContainer_Z_bl" aria-label="Briciole di pane"><ul class=breadcrumbs><li class=breadcrumbs__item><a aria-label="Pagina principale" class=breadcrumbs__link href=/my/it/><svg viewBox="0 0 24 24" class=breadcrumbHomeIcon_YNFT><path d="M10 19v-5h4v5c0 .55.45 1 1 1h3c.55 0 1-.45 1-1v-7h1.7c.46 0 .68-.57.33-.87L12.67 3.6c-.38-.34-.96-.34-1.34 0l-8.36 7.53c-.34.3-.13.87.33.87H5v7c0 .55.45 1 1 1h3c.55 0 1-.45 1-1z" fill=currentColor /></svg></a><li class=breadcrumbs__item><span class=breadcrumbs__link>Systems</span><li class="breadcrumbs__item breadcrumbs__item--active"><span class=breadcrumbs__link>Gestione Sistemi</span></ul></nav><div class="tocCollapsible_ETCw theme-doc-toc-mobile tocMobile_ITEo"><button type=button class="clean-btn tocCollapsibleButton_TO0P">Su questa pagina</button></div><div class="theme-doc-markdown markdown"><header><h1>Gestione Sistemi</h1></header>
+<p>I sistemi rappresentano le installazioni software monitorate dalla piattaforma My. Ogni sistema è associato a un'organizzazione e può inviare dati di inventario e heartbeat.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=comprendere-i-sistemi>Comprendere i Sistemi<a href=#comprendere-i-sistemi class=hash-link aria-label="Link diretto a Comprendere i Sistemi" title="Link diretto a Comprendere i Sistemi" translate=no>​</a></h2>
+<p>Un sistema in My rappresenta un'installazione di NethServer o NethSecurity presso un cliente. Ogni sistema:</p>
+<ul>
+<li class="">Appartiene a una <strong>singola organizzazione</strong></li>
+<li class="">Ha credenziali uniche (<strong>system_key</strong> e <strong>system_secret</strong>) per l'autenticazione</li>
+<li class="">Invia periodicamente dati di <strong>inventario</strong> e <strong>heartbeat</strong></li>
+<li class="">Ha un <strong>ciclo di vita</strong> con stati definiti</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=ciclo-di-vita-del-sistema>Ciclo di Vita del Sistema<a href=#ciclo-di-vita-del-sistema class=hash-link aria-label="Link diretto a Ciclo di Vita del Sistema" title="Link diretto a Ciclo di Vita del Sistema" translate=no>​</a></h2>
+<!-- -->
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=stati-del-sistema>Stati del Sistema<a href=#stati-del-sistema class=hash-link aria-label="Link diretto a Stati del Sistema" title="Link diretto a Stati del Sistema" translate=no>​</a></h3>
+<table><thead><tr><th>Stato<th>Descrizione<th>Condizione<tbody><tr><td><strong>Unknown</strong><td>Stato predefinito, sistema non ancora registrato o nessun inventario ricevuto<td>Nessun heartbeat ricevuto<tr><td><strong>Active</strong><td>Sistema operativo e comunicante<td>Heartbeat ricevuto negli ultimi 15 minuti<tr><td><strong>Inactive</strong><td>Sistema ha smesso di comunicare<td>Nessun heartbeat da oltre 15 minuti<tr><td><strong>Deleted</strong><td>Sistema rimosso<td>Eliminazione soft o permanente</table>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=creazione-sistemi>Creazione Sistemi<a href=#creazione-sistemi class=hash-link aria-label="Link diretto a Creazione Sistemi" title="Link diretto a Creazione Sistemi" translate=no>​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=procedura>Procedura<a href=#procedura class=hash-link aria-label="Link diretto a Procedura" title="Link diretto a Procedura" translate=no>​</a></h3>
+<ol>
+<li class="">Vai a <strong>Sistemi</strong></li>
+<li class="">Clicca su <strong>Nuovo Sistema</strong></li>
+<li class="">Compila i campi richiesti:<!-- -->
+<ul>
+<li class=""><strong>Nome</strong> - Nome identificativo del sistema</li>
+<li class=""><strong>Organizzazione</strong> - L'organizzazione cliente a cui appartiene il sistema</li>
+<li class=""><strong>Descrizione</strong> - Descrizione opzionale</li>
+</ul>
+</li>
+<li class="">Clicca su <strong>Crea</strong></li>
+</ol>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=secret-del-sistema>Secret del Sistema<a href=#secret-del-sistema class=hash-link aria-label="Link diretto a Secret del Sistema" title="Link diretto a Secret del Sistema" translate=no>​</a></h3>
+<p>Alla creazione, il sistema riceve un <strong>system_secret</strong>:</p>
+<ul>
+<li class="">Viene mostrato <strong>una sola volta</strong> al momento della creazione</li>
+<li class="">Deve essere copiato e conservato in modo sicuro</li>
+<li class="">È necessario per la <a class="" href=/my/it/docs/systems/registration>registrazione</a> del sistema</li>
+<li class="">Può essere rigenerato se perso (vedi sotto)</li>
+</ul>
+<p><strong>Esempio risposta alla creazione:</strong></p>
+<div class="language-json codeBlockContainer_Ckt0 theme-code-block" style=--prism-color:#393A34;--prism-background-color:#f6f8fa><div class=codeBlockContent_QJqH><pre tabindex=0 class="prism-code language-json codeBlock_bY9V thin-scrollbar" style=color:#393A34;background-color:#f6f8fa><code class=codeBlockLines_e6Vv><div class=token-line style=color:#393A34><span class="token punctuation" style=color:#393A34>{</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  </span><span class="token property" style=color:#36acaa>"id"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token string" style=color:#e3116c>"sys_abc123"</span><span class="token punctuation" style=color:#393A34>,</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  </span><span class="token property" style=color:#36acaa>"name"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token string" style=color:#e3116c>"Server Web Produzione Milano"</span><span class="token punctuation" style=color:#393A34>,</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  </span><span class="token property" style=color:#36acaa>"system_key"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token string" style=color:#e3116c>""</span><span class="token punctuation" style=color:#393A34>,</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  </span><span class="token property" style=color:#36acaa>"system_secret"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token string" style=color:#e3116c>"my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0"</span><span class="token punctuation" style=color:#393A34>,</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  </span><span class="token property" style=color:#36acaa>"status"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token string" style=color:#e3116c>"unknown"</span><span class="token punctuation" style=color:#393A34>,</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  </span><span class="token property" style=color:#36acaa>"registered_at"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token null keyword" style=color:#00009f>null</span><span class="token punctuation" style=color:#393A34>,</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  </span><span class="token property" style=color:#36acaa>"organization"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token string" style=color:#e3116c>"Pizza Express Milano"</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain"></span><span class="token punctuation" style=color:#393A34>}</span><br/></div></code></pre></div></div>
+<div class="theme-admonition theme-admonition-danger admonition_xJq3 alert alert--danger"><div class=admonitionHeading_Gvgb><span class=admonitionIcon_Rf37><svg viewBox="0 0 12 16"><path fill-rule=evenodd d="M5.05.31c.81 2.17.41 3.38-.52 4.31C3.55 5.67 1.98 6.45.9 7.98c-1.45 2.05-1.7 6.53 3.53 7.7-2.2-1.16-2.67-4.52-.3-6.61-.61 2.03.53 3.33 1.94 2.86 1.39-.47 2.3.53 2.27 1.67-.02.78-.31 1.44-1.13 1.81 3.42-.59 4.78-3.42 4.78-5.56 0-2.84-2.53-3.22-1.25-5.61-1.52.13-2.03 1.13-1.89 2.75.09 1.08-1.02 1.8-1.86 1.33-.67-.41-.66-1.19-.06-1.78C8.18 5.31 8.68 2.45 5.05.32L5.03.3l.02.01z"/></svg></span>pericolo</div><div class=admonitionContent_BuS1><p>Il secret del sistema viene mostrato una sola volta. Se viene perso, sarà necessario rigenerarlo, il che richiede una nuova registrazione del sistema.</div></div>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=visualizzazione-sistemi>Visualizzazione Sistemi<a href=#visualizzazione-sistemi class=hash-link aria-label="Link diretto a Visualizzazione Sistemi" title="Link diretto a Visualizzazione Sistemi" translate=no>​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=elenco>Elenco<a href=#elenco class=hash-link aria-label="Link diretto a Elenco" title="Link diretto a Elenco" translate=no>​</a></h3>
+<p>La pagina elenco sistemi mostra:</p>
+<ul>
+<li class=""><strong>Nome</strong> del sistema</li>
+<li class=""><strong>Organizzazione</strong> di appartenenza</li>
+<li class=""><strong>Stato</strong> (unknown, active, inactive, deleted)</li>
+<li class=""><strong>Ultimo heartbeat</strong> - Data e ora dell'ultimo heartbeat ricevuto</li>
+<li class=""><strong>Versione</strong> - Versione del software installato (se disponibile)</li>
+<li class=""><strong>Data di creazione</strong></li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=filtri-e-ricerca>Filtri e Ricerca<a href=#filtri-e-ricerca class=hash-link aria-label="Link diretto a Filtri e Ricerca" title="Link diretto a Filtri e Ricerca" translate=no>​</a></h3>
+<p>È possibile filtrare i sistemi per:</p>
+<ul>
+<li class=""><strong>Ricerca testuale</strong> - Cerca per nome o system_key</li>
+<li class=""><strong>Organizzazione</strong> - Filtra per organizzazione di appartenenza</li>
+<li class=""><strong>Stato</strong> - Filtra per stato del sistema (unknown, active, inactive, deleted)</li>
+<li class=""><strong>Tipo</strong> - Filtra per tipo di sistema</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=dettagli-sistema>Dettagli Sistema<a href=#dettagli-sistema class=hash-link aria-label="Link diretto a Dettagli Sistema" title="Link diretto a Dettagli Sistema" translate=no>​</a></h3>
+<p>Cliccando su un sistema si accede alla pagina di dettaglio con:</p>
+<h4 class="anchor anchorTargetStickyNavbar_Vzrq" id=tab-panoramica>Tab Panoramica<a href=#tab-panoramica class=hash-link aria-label="Link diretto a Tab Panoramica" title="Link diretto a Tab Panoramica" translate=no>​</a></h4>
+<ul>
+<li class="">
+<p><strong>Informazioni di Base</strong>:</p>
+<ul>
+<li class="">Nome del sistema</li>
+<li class="">Tipo del sistema (auto-rilevato)</li>
+<li class="">Stato</li>
+<li class="">Versione</li>
+<li class="">Timestamp registrazione</li>
+</ul>
+</li>
+<li class="">
+<p><strong>Informazioni di Rete</strong>:</p>
+<ul>
+<li class="">FQDN (Fully Qualified Domain Name)</li>
+<li class="">Indirizzo IPv4</li>
+<li class="">Indirizzo IPv6</li>
+</ul>
+</li>
+<li class="">
+<p><strong>Autenticazione</strong>:</p>
+<ul>
+<li class="">System key (visibile solo dopo la registrazione)</li>
+<li class="">Stato registrazione</li>
+<li class="">Ultimo timestamp di autenticazione</li>
+</ul>
+</li>
+<li class="">
+<p><strong>Organizzazione</strong>:</p>
+<ul>
+<li class="">Nome cliente</li>
+<li class="">Tipo organizzazione</li>
+<li class="">Nome organizzazione</li>
+</ul>
+</li>
+<li class="">
+<p><strong>Stato Heartbeat</strong>:</p>
+<ul>
+<li class="">Stato corrente (active/inactive/unknown)</li>
+<li class="">Ultimo timestamp heartbeat</li>
+<li class="">Ultimo timestamp inventario</li>
+</ul>
+</li>
+<li class="">
+<p><strong>Traccia Audit</strong>:</p>
+<ul>
+<li class="">Creato da (nome utente e email)</li>
+<li class="">Data creazione</li>
+<li class="">Data eliminazione (se eliminato in modo soft)</li>
+</ul>
+</li>
+</ul>
+<h4 class="anchor anchorTargetStickyNavbar_Vzrq" id=tab-inventario>Tab Inventario<a href=#tab-inventario class=hash-link aria-label="Link diretto a Tab Inventario" title="Link diretto a Tab Inventario" translate=no>​</a></h4>
+<p>Visualizza l'inventario dettagliato del sistema:</p>
+<ul>
+<li class=""><strong>Ultimo Inventario</strong>: Snapshot più recente dell'inventario</li>
+<li class=""><strong>Storico Inventario</strong>: Tutti gli inventari storici con paginazione</li>
+<li class=""><strong>Modifiche</strong>: Elenco delle modifiche rilevate tra gli inventari</li>
+<li class=""><strong>Vista Diff</strong>: Confronto dettagliato tra versioni dell'inventario</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=gestione-sistemi-1>Gestione Sistemi<a href=#gestione-sistemi-1 class=hash-link aria-label="Link diretto a Gestione Sistemi" title="Link diretto a Gestione Sistemi" translate=no>​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=modifica>Modifica<a href=#modifica class=hash-link aria-label="Link diretto a Modifica" title="Link diretto a Modifica" translate=no>​</a></h3>
+<p>Per modificare un sistema:</p>
+<ol>
+<li class="">Vai all'elenco sistemi</li>
+<li class="">Clicca sul sistema da modificare</li>
+<li class="">Clicca su <strong>Modifica</strong></li>
+<li class="">Aggiorna i campi desiderati (nome, descrizione, organizzazione)</li>
+<li class="">Clicca su <strong>Salva</strong></li>
+</ol>
+<div class="theme-admonition theme-admonition-tip admonition_xJq3 alert alert--success"><div class=admonitionHeading_Gvgb><span class=admonitionIcon_Rf37><svg viewBox="0 0 12 16"><path fill-rule=evenodd d="M6.5 0C3.48 0 1 2.19 1 5c0 .92.55 2.25 1 3 1.34 2.25 1.78 2.78 2 4v1h5v-1c.22-1.22.66-1.75 2-4 .45-.75 1-2.08 1-3 0-2.81-2.48-5-5.5-5zm3.64 7.48c-.25.44-.47.8-.67 1.11-.86 1.41-1.25 2.06-1.45 3.23-.02.05-.02.11-.02.17H5c0-.06 0-.13-.02-.17-.2-1.17-.59-1.83-1.45-3.23-.2-.31-.42-.67-.67-1.11C2.44 6.78 2 5.65 2 5c0-2.2 2.02-4 4.5-4 1.22 0 2.36.42 3.22 1.19C10.55 2.94 11 3.94 11 5c0 .66-.44 1.78-.86 2.48zM4 14h5c-.23 1.14-1.3 2-2.5 2s-2.27-.86-2.5-2z"/></svg></span>suggerimento</div><div class=admonitionContent_BuS1><p>Cambiare l'<strong>Organizzazione</strong> sposta il sistema a un proprietario
+diverso. I backup, lo storico allarmi e l'inventario seguono il nuovo
+proprietario; il precedente perde l'accesso immediatamente. Per il
+comportamento completo, chi è autorizzato a farlo, e cosa succede a
+silence e assegnazioni applicazioni, vedi
+<a class="" href=/my/it/docs/systems/org-reassignment>Riassegnare un sistema a un'altra organizzazione</a>.</div></div>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=rigenerazione-secret>Rigenerazione Secret<a href=#rigenerazione-secret class=hash-link aria-label="Link diretto a Rigenerazione Secret" title="Link diretto a Rigenerazione Secret" translate=no>​</a></h3>
+<p>Se il secret del sistema è stato perso:</p>
+<ol>
+<li class="">Vai al dettaglio del sistema</li>
+<li class="">Clicca su <strong>Rigenera Secret</strong></li>
+<li class="">Conferma l'operazione</li>
+<li class="">Copia il nuovo secret (viene mostrato una sola volta)</li>
+</ol>
+<div class="theme-admonition theme-admonition-warning admonition_xJq3 alert alert--warning"><div class=admonitionHeading_Gvgb><span class=admonitionIcon_Rf37><svg viewBox="0 0 16 16"><path fill-rule=evenodd d="M8.893 1.5c-.183-.31-.52-.5-.887-.5s-.703.19-.886.5L.138 13.499a.98.98 0 0 0 0 1.001c.193.31.53.501.886.501h13.964c.367 0 .704-.19.877-.5a1.03 1.03 0 0 0 .01-1.002L8.893 1.5zm.133 11.497H6.987v-2.003h2.039v2.003zm0-3.004H6.987V5.987h2.039v4.006z"/></svg></span>warning</div><div class=admonitionContent_BuS1><p>La rigenerazione del secret invalida il secret precedente. Il sistema dovrà essere ri-registrato con il nuovo secret.</div></div>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=eliminazione>Eliminazione<a href=#eliminazione class=hash-link aria-label="Link diretto a Eliminazione" title="Link diretto a Eliminazione" translate=no>​</a></h3>
+<p>My supporta due tipi di eliminazione:</p>
+<h4 class="anchor anchorTargetStickyNavbar_Vzrq" id=eliminazione-soft>Eliminazione Soft<a href=#eliminazione-soft class=hash-link aria-label="Link diretto a Eliminazione Soft" title="Link diretto a Eliminazione Soft" translate=no>​</a></h4>
+<ol>
+<li class="">Vai al dettaglio del sistema</li>
+<li class="">Clicca su <strong>Elimina</strong></li>
+<li class="">Conferma l'operazione</li>
+</ol>
+<p>L'eliminazione soft:</p>
+<ul>
+<li class="">Segna il sistema come eliminato</li>
+<li class="">I dati storici vengono conservati</li>
+<li class="">Il sistema non può più inviare dati</li>
+</ul>
+<h4 class="anchor anchorTargetStickyNavbar_Vzrq" id=eliminazione-permanente>Eliminazione Permanente<a href=#eliminazione-permanente class=hash-link aria-label="Link diretto a Eliminazione Permanente" title="Link diretto a Eliminazione Permanente" translate=no>​</a></h4>
+<p>L'eliminazione permanente rimuove completamente il sistema e tutti i dati associati.</p>
+<div class="theme-admonition theme-admonition-danger admonition_xJq3 alert alert--danger"><div class=admonitionHeading_Gvgb><span class=admonitionIcon_Rf37><svg viewBox="0 0 12 16"><path fill-rule=evenodd d="M5.05.31c.81 2.17.41 3.38-.52 4.31C3.55 5.67 1.98 6.45.9 7.98c-1.45 2.05-1.7 6.53 3.53 7.7-2.2-1.16-2.67-4.52-.3-6.61-.61 2.03.53 3.33 1.94 2.86 1.39-.47 2.3.53 2.27 1.67-.02.78-.31 1.44-1.13 1.81 3.42-.59 4.78-3.42 4.78-5.56 0-2.84-2.53-3.22-1.25-5.61-1.52.13-2.03 1.13-1.89 2.75.09 1.08-1.02 1.8-1.86 1.33-.67-.41-.66-1.19-.06-1.78C8.18 5.31 8.68 2.45 5.05.32L5.03.3l.02.01z"/></svg></span>pericolo</div><div class=admonitionContent_BuS1><p>L'eliminazione permanente è irreversibile. Tutti i dati del sistema, inclusi inventario, heartbeat e cronologia modifiche, vengono rimossi definitivamente.</div></div>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=registrazione>Registrazione<a href=#registrazione class=hash-link aria-label="Link diretto a Registrazione" title="Link diretto a Registrazione" translate=no>​</a></h2>
+<p>Dopo la creazione, il sistema deve essere registrato per poter inviare dati.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=stato-registrazione>Stato Registrazione<a href=#stato-registrazione class=hash-link aria-label="Link diretto a Stato Registrazione" title="Link diretto a Stato Registrazione" translate=no>​</a></h3>
+<p><strong>Prima della Registrazione:</strong></p>
+<div class="language-json codeBlockContainer_Ckt0 theme-code-block" style=--prism-color:#393A34;--prism-background-color:#f6f8fa><div class=codeBlockContent_QJqH><pre tabindex=0 class="prism-code language-json codeBlock_bY9V thin-scrollbar" style=color:#393A34;background-color:#f6f8fa><code class=codeBlockLines_e6Vv><div class=token-line style=color:#393A34><span class="token punctuation" style=color:#393A34>{</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  </span><span class="token property" style=color:#36acaa>"system_key"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token string" style=color:#e3116c>""</span><span class="token punctuation" style=color:#393A34>,</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  </span><span class="token property" style=color:#36acaa>"registered_at"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token null keyword" style=color:#00009f>null</span><span class="token punctuation" style=color:#393A34>,</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  </span><span class="token property" style=color:#36acaa>"status"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token string" style=color:#e3116c>"unknown"</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain"></span><span class="token punctuation" style=color:#393A34>}</span><br/></div></code></pre></div></div>
+<p><strong>Dopo la Registrazione:</strong></p>
+<div class="language-json codeBlockContainer_Ckt0 theme-code-block" style=--prism-color:#393A34;--prism-background-color:#f6f8fa><div class=codeBlockContent_QJqH><pre tabindex=0 class="prism-code language-json codeBlock_bY9V thin-scrollbar" style=color:#393A34;background-color:#f6f8fa><code class=codeBlockLines_e6Vv><div class=token-line style=color:#393A34><span class="token punctuation" style=color:#393A34>{</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  </span><span class="token property" style=color:#36acaa>"system_key"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token string" style=color:#e3116c>"NOC-F64B-A989-C9E7-45B9-A55D-59EC-6545-40EE"</span><span class="token punctuation" style=color:#393A34>,</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  </span><span class="token property" style=color:#36acaa>"registered_at"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token string" style=color:#e3116c>"2025-11-06T10:30:00Z"</span><span class="token punctuation" style=color:#393A34>,</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  </span><span class="token property" style=color:#36acaa>"status"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token string" style=color:#e3116c>"unknown"</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain"></span><span class="token punctuation" style=color:#393A34>}</span><br/></div></code></pre></div></div>
+<p>Per i dettagli completi sulla procedura di registrazione, consulta la pagina <a class="" href=/my/it/docs/systems/registration>Registrazione Sistema</a>.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=monitoraggio>Monitoraggio<a href=#monitoraggio class=hash-link aria-label="Link diretto a Monitoraggio" title="Link diretto a Monitoraggio" translate=no>​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=heartbeat>Heartbeat<a href=#heartbeat class=hash-link aria-label="Link diretto a Heartbeat" title="Link diretto a Heartbeat" translate=no>​</a></h3>
+<p>Il sistema di heartbeat monitora lo stato di salute dei sistemi:</p>
+<ul>
+<li class="">I sistemi inviano heartbeat periodici (ogni 5 minuti consigliato)</li>
+<li class="">Il sistema classifica automaticamente lo stato in base alla frequenza degli heartbeat</li>
+<li class="">Gli stati vengono aggiornati periodicamente dal cron job di monitoraggio</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=inventario>Inventario<a href=#inventario class=hash-link aria-label="Link diretto a Inventario" title="Link diretto a Inventario" translate=no>​</a></h3>
+<p>L'inventario fornisce informazioni dettagliate sulla configurazione del sistema:</p>
+<ul>
+<li class="">Dati hardware e software</li>
+<li class="">Configurazione di rete</li>
+<li class="">Servizi installati</li>
+<li class="">Utenti configurati</li>
+</ul>
+<p>Per maggiori dettagli, consulta la pagina <a class="" href=/my/it/docs/systems/inventory-heartbeat>Inventario e Heartbeat</a>.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=esportazione>Esportazione<a href=#esportazione class=hash-link aria-label="Link diretto a Esportazione" title="Link diretto a Esportazione" translate=no>​</a></h2>
+<p>È possibile esportare l'elenco dei sistemi in formato CSV o PDF. L'esportazione include tutti i sistemi visibili in base ai filtri applicati.</p>
+<p>Per maggiori dettagli, consulta la pagina <a class="" href=/my/it/docs/features/export>Esportazione Dati</a>.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=best-practice>Best Practice<a href=#best-practice class=hash-link aria-label="Link diretto a Best Practice" title="Link diretto a Best Practice" translate=no>​</a></h2>
+<ul>
+<li class=""><strong>Usa nomi descrittivi</strong> che identifichino chiaramente il sistema e la sua posizione</li>
+<li class=""><strong>Conserva il secret in modo sicuro</strong> al momento della creazione</li>
+<li class=""><strong>Monitora gli heartbeat</strong> regolarmente per individuare sistemi non comunicanti</li>
+<li class=""><strong>Verifica l'inventario</strong> periodicamente per assicurarti che i dati siano aggiornati</li>
+<li class=""><strong>Usa l'eliminazione soft</strong> quando possibile, per conservare i dati storici</li>
+<li class=""><strong>Configura il heartbeat</strong> con frequenza adeguata (ogni 5 minuti consigliato)</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=risoluzione-problemi>Risoluzione Problemi<a href=#risoluzione-problemi class=hash-link aria-label="Link diretto a Risoluzione Problemi" title="Link diretto a Risoluzione Problemi" translate=no>​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=sistema-non-invia-dati>Sistema Non Invia Dati<a href=#sistema-non-invia-dati class=hash-link aria-label="Link diretto a Sistema Non Invia Dati" title="Link diretto a Sistema Non Invia Dati" translate=no>​</a></h3>
+<ul>
+<li class="">Verifica che il sistema sia stato registrato correttamente</li>
+<li class="">Controlla le credenziali (system_key e system_secret)</li>
+<li class="">Verifica la connettività di rete verso la piattaforma</li>
+<li class="">Controlla i log del sistema per errori di autenticazione</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=sistema-sempre-in-stato-inactive>Sistema Sempre in Stato "Inactive"<a href=#sistema-sempre-in-stato-inactive class=hash-link aria-label='Link diretto a Sistema Sempre in Stato "Inactive"' title='Link diretto a Sistema Sempre in Stato "Inactive"' translate=no>​</a></h3>
+<ul>
+<li class="">Verifica che il servizio di heartbeat sia in esecuzione sul sistema</li>
+<li class="">Controlla la frequenza di invio degli heartbeat (consigliato: ogni 5 minuti)</li>
+<li class="">Verifica che non ci siano firewall che bloccano le comunicazioni</li>
+<li class="">Controlla che le credenziali non siano state invalidate</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=impossibile-creare-un-sistema>Impossibile Creare un Sistema<a href=#impossibile-creare-un-sistema class=hash-link aria-label="Link diretto a Impossibile Creare un Sistema" title="Link diretto a Impossibile Creare un Sistema" translate=no>​</a></h3>
+<ul>
+<li class="">Verifica di avere i permessi necessari (ruolo Support o superiore)</li>
+<li class="">Assicurati di aver selezionato un'organizzazione valida</li>
+<li class="">Controlla che il nome non sia già in uso nell'organizzazione</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=system_key-è-nascosto>System_key è Nascosto<a href=#system_key-è-nascosto class=hash-link aria-label="Link diretto a System_key è Nascosto" title="Link diretto a System_key è Nascosto" translate=no>​</a></h3>
+<p><strong>Problema:</strong> Impossibile vedere il campo system_key</p>
+<p><strong>Spiegazione:</strong></p>
+<ul>
+<li class="">system_key è nascosto fino alla registrazione del sistema</li>
+<li class="">Questo è il comportamento previsto per sistemi non registrati</li>
+<li class="">Registra prima il sistema per rivelare system_key</li>
+</ul>
+<p><strong>Soluzione:</strong></p>
+<ol>
+<li class="">Usa system_secret per registrare il sistema</li>
+<li class="">Dopo la registrazione, system_key diventa visibile</li>
+<li class="">Consulta la pagina <a class="" href=/my/it/docs/systems/registration>Registrazione Sistema</a></li>
+</ol>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=tipo-sistema-non-rilevato>Tipo Sistema Non Rilevato<a href=#tipo-sistema-non-rilevato class=hash-link aria-label="Link diretto a Tipo Sistema Non Rilevato" title="Link diretto a Tipo Sistema Non Rilevato" translate=no>​</a></h3>
+<p><strong>Problema:</strong> Il tipo di sistema mostra come null o unknown</p>
+<p><strong>Spiegazione:</strong></p>
+<ul>
+<li class="">Il tipo di sistema è auto-rilevato dal primo inventario</li>
+<li class="">Mostra null fino alla ricezione del primo inventario</li>
+</ul>
+<p><strong>Soluzione:</strong></p>
+<ol>
+<li class="">Assicurati che il sistema sia registrato</li>
+<li class="">Invia il primo inventario dal sistema esterno</li>
+<li class="">Il tipo viene rilevato automaticamente</li>
+<li class="">Consulta la pagina <a class="" href=/my/it/docs/systems/inventory-heartbeat>Inventario e Heartbeat</a></li>
+</ol>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=secret-perso>Secret Perso<a href=#secret-perso class=hash-link aria-label="Link diretto a Secret Perso" title="Link diretto a Secret Perso" translate=no>​</a></h3>
+<p>Se il secret del sistema è stato perso:</p>
+<ol>
+<li class="">Rigenera il secret dalla pagina di dettaglio del sistema</li>
+<li class="">Aggiorna le credenziali sul sistema</li>
+<li class="">Ri-registra il sistema con il nuovo secret</li>
+</ol></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href=https://github.com/NethServer/my/tree/main/docs/docs/systems/management.md target=_blank rel="noopener noreferrer" class=theme-edit-this-page><svg fill=currentColor height=20 width=20 viewBox="0 0 40 40" class=iconEdit_Z9Sw aria-hidden=true><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"/></g></svg>Modifica questa pagina</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Pagina del documento"><a class="pagination-nav__link pagination-nav__link--prev" href=/my/it/docs/platform/impersonation><div class=pagination-nav__sublabel>Precedente</div><div class=pagination-nav__label>Impersonificazione Utente</div></a><a class="pagination-nav__link pagination-nav__link--next" href=/my/it/docs/systems/registration><div class=pagination-nav__sublabel>Successivo</div><div class=pagination-nav__label>Registrazione Sistema</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href=#comprendere-i-sistemi class="table-of-contents__link toc-highlight">Comprendere i Sistemi</a><li><a href=#ciclo-di-vita-del-sistema class="table-of-contents__link toc-highlight">Ciclo di Vita del Sistema</a><ul><li><a href=#stati-del-sistema class="table-of-contents__link toc-highlight">Stati del Sistema</a></ul><li><a href=#creazione-sistemi class="table-of-contents__link toc-highlight">Creazione Sistemi</a><ul><li><a href=#procedura class="table-of-contents__link toc-highlight">Procedura</a><li><a href=#secret-del-sistema class="table-of-contents__link toc-highlight">Secret del Sistema</a></ul><li><a href=#visualizzazione-sistemi class="table-of-contents__link toc-highlight">Visualizzazione Sistemi</a><ul><li><a href=#elenco class="table-of-contents__link toc-highlight">Elenco</a><li><a href=#filtri-e-ricerca class="table-of-contents__link toc-highlight">Filtri e Ricerca</a><li><a href=#dettagli-sistema class="table-of-contents__link toc-highlight">Dettagli Sistema</a></ul><li><a href=#gestione-sistemi-1 class="table-of-contents__link toc-highlight">Gestione Sistemi</a><ul><li><a href=#modifica class="table-of-contents__link toc-highlight">Modifica</a><li><a href=#rigenerazione-secret class="table-of-contents__link toc-highlight">Rigenerazione Secret</a><li><a href=#eliminazione class="table-of-contents__link toc-highlight">Eliminazione</a></ul><li><a href=#registrazione class="table-of-contents__link toc-highlight">Registrazione</a><ul><li><a href=#stato-registrazione class="table-of-contents__link toc-highlight">Stato Registrazione</a></ul><li><a href=#monitoraggio class="table-of-contents__link toc-highlight">Monitoraggio</a><ul><li><a href=#heartbeat class="table-of-contents__link toc-highlight">Heartbeat</a><li><a href=#inventario class="table-of-contents__link toc-highlight">Inventario</a></ul><li><a href=#esportazione class="table-of-contents__link toc-highlight">Esportazione</a><li><a href=#best-practice class="table-of-contents__link toc-highlight">Best Practice</a><li><a href=#risoluzione-problemi class="table-of-contents__link toc-highlight">Risoluzione Problemi</a><ul><li><a href=#sistema-non-invia-dati class="table-of-contents__link toc-highlight">Sistema Non Invia Dati</a><li><a href=#sistema-sempre-in-stato-inactive class="table-of-contents__link toc-highlight">Sistema Sempre in Stato "Inactive"</a><li><a href=#impossibile-creare-un-sistema class="table-of-contents__link toc-highlight">Impossibile Creare un Sistema</a><li><a href=#system_key-è-nascosto class="table-of-contents__link toc-highlight">System_key è Nascosto</a><li><a href=#tipo-sistema-non-rilevato class="table-of-contents__link toc-highlight">Tipo Sistema Non Rilevato</a><li><a href=#secret-perso class="table-of-contents__link toc-highlight">Secret Perso</a></ul></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class=footer__title>Documentazione</div><ul class="footer__items clean-list"><li class=footer__item><a class=footer__link-item href=/my/it/docs/intro>Guida Utente</a><li class=footer__item><a class=footer__link-item href=/my/it/docs/getting-started/authentication>Autenticazione</a><li class=footer__item><a class=footer__link-item href=/my/it/docs/systems/management>Sistemi</a></ul></div><div class="theme-layout-footer-column col footer__col"><div class=footer__title>Sviluppatori</div><ul class="footer__items clean-list"><li class=footer__item><a href=https://api.my.nethesis.it/ target=_blank rel="noopener noreferrer" class=footer__link-item>Backend API<svg width=13.5 height=13.5 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li class=footer__item><a href=https://github.com/NethServer/my/blob/main/collect/README.md target=_blank rel="noopener noreferrer" class=footer__link-item>Collect Service<svg width=13.5 height=13.5 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li class=footer__item><a href=https://github.com/NethServer/my/blob/main/services/mimir/README.md target=_blank rel="noopener noreferrer" class=footer__link-item>Alerting System<svg width=13.5 height=13.5 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li class=footer__item><a href=https://github.com/NethServer/my/blob/main/sync/README.md target=_blank rel="noopener noreferrer" class=footer__link-item>Sync Tool<svg width=13.5 height=13.5 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a></ul></div><div class="theme-layout-footer-column col footer__col"><div class=footer__title>Comunità</div><ul class="footer__items clean-list"><li class=footer__item><a href=https://github.com/NethServer/my target=_blank rel="noopener noreferrer" class=footer__link-item>GitHub<svg width=13.5 height=13.5 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li class=footer__item><a href=https://www.nethesis.it target=_blank rel="noopener noreferrer" class=footer__link-item>Nethesis<svg width=13.5 height=13.5 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a></ul></div></div><div class="footer__bottom text--center"><div class=footer__copyright>Copyright © 2026 Nethesis S.r.l.</div></div></div></footer></div></body>
