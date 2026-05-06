@@ -73,10 +73,7 @@ const downloadingId = ref<string | null>(null)
 async function download(backup: BackupMetadata) {
   downloadingId.value = backup.id
   try {
-    const { download_url } = await getBackupDownloadUrl(
-      route.params.systemId as string,
-      backup.id,
-    )
+    const { download_url } = await getBackupDownloadUrl(route.params.systemId as string, backup.id)
     // Use a hidden anchor to preserve the filename the server exposes
     // and avoid replacing the current tab.
     const anchor = document.createElement('a')
@@ -127,8 +124,7 @@ const {
   error: deleteBackupError,
   reset: deleteBackupReset,
 } = useMutation({
-  mutation: (backup: BackupMetadata) =>
-    deleteBackup(route.params.systemId as string, backup.id),
+  mutation: (backup: BackupMetadata) => deleteBackup(route.params.systemId as string, backup.id),
   onSuccess(_data, backup) {
     setTimeout(() => {
       notificationsStore.createNotification({
@@ -222,7 +218,7 @@ function getKebabMenuItems(backup: BackupMetadata): NeDropdownItem[] {
           {{ formatBackupSize(quotaUsedBytes) }} / {{ maxSizeLabel }}
         </div>
       </div>
-      <div class="rounded-md border border-gray-200 p-3 dark:border-gray-700 sm:col-span-1">
+      <div class="rounded-md border border-gray-200 p-3 sm:col-span-1 dark:border-gray-700">
         <div class="text-xs text-gray-500 dark:text-gray-400">
           {{ $t('backups.retention_policy') }}
         </div>

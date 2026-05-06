@@ -77,12 +77,9 @@ export const getBackupDownloadUrl = (systemId: string, backupId: string) => {
 export const deleteBackup = (systemId: string, backupId: string) => {
   const loginStore = useLoginStore()
 
-  return axios.delete(
-    `${API_URL}/systems/${systemId}/backups/${encodeURIComponent(backupId)}`,
-    {
-      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
-    },
-  )
+  return axios.delete(`${API_URL}/systems/${systemId}/backups/${encodeURIComponent(backupId)}`, {
+    headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+  })
 }
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
