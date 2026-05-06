@@ -97,11 +97,11 @@ type Configuration struct {
 	// Spaces bucket that holds appliance configuration backups. The same
 	// Spaces account also hosts the Mimir buckets; values for endpoint,
 	// access key, and secret key are the shared S3 credentials.
-	S3Endpoint       string `json:"s3_endpoint"`
+	S3Endpoint             string `json:"s3_endpoint"`
 	BackupS3Region         string `json:"backup_s3_region"`
 	BackupS3Bucket         string `json:"backup_s3_bucket"`
-	S3AccessKey      string `json:"s3_access_key"`
-	S3SecretKey      string `json:"s3_secret_key"`
+	S3AccessKey            string `json:"s3_access_key"`
+	S3SecretKey            string `json:"s3_secret_key"`
 	BackupS3UsePathStyle   bool   `json:"backup_s3_use_path_style"`
 	BackupMaxUploadSize    int64  `json:"backup_max_upload_size"`
 	BackupMaxPerSystem     int    `json:"backup_max_per_system"`
