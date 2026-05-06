@@ -327,6 +327,17 @@ jobs:
           ${{ steps.frontend_meta.outputs.labels }}
           org.opencontainers.image.title=My Nethesis Frontend
           org.opencontainers.image.description=Frontend web application for My Nethesis
+        # Vite SPA: VITE_* must be passed at build time so they are baked into
+        # the JS bundle (Render runtime env on a `runtime: image` service does
+        # not affect an already-compiled bundle). Values are public (sent to
+        # the browser as redirect URLs), no secret material here.
+        build-args: |
+          VITE_PRODUCT_NAME=My Nethesis
+          VITE_LOGTO_ENDPOINT=https://id.nethesis.it
+          VITE_LOGTO_APP_ID=7s20mi3w8797np5x2vgze
+          VITE_API_BASE_URL=/backend/api
+          VITE_SIGNIN_REDIRECT_URI=login-redirect
+          VITE_SIGNOUT_REDIRECT_URI=login
         cache-from: type=gha,scope=frontend
         cache-to: type=gha,mode=max,scope=frontend
 
