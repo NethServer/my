@@ -183,7 +183,7 @@ services:
         value: 9009
 
   # Production Backend API Server (Private Service)
-  - type: web
+  - type: pserv
     name: my-backend-prod
     runtime: image
     plan: free
@@ -227,7 +227,7 @@ services:
         sync: false
 
   # Production Collect Service (Private Service)
-  - type: web
+  - type: pserv
     name: my-collect-prod
     runtime: image
     plan: free
@@ -265,7 +265,7 @@ services:
           property: connectionString
 
   # Production Frontend (Private Service)
-  - type: web
+  - type: pserv
     name: my-frontend-prod
     runtime: image
     plan: free
