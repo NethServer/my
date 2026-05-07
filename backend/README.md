@@ -212,16 +212,27 @@ make redis-cli
 ```
 
 ### Test Tokens
-```bash
-# Generate JWT tokens for all 4 RBAC roles (Owner, Distributor, Reseller, Customer)
-make gen-tokens
 
-# Use tokens for manual API testing
-curl -H "Authorization: Bearer $(cat token-owner)" http://localhost:8080/api/users
-curl -H "Authorization: Bearer $(cat token-distributor)" http://localhost:8080/api/resellers
-curl -H "Authorization: Bearer $(cat token-reseller)" http://localhost:8080/api/customers
-curl -H "Authorization: Bearer $(cat token-customer)" http://localhost:8080/api/systems
+Use [apitool](cmd/apitool/README.md) to mint real, hierarchy-aware JWTs by
+running the full OIDC + `/auth/exchange` flow and to autonomously create test
+orgs, users, and systems.
+
+```bash
+# Build the CLI
+make apitool
+
+# One-time: provide owner credentials
+./apitool init
+
+# Get a fresh JWT for any registered user (or "owner")
+TOK=$(./apitool token owner)
+curl -H "Authorization: Bearer $TOK" http://localhost:8080/api/users
 ```
+
+Unlike a locally-signed test JWT, the token returned here references a real
+org in the database, so RBAC hierarchy checks work end to end. See
+[cmd/apitool/README.md](cmd/apitool/README.md) for commands, the registry
+format, and a full hierarchy-build example.
 
 See [openapi.yaml](openapi.yaml) for all available endpoints and expected payloads.
 

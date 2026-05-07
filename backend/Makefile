@@ -287,17 +287,19 @@ db-migration:
 	set -a && source $$ENV_FILE && set +a && \
 	cd database/migrations && ./run_migration.sh $(MIGRATION) $(ACTION)
 
-# Generate test tokens for all RBAC roles
-.PHONY: gen-tokens
-gen-tokens:
-	@echo "Generating test tokens for all RBAC roles..."
-	@set -a && source .env && set +a && \
-		go run cmd/gentoken/main.go
-	@echo "Tokens generated:"
-	@echo "  token-owner        (Owner / Super Admin)"
-	@echo "  token-distributor  (Distributor / Admin)"
-	@echo "  token-reseller     (Reseller / Admin)"
-	@echo "  token-customer     (Customer / Admin)"
+# Build apitool: real OIDC login + /auth/exchange test-token CLI.
+# Replaces the old gen-tokens (which signed locally and produced tokens
+# referring to fake org_ids that didn't exist in the database).
+.PHONY: apitool
+apitool:
+	@go build -o apitool ./cmd/apitool
+	@echo "Built ./apitool"
+	@echo ""
+	@echo "First time:    ./apitool init"
+	@echo "Get a token:   ./apitool token <name>   (use 'owner' for the owner)"
+	@echo "Create org:    ./apitool create-org distributor MyDist"
+	@echo "Create user:   ./apitool create-user --org=MyDist --email=u@example.com --name='User'"
+	@echo "List:          ./apitool list"
 
 # Pre-commit checks
 .PHONY: pre-commit
@@ -323,7 +325,7 @@ help:
 	@echo "  test          - Run tests"
 	@echo "  test-coverage - Run tests with coverage"
 	@echo "  tidy          - Tidy dependencies"
-	@echo "  gen-tokens    - Generate test tokens for all RBAC roles"
+	@echo "  apitool       - Build apitool CLI (real OIDC test-token tool)"
 	@echo ""
 	@echo "Database commands:"
 	@echo "  db-up         - Start PostgreSQL container"

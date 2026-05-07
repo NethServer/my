@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/nethesis/my/backend/database"
@@ -145,6 +146,28 @@ func (r *LocalAlertHistoryRepository) GetAlertHistoryTotals(orgID string) (int, 
 		return total, nil
 	}
 	if err := r.db.QueryRow(`SELECT COUNT(*) FROM alert_history WHERE organization_id = $1`, orgID).Scan(&total); err != nil {
+		return 0, fmt.Errorf("failed to count alert history: %w", err)
+	}
+	return total, nil
+}
+
+// GetAlertHistoryTotalsByOrgIDs returns the total count of alert history records
+// scoped to the given list of organization IDs. An empty slice returns 0 (the
+// caller has no orgs in scope, so by definition there are no records to count).
+// The caller is expected to have validated hierarchy access for every ID.
+func (r *LocalAlertHistoryRepository) GetAlertHistoryTotalsByOrgIDs(orgIDs []string) (int, error) {
+	if len(orgIDs) == 0 {
+		return 0, nil
+	}
+	placeholders := make([]string, len(orgIDs))
+	args := make([]interface{}, len(orgIDs))
+	for i, id := range orgIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	query := fmt.Sprintf(`SELECT COUNT(*) FROM alert_history WHERE organization_id IN (%s)`, strings.Join(placeholders, ","))
+	var total int
+	if err := r.db.QueryRow(query, args...).Scan(&total); err != nil {
 		return 0, fmt.Errorf("failed to count alert history: %w", err)
 	}
 	return total, nil

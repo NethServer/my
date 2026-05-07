@@ -11047,16 +11047,44 @@ paths:
         - Backend - Alerts
       summary: Get alert totals
       description: |
-        Returns active alert counts by severity (from Mimir) and total resolved alert history count (from DB).
-        Requires `read:systems` permission.
+        Returns active alert counts by severity (from Mimir, per-tenant) and total resolved
+        alert history count (from DB). Requires `read:systems` permission.
+
+        **Three scope modes** (selected by query params):
+
+        | `organization_id` | `include` | Result |
+        |---|---|---|
+        | omitted          | —             | Caller's full hierarchy (recursive). For Customer it's just self. |
+        | `X`              | omitted       | Single tenant `X` only. Resellers/Distributors hold no alerts on their own tenant — those live on their customer tenants — so single-tenant queries on a non-leaf org typically return zero. |
+        | `X`              | `descendants` | `X` plus everything under `X` (drill-down). Use this to view a sub-tree. |
+
+        Active counts are aggregated across the resolved scope by fanning out to Mimir,
+        one request per tenant, with bounded concurrency and a global timeout. Per-tenant
+        failures (timeout, 5xx, parse error) are non-fatal: their counts simply don't
+        contribute, and the failure is reported in the `warnings` array. The `history`
+        total comes from a single SQL query scoped to the same set of organization IDs.
+
+        Customer callers are always pinned to their own organization regardless of
+        `organization_id`/`include` (Mimir tenant is fixed to `user.organization_id`).
       security:
         - BearerAuth: []
       parameters:
         - name: organization_id
           in: query
-          description: Target organization ID. Required for Owner, Distributor, and Reseller roles.
+          description: |
+            Target organization ID. Optional for all roles except Customer (where it is
+            ignored). Distributors/Resellers receive `403` if `X` is not in their hierarchy.
           schema:
             type: string
+        - name: include
+          in: query
+          description: |
+            Set to `descendants` together with `organization_id` to aggregate over the
+            target org's full sub-tree. Ignored when `organization_id` is omitted (the
+            caller's own hierarchy is already used) and when caller is a Customer.
+          schema:
+            type: string
+            enum: [descendants]
       responses:
         '200':
           description: Alert totals retrieved
@@ -11076,19 +11104,28 @@ paths:
                     properties:
                       active:
                         type: integer
-                        description: Total active alerts
+                        description: Total active alerts in scope
                       critical:
                         type: integer
-                        description: Active critical alerts
+                        description: Active critical alerts in scope
                       warning:
                         type: integer
-                        description: Active warning alerts
+                        description: Active warning alerts in scope
                       info:
                         type: integer
-                        description: Active info alerts
+                        description: Active info alerts in scope
                       history:
                         type: integer
-                        description: Total resolved alerts in history
+                        description: Total resolved alerts in history (DB) in scope
+                      warnings:
+                        type: array
+                        description: |
+                          Per-tenant errors encountered during fan-out. Always present
+                          (empty array when every tenant responded OK). Each entry is a
+                          string in the form `org <logto_id>: <error>` or
+                          `history: <error>` for the DB lookup.
+                        items:
+                          type: string
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

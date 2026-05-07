@@ -6,6 +6,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package methods
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -96,6 +98,70 @@ func requireOrgID(c *gin.Context, orgID string) bool {
 		return false
 	}
 	return true
+}
+
+// resolveOrgScope extracts the list of organization IDs the caller is operating on.
+// Used by aggregate endpoints (e.g., /totals) where omitting organization_id means
+// "aggregate across the caller's full hierarchy" rather than "specific tenant".
+//
+// Three modes (selected by query params):
+//
+//  1. organization_id omitted        → caller's full hierarchy (incl. self).
+//
+//  2. organization_id=X              → single tenant X (Mimir is per-tenant,
+//     so this returns only alerts attributed to X itself, not its descendants).
+//
+//  3. organization_id=X & include=descendants
+//     → X plus everything under X (drill-down on a sub-tree). Required because
+//     resellers/distributors hold no alerts on their own tenant — those live
+//     in their customer tenants.
+//
+//     - Customer: always pinned to their own organization (single element).
+//     organization_id and include params are ignored (Mimir tenant is fixed
+//     to the user's own org).
+//     - Owner/Distributor/Reseller without organization_id: caller's hierarchy.
+//     - Owner/Distributor/Reseller with organization_id: validates hierarchy
+//     access (Owner is exempt), then returns either [X] (single tenant) or
+//     X + descendants of X (when include=descendants).
+//
+// Returns false on auth/validation failure (response already written).
+func resolveOrgScope(c *gin.Context, user *models.User) ([]string, bool) {
+	orgID := c.Query("organization_id")
+	includeDescendants := c.Query("include") == "descendants"
+	orgRole := strings.ToLower(user.OrgRole)
+
+	if orgRole == "customer" {
+		return []string{user.OrganizationID}, true
+	}
+
+	userService := local.NewUserService()
+
+	if orgID != "" {
+		if orgRole != "owner" && !userService.IsOrganizationInHierarchy(orgRole, user.OrganizationID, orgID) {
+			c.JSON(http.StatusForbidden, response.Forbidden("access denied: organization not in your hierarchy", nil))
+			return nil, false
+		}
+		if !includeDescendants {
+			return []string{orgID}, true
+		}
+		// Drill-down: derive descendants from orgID's own type, not the caller's
+		// role. A Distributor drilling into a Reseller wants the Reseller's
+		// customers; passing the caller's role would query the wrong relation.
+		targetType := userService.GetOrganizationType(orgID)
+		orgIDs, err := userService.GetHierarchicalOrganizationIDs(targetType, orgID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve descendants: "+err.Error(), nil))
+			return nil, false
+		}
+		return orgIDs, true
+	}
+
+	orgIDs, err := userService.GetHierarchicalOrganizationIDs(orgRole, user.OrganizationID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve organization hierarchy: "+err.Error(), nil))
+		return nil, false
+	}
+	return orgIDs, true
 }
 
 // ConfigureAlerts handles POST /api/alerts/config
@@ -304,68 +370,122 @@ func GetAlertingConfig(c *gin.Context) {
 	}))
 }
 
+// alertsTotalsFanoutTimeout caps how long /totals will wait for Mimir to answer
+// across the caller's whole hierarchy. Per-tenant calls that don't return in
+// time are reported as warnings; their counts simply don't contribute. Tuned
+// to keep dashboard latency bounded even when a tenant's Mimir slot is slow.
+const alertsTotalsFanoutTimeout = 10 * time.Second
+
+// alertsTotalsFanoutConcurrency caps simultaneous in-flight Mimir requests for
+// the /totals fan-out. Prevents an Owner with hundreds of tenants from opening
+// hundreds of sockets at once.
+const alertsTotalsFanoutConcurrency = 10
+
 // GetAlertsTotals handles GET /api/alerts/totals
 // Returns active alert counts by severity (from Mimir) and total history count (from DB).
+//
+// Without organization_id the totals are aggregated across the caller's full
+// hierarchy (one Mimir call per tenant, fanned out with bounded concurrency
+// and a global timeout). With organization_id the call is scoped to that
+// single tenant.
 func GetAlertsTotals(c *gin.Context) {
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
 		return
 	}
 
-	orgID, ok := resolveOrgID(c, user)
+	orgIDs, ok := resolveOrgScope(c, user)
 	if !ok {
 		return
 	}
 
-	result := gin.H{
-		"active":   0,
-		"critical": 0,
-		"warning":  0,
-		"info":     0,
-		"history":  0,
-	}
+	var (
+		active, critical, warning, info int
+		warnings                        []string
+		mu                              sync.Mutex
+		wg                              sync.WaitGroup
+	)
 
-	// Fetch active alerts from Mimir. Mimir is per-tenant, so this is only
-	// meaningful when a specific organization_id is in scope. Owner without
-	// organization_id sees active=0; the history aggregate below still works.
-	if orgID != "" {
-		body, err := alerting.GetAlerts(orgID)
-		if err != nil {
-			logger.Warn().Err(err).Str("org_id", orgID).Msg("failed to fetch alerts from mimir for totals")
-		} else {
-			var alerts []map[string]interface{}
-			if err := json.Unmarshal(body, &alerts); err == nil {
-				var critical, warning, info int
-				for _, alert := range alerts {
-					labels, _ := alert["labels"].(map[string]interface{})
-					switch sev, _ := labels["severity"].(string); sev {
-					case "critical":
-						critical++
-					case "warning":
-						warning++
-					case "info":
-						info++
-					}
-				}
-				result["active"] = len(alerts)
-				result["critical"] = critical
-				result["warning"] = warning
-				result["info"] = info
+	ctx, cancel := context.WithTimeout(c.Request.Context(), alertsTotalsFanoutTimeout)
+	defer cancel()
+
+	sem := make(chan struct{}, alertsTotalsFanoutConcurrency)
+
+	for _, orgID := range orgIDs {
+		wg.Add(1)
+		go func(orgID string) {
+			defer wg.Done()
+
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				mu.Lock()
+				warnings = append(warnings, fmt.Sprintf("org %s: timed out waiting for slot", orgID))
+				mu.Unlock()
+				return
 			}
-		}
-	}
 
-	// Fetch history total from DB. An empty orgID means "all tenants" (Owner
-	// only — resolveOrgID would have rejected an empty value otherwise).
+			body, err := alerting.GetAlertsCtx(ctx, orgID)
+			if err != nil {
+				logger.Warn().Err(err).Str("org_id", orgID).Msg("failed to fetch alerts from mimir for totals")
+				mu.Lock()
+				warnings = append(warnings, fmt.Sprintf("org %s: %s", orgID, err.Error()))
+				mu.Unlock()
+				return
+			}
+
+			var alerts []map[string]interface{}
+			if err := json.Unmarshal(body, &alerts); err != nil {
+				logger.Warn().Err(err).Str("org_id", orgID).Msg("failed to parse mimir alerts response for totals")
+				mu.Lock()
+				warnings = append(warnings, fmt.Sprintf("org %s: parse error", orgID))
+				mu.Unlock()
+				return
+			}
+
+			var localCritical, localWarning, localInfo int
+			for _, alert := range alerts {
+				labels, _ := alert["labels"].(map[string]interface{})
+				switch sev, _ := labels["severity"].(string); sev {
+				case "critical":
+					localCritical++
+				case "warning":
+					localWarning++
+				case "info":
+					localInfo++
+				}
+			}
+
+			mu.Lock()
+			active += len(alerts)
+			critical += localCritical
+			warning += localWarning
+			info += localInfo
+			mu.Unlock()
+		}(orgID)
+	}
+	wg.Wait()
+
 	repo := entities.NewLocalAlertHistoryRepository()
-	historyTotal, err := repo.GetAlertHistoryTotals(orgID)
+	historyTotal, err := repo.GetAlertHistoryTotalsByOrgIDs(orgIDs)
 	if err != nil {
-		logger.Warn().Err(err).Str("org_id", orgID).Msg("failed to count alert history for totals")
-	} else {
-		result["history"] = historyTotal
+		logger.Warn().Err(err).Msg("failed to count alert history for totals")
+		warnings = append(warnings, fmt.Sprintf("history: %s", err.Error()))
 	}
 
-	c.JSON(http.StatusOK, response.OK("alert totals retrieved successfully", result))
+	if warnings == nil {
+		warnings = []string{}
+	}
+
+	c.JSON(http.StatusOK, response.OK("alert totals retrieved successfully", gin.H{
+		"active":   active,
+		"critical": critical,
+		"warning":  warning,
+		"info":     info,
+		"history":  historyTotal,
+		"warnings": warnings,
+	}))
 }
 
 // GetAlertsTrend handles GET /api/alerts/trend

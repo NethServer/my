@@ -7,6 +7,7 @@ package alerting
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -106,9 +107,15 @@ func PushConfig(orgID, yamlConfig string, templateFiles map[string]string) error
 
 // GetAlerts fetches active alerts for the given tenant from Mimir.
 func GetAlerts(orgID string) ([]byte, error) {
+	return GetAlertsCtx(context.Background(), orgID)
+}
+
+// GetAlertsCtx is the context-aware variant of GetAlerts. Use this when callers
+// need to enforce a deadline (e.g., fan-out over many tenants for /totals).
+func GetAlertsCtx(ctx context.Context, orgID string) ([]byte, error) {
 	url := configuration.Config.MimirURL + "/alertmanager/api/v2/alerts"
 
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
