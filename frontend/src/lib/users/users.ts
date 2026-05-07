@@ -6,7 +6,6 @@ import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 import { downloadFile, type Pagination } from '../common'
-import { parsePhoneNumberFromString } from 'libphonenumber-js'
 
 export const USERS_KEY = 'users'
 export const USERS_TOTAL_KEY = 'usersTotal'
@@ -424,25 +423,4 @@ export const confirmUsersImport = (
       },
     )
     .then((res) => res.data.data)
-}
-
-// The backend stores phone numbers as digits-only (E.164 without the leading
-// `+`), e.g. "393330001113". This helper renders a human-readable version for
-// display, e.g. "+39 333 000 1113".
-//
-// Inputs we need to handle:
-// - "" / null / undefined → return ""
-// - "393330001113"        → "+39 333 000 1113"
-// - "+39 333 0001113"     → "+39 333 000 1113" (already-formatted legacy values
-//                           still in the DB get re-parsed and re-formatted)
-// - non-parseable values  → returned untouched as a fallback
-export function formatPhoneForDisplay(raw: string | null | undefined): string {
-  if (!raw) {
-    return ''
-  }
-  // libphonenumber-js needs a leading "+" to detect the country from the digits.
-  // If the raw value already has it, parse as-is; otherwise prepend.
-  const candidate = raw.startsWith('+') ? raw : `+${raw}`
-  const parsed = parsePhoneNumberFromString(candidate)
-  return parsed?.formatInternational() ?? raw
 }

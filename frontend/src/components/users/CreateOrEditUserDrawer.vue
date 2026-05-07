@@ -12,6 +12,7 @@ import {
   focusElement,
   NeCombobox,
   type NeComboboxOption,
+  NeFormItemLabel,
 } from '@nethesis/vue-components'
 import { computed, ref, useTemplateRef, watch, type Ref, type ShallowRef } from 'vue'
 import {
@@ -21,7 +22,6 @@ import {
   putUser,
   USERS_KEY,
   USERS_TOTAL_KEY,
-  formatPhoneForDisplay,
   type CreateUser,
   type EditUser,
   type User,
@@ -39,6 +39,7 @@ import { normalize } from '@/lib/common'
 import { organizationsQuery } from '@/queries/organizations/organizations'
 import { userRolesQuery } from '@/queries/users/userRoles'
 import { USER_FILTERS_KEY } from '@/lib/users/userFilters'
+import { countries, parsePhoneNumber, combinePhoneParts } from '@/lib/phone'
 
 const { isShown = false, currentUser = undefined } = defineProps<{
   isShown: boolean
@@ -139,6 +140,7 @@ const userRoles: Ref<NeComboboxOption[]> = ref([])
 const userRoleIdsRef = useTemplateRef<HTMLInputElement>('userRoleIdsRef')
 const phone = ref('')
 const phoneRef = useTemplateRef<HTMLInputElement>('phoneRef')
+const countryCode = ref('')
 const validationIssues = ref<Record<string, string[]>>({})
 
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
@@ -177,6 +179,12 @@ const userRoleOptions = computed(() => {
   }))
 })
 
+const countryCodeOptions: NeComboboxOption[] = countries.map((c) => ({
+  id: `${c.iso2}`,
+  label: `${c.country_name} (+${c.country_code})`,
+  description: c.flag,
+}))
+
 watch(
   () => isShown,
   () => {
@@ -188,15 +196,31 @@ watch(
         // editing user
         email.value = currentUser.email
         name.value = currentUser.name
-        phone.value = formatPhoneForDisplay(currentUser.phone)
         organizationId.value = currentUser.organization?.logto_id || ''
         userRoles.value = mapUserRoles()
+
+        // Parse phone number to extract country code and local part
+        if (currentUser.phone) {
+          const parsed = parsePhoneNumber(currentUser.phone)
+          if (parsed) {
+            countryCode.value = parsed.countryIso2
+            phone.value = parsed.localPart
+          } else {
+            // Fallback if parsing fails
+            countryCode.value = 'it'
+            phone.value = currentUser.phone
+          }
+        } else {
+          countryCode.value = 'it'
+          phone.value = ''
+        }
       } else {
         // creating user, reset form to defaults
         email.value = ''
         name.value = ''
         organizationId.value = ''
         userRoles.value = []
+        countryCode.value = 'it'
         phone.value = ''
       }
     }
@@ -299,7 +323,7 @@ async function saveUser() {
     name: name.value,
     user_role_ids: userRoles.value.map((role) => role.id),
     organization_id: organizationId.value,
-    phone: phone.value,
+    phone: combinePhoneParts(countryCode.value, phone.value),
     custom_data: {},
   }
 
@@ -417,16 +441,36 @@ function getEmailInvalidMessage(): string {
           :user-input-label="t('ne_combobox.user_input_label')"
         />
         <!-- phone -->
-        <NeTextInput
-          ref="phoneRef"
-          v-model="phone"
-          @blur="phone = phone.trim()"
-          :label="$t('users.phone_number')"
-          :invalid-message="validationIssues.phone?.[0] ? $t(validationIssues.phone[0]) : ''"
-          :disabled="saving"
-          :optional="true"
-          :optional-label="t('common.optional')"
-        />
+        <div>
+          <div class="flex items-center justify-between gap-4">
+            <NeFormItemLabel>{{ $t('users.phone_number') }}</NeFormItemLabel>
+            <NeFormItemLabel>{{ $t('common.optional') }}</NeFormItemLabel>
+          </div>
+          <div class="flex gap-4">
+            <!-- country code -->
+            <NeCombobox
+              v-model="countryCode"
+              :options="countryCodeOptions"
+              :disabled="saving"
+              :no-results-label="$t('ne_combobox.no_results')"
+              :limited-options-label="$t('ne_combobox.limited_options_label')"
+              :no-options-label="$t('ne_combobox.no_options_label')"
+              :selected-label="$t('ne_combobox.selected')"
+              :user-input-label="$t('ne_combobox.user_input_label')"
+              :optional-label="$t('common.optional')"
+            />
+            <!-- local part -->
+            <NeTextInput
+              ref="phoneRef"
+              v-model="phone"
+              @blur="phone = phone.trim()"
+              :invalid-message="validationIssues.phone?.[0] ? t(validationIssues.phone[0]) : ''"
+              :disabled="saving"
+              :optional="true"
+              :optional-label="t('common.optional')"
+            />
+          </div>
+        </div>
         <!-- new user info -->
         <NeInlineNotification
           v-if="!currentUser"
