@@ -310,10 +310,15 @@ func GetAlerts(c *gin.Context) {
 		return
 	}
 
-	var params models.AlertQueryParams
-	if err := c.ShouldBindQuery(&params); err == nil {
-		alerts = filterAlerts(alerts, params)
-	}
+	// Multi-value filters (project convention: c.QueryArray + slice fields).
+	// Repeated query params (?severity=critical&severity=warning) become OR
+	// matches within the same filter; different filters AND together.
+	alerts = filterAlerts(alerts, alertFilter{
+		states:     c.QueryArray("state"),
+		severities: c.QueryArray("severity"),
+		systemKeys: c.QueryArray("system_key"),
+		alertnames: c.QueryArray("alertname"),
+	})
 
 	c.JSON(http.StatusOK, response.OK("alerts retrieved successfully", gin.H{
 		"alerts": alerts,
@@ -523,40 +528,58 @@ func GetAlertsTrend(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("alerts trend retrieved successfully", trend))
 }
 
-// filterAlerts applies optional query filters to the alerts list.
+// alertFilter holds the multi-value filters parsed from /api/alerts query
+// params. Internal to this package — not exposed in the public models, since
+// it's a binding detail of one handler. Multiple values within a single field
+// are matched as OR; different fields AND together.
+type alertFilter struct {
+	states     []string
+	severities []string
+	systemKeys []string
+	alertnames []string
+}
+
+// filterAlerts applies optional multi-value query filters to the alerts list.
 // An alert is excluded when a requested filter's target label/field is missing
-// or does not match; this prevents silent leakage of unrelated alerts when the
-// caller narrows the query.
-func filterAlerts(alerts []map[string]interface{}, params models.AlertQueryParams) []map[string]interface{} {
-	if params.State == "" && params.Severity == "" && params.SystemKey == "" {
+// or does not match any of the requested values; this prevents silent leakage
+// of unrelated alerts when the caller narrows the query.
+func filterAlerts(alerts []map[string]interface{}, f alertFilter) []map[string]interface{} {
+	if len(f.states) == 0 && len(f.severities) == 0 && len(f.systemKeys) == 0 && len(f.alertnames) == 0 {
 		return alerts
 	}
 
 	filtered := make([]map[string]interface{}, 0, len(alerts))
 	for _, alert := range alerts {
-		if params.State != "" {
+		if len(f.states) > 0 {
 			status, ok := alert["status"].(map[string]interface{})
 			if !ok {
 				continue
 			}
 			state, ok := status["state"].(string)
-			if !ok || state != params.State {
+			if !ok || !slices.Contains(f.states, state) {
 				continue
 			}
 		}
 
 		labels, _ := alert["labels"].(map[string]interface{})
 
-		if params.Severity != "" {
+		if len(f.severities) > 0 {
 			sev, ok := labels["severity"].(string)
-			if !ok || sev != params.Severity {
+			if !ok || !slices.Contains(f.severities, sev) {
 				continue
 			}
 		}
 
-		if params.SystemKey != "" {
+		if len(f.systemKeys) > 0 {
 			sk, ok := labels["system_key"].(string)
-			if !ok || sk != params.SystemKey {
+			if !ok || !slices.Contains(f.systemKeys, sk) {
+				continue
+			}
+		}
+
+		if len(f.alertnames) > 0 {
+			an, ok := labels["alertname"].(string)
+			if !ok || !slices.Contains(f.alertnames, an) {
 				continue
 			}
 		}

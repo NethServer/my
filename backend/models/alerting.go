@@ -58,13 +58,6 @@ type AlertingConfig struct {
 	EmailTemplateLang string `json:"email_template_lang,omitempty"`
 }
 
-// AlertQueryParams holds optional query filters for GET /api/alerts
-type AlertQueryParams struct {
-	State     string `form:"state"`      // e.g. "firing", "pending"
-	Severity  string `form:"severity"`   // e.g. "critical", "warning", "info"
-	SystemKey string `form:"system_key"` // filter by system_key label
-}
-
 // AlertStatus represents the status metadata for an active alert from Alertmanager.
 type AlertStatus struct {
 	State       string   `json:"state"`

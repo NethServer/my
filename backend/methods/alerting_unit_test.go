@@ -50,67 +50,97 @@ func TestFilterAlerts(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		params   models.AlertQueryParams
+		params   alertFilter
 		expected int
 	}{
 		{
 			name:     "no filters returns all",
-			params:   models.AlertQueryParams{},
+			params:   alertFilter{},
 			expected: 3,
 		},
 		{
 			name:     "filter by state active",
-			params:   models.AlertQueryParams{State: "active"},
+			params:   alertFilter{states: []string{"active"}},
 			expected: 2,
 		},
 		{
 			name:     "filter by state suppressed",
-			params:   models.AlertQueryParams{State: "suppressed"},
+			params:   alertFilter{states: []string{"suppressed"}},
 			expected: 1,
 		},
 		{
 			name:     "filter by severity critical",
-			params:   models.AlertQueryParams{Severity: "critical"},
+			params:   alertFilter{severities: []string{"critical"}},
 			expected: 2,
 		},
 		{
 			name:     "filter by severity warning",
-			params:   models.AlertQueryParams{Severity: "warning"},
+			params:   alertFilter{severities: []string{"warning"}},
 			expected: 1,
 		},
 		{
 			name:     "filter by system_key SYS-001",
-			params:   models.AlertQueryParams{SystemKey: "SYS-001"},
+			params:   alertFilter{systemKeys: []string{"SYS-001"}},
 			expected: 2,
 		},
 		{
 			name:     "filter by system_key SYS-002",
-			params:   models.AlertQueryParams{SystemKey: "SYS-002"},
+			params:   alertFilter{systemKeys: []string{"SYS-002"}},
+			expected: 1,
+		},
+		{
+			name:     "filter by alertname DiskFull",
+			params:   alertFilter{alertnames: []string{"DiskFull"}},
 			expected: 1,
 		},
 		{
 			name:     "combined filters: active + critical",
-			params:   models.AlertQueryParams{State: "active", Severity: "critical"},
+			params:   alertFilter{states: []string{"active"}, severities: []string{"critical"}},
 			expected: 2,
 		},
 		{
 			name:     "combined filters: active + warning",
-			params:   models.AlertQueryParams{State: "active", Severity: "warning"},
+			params:   alertFilter{states: []string{"active"}, severities: []string{"warning"}},
 			expected: 0,
 		},
 		{
 			name:     "combined filters: active + SYS-001 + critical",
-			params:   models.AlertQueryParams{State: "active", SystemKey: "SYS-001", Severity: "critical"},
+			params:   alertFilter{states: []string{"active"}, systemKeys: []string{"SYS-001"}, severities: []string{"critical"}},
+			expected: 2,
+		},
+		{
+			name:     "multi-value severity (critical OR warning)",
+			params:   alertFilter{severities: []string{"critical", "warning"}},
+			expected: 3,
+		},
+		{
+			name:     "multi-value alertname (DiskFull OR HighCPU)",
+			params:   alertFilter{alertnames: []string{"DiskFull", "HighCPU"}},
+			expected: 2,
+		},
+		{
+			name:     "multi-value state (active OR suppressed)",
+			params:   alertFilter{states: []string{"active", "suppressed"}},
+			expected: 3,
+		},
+		{
+			name:     "multi-value AND single-value combo",
+			params:   alertFilter{severities: []string{"critical", "warning"}, states: []string{"active"}},
 			expected: 2,
 		},
 		{
 			name:     "non-existent state",
-			params:   models.AlertQueryParams{State: "unknown"},
+			params:   alertFilter{states: []string{"unknown"}},
 			expected: 0,
 		},
 		{
 			name:     "non-existent system_key",
-			params:   models.AlertQueryParams{SystemKey: "SYS-999"},
+			params:   alertFilter{systemKeys: []string{"SYS-999"}},
+			expected: 0,
+		},
+		{
+			name:     "non-existent alertname",
+			params:   alertFilter{alertnames: []string{"DoesNotExist"}},
 			expected: 0,
 		},
 	}
@@ -143,24 +173,28 @@ func TestFilterAlerts_MissingLabels(t *testing.T) {
 
 	// Filter by severity — alerts without the label must be excluded
 	// to prevent silent leakage of unrelated alerts.
-	result := filterAlerts(alerts, models.AlertQueryParams{Severity: "critical"})
+	result := filterAlerts(alerts, alertFilter{severities: []string{"critical"}})
 	assert.Equal(t, 0, len(result))
 
 	// Filter by system_key — alerts without the label must be excluded.
-	result = filterAlerts(alerts, models.AlertQueryParams{SystemKey: "SYS-001"})
+	result = filterAlerts(alerts, alertFilter{systemKeys: []string{"SYS-001"}})
 	assert.Equal(t, 0, len(result))
 
+	// Filter by alertname — second alert has no labels at all, must be excluded.
+	result = filterAlerts(alerts, alertFilter{alertnames: []string{"NoSeverity"}})
+	assert.Equal(t, 1, len(result))
+
 	// Filter by state — both have "active" state, so both match.
-	result = filterAlerts(alerts, models.AlertQueryParams{State: "active"})
+	result = filterAlerts(alerts, alertFilter{states: []string{"active"}})
 	assert.Equal(t, 2, len(result))
 }
 
 func TestFilterAlerts_EmptyInput(t *testing.T) {
 	var empty []map[string]interface{}
-	result := filterAlerts(empty, models.AlertQueryParams{State: "active"})
+	result := filterAlerts(empty, alertFilter{states: []string{"active"}})
 	assert.Equal(t, 0, len(result))
 
-	result = filterAlerts(nil, models.AlertQueryParams{})
+	result = filterAlerts(nil, alertFilter{})
 	assert.Nil(t, result)
 }
 

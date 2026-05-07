@@ -11333,7 +11333,12 @@ paths:
       tags:
         - Backend - Alerts
       summary: List active alerts
-      description: Retrieves active alerts from Mimir for the specified organization with optional filtering by state, severity, and system_key.
+      description: |
+        Retrieves active alerts from Mimir for the specified organization with optional
+        filtering. All filter params support **multiple values** (repeat the param):
+        values within the same filter are matched as OR; different filters AND together.
+        Example: `?severity=critical&severity=warning&alertname=CVE-2024-1234`
+        returns CVE-2024-1234 alerts that are critical or warning.
       security:
         - BearerAuth: []
       parameters:
@@ -11344,21 +11349,44 @@ paths:
             type: string
         - name: state
           in: query
-          description: Filter alerts by state
+          description: Filter alerts by state. Supports multiple values.
           schema:
-            type: string
-            enum: [active, suppressed, unprocessed]
+            type: array
+            items:
+              type: string
+              enum: [active, suppressed, unprocessed]
+          style: form
+          explode: true
         - name: severity
           in: query
-          description: Filter alerts by severity label
+          description: Filter alerts by severity label. Supports multiple values.
           schema:
-            type: string
-            enum: [critical, warning, info]
+            type: array
+            items:
+              type: string
+              enum: [critical, warning, info]
+          style: form
+          explode: true
         - name: system_key
           in: query
-          description: Filter alerts by system_key label
+          description: Filter alerts by system_key label. Supports multiple values.
           schema:
-            type: string
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: alertname
+          in: query
+          description: |
+            Filter alerts by alertname label (the alert "type" — e.g. `HighCPU`,
+            `DiskFull`, `CVE-2024-1234`). Supports multiple values.
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
       responses:
         '200':
           description: List of active alerts
