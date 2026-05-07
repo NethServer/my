@@ -281,48 +281,142 @@ func DisableAlerts(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("all alerts disabled successfully", nil))
 }
 
+// alertsListDefaultPageSize matches the per-list default the project uses
+// elsewhere when the helper's general 20 is too small for the typical UX
+// (cf. systems.go which also overrides to 50). Capped at 100 by the helper.
+const alertsListDefaultPageSize = 50
+
 // GetAlerts handles GET /api/alerts
+//
+// Lists active alerts. Scope follows the same three modes as /alerts/totals:
+//   - no organization_id    → caller's full hierarchy (cross-tenant fan-out)
+//   - organization_id=X     → single tenant X
+//   - organization_id=X & include=descendants → X plus its sub-tree
+//
+// Customer callers are always pinned to their own organization.
+//
+// Response contains the paginated slice plus a `pagination` object and a
+// `warnings` array (always present, populated only when one or more tenants
+// failed during fan-out — the rest of the result is still returned).
 func GetAlerts(c *gin.Context) {
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
 		return
 	}
 
-	orgID, ok := resolveOrgID(c, user)
+	orgIDs, ok := resolveOrgScope(c, user)
 	if !ok {
 		return
 	}
-	if !requireOrgID(c, orgID) {
-		return
+
+	page, pageSize := helpers.GetPaginationFromQuery(c)
+	if c.Query("page_size") == "" {
+		pageSize = alertsListDefaultPageSize
 	}
 
-	body, err := alerting.GetAlerts(orgID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch alerts from mimir: "+err.Error(), nil))
-		return
-	}
+	all, warnings := fanOutMimirAlerts(c.Request.Context(), orgIDs)
 
-	// Parse alerts for optional filtering
-	var alerts []map[string]interface{}
-	if err := json.Unmarshal(body, &alerts); err != nil {
-		// Return raw response if parsing fails
-		c.Data(http.StatusOK, "application/json", body)
-		return
-	}
-
-	// Multi-value filters (project convention: c.QueryArray + slice fields).
-	// Repeated query params (?severity=critical&severity=warning) become OR
-	// matches within the same filter; different filters AND together.
-	alerts = filterAlerts(alerts, alertFilter{
+	all = filterAlerts(all, alertFilter{
 		states:     c.QueryArray("state"),
 		severities: c.QueryArray("severity"),
 		systemKeys: c.QueryArray("system_key"),
 		alertnames: c.QueryArray("alertname"),
 	})
 
+	// Sort by starts_at desc (most recent first); fingerprint as tiebreaker
+	// so pagination is stable across requests when timestamps tie.
+	sort.SliceStable(all, func(i, j int) bool {
+		si, _ := all[i]["startsAt"].(string)
+		sj, _ := all[j]["startsAt"].(string)
+		if si != sj {
+			return si > sj
+		}
+		fi, _ := all[i]["fingerprint"].(string)
+		fj, _ := all[j]["fingerprint"].(string)
+		return fi < fj
+	})
+
+	totalCount := len(all)
+	start := (page - 1) * pageSize
+	end := start + pageSize
+	if start > totalCount {
+		start = totalCount
+	}
+	if end > totalCount {
+		end = totalCount
+	}
+	pageAlerts := all[start:end]
+	if pageAlerts == nil {
+		pageAlerts = []map[string]interface{}{}
+	}
+
+	if warnings == nil {
+		warnings = []string{}
+	}
+
 	c.JSON(http.StatusOK, response.OK("alerts retrieved successfully", gin.H{
-		"alerts": alerts,
+		"alerts":     pageAlerts,
+		"pagination": helpers.BuildPaginationInfo(page, pageSize, totalCount),
+		"warnings":   warnings,
 	}))
+}
+
+// fanOutMimirAlerts fetches active alerts from Mimir for every tenant in scope
+// concurrently, with bounded concurrency and a global timeout. Per-tenant
+// failures (timeout, 5xx, parse error) are collected as warnings; the rest of
+// the result is returned. Used by /api/alerts (list) and is shaped so future
+// stats/aggregation endpoints can reuse it.
+func fanOutMimirAlerts(parent context.Context, orgIDs []string) ([]map[string]interface{}, []string) {
+	var (
+		all      []map[string]interface{}
+		warnings []string
+		mu       sync.Mutex
+		wg       sync.WaitGroup
+	)
+	ctx, cancel := context.WithTimeout(parent, alertsTotalsFanoutTimeout)
+	defer cancel()
+	sem := make(chan struct{}, alertsTotalsFanoutConcurrency)
+
+	for _, orgID := range orgIDs {
+		wg.Add(1)
+		go func(orgID string) {
+			defer wg.Done()
+
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				mu.Lock()
+				warnings = append(warnings, fmt.Sprintf("org %s: timed out waiting for slot", orgID))
+				mu.Unlock()
+				return
+			}
+
+			body, err := alerting.GetAlertsCtx(ctx, orgID)
+			if err != nil {
+				logger.Warn().Err(err).Str("org_id", orgID).Msg("failed to fetch alerts from mimir for list")
+				mu.Lock()
+				warnings = append(warnings, fmt.Sprintf("org %s: %s", orgID, err.Error()))
+				mu.Unlock()
+				return
+			}
+
+			var alerts []map[string]interface{}
+			if err := json.Unmarshal(body, &alerts); err != nil {
+				logger.Warn().Err(err).Str("org_id", orgID).Msg("failed to parse mimir alerts response for list")
+				mu.Lock()
+				warnings = append(warnings, fmt.Sprintf("org %s: parse error", orgID))
+				mu.Unlock()
+				return
+			}
+
+			mu.Lock()
+			all = append(all, alerts...)
+			mu.Unlock()
+		}(orgID)
+	}
+	wg.Wait()
+	return all, warnings
 }
 
 // GetAlertingConfig handles GET /api/alerts/config
@@ -494,14 +588,17 @@ func GetAlertsTotals(c *gin.Context) {
 }
 
 // GetAlertsTrend handles GET /api/alerts/trend
-// Returns trend data for resolved alerts over a specified period.
+// Returns trend data for resolved alerts over a specified period, scoped to
+// the caller's hierarchy (no organization_id), a specific tenant, or a
+// sub-tree (organization_id=X&include=descendants). Mirrors the scope rules
+// of /api/alerts/totals.
 func GetAlertsTrend(c *gin.Context) {
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
 		return
 	}
 
-	orgID, ok := resolveOrgID(c, user)
+	orgIDs, ok := resolveOrgScope(c, user)
 	if !ok {
 		return
 	}
@@ -514,7 +611,7 @@ func GetAlertsTrend(c *gin.Context) {
 	}
 
 	repo := entities.NewLocalAlertHistoryRepository()
-	trend, err := repo.GetAlertHistoryTrend(period, orgID)
+	trend, err := repo.GetAlertHistoryTrendByOrgIDs(period, orgIDs)
 	if err != nil {
 		logger.Error().Err(err).Int("period", period).Msg("failed to retrieve alerts trend")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve alerts trend", nil))
@@ -1064,7 +1161,9 @@ func UpdateSystemAlertSilence(c *gin.Context) {
 }
 
 // GetSystemAlertHistory handles GET /api/systems/:id/alerts/history
-// Returns paginated resolved/inactive alert history for a system.
+// Returns paginated resolved/inactive alert history for a system, with
+// optional date range (?from_date=, ?to_date=, RFC3339) and multi-value
+// label filters (alertname, severity, status).
 func GetSystemAlertHistory(c *gin.Context) {
 	systemID := c.Param("id")
 	if systemID == "" {
@@ -1087,8 +1186,26 @@ func GetSystemAlertHistory(c *gin.Context) {
 
 	page, pageSize, sortBy, sortDirection := helpers.GetPaginationAndSortingFromQuery(c)
 
+	from, to, perr := parseDateRange(c)
+	if perr != nil {
+		c.JSON(http.StatusBadRequest, response.BadRequest(perr.Error(), nil))
+		return
+	}
+
 	repo := entities.NewLocalAlertHistoryRepository()
-	records, totalCount, err := repo.GetAlertHistoryBySystemKey(system.SystemKey, system.Organization.LogtoID, page, pageSize, sortBy, sortDirection)
+	records, totalCount, err := repo.QueryAlertHistory(entities.AlertHistoryQuery{
+		OrgIDs:        []string{system.Organization.LogtoID},
+		SystemKey:     system.SystemKey,
+		Alertnames:    c.QueryArray("alertname"),
+		Severities:    c.QueryArray("severity"),
+		Statuses:      c.QueryArray("status"),
+		From:          from,
+		To:            to,
+		Page:          page,
+		PageSize:      pageSize,
+		SortBy:        sortBy,
+		SortDirection: sortDirection,
+	})
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -1103,6 +1220,135 @@ func GetSystemAlertHistory(c *gin.Context) {
 		"alerts":     records,
 		"pagination": helpers.BuildPaginationInfoWithSorting(page, pageSize, totalCount, sortBy, sortDirection),
 	}))
+}
+
+// GetAlertsHistory handles GET /api/alerts/history
+// Returns paginated resolved alert history scoped to the caller's hierarchy
+// (no organization_id), a single tenant (organization_id=X), or a sub-tree
+// (organization_id=X&include=descendants). Mirrors the scope rules of
+// /api/alerts/totals. Supports date range and multi-value label filters.
+func GetAlertsHistory(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	orgIDs, ok := resolveOrgScope(c, user)
+	if !ok {
+		return
+	}
+
+	page, pageSize, sortBy, sortDirection := helpers.GetPaginationAndSortingFromQuery(c)
+
+	from, to, perr := parseDateRange(c)
+	if perr != nil {
+		c.JSON(http.StatusBadRequest, response.BadRequest(perr.Error(), nil))
+		return
+	}
+
+	repo := entities.NewLocalAlertHistoryRepository()
+	records, totalCount, err := repo.QueryAlertHistory(entities.AlertHistoryQuery{
+		OrgIDs:        orgIDs,
+		Alertnames:    c.QueryArray("alertname"),
+		Severities:    c.QueryArray("severity"),
+		Statuses:      c.QueryArray("status"),
+		From:          from,
+		To:            to,
+		Page:          page,
+		PageSize:      pageSize,
+		SortBy:        sortBy,
+		SortDirection: sortDirection,
+	})
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to retrieve alert history (org-level)")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve alert history", nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("alert history retrieved successfully", gin.H{
+		"alerts":     records,
+		"pagination": helpers.BuildPaginationInfoWithSorting(page, pageSize, totalCount, sortBy, sortDirection),
+	}))
+}
+
+// alertsStatsDefaultTopN is the default and maximum cap for top-N grouped
+// breakdowns returned by /api/alerts/stats. The cap protects the response
+// size when an org has thousands of distinct alertnames or system_keys.
+const alertsStatsDefaultTopN = 10
+const alertsStatsMaxTopN = 50
+
+// GetAlertsStats handles GET /api/alerts/stats
+// Returns aggregate statistics over alert_history for the caller's scope:
+// total, by_severity buckets, top-N alertname / system_key, plus MTTR and
+// MTBF approximations. Honors the same scope rules as /alerts/totals
+// (no organization_id / single tenant / descendants drill-down) and accepts
+// an optional date range (from_date / to_date, RFC3339).
+func GetAlertsStats(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	orgIDs, ok := resolveOrgScope(c, user)
+	if !ok {
+		return
+	}
+
+	from, to, perr := parseDateRange(c)
+	if perr != nil {
+		c.JSON(http.StatusBadRequest, response.BadRequest(perr.Error(), nil))
+		return
+	}
+
+	topN := alertsStatsDefaultTopN
+	if s := c.Query("top"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			topN = n
+			if topN > alertsStatsMaxTopN {
+				topN = alertsStatsMaxTopN
+			}
+		}
+	}
+
+	repo := entities.NewLocalAlertHistoryRepository()
+	stats, err := repo.GetAlertStats(entities.AlertStatsQuery{
+		OrgIDs: orgIDs,
+		From:   from,
+		To:     to,
+		TopN:   topN,
+	})
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to retrieve alert stats")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve alert stats", nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("alert stats retrieved successfully", stats))
+}
+
+// parseDateRange reads optional from_date / to_date query params and parses
+// them as RFC3339 timestamps. Returns nil values when the param is missing,
+// or a 400-friendly error when the param is present but malformed.
+func parseDateRange(c *gin.Context) (*time.Time, *time.Time, error) {
+	var from, to *time.Time
+	if s := c.Query("from_date"); s != "" {
+		t, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid from_date: must be RFC3339 (e.g. 2026-05-01T00:00:00Z)")
+		}
+		from = &t
+	}
+	if s := c.Query("to_date"); s != "" {
+		t, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid to_date: must be RFC3339 (e.g. 2026-05-08T00:00:00Z)")
+		}
+		to = &t
+	}
+	if from != nil && to != nil && !to.After(*from) {
+		return nil, nil, fmt.Errorf("to_date must be after from_date")
+	}
+	return from, to, nil
 }
 
 // validateWebhookReceivers enforces that every webhook URL is a plain http/https

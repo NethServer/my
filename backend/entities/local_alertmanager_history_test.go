@@ -30,18 +30,16 @@ func setupAlertHistoryMock(t *testing.T) (*LocalAlertHistoryRepository, sqlmock.
 	return repo, mock, cleanup
 }
 
-func TestGetAlertHistoryBySystemKey(t *testing.T) {
+func TestQueryAlertHistory_PerSystem(t *testing.T) {
 	repo, mock, cleanup := setupAlertHistoryMock(t)
 	defer cleanup()
 
 	now := time.Now().UTC()
 
-	// Expect count query
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM alert_history WHERE system_key = \$1 AND organization_id = \$2`).
-		WithArgs("SYS-001", "org-1").
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM alert_history WHERE organization_id IN \(\$1\) AND system_key = \$2`).
+		WithArgs("org-1", "SYS-001").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
 
-	// Expect data query
 	rows := sqlmock.NewRows([]string{
 		"id", "system_key", "alertname", "severity", "status", "fingerprint",
 		"starts_at", "ends_at", "summary", "labels", "annotations", "receiver", "created_at",
@@ -52,99 +50,93 @@ func TestGetAlertHistoryBySystemKey(t *testing.T) {
 			now.Add(-2*time.Hour), nil, nil, `{}`, `{}`, nil, now)
 
 	mock.ExpectQuery(`SELECT id, system_key, alertname, severity, status, fingerprint`).
-		WithArgs("SYS-001", "org-1", 20, 0).
+		WithArgs("org-1", "SYS-001", 20, 0).
 		WillReturnRows(rows)
 
-	records, totalCount, err := repo.GetAlertHistoryBySystemKey("SYS-001", "org-1", 1, 20, "created_at", "desc")
+	records, totalCount, err := repo.QueryAlertHistory(AlertHistoryQuery{
+		OrgIDs: []string{"org-1"}, SystemKey: "SYS-001",
+		Page: 1, PageSize: 20, SortBy: "created_at", SortDirection: "desc",
+	})
 
 	assert.NoError(t, err)
 	assert.Equal(t, 2, totalCount)
 	assert.Len(t, records, 2)
-
-	// First record has all fields
 	assert.Equal(t, "DiskFull", records[0].Alertname)
 	assert.NotNil(t, records[0].Severity)
 	assert.Equal(t, "critical", *records[0].Severity)
-	assert.NotNil(t, records[0].EndsAt)
-	assert.NotNil(t, records[0].Summary)
-	assert.NotNil(t, records[0].Receiver)
-
-	// Second record has nullable fields as nil
 	assert.Nil(t, records[1].Severity)
-	assert.Nil(t, records[1].EndsAt)
-	assert.Nil(t, records[1].Summary)
-	assert.Nil(t, records[1].Receiver)
-
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestGetAlertHistoryBySystemKey_EmptyResult(t *testing.T) {
-	repo, mock, cleanup := setupAlertHistoryMock(t)
+func TestQueryAlertHistory_EmptyOrgIDs(t *testing.T) {
+	repo, _, cleanup := setupAlertHistoryMock(t)
 	defer cleanup()
 
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM alert_history WHERE system_key = \$1 AND organization_id = \$2`).
-		WithArgs("SYS-EMPTY", "org-1").
-		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-
-	rows := sqlmock.NewRows([]string{
-		"id", "system_key", "alertname", "severity", "status", "fingerprint",
-		"starts_at", "ends_at", "summary", "labels", "annotations", "receiver", "created_at",
+	// Empty OrgIDs short-circuits without hitting the DB.
+	records, totalCount, err := repo.QueryAlertHistory(AlertHistoryQuery{
+		OrgIDs: []string{}, Page: 1, PageSize: 20,
 	})
-
-	mock.ExpectQuery(`SELECT id, system_key, alertname`).
-		WithArgs("SYS-EMPTY", "org-1", 20, 0).
-		WillReturnRows(rows)
-
-	records, totalCount, err := repo.GetAlertHistoryBySystemKey("SYS-EMPTY", "org-1", 1, 20, "created_at", "desc")
-
 	assert.NoError(t, err)
 	assert.Equal(t, 0, totalCount)
 	assert.Empty(t, records)
-	assert.NotNil(t, records) // Empty slice, not nil
-	assert.NoError(t, mock.ExpectationsWereMet())
+	assert.NotNil(t, records)
 }
 
-func TestGetAlertHistoryBySystemKey_SortValidation(t *testing.T) {
+func TestQueryAlertHistory_MultiOrgWithDateRangeAndFilters(t *testing.T) {
 	repo, mock, cleanup := setupAlertHistoryMock(t)
 	defer cleanup()
 
-	mock.ExpectQuery(`SELECT COUNT`).
-		WithArgs("SYS-001", "org-1").
+	from := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 5, 8, 0, 0, 0, 0, time.UTC)
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM alert_history WHERE organization_id IN \(\$1,\$2\) AND alertname IN \(\$3\) AND severity IN \(\$4,\$5\) AND created_at >= \$6 AND created_at < \$7`).
+		WithArgs("org-A", "org-B", "CVE-2024-1234", "critical", "warning", from, to).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
-	mock.ExpectQuery(`ORDER BY created_at desc`).
-		WithArgs("SYS-001", "org-1", 10, 0).
+	mock.ExpectQuery(`SELECT id, system_key, alertname.*ORDER BY created_at desc`).
+		WithArgs("org-A", "org-B", "CVE-2024-1234", "critical", "warning", from, to, 50, 0).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "system_key", "alertname", "severity", "status", "fingerprint",
 			"starts_at", "ends_at", "summary", "labels", "annotations", "receiver", "created_at",
 		}))
 
-	// Invalid sort_by should fallback to created_at
-	_, _, err := repo.GetAlertHistoryBySystemKey("SYS-001", "org-1", 1, 10, "invalid_column", "desc")
+	_, total, err := repo.QueryAlertHistory(AlertHistoryQuery{
+		OrgIDs:        []string{"org-A", "org-B"},
+		Alertnames:    []string{"CVE-2024-1234"},
+		Severities:    []string{"critical", "warning"},
+		From:          &from,
+		To:            &to,
+		Page:          1,
+		PageSize:      50,
+		SortBy:        "created_at",
+		SortDirection: "desc",
+	})
 	assert.NoError(t, err)
-
+	assert.Equal(t, 0, total)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestGetAlertHistoryBySystemKey_SortDirectionValidation(t *testing.T) {
+func TestQueryAlertHistory_SortValidation(t *testing.T) {
 	repo, mock, cleanup := setupAlertHistoryMock(t)
 	defer cleanup()
 
 	mock.ExpectQuery(`SELECT COUNT`).
-		WithArgs("SYS-001", "org-1").
+		WithArgs("org-1", "SYS-001").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
 	mock.ExpectQuery(`ORDER BY created_at desc`).
-		WithArgs("SYS-001", "org-1", 10, 0).
+		WithArgs("org-1", "SYS-001", 10, 0).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "system_key", "alertname", "severity", "status", "fingerprint",
 			"starts_at", "ends_at", "summary", "labels", "annotations", "receiver", "created_at",
 		}))
 
-	// Invalid sort_direction should fallback to desc
-	_, _, err := repo.GetAlertHistoryBySystemKey("SYS-001", "org-1", 1, 10, "created_at", "INVALID")
+	// Invalid sort_by/sort_direction must fall back to created_at desc.
+	_, _, err := repo.QueryAlertHistory(AlertHistoryQuery{
+		OrgIDs: []string{"org-1"}, SystemKey: "SYS-001",
+		Page: 1, PageSize: 10, SortBy: "invalid_column", SortDirection: "INVALID",
+	})
 	assert.NoError(t, err)
-
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 

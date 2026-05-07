@@ -273,12 +273,16 @@ func main() {
 		// ===========================================
 		alertsGroup := customAuthWithAudit.Group("/alerts", middleware.RequireResourcePermission("systems"))
 		{
-			// Active alerts
-			alertsGroup.GET("", methods.GetAlerts) // List active alerts for an organization
+			// Lists: active (Mimir live) and resolved (DB history). Both honor
+			// the same scope rules (hierarchy / single / descendants) and the
+			// same multi-value label filters.
+			alertsGroup.GET("", methods.GetAlerts)                // List active alerts (cross-hierarchy paginated)
+			alertsGroup.GET("/history", methods.GetAlertsHistory) // List resolved alerts from DB (paginated, date range + filters)
 
-			// Totals and trend endpoints
+			// Aggregations: counts, trend over time, top-N + MTTR/MTBF.
 			alertsGroup.GET("/totals", methods.GetAlertsTotals) // Alert counts by severity + history total
 			alertsGroup.GET("/trend", methods.GetAlertsTrend)   // Alert history trend with daily data points
+			alertsGroup.GET("/stats", methods.GetAlertsStats)   // Aggregate stats: severity buckets, top-N alertname/system_key, MTTR/MTBF
 
 			// Configuration management
 			alertsGroup.GET("/config", methods.GetAlertingConfig) // Get current alerting configuration
