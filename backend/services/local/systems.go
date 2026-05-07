@@ -371,6 +371,16 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 	previousOrgID := system.Organization.LogtoID
 	orgChanging := request.OrganizationID != "" && request.OrganizationID != previousOrgID
 	if orgChanging {
+		// Cross-org migration touches per-system resources (S3 backup prefix,
+		// Mimir silences, alert_history reassignment) that are all keyed by
+		// system_key. GetSystem strips system_key for unregistered systems, so
+		// running the migration on one would leave those internal calls with
+		// an empty key and silently no-op them. In production this can't
+		// happen because unregistered systems don't accumulate any of those
+		// resources, but we fail fast to keep the contract explicit.
+		if system.RegisteredAt == nil {
+			return nil, fmt.Errorf("cannot reassign organization: system must be registered before its organization can be changed")
+		}
 		// Validate user can assign system to the new organization
 		if canCreate, reason := s.CanCreateSystemForOrganization(userOrgRole, userOrgID, request.OrganizationID); !canCreate {
 			return nil, fmt.Errorf("access denied for organization change: %s", reason)

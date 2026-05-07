@@ -265,6 +265,14 @@ func UpdateSystem(c *gin.Context) {
 		c.JSON(http.StatusConflict, response.Error(http.StatusConflict, err.Error(), nil))
 		return
 	}
+	// Reassignment requires the system to be registered (per-system resources
+	// are keyed by system_key, which is only assigned at registration). Map
+	// the precondition error to 400 instead of letting HandleAccessError fall
+	// through to 500.
+	if err != nil && strings.Contains(err.Error(), "cannot reassign organization") {
+		c.JSON(http.StatusBadRequest, response.BadRequest(err.Error(), nil))
+		return
+	}
 	if helpers.HandleAccessError(c, err, "system", systemID) {
 		return
 	}
