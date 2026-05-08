@@ -525,7 +525,7 @@ const diffTypeFilterModel = computed<string[]>({
             :class="
               group.isToday
                 ? 'text-indigo-700 dark:text-indigo-500'
-                : 'text-gray-600 dark:text-gray-300'
+                : 'text-tertiary-neutral dark:text-tertiary-neutral'
             "
           >
             {{ group.isToday ? t('system_detail.today') : formatGroupDate(group.date) }}
@@ -553,7 +553,7 @@ const diffTypeFilterModel = computed<string[]>({
           <!-- Group with changes: toggle header -->
           <template v-else-if="group.change_count > 0">
             <button
-              class="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-700 dark:text-gray-300 dark:hover:text-gray-200"
+              class="text-tertiary-neutral dark:text-tertiary-neutral flex items-center gap-2 text-sm font-medium hover:text-gray-700 dark:hover:text-gray-200"
               @click="toggleGroup(group.date)"
             >
               <FontAwesomeIcon
@@ -614,14 +614,16 @@ const diffTypeFilterModel = computed<string[]>({
                         {{ getSeverityLabel(diff.severity) }}
                       </NeBadgeV2>
                       <!-- Field path -->
-                      <span class="min-w-0 text-sm break-all text-gray-600 dark:text-gray-300">
+                      <span
+                        class="text-tertiary-neutral dark:text-tertiary-neutral min-w-0 text-sm break-all"
+                      >
                         {{ diff.field_path }}
                       </span>
                     </div>
                     <!-- Expand chevron -->
                     <FontAwesomeIcon
                       :icon="expandedDiffs.has(diff.id) ? faAngleUp : faAngleDown"
-                      class="size-4 flex-shrink-0 text-gray-600 dark:text-gray-300"
+                      class="text-tertiary-neutral dark:text-tertiary-neutral size-4 flex-shrink-0"
                     />
                   </div>
 
@@ -633,14 +635,14 @@ const diffTypeFilterModel = computed<string[]>({
                       class="flex items-center gap-4 rounded-sm bg-blue-50 px-1.5 py-0.5 dark:bg-blue-950"
                     >
                       <FontAwesomeIcon :icon="faPen" class="size-3 shrink-0" />
-                      <span class="font-mono text-sm text-gray-700 dark:text-gray-300">
+                      <span class="dark:text-tertiary-neutral font-mono text-sm text-gray-700">
                         {{ formatDiffValue(diff.previous_value) }}
                       </span>
                       <FontAwesomeIcon
                         :icon="faArrowRight"
                         class="size-4 shrink-0 text-gray-500 dark:text-gray-400"
                       />
-                      <span class="font-mono text-sm text-gray-700 dark:text-gray-300">
+                      <span class="dark:text-tertiary-neutral font-mono text-sm text-gray-700">
                         {{ formatDiffValue(diff.current_value) }}
                       </span>
                     </div>
@@ -655,7 +657,7 @@ const diffTypeFilterModel = computed<string[]>({
                         class="flex items-center gap-4"
                       >
                         <FontAwesomeIcon :icon="faPlus" class="size-3 shrink-0" />
-                        <span class="font-mono text-sm text-gray-700 dark:text-gray-300">{{
+                        <span class="dark:text-tertiary-neutral font-mono text-sm text-gray-700">{{
                           line
                         }}</span>
                       </div>
@@ -671,13 +673,13 @@ const diffTypeFilterModel = computed<string[]>({
                         class="flex items-center gap-4"
                       >
                         <FontAwesomeIcon :icon="faMinus" class="size-3 shrink-0" />
-                        <span class="font-mono text-sm text-gray-700 dark:text-gray-300">{{
+                        <span class="dark:text-tertiary-neutral font-mono text-sm text-gray-700">{{
                           line
                         }}</span>
                       </div>
                     </div>
                     <!-- Timestamp -->
-                    <p class="mt-4 text-xs text-gray-600 dark:text-gray-300">
+                    <p class="text-tertiary-neutral dark:text-tertiary-neutral mt-4 text-xs">
                       {{ formatDateTimeNoSeconds(new Date(diff.created_at), locale, 'UTC') }}
                     </p>
                   </div>
@@ -734,7 +736,7 @@ const diffTypeFilterModel = computed<string[]>({
       <!-- System registration -->
       <div v-if="systemDetailState.data.registered_at" class="relative mb-8 flex items-start">
         <div class="w-36 flex-shrink-0 pt-0.5 pr-6 text-right">
-          <span class="text-sm font-medium text-gray-600 dark:text-gray-300">
+          <span class="text-tertiary-neutral dark:text-tertiary-neutral text-sm font-medium">
             {{ formatGroupDate(systemDetailState.data.registered_at.slice(0, 10)) }}
           </span>
         </div>
@@ -743,7 +745,7 @@ const diffTypeFilterModel = computed<string[]>({
           style="left: 139px; top: 7px"
         ></div>
         <div class="flex-1 pl-10">
-          <span class="text-sm font-medium text-gray-600 dark:text-gray-300">
+          <span class="text-tertiary-neutral dark:text-tertiary-neutral text-sm font-medium">
             {{ t('system_detail.system_registered') }}
           </span>
           <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
@@ -755,7 +757,7 @@ const diffTypeFilterModel = computed<string[]>({
       <!-- System creation -->
       <div v-if="systemDetailState.data.created_at" class="relative mb-8 flex items-start">
         <div class="w-36 flex-shrink-0 pt-0.5 pr-6 text-right">
-          <span class="text-sm font-medium text-gray-600 dark:text-gray-300">
+          <span class="text-tertiary-neutral dark:text-tertiary-neutral text-sm font-medium">
             {{ formatGroupDate(systemDetailState.data.created_at.slice(0, 10)) }}
           </span>
         </div>
@@ -764,7 +766,7 @@ const diffTypeFilterModel = computed<string[]>({
           style="left: 139px; top: 7px"
         ></div>
         <div class="flex-1 pl-10">
-          <span class="text-sm font-medium text-gray-600 dark:text-gray-300">
+          <span class="text-tertiary-neutral dark:text-tertiary-neutral text-sm font-medium">
             {{ t('system_detail.system_created') }}
           </span>
           <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">

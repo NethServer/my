@@ -177,7 +177,7 @@ function loadMenuItemsExpanded() {
         :class="[
           isCurrentRoute(item.to)
             ? 'border-primary-700 dark:border-primary-500 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50'
-            : 'border-transparent text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-50',
+            : 'text-tertiary-neutral dark:text-tertiary-neutral border-transparent hover:text-gray-900 dark:hover:text-gray-50',
           'group flex cursor-pointer items-center gap-x-3 rounded-md border-l-4 px-3 py-2 text-sm leading-6 font-semibold hover:bg-gray-100 dark:hover:bg-gray-800',
         ]"
       >
@@ -195,7 +195,7 @@ function loadMenuItemsExpanded() {
         :class="[
           isCurrentRoute(item.to)
             ? 'text-gray-900 dark:text-gray-50'
-            : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-50',
+            : 'text-tertiary-neutral dark:text-tertiary-neutral hover:text-gray-900 dark:hover:text-gray-50',
           'group flex cursor-pointer items-center justify-between rounded-md border-l-4 border-transparent px-3 py-2 text-sm leading-6 font-semibold hover:bg-gray-100 dark:hover:bg-gray-800',
         ]"
         @click="toggleExpand(item)"
@@ -225,7 +225,7 @@ function loadMenuItemsExpanded() {
                 :class="[
                   isCurrentRoute(child.to)
                     ? 'border-primary-700 dark:border-primary-500 border-l-4 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50'
-                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-50',
+                    : 'text-tertiary-neutral dark:text-tertiary-neutral hover:text-gray-900 dark:hover:text-gray-50',
                   'group flex cursor-pointer items-center gap-x-3 rounded-md px-3 py-1 text-sm leading-6 font-semibold hover:bg-gray-100 dark:hover:bg-gray-800',
                 ]"
               >

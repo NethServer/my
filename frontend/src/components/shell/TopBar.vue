@@ -84,7 +84,7 @@ function openNotificationsDrawer() {
   >
     <button
       type="button"
-      class="-m-2.5 p-2.5 text-gray-600 transition-colors duration-300 hover:text-gray-900 lg:hidden dark:text-gray-300 dark:hover:text-gray-50"
+      class="text-tertiary-neutral dark:text-tertiary-neutral -m-2.5 p-2.5 transition-colors duration-300 hover:text-gray-900 lg:hidden dark:hover:text-gray-50"
       @click="emit('openSidebar')"
     >
       <span class="sr-only">{{ $t('shell.open_sidebar') }}</span>

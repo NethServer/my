@@ -357,12 +357,12 @@ function formatAlertDetails(alert: Alert): string {
             <div class="space-y-1">
               <div class="flex items-start justify-between gap-2">
                 <div class="flex-1">
-                  <div class="font-medium text-gray-700 dark:text-gray-300">
+                  <div class="dark:text-tertiary-neutral font-medium text-gray-700">
                     {{ getAlertSummaryText(alert) || '-' }}
                   </div>
                   <div
                     v-if="getAlertDescriptionText(alert)"
-                    class="text-sm text-gray-600 dark:text-gray-400"
+                    class="text-tertiary-neutral text-sm dark:text-gray-400"
                   >
                     {{ getAlertDescriptionText(alert) }}
                   </div>

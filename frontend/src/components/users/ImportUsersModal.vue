@@ -372,7 +372,7 @@ function errorSummaryText(row: ImportRow): string {
       </NeRadioSelection>
 
       <!-- summary -->
-      <div class="text-sm text-gray-600 dark:text-gray-300">
+      <div class="text-tertiary-neutral dark:text-tertiary-neutral text-sm">
         <NeFormItemLabel>{{ $t('import.users.import_summary') }}</NeFormItemLabel>
         <p>
           {{ $t('import.users.import_summary_detected', { count: validationResult.total_rows }) }}

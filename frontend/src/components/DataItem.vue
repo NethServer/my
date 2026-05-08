@@ -8,7 +8,7 @@
     <div class="font-medium">
       <slot name="label"></slot>
     </div>
-    <span class="text-end text-gray-600 dark:text-gray-300">
+    <span class="text-tertiary-neutral dark:text-tertiary-neutral text-end">
       <slot name="data"></slot>
     </span>
   </div>
