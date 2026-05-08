@@ -265,7 +265,7 @@ function errorSummaryText(row: ImportRow): string {
   const issue = row.errors?.[0]
 
   if (!issue) {
-    return t('users.import_row_and_name', { row_number: row.row_number, name })
+    return t('import.import_row_and_name', { row_number: row.row_number, name })
   }
   const params = formatErrorParams(issue)
   const message = t(`import.import_error_${issue.field}_${issue.message}`, params)
@@ -358,6 +358,7 @@ function errorSummaryText(row: ImportRow): string {
 
       <!-- existing users option -->
       <NeRadioSelection
+        v-if="warningRows.length > 0"
         v-model="existingUsersOption"
         :options="importTypeOptions"
         :label="$t('import.users.import_existing_users_label')"
@@ -373,7 +374,7 @@ function errorSummaryText(row: ImportRow): string {
 
       <!-- summary -->
       <div class="text-tertiary-neutral dark:text-tertiary-neutral text-sm">
-        <NeFormItemLabel>{{ $t('import.users.import_summary') }}</NeFormItemLabel>
+        <NeFormItemLabel>{{ $t('import.import_summary') }}</NeFormItemLabel>
         <p>
           {{ $t('import.users.import_summary_detected', { count: validationResult.total_rows }) }}
         </p>

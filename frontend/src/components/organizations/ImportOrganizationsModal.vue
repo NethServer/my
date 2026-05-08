@@ -363,6 +363,7 @@ function errorSummaryText(row: ImportRow): string {
 
       <!-- existing orgs option -->
       <NeRadioSelection
+        v-if="warningRows.length > 0"
         v-model="existingOrgsOption"
         :options="importTypeOptions"
         :label="$t('import.organizations.import_existing_label')"
