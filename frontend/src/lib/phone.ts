@@ -2,6 +2,7 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import { parsePhoneNumberFromString } from 'libphonenumber-js'
+import type { NeComboboxOption } from '@nethesis/vue-components'
 
 // The backend stores phone numbers as digits-only (E.164 without the leading
 // `+`), e.g. "393330001113". This helper renders a human-readable version for
@@ -324,3 +325,33 @@ export const countries = [
   { iso2: 'zm', country_name: 'Zambia', country_code: '260', flag: '🇿🇲' },
   { iso2: 'zw', country_name: 'Zimbabwe', country_code: '263', flag: '🇿🇼' },
 ]
+
+// Pre-formatted options for NeCombobox component showing country name, code, and flag
+export const countryCodeComboOptions: NeComboboxOption[] = countries.map((c) => ({
+  id: `${c.iso2}`,
+  label: `${c.country_name} (+${c.country_code})`,
+  description: c.flag,
+}))
+
+// Parse a raw phone number string and return parts suitable for form fields.
+// Used by all phone input components to split phone into country code + local part.
+// Returns { countryCode, phone } where:
+// - countryCode is ISO2 code (e.g., "it")
+// - phone is formatted local part (e.g., "333 000 1113")
+// If parsing fails or input is empty, defaults to "it" + original value (or empty).
+export function parsePhoneForForm(raw: string | null | undefined): {
+  countryCode: string
+  phone: string
+} {
+  if (!raw) {
+    return { countryCode: 'it', phone: '' }
+  }
+
+  const parsed = parsePhoneNumber(raw)
+  if (parsed) {
+    return { countryCode: parsed.countryIso2, phone: parsed.localPart }
+  } else {
+    // Fallback if parsing fails
+    return { countryCode: 'it', phone: raw }
+  }
+}

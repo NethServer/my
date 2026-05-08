@@ -23,6 +23,7 @@ import { faPenToSquare } from '@fortawesome/free-solid-svg-icons'
 import { useI18n } from 'vue-i18n'
 import CreateOrEditCustomerDrawer from './CreateOrEditCustomerDrawer.vue'
 import { getLanguageLabel } from '@/lib/locale'
+import { formatPhoneForDisplay } from '@/lib/phone'
 
 const { t } = useI18n()
 const { state: customerDetail, asyncStatus } = useCustomerDetail()
@@ -130,7 +131,7 @@ function getKebabMenuItems() {
               v-if="customerDetail.data.custom_data.phone"
               :href="`tel:${customerDetail.data.custom_data.phone}`"
             >
-              {{ customerDetail.data.custom_data.phone }}
+              {{ formatPhoneForDisplay(customerDetail.data.custom_data.phone) }}
             </NeLink>
             <template v-else>-</template>
           </template>

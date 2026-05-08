@@ -12,6 +12,7 @@ import {
   NeInlineNotification,
   NeTextArea,
   NeCombobox,
+  NeFormItemLabel,
   type NeComboboxOption,
   getPreference,
 } from '@nethesis/vue-components'
@@ -36,6 +37,7 @@ import type { AxiosError } from 'axios'
 import { getCommonLanguagesOptions } from '@/lib/locale'
 import { getBrowserLocale } from '@/i18n'
 import { useLoginStore } from '@/stores/login'
+import { combinePhoneParts, countryCodeComboOptions, parsePhoneForForm } from '@/lib/phone'
 
 const { isShown = false, currentReseller = undefined } = defineProps<{
   isShown: boolean
@@ -123,6 +125,7 @@ const mainContact = ref('')
 const mainContactRef = useTemplateRef<HTMLInputElement>('mainContactRef')
 const email = ref('')
 const emailRef = useTemplateRef<HTMLInputElement>('emailRef')
+const countryCode = ref('')
 const phone = ref('')
 const phoneRef = useTemplateRef<HTMLInputElement>('phoneRef')
 const language = ref('it')
@@ -168,7 +171,17 @@ function onShow() {
     city.value = currentReseller.custom_data?.city || ''
     mainContact.value = currentReseller.custom_data?.main_contact || ''
     email.value = currentReseller.custom_data?.email || ''
-    phone.value = currentReseller.custom_data?.phone || ''
+
+    // Parse phone number to extract country code and local part
+    if (currentReseller.custom_data?.phone) {
+      const parsed = parsePhoneForForm(currentReseller.custom_data.phone)
+      countryCode.value = parsed.countryCode
+      phone.value = parsed.phone
+    } else {
+      countryCode.value = 'it'
+      phone.value = ''
+    }
+
     language.value = currentReseller.custom_data?.language || ''
     notes.value = currentReseller.custom_data?.notes || ''
   } else {
@@ -179,6 +192,7 @@ function onShow() {
     city.value = ''
     mainContact.value = ''
     email.value = ''
+    countryCode.value = 'it'
     phone.value = ''
     language.value = 'it'
     notes.value = ''
@@ -268,7 +282,7 @@ async function saveReseller() {
       city: city.value,
       main_contact: mainContact.value,
       email: email.value,
-      phone: phone.value,
+      phone: combinePhoneParts(countryCode.value, phone.value),
       language: language.value,
       notes: notes.value,
     },
@@ -387,18 +401,40 @@ async function saveReseller() {
           :optional-label="t('common.optional')"
         />
         <!-- phone -->
-        <NeTextInput
-          ref="phoneRef"
-          v-model="phone"
-          @blur="phone = phone.trim()"
-          :label="$t('organizations.phone_number')"
-          :invalid-message="
-            validationIssues.custom_data_phone?.[0] ? $t(validationIssues.custom_data_phone[0]) : ''
-          "
-          :disabled="saving"
-          :optional="true"
-          :optional-label="t('common.optional')"
-        />
+        <div>
+          <div class="flex items-center justify-between gap-4">
+            <NeFormItemLabel>{{ $t('organizations.phone_number') }}</NeFormItemLabel>
+            <NeFormItemLabel>{{ $t('common.optional') }}</NeFormItemLabel>
+          </div>
+          <div class="flex gap-4">
+            <!-- country code -->
+            <NeCombobox
+              v-model="countryCode"
+              :options="countryCodeComboOptions"
+              :disabled="saving"
+              :no-results-label="$t('ne_combobox.no_results')"
+              :limited-options-label="$t('ne_combobox.limited_options_label')"
+              :no-options-label="$t('ne_combobox.no_options_label')"
+              :selected-label="$t('ne_combobox.selected')"
+              :user-input-label="$t('ne_combobox.user_input_label')"
+              :optional-label="$t('common.optional')"
+            />
+            <!-- local part -->
+            <NeTextInput
+              ref="phoneRef"
+              v-model="phone"
+              @blur="phone = phone.trim()"
+              :invalid-message="
+                validationIssues.custom_data_phone?.[0]
+                  ? t(validationIssues.custom_data_phone[0])
+                  : ''
+              "
+              :disabled="saving"
+              :optional="true"
+              :optional-label="t('common.optional')"
+            />
+          </div>
+        </div>
         <!-- language -->
         <NeCombobox
           ref="languageRef"

@@ -39,7 +39,7 @@ import { normalize } from '@/lib/common'
 import { organizationsQuery } from '@/queries/organizations/organizations'
 import { userRolesQuery } from '@/queries/users/userRoles'
 import { USER_FILTERS_KEY } from '@/lib/users/userFilters'
-import { countries, parsePhoneNumber, combinePhoneParts } from '@/lib/phone'
+import { combinePhoneParts, countryCodeComboOptions, parsePhoneForForm } from '@/lib/phone'
 
 const { isShown = false, currentUser = undefined } = defineProps<{
   isShown: boolean
@@ -179,12 +179,6 @@ const userRoleOptions = computed(() => {
   }))
 })
 
-const countryCodeOptions: NeComboboxOption[] = countries.map((c) => ({
-  id: `${c.iso2}`,
-  label: `${c.country_name} (+${c.country_code})`,
-  description: c.flag,
-}))
-
 watch(
   () => isShown,
   () => {
@@ -201,15 +195,9 @@ watch(
 
         // Parse phone number to extract country code and local part
         if (currentUser.phone) {
-          const parsed = parsePhoneNumber(currentUser.phone)
-          if (parsed) {
-            countryCode.value = parsed.countryIso2
-            phone.value = parsed.localPart
-          } else {
-            // Fallback if parsing fails
-            countryCode.value = 'it'
-            phone.value = currentUser.phone
-          }
+          const parsed = parsePhoneForForm(currentUser.phone)
+          countryCode.value = parsed.countryCode
+          phone.value = parsed.phone
         } else {
           countryCode.value = 'it'
           phone.value = ''
@@ -450,7 +438,7 @@ function getEmailInvalidMessage(): string {
             <!-- country code -->
             <NeCombobox
               v-model="countryCode"
-              :options="countryCodeOptions"
+              :options="countryCodeComboOptions"
               :disabled="saving"
               :no-results-label="$t('ne_combobox.no_results')"
               :limited-options-label="$t('ne_combobox.limited_options_label')"
