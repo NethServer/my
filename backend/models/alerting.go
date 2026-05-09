@@ -41,6 +41,32 @@ type SystemOverride struct {
 	TelegramReceivers []TelegramReceiver `json:"telegram_receivers,omitempty" binding:"max=20"`
 }
 
+// AlertingConfigLayer is the per-organization layer used by the hierarchical
+// alerting config model. Each org has one layer in alert_config_layers; the
+// effective Mimir-bound config for a tenant is the merge of all layers
+// walking up from the tenant to the Owner.
+//
+// Bool fields are *bool to keep "not set at this layer" distinguishable
+// from "explicitly disabled". Merge rules (see services/alerting.MergeLayers):
+//   - bool channel toggles: OR (additive enable; descendants cannot disable
+//     a channel enabled by an ancestor). Normalised at write time so
+//     non-Owner layers cannot store an explicit false.
+//   - list fields (mail_addresses, webhook/telegram receivers, severities,
+//     systems): union with dedup. Per-key merge for severity/system overrides.
+//   - email_template_lang: deepest non-empty wins (per-tenant rendering
+//     preference; descendants can override their own subtree).
+type AlertingConfigLayer struct {
+	MailEnabled       *bool              `json:"mail_enabled,omitempty"`
+	WebhookEnabled    *bool              `json:"webhook_enabled,omitempty"`
+	TelegramEnabled   *bool              `json:"telegram_enabled,omitempty"`
+	MailAddresses     []string           `json:"mail_addresses,omitempty" binding:"max=50,dive,email"`
+	WebhookReceivers  []WebhookReceiver  `json:"webhook_receivers,omitempty" binding:"max=20"`
+	TelegramReceivers []TelegramReceiver `json:"telegram_receivers,omitempty" binding:"max=20"`
+	Severities        []SeverityOverride `json:"severities,omitempty" binding:"max=10"`
+	Systems           []SystemOverride   `json:"systems,omitempty" binding:"max=500"`
+	EmailTemplateLang string             `json:"email_template_lang,omitempty"`
+}
+
 // AlertingConfig is the main configuration structure for alerting
 type AlertingConfig struct {
 	// Global settings

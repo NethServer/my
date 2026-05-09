@@ -161,24 +161,62 @@ templates: []
 {{- end }}
 `
 
-// effectiveSettings resolves mail/webhook/telegram settings for a given system_key and
-// severity, applying override priority: system > severity > global.
+// effectiveSettings resolves mail/webhook/telegram settings for a given
+// (system_key, severity) tuple. Hybrid semantics so the layered config model
+// stays additive on recipients while preserving the historical capability to
+// gate channels per scope:
+//
+//   - LISTS (mail_addresses, webhook/telegram receivers): UNION across global
+//
+//   - matching severity + matching system overrides, deduped. A descendant
+//     adding a recipient at the system level extends the list; it does NOT
+//     replace the upstream global recipients (the pre-Opzione 2 REPLACE
+//     behaviour silently blinded ancestors and is no longer used).
+//
+//   - BOOL toggles (mail_enabled, webhook_enabled, telegram_enabled):
+//     "more specific wins". A severity or system override with explicit
+//     true/false replaces the global value for that scope. Allows Owner to
+//     express "no email for severity=info" via `severities[info].mail_enabled=false`.
+//     Non-Owner layers cannot reach this code with `false` because
+//     NormalizeLayerForRole strips it at write time.
+//
 // Returns (mailEnabled, webhookEnabled, telegramEnabled, emails, webhooks, telegrams).
 func effectiveSettings(cfg *models.AlertingConfig, systemKey, severity string) (bool, bool, bool, []string, []string, []telegramEntry) {
 	mailEnabled := cfg.MailEnabled
 	webhookEnabled := cfg.WebhookEnabled
 	telegramEnabled := cfg.TelegramEnabled
-	emails := cfg.MailAddresses
+
+	seenEmail := make(map[string]struct{}, len(cfg.MailAddresses))
+	seenWebhook := make(map[string]struct{}, len(cfg.WebhookReceivers))
+	seenTelegram := make(map[string]struct{}, len(cfg.TelegramReceivers))
+
+	emails := make([]string, 0, len(cfg.MailAddresses))
+	for _, e := range cfg.MailAddresses {
+		if _, ok := seenEmail[e]; ok {
+			continue
+		}
+		seenEmail[e] = struct{}{}
+		emails = append(emails, e)
+	}
 	webhooks := make([]string, 0, len(cfg.WebhookReceivers))
 	for _, w := range cfg.WebhookReceivers {
+		if _, ok := seenWebhook[w.URL]; ok {
+			continue
+		}
+		seenWebhook[w.URL] = struct{}{}
 		webhooks = append(webhooks, w.URL)
 	}
 	telegrams := make([]telegramEntry, 0, len(cfg.TelegramReceivers))
 	for _, tg := range cfg.TelegramReceivers {
+		k := telegramKey(tg.BotToken, tg.ChatID)
+		if _, ok := seenTelegram[k]; ok {
+			continue
+		}
+		seenTelegram[k] = struct{}{}
 		telegrams = append(telegrams, telegramEntry{BotToken: tg.BotToken, ChatID: tg.ChatID})
 	}
 
-	// Check severity override first (lower priority than system)
+	// Severity override: bools replace, lists union.
 	for _, sv := range cfg.Severities {
 		if sv.Severity == severity {
 			if sv.MailEnabled != nil {
@@ -190,26 +228,33 @@ func effectiveSettings(cfg *models.AlertingConfig, systemKey, severity string) (
 			if sv.TelegramEnabled != nil {
 				telegramEnabled = *sv.TelegramEnabled
 			}
-			if len(sv.MailAddresses) > 0 {
-				emails = sv.MailAddresses
-			}
-			if len(sv.WebhookReceivers) > 0 {
-				webhooks = make([]string, 0, len(sv.WebhookReceivers))
-				for _, w := range sv.WebhookReceivers {
-					webhooks = append(webhooks, w.URL)
+			for _, e := range sv.MailAddresses {
+				if _, ok := seenEmail[e]; ok {
+					continue
 				}
+				seenEmail[e] = struct{}{}
+				emails = append(emails, e)
 			}
-			if len(sv.TelegramReceivers) > 0 {
-				telegrams = make([]telegramEntry, 0, len(sv.TelegramReceivers))
-				for _, tg := range sv.TelegramReceivers {
-					telegrams = append(telegrams, telegramEntry{BotToken: tg.BotToken, ChatID: tg.ChatID})
+			for _, w := range sv.WebhookReceivers {
+				if _, ok := seenWebhook[w.URL]; ok {
+					continue
 				}
+				seenWebhook[w.URL] = struct{}{}
+				webhooks = append(webhooks, w.URL)
+			}
+			for _, tg := range sv.TelegramReceivers {
+				k := telegramKey(tg.BotToken, tg.ChatID)
+				if _, ok := seenTelegram[k]; ok {
+					continue
+				}
+				seenTelegram[k] = struct{}{}
+				telegrams = append(telegrams, telegramEntry{BotToken: tg.BotToken, ChatID: tg.ChatID})
 			}
 			break
 		}
 	}
 
-	// Check system override (highest priority)
+	// System override: bools replace, lists union (cumulative on top of severity).
 	for _, sys := range cfg.Systems {
 		if sys.SystemKey == systemKey {
 			if sys.MailEnabled != nil {
@@ -221,26 +266,37 @@ func effectiveSettings(cfg *models.AlertingConfig, systemKey, severity string) (
 			if sys.TelegramEnabled != nil {
 				telegramEnabled = *sys.TelegramEnabled
 			}
-			if len(sys.MailAddresses) > 0 {
-				emails = sys.MailAddresses
-			}
-			if len(sys.WebhookReceivers) > 0 {
-				webhooks = make([]string, 0, len(sys.WebhookReceivers))
-				for _, w := range sys.WebhookReceivers {
-					webhooks = append(webhooks, w.URL)
+			for _, e := range sys.MailAddresses {
+				if _, ok := seenEmail[e]; ok {
+					continue
 				}
+				seenEmail[e] = struct{}{}
+				emails = append(emails, e)
 			}
-			if len(sys.TelegramReceivers) > 0 {
-				telegrams = make([]telegramEntry, 0, len(sys.TelegramReceivers))
-				for _, tg := range sys.TelegramReceivers {
-					telegrams = append(telegrams, telegramEntry{BotToken: tg.BotToken, ChatID: tg.ChatID})
+			for _, w := range sys.WebhookReceivers {
+				if _, ok := seenWebhook[w.URL]; ok {
+					continue
 				}
+				seenWebhook[w.URL] = struct{}{}
+				webhooks = append(webhooks, w.URL)
+			}
+			for _, tg := range sys.TelegramReceivers {
+				k := telegramKey(tg.BotToken, tg.ChatID)
+				if _, ok := seenTelegram[k]; ok {
+					continue
+				}
+				seenTelegram[k] = struct{}{}
+				telegrams = append(telegrams, telegramEntry{BotToken: tg.BotToken, ChatID: tg.ChatID})
 			}
 			break
 		}
 	}
 
 	return mailEnabled, webhookEnabled, telegramEnabled, emails, webhooks, telegrams
+}
+
+func telegramKey(botToken string, chatID int64) string {
+	return botToken + "|" + intToString(chatID)
 }
 
 // buildReceiver creates a receiverEntry with effective email, webhook, and telegram lists.

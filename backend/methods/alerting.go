@@ -25,7 +25,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/lib/pq"
 
-	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/helpers"
@@ -176,22 +175,35 @@ func resolveOrgScope(c *gin.Context, user *models.User) ([]string, bool) {
 	return result, true
 }
 
-// ConfigureAlerts handles POST /api/alerts/config
+// configPropagationFanoutTimeout caps how long a POST /alerts/config call
+// will wait for re-rendering+pushing the effective config across descendant
+// tenants. Tuned so a Owner save with hundreds of tenants completes in
+// reasonable time without holding the request open too long.
+const configPropagationFanoutTimeout = 30 * time.Second
+
+// configPropagationFanoutConcurrency limits simultaneous in-flight Mimir
+// pushes to avoid opening hundreds of sockets when an Owner saves.
+const configPropagationFanoutConcurrency = 10
+
+// ConfigureAlerts handles POST /api/alerts/config — writes the CALLER's
+// alerting layer (one row per organization in alert_config_layers) and
+// propagates the change by re-rendering and re-pushing the effective Mimir
+// config for every tenant in the caller's hierarchy.
+//
+// Per the additive model, descendants can ADD recipients/severity rules but
+// cannot disable channels enabled by ancestors: NormalizeLayerForRole strips
+// any explicit *bool=&false from non-Owner layers before storage.
+//
+// Returns a `warnings[]` array listing per-tenant push failures (timeout,
+// 5xx, etc.). The caller's layer is saved regardless of push outcome — Mimir
+// can be reconciled by saving again.
 func ConfigureAlerts(c *gin.Context) {
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
 		return
 	}
 
-	orgID, ok := resolveOrgID(c, user)
-	if !ok {
-		return
-	}
-	if !requireOrgID(c, orgID) {
-		return
-	}
-
-	var req models.AlertingConfig
+	var req models.AlertingConfigLayer
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body: "+err.Error(), nil))
 		return
@@ -234,63 +246,128 @@ func ConfigureAlerts(c *gin.Context) {
 		return
 	}
 
-	cfg := configuration.Config
-	yamlConfig, err := alerting.RenderConfig(
-		cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.SMTPTLS,
-		cfg.AlertingHistoryWebhookURL, cfg.AlertingHistoryWebhookSecret,
-		&req,
-	)
+	// Enforce additive-only contract: descendants cannot encode "disable
+	// channel" by writing explicit false. Owner is exempt (top of the chain
+	// can globally turn a channel off, though OR with descendants may bring
+	// it back).
+	alerting.NormalizeLayerForRole(&req, user.OrgRole)
+
+	// Persist the caller's layer.
+	layerRepo := entities.NewLocalAlertConfigLayersRepository()
+	updatedBy := ""
+	if user.LogtoID != nil {
+		updatedBy = *user.LogtoID
+	}
+	if _, err := layerRepo.Upsert(user.OrganizationID, req, updatedBy, user.Name); err != nil {
+		logger.Error().Err(err).Str("org_id", user.OrganizationID).Msg("failed to save alert config layer")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to save alert config: "+err.Error(), nil))
+		return
+	}
+
+	// Propagate: the caller's save affects the effective config of all
+	// descendants in their hierarchy (including self). Walk the descendant
+	// list, fan-out re-render+push to Mimir for each.
+	userService := local.NewUserService()
+	descendants, err := userService.GetHierarchicalOrganizationIDs(user.OrgRole, user.OrganizationID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to render alertmanager config: "+err.Error(), nil))
+		// Layer saved but couldn't enumerate descendants — return success on
+		// save with a warning; reconciliation possible by re-saving.
+		logger.Warn().Err(err).Str("org_id", user.OrganizationID).Msg("layer saved but hierarchy enumeration failed")
+		c.JSON(http.StatusOK, response.OK("alerting layer saved (propagation skipped)", gin.H{
+			"warnings": []string{fmt.Sprintf("hierarchy: %s", err.Error())},
+		}))
 		return
 	}
 
-	templateFiles, err := alerting.BuildTemplateFiles(req.EmailTemplateLang, cfg.AppURL)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to load alert email templates: "+err.Error(), nil))
-		return
-	}
-
-	if err := alerting.PushConfig(orgID, yamlConfig, templateFiles); err != nil {
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to push config to mimir: "+err.Error(), nil))
-		return
-	}
-
-	c.JSON(http.StatusOK, response.OK("alerting configuration updated successfully", nil))
+	warnings := propagateAlertingConfigToTenants(c.Request.Context(), descendants)
+	logger.LogBusinessOperation(c, "alerts", "save_layer", "alert_config_layer", user.OrganizationID, true, nil)
+	c.JSON(http.StatusOK, response.OK("alerting configuration updated successfully", gin.H{
+		"warnings":         warnings,
+		"propagated_to":    len(descendants) - len(warnings),
+		"affected_tenants": len(descendants),
+	}))
 }
 
-// DisableAlerts handles DELETE /api/alerts/config
+// propagateAlertingConfigToTenants re-renders and re-pushes the effective
+// Mimir config for each tenant in the list, with bounded concurrency and a
+// global timeout. Per-tenant errors are collected as warnings (string
+// `org <logto_id>: <error>`) and returned; non-erroring tenants are pushed
+// successfully. Always returns a non-nil slice.
+func propagateAlertingConfigToTenants(parent context.Context, tenants []string) []string {
+	warnings := []string{}
+	if len(tenants) == 0 {
+		return warnings
+	}
+	var (
+		mu sync.Mutex
+		wg sync.WaitGroup
+	)
+	ctx, cancel := context.WithTimeout(parent, configPropagationFanoutTimeout)
+	defer cancel()
+	sem := make(chan struct{}, configPropagationFanoutConcurrency)
+
+	for _, tenant := range tenants {
+		wg.Add(1)
+		go func(tenant string) {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				mu.Lock()
+				warnings = append(warnings, fmt.Sprintf("org %s: timed out waiting for slot", tenant))
+				mu.Unlock()
+				return
+			}
+			if err := alerting.RenderAndPushEffective(ctx, tenant); err != nil {
+				logger.Warn().Err(err).Str("org_id", tenant).Msg("config propagation failed")
+				mu.Lock()
+				warnings = append(warnings, fmt.Sprintf("org %s: %s", tenant, err.Error()))
+				mu.Unlock()
+			}
+		}(tenant)
+	}
+	wg.Wait()
+	return warnings
+}
+
+// DisableAlerts handles DELETE /api/alerts/config — removes the CALLER's
+// alerting layer entirely. The effective config of all descendant tenants
+// is re-rendered as the merge of the remaining ancestor layers (so the
+// caller's contribution disappears but ancestor recipients/severity rules
+// are preserved). To completely silence a tenant's alerting, every layer
+// in its chain must drop its contribution; alternatively the Owner can do
+// it globally by removing their own layer.
 func DisableAlerts(c *gin.Context) {
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
 		return
 	}
 
-	orgID, ok := resolveOrgID(c, user)
-	if !ok {
-		return
-	}
-	if !requireOrgID(c, orgID) {
+	layerRepo := entities.NewLocalAlertConfigLayersRepository()
+	if err := layerRepo.Delete(user.OrganizationID); err != nil {
+		logger.Error().Err(err).Str("org_id", user.OrganizationID).Msg("failed to delete alert config layer")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to delete alert config: "+err.Error(), nil))
 		return
 	}
 
-	cfg := configuration.Config
-	yamlConfig, err := alerting.RenderConfig(
-		cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.SMTPTLS,
-		cfg.AlertingHistoryWebhookURL, cfg.AlertingHistoryWebhookSecret,
-		nil,
-	)
+	userService := local.NewUserService()
+	descendants, err := userService.GetHierarchicalOrganizationIDs(user.OrgRole, user.OrganizationID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to render blackhole config: "+err.Error(), nil))
+		logger.Warn().Err(err).Str("org_id", user.OrganizationID).Msg("layer deleted but hierarchy enumeration failed")
+		c.JSON(http.StatusOK, response.OK("alerting layer removed (propagation skipped)", gin.H{
+			"warnings": []string{fmt.Sprintf("hierarchy: %s", err.Error())},
+		}))
 		return
 	}
 
-	if err := alerting.PushConfig(orgID, yamlConfig, nil); err != nil {
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to push config to mimir: "+err.Error(), nil))
-		return
-	}
-
-	c.JSON(http.StatusOK, response.OK("all alerts disabled successfully", nil))
+	warnings := propagateAlertingConfigToTenants(c.Request.Context(), descendants)
+	logger.LogBusinessOperation(c, "alerts", "delete_layer", "alert_config_layer", user.OrganizationID, true, nil)
+	c.JSON(http.StatusOK, response.OK("alerting layer removed successfully", gin.H{
+		"warnings":         warnings,
+		"propagated_to":    len(descendants) - len(warnings),
+		"affected_tenants": len(descendants),
+	}))
 }
 
 // alertsListDefaultPageSize matches the per-list default the project uses
@@ -630,53 +707,93 @@ func enrichAlertsWithSystemInfo(orgID string, alerts []map[string]interface{}) {
 	}
 }
 
-// GetAlertingConfig handles GET /api/alerts/config
-// By default returns structured JSON parsed from Mimir YAML.
-// Use ?format=yaml to get the raw (redacted) YAML.
+// GetAlertingConfig handles GET /api/alerts/config — returns the CALLER's
+// own alerting layer (the editable view). The merged "effective" view that
+// is actually pushed to Mimir is exposed by GET /alerts/config/effective.
+// Returns config:null when the caller has never saved a layer (frontend
+// renders the empty-state form).
+//
+// `inherited`: read-only view of the layers above the caller in the
+// hierarchy (Owner/Distributor/Reseller). Useful for the UI to render
+// "this email is set by your distributor and cannot be removed".
 func GetAlertingConfig(c *gin.Context) {
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
 		return
 	}
 
-	orgID, ok := resolveOrgID(c, user)
+	repo := entities.NewLocalAlertConfigLayersRepository()
+	rec, err := repo.Get(user.OrganizationID)
+	if err != nil && !errors.Is(err, entities.ErrAlertConfigLayerNotFound) {
+		logger.Error().Err(err).Str("org_id", user.OrganizationID).Msg("failed to load alert config layer")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to load alert config", nil))
+		return
+	}
+
+	// Build the inherited view: every layer above the caller, in order.
+	chain, err := alerting.ResolveAncestorChain(user.OrganizationID)
+	if err != nil {
+		logger.Warn().Err(err).Str("org_id", user.OrganizationID).Msg("failed to resolve ancestor chain")
+	}
+	inherited := []entities.AlertConfigLayerRecord{}
+	if len(chain) > 1 {
+		ancestors := chain[:len(chain)-1] // drop self
+		anc, err := repo.GetByOrgIDs(ancestors)
+		if err == nil {
+			for _, oid := range ancestors {
+				if rec, ok := anc[oid]; ok {
+					inherited = append(inherited, *rec)
+				}
+			}
+		}
+	}
+
+	resp := gin.H{
+		"layer":     nil,
+		"inherited": inherited,
+	}
+	if rec != nil {
+		resp["layer"] = rec
+	}
+	c.JSON(http.StatusOK, response.OK("alerting layer retrieved successfully", resp))
+}
+
+// GetAlertingConfigEffective handles GET /api/alerts/config/effective —
+// returns the merged effective config that backs the Mimir YAML for a
+// specific tenant. Defaults to the caller's own org when organization_id
+// is omitted; non-Customer roles can request an arbitrary tenant in their
+// hierarchy. Useful for the UI's "preview what's actually applied" view.
+func GetAlertingConfigEffective(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
 		return
 	}
-	if !requireOrgID(c, orgID) {
-		return
+
+	target := c.Query("organization_id")
+	if target == "" {
+		target = user.OrganizationID
+	} else if strings.EqualFold(user.OrgRole, "customer") {
+		// Customer is always pinned to self; ignore param.
+		target = user.OrganizationID
+	} else if !strings.EqualFold(user.OrgRole, "owner") {
+		userService := local.NewUserService()
+		if !userService.IsOrganizationInHierarchy(user.OrgRole, user.OrganizationID, target) {
+			c.JSON(http.StatusForbidden, response.Forbidden("access denied: organization not in your hierarchy", nil))
+			return
+		}
 	}
 
-	body, err := alerting.GetConfig(orgID)
+	effective, provenance, err := alerting.ComputeEffectiveConfig(target)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch alerting config from mimir: "+err.Error(), nil))
+		logger.Error().Err(err).Str("target", target).Msg("failed to compute effective alerting config")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to compute effective config", nil))
 		return
 	}
 
-	// No config exists for this tenant (Mimir 404 or empty body). Return null
-	// so the frontend can show the "no configuration found" empty state.
-	if len(body) == 0 {
-		c.JSON(http.StatusOK, response.OK("alerting configuration retrieved successfully", gin.H{
-			"config": nil,
-		}))
-		return
-	}
-
-	if c.Query("format") == "yaml" {
-		c.JSON(http.StatusOK, response.OK("alerting configuration retrieved successfully", gin.H{
-			"config": alerting.RedactSensitiveConfig(string(body)),
-		}))
-		return
-	}
-
-	cfg, err := alerting.ParseConfig(string(body))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to parse alerting config: "+err.Error(), nil))
-		return
-	}
-
-	c.JSON(http.StatusOK, response.OK("alerting configuration retrieved successfully", gin.H{
-		"config": cfg,
+	c.JSON(http.StatusOK, response.OK("effective alerting configuration retrieved successfully", gin.H{
+		"organization_id":     target,
+		"config":              effective,
+		"contributing_layers": provenance,
 	}))
 }
 

@@ -311,6 +311,92 @@ components:
         status:
           $ref: '#/components/schemas/AlertmanagerSilenceStatus'
 
+    AlertingConfigLayer:
+      type: object
+      description: |
+        Per-organization alerting configuration layer. The effective per-tenant
+        config (what Alertmanager actually sees) is derived as the merge of
+        every layer walking up the hierarchy from the tenant to the Owner.
+
+        Channel toggles (`mail_enabled`, `webhook_enabled`, `telegram_enabled`)
+        are NULLABLE so "not set at this layer / inherit from above" is
+        distinguishable from "explicit". Per the additive contract, the server
+        normalises any explicit `false` from non-Owner layers to null on save;
+        only Owner can globally turn a channel off, and even then descendants
+        with `true` will bring it back via OR at merge time.
+
+        Lists (mail_addresses, webhook_receivers, telegram_receivers,
+        severities, systems) are union-deduped at merge time. Receivers dedupe
+        by (name, url) for webhooks and (bot_token, chat_id) for telegram.
+
+        `email_template_lang` is the only field that allows descendant
+        override (deepest non-empty wins) — it's a per-tenant rendering
+        preference, not a behaviour modification of ancestor recipients.
+      properties:
+        mail_enabled:
+          type: boolean
+          nullable: true
+          description: Enable mail at this layer (null = no opinion, inherit from above)
+        webhook_enabled:
+          type: boolean
+          nullable: true
+        telegram_enabled:
+          type: boolean
+          nullable: true
+        mail_addresses:
+          type: array
+          items:
+            type: string
+            format: email
+          maxItems: 50
+        webhook_receivers:
+          type: array
+          items:
+            $ref: '#/components/schemas/WebhookReceiver'
+          maxItems: 20
+        telegram_receivers:
+          type: array
+          items:
+            $ref: '#/components/schemas/TelegramReceiver'
+          maxItems: 20
+        severities:
+          type: array
+          items:
+            $ref: '#/components/schemas/SeverityOverride'
+          maxItems: 10
+        systems:
+          type: array
+          items:
+            $ref: '#/components/schemas/SystemOverride'
+          maxItems: 500
+        email_template_lang:
+          type: string
+          enum: [en, it]
+          description: Per-tenant rendering language. Deepest non-empty wins at merge time.
+
+    AlertConfigLayerRecord:
+      type: object
+      description: A saved alerting layer with the audit metadata used by the UI.
+      properties:
+        organization_id:
+          type: string
+        config:
+          $ref: '#/components/schemas/AlertingConfigLayer'
+        updated_by_user_id:
+          type: string
+          nullable: true
+          description: logto_id of the user who last saved this layer
+        updated_by_name:
+          type: string
+          nullable: true
+          description: Display name of the user who last saved this layer
+        updated_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
     AlertingConfig:
       type: object
       description: |
@@ -11724,34 +11810,62 @@ paths:
       operationId: configureAlerts
       tags:
         - Backend - Alerts
-      summary: Configure alert routing
+      summary: Save the caller's alerting layer
       description: |
-        Accepts a generic AlertingConfig JSON, renders it into a valid Alertmanager YAML configuration,
-        and pushes it to Mimir. SMTP settings are injected server-side.
-        A built-in history webhook (ALERTING_HISTORY_WEBHOOK_URL) is always included and cannot be disabled.
-        Priority order: per-system overrides > per-severity overrides > global settings.
-        Address fallback: if an override's address list is empty, global addresses are used.
+        Saves the CALLER's alerting configuration layer (one row per organization
+        in alert_config_layers). The body is an `AlertingConfigLayer` — same shape
+        as the legacy AlertingConfig, but channel toggles are nullable so "no
+        opinion at this layer" is distinguishable from "explicit false".
+
+        After save, the effective per-tenant Mimir YAML is recomputed (merge of
+        all layers walking up to the Owner) and pushed to every tenant in the
+        caller's hierarchy with bounded concurrency. Per-tenant push failures
+        are returned in `warnings[]`; the caller's layer is saved regardless of
+        push outcome (Mimir can be reconciled by saving again).
+
+        Additive-only contract: descendants can ADD recipients/severity rules
+        but cannot disable channels enabled by ancestors. The server normalises
+        any explicit `false` from non-Owner layers to null on storage.
+
+        Requires `manage:systems` permission.
       security:
         - BearerAuth: []
-      parameters:
-        - name: organization_id
-          in: query
-          description: Target organization ID. Required for Owner, Distributor, and Reseller roles. Customer role uses their own organization automatically.
-          schema:
-            type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AlertingConfig'
+              $ref: '#/components/schemas/AlertingConfigLayer'
       responses:
         '200':
-          description: Alerting configuration updated
+          description: Layer saved (and propagation attempted)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: alerting configuration updated successfully
+                  data:
+                    type: object
+                    properties:
+                      affected_tenants:
+                        type: integer
+                        description: Number of tenants in caller's hierarchy whose effective config was recomputed
+                      propagated_to:
+                        type: integer
+                        description: Of `affected_tenants`, how many were successfully pushed to Mimir
+                      warnings:
+                        type: array
+                        description: |
+                          Per-tenant push errors. Always present; empty when every push succeeded.
+                          Each entry: `org <logto_id>: <error>`.
+                        items:
+                          type: string
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -11764,23 +11878,41 @@ paths:
       operationId: disableAlerts
       tags:
         - Backend - Alerts
-      summary: Disable all alerts
-      description: Replaces the Alertmanager config with a blackhole-only configuration, silencing all alerts for the organization. The built-in history webhook remains active.
+      summary: Remove the caller's alerting layer
+      description: |
+        Removes the CALLER's layer from alert_config_layers. The effective config
+        of all descendant tenants is recomputed without the caller's contribution
+        and re-pushed to Mimir; ancestor layers (Owner/Distributor/Reseller)
+        are preserved. To completely silence a tenant, every layer in its chain
+        must drop its contribution.
+        Requires `manage:systems` permission.
       security:
         - BearerAuth: []
-      parameters:
-        - name: organization_id
-          in: query
-          description: Target organization ID. Required for Owner, Distributor, and Reseller roles.
-          schema:
-            type: string
       responses:
         '200':
-          description: All alerts disabled
+          description: Layer removed (and propagation attempted)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: alerting layer removed successfully
+                  data:
+                    type: object
+                    properties:
+                      affected_tenants:
+                        type: integer
+                      propagated_to:
+                        type: integer
+                      warnings:
+                        type: array
+                        items:
+                          type: string
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -11793,27 +11925,23 @@ paths:
       operationId: getAlertingConfig
       tags:
         - Backend - Alerts
-      summary: Get current alerting configuration
+      summary: Get the caller's editable alerting layer (+ inherited view)
       description: |
-        Retrieves the current alerting configuration from Mimir (source of truth).
-        By default returns structured JSON (AlertingConfig). Use ?format=yaml to get the raw redacted YAML.
+        Returns:
+          - `layer`: the caller's own saved AlertingConfigLayer, or null if
+            none has been saved yet.
+          - `inherited[]`: the read-only layers from the caller's ancestors,
+            in order Owner → ... → caller's parent. The frontend renders these
+            entries as non-removable so the user understands which fields are
+            inherited.
+
+        For the merged effective configuration (what Alertmanager actually
+        sees) use `GET /alerts/config/effective`.
       security:
         - BearerAuth: []
-      parameters:
-        - name: organization_id
-          in: query
-          description: Target organization ID. Required for Owner, Distributor, and Reseller roles.
-          schema:
-            type: string
-        - name: format
-          in: query
-          description: Response format. Omit for JSON (default) or set to "yaml" for raw YAML.
-          schema:
-            type: string
-            enum: [yaml]
       responses:
         '200':
-          description: Current alerting configuration
+          description: Caller's layer + inherited ancestor layers
           content:
             application/json:
               schema:
@@ -11824,17 +11952,73 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: alerting configuration retrieved successfully
+                    example: alerting layer retrieved successfully
                   data:
                     type: object
                     properties:
+                      layer:
+                        nullable: true
+                        $ref: '#/components/schemas/AlertConfigLayerRecord'
+                      inherited:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AlertConfigLayerRecord'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /alerts/config/effective:
+    get:
+      operationId: getAlertingConfigEffective
+      tags:
+        - Backend - Alerts
+      summary: Get the merged effective alerting config for a tenant
+      description: |
+        Returns the merged effective AlertingConfig that backs the Mimir YAML
+        for a target tenant. Useful for "preview what's actually applied"
+        views and debugging the layered model.
+
+        - Owner: any tenant in the system.
+        - Distributor / Reseller: any tenant in their hierarchy (403 otherwise).
+        - Customer: always pinned to self regardless of `organization_id`.
+
+        The `contributing_layers[]` list reports which org's layer participated
+        in the merge — useful to render provenance ("this email is from your
+        Distributor").
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: organization_id
+          in: query
+          description: Target tenant. Defaults to the caller's own organization.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Effective merged configuration
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: effective alerting configuration retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      organization_id:
+                        type: string
                       config:
-                        oneOf:
-                          - $ref: '#/components/schemas/AlertingConfig'
-                          - type: string
-                            description: Raw redacted YAML (when ?format=yaml)
-        '400':
-          $ref: '#/components/responses/BadRequest'
+                        $ref: '#/components/schemas/AlertingConfig'
+                      contributing_layers:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AlertConfigLayerRecord'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
