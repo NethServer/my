@@ -170,14 +170,23 @@ func TestRenderConfig_SeverityOverride_CustomAddresses(t *testing.T) {
 
 	assert.Contains(t, out, "severity-critical-receiver")
 	assert.Contains(t, out, "oncall@example.com")
-	// Global address must not appear in the critical receiver
-	idx := strings.Index(out, "severity-critical-receiver")
-	afterCritical := out[idx:]
-	nextReceiver := strings.Index(afterCritical[1:], "- name:")
+	// Opzione 2 (additive rendering): the global address SHOULD appear in
+	// the critical receiver — adding a severity-specific recipient extends
+	// the recipient list rather than replacing it. This avoids silently
+	// blinding upstream layers when a descendant tunes severity routing.
+	// Look at the actual receiver definition (in the `receivers:` section,
+	// after the routes), not the route reference.
+	receiverDef := "- name: 'severity-critical-receiver'"
+	idx := strings.Index(out, receiverDef)
+	require.GreaterOrEqual(t, idx, 0, "expected receiver definition for severity-critical-receiver")
+	afterCritical := out[idx+len(receiverDef):]
+	nextReceiver := strings.Index(afterCritical, "- name:")
+	criticalDef := afterCritical
 	if nextReceiver > 0 {
-		criticalSection := afterCritical[:nextReceiver]
-		assert.NotContains(t, criticalSection, "global@example.com")
+		criticalDef = afterCritical[:nextReceiver]
 	}
+	assert.Contains(t, criticalDef, "global@example.com", "global address should be unioned into the critical receiver")
+	assert.Contains(t, criticalDef, "oncall@example.com")
 }
 
 func TestRenderConfig_SeverityOverride_InheritsGlobalAddresses(t *testing.T) {
@@ -221,6 +230,41 @@ func TestRenderConfig_SystemOverride(t *testing.T) {
 	assert.Contains(t, out, `system_key="ns8-prod"`)
 	assert.Contains(t, out, "system-ns8-prod-receiver")
 	assert.Contains(t, out, "ops@example.com")
+}
+
+// TestRenderConfig_AdditiveSystem regression-tests Opzione 2: a system
+// override that adds a recipient must NOT silently drop the global
+// recipients (the pre-Opzione 2 REPLACE behaviour). Models the layered
+// scenario where a Customer adds an extra email for a specific system; the
+// Owner's global recipient must still receive that system's alerts.
+func TestRenderConfig_AdditiveSystem(t *testing.T) {
+	host, port, user, pass, from, tls := smtpArgs()
+	cfg := &models.AlertingConfig{
+		MailEnabled:   true,
+		MailAddresses: []string{"alerts@msp.it"},
+		Systems: []models.SystemOverride{
+			{
+				SystemKey:     "NETH-PROD-DB",
+				MailAddresses: []string{"dba@cust.it"},
+			},
+		},
+	}
+	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
+	require.NoError(t, err)
+	isValidYAML(t, out)
+
+	// Both recipients must appear in the system receiver definition.
+	receiverDef := "- name: 'system-NETH-PROD-DB-receiver'"
+	idx := strings.Index(out, receiverDef)
+	require.GreaterOrEqual(t, idx, 0)
+	after := out[idx+len(receiverDef):]
+	next := strings.Index(after, "- name:")
+	systemBlock := after
+	if next > 0 {
+		systemBlock = after[:next]
+	}
+	assert.Contains(t, systemBlock, "alerts@msp.it", "global recipient should be unioned into system override")
+	assert.Contains(t, systemBlock, "dba@cust.it")
 }
 
 func TestRenderConfig_SystemOverride_Disabled(t *testing.T) {
@@ -389,7 +433,10 @@ func TestParseConfig_SeverityOverride_Roundtrip(t *testing.T) {
 	assert.Equal(t, "critical", parsed.Severities[0].Severity)
 	require.NotNil(t, parsed.Severities[0].MailEnabled)
 	assert.True(t, *parsed.Severities[0].MailEnabled)
-	assert.Equal(t, []string{"oncall@example.com"}, parsed.Severities[0].MailAddresses)
+	// Opzione 2 (additive rendering): the severity-critical receiver carries
+	// BOTH the global and the severity-specific recipients. The roundtrip
+	// reflects what's actually pushed to Mimir.
+	assert.ElementsMatch(t, []string{"global@example.com", "oncall@example.com"}, parsed.Severities[0].MailAddresses)
 }
 
 func TestParseConfig_SystemOverride_Roundtrip(t *testing.T) {
@@ -416,7 +463,10 @@ func TestParseConfig_SystemOverride_Roundtrip(t *testing.T) {
 	assert.Equal(t, "ns8-prod", parsed.Systems[0].SystemKey)
 	require.NotNil(t, parsed.Systems[0].MailEnabled)
 	assert.True(t, *parsed.Systems[0].MailEnabled)
-	assert.Equal(t, []string{"ops@example.com"}, parsed.Systems[0].MailAddresses)
+	// Opzione 2 (additive rendering): the system override receiver carries
+	// BOTH the global and the system-specific recipients. The roundtrip
+	// reflects what's actually pushed to Mimir.
+	assert.ElementsMatch(t, []string{"global@example.com", "ops@example.com"}, parsed.Systems[0].MailAddresses)
 }
 
 func TestParseConfig_MimirWrapperFormat(t *testing.T) {

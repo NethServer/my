@@ -287,10 +287,11 @@ func main() {
 			// Per-alert audit timeline (silence created/updated/removed events for the alert detail drawer)
 			alertsGroup.GET("/:fingerprint/activity", methods.GetAlertActivity)
 
-			// Configuration management
-			alertsGroup.GET("/config", methods.GetAlertingConfig) // Get current alerting configuration
-			alertsGroup.POST("/config", methods.ConfigureAlerts)  // Configure alert routing (manage:systems required)
-			alertsGroup.DELETE("/config", methods.DisableAlerts)  // Disable all alerts (manage:systems required)
+			// Configuration management (hierarchical layered model)
+			alertsGroup.GET("/config", methods.GetAlertingConfig)                    // Caller's own layer + inherited (read-only) view
+			alertsGroup.GET("/config/effective", methods.GetAlertingConfigEffective) // Merged effective config for a tenant
+			alertsGroup.POST("/config", methods.ConfigureAlerts)                     // Save caller's layer + propagate to descendants (manage:systems required)
+			alertsGroup.DELETE("/config", methods.DisableAlerts)                     // Remove caller's layer + propagate to descendants (manage:systems required)
 		}
 
 		// ===========================================

@@ -11,62 +11,62 @@ import (
 
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/logger"
-	"github.com/nethesis/my/backend/models"
 )
 
 // provisionRetryDelays controls the backoff between retry attempts when
 // pushing the default config to Mimir fails with a transient error.
 var provisionRetryDelays = []time.Duration{1 * time.Second, 3 * time.Second, 5 * time.Second}
 
-// ProvisionDefaultConfig pushes a minimal default alerting configuration to Mimir
-// for the given organization. The built-in history webhook is always active so
-// resolved alerts are persisted in the alert_history table.
+// ProvisionDefaultConfig is called when a new organization is created. It
+// pushes the EFFECTIVE merged config for that org's tenant to Mimir, so any
+// layers already saved by ancestors (Owner/Distributor/Reseller) take effect
+// immediately. The new org itself starts with no layer of its own; the
+// admin can save one later via POST /alerts/config.
 //
-// If defaultEmail is non-empty it is stored as the default mail recipient so it
-// appears pre-filled in the UI, but mail notifications are always disabled on
-// creation. Webhook notifications are also always disabled.
-// Both must be explicitly enabled by the user after creation.
+// defaultEmail (typically the org's contact email captured at creation time)
+// and defaultLang are kept as a convenience for first-time provisioning when
+// no ancestor has saved a layer yet. They render into the YAML directly,
+// without being persisted as a layer — the user is expected to confirm and
+// save them via the UI to make them part of the layered model.
 //
-// defaultLang sets the email template language: "it" or "en". Invalid or empty
-// values default to English.
-//
-// This is typically called when a new organization is created, to ensure that
-// alerts received before the user configures alerting manually are still
-// captured in the history and that the empty-receiver fallback is never used.
+// The built-in history webhook is always active so resolved alerts are
+// persisted in alert_history regardless of the admin's choices.
 func ProvisionDefaultConfig(orgID, defaultEmail, defaultLang string) error {
 	if orgID == "" {
 		return fmt.Errorf("orgID is required")
 	}
 
-	// Normalize language: accept only "it" or "en", fall back to "en" otherwise.
-	lang := ""
-	switch defaultLang {
-	case "it", "en":
-		lang = defaultLang
+	// Compute the effective merged config from any ancestor layers that exist.
+	effective, _, err := ComputeEffectiveConfig(orgID)
+	if err != nil {
+		// Non-fatal: fall back to the legacy default-email/lang behavior so
+		// the org is at least provisioned with a valid YAML.
+		logger.Warn().Err(err).Str("org_id", orgID).Msg("could not compute effective config at provision; using local defaults")
+	}
+
+	// If no ancestor has populated anything, seed the org's first push with
+	// the local defaults (email pre-filled, channel disabled, lang chosen).
+	if len(effective.MailAddresses) == 0 && defaultEmail != "" {
+		effective.MailAddresses = []string{defaultEmail}
+	}
+	if effective.EmailTemplateLang == "" {
+		switch defaultLang {
+		case "it", "en":
+			effective.EmailTemplateLang = defaultLang
+		}
 	}
 
 	cfg := configuration.Config
-	defaultAlerting := &models.AlertingConfig{
-		MailEnabled:       false,
-		WebhookEnabled:    false,
-		MailAddresses:     []string{},
-		WebhookReceivers:  []models.WebhookReceiver{},
-		EmailTemplateLang: lang,
-	}
-	if defaultEmail != "" {
-		defaultAlerting.MailAddresses = []string{defaultEmail}
-	}
-
 	yamlConfig, err := RenderConfig(
 		cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.SMTPTLS,
 		cfg.AlertingHistoryWebhookURL, cfg.AlertingHistoryWebhookSecret,
-		defaultAlerting,
+		&effective,
 	)
 	if err != nil {
 		return fmt.Errorf("rendering default alerting config: %w", err)
 	}
 
-	templateFiles, err := BuildTemplateFiles(lang, cfg.AppURL)
+	templateFiles, err := BuildTemplateFiles(effective.EmailTemplateLang, cfg.AppURL)
 	if err != nil {
 		return fmt.Errorf("building default alerting templates: %w", err)
 	}
