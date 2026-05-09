@@ -142,18 +142,6 @@ components:
         data:
           $ref: '#/components/schemas/ErrorData'
 
-    SuccessResponse:
-      type: object
-      properties:
-        code:
-          type: integer
-          example: 200
-        message:
-          type: string
-        data:
-          type: object
-          nullable: true
-
     WebhookReceiver:
       type: object
       required:
@@ -162,11 +150,21 @@ components:
       properties:
         name:
           type: string
+          maxLength: 100
           description: Descriptive name for this webhook receiver
         url:
           type: string
           format: uri
-          description: Webhook URL
+          maxLength: 2048
+          description: |
+            Webhook URL. Validation rejects non-public destinations (loopback,
+            RFC1918, RFC6598 CGNAT, link-local, multicast, cloud metadata) and
+            requires a canonical hostname (containing at least one letter) or a
+            valid IP literal. Only http/https schemes are accepted; URLs cannot
+            embed userinfo. When this layer is read by a downstream tenant
+            (inherited or contributing-layers view), the URL is masked to
+            scheme://host/[REDACTED] to avoid leaking bearer-equivalent paths
+            (e.g. Slack/Teams webhook secrets).
     TelegramReceiver:
       type: object
       required:
@@ -175,7 +173,12 @@ components:
       properties:
         bot_token:
           type: string
-          description: Telegram bot token obtained from @BotFather
+          maxLength: 256
+          description: |
+            Telegram bot token obtained from @BotFather. Replaced with
+            "[REDACTED]" when this layer is read by a downstream tenant —
+            never returned in inherited[] or contributing_layers[] for non-owning
+            callers, since it grants full bot impersonation.
           example: "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
         chat_id:
           type: integer
@@ -204,18 +207,22 @@ components:
           nullable: true
         mail_addresses:
           type: array
-          description: Email addresses for this severity. Inherits global addresses if empty.
+          description: Email addresses for this severity. UNION-merged with global at render time (Opzione 2).
+          maxItems: 50
           items:
             type: string
             format: email
+            maxLength: 320
         webhook_receivers:
           type: array
-          description: Webhook receivers for this severity. Inherits global receivers if empty.
+          description: Webhook receivers for this severity. UNION-merged with global at render time.
+          maxItems: 20
           items:
             $ref: '#/components/schemas/WebhookReceiver'
         telegram_receivers:
           type: array
-          description: Telegram receivers for this severity. Inherits global receivers if empty.
+          description: Telegram receivers for this severity. UNION-merged with global at render time.
+          maxItems: 20
           items:
             $ref: '#/components/schemas/TelegramReceiver'
     SystemOverride:
@@ -225,7 +232,12 @@ components:
       properties:
         system_key:
           type: string
-          description: The system_key label value to match
+          maxLength: 128
+          pattern: '^[A-Za-z0-9_:.\-]+$'
+          description: |
+            The system_key label value to match. Restricted to a safe character
+            set since it is rendered verbatim into an Alertmanager matcher
+            (inside a double-quoted YAML scalar).
         mail_enabled:
           type: boolean
           description: Override global mail_enabled for this system
@@ -240,18 +252,22 @@ components:
           nullable: true
         mail_addresses:
           type: array
-          description: Email addresses for this system. Inherits global addresses if empty.
+          description: Email addresses for this system. UNION-merged with global at render time (Opzione 2).
+          maxItems: 50
           items:
             type: string
             format: email
+            maxLength: 320
         webhook_receivers:
           type: array
-          description: Webhook receivers for this system. Inherits global receivers if empty.
+          description: Webhook receivers for this system. UNION-merged with global at render time.
+          maxItems: 20
           items:
             $ref: '#/components/schemas/WebhookReceiver'
         telegram_receivers:
           type: array
-          description: Telegram receivers for this system. Inherits global receivers if empty.
+          description: Telegram receivers for this system. UNION-merged with global at render time.
+          maxItems: 20
           items:
             $ref: '#/components/schemas/TelegramReceiver'
     AlertmanagerSilenceStatus:
@@ -326,12 +342,17 @@ components:
         with `true` will bring it back via OR at merge time.
 
         Lists (mail_addresses, webhook_receivers, telegram_receivers,
-        severities, systems) are union-deduped at merge time. Receivers dedupe
-        by (name, url) for webhooks and (bot_token, chat_id) for telegram.
+        severities, systems) are union-deduped at merge time. Webhook
+        receivers dedupe by URL only (so two ancestors contributing the same
+        URL with different display names produce one delivery, not two);
+        telegram receivers dedupe by (bot_token, chat_id).
 
         `email_template_lang` is the only field that allows descendant
         override (deepest non-empty wins) — it's a per-tenant rendering
         preference, not a behaviour modification of ancestor recipients.
+
+        Body size: the request body is capped at 1 MiB on POST. Oversized
+        requests are rejected with HTTP 413 before binding.
       properties:
         mail_enabled:
           type: boolean
@@ -348,6 +369,7 @@ components:
           items:
             type: string
             format: email
+            maxLength: 320
           maxItems: 50
         webhook_receivers:
           type: array
@@ -372,11 +394,20 @@ components:
         email_template_lang:
           type: string
           enum: [en, it]
+          maxLength: 8
           description: Per-tenant rendering language. Deepest non-empty wins at merge time.
 
     AlertConfigLayerRecord:
       type: object
-      description: A saved alerting layer with the audit metadata used by the UI.
+      description: |
+        A saved alerting layer with the audit metadata used by the UI.
+
+        When this record is returned as part of an `inherited[]` or
+        `contributing_layers[]` array (i.e. NOT the caller's own layer),
+        the embedded `config` is redacted (`bot_token` → `[REDACTED]`,
+        webhook URL paths/queries replaced with `[REDACTED]`) and
+        `updated_by_user_id` is omitted to avoid leaking the upstream
+        admin's identity. `updated_by_name` is preserved for UX.
       properties:
         organization_id:
           type: string
@@ -385,7 +416,10 @@ components:
         updated_by_user_id:
           type: string
           nullable: true
-          description: logto_id of the user who last saved this layer
+          description: |
+            logto_id of the user who last saved this layer. Omitted when
+            the record is part of an inherited[] or contributing_layers[]
+            array for a non-owning caller.
         updated_by_name:
           type: string
           nullable: true
@@ -11827,7 +11861,11 @@ paths:
         but cannot disable channels enabled by ancestors. The server normalises
         any explicit `false` from non-Owner layers to null on storage.
 
-        Requires `manage:systems` permission.
+        Save+propagate is serialised per-organization (in-process mutex) to
+        prevent two concurrent saves from racing at the Mimir push step. Body
+        is capped at 1 MiB; oversized payloads are rejected with HTTP 413.
+
+        Requires `manage:alerts` permission (Admin/Super roles only).
       security:
         - BearerAuth: []
       requestBody:
@@ -11872,6 +11910,19 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '413':
+          description: Request body exceeds the configured maximum (1 MiB).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 413
+                  message:
+                    type: string
+                    example: request body exceeds the configured maximum
         '500':
           $ref: '#/components/responses/InternalServerError'
     delete:
@@ -11885,7 +11936,7 @@ paths:
         and re-pushed to Mimir; ancestor layers (Owner/Distributor/Reseller)
         are preserved. To completely silence a tenant, every layer in its chain
         must drop its contribution.
-        Requires `manage:systems` permission.
+        Requires `manage:alerts` permission (Admin/Super roles only).
       security:
         - BearerAuth: []
       responses:
@@ -11929,14 +11980,21 @@ paths:
       description: |
         Returns:
           - `layer`: the caller's own saved AlertingConfigLayer, or null if
-            none has been saved yet.
+            none has been saved yet. Returned with secrets intact (the caller
+            owns this layer and may need to edit them).
           - `inherited[]`: the read-only layers from the caller's ancestors,
             in order Owner → ... → caller's parent. The frontend renders these
             entries as non-removable so the user understands which fields are
-            inherited.
+            inherited. Secrets in inherited entries are SCRUBBED:
+              * `telegram_receivers[].bot_token` → `[REDACTED]`
+              * `webhook_receivers[].url` → `scheme://host/[REDACTED]`
+              * `updated_by_user_id` → omitted (display name is preserved)
+            so a descendant cannot read upstream tokens from this view.
 
         For the merged effective configuration (what Alertmanager actually
         sees) use `GET /alerts/config/effective`.
+
+        Requires `read:alerts` permission (Admin/Super roles only).
       security:
         - BearerAuth: []
       responses:
@@ -11985,7 +12043,14 @@ paths:
 
         The `contributing_layers[]` list reports which org's layer participated
         in the merge — useful to render provenance ("this email is from your
-        Distributor").
+        Distributor"). Layer entries that do NOT belong to the caller's own
+        organization are scrubbed identically to the inherited[] view in
+        `GET /alerts/config`: bot tokens replaced with `[REDACTED]`, webhook
+        URLs masked to `scheme://host/[REDACTED]`, and `updated_by_user_id`
+        omitted. The merged `config` object itself is also scrubbed because
+        it folds in secrets from upstream layers.
+
+        Requires `read:alerts` permission (Admin/Super roles only).
       security:
         - BearerAuth: []
       parameters:

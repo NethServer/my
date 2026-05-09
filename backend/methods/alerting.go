@@ -185,6 +185,54 @@ const configPropagationFanoutTimeout = 30 * time.Second
 // pushes to avoid opening hundreds of sockets when an Owner saves.
 const configPropagationFanoutConcurrency = 10
 
+// alertLayerMutexes guards per-organization layer save+propagate operations.
+// Two parallel POSTs/DELETEs for the same org would otherwise race at the
+// Mimir push step: the DB upsert atomically last-write-wins, but the two
+// fan-outs run concurrently and the slower-arriving push can land AFTER
+// the faster one — leaving Mimir with stale state while the DB holds the
+// newer layer. We serialise per-org to make save+propagate a critical
+// section. Different orgs are independent (no global lock).
+//
+// Single-process scope. If/when the backend is deployed multi-instance,
+// swap this for a Postgres advisory lock keyed on the same org_id.
+var alertLayerMutexes sync.Map // map[string]*sync.Mutex
+
+func acquireOrgLayerLock(orgID string) func() {
+	mu, _ := alertLayerMutexes.LoadOrStore(orgID, &sync.Mutex{})
+	m := mu.(*sync.Mutex)
+	m.Lock()
+	return m.Unlock
+}
+
+// snapshotLayerForAudit produces a JSON-serialisable, secret-redacted snapshot
+// of a layer record suitable for inclusion in audit log details. The unredacted
+// layer is on disk in alert_config_layers; the audit log only needs to record
+// what changed, not the secrets themselves.
+func snapshotLayerForAudit(rec *entities.AlertConfigLayerRecord) map[string]interface{} {
+	if rec == nil {
+		return nil
+	}
+	cfg := alerting.RedactLayerForDownstream(rec.Config)
+	return map[string]interface{}{
+		"organization_id":    rec.OrganizationID,
+		"config":             cfg,
+		"updated_by_user_id": rec.UpdatedByUserID,
+		"updated_by_name":    rec.UpdatedByName,
+		"updated_at":         rec.UpdatedAt,
+	}
+}
+
+// snapshotLayerBodyForAudit captures the inbound layer body (post-Normalize)
+// before persistence, so the audit "after" reflects what we intend to write.
+// Same redaction policy as snapshotLayerForAudit.
+func snapshotLayerBodyForAudit(orgID string, layer models.AlertingConfigLayer) map[string]interface{} {
+	cfg := alerting.RedactLayerForDownstream(layer)
+	return map[string]interface{}{
+		"organization_id": orgID,
+		"config":          cfg,
+	}
+}
+
 // ConfigureAlerts handles POST /api/alerts/config — writes the CALLER's
 // alerting layer (one row per organization in alert_config_layers) and
 // propagates the change by re-rendering and re-pushing the effective Mimir
@@ -205,6 +253,13 @@ func ConfigureAlerts(c *gin.Context) {
 
 	var req models.AlertingConfigLayer
 	if err := c.ShouldBindJSON(&req); err != nil {
+		// MaxBytesReader (registered via middleware.MaxBodySize on the route)
+		// surfaces as a "http: request body too large" error here; map to 413
+		// so the client can distinguish "too big" from "malformed".
+		if strings.Contains(err.Error(), "request body too large") {
+			c.JSON(http.StatusRequestEntityTooLarge, response.Error(http.StatusRequestEntityTooLarge, "request body exceeds the configured maximum", nil))
+			return
+		}
 		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}
@@ -252,8 +307,22 @@ func ConfigureAlerts(c *gin.Context) {
 	// it back).
 	alerting.NormalizeLayerForRole(&req, user.OrgRole)
 
-	// Persist the caller's layer.
+	// Serialise save+propagate per-org: prevents two concurrent saves from
+	// racing at the Mimir push step, where the slower-arriving fan-out can
+	// land AFTER the faster one and leave Mimir with stale state while the
+	// DB holds the newer layer.
+	releaseLock := acquireOrgLayerLock(user.OrganizationID)
+	defer releaseLock()
+
+	// Persist the caller's layer. Capture the previous layer (if any) BEFORE
+	// the upsert so the audit log records the actual diff that was applied.
 	layerRepo := entities.NewLocalAlertConfigLayersRepository()
+	prevLayer, prevErr := layerRepo.Get(user.OrganizationID)
+	if prevErr != nil && !errors.Is(prevErr, entities.ErrAlertConfigLayerNotFound) {
+		logger.Warn().Err(prevErr).Str("org_id", user.OrganizationID).Msg("failed to read previous layer for audit; continuing")
+		prevLayer = nil
+	}
+
 	updatedBy := ""
 	if user.LogtoID != nil {
 		updatedBy = *user.LogtoID
@@ -273,6 +342,11 @@ func ConfigureAlerts(c *gin.Context) {
 		// Layer saved but couldn't enumerate descendants — return success on
 		// save with a warning; reconciliation possible by re-saving.
 		logger.Warn().Err(err).Str("org_id", user.OrganizationID).Msg("layer saved but hierarchy enumeration failed")
+		auditDetails := map[string]interface{}{
+			"before": snapshotLayerForAudit(prevLayer),
+			"after":  snapshotLayerBodyForAudit(user.OrganizationID, req),
+		}
+		logger.LogBusinessOperationDetails(c, "alerts", "save_layer", "alert_config_layer", user.OrganizationID, true, nil, auditDetails)
 		c.JSON(http.StatusOK, response.OK("alerting layer saved (propagation skipped)", gin.H{
 			"warnings": []string{fmt.Sprintf("hierarchy: %s", err.Error())},
 		}))
@@ -280,7 +354,13 @@ func ConfigureAlerts(c *gin.Context) {
 	}
 
 	warnings := propagateAlertingConfigToTenants(c.Request.Context(), descendants)
-	logger.LogBusinessOperation(c, "alerts", "save_layer", "alert_config_layer", user.OrganizationID, true, nil)
+	auditDetails := map[string]interface{}{
+		"before":               snapshotLayerForAudit(prevLayer),
+		"after":                snapshotLayerBodyForAudit(user.OrganizationID, req),
+		"affected_tenants":     len(descendants),
+		"propagation_warnings": len(warnings),
+	}
+	logger.LogBusinessOperationDetails(c, "alerts", "save_layer", "alert_config_layer", user.OrganizationID, true, nil, auditDetails)
 	c.JSON(http.StatusOK, response.OK("alerting configuration updated successfully", gin.H{
 		"warnings":         warnings,
 		"propagated_to":    len(descendants) - len(warnings),
@@ -344,7 +424,21 @@ func DisableAlerts(c *gin.Context) {
 		return
 	}
 
+	// Same critical section as ConfigureAlerts: serialise per-org so a
+	// concurrent save+delete race cannot leave Mimir with stale state.
+	releaseLock := acquireOrgLayerLock(user.OrganizationID)
+	defer releaseLock()
+
 	layerRepo := entities.NewLocalAlertConfigLayersRepository()
+
+	// Capture pre-delete snapshot for audit so the log records what was
+	// removed, not just "delete_layer".
+	prevLayer, prevErr := layerRepo.Get(user.OrganizationID)
+	if prevErr != nil && !errors.Is(prevErr, entities.ErrAlertConfigLayerNotFound) {
+		logger.Warn().Err(prevErr).Str("org_id", user.OrganizationID).Msg("failed to read previous layer for audit; continuing")
+		prevLayer = nil
+	}
+
 	if err := layerRepo.Delete(user.OrganizationID); err != nil {
 		logger.Error().Err(err).Str("org_id", user.OrganizationID).Msg("failed to delete alert config layer")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to delete alert config: "+err.Error(), nil))
@@ -355,6 +449,8 @@ func DisableAlerts(c *gin.Context) {
 	descendants, err := userService.GetHierarchicalOrganizationIDs(user.OrgRole, user.OrganizationID)
 	if err != nil {
 		logger.Warn().Err(err).Str("org_id", user.OrganizationID).Msg("layer deleted but hierarchy enumeration failed")
+		auditDetails := map[string]interface{}{"before": snapshotLayerForAudit(prevLayer), "after": nil}
+		logger.LogBusinessOperationDetails(c, "alerts", "delete_layer", "alert_config_layer", user.OrganizationID, true, nil, auditDetails)
 		c.JSON(http.StatusOK, response.OK("alerting layer removed (propagation skipped)", gin.H{
 			"warnings": []string{fmt.Sprintf("hierarchy: %s", err.Error())},
 		}))
@@ -362,7 +458,13 @@ func DisableAlerts(c *gin.Context) {
 	}
 
 	warnings := propagateAlertingConfigToTenants(c.Request.Context(), descendants)
-	logger.LogBusinessOperation(c, "alerts", "delete_layer", "alert_config_layer", user.OrganizationID, true, nil)
+	auditDetails := map[string]interface{}{
+		"before":               snapshotLayerForAudit(prevLayer),
+		"after":                nil,
+		"affected_tenants":     len(descendants),
+		"propagation_warnings": len(warnings),
+	}
+	logger.LogBusinessOperationDetails(c, "alerts", "delete_layer", "alert_config_layer", user.OrganizationID, true, nil, auditDetails)
 	c.JSON(http.StatusOK, response.OK("alerting layer removed successfully", gin.H{
 		"warnings":         warnings,
 		"propagated_to":    len(descendants) - len(warnings),
@@ -731,6 +833,10 @@ func GetAlertingConfig(c *gin.Context) {
 	}
 
 	// Build the inherited view: every layer above the caller, in order.
+	// Inherited entries are scrubbed via RedactRecordForDownstream because
+	// they contain secrets the descendants must NOT read (Telegram bot tokens,
+	// webhook URL secrets) and audit metadata (upstream admin user ids) we
+	// don't want descendants to learn.
 	chain, err := alerting.ResolveAncestorChain(user.OrganizationID)
 	if err != nil {
 		logger.Warn().Err(err).Str("org_id", user.OrganizationID).Msg("failed to resolve ancestor chain")
@@ -742,7 +848,7 @@ func GetAlertingConfig(c *gin.Context) {
 		if err == nil {
 			for _, oid := range ancestors {
 				if rec, ok := anc[oid]; ok {
-					inherited = append(inherited, *rec)
+					inherited = append(inherited, alerting.RedactRecordForDownstream(*rec))
 				}
 			}
 		}
@@ -753,6 +859,9 @@ func GetAlertingConfig(c *gin.Context) {
 		"inherited": inherited,
 	}
 	if rec != nil {
+		// The caller owns this layer — return it with secrets intact so they
+		// can edit (the UI will mask them client-side if needed). Inherited
+		// layers are scrubbed above.
 		resp["layer"] = rec
 	}
 	c.JSON(http.StatusOK, response.OK("alerting layer retrieved successfully", resp))
@@ -790,10 +899,27 @@ func GetAlertingConfigEffective(c *gin.Context) {
 		return
 	}
 
+	// Redact secrets on the wire: tokens and webhook URL paths can be
+	// bearer-equivalent. The merged config + per-layer provenance both flow
+	// to the UI; only the server-side render to Mimir uses the unmasked
+	// values. For the layer that the caller owns we keep secrets intact so
+	// they can edit them; for ancestor layers we always redact regardless of
+	// role (the rendered effective is also redacted because a Customer's UI
+	// would otherwise display a Reseller's bot token).
+	redactedConfig := alerting.RedactConfigForDownstream(effective)
+	redactedProvenance := make([]entities.AlertConfigLayerRecord, 0, len(provenance))
+	for _, rec := range provenance {
+		if rec.OrganizationID == user.OrganizationID {
+			redactedProvenance = append(redactedProvenance, rec)
+			continue
+		}
+		redactedProvenance = append(redactedProvenance, alerting.RedactRecordForDownstream(rec))
+	}
+
 	c.JSON(http.StatusOK, response.OK("effective alerting configuration retrieved successfully", gin.H{
 		"organization_id":     target,
-		"config":              effective,
-		"contributing_layers": provenance,
+		"config":              redactedConfig,
+		"contributing_layers": redactedProvenance,
 	}))
 }
 
@@ -1764,6 +1890,18 @@ func validateWebhookReceivers(receivers []models.WebhookReceiver) error {
 	return nil
 }
 
+// fqdnPattern restricts webhook hostnames to the canonical RFC1035 form when
+// they aren't valid IP literals. Rejecting non-canonical forms (decimal IPs
+// like "2130706433", octal "0177.0.0.1", hex "0x7f.0.0.1") closes the door
+// on libc-dependent address parsing where some resolvers (notably glibc)
+// would interpret them as 127.0.0.1, while our denylist keys on string
+// prefixes that miss those encodings.
+var fqdnPattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*\.?$`)
+
+// cgnatRange is the carrier-grade NAT range (RFC6598). Not covered by
+// net.IP.IsPrivate() and a real bypass risk on cloud and ISP networks.
+var cgnatRange = &net.IPNet{IP: net.IPv4(100, 64, 0, 0).To4(), Mask: net.CIDRMask(10, 32)}
+
 func validateWebhookURL(raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -1788,31 +1926,55 @@ func validateWebhookURL(raw string) error {
 		}
 	}
 
-	// Reject IP literals pointing to private/loopback/link-local/multicast/unspecified.
-	// Also handles IPv6-mapped IPv4 (e.g. ::ffff:127.0.0.1) via ip.To4() unmasking.
-	if ip := net.ParseIP(host); ip != nil {
-		if err := rejectNonPublicIP(ip); err != nil {
-			return fmt.Errorf("webhook url host %q: %w", host, err)
+	// Strict input shape. Either:
+	//   1) a valid IP literal (v4 or v6), or
+	//   2) a canonical FQDN (RFC1035 — alpha-prefixed labels, optional trailing dot)
+	//      AND containing at least one alphabetic character.
+	// The "at least one letter" rule rejects all-digit hosts that some resolvers
+	// (notably macOS BSD libc) interpret as alternative IP encodings. Concrete
+	// case caught: "0177.0.0.1" — net.ParseIP returns nil, fqdnPattern matches,
+	// but BSD getaddrinfo strips the leading zero and resolves to "177.0.0.1"
+	// (a public IP unrelated to the user's intent of 127.0.0.1). Without the
+	// letter requirement, the URL would be saved with an unexpected destination.
+	parsedIP := net.ParseIP(host)
+	if parsedIP == nil {
+		if !fqdnPattern.MatchString(host) {
+			return fmt.Errorf("webhook url host %q is not a canonical hostname or IP literal", host)
+		}
+		if !strings.ContainsAny(host, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+			return fmt.Errorf("webhook url host %q must be either an IP literal or a hostname with at least one letter", host)
 		}
 	}
 
-	// DNS resolution: resolve the hostname and reject if ANY address is private.
-	// This mitigates DNS rebinding attacks where the hostname initially resolves
-	// to a public IP at validation time but later resolves to an internal IP when
-	// Alertmanager delivers the webhook.
-	if net.ParseIP(host) == nil {
-		addrs, err := net.LookupHost(host)
-		if err != nil {
-			return fmt.Errorf("webhook url host %q: dns resolution failed: %w", host, err)
+	// IP literal path: reject loopback / private / link-local / multicast /
+	// unspecified / CGNAT. Handles IPv6-mapped IPv4 via ip.To4() unmasking.
+	if parsedIP != nil {
+		if err := rejectNonPublicIP(parsedIP); err != nil {
+			return fmt.Errorf("webhook url host %q: %w", host, err)
 		}
-		for _, addr := range addrs {
-			ip := net.ParseIP(addr)
-			if ip == nil {
-				return fmt.Errorf("webhook url host %q resolved to unparseable address %q", host, addr)
-			}
-			if err := rejectNonPublicIP(ip); err != nil {
-				return fmt.Errorf("webhook url host %q resolved to non-public address %s: %w", host, addr, err)
-			}
+		return nil
+	}
+
+	// FQDN path: resolve and reject if ANY returned address is non-public.
+	// NOTE on DNS rebinding: this validation is point-in-time; Mimir's
+	// Alertmanager re-resolves the hostname when delivering the webhook.
+	// A short-TTL record can resolve to a public IP here and to a private
+	// one at delivery. Authoritative mitigation requires either pinning the
+	// resolved IP into the URL pushed to Mimir (breaks legitimate cloud-LB
+	// hosts whose IPs rotate) or running the egress through a proxy that
+	// re-validates per-request. Today we accept the residual risk and rely
+	// on Mimir-side network ACLs to backstop egress to private ranges.
+	addrs, err := net.LookupHost(host)
+	if err != nil {
+		return fmt.Errorf("webhook url host %q: dns resolution failed: %w", host, err)
+	}
+	for _, addr := range addrs {
+		ip := net.ParseIP(addr)
+		if ip == nil {
+			return fmt.Errorf("webhook url host %q resolved to unparseable address %q", host, addr)
+		}
+		if err := rejectNonPublicIP(ip); err != nil {
+			return fmt.Errorf("webhook url host %q resolved to non-public address %s: %w", host, addr, err)
 		}
 	}
 
@@ -1820,8 +1982,8 @@ func validateWebhookURL(raw string) error {
 }
 
 // rejectNonPublicIP returns an error if the IP is loopback, private, link-local,
-// multicast, or unspecified. For IPv6-mapped IPv4 addresses (::ffff:A.B.C.D),
-// the underlying IPv4 is checked.
+// multicast, unspecified, or in the carrier-grade NAT range (RFC6598). For
+// IPv6-mapped IPv4 addresses (::ffff:A.B.C.D), the underlying IPv4 is checked.
 func rejectNonPublicIP(ip net.IP) error {
 	// Unmask IPv6-mapped IPv4 so checks work on the real address.
 	if v4 := ip.To4(); v4 != nil {
@@ -1831,6 +1993,10 @@ func rejectNonPublicIP(ip net.IP) error {
 		ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast() ||
 		ip.IsMulticast() || ip.IsUnspecified() {
 		return fmt.Errorf("address is not publicly routable")
+	}
+	// IsPrivate covers RFC1918 only — not CGNAT (100.64.0.0/10).
+	if v4 := ip.To4(); v4 != nil && cgnatRange.Contains(v4) {
+		return fmt.Errorf("address is in the carrier-grade NAT range (100.64.0.0/10)")
 	}
 	return nil
 }

@@ -119,6 +119,18 @@ func LogTokenExchange(c *gin.Context, component, tokenType string, success bool,
 
 // LogBusinessOperation logs business operations (CRUD operations)
 func LogBusinessOperation(c *gin.Context, component, operation, entityType, entityID string, success bool, err error) {
+	LogBusinessOperationDetails(c, component, operation, entityType, entityID, success, err, nil)
+}
+
+// LogBusinessOperationDetails is the same as LogBusinessOperation but accepts
+// an optional `details` map of structured fields that get attached to the log
+// event (e.g. for audit diff "before"/"after" snapshots). Pass nil for the
+// no-extra-fields case.
+//
+// Use this for operations where simple "operation succeeded" logging is
+// insufficient and you need the audit log to record WHAT changed — e.g.
+// alerting policy edits where forensics need to reconstruct the prior state.
+func LogBusinessOperationDetails(c *gin.Context, component, operation, entityType, entityID string, success bool, err error, details map[string]interface{}) {
 	logger := RequestLogger(c, component)
 
 	event := logger.Info()
@@ -131,6 +143,10 @@ func LogBusinessOperation(c *gin.Context, component, operation, entityType, enti
 		Str("entity_type", entityType).
 		Str("entity_id", entityID).
 		Bool("success", success)
+
+	for k, v := range details {
+		event.Interface(k, v)
+	}
 
 	if err != nil {
 		event.Err(err)

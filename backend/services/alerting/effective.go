@@ -16,29 +16,41 @@ import (
 	"github.com/nethesis/my/backend/models"
 )
 
+// ErrChainTooDeep is returned by ResolveAncestorChain when an org's parent
+// chain exceeds the maximum hop count without reaching the Owner. Callers
+// should treat this as a hard error rather than continuing with a possibly
+// truncated chain — silently dropping upstream layers can underspecify the
+// effective config (recipients missing, channels accidentally disabled).
+var ErrChainTooDeep = fmt.Errorf("ancestor chain exceeds max depth")
+
+// MaxChainDepth caps how deep ResolveAncestorChain will walk. The
+// application's hierarchy is fixed at 4 levels (Owner -> Distributor ->
+// Reseller -> Customer), so 8 leaves comfortable margin while still
+// catching pathological data (cycles, runaway parent chains).
+const MaxChainDepth = 8
+
 // ResolveAncestorChain returns the list of org IDs from the Owner (top) down
 // to the given tenant (inclusive). The chain is built by walking the
 // `custom_data->>'createdBy'` field of distributors/resellers/customers up
 // to the org that has no parent recorded (the Owner). The Owner's org id is
 // included as the first element so the merge picks up its layer when present.
 //
-// Cycle protection: capped at 8 hops, which is far more than the 4-level
-// hierarchy the application supports (Owner -> Distributor -> Reseller ->
-// Customer).
+// Cycle protection: capped at MaxChainDepth hops. If a chain would exceed
+// the cap (cycle or genuinely too deep), returns ErrChainTooDeep so the
+// caller can fail closed rather than render an incomplete config.
 func ResolveAncestorChain(tenantOrgID string) ([]string, error) {
 	if tenantOrgID == "" {
 		return nil, fmt.Errorf("tenantOrgID is required")
 	}
 	chain := []string{tenantOrgID}
 	current := tenantOrgID
-	const maxHops = 8
-	for i := 0; i < maxHops; i++ {
+	for i := 0; i < MaxChainDepth; i++ {
 		parent, err := lookupCreatedBy(current)
 		if err != nil {
 			return nil, fmt.Errorf("walk hierarchy at %s: %w", current, err)
 		}
 		if parent == "" {
-			break
+			return chain, nil
 		}
 		// Detect a cycle defensively: same id seen twice would loop forever.
 		for _, seen := range chain {
@@ -49,7 +61,10 @@ func ResolveAncestorChain(tenantOrgID string) ([]string, error) {
 		chain = append([]string{parent}, chain...)
 		current = parent
 	}
-	return chain, nil
+	// We exhausted MaxChainDepth without hitting an Owner (no-parent) row.
+	// Either a cycle slipped through the in-loop check or the hierarchy is
+	// deeper than the model supports. Either way, fail closed.
+	return nil, fmt.Errorf("%w (tenant=%s, depth=%d)", ErrChainTooDeep, tenantOrgID, MaxChainDepth)
 }
 
 // lookupCreatedBy returns the createdBy field of the org matching orgID

@@ -36,12 +36,15 @@ func ProvisionDefaultConfig(orgID, defaultEmail, defaultLang string) error {
 		return fmt.Errorf("orgID is required")
 	}
 
-	// Compute the effective merged config from any ancestor layers that exist.
+	// Compute the effective merged config from any ancestor layers that
+	// exist. Fail closed: a misconfigured hierarchy (cycle, missing parent
+	// row, transient DB error) must NOT silently provision a less-protected
+	// config than the Owner intended. The org creation flow can retry; the
+	// alternative — "fall back to local defaults" — risks losing Owner-set
+	// recipients/severity rules during a window we cannot otherwise detect.
 	effective, _, err := ComputeEffectiveConfig(orgID)
 	if err != nil {
-		// Non-fatal: fall back to the legacy default-email/lang behavior so
-		// the org is at least provisioned with a valid YAML.
-		logger.Warn().Err(err).Str("org_id", orgID).Msg("could not compute effective config at provision; using local defaults")
+		return fmt.Errorf("compute effective config at provision: %w", err)
 	}
 
 	// If no ancestor has populated anything, seed the org's first push with

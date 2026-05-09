@@ -17,6 +17,16 @@ var templateFS embed.FS
 // ValidTemplateLangs lists supported email template languages.
 var ValidTemplateLangs = []string{"en", "it"}
 
+// isValidTemplateLang reports whether lang is in ValidTemplateLangs.
+func isValidTemplateLang(lang string) bool {
+	for _, l := range ValidTemplateLangs {
+		if l == lang {
+			return true
+		}
+	}
+	return false
+}
+
 // BuildTemplateFiles returns all Alertmanager template file contents for
 // the given language, plus a generated dispatcher template that routes
 // firing/resolved notifications to the correct language-specific template,
@@ -24,9 +34,18 @@ var ValidTemplateLangs = []string{"en", "it"}
 // lang defaults to "en" when empty.
 // appURL is substituted into the ${APP_URL} placeholder inside the templates,
 // used by the "view system" CTA to build a link to the frontend.
+//
+// Defense-in-depth: the handler whitelists `lang` against ValidTemplateLangs
+// before persisting it on the layer, but the merge / propagation paths flow
+// stored layer values through here too. We re-check against the same
+// whitelist so a malformed value reaching us through any path (corrupted
+// row, future bypass) cannot turn into a path traversal in the embedded FS.
 func BuildTemplateFiles(lang, appURL string) (map[string]string, error) {
 	if lang == "" {
 		lang = "en"
+	}
+	if !isValidTemplateLang(lang) {
+		return nil, fmt.Errorf("invalid email template language %q", lang)
 	}
 
 	names := []string{
