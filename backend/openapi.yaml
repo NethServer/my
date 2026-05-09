@@ -424,6 +424,122 @@ components:
           description: Whether the VAT number exists in the specified entity type
           example: true
 
+    ActiveAlert:
+      type: object
+      description: |
+        Active alert returned by Mimir Alertmanager, enriched with local-DB
+        system info before being sent to the client. The fan-out includes
+        silenced and inhibited alerts (not just `active` ones), so callers can
+        render the muted/suppressed state.
+      properties:
+        fingerprint:
+          type: string
+          description: Alertmanager fingerprint (hex hash of labels)
+          example: "01cfde4b7fa6d1c7"
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+          description: Alert labels (alertname, severity, system_key, ...)
+          example:
+            alertname: "DiskFilling"
+            severity: "warning"
+            system_key: "NETH-FBB2-1A6E-7CAD-44A4-A772-B3EE-F0F6-F371"
+        annotations:
+          type: object
+          additionalProperties:
+            type: string
+        status:
+          type: object
+          properties:
+            state:
+              type: string
+              enum: [active, suppressed, unprocessed]
+            silencedBy:
+              type: array
+              items:
+                type: string
+              description: Active silence IDs muting this alert (non-empty → state is "suppressed")
+            inhibitedBy:
+              type: array
+              items:
+                type: string
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        generatorURL:
+          type: string
+          description: Source URL of the alert (set by the pushing agent), if any
+        system:
+          type: object
+          nullable: true
+          description: |
+            Local-DB enrichment: the owning system's id, name and product
+            type, resolved by (organization_id, labels.system_key). Omitted
+            when the system_key has no matching row in the local systems
+            table (e.g., system unregistered or alert pushed against a
+            stale key). The frontend uses `id` (local DB UUID) to link to
+            the system detail page (/systems/:id); `system_key` is the
+            Mimir tenant label and is shown in the UI for reference.
+          properties:
+            id:
+              type: string
+              format: uuid
+              description: Local DB UUID. Use this to build links to /systems/:id.
+              example: "35aa0d84-08c1-4013-b1fd-d5f6ef3e0541"
+            system_key:
+              type: string
+              description: System key as used in alert labels (Mimir tenant identifier on this system).
+              example: "NETH-FBB2-1A6E-7CAD-44A4-A772-B3EE-F0F6-F371"
+            name:
+              type: string
+              example: "cust1-sys-A"
+            type:
+              type: string
+              nullable: true
+              description: Product type (e.g. "nsec"). Null until the agent reports it on first inventory.
+
+    AlertActivityEntry:
+      type: object
+      description: One event in the per-alert audit timeline (silence created/updated/removed).
+      properties:
+        id:
+          type: integer
+          format: int64
+        organization_id:
+          type: string
+        fingerprint:
+          type: string
+          description: Alertmanager fingerprint of the alert this event belongs to
+        action:
+          type: string
+          enum: [silenced, silence_updated, unsilenced]
+          description: Event kind. Note edits are surfaced as `silence_updated` (note = silence comment).
+        actor_user_id:
+          type: string
+          nullable: true
+          description: logto_id of the user who triggered the action
+        actor_name:
+          type: string
+          nullable: true
+          description: Display name of the actor (denormalized for cheap render)
+        silence_id:
+          type: string
+          nullable: true
+          description: Silence ID associated with this event
+        details:
+          type: object
+          additionalProperties: true
+          description: |
+            Free-form payload for the event. For `silenced` / `silence_updated`:
+            `{comment, end_at, duration_minutes?}`. For `unsilenced`: empty.
+        created_at:
+          type: string
+          format: date-time
+
     AlertHistoryRecord:
       type: object
       description: A single resolved or inactive alert stored from an Alertmanager webhook
@@ -8851,6 +8967,8 @@ paths:
       description: |
         Returns current alerts from Mimir for a specific system, filtered by the system's key.
         Suppressed alerts remain visible so silenced alerts can still be inspected in the system detail view.
+        Each alert is enriched with a `system` object (same shape as `/api/alerts`) — for this
+        endpoint it always points to the system identified by the path `id`.
         Requires `read:systems` permission.
       security:
         - BearerAuth: []
@@ -8882,7 +9000,7 @@ paths:
                       alerts:
                         type: array
                         items:
-                          type: object
+                          $ref: '#/components/schemas/ActiveAlert'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -11099,13 +11217,14 @@ paths:
         Returns active alert counts by severity (from Mimir, per-tenant) and total resolved
         alert history count (from DB). Requires `read:systems` permission.
 
-        **Three scope modes** (selected by query params):
+        **Scope modes** (selected by query params):
 
-        | `organization_id` | `include` | Result |
+        | `organization_id`            | `include`     | Result |
         |---|---|---|
-        | omitted          | —             | Caller's full hierarchy (recursive). For Customer it's just self. |
-        | `X`              | omitted       | Single tenant `X` only. Resellers/Distributors hold no alerts on their own tenant — those live on their customer tenants — so single-tenant queries on a non-leaf org typically return zero. |
-        | `X`              | `descendants` | `X` plus everything under `X` (drill-down). Use this to view a sub-tree. |
+        | omitted                      | —             | Caller's full hierarchy (recursive). For Customer it's just self. |
+        | `X`                          | omitted       | Single tenant `X` only. Resellers/Distributors hold no alerts on their own tenant — those live on their customer tenants — so single-tenant queries on a non-leaf org typically return zero. |
+        | `X` (repeated for multi)     | omitted       | Union of all `organization_id` values passed. Each must be in the caller's hierarchy (Owner exempt). |
+        | `X` (single or multi)        | `descendants` | Each org_id is expanded to itself + its sub-tree (deduplicated). Use this to drill into one or more sub-trees. |
 
         Active counts are aggregated across the resolved scope by fanning out to Mimir,
         one request per tenant, with bounded concurrency and a global timeout. Per-tenant
@@ -11121,16 +11240,23 @@ paths:
         - name: organization_id
           in: query
           description: |
-            Target organization ID. Optional for all roles except Customer (where it is
-            ignored). Distributors/Resellers receive `403` if `X` is not in their hierarchy.
+            Target organization ID(s). Repeat the param to pass multiple values
+            (`?organization_id=A&organization_id=B`). Optional for all roles except
+            Customer (where it is ignored). Distributors/Resellers receive `403` if any
+            value is not in their hierarchy.
           schema:
-            type: string
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
         - name: include
           in: query
           description: |
-            Set to `descendants` together with `organization_id` to aggregate over the
-            target org's full sub-tree. Ignored when `organization_id` is omitted (the
-            caller's own hierarchy is already used) and when caller is a Customer.
+            Set to `descendants` together with `organization_id` to expand each value
+            to its full sub-tree (results deduplicated). Ignored when `organization_id`
+            is omitted (the caller's own hierarchy is already used) and when the caller
+            is a Customer.
           schema:
             type: string
             enum: [descendants]
@@ -11163,6 +11289,9 @@ paths:
                       info:
                         type: integer
                         description: Active info alerts in scope
+                      muted:
+                        type: integer
+                        description: Active alerts currently silenced (Alertmanager `silencedBy` non-empty)
                       history:
                         type: integer
                         description: Total resolved alerts in history (DB) in scope
@@ -11202,12 +11331,18 @@ paths:
       parameters:
         - name: organization_id
           in: query
-          description: Target organization ID. Optional for all roles except Customer (where it is ignored).
+          description: |
+            Target organization ID(s). Repeat the param to pass multiple values.
+            Optional for all roles except Customer (where it is ignored).
           schema:
-            type: string
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
         - name: include
           in: query
-          description: Set to `descendants` together with `organization_id` to aggregate over the target org's full sub-tree.
+          description: Set to `descendants` together with `organization_id` to expand each value to its sub-tree.
           schema:
             type: string
             enum: [descendants]
@@ -11292,8 +11427,14 @@ paths:
       parameters:
         - name: organization_id
           in: query
+          description: |
+            Target organization ID(s). Repeat the param to pass multiple values.
           schema:
-            type: string
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
         - name: include
           in: query
           schema:
@@ -11402,12 +11543,18 @@ paths:
       parameters:
         - name: organization_id
           in: query
-          description: Target organization ID. Optional for all roles except Customer (where it is ignored).
+          description: |
+            Target organization ID(s). Repeat the param to pass multiple values.
+            Optional for all roles except Customer (where it is ignored).
           schema:
-            type: string
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
         - name: include
           in: query
-          description: Set to `descendants` together with `organization_id` to drill down on a sub-tree.
+          description: Set to `descendants` together with `organization_id` to expand each value to its sub-tree.
           schema:
             type: string
             enum: [descendants]
@@ -11486,6 +11633,81 @@ paths:
                           $ref: '#/components/schemas/AlertHistoryRecord'
                       pagination:
                         $ref: '#/components/schemas/Pagination'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ===========================================
+  # ALERTING ENDPOINTS (Per-alert audit timeline)
+  # ===========================================
+
+  /alerts/{fingerprint}/activity:
+    parameters:
+      - name: fingerprint
+        in: path
+        required: true
+        description: |
+          Alertmanager fingerprint of the alert (hex hash of its labels).
+          Stable across re-firings of the same alert.
+        schema:
+          type: string
+          pattern: '^[A-Za-z0-9._:-]{1,128}$'
+      - name: organization_id
+        in: query
+        required: true
+        description: Tenant the alert belongs to. Required for non-Customer roles.
+        schema:
+          type: string
+    get:
+      operationId: getAlertActivity
+      tags:
+        - Backend - Alerts
+      summary: Per-alert audit timeline (silence events)
+      description: |
+        Returns the audit timeline for the alert identified by `fingerprint`, most recent
+        first. Events are written transparently as silences are created, updated, or
+        removed via the `/api/systems/:id/alerts/silences` endpoints.
+
+        Operator notes are stored as the silence `comment` (Alertmanager native), so a
+        note edit appears here as a `silence_updated` event whose `details` payload
+        includes the new comment.
+
+        Requires `read:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          description: Max events to return. Default 100, max 500.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+      responses:
+        '200':
+          description: Activity timeline
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: alert activity retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      events:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AlertActivityEntry'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -11627,8 +11849,14 @@ paths:
         - Backend - Alerts
       summary: List active alerts
       description: |
-        Retrieves active alerts from Mimir for the caller's scope, paginated and sorted
-        by `startsAt` descending (fingerprint as tiebreaker for stable pagination).
+        Retrieves active alerts from Mimir for the caller's scope, paginated. Each
+        alert is enriched with a `system` object (`name`, `type`) looked up from the
+        local `systems` table, so the UI can render the system column without an
+        extra round-trip per row.
+
+        Sortable by `starts_at` (default desc), `severity` (criticality rank: critical
+        > warning > info), or `alertname`. `fingerprint` is used as a stable tiebreaker
+        so pagination doesn't shift between requests.
 
         Scope follows the same three modes as `/alerts/totals`:
         - `organization_id` omitted → caller's full hierarchy (cross-tenant fan-out).
@@ -11647,12 +11875,18 @@ paths:
       parameters:
         - name: organization_id
           in: query
-          description: Target organization ID. Optional for all roles except Customer (where it is ignored).
+          description: |
+            Target organization ID(s). Repeat the param to pass multiple values.
+            Optional for all roles except Customer (where it is ignored).
           schema:
-            type: string
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
         - name: include
           in: query
-          description: Set to `descendants` together with `organization_id` to drill down on a sub-tree.
+          description: Set to `descendants` together with `organization_id` to expand each value to its sub-tree.
           schema:
             type: string
             enum: [descendants]
@@ -11671,6 +11905,19 @@ paths:
             minimum: 1
             maximum: 100
             default: 50
+        - name: sort_by
+          in: query
+          description: Sort column (allowlist).
+          schema:
+            type: string
+            enum: [starts_at, severity, alertname]
+            default: starts_at
+        - name: sort_direction
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
         - name: state
           in: query
           description: Filter alerts by state. Supports multiple values.
@@ -11731,7 +11978,7 @@ paths:
                       alerts:
                         type: array
                         items:
-                          type: object
+                          $ref: '#/components/schemas/ActiveAlert'
                       pagination:
                         $ref: '#/components/schemas/Pagination'
                       warnings:
