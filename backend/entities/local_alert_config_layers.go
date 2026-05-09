@@ -76,7 +76,15 @@ func (r *LocalAlertConfigLayersRepository) Get(orgID string) (*AlertConfigLayerR
 
 // Upsert writes or replaces the layer for the given org. updated_at is
 // refreshed; created_at is preserved by the ON CONFLICT path.
+//
+// Calls cfg.Validate() before writing as a defense-in-depth backstop:
+// any write path bypassing the HTTP handler (admin tooling, future
+// endpoints, migrations) still gets the same regex / format checks as
+// the handler. DNS-aware webhook URL checks remain at the handler.
 func (r *LocalAlertConfigLayersRepository) Upsert(orgID string, cfg models.AlertingConfigLayer, byUserID, byName string) (*AlertConfigLayerRecord, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("validate layer: %w", err)
+	}
 	raw, err := json.Marshal(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("encode alert config layer: %w", err)

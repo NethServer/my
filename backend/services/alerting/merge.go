@@ -81,11 +81,14 @@ func MergeLayers(layers []models.AlertingConfigLayer) models.AlertingConfig {
 			out.MailAddresses = append(out.MailAddresses, e)
 		}
 		for _, w := range layer.WebhookReceivers {
-			key := w.Name + "|" + w.URL
-			if _, seen := addedWebhooks[key]; seen {
+			// Dedup by URL only: two layers contributing the same destination
+			// URL with different display names should NOT both be delivered
+			// (would produce duplicate webhook calls). The first occurrence
+			// (Owner-most-specific in chain order) wins on the display name.
+			if _, seen := addedWebhooks[w.URL]; seen {
 				continue
 			}
-			addedWebhooks[key] = struct{}{}
+			addedWebhooks[w.URL] = struct{}{}
 			out.WebhookReceivers = append(out.WebhookReceivers, w)
 		}
 		for _, t := range layer.TelegramReceivers {
@@ -266,11 +269,11 @@ func (a *severityAccum) absorb(o models.SeverityOverride) {
 		a.emails = append(a.emails, e)
 	}
 	for _, w := range o.WebhookReceivers {
-		k := w.Name + "|" + w.URL
-		if _, ok := a.seenWebhook[k]; ok {
+		// Dedup by URL only (see global merge above for rationale).
+		if _, ok := a.seenWebhook[w.URL]; ok {
 			continue
 		}
-		a.seenWebhook[k] = struct{}{}
+		a.seenWebhook[w.URL] = struct{}{}
 		a.webhooks = append(a.webhooks, w)
 	}
 	for _, t := range o.TelegramReceivers {
@@ -356,11 +359,11 @@ func (a *systemAccum) absorb(o models.SystemOverride) {
 		a.emails = append(a.emails, e)
 	}
 	for _, w := range o.WebhookReceivers {
-		k := w.Name + "|" + w.URL
-		if _, ok := a.seenWebhook[k]; ok {
+		// Dedup by URL only (see global merge above for rationale).
+		if _, ok := a.seenWebhook[w.URL]; ok {
 			continue
 		}
-		a.seenWebhook[k] = struct{}{}
+		a.seenWebhook[w.URL] = struct{}{}
 		a.webhooks = append(a.webhooks, w)
 	}
 	for _, t := range o.TelegramReceivers {
