@@ -17,6 +17,18 @@ server:
   http_listen_port: ${PORT}
   log_level: info
 
+# Global per-tenant defaults. A misbehaving tenant cannot saturate the
+# container memory: alerts/silences are bounded and notifications are
+# rate-limited. Per-tenant overrides go in runtime_config.yaml.
+limits:
+  alertmanager_max_alerts_count: 1000
+  alertmanager_max_alerts_size_bytes: 10485760
+  alertmanager_max_silences_count: 200
+  alertmanager_max_silence_size_bytes: 16384
+  alertmanager_max_config_size_bytes: 1048576
+  alertmanager_max_dispatcher_aggregation_groups: 128
+  alertmanager_notification_rate_limit: 50
+
 runtime_config:
   file: /etc/mimir/runtime_config.yaml
   period: 10s
