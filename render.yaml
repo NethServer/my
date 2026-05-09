@@ -181,6 +181,12 @@ services:
       - fromGroup: spaces-prod
       - key: PORT
         value: 9009
+      # Go must honor the cgroup limit, otherwise GC waits too long and the
+      # container is OOM-killed before any GC pass. ~78% of the 512 MB plan.
+      - key: GOMEMLIMIT
+        value: 400MiB
+      - key: GOGC
+        value: 50
 
   # Production Backend API Server (Private Service)
   - type: pserv
@@ -329,6 +335,12 @@ services:
       - fromGroup: spaces-qa
       - key: PORT
         value: 9009
+      # Go must honor the cgroup limit, otherwise GC waits too long and the
+      # container is OOM-killed before any GC pass. ~78% of the 512 MB plan.
+      - key: GOMEMLIMIT
+        value: 400MiB
+      - key: GOGC
+        value: 50
     autoDeploy: true
     branch: main
     pullRequestPreviewsEnabled: true

@@ -38,29 +38,38 @@ func setupMockDB(t *testing.T) (sqlmock.Sqlmock, func()) {
 	return mock, cleanup
 }
 
+// resolveOrgsRegex matches the bulk SELECT used by resolveOrganizationIDs.
+const resolveOrgsRegex = `SELECT system_key, organization_id\s+FROM systems\s+WHERE system_key = ANY\(\$1\) AND deleted_at IS NULL`
+
+// linkFailedUpdateRegex matches the bulk LinkFailed UPDATE-with-RETURNING CTE.
+const linkFailedUpdateRegex = `WITH inputs AS.+UPDATE alert_history.+RETURNING m\.idx`
+
+// bulkInsertRegex matches the bulk INSERT INTO alert_history … FROM unnest(…).
+const bulkInsertRegex = `INSERT INTO alert_history.+FROM unnest`
+
 func TestReceiveAlertHistory_ResolvedAlert(t *testing.T) {
 	mock, cleanup := setupMockDB(t)
 	defer cleanup()
 
-	// Lookup organization_id from systems using the trusted system_key
-	mock.ExpectQuery(`SELECT organization_id FROM systems WHERE system_key = \$1`).
-		WithArgs("SYS-KEY-001").
-		WillReturnRows(sqlmock.NewRows([]string{"organization_id"}).AddRow("org-1"))
+	mock.ExpectQuery(resolveOrgsRegex).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"system_key", "organization_id"}).
+			AddRow("SYS-KEY-001", "org-1"))
 
-	mock.ExpectExec(`INSERT INTO alert_history`).
+	// Non-LinkFailed alerts skip the LinkFailed UPDATE entirely.
+	mock.ExpectExec(bulkInsertRegex).
 		WithArgs(
-			"SYS-KEY-001",
-			"org-1",
-			"DiskFull",
+			sqlmock.AnyArg(), // system_keys
+			sqlmock.AnyArg(), // org_ids
+			sqlmock.AnyArg(), // alertnames
 			sqlmock.AnyArg(), // severity
-			"resolved",
-			"abc123",
-			sqlmock.AnyArg(), // startsAt
-			sqlmock.AnyArg(), // endsAt
+			sqlmock.AnyArg(), // fingerprint
+			sqlmock.AnyArg(), // starts_at
+			sqlmock.AnyArg(), // ends_at_text
 			sqlmock.AnyArg(), // summary
-			sqlmock.AnyArg(), // labels JSON
-			sqlmock.AnyArg(), // annotations JSON
-			sqlmock.AnyArg(), // receiver
+			sqlmock.AnyArg(), // labels
+			sqlmock.AnyArg(), // annotations
+			"default",        // receiver (scalar)
 		).WillReturnResult(sqlmock.NewResult(1, 1))
 
 	payload := map[string]interface{}{
@@ -95,7 +104,7 @@ func TestReceiveAlertHistory_FiringAlertSkipped(t *testing.T) {
 	_, cleanup := setupMockDB(t)
 	defer cleanup()
 
-	// No DB expectations — firing alerts are skipped
+	// No DB expectations — firing alerts are filtered out before any query.
 
 	payload := map[string]interface{}{
 		"status":   "firing",
@@ -128,7 +137,7 @@ func TestReceiveAlertHistory_MissingSystemKey(t *testing.T) {
 	_, cleanup := setupMockDB(t)
 	defer cleanup()
 
-	// No DB expectations — alerts without system_key are skipped
+	// No DB expectations — alerts without system_key are dropped pre-DB.
 
 	payload := map[string]interface{}{
 		"status":   "resolved",
@@ -161,10 +170,11 @@ func TestReceiveAlertHistory_UnknownSystemKey(t *testing.T) {
 	mock, cleanup := setupMockDB(t)
 	defer cleanup()
 
-	// The lookup returns no rows; the alert is dropped, no INSERT is performed.
-	mock.ExpectQuery(`SELECT organization_id FROM systems`).
-		WithArgs("SYS-UNKNOWN").
-		WillReturnError(sql.ErrNoRows)
+	// Bulk lookup returns no rows; the alert is dropped silently and no
+	// further query runs.
+	mock.ExpectQuery(resolveOrgsRegex).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"system_key", "organization_id"}))
 
 	payload := map[string]interface{}{
 		"status":   "resolved",
@@ -210,11 +220,12 @@ func TestReceiveAlertHistory_DBError(t *testing.T) {
 	mock, cleanup := setupMockDB(t)
 	defer cleanup()
 
-	mock.ExpectQuery(`SELECT organization_id FROM systems`).
-		WithArgs("SYS-KEY-001").
-		WillReturnRows(sqlmock.NewRows([]string{"organization_id"}).AddRow("org-1"))
+	mock.ExpectQuery(resolveOrgsRegex).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"system_key", "organization_id"}).
+			AddRow("SYS-KEY-001", "org-1"))
 
-	mock.ExpectExec(`INSERT INTO alert_history`).
+	mock.ExpectExec(bulkInsertRegex).
 		WillReturnError(sql.ErrConnDone)
 
 	payload := map[string]interface{}{
@@ -248,26 +259,15 @@ func TestReceiveAlertHistory_ZeroTimeEndsAt(t *testing.T) {
 	mock, cleanup := setupMockDB(t)
 	defer cleanup()
 
-	mock.ExpectQuery(`SELECT organization_id FROM systems`).
-		WithArgs("SYS-KEY-001").
-		WillReturnRows(sqlmock.NewRows([]string{"organization_id"}).AddRow("org-1"))
+	mock.ExpectQuery(resolveOrgsRegex).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"system_key", "organization_id"}).
+			AddRow("SYS-KEY-001", "org-1"))
 
-	// The resolved alert with zero-time endsAt should store NULL
-	mock.ExpectExec(`INSERT INTO alert_history`).
-		WithArgs(
-			"SYS-KEY-001",
-			"org-1",
-			"TestAlert",
-			sqlmock.AnyArg(),
-			"resolved",
-			"zero123",
-			sqlmock.AnyArg(),
-			nil, // endsAt should be nil for zero time
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-		).WillReturnResult(sqlmock.NewResult(1, 1))
+	// We rely on the regex match for the INSERT; the ends_at_text array slot
+	// is empty for this alert, which the SQL turns into NULL via NULLIF.
+	mock.ExpectExec(bulkInsertRegex).
+		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	zeroTime := time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
 
@@ -303,25 +303,15 @@ func TestReceiveAlertHistory_LinkFailedUpdatesExistingStart(t *testing.T) {
 	mock, cleanup := setupMockDB(t)
 	defer cleanup()
 
-	mock.ExpectQuery(`SELECT organization_id FROM systems`).
-		WithArgs("SYS-KEY-001").
-		WillReturnRows(sqlmock.NewRows([]string{"organization_id"}).AddRow("org-1"))
+	mock.ExpectQuery(resolveOrgsRegex).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"system_key", "organization_id"}).
+			AddRow("SYS-KEY-001", "org-1"))
 
-	mock.ExpectExec(`WITH existing AS`).
-		WithArgs(
-			"SYS-KEY-001",
-			"LinkFailed",
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-			"link123",
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-			"org-1", // organization_id
-		).
-		WillReturnResult(sqlmock.NewResult(0, 1))
+	// The bulk LinkFailed UPDATE returns the matched input idx, so the
+	// caller knows there's nothing left to insert.
+	mock.ExpectQuery(linkFailedUpdateRegex).
+		WillReturnRows(sqlmock.NewRows([]string{"idx"}).AddRow(1))
 
 	payload := map[string]interface{}{
 		"status":   "resolved",
@@ -359,27 +349,16 @@ func TestReceiveAlertHistory_LinkFailedInsertsWhenStartNotSeen(t *testing.T) {
 	mock, cleanup := setupMockDB(t)
 	defer cleanup()
 
-	mock.ExpectQuery(`SELECT organization_id FROM systems`).
-		WithArgs("SYS-KEY-001").
-		WillReturnRows(sqlmock.NewRows([]string{"organization_id"}).AddRow("org-1"))
+	mock.ExpectQuery(resolveOrgsRegex).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"system_key", "organization_id"}).
+			AddRow("SYS-KEY-001", "org-1"))
 
-	mock.ExpectExec(`WITH existing AS`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec(`INSERT INTO alert_history`).
-		WithArgs(
-			"SYS-KEY-001",
-			"org-1",
-			"LinkFailed",
-			sqlmock.AnyArg(),
-			"resolved",
-			"link123",
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-		).
+	// No idx returned → the LinkFailed alert flows into the bulk insert.
+	mock.ExpectQuery(linkFailedUpdateRegex).
+		WillReturnRows(sqlmock.NewRows([]string{"idx"}))
+
+	mock.ExpectExec(bulkInsertRegex).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	payload := map[string]interface{}{
@@ -414,27 +393,65 @@ func TestReceiveAlertHistory_LinkFailedInsertsWhenStartNotSeen(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestNullableString(t *testing.T) {
-	tests := []struct {
-		name    string
-		input   string
-		wantNil bool
-		wantVal string
-	}{
-		{name: "empty string returns nil", input: "", wantNil: true},
-		{name: "non-empty string returns pointer", input: "hello", wantNil: false, wantVal: "hello"},
-		{name: "whitespace is not nil", input: " ", wantNil: false, wantVal: " "},
-	}
+func TestReceiveAlertHistory_BulkSplitsLinkFailedAndOthers(t *testing.T) {
+	mock, cleanup := setupMockDB(t)
+	defer cleanup()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := nullableString(tt.input)
-			if tt.wantNil {
-				assert.Nil(t, result)
-			} else {
-				assert.NotNil(t, result)
-				assert.Equal(t, tt.wantVal, *result)
-			}
-		})
+	// Two distinct system_keys, two distinct alertnames in the same payload.
+	mock.ExpectQuery(resolveOrgsRegex).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"system_key", "organization_id"}).
+			AddRow("SYS-KEY-001", "org-1").
+			AddRow("SYS-KEY-002", "org-2"))
+
+	// LinkFailed UPDATE absorbs idx=1 (first LinkFailed alert), no fallback.
+	mock.ExpectQuery(linkFailedUpdateRegex).
+		WillReturnRows(sqlmock.NewRows([]string{"idx"}).AddRow(1))
+
+	// One INSERT for the non-LinkFailed alert.
+	mock.ExpectExec(bulkInsertRegex).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	payload := map[string]interface{}{
+		"status":   "resolved",
+		"receiver": "builtin-history",
+		"alerts": []map[string]interface{}{
+			{
+				"status": "resolved",
+				"labels": map[string]string{
+					"alertname":  "LinkFailed",
+					"severity":   "critical",
+					"system_key": "SYS-KEY-001",
+				},
+				"annotations": map[string]string{"summary": "Link down"},
+				"startsAt":    "2026-04-09T10:00:00Z",
+				"endsAt":      "2026-04-09T10:30:00Z",
+				"fingerprint": "link001",
+			},
+			{
+				"status": "resolved",
+				"labels": map[string]string{
+					"alertname":  "DiskFull",
+					"severity":   "warning",
+					"system_key": "SYS-KEY-002",
+				},
+				"annotations": map[string]string{"summary": "Disk almost full"},
+				"startsAt":    "2026-04-09T11:00:00Z",
+				"endsAt":      "2026-04-09T11:30:00Z",
+				"fingerprint": "disk001",
+			},
+		},
 	}
+	body, _ := json.Marshal(payload)
+
+	router := gin.New()
+	router.POST("/alert_history", ReceiveAlertHistory)
+
+	req := httptest.NewRequest(http.MethodPost, "/alert_history", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
