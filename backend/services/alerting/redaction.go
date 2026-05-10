@@ -6,6 +6,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package alerting
 
 import (
+	"fmt"
 	"net/url"
 
 	"github.com/nethesis/my/backend/entities"
@@ -75,6 +76,136 @@ func RedactConfigForDownstream(cfg models.AlertingConfig) models.AlertingConfig 
 	out.WebhookReceivers = redactWebhookReceivers(cfg.WebhookReceivers)
 	out.Severities = redactSeverities(cfg.Severities)
 	out.Systems = redactSystems(cfg.Systems)
+	return out
+}
+
+// RedactConfigKeepingOwn redacts a merged effective AlertingConfig but
+// PRESERVES secrets that originate from `ownLayer` — i.e. entries the caller
+// already owns and is allowed to read in clear. The merged config loses
+// per-element provenance during MergeLayers; we recover it by re-checking
+// each entry against the caller's own layer (matching webhooks by URL and
+// telegrams by bot_token+chat_id, the same dedup keys the merge uses).
+//
+// Without this, GET /alerts/config/effective showed the caller their OWN
+// webhook URL as `https://hooks.slack.com/[REDACTED]` — annoying because
+// they had just typed it and were entitled to see it. With this helper the
+// effective preview matches what a savvy user expects: their own contributions
+// in clear, ancestor contributions masked.
+func RedactConfigKeepingOwn(
+	cfg models.AlertingConfig,
+	ownLayer *models.AlertingConfigLayer,
+) models.AlertingConfig {
+	if ownLayer == nil {
+		return RedactConfigForDownstream(cfg)
+	}
+
+	// Build sets of the caller's own URLs / telegram tuples for fast lookup.
+	// Includes both the global lists and any per-severity / per-system entries
+	// — anywhere the caller put a secret should round-trip unredacted.
+	ownURLs := map[string]struct{}{}
+	ownTGs := map[string]struct{}{}
+	for _, w := range ownLayer.WebhookReceivers {
+		ownURLs[w.URL] = struct{}{}
+	}
+	for _, t := range ownLayer.TelegramReceivers {
+		ownTGs[telegramRedactionKey(t)] = struct{}{}
+	}
+	for _, sv := range ownLayer.Severities {
+		for _, w := range sv.WebhookReceivers {
+			ownURLs[w.URL] = struct{}{}
+		}
+		for _, t := range sv.TelegramReceivers {
+			ownTGs[telegramRedactionKey(t)] = struct{}{}
+		}
+	}
+	for _, sys := range ownLayer.Systems {
+		for _, w := range sys.WebhookReceivers {
+			ownURLs[w.URL] = struct{}{}
+		}
+		for _, t := range sys.TelegramReceivers {
+			ownTGs[telegramRedactionKey(t)] = struct{}{}
+		}
+	}
+
+	out := cfg
+	out.WebhookReceivers = redactWebhooksKeepingOwn(cfg.WebhookReceivers, ownURLs)
+	out.TelegramReceivers = redactTelegramsKeepingOwn(cfg.TelegramReceivers, ownTGs)
+	out.Severities = redactSeveritiesKeepingOwn(cfg.Severities, ownURLs, ownTGs)
+	out.Systems = redactSystemsKeepingOwn(cfg.Systems, ownURLs, ownTGs)
+	return out
+}
+
+func telegramRedactionKey(t models.TelegramReceiver) string {
+	return fmt.Sprintf("%s|%d", t.BotToken, t.ChatID)
+}
+
+func redactWebhooksKeepingOwn(
+	in []models.WebhookReceiver,
+	ownURLs map[string]struct{},
+) []models.WebhookReceiver {
+	if len(in) == 0 {
+		return in
+	}
+	out := make([]models.WebhookReceiver, len(in))
+	for i, w := range in {
+		if _, isOwn := ownURLs[w.URL]; isOwn {
+			out[i] = w
+			continue
+		}
+		out[i] = models.WebhookReceiver{Name: w.Name, URL: maskWebhookURL(w.URL)}
+	}
+	return out
+}
+
+func redactTelegramsKeepingOwn(
+	in []models.TelegramReceiver,
+	ownTGs map[string]struct{},
+) []models.TelegramReceiver {
+	if len(in) == 0 {
+		return in
+	}
+	out := make([]models.TelegramReceiver, len(in))
+	for i, t := range in {
+		if _, isOwn := ownTGs[telegramRedactionKey(t)]; isOwn {
+			out[i] = t
+			continue
+		}
+		out[i] = models.TelegramReceiver{BotToken: RedactedSecretPlaceholder, ChatID: t.ChatID}
+	}
+	return out
+}
+
+func redactSeveritiesKeepingOwn(
+	in []models.SeverityOverride,
+	ownURLs map[string]struct{},
+	ownTGs map[string]struct{},
+) []models.SeverityOverride {
+	if len(in) == 0 {
+		return in
+	}
+	out := make([]models.SeverityOverride, len(in))
+	for i, s := range in {
+		out[i] = s
+		out[i].WebhookReceivers = redactWebhooksKeepingOwn(s.WebhookReceivers, ownURLs)
+		out[i].TelegramReceivers = redactTelegramsKeepingOwn(s.TelegramReceivers, ownTGs)
+	}
+	return out
+}
+
+func redactSystemsKeepingOwn(
+	in []models.SystemOverride,
+	ownURLs map[string]struct{},
+	ownTGs map[string]struct{},
+) []models.SystemOverride {
+	if len(in) == 0 {
+		return in
+	}
+	out := make([]models.SystemOverride, len(in))
+	for i, s := range in {
+		out[i] = s
+		out[i].WebhookReceivers = redactWebhooksKeepingOwn(s.WebhookReceivers, ownURLs)
+		out[i].TelegramReceivers = redactTelegramsKeepingOwn(s.TelegramReceivers, ownTGs)
+	}
 	return out
 }
 
