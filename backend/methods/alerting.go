@@ -902,11 +902,21 @@ func GetAlertingConfigEffective(c *gin.Context) {
 	// Redact secrets on the wire: tokens and webhook URL paths can be
 	// bearer-equivalent. The merged config + per-layer provenance both flow
 	// to the UI; only the server-side render to Mimir uses the unmasked
-	// values. For the layer that the caller owns we keep secrets intact so
-	// they can edit them; for ancestor layers we always redact regardless of
-	// role (the rendered effective is also redacted because a Customer's UI
-	// would otherwise display a Reseller's bot token).
-	redactedConfig := alerting.RedactConfigForDownstream(effective)
+	// values.
+	//
+	// We keep the caller's OWN contributions unredacted in the merged view —
+	// the user typed them and is entitled to read them back in clear. Ancestor
+	// secrets remain masked. RedactConfigKeepingOwn matches by URL (webhook)
+	// and (bot_token, chat_id) (telegram) — the same dedup keys the merge uses.
+	// Failure to load the own layer falls back to full redaction (safer).
+	layerRepo := entities.NewLocalAlertConfigLayersRepository()
+	ownRec, ownErr := layerRepo.Get(user.OrganizationID)
+	var ownLayer *models.AlertingConfigLayer
+	if ownErr == nil && ownRec != nil {
+		l := ownRec.Config
+		ownLayer = &l
+	}
+	redactedConfig := alerting.RedactConfigKeepingOwn(effective, ownLayer)
 	redactedProvenance := make([]entities.AlertConfigLayerRecord, 0, len(provenance))
 	for _, rec := range provenance {
 		if rec.OrganizationID == user.OrganizationID {
