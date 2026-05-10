@@ -29,11 +29,47 @@ func yamlEscape(s string) string {
 
 var validSeverityKey = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
 
+// buildSeverityMatchers turns a list of severity narrowing values (e.g.
+// `["critical","warning"]`) into Alertmanager matcher expressions appended to
+// a system-scoped route. Empty list → no extra matcher (all severities).
+// Single value → exact match (`severity="critical"`). Multiple values →
+// regex alternation (`severity=~"critical|warning"`). Each value is
+// validated against validSeverityKey; invalid characters drop the entry to
+// avoid YAML injection (the SeverityOverride bind tag limits to oneof).
+func buildSeverityMatchers(severities []string) []string {
+	if len(severities) == 0 {
+		return nil
+	}
+	clean := make([]string, 0, len(severities))
+	for _, s := range severities {
+		if validSeverityKey.MatchString(s) {
+			clean = append(clean, s)
+		}
+	}
+	if len(clean) == 0 {
+		return nil
+	}
+	if len(clean) == 1 {
+		return []string{`severity="` + clean[0] + `"`}
+	}
+	return []string{`severity=~"` + strings.Join(clean, "|") + `"`}
+}
+
 // routeEntry represents a single child route in the Alertmanager routing tree.
+//
+// MatcherKey/MatcherValue cover the primary scope (system_key or severity);
+// empty MatcherKey means the global fallback route.
+//
+// ExtraMatchers carries additional fully-formed matcher expressions to AND
+// alongside the primary one — used for system-scoped overrides that further
+// narrow on severity (e.g. a system override targeting only `critical` alerts
+// emits `system_key="X"` PLUS `severity="critical"`). Each entry is already
+// YAML-escaped; the template renders them verbatim under `matchers:`.
 type routeEntry struct {
-	MatcherKey   string // "system_key" or "severity"; empty = global fallback
-	MatcherValue string
-	ReceiverName string // "blackhole" when notifications are disabled
+	MatcherKey    string // "system_key" or "severity"; empty = global fallback
+	MatcherValue  string
+	ExtraMatchers []string
+	ReceiverName  string // "blackhole" when notifications are disabled
 }
 
 // telegramEntry represents a single Telegram notification target inside a receiver.
@@ -89,6 +125,9 @@ route:
 {{- if .MatcherKey }}
     - matchers:
         - {{ .MatcherKey }}="{{ yamlEscape .MatcherValue }}"
+{{- range .ExtraMatchers }}
+        - {{ . }}
+{{- end }}
       receiver: '{{ yamlEscape .ReceiverName }}'
       continue: false
 {{- else }}
@@ -349,17 +388,21 @@ func RenderConfig(smtpHost string, smtpPort int, smtpUser, smtpPass, smtpFrom st
 		}
 		data.EmailTemplateLang = lang
 
-		// Per-system routes
+		// Per-system routes. Severities[] narrows the route to specific
+		// severity levels by appending an extra matcher; absent (= "all
+		// severities") emits a single matcher on system_key only.
 		for _, sys := range cfg.Systems {
 			mailOn, webhookOn, telegramOn, emails, webhooks, telegrams := effectiveSettings(cfg, sys.SystemKey, "")
 			recvName := "system-" + sys.SystemKey + "-receiver"
 			if !mailOn && !webhookOn && !telegramOn {
 				recvName = "blackhole"
 			}
+			extra := buildSeverityMatchers(sys.Severities)
 			data.Routes = append(data.Routes, routeEntry{
-				MatcherKey:   "system_key",
-				MatcherValue: sys.SystemKey,
-				ReceiverName: recvName,
+				MatcherKey:    "system_key",
+				MatcherValue:  sys.SystemKey,
+				ExtraMatchers: extra,
+				ReceiverName:  recvName,
 			})
 			if recvName != "blackhole" {
 				data.Receivers = append(data.Receivers, *buildReceiver(recvName, mailOn, webhookOn, telegramOn, emails, webhooks, telegrams))

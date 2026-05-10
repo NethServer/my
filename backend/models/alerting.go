@@ -56,8 +56,16 @@ type SeverityOverride struct {
 // SystemOverride defines mail/webhook/telegram settings for a specific system_key.
 // SystemKey is bounded at 128 bytes to keep matcher rendering predictable;
 // the regex enforced in the handler restricts the character set further.
+//
+// Severities optionally narrows the override to specific severity levels
+// (any of "critical", "warning", "info"). Empty/missing means "all
+// severities for this system" — preserves backwards compatibility with
+// layers saved before this field existed. When non-empty, the rendered
+// Alertmanager route attaches a `severity =~ "<a>|<b>|..."` matcher in
+// addition to `system_key="<key>"`.
 type SystemOverride struct {
 	SystemKey         string             `json:"system_key" binding:"required,max=128"`
+	Severities        []string           `json:"severities,omitempty" binding:"max=3,dive,oneof=critical warning info"`
 	MailEnabled       *bool              `json:"mail_enabled"`
 	WebhookEnabled    *bool              `json:"webhook_enabled"`
 	TelegramEnabled   *bool              `json:"telegram_enabled"`

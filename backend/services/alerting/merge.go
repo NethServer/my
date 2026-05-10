@@ -320,11 +320,21 @@ func mergeTristate(acc, in *bool) *bool {
 
 // systemAccum mirrors severityAccum for system_key overrides; same tri-state
 // precedence on bools and additive list semantics.
+//
+// Severities semantics on merge: an empty Severities list means "applies to
+// all severities for this system". A non-empty list narrows to those
+// severities only. When merging across layers, "any layer says all" wins
+// (hasAllSeverities flag) — otherwise we union the per-layer severity sets.
+// This preserves the additive contract: if any contributor wants their
+// recipients on all severities, the bucket covers all severities.
 type systemAccum struct {
-	systemKey       string
-	mailEnabled     *bool
-	webhookEnabled  *bool
-	telegramEnabled *bool
+	systemKey        string
+	severities       []string
+	hasAllSeverities bool
+	seenSeverity     map[string]struct{}
+	mailEnabled      *bool
+	webhookEnabled   *bool
+	telegramEnabled  *bool
 
 	emails    []string
 	webhooks  []models.WebhookReceiver
@@ -338,6 +348,7 @@ type systemAccum struct {
 func newSystemAccum(systemKey string) *systemAccum {
 	return &systemAccum{
 		systemKey:    systemKey,
+		seenSeverity: map[string]struct{}{},
 		seenEmail:    map[string]struct{}{},
 		seenWebhook:  map[string]struct{}{},
 		seenTelegram: map[string]struct{}{},
@@ -345,6 +356,19 @@ func newSystemAccum(systemKey string) *systemAccum {
 }
 
 func (a *systemAccum) absorb(o models.SystemOverride) {
+	if len(o.Severities) == 0 {
+		// "applies to all severities" — sticky once set; we drop any
+		// previously-accumulated narrowing because the broader scope wins.
+		a.hasAllSeverities = true
+	} else if !a.hasAllSeverities {
+		for _, s := range o.Severities {
+			if _, ok := a.seenSeverity[s]; ok {
+				continue
+			}
+			a.seenSeverity[s] = struct{}{}
+			a.severities = append(a.severities, s)
+		}
+	}
 	a.mailEnabled = mergeTristate(a.mailEnabled, o.MailEnabled)
 	a.webhookEnabled = mergeTristate(a.webhookEnabled, o.WebhookEnabled)
 	a.telegramEnabled = mergeTristate(a.telegramEnabled, o.TelegramEnabled)
@@ -377,7 +401,7 @@ func (a *systemAccum) absorb(o models.SystemOverride) {
 }
 
 func (a *systemAccum) toModel() models.SystemOverride {
-	return models.SystemOverride{
+	out := models.SystemOverride{
 		SystemKey:         a.systemKey,
 		MailEnabled:       a.mailEnabled,
 		WebhookEnabled:    a.webhookEnabled,
@@ -386,4 +410,10 @@ func (a *systemAccum) toModel() models.SystemOverride {
 		WebhookReceivers:  a.webhooks,
 		TelegramReceivers: a.telegrams,
 	}
+	// Emit Severities only when narrowing is explicit. "All severities"
+	// is encoded as the absence of the field on the wire (omitempty).
+	if !a.hasAllSeverities && len(a.severities) > 0 {
+		out.Severities = a.severities
+	}
+	return out
 }
