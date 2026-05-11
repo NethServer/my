@@ -5,10 +5,10 @@
 
 <template>
   <div class="flex justify-between gap-2 py-4">
-    <div class="font-medium">
+    <div class="text-tertiary-neutral dark:text-tertiary-neutral font-medium">
       <slot name="label"></slot>
     </div>
-    <span class="text-tertiary-neutral dark:text-tertiary-neutral text-end">
+    <span class="text-secondary-neutral dark:text-secondary-neutral text-end">
       <slot name="data"></slot>
     </span>
   </div>
