@@ -424,6 +424,7 @@ async function saveDistributor() {
               :selected-label="$t('ne_combobox.selected')"
               :user-input-label="$t('ne_combobox.user_input_label')"
               :optional-label="$t('common.optional')"
+              custom-options-width="17rem"
             />
             <!-- local part -->
             <NeTextInput
