@@ -6,20 +6,18 @@
 <script setup lang="ts">
 import {
   NeButton,
-  NeCard,
   NeDropdown,
   type NeDropdownItem,
   NeEmptyState,
-  NeHeading,
   NeInlineNotification,
-  NeSkeleton,
+  NeProgressBar,
   NeTable,
   NeTableBody,
   NeTableCell,
   NeTableHead,
   NeTableHeadCell,
   NeTableRow,
-  NeTooltip,
+  byteFormat1024,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -34,9 +32,7 @@ import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   BACKUP_MAX_SIZE_PER_SYSTEM,
-  BACKUP_MAX_SLOTS_PER_SYSTEM,
   deleteBackup,
-  formatBackupSize,
   getBackupDownloadUrl,
   SYSTEM_BACKUPS_KEY,
   type BackupMetadata,
@@ -58,11 +54,19 @@ function refresh() {
   queryCache.invalidateQueries({ key: [SYSTEM_BACKUPS_KEY] })
 }
 
-const maxSlotsLabel = BACKUP_MAX_SLOTS_PER_SYSTEM
-const maxSizeLabel = formatBackupSize(BACKUP_MAX_SIZE_PER_SYSTEM)
-
-const slotsUsed = computed(() => state.value.data?.slots_used ?? 0)
 const quotaUsedBytes = computed(() => state.value.data?.quota_used_bytes ?? 0)
+const quotaPercentage = computed(() => {
+  const used = quotaUsedBytes.value
+  return Math.round((used / BACKUP_MAX_SIZE_PER_SYSTEM) * 100)
+})
+
+const isEmptyStateShown = computed(() => {
+  return !state.value.data?.backups?.length && state.value.status === 'success'
+})
+
+const isTableShown = computed(() => {
+  return state.value.status !== 'error' && !isEmptyStateShown.value
+})
 
 // Download flow: ask backend for a short-lived presigned URL and follow
 // it from the browser. We do not inline the redirect because the
@@ -168,158 +172,115 @@ function getKebabMenuItems(backup: BackupMetadata): NeDropdownItem[] {
 </script>
 
 <template>
-  <NeCard>
-    <div class="mb-6 flex flex-col items-start justify-between gap-4 xl:flex-row">
-      <div>
-        <NeHeading tag="h6" class="mb-2">{{ $t('backups.title') }}</NeHeading>
-        <div class="max-w-2xl text-gray-500 dark:text-gray-400">
-          {{ $t('backups.page_description') }}
-        </div>
-      </div>
-      <div class="flex items-center gap-2">
-        <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
-        <NeButton
-          kind="tertiary"
-          size="sm"
-          :disabled="asyncStatus === 'loading'"
-          @click="refresh()"
-        >
-          <template #prefix>
-            <FontAwesomeIcon :icon="faArrowsRotate" aria-hidden="true" />
-          </template>
-          {{ $t('backups.refresh') }}
-        </NeButton>
-      </div>
+  <!-- page description -->
+  <div class="mb-6">
+    <div class="max-w-2xl text-gray-500 dark:text-gray-400">
+      {{ $t('backups.page_description') }}
     </div>
+  </div>
 
-    <!-- retention / usage summary -->
-    <div
-      v-if="state.status === 'success' && state.data"
-      class="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3"
-    >
-      <div class="rounded-md border border-gray-200 p-3 dark:border-gray-700">
-        <div class="text-xs text-gray-500 dark:text-gray-400">
-          {{ $t('backups.slots_usage') }}
-        </div>
-        <div class="mt-1 text-lg font-medium">
-          {{
-            $t('backups.slots_used_of_max', {
-              used: slotsUsed,
-              max: maxSlotsLabel,
-            })
-          }}
-        </div>
-      </div>
-      <div class="rounded-md border border-gray-200 p-3 dark:border-gray-700">
-        <div class="text-xs text-gray-500 dark:text-gray-400">
+  <!-- storage usage progress bar and reload button -->
+  <div class="mb-6 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+    <div class="flex-1 md:max-w-64">
+      <div class="mb-2 flex items-center justify-between">
+        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
           {{ $t('backups.storage_usage') }}
-        </div>
-        <div class="mt-1 text-lg font-medium">
-          {{ formatBackupSize(quotaUsedBytes) }} / {{ maxSizeLabel }}
-        </div>
+        </span>
+        <span class="text-sm text-gray-500 dark:text-gray-400">
+          {{ byteFormat1024(quotaUsedBytes) }} / {{ byteFormat1024(BACKUP_MAX_SIZE_PER_SYSTEM) }}
+        </span>
       </div>
-      <div class="rounded-md border border-gray-200 p-3 sm:col-span-1 dark:border-gray-700">
-        <div class="text-xs text-gray-500 dark:text-gray-400">
-          {{ $t('backups.retention_policy') }}
-        </div>
-        <div class="text-tertiary-neutral dark:text-tertiary-neutral mt-1 text-sm">
-          {{
-            $t('backups.retention_policy_description', {
-              slots: maxSlotsLabel,
-              size: maxSizeLabel,
-            })
-          }}
-        </div>
-      </div>
+      <NeProgressBar :progress="quotaPercentage" size="sm" />
     </div>
 
-    <!-- error -->
-    <NeInlineNotification
-      v-if="state.status === 'error'"
-      kind="error"
-      :title="$t('backups.cannot_retrieve_backups')"
-      :description="state.error?.message"
-      class="mb-4"
-    />
+    <div class="flex items-center justify-end gap-4">
+      <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
+      <NeButton kind="tertiary" :disabled="asyncStatus === 'loading'" @click="refresh()">
+        <template #prefix>
+          <FontAwesomeIcon :icon="faArrowsRotate" aria-hidden="true" />
+        </template>
+        {{ $t('backups.reload_backups') }}
+      </NeButton>
+    </div>
+  </div>
 
-    <!-- loading skeleton -->
-    <NeSkeleton v-else-if="state.status === 'pending'" :lines="8" />
+  <!-- error -->
+  <NeInlineNotification
+    v-if="state.status === 'error'"
+    kind="error"
+    :title="$t('backups.cannot_retrieve_backups')"
+    :description="state.error?.message"
+    class="mb-4"
+  />
 
-    <!-- empty -->
-    <NeEmptyState
-      v-else-if="!state.data?.backups?.length"
-      :title="$t('backups.no_backups')"
-      :description="$t('backups.no_backups_description')"
-      :icon="faBoxArchive"
-    />
+  <!-- empty state -->
+  <NeEmptyState
+    v-else-if="isEmptyStateShown"
+    :title="$t('backups.no_backups')"
+    :description="$t('backups.no_backups_description')"
+    :icon="faBoxArchive"
+  />
 
-    <!-- table -->
-    <template v-else>
-      <NeTable :aria-label="$t('backups.title')" card-breakpoint="md">
-        <NeTableHead>
-          <NeTableHeadCell>{{ $t('backups.uploaded_at') }}</NeTableHeadCell>
-          <NeTableHeadCell>{{ $t('backups.filename') }}</NeTableHeadCell>
-          <NeTableHeadCell>{{ $t('backups.size') }}</NeTableHeadCell>
-          <NeTableHeadCell>{{ $t('backups.sha256') }}</NeTableHeadCell>
-          <NeTableHeadCell>
-            <!-- no header for actions -->
-          </NeTableHeadCell>
-        </NeTableHead>
-        <NeTableBody>
-          <NeTableRow v-for="backup in state.data.backups" :key="backup.id">
-            <NeTableCell :data-label="$t('backups.uploaded_at')">
-              {{ formatDateTimeNoSeconds(new Date(backup.uploaded_at), locale) }}
-            </NeTableCell>
-            <NeTableCell :data-label="$t('backups.filename')">
-              <div class="flex items-center gap-2">
-                <FontAwesomeIcon
-                  :icon="faBoxArchive"
-                  class="h-4 w-4 shrink-0 text-gray-400"
-                  aria-hidden="true"
-                />
-                <span class="font-medium break-all">{{ backup.filename || backup.id }}</span>
-              </div>
-            </NeTableCell>
-            <NeTableCell :data-label="$t('backups.size')">
-              {{ formatBackupSize(backup.size) }}
-            </NeTableCell>
-            <NeTableCell :data-label="$t('backups.sha256')">
-              <NeTooltip v-if="backup.sha256" placement="top">
-                <template #trigger>
-                  <code class="text-xs">{{ backup.sha256.slice(0, 12) }}…</code>
-                </template>
-                <template #content>
-                  <code class="text-xs break-all">{{ backup.sha256 }}</code>
-                </template>
-              </NeTooltip>
-              <span v-else>-</span>
-            </NeTableCell>
-            <NeTableCell :data-label="$t('backups.actions')">
-              <div class="flex justify-end">
-                <NeDropdown :items="getKebabMenuItems(backup)" :align-to-right="true" />
-              </div>
-            </NeTableCell>
-          </NeTableRow>
-        </NeTableBody>
-      </NeTable>
-    </template>
+  <!-- table -->
+  <template v-if="isTableShown">
+    <NeTable
+      :aria-label="$t('backups.title')"
+      card-breakpoint="md"
+      :loading="state.status === 'pending'"
+      :skeleton-columns="4"
+      :skeleton-rows="7"
+    >
+      <NeTableHead>
+        <NeTableHeadCell>{{ $t('backups.date') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('backups.filename') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('backups.size') }}</NeTableHeadCell>
+        <NeTableHeadCell>
+          <!-- no header for actions -->
+        </NeTableHeadCell>
+      </NeTableHead>
+      <NeTableBody>
+        <NeTableRow v-for="backup in state.data?.backups" :key="backup.id">
+          <NeTableCell :data-label="$t('backups.date')">
+            {{ formatDateTimeNoSeconds(new Date(backup.uploaded_at), locale) }}
+          </NeTableCell>
+          <NeTableCell :data-label="$t('backups.filename')">
+            <div class="flex items-center gap-2">
+              <FontAwesomeIcon
+                :icon="faBoxArchive"
+                class="h-4 w-4 shrink-0 text-gray-400"
+                aria-hidden="true"
+              />
+              <span class="font-medium break-all">{{ backup.filename || backup.id }}</span>
+            </div>
+          </NeTableCell>
+          <NeTableCell :data-label="$t('backups.size')">
+            {{ byteFormat1024(backup.size) }}
+          </NeTableCell>
+          <NeTableCell :data-label="$t('backups.actions')">
+            <div class="-ml-2.5 flex gap-2 md:ml-0 md:justify-end">
+              <NeDropdown :items="getKebabMenuItems(backup)" :align-to-right="true" />
+            </div>
+          </NeTableCell>
+        </NeTableRow>
+      </NeTableBody>
+    </NeTable>
+  </template>
 
-    <DeleteObjectModal
-      :visible="deleteVisible"
-      :title="$t('backups.delete_backup')"
-      :primary-label="$t('backups.delete')"
-      :deleting="deleteBackupLoading"
-      :confirmation-message="
-        $t('backups.delete_backup_confirmation', {
-          filename: deleteTargetFilename,
-          date: deleteTargetDate,
-        })
-      "
-      :error-title="$t('backups.cannot_delete_backup')"
-      :error-description="deleteBackupError?.message"
-      @show="onDeleteShow"
-      @close="closeDelete"
-      @primary-click="deleteTarget && deleteBackupMutate(deleteTarget)"
-    />
-  </NeCard>
+  <DeleteObjectModal
+    :visible="deleteVisible"
+    :title="$t('backups.delete_backup')"
+    :primary-label="$t('backups.delete')"
+    :deleting="deleteBackupLoading"
+    :confirmation-message="
+      $t('backups.delete_backup_confirmation', {
+        filename: deleteTargetFilename,
+        date: deleteTargetDate,
+      })
+    "
+    :error-title="$t('backups.cannot_delete_backup')"
+    :error-description="deleteBackupError?.message"
+    @show="onDeleteShow"
+    @close="closeDelete"
+    @primary-click="deleteTarget && deleteBackupMutate(deleteTarget)"
+  />
 </template>
