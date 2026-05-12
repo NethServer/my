@@ -18,7 +18,7 @@ import (
 
 // ErrChainTooDeep is returned by ResolveAncestorChain when an org's parent
 // chain exceeds the maximum hop count without reaching the Owner. Callers
-// should treat this as a hard error rather than continuing with a possibly
+// treat this as a hard error rather than continuing with a possibly
 // truncated chain — silently dropping upstream layers can underspecify the
 // effective config (recipients missing, channels accidentally disabled).
 var ErrChainTooDeep = fmt.Errorf("ancestor chain exceeds max depth")
@@ -61,7 +61,7 @@ func ResolveAncestorChain(tenantOrgID string) ([]string, error) {
 		chain = append([]string{parent}, chain...)
 		current = parent
 	}
-	// We exhausted MaxChainDepth without hitting an Owner (no-parent) row.
+	// MaxChainDepth exhausted without hitting an Owner (no-parent) row.
 	// Either a cycle slipped through the in-loop check or the hierarchy is
 	// deeper than the model supports. Either way, fail closed.
 	return nil, fmt.Errorf("%w (tenant=%s, depth=%d)", ErrChainTooDeep, tenantOrgID, MaxChainDepth)
@@ -97,45 +97,42 @@ func lookupCreatedBy(orgID string) (string, error) {
 	return *parent, nil
 }
 
-// ComputeEffectiveConfig returns the merged AlertingConfig for the given
-// tenant by walking its ancestor chain, fetching every layer in a single
-// round-trip, and merging in order from Owner to tenant. Empty layers
-// (orgs with no row in alert_config_layers) contribute nothing but don't
-// break the chain.
-func ComputeEffectiveConfig(tenantOrgID string) (models.AlertingConfig, []entities.AlertConfigLayerRecord, error) {
+// computeEffectiveLayer is the package-private entry point that walks the
+// tenant's ancestor chain, fetches every layer in a single round-trip, and
+// merges them in order from Owner to tenant. Empty layers (orgs with no row
+// in alert_config_layers) contribute nothing but don't break the chain.
+//
+// Package-private intentionally: the merged view never leaves the backend.
+// Only RenderAndPushEffective uses it, to drive the Mimir YAML push.
+func computeEffectiveLayer(tenantOrgID string) (models.AlertingConfigLayer, error) {
 	chain, err := ResolveAncestorChain(tenantOrgID)
 	if err != nil {
-		return models.AlertingConfig{}, nil, err
+		return models.AlertingConfigLayer{}, err
 	}
 	repo := entities.NewLocalAlertConfigLayersRepository()
 	layersByOrg, err := repo.GetByOrgIDs(chain)
 	if err != nil {
-		return models.AlertingConfig{}, nil, err
+		return models.AlertingConfigLayer{}, err
 	}
 
 	ordered := make([]models.AlertingConfigLayer, 0, len(chain))
-	provenance := make([]entities.AlertConfigLayerRecord, 0, len(chain))
 	for _, oid := range chain {
 		rec, ok := layersByOrg[oid]
 		if !ok {
 			continue
 		}
 		ordered = append(ordered, rec.Config)
-		provenance = append(provenance, *rec)
 	}
 
-	return MergeLayers(ordered), provenance, nil
+	return MergeLayers(ordered), nil
 }
 
 // RenderAndPushEffective re-computes and pushes the effective Mimir
 // alertmanager config for one tenant. Used by the propagation path: when
 // any layer in a tenant's chain is saved, RenderAndPushEffective is invoked
 // for every affected tenant to keep Mimir in sync.
-//
-// Renders the same YAML we've always pushed (using the existing RenderConfig
-// path); this is what makes the layered model invisible to Alertmanager.
 func RenderAndPushEffective(ctx context.Context, tenantOrgID string) error {
-	effective, _, err := ComputeEffectiveConfig(tenantOrgID)
+	effective, err := computeEffectiveLayer(tenantOrgID)
 	if err != nil {
 		return fmt.Errorf("compute effective for %s: %w", tenantOrgID, err)
 	}
@@ -148,7 +145,7 @@ func RenderAndPushEffective(ctx context.Context, tenantOrgID string) error {
 	if err != nil {
 		return fmt.Errorf("render YAML for %s: %w", tenantOrgID, err)
 	}
-	templateFiles, err := BuildTemplateFiles(effective.EmailTemplateLang, cfg.AppURL)
+	templateFiles, err := BuildTemplateFiles(cfg.AppURL)
 	if err != nil {
 		return fmt.Errorf("build templates for %s: %w", tenantOrgID, err)
 	}

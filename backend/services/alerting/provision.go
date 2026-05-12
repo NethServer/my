@@ -18,20 +18,14 @@ import (
 var provisionRetryDelays = []time.Duration{1 * time.Second, 3 * time.Second, 5 * time.Second}
 
 // ProvisionDefaultConfig is called when a new organization is created. It
-// pushes the EFFECTIVE merged config for that org's tenant to Mimir, so any
-// layers already saved by ancestors (Owner/Distributor/Reseller) take effect
-// immediately. The new org itself starts with no layer of its own; the
-// admin can save one later via POST /alerts/config.
-//
-// defaultEmail (typically the org's contact email captured at creation time)
-// and defaultLang are kept as a convenience for first-time provisioning when
-// no ancestor has saved a layer yet. They render into the YAML directly,
-// without being persisted as a layer — the user is expected to confirm and
-// save them via the UI to make them part of the layered model.
+// pushes the effective merged config for that org's tenant to Mimir so any
+// layers already saved by ancestors (Owner/Distributor/Reseller) take
+// effect immediately. The new org itself starts with no layer of its own;
+// the admin opts in to notifications by saving a layer via POST /alerts/config.
 //
 // The built-in history webhook is always active so resolved alerts are
-// persisted in alert_history regardless of the admin's choices.
-func ProvisionDefaultConfig(orgID, defaultEmail, defaultLang string) error {
+// persisted in alert_history regardless of admin choices.
+func ProvisionDefaultConfig(orgID string) error {
 	if orgID == "" {
 		return fmt.Errorf("orgID is required")
 	}
@@ -42,21 +36,9 @@ func ProvisionDefaultConfig(orgID, defaultEmail, defaultLang string) error {
 	// config than the Owner intended. The org creation flow can retry; the
 	// alternative — "fall back to local defaults" — risks losing Owner-set
 	// recipients/severity rules during a window we cannot otherwise detect.
-	effective, _, err := ComputeEffectiveConfig(orgID)
+	effective, err := computeEffectiveLayer(orgID)
 	if err != nil {
 		return fmt.Errorf("compute effective config at provision: %w", err)
-	}
-
-	// If no ancestor has populated anything, seed the org's first push with
-	// the local defaults (email pre-filled, channel disabled, lang chosen).
-	if len(effective.MailAddresses) == 0 && defaultEmail != "" {
-		effective.MailAddresses = []string{defaultEmail}
-	}
-	if effective.EmailTemplateLang == "" {
-		switch defaultLang {
-		case "it", "en":
-			effective.EmailTemplateLang = defaultLang
-		}
 	}
 
 	cfg := configuration.Config
@@ -69,7 +51,7 @@ func ProvisionDefaultConfig(orgID, defaultEmail, defaultLang string) error {
 		return fmt.Errorf("rendering default alerting config: %w", err)
 	}
 
-	templateFiles, err := BuildTemplateFiles(effective.EmailTemplateLang, cfg.AppURL)
+	templateFiles, err := BuildTemplateFiles(cfg.AppURL)
 	if err != nil {
 		return fmt.Errorf("building default alerting templates: %w", err)
 	}

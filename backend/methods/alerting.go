@@ -38,12 +38,6 @@ import (
 const defaultSystemAlertSilenceDurationMinutes = 60
 const defaultSystemAlertSilenceComment = "silenced from my"
 
-// systemKeyPattern restricts SystemOverride.SystemKey to characters that are safe
-// to embed verbatim in an Alertmanager matcher (which is rendered inside a
-// double-quoted YAML scalar). This prevents a user from injecting additional
-// matcher labels or breaking out of the YAML scalar with quotes or backslashes.
-var systemKeyPattern = regexp.MustCompile(`^[A-Za-z0-9_:.\-]+$`)
-
 // webhookHostDenylist rejects URLs whose host resolves to loopback, link-local,
 // cloud metadata service, RFC1918 private ranges, or unspecified addresses.
 // See validateWebhookURL.
@@ -212,7 +206,7 @@ func snapshotLayerForAudit(rec *entities.AlertConfigLayerRecord) map[string]inte
 	if rec == nil {
 		return nil
 	}
-	cfg := alerting.RedactLayerForDownstream(rec.Config)
+	cfg := alerting.RedactLayerForAudit(rec.Config)
 	return map[string]interface{}{
 		"organization_id":    rec.OrganizationID,
 		"config":             cfg,
@@ -226,7 +220,7 @@ func snapshotLayerForAudit(rec *entities.AlertConfigLayerRecord) map[string]inte
 // before persistence, so the audit "after" reflects what we intend to write.
 // Same redaction policy as snapshotLayerForAudit.
 func snapshotLayerBodyForAudit(orgID string, layer models.AlertingConfigLayer) map[string]interface{} {
-	cfg := alerting.RedactLayerForDownstream(layer)
+	cfg := alerting.RedactLayerForAudit(layer)
 	return map[string]interface{}{
 		"organization_id": orgID,
 		"config":          cfg,
@@ -264,40 +258,12 @@ func ConfigureAlerts(c *gin.Context) {
 		return
 	}
 
-	// Validate severity values
-	validSeverities := map[string]bool{"critical": true, "warning": true, "info": true}
-	for _, severity := range req.Severities {
-		if !validSeverities[severity.Severity] {
-			c.JSON(http.StatusBadRequest, response.BadRequest("invalid severity level: "+severity.Severity+". allowed: critical, warning, info", nil))
-			return
-		}
-		if err := validateWebhookReceivers(severity.WebhookReceivers); err != nil {
-			c.JSON(http.StatusBadRequest, response.BadRequest(err.Error(), nil))
-			return
-		}
-	}
-
-	// Validate per-system overrides: SystemKey is rendered verbatim into an
-	// Alertmanager matcher, so it must be restricted to a safe character set.
-	for _, sys := range req.Systems {
-		if !systemKeyPattern.MatchString(sys.SystemKey) {
-			c.JSON(http.StatusBadRequest, response.BadRequest("invalid system_key: only alphanumeric characters and _ : . - are allowed", nil))
-			return
-		}
-		if err := validateWebhookReceivers(sys.WebhookReceivers); err != nil {
-			c.JSON(http.StatusBadRequest, response.BadRequest(err.Error(), nil))
-			return
-		}
-	}
-
-	if err := validateWebhookReceivers(req.WebhookReceivers); err != nil {
+	// Webhook URLs go through DNS-aware validation (denylist resolution,
+	// loopback/private-range rejection). The model's stateless Validate
+	// covers format/structure for everything else (email format, severity
+	// enum, language, format).
+	if err := validateWebhookRecipients(req.WebhookRecipients); err != nil {
 		c.JSON(http.StatusBadRequest, response.BadRequest(err.Error(), nil))
-		return
-	}
-
-	// Validate email template language
-	if req.EmailTemplateLang != "" && !slices.Contains(alerting.ValidTemplateLangs, req.EmailTemplateLang) {
-		c.JSON(http.StatusBadRequest, response.BadRequest("invalid email_template_lang: allowed values are "+strings.Join(alerting.ValidTemplateLangs, ", "), nil))
 		return
 	}
 
@@ -810,14 +776,14 @@ func enrichAlertsWithSystemInfo(orgID string, alerts []map[string]interface{}) {
 }
 
 // GetAlertingConfig handles GET /api/alerts/config — returns the CALLER's
-// own alerting layer (the editable view). The merged "effective" view that
-// is actually pushed to Mimir is exposed by GET /alerts/config/effective.
-// Returns config:null when the caller has never saved a layer (frontend
-// renders the empty-state form).
+// own alerting layer. Returns an empty layer (with audit metadata absent)
+// when the caller has never saved one; the frontend renders the empty-state
+// form on top of it.
 //
-// `inherited`: read-only view of the layers above the caller in the
-// hierarchy (Owner/Distributor/Reseller). Useful for the UI to render
-// "this email is set by your distributor and cannot be removed".
+// Nothing else is exposed: no inherited ancestor layers, no merged
+// effective view. Every organization sees only its own configuration,
+// regardless of role. The merge happens server-side at render time and
+// stays inside the backend.
 func GetAlertingConfig(c *gin.Context) {
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
@@ -832,104 +798,28 @@ func GetAlertingConfig(c *gin.Context) {
 		return
 	}
 
-	// Build the inherited view: every layer above the caller, in order.
-	// Inherited entries are scrubbed via RedactRecordForDownstream because
-	// they contain secrets the descendants must NOT read (Telegram bot tokens,
-	// webhook URL secrets) and audit metadata (upstream admin user ids) we
-	// don't want descendants to learn.
-	chain, err := alerting.ResolveAncestorChain(user.OrganizationID)
-	if err != nil {
-		logger.Warn().Err(err).Str("org_id", user.OrganizationID).Msg("failed to resolve ancestor chain")
-	}
-	inherited := []entities.AlertConfigLayerRecord{}
-	if len(chain) > 1 {
-		ancestors := chain[:len(chain)-1] // drop self
-		anc, err := repo.GetByOrgIDs(ancestors)
-		if err == nil {
-			for _, oid := range ancestors {
-				if rec, ok := anc[oid]; ok {
-					inherited = append(inherited, alerting.RedactRecordForDownstream(*rec))
-				}
-			}
-		}
-	}
-
-	resp := gin.H{
-		"layer":     nil,
-		"inherited": inherited,
-	}
-	if rec != nil {
-		// The caller owns this layer — return it with secrets intact so they
-		// can edit (the UI will mask them client-side if needed). Inherited
-		// layers are scrubbed above.
-		resp["layer"] = rec
-	}
-	c.JSON(http.StatusOK, response.OK("alerting layer retrieved successfully", resp))
-}
-
-// GetAlertingConfigEffective handles GET /api/alerts/config/effective —
-// returns the merged effective config that backs the Mimir YAML for a
-// specific tenant. Defaults to the caller's own org when organization_id
-// is omitted; non-Customer roles can request an arbitrary tenant in their
-// hierarchy. Useful for the UI's "preview what's actually applied" view.
-func GetAlertingConfigEffective(c *gin.Context) {
-	user, ok := helpers.GetUserFromContext(c)
-	if !ok {
+	if rec == nil {
+		// First-time view: emit an empty layer body so the UI can render
+		// without a null-check, plus null audit fields the UI uses to detect
+		// the "never saved" state.
+		c.JSON(http.StatusOK, response.OK("alerting layer retrieved successfully", gin.H{
+			"enabled":             models.ChannelToggles{},
+			"email_recipients":    []models.EmailRecipient{},
+			"webhook_recipients":  []models.WebhookRecipient{},
+			"telegram_recipients": []models.TelegramRecipient{},
+			"updated_by_name":     nil,
+			"updated_at":          nil,
+		}))
 		return
 	}
 
-	target := c.Query("organization_id")
-	if target == "" {
-		target = user.OrganizationID
-	} else if strings.EqualFold(user.OrgRole, "customer") {
-		// Customer is always pinned to self; ignore param.
-		target = user.OrganizationID
-	} else if !strings.EqualFold(user.OrgRole, "owner") {
-		userService := local.NewUserService()
-		if !userService.IsOrganizationInHierarchy(user.OrgRole, user.OrganizationID, target) {
-			c.JSON(http.StatusForbidden, response.Forbidden("access denied: organization not in your hierarchy", nil))
-			return
-		}
-	}
-
-	effective, provenance, err := alerting.ComputeEffectiveConfig(target)
-	if err != nil {
-		logger.Error().Err(err).Str("target", target).Msg("failed to compute effective alerting config")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to compute effective config", nil))
-		return
-	}
-
-	// Redact secrets on the wire: tokens and webhook URL paths can be
-	// bearer-equivalent. The merged config + per-layer provenance both flow
-	// to the UI; only the server-side render to Mimir uses the unmasked
-	// values.
-	//
-	// We keep the caller's OWN contributions unredacted in the merged view —
-	// the user typed them and is entitled to read them back in clear. Ancestor
-	// secrets remain masked. RedactConfigKeepingOwn matches by URL (webhook)
-	// and (bot_token, chat_id) (telegram) — the same dedup keys the merge uses.
-	// Failure to load the own layer falls back to full redaction (safer).
-	layerRepo := entities.NewLocalAlertConfigLayersRepository()
-	ownRec, ownErr := layerRepo.Get(user.OrganizationID)
-	var ownLayer *models.AlertingConfigLayer
-	if ownErr == nil && ownRec != nil {
-		l := ownRec.Config
-		ownLayer = &l
-	}
-	redactedConfig := alerting.RedactConfigKeepingOwn(effective, ownLayer)
-	redactedProvenance := make([]entities.AlertConfigLayerRecord, 0, len(provenance))
-	for _, rec := range provenance {
-		if rec.OrganizationID == user.OrganizationID {
-			redactedProvenance = append(redactedProvenance, rec)
-			continue
-		}
-		redactedProvenance = append(redactedProvenance, alerting.RedactRecordForDownstream(rec))
-	}
-
-	c.JSON(http.StatusOK, response.OK("effective alerting configuration retrieved successfully", gin.H{
-		"organization_id":     target,
-		"config":              redactedConfig,
-		"contributing_layers": redactedProvenance,
+	c.JSON(http.StatusOK, response.OK("alerting layer retrieved successfully", gin.H{
+		"enabled":             rec.Config.Enabled,
+		"email_recipients":    rec.Config.EmailRecipients,
+		"webhook_recipients":  rec.Config.WebhookRecipients,
+		"telegram_recipients": rec.Config.TelegramRecipients,
+		"updated_by_name":     rec.UpdatedByName,
+		"updated_at":          rec.UpdatedAt,
 	}))
 }
 
@@ -1887,14 +1777,14 @@ func parseDateRange(c *gin.Context) (*time.Time, *time.Time, error) {
 	return from, to, nil
 }
 
-// validateWebhookReceivers enforces that every webhook URL is a plain http/https
+// validateWebhookRecipients enforces that every webhook URL is a plain http/https
 // URL pointing to a publicly-routable host. This protects Mimir's Alertmanager
 // (which dispatches alert payloads from inside the internal network) from being
 // abused as a blind SSRF relay to loopback, metadata, or private-range hosts.
-func validateWebhookReceivers(receivers []models.WebhookReceiver) error {
-	for _, r := range receivers {
+func validateWebhookRecipients(recipients []models.WebhookRecipient) error {
+	for _, r := range recipients {
 		if err := validateWebhookURL(r.URL); err != nil {
-			return fmt.Errorf("webhook receiver %q: %w", r.Name, err)
+			return fmt.Errorf("webhook recipient %q: %w", r.Name, err)
 		}
 	}
 	return nil

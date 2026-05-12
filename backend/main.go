@@ -289,25 +289,25 @@ func main() {
 			// Per-alert audit timeline (silence created/updated/removed events for the alert detail drawer)
 			alertsGroup.GET("/:fingerprint/activity", methods.GetAlertActivity)
 
-			// Configuration management (hierarchical layered model) — gated on the
+			// Configuration management (per-org layered model) — gated on the
 			// dedicated `alerts` resource. GET → read:alerts, POST/DELETE → manage:alerts.
-			// The handler always operates on the caller's own organization layer, so
-			// org-scoping is enforced beneath this permission gate.
+			// The handler always operates on the caller's own organization layer; merged
+			// effective views never leave the backend (only the local server-side render
+			// to Mimir consumes them).
 			//
 			// MaxBodySize(1 MiB) caps the JSON payload before binding to prevent
 			// memory-exhaustion DoS via crafted oversized layers. With the
 			// per-field `max=N` constraints in models.AlertingConfigLayer the
-			// realistic worst case is well under 256 KB; 1 MiB leaves headroom
-			// for legitimate use of the full systems-override list.
+			// realistic worst case is well under 64 KB; 1 MiB leaves comfortable
+			// headroom for legitimate use of the full recipient lists.
 			configGroup := alertsGroup.Group("/config",
 				middleware.RequireResourcePermission("alerts"),
 				middleware.MaxBodySize(1<<20),
 			)
 			{
-				configGroup.GET("", methods.GetAlertingConfig)                    // Caller's own layer + inherited (read-only) view
-				configGroup.GET("/effective", methods.GetAlertingConfigEffective) // Merged effective config for a tenant
-				configGroup.POST("", methods.ConfigureAlerts)                     // Save caller's layer + propagate to descendants (manage:alerts required)
-				configGroup.DELETE("", methods.DisableAlerts)                     // Remove caller's layer + propagate to descendants (manage:alerts required)
+				configGroup.GET("", methods.GetAlertingConfig) // Caller's own layer (no inherited / merged view leaks to descendants)
+				configGroup.POST("", methods.ConfigureAlerts)  // Save caller's layer + propagate to descendants (manage:alerts required)
+				configGroup.DELETE("", methods.DisableAlerts)  // Remove caller's layer + propagate to descendants (manage:alerts required)
 			}
 		}
 

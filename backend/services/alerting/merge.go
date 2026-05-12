@@ -6,158 +6,126 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package alerting
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/nethesis/my/backend/models"
 )
 
-// MergeLayers combines a sequence of organization-level config layers into a
-// single effective AlertingConfig ready to be rendered as Mimir YAML.
+// MergeLayers combines a sequence of organization-level config layers into
+// the effective AlertingConfigLayer that the renderer turns into Mimir YAML.
 //
-// `layers` MUST be ordered from least specific (Owner) to most specific
-// (the tenant whose effective config we are computing). The order matters
-// for `email_template_lang` which uses "deepest non-empty wins"; for all
-// other fields the merge is order-independent (OR for bools, union for
-// lists, by-key merge for severity/system overrides).
+// `layers` is ordered from least specific (Owner) to most specific (the
+// tenant whose effective config we are computing). Order matters for dedup
+// collisions (first occurrence wins for language/format) and for the
+// "any layer says all severities" widening rule.
 //
 // Behaviour summary (security-critical: descendants can ADD, never REMOVE):
 //   - bool channel toggles: OR — if any layer enables a channel, effective
 //     is enabled. A nil or false in a deeper layer never disables what an
 //     ancestor enabled.
-//   - mail_addresses / webhook_receivers / telegram_receivers: union with
-//     stable dedup (preserves first-occurrence order). Receivers are
-//     deduped by their identifying key (URL for webhooks, bot+chat for
-//     telegram).
-//   - severities[]: merge by severity key, recursing on bools (OR) and
-//     lists (union dedup).
-//   - systems[]: merge by system_key, same recursion.
-//   - email_template_lang: deepest non-empty wins. Per-tenant rendering
-//     preference; descendants can override their own subtree without
-//     affecting siblings.
-func MergeLayers(layers []models.AlertingConfigLayer) models.AlertingConfig {
-	out := models.AlertingConfig{
-		MailAddresses:     []string{},
-		WebhookReceivers:  []models.WebhookReceiver{},
-		TelegramReceivers: []models.TelegramReceiver{},
-		Severities:        []models.SeverityOverride{},
-		Systems:           []models.SystemOverride{},
+//   - recipient lists: union with stable dedup. Dedup keys are
+//     email→address, webhook→URL, telegram→(bot_token, chat_id).
+//   - severities[] per recipient: union; if any contributing copy has
+//     severities=[] ("all severities"), the merged copy widens back to [].
+//   - language/format on a deduped email recipient: first-occurrence wins
+//     (Owner intent is preserved; descendants cannot retitle ancestor mail).
+//
+// IMPORTANT: the merged result is server-internal. It feeds the Mimir YAML
+// renderer and nothing else. /alerts/config never returns a merged view to
+// any client — descendants only see their own layer.
+func MergeLayers(layers []models.AlertingConfigLayer) models.AlertingConfigLayer {
+	out := models.AlertingConfigLayer{
+		EmailRecipients:    []models.EmailRecipient{},
+		WebhookRecipients:  []models.WebhookRecipient{},
+		TelegramRecipients: []models.TelegramRecipient{},
 	}
 
-	mailEnabled := false
+	// OR accumulators for the three toggles; promoted to *bool at the end.
+	emailEnabled := false
 	webhookEnabled := false
 	telegramEnabled := false
 
-	addedEmails := make(map[string]struct{})
-	addedWebhooks := make(map[string]struct{})  // key: name + "|" + url
-	addedTelegrams := make(map[string]struct{}) // key: bot_token + "|" + chat_id
-
-	// severity name -> merged override accumulator
-	sevAcc := make(map[string]*severityAccum)
-	// system_key -> merged override accumulator
-	sysAcc := make(map[string]*systemAccum)
+	// Index into out.* lists by dedup key so collisions can update the
+	// existing entry's severities (union) without reordering.
+	emailIdx := map[string]int{}
+	webhookIdx := map[string]int{}
+	telegramIdx := map[string]int{}
 
 	for _, layer := range layers {
-		// Bool toggles: OR semantics.
-		if layer.MailEnabled != nil && *layer.MailEnabled {
-			mailEnabled = true
+		if layer.Enabled.Email != nil && *layer.Enabled.Email {
+			emailEnabled = true
 		}
-		if layer.WebhookEnabled != nil && *layer.WebhookEnabled {
+		if layer.Enabled.Webhook != nil && *layer.Enabled.Webhook {
 			webhookEnabled = true
 		}
-		if layer.TelegramEnabled != nil && *layer.TelegramEnabled {
+		if layer.Enabled.Telegram != nil && *layer.Enabled.Telegram {
 			telegramEnabled = true
 		}
 
-		// Lists: union dedup.
-		for _, e := range layer.MailAddresses {
-			e = strings.TrimSpace(e)
-			if e == "" {
+		for _, r := range layer.EmailRecipients {
+			addr := strings.TrimSpace(r.Address)
+			if addr == "" {
 				continue
 			}
-			if _, seen := addedEmails[e]; seen {
+			if i, seen := emailIdx[addr]; seen {
+				out.EmailRecipients[i].Severities = unionSeverities(out.EmailRecipients[i].Severities, r.Severities)
 				continue
 			}
-			addedEmails[e] = struct{}{}
-			out.MailAddresses = append(out.MailAddresses, e)
+			emailIdx[addr] = len(out.EmailRecipients)
+			out.EmailRecipients = append(out.EmailRecipients, models.EmailRecipient{
+				Address:    addr,
+				Severities: normalizeSeverities(r.Severities),
+				Language:   r.Language,
+				Format:     r.Format,
+			})
 		}
-		for _, w := range layer.WebhookReceivers {
-			// Dedup by URL only: two layers contributing the same destination
-			// URL with different display names should NOT both be delivered
-			// (would produce duplicate webhook calls). The first occurrence
-			// (Owner-most-specific in chain order) wins on the display name.
-			if _, seen := addedWebhooks[w.URL]; seen {
+		for _, r := range layer.WebhookRecipients {
+			url := strings.TrimSpace(r.URL)
+			if url == "" {
 				continue
 			}
-			addedWebhooks[w.URL] = struct{}{}
-			out.WebhookReceivers = append(out.WebhookReceivers, w)
-		}
-		for _, t := range layer.TelegramReceivers {
-			key := t.BotToken + "|" + formatChatID(t.ChatID)
-			if _, seen := addedTelegrams[key]; seen {
+			if i, seen := webhookIdx[url]; seen {
+				out.WebhookRecipients[i].Severities = unionSeverities(out.WebhookRecipients[i].Severities, r.Severities)
 				continue
 			}
-			addedTelegrams[key] = struct{}{}
-			out.TelegramReceivers = append(out.TelegramReceivers, t)
+			webhookIdx[url] = len(out.WebhookRecipients)
+			out.WebhookRecipients = append(out.WebhookRecipients, models.WebhookRecipient{
+				Name:       r.Name,
+				URL:        url,
+				Severities: normalizeSeverities(r.Severities),
+			})
 		}
-
-		// Severity / system overrides: per-key merge.
-		for _, sv := range layer.Severities {
-			acc, ok := sevAcc[sv.Severity]
-			if !ok {
-				acc = newSeverityAccum(sv.Severity)
-				sevAcc[sv.Severity] = acc
+		for _, r := range layer.TelegramRecipients {
+			key := telegramKey(r)
+			if i, seen := telegramIdx[key]; seen {
+				out.TelegramRecipients[i].Severities = unionSeverities(out.TelegramRecipients[i].Severities, r.Severities)
+				continue
 			}
-			acc.absorb(sv)
-		}
-		for _, sys := range layer.Systems {
-			acc, ok := sysAcc[sys.SystemKey]
-			if !ok {
-				acc = newSystemAccum(sys.SystemKey)
-				sysAcc[sys.SystemKey] = acc
-			}
-			acc.absorb(sys)
-		}
-
-		// email_template_lang: deepest non-empty wins. We iterate from least
-		// to most specific, so we just overwrite whenever a non-empty value
-		// is provided.
-		if lang := strings.TrimSpace(layer.EmailTemplateLang); lang != "" {
-			out.EmailTemplateLang = lang
+			telegramIdx[key] = len(out.TelegramRecipients)
+			out.TelegramRecipients = append(out.TelegramRecipients, models.TelegramRecipient{
+				BotToken:   r.BotToken,
+				ChatID:     r.ChatID,
+				Severities: normalizeSeverities(r.Severities),
+			})
 		}
 	}
 
-	out.MailEnabled = mailEnabled
-	out.WebhookEnabled = webhookEnabled
-	out.TelegramEnabled = telegramEnabled
-
-	// Materialise accumulators in stable order: severities by name (critical
-	// before warning before info), systems by system_key alphabetical.
-	for _, sev := range []string{"critical", "warning", "info"} {
-		if acc := sevAcc[sev]; acc != nil {
-			out.Severities = append(out.Severities, acc.toModel())
-		}
+	out.Enabled = models.ChannelToggles{
+		Email:    boolPtr(emailEnabled),
+		Webhook:  boolPtr(webhookEnabled),
+		Telegram: boolPtr(telegramEnabled),
 	}
-	// Any unexpected severity name still appears, after the standard ones.
-	for k, acc := range sevAcc {
-		if k == "critical" || k == "warning" || k == "info" {
-			continue
-		}
-		out.Severities = append(out.Severities, acc.toModel())
-	}
-	for k := range sysAcc {
-		out.Systems = append(out.Systems, sysAcc[k].toModel())
-	}
-
 	return out
 }
 
 // NormalizeLayerForRole sanitises a layer about to be saved for a given org
 // role so that descendants cannot encode subtractive settings.
 //
-// Concretely: for any role except owner we drop *bool=&false on channel
+// For any role except owner we drop *bool=&false on the three channel
 // toggles. The user's intent ("disable email for my tenant") doesn't fit the
-// additive model — only Owner can globally turn a channel off, and even then
-// other layers may bring it back via OR. Setting to nil is the right
+// additive model — only Owner can globally turn a channel off, and even
+// then descendant layers may bring it back via OR. nil is the correct
 // "no opinion" representation; we silently rewrite false → nil to keep the
 // stored layer consistent with the contract.
 func NormalizeLayerForRole(layer *models.AlertingConfigLayer, orgRole string) {
@@ -167,253 +135,61 @@ func NormalizeLayerForRole(layer *models.AlertingConfigLayer, orgRole string) {
 	if strings.EqualFold(orgRole, "owner") {
 		return
 	}
-	if layer.MailEnabled != nil && !*layer.MailEnabled {
-		layer.MailEnabled = nil
+	if layer.Enabled.Email != nil && !*layer.Enabled.Email {
+		layer.Enabled.Email = nil
 	}
-	if layer.WebhookEnabled != nil && !*layer.WebhookEnabled {
-		layer.WebhookEnabled = nil
+	if layer.Enabled.Webhook != nil && !*layer.Enabled.Webhook {
+		layer.Enabled.Webhook = nil
 	}
-	if layer.TelegramEnabled != nil && !*layer.TelegramEnabled {
-		layer.TelegramEnabled = nil
-	}
-	for i := range layer.Severities {
-		nilFalse(&layer.Severities[i].MailEnabled)
-		nilFalse(&layer.Severities[i].WebhookEnabled)
-		nilFalse(&layer.Severities[i].TelegramEnabled)
-	}
-	for i := range layer.Systems {
-		nilFalse(&layer.Systems[i].MailEnabled)
-		nilFalse(&layer.Systems[i].WebhookEnabled)
-		nilFalse(&layer.Systems[i].TelegramEnabled)
+	if layer.Enabled.Telegram != nil && !*layer.Enabled.Telegram {
+		layer.Enabled.Telegram = nil
 	}
 }
 
-func nilFalse(p **bool) {
-	if *p != nil && !**p {
-		*p = nil
+// unionSeverities merges two severities slices with widening semantics:
+// if either side encodes "all severities" (empty slice), the result is also
+// empty (= all). Otherwise the union of the two sets is returned in the
+// canonical order (critical, warning, info).
+func unionSeverities(a, b []string) []string {
+	if len(a) == 0 || len(b) == 0 {
+		return []string{}
 	}
+	seen := map[string]struct{}{}
+	for _, v := range a {
+		seen[v] = struct{}{}
+	}
+	for _, v := range b {
+		seen[v] = struct{}{}
+	}
+	return canonicalSeverityOrder(seen)
 }
 
-func formatChatID(id int64) string {
-	// Avoid pulling strconv just for one call — we render a 64-bit int.
-	// The exact formatting only matters for dedup uniqueness.
-	return intToString(id)
+// normalizeSeverities returns a copy of `s` in canonical order with duplicates
+// dropped and unknown values stripped. Empty (or all-unknown) → empty slice,
+// which the renderer interprets as "all severities".
+func normalizeSeverities(s []string) []string {
+	if len(s) == 0 {
+		return []string{}
+	}
+	seen := map[string]struct{}{}
+	for _, v := range s {
+		seen[v] = struct{}{}
+	}
+	return canonicalSeverityOrder(seen)
 }
 
-func intToString(n int64) string {
-	if n == 0 {
-		return "0"
-	}
-	negative := n < 0
-	if negative {
-		n = -n
-	}
-	digits := make([]byte, 0, 20)
-	for n > 0 {
-		digits = append(digits, byte('0'+n%10))
-		n /= 10
-	}
-	if negative {
-		digits = append(digits, '-')
-	}
-	for i, j := 0, len(digits)-1; i < j; i, j = i+1, j-1 {
-		digits[i], digits[j] = digits[j], digits[i]
-	}
-	return string(digits)
-}
-
-// severityAccum accumulates merged state for one severity key across layers.
-// Bools follow tri-state precedence (any true → true; else any false → false;
-// else nil) so an Owner can disable a channel for a specific severity even
-// when descendants haven't expressed an opinion. Non-Owner layers cannot
-// reach this accumulator with explicit false because NormalizeLayerForRole
-// strips it at write time.
-//
-// Lists are appended with dedup (additive — descendants can only ADD).
-type severityAccum struct {
-	severity        string
-	mailEnabled     *bool
-	webhookEnabled  *bool
-	telegramEnabled *bool
-
-	emails    []string
-	webhooks  []models.WebhookReceiver
-	telegrams []models.TelegramReceiver
-
-	seenEmail    map[string]struct{}
-	seenWebhook  map[string]struct{}
-	seenTelegram map[string]struct{}
-}
-
-func newSeverityAccum(severity string) *severityAccum {
-	return &severityAccum{
-		severity:     severity,
-		seenEmail:    map[string]struct{}{},
-		seenWebhook:  map[string]struct{}{},
-		seenTelegram: map[string]struct{}{},
-	}
-}
-
-func (a *severityAccum) absorb(o models.SeverityOverride) {
-	a.mailEnabled = mergeTristate(a.mailEnabled, o.MailEnabled)
-	a.webhookEnabled = mergeTristate(a.webhookEnabled, o.WebhookEnabled)
-	a.telegramEnabled = mergeTristate(a.telegramEnabled, o.TelegramEnabled)
-	for _, e := range o.MailAddresses {
-		if e = strings.TrimSpace(e); e == "" {
-			continue
+func canonicalSeverityOrder(set map[string]struct{}) []string {
+	out := make([]string, 0, len(set))
+	for _, sev := range []string{"critical", "warning", "info"} {
+		if _, ok := set[sev]; ok {
+			out = append(out, sev)
 		}
-		if _, ok := a.seenEmail[e]; ok {
-			continue
-		}
-		a.seenEmail[e] = struct{}{}
-		a.emails = append(a.emails, e)
-	}
-	for _, w := range o.WebhookReceivers {
-		// Dedup by URL only (see global merge above for rationale).
-		if _, ok := a.seenWebhook[w.URL]; ok {
-			continue
-		}
-		a.seenWebhook[w.URL] = struct{}{}
-		a.webhooks = append(a.webhooks, w)
-	}
-	for _, t := range o.TelegramReceivers {
-		k := t.BotToken + "|" + intToString(t.ChatID)
-		if _, ok := a.seenTelegram[k]; ok {
-			continue
-		}
-		a.seenTelegram[k] = struct{}{}
-		a.telegrams = append(a.telegrams, t)
-	}
-}
-
-func (a *severityAccum) toModel() models.SeverityOverride {
-	return models.SeverityOverride{
-		Severity:          a.severity,
-		MailEnabled:       a.mailEnabled,
-		WebhookEnabled:    a.webhookEnabled,
-		TelegramEnabled:   a.telegramEnabled,
-		MailAddresses:     a.emails,
-		WebhookReceivers:  a.webhooks,
-		TelegramReceivers: a.telegrams,
-	}
-}
-
-// mergeTristate combines an accumulated *bool with an incoming layer value.
-// Precedence: any explicit true wins absolutely; else explicit false wins
-// over nil; else nil. This lets Owner express "disable channel for this
-// severity/system" while still allowing descendants to override with true
-// (additive enable).
-func mergeTristate(acc, in *bool) *bool {
-	if in == nil {
-		return acc
-	}
-	if *in {
-		t := true
-		return &t
-	}
-	if acc == nil {
-		f := false
-		return &f
-	}
-	return acc
-}
-
-// systemAccum mirrors severityAccum for system_key overrides; same tri-state
-// precedence on bools and additive list semantics.
-//
-// Severities semantics on merge: an empty Severities list means "applies to
-// all severities for this system". A non-empty list narrows to those
-// severities only. When merging across layers, "any layer says all" wins
-// (hasAllSeverities flag) — otherwise we union the per-layer severity sets.
-// This preserves the additive contract: if any contributor wants their
-// recipients on all severities, the bucket covers all severities.
-type systemAccum struct {
-	systemKey        string
-	severities       []string
-	hasAllSeverities bool
-	seenSeverity     map[string]struct{}
-	mailEnabled      *bool
-	webhookEnabled   *bool
-	telegramEnabled  *bool
-
-	emails    []string
-	webhooks  []models.WebhookReceiver
-	telegrams []models.TelegramReceiver
-
-	seenEmail    map[string]struct{}
-	seenWebhook  map[string]struct{}
-	seenTelegram map[string]struct{}
-}
-
-func newSystemAccum(systemKey string) *systemAccum {
-	return &systemAccum{
-		systemKey:    systemKey,
-		seenSeverity: map[string]struct{}{},
-		seenEmail:    map[string]struct{}{},
-		seenWebhook:  map[string]struct{}{},
-		seenTelegram: map[string]struct{}{},
-	}
-}
-
-func (a *systemAccum) absorb(o models.SystemOverride) {
-	if len(o.Severities) == 0 {
-		// "applies to all severities" — sticky once set; we drop any
-		// previously-accumulated narrowing because the broader scope wins.
-		a.hasAllSeverities = true
-	} else if !a.hasAllSeverities {
-		for _, s := range o.Severities {
-			if _, ok := a.seenSeverity[s]; ok {
-				continue
-			}
-			a.seenSeverity[s] = struct{}{}
-			a.severities = append(a.severities, s)
-		}
-	}
-	a.mailEnabled = mergeTristate(a.mailEnabled, o.MailEnabled)
-	a.webhookEnabled = mergeTristate(a.webhookEnabled, o.WebhookEnabled)
-	a.telegramEnabled = mergeTristate(a.telegramEnabled, o.TelegramEnabled)
-	for _, e := range o.MailAddresses {
-		if e = strings.TrimSpace(e); e == "" {
-			continue
-		}
-		if _, ok := a.seenEmail[e]; ok {
-			continue
-		}
-		a.seenEmail[e] = struct{}{}
-		a.emails = append(a.emails, e)
-	}
-	for _, w := range o.WebhookReceivers {
-		// Dedup by URL only (see global merge above for rationale).
-		if _, ok := a.seenWebhook[w.URL]; ok {
-			continue
-		}
-		a.seenWebhook[w.URL] = struct{}{}
-		a.webhooks = append(a.webhooks, w)
-	}
-	for _, t := range o.TelegramReceivers {
-		k := t.BotToken + "|" + intToString(t.ChatID)
-		if _, ok := a.seenTelegram[k]; ok {
-			continue
-		}
-		a.seenTelegram[k] = struct{}{}
-		a.telegrams = append(a.telegrams, t)
-	}
-}
-
-func (a *systemAccum) toModel() models.SystemOverride {
-	out := models.SystemOverride{
-		SystemKey:         a.systemKey,
-		MailEnabled:       a.mailEnabled,
-		WebhookEnabled:    a.webhookEnabled,
-		TelegramEnabled:   a.telegramEnabled,
-		MailAddresses:     a.emails,
-		WebhookReceivers:  a.webhooks,
-		TelegramReceivers: a.telegrams,
-	}
-	// Emit Severities only when narrowing is explicit. "All severities"
-	// is encoded as the absence of the field on the wire (omitempty).
-	if !a.hasAllSeverities && len(a.severities) > 0 {
-		out.Severities = a.severities
 	}
 	return out
 }
+
+func telegramKey(r models.TelegramRecipient) string {
+	return r.BotToken + "|" + strconv.FormatInt(r.ChatID, 10)
+}
+
+func boolPtr(b bool) *bool { return &b }

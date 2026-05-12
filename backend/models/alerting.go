@@ -9,95 +9,97 @@ import (
 	"fmt"
 	"net/mail"
 	"net/url"
-	"regexp"
 	"strings"
 )
 
-// systemKeyValidationPattern restricts SystemOverride.SystemKey to characters
-// that are safe to embed verbatim in an Alertmanager matcher (rendered inside
-// a double-quoted YAML scalar). Mirrors the regex enforced at the API
-// boundary; duplicated here so any direct write through the storage layer
-// (admin tools, future endpoints, migrations) gets the same protection.
-var systemKeyValidationPattern = regexp.MustCompile(`^[A-Za-z0-9_:.\-]+$`)
-
 // validSeverities is the canonical Alertmanager severity set we route on.
+// Recipients carry a `severities[]` field; empty means "all severities".
 var validSeverities = map[string]struct{}{
 	"critical": {},
 	"warning":  {},
 	"info":     {},
 }
 
-// WebhookReceiver represents a generic webhook receiver with name and URL
-type WebhookReceiver struct {
-	Name string `json:"name" binding:"required,max=100"`
-	URL  string `json:"url" binding:"required,url,max=2048"`
+// validLanguages restricts EmailRecipient.Language to the set of templates
+// shipped under services/alerting/templates/.
+var validLanguages = map[string]struct{}{
+	"en": {},
+	"it": {},
 }
 
-// TelegramReceiver represents a Telegram bot notification target.
-// BotToken is the secret token obtained from @BotFather (capped at 256 bytes
-// to bound storage and YAML size; real Telegram tokens are ~46 chars).
-// ChatID is the numeric identifier of the target chat (user, group, or channel).
-type TelegramReceiver struct {
-	BotToken string `json:"bot_token" binding:"required,max=256"`
-	ChatID   int64  `json:"chat_id" binding:"required"`
+// validFormats restricts EmailRecipient.Format. "html" emits only `html:`
+// in the rendered email_configs entry (Alertmanager generates an
+// equivalent text/plain alternative automatically but we keep the wire
+// behavior explicit). "plain" emits only `text:` so spartan mailboxes get
+// a stripped-down body.
+var validFormats = map[string]struct{}{
+	"html":  {},
+	"plain": {},
 }
 
-// SeverityOverride defines mail/webhook/telegram settings for a specific severity level
-type SeverityOverride struct {
-	Severity          string             `json:"severity" binding:"required,oneof=critical warning info"`
-	MailEnabled       *bool              `json:"mail_enabled"`
-	WebhookEnabled    *bool              `json:"webhook_enabled"`
-	TelegramEnabled   *bool              `json:"telegram_enabled"`
-	MailAddresses     []string           `json:"mail_addresses,omitempty" binding:"max=50,dive,email,max=320"`
-	WebhookReceivers  []WebhookReceiver  `json:"webhook_receivers,omitempty" binding:"max=20"`
-	TelegramReceivers []TelegramReceiver `json:"telegram_receivers,omitempty" binding:"max=20"`
+// ChannelToggles is the per-layer enable/disable triplet. *bool keeps
+// "not set at this layer / inherit from above" distinguishable from
+// "explicitly false". The handler normalises any explicit `false` from
+// non-Owner layers to nil before persisting (additive contract: only
+// Owner can disable a channel globally).
+type ChannelToggles struct {
+	Email    *bool `json:"email"`
+	Webhook  *bool `json:"webhook"`
+	Telegram *bool `json:"telegram"`
 }
 
-// SystemOverride defines mail/webhook/telegram settings for a specific system_key.
-// SystemKey is bounded at 128 bytes to keep matcher rendering predictable;
-// the regex enforced in the handler restricts the character set further.
+// EmailRecipient is a single email destination with its own routing scope.
+// Severities=[] means "all severities" — the recipient lands on the global
+// receiver in Alertmanager. A non-empty subset narrows the route to those
+// severities via an extra matcher (`severity="X"` or `severity=~"X|Y"`).
+// Language/Format pick the email template variant: at least one recipient
+// in the merged config can pin one language, another a different one
+// (we render one email_configs per recipient with template overrides).
+type EmailRecipient struct {
+	Address    string   `json:"address" binding:"required,email,max=320"`
+	Severities []string `json:"severities" binding:"max=3,dive,oneof=critical warning info"`
+	Language   string   `json:"language,omitempty" binding:"omitempty,oneof=en it"`
+	Format     string   `json:"format,omitempty" binding:"omitempty,oneof=html plain"`
+}
+
+// WebhookRecipient is a generic outbound HTTP receiver with optional
+// severity narrowing. Name is purely descriptive (rendered into the
+// receiver name in Alertmanager YAML). URL is validated against a
+// denylist of private/loopback/metadata destinations at the handler.
+type WebhookRecipient struct {
+	Name       string   `json:"name" binding:"required,max=100"`
+	URL        string   `json:"url" binding:"required,url,max=2048"`
+	Severities []string `json:"severities" binding:"max=3,dive,oneof=critical warning info"`
+}
+
+// TelegramRecipient is a Telegram bot destination with optional severity
+// narrowing. BotToken is bearer-equivalent and never returned outside the
+// owning org (irrelevant in the current API since /alerts/config returns
+// only the caller's own layer, but the storage layer still treats it as
+// sensitive: encrypted-at-rest by the database, redacted from any future
+// admin-only inspection path).
+type TelegramRecipient struct {
+	BotToken   string   `json:"bot_token" binding:"required,max=256"`
+	ChatID     int64    `json:"chat_id" binding:"required"`
+	Severities []string `json:"severities" binding:"max=3,dive,oneof=critical warning info"`
+}
+
+// AlertingConfigLayer is the per-organization layer persisted in
+// alert_config_layers.config_json. It doubles as the internal type
+// produced by MergeForRender when the renderer builds the effective
+// per-tenant Mimir YAML — the merged result is conceptually "a layer
+// where each entry knows its own scope (severities[]) and per-recipient
+// rendering hints (language/format)".
 //
-// Severities optionally narrows the override to specific severity levels
-// (any of "critical", "warning", "info"). Empty/missing means "all
-// severities for this system" — preserves backwards compatibility with
-// layers saved before this field existed. When non-empty, the rendered
-// Alertmanager route attaches a `severity =~ "<a>|<b>|..."` matcher in
-// addition to `system_key="<key>"`.
-type SystemOverride struct {
-	SystemKey         string             `json:"system_key" binding:"required,max=128"`
-	Severities        []string           `json:"severities,omitempty" binding:"max=3,dive,oneof=critical warning info"`
-	MailEnabled       *bool              `json:"mail_enabled"`
-	WebhookEnabled    *bool              `json:"webhook_enabled"`
-	TelegramEnabled   *bool              `json:"telegram_enabled"`
-	MailAddresses     []string           `json:"mail_addresses,omitempty" binding:"max=50,dive,email,max=320"`
-	WebhookReceivers  []WebhookReceiver  `json:"webhook_receivers,omitempty" binding:"max=20"`
-	TelegramReceivers []TelegramReceiver `json:"telegram_receivers,omitempty" binding:"max=20"`
-}
-
-// AlertingConfigLayer is the per-organization layer used by the hierarchical
-// alerting config model. Each org has one layer in alert_config_layers; the
-// effective Mimir-bound config for a tenant is the merge of all layers
-// walking up from the tenant to the Owner.
-//
-// Bool fields are *bool to keep "not set at this layer" distinguishable
-// from "explicitly disabled". Merge rules (see services/alerting.MergeLayers):
-//   - bool channel toggles: OR (additive enable; descendants cannot disable
-//     a channel enabled by an ancestor). Normalised at write time so
-//     non-Owner layers cannot store an explicit false.
-//   - list fields (mail_addresses, webhook/telegram receivers, severities,
-//     systems): union with dedup. Per-key merge for severity/system overrides.
-//   - email_template_lang: deepest non-empty wins (per-tenant rendering
-//     preference; descendants can override their own subtree).
+// The API surface (POST/GET /alerts/config) is exactly this struct.
+// Nothing about the layered model — neither inherited ancestor recipients
+// nor the merged effective preview — ever leaves the owning org. Server
+// performs the merge at render time only.
 type AlertingConfigLayer struct {
-	MailEnabled       *bool              `json:"mail_enabled,omitempty"`
-	WebhookEnabled    *bool              `json:"webhook_enabled,omitempty"`
-	TelegramEnabled   *bool              `json:"telegram_enabled,omitempty"`
-	MailAddresses     []string           `json:"mail_addresses,omitempty" binding:"max=50,dive,email,max=320"`
-	WebhookReceivers  []WebhookReceiver  `json:"webhook_receivers,omitempty" binding:"max=20"`
-	TelegramReceivers []TelegramReceiver `json:"telegram_receivers,omitempty" binding:"max=20"`
-	Severities        []SeverityOverride `json:"severities,omitempty" binding:"max=10"`
-	Systems           []SystemOverride   `json:"systems,omitempty" binding:"max=500"`
-	EmailTemplateLang string             `json:"email_template_lang,omitempty" binding:"max=8"`
+	Enabled            ChannelToggles      `json:"enabled"`
+	EmailRecipients    []EmailRecipient    `json:"email_recipients" binding:"max=50"`
+	WebhookRecipients  []WebhookRecipient  `json:"webhook_recipients" binding:"max=20"`
+	TelegramRecipients []TelegramRecipient `json:"telegram_recipients" binding:"max=20"`
 }
 
 // Validate runs stateless format/structure checks that must hold for every
@@ -106,55 +108,48 @@ type AlertingConfigLayer struct {
 // guarantees regardless of where the layer originates (HTTP handler,
 // provisioning path, admin tool, future endpoint), the persisted bytes
 // satisfy the contract.
-//
-// What is NOT checked here: list-cardinality and per-string max length
-// (already enforced by the `binding:"max=N"` tags via go-playground/validator
-// at HTTP bind time), and DNS resolution of webhook hostnames (deliberate —
-// kept at the handler level to avoid network calls during DB writes).
 func (c *AlertingConfigLayer) Validate() error {
-	for i, w := range c.WebhookReceivers {
-		if err := validateStaticWebhookURL(w.URL); err != nil {
-			return fmt.Errorf("webhook_receivers[%d] %q: %w", i, w.Name, err)
+	for i, r := range c.EmailRecipients {
+		if err := validateEmailFormat(r.Address); err != nil {
+			return fmt.Errorf("email_recipients[%d]: %w", i, err)
 		}
-	}
-	for i, e := range c.MailAddresses {
-		if err := validateEmailFormat(e); err != nil {
-			return fmt.Errorf("mail_addresses[%d]: %w", i, err)
+		if err := validateSeverities(r.Severities); err != nil {
+			return fmt.Errorf("email_recipients[%d]: %w", i, err)
 		}
-	}
-	for i, sv := range c.Severities {
-		if _, ok := validSeverities[sv.Severity]; !ok {
-			return fmt.Errorf("severities[%d]: invalid severity %q", i, sv.Severity)
-		}
-		for j, w := range sv.WebhookReceivers {
-			if err := validateStaticWebhookURL(w.URL); err != nil {
-				return fmt.Errorf("severities[%d].webhook_receivers[%d] %q: %w", i, j, w.Name, err)
+		if r.Language != "" {
+			if _, ok := validLanguages[r.Language]; !ok {
+				return fmt.Errorf("email_recipients[%d]: unknown language %q", i, r.Language)
 			}
 		}
-		for j, e := range sv.MailAddresses {
-			if err := validateEmailFormat(e); err != nil {
-				return fmt.Errorf("severities[%d].mail_addresses[%d]: %w", i, j, err)
+		if r.Format != "" {
+			if _, ok := validFormats[r.Format]; !ok {
+				return fmt.Errorf("email_recipients[%d]: unknown format %q", i, r.Format)
 			}
 		}
 	}
-	for i, sys := range c.Systems {
-		if !systemKeyValidationPattern.MatchString(sys.SystemKey) {
-			return fmt.Errorf("systems[%d]: system_key %q contains disallowed characters", i, sys.SystemKey)
+	for i, r := range c.WebhookRecipients {
+		if err := validateStaticWebhookURL(r.URL); err != nil {
+			return fmt.Errorf("webhook_recipients[%d] %q: %w", i, r.Name, err)
 		}
-		for j, w := range sys.WebhookReceivers {
-			if err := validateStaticWebhookURL(w.URL); err != nil {
-				return fmt.Errorf("systems[%d].webhook_receivers[%d] %q: %w", i, j, w.Name, err)
-			}
-		}
-		for j, e := range sys.MailAddresses {
-			if err := validateEmailFormat(e); err != nil {
-				return fmt.Errorf("systems[%d].mail_addresses[%d]: %w", i, j, err)
-			}
+		if err := validateSeverities(r.Severities); err != nil {
+			return fmt.Errorf("webhook_recipients[%d]: %w", i, err)
 		}
 	}
-	if c.EmailTemplateLang != "" {
-		if !regexp.MustCompile(`^[a-zA-Z]{2,8}$`).MatchString(c.EmailTemplateLang) {
-			return fmt.Errorf("email_template_lang must be a short language code")
+	for i, r := range c.TelegramRecipients {
+		if strings.TrimSpace(r.BotToken) == "" {
+			return fmt.Errorf("telegram_recipients[%d]: bot_token is empty", i)
+		}
+		if err := validateSeverities(r.Severities); err != nil {
+			return fmt.Errorf("telegram_recipients[%d]: %w", i, err)
+		}
+	}
+	return nil
+}
+
+func validateSeverities(s []string) error {
+	for _, v := range s {
+		if _, ok := validSeverities[v]; !ok {
+			return fmt.Errorf("invalid severity %q", v)
 		}
 	}
 	return nil
@@ -192,23 +187,6 @@ func validateEmailFormat(s string) error {
 		return fmt.Errorf("invalid email %q: %w", s, err)
 	}
 	return nil
-}
-
-// AlertingConfig is the main configuration structure for alerting
-type AlertingConfig struct {
-	// Global settings
-	MailEnabled       bool               `json:"mail_enabled"`
-	WebhookEnabled    bool               `json:"webhook_enabled"`
-	TelegramEnabled   bool               `json:"telegram_enabled"`
-	MailAddresses     []string           `json:"mail_addresses" binding:"max=50,dive,email,max=320"`
-	WebhookReceivers  []WebhookReceiver  `json:"webhook_receivers" binding:"max=20"`
-	TelegramReceivers []TelegramReceiver `json:"telegram_receivers" binding:"max=20"`
-	// Per-severity overrides
-	Severities []SeverityOverride `json:"severities,omitempty" binding:"max=10"`
-	// Per-system_key overrides
-	Systems []SystemOverride `json:"systems,omitempty" binding:"max=500"`
-	// Email template language: "en" (default) or "it"
-	EmailTemplateLang string `json:"email_template_lang,omitempty" binding:"max=8"`
 }
 
 // AlertStatus represents the status metadata for an active alert from Alertmanager.
