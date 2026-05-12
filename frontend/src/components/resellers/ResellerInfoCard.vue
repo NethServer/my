@@ -23,6 +23,7 @@ import { faPenToSquare } from '@fortawesome/free-solid-svg-icons'
 import { useI18n } from 'vue-i18n'
 import CreateOrEditResellerDrawer from './CreateOrEditResellerDrawer.vue'
 import { getLanguageLabel } from '@/lib/locale'
+import { formatPhoneForDisplay } from '@/lib/phone'
 
 const { t } = useI18n()
 const { state: resellerDetail, asyncStatus } = useResellerDetail()
@@ -113,6 +114,7 @@ function getKebabMenuItems() {
               :href="`mailto:${resellerDetail.data.custom_data.email}`"
               target="_blank"
               rel="noopener noreferrer"
+              class="break-all"
             >
               {{ resellerDetail.data.custom_data.email }}
             </NeLink>
@@ -129,7 +131,7 @@ function getKebabMenuItems() {
               v-if="resellerDetail.data.custom_data.phone"
               :href="`tel:${resellerDetail.data.custom_data.phone}`"
             >
-              {{ resellerDetail.data.custom_data.phone }}
+              {{ formatPhoneForDisplay(resellerDetail.data.custom_data.phone) }}
             </NeLink>
             <template v-else>-</template>
           </template>

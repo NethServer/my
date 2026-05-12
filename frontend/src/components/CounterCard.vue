@@ -43,9 +43,9 @@ const hasDefaultSlot = computed(() => !!slots.default)
           <FontAwesomeIcon
             v-if="icon"
             :icon="icon"
-            class="size-5 text-gray-600 dark:text-gray-300"
+            class="text-tertiary-neutral dark:text-tertiary-neutral size-5"
           />
-          <NeHeading tag="h6" class="text-gray-600 dark:text-gray-300">
+          <NeHeading tag="h6" class="text-tertiary-neutral dark:text-tertiary-neutral">
             {{ uppercaseTitle ? title.toUpperCase() : title }}
           </NeHeading>
         </div>

@@ -222,7 +222,7 @@ function getKebabMenuItems(backup: BackupMetadata): NeDropdownItem[] {
         <div class="text-xs text-gray-500 dark:text-gray-400">
           {{ $t('backups.retention_policy') }}
         </div>
-        <div class="mt-1 text-sm text-gray-600 dark:text-gray-300">
+        <div class="text-tertiary-neutral dark:text-tertiary-neutral mt-1 text-sm">
           {{
             $t('backups.retention_policy_description', {
               slots: maxSlotsLabel,

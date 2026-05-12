@@ -23,6 +23,7 @@ import { faPenToSquare } from '@fortawesome/free-solid-svg-icons'
 import { useI18n } from 'vue-i18n'
 import CreateOrEditDistributorDrawer from './CreateOrEditDistributorDrawer.vue'
 import { getLanguageLabel } from '@/lib/locale'
+import { formatPhoneForDisplay } from '@/lib/phone'
 
 const { t } = useI18n()
 const { state: distributorDetail, asyncStatus } = useDistributorDetail()
@@ -113,6 +114,7 @@ function getKebabMenuItems() {
               :href="`mailto:${distributorDetail.data.custom_data.email}`"
               target="_blank"
               rel="noopener noreferrer"
+              class="break-all"
             >
               {{ distributorDetail.data.custom_data.email }}
             </NeLink>
@@ -129,7 +131,7 @@ function getKebabMenuItems() {
               v-if="distributorDetail.data.custom_data.phone"
               :href="`tel:${distributorDetail.data.custom_data.phone}`"
             >
-              {{ distributorDetail.data.custom_data.phone }}
+              {{ formatPhoneForDisplay(distributorDetail.data.custom_data.phone) }}
             </NeLink>
             <template v-else>-</template>
           </template>

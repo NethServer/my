@@ -138,7 +138,7 @@ const getNetworkRoleForegroundStyle = (role: string | undefined) => {
             {{ iface.name }}
           </div>
           <!-- type and role -->
-          <div class="mt-1 text-gray-600 dark:text-gray-300">
+          <div class="text-tertiary-neutral dark:text-tertiary-neutral mt-1">
             {{ iface?.type || '-' }}
             <span
               >&bull;
@@ -146,11 +146,14 @@ const getNetworkRoleForegroundStyle = (role: string | undefined) => {
             </span>
           </div>
           <!-- ip address -->
-          <div class="text-gray-600 dark:text-gray-300">
+          <div class="text-tertiary-neutral dark:text-tertiary-neutral">
             {{ getIpAddressWithCidr(iface) }}
           </div>
           <!-- gateway -->
-          <div v-if="iface.props?.gateway" class="text-gray-600 uppercase dark:text-gray-300">
+          <div
+            v-if="iface.props?.gateway"
+            class="text-tertiary-neutral dark:text-tertiary-neutral uppercase"
+          >
             GW: {{ iface.props?.gateway }}
           </div>
         </div>
@@ -161,7 +164,7 @@ const getNetworkRoleForegroundStyle = (role: string | undefined) => {
           <span class="shrink-0 font-medium">
             {{ $t('system_detail.dns_servers') }}
           </span>
-          <span v-if="dnsServers.length" class="text-gray-600 dark:text-gray-300">
+          <span v-if="dnsServers.length" class="text-tertiary-neutral dark:text-tertiary-neutral">
             {{ dnsServers.join(', ') }}
           </span>
           <span v-else>-</span>

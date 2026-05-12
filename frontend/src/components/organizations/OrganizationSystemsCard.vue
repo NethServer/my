@@ -88,7 +88,7 @@ const goToSystems = () => {
       </div>
       <div v-if="moreSystems > 0" class="py-3">
         <NeLink @click="goToSystems()">
-          {{ t('common.plus_n_more', { num: moreSystems }) }}
+          {{ t('common.plus_n_more', { count: moreSystems }) }}
         </NeLink>
       </div>
     </div>

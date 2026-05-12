@@ -318,3 +318,109 @@ export async function exportUser(user: User, format: 'pdf' | 'csv') {
     throw error
   }
 }
+
+// ============================================================
+// Import types
+// ============================================================
+
+export interface ImportFieldWarning {
+  field: string
+  message: string
+  value: string
+}
+
+export interface ImportFieldError {
+  field: string
+  message: string
+  values: string[]
+  candidates?: ImportOrgCandidate[]
+}
+
+export interface ImportOrgCandidate {
+  logto_id: string
+  name: string
+  type: string
+}
+
+export interface ImportRow {
+  row_number: number
+  status: 'valid' | 'error' | 'warning' | 'ambiguous'
+  data: Record<string, unknown>
+  errors?: ImportFieldError[]
+  warnings?: ImportFieldWarning[]
+}
+
+export interface ImportValidationResult {
+  import_id: string
+  total_rows: number
+  valid_rows: number
+  error_rows: number
+  warning_rows: number
+  ambiguous_rows: number
+  rows: ImportRow[]
+}
+
+export interface ImportResultRow {
+  row_number: number
+  status: 'created' | 'updated' | 'skipped' | 'failed'
+  id?: string
+  reason?: string
+  error?: string
+}
+
+export interface ImportConfirmResult {
+  created: number
+  updated: number
+  skipped: number
+  failed: number
+  results: ImportResultRow[]
+}
+
+// ============================================================
+// Import API functions
+// ============================================================
+
+export const getImportTemplate = () => {
+  const loginStore = useLoginStore()
+  return axios
+    .get<Blob>(`${API_URL}/users/import/template`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+      responseType: 'blob',
+    })
+    .then((res) => res.data)
+}
+
+export const validateUsersImport = (file: File) => {
+  const loginStore = useLoginStore()
+  const formData = new FormData()
+  formData.append('file', file)
+  return axios
+    .post<{ code: number; message: string; data: ImportValidationResult }>(
+      `${API_URL}/users/import/validate`,
+      formData,
+      {
+        headers: {
+          Authorization: `Bearer ${loginStore.jwtToken}`,
+          'Content-Type': null,
+        },
+      },
+    )
+    .then((res) => res.data.data)
+}
+
+export const confirmUsersImport = (
+  importId: string,
+  override: boolean,
+  resolutions?: Record<string, { organization_id: string }>,
+) => {
+  const loginStore = useLoginStore()
+  return axios
+    .post<{ code: number; message: string; data: ImportConfirmResult }>(
+      `${API_URL}/users/import/confirm`,
+      { import_id: importId, override, resolutions },
+      {
+        headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+      },
+    )
+    .then((res) => res.data.data)
+}

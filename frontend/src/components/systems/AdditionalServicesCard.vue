@@ -92,7 +92,9 @@ const sortedServices = computed<ServiceItem[]>(() =>
         <span class="font-medium text-gray-900 dark:text-gray-50">
           {{ service.label }}
         </span>
-        <div class="flex items-center gap-2 text-end text-gray-600 dark:text-gray-300">
+        <div
+          class="text-tertiary-neutral dark:text-tertiary-neutral flex items-center gap-2 text-end"
+        >
           <FontAwesomeIcon
             :icon="service.enabled ? faCircleCheck : faCircleXmark"
             class="size-4"
