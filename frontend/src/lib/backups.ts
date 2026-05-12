@@ -46,7 +46,6 @@ export interface BackupDownloadResponse {
 //    does not currently surface these values so we render them from
 //    constants and update them here if the server-side defaults shift. ──
 
-export const BACKUP_MAX_SLOTS_PER_SYSTEM = 10
 export const BACKUP_MAX_SIZE_PER_SYSTEM = 500 * 1024 * 1024
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -80,19 +79,4 @@ export const deleteBackup = (systemId: string, backupId: string) => {
   return axios.delete(`${API_URL}/systems/${systemId}/backups/${encodeURIComponent(backupId)}`, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
-}
-
-// ── Formatting helpers ────────────────────────────────────────────────────────
-
-export function formatBackupSize(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes < 0) return '-'
-  if (bytes < 1024) return `${bytes} B`
-  const units = ['KB', 'MB', 'GB', 'TB']
-  let value = bytes / 1024
-  let unit = 0
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024
-    unit++
-  }
-  return `${value.toFixed(value >= 100 ? 0 : value >= 10 ? 1 : 2)} ${units[unit]}`
 }
