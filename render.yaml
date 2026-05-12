@@ -255,6 +255,13 @@ services:
       - key: LOG_FORMAT
         value: json
 
+      # Go must honor the cgroup limit, otherwise GC waits too long and the
+      # container is OOM-killed before any GC pass. ~78% of the 512 MB plan.
+      - key: GOMEMLIMIT
+        value: 400MiB
+      - key: GOGC
+        value: 50
+
       # Redis Configuration
       - key: REDIS_URL
         fromService:
@@ -413,6 +420,13 @@ services:
         value: debug
       - key: LOG_FORMAT
         value: json
+
+      # Go must honor the cgroup limit, otherwise GC waits too long and the
+      # container is OOM-killed before any GC pass. ~78% of the 512 MB plan.
+      - key: GOMEMLIMIT
+        value: 400MiB
+      - key: GOGC
+        value: 50
 
       # Redis Configuration
       - key: REDIS_URL
