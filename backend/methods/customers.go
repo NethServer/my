@@ -79,15 +79,14 @@ func CreateCustomer(c *gin.Context) {
 	// Log the action
 	logger.LogBusinessOperation(c, "customers", "create", "customer", customer.ID, true, nil)
 
-	// Auto-provision default alerting configuration so the built-in history webhook
-	// is active from day one. Mail and webhook notifications are always disabled on
-	// creation; the customer's email (if present) is stored as a pre-filled
-	// recipient but must be explicitly enabled. Failure is logged but does not block
-	// customer creation.
+	// Auto-provision default alerting configuration so the built-in history
+	// webhook is active from day one and any ancestor layers propagate to
+	// Mimir for the new tenant. The new customer starts with no layer of
+	// its own; admins opt in to notifications by saving a layer via POST
+	// /alerts/config. Failure is logged but does not block customer
+	// creation.
 	if customer.LogtoID != nil && *customer.LogtoID != "" {
-		defaultEmail, _ := customer.CustomData["email"].(string)
-		defaultLang, _ := customer.CustomData["language"].(string)
-		if err := alerting.ProvisionDefaultConfig(*customer.LogtoID, defaultEmail, defaultLang); err != nil {
+		if err := alerting.ProvisionDefaultConfig(*customer.LogtoID); err != nil {
 			logger.Warn().
 				Err(err).
 				Str("customer_id", customer.ID).
