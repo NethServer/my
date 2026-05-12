@@ -269,7 +269,9 @@ func main() {
 		}
 
 		// ===========================================
-		// ALERTS - resource-based permission validation (read:systems for GET, manage:systems for POST/DELETE)
+		// ALERTS - operations stay on `systems` (read:systems / manage:systems);
+		// configuration policy is gated by the dedicated `alerts` resource so
+		// only Admin/Super can rewrite the layered MSP policy.
 		// ===========================================
 		alertsGroup := customAuthWithAudit.Group("/alerts", middleware.RequireResourcePermission("systems"))
 		{
@@ -287,10 +289,26 @@ func main() {
 			// Per-alert audit timeline (silence created/updated/removed events for the alert detail drawer)
 			alertsGroup.GET("/:fingerprint/activity", methods.GetAlertActivity)
 
-			// Configuration management
-			alertsGroup.GET("/config", methods.GetAlertingConfig) // Get current alerting configuration
-			alertsGroup.POST("/config", methods.ConfigureAlerts)  // Configure alert routing (manage:systems required)
-			alertsGroup.DELETE("/config", methods.DisableAlerts)  // Disable all alerts (manage:systems required)
+			// Configuration management (per-org layered model) — gated on the
+			// dedicated `alerts` resource. GET → read:alerts, POST/DELETE → manage:alerts.
+			// The handler always operates on the caller's own organization layer; merged
+			// effective views never leave the backend (only the local server-side render
+			// to Mimir consumes them).
+			//
+			// MaxBodySize(1 MiB) caps the JSON payload before binding to prevent
+			// memory-exhaustion DoS via crafted oversized layers. With the
+			// per-field `max=N` constraints in models.AlertingConfigLayer the
+			// realistic worst case is well under 64 KB; 1 MiB leaves comfortable
+			// headroom for legitimate use of the full recipient lists.
+			configGroup := alertsGroup.Group("/config",
+				middleware.RequireResourcePermission("alerts"),
+				middleware.MaxBodySize(1<<20),
+			)
+			{
+				configGroup.GET("", methods.GetAlertingConfig) // Caller's own layer (no inherited / merged view leaks to descendants)
+				configGroup.POST("", methods.ConfigureAlerts)  // Save caller's layer + propagate to descendants (manage:alerts required)
+				configGroup.DELETE("", methods.DisableAlerts)  // Remove caller's layer + propagate to descendants (manage:alerts required)
+			}
 		}
 
 		// ===========================================

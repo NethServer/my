@@ -9,752 +9,202 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
-
 	"github.com/nethesis/my/backend/models"
 )
 
-// smtpArgs returns the common SMTP args used across tests.
-func smtpArgs() (string, int, string, string, string, bool) {
-	return "smtp.example.com", 587, "user", "pass", "from@example.com", true
-}
-
-func boolPtr(b bool) *bool { return &b }
-
-// isValidYAML checks that s is parseable YAML.
-func isValidYAML(t *testing.T, s string) {
+func renderForTest(t *testing.T, cfg *models.AlertingConfigLayer) string {
 	t.Helper()
-	var out interface{}
-	require.NoError(t, yaml.Unmarshal([]byte(s), &out), "YAML must be valid")
+	out, err := RenderConfig(
+		"smtp.example", 587, "u", "p", "from@example", true,
+		"", "",
+		cfg,
+	)
+	if err != nil {
+		t.Fatalf("RenderConfig error: %v", err)
+	}
+	return out
 }
-
-// --- RenderConfig tests ---
 
 func TestRenderConfig_NilCfg_BlackholeOnly(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", nil)
-	require.NoError(t, err)
-	isValidYAML(t, out)
-
-	assert.Contains(t, out, "receiver: 'blackhole'")
-	assert.NotContains(t, out, "builtin-history")
-	assert.NotContains(t, out, "system_key=")
-	assert.NotContains(t, out, "severity=")
-}
-
-func TestRenderConfig_NilCfg_WithHistoryURL(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	out, err := RenderConfig(host, port, user, pass, from, tls, "http://history.example.com/hook", "", nil)
-	require.NoError(t, err)
-	isValidYAML(t, out)
-
-	assert.Contains(t, out, "builtin-history")
-	assert.Contains(t, out, "url: 'http://history.example.com/hook'")
-	assert.Contains(t, out, "continue: true")
-	// No user routes
-	assert.NotContains(t, out, "system_key=")
-	assert.NotContains(t, out, "severity=")
-}
-
-func TestRenderConfig_GlobalMailOnly(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	cfg := &models.AlertingConfig{
-		MailEnabled:   true,
-		MailAddresses: []string{"admin@example.com"},
+	out := renderForTest(t, nil)
+	if !strings.Contains(out, "receiver: 'blackhole'") {
+		t.Errorf("expected blackhole receiver, got:\n%s", out)
 	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
-	require.NoError(t, err)
-	isValidYAML(t, out)
-
-	assert.Contains(t, out, "receiver: 'global-receiver'")
-	assert.Contains(t, out, "to: 'admin@example.com'")
-	assert.NotContains(t, out, "webhook_configs")
+	// No per-severity routes when cfg is nil.
+	if strings.Contains(out, "severity=") {
+		t.Errorf("nil cfg should not emit severity matchers, got:\n%s", out)
+	}
 }
 
-func TestRenderConfig_GlobalWebhookOnly(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	cfg := &models.AlertingConfig{
-		WebhookEnabled: true,
-		WebhookReceivers: []models.WebhookReceiver{
-			{Name: "slack", URL: "https://hooks.slack.com/abc"},
+func TestRenderConfig_PerSeverityFanout(t *testing.T) {
+	cfg := &models.AlertingConfigLayer{
+		Enabled: models.ChannelToggles{Email: ptrTrue()},
+		EmailRecipients: []models.EmailRecipient{
+			{Address: "all@x.com", Severities: []string{}, Language: "en", Format: "html"},
+			{Address: "crit@x.com", Severities: []string{"critical"}, Language: "en", Format: "html"},
 		},
 	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
-	require.NoError(t, err)
-	isValidYAML(t, out)
-
-	assert.Contains(t, out, "receiver: 'global-receiver'")
-	assert.Contains(t, out, "url: 'https://hooks.slack.com/abc'")
-	assert.NotContains(t, out, "email_configs")
-}
-
-func TestRenderConfig_GlobalDisabled_BlackholeRoute(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	cfg := &models.AlertingConfig{
-		MailEnabled:    false,
-		WebhookEnabled: false,
-	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
-	require.NoError(t, err)
-	isValidYAML(t, out)
-
-	// Global route must point to blackhole
-	assert.Contains(t, out, "- receiver: 'blackhole'")
-	// No named global-receiver
-	assert.NotContains(t, out, "global-receiver")
-}
-
-func TestRenderConfig_HistoryAlwaysFires_EvenWhenDisabled(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	cfg := &models.AlertingConfig{
-		MailEnabled:    false,
-		WebhookEnabled: false,
-	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "http://history.example.com/hook", "", cfg)
-	require.NoError(t, err)
-	isValidYAML(t, out)
-
-	assert.Contains(t, out, "builtin-history")
-	assert.Contains(t, out, "continue: true")
-}
-
-func TestRenderConfig_SeverityOverride_DisablesWarning(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	cfg := &models.AlertingConfig{
-		MailEnabled:   true,
-		MailAddresses: []string{"global@example.com"},
-		Severities: []models.SeverityOverride{
-			{
-				Severity:    "warning",
-				MailEnabled: boolPtr(false),
-			},
-		},
-	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
-	require.NoError(t, err)
-	isValidYAML(t, out)
-
-	// Warning severity route must point to blackhole
-	lines := strings.Split(out, "\n")
-	inWarningBlock := false
-	for _, line := range lines {
-		if strings.Contains(line, `severity="warning"`) {
-			inWarningBlock = true
-		}
-		if inWarningBlock && strings.Contains(line, "receiver:") {
-			assert.Contains(t, line, "blackhole", "warning severity should route to blackhole")
-			break
+	out := renderForTest(t, cfg)
+	for _, sev := range []string{"critical", "warning", "info"} {
+		if !strings.Contains(out, "severity=\""+sev+"\"") {
+			t.Errorf("expected route matcher for severity=%s, got:\n%s", sev, out)
 		}
 	}
-	assert.Contains(t, out, `severity="warning"`)
+	// all@ goes into every severity bucket; crit@ only into critical.
+	// Locate the *receiver definition* (not the route match) by the
+	// `name: '…-receiver'` line — the first occurrence is inside `routes:`
+	// which only references the name, not the email_configs.
+	criticalIdx := strings.Index(out, "name: 'severity-critical-receiver'")
+	warningIdx := strings.Index(out, "name: 'severity-warning-receiver'")
+	infoIdx := strings.Index(out, "name: 'severity-info-receiver'")
+	if criticalIdx < 0 {
+		t.Fatalf("missing critical receiver definition; got:\n%s", out)
+	}
+	endCritical := len(out)
+	if warningIdx > criticalIdx {
+		endCritical = warningIdx
+	} else if infoIdx > criticalIdx {
+		endCritical = infoIdx
+	}
+	critBlock := out[criticalIdx:endCritical]
+	if !strings.Contains(critBlock, "to: 'crit@x.com'") {
+		t.Errorf("crit@ should be on critical receiver, got:\n%s", critBlock)
+	}
+	if !strings.Contains(critBlock, "to: 'all@x.com'") {
+		t.Errorf("all@ (severities=[]) should be on critical receiver, got:\n%s", critBlock)
+	}
 }
 
-func TestRenderConfig_SeverityOverride_CustomAddresses(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	cfg := &models.AlertingConfig{
-		MailEnabled:   true,
-		MailAddresses: []string{"global@example.com"},
-		Severities: []models.SeverityOverride{
-			{
-				Severity:      "critical",
-				MailEnabled:   boolPtr(true),
-				MailAddresses: []string{"oncall@example.com"},
-			},
+func TestRenderConfig_FormatPlain_EmitsEmptyHTML(t *testing.T) {
+	cfg := &models.AlertingConfigLayer{
+		Enabled: models.ChannelToggles{Email: ptrTrue()},
+		EmailRecipients: []models.EmailRecipient{
+			{Address: "p@x.com", Severities: []string{"critical"}, Language: "en", Format: "plain"},
 		},
 	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
-	require.NoError(t, err)
-	isValidYAML(t, out)
-
-	assert.Contains(t, out, "severity-critical-receiver")
-	assert.Contains(t, out, "oncall@example.com")
-	// Global address must not appear in the critical receiver
-	idx := strings.Index(out, "severity-critical-receiver")
-	afterCritical := out[idx:]
-	nextReceiver := strings.Index(afterCritical[1:], "- name:")
-	if nextReceiver > 0 {
-		criticalSection := afterCritical[:nextReceiver]
-		assert.NotContains(t, criticalSection, "global@example.com")
+	out := renderForTest(t, cfg)
+	critIdx := strings.Index(out, "to: 'p@x.com'")
+	if critIdx < 0 {
+		t.Fatalf("recipient not found, got:\n%s", out)
+	}
+	tail := out[critIdx : critIdx+400]
+	// Plain format must emit `html: ''` explicitly — Alertmanager's default
+	// HTML template overrides ours when html: is absent (see emailEntry doc).
+	if !strings.Contains(tail, "html: ''") {
+		t.Errorf("plain format must emit html: '' to suppress Alertmanager default, got:\n%s", tail)
+	}
+	if !strings.Contains(tail, "text: '{{ template \"alert_en.txt\"") {
+		t.Errorf("plain format must still include text: dispatcher reference, got:\n%s", tail)
 	}
 }
 
-func TestRenderConfig_SeverityOverride_InheritsGlobalAddresses(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	cfg := &models.AlertingConfig{
-		MailEnabled:   true,
-		MailAddresses: []string{"global@example.com"},
-		Severities: []models.SeverityOverride{
-			{
-				Severity:    "critical",
-				MailEnabled: boolPtr(true),
-				// No MailAddresses → should inherit global
-			},
+func TestRenderConfig_FormatHTMLDefault_IncludesBoth(t *testing.T) {
+	cfg := &models.AlertingConfigLayer{
+		Enabled: models.ChannelToggles{Email: ptrTrue()},
+		EmailRecipients: []models.EmailRecipient{
+			{Address: "h@x.com", Severities: []string{"critical"}, Language: "it"},
 		},
 	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
-	require.NoError(t, err)
-	isValidYAML(t, out)
-
-	assert.Contains(t, out, "severity-critical-receiver")
-	assert.Contains(t, out, "global@example.com")
+	out := renderForTest(t, cfg)
+	if !strings.Contains(out, "html: '{{ template \"alert_it.html\"") {
+		t.Errorf("default format=html missing html: reference, got:\n%s", out)
+	}
+	if !strings.Contains(out, "text: '{{ template \"alert_it.txt\"") {
+		t.Errorf("default format=html missing text: fallback, got:\n%s", out)
+	}
 }
 
-func TestRenderConfig_SystemOverride(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	cfg := &models.AlertingConfig{
-		MailEnabled:   true,
-		MailAddresses: []string{"global@example.com"},
-		Systems: []models.SystemOverride{
-			{
-				SystemKey:     "ns8-prod",
-				MailEnabled:   boolPtr(true),
-				MailAddresses: []string{"ops@example.com"},
-			},
+func TestRenderConfig_EmailDisabledDropsEmailConfigs(t *testing.T) {
+	cfg := &models.AlertingConfigLayer{
+		Enabled: models.ChannelToggles{Email: ptrFalse(), Webhook: ptrTrue()},
+		EmailRecipients: []models.EmailRecipient{
+			{Address: "a@x.com", Severities: []string{"critical"}},
+		},
+		WebhookRecipients: []models.WebhookRecipient{
+			{Name: "w", URL: "https://hooks.example/x", Severities: []string{"critical"}},
 		},
 	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
-	require.NoError(t, err)
-	isValidYAML(t, out)
-
-	assert.Contains(t, out, `system_key="ns8-prod"`)
-	assert.Contains(t, out, "system-ns8-prod-receiver")
-	assert.Contains(t, out, "ops@example.com")
+	out := renderForTest(t, cfg)
+	if strings.Contains(out, "to: 'a@x.com'") {
+		t.Errorf("channel toggle off must drop email_configs, got:\n%s", out)
+	}
+	if !strings.Contains(out, "url: 'https://hooks.example/x'") {
+		t.Errorf("webhook toggle on must still emit webhook_configs, got:\n%s", out)
+	}
 }
 
-func TestRenderConfig_SystemOverride_Disabled(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	cfg := &models.AlertingConfig{
-		MailEnabled:   true,
-		MailAddresses: []string{"global@example.com"},
-		Systems: []models.SystemOverride{
-			{
-				SystemKey:   "ns8-silent",
-				MailEnabled: boolPtr(false),
-			},
+func TestRenderConfig_TelegramReferencesEnTemplate(t *testing.T) {
+	cfg := &models.AlertingConfigLayer{
+		Enabled: models.ChannelToggles{Telegram: ptrTrue()},
+		TelegramRecipients: []models.TelegramRecipient{
+			{BotToken: "tok", ChatID: -100, Severities: []string{}},
 		},
 	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
-	require.NoError(t, err)
-	isValidYAML(t, out)
-
-	assert.Contains(t, out, `system_key="ns8-silent"`)
-	// System route must point to blackhole
-	lines := strings.Split(out, "\n")
-	inSystemBlock := false
-	for _, line := range lines {
-		if strings.Contains(line, `system_key="ns8-silent"`) {
-			inSystemBlock = true
-		}
-		if inSystemBlock && strings.Contains(line, "receiver:") {
-			assert.Contains(t, line, "blackhole")
-			break
-		}
+	out := renderForTest(t, cfg)
+	if !strings.Contains(out, "{{ template \"telegram_en.message\"") {
+		t.Errorf("telegram message dispatcher should be english-only, got:\n%s", out)
 	}
 }
 
-func TestRenderConfig_InvalidSeverityKey(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	cfg := &models.AlertingConfig{
-		MailEnabled:   true,
-		MailAddresses: []string{"a@b.com"},
-		Severities: []models.SeverityOverride{
-			{Severity: "bad severity!"},
-		},
+func TestRenderConfig_HistoryWebhook(t *testing.T) {
+	out, err := RenderConfig(
+		"smtp.example", 587, "u", "p", "from@example", true,
+		"https://history.example/sink", "secret-bearer",
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("err: %v", err)
 	}
-	_, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid severity key")
-}
-
-func TestRenderConfig_SmtpCredentialsRedacted(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", nil)
-	require.NoError(t, err)
-
-	// SMTP creds appear in raw output; RedactSensitiveConfig removes them
-	assert.Contains(t, out, "smtp_auth_username: 'user'")
-	assert.Contains(t, out, "smtp_auth_password: 'pass'")
-}
-
-func TestRedactSensitiveConfig_BearerToken(t *testing.T) {
-	input := `global:
-  smtp_smarthost: 'smtp.example.com'
-  smtp_auth_username: 'testuser'
-  smtp_auth_password: 'testpass'
-
-receivers:
-  - name: 'builtin-history'
-    webhook_configs:
-      - url: 'http://example.com/webhook'
-        http_config:
-          authorization:
-            type: Bearer
-            credentials: 'secret-token-12345'`
-
-	output := RedactSensitiveConfig(input)
-
-	// Bearer token should be redacted
-	assert.NotContains(t, output, "secret-token-12345")
-	assert.Contains(t, output, "credentials: '[REDACTED]'")
-
-	// SMTP credentials should also be redacted
-	assert.NotContains(t, output, "testpass")
-	assert.Contains(t, output, "smtp_auth_password: '[REDACTED]'")
-}
-
-// --- ParseConfig tests ---
-
-func TestParseConfig_BlackholeOnly_ReturnsNil(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", "", nil)
-	require.NoError(t, err)
-
-	cfg, err := ParseConfig(yamlStr)
-	require.NoError(t, err)
-	assert.Nil(t, cfg, "blackhole-only config should parse to nil")
-}
-
-func TestParseConfig_HistoryOnly_ReturnsNil(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "http://history.example.com/hook", "", nil)
-	require.NoError(t, err)
-
-	cfg, err := ParseConfig(yamlStr)
-	require.NoError(t, err)
-	assert.Nil(t, cfg, "history-only config should parse to nil")
-}
-
-func TestParseConfig_GlobalMail_Roundtrip(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	original := &models.AlertingConfig{
-		MailEnabled:   true,
-		MailAddresses: []string{"admin@example.com"},
+	if !strings.Contains(out, "name: 'builtin-history'") {
+		t.Errorf("history receiver should be emitted when URL set, got:\n%s", out)
 	}
-	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", "", original)
-	require.NoError(t, err)
-
-	parsed, err := ParseConfig(yamlStr)
-	require.NoError(t, err)
-	require.NotNil(t, parsed)
-
-	assert.True(t, parsed.MailEnabled)
-	assert.False(t, parsed.WebhookEnabled)
-	assert.Equal(t, []string{"admin@example.com"}, parsed.MailAddresses)
-}
-
-func TestParseConfig_GlobalWebhook_Roundtrip(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	original := &models.AlertingConfig{
-		WebhookEnabled: true,
-		WebhookReceivers: []models.WebhookReceiver{
-			{Name: "slack", URL: "https://hooks.slack.com/abc"},
-		},
+	if !strings.Contains(out, "credentials: 'secret-bearer'") {
+		t.Errorf("bearer token should propagate to webhook_configs, got:\n%s", out)
 	}
-	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", "", original)
-	require.NoError(t, err)
-
-	parsed, err := ParseConfig(yamlStr)
-	require.NoError(t, err)
-	require.NotNil(t, parsed)
-
-	assert.False(t, parsed.MailEnabled)
-	assert.True(t, parsed.WebhookEnabled)
-	require.Len(t, parsed.WebhookReceivers, 1)
-	assert.Equal(t, "https://hooks.slack.com/abc", parsed.WebhookReceivers[0].URL)
 }
 
-func TestParseConfig_SeverityOverride_Roundtrip(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	original := &models.AlertingConfig{
-		MailEnabled:   true,
-		MailAddresses: []string{"global@example.com"},
-		Severities: []models.SeverityOverride{
-			{
-				Severity:      "critical",
-				MailEnabled:   boolPtr(true),
-				MailAddresses: []string{"oncall@example.com"},
-			},
-		},
+func TestBuildTemplateFiles_AllLanguagesPresent(t *testing.T) {
+	files, err := BuildTemplateFiles("https://app.example")
+	if err != nil {
+		t.Fatalf("BuildTemplateFiles error: %v", err)
 	}
-	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", "", original)
-	require.NoError(t, err)
-
-	parsed, err := ParseConfig(yamlStr)
-	require.NoError(t, err)
-	require.NotNil(t, parsed)
-
-	require.Len(t, parsed.Severities, 1)
-	assert.Equal(t, "critical", parsed.Severities[0].Severity)
-	require.NotNil(t, parsed.Severities[0].MailEnabled)
-	assert.True(t, *parsed.Severities[0].MailEnabled)
-	assert.Equal(t, []string{"oncall@example.com"}, parsed.Severities[0].MailAddresses)
-}
-
-func TestParseConfig_SystemOverride_Roundtrip(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	original := &models.AlertingConfig{
-		MailEnabled:   true,
-		MailAddresses: []string{"global@example.com"},
-		Systems: []models.SystemOverride{
-			{
-				SystemKey:     "ns8-prod",
-				MailEnabled:   boolPtr(true),
-				MailAddresses: []string{"ops@example.com"},
-			},
-		},
-	}
-	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", "", original)
-	require.NoError(t, err)
-
-	parsed, err := ParseConfig(yamlStr)
-	require.NoError(t, err)
-	require.NotNil(t, parsed)
-
-	require.Len(t, parsed.Systems, 1)
-	assert.Equal(t, "ns8-prod", parsed.Systems[0].SystemKey)
-	require.NotNil(t, parsed.Systems[0].MailEnabled)
-	assert.True(t, *parsed.Systems[0].MailEnabled)
-	assert.Equal(t, []string{"ops@example.com"}, parsed.Systems[0].MailAddresses)
-}
-
-func TestParseConfig_MimirWrapperFormat(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	inner, err := RenderConfig(host, port, user, pass, from, tls, "", "", &models.AlertingConfig{
-		MailEnabled:   true,
-		MailAddresses: []string{"a@b.com"},
-	})
-	require.NoError(t, err)
-
-	// Simulate Mimir wrapper format
-	wrapped := "alertmanager_config: |\n"
-	for _, line := range strings.Split(inner, "\n") {
-		wrapped += "    " + line + "\n"
-	}
-
-	cfg, err := ParseConfig(wrapped)
-	require.NoError(t, err)
-	require.NotNil(t, cfg)
-	assert.True(t, cfg.MailEnabled)
-	assert.Equal(t, []string{"a@b.com"}, cfg.MailAddresses)
-}
-
-func TestParseConfig_GlobalDisabled_NotNil(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	cfg := &models.AlertingConfig{
-		MailEnabled:    false,
-		WebhookEnabled: false,
-	}
-	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
-	require.NoError(t, err)
-
-	parsed, err := ParseConfig(yamlStr)
-	require.NoError(t, err)
-	// Globally disabled but explicitly configured → non-nil
-	require.NotNil(t, parsed)
-	assert.False(t, parsed.MailEnabled)
-	assert.False(t, parsed.WebhookEnabled)
-}
-
-func TestParseConfig_DisabledSeverity_BlackholeRoute(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	cfg := &models.AlertingConfig{
-		MailEnabled:   true,
-		MailAddresses: []string{"global@example.com"},
-		Severities: []models.SeverityOverride{
-			{
-				Severity:    "warning",
-				MailEnabled: boolPtr(false),
-			},
-		},
-	}
-	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
-	require.NoError(t, err)
-
-	parsed, err := ParseConfig(yamlStr)
-	require.NoError(t, err)
-	require.NotNil(t, parsed)
-
-	require.Len(t, parsed.Severities, 1)
-	assert.Equal(t, "warning", parsed.Severities[0].Severity)
-	require.NotNil(t, parsed.Severities[0].MailEnabled)
-	assert.False(t, *parsed.Severities[0].MailEnabled)
-}
-
-func TestParseConfig_InvalidYAML(t *testing.T) {
-	_, err := ParseConfig("not: valid: yaml: ::::")
-	require.Error(t, err)
-}
-
-// --- yamlEscape unit tests ---
-
-func TestYamlEscape_SingleQuote(t *testing.T) {
-	assert.Equal(t, "it''s", yamlEscape("it's"))
-}
-
-func TestYamlEscape_Newlines(t *testing.T) {
-	assert.Equal(t, "noline", yamlEscape("no\nline"))
-	assert.Equal(t, "noline", yamlEscape("no\rline"))
-}
-
-func TestYamlEscape_Empty(t *testing.T) {
-	assert.Equal(t, "", yamlEscape(""))
-}
-
-// --- parseMatcherValue unit tests ---
-
-func TestParseMatcherValue_DoubleQuoted(t *testing.T) {
-	k, v := parseMatcherValue(`system_key="ns8-prod"`)
-	assert.Equal(t, "system_key", k)
-	assert.Equal(t, "ns8-prod", v)
-}
-
-func TestParseMatcherValue_Unquoted(t *testing.T) {
-	k, v := parseMatcherValue("severity=critical")
-	assert.Equal(t, "severity", k)
-	assert.Equal(t, "critical", v)
-}
-
-func TestParseMatcherValue_NoEquals(t *testing.T) {
-	k, v := parseMatcherValue("invalid")
-	assert.Empty(t, k)
-	assert.Empty(t, v)
-}
-
-// --- EmailTemplateLang / BuildTemplateFiles tests ---
-
-func TestRenderConfig_DefaultsToEnglishTemplates(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	cfg := &models.AlertingConfig{
-		MailEnabled:   true,
-		MailAddresses: []string{"admin@example.com"},
-		// EmailTemplateLang not set → should default to "en"
-	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
-	require.NoError(t, err)
-	isValidYAML(t, out)
-
-	assert.Contains(t, out, "firing_en.html")
-	assert.Contains(t, out, "resolved_en.html")
-	assert.Contains(t, out, "firing_en.txt")
-	assert.Contains(t, out, "resolved_en.txt")
-	assert.Contains(t, out, "_dispatcher.tmpl")
-	assert.Contains(t, out, `template "alert.html"`)
-	assert.Contains(t, out, `template "alert.txt"`)
-	assert.Contains(t, out, `template "alert.subject"`)
-}
-
-func TestRenderConfig_ItalianTemplates(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	cfg := &models.AlertingConfig{
-		MailEnabled:       true,
-		MailAddresses:     []string{"admin@example.com"},
-		EmailTemplateLang: "it",
-	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
-	require.NoError(t, err)
-	isValidYAML(t, out)
-
-	assert.Contains(t, out, "firing_it.html")
-	assert.Contains(t, out, "resolved_it.html")
-	assert.Contains(t, out, "firing_it.txt")
-	assert.Contains(t, out, "resolved_it.txt")
-	assert.NotContains(t, out, "firing_en.html")
-}
-
-func TestRenderConfig_NilCfg_NoTemplateSection(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", nil)
-	require.NoError(t, err)
-
-	// nil cfg → blackhole-only, no email templates needed
-	assert.Contains(t, out, "templates: []")
-	assert.NotContains(t, out, "firing_en.html")
-}
-
-func TestRenderConfig_WebhookOnly_NoHtmlField(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	cfg := &models.AlertingConfig{
-		WebhookEnabled: true,
-		WebhookReceivers: []models.WebhookReceiver{
-			{Name: "slack", URL: "https://hooks.slack.com/abc"},
-		},
-	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
-	require.NoError(t, err)
-	isValidYAML(t, out)
-
-	// No email_configs → no html: field in output
-	assert.NotContains(t, out, `html:`)
-}
-
-func TestBuildTemplateFiles_English(t *testing.T) {
-	files, err := BuildTemplateFiles("en", "https://my.nethesis.it")
-	require.NoError(t, err)
-
-	expected := []string{
-		"firing_en.html",
-		"resolved_en.html",
-		"firing_en.txt",
-		"resolved_en.txt",
+	want := []string{
+		"firing_en.html", "resolved_en.html", "firing_en.txt", "resolved_en.txt",
+		"firing_it.html", "resolved_it.html", "firing_it.txt", "resolved_it.txt",
+		"telegram_en.tmpl", "telegram_it.tmpl",
 		"_dispatcher.tmpl",
 	}
-	for _, name := range expected {
-		content, ok := files[name]
-		require.True(t, ok, "missing template file: %s", name)
-		assert.NotEmpty(t, content, "template file %s is empty", name)
+	for _, name := range want {
+		if _, ok := files[name]; !ok {
+			t.Errorf("missing template file %s", name)
+		}
 	}
-
-	// Dispatcher must route to en templates
-	assert.Contains(t, files["_dispatcher.tmpl"], `firing_en.html`)
-	assert.Contains(t, files["_dispatcher.tmpl"], `resolved_en.html`)
-	assert.Contains(t, files["_dispatcher.tmpl"], `firing_en.txt`)
-	assert.Contains(t, files["_dispatcher.tmpl"], `resolved_en.txt`)
-	assert.Contains(t, files["_dispatcher.tmpl"], `firing_en.subject`)
-	assert.Contains(t, files["_dispatcher.tmpl"], `resolved_en.subject`)
 }
 
-func TestBuildTemplateFiles_Italian(t *testing.T) {
-	files, err := BuildTemplateFiles("it", "https://my.nethesis.it")
-	require.NoError(t, err)
-
-	assert.Contains(t, files, "firing_it.html")
-	assert.Contains(t, files, "resolved_it.html")
-	assert.Contains(t, files["_dispatcher.tmpl"], `firing_it.html`)
-}
-
-func TestBuildTemplateFiles_EmptyLang_DefaultsToEnglish(t *testing.T) {
-	files, err := BuildTemplateFiles("", "https://my.nethesis.it")
-	require.NoError(t, err)
-	assert.Contains(t, files, "firing_en.html")
-}
-
-func TestBuildTemplateFiles_InvalidLang_ReturnsError(t *testing.T) {
-	_, err := BuildTemplateFiles("zz", "https://my.nethesis.it")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "zz")
-}
-
-func TestTemplateFiles_DefineNamedTemplates(t *testing.T) {
-	files, err := BuildTemplateFiles("en", "https://my.nethesis.it")
-	require.NoError(t, err)
-
-	assert.Contains(t, files["firing_en.html"], `define "firing_en.html"`)
-	assert.Contains(t, files["firing_en.html"], `define "firing_en.subject"`)
-	assert.Contains(t, files["resolved_en.html"], `define "resolved_en.html"`)
-	assert.Contains(t, files["resolved_en.html"], `define "resolved_en.subject"`)
-	assert.Contains(t, files["firing_en.txt"], `define "firing_en.txt"`)
-	assert.Contains(t, files["resolved_en.txt"], `define "resolved_en.txt"`)
-}
-
-func TestParseConfig_EmailTemplateLang_English(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	original := &models.AlertingConfig{
-		MailEnabled:       true,
-		MailAddresses:     []string{"a@b.com"},
-		EmailTemplateLang: "en",
+func TestBuildTemplateFiles_DispatcherDefinesPerLanguage(t *testing.T) {
+	files, err := BuildTemplateFiles("https://app.example")
+	if err != nil {
+		t.Fatalf("err: %v", err)
 	}
-	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", "", original)
-	require.NoError(t, err)
-
-	parsed, err := ParseConfig(yamlStr)
-	require.NoError(t, err)
-	require.NotNil(t, parsed)
-	assert.Equal(t, "en", parsed.EmailTemplateLang)
-}
-
-func TestParseConfig_EmailTemplateLang_Italian(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	original := &models.AlertingConfig{
-		MailEnabled:       true,
-		MailAddresses:     []string{"a@b.com"},
-		EmailTemplateLang: "it",
+	disp := files["_dispatcher.tmpl"]
+	for _, name := range []string{
+		`define "alert_en.html"`, `define "alert_en.txt"`, `define "alert_en.subject"`,
+		`define "alert_it.html"`, `define "alert_it.txt"`, `define "alert_it.subject"`,
+	} {
+		if !strings.Contains(disp, name) {
+			t.Errorf("dispatcher missing %q", name)
+		}
 	}
-	yamlStr, err := RenderConfig(host, port, user, pass, from, tls, "", "", original)
-	require.NoError(t, err)
-
-	parsed, err := ParseConfig(yamlStr)
-	require.NoError(t, err)
-	require.NotNil(t, parsed)
-	assert.Equal(t, "it", parsed.EmailTemplateLang)
 }
 
-func TestWrapForMimirWithTemplates(t *testing.T) {
-	templateFiles := map[string]string{
-		"firing_en.html":   "{{ define \"firing_en.html\" }}test{{ end }}",
-		"_dispatcher.tmpl": "{{ define \"alert.html\" }}x{{ end }}",
+func TestYamlEscape_SingleQuote(t *testing.T) {
+	if got := yamlEscape("a'b"); got != "a''b" {
+		t.Errorf("yamlEscape doubled single quote: got %q want %q", got, "a''b")
 	}
-	out := wrapForMimir("route:\n  receiver: blackhole", templateFiles)
-
-	assert.Contains(t, out, "alertmanager_config: |")
-	assert.Contains(t, out, "template_files:")
-	assert.Contains(t, out, "firing_en.html:")
-	assert.Contains(t, out, "_dispatcher.tmpl:")
 }
 
-func TestWrapForMimirWithoutTemplates(t *testing.T) {
-	out := wrapForMimir("route:\n  receiver: blackhole", nil)
-
-	assert.Contains(t, out, "alertmanager_config: |")
-	assert.NotContains(t, out, "template_files:")
-}
-
-// --- Telegram tests ---
-
-func TestRenderConfig_GlobalTelegram_ParseModeHTML(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	cfg := &models.AlertingConfig{
-		TelegramEnabled: true,
-		TelegramReceivers: []models.TelegramReceiver{
-			{BotToken: "1234567890:AABBCCDDEEFFaabbccddeeff", ChatID: -100123456789},
-		},
-	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", cfg)
-	require.NoError(t, err)
-	isValidYAML(t, out)
-
-	assert.Contains(t, out, "telegram_configs")
-	assert.Contains(t, out, "bot_token: '1234567890:AABBCCDDEEFFaabbccddeeff'")
-	assert.Contains(t, out, "chat_id: -100123456789")
-	assert.Contains(t, out, "parse_mode: 'HTML'")
-	assert.Contains(t, out, `template "telegram.message"`)
-}
-
-func TestRenderConfig_GlobalTelegram_Roundtrip(t *testing.T) {
-	host, port, user, pass, from, tls := smtpArgs()
-	original := &models.AlertingConfig{
-		TelegramEnabled: true,
-		TelegramReceivers: []models.TelegramReceiver{
-			{BotToken: "bot-token-abc", ChatID: 42},
-		},
-	}
-	out, err := RenderConfig(host, port, user, pass, from, tls, "", "", original)
-	require.NoError(t, err)
-
-	parsed, err := ParseConfig(out)
-	require.NoError(t, err)
-	require.NotNil(t, parsed)
-
-	assert.True(t, parsed.TelegramEnabled)
-	require.Len(t, parsed.TelegramReceivers, 1)
-	assert.Equal(t, "bot-token-abc", parsed.TelegramReceivers[0].BotToken)
-	assert.Equal(t, int64(42), parsed.TelegramReceivers[0].ChatID)
-}
-
-func TestBuildTemplateFiles_IncludesTelegramTemplate(t *testing.T) {
-	firingWords := map[string]string{"en": "FIRING", "it": "ATTIV"}
-	resolvedWords := map[string]string{"en": "RESOLV", "it": "RISOLTO"}
-
-	for _, lang := range []string{"en", "it"} {
-		files, err := BuildTemplateFiles(lang, "https://my.nethesis.it")
-		require.NoError(t, err, "lang=%s", lang)
-
-		name := "telegram_" + lang + ".tmpl"
-		content, ok := files[name]
-		require.True(t, ok, "missing %s", name)
-		assert.Contains(t, content, `define "telegram.message"`, "lang=%s", lang)
-		assert.Contains(t, content, firingWords[lang], "lang=%s: firing state must be present", lang)
-		assert.Contains(t, content, resolvedWords[lang], "lang=%s: resolved state must be present", lang)
+func TestYamlEscape_NewlineStripped(t *testing.T) {
+	if got := yamlEscape("a\nb\rc"); got != "abc" {
+		t.Errorf("yamlEscape stripped newlines: got %q want %q", got, "abc")
 	}
 }

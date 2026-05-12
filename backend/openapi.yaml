@@ -142,19 +142,61 @@ components:
         data:
           $ref: '#/components/schemas/ErrorData'
 
-    SuccessResponse:
+    ChannelToggles:
       type: object
+      description: |
+        Per-layer enable/disable for each notification channel. Each value
+        is tri-state:
+          * `true`  — explicitly enabled at this layer
+          * `false` — explicitly disabled (Owner only; non-Owner false is
+                     normalised to null on save)
+          * `null`  — no opinion at this layer; effective state inherits
+                     from the merge of any ancestor layer that took a
+                     position. If no layer in the chain enables a channel,
+                     the channel stays off.
       properties:
-        code:
-          type: integer
-          example: 200
-        message:
-          type: string
-        data:
-          type: object
+        email:
+          type: boolean
           nullable: true
-
-    WebhookReceiver:
+        webhook:
+          type: boolean
+          nullable: true
+        telegram:
+          type: boolean
+          nullable: true
+    EmailRecipient:
+      type: object
+      required:
+        - address
+      properties:
+        address:
+          type: string
+          format: email
+          maxLength: 320
+        severities:
+          type: array
+          maxItems: 3
+          items:
+            type: string
+            enum: [critical, warning, info]
+          description: |
+            Severity scope for this recipient. Empty (or omitted) means
+            "all severities" — the recipient lands on every per-severity
+            receiver. A non-empty subset narrows delivery to those severities.
+        language:
+          type: string
+          enum: [en, it]
+          description: |
+            Rendering language for this recipient's email body and subject.
+            Defaults to `en` when omitted.
+        format:
+          type: string
+          enum: [html, plain]
+          description: |
+            Body format preference. `html` (default) emits multipart with
+            an html primary body and text alternative; `plain` emits only
+            a text body.
+    WebhookRecipient:
       type: object
       required:
         - name
@@ -162,12 +204,25 @@ components:
       properties:
         name:
           type: string
-          description: Descriptive name for this webhook receiver
+          maxLength: 100
+          description: Descriptive label for the webhook target (UI only).
         url:
           type: string
           format: uri
-          description: Webhook URL
-    TelegramReceiver:
+          maxLength: 2048
+          description: |
+            Webhook URL. Validation rejects non-public destinations (loopback,
+            RFC1918, RFC6598 CGNAT, link-local, multicast, cloud metadata) and
+            requires a canonical hostname (containing at least one letter) or
+            a valid IP literal. Only http/https schemes are accepted; URLs
+            cannot embed userinfo.
+        severities:
+          type: array
+          maxItems: 3
+          items:
+            type: string
+            enum: [critical, warning, info]
+    TelegramRecipient:
       type: object
       required:
         - bot_token
@@ -175,85 +230,18 @@ components:
       properties:
         bot_token:
           type: string
-          description: Telegram bot token obtained from @BotFather
+          maxLength: 256
           example: "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
         chat_id:
           type: integer
           format: int64
-          description: Numeric Telegram chat ID (user, group, or channel)
           example: -1001234567890
-    SeverityOverride:
-      type: object
-      required:
-        - severity
-      properties:
-        severity:
-          type: string
-          enum: [critical, warning, info]
-        mail_enabled:
-          type: boolean
-          description: Override global mail_enabled for this severity
-          nullable: true
-        webhook_enabled:
-          type: boolean
-          description: Override global webhook_enabled for this severity
-          nullable: true
-        telegram_enabled:
-          type: boolean
-          description: Override global telegram_enabled for this severity
-          nullable: true
-        mail_addresses:
+        severities:
           type: array
-          description: Email addresses for this severity. Inherits global addresses if empty.
+          maxItems: 3
           items:
             type: string
-            format: email
-        webhook_receivers:
-          type: array
-          description: Webhook receivers for this severity. Inherits global receivers if empty.
-          items:
-            $ref: '#/components/schemas/WebhookReceiver'
-        telegram_receivers:
-          type: array
-          description: Telegram receivers for this severity. Inherits global receivers if empty.
-          items:
-            $ref: '#/components/schemas/TelegramReceiver'
-    SystemOverride:
-      type: object
-      required:
-        - system_key
-      properties:
-        system_key:
-          type: string
-          description: The system_key label value to match
-        mail_enabled:
-          type: boolean
-          description: Override global mail_enabled for this system
-          nullable: true
-        webhook_enabled:
-          type: boolean
-          description: Override global webhook_enabled for this system
-          nullable: true
-        telegram_enabled:
-          type: boolean
-          description: Override global telegram_enabled for this system
-          nullable: true
-        mail_addresses:
-          type: array
-          description: Email addresses for this system. Inherits global addresses if empty.
-          items:
-            type: string
-            format: email
-        webhook_receivers:
-          type: array
-          description: Webhook receivers for this system. Inherits global receivers if empty.
-          items:
-            $ref: '#/components/schemas/WebhookReceiver'
-        telegram_receivers:
-          type: array
-          description: Telegram receivers for this system. Inherits global receivers if empty.
-          items:
-            $ref: '#/components/schemas/TelegramReceiver'
+            enum: [critical, warning, info]
     AlertmanagerSilenceStatus:
       type: object
       properties:
@@ -311,80 +299,40 @@ components:
         status:
           $ref: '#/components/schemas/AlertmanagerSilenceStatus'
 
-    AlertingConfig:
+    AlertingConfigLayer:
       type: object
       description: |
-        Generic alerting configuration. Mimir YAML is the source of truth; this JSON is derived from it.
-        Priority order (highest first): per-system overrides > per-severity overrides > global settings.
-        A built-in history webhook (ALERTING_HISTORY_WEBHOOK_URL) is always active and cannot be disabled.
+        The caller's alerting configuration. This is what POST /alerts/config
+        accepts and what GET /alerts/config returns; the merged effective
+        config that backs Mimir is computed server-side and never exposed.
+
+        Each recipient carries its own `severities[]` (empty = all
+        severities); email recipients additionally carry per-recipient
+        `language` and `format`. Channel toggles under `enabled` are
+        tri-state: null = no opinion at this layer (inherit), true =
+        enabled, false = disabled (Owner only — non-Owner false is
+        normalised to null on save).
+
+        Body size: the request body is capped at 1 MiB on POST. Oversized
+        requests are rejected with HTTP 413 before binding.
       properties:
-        mail_enabled:
-          type: boolean
-          description: Globally enable or disable email notifications
-          default: false
-        webhook_enabled:
-          type: boolean
-          description: Globally enable or disable custom webhook notifications
-          default: false
-        telegram_enabled:
-          type: boolean
-          description: Globally enable or disable Telegram notifications
-          default: false
-        mail_addresses:
+        enabled:
+          $ref: '#/components/schemas/ChannelToggles'
+        email_recipients:
           type: array
-          description: Global default email recipients
+          maxItems: 50
           items:
-            type: string
-            format: email
-        webhook_receivers:
+            $ref: '#/components/schemas/EmailRecipient'
+        webhook_recipients:
           type: array
-          description: Global default webhook receivers
+          maxItems: 20
           items:
-            $ref: '#/components/schemas/WebhookReceiver'
-        telegram_receivers:
+            $ref: '#/components/schemas/WebhookRecipient'
+        telegram_recipients:
           type: array
-          description: Global Telegram bot receivers
+          maxItems: 20
           items:
-            $ref: '#/components/schemas/TelegramReceiver'
-        severities:
-          type: array
-          description: Per-severity overrides. Empty list = use global settings for all severities.
-          items:
-            $ref: '#/components/schemas/SeverityOverride'
-        systems:
-          type: array
-          description: Per-system_key overrides (highest priority). Empty list = no per-system overrides.
-          items:
-            $ref: '#/components/schemas/SystemOverride'
-        email_template_lang:
-          type: string
-          enum: [en, it]
-          default: en
-          description: Language for email and Telegram notification templates. "en" (English, default) or "it" (Italian).
-      example:
-        mail_enabled: true
-        webhook_enabled: true
-        telegram_enabled: true
-        mail_addresses: ["global@example.com"]
-        webhook_receivers:
-          - name: "slack"
-            url: "https://hooks.slack.com/services/T00/B00/XXX"
-        telegram_receivers:
-          - bot_token: "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
-            chat_id: -1001234567890
-        email_template_lang: "en"
-        severities:
-          - severity: "critical"
-            mail_enabled: true
-            webhook_enabled: true
-            mail_addresses: ["oncall@example.com"]
-          - severity: "warning"
-            mail_enabled: false
-            webhook_enabled: false
-        systems:
-          - system_key: "ns8-prod-01"
-            mail_enabled: false
-            webhook_enabled: true
+            $ref: '#/components/schemas/TelegramRecipient'
 
     ErrorData:
       type: object
@@ -549,6 +497,10 @@ components:
           format: int64
           description: Auto-incrementing record ID
           example: 1
+        organization_id:
+          type: string
+          description: Tenant the alert belongs to (logto_id of the owning org)
+          example: "m4m3mdjdiizs"
         system_key:
           type: string
           description: System key extracted from alert labels
@@ -9001,6 +8953,65 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/ActiveAlert'
+              examples:
+                ActiveAndSuppressedOnSystem:
+                  summary: Two firing alerts on the same system, one silenced
+                  description: |
+                    The endpoint always includes silenced alerts so the UI can
+                    show the muted state in the system detail view. `state` is
+                    `"suppressed"` when at least one active silence matches the
+                    alert; the matching silence IDs are listed in `silencedBy`.
+                  value:
+                    code: 200
+                    message: "alerts retrieved successfully"
+                    data:
+                      alerts:
+                        - fingerprint: "0a9d04bb6eed523f"
+                          labels:
+                            alertname: "DiskFilling"
+                            severity: "warning"
+                            system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                          annotations:
+                            summary: "/var is 92% full"
+                            description: "Disk usage exceeded warning threshold."
+                          status:
+                            state: "suppressed"
+                            silencedBy:
+                              - "d9f91c6e-1b33-484e-befa-bfb41020e178"
+                            inhibitedBy: []
+                          startsAt: "2026-05-12T08:14:00Z"
+                          endsAt: "2026-05-12T08:44:00Z"
+                          system:
+                            id: "e4eb4844-46f6-448c-8279-7cfedf5e1037"
+                            system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                            name: "test-sys"
+                            type: "ns8"
+                        - fingerprint: "11a9302b0fa6526e"
+                          labels:
+                            alertname: "HighCPU"
+                            severity: "critical"
+                            system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                          annotations:
+                            summary: "CPU usage 98%"
+                            description: "Sustained high CPU."
+                          status:
+                            state: "active"
+                            silencedBy: []
+                            inhibitedBy: []
+                          startsAt: "2026-05-12T08:20:00Z"
+                          endsAt: "2026-05-12T08:50:00Z"
+                          system:
+                            id: "e4eb4844-46f6-448c-8279-7cfedf5e1037"
+                            system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                            name: "test-sys"
+                            type: "ns8"
+                NoActiveAlerts:
+                  summary: System has no firing alerts
+                  value:
+                    code: 200
+                    message: "alerts retrieved successfully"
+                    data:
+                      alerts: []
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -9050,6 +9061,44 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/AlertmanagerSilence'
+              examples:
+                ActiveSilence:
+                  summary: One active silence for the system
+                  description: |
+                    The silence matches on `system_key` (server-injected) plus the
+                    labels that uniquely identified the alert at silence creation
+                    time. `silencedBy` on the active alert references this same
+                    `id`.
+                  value:
+                    code: 200
+                    message: "silences retrieved successfully"
+                    data:
+                      silences:
+                        - id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
+                          matchers:
+                            - name: "system_key"
+                              value: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                              isRegex: false
+                            - name: "alertname"
+                              value: "DiskFilling"
+                              isRegex: false
+                            - name: "severity"
+                              value: "warning"
+                              isRegex: false
+                          startsAt: "2026-05-12T08:16:36Z"
+                          endsAt: "2026-05-12T09:16:36Z"
+                          updatedAt: "2026-05-12T08:16:36Z"
+                          createdBy: "R1C1 Admin <c5gpnoo2do48>"
+                          comment: "silenced during maintenance window"
+                          status:
+                            state: "active"
+                NoSilences:
+                  summary: No silences for the system
+                  value:
+                    code: 200
+                    message: "silences retrieved successfully"
+                    data:
+                      silences: []
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -9106,6 +9155,27 @@ paths:
                   format: date-time
                   description: Optional explicit end time (RFC3339). Takes precedence over duration_minutes.
                   example: "2024-01-01T02:00:00Z"
+            examples:
+              ExplicitEndAt:
+                summary: Silence until a specific date/time
+                description: |
+                  When `end_at` is set, the silence expires at that moment
+                  regardless of `duration_minutes`. The backend resolves the
+                  alert by `fingerprint`, attaches the system's authoritative
+                  `system_key` to the matchers, and creates the silence.
+                value:
+                  fingerprint: "0a9d04bb6eed523f"
+                  comment: "silenced during maintenance window"
+                  end_at: "2026-05-12T09:16:36Z"
+              DurationBased:
+                summary: Silence for the next 60 minutes
+                description: |
+                  Without `end_at`, `duration_minutes` applies. If both are
+                  omitted, the silence defaults to 60 minutes from creation.
+                value:
+                  fingerprint: "0a9d04bb6eed523f"
+                  comment: "investigating"
+                  duration_minutes: 60
       responses:
         '200':
           description: Alert silence created successfully
@@ -9126,6 +9196,19 @@ paths:
                       silence_id:
                         type: string
                         example: "4e6f0c30-c383-4e22-9443-0d7b6a8bd40b"
+              examples:
+                Created:
+                  summary: Silence created
+                  description: |
+                    `silence_id` is the Alertmanager-assigned UUID; use it to
+                    look up, update, or delete the silence later. The
+                    corresponding `silenced` event is appended to the alert's
+                    activity timeline (`GET /alerts/{fingerprint}/activity`).
+                  value:
+                    code: 200
+                    message: "alert silenced successfully"
+                    data:
+                      silence_id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -9181,6 +9264,32 @@ paths:
                     properties:
                       silence:
                         $ref: '#/components/schemas/AlertmanagerSilence'
+              examples:
+                ActiveSilence:
+                  summary: Silence found and active
+                  value:
+                    code: 200
+                    message: "silence retrieved successfully"
+                    data:
+                      silence:
+                        id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
+                        matchers:
+                          - name: "system_key"
+                            value: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                            isRegex: false
+                          - name: "alertname"
+                            value: "DiskFilling"
+                            isRegex: false
+                          - name: "severity"
+                            value: "warning"
+                            isRegex: false
+                        startsAt: "2026-05-12T08:16:36Z"
+                        endsAt: "2026-05-12T09:16:36Z"
+                        updatedAt: "2026-05-12T08:16:36Z"
+                        createdBy: "R1C1 Admin <c5gpnoo2do48>"
+                        comment: "silenced during maintenance window"
+                        status:
+                          state: "active"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -9231,6 +9340,17 @@ paths:
                   format: date-time
                   description: New end time (RFC3339). Must be in the future.
                   example: "2024-01-01T04:00:00Z"
+            examples:
+              ExtendEndTime:
+                summary: Extend the silence by 3 more hours
+                description: |
+                  Alertmanager treats an update as "create a new silence with
+                  the same matchers and start_at, then drop the old one", so
+                  the response carries a new `silence_id`. The activity
+                  timeline records this as a `silence_updated` event.
+                value:
+                  comment: "extended for maintenance window"
+                  end_at: "2026-05-12T12:16:36Z"
       responses:
         '200':
           description: Silence updated successfully
@@ -9251,6 +9371,14 @@ paths:
                       silence_id:
                         type: string
                         example: "4e6f0c30-c383-4e22-9443-0d7b6a8bd40b"
+              examples:
+                Updated:
+                  summary: New silence id after update
+                  value:
+                    code: 200
+                    message: "silence updated successfully"
+                    data:
+                      silence_id: "f1e1c2a4-7e57-4b1a-aaa0-2b96c8b5a3aa"
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -9299,6 +9427,19 @@ paths:
                   message:
                     type: string
                     example: "silence disabled successfully"
+              examples:
+                Disabled:
+                  summary: Silence removed
+                  description: |
+                    The silence is expired (not hard-deleted) so it disappears
+                    from `GET /silences` but stays referenced in the alert's
+                    activity timeline as an `unsilenced` event. On the wire
+                    the response also carries `"data": null`; the example
+                    omits it to match the declared schema which only includes
+                    `code` and `message`.
+                  value:
+                    code: 200
+                    message: "silence disabled successfully"
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -9409,6 +9550,78 @@ paths:
                           $ref: '#/components/schemas/AlertHistoryRecord'
                       pagination:
                         $ref: '#/components/schemas/Pagination'
+              examples:
+                ResolvedAlertsForSystem:
+                  summary: Two resolved alerts on this system
+                  description: |
+                    Records are scoped to the path system's `system_key`. The
+                    response is identical in shape to `GET /alerts/history` but
+                    filtered to one system without needing to pass it as a
+                    query param.
+                  value:
+                    code: 200
+                    message: "alert history retrieved successfully"
+                    data:
+                      alerts:
+                        - id: 55
+                          organization_id: "m4m3mdjdiizs"
+                          system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                          alertname: "PlainBodyTest"
+                          severity: "critical"
+                          status: "resolved"
+                          fingerprint: "11a9302b0fa6526e"
+                          starts_at: "2026-05-12T07:46:50Z"
+                          ends_at: "2026-05-12T07:51:50Z"
+                          summary: "plain body check"
+                          labels:
+                            alertname: "PlainBodyTest"
+                            severity: "critical"
+                            system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                          annotations:
+                            summary: "plain body check"
+                            description: "resolved"
+                          receiver: "severity-critical-receiver"
+                          created_at: "2026-05-12T07:52:00Z"
+                        - id: 54
+                          organization_id: "m4m3mdjdiizs"
+                          system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                          alertname: "HistFlowTest"
+                          severity: "critical"
+                          status: "resolved"
+                          fingerprint: "9c1a23e87f4d0a11"
+                          starts_at: "2026-05-12T08:01:07Z"
+                          ends_at: "2026-05-12T08:06:06Z"
+                          summary: "history flow check"
+                          labels:
+                            alertname: "HistFlowTest"
+                            severity: "critical"
+                            system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                          annotations:
+                            summary: "history flow check"
+                            description: "resolved"
+                          receiver: "severity-critical-receiver"
+                          created_at: "2026-05-12T08:11:30Z"
+                      pagination:
+                        page: 1
+                        page_size: 50
+                        total_count: 2
+                        total_pages: 1
+                        has_next: false
+                        has_prev: false
+                EmptyHistory:
+                  summary: No history rows for this system yet
+                  value:
+                    code: 200
+                    message: "alert history retrieved successfully"
+                    data:
+                      alerts: []
+                      pagination:
+                        page: 1
+                        page_size: 50
+                        total_count: 0
+                        total_pages: 0
+                        has_next: false
+                        has_prev: false
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -11633,6 +11846,79 @@ paths:
                           $ref: '#/components/schemas/AlertHistoryRecord'
                       pagination:
                         $ref: '#/components/schemas/Pagination'
+              examples:
+                TwoResolvedAlerts:
+                  summary: Two resolved alerts on the same system
+                  description: |
+                    Result for a Customer caller. Same `system_key` appears in both
+                    rows because they were fired against the same NS8 host. Each
+                    row is a discrete event (firing → resolved) captured by the
+                    history webhook at dispatch time; `created_at` records when
+                    the row landed in `alert_history`.
+                  value:
+                    code: 200
+                    message: alert history retrieved successfully
+                    data:
+                      alerts:
+                        - id: 55
+                          organization_id: "m4m3mdjdiizs"
+                          system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                          alertname: "PlainBodyTest"
+                          severity: "critical"
+                          status: "resolved"
+                          fingerprint: "11a9302b0fa6526e"
+                          starts_at: "2026-05-12T07:46:50Z"
+                          ends_at: "2026-05-12T07:51:50Z"
+                          summary: "plain body check"
+                          labels:
+                            alertname: "PlainBodyTest"
+                            severity: "critical"
+                            system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                          annotations:
+                            summary: "plain body check"
+                            description: "checking html:'' fix"
+                          receiver: "severity-critical-receiver"
+                          created_at: "2026-05-12T07:52:00Z"
+                        - id: 54
+                          organization_id: "m4m3mdjdiizs"
+                          system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                          alertname: "HistFlowTest"
+                          severity: "critical"
+                          status: "resolved"
+                          fingerprint: "9c1a23e87f4d0a11"
+                          starts_at: "2026-05-12T08:01:07Z"
+                          ends_at: "2026-05-12T08:06:06Z"
+                          summary: "history flow check"
+                          labels:
+                            alertname: "HistFlowTest"
+                            severity: "critical"
+                            system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                          annotations:
+                            summary: "history flow check"
+                            description: "resolved"
+                          receiver: "severity-critical-receiver"
+                          created_at: "2026-05-12T08:11:30Z"
+                      pagination:
+                        page: 1
+                        page_size: 50
+                        total_count: 2
+                        total_pages: 1
+                        has_next: false
+                        has_prev: false
+                EmptyHistory:
+                  summary: No history rows match
+                  value:
+                    code: 200
+                    message: alert history retrieved successfully
+                    data:
+                      alerts: []
+                      pagination:
+                        page: 1
+                        page_size: 50
+                        total_count: 0
+                        total_pages: 0
+                        has_next: false
+                        has_prev: false
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -11708,6 +11994,51 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/AlertActivityEntry'
+              examples:
+                SilenceCreatedThenRemoved:
+                  summary: A silence was created and later removed
+                  description: |
+                    Events are most-recent first. Both rows share the same
+                    `silence_id` because they describe the same silence's
+                    lifecycle. `actor_user_id` is the logto_id of the operator
+                    who performed the action; `details` carries the silence
+                    metadata captured at action time (comment, end_at, etc.).
+                  value:
+                    code: 200
+                    message: alert activity retrieved successfully
+                    data:
+                      events:
+                        - id: 5
+                          organization_id: "m4m3mdjdiizs"
+                          fingerprint: "0a9d04bb6eed523f"
+                          action: "unsilenced"
+                          actor_user_id: "c5gpnoo2do48"
+                          actor_name: "R1C1 Admin"
+                          silence_id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
+                          details: {}
+                          created_at: "2026-05-12T08:20:38.410596Z"
+                        - id: 4
+                          organization_id: "m4m3mdjdiizs"
+                          fingerprint: "0a9d04bb6eed523f"
+                          action: "silenced"
+                          actor_user_id: "c5gpnoo2do48"
+                          actor_name: "R1C1 Admin"
+                          silence_id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
+                          details:
+                            comment: "silenced during maintenance window"
+                            end_at: "2026-05-12T09:16:36Z"
+                            duration_minutes: 0
+                          created_at: "2026-05-12T08:16:36.661832Z"
+                EmptyTimeline:
+                  summary: No silence events yet
+                  description: |
+                    The alert has fired but has never been silenced. The events
+                    array is empty (not `null`).
+                  value:
+                    code: 200
+                    message: alert activity retrieved successfully
+                    data:
+                      events: []
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -11724,63 +12055,222 @@ paths:
       operationId: configureAlerts
       tags:
         - Backend - Alerts
-      summary: Configure alert routing
+      summary: Save the caller's alerting layer
       description: |
-        Accepts a generic AlertingConfig JSON, renders it into a valid Alertmanager YAML configuration,
-        and pushes it to Mimir. SMTP settings are injected server-side.
-        A built-in history webhook (ALERTING_HISTORY_WEBHOOK_URL) is always included and cannot be disabled.
-        Priority order: per-system overrides > per-severity overrides > global settings.
-        Address fallback: if an override's address list is empty, global addresses are used.
+        Saves the CALLER's alerting configuration layer (one row per
+        organization in alert_config_layers). The body is an
+        `AlertingConfigLayer`: three channel toggles plus three recipient
+        lists. Each recipient carries its own `severities[]`; email
+        recipients additionally carry `language` and `format`.
+
+        After save, the effective per-tenant Mimir YAML is recomputed
+        server-side (merge of all layers walking up to the Owner) and
+        pushed to every tenant in the caller's hierarchy with bounded
+        concurrency. Per-tenant push failures are returned in `warnings[]`;
+        the caller's layer is saved regardless of push outcome (Mimir can
+        be reconciled by saving again).
+
+        Additive-only contract: descendants can ADD recipients but cannot
+        disable channels enabled by ancestors. The server normalises any
+        explicit `false` in `enabled.{email,webhook,telegram}` from
+        non-Owner layers to null on storage.
+
+        Save+propagate is serialised per-organization (in-process mutex) to
+        prevent two concurrent saves from racing at the Mimir push step.
+        Body is capped at 1 MiB; oversized payloads are rejected with 413.
+
+        Requires `manage:alerts` permission.
       security:
         - BearerAuth: []
-      parameters:
-        - name: organization_id
-          in: query
-          description: Target organization ID. Required for Owner, Distributor, and Reseller roles. Customer role uses their own organization automatically.
-          schema:
-            type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AlertingConfig'
+              $ref: '#/components/schemas/AlertingConfigLayer'
+            examples:
+              OwnerGlobalBaseline:
+                summary: Owner — global baseline
+                description: |
+                  Owner enables email + webhook globally, sets a NOC
+                  recipient on all severities in Italian HTML, plus a SIEM
+                  webhook on every severity. Every descendant inherits.
+                value:
+                  enabled: { email: true, webhook: true, telegram: false }
+                  email_recipients:
+                    - address: "noc@msp.example"
+                      severities: []
+                      language: "it"
+                      format: "html"
+                  webhook_recipients:
+                    - name: "central-siem"
+                      url: "https://siem.example/api/alerts"
+                      severities: []
+                  telegram_recipients: []
+              DescendantAddRecipient:
+                summary: Reseller — additively add a recipient
+                description: |
+                  Reseller does NOT touch channel toggles (null = "no
+                  opinion"); it just adds a local NOC mailbox in English
+                  for critical+warning. Merged with Owner's recipients.
+                value:
+                  enabled: { email: null, webhook: null, telegram: null }
+                  email_recipients:
+                    - address: "noc@reseller.example"
+                      severities: ["critical", "warning"]
+                      language: "en"
+                      format: "html"
+                  webhook_recipients: []
+                  telegram_recipients: []
+              CustomerMixedFormatAndLang:
+                summary: Customer — mixed languages and formats per recipient
+                description: |
+                  Different recipients can request different bodies. The
+                  on-call inbox wants plain text (alerts piped into a
+                  ticketing tool); the manager wants HTML in Italian.
+                value:
+                  enabled: { email: null, webhook: null, telegram: null }
+                  email_recipients:
+                    - address: "oncall@customer.example"
+                      severities: ["critical"]
+                      language: "en"
+                      format: "plain"
+                    - address: "manager@customer.example"
+                      severities: []
+                      language: "it"
+                      format: "html"
+                  webhook_recipients: []
+                  telegram_recipients: []
+              CustomerWebhookCriticalOnly:
+                summary: Customer — Slack webhook only for `critical`
+                description: |
+                  Customer adds a Slack webhook scoped to critical. The
+                  rendered Alertmanager route puts this webhook only on
+                  the critical receiver.
+                value:
+                  enabled: { email: null, webhook: null, telegram: null }
+                  email_recipients: []
+                  webhook_recipients:
+                    - name: "ops-slack"
+                      url: "https://hooks.slack.com/services/T000/B000/XXX"
+                      severities: ["critical"]
+                  telegram_recipients: []
+              TelegramAllSeverities:
+                summary: Customer — Telegram channel on every severity
+                description: |
+                  Single Telegram bot pushing to a channel for every
+                  severity (severities=[]). Telegram messages are
+                  currently always rendered in English.
+                value:
+                  enabled: { email: null, webhook: null, telegram: true }
+                  email_recipients: []
+                  webhook_recipients: []
+                  telegram_recipients:
+                    - bot_token: "123456:ABC-DEF1234ghIkl"
+                      chat_id: -1001234567890
+                      severities: []
+              InheritPurely:
+                summary: Descendant — explicit "inherit everything"
+                description: |
+                  Saving an empty layer is meaningful: it just records
+                  audit metadata (who/when) without contributing
+                  recipients or toggles.
+                value:
+                  enabled: { email: null, webhook: null, telegram: null }
+                  email_recipients: []
+                  webhook_recipients: []
+                  telegram_recipients: []
       responses:
         '200':
-          description: Alerting configuration updated
+          description: Layer saved (and propagation attempted)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: alerting configuration updated successfully
+                  data:
+                    type: object
+                    properties:
+                      affected_tenants:
+                        type: integer
+                        description: Number of tenants in caller's hierarchy whose effective config was recomputed
+                      propagated_to:
+                        type: integer
+                        description: Of `affected_tenants`, how many were successfully pushed to Mimir
+                      warnings:
+                        type: array
+                        description: |
+                          Per-tenant push errors. Always present; empty when every push succeeded.
+                          Each entry: `org <logto_id>: <error>`.
+                        items:
+                          type: string
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '413':
+          description: Request body exceeds the configured maximum (1 MiB).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 413
+                  message:
+                    type: string
+                    example: request body exceeds the configured maximum
         '500':
           $ref: '#/components/responses/InternalServerError'
     delete:
       operationId: disableAlerts
       tags:
         - Backend - Alerts
-      summary: Disable all alerts
-      description: Replaces the Alertmanager config with a blackhole-only configuration, silencing all alerts for the organization. The built-in history webhook remains active.
+      summary: Remove the caller's alerting layer
+      description: |
+        Removes the CALLER's layer from alert_config_layers. The effective
+        config of all descendant tenants is recomputed without the caller's
+        contribution and re-pushed to Mimir; ancestor layers are preserved.
+        To completely silence a tenant, every layer in its chain must drop
+        its contribution.
+
+        Requires `manage:alerts` permission.
       security:
         - BearerAuth: []
-      parameters:
-        - name: organization_id
-          in: query
-          description: Target organization ID. Required for Owner, Distributor, and Reseller roles.
-          schema:
-            type: string
       responses:
         '200':
-          description: All alerts disabled
+          description: Layer removed (and propagation attempted)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: alerting layer removed successfully
+                  data:
+                    type: object
+                    properties:
+                      affected_tenants:
+                        type: integer
+                      propagated_to:
+                        type: integer
+                      warnings:
+                        type: array
+                        items:
+                          type: string
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -11793,27 +12283,24 @@ paths:
       operationId: getAlertingConfig
       tags:
         - Backend - Alerts
-      summary: Get current alerting configuration
+      summary: Get the caller's alerting layer
       description: |
-        Retrieves the current alerting configuration from Mimir (source of truth).
-        By default returns structured JSON (AlertingConfig). Use ?format=yaml to get the raw redacted YAML.
+        Returns the CALLER's own alerting configuration layer. No inherited
+        ancestor layers, no merged effective view: every organization sees
+        only its own configuration. The server-side merge that backs the
+        Mimir YAML stays inside the backend.
+
+        When the caller has never saved a layer the response body contains
+        an empty layer (toggles all null, recipient lists empty) and the
+        two audit fields set to null. The UI uses that state to render a
+        first-save form.
+
+        Requires `read:alerts` permission.
       security:
         - BearerAuth: []
-      parameters:
-        - name: organization_id
-          in: query
-          description: Target organization ID. Required for Owner, Distributor, and Reseller roles.
-          schema:
-            type: string
-        - name: format
-          in: query
-          description: Response format. Omit for JSON (default) or set to "yaml" for raw YAML.
-          schema:
-            type: string
-            enum: [yaml]
       responses:
         '200':
-          description: Current alerting configuration
+          description: Caller's layer
           content:
             application/json:
               schema:
@@ -11824,23 +12311,52 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: alerting configuration retrieved successfully
+                    example: alerting layer retrieved successfully
                   data:
-                    type: object
-                    properties:
-                      config:
-                        oneOf:
-                          - $ref: '#/components/schemas/AlertingConfig'
-                          - type: string
-                            description: Raw redacted YAML (when ?format=yaml)
-        '400':
-          $ref: '#/components/responses/BadRequest'
+                    allOf:
+                      - $ref: '#/components/schemas/AlertingConfigLayer'
+                      - type: object
+                        properties:
+                          updated_by_name:
+                            type: string
+                            nullable: true
+                          updated_at:
+                            type: string
+                            format: date-time
+                            nullable: true
+              examples:
+                Configured:
+                  summary: Caller has saved a layer
+                  value:
+                    code: 200
+                    message: "alerting layer retrieved successfully"
+                    data:
+                      enabled: { email: true, webhook: null, telegram: null }
+                      email_recipients:
+                        - address: "noc@reseller.example"
+                          severities: ["critical"]
+                          language: "it"
+                          format: "html"
+                      webhook_recipients: []
+                      telegram_recipients: []
+                      updated_by_name: "Reseller Admin"
+                      updated_at: "2026-05-09T10:14:00Z"
+                FirstTime:
+                  summary: Caller has not saved a layer yet
+                  value:
+                    code: 200
+                    message: "alerting layer retrieved successfully"
+                    data:
+                      enabled: { email: null, webhook: null, telegram: null }
+                      email_recipients: []
+                      webhook_recipients: []
+                      telegram_recipients: []
+                      updated_by_name: null
+                      updated_at: null
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
 
   /alerts:
     get:
@@ -11989,6 +12505,67 @@ paths:
                           a string `org <logto_id>: <error>`.
                         items:
                           type: string
+              examples:
+                ActiveAlertWithEnrichment:
+                  summary: One active warning across the caller's hierarchy
+                  description: |
+                    A single warning alert returned with local-DB system enrichment.
+                    `state="active"` means Mimir has not been told to silence it; an
+                    actively-muted alert would have `state="suppressed"` and a
+                    non-empty `silencedBy`.
+                  value:
+                    code: 200
+                    message: alerts retrieved successfully
+                    data:
+                      alerts:
+                        - fingerprint: "0a9d04bb6eed523f"
+                          labels:
+                            alertname: "DiskFilling"
+                            severity: "warning"
+                            system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                          annotations:
+                            summary: "/var is 92% full on test-sys"
+                            description: "Disk usage exceeded the warning threshold."
+                          status:
+                            state: "active"
+                            silencedBy: []
+                            inhibitedBy: []
+                          startsAt: "2026-05-12T08:14:00Z"
+                          endsAt: "2026-05-12T08:44:00Z"
+                          system:
+                            id: "e4eb4844-46f6-448c-8279-7cfedf5e1037"
+                            system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                            name: "test-sys"
+                            type: "ns8"
+                      pagination:
+                        page: 1
+                        page_size: 50
+                        total_count: 1
+                        total_pages: 1
+                        has_next: false
+                        has_prev: false
+                      warnings: []
+                PartialFanoutWarning:
+                  summary: One tenant timed out during fan-out
+                  description: |
+                    When `organization_id` is omitted (or `include=descendants` is
+                    used), the request fans out to every tenant in scope. A single
+                    slow Mimir does not fail the whole request — the rest of the
+                    results are returned and the failing tenant lands in `warnings`.
+                  value:
+                    code: 200
+                    message: alerts retrieved successfully
+                    data:
+                      alerts: []
+                      pagination:
+                        page: 1
+                        page_size: 50
+                        total_count: 0
+                        total_pages: 0
+                        has_next: false
+                        has_prev: false
+                      warnings:
+                        - "org pt8gqs6y5wpr: context deadline exceeded"
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':

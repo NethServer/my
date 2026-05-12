@@ -1,4 +1,4 @@
-{{ define "telegram.message" -}}
+{{ define "telegram_en.message" -}}
 {{ if .Alerts.Firing -}}
 {{ if eq (len .Alerts.Firing) 1 }}🔴 <b>ALERT FIRING</b>{{ else }}🚨 <b>{{ len .Alerts.Firing }} ALERTS FIRING</b>{{ end }}
 
