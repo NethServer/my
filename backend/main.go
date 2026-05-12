@@ -284,6 +284,9 @@ func main() {
 			alertsGroup.GET("/trend", methods.GetAlertsTrend)   // Alert history trend with daily data points
 			alertsGroup.GET("/stats", methods.GetAlertsStats)   // Aggregate stats: severity buckets, top-N alertname/system_key, MTTR/MTBF
 
+			// Per-alert audit timeline (silence created/updated/removed events for the alert detail drawer)
+			alertsGroup.GET("/:fingerprint/activity", methods.GetAlertActivity)
+
 			// Configuration management
 			alertsGroup.GET("/config", methods.GetAlertingConfig) // Get current alerting configuration
 			alertsGroup.POST("/config", methods.ConfigureAlerts)  // Configure alert routing (manage:systems required)
