@@ -375,10 +375,11 @@ components:
     ActiveAlert:
       type: object
       description: |
-        Active alert returned by Mimir Alertmanager, enriched with local-DB
-        system info before being sent to the client. The fan-out includes
+        Active alert returned by Mimir Alertmanager. The fan-out includes
         silenced and inhibited alerts (not just `active` ones), so callers can
-        render the muted/suppressed state.
+        render the muted/suppressed state. System identity (id, key, name,
+        type) is carried as labels (`system_id`, `system_key`, `system_name`,
+        `system_type`), stamped server-side at ingest time.
       properties:
         fingerprint:
           type: string
@@ -388,11 +389,20 @@ components:
           type: object
           additionalProperties:
             type: string
-          description: Alert labels (alertname, severity, system_key, ...)
+          description: |
+            Alert labels. Always includes server-stamped identity labels
+            (`system_id`, `system_key`, `system_name`, `system_type`,
+            `system_fqdn`, `system_ipv4`, `organization_name`,
+            `organization_vat`, `organization_type`) plus the alert's own
+            labels (`alertname`, `severity`, ...). Use `system_id` to link
+            to the system detail page (/systems/:id).
           example:
             alertname: "DiskFilling"
             severity: "warning"
+            system_id: "35aa0d84-08c1-4013-b1fd-d5f6ef3e0541"
             system_key: "NETH-FBB2-1A6E-7CAD-44A4-A772-B3EE-F0F6-F371"
+            system_name: "cust1-sys-A"
+            system_type: "ns8"
         annotations:
           type: object
           additionalProperties:
@@ -421,34 +431,6 @@ components:
         generatorURL:
           type: string
           description: Source URL of the alert (set by the pushing agent), if any
-        system:
-          type: object
-          nullable: true
-          description: |
-            Local-DB enrichment: the owning system's id, name and product
-            type, resolved by (organization_id, labels.system_key). Omitted
-            when the system_key has no matching row in the local systems
-            table (e.g., system unregistered or alert pushed against a
-            stale key). The frontend uses `id` (local DB UUID) to link to
-            the system detail page (/systems/:id); `system_key` is the
-            Mimir tenant label and is shown in the UI for reference.
-          properties:
-            id:
-              type: string
-              format: uuid
-              description: Local DB UUID. Use this to build links to /systems/:id.
-              example: "35aa0d84-08c1-4013-b1fd-d5f6ef3e0541"
-            system_key:
-              type: string
-              description: System key as used in alert labels (Mimir tenant identifier on this system).
-              example: "NETH-FBB2-1A6E-7CAD-44A4-A772-B3EE-F0F6-F371"
-            name:
-              type: string
-              example: "cust1-sys-A"
-            type:
-              type: string
-              nullable: true
-              description: Product type (e.g. "nsec"). Null until the agent reports it on first inventory.
 
     AlertActivityEntry:
       type: object
@@ -8919,8 +8901,8 @@ paths:
       description: |
         Returns current alerts from Mimir for a specific system, filtered by the system's key.
         Suppressed alerts remain visible so silenced alerts can still be inspected in the system detail view.
-        Each alert is enriched with a `system` object (same shape as `/api/alerts`) — for this
-        endpoint it always points to the system identified by the path `id`.
+        System identity is carried as labels on each alert (`system_id`, `system_key`,
+        `system_name`, `system_type`), stamped at ingest time.
         Requires `read:systems` permission.
       security:
         - BearerAuth: []
@@ -8970,7 +8952,10 @@ paths:
                           labels:
                             alertname: "DiskFilling"
                             severity: "warning"
+                            system_id: "e4eb4844-46f6-448c-8279-7cfedf5e1037"
                             system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                            system_name: "test-sys"
+                            system_type: "ns8"
                           annotations:
                             summary: "/var is 92% full"
                             description: "Disk usage exceeded warning threshold."
@@ -8981,16 +8966,14 @@ paths:
                             inhibitedBy: []
                           startsAt: "2026-05-12T08:14:00Z"
                           endsAt: "2026-05-12T08:44:00Z"
-                          system:
-                            id: "e4eb4844-46f6-448c-8279-7cfedf5e1037"
-                            system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
-                            name: "test-sys"
-                            type: "ns8"
                         - fingerprint: "11a9302b0fa6526e"
                           labels:
                             alertname: "HighCPU"
                             severity: "critical"
+                            system_id: "e4eb4844-46f6-448c-8279-7cfedf5e1037"
                             system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                            system_name: "test-sys"
+                            system_type: "ns8"
                           annotations:
                             summary: "CPU usage 98%"
                             description: "Sustained high CPU."
@@ -9000,11 +8983,6 @@ paths:
                             inhibitedBy: []
                           startsAt: "2026-05-12T08:20:00Z"
                           endsAt: "2026-05-12T08:50:00Z"
-                          system:
-                            id: "e4eb4844-46f6-448c-8279-7cfedf5e1037"
-                            system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
-                            name: "test-sys"
-                            type: "ns8"
                 NoActiveAlerts:
                   summary: System has no firing alerts
                   value:
@@ -12506,13 +12484,13 @@ paths:
                         items:
                           type: string
               examples:
-                ActiveAlertWithEnrichment:
+                ActiveAlertExample:
                   summary: One active warning across the caller's hierarchy
                   description: |
-                    A single warning alert returned with local-DB system enrichment.
-                    `state="active"` means Mimir has not been told to silence it; an
-                    actively-muted alert would have `state="suppressed"` and a
-                    non-empty `silencedBy`.
+                    A single warning alert. System identity (id, key, name, type) is
+                    carried as labels, stamped at ingest time. `state="active"` means
+                    Mimir has not been told to silence it; an actively-muted alert
+                    would have `state="suppressed"` and a non-empty `silencedBy`.
                   value:
                     code: 200
                     message: alerts retrieved successfully
@@ -12522,7 +12500,10 @@ paths:
                           labels:
                             alertname: "DiskFilling"
                             severity: "warning"
+                            system_id: "e4eb4844-46f6-448c-8279-7cfedf5e1037"
                             system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                            system_name: "test-sys"
+                            system_type: "ns8"
                           annotations:
                             summary: "/var is 92% full on test-sys"
                             description: "Disk usage exceeded the warning threshold."
@@ -12532,11 +12513,6 @@ paths:
                             inhibitedBy: []
                           startsAt: "2026-05-12T08:14:00Z"
                           endsAt: "2026-05-12T08:44:00Z"
-                          system:
-                            id: "e4eb4844-46f6-448c-8279-7cfedf5e1037"
-                            system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
-                            name: "test-sys"
-                            type: "ns8"
                       pagination:
                         page: 1
                         page_size: 50

@@ -7,7 +7,6 @@ package methods
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,9 +22,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/lib/pq"
 
-	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
@@ -644,11 +641,9 @@ func GetAlertActivity(c *gin.Context) {
 // failures (timeout, 5xx, parse error) are collected as warnings; the rest of
 // the result is returned.
 //
-// Each alert is enriched with a top-level `system` object containing the
-// owning system's `name` and `type` (product, e.g. "nsec") looked up in the
-// local `systems` table by (org_id, system_key). This saves the frontend a
-// per-row round-trip to /systems just to render the table cell. If the lookup
-// fails or the alert has no system_key, the field is simply omitted.
+// System identity (id, key, name, type) is carried as labels on the alert
+// itself (system_id, system_key, system_name, system_type), stamped at ingest
+// time by collect. No per-request DB lookup is needed here.
 func fanOutMimirAlerts(parent context.Context, orgIDs []string) ([]map[string]interface{}, []string) {
 	var (
 		all      []map[string]interface{}
@@ -693,8 +688,6 @@ func fanOutMimirAlerts(parent context.Context, orgIDs []string) ([]map[string]in
 				return
 			}
 
-			enrichAlertsWithSystemInfo(orgID, alerts)
-
 			mu.Lock()
 			all = append(all, alerts...)
 			mu.Unlock()
@@ -702,77 +695,6 @@ func fanOutMimirAlerts(parent context.Context, orgIDs []string) ([]map[string]in
 	}
 	wg.Wait()
 	return all, warnings
-}
-
-// enrichAlertsWithSystemInfo decorates each alert with a `system` object
-// (id, name, type, system_key) by issuing a single SELECT against the local
-// systems table for the distinct system_key values it sees. Best-effort:
-// a DB hiccup or an unmatched key just leaves the system field unset on
-// that alert. The `id` is the local DB UUID — what the frontend uses to
-// build the system-detail link (/systems/:id).
-func enrichAlertsWithSystemInfo(orgID string, alerts []map[string]interface{}) {
-	if len(alerts) == 0 {
-		return
-	}
-	keys := make(map[string]struct{}, len(alerts))
-	for _, a := range alerts {
-		labels, _ := a["labels"].(map[string]interface{})
-		if k, ok := labels["system_key"].(string); ok && k != "" {
-			keys[k] = struct{}{}
-		}
-	}
-	if len(keys) == 0 {
-		return
-	}
-	keyList := make([]string, 0, len(keys))
-	for k := range keys {
-		keyList = append(keyList, k)
-	}
-	rows, err := database.DB.Query(
-		`SELECT id, system_key, name, type FROM systems WHERE organization_id = $1 AND system_key = ANY($2)`,
-		orgID, pq.Array(keyList),
-	)
-	if err != nil {
-		logger.Warn().Err(err).Str("org_id", orgID).Msg("failed to lookup system info for alert enrichment")
-		return
-	}
-	defer func() { _ = rows.Close() }()
-
-	type sysInfo struct {
-		ID   string
-		Name string
-		Type sql.NullString
-	}
-	infoBy := make(map[string]sysInfo, len(keyList))
-	for rows.Next() {
-		var id, k, n string
-		var t sql.NullString
-		if err := rows.Scan(&id, &k, &n, &t); err != nil {
-			continue
-		}
-		infoBy[k] = sysInfo{ID: id, Name: n, Type: t}
-	}
-
-	for _, a := range alerts {
-		labels, _ := a["labels"].(map[string]interface{})
-		k, _ := labels["system_key"].(string)
-		if k == "" {
-			continue
-		}
-		info, ok := infoBy[k]
-		if !ok {
-			continue
-		}
-		s := map[string]interface{}{
-			"id":         info.ID,
-			"system_key": k,
-			"name":       info.Name,
-		}
-		if info.Type.Valid {
-			s["type"] = info.Type.String
-		}
-		a["system"] = s
-	}
 }
 
 // GetAlertingConfig handles GET /api/alerts/config — returns the CALLER's
@@ -1201,22 +1123,13 @@ func GetSystemAlerts(c *gin.Context) {
 		return
 	}
 
-	// Filter alerts by this system's key and decorate each with the same
-	// `system` enrichment shape as /api/alerts. The system was already loaded
-	// at the start of the handler so no extra query is needed.
-	sysInfo := map[string]interface{}{
-		"id":         system.ID,
-		"system_key": system.SystemKey,
-		"name":       system.Name,
-	}
-	if system.Type != nil {
-		sysInfo["type"] = *system.Type
-	}
+	// Filter alerts by this system's key. System identity is already carried
+	// as labels on the alert (system_id, system_key, system_name, system_type)
+	// stamped by collect at ingest time.
 	filtered := make([]map[string]interface{}, 0, len(alerts))
 	for _, alert := range alerts {
 		labels, _ := alert["labels"].(map[string]interface{})
 		if sk, ok := labels["system_key"].(string); ok && sk == system.SystemKey {
-			alert["system"] = sysInfo
 			filtered = append(filtered, alert)
 		}
 	}
