@@ -12,6 +12,7 @@ package middleware
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"fmt"
 	"math/rand/v2"
@@ -194,6 +195,7 @@ type systemCredentialsRow struct {
 	systemID     string
 	secretPublic string
 	secretSHA256 string
+	registeredAt sql.NullTime
 }
 
 // validateSystemCredentials validates system credentials against database and cache
@@ -246,10 +248,17 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 		// If cached as invalid, still check database for updates
 	}
 
-	// Query database for system credentials
+	// Query database for system credentials. `registered_at` is fetched so we
+	// can reject systems that have a valid secret on file but have never
+	// completed POST /systems/register on the backend — collect operations
+	// (heartbeat, inventory, backup upload, alerts/silences proxy) all
+	// require an actively-registered appliance. Without this check an
+	// unregistered system could push backups into S3 that the admin UI then
+	// cannot see (the backend hides `system_key` for non-registered systems
+	// in GetSystem, breaking the S3 prefix used by the listing endpoint).
 	var creds systemCredentialsRow
 	query := `
-		SELECT id, system_secret_public, system_secret_sha256
+		SELECT id, system_secret_public, system_secret_sha256, registered_at
 		FROM systems
 		WHERE system_key = $1 AND deleted_at IS NULL
 	`
@@ -261,6 +270,7 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 		&creds.systemID,
 		&creds.secretPublic,
 		&creds.secretSHA256,
+		&creds.registeredAt,
 	)
 
 	if err != nil {
@@ -271,6 +281,17 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 
 		// Cache negative result for short time to prevent brute force
 		cacheCredentialsResult(c, systemKey, systemSecret, "", false)
+		return "", false
+	}
+
+	if !creds.registeredAt.Valid {
+		logger.Warn().
+			Str("system_key", systemKey).
+			Str("system_id", creds.systemID).
+			Msg("System has not completed registration; rejecting collect request")
+
+		// Not cached: skipping the failure cache here avoids a stale-401
+		// window after the appliance registers.
 		return "", false
 	}
 
