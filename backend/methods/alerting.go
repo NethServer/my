@@ -7,6 +7,7 @@ package methods
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/lib/pq"
 
 	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/helpers"
@@ -710,6 +712,8 @@ func fanOutMimirAlerts(parent context.Context, orgIDs []string) ([]map[string]in
 				mu.Unlock()
 				return
 			}
+
+			enrichAlertsWithSystemInfo(orgID, alerts)
 
 			mu.Lock()
 			all = append(all, alerts...)
