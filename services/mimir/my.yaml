@@ -17,6 +17,12 @@ server:
   http_listen_port: ${PORT}
   log_level: info
 
+# Single-replica alertmanager has no peers to gossip with. Bind memberlist
+# to localhost so Render's TCP probes don't hit it and spam "unknown
+# message type" errors. Remove this section if numInstances ever grows > 1.
+memberlist:
+  bind_addr: [127.0.0.1]
+
 # Global per-tenant defaults. A misbehaving tenant cannot saturate the
 # container memory: alerts/silences are bounded and notifications are
 # rate-limited. Per-tenant overrides go in runtime_config.yaml.
