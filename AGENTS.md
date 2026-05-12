@@ -147,9 +147,10 @@ Vue 3 + TypeScript, Vite, Tailwind, Pinia. Alerting UI present (`src/views/Alert
 Single-node Grafana Mimir with S3-compatible backend and multi-tenant Alertmanager. Containerfile, Makefile, docker-compose.yml + docker-compose.local.yml. `scripts/` contains Python helpers (`alert.py`, `alerting_config.py`) for manual testing.
 
 **Alerting integration**:
-- Backend (`backend/services/alerting/`) renders Alertmanager YAML from `AlertingConfig` models and pushes via `POST /api/v1/alerts` per tenant. Email templates are Go `html/template`-embedded, en/it locales, firing + resolved variants.
+- Backend (`backend/services/alerting/`) holds one `AlertingConfigLayer` per organization in `alert_config_layers` (flat recipient-based shape: `enabled`, `email_recipients[]`, `webhook_recipients[]`, `telegram_recipients[]`, each recipient carries its own `severities[]`; email also `language` + `format`). The effective per-tenant Mimir YAML is the server-side merge of every layer from Owner down to the tenant (union dedup, additive-only). `/alerts/config` only ever returns the caller's own layer — the merged view is internal and never leaves the backend. Templates are Go `html/template`-embedded, en/it locales, firing + resolved variants; both languages ship with every tenant push and the renderer picks per email recipient via per-language dispatchers (`alert_<lang>.html|txt|subject`).
 - Collect proxies systems to Alertmanager `alerts`/`silences` with `X-Scope-OrgID` from the authenticated system's org.
 - Alertmanager webhooks resolved alerts back to collect `/api/alert_history`, which persists them scoped by `organization_id` (column on `alert_history`, populated from the DB via `system_key` lookup — never trusted from the payload).
+- RBAC: `/alerts/config*` is gated on a dedicated `alerts` resource (`read:alerts` for GET, `manage:alerts` for POST/DELETE) — admin/super only. The list/silence endpoints (`/alerts`, `/alerts/history`, `/systems/:id/alerts*`) stay on `read:systems`/`manage:systems`.
 
 ### 3.6 Proxy (`proxy/`)
 
