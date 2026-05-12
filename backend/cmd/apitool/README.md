@@ -23,10 +23,25 @@ later token request is a single command — no manual re-login.
 # From backend/
 make apitool                    # builds ./apitool
 
-./apitool init                  # one-time: prompts for owner email + password
-                                # verifies via login + exchange, then saves to
-                                # backend/.api-registry.json (mode 0600, gitignored)
+./apitool init                  # one-time: prompts for OIDC config + owner
+                                # creds, verifies via login + exchange, then
+                                # saves to backend/.api-registry.json
+                                # (mode 0600, gitignored)
 ```
+
+`init` is interactive and asks for:
+
+| Prompt | What it is | Example |
+|---|---|---|
+| Logto endpoint | Your Logto tenant URL | `https://your-tenant.logto.app` |
+| Logto app ID | The OIDC app the backend uses | `abc123def456` |
+| Auth base URL | Host serving `/login-redirect` | `https://my.example.com` |
+| Backend URL | Backend API base (incl. `/api`) | `https://my.example.com/api` |
+| Owner email | An existing Owner-role user | `owner@example.com` |
+| Owner password | That user's password | — |
+
+Nothing is baked in: re-run `init` to point at a different tenant or env. Press
+Enter at any prompt to keep the previously-saved value (shown in `[brackets]`).
 
 The owner credentials are stored in cleartext in the registry file; this is a
 dev-only tool and the file never leaves your machine.
@@ -74,7 +89,7 @@ Example:
 
 ```bash
 TOK=$(./apitool token dist-admin)
-curl -sk -H "Authorization: Bearer $TOK" https://my.localtest.me/api/me
+curl -sk -H "Authorization: Bearer $TOK" https://my.example.com/api/me
 ```
 
 Tokens are minted on every `apitool token` invocation by re-running the OIDC

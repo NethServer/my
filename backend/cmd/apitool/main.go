@@ -23,13 +23,6 @@ import (
 	"time"
 )
 
-const (
-	defaultLogtoEndpoint = "https://o3izgd.logto.app"
-	defaultLogtoAppID    = "dkmw3j3ansfj0wybhhgjr"
-	defaultAuthBaseURL   = "https://my.localtest.me"
-	defaultBackendURL    = "https://my.localtest.me/api"
-)
-
 func main() {
 	if len(os.Args) < 2 {
 		usage()
@@ -118,24 +111,15 @@ Registry: backend/.api-registry.json (gitignored, file mode 0600)`)
 }
 
 func loadOrInit() (*Registry, error) {
-	r, err := LoadRegistry()
-	if err != nil {
-		return nil, err
-	}
-	if r.Config.LogtoEndpoint == "" {
-		r.Config = Config{
-			LogtoEndpoint: defaultLogtoEndpoint,
-			LogtoAppID:    defaultLogtoAppID,
-			AuthBaseURL:   defaultAuthBaseURL,
-			BackendURL:    defaultBackendURL,
-		}
-	}
-	return r, nil
+	return LoadRegistry()
 }
 
 // loginAs returns an authenticated client logged in as the given registry key.
 // "" or "owner" means use the saved owner credentials.
 func loginAs(r *Registry, key string) (*Client, error) {
+	if r.Config.LogtoEndpoint == "" {
+		return nil, fmt.Errorf("not initialized; run: apitool init")
+	}
 	var email, password string
 	if key == "" || key == "owner" {
 		if r.Owner.Email == "" {
@@ -168,10 +152,27 @@ func cmdInit(_ []string) error {
 	}
 
 	fmt.Println("Configuring apitool registry.")
-	fmt.Println("Owner credentials are required to create orgs and users.")
-	fmt.Println("They will be saved (in cleartext) to", registryPath())
+	fmt.Println("OIDC config + owner credentials will be saved (in cleartext) to", registryPath())
+	fmt.Println("Press Enter on any prompt to keep the value shown in [brackets].")
 	fmt.Println()
 
+	fmt.Println("=== OIDC config ===")
+	logtoEndpoint := prompt("Logto endpoint (e.g. https://your-tenant.logto.app)", r.Config.LogtoEndpoint)
+	logtoAppID := prompt("Logto app ID", r.Config.LogtoAppID)
+	authBaseURL := prompt("Auth base URL (host that serves /login-redirect)", r.Config.AuthBaseURL)
+	backendURL := prompt("Backend URL (incl. /api suffix)", r.Config.BackendURL)
+	if logtoEndpoint == "" || logtoAppID == "" || authBaseURL == "" || backendURL == "" {
+		return fmt.Errorf("all OIDC config fields are required")
+	}
+	r.Config = Config{
+		LogtoEndpoint: strings.TrimRight(logtoEndpoint, "/"),
+		LogtoAppID:    logtoAppID,
+		AuthBaseURL:   strings.TrimRight(authBaseURL, "/"),
+		BackendURL:    strings.TrimRight(backendURL, "/"),
+	}
+
+	fmt.Println()
+	fmt.Println("=== Owner credentials ===")
 	email := prompt("Owner email", r.Owner.Email)
 	pass := prompt("Owner password", "")
 	if email == "" || pass == "" {
@@ -208,29 +209,9 @@ func cmdToken(args []string) error {
 	if err != nil {
 		return err
 	}
-
-	var email, pass string
-	if name == "owner" {
-		if r.Owner.Email == "" {
-			return fmt.Errorf("owner not initialized; run: apitool init")
-		}
-		email = r.Owner.Email
-		pass = r.Owner.Password
-	} else {
-		u, ok := r.Users[name]
-		if !ok {
-			return fmt.Errorf("user %q not found in registry (run: apitool list)", name)
-		}
-		email = u.Email
-		pass = u.Password
-	}
-
-	client, err := NewClient(r.Config)
+	client, err := loginAs(r, name)
 	if err != nil {
 		return err
-	}
-	if err := client.Login(email, pass); err != nil {
-		return fmt.Errorf("login failed: %w", err)
 	}
 	fmt.Println(client.JWT())
 	return nil
@@ -378,9 +359,14 @@ func cmdList(_ []string) error {
 	fmt.Println("Registry:", registryPath())
 	fmt.Println()
 	fmt.Println("=== Config ===")
-	fmt.Printf("  logto_endpoint: %s\n", r.Config.LogtoEndpoint)
-	fmt.Printf("  logto_app_id:   %s\n", r.Config.LogtoAppID)
-	fmt.Printf("  backend_url:    %s\n", r.Config.BackendURL)
+	if r.Config.LogtoEndpoint == "" {
+		fmt.Println("  (not initialized — run: apitool init)")
+	} else {
+		fmt.Printf("  logto_endpoint: %s\n", r.Config.LogtoEndpoint)
+		fmt.Printf("  logto_app_id:   %s\n", r.Config.LogtoAppID)
+		fmt.Printf("  auth_base_url:  %s\n", r.Config.AuthBaseURL)
+		fmt.Printf("  backend_url:    %s\n", r.Config.BackendURL)
+	}
 	fmt.Println()
 	fmt.Println("=== Owner ===")
 	if r.Owner.Email != "" {

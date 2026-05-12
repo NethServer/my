@@ -30,8 +30,8 @@ import (
 // Cookie header sanitization, breaking the interaction session. Storing raw
 // name=value pairs and emitting them ourselves preserves the exact bytes.
 //
-// TLS verification is disabled because dev runs behind a self-signed
-// my.localtest.me cert; this tool is dev-only.
+// TLS verification is disabled because dev typically runs behind a
+// self-signed cert; this tool is dev-only.
 type Client struct {
 	cfg     Config
 	http    *http.Client
