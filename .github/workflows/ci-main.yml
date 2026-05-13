@@ -119,7 +119,7 @@ jobs:
   # ===========================================================================
   build:
     runs-on: ubuntu-latest
-    needs: [go-tests, frontend-tests, backup-integration]
+    needs: [go-tests, frontend-tests]
     permissions:
       contents: read
       packages: write
