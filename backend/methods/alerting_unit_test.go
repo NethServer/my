@@ -59,13 +59,13 @@ func TestFilterAlerts(t *testing.T) {
 			expected: 3,
 		},
 		{
-			name:     "filter by state active",
-			params:   alertFilter{states: []string{"active"}},
+			name:     "filter by status active",
+			params:   alertFilter{statuses: []string{"active"}},
 			expected: 2,
 		},
 		{
-			name:     "filter by state suppressed",
-			params:   alertFilter{states: []string{"suppressed"}},
+			name:     "filter by status suppressed",
+			params:   alertFilter{statuses: []string{"suppressed"}},
 			expected: 1,
 		},
 		{
@@ -95,17 +95,17 @@ func TestFilterAlerts(t *testing.T) {
 		},
 		{
 			name:     "combined filters: active + critical",
-			params:   alertFilter{states: []string{"active"}, severities: []string{"critical"}},
+			params:   alertFilter{statuses: []string{"active"}, severities: []string{"critical"}},
 			expected: 2,
 		},
 		{
 			name:     "combined filters: active + warning",
-			params:   alertFilter{states: []string{"active"}, severities: []string{"warning"}},
+			params:   alertFilter{statuses: []string{"active"}, severities: []string{"warning"}},
 			expected: 0,
 		},
 		{
 			name:     "combined filters: active + SYS-001 + critical",
-			params:   alertFilter{states: []string{"active"}, systemKeys: []string{"SYS-001"}, severities: []string{"critical"}},
+			params:   alertFilter{statuses: []string{"active"}, systemKeys: []string{"SYS-001"}, severities: []string{"critical"}},
 			expected: 2,
 		},
 		{
@@ -119,18 +119,18 @@ func TestFilterAlerts(t *testing.T) {
 			expected: 2,
 		},
 		{
-			name:     "multi-value state (active OR suppressed)",
-			params:   alertFilter{states: []string{"active", "suppressed"}},
+			name:     "multi-value status (active OR suppressed)",
+			params:   alertFilter{statuses: []string{"active", "suppressed"}},
 			expected: 3,
 		},
 		{
 			name:     "multi-value AND single-value combo",
-			params:   alertFilter{severities: []string{"critical", "warning"}, states: []string{"active"}},
+			params:   alertFilter{severities: []string{"critical", "warning"}, statuses: []string{"active"}},
 			expected: 2,
 		},
 		{
-			name:     "non-existent state",
-			params:   alertFilter{states: []string{"unknown"}},
+			name:     "non-existent status",
+			params:   alertFilter{statuses: []string{"unknown"}},
 			expected: 0,
 		},
 		{
@@ -185,13 +185,13 @@ func TestFilterAlerts_MissingLabels(t *testing.T) {
 	assert.Equal(t, 1, len(result))
 
 	// Filter by state — both have "active" state, so both match.
-	result = filterAlerts(alerts, alertFilter{states: []string{"active"}})
+	result = filterAlerts(alerts, alertFilter{statuses: []string{"active"}})
 	assert.Equal(t, 2, len(result))
 }
 
 func TestFilterAlerts_EmptyInput(t *testing.T) {
 	var empty []map[string]interface{}
-	result := filterAlerts(empty, alertFilter{states: []string{"active"}})
+	result := filterAlerts(empty, alertFilter{statuses: []string{"active"}})
 	assert.Equal(t, 0, len(result))
 
 	result = filterAlerts(nil, alertFilter{})
@@ -331,6 +331,136 @@ func TestSilenceBelongsToSystem(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.expected, silenceBelongsToSystem(tt.silence, tt.systemKey))
 		})
+	}
+}
+
+func TestSystemKeyFromSilence(t *testing.T) {
+	tests := []struct {
+		name     string
+		silence  *models.AlertmanagerSilence
+		expected string
+	}{
+		{
+			name:     "nil silence returns empty",
+			silence:  nil,
+			expected: "",
+		},
+		{
+			name: "exact system_key matcher returns value",
+			silence: &models.AlertmanagerSilence{
+				Matchers: []models.AlertmanagerMatcher{
+					{Name: "alertname", Value: "DiskFull", IsRegex: false},
+					{Name: "system_key", Value: "SYS-001", IsRegex: false},
+				},
+			},
+			expected: "SYS-001",
+		},
+		{
+			name: "regex system_key matcher is ignored",
+			silence: &models.AlertmanagerSilence{
+				Matchers: []models.AlertmanagerMatcher{
+					{Name: "system_key", Value: "SYS-.+", IsRegex: true},
+				},
+			},
+			expected: "",
+		},
+		{
+			name: "no system_key matcher returns empty",
+			silence: &models.AlertmanagerSilence{
+				Matchers: []models.AlertmanagerMatcher{
+					{Name: "alertname", Value: "DiskFull", IsRegex: false},
+				},
+			},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, systemKeyFromSilence(tt.silence))
+		})
+	}
+}
+
+func TestStatusOf(t *testing.T) {
+	tests := []struct {
+		name     string
+		alert    map[string]interface{}
+		expected string
+	}{
+		{
+			name: "active state",
+			alert: map[string]interface{}{
+				"status": map[string]interface{}{"state": "active"},
+			},
+			expected: "active",
+		},
+		{
+			name: "suppressed state",
+			alert: map[string]interface{}{
+				"status": map[string]interface{}{"state": "suppressed"},
+			},
+			expected: "suppressed",
+		},
+		{
+			name:     "missing status returns empty",
+			alert:    map[string]interface{}{"labels": map[string]interface{}{"alertname": "X"}},
+			expected: "",
+		},
+		{
+			name: "missing state field returns empty",
+			alert: map[string]interface{}{
+				"status": map[string]interface{}{"silencedBy": []interface{}{}},
+			},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, statusOf(tt.alert))
+		})
+	}
+}
+
+func TestSortAlertsListByStatus(t *testing.T) {
+	alerts := []map[string]interface{}{
+		{
+			"fingerprint": "fp-z",
+			"status":      map[string]interface{}{"state": "suppressed"},
+		},
+		{
+			"fingerprint": "fp-a",
+			"status":      map[string]interface{}{"state": "active"},
+		},
+		{
+			"fingerprint": "fp-b",
+			"status":      map[string]interface{}{"state": "active"},
+		},
+	}
+
+	sortAlertsList(alerts, "status", "asc")
+
+	// asc: active before suppressed (alphabetical on state string).
+	// Tiebreaker is fingerprint asc and is stable regardless of direction,
+	// so the two "active" rows stay in fp-a, fp-b order.
+	assert.Equal(t, "fp-a", alerts[0]["fingerprint"])
+	assert.Equal(t, "fp-b", alerts[1]["fingerprint"])
+	assert.Equal(t, "fp-z", alerts[2]["fingerprint"])
+
+	sortAlertsList(alerts, "status", "desc")
+	assert.Equal(t, "fp-z", alerts[0]["fingerprint"])
+	// Tiebreaker fingerprint asc stays in place even on desc primary.
+	assert.Equal(t, "fp-a", alerts[1]["fingerprint"])
+	assert.Equal(t, "fp-b", alerts[2]["fingerprint"])
+}
+
+func TestAlertsListAllowedSortByIncludesStatus(t *testing.T) {
+	// The active-alerts list and the history list must share at least
+	// severity/alertname/starts_at/status so the UI can offer a single
+	// "Sort by" dropdown that works on both tabs.
+	for _, col := range []string{"starts_at", "severity", "alertname", "status"} {
+		assert.Truef(t, alertsListAllowedSortBy[col], "expected %q in alertsListAllowedSortBy", col)
 	}
 }
 

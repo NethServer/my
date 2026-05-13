@@ -8899,10 +8899,18 @@ paths:
         - Backend - Alerts
       summary: /systems/{id}/alerts - Get active alerts for a system
       description: |
-        Returns current alerts from Mimir for a specific system, filtered by the system's key.
-        Suppressed alerts remain visible so silenced alerts can still be inspected in the system detail view.
-        System identity is carried as labels on each alert (`system_id`, `system_key`,
-        `system_name`, `system_type`), stamped at ingest time.
+        Returns current alerts from Mimir scoped to a single system. Mirrors
+        the filter, pagination, and sort surface of `GET /alerts`: the only
+        difference is that `system_key` is pinned to the URL path (the
+        multi-value `system_key` query filter is therefore not exposed).
+        Suppressed alerts remain visible so silenced alerts can still be
+        inspected in the system detail view.
+
+        System identity is carried as labels on each alert (`system_id`,
+        `system_key`, `system_name`, `system_type`), stamped at ingest time.
+
+        Multi-value filters: OR within the same filter, AND across filters.
+
         Requires `read:systems` permission.
       security:
         - BearerAuth: []
@@ -8914,6 +8922,63 @@ paths:
           schema:
             type: string
             example: "sys_123456789"
+        - name: page
+          in: query
+          description: 1-based page number.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          description: Page size. Default 50, max 100.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: sort_by
+          in: query
+          description: Sort column (allowlist matches `/alerts`).
+          schema:
+            type: string
+            enum: [starts_at, severity, alertname, status]
+            default: starts_at
+        - name: sort_direction
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: status
+          in: query
+          description: Filter by Alertmanager state. Supports multiple values.
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [active, suppressed, unprocessed]
+          style: form
+          explode: true
+        - name: severity
+          in: query
+          description: Filter by severity. Supports multiple values.
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [critical, warning, info]
+          style: form
+          explode: true
+        - name: alertname
+          in: query
+          description: Filter by alertname. Supports multiple values.
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
       responses:
         '200':
           description: Active alerts retrieved successfully
@@ -8935,6 +9000,8 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/ActiveAlert'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
               examples:
                 ActiveAndSuppressedOnSystem:
                   summary: Two firing alerts on the same system, one silenced
@@ -8983,6 +9050,15 @@ paths:
                             inhibitedBy: []
                           startsAt: "2026-05-12T08:20:00Z"
                           endsAt: "2026-05-12T08:50:00Z"
+                      pagination:
+                        page: 1
+                        page_size: 50
+                        total_count: 2
+                        total_pages: 1
+                        has_next: false
+                        has_prev: false
+                        sort_by: "starts_at"
+                        sort_direction: "desc"
                 NoActiveAlerts:
                   summary: System has no firing alerts
                   value:
@@ -8990,6 +9066,15 @@ paths:
                     message: "alerts retrieved successfully"
                     data:
                       alerts: []
+                      pagination:
+                        page: 1
+                        page_size: 50
+                        total_count: 0
+                        total_pages: 0
+                        has_next: false
+                        has_prev: false
+                        sort_by: "starts_at"
+                        sort_direction: "desc"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -9181,7 +9266,7 @@ paths:
                     `silence_id` is the Alertmanager-assigned UUID; use it to
                     look up, update, or delete the silence later. The
                     corresponding `silenced` event is appended to the alert's
-                    activity timeline (`GET /alerts/{fingerprint}/activity`).
+                    activity timeline (`GET /alerts/activity/{fingerprint}`).
                   value:
                     code: 200
                     message: "alert silenced successfully"
@@ -9457,7 +9542,17 @@ paths:
             type: string
             enum: [id, alertname, severity, status, starts_at, ends_at, created_at]
             default: created_at
-        - $ref: '#/components/parameters/SortDirectionParam'
+        - name: sort_direction
+          in: query
+          required: false
+          description: |
+            Sort direction. Unlike the shared default of `asc`, this endpoint
+            defaults to `desc` so the natural "most recent first" ordering is
+            applied when the caller omits the param.
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
         - name: from_date
           in: query
           required: false
@@ -11725,8 +11820,8 @@ paths:
         `/alerts/totals` and `/alerts/trend`.
 
         Supports date range (`from_date`/`to_date`, RFC3339) and multi-value label
-        filters (`alertname`, `severity`, `status`). All multi-value filters: OR within
-        the same filter, AND across filters.
+        filters (`system_key`, `alertname`, `severity`, `status`). All multi-value
+        filters: OR within the same filter, AND across filters.
 
         Customer callers are always pinned to their own organization regardless of params.
       security:
@@ -11758,7 +11853,17 @@ paths:
             type: string
             enum: [id, alertname, severity, status, starts_at, ends_at, created_at]
             default: created_at
-        - $ref: '#/components/parameters/SortDirectionParam'
+        - name: sort_direction
+          in: query
+          required: false
+          description: |
+            Sort direction. Unlike the shared default of `asc`, this endpoint
+            defaults to `desc` so the natural "most recent first" ordering is
+            applied when the caller omits the param.
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
         - name: from_date
           in: query
           description: Lower bound on `created_at` (inclusive). RFC3339 timestamp.
@@ -11773,6 +11878,17 @@ paths:
             type: string
             format: date-time
             example: "2026-05-08T00:00:00Z"
+        - name: system_key
+          in: query
+          description: |
+            Filter by one or more system keys. Repeat the param to pass multiple
+            values; results are matched as `system_key IN (...)`.
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
         - name: alertname
           in: query
           description: Filter by alertname. Supports multiple values.
@@ -11908,7 +12024,7 @@ paths:
   # ALERTING ENDPOINTS (Per-alert audit timeline)
   # ===========================================
 
-  /alerts/{fingerprint}/activity:
+  /alerts/activity/{fingerprint}:
     parameters:
       - name: fingerprint
         in: path
@@ -11933,7 +12049,7 @@ paths:
       description: |
         Returns the audit timeline for the alert identified by `fingerprint`, most recent
         first. Events are written transparently as silences are created, updated, or
-        removed via the `/api/systems/:id/alerts/silences` endpoints.
+        removed via the `/api/alerts/silences` and `/api/systems/:id/alerts/silences` endpoints.
 
         Operator notes are stored as the silence `comment` (Alertmanager native), so a
         note edit appears here as a `silence_updated` event whose `details` payload
@@ -12023,6 +12139,414 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+
+  # ===========================================
+  # ALERTING ENDPOINTS (Backend - Cross-system silences)
+  # ===========================================
+
+  /alerts/silences:
+    get:
+      operationId: getAlertSilences
+      tags:
+        - Backend - Alerts
+      summary: List active+pending silences across the caller's hierarchy
+      description: |
+        Cross-system parallel of `GET /systems/{id}/alerts/silences`. Returns
+        every active or pending Alertmanager silence in the caller's scope,
+        enriched with `organization_id` (the tenant that owns the silence) and
+        `system_key` (extracted from the silence matchers). Expired silences
+        and silences without a `system_key` matcher are excluded — only
+        silences our UI ever creates are addressable.
+
+        Scope follows the same three modes as `/alerts/totals`:
+        - `organization_id` omitted → caller's full hierarchy (cross-tenant fan-out).
+        - `organization_id=X` → single tenant `X`.
+        - `organization_id=X&include=descendants` → `X` plus its sub-tree.
+
+        Requires `read:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: organization_id
+          in: query
+          description: |
+            Target organization ID(s). Repeat the param for multiple values.
+            Optional for all roles except Customer (where it is ignored).
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: include
+          in: query
+          description: Set to `descendants` together with `organization_id` to expand each value to its sub-tree.
+          schema:
+            type: string
+            enum: [descendants]
+        - name: system_key
+          in: query
+          description: |
+            Filter silences by one or more system keys (exact match on the
+            `system_key` matcher). Repeat the param for multiple values.
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+      responses:
+        '200':
+          description: Paginated list of system-scoped silences
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: silences retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      silences:
+                        type: array
+                        items:
+                          allOf:
+                            - $ref: '#/components/schemas/AlertmanagerSilence'
+                            - type: object
+                              properties:
+                                organization_id:
+                                  type: string
+                                  description: Tenant that owns the silence (Mimir stores silences per-tenant).
+                                  example: "m4m3mdjdiizs"
+                                system_key:
+                                  type: string
+                                  description: System key extracted from the silence matchers.
+                                  example: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                      warnings:
+                        type: array
+                        description: |
+                          Per-tenant fan-out errors. Always present (empty when
+                          every tenant responded OK). Each entry is a string
+                          `org <logto_id>: <error>`.
+                        items:
+                          type: string
+              examples:
+                OneActive:
+                  summary: One active silence on a customer system
+                  value:
+                    code: 200
+                    message: silences retrieved successfully
+                    data:
+                      silences:
+                        - id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
+                          organization_id: "m4m3mdjdiizs"
+                          system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                          matchers:
+                            - name: "system_key"
+                              value: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                              isRegex: false
+                            - name: "alertname"
+                              value: "HighCPUUsage"
+                              isRegex: false
+                            - name: "severity"
+                              value: "warning"
+                              isRegex: false
+                          startsAt: "2026-05-12T08:16:36Z"
+                          endsAt: "2026-05-12T09:16:36Z"
+                          updatedAt: "2026-05-12T08:16:36Z"
+                          createdBy: "amelia.foster"
+                          comment: "muted during maintenance window"
+                          status:
+                            state: "active"
+                      warnings: []
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      operationId: createAlertSilence
+      tags:
+        - Backend - Alerts
+      summary: Mute an alert across systems
+      description: |
+        Cross-system parallel of `POST /systems/{id}/alerts/silences`. Mutes
+        an active alert identified by fingerprint inside a single tenant
+        (`?organization_id=`). The backend looks up the alert in Mimir,
+        extracts `system_key` from its labels, builds the matchers
+        server-side, and delegates to the same silence-creation path used by
+        the per-system endpoint — so the silence object stored in Mimir is
+        byte-identical regardless of which route created it.
+
+        If `end_at` is set it takes precedence over `duration_minutes`.
+
+        Requires `manage:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          description: |
+            Tenant that owns the alert. Mandatory for every role except
+            Customer (where it is ignored — they're always pinned to their
+            own organization). Owners can address any tenant in the system.
+          schema:
+            type: string
+            example: "m4m3mdjdiizs"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - fingerprint
+              properties:
+                fingerprint:
+                  type: string
+                  description: Fingerprint of the active alert to silence.
+                  example: "0a9d04bb6eed523f"
+                comment:
+                  type: string
+                  description: Optional silence comment. Defaults to a system-generated value when empty.
+                  example: "silenced during maintenance"
+                duration_minutes:
+                  type: integer
+                  minimum: 1
+                  maximum: 10080
+                  description: Optional duration in minutes. Defaults to 60 when omitted. Ignored when end_at is set.
+                  example: 60
+                end_at:
+                  type: string
+                  format: date-time
+                  description: Optional explicit end time (RFC3339). Takes precedence over duration_minutes.
+                  example: "2026-05-12T09:16:36Z"
+            examples:
+              ExplicitEndAt:
+                summary: Silence until a specific date/time
+                value:
+                  fingerprint: "0a9d04bb6eed523f"
+                  comment: "silenced during maintenance window"
+                  end_at: "2026-05-12T09:16:36Z"
+      responses:
+        '200':
+          description: Alert silenced successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "alert silenced successfully"
+                  data:
+                    type: object
+                    properties:
+                      silence_id:
+                        type: string
+                        example: "d9f91c6e-1b33-484e-befa-bfb41020e178"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /alerts/silences/{silence_id}:
+    get:
+      operationId: getAlertSilence
+      tags:
+        - Backend - Alerts
+      summary: Read a single silence
+      description: |
+        Cross-system parallel of `GET /systems/{id}/alerts/silences/{silence_id}`.
+        Looks up a silence inside a single tenant (`?organization_id=`) and
+        returns it enriched with `organization_id` and `system_key`. Silences
+        without a `system_key` matcher are reported as 404 — they don't belong
+        to our domain.
+
+        Requires `read:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: silence_id
+          in: path
+          required: true
+          description: Alertmanager silence ID.
+          schema:
+            type: string
+            example: "d9f91c6e-1b33-484e-befa-bfb41020e178"
+        - name: organization_id
+          in: query
+          required: true
+          description: |
+            Tenant that owns the silence. Mandatory for every role except
+            Customer (where it is ignored).
+          schema:
+            type: string
+            example: "m4m3mdjdiizs"
+      responses:
+        '200':
+          description: Silence retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "silence retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      silence:
+                        allOf:
+                          - $ref: '#/components/schemas/AlertmanagerSilence'
+                          - type: object
+                            properties:
+                              organization_id:
+                                type: string
+                                example: "m4m3mdjdiizs"
+                              system_key:
+                                type: string
+                                example: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateAlertSilence
+      tags:
+        - Backend - Alerts
+      summary: Update a silence's end time / comment
+      description: |
+        Cross-system parallel of `PUT /systems/{id}/alerts/silences/{silence_id}`.
+        Preserves the original matchers and start time; only `end_at` and
+        `comment` change. Refuses to operate on silences without a
+        `system_key` matcher (404). Requires `manage:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: silence_id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "d9f91c6e-1b33-484e-befa-bfb41020e178"
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            example: "m4m3mdjdiizs"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - end_at
+              properties:
+                comment:
+                  type: string
+                  example: "extended for maintenance window"
+                end_at:
+                  type: string
+                  format: date-time
+                  example: "2026-05-12T12:16:36Z"
+      responses:
+        '200':
+          description: Silence updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "silence updated successfully"
+                  data:
+                    type: object
+                    properties:
+                      silence_id:
+                        type: string
+                        example: "f1e1c2a4-7e57-4b1a-aaa0-2b96c8b5a3aa"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteAlertSilence
+      tags:
+        - Backend - Alerts
+      summary: Unmute an alert
+      description: |
+        Cross-system parallel of `DELETE /systems/{id}/alerts/silences/{silence_id}`.
+        Removes a system-scoped silence; generic Alertmanager silences (no
+        `system_key` matcher) are not addressable through this endpoint and
+        return 404. Requires `manage:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: silence_id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "d9f91c6e-1b33-484e-befa-bfb41020e178"
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            example: "m4m3mdjdiizs"
+      responses:
+        '200':
+          description: Silence disabled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "silence disabled successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   # ===========================================
   # ALERTING ENDPOINTS (Backend - Configuration)
@@ -12349,8 +12873,8 @@ paths:
         extra round-trip per row.
 
         Sortable by `starts_at` (default desc), `severity` (criticality rank: critical
-        > warning > info), or `alertname`. `fingerprint` is used as a stable tiebreaker
-        so pagination doesn't shift between requests.
+        > warning > info), `alertname`, or `status` (Alertmanager state). `fingerprint`
+        is used as a stable tiebreaker so pagination doesn't shift between requests.
 
         Scope follows the same three modes as `/alerts/totals`:
         - `organization_id` omitted → caller's full hierarchy (cross-tenant fan-out).
@@ -12404,7 +12928,7 @@ paths:
           description: Sort column (allowlist).
           schema:
             type: string
-            enum: [starts_at, severity, alertname]
+            enum: [starts_at, severity, alertname, status]
             default: starts_at
         - name: sort_direction
           in: query
@@ -12412,9 +12936,9 @@ paths:
             type: string
             enum: [asc, desc]
             default: desc
-        - name: state
+        - name: status
           in: query
-          description: Filter alerts by state. Supports multiple values.
+          description: Filter alerts by Alertmanager state. Supports multiple values.
           schema:
             type: array
             items:

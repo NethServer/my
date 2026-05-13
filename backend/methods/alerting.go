@@ -444,10 +444,16 @@ const alertsListDefaultPageSize = 50
 // active /api/alerts list. Default is starts_at desc (most recent first).
 // severity is sorted by criticality rank (critical > warning > info > other),
 // not lexicographically. Anything outside this set falls back to starts_at.
+//
+// The intersection with /api/alerts/history (starts_at, severity, alertname,
+// status) is intentional: the UI can offer a single "Sort by" dropdown that
+// works on both tabs without sending column names that one side would
+// silently fall back to its default.
 var alertsListAllowedSortBy = map[string]bool{
 	"starts_at": true,
 	"severity":  true,
 	"alertname": true,
+	"status":    true,
 }
 
 // severityRank maps severity labels to a comparable integer (higher = more
@@ -500,7 +506,7 @@ func GetAlerts(c *gin.Context) {
 	all, warnings := fanOutMimirAlerts(c.Request.Context(), orgIDs)
 
 	all = filterAlerts(all, alertFilter{
-		states:     c.QueryArray("state"),
+		statuses:   c.QueryArray("status"),
 		severities: c.QueryArray("severity"),
 		systemKeys: c.QueryArray("system_key"),
 		alertnames: c.QueryArray("alertname"),
@@ -554,6 +560,11 @@ func sortAlertsList(alerts []map[string]interface{}, sortBy, sortDirection strin
 			aj := alertnameOf(alerts[j])
 			primaryEqual = ai == aj
 			primaryLess = ai < aj
+		case "status":
+			ai := statusOf(alerts[i])
+			aj := statusOf(alerts[j])
+			primaryEqual = ai == aj
+			primaryLess = ai < aj
 		default: // starts_at
 			si, _ := alerts[i]["startsAt"].(string)
 			sj, _ := alerts[j]["startsAt"].(string)
@@ -585,17 +596,29 @@ func alertnameOf(alert map[string]interface{}) string {
 	return s
 }
 
+// statusOf returns the Alertmanager status.state of an active alert
+// ("active", "suppressed", "unprocessed"). Named after the public query
+// param (`?status=`) and the sort column (`sort_by=status`) rather than
+// the underlying JSON field; the alert payload still nests it under
+// `.status.state` because that's the upstream Alertmanager shape.
+func statusOf(alert map[string]interface{}) string {
+	status, _ := alert["status"].(map[string]interface{})
+	s, _ := status["state"].(string)
+	return s
+}
+
 // alertFingerprintPattern restricts the fingerprint path param to safe chars.
 // Alertmanager fingerprints are 16-char lowercase hex but we allow a slightly
 // looser charset to accommodate test fixtures and any future format change.
 var alertFingerprintPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
 
-// GetAlertActivity handles GET /api/alerts/:fingerprint/activity
+// GetAlertActivity handles GET /api/alerts/activity/:fingerprint
 // Returns the per-alert audit timeline (silence created/updated/removed) for
 // the alert identified by fingerprint within the resolved tenant. Most recent
 // first. Operator notes are stored as the comment of the silence the action
 // produced, so the timeline is the source of truth for "what happened, when,
-// by whom".
+// by whom". Literal `activity` precedes `:fingerprint` so the route does not
+// collide with /alerts/silences/{silence_id}.
 func GetAlertActivity(c *gin.Context) {
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
@@ -915,7 +938,7 @@ func GetAlertsTrend(c *gin.Context) {
 // it's a binding detail of one handler. Multiple values within a single field
 // are matched as OR; different fields AND together.
 type alertFilter struct {
-	states     []string
+	statuses   []string
 	severities []string
 	systemKeys []string
 	alertnames []string
@@ -926,19 +949,19 @@ type alertFilter struct {
 // or does not match any of the requested values; this prevents silent leakage
 // of unrelated alerts when the caller narrows the query.
 func filterAlerts(alerts []map[string]interface{}, f alertFilter) []map[string]interface{} {
-	if len(f.states) == 0 && len(f.severities) == 0 && len(f.systemKeys) == 0 && len(f.alertnames) == 0 {
+	if len(f.statuses) == 0 && len(f.severities) == 0 && len(f.systemKeys) == 0 && len(f.alertnames) == 0 {
 		return alerts
 	}
 
 	filtered := make([]map[string]interface{}, 0, len(alerts))
 	for _, alert := range alerts {
-		if len(f.states) > 0 {
+		if len(f.statuses) > 0 {
 			status, ok := alert["status"].(map[string]interface{})
 			if !ok {
 				continue
 			}
 			state, ok := status["state"].(string)
-			if !ok || !slices.Contains(f.states, state) {
+			if !ok || !slices.Contains(f.statuses, state) {
 				continue
 			}
 		}
@@ -1089,7 +1112,17 @@ func silenceBelongsToSystem(silence *models.AlertmanagerSilence, systemKey strin
 }
 
 // GetSystemAlerts handles GET /api/systems/:id/alerts
-// Returns active alerts from Mimir for a specific system, filtered by system_key.
+// Returns active alerts from Mimir scoped to a single system, with the same
+// filters, pagination, and sorting surface as the cross-system /api/alerts
+// list. The system_key in the URL acts as a hard scope: the multi-value
+// `system_key` query filter that /api/alerts accepts is not exposed here
+// since it would either be redundant (same value) or rejected.
+//
+// Accepted query params (all optional):
+//   - severity, alertname, status (multi-value, OR within, AND across)
+//   - page, page_size (default 50, cap 100)
+//   - sort_by (starts_at | severity | alertname | status), default starts_at
+//   - sort_direction (asc | desc), default desc
 func GetSystemAlerts(c *gin.Context) {
 	systemID := c.Param("id")
 	if systemID == "" {
@@ -1109,6 +1142,19 @@ func GetSystemAlerts(c *gin.Context) {
 		return
 	}
 
+	page, pageSize := helpers.GetPaginationFromQuery(c)
+	if c.Query("page_size") == "" {
+		pageSize = alertsListDefaultPageSize
+	}
+
+	sortBy, sortDirection := helpers.GetSortingFromQuery(c)
+	if !alertsListAllowedSortBy[sortBy] {
+		sortBy = "starts_at"
+	}
+	if c.Query("sort_direction") == "" {
+		sortDirection = "desc"
+	}
+
 	body, err := alerting.GetAlerts(getSystemAlertOrgID(system))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch alerts from mimir: "+err.Error(), nil))
@@ -1118,24 +1164,49 @@ func GetSystemAlerts(c *gin.Context) {
 	var alerts []map[string]interface{}
 	if err := json.Unmarshal(body, &alerts); err != nil {
 		c.JSON(http.StatusOK, response.OK("alerts retrieved successfully", gin.H{
-			"alerts": []interface{}{},
+			"alerts":     []map[string]interface{}{},
+			"pagination": helpers.BuildPaginationInfoWithSorting(page, pageSize, 0, sortBy, sortDirection),
 		}))
 		return
 	}
 
-	// Filter alerts by this system's key. System identity is already carried
-	// as labels on the alert (system_id, system_key, system_name, system_type)
-	// stamped by collect at ingest time.
-	filtered := make([]map[string]interface{}, 0, len(alerts))
+	// Hard scope by system_key. System identity is carried as labels on the
+	// alert (system_id, system_key, system_name, system_type) stamped at
+	// ingest time by collect, so no DB join is needed.
+	scoped := make([]map[string]interface{}, 0, len(alerts))
 	for _, alert := range alerts {
 		labels, _ := alert["labels"].(map[string]interface{})
 		if sk, ok := labels["system_key"].(string); ok && sk == system.SystemKey {
-			filtered = append(filtered, alert)
+			scoped = append(scoped, alert)
 		}
 	}
 
+	filtered := filterAlerts(scoped, alertFilter{
+		statuses:   c.QueryArray("status"),
+		severities: c.QueryArray("severity"),
+		alertnames: c.QueryArray("alertname"),
+		// systemKeys intentionally omitted: the URL path is the source of truth.
+	})
+
+	sortAlertsList(filtered, sortBy, sortDirection)
+
+	totalCount := len(filtered)
+	start := (page - 1) * pageSize
+	end := start + pageSize
+	if start > totalCount {
+		start = totalCount
+	}
+	if end > totalCount {
+		end = totalCount
+	}
+	pageAlerts := filtered[start:end]
+	if pageAlerts == nil {
+		pageAlerts = []map[string]interface{}{}
+	}
+
 	c.JSON(http.StatusOK, response.OK("alerts retrieved successfully", gin.H{
-		"alerts": filtered,
+		"alerts":     pageAlerts,
+		"pagination": helpers.BuildPaginationInfoWithSorting(page, pageSize, totalCount, sortBy, sortDirection),
 	}))
 }
 
@@ -1499,6 +1570,425 @@ func UpdateSystemAlertSilence(c *gin.Context) {
 	}))
 }
 
+// systemKeyFromSilence returns the `system_key` matcher value of a silence,
+// or "" if the silence has no exact (non-regex) system_key matcher. The
+// cross-system silence endpoints use it to scope operations to silences that
+// were created against a specific system (the only ones our UI ever creates)
+// and to ignore generic Alertmanager silences that may exist for the tenant.
+func systemKeyFromSilence(s *models.AlertmanagerSilence) string {
+	if s == nil {
+		return ""
+	}
+	for _, m := range s.Matchers {
+		if m.Name == "system_key" && !m.IsRegex {
+			return m.Value
+		}
+	}
+	return ""
+}
+
+// resolveAlertSilenceContext looks up an active alert by fingerprint inside
+// a single tenant's Mimir and returns the alert plus the `system_key` label
+// the cross-system silence handler needs to attach as a matcher. Used by
+// POST /api/alerts/silences; not used by the per-system silence handlers
+// (those already know the system_key from the URL path).
+//
+// Returns (alert, systemKey, true) on success. On any failure the response
+// is already written and the caller must just return.
+func resolveAlertSilenceContext(c *gin.Context, orgID, fingerprint string) (*models.ActiveAlert, string, bool) {
+	body, err := alerting.GetAlerts(orgID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch alerts from mimir: "+err.Error(), nil))
+		return nil, "", false
+	}
+	var alerts []models.ActiveAlert
+	if err := json.Unmarshal(body, &alerts); err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to parse alerts from mimir: "+err.Error(), nil))
+		return nil, "", false
+	}
+	for i := range alerts {
+		if alerts[i].Fingerprint != fingerprint {
+			continue
+		}
+		systemKey := alerts[i].Labels["system_key"]
+		if systemKey == "" {
+			c.JSON(http.StatusBadRequest, response.BadRequest("alert is not system-scoped (missing system_key label)", nil))
+			return nil, "", false
+		}
+		return &alerts[i], systemKey, true
+	}
+	c.JSON(http.StatusNotFound, response.NotFound("alert not found", nil))
+	return nil, "", false
+}
+
+// CreateAlertSilence handles POST /api/alerts/silences
+// Cross-system mute: body is { fingerprint, end_at, comment, duration_minutes? }.
+// The tenant comes from ?organization_id= (mandatory for non-Owner) and the
+// system_key matcher is resolved from the alert's labels in Mimir. The actual
+// silence creation reuses the same buildSystemAlertSilenceRequest +
+// alerting.CreateSilence path used by the per-system endpoint, so the silence
+// object stored in Mimir is byte-identical regardless of which route created it.
+func CreateAlertSilence(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+	orgID, ok := resolveOrgID(c, user)
+	if !ok {
+		return
+	}
+	if !requireOrgID(c, orgID) {
+		return
+	}
+
+	var req models.CreateSystemAlertSilenceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body: "+err.Error(), nil))
+		return
+	}
+	if !alertFingerprintPattern.MatchString(req.Fingerprint) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid fingerprint", nil))
+		return
+	}
+
+	alert, systemKey, ok := resolveAlertSilenceContext(c, orgID, req.Fingerprint)
+	if !ok {
+		return
+	}
+	if len(alert.Status.SilencedBy) > 0 {
+		c.JSON(http.StatusBadRequest, response.BadRequest("alert is already silenced", nil))
+		return
+	}
+
+	now := time.Now().UTC()
+	var endsAt time.Time
+	if req.EndAt != "" {
+		parsed, err := time.Parse(time.RFC3339, req.EndAt)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, response.BadRequest("invalid end_at: must be RFC3339 datetime", nil))
+			return
+		}
+		if !parsed.After(now) {
+			c.JSON(http.StatusBadRequest, response.BadRequest("invalid end_at: must be in the future", nil))
+			return
+		}
+		endsAt = parsed.UTC()
+	}
+
+	silenceReq := buildSystemAlertSilenceRequest(
+		alert,
+		systemKey,
+		getAlertSilenceCreatedBy(user),
+		req.Comment,
+		req.DurationMinutes,
+		now,
+		endsAt,
+	)
+
+	silenceResp, err := alerting.CreateSilence(orgID, silenceReq)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to create silence in mimir: "+err.Error(), nil))
+		return
+	}
+
+	logAlertActivity(c, orgID, req.Fingerprint, entities.AlertActivitySilenced, user, silenceResp.SilenceID, map[string]interface{}{
+		"comment":          normalizeAlertSilenceComment(req.Comment),
+		"duration_minutes": req.DurationMinutes,
+		"end_at":           req.EndAt,
+	})
+
+	c.JSON(http.StatusOK, response.OK("alert silenced successfully", gin.H{
+		"silence_id": silenceResp.SilenceID,
+	}))
+}
+
+// alertSilenceWithOrg is the per-row payload returned by GET /api/alerts/silences.
+// We extend AlertmanagerSilence with the originating organization_id (Mimir
+// stores silences per-tenant, so this isn't on the silence object itself) and
+// with the system_key extracted from the matchers, so the FE can render the
+// "muted on system X" pill without re-parsing matchers.
+type alertSilenceWithOrg struct {
+	models.AlertmanagerSilence
+	OrganizationID string `json:"organization_id"`
+	SystemKey      string `json:"system_key"`
+}
+
+// GetAlertSilences handles GET /api/alerts/silences
+// Cross-hierarchy list of active and pending silences. Scope follows the same
+// three modes as /api/alerts/totals (no organization_id / single tenant /
+// descendants). Only system-scoped silences (those with a `system_key` matcher)
+// are returned; generic Alertmanager silences are filtered out because they
+// don't belong to our domain model. Expired silences are also excluded.
+//
+// Per-tenant fan-out failures are non-fatal and surface in `warnings`.
+//
+// Optional filters: `system_key` (multi-value, exact match on matcher value).
+func GetAlertSilences(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+	orgIDs, ok := resolveOrgScope(c, user)
+	if !ok {
+		return
+	}
+
+	systemKeyFilter := c.QueryArray("system_key")
+
+	var (
+		out      []alertSilenceWithOrg
+		warnings []string
+		mu       sync.Mutex
+		wg       sync.WaitGroup
+	)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), alertsTotalsFanoutTimeout)
+	defer cancel()
+	sem := make(chan struct{}, alertsTotalsFanoutConcurrency)
+
+	for _, orgID := range orgIDs {
+		wg.Add(1)
+		go func(orgID string) {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				mu.Lock()
+				warnings = append(warnings, fmt.Sprintf("org %s: timed out waiting for slot", orgID))
+				mu.Unlock()
+				return
+			}
+
+			silences, err := alerting.GetSilences(orgID)
+			if err != nil {
+				logger.Warn().Err(err).Str("org_id", orgID).Msg("failed to fetch silences from mimir for cross-system list")
+				mu.Lock()
+				warnings = append(warnings, fmt.Sprintf("org %s: %s", orgID, err.Error()))
+				mu.Unlock()
+				return
+			}
+
+			local := make([]alertSilenceWithOrg, 0, len(silences))
+			for i := range silences {
+				if silences[i].Status != nil && silences[i].Status.State == "expired" {
+					continue
+				}
+				sk := systemKeyFromSilence(&silences[i])
+				if sk == "" {
+					continue
+				}
+				if len(systemKeyFilter) > 0 && !slices.Contains(systemKeyFilter, sk) {
+					continue
+				}
+				local = append(local, alertSilenceWithOrg{
+					AlertmanagerSilence: silences[i],
+					OrganizationID:      orgID,
+					SystemKey:           sk,
+				})
+			}
+
+			if len(local) == 0 {
+				return
+			}
+			mu.Lock()
+			out = append(out, local...)
+			mu.Unlock()
+		}(orgID)
+	}
+	wg.Wait()
+
+	if out == nil {
+		out = []alertSilenceWithOrg{}
+	}
+	if warnings == nil {
+		warnings = []string{}
+	}
+
+	c.JSON(http.StatusOK, response.OK("silences retrieved successfully", gin.H{
+		"silences": out,
+		"warnings": warnings,
+	}))
+}
+
+// GetAlertSilence handles GET /api/alerts/silences/:silence_id
+// Single-silence read across the caller's scope. The tenant is resolved from
+// ?organization_id= (mandatory for non-Owner). Refuses to return silences
+// that aren't system-scoped (no `system_key` matcher) — those don't belong to
+// our domain and a generic 404 keeps the surface tight.
+func GetAlertSilence(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+	orgID, ok := resolveOrgID(c, user)
+	if !ok {
+		return
+	}
+	if !requireOrgID(c, orgID) {
+		return
+	}
+	silenceID := c.Param("silence_id")
+	if silenceID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("silence id required", nil))
+		return
+	}
+
+	silence, err := alerting.GetSilence(orgID, silenceID)
+	if errors.Is(err, alerting.ErrSilenceNotFound) {
+		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch silence from mimir: "+err.Error(), nil))
+		return
+	}
+	systemKey := systemKeyFromSilence(silence)
+	if systemKey == "" {
+		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("silence retrieved successfully", gin.H{
+		"silence": alertSilenceWithOrg{
+			AlertmanagerSilence: *silence,
+			OrganizationID:      orgID,
+			SystemKey:           systemKey,
+		},
+	}))
+}
+
+// UpdateAlertSilence handles PUT /api/alerts/silences/:silence_id
+// Cross-system silence edit (change end time / comment). Mirrors
+// UpdateSystemAlertSilence but discovers system_key from the silence matchers
+// instead of taking it from the URL.
+func UpdateAlertSilence(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+	orgID, ok := resolveOrgID(c, user)
+	if !ok {
+		return
+	}
+	if !requireOrgID(c, orgID) {
+		return
+	}
+	silenceID := c.Param("silence_id")
+	if silenceID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("silence id required", nil))
+		return
+	}
+
+	var req models.UpdateSystemAlertSilenceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body: "+err.Error(), nil))
+		return
+	}
+
+	now := time.Now().UTC()
+	endsAt, err := time.Parse(time.RFC3339, req.EndAt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid end_at: must be RFC3339 datetime", nil))
+		return
+	}
+	if !endsAt.After(now) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid end_at: must be in the future", nil))
+		return
+	}
+
+	existing, err := alerting.GetSilence(orgID, silenceID)
+	if errors.Is(err, alerting.ErrSilenceNotFound) {
+		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch silence from mimir: "+err.Error(), nil))
+		return
+	}
+	if systemKeyFromSilence(existing) == "" {
+		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
+		return
+	}
+
+	updateReq := &models.AlertmanagerSilenceRequest{
+		ID:        existing.ID,
+		Matchers:  existing.Matchers,
+		StartsAt:  existing.StartsAt,
+		EndsAt:    endsAt.UTC().Format(time.RFC3339),
+		Comment:   normalizeAlertSilenceComment(req.Comment),
+		CreatedBy: existing.CreatedBy,
+	}
+
+	silenceResp, err := alerting.CreateSilence(orgID, updateReq)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to update silence in mimir: "+err.Error(), nil))
+		return
+	}
+
+	activityRepo := entities.NewLocalAlertActivityRepository()
+	fingerprint, _ := activityRepo.FindFingerprintBySilenceID(orgID, silenceID)
+	logAlertActivity(c, orgID, fingerprint, entities.AlertActivitySilenceUpdated, user, silenceResp.SilenceID, map[string]interface{}{
+		"comment": normalizeAlertSilenceComment(req.Comment),
+		"end_at":  req.EndAt,
+	})
+
+	c.JSON(http.StatusOK, response.OK("silence updated successfully", gin.H{
+		"silence_id": silenceResp.SilenceID,
+	}))
+}
+
+// DeleteAlertSilence handles DELETE /api/alerts/silences/:silence_id
+// Cross-system unmute. Same ownership rule as UpdateAlertSilence: only
+// silences carrying a `system_key` matcher are addressable through this
+// endpoint, so generic Alertmanager silences cannot be removed via the
+// public API.
+func DeleteAlertSilence(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+	orgID, ok := resolveOrgID(c, user)
+	if !ok {
+		return
+	}
+	if !requireOrgID(c, orgID) {
+		return
+	}
+	silenceID := c.Param("silence_id")
+	if silenceID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("silence id required", nil))
+		return
+	}
+
+	silence, err := alerting.GetSilence(orgID, silenceID)
+	if errors.Is(err, alerting.ErrSilenceNotFound) {
+		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch silence from mimir: "+err.Error(), nil))
+		return
+	}
+	if systemKeyFromSilence(silence) == "" {
+		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
+		return
+	}
+
+	if err := alerting.DeleteSilence(orgID, silenceID); errors.Is(err, alerting.ErrSilenceNotFound) {
+		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
+		return
+	} else if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to delete silence in mimir: "+err.Error(), nil))
+		return
+	}
+
+	activityRepo := entities.NewLocalAlertActivityRepository()
+	fingerprint, _ := activityRepo.FindFingerprintBySilenceID(orgID, silenceID)
+	logAlertActivity(c, orgID, fingerprint, entities.AlertActivityUnsilenced, user, silenceID, nil)
+
+	c.JSON(http.StatusOK, response.OK("silence disabled successfully", nil))
+}
+
 // GetSystemAlertHistory handles GET /api/systems/:id/alerts/history
 // Returns paginated resolved/inactive alert history for a system, with
 // optional date range (?from_date=, ?to_date=, RFC3339) and multi-value
@@ -1524,6 +2014,16 @@ func GetSystemAlertHistory(c *gin.Context) {
 	}
 
 	page, pageSize, sortBy, sortDirection := helpers.GetPaginationAndSortingFromQuery(c)
+	// Natural defaults for history are "by ingest time, most recent first".
+	// The shared helpers default sort_by to "" and sort_direction to asc,
+	// which (a) hide what the repo actually sorts on from the pagination
+	// response and (b) would surface the oldest events first.
+	if c.Query("sort_by") == "" {
+		sortBy = "created_at"
+	}
+	if c.Query("sort_direction") == "" {
+		sortDirection = "desc"
+	}
 
 	from, to, perr := parseDateRange(c)
 	if perr != nil {
@@ -1534,7 +2034,7 @@ func GetSystemAlertHistory(c *gin.Context) {
 	repo := entities.NewLocalAlertHistoryRepository()
 	records, totalCount, err := repo.QueryAlertHistory(entities.AlertHistoryQuery{
 		OrgIDs:        []string{system.Organization.LogtoID},
-		SystemKey:     system.SystemKey,
+		SystemKeys:    []string{system.SystemKey},
 		Alertnames:    c.QueryArray("alertname"),
 		Severities:    c.QueryArray("severity"),
 		Statuses:      c.QueryArray("status"),
@@ -1578,6 +2078,15 @@ func GetAlertsHistory(c *gin.Context) {
 	}
 
 	page, pageSize, sortBy, sortDirection := helpers.GetPaginationAndSortingFromQuery(c)
+	// See GetSystemAlertHistory for the rationale: default sort_by to
+	// created_at so the pagination response reflects what the repo actually
+	// sorts on, and flip the direction default to desc ("most recent first").
+	if c.Query("sort_by") == "" {
+		sortBy = "created_at"
+	}
+	if c.Query("sort_direction") == "" {
+		sortDirection = "desc"
+	}
 
 	from, to, perr := parseDateRange(c)
 	if perr != nil {
@@ -1588,6 +2097,7 @@ func GetAlertsHistory(c *gin.Context) {
 	repo := entities.NewLocalAlertHistoryRepository()
 	records, totalCount, err := repo.QueryAlertHistory(entities.AlertHistoryQuery{
 		OrgIDs:        orgIDs,
+		SystemKeys:    c.QueryArray("system_key"),
 		Alertnames:    c.QueryArray("alertname"),
 		Severities:    c.QueryArray("severity"),
 		Statuses:      c.QueryArray("status"),

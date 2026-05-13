@@ -36,7 +36,7 @@ func TestQueryAlertHistory_PerSystem(t *testing.T) {
 
 	now := time.Now().UTC()
 
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM alert_history WHERE organization_id IN \(\$1\) AND system_key = \$2`).
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM alert_history WHERE organization_id IN \(\$1\) AND system_key IN \(\$2\)`).
 		WithArgs("org-1", "SYS-001").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
 
@@ -54,7 +54,7 @@ func TestQueryAlertHistory_PerSystem(t *testing.T) {
 		WillReturnRows(rows)
 
 	records, totalCount, err := repo.QueryAlertHistory(AlertHistoryQuery{
-		OrgIDs: []string{"org-1"}, SystemKey: "SYS-001",
+		OrgIDs: []string{"org-1"}, SystemKeys: []string{"SYS-001"},
 		Page: 1, PageSize: 20, SortBy: "created_at", SortDirection: "desc",
 	})
 
@@ -133,7 +133,7 @@ func TestQueryAlertHistory_SortValidation(t *testing.T) {
 
 	// Invalid sort_by/sort_direction must fall back to created_at desc.
 	_, _, err := repo.QueryAlertHistory(AlertHistoryQuery{
-		OrgIDs: []string{"org-1"}, SystemKey: "SYS-001",
+		OrgIDs: []string{"org-1"}, SystemKeys: []string{"SYS-001"},
 		Page: 1, PageSize: 10, SortBy: "invalid_column", SortDirection: "INVALID",
 	})
 	assert.NoError(t, err)

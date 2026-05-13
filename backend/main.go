@@ -286,8 +286,21 @@ func main() {
 			alertsGroup.GET("/trend", methods.GetAlertsTrend)   // Alert history trend with daily data points
 			alertsGroup.GET("/stats", methods.GetAlertsStats)   // Aggregate stats: severity buckets, top-N alertname/system_key, MTTR/MTBF
 
-			// Per-alert audit timeline (silence created/updated/removed events for the alert detail drawer)
-			alertsGroup.GET("/:fingerprint/activity", methods.GetAlertActivity)
+			// Per-alert audit timeline (silence created/updated/removed events for the alert detail drawer).
+			// The "activity" literal segment comes BEFORE the param so this path
+			// doesn't collide with /alerts/silences/{silence_id} (3-segment param-second pattern).
+			alertsGroup.GET("/activity/:fingerprint", methods.GetAlertActivity)
+
+			// Silences (cross-system mute). Mirrors /systems/:id/alerts/silences*
+			// but takes ?organization_id= for the per-id ops and resolves the
+			// system_key from the alert labels (POST) or the silence matchers
+			// (PUT/DELETE). RBAC stays on `systems`: read:systems for GET,
+			// manage:systems for POST/PUT/DELETE.
+			alertsGroup.GET("/silences", methods.GetAlertSilences)                  // List active+pending silences across the caller's hierarchy
+			alertsGroup.POST("/silences", methods.CreateAlertSilence)               // Mute an alert (body: { fingerprint, end_at, comment, duration_minutes? })
+			alertsGroup.GET("/silences/:silence_id", methods.GetAlertSilence)       // Get a single silence (requires ?organization_id=)
+			alertsGroup.PUT("/silences/:silence_id", methods.UpdateAlertSilence)    // Update a silence's end time / comment (requires ?organization_id=)
+			alertsGroup.DELETE("/silences/:silence_id", methods.DeleteAlertSilence) // Unmute (requires ?organization_id=)
 
 			// Configuration management (per-org layered model) — gated on the
 			// dedicated `alerts` resource. GET → read:alerts, POST/DELETE → manage:alerts.
