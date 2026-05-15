@@ -8,7 +8,7 @@ import {
   getAlertSummary,
   isAlertSilenced,
   type Alert,
-} from './alerting'
+} from './alerts'
 
 const baseAlert: Alert = {
   labels: {},

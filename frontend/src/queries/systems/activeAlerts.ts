@@ -1,7 +1,7 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { getSystemActiveAlerts } from '@/lib/alerting'
+import { getSystemActiveAlerts } from '@/lib/alerts'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { useRoute } from 'vue-router'

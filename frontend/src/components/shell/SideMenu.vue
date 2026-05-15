@@ -21,7 +21,7 @@ import {
   faBuilding as fasBuilding,
   faUserGroup as fasUserGroup,
   faServer as fasServer,
-  faBell,
+  faWarning,
 } from '@fortawesome/free-solid-svg-icons'
 import { faGridOne as fasGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import {
@@ -74,6 +74,15 @@ const navigation = computed(() => {
     })
   }
 
+  if (loginStore.isOwner) {
+    menuItems.push({
+      name: 'alerts.alerts_title',
+      to: 'alerts',
+      solidIcon: faWarning,
+      lightIcon: faWarning,
+    })
+  }
+
   if (canReadApplications()) {
     menuItems.push({
       name: 'applications.title',
@@ -116,15 +125,6 @@ const navigation = computed(() => {
       to: 'users',
       solidIcon: fasUserGroup,
       lightIcon: falUserGroup,
-    })
-  }
-
-  if (loginStore.isOwner) {
-    menuItems.push({
-      name: 'alerting.alerting_title',
-      to: 'alerting',
-      solidIcon: faBell,
-      lightIcon: faBell,
     })
   }
 
