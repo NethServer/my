@@ -1,10 +1,10 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { getSystemAlertHistory, ALERT_HISTORY_KEY } from '@/lib/alerting'
+import { getSystemAlertHistory, ALERT_HISTORY_KEY } from '@/lib/alerts'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
-import { ALERT_HISTORY_TABLE_ID } from '@/lib/alerting'
+import { ALERT_HISTORY_TABLE_ID } from '@/lib/alerts'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
