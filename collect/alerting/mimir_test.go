@@ -40,6 +40,7 @@ func TestBuildSystemAlertContext(t *testing.T) {
 		"system_type":       "ns8",
 		"system_fqdn":       "web-01.example.com",
 		"system_ipv4":       "192.0.2.10",
+		"organization_id":   "org-1",
 		"organization_name": "Acme Corp",
 		"organization_vat":  "IT00000000001",
 		"organization_type": "customer",

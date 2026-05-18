@@ -124,6 +124,7 @@ func BuildSystemAlertContext(metadata SystemAlertMetadata) *SystemAlertContext {
 		"system_type":       metadata.SystemType,
 		"system_fqdn":       metadata.SystemFQDN,
 		"system_ipv4":       metadata.SystemIPv4,
+		"organization_id":   metadata.OrganizationID,
 		"organization_name": metadata.OrganizationName,
 		"organization_vat":  metadata.OrganizationVAT,
 		"organization_type": metadata.OrganizationType,
