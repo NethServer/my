@@ -392,10 +392,11 @@ components:
           description: |
             Alert labels. Always includes server-stamped identity labels
             (`system_id`, `system_key`, `system_name`, `system_type`,
-            `system_fqdn`, `system_ipv4`, `organization_name`,
-            `organization_vat`, `organization_type`) plus the alert's own
-            labels (`alertname`, `severity`, ...). Use `system_id` to link
-            to the system detail page (/systems/:id).
+            `system_fqdn`, `system_ipv4`, `organization_id`,
+            `organization_name`, `organization_vat`, `organization_type`)
+            plus the alert's own labels (`alertname`, `severity`, ...). Use
+            `system_id` to link to the system detail page (/systems/:id) and
+            `organization_id` to link to the organization.
           example:
             alertname: "DiskFilling"
             severity: "warning"
@@ -403,6 +404,10 @@ components:
             system_key: "NETH-FBB2-1A6E-7CAD-44A4-A772-B3EE-F0F6-F371"
             system_name: "cust1-sys-A"
             system_type: "ns8"
+            organization_id: "org-1a2b3c4d"
+            organization_name: "Test Customer"
+            organization_type: "customer"
+            organization_vat: "123456789012"
         annotations:
           type: object
           additionalProperties:

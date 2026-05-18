@@ -499,32 +499,35 @@ func (c *Client) ListUsersInOrg(orgID string) ([]struct{ LogtoID, Email string }
 	return out, nil
 }
 
-// CreateSystem creates a system under an org. Returns the system_key.
-func (c *Client) CreateSystem(name, orgID string) (string, error) {
+// CreateSystem creates a system under an org. Returns the system_key and the
+// full system_secret token (my_<public>.<secret>), the latter only ever
+// returned by the API at creation time.
+func (c *Client) CreateSystem(name, orgID string) (key, secret string, err error) {
 	payload := map[string]interface{}{
 		"name":            name,
 		"organization_id": orgID,
 	}
 	r, err := c.api("POST", "/systems", payload)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if r.status >= 400 {
-		return "", fmt.Errorf("create system failed (%d): %s", r.status, r.body)
+		return "", "", fmt.Errorf("create system failed (%d): %s", r.status, r.body)
 	}
 	var resp struct {
 		Data struct {
-			SystemKey string `json:"system_key"`
-			ID        string `json:"id"`
+			SystemKey    string `json:"system_key"`
+			SystemSecret string `json:"system_secret"`
+			ID           string `json:"id"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(r.body, &resp); err != nil {
-		return "", err
+		return "", "", err
 	}
 	if resp.Data.SystemKey == "" {
-		return "", fmt.Errorf("no system_key in response: %s", r.body)
+		return "", "", fmt.Errorf("no system_key in response: %s", r.body)
 	}
-	return resp.Data.SystemKey, nil
+	return resp.Data.SystemKey, resp.Data.SystemSecret, nil
 }
 
 func (c *Client) ResetPassword(userID, password string) error {
