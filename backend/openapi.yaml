@@ -10364,10 +10364,25 @@ paths:
             examples:
               ExplicitEndAt:
                 summary: Silence until a specific date/time
+                description: |
+                  When `end_at` is set, the silence expires at that moment
+                  regardless of `duration_minutes`. The backend resolves the
+                  alert by `fingerprint` inside the tenant given by
+                  `?organization_id=`, extracts `system_key` from its labels,
+                  and creates the silence.
                 value:
                   fingerprint: "0a9d04bb6eed523f"
                   comment: "silenced during maintenance window"
                   end_at: "2026-05-12T09:16:36Z"
+              DurationBased:
+                summary: Silence for the next 60 minutes
+                description: |
+                  Without `end_at`, `duration_minutes` applies. If both are
+                  omitted, the silence defaults to 60 minutes from creation.
+                value:
+                  fingerprint: "0a9d04bb6eed523f"
+                  comment: "investigating"
+                  duration_minutes: 60
       responses:
         '200':
           description: Alert silenced successfully
@@ -10388,6 +10403,19 @@ paths:
                       silence_id:
                         type: string
                         example: "d9f91c6e-1b33-484e-befa-bfb41020e178"
+              examples:
+                Created:
+                  summary: Silence created
+                  description: |
+                    `silence_id` is the Alertmanager-assigned UUID; use it to
+                    look up, update, or delete the silence later. The
+                    corresponding `silenced` event is appended to the alert's
+                    activity timeline (`GET /alerts/activity/{fingerprint}`).
+                  value:
+                    code: 200
+                    message: "alert silenced successfully"
+                    data:
+                      silence_id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -10458,6 +10486,38 @@ paths:
                               system_key:
                                 type: string
                                 example: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+              examples:
+                ActiveSilence:
+                  summary: Silence found and active
+                  description: |
+                    Same `AlertmanagerSilence` shape as the per-system
+                    endpoint, plus `organization_id` (the tenant that owns the
+                    silence) and `system_key` (extracted from the matchers).
+                  value:
+                    code: 200
+                    message: "silence retrieved successfully"
+                    data:
+                      silence:
+                        id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
+                        organization_id: "m4m3mdjdiizs"
+                        system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                        matchers:
+                          - name: "system_key"
+                            value: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                            isRegex: false
+                          - name: "alertname"
+                            value: "HighCPUUsage"
+                            isRegex: false
+                          - name: "severity"
+                            value: "warning"
+                            isRegex: false
+                        startsAt: "2026-05-12T08:16:36Z"
+                        endsAt: "2026-05-12T09:16:36Z"
+                        updatedAt: "2026-05-12T08:16:36Z"
+                        createdBy: "amelia.foster"
+                        comment: "silenced during maintenance window"
+                        status:
+                          state: "active"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -10505,6 +10565,17 @@ paths:
                   type: string
                   format: date-time
                   example: "2026-05-12T12:16:36Z"
+            examples:
+              ExtendEndTime:
+                summary: Extend the silence by 3 more hours
+                description: |
+                  Alertmanager treats an update as "create a new silence with
+                  the same matchers and start_at, then drop the old one", so
+                  the response carries a new `silence_id`. The activity
+                  timeline records this as a `silence_updated` event.
+                value:
+                  comment: "extended for maintenance window"
+                  end_at: "2026-05-12T12:16:36Z"
       responses:
         '200':
           description: Silence updated successfully
@@ -10525,6 +10596,18 @@ paths:
                       silence_id:
                         type: string
                         example: "f1e1c2a4-7e57-4b1a-aaa0-2b96c8b5a3aa"
+              examples:
+                Updated:
+                  summary: New silence id after update
+                  description: |
+                    The `silence_id` differs from the one passed in the path:
+                    Alertmanager replaced the silence under the hood while
+                    preserving its matchers and start time.
+                  value:
+                    code: 200
+                    message: "silence updated successfully"
+                    data:
+                      silence_id: "f1e1c2a4-7e57-4b1a-aaa0-2b96c8b5a3aa"
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -10572,6 +10655,16 @@ paths:
                   message:
                     type: string
                     example: "silence disabled successfully"
+              examples:
+                Disabled:
+                  summary: Silence removed
+                  description: |
+                    The silence is deleted from Alertmanager but stays
+                    referenced in the alert's activity timeline as an
+                    `unsilenced` event (`GET /alerts/activity/{fingerprint}`).
+                  value:
+                    code: 200
+                    message: "silence disabled successfully"
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
